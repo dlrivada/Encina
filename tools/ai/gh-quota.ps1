@@ -11,6 +11,9 @@
 #   Get-GhGraphQLQuota [-MaxAgeSeconds 60]   -> { Remaining; ResetAt (UTC DateTime); ReadAtUtc } or $null (unknown)
 #   Wait-GhGraphQLQuota -Caller <s> [-MinRemaining 200] [-NoWait]   -> $true when a GraphQL call may proceed
 #   Test-GhGraphQLLow [-MinRemaining 200]    -> $true when the known remaining is below the threshold
+#   Get-GhRateLimitKind -Text <failed gh output>   -> 'none' | 'primary' | 'secondary' (the live quota decides, #3329)
+#   Invoke-GhRateLimitBackoff -Caller <s> -Kind primary|secondary [-Attempt 1]   -> seconds slept before a retry
+#   A low cached reading is confirmed by one live read before it is believed; a reading whose ResetAt has passed is never trusted.
 #   Write-GhQuotaUsage -Caller <s> -Operation <s> [-Api graphql|rest] [-Count 1]   -> usage.csv line
 #   Get-GhRepoLabelNames -Repo <owner/name>  -> label names over REST (throws on failure, never cached)
 #   Get-GhCheckBuckets -Repo <owner/name> -Sha <sha>   -> check runs + commit statuses of a head sha over REST
@@ -46,31 +49,46 @@ function Get-GhQuotaDirectory {
     return $dir
 }
 
-function Get-GhGraphQLQuota {
-    param([int]$MaxAgeSeconds = 60)
-    $cachePath = $null
+function Read-GhQuotaCache {
+    # The cached reading as { Remaining; ResetAt; ReadAtUtc; Source = 'cache' }, whatever its age, or $null when absent or unreadable.
     try {
         $cachePath = Join-Path (Get-GhQuotaDirectory) 'graphql-ratelimit.json'
-        if (Test-Path -LiteralPath $cachePath) {
-            $cached = Get-Content -LiteralPath $cachePath -Raw | ConvertFrom-Json
-            $readAt = [datetime]::Parse([string]$cached.ReadAtUtc, [cultureinfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
-            if (((Get-Date).ToUniversalTime() - $readAt).TotalSeconds -lt $MaxAgeSeconds) {
-                return [pscustomobject]@{
-                    Remaining = [int]$cached.Remaining
-                    ResetAt   = [datetime]::Parse([string]$cached.ResetAt, [cultureinfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
-                    ReadAtUtc = $readAt
-                }
-            }
+        if (-not (Test-Path -LiteralPath $cachePath)) { return $null }
+        $cached = Get-Content -LiteralPath $cachePath -Raw | ConvertFrom-Json
+        $styles = [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal
+        return [pscustomobject]@{
+            Remaining = [int]$cached.Remaining
+            ResetAt   = [datetime]::Parse([string]$cached.ResetAt, [cultureinfo]::InvariantCulture, $styles)
+            ReadAtUtc = [datetime]::Parse([string]$cached.ReadAtUtc, [cultureinfo]::InvariantCulture, $styles)
+            Source    = 'cache'
         }
     }
-    catch { }   # an unreadable cache is a cache miss
+    catch { return $null }   # an unreadable cache is a cache miss
+}
+
+function Clear-GhGraphQLQuotaCache {
+    # Forgets the cached reading, so the next read goes to GitHub. Used when a call proved the cached number wrong.
+    try { Remove-Item -LiteralPath (Join-Path (Get-GhQuotaDirectory) 'graphql-ratelimit.json') -Force -ErrorAction SilentlyContinue } catch { }
+}
+
+function Get-GhGraphQLQuota {
+    # A cached reading is trusted only while it is younger than MaxAgeSeconds, not from the future and its ResetAt has not
+    # passed (a window that already reset says nothing about the new one, #3329). Source tells 'cache' from 'live'.
+    param([int]$MaxAgeSeconds = 60)
+    $cachePath = $null
+    $cached = Read-GhQuotaCache
+    if ($null -ne $cached) {
+        $now = (Get-Date).ToUniversalTime()
+        $age = ($now - $cached.ReadAtUtc).TotalSeconds
+        if ($age -ge 0 -and $age -lt $MaxAgeSeconds -and $cached.ResetAt -gt $now) { return $cached }
+    }
     try {
         $r = Invoke-GhQuotaGh @('api', 'graphql', '-f', 'query={ rateLimit { remaining resetAt } }')
         if ($r.Code -ne 0) { return $null }
         $rl = ($r.Stdout | ConvertFrom-Json).data.rateLimit
         if ($null -eq $rl -or $null -eq $rl.remaining) { return $null }
         $reset = [datetime]::Parse([string]$rl.resetAt, [cultureinfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
-        $quota = [pscustomobject]@{ Remaining = [int]$rl.remaining; ResetAt = $reset; ReadAtUtc = (Get-Date).ToUniversalTime() }
+        $quota = [pscustomobject]@{ Remaining = [int]$rl.remaining; ResetAt = $reset; ReadAtUtc = (Get-Date).ToUniversalTime(); Source = 'live' }
         try {
             if (-not $cachePath) { $cachePath = Join-Path (Get-GhQuotaDirectory) 'graphql-ratelimit.json' }
             [pscustomobject]@{
@@ -85,10 +103,59 @@ function Get-GhGraphQLQuota {
     catch { return $null }
 }
 
+function Get-GhGraphQLQuotaConfirmed {
+    # The reading a caller may act on. A low reading that came from the cache is confirmed by one live read before it is
+    # believed (#3329: a stale low cache blocked 19 project additions while the real quota was about 3500). When the live
+    # read itself fails the cached low reading stands: a failed read is inconclusive, and its ResetAt is still in the future.
+    param([int]$MaxAgeSeconds = 60, [int]$MinRemaining = 200)
+    $q = Get-GhGraphQLQuota -MaxAgeSeconds $MaxAgeSeconds
+    if ($null -ne $q -and $q.Source -eq 'cache' -and $q.Remaining -lt $MinRemaining) {
+        $live = Get-GhGraphQLQuota -MaxAgeSeconds 0
+        if ($null -ne $live) { return $live }
+    }
+    return $q
+}
+
 function Test-GhGraphQLLow {
     param([int]$MinRemaining = 200)
-    $q = Get-GhGraphQLQuota
+    $q = Get-GhGraphQLQuotaConfirmed -MinRemaining $MinRemaining
     return ($null -ne $q -and $q.Remaining -lt $MinRemaining)
+}
+
+function Get-GhRateLimitKind {
+    # Classifies a failed gh call (#3329). 'none' when its text is not a rate-limit message. Otherwise the live quota decides,
+    # because GitHub words the primary and the secondary limit alike ("API rate limit already exceeded"): a quota below
+    # MinRemaining (or a quota read that fails too) is 'primary'; a healthy quota with a rate-limit refusal is 'secondary'
+    # (the abuse limit on content-creating mutations and bursts), which needs a back-off, not a wait for resetAt.
+    param([AllowEmptyString()][string]$Text, [int]$MinRemaining = 200)
+    if ($Text -notmatch '(?i)rate limit|abuse detection|HTTP 429\b') { return 'none' }
+    $q = Get-GhGraphQLQuota -MaxAgeSeconds 0
+    if ($null -eq $q -or $q.Remaining -lt $MinRemaining) { return 'primary' }
+    return 'secondary'
+}
+
+function Invoke-GhRateLimitBackoff {
+    # Sleeps before a retry after Get-GhRateLimitKind said 'primary' or 'secondary' and returns the seconds slept.
+    # primary: until the cached resetAt + 5 s (at most 3700 s), else BaseSeconds; the cache is dropped, it was wrong.
+    # secondary: BaseSeconds * 2^(Attempt-1), at most 600 s. ENCINA_GH_QUOTA_BACKOFF_SECONDS overrides the sleep (tests).
+    param(
+        [Parameter(Mandatory)][string]$Caller,
+        [Parameter(Mandatory)][ValidateSet('primary', 'secondary')][string]$Kind,
+        [int]$Attempt = 1,
+        [int]$BaseSeconds = 60
+    )
+    $seconds = if ($Kind -eq 'secondary') { [Math]::Min(600, $BaseSeconds * [Math]::Pow(2, [Math]::Max(0, $Attempt - 1))) } else { $BaseSeconds }
+    if ($Kind -eq 'primary') {
+        $cached = Read-GhQuotaCache
+        $untilReset = if ($null -ne $cached) { ($cached.ResetAt - (Get-Date).ToUniversalTime()).TotalSeconds + 5 } else { 0 }
+        if ($untilReset -gt 0) { $seconds = [Math]::Min(3700, $untilReset) }
+    }
+    Clear-GhGraphQLQuotaCache
+    if ($env:ENCINA_GH_QUOTA_BACKOFF_SECONDS) { $seconds = [int]$env:ENCINA_GH_QUOTA_BACKOFF_SECONDS }
+    $seconds = [int][Math]::Ceiling($seconds)
+    [Console]::Error.WriteLine("gh-quota: $Kind rate limit hit; $Caller backs off $seconds s (attempt $Attempt)")
+    if ($seconds -gt 0) { Start-Sleep -Seconds $seconds }
+    return $seconds
 }
 
 function Wait-GhGraphQLQuota {
@@ -100,7 +167,7 @@ function Wait-GhGraphQLQuota {
     $announced = $false
     $maxAge = 60
     while ($true) {
-        $q = Get-GhGraphQLQuota -MaxAgeSeconds $maxAge
+        $q = Get-GhGraphQLQuotaConfirmed -MaxAgeSeconds $maxAge -MinRemaining $MinRemaining
         if ($null -eq $q -or $q.Remaining -ge $MinRemaining) { return $true }
         if ($NoWait) { return $false }
         if (-not $announced) {

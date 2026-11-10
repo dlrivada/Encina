@@ -66,8 +66,9 @@ internal readonly record struct PropertyMaskingMetadata
     internal bool LogOnly { get; }
 
     /// <summary>
-    /// Whether the property is marked for log masking but cannot be masked (it is not a <see cref="string"/>).
-    /// The log context fails closed for such a property; the other contexts ignore it.
+    /// Whether the property is decorated with a masking attribute but cannot be masked (it is not a
+    /// <see cref="string"/>). Masking fails closed for such a property: in every context when it is
+    /// always-masked ([PII], [SensitiveData]), in the log context only when it is log-only ([MaskInLogs]).
     /// </summary>
     internal bool Unmaskable { get; }
 

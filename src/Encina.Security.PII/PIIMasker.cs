@@ -427,8 +427,9 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         return true;
     }
 
-    // Log-only properties are skipped outside the log context. In the log context a [MaskInLogs]
-    // value that cannot be masked (not a string) must not reach the log in clear: fail closed.
+    // Log-only properties are skipped outside the log context. A decorated value that cannot be masked
+    // (not a string) must never reach a response, audit record or log in clear: fail closed, whatever
+    // the value (null included). The message names the property and its type, never a value.
     private static bool SkipsContext(PropertyMaskingMetadata prop, bool logContextOnly)
     {
         if (prop.LogOnly && !logContextOnly)
@@ -439,10 +440,21 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         if (prop.Unmaskable)
         {
             throw new InvalidOperationException(
-                $"Property '{prop.Property.Name}' is marked [MaskInLogs] but is not a string and cannot be masked.");
+                $"Property '{prop.Property.Name}' of type '{prop.Property.DeclaringType?.Name}' is marked "
+                + $"[{DescribeAttribute(prop)}] but is not a string and cannot be masked.");
         }
 
         return false;
+    }
+
+    private static string DescribeAttribute(PropertyMaskingMetadata prop)
+    {
+        if (prop.LogOnly)
+        {
+            return "MaskInLogs";
+        }
+
+        return Attribute.IsDefined(prop.Property, typeof(Attributes.PIIAttribute), inherit: true) ? "PII" : "SensitiveData";
     }
 
     private string ResolveJsonPropertyName(PropertyMaskingMetadata prop) =>
@@ -482,12 +494,14 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         return result ?? obj;
     }
 
-    // An unmaskable [MaskInLogs] property only matters to the log context (it fails closed there); the
-    // response and audit contexts ignore it entirely, so a type decorated only that way is not copied.
+    // An unmaskable log-only ([MaskInLogs]) property only matters to the log context (it fails closed
+    // there); the response and audit contexts ignore it, so a type decorated only that way is not
+    // copied. An unmaskable always-masked ([PII], [SensitiveData]) property is kept in every context so
+    // that SkipsContext fails closed on it.
     private static PropertyMaskingMetadata[] ScanProperties(Type type, bool logContextOnly)
     {
         var properties = PIIPropertyScanner.GetProperties(type);
-        return logContextOnly ? properties : [.. properties.Where(p => !p.Unmaskable)];
+        return logContextOnly ? properties : [.. properties.Where(p => !(p.Unmaskable && p.LogOnly))];
     }
 
     private object MaskObjectViaJson(object obj, Type type, bool logContextOnly)

@@ -14,6 +14,12 @@ namespace Encina.Security.PII.Attributes;
 /// Common use cases include API keys, tokens, internal identifiers, passwords,
 /// and other confidential data that should not appear in logs or responses.
 /// </para>
+/// <para>
+/// Only <see cref="string"/> properties can be masked. A property that is not a string
+/// (for example <see cref="int"/>, <see cref="Guid"/>, a collection or a nested object) makes masking
+/// fail closed with an <see cref="InvalidOperationException"/> in every context, whatever its value;
+/// the value is never returned or logged unmasked.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>

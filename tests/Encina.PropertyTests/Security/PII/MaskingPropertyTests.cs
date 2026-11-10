@@ -247,6 +247,35 @@ public sealed class MaskingPropertyTests
 
     #endregion
 
+    #region Non-string decorated members fail closed
+
+    [Property(MaxTest = 100)]
+    public bool NonStringPiiMember_AnyValue_FailsClosedInEveryContext(int number, Guid reference, DateTime moment)
+    {
+        var masker = CreateMasker();
+        var dto = new NonStringPiiDto { Number = number, Reference = reference, Moment = moment };
+
+        return Throws(() => masker.MaskObject(dto))
+            && Throws(() => masker.MaskForAudit(dto))
+            && Throws(() => masker.MaskForAudit((object)dto))
+            && Throws(() => masker.MaskForLog(dto));
+    }
+
+    private static bool Throws(Action act)
+    {
+        try
+        {
+            act();
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    #endregion
+
     #region Helpers
 
     private static PIIMasker CreateMasker() =>
@@ -271,6 +300,19 @@ public sealed class MaskingPropertyTests
         public string TrackingId { get; set; } = string.Empty;
 
         public string OtherId { get; set; } = string.Empty;
+    }
+
+    private sealed class NonStringPiiDto
+    {
+        [PII(PIIType.Custom)]
+        public int Number { get; set; }
+
+        [SensitiveData]
+        public Guid Reference { get; set; }
+
+        [PII(PIIType.Custom)]
+        [MaskInLogs]
+        public DateTime Moment { get; set; }
     }
 
     private sealed class TestDto

@@ -99,7 +99,10 @@ public interface IPIIMasker
     /// method: they stay unmasked in responses. Use <see cref="MaskForLog{T}(T)"/> for log output.
     /// </para>
     /// </remarks>
-    /// <exception cref="InvalidOperationException">Masking failed.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Masking failed, or a property decorated with <see cref="Attributes.PIIAttribute"/> or
+    /// <see cref="Attributes.SensitiveDataAttribute"/> is not a <see cref="string"/> and cannot be masked.
+    /// </exception>
     /// <exception cref="System.Text.Json.JsonException">The object could not be serialized or deserialized.</exception>
     /// <example>
     /// <code>
@@ -139,7 +142,11 @@ public interface IPIIMasker
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="obj"/> is <c>null</c>.</exception>
-    /// <exception cref="InvalidOperationException">Masking failed.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Masking failed, or a property decorated with <see cref="Attributes.PIIAttribute"/>,
+    /// <see cref="Attributes.SensitiveDataAttribute"/> or <see cref="Attributes.MaskInLogsAttribute"/>
+    /// is not a <see cref="string"/> and cannot be masked.
+    /// </exception>
     /// <exception cref="System.Text.Json.JsonException">The object could not be serialized or deserialized.</exception>
     T MaskForLog<T>(T obj) where T : class;
 }

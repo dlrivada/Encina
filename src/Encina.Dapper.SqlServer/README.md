@@ -233,6 +233,24 @@ services.AddEncinaDapper(connectionString, config =>
 
 `DeadLetterStoreDapper` needs a connection that derives from `DbConnection` (`SqlConnection` does). The six filter-key columns use the binary collation `Latin1_General_100_BIN2`, so comparisons are case-sensitive. Guide: [How to enable the persistent dead letter queue](../../docs/features/dead-letter-queue.md).
 
+## Break-the-glass store
+
+Set `MessagingConfiguration.UseBreakTheGlassStore` to keep break-the-glass elevations and the review queue in SQL Server, so they survive a restart and are shared by every host. The flag is opt-in and needs the `Encina.Security.BreakTheGlass` package (`AddEncinaBreakTheGlass`).
+
+```csharp
+services.AddEncinaBreakTheGlass(options => { /* see Encina.Security.BreakTheGlass */ });
+services.AddEncinaDapper(connectionString, config =>
+{
+    config.UseBreakTheGlassStore = true;
+});
+```
+
+When the flag is on, `AddEncinaDapper` removes the in-memory default `IBreakTheGlassStore` and registers `BreakTheGlassStoreDapper` (scoped) with `TryAdd`, so the database store wins in any registration order and an `IBreakTheGlassStore` your application registered itself is kept.
+
+Create the table before first use by running `Scripts/030_CreateBreakTheGlassElevationsTable.sql` (in this package's `Scripts` folder, next to the other numbered scripts). `Scripts/000_CreateAllTables.sql` contains the same DDL, and the `Encina.ADO.SqlServer` package ships the same script. The key columns (`TenantId`, `UserId`, `SubjectId`, `Scope`, `CloseReason`, `ReviewedByUserId`) use the binary collation `Latin1_General_100_BIN2`, so keys compare case-sensitively.
+
+Writes run on a connection that is independent of the business transaction, so a revoke, a review or a sweeper update survives a rollback of the request that issued it. This is the same mechanism the inbox uses ([ADR-048](../../docs/architecture/adr/048-inbox-record-vs-business-transaction.md)); it needs a connection that implements `ICloneable` (`SqlConnection` does), and otherwise the write returns a `Left`.
+
 ## Advanced Configuration
 
 ### Custom Table Names

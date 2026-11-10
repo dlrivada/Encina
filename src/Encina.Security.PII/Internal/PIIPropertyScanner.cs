@@ -54,31 +54,9 @@ internal static class PIIPropertyScanner
 
         foreach (var property in properties)
         {
-            if (!property.CanRead)
-            {
-                continue;
-            }
-
-            if (property.PropertyType != typeof(string))
-            {
-                // A log-only attribute on a value that cannot be masked must not be dropped silently:
-                // the log context fails closed on it.
-                if (property.GetCustomAttribute<MaskInLogsAttribute>(inherit: true) is { } unmaskableAttr)
-                {
-                    piiProperties.Add(new PropertyMaskingMetadata(
-                        property, PIIType.Custom, unmaskableAttr.Mode, pattern: null, replacement: null,
-                        logOnly: true, setter: null, unmaskable: true));
-                }
-
-                continue;
-            }
-
-            // A property without a usable setter (get-only) is still PII: it is kept and the masker
-            // fails closed when the masked value does not take effect on the copy.
-            var setter = CompileSetter(type, property);
-
-            var metadata = ResolveMetadata(
-                property, setter, classAttribute, classSensitiveAttribute, classLogOnlyAttribute);
+            var metadata = property.CanRead
+                ? ResolveProperty(type, property, classAttribute, classSensitiveAttribute, classLogOnlyAttribute)
+                : null;
             if (metadata is not null)
             {
                 piiProperties.Add(metadata.Value);
@@ -86,6 +64,28 @@ internal static class PIIPropertyScanner
         }
 
         return [.. piiProperties];
+    }
+
+    private static PropertyMaskingMetadata? ResolveProperty(
+        Type type,
+        PropertyInfo property,
+        PIIAttribute? classAttribute,
+        SensitiveDataAttribute? classSensitiveAttribute,
+        MaskInLogsAttribute? classLogOnlyAttribute)
+    {
+        // A masking attribute on a value that cannot be masked must not be dropped silently:
+        // masking fails closed on it (in every context for [PII]/[SensitiveData], in the log
+        // context for [MaskInLogs]).
+        if (property.PropertyType != typeof(string))
+        {
+            return FromUnmaskable(property);
+        }
+
+        // A property without a usable setter (get-only) is still PII: it is kept and the masker
+        // fails closed when the masked value does not take effect on the copy.
+        var setter = CompileSetter(type, property);
+
+        return ResolveMetadata(property, setter, classAttribute, classSensitiveAttribute, classLogOnlyAttribute);
     }
 
     // Precedence: an always-masked attribute ([PII], [SensitiveData]) wins over the log-only
@@ -118,6 +118,36 @@ internal static class PIIPropertyScanner
             ? null
             : new PropertyMaskingMetadata(
                 property, PIIType.Custom, sensitiveAttr.Mode, pattern: null, replacement: null, logOnly: false, setter);
+    }
+
+    // A non-string property cannot be masked. The property-level always-masked attribute ([PII], then
+    // [SensitiveData]) wins over [MaskInLogs], as it does for strings, so the property is kept as
+    // unmaskable in every context; a property with only [MaskInLogs] is unmaskable in the log context.
+    // Class-level attributes never apply to non-string members.
+    private static PropertyMaskingMetadata? FromUnmaskable(PropertyInfo property)
+    {
+        var piiAttr = property.GetCustomAttribute<PIIAttribute>(inherit: true);
+        if (piiAttr is not null)
+        {
+            return new PropertyMaskingMetadata(
+                property, piiAttr.Type, piiAttr.Mode, piiAttr.Pattern, piiAttr.Replacement,
+                logOnly: false, setter: null, unmaskable: true);
+        }
+
+        var sensitiveAttr = property.GetCustomAttribute<SensitiveDataAttribute>(inherit: true);
+        if (sensitiveAttr is not null)
+        {
+            return new PropertyMaskingMetadata(
+                property, PIIType.Custom, sensitiveAttr.Mode, pattern: null, replacement: null,
+                logOnly: false, setter: null, unmaskable: true);
+        }
+
+        var logOnlyAttr = property.GetCustomAttribute<MaskInLogsAttribute>(inherit: true);
+        return logOnlyAttr is null
+            ? null
+            : new PropertyMaskingMetadata(
+                property, PIIType.Custom, logOnlyAttr.Mode, pattern: null, replacement: null,
+                logOnly: true, setter: null, unmaskable: true);
     }
 
     private static PropertyMaskingMetadata? FromLogOnly(

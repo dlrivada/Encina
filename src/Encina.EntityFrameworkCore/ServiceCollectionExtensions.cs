@@ -7,6 +7,7 @@ using Encina.Database;
 using Encina.DomainModeling;
 using Encina.DomainModeling.Auditing;
 using Encina.EntityFrameworkCore.Auditing;
+using Encina.EntityFrameworkCore.BreakTheGlass;
 using Encina.EntityFrameworkCore.BulkOperations;
 using Encina.EntityFrameworkCore.Caching;
 using Encina.EntityFrameworkCore.DeadLetter;
@@ -36,6 +37,7 @@ using Encina.Messaging.Transactions;
 using Encina.Modules.Isolation;
 using Encina.Security.ABAC.Persistence;
 using Encina.Security.Audit;
+using Encina.Security.BreakTheGlass;
 using Encina.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -218,6 +220,7 @@ public static class ServiceCollectionExtensions
         RegisterSoftDeleteInterceptor(services, config);
         RegisterOperationAuditStore(services, config);
         RegisterReadAuditStore(services, config);
+        RegisterBreakTheGlassStore<TDbContext>(services, config);
         RegisterAnonymization(services, config);
         RegisterABACPolicyStore(services, config);
         RegisterTemporalTables(services, config);
@@ -270,7 +273,7 @@ public static class ServiceCollectionExtensions
             AutoAssignTenantId = config.TenancyOptions.AutoAssignTenantId,
             ValidateTenantOnSave = config.TenancyOptions.ValidateTenantOnSave,
             UseQueryFilters = config.TenancyOptions.UseQueryFilters,
-            ThrowOnMissingTenantContext = config.TenancyOptions.ThrowOnMissingTenantContext
+            ThrowOnMissingTenantContext = config.TenancyOptions.RequireTenantContext
         };
         services.AddSingleton(Options.Create(efCoreTenancyOptions));
 
@@ -470,6 +473,33 @@ public static class ServiceCollectionExtensions
 
         // Register read audit trail store (Encina.Security.Audit)
         services.AddScoped<IReadAuditStore, ReadAuditStoreEF>();
+    }
+
+    /// <summary>
+    /// Registers the break-the-glass elevation store when
+    /// <see cref="MessagingConfiguration.UseBreakTheGlassStore"/> is enabled.
+    /// </summary>
+    /// <remarks>
+    /// The store writes through <c>IDbContextFactory&lt;TDbContext&gt;</c>, which the application registers with
+    /// <c>AddDbContextFactory</c>: building a provider with scope validation fails when it is missing, because the store's
+    /// constructor requires it. The in-memory default is removed so the database store wins in any registration order, and a
+    /// store the application registered itself is never overridden.
+    /// </remarks>
+    private static void RegisterBreakTheGlassStore<TDbContext>(IServiceCollection services, MessagingConfiguration config)
+        where TDbContext : DbContext
+    {
+        if (!config.UseBreakTheGlassStore) return;
+
+        for (var i = services.Count - 1; i >= 0; i--)
+        {
+            if (services[i].ServiceType == typeof(IBreakTheGlassStore) &&
+                services[i].ImplementationType == typeof(InMemoryBreakTheGlassStore))
+            {
+                services.RemoveAt(i);
+            }
+        }
+
+        services.TryAddScoped<IBreakTheGlassStore, BreakTheGlassStoreEF<TDbContext>>();
     }
 
     /// <summary>

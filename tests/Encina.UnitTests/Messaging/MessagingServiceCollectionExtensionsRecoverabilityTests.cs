@@ -69,7 +69,7 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     {
         var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = true });
 
-        services.ShouldContain(sd => sd.ServiceType == typeof(RecoverabilityOptions));
+        services.ShouldContain(sd => sd.ServiceType == typeof(IConfigureOptions<RecoverabilityOptions>));
         services.ShouldContain(sd => sd.ServiceType == typeof(IErrorClassifier));
         services.ShouldContain(sd =>
             sd.ServiceType == typeof(IPipelineBehavior<,>) &&
@@ -90,18 +90,21 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
     }
 
     [Fact]
-    public void AddMessagingServices_UseRecoverabilityTrueWithDefaults_DoesNotRegisterDelayedRetryProcessorNorScheduler()
+    public void AddMessagingServices_UseRecoverabilityTrueWithDefaults_ProcessorAndCheckIdleAndNoScheduler()
     {
-        // Delayed retries are off by default (#2248): only the (no-op) startup check is registered.
+        // Delayed retries are off by default (#2248): the check and the processor are registered but idle,
+        // and the scheduler resolves to null.
         var services = AddMessagingServices(new MessagingConfiguration { UseRecoverability = true });
+        services.AddLogging();
 
-        services.ShouldNotContain(sd =>
-            sd.ServiceType == typeof(IHostedService) &&
-            sd.ImplementationType == typeof(DelayedRetryProcessor));
-        services.ShouldNotContain(sd => sd.ServiceType == typeof(IDelayedRetryScheduler));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(IHostedService) &&
-            sd.ImplementationType == typeof(DelayedRetryStartupCheck));
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        scope.ServiceProvider.GetService<IDelayedRetryScheduler>().ShouldBeNull();
+        var hosted = provider.GetServices<IHostedService>().Select(h => h.GetType()).ToList();
+        hosted.ShouldContain(typeof(DelayedRetryStartupCheck));
+        hosted.ShouldContain(typeof(DelayedRetryProcessor));
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.EnableDelayedRetries.ShouldBeFalse();
     }
 
     [Fact]
@@ -119,6 +122,58 @@ public sealed class MessagingServiceCollectionExtensionsRecoverabilityTests
             .ToList();
         hosted.ShouldContain(typeof(DelayedRetryProcessor));
         hosted.IndexOf(typeof(DelayedRetryStartupCheck)).ShouldBeLessThan(hosted.IndexOf(typeof(DelayedRetryProcessor)));
+    }
+
+    [Fact]
+    public void AddMessagingServices_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
+    {
+        var config = new MessagingConfiguration { UseRecoverability = true };
+
+        var useFirst = AddMessagingServices(config);
+        var afterUse = Should.Throw<InvalidOperationException>(() => useFirst.AddEncinaRecoverability());
+
+        var addFirst = new ServiceCollection();
+        addFirst.AddEncinaRecoverability();
+        var afterAdd = Should.Throw<InvalidOperationException>(() => addFirst.AddMessagingServices<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            FakeSagaStore, StubSagaFactory,
+            FakeScheduledMessageStore, StubScheduledFactory,
+            StubOutboxProcessor>(config));
+
+        foreach (var message in new[] { afterUse.Message, afterAdd.Message })
+        {
+            message.ShouldContain("RecoverabilityPipelineBehavior");
+            message.ShouldContain("ADR-050");
+            message.ShouldContain("UseRecoverability");
+        }
+    }
+
+    [Fact]
+    public void AddMessagingServicesCore_UseRecoverabilityNextToAddEncinaRecoverability_ThrowsInBothOrders()
+    {
+        var config = new MessagingConfiguration { UseRecoverability = true };
+
+        var useFirst = new ServiceCollection();
+        useFirst.AddMessagingServicesCore<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            StubOutboxProcessor>(config);
+        var afterUse = Should.Throw<InvalidOperationException>(() => useFirst.AddEncinaRecoverability());
+
+        var addFirst = new ServiceCollection();
+        addFirst.AddEncinaRecoverability();
+        var afterAdd = Should.Throw<InvalidOperationException>(() => addFirst.AddMessagingServicesCore<
+            FakeOutboxStore, FakeOutboxMessageFactory,
+            FakeInboxStore, StubInboxFactory,
+            StubOutboxProcessor>(config));
+
+        foreach (var message in new[] { afterUse.Message, afterAdd.Message })
+        {
+            message.ShouldContain("RecoverabilityPipelineBehavior");
+            message.ShouldContain("ADR-050");
+            message.ShouldContain("UseRecoverability");
+        }
     }
 
     #region Stub Types (minimal implementations for generic constraints)

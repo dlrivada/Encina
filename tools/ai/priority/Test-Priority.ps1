@@ -281,6 +281,30 @@ Assert-True ($labelRemoved.flags -notcontains 'urgent') 'resume: urgent flag is 
 $labelAdded = New-ScoredEntry -IssueRecord $urgentIssue -Overrides @() -PreviousJudged $previousEntry
 Assert-True ($labelAdded.urgent -eq $true) 'resume: urgent label added since the previous entry sets urgency'
 Assert-Equal ($labelAdded.baseTotal + 100) $labelAdded.total 'resume: added urgent label adds 100 to the resumed total'
+# --- p0-mandatory label bonus (#3386) ------------------------------------------------------------
+Assert-Equal 50 (Get-PriorityP0Bonus -Labels @('bug', 'p0-mandatory')) 'p0: label p0-mandatory gives the 50 bonus'
+Assert-Equal 50 (Get-PriorityP0Bonus -Labels 'P0-Mandatory') 'p0: match is case-insensitive and a single string works'
+Assert-Equal 0 (Get-PriorityP0Bonus -Labels @('p0', 'not-p0-mandatory')) 'p0: only the exact label counts'
+Assert-Equal 0 (Get-PriorityP0Bonus -Labels $null) 'p0: null labels give no bonus'
+Assert-Equal 50 (Get-PriorityLabelBonus -Labels @('p0-mandatory')) 'p0: label bonus is 50 for p0-mandatory alone'
+Assert-Equal 100 (Get-PriorityLabelBonus -Labels @('urgent')) 'p0: label bonus is 100 for urgent alone'
+Assert-Equal 100 (Get-PriorityLabelBonus -Labels @('p0-mandatory', 'urgent')) 'p0: urgent wins over p0-mandatory, not 150'
+Assert-Equal 0 (Get-PriorityLabelBonus -Labels @('bug')) 'p0: no bonus label gives 0'
+
+$p0Issue = [ordered]@{} + $urgentBase
+$p0Issue.labels = @('bug', 'p0-mandatory')
+$bothIssue = [ordered]@{} + $urgentBase
+$bothIssue.labels = @('p0-mandatory', 'urgent')
+$p0Entry = New-ScoredEntry -IssueRecord $p0Issue -Overrides @() -PreviousJudged $previousEntry
+$bothEntry = New-ScoredEntry -IssueRecord $bothIssue -Overrides @() -PreviousJudged $previousEntry
+Assert-Equal ($plainEntry.baseTotal + 50) $p0Entry.total 'p0: total = base + 50'
+Assert-True ($p0Entry.p0Mandatory -eq $true -and $p0Entry.urgent -eq $false) 'p0: p0Mandatory set, urgent not'
+Assert-True ($p0Entry.flags -contains 'p0-mandatory' -and $p0Entry.flags -notcontains 'urgent') 'p0: flag p0-mandatory added, no urgent flag'
+Assert-True ($plainEntry.p0Mandatory -eq $false) 'p0: a plain issue is not p0Mandatory'
+Assert-Equal ($plainEntry.baseTotal + 100) $bothEntry.total 'p0: both labels give base + 100, not 150'
+Assert-True ($bothEntry.urgent -eq $true -and $bothEntry.p0Mandatory -eq $true) 'p0: both labels keep both fields'
+Assert-Equal $plainEntry.baseTotal $p0Entry.baseTotal 'p0: baseTotal is the computed value'
+
 $boardUrgent = ConvertTo-BoardEntry ([hashtable]$urgentEntry)
 Assert-True ($boardUrgent.urgent -eq $true -and $boardUrgent.baseTotal -eq $urgentEntry.baseTotal) 'urgent: the board entry keeps urgent and baseTotal'
 

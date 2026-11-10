@@ -5,7 +5,7 @@
 # Applies only when tool_input.subagent_type is issue-worker or docs-writer (every other agent type passes),
 # except an issue-worker spawning its own docs-writer, which names no issue. The
 # target issue is the "Issue #<n>" that opens the first non-empty line of the prompt (the worker-brief fixed part starts with it). The title
-# and body are read with `gh api repos/dlrivada/Encina/issues/<n> --jq '{title: .title, body: .body}'` (REST, #2568; the executable can be
+# and body are read with `gh api repos/dlrivada/Encina/issues/<n> --jq '{title: .title, body: .body, labels: [(.labels // [])[] | .name]}'` (REST, #2568; the executable can be
 # overridden with ENCINA_ISSUE_GH, as in check-issue-template.ps1, so tests stub it); the template is picked by
 # the title prefix and read at run time from .github/ISSUE_TEMPLATE. The body must contain every level-2 header
 # of the template verbatim (case included) and in order. Closed issues are checked the same way.
@@ -18,6 +18,11 @@
 # "## Location" (technical-debt template) section lists, in its "- **File(s)**" bullet only, more distinct
 # backticked paths than $MaxFiles or than the brief declares. The hook cannot measure the real diff; the declaration is the contract and review
 # (adversarial-reviewer) compares it with git diff --shortstat.
+#
+# Size exception (#3336): when the issue carries the label size-exception-approved (the maintainer's decision; the PR size
+# CI gate honours the same label) the $MaxFiles-file limit does not reject and the hook says so on stdout. The line limit, the
+# 1-file minimum, the Size line format and the brief-versus-issue path count still apply. The label comes from the same REST
+# read as the title; a read without labels (lookup failure) is no exception, so the gate keeps rejecting.
 #
 # Fails closed: no "Issue #<n>", a gh failure, an unknown title prefix, an unreadable template or a missing
 # shared helper all deny. Exit code 2 blocks the call and shows stderr to Claude; an unreadable hook payload
@@ -82,7 +87,7 @@ try {
             param($ghExe, $n)
             try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch { }
             # REST read (#2568): the GraphQL-backed `issue view` fails when the GraphQL quota is exhausted, and this gate fails closed.
-            $out = (& $ghExe api "repos/dlrivada/Encina/issues/$n" --jq '{title: .title, body: .body}' 2>$null) -join "`n"
+            $out = (& $ghExe api "repos/dlrivada/Encina/issues/$n" --jq '{title: .title, body: .body, labels: [(.labels // [])[] | .name]}' 2>$null) -join "`n"
             [pscustomobject]@{ Code = $LASTEXITCODE; Out = $out }
         }
         if (Wait-Job $job -Timeout $limit) {
@@ -150,9 +155,11 @@ try {
         [Console]::Error.WriteLine("Blocked: the brief for a $subagent must state its size on exactly one line `"Size: <files> files, <lines> lines`" with nothing after `"lines`" (worker-brief skill, section 1 'Size rule'); a ready sub-issue is one worker PR: at most $MaxFiles files and $MaxLines changed lines (#2900).")
         exit 2
     }
+    $labelNames = @(@($issue.labels) | Where-Object { $_ -is [string] })
+    $sizeException = $labelNames -contains 'size-exception-approved'
     $declaredFiles = [bigint]::Parse($size.Groups['files'].Value)
     $declaredLines = [bigint]::Parse($size.Groups['lines'].Value)
-    if ($declaredFiles -lt 1 -or $declaredFiles -gt $MaxFiles -or $declaredLines -gt $MaxLines) {
+    if ($declaredFiles -lt 1 -or ($declaredFiles -gt $MaxFiles -and -not $sizeException) -or $declaredLines -gt $MaxLines) {
         [Console]::Error.WriteLine("Blocked: the brief for issue #$number declares $declaredFiles files and $declaredLines lines; a worker PR is at least 1 file, at most $MaxFiles files and $MaxLines changed lines. Decompose the issue into sub-issues of one package or provider each (EPIC #2845 working rule), then brief the sub-issue (#2900).")
         exit 2
     }
@@ -178,7 +185,7 @@ try {
             $item = [regex]::Match($line, '^[ \t]+(?:[-*]|\d+\.)[ \t]+' + $pathToken)
             if ($item.Success) { [void]$paths.Add($item.Groups['p'].Value) }
         }
-        if ($paths.Count -gt $MaxFiles) {
+        if ($paths.Count -gt $MaxFiles -and -not $sizeException) {
             [Console]::Error.WriteLine("Blocked: the issue lists $($paths.Count) files; decompose it (a worker PR is at most $MaxFiles files, EPIC #2845 working rule, #2900).")
             exit 2
         }
@@ -186,6 +193,9 @@ try {
             [Console]::Error.WriteLine("Blocked: the brief declares $declaredFiles files but the issue lists $($paths.Count); declare the real size or decompose the issue (#2900).")
             exit 2
         }
+    }
+    if ($sizeException -and $declaredFiles -gt $MaxFiles) {
+        [Console]::Out.WriteLine("Allowed: issue #$number carries size-exception-approved, so the brief may declare $declaredFiles files (limit $MaxFiles); the $MaxLines-line limit still applies (#3336).")
     }
     exit 0
 }

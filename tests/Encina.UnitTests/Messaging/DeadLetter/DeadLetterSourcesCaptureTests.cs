@@ -111,13 +111,13 @@ public sealed class DeadLetterSourcesCaptureTests
     }
 
     private static RecoverabilityPipelineBehavior<SampleCommand, int> RecoverabilityBehavior(DeadLetterCaptureHost host) => new(
-        new RecoverabilityOptions
+        Options.Create(new RecoverabilityOptions
         {
             ImmediateRetries = 1,
             ImmediateRetryDelay = TimeSpan.Zero,
             UseJitter = false,
             EnableDelayedRetries = false
-        },
+        }),
         NullLogger<RecoverabilityPipelineBehavior<SampleCommand, int>>.Instance,
         delayedRetryScheduler: null,
         timeProvider: host.Clock,

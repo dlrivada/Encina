@@ -71,7 +71,9 @@ jobs:
             async function handleIssue(eventIssue) {
               // The event payload is a snapshot: a queued run for a later event would otherwise judge stale labels.
               const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: eventIssue.number });
-              if (issue.state !== 'open') return;
+              // The issues event also fires for a pull request that gets a milestone or a label; labelling a pull request
+              // needs pull-requests: write and the completeness rule is for issues only (#3268).
+              if (issue.state !== 'open' || issue.pull_request) return;
 
               const missing = missingOf(issue);
               const hasTriage = labelNames(issue).includes(TRIAGE);

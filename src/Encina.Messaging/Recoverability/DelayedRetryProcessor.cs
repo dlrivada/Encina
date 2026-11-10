@@ -9,6 +9,7 @@ using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Messaging.Recoverability;
 
@@ -65,7 +66,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// </param>
     public DelayedRetryProcessor(
         IServiceScopeFactory scopeFactory,
-        RecoverabilityOptions options,
+        IOptions<RecoverabilityOptions> options,
         ILogger<DelayedRetryProcessor> logger,
         TimeProvider? timeProvider = null,
         DeadLetter.DeadLetterSourceCapture? deadLetterCapture = null)
@@ -75,7 +76,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
         ArgumentNullException.ThrowIfNull(logger);
 
         _scopeFactory = scopeFactory;
-        _options = options;
+        _options = options.Value;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _deadLetterCapture = deadLetterCapture;
@@ -84,6 +85,13 @@ public sealed class DelayedRetryProcessor : BackgroundService
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The processor is registered whatever the flag says (the options are only known at resolution): with
+        // delayed retries off it does no work.
+        if (!_options.EnableDelayedRetries)
+        {
+            return;
+        }
+
         DelayedRetryProcessorLog.ProcessorStarted(_logger);
 
         while (!stoppingToken.IsCancellationRequested)

@@ -21,8 +21,8 @@
       "reason": "Reflection-based property scanner; its branches are reached through unit tests and generated DTOs. The guard flag is not in defaultTests because the type is internal and has no ThrowIfNull, so there are no guard lines to cover.",
       "targets": { "unit": 95, "property": 70 },
       "justifications": {
-        "unit": "Every branch (property, class, log-only, precedence, non-string unmaskable, get-only) is reached through GetProperties by the scanner unit tests; only the ArgumentException catch of CompileSetter is unreachable with a plain DTO (measured 97%).",
-        "property": "Property tests run the scanner through MaskObject and MaskForLog on generated DTOs; the unmaskable and class-level log branches are covered by unit tests (measured 76%)."
+        "unit": "Every branch (property, class, log-only, precedence, non-string unmaskable for [PII], [SensitiveData] and [MaskInLogs], get-only) is reached through GetProperties by the scanner unit tests; only the ArgumentException catch of CompileSetter is unreachable with a plain DTO (measured 97%).",
+        "property": "Property tests run the scanner through MaskObject, MaskForAudit and MaskForLog on generated DTOs, including the FromUnmaskable branch for non-string [PII]/[SensitiveData] members (measured 80%); the get-only and class-level log branches are covered by unit tests."
       }
     },
     "Internal/PropertyMaskingMetadata.cs": {
@@ -30,8 +30,8 @@
       "reason": "Compiled property accessor metadata used by the scanner. The guard flag is not in defaultTests because the type is internal and has no ThrowIfNull, so there are no guard lines to cover.",
       "targets": { "unit": 90, "property": 70 },
       "justifications": {
-        "unit": "Constructor, GetValue and the throwing SetValue branch of the no-setter case are exercised by the scanner and masker unit tests (measured 91%).",
-        "property": "Property tests build the metadata through the scanner and read and set values on generated DTOs (measured 77%); the no-setter branch is covered by unit tests."
+        "unit": "Constructor, GetValue and the throwing SetValue branch of the no-setter case are exercised by the scanner and masker unit tests, including the always-masked unmaskable case (measured 92%).",
+        "property": "Property tests build the metadata through the scanner and read and set values on generated DTOs (measured 72%); the no-setter branch is covered by unit tests."
       }
     },
     "MaskingMode.cs": { "defaultTests": ["unit"], "reason": "Enum — no guards" },
@@ -56,11 +56,11 @@
     "PIIMasker.cs": {
       "defaultTests": ["unit", "guard", "property"],
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
-      "targets": { "unit": 90, "guard": 10, "property": 40 },
+      "targets": { "unit": 90, "guard": 20, "property": 50 },
       "justifications": {
-        "unit": "MaskForLog (option off, success, failure rethrow with EventId 8023) are executed by the log-context unit tests with the real masker (measured 93%).",
-        "guard": "Guard tests only exercise the ThrowIfNull lines of the public methods including MaskForLog (measured 11%), the rest of the masking engine is behaviour covered by unit tests.",
-        "property": "Property tests run the object-masking engine through MaskObject and MaskForLog with generated strings (measured 44%); the remaining lines are option and failure branches covered by unit tests."
+        "unit": "MaskForLog, the fail-closed SkipsContext branch for non-string [PII]/[SensitiveData]/[MaskInLogs] members in every context, and the log failure paths are executed by the unit tests with the real masker (measured 92%).",
+        "guard": "Guard tests execute the ThrowIfNull lines of every public method and the empty-input, pattern-masking and invalid-pattern fail-closed paths of Mask with the real masker (measured 21%); the rest of the masking engine is behaviour covered by unit tests.",
+        "property": "Property tests run the object-masking engine through MaskObject, MaskForAudit and MaskForLog with generated strings and with generated values of non-string decorated members that must fail closed (measured 54%); the remaining lines are option and failure branches covered by unit tests."
       }
     },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },

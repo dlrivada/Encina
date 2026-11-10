@@ -194,3 +194,32 @@ CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_Pending" ON "DeadLetterMessage
 CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_ExpiresAt" ON "DeadLetterMessages" ("ExpiresAtUtc");
 CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_CorrelationId" ON "DeadLetterMessages" ("CorrelationId");
 CREATE INDEX IF NOT EXISTS "IX_DeadLetterMessages_Tenant" ON "DeadLetterMessages" ("TenantId", "DeadLetteredAtUtc");
+
+-- =============================================
+-- BreakTheGlassElevations - Break-the-glass emergency access (same DDL as 030_CreateBreakTheGlassElevationsTable.sql)
+-- UX_BreakTheGlassElevations_ActiveKey lets only one Active elevation exist per tenant, user, subject and scope.
+-- =============================================
+CREATE TABLE IF NOT EXISTS "BreakTheGlassElevations" (
+    "ElevationId"         UUID           NOT NULL PRIMARY KEY,
+    "TenantId"            VARCHAR(128)   NULL,
+    "UserId"              VARCHAR(256)   NOT NULL,
+    "SubjectId"           VARCHAR(256)   NOT NULL,
+    "Scope"               VARCHAR(256)   NOT NULL,
+    "Justification"       VARCHAR(2000)  NOT NULL,
+    "OpenedAtUtc"         TIMESTAMPTZ    NOT NULL,
+    "ExpiresAtUtc"        TIMESTAMPTZ    NOT NULL,
+    "Status"              INTEGER        NOT NULL,
+    "ClosedAtUtc"         TIMESTAMPTZ    NULL,
+    "CloseReason"         VARCHAR(256)   NULL,
+    "ExpiryRecordedAtUtc" TIMESTAMPTZ    NULL,
+    "ReviewOutcome"       INTEGER        NULL,
+    "ReviewedByUserId"    VARCHAR(256)   NULL,
+    "ReviewedAtUtc"       TIMESTAMPTZ    NULL,
+    "ReviewNote"          VARCHAR(2000)  NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_BreakTheGlassElevations_ActiveKey"
+    ON "BreakTheGlassElevations" ((COALESCE("TenantId", '')), "UserId", "SubjectId", "Scope")
+    WHERE "Status" = 0;
+CREATE INDEX IF NOT EXISTS "IX_BreakTheGlassElevations_ReviewQueue" ON "BreakTheGlassElevations" ("TenantId", "ReviewOutcome", "OpenedAtUtc");
+CREATE INDEX IF NOT EXISTS "IX_BreakTheGlassElevations_Expiry" ON "BreakTheGlassElevations" ("Status", "ExpiresAtUtc");

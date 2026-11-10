@@ -17,6 +17,12 @@ namespace Encina.Security.PII.Attributes;
 /// The masking behavior can be customized via <see cref="Mode"/>, <see cref="Pattern"/>,
 /// and <see cref="Replacement"/> properties.
 /// </para>
+/// <para>
+/// Only <see cref="string"/> properties can be masked. A property that is not a string
+/// (for example <see cref="int"/>, <see cref="Guid"/>, a collection or a nested object) makes masking
+/// fail closed with an <see cref="InvalidOperationException"/> in every context, whatever its value;
+/// the value is never returned or logged unmasked.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>

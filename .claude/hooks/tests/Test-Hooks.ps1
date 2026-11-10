@@ -465,6 +465,77 @@ Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
 Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
 
+# #2892: a .ps1 is judged by where it writes, not by the src/ and tests/ words in its text. Each script is the
+# text of one scenario; $main is interpolated, every script variable is escaped with a backtick.
+$ps1Scripts = [ordered]@{
+    HereStringArtifacts = "`$dir = '$main\artifacts\issues\drafts'`n`$body = @'`nNew tests: tests/Encina.UnitTests/X.cs`nSource: src/Encina.MongoDB/Y.cs`n'@`nSet-Content -Path (Join-Path `$dir 'a.md') -Value `$body`n"
+    SrcLiteral          = "Set-Content -Path '$main\src\Encina\X.cs' -Value 'y'`n"
+    UnresolvedVariable  = "`$p = `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE`nSet-Content -Path `$p -Value 'src/ tests/'`n"
+    JoinPathSrc         = "`$root = '$main'`nSet-Content -Path (Join-Path (Join-Path `$root 'src') 'X.cs') -Value 'y'`n"
+    JoinPathArtifacts   = "`$root = '$main'`nSet-Content -Path (Join-Path `$root 'artifacts\a.md') -Value 'see src/ and tests/'`n"
+    RedirectTests       = "'y' > '$main\tests\X.cs'`n"
+    RedirectArtifacts   = "'see src/ and tests/' > '$main\artifacts\a.md'`n"
+    AddContentSrc       = "Add-Content -LiteralPath '$main\src\X.cs' -Value 'y'`n"
+    OutFileTests        = "'y' | Out-File -FilePath '$main\tests\X.cs'`n"
+    NewItemSrc          = "New-Item -ItemType File -Path '$main\src' -Name 'X.cs' | Out-Null`n"
+    NewItemArtifacts    = "New-Item -ItemType File -Path '$main\artifacts' -Name 'a.md' -Value 'src/ tests/' | Out-Null`n"
+    VariableAliasSrc    = "`$a = '$main\src\X.cs'`n`$b = `$a`nSet-Content `$b 'y'`n"
+    ConcatSrc           = "`$d = '$main\sr' + 'c'`nSet-Content (`$d + '\X.cs') 'y'`n"
+    IoFileSrc           = "[IO.File]::WriteAllText('$main\src\X.cs', 'y')`n"
+    CopyItemSrc         = "Copy-Item '$main\artifacts\a.md' '$main\src\X.cs'`n"
+    MoveItemTests       = "Move-Item -Path '$main\artifacts\a.md' -Destination '$main\tests\X.cs'`n"
+    DotDotSrc           = "Set-Content '$main\artifacts\..\src\X.cs' 'y'`n"
+    RelativeSrc         = "Set-Content 'src\X.cs' 'y'`n"
+    SplatSrc            = "`$h = @{ Path = '$main\src\X.cs'; Value = 'y' }`nSet-Content @h`n"
+    NestedLaunch        = "& '$main\artifacts\other.ps1'`n# mentions src/ and tests/`nSet-Content '$main\artifacts\a.md' 'y'`n"
+    InvokeExpression    = "`$c = 'Set-Content src/X.cs y'`nInvoke-Expression `$c`nSet-Content '$main\artifacts\a.md' 'src/'`n"
+    ForEachArtifacts    = "foreach (`$n in 'a','b') { Set-Content (Join-Path '$main\artifacts' `"`$n.md`") 'src/ tests/' }`n"
+    ForEachSrc          = "foreach (`$n in 'artifacts','src') { Set-Content (Join-Path '$main' `"`$n\X.cs`") 'y' }`n"
+    EnvReassigned       = "`$env:TEMP = '$main\src'`nSet-Content `"`$env:TEMP\X.cs`" 'y'`n"
+    ArrayPlus           = "Set-Content -Path (@('artifacts/a.txt') + 'src/y.cs') -Value 'y'`n"
+    ShadowedJoinPath    = "function Join-Path { 'src/x.cs' }`nSet-Content (Join-Path 'artifacts' 'x') 'y'`n"
+    JunctionThenWrite   = "New-Item -ItemType Junction -Path '$main\artifacts\lnk' -Value '$main\src'`nSet-Content '$main\artifacts\lnk\x.cs' 'y'`n"
+    MoveSourceSrc       = "Move-Item -Path '$main\src\Encina\Foo.cs' -Destination '$main\artifacts\Foo.cs'`n"
+    UnknownWithSrc      = "& 'Set-Content' 'src/x.cs' 'y'`n"
+    UnresolvedPlusGit   = "# writes under src/ when the variable is set`nSet-Content `$env:ENCINA_HOOK_TEST_UNSET_VARIABLE 'x'`ngit status`n"
+    # PR #3236 review threads: each script is wordless (no src/tests word) so only the target analysis can deny it.
+    NewObjectWordless   = "`$w = New-Object -TypeName System.IO.StreamWriter -ArgumentList ('s' + 'rc/X.cs')`n"
+    MoveSrcWordless     = "[IO.File]::Move(('$main\s' + 'rc\A.cs'), '$main\artifacts\A.cs')`n"
+    DirMoveSrcWordless  = "[IO.Directory]::Move(('$main\s' + 'rc\Dir'), '$main\artifacts\Dir')`n"
+    OpenWriteWordless   = "`$f = [IO.File]::Open(('$main\s' + 'rc\a.cs'), [IO.FileMode]::OpenOrCreate)`n"
+    OpenReadOnly        = "`$f = [IO.File]::Open('$main\src\a.cs', [IO.FileMode]::Open, [IO.FileAccess]::Read)`n"
+    EnvAccessor         = "Set-Content -Path ([Environment]::GetEnvironmentVariable('ENCINA_HOOK_TEST_OUT')) -Value 1`n"
+    # Modelled on tools/ai/priority/collect-issues.ps1: param()-bound output path, git call, no src/tests word.
+    ParamDrivenTool     = "param([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'), [string]`$Repo = 'dlrivada/Encina')`n`$outDir = Split-Path -Parent `$Out`nif (-not (Test-Path `$outDir)) { New-Item -ItemType Directory -Force -Path `$outDir | Out-Null }`n[ordered]@{ repo = `$Repo } | ConvertTo-Json | Set-Content -Path `$Out -Encoding utf8`n"
+    ParamDrivenMention  = "# Output goes next to the tests of the board.`nparam([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'))`nSet-Content -Path `$Out -Value 'x' -Encoding utf8`n"
+    WorkingDirectoryRel = "Set-Content 'x.cs' 'y'`n"
+}
+# B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
+$expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
+$ps1Scripts['ExpChainSrc'] = ($expLines -join "`n") + "`n"
+foreach ($shape in @(
+        @('Fmt', { param($n) "`$v$n = '{0}{0}' -f `$v$($n - 1)" }),
+        @('Join', { param($n) "`$v$n = Join-Path `$v$($n - 1) `$v$($n - 1)" }),
+        @('Combine', { param($n) "`$v$n = [IO.Path]::Combine(`$v$($n - 1), `$v$($n - 1))" }),
+        @('Replace', { param($n) "`$v$n = `$v$($n - 1).Replace('x', 'xx')" }))) {
+    $ps1Scripts["ExpChain$($shape[0])Src"] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { & $shape[1] $_ }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
+}
+# Pins the 8192-character cap itself: 14 doublings give 16384 characters, so the target is unresolved under the cap
+# (uncapped it would resolve to the relative path src\xxx..., which Test-ScriptWritesAreSafe flags as Guarded by its
+# literal relative `src\` segment match). The text and the launch name no src/tests word (the folder is built from
+# 's' + 'rc'; the fixture path is not in the text), so today the verdict is Unknown without a mention: ALLOWED. That
+# is a known B1 limit, pinned here on purpose so a change of behaviour is noticed.
+$ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = '{0}{0}' -f `$v$($_ - 1)" }) + @("Set-Content -Path ('s' + 'rc\' + `$v14) -Value 1")) -join "`n"
+$ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
+$ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
+$ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
+$env:ENCINA_HOOK_TEST_OUT = "$main\artifacts\env-out.txt"
+$ps1ScriptPath = @{}
+foreach ($name in $ps1Scripts.Keys) {
+    $ps1ScriptPath[$name] = Join-Path $work "ps1-$name.ps1"
+    Set-Content -LiteralPath $ps1ScriptPath[$name] -Value $ps1Scripts[$name] -NoNewline
+}
+
 # tool, tool_input, cwd, expected, label[, CLAUDE_PROJECT_DIR (default $main)[, environment overrides[, stdout regex]]]
 $warned = 'additionalContext'
 $writeCases = @(
@@ -854,6 +925,8 @@ $ownershipCases = @(
     # #1447: pr-reviewer writes only under artifacts/pr-review/**; it is read-only on the rest of the
     # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
     @('pr-reviewer', 'Write', "$wt\artifacts\pr-review\1447.md", $wt, 0, 'pr-reviewer: its own review under artifacts/pr-review'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review", $wt, 0, 'pr-reviewer: the artifacts/pr-review folder path itself is allowed (#3038)'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review-other\x.md", $wt, 2, 'pr-reviewer: a sibling folder sharing the prefix is denied (#3038)'),
     @('pr-reviewer', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'pr-reviewer: a repo source file is denied'),
     @('pr-reviewer', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'pr-reviewer: documentation is denied'),
     @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied'),
@@ -976,7 +1049,74 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "dotnet run '$scriptWritesSrc'" }, $main, 'a1b2', 0, 'mechanical-fixer: exempt from the script check', 'mechanical-fixer'),
     # #1345: the same call-operator / dot-source detection applies with no -Agent (guard-orchestrator-writes).
     @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: call operator of a script that writes tests/'),
-    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/')
+    @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, $null, 2, 'main session: dot-source of a script that writes tests/'),
+    # #2892: the .ps1 is judged by its resolved write targets. Allowed: writes only outside src/ and tests/ even when
+    # the text names them. Denied: a target under src/ or tests/ however it is built, or one that cannot be resolved.
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HereStringArtifacts)'" }, $main, $null, 0, 'main session (#2892): writes artifacts/, here-string names src/ and tests/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HereStringArtifacts)'" }, $main, 'a1b2', 0, 'general-purpose subagent (#2892): writes artifacts/, here-string names src/ and tests/: allowed', 'general-purpose'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JoinPathArtifacts)'" }, $main, $null, 0, 'main session (#2892): Join-Path into artifacts/ with src/ in a string: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RedirectArtifacts)'" }, $main, $null, 0, 'main session (#2892): redirection into artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewItemArtifacts)'" }, $main, $null, 0, 'main session (#2892): New-Item into artifacts/ with a value naming src/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachArtifacts)'" }, $main, $null, 0, 'main session (#2892): foreach over literals into artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): Set-Content to a literal src/ path: denied'),
+    @('PowerShell', @{ command = "pwsh -f '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): pwsh -f (abbreviated -File) to a src/ writer: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile '$($ps1ScriptPath.SrcLiteral)'" }, $main, $null, 2, 'main session (#2892): pwsh with a positional script that writes src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SrcLiteral)'" }, $main, 'a1b2', 2, 'general-purpose subagent (#2892): Set-Content to a literal src/ path: denied', 'general-purpose'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedVariable)'" }, $main, $null, 2, 'main session (#2892): target is an unresolvable variable and the script text names src/ and tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JoinPathSrc)'" }, $main, $null, 2, 'main session (#2892): nested Join-Path into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RedirectTests)'" }, $main, $null, 2, 'main session (#2892): redirection into tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AddContentSrc)'" }, $main, $null, 2, 'main session (#2892): Add-Content -LiteralPath into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OutFileTests)'" }, $main, $null, 2, 'main session (#2892): Out-File -FilePath into tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewItemSrc)'" }, $main, $null, 2, 'main session (#2892): New-Item -Path src -Name: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.VariableAliasSrc)'" }, $main, $null, 2, 'main session (#2892): src/ path through a variable alias: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ConcatSrc)'" }, $main, $null, 2, 'main session (#2892): src/ path built by concatenation: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.IoFileSrc)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::WriteAllText into src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CopyItemSrc)'" }, $main, $null, 2, 'main session (#2892): Copy-Item destination in src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveItemTests)'" }, $main, $null, 2, 'main session (#2892): Move-Item -Destination in tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.DotDotSrc)'" }, $main, $null, 2, 'main session (#2892): artifacts\..\src target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.RelativeSrc)'" }, $main, $null, 2, 'main session (#2892): relative src\ target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.SplatSrc)'" }, $main, $null, 2, 'main session (#2892): splatted parameters naming src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NestedLaunch)'" }, $main, $null, 2, 'main session (#2892): nested script launch plus a text mention of src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.InvokeExpression)'" }, $main, $null, 2, 'main session (#2892): Invoke-Expression of a src/ write: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ForEachSrc)'" }, $main, $null, 2, 'main session (#2892): foreach over literals reaching src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.EnvReassigned)'" }, $main, $null, 2, 'main session (#2892): $env:TEMP reassigned to src/ inside the script: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ArrayPlus)'" }, $main, $null, 2, 'main session (#2892): array + value hides a src/ target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ShadowedJoinPath)'" }, $main, $null, 2, 'main session (#2892): a user function shadows Join-Path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.JunctionThenWrite)'" }, $main, $null, 2, 'main session (#2892): junction into src/ then a write through it: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSourceSrc)'" }, $main, $null, 2, 'main session (#2892): Move-Item whose source is under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnknownWithSrc)'" }, $main, $null, 2, 'main session (#2892): call-operator cmdlet name writing src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UnresolvedPlusGit)'" }, $main, $null, 2, 'main session (#2892): unresolved target next to an unknown command, script names src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\src", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, "$main\tests", $null, 2, 'main session (#2892): a param-bound relative target launched from a cwd under tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainFmtSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level -f doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainJoinSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level Join-Path doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainCombineSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level [IO.Path]::Combine doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainReplaceSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level .Replace doubling chain writing src/ is denied quickly (value cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainLongSrc)'" }, $main, $null, 2, 'main session (#2892): a 26-level string-doubling chain writing src/ is denied quickly (length cap)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.TypedArraySrc)'" }, $main, $null, 2, 'main session (#2892): a [string[]] variable plus a string is an array whose second element is under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out 'x.json'" }, ($main.Replace('\', '/') + '/src'), $null, 2, 'main session (#2892): a forward-slash cwd under src/ with a param-bound relative target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainCycleSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain with a self-referencing accumulator at the bottom is judged and denied (B2, cycle)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -WorkingDirectory '$main\src' -File '$($ps1ScriptPath.WorkingDirectoryRel)'" }, $main, $null, 2, 'main session (#2892): -WorkingDirectory src with a relative target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.NewObjectWordless)'" }, $main, $null, 2, 'main session (#2892): New-Object StreamWriter with a wordless src target is judged, not opaque: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MoveSrcWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::Move whose SOURCE is under src/ is a write there: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.DirMoveSrcWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.Directory]::Move whose SOURCE is under src/ is a write there: denied'),
+    @('PowerShell', @{ command = "[IO.File]::Move('$main\src\A.cs', '$main\artifacts\A.cs')" }, $main, $null, 2, 'main session (#2892): a command-level [IO.File]::Move out of src/ is denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OpenWriteWordless)'" }, $main, $null, 2, 'main session (#2892): [IO.File]::Open for write on a wordless src target: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.OpenReadOnly)'" }, $main, $null, 0, 'main session (#2892): [IO.File]::Open with FileAccess.Read is read-only: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -co 'Write-Output x.ps1'" }, $main, $null, 0, 'main session (#2892): pwsh -co (a -Command prefix) with a quoted .ps1 text is no script launch: allowed'),
+    @('PowerShell', @{ command = "`$env:ENCINA_HOOK_TEST_OUT = '$main\src\x.txt'; pwsh -NoProfile -File '$($ps1ScriptPath.EnvAccessor)'" }, $main, $null, 2, 'main session (#2892): a launch that changes the environment variable read through GetEnvironmentVariable: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.EnvAccessor)'" }, $main, $null, 0, 'main session (#2892): GetEnvironmentVariable resolving to artifacts/ with no environment change: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)'" }, $main, $null, 0, 'main session (#2892): a param()-driven tool that never names src/ or tests/ is allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ExpChainSrc)'" }, $main, $null, 2, 'main session (#2892): a 14-level chain of reused variables writing src/ is judged and denied within the hook timeout (B2)'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Repo x" }, $main, $null, 0, 'main session (#2892): the same tool with an unrelated argument is allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenMention)'" }, $main, $null, 2, 'main session (#2892): a param()-driven tool whose text names tests and whose target is unresolved: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\src\Encina\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied')
+) + @(
+    # The real parameter-driven repository tools that never name src/ or tests/ keep running (review of PR #3236).
+    foreach ($realTool in 'tools\ai\priority\collect-issues.ps1', 'tools\ai\board\build-board-stats.ps1', 'tools\ai\board\reconcile-board.ps1', '.github\scripts\link-health-report.ps1', '.github\scripts\sonar-issues.ps1', '.github\scripts\crap-gate-selftest.ps1', 'tools\ai\priority\Test-Priority.ps1') {
+        , @('PowerShell', @{ command = "pwsh -NoProfile -File '$(Join-Path $repo $realTool)'" }, $main, $null, 0, "main session (#2892): the real repository tool $($realTool.Replace('\', '/')) is allowed")
+    }
 )
 
 # require-specialists.ps1 (Stop gate) runs against a fake project with a real git worktree.
@@ -1044,15 +1184,19 @@ function Get-FlatOutput([object[]]$Lines) {
 }
 
 # Runs one hook: $Json on stdin, -Agent when given; checks the exit code and, when given, a regex on stdout.
-function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$Label, [string]$HookAgent, [string]$StdoutPattern) {
+function Invoke-HookCase([string]$Hook, [string]$Json, [int]$Expected, [string]$Label, [string]$HookAgent, [string]$StdoutPattern, [double]$MaxSeconds = 0, [string]$StderrPattern) {
     $arguments = @('-NoProfile', '-File', $Hook)
     if ($HookAgent) { $arguments += @('-Agent', $HookAgent) }
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
     $output = $Json | pwsh @arguments 2>&1
     $code = $LASTEXITCODE
+    $elapsed = $watch.Elapsed.TotalSeconds
     $stdout = @($output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }) -join "`n"
     $stderr = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }) -join ' '
     $ok = $code -eq $Expected
     if ($ok -and $StdoutPattern) { $ok = $stdout -match $StdoutPattern }
+    if ($ok -and $StderrPattern) { $ok = ($stderr -match $StderrPattern) -or ($stdout -match $StderrPattern) }
+    if ($ok -and $MaxSeconds -gt 0 -and $elapsed -gt $MaxSeconds) { $ok = $false; $Label = "$Label (took $([math]::Round($elapsed, 1)) s, limit $MaxSeconds s)" }
     $script:total++
     if (-not $ok) { $script:failed++ }
     $expectation = if ($StdoutPattern) { "$Expected, stdout /$StdoutPattern/" } else { "$Expected" }
@@ -1319,6 +1463,130 @@ try {
     }
     finally { $env:CLAUDE_PROJECT_DIR = $savedProjectDirForRest }
 
+    # #3274: the REST equivalents of `gh issue edit` (PATCH issues/<n>, POST/PUT issues/<n>/labels) are judged like
+    # gh issue edit. The fake gh serves the existing issue as JSON from $editDir/issue-<n>.json (and fails when the
+    # file is missing): 7001 a [DEBT] issue, 7002 a pull request, 7003 a [DEBT] issue whose body has a Dilemma,
+    # 7004 one without, 7005 unreadable.
+    $editDir = Join-Path $work 'edit-issues'
+    New-Item -ItemType Directory -Force $editDir | Out-Null
+    $fakeEditGh = Join-Path $work 'fake-gh-edit.ps1'
+    Set-Content $fakeEditGh @'
+$f = Join-Path $env:ENCINA_EDIT_DIR "issue-$(($args[1] -split '/')[-1]).json"
+if ($args[0] -eq 'api' -and (Test-Path -LiteralPath $f)) { Get-Content -LiteralPath $f -Raw; exit 0 }
+exit 1
+'@
+    function Write-EditIssue([int]$Number, [string]$Title, [string]$Body, [switch]$Pr) {
+        $o = [ordered]@{ number = $Number; title = $Title; body = $Body; labels = @() }
+        if ($Pr) { $o.pull_request = @{ url = 'https://api.github.com/repos/dlrivada/Encina/pulls/7002' } }
+        Set-Content (Join-Path $editDir "issue-$Number.json") ($o | ConvertTo-Json -Compress)
+    }
+    Write-EditIssue 7001 '[DEBT] existing' $debt
+    Write-EditIssue 7002 'fix(hooks): a pull request title' 'plain pull request body' -Pr
+    Write-EditIssue 7003 '[DEBT] with dilemma' ($debt + "`nDilemma D1: two valid options.`n")
+    Write-EditIssue 7004 '[DEBT] without dilemma' $debt
+    Set-Content (Join-Path $work 'patch-ok.json') (@{ body = $debt } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-no-evidence.json') (@{ body = $restBadJson.body } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-missing.json') (@{ body = ($debt -replace '## Root Cause\r?\nr\r?\n', '') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-state.json') (@{ state = 'closed' } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-labels-nd.json') (@{ labels = @('needs-decision') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-labels-bug.json') (@{ labels = @('bug') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'labels-array-nd.json') '["needs-decision"]'
+    Set-Content (Join-Path $work 'labels-array-bug.json') '["bug"]'
+    $ei = 'repos/dlrivada/Encina/issues'
+    $editCases = @(
+        # PATCH of a body: template headers and local-draft evidence.
+        @("gh api $ei/7001 -X PATCH -F body=@debt-ok.md", 0, 'edit: a conforming body (the title comes from the issue)'),
+        @("gh api $ei/7001 --method=patch -F body=@debt-ok.md", 0, 'edit: --method=patch, a conforming body'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: a body missing a template header is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-order.md", 2, 'edit: a body with headers out of order is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-no-evidence.md", 2, 'edit: a body file without local-draft evidence is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@draft-pointer-a.md", 0, 'edit: a body with a local-draft pointer and a ledger row'),
+        @("gh api $ei/7001 -X PATCH --input patch-ok.json", 0, 'edit: --input JSON with a conforming body'),
+        @("gh api $ei/7001 -X PATCH --input patch-no-evidence.json", 2, 'edit: --input JSON body without local-draft evidence is denied'),
+        @("gh api $ei/7001 -X PATCH --input patch-missing.json", 2, 'edit: --input JSON body missing a header is denied'),
+        @("gh api $ei/7001 -X PATCH -f 'body=no headers at all'", 2, 'edit: an inline body without headers is denied'),
+        @("gh api $ei/7001 -X PATCH -f 'title=No prefix' -F body=@debt-ok.md", 2, 'edit: a new title without a template prefix is denied'),
+        @("gh api https://api.github.com/$ei/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: full URL'),
+        @("gh api /$ei/7001/ -X PATCH -F body=@debt-missing.md", 2, 'edit: leading and trailing slash'),
+        @("gh api repositories/123456/issues/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: repository id form'),
+        @("gh api -X `$m $ei/7001 -F body=@debt-missing.md", 2, 'edit: a variable method with a data option is judged'),
+        @("gh api $ei/7001 -X PATCH -F body=@no-such-file.md", 2, 'edit: a missing body file is denied'),
+        @("gh api $ei/7001 -X PATCH -f `"body=`$b`"", 2, 'edit: a variable body is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@-", 2, 'edit: a body read from stdin that is not piped is denied'),
+        @("gh api $ei/7001 -X PATCH --input no-such-file.json", 2, 'edit: a missing --input file is denied'),
+        @("gh api $ei/7001 -X PATCH --input rest-malformed.json", 2, 'edit: malformed --input JSON is denied'),
+        @("gh api $ei/7005 -X PATCH -F body=@debt-ok.md", 2, 'edit: an unreadable issue denies (fail closed)'),
+        @("gh api $ei/7005 -X PATCH -f 'title=[DEBT] x' -F body=@debt-ok.md", 2, 'edit: an unreadable issue denies even with a title in the call'),
+        # A variable issue number is judged on what the call carries.
+        @("gh api `"$ei/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-ok.md", 0, 'edit: variable number, conforming body with a title'),
+        @("gh api `"$ei/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: variable number, body missing a header'),
+        @("gh api `"$ei/`$n`" -X PATCH -F body=@debt-ok.md", 2, 'edit: variable number, body without a title is denied'),
+        @("gh api `"repos/`$Repo/issues/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: variable repository and number are wildcards'),
+        @("gh api `"$ei/`$(`$i.number)`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: a $(...) issue number is a wildcard'),
+        # needs-decision through PATCH: a Dilemma in the resulting body.
+        @("gh api $ei/7003 -X PATCH -f 'labels[]=needs-decision'", 0, 'edit: needs-decision, the existing body has a Dilemma'),
+        @("gh api $ei/7004 -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the existing body has no Dilemma'),
+        @("gh api $ei/7005 -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the existing body cannot be read'),
+        @("gh api `"$ei/`$n`" -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, variable number and no body in the call'),
+        @("gh api $ei/7004 -X PATCH -F body=@debt-dilemma.md -f 'labels[]=needs-decision'", 0, 'edit: needs-decision, the call body has a Dilemma'),
+        @("gh api $ei/7003 -X PATCH -F body=@debt-ok.md -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the call body has no Dilemma (the existing one is replaced)'),
+        @("gh api $ei/7004 -X PATCH --input patch-labels-nd.json", 2, 'edit: needs-decision through --input JSON, no Dilemma'),
+        @("gh api $ei/7003 -X PATCH --input patch-labels-nd.json", 0, 'edit: needs-decision through --input JSON, with a Dilemma'),
+        # needs-decision through the labels endpoint.
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, no Dilemma'),
+        @("gh api $ei/7003/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels POST needs-decision, with a Dilemma'),
+        @("gh api $ei/7004/labels -f 'labels[]=needs-decision'", 2, 'edit: labels implicit POST needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X PUT -f 'labels[]=needs-decision'", 2, 'edit: labels PUT needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=Needs-Decision'", 2, 'edit: the label name compares case-insensitively'),
+        @("gh api $ei/7004/labels -X POST --input labels-array-nd.json", 2, 'edit: labels POST of a JSON array with needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X POST --input patch-labels-nd.json", 2, 'edit: labels POST of a JSON object with needs-decision, no Dilemma'),
+        @("gh api $ei/7005/labels -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, the body cannot be read'),
+        @("gh api `"$ei/`$n/labels`" -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, variable number'),
+        @("gh api $ei/7004/labels -X POST --input no-such-file.json", 2, 'edit: labels POST with an unreadable --input is denied'),
+        # Still legal: what is not a body or a needs-decision write.
+        @("gh api $ei/7001 -X PATCH -f state=closed", 0, 'edit: a PATCH of state only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f state=closed -f state_reason=completed", 0, 'edit: closing with a reason is allowed'),
+        @("gh api $ei/7001 -X PATCH --input patch-state.json", 0, 'edit: --input JSON with a state only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'assignees[]=dlrivada'", 0, 'edit: a PATCH of assignees only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'title=[DEBT] renamed'", 0, 'edit: a PATCH of the title only is allowed'),
+        @("gh api $ei/7001 -X PATCH -F milestone=14", 0, 'edit: a PATCH of the milestone only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'labels[]=bug'", 0, 'edit: a PATCH of other labels is allowed'),
+        @("gh api $ei/7001 -X PATCH --input patch-labels-bug.json", 0, 'edit: --input JSON with other labels is allowed'),
+        @("gh api `"$ei/`$n`" -X PATCH -f state=closed", 0, 'edit: variable number, state only is allowed'),
+        @("gh api `"$ei/`$n`" -X PATCH -f `"labels[]=`$l`"", 0, 'edit: a variable label is not judged'),
+        @("gh api $ei/7004 -X PATCH -f 'labels[]=needs-decision' -f `"labels[]=`$l`"", 2, 'edit: a literal needs-decision next to a variable label is judged'),
+        @("gh api $ei/7004/labels -X POST -f labels=needs-decision", 2, 'edit: a plain labels= field with needs-decision is judged'),
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=bug'", 0, 'edit: labels POST of another label is allowed'),
+        @("gh api $ei/7004/labels -X POST --input labels-array-bug.json", 0, 'edit: labels POST of a JSON array of other labels is allowed'),
+        @("gh api $ei/7004/labels -X DELETE", 0, 'edit: removing labels is allowed'),
+        @("gh api $ei/7004/labels/needs-decision -X DELETE", 0, 'edit: removing needs-decision is allowed'),
+        @("gh api $ei/7004/labels", 0, 'edit: listing labels is allowed'),
+        @("gh api $ei/7004", 0, 'edit: reading an issue is allowed'),
+        @("gh api $ei/7004 -X GET -f body=x", 0, 'edit: a GET with fields is allowed'),
+        @("gh api $ei/7004 -X POST -f body=x", 0, 'edit: a POST to issues/<n> is not an edit'),
+        @("gh api $ei/7004/comments -X POST -F body=@debt-missing.md", 0, 'edit: a comment is allowed'),
+        @("gh api $ei/comments/7004 -X PATCH -F body=@debt-missing.md", 0, 'edit: editing a comment is allowed'),
+        @("gh api $ei/7004/sub_issues -F sub_issue_id=1", 0, 'edit: sub_issues is allowed'),
+        # Pull requests, other repositories and other hosts are untouched.
+        @("gh api $ei/7002 -X PATCH -F body=@debt-missing.md", 0, 'edit: issues/<n> of a pull request is not judged'),
+        @("gh api $ei/7002/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels of a pull request are not judged'),
+        @("gh api repos/dlrivada/Encina/pulls/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: the pulls endpoint is not judged'),
+        @("gh api repos/other/x/issues/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: another repository is not judged'),
+        @("gh api repos/other/x/issues/7004/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels of another repository are not judged'),
+        @("gh api --hostname other.example $ei/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: another host is not judged'),
+        @("gh api `$ep -X PATCH -F body=@debt-missing.md", 0, 'edit: a wholly variable endpoint is not judged')
+    )
+    $savedProjectDirForEdit = $env:CLAUDE_PROJECT_DIR; $savedGhForEdit = $env:ENCINA_ISSUE_GH
+    $env:CLAUDE_PROJECT_DIR = $issueRoot; $env:ENCINA_ISSUE_GH = $fakeEditGh; $env:ENCINA_EDIT_DIR = $editDir
+    try {
+        foreach ($case in $editCases) {
+            $command, $expected, $label = $case
+            $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress
+            Invoke-HookCase $issue $json $expected $label
+        }
+    }
+    finally { $env:CLAUDE_PROJECT_DIR = $savedProjectDirForEdit; $env:ENCINA_ISSUE_GH = $savedGhForEdit; Remove-Item Env:ENCINA_EDIT_DIR -ErrorAction SilentlyContinue }
+
     # #2823: the milestone cache has three columns and a new name. An old two-column file named through
     # ENCINA_MILESTONES_CACHE is never parsed: it is refreshed from the lookup (fresh file, usable gh) or
     # refused (lookup unusable), and a refresh writes the three-column format.
@@ -1485,6 +1753,13 @@ try {
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #3038: the agent creates its own artifacts/pr-review folder in a fresh worktree; only that folder.
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review'", 0, 'shell vector (#3038): pr-reviewer creates its own artifacts/pr-review folder'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review\sub'", 0, 'shell vector (#3038): pr-reviewer creates a subfolder under artifacts/pr-review'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review-other'", 2, 'shell vector (#3038): a sibling folder sharing the prefix is denied'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\site-health'", 2, 'shell vector (#3038): another artifacts/ folder is denied'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts'", 2, 'shell vector (#3038): the artifacts folder itself is denied'),
+        @('site-steward', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review'", 2, 'shell vector (#3038): the pr-reviewer folder is not widened to site-steward'),
         # #2009 item 1: a redirection token is not a pathspec; real pathspecs and real redirections still count.
         @('pr-reviewer', 'PowerShell', 'git checkout main 2>&1', 0, 'redirect (#2009): git checkout <branch> 2>&1 is allowed for pr-reviewer'),
         @('pr-reviewer', 'PowerShell', 'git checkout main 2>$null', 0, 'redirect (#2009): git checkout <branch> 2>$null is allowed for pr-reviewer'),
@@ -1624,6 +1899,15 @@ try {
         $json = if ($toolInput.command -eq 'not json') { 'not json' } else { $payload | ConvertTo-Json -Compress }
         Invoke-HookCase $orchestrator $json $expected $label
     }
+
+    # #2892 value cap: each 26-level doubling chain to a src/ target must be judged UNRESOLVED (the message says the
+    # hook cannot resolve the path; an uncapped run would be Guarded) and well inside the 15 s hook timeout.
+    foreach ($shape in 'Fmt', 'Join', 'Combine', 'Replace') {
+        $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath["ExpChain${shape}Src"])'" } } | ConvertTo-Json -Compress
+        Invoke-HookCase $orchestrator $json 2 "main session (#2892): the 26-level $shape chain is unresolved (value cap) and judged within 10 s" $null $null 10 'cannot resolve'
+    }
+    $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CapProofNoWord)'" } } | ConvertTo-Json -Compress
+    Invoke-HookCase $orchestrator $json 0 "main session (#2892): a >8192-character target built from 's'+'rc' with no src/tests word anywhere is unresolved and ALLOWED (known B1 limit, pinned)"
 
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -4821,7 +5105,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     # anything under the orchestrator's own tooling folders (regression guard for the #1181 rule).
     $nonSanctionedFixturePath = Join-Path $repo 'artifacts\x-1368-fixture.ps1'
     New-Item -ItemType Directory -Force (Split-Path -Parent $nonSanctionedFixturePath) | Out-Null
-    Set-Content -LiteralPath $nonSanctionedFixturePath -Value "# Mentions src/Foo.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Set-Content -LiteralPath $nonSanctionedFixturePath -Value "# Writes src/Foo.cs (#2892: only a resolved target counts, a mention does not).`nSet-Content 'src/Foo.cs' 'y'`n"
     Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$nonSanctionedFixturePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script under artifacts/ that writes and references src/ is still blocked (#1368 regression guard)'
     Remove-Item -Force $nonSanctionedFixturePath -ErrorAction SilentlyContinue
 
@@ -4830,7 +5114,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     # is deliberately a repository-relative path check, not a name match (decision 5).
     $outsideLookalikePath = Join-Path $work 'tools\ai\audit\lookalike.ps1'
     New-Item -ItemType Directory -Force (Split-Path -Parent $outsideLookalikePath) | Out-Null
-    Set-Content -LiteralPath $outsideLookalikePath -Value "# Mentions tests/Bar.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    Set-Content -LiteralPath $outsideLookalikePath -Value "# Writes tests/Bar.cs (#2892: only a resolved target counts, a mention does not).`nSet-Content 'tests/Bar.cs' 'y'`n"
     Invoke-HookCase $orchestrator (@{ tool_name = 'PowerShell'; cwd = $repo; tool_input = @{ command = "pwsh -NoProfile -File '$outsideLookalikePath'" } } | ConvertTo-Json -Compress) 2 'orchestrator: a script outside the repository is not exempt just because its path looks sanctioned (#1368 decision 5)'
 
     # (f): Get-FlatOutput reconstructs a phrase that a narrow console wrapped across two output lines, so the
@@ -4886,7 +5170,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     Invoke-Probe1854 'adversarial-reviewer' "'Set-Content src/Encina/X.cs 1' | Set-Content -LiteralPath '$scratch1854\made4.ps1'; & '$scratch1854\made4.ps1'" 2 'adversarial-reviewer: the pipeline form of a created script that names src/ is blocked too (#1854)' 'literal that references src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "Get-Content '$scratch1854\evil.ps1' | Set-Content -LiteralPath '$scratch1854\made5.ps1'; & '$scratch1854\made5.ps1'" 2 'adversarial-reviewer: a script created from the content of another file is blocked (#1854)' 'not a quoted literal'
     Invoke-Probe1854 'adversarial-reviewer' "Copy-Item '$scratch1854\evil.ps1' '$scratch1854\made6.ps1'; & '$scratch1854\made6.ps1'" 2 'adversarial-reviewer: a script created by Copy-Item is blocked (#1854)' 'not a quoted literal'
-    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\evil.ps1'" 2 'adversarial-reviewer: an existing script that references src/ and writes files is still blocked (#1854)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\evil.ps1'" 2 'adversarial-reviewer: an existing script that references src/ and writes files is still blocked (#1854)' 'which writes to src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "& '$scratch1854\missing.ps1'" 2 'adversarial-reviewer: a script that does not exist and is not created by the command is blocked, naming the tried path (#1854)' 'which does not exist \(resolved from .*missing\.ps1.* against base'
     Invoke-Probe1854 'pr-reviewer' "dotnet run absent.cs" 2 'pr-reviewer: dotnet run of a relative script missing from the payload cwd is blocked, naming the tried path (#1854)' 'hooks-1854-[0-9a-f]+\\absent\.cs'
     Invoke-Probe1854 'pr-reviewer' 'dotnet run $unknownDir\probe.cs' 2 'pr-reviewer: dotnet run of a script path that depends on an unknown variable is blocked, naming the raw argument (#1854)' 'cannot resolve \(tried .\$unknownDir'
@@ -4914,7 +5198,7 @@ The fluent builder chain described in the documentation is fictional. The parame
             @("Add-Content '$s\benign3.ps1' -Value 'Set-Content src/Encina/X.cs 1'; & '$s\benign3.ps1'", 'appending a literal that writes src/ to an existing script'),
             @("& '$s\evil.ps1'; Set-Content '$s\evil.ps1' -Value 'Write-Output 1'", 'running an existing evil script, then overwriting it with a benign literal'),
             @("Set-Content '$s\gl.ps1' -Value 'Write-Output 1'; echo x > `$out; & '$s\gl.ps1'", 'a write the hook cannot resolve next to the creating one'))) {
-        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) is blocked (#1854 review)" "$opaque|references src/ or tests/ and writes files|cannot resolve|writes a literal that references|which the same command writes, next to"
+        Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) is blocked (#1854 review)" "$opaque|references src/ or tests/ and writes files|which writes to src/ or tests/|cannot resolve|writes a literal that references|which the same command writes, next to"
     }
     Invoke-Probe1854 'adversarial-reviewer' "`$p = '$s\vv2.ps1'; Set-Content `$p -Value 'Write-Output 1'; & `$p" 2 'adversarial-reviewer: & $variable is an unresolvable script path, denied with the raw argument and the base (#1854 review)' 'cannot resolve \(tried .\$p. against base .[^ ]*hooks-1854'
     Invoke-Probe1854 'pr-reviewer' "Set-Content '$scratch1854\d.ps1' -Value 'Write-Output 1'; . `$p" 2 'pr-reviewer: dot-sourcing $variable next to a file write is an unresolvable script path (#1854 review)' 'cannot resolve \(tried .\$p'
@@ -4977,8 +5261,8 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 0 "adversarial-reviewer: $($case[1]) is allowed (#2009)"
         Invoke-Probe1854 'pr-reviewer' $case[0] 0 "pr-reviewer: $($case[1]) is allowed (#2009)"
     }
-    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which references src/ or tests/ and writes files'
-    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'references src/ or tests/ and writes files'
+    Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\evil.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a script that references src/ and writes files is blocked (#2009)' 'evil\.ps1.* which writes to src/ or tests/'
+    Invoke-Probe1854 'pr-reviewer' "`$wt = '$s'; & `"`$wt\evil.ps1`"" 2 'pr-reviewer: the call operator through a resolved variable to a harmful script is blocked (#2009)' 'which writes to src/ or tests/'
     Invoke-Probe1854 'adversarial-reviewer' "`$wt = '$s'; pwsh -NoProfile -File `"`$wt\missing.ps1`"" 2 'adversarial-reviewer: a resolved variable path to a missing script is blocked (#2009)' 'which does not exist'
     Set-Content -LiteralPath (Join-Path $s 'rebind.ps1') -Value "`$global:wt = 'C:\other'`n"
     foreach ($case in @(
@@ -5011,6 +5295,56 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) stays unresolved and blocked, naming the workaround (#2009)" $wordingPattern2009
     }
     Invoke-Probe1854 'pr-reviewer' "pwsh -NoProfile -File `"`$wt\benign.ps1`"" 2 'pr-reviewer: an unassigned variable path is blocked with the workaround in the message (#2009)' $wordingPattern2009
+    # ---- #3281 case (a): a variable set in an earlier tool call is not visible; the message says so, and the
+    # same-command literal workaround keeps passing (the #2009 cases above). ----
+    Invoke-Probe1854 'adversarial-reviewer' "pwsh -NoProfile -File `$s -Draft x" 2 'adversarial-reviewer: a variable from an earlier tool call is blocked and the message names the limit (#3281)' 'cannot resolve \(tried .\$s.*never a variable set in an earlier tool call.*assign the variable to a literal earlier in the same command'
+    Invoke-Probe1854 'adversarial-reviewer' "`$s = '$s\benign.ps1'; pwsh -NoProfile -File `$s -Draft x" 0 'adversarial-reviewer: assigning the variable to a literal in the same command passes (#3281)'
+
+    # ---- #3281 case (b): a payload WITHOUT cwd resolves a relative script path against the hook process's
+    # directory when that is inside a checkout, else against CLAUDE_PROJECT_DIR, never against a process
+    # directory such as the temp folder or C:\ (the 2026-11-10 shape: `pwsh -File .claude/hooks/tests/Test-Hooks.ps1`
+    # denied to a read-only reviewer). The hook process runs from a directory that is NOT a checkout. ----
+    $evil3281Dir = Join-Path $repo 'artifacts\test-3281'
+    New-Item -ItemType Directory -Force $evil3281Dir | Out-Null
+    Set-Content -LiteralPath (Join-Path $evil3281Dir 'evil.ps1') -Value "Set-Content -LiteralPath 'src/Encina/X.cs' -Value 'x'`n"
+    Set-Content -LiteralPath (Join-Path $evil3281Dir 'benign.ps1') -Value "Write-Output 'benign'`n"
+    function Invoke-NoCwd3281([string]$Agent, [string]$Command, [string]$ProcessDir, [int]$Expected, [string]$Label, [string]$Pattern) {
+        $json = @{ tool_name = 'PowerShell'; agent_id = 'a3281'; agent_type = $Agent; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
+        Push-Location -LiteralPath $ProcessDir
+        try { $out = $json | pwsh -NoProfile -File $orchestrator 2>&1; $code = $LASTEXITCODE } finally { Pop-Location }
+        $flat = Get-FlatOutput $out
+        $ok = ($code -eq $Expected) -and (-not $Pattern -or $flat -match $Pattern)
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected {2}] guard-orchestrator-writes.ps1: {3}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $Expected, $Label
+        if (-not $ok) { "      output: $flat" }
+    }
+    $nonCheckout3281 = [IO.Path]::GetTempPath()
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-NoCwd3281 $agent 'pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1' $nonCheckout3281 0 "$agent`: no cwd, process directory outside any checkout, relative pwsh -File of Test-Hooks.ps1 resolves against CLAUDE_PROJECT_DIR (#3281)"
+        Invoke-NoCwd3281 $agent 'pwsh -NoProfile -File artifacts/test-3281/benign.ps1' $nonCheckout3281 0 "$agent`: no cwd, outside a checkout, a relative benign script is allowed (#3281)"
+    }
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/benign.ps1' $repo 0 'adversarial-reviewer: no cwd, process directory inside the checkout, a relative script resolves against it (#3281)'
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/evil.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that writes src/ stays blocked (#3281)' 'which writes to src/ or tests/'
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/missing.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that does not exist stays blocked against the project root (#3281)' "which does not exist \(resolved from .artifacts/test-3281/missing\.ps1. against base .[^ ]*$([regex]::Escape((Split-Path -Leaf $repo)))"
+    # Review finding: the fallback must not turn a write that the process-directory base blocks into an allowed one.
+    # The process directory is the parent of the checkout, the path spells out the checkout folder.
+    $repoParent3281 = Split-Path -Parent $repo
+    $repoLeaf3281 = Split-Path -Leaf $repo
+    foreach ($case in @(
+            @{ tool_name = 'Write'; tool_input = @{ file_path = "$repoLeaf3281/src/Encina/X3281.cs"; content = 'x' } },
+            @{ tool_name = 'Edit'; tool_input = @{ file_path = "$repoLeaf3281/tests/X3281.cs"; old_string = 'a'; new_string = 'b' } },
+            @{ tool_name = 'PowerShell'; tool_input = @{ command = "Set-Content $repoLeaf3281/src/Encina/X3281.cs x" } })) {
+        $json = ($case + @{ agent_id = 'a3281'; agent_type = 'adversarial-reviewer' }) | ConvertTo-Json -Compress -Depth 5
+        Push-Location -LiteralPath $repoParent3281
+        try { $out = $json | pwsh -NoProfile -File $orchestrator 2>&1; $code = $LASTEXITCODE } finally { Pop-Location }
+        $ok = $code -eq 2
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected 2] guard-orchestrator-writes.ps1: no cwd, process directory outside the checkout, relative {2} to the checkout's src/tests stays blocked (#3281)" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $case.tool_name
+        if (-not $ok) { "      output: $(Get-FlatOutput $out)" }
+    }
+    Remove-Item -LiteralPath $evil3281Dir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
 
@@ -5098,8 +5432,11 @@ The fluent builder chain described in the documentation is fictional. The parame
     New-Item -ItemType Directory -Force $stubDir | Out-Null
     # The gate reads the issue over REST (#2568): `api repos/dlrivada/Encina/issues/<n> --jq ...`, so the number is the tail of args[1].
     Set-Content (Join-Path $stubDir 'gh-stub.ps1') '$f = Join-Path $env:ENCINA_STUB_DIR "$(($args[1] -split ''/'')[-1]).json"; if ($args[0] -ne ''api'') { exit 1 }; if (Test-Path -LiteralPath $f) { Get-Content -LiteralPath $f -Raw; exit 0 } else { exit 1 }'
-    function Write-StubIssue([int]$Number, [string]$Title, [string]$Body) {
-        [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), (@{ title = $Title; body = $Body } | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+    function Write-StubIssue([int]$Number, [string]$Title, [string]$Body, [string[]]$Labels) {
+        # #3336: the REST read also returns the label names; $Labels = $null leaves the field out (a lookup without labels).
+        $stub = @{ title = $Title; body = $Body }
+        if ($null -ne $Labels) { $stub.labels = @($Labels) }
+        [IO.File]::WriteAllText((Join-Path $stubDir "$Number.json"), ($stub | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
     }
     function Get-TemplateBody([string]$TemplateFile, [string[]]$Skip = @(), [switch]$Reverse) {
         $hs = @(Get-Content -LiteralPath (Join-Path $repo ".github/ISSUE_TEMPLATE/$TemplateFile") | Where-Object { $_ -cmatch '^## \S' } | ForEach-Object { $_.Trim() } | Where-Object { $Skip -notcontains $_ })
@@ -5136,6 +5473,11 @@ The fluent builder chain described in the documentation is fictional. The parame
     Write-StubIssue 9017 '[INFRA] dotted token' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + "- **File(s)**: ``Foo.Bar``, ``src/A.cs``"))
     # A section without a File(s) bullet: paths in plain prose are not counted, so the check is skipped.
     Write-StubIssue 9014 '[INFRA] no File(s) bullet' ((Get-TemplateBody 'infrastructure.md') -replace '(?m)^(## Component Affected\r?\n)text', ('$1' + ((1..20 | ForEach-Object { "- ``src/B/F$_.cs``" }) -join "`n")))
+    # #3336: size-exception-approved. 9020 carries it, 9021 another label, 9022 no labels field (lookup failure), 9023 carries it and lists 17 paths.
+    Write-StubIssue 9020 '[DEBT] size exception' (Get-TemplateBody 'technical_debt.md') @('bug', 'size-exception-approved')
+    Write-StubIssue 9021 '[DEBT] other labels' (Get-TemplateBody 'technical_debt.md') @('bug', 'p1-recommended')
+    Write-StubIssue 9022 '[DEBT] labels unavailable' (Get-TemplateBody 'technical_debt.md')
+    Write-StubIssue 9023 '[INFRA] 17 paths, exception' (Get-PathBody 'infrastructure.md' '## Component Affected' (1..17 | ForEach-Object { "src/Pkg/File$_.cs" })) @('size-exception-approved')
     # The stub returns no state: the hook reads only title and body, so a closed issue is checked the same way.
     $savedStubGh = $env:ENCINA_ISSUE_GH; $savedStubDir = $env:ENCINA_STUB_DIR
     $env:ENCINA_ISSUE_GH = Join-Path $stubDir 'gh-stub.ps1'; $env:ENCINA_STUB_DIR = $stubDir
@@ -5179,6 +5521,22 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-TargetCase 'issue-worker' "Context: follows up Issue #9001.`nImplement the thing." 2 'spawn gate: an issue number that is not on the first line is not taken'
         Invoke-TargetCase 'issue-worker' "`nIssue #9001 (leading blank line)`nmore" 0 'spawn gate: the first non-empty line names the issue'
 
+        # ---- #3336: size exception ----
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1000 lines" 0 'size exception: the label lets 22 files pass' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1501 lines" 2 'size exception: the line limit still denies' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 0 files, 10 lines" 2 'size exception: 0 files is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9020 go.`nSize: 22 files, 1000 lines`nSize: 3 files, 10 lines" 2 'size exception: a second Size line is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9021 go.`nSize: 22 files, 1000 lines" 2 'size exception: without the label 22 files are denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9022 go.`nSize: 22 files, 1000 lines" 2 'size exception: a lookup without labels keeps denying (fail closed)' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9023 go.`nSize: 17 files, 1000 lines" 0 'size exception: an issue listing 17 paths passes when the brief declares 17' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9023 go.`nSize: 16 files, 1000 lines" 2 'size exception: declaring fewer files than the issue lists is still denied' -NoSize
+        Invoke-TargetCase 'issue-worker' "Issue #9009 go.`nSize: 20 files, 100 lines" 2 'size exception: an issue listing 16 paths without the label is still denied' -NoSize
+        Invoke-TargetMessage 'issue-worker' "Issue #9021 go.`nSize: 22 files, 1000 lines" 'declares 22 files and 1000 lines.*at most 15 files' 'size exception: the denial message is unchanged without the label'
+        $exceptionOut = (@{ tool_name = 'Agent'; cwd = $work; tool_input = @{ subagent_type = 'issue-worker'; prompt = "Issue #9020 go.`nSize: 22 files, 1000 lines" } } | ConvertTo-Json -Compress | pwsh -NoProfile -File $targetGate 2>&1) -join ' '
+        $script:total++
+        $exceptionNoted = ($LASTEXITCODE -eq 0) -and ($exceptionOut -match 'size-exception-approved.*22 files')
+        if (-not $exceptionNoted) { $script:failed++ }
+        "{0} check-target-issue-template.ps1: size exception: the output notes the exception" -f $(if ($exceptionNoted) { 'PASS' } else { 'FAIL' })
         # ---- #2900: size gate ----
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 15 files, 1500 lines" 0 'size gate: 15 files and 1500 lines (the limits) pass' -NoSize
         Invoke-TargetCase 'issue-worker' "Issue #9001 go.`nSize: 16 files, 100 lines" 2 'size gate: 16 files is denied' -NoSize
@@ -5465,6 +5823,65 @@ The fluent builder chain described in the documentation is fictional. The parame
         $env:HOME = $savedOrch.Home
         $env:ENCINA_ORCHESTRATOR_NOW_UTC = $savedOrch.Now
     }
+
+    # #2734: record-agent-usage.ps1 appends one ledger row per subagent stop.
+    $usageHook = Join-Path $hooks 'record-agent-usage.ps1'
+    $usageDir = Join-Path $work 'usage'
+    New-Item -ItemType Directory -Force (Join-Path $usageDir 'proj\sess1\subagents') | Out-Null
+    $usageLedger = Join-Path $usageDir 'out\artifacts\agent-usage\ledger.csv'
+    $savedLedger = $env:ENCINA_AGENT_USAGE_LEDGER
+    try {
+        $env:ENCINA_AGENT_USAGE_LEDGER = $usageLedger
+        $briefLine = (@{ type = 'user'; message = @{ role = 'user'; content = 'Issue #4242 (read it). Worktree x' } } | ConvertTo-Json -Compress -Depth 5)
+        $turn1 = (@{ type = 'assistant'; message = @{ id = 'm1'; role = 'assistant'; model = 'claude-haiku-4-5'; usage = @{ input_tokens = 2; cache_creation_input_tokens = 100; cache_read_input_tokens = 0; output_tokens = 10 } } } | ConvertTo-Json -Compress -Depth 5)
+        $turn2 = (@{ type = 'assistant'; message = @{ id = 'm2'; role = 'assistant'; model = 'claude-sonnet-5-5'; usage = @{ input_tokens = 2; cache_creation_input_tokens = 3981; cache_read_input_tokens = 46584; output_tokens = 1004 } } } | ConvertTo-Json -Compress -Depth 5)
+        $agentFile = Join-Path $usageDir 'proj\sess1\subagents\agent-aXYZ.jsonl'
+        [IO.File]::WriteAllLines($agentFile, [string[]]@($briefLine, $turn1, $turn2, $turn2))
+        $usagePayload = @{ agent_id = 'aXYZ'; agent_type = 'mechanical-fixer'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: a subagent stop is recorded'
+        $rows = @(Get-Content -LiteralPath $usageLedger)
+        $script:total++
+        if ($rows.Count -eq 2 -and $rows[0] -eq 'timestampUtc,agent,task,model,subagentTokens,notes' -and $rows[1] -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ,mechanical-fixer,issue-4242,claude-sonnet-5-5,51571,"hook-recorded agent-aXYZ"$') { 'PASS record-agent-usage: header, task from the brief, last-turn model and notice token figure' } else { $script:failed++; "FAIL record-agent-usage: ledger was: $($rows -join ' | ')" }
+
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: the same stop twice'
+        $script:total++
+        if (@(Get-Content -LiteralPath $usageLedger).Count -eq 2) { 'PASS record-agent-usage: a repeated stop with the same figure is not recorded twice' } else { $script:failed++; 'FAIL record-agent-usage: duplicate row written' }
+
+        $turn3 = (@{ type = 'assistant'; message = @{ id = 'm3'; role = 'assistant'; model = 'claude-sonnet-5-5'; usage = @{ input_tokens = 1; cache_creation_input_tokens = 0; cache_read_input_tokens = 60000; output_tokens = 99 } } } | ConvertTo-Json -Compress -Depth 5)
+        Add-Content -LiteralPath $agentFile -Value $turn3
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: a resumed agent stops again'
+        $script:total++
+        if (@(Get-Content -LiteralPath $usageLedger).Count -eq 3 -and (Get-Content -LiteralPath $usageLedger -Raw) -match ',60100,"hook-recorded agent-aXYZ"') { 'PASS record-agent-usage: a resumed agent records its new figure' } else { $script:failed++; 'FAIL record-agent-usage: resumed stop not recorded' }
+
+        $noIssueFile = Join-Path $usageDir 'proj\sess1\subagents\agent-aNOISSUE.jsonl'
+        [IO.File]::WriteAllLines($noIssueFile, [string[]]@((@{ type = 'user'; message = @{ role = 'user'; content = 'Check the hooks' } } | ConvertTo-Json -Compress -Depth 5), $turn1))
+        $noIssuePayload = @{ agent_id = 'aNOISSUE'; agent_type = 'Explore'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+        Invoke-HookCase $usageHook $noIssuePayload 0 'record-agent-usage: a brief without an issue number'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',Explore,session-sess1abc,claude-haiku-4-5,112,"hook-recorded agent-aNOISSUE"') { 'PASS record-agent-usage: no issue number falls back to the session id' } else { $script:failed++; 'FAIL record-agent-usage: session fallback row missing' }
+
+        $synthetic = (@{ type = 'assistant'; message = @{ id = 'ms'; role = 'assistant'; model = '<synthetic>'; usage = @{ input_tokens = 0; cache_creation_input_tokens = 0; cache_read_input_tokens = 0; output_tokens = 0 } } } | ConvertTo-Json -Compress -Depth 5)
+        $laterUser = (@{ type = 'user'; message = @{ role = 'user'; content = 'tool result mentioning Issue #9999' } } | ConvertTo-Json -Compress -Depth 5)
+        $lowerBrief = (@{ type = 'user'; message = @{ role = 'user'; content = 'Review issue #3281 please' } } | ConvertTo-Json -Compress -Depth 5)
+        [IO.File]::WriteAllLines((Join-Path $usageDir 'proj\sess1\subagents\agent-aSYN.jsonl'), [string[]]@($lowerBrief, $turn2, $laterUser, $synthetic))
+        $synPayload = @{ agent_id = 'aSYN'; agent_type = 'adversarial-reviewer'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+        Invoke-HookCase $usageHook $synPayload 0 'record-agent-usage: a stop that ends on a synthetic message'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',adversarial-reviewer,issue-3281,claude-sonnet-5-5,51571,"hook-recorded agent-aSYN"') { 'PASS record-agent-usage: synthetic last turn is skipped, task is the brief''s (case-insensitive), not a later tool result' } else { $script:failed++; 'FAIL record-agent-usage: synthetic/brief-only task row wrong' }
+
+        $before = (Get-Content -LiteralPath $usageLedger -Raw)
+        Invoke-HookCase $usageHook 'not json' 0 'record-agent-usage: malformed payload never blocks'
+        Invoke-HookCase $usageHook (@{ cwd = $work } | ConvertTo-Json -Compress) 0 'record-agent-usage: the main session stop (no agent_id) is ignored'
+        Invoke-HookCase $usageHook (@{ agent_id = 'aGONE'; agent_type = 'Explore'; cwd = $work } | ConvertTo-Json -Compress) 0 'record-agent-usage: a missing transcript never blocks'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -eq $before) { 'PASS record-agent-usage: ignored stops leave the ledger unchanged' } else { $script:failed++; 'FAIL record-agent-usage: an ignored stop changed the ledger' }
+
+        $wiredUsage = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.SubagentStop | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'record-agent-usage\.ps1' })
+        $script:total++
+        if ($wiredUsage.Count -eq 1) { 'PASS settings.json wires record-agent-usage on SubagentStop' } else { $script:failed++; "FAIL settings.json wiring of record-agent-usage: $($wiredUsage.Count) (expected 1)" }
+    }
+    finally { $env:ENCINA_AGENT_USAGE_LEDGER = $savedLedger }
 }
 finally {
     Pop-Location

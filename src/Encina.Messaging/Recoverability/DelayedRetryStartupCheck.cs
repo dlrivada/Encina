@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Messaging.Recoverability;
 
@@ -33,7 +34,7 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
     private readonly ILogger<DelayedRetryStartupCheck> _logger;
 
     public DelayedRetryStartupCheck(
-        RecoverabilityOptions options,
+        IOptions<RecoverabilityOptions> options,
         IServiceProviderIsService serviceProviderIsService,
         ILogger<DelayedRetryStartupCheck> logger)
     {
@@ -41,7 +42,7 @@ internal sealed class DelayedRetryStartupCheck : IHostedService
         ArgumentNullException.ThrowIfNull(serviceProviderIsService);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _options = options;
+        _options = options.Value;
         _serviceProviderIsService = serviceProviderIsService;
         _logger = logger;
     }

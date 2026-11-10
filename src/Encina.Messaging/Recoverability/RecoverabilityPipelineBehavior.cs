@@ -3,6 +3,7 @@ using Encina.Diagnostics;
 using Encina.Recoverability;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Encina.Messaging.Recoverability;
 
@@ -48,7 +49,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// <summary>
     /// Initializes a new instance of the <see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/> class.
     /// </summary>
-    /// <param name="options">The recoverability options.</param>
+    /// <param name="options">The recoverability options, the one value the single Recoverability registration configures.</param>
     /// <param name="logger">The logger.</param>
     /// <param name="delayedRetryScheduler">Optional scheduler for delayed retries.</param>
     /// <param name="timeProvider">Optional time provider for testability.</param>
@@ -62,7 +63,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     /// without either, <see cref="DefaultErrorClassifier"/> is used.
     /// </param>
     public RecoverabilityPipelineBehavior(
-        RecoverabilityOptions options,
+        IOptions<RecoverabilityOptions> options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
         IDelayedRetryScheduler? delayedRetryScheduler = null,
         TimeProvider? timeProvider = null,
@@ -73,7 +74,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     }
 
     internal RecoverabilityPipelineBehavior(
-        RecoverabilityOptions options,
+        IOptions<RecoverabilityOptions> options,
         ILogger<RecoverabilityPipelineBehavior<TRequest, TResponse>> logger,
         IDelayedRetryScheduler? delayedRetryScheduler,
         TimeProvider? timeProvider,
@@ -84,8 +85,8 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
-        _options = options;
-        _errorClassifier = options.ErrorClassifier ?? errorClassifier ?? new DefaultErrorClassifier();
+        _options = options.Value;
+        _errorClassifier = _options.ErrorClassifier ?? errorClassifier ?? new DefaultErrorClassifier();
         _logger = logger;
         _delayedRetryScheduler = delayedRetryScheduler;
         _timeProvider = timeProvider ?? TimeProvider.System;

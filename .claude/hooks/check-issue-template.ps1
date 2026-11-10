@@ -64,6 +64,17 @@
 #     is denied, naming what could not be read.
 #   - GraphQL: `gh api graphql` whose query (-f/-F query=, -F query=@file, --input) contains createIssue is always
 #     denied; an unreadable query is allowed so other GraphQL operations keep working.
+#
+# #3274: the REST equivalents of `gh issue edit` get the checks of gh issue edit and of the creation. The endpoint
+# is normalised as above; a PATCH of repos/dlrivada/Encina/issues/<n> that sets a body (-f body=, -F body=@file,
+# or the --input JSON) keeps the template headers verbatim and in order and, for a file-backed body, carries the
+# local-draft evidence; the title is the call's or, without one, the issue's own, read once with `gh api` (the
+# same read gives the body). A PATCH (labels[]/--input) or a POST/PUT of issues/<n>/labels that adds
+# needs-decision requires a Dilemma in the resulting body: the call's, else the existing one. Pull requests
+# (issues/<n> of a pull request), other repositories, other hosts, pulls/<n>, a PATCH of state, assignee, title
+# or milestone only, labels other than needs-decision and comments are not judged. A variable issue number is
+# judged on what the call carries (a body needs a title= field, a bare needs-decision cannot be read); a value
+# that cannot be read (variable body, missing file, unreadable --input, unreadable issue) denies.
 # The milestone cache (artifacts/issue-hygiene/milestones-v2.txt) holds `<state><TAB><number><TAB><title>` lines; the
 # old milestones.txt is ignored.
 
@@ -427,17 +438,14 @@ try {
         return , $positionals
     }
 
-    # What an endpoint token names: 'issues' (the issues collection of dlrivada/Encina, by name or by repository
-    # id: creation), 'graphql', 'dynamic' (an endpoint that is wholly a variable) or $null (anything else:
-    # sub-paths such as issues/<n>, /labels, /comments, sub_issues, dependencies/blocked_by are not creation).
-    # The path is normalised first: scheme and host, query, fragment, URL escapes, leading and trailing slash,
-    # case. A variable owner or repository segment is a wildcard; {owner}/{repo} stand for the current repository.
-    function Get-ApiEndpointKind($Token) {
+    # The normalised, lower-case path of an endpoint token (WholeDynamic when it is wholly one subexpression),
+    # or $null for a URL on a host other than api.github.com. Variable parts are the $Wild / $WildSegment markers.
+    function Get-ApiNormalizedPath($Token) {
         $v = [string]$Token.Value
         # A token with a $( ... ) holds only the inner text of the subexpression, so a segment that still has a
         # '$' or '(' is a variable SEGMENT (a wildcard for that segment only); a token that is wholly one
         # subexpression (no slash) is a wholly variable endpoint.
-        if ($Token.Subexpression -and -not $v.Contains('/')) { return 'dynamic' }
+        if ($Token.Subexpression -and -not $v.Contains('/')) { return [pscustomobject]@{ WholeDynamic = $true; Lower = '' } }
         $urlMatch = [regex]::Match($v, '^https?://(?<h>[^/]+)/(?<r>.*)$', 'IgnoreCase')
         if ($urlMatch.Success) {
             if ($urlMatch.Groups['h'].Value -ine 'api.github.com') { return $null }
@@ -449,7 +457,39 @@ try {
         if ($Token.Subexpression) { $v = (($v -split '/') | ForEach-Object { if ($_ -match '[$(]') { $WildSegment } else { $_ } }) -join '/' }
         elseif ($Token.Dynamic) { $v = [regex]::Replace($v, '\$(?:\{[^}]*\}|[\w:?]+)', $Wild) }
         $v = [regex]::Replace($v, '\{(?:owner|repo)\}', $Wild, 'IgnoreCase')
-        $lower = $v.ToLowerInvariant()
+        return [pscustomobject]@{ WholeDynamic = $false; Lower = $v.ToLowerInvariant() }
+    }
+
+    # #3274: what an endpoint token names when it is one issue of dlrivada/Encina: Kind 'issue' (issues/<n>, the
+    # REST edit) or 'labels' (issues/<n>/labels), Number the literal issue number or $null for a variable one.
+    # $null for anything else (the collection, comments, sub_issues, pulls, other repositories, other hosts).
+    function Get-ApiIssueTarget($Token) {
+        $normalized = Get-ApiNormalizedPath $Token
+        if ($null -eq $normalized -or $normalized.WholeDynamic) { return $null }
+        $m = [regex]::Match($normalized.Lower, '^(?<pre>.*?)/?issues/(?<n>[^/]+)(?<l>/labels)?$')
+        if (-not $m.Success) { return $null }
+        $n = $m.Groups['n'].Value
+        $variable = $n.Contains($Wild) -or $n.Contains($WildSegment)
+        if (-not $variable -and $n -notmatch '^\d+$') { return $null }
+        $pre = $m.Groups['pre'].Value
+        if ($pre.Contains($Wild) -or $pre.Contains($WildSegment)) {
+            $pattern = '^' + (([regex]::Escape($pre).Replace([regex]::Escape($Wild), '.*').Replace([regex]::Escape($WildSegment), '[^/]+'))) + '$'
+            if (-not ('repos/dlrivada/encina' -match $pattern -or 'repositories/1' -match $pattern)) { return $null }
+        }
+        elseif ($pre -ne 'repos/dlrivada/encina' -and $pre -notmatch '^repositories/\d+$') { return $null }
+        return [pscustomobject]@{ Kind = $(if ($m.Groups['l'].Success) { 'labels' } else { 'issue' }); Number = $(if ($variable) { $null } else { $n }) }
+    }
+
+    # What an endpoint token names: 'issues' (the issues collection of dlrivada/Encina, by name or by repository
+    # id: creation), 'graphql', 'dynamic' (an endpoint that is wholly a variable) or $null (anything else:
+    # sub-paths such as issues/<n>, /labels, /comments, sub_issues, dependencies/blocked_by are not creation).
+    # The path is normalised first: scheme and host, query, fragment, URL escapes, leading and trailing slash,
+    # case. A variable owner or repository segment is a wildcard; {owner}/{repo} stand for the current repository.
+    function Get-ApiEndpointKind($Token) {
+        $normalized = Get-ApiNormalizedPath $Token
+        if ($null -eq $normalized) { return $null }
+        if ($normalized.WholeDynamic) { return 'dynamic' }
+        $lower = $normalized.Lower
 
         if ($lower.Contains($Wild) -or $lower.Contains($WildSegment)) {
             if (($lower.Replace($Wild, '').Replace($WildSegment, '').Replace('/', '')).Length -eq 0) { return 'dynamic' }
@@ -527,7 +567,7 @@ try {
     }
 
     # The JSON object of `--input <file>` (the last one counts; `-` is the piped literal): Ok/Json/Path/Why.
-    function Read-ApiInput($Options, [string]$Cwd, $PipeText) {
+    function Read-ApiInput($Options, [string]$Cwd, $PipeText, [bool]$AllowArray = $false) {
         $inputValues = Get-OptionValues $Options @('--input')
         if ($inputValues.Count -eq 0) { return $null }
         $t = $inputValues[-1]
@@ -543,8 +583,10 @@ try {
             try { $text = [IO.File]::ReadAllText($path) }
             catch { return [pscustomobject]@{ Ok = $false; Json = $null; Path = $null; Why = "the --input file '$($t.Value)' cannot be read" } }
         }
-        try { $json = $text | ConvertFrom-Json -ErrorAction Stop }
+        try { $json = if ($AllowArray) { $text | ConvertFrom-Json -NoEnumerate -ErrorAction Stop } else { $text | ConvertFrom-Json -ErrorAction Stop } }
         catch { return [pscustomobject]@{ Ok = $false; Json = $null; Path = $null; Why = 'the --input JSON is malformed' } }
+        # #3274: the labels endpoint also takes a bare JSON array of label names.
+        if ($AllowArray -and $json -is [object[]]) { return [pscustomobject]@{ Ok = $true; Json = $json; Path = $path; Why = $null } }
         if ($json -isnot [pscustomobject]) { return [pscustomobject]@{ Ok = $false; Json = $null; Path = $null; Why = 'the --input JSON is not an object' } }
         return [pscustomobject]@{ Ok = $true; Json = $json; Path = $path; Why = $null }
     }
@@ -650,6 +692,156 @@ try {
         if (($Creation.Labels -icontains 'needs-decision') -and -not (Test-HasDilemma $Creation.Body)) { return $DilemmaMessage }
 
         return (Get-TemplateViolation $Creation.Title $Creation.Body $Root)
+    }
+
+    # #3274: REST edits of an existing issue --------------------------------------------------------------------
+    # The explicit method of a `gh api` call (the last -X/--method counts, leading '=' stripped, upper-cased) and
+    # whether that method is a variable.
+    function Get-ApiMethodInfo($Options) {
+        $explicit = $null; $dynamic = $false
+        foreach ($o in $Options) {
+            if (@('-X', '--method') -ccontains $o.Name -and $null -ne $o.Value) {
+                if ($o.Value.Dynamic) { $explicit = $null; $dynamic = $true }
+                else { $explicit = ([string]$o.Value.Value).TrimStart('=').Trim().ToUpperInvariant(); $dynamic = $false }
+            }
+        }
+        return [pscustomobject]@{ Explicit = $explicit; Dynamic = $dynamic }
+    }
+
+    # True when this call writes the issue it targets the way gh issue edit does: a PATCH of issues/<n>, or a
+    # POST/PUT of issues/<n>/labels (a POST is also what a data option without a method becomes). A variable
+    # method is judged only with a data option.
+    function Test-ApiIssueWrite($Options, $Target) {
+        $m = Get-ApiMethodInfo $Options
+        $hasData = Test-OptionPresent $Options $apiDataOptions
+        if ($m.Dynamic) { return $hasData }
+        if ($Target.Kind -eq 'issue') { return ($m.Explicit -eq 'PATCH') }
+        if ($m.Explicit) { return (@('POST', 'PUT') -contains $m.Explicit) }
+        return $hasData
+    }
+
+    # What a REST edit carries: BodyPresent/Body/BodyPath (null Body with BodyWhy when unreadable), TitlePresent/
+    # Title, Labels (one entry per labels[] value or JSON label, not comma-split; LabelsDynamic when one cannot
+    # be read), InputWhy when --input cannot be read at all.
+    function Get-RestEdit($Options, [string]$Cwd, $PipeText, [bool]$LabelsEndpoint) {
+        $e = [pscustomobject]@{ InputWhy = $null; BodyPresent = $false; Body = $null; BodyWhy = $null; BodyPath = $null; TitlePresent = $false; Title = $null; TitleWhy = $null; Labels = [System.Collections.Generic.List[string]]::new(); LabelsDynamic = $false }
+        $inputInfo = Read-ApiInput $Options $Cwd $PipeText $LabelsEndpoint
+        if ($null -ne $inputInfo) {
+            # With --input the -f/-F fields go to the query string: the JSON holds the data.
+            if (-not $inputInfo.Ok) { $e.InputWhy = $inputInfo.Why; return $e }
+            $j = $inputInfo.Json
+            $items = @()
+            if ($j -is [object[]]) { $items = $j }
+            else {
+                if ($null -ne $j.PSObject.Properties['body']) {
+                    $e.BodyPresent = $true; $e.Body = Get-JsonString $j 'body'
+                    if ($null -eq $e.Body) { $e.BodyWhy = 'the --input JSON "body" is not a string' } else { $e.BodyPath = $inputInfo.Path }
+                }
+                if ($null -ne $j.PSObject.Properties['title']) {
+                    $e.TitlePresent = $true; $e.Title = Get-JsonString $j 'title'
+                    if ($null -eq $e.Title) { $e.TitleWhy = 'the --input JSON "title" is not a string' }
+                }
+                $lp = $j.PSObject.Properties['labels']
+                if ($null -ne $lp -and $null -ne $lp.Value) { $items = @($lp.Value) }
+            }
+            foreach ($l in $items) {
+                if ($l -is [string]) { $e.Labels.Add($l) }
+                elseif ($l -is [pscustomobject] -and $null -ne $l.PSObject.Properties['name']) { $e.Labels.Add([string]$l.name) }
+                else { $e.LabelsDynamic = $true }
+            }
+            return $e
+        }
+
+        foreach ($f in (Get-ApiFields $Options)) {
+            switch -CaseSensitive ($f.Key) {
+                'title' {
+                    $e.TitlePresent = $true
+                    $r = Resolve-ApiFieldValue $f $Cwd $PipeText
+                    if ($r.Ok) { $e.Title = $r.Text } else { $e.TitleWhy = $r.Why }
+                }
+                'body' {
+                    $e.BodyPresent = $true
+                    $r = Resolve-ApiFieldValue $f $Cwd $PipeText
+                    if ($r.Ok) { $e.Body = $r.Text; $e.BodyPath = $r.Path } else { $e.BodyWhy = $r.Why }
+                }
+                { $_ -ceq 'labels[]' -or $_ -ceq 'labels' } {
+                    $r = Resolve-ApiFieldValue $f $Cwd $PipeText
+                    if ($r.Ok) { $e.Labels.Add($r.Text) } else { $e.LabelsDynamic = $true }
+                }
+            }
+        }
+        return $e
+    }
+
+    # The issue as GitHub holds it (Title, Body, IsPr), or $null when it cannot be read. One call, parsed as JSON;
+    # ENCINA_ISSUE_GH overrides gh in tests.
+    function Read-ExistingIssue([string]$Number) {
+        $gh = if ($env:ENCINA_ISSUE_GH) { $env:ENCINA_ISSUE_GH } else { 'gh' }
+        $saved = [Console]::OutputEncoding
+        try {
+            [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+            $raw = @(& $gh api "repos/dlrivada/Encina/issues/$Number" 2>$null)
+            if ($LASTEXITCODE -ne 0) { return $null }
+            $o = ($raw -join "`n") | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch { return $null }
+        finally { [Console]::OutputEncoding = $saved }
+        if ($o -isnot [pscustomobject] -or $null -eq $o.PSObject.Properties['title']) { return $null }
+        $bodyProp = $o.PSObject.Properties['body']
+        $prProp = $o.PSObject.Properties['pull_request']
+        return [pscustomobject]@{ Title = [string]$o.title; Body = $(if ($null -ne $bodyProp -and $null -ne $bodyProp.Value) { [string]$bodyProp.Value } else { '' }); IsPr = ($null -ne $prProp -and $null -ne $prProp.Value) }
+    }
+
+    $RestEditLocalDraftMessage = "Blocked: a REST issue edit (gh api repos/dlrivada/Encina/issues/<n> -X PATCH) with a file-backed body (-F body=@<file>, or the body of --input <file>.json judged on its first line) $LocalDraftTail"
+
+    # Judges one REST edit like the creation and gh issue edit (#3274): a PATCH that sets a body keeps the
+    # template headers and carries the local-draft evidence, and a needs-decision label added by a PATCH or by a
+    # labels write needs a Dilemma in the resulting body (the call's, else the one GitHub holds). A pull request
+    # is not judged. Anything that cannot be read denies. Returns the message of the first violation, or $null.
+    function Get-RestEditViolation($Edit, $Target, [string]$Root) {
+        $what = 'a REST issue edit (gh api repos/dlrivada/Encina/issues/<n>)'
+        if ($Edit.InputWhy) {
+            return "Blocked: $what is judged like gh issue edit and fails closed when it cannot be read (#3274). Could not read: $($Edit.InputWhy). Create the --input file in an earlier call, or pass the fields with -f/-F."
+        }
+        $hasBody = ($Target.Kind -eq 'issue') -and $Edit.BodyPresent
+        # A literal needs-decision is judged even next to a label that cannot be read (as Test-HasNeedsDecision does).
+        $needsDecision = ($Edit.Labels -icontains 'needs-decision')
+        if (-not $hasBody -and -not $needsDecision) { return $null }
+
+        $unread = @()
+        if ($hasBody -and $null -eq $Edit.Body) { $unread += "the body ($($Edit.BodyWhy))" }
+        if ($hasBody -and $Edit.TitlePresent -and $null -eq $Edit.Title) { $unread += "the title ($($Edit.TitleWhy))" }
+        if ($unread.Count -gt 0) {
+            return "Blocked: $what is judged like gh issue edit and fails closed when it cannot be read (#3274). Could not read: $($unread -join ' | '). Pass the body as -F body=@<file> with the file created in an earlier call, or in --input <file>.json; a variable, a missing file or stdin cannot be checked."
+        }
+
+        $existing = $null
+        if ($Target.Number) {
+            $existing = Read-ExistingIssue $Target.Number
+            if ($null -eq $existing) {
+                return "Blocked: issue #$($Target.Number) could not be read to judge $what (#3274: its title and body decide the template and needs-decision checks, and a pull request is not judged). Retry, or edit it with gh issue edit."
+            }
+            if ($existing.IsPr) { return $null }
+        }
+
+        if ($hasBody) {
+            $title = if ($Edit.TitlePresent) { $Edit.Title } elseif ($null -ne $existing) { $existing.Title } else { $null }
+            if ($null -eq $title) {
+                return "Blocked: the issue number of $what is a variable and the call carries no title, so the template cannot be chosen (#3274). Type the issue number literally, or pass title= with the body."
+            }
+            $body = $Edit.Body
+            if ($Edit.BodyPath -and -not (Test-LocalDraftCompliance $Edit.BodyPath $Edit.Body $title $Root)) { return $RestEditLocalDraftMessage }
+        }
+        else {
+            if ($null -eq $existing) {
+                return "Blocked: the issue number of $what is a variable, so the body cannot be read to check the needs-decision label (#3274, #2470: it needs a Dilemma entry in the body). Type the issue number literally, or pass the body in the same call."
+            }
+            $body = $existing.Body
+        }
+
+        if ($needsDecision -and -not (Test-HasDilemma $body)) { return $DilemmaMessage }
+        if ($hasBody) { return (Get-TemplateViolation $title $body $Root) }
+        return $null
     }
 
     # GraphQL `createIssue` (#2823): the mutation takes label and milestone node ids and the repository id, so
@@ -767,7 +959,19 @@ try {
                     $judgeRest = (Test-ApiPost $aOptions) -and $null -ne $aInput -and $aInput.Ok -and ($null -ne $aInput.Json.PSObject.Properties['title'] -or $null -ne $aInput.Json.PSObject.Properties['body'])
                 }
             }
-            else { continue }
+            else {
+                # #3274: the REST edits of an existing issue (PATCH issues/<n>, POST/PUT issues/<n>/labels) get the
+                # checks of gh issue edit; every other endpoint is not judged.
+                $target = @($positionals | ForEach-Object { Get-ApiIssueTarget $_ } | Where-Object { $_ }) | Select-Object -First 1
+                if ($null -eq $target -or -not (Test-ApiIssueWrite $aOptions $target)) { continue }
+                try { $editViolation = Get-RestEditViolation (Get-RestEdit $aOptions $cwd $pipeText ($target.Kind -eq 'labels')) $target (Get-RepoRoot $cwd) }
+                catch { $editViolation = "Blocked: a REST issue edit (gh api repos/dlrivada/Encina/issues/<n>) could not be judged ($($_.Exception.GetType().Name)), so it fails closed (#3274). Retry with literal -f/-F fields, a body in -F body=@<file> and a literal issue number." }
+                if ($editViolation) {
+                    [Console]::Error.WriteLine($editViolation)
+                    exit 2
+                }
+                continue
+            }
             if (-not $judgeRest) { continue }
 
             $restRoot = Get-RepoRoot $cwd

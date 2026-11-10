@@ -90,7 +90,7 @@ public sealed class DelayedRetryRegistrationTests
         using var scope = provider.CreateScope();
 
         scope.ServiceProvider.GetService<IDelayedRetryScheduler>().ShouldBeNull();
-        provider.GetServices<IHostedService>().OfType<DelayedRetryProcessor>().ShouldBeEmpty();
+        provider.GetServices<IHostedService>().OfType<DelayedRetryProcessor>().Count().ShouldBe(1); // present but idle while delayed retries are off
         scope.ServiceProvider.GetServices<IPipelineBehavior<ProbeCommand, int>>()
             .ShouldContain(b => b is RecoverabilityPipelineBehavior<ProbeCommand, int>);
         Should.NotThrow(() => StartupCheckOf(provider).StartAsync(CancellationToken.None));
@@ -125,12 +125,14 @@ public sealed class DelayedRetryRegistrationTests
     }
 
     [Fact]
-    public void RegisteringTwice_AddsTheStartupCheckOnce()
+    public void RegisteringTwice_IsRejectedAndTheStartupCheckStaysRegisteredOnce()
     {
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
-        services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true);
+
+        Should.Throw<InvalidOperationException>(
+            () => services.AddEncinaRecoverability(o => o.EnableDelayedRetries = true));
 
         services.Count(d => d.ImplementationType == typeof(DelayedRetryStartupCheck)).ShouldBe(1);
     }
@@ -328,8 +330,8 @@ public sealed class DelayedRetryRegistrationTests
         var isService = Substitute.For<IServiceProviderIsService>();
 
         Should.Throw<ArgumentNullException>(() => new DelayedRetryStartupCheck(null!, isService, logger));
-        Should.Throw<ArgumentNullException>(() => new DelayedRetryStartupCheck(new RecoverabilityOptions(), null!, logger));
-        Should.Throw<ArgumentNullException>(() => new DelayedRetryStartupCheck(new RecoverabilityOptions(), isService, null!));
+        Should.Throw<ArgumentNullException>(() => new DelayedRetryStartupCheck(Options.Create(new RecoverabilityOptions()), null!, logger));
+        Should.Throw<ArgumentNullException>(() => new DelayedRetryStartupCheck(Options.Create(new RecoverabilityOptions()), isService, null!));
     }
 
     [Theory]

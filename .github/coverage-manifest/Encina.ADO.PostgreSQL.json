@@ -72,6 +72,23 @@
         "integration": "The integration tests on a real PostgreSQL database run every read audit query path, every filter and the stable-order paging (measured 88.34%); the uncovered lines are the catch blocks that turn a database failure into an error for each method and the Task.Run fallbacks of the ExecuteReader/ExecuteNonQuery/ExecuteScalar/ReadAsync helpers, which run only for non-native command types."
       }
     },
+    "BreakTheGlass/BreakTheGlassStoreADO.cs": {
+      "defaultTests": [
+        "integration"
+      ],
+      "defaultRule": "*StoreADO.cs",
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "unit": 25,
+        "guard": 5,
+        "integration": 95
+      },
+      "justifications": {
+        "unit": "BreakTheGlassPostgreSqlStoreTests covers the DI registration in both registration orders, the store_failed result of every method, and that a cancelled call throws instead of returning store_failed; the SQL itself needs a real database and is covered by the integration flag.",
+        "guard": "BreakTheGlassPostgreSqlStoreGuardTests rejects the null and out-of-range arguments of every public method and constructor; the rest of the file is SQL that only a database executes.",
+        "integration": "The shared BreakTheGlassStoreContract runs on the PostgreSQL ADO collection fixture through BreakTheGlassStoreADOPostgreSqlIntegrationTests, executing every method against a real database including the concurrent add, the review queue paging and the non-UTC session time zone fact."
+      }
+    },
     "BulkOperations/BulkOperationsPostgreSQL.cs": {
       "defaultTests": [
         "integration"

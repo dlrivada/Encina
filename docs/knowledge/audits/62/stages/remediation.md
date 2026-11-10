@@ -1,0 +1,39 @@
+Remediation for #62:
+- code 1 (Major): draft 62-code-1-with-routingslipoptions-continuecompensationonfailure-false.md
+- code 2 (Major): draft 62-code-2-with-the-default-continuecompensationonfailure-true-a-failed.md
+- code 3 (Major): draft 62-code-3-routing-slip-timeouts-are-accepted-and-discarded-nothing.md
+- code 4 (Major): draft 62-code-4-on-the-step-failure-path-the-compensations-run.md
+- code 5 (Minor): draft 62-code-5-catch-operationcanceledexception-at-routingsliprunner-cs-132.md
+- code 6 (Minor): draft 62-code-6-routingslipstepbuilder-silently-drops-a-step-that-is-never.md
+- code 7 (Minor): draft 62-code-7-result-bookkeeping-misreports-dynamic-itinerary-changes-that.md
+- code 8 (Minor): draft 62-code-8-public-surface-with-no-reader-registered-and-documented.md
+- code 9 (Minor): draft 62-code-9-no-cross-cutting-evaluation-was-recorded-and-opentelemetry.md
+- tests 1 (Major): draft 62-tests-1-github-coverage-manifest-encina-messaging-json-lines-1133.md
+- tests 2 (Major): draft 62-tests-2-tests-encina-guardtests-messaging-routingslip-routingsliprun.md
+- tests 3 (Major): merged into code 1 (same location)
+- tests 4 (Major): merged into code 3 (manual override)
+- tests 5 (Major): merged into code 4 (manual override)
+- tests 6 (Minor): draft 62-tests-6-result-bookkeeping-and-the-step-builder-have-no.md
+- tests 7 (Minor): draft 62-tests-7-classification-defects-in-the-manifest-entries-rule-b.md
+- tests 8 (Minor): draft 62-tests-8-missing-test-types-for-the-pattern-agents-md.md
+- tests 9 (Minor): draft 62-tests-9-tests-encina-unittests-messaging-routingslip-routingsliprunn.md
+- docs 1 (Major): draft 62-docs-1-no-concept-or-guide-page-and-no-reference.md
+- docs 2 (Major): draft 62-docs-2-the-feature-appears-in-no-tutorial-or-learning.md
+- docs 3 (Major): duplicate of #1299 (manual override)
+- docs 4 (Blocker): duplicate of #1299 (manual override)
+- docs 5 (Minor): draft 62-docs-5-the-messaging-readme-the-only-package-readme-of.md
+- docs 6 (Minor): draft 62-docs-6-the-ef-core-readme-section-on-routing-slips.md
+
+## Lessons for the pipeline
+- docs 3: recorded as duplicate of #1299 by manual override
+- docs 4: recorded as duplicate of #1299 by manual override
+- tests 4: merged into code 3 by manual override
+- tests 5: merged into code 4 by manual override
+- (drafter) No shell and no `gh`: the comments of the core saga issues (timeout, cancellation token, step builder, cancellation catch) could not be read. The timeout draft (code 3) states the maintainer's 2026-10-10 decision as an earlier approved draft of this audit family records it; code 4, 5 and 6 are written as plain fixes because their saga counterparts are plain bug reports, and no Dilemma was written. The orchestrator should confirm against the live comments before opening.
+- (drafter) code 6: the mechanism for an unclosed step (include it or reject it at build) is left to match the saga step builder fix, so the two builders end consistent; the draft fixes only the outcome (never dropped, never duplicated).
+- (drafter) code 8 proposes removing the stuck-slip options, the status constants and the unproduced error codes (`AGENTS.md` section 3); the persistence feature would re-add what it needs. If the maintainer wants the persistence surface kept for that feature, this draft becomes a Dilemma.
+- (drafter, re-run) code 8 is now a neutral Dilemma (options A, B, C; `Timeout` and `CompensationFailed` stay in all; ADR-050 `:53`, #590, #591, #762): the orchestrator adds `needs-decision` when opening, the header carries only the route's `technical-debt`. Option B's candidate cut was drawn from `IRoutingSlipStore.cs:42-45` and `IRoutingSlipState.cs:36-83`; #590's DDL sketch (InProgress, Completed, Failed, Compensating; no stuck processor) is stated as the verification recorded it, as the live issue body could not be read.
+- (drafter, re-run) code 9: the titled premise "unlike the Saga, Outbox, Inbox and Scheduling runners" is dropped; only `OutboxActivitySource` (`TransactionalOutboxPipelineBehavior.cs:173`) and `SchedulingActivitySource` (`ScheduledMessageProcessor.cs:147, :166, :172`) have callers, Saga and Inbox have none (#1790). The draft follows ADR-054 D3 (one `Encina.*` source and meter per package) and lists #1790, #1791, #1787, #2677 as related; titles of #1791 and #2677 are descriptions, not the live titles. The re-prepared code input already says the Saga and Inbox sources have no caller.
+- (drafter, re-run) docs 5: narrowed to the missing Mermaid diagrams and the stale Roadmap rows (`README.md:698-700`); #1886 owns the emoji part. The README explains eight patterns (`README.md:59, :92, :110, :150, :184, :309, :329, :386`), not the five the finding names; the draft names all eight and asks for diagrams on at least the five asynchronous flows. The re-prepared docs input already names #1886 as owner of the emoji part.
+- (drafter, re-run) tests 1: `RoutingSlipContext.cs:138` is `GetRemainingSteps` (`GetActivityLog` at `:140` is executed by the runner), so the justification names `GetRemainingSteps`; the manifest values are the guard "after" values (builder 90, context 85, step builder 80), sequenced after the guard tests, not today's incidental coverage. Guard 73 for `RoutingSlipActivityEntry.cs` stays because no guard test can add lines there. The re-prepared input already names `GetRemainingSteps`; the finding 6 sentence on `StepsAdded` at `:145` was not part of this re-run and should say `StepsAdded.ShouldBe(0)`.
+- (drafter) docs 1 and docs 2: the stage text says "no tutorial or learning path"; no learning-path page exists under `docs/`, so docs 2 names only the tutorials index and the docs index row.

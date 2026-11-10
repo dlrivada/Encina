@@ -1,34 +1,37 @@
 # Integration Tests - AzureFunctions Durable Functions host
 
-## Status: Not Implemented
+## Status: Partially Implemented
 
-The host-bound Durable Functions types of `Encina.AzureFunctions` (`DurableSagaBuilder`, `FanOutFanInExtensions`, `OrchestrationContextExtensions`) are not exercised by an integration test on a real Azure Functions host. Running them on a real host is untested, and a user who chooses it does so under their own responsibility (maintainer decision D11 and D10 of issue #2699: cloud features are tested only locally, never against the real cloud). The four host-free Durable files (`ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions`, `DurableFunctionsHealthCheck`) are covered in process by `DurableFunctionsInProcessIntegrationTests.cs`. The follow-up is issue #3114.
+`DurableSagaBuilder` and `OrchestrationContextExtensions` of `Encina.AzureFunctions` are tested locally on the Durable Task in-process test host (`Microsoft.DurableTask.InProcessTestHost`, preview): `DurableSagaOnTestHostIntegrationTests.cs` and `OrchestrationContextExtensionsOnTestHostIntegrationTests.cs` run real orchestrations and activities through the Durable engine (replay, retries, timers, external events, sub-orchestrations). `FanOutFanInExtensions` is deferred to issues #3214 and #3216. The Azure Functions host, its bindings and Azure Storage are not tested; the real local host smoke test is issue #3252. Nothing is tested against the real cloud (maintainer decisions D11 and D10 of issue #2699: cloud features are tested only locally).
 
 ## Justification
 
-1. **Durable orchestrations run inside a Functions host.** `TaskOrchestrationContext` and the durable task client are created by the Durable Task extension of the host; the orchestrator replays, checkpoints and schedules activities through a storage provider. `Microsoft.Azure.Functions.Worker.Extensions.DurableTask` offers no way to run an orchestration in process. A preview in-process test host exists on NuGet (`Microsoft.DurableTask.InProcessTestHost`); it was not evaluated, and the follow-up issue should decide on it.
-2. **A real host needs infrastructure this repository does not have.** It needs the Azure Functions Core Tools or the host image, a compiled function app that references `Encina.AzureFunctions`, and a storage account for `AzureWebJobsStorage` (Azurite locally). None of them is in `Directory.Packages.props`, the Docker compose profiles or the shared fixtures; `Testcontainers.Azurite` is the subject of the `Cloud-Azurite` fixture of PR #2971.
-3. **Doubling the orchestration context would not be an integration test.** The unit flag already runs the builder, the fan-out helpers and the activity result with substituted contexts (`tests/Encina.UnitTests/AzureFunctions/Durable`); repeating that in the integration project would execute the same lines with the same doubles and prove nothing about a host.
-4. **Only three Durable files remain bound to a host.** `ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions` and `DurableFunctionsHealthCheck` (which verifies option values only) need no host and are exercised in process by `DurableFunctionsInProcessIntegrationTests.cs`. This justification therefore concerns only `DurableSagaBuilder`, `FanOutFanInExtensions` and `OrchestrationContextExtensions`, whose follow-up is issue #3114 (issue #523 is related and tracks Durable test coverage).
+1. **The test host runs the Durable engine, not the Functions host.** It starts the Durable Task engine and an in-memory orchestration service in process, so `TaskOrchestrationContext` is real, but triggers, bindings, `AzureWebJobsStorage` and the Functions worker pipeline are not involved. Those need the Core Tools or host image, a compiled function app and Azurite; issue #3252 tracks a smoke test of that.
+2. **`FanOutFanInExtensions` is deferred.** Its integration tests are part of the work of issues #3214 and #3216, so its integration target stays 0 until they land.
+3. **The `durable.saga_exception` and `durable.compensation_exception` catch blocks are not exercised by any flag.** `CallEncinaActivityWithResultAsync` converts every `TaskFailedException` to a `Left`, so a failing activity never enters the `catch` blocks of `DurableSaga<TData>.ExecuteAsync` and its compensation step. Whether another exception type (for example a result that fails to deserialize) can reach them on the test host was not established. Likewise the `durable.event_failed` catch of `WaitForEncinaExternalEventAsync` is not exercised.
+4. **The test host package is a preview.** `Microsoft.DurableTask.InProcessTestHost` is pinned to `0.2.3-preview.1` and moves to the first stable release (issue #3114). On this version an orchestration that combines a timer with a received external event often stays in `Running`, so the "event arrives before the timeout" test is skipped and that branch has no other test until the hang is resolved (#3344).
+5. **Behaviour under change is not asserted.** Tests assert error codes, never messages (#3205), and do not assert the step-throws-versus-Left choice (#3207), saga timeouts (#3212) or retry defaults (#3211). The built-in error codes (`durable.activity_failed`, `durable.suborchestrator_failed`, `durable.event_timeout`, `durable.event_cancelled`) are asserted as literals and move with #3217.
 
 ## Adequate Coverage from Other Test Types
 
-- **Unit**: `DurableFunctionsOptionsTests`, `DurableFunctionsHealthCheckTests`, `DurableServiceCollectionExtensionsTests`, `DurableSagaBuilderTests`, `FanOutFanInExtensionsTests`, `OrchestrationContextExtensionsTests` and `ActivityResultTests` in `tests/Encina.UnitTests/AzureFunctions/Durable`.
+- **Unit**: `DurableSagaBuilderTests`, `FanOutFanInExtensionsTests`, `OrchestrationContextExtensionsTests`, `ActivityResultTests` and the options, registration and health-check tests in `tests/Encina.UnitTests/AzureFunctions/Durable`.
 - **Guard**: `DurableGuardTests` in `tests/Encina.GuardTests` for every public parameter of the Durable types.
-- **Integration (in-process, this folder)**: the middleware, the context and response extensions, the health check and `AddEncinaAzureFunctions` run with concrete worker types and a real `IEncina` pipeline. `DurableFunctionsInProcessIntegrationTests.cs` additionally exercises `ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions` and `DurableFunctionsHealthCheck`. The three host-bound files are not reached.
+- **Integration (this folder)**: the middleware, context and response extensions, the health check and `AddEncinaAzureFunctions` run in process with a real `IEncina` pipeline (`DurableFunctionsInProcessIntegrationTests.cs` also covers the host-free Durable files), and the two Durable files above run on the test host.
 
 ## Recommended Alternative
 
-The local-only follow-up `[TEST]` issue #3114: a real Functions host (Core Tools or host image) plus the Azurite fixture running a small function app with one orchestration built by `DurableSagaBuilder` and one fan-out/fan-in. Until it lands, the package README states that the host-bound Durable Functions types are untested on a real host.
+Issues #3214 and #3216 add the fan-out and fan-in tests on the same test host; issue #3252 adds a smoke test on a real local Functions host with Azurite.
 
 ## Related Files
 
-- `tests/Encina.IntegrationTests/Cloud/AzureFunctions/AzureFunctionsTestSupport.cs`
+- `tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableSagaOnTestHostIntegrationTests.cs`
+- `tests/Encina.IntegrationTests/Cloud/AzureFunctions/OrchestrationContextExtensionsOnTestHostIntegrationTests.cs`
+- `tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableTestHostSupport.cs`
 - `tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsInProcessIntegrationTests.cs`
 - `src/Encina.AzureFunctions/Durable/`
 - `src/Encina.AzureFunctions/README.md`
 - `.github/coverage-manifest/Encina.AzureFunctions.json`
 
-## Date: 2026-10-28
+## Date: 2026-11-06
 
-## Issue: #2699 (follow-up #3114; related #523)
+## Issue: #3114 (earlier: #2699; follow-ups #3214, #3216, #3252, #3344; related #523)

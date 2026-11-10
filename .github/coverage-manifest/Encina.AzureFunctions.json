@@ -55,11 +55,11 @@
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
-      "targets": { "unit": 50, "guard": 38, "integration": 0 },
+      "targets": { "unit": 50, "guard": 38, "integration": 78 },
       "justifications": {
         "unit": "DurableSagaBuilderTests build and configure sagas; the ExecuteAsync and compensation paths need an orchestration context double and are still partly unmeasured.",
         "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md; the real-host test is tracked by #3114."
+        "integration": "DurableSagaOnTestHostIntegrationTests run success, compensation in reverse order, a compensation error, an activity that throws, steps without compensation on the Durable Task in-process test host, and build a saga with retry options and a timeout configured (neither is exercised: no activity retries and WithTimeout binds nothing, #3212); the durable.saga_exception and durable.compensation_exception catch blocks are not exercised by any flag because a failing activity is converted to Left and no other exception was shown to reach them, and the remaining uncovered lines are argument-validation throws and Left returns covered by the guard flag."
       }
     },
     "Durable/DurableSagaErrorCodes.cs": {
@@ -94,7 +94,7 @@
       "justifications": {
         "unit": "FanOutFanInExtensionsTests run the FanOut methods with substituted orchestration contexts; the aggregate methods still lack unit coverage.",
         "guard": "DurableGuardTests call FanOutAsync and FanOutWithResultAsync with a null context, null or empty activity name, null inputs and empty inputs, and FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync overloads with a null context.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md; the real-host test is tracked by #3114."
+        "integration": "Not yet run on the Durable Task in-process test host; the fan-out and fan-in integration tests are deferred to #3214 and #3216; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
       }
     },
     "Durable/OrchestrationContextExtensions.cs": {
@@ -104,11 +104,11 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 26, "guard": 22, "integration": 0 },
+      "targets": { "unit": 26, "guard": 22, "integration": 92 },
       "justifications": {
         "unit": "OrchestrationContextExtensionsTests run the activity, sub-orchestrator and retry-option helpers; the external-event paths still lack unit coverage.",
         "guard": "DurableGuardTests call every extension with a null context, null or empty name and out-of-range retry parameters, plus the zero-retry valid call.",
-        "integration": "Durable orchestrations run only inside a Functions host, which the integration flag does not start; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md; the real-host test is tracked by #3114."
+        "integration": "OrchestrationContextExtensionsOnTestHostIntegrationTests run every helper (activity and sub-orchestrator, with and without the Either wrapper, success, failure, throwing and retry, external events with timeout, event first, no timeout and a cancelled token, GetCorrelationId) on the Durable Task in-process test host; the uncovered lines are the durable.event_failed catch of WaitForEncinaExternalEventAsync, which no test reaches."
       }
     },
     "EncinaAzureFunctionsOptions.cs": {

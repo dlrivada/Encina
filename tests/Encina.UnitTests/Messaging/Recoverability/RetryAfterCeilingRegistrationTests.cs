@@ -41,7 +41,7 @@ public sealed class RetryAfterCeilingRegistrationTests
         using var scope = provider.CreateScope();
         var sp = scope.ServiceProvider;
 
-        provider.GetRequiredService<RecoverabilityOptions>().MaxRetryAfter.ShouldBe(TimeSpan.FromHours(24));
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.MaxRetryAfter.ShouldBe(TimeSpan.FromHours(24));
         provider.GetRequiredService<OutboxOptions>().MaxRetryAfter.ShouldBe(TimeSpan.FromHours(24));
         sp.GetServices<IPipelineBehavior<ProbeRequest, string>>()
             .ShouldContain(b => b is RecoverabilityPipelineBehavior<ProbeRequest, string>);
@@ -58,7 +58,7 @@ public sealed class RetryAfterCeilingRegistrationTests
             config.OutboxOptions.MaxRetryAfter = TimeSpan.FromHours(12);
         });
 
-        provider.GetRequiredService<RecoverabilityOptions>().MaxRetryAfter.ShouldBe(TimeSpan.FromHours(6));
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.MaxRetryAfter.ShouldBe(TimeSpan.FromHours(6));
         provider.GetRequiredService<OutboxOptions>().MaxRetryAfter.ShouldBe(TimeSpan.FromHours(12));
     }
 
@@ -79,7 +79,7 @@ public sealed class RetryAfterCeilingRegistrationTests
 
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
-        provider.GetRequiredService<RecoverabilityOptions>().MaxRetryAfter.ShouldBe(TimeSpan.FromHours(3));
+        provider.GetRequiredService<IOptions<RecoverabilityOptions>>().Value.MaxRetryAfter.ShouldBe(TimeSpan.FromHours(3));
         provider.GetServices<IHostedService>().ShouldContain(h => h is DelayedRetryProcessor);
     }
 }
