@@ -195,6 +195,31 @@ function Get-PriorityUrgentBonus {
     return 0
 }
 
+$script:PriorityP0Bonus = 50
+
+function Get-PriorityP0Bonus {
+    <#
+        .SYNOPSIS
+        Returns the p0-mandatory bonus (50) when the GitHub label 'p0-mandatory' is among
+        $Labels (case-insensitive), else 0 (#3386). Pure; null or empty labels give 0.
+    #>
+    param($Labels)
+    foreach ($l in @($Labels)) {
+        if ($null -ne $l -and ([string]$l).Trim() -ieq 'p0-mandatory') { return $script:PriorityP0Bonus }
+    }
+    return 0
+}
+
+function Get-PriorityLabelBonus {
+    <#
+        .SYNOPSIS
+        The bonus added to the computed total: the larger of the urgent bonus (100) and the
+        p0-mandatory bonus (50), never their sum, so an issue with both labels gets 100 (#3386).
+    #>
+    param($Labels)
+    return [Math]::Max((Get-PriorityUrgentBonus -Labels $Labels), (Get-PriorityP0Bonus -Labels $Labels))
+}
+
 function Get-PriorityRankedList {
     <#
         .SYNOPSIS
