@@ -5348,6 +5348,59 @@ The fluent builder chain described in the documentation is fictional. The parame
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
 
+    # ================================================================================================
+    # #3229: inside Bash double quotes a backslash escapes only before $, a backtick, ", \ or a newline (a
+    # backslash-newline pair is removed); every other backslash is kept, so a Windows path in double quotes
+    # survives. An unquoted backslash is still consumed, as Bash does. The tokenizer is shared, so the
+    # tokens are pinned directly and the two guard symptoms (a read-only launch denied for a mangled path, a
+    # write to src/ hidden by it) are pinned through the Bash tool shape.
+    # ================================================================================================
+    function Test-BashTokens3229([string]$Text, [string[]]$Expected, [string]$Label) {
+        $values = & {
+            . (Join-Path $hooks '_command-text.ps1')
+            @((Split-CommandStatements -Text $Text -Bash)[0] | ForEach-Object { [string]$_.Value })
+        }
+        $script:total++
+        $ok = ($values -join [char]0x1F) -ceq ($Expected -join [char]0x1F)
+        if (-not $ok) { $script:failed++ }
+        "{0} Split-CommandStatements -Bash: {1}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $Label
+        if (-not $ok) { "      expected: $($Expected -join ' | ')"; "      got:      $($values -join ' | ')" }
+    }
+    Test-BashTokens3229 'pwsh -File "C:\Users\a\b.ps1"' @('pwsh', '-File', 'C:\Users\a\b.ps1') 'a Windows path in double quotes keeps its backslashes (#3229)'
+    Test-BashTokens3229 'gh pr comment 1 --body-file "D:\Proyectos\a.md"' @('gh', 'pr', 'comment', '1', '--body-file', 'D:\Proyectos\a.md') '--body-file with a double-quoted Windows path keeps its backslashes (#3229)'
+    Test-BashTokens3229 'echo "\\server\x"' @('echo', '\server\x') 'a doubled backslash gives one, the next backslash is kept (#3229)'
+    Test-BashTokens3229 'echo "a\"b"' @('echo', 'a"b') 'a backslash before a double quote gives the quote (#3229)'
+    Test-BashTokens3229 'echo "a\$b" "a\`b"' @('echo', 'a$b', 'a`b') 'a backslash before $ or a backtick gives that character (#3229)'
+    Test-BashTokens3229 ("echo `"a\`nb`"") @('echo', 'ab') 'a backslash-newline pair inside double quotes is removed (#3229)'
+    Test-BashTokens3229 ("echo `"a\`r`nb`"") @('echo', "a\`r`nb") 'a backslash before CRLF inside double quotes is kept, with CR and LF, as Bash does (#3229)'
+    Test-BashTokens3229 'echo C:\Users\a' @('echo', 'C:Usersa') 'an unquoted backslash is still consumed, as Bash does (#3229, D2)'
+    Test-BashTokens3229 "echo 'C:\Users\a'" @('echo', 'C:\Users\a') 'single quotes keep every backslash (#3229)'
+
+    $scratch3229 = Join-Path ([IO.Path]::GetTempPath()) ("hooks-3229-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force $scratch3229 | Out-Null
+    Set-Content -LiteralPath (Join-Path $scratch3229 'benign.ps1') -Value "Write-Output 'benign'`n"
+    function Invoke-Bash3229([string]$Agent, [string]$Command, [int]$Expected, [string]$Label, [string]$Pattern) {
+        $json = @{ tool_name = 'Bash'; agent_id = 'a3229'; agent_type = $Agent; cwd = $scratch3229; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
+        $out = $json | pwsh -NoProfile -File $orchestrator 2>&1
+        $code = $LASTEXITCODE
+        $flat = Get-FlatOutput $out
+        $ok = ($code -eq $Expected) -and (-not $Pattern -or $flat -match $Pattern)
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected {2}] guard-orchestrator-writes.ps1 (Bash): {3}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $Expected, $Label
+        if (-not $ok) { "      output: $flat" }
+    }
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-Bash3229 $agent "pwsh -NoProfile -File `"$scratch3229\benign.ps1`"" 0 "$agent`: a read-only launch of an existing script by a double-quoted Windows path is allowed, not denied as missing (#3229)"
+    }
+    Invoke-Bash3229 'adversarial-reviewer' "pwsh -NoProfile -File `"$scratch3229\missing.ps1`"" 2 'adversarial-reviewer: a double-quoted Windows path to a missing script is still denied, with the real path in the message (#3229)' ('which does not exist \(resolved from .' + [regex]::Escape("$scratch3229\missing.ps1"))
+    # The fail-open: the mangled path hid the target of a write inside a `pwsh -Command "..."` wrapper.
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-Bash3229 $agent "pwsh -NoProfile -Command `"Set-Content $repo\src\X3229.cs y`"" 2 "$agent`: a write to src/ by a double-quoted Windows path inside pwsh -Command is denied through the Bash tool (#3229)" ([regex]::Escape("$repo\src\X3229.cs"))
+    }
+    Remove-Item -LiteralPath $scratch3229 -Recurse -Force -ErrorAction SilentlyContinue
+    # ---- end #3229 block ----
+
     # board-event-reminder.ps1 (#1732): a PostToolUse reminder, never blocks (exit 0 always).
     $boardHook = Join-Path $hooks 'board-event-reminder.ps1'
     $boardReminder = '"additionalContext":"Board: update work/flow/audits for (?<ev>[^"]+) now"'

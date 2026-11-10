@@ -279,10 +279,21 @@ function Split-CommandStatements {
                     }
                     # An escape or a `$` inside double quotes is expanded by the shell (`u{73}, $?, $$): not a Literal.
                     if ($d -eq '$' -or ($d -eq '`' -and -not $Bash)) { $bare = $true }
-                    if (($d -eq '`' -and -not $Bash) -or ($d -eq '\' -and $Bash)) {
+                    if ($d -eq '`' -and -not $Bash) {
                         if ($j + 1 -lt $n) { [void]$sb.Append($Text[$j + 1]) }
                         $j += 2
                         continue
+                    }
+                    # Bash: inside double quotes a backslash escapes only before $, a backtick, ", \ or a newline
+                    # (a backslash-newline pair is removed); any other backslash is kept, so a Windows path survives.
+                    if ($d -eq '\' -and $Bash) {
+                        $next = if ($j + 1 -lt $n) { $Text[$j + 1] } else { $null }
+                        if ($next -eq "`n") { $j += 2; continue }
+                        if ($null -ne $next -and '$`"\'.Contains($next)) {
+                            [void]$sb.Append($next)
+                            $j += 2
+                            continue
+                        }
                     }
                     if ($d -eq '$' -and $j + 1 -lt $n -and $Text[$j + 1] -eq '(') {
                         $dynamic = $true
