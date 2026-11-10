@@ -5147,8 +5147,8 @@ The fluent builder chain described in the documentation is fictional. The parame
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign.ps1') -Value "Write-Output 'benign'`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign2.ps1') -Value "Write-Output 'benign2'`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign3.ps1') -Value "Write-Output 'benign3'`n"
-    function Invoke-Probe1854([string]$Agent, [string]$Command, [int]$Expected, [string]$Label, [string]$Pattern) {
-        $json = @{ tool_name = 'PowerShell'; agent_id = 'a1854'; agent_type = $Agent; cwd = $scratch1854; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
+    function Invoke-Probe1854([string]$Agent, [string]$Command, [int]$Expected, [string]$Label, [string]$Pattern, [string]$Cwd = $scratch1854) {
+        $json = @{ tool_name = 'PowerShell'; agent_id = 'a1854'; agent_type = $Agent; cwd = $Cwd; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
         $out = $json | pwsh -NoProfile -File $orchestrator 2>&1
         $code = $LASTEXITCODE
         $flat = Get-FlatOutput $out
@@ -6029,6 +6029,51 @@ The fluent builder chain described in the documentation is fictional. The parame
     }
     $env:CLAUDE_PROJECT_DIR = $savedProjectDir3244
     # ---- end #3244 block ----
+
+    # ================================================================================================
+    # #3115: a read-only reviewer subagent (adversarial-reviewer, pr-reviewer) may run a sanctioned
+    # .github/scripts/*.cs (the gate self-test) from the main checkout, from a worktree under .claude\worktrees
+    # and from a registered worktree outside it, now that Get-RepoLocation sees every registered worktree (#3244,
+    # PR #3473). The branch that decides is guard-orchestrator-writes.ps1: Get-RepoLocation resolves the script
+    # inside a checkout, Test-ScriptIsSanctioned matches '^\.github/scripts/[^/]+\.cs$', so $sanctioned is true and
+    # the script's text is never judged. The sanction is by path only: a write to src/ or tests/, a variable script
+    # path and a lookalike in an unregistered folder stay denied. The hook is not changed.
+    # ================================================================================================
+    $savedProjectDir3115 = $env:CLAUDE_PROJECT_DIR
+    $selfTest3115 = '.github\scripts\release-readiness.cs'
+    $gateText3115 = "// Gate self-test. Mentions src/ and tests/ and writes a report: System.IO.File.WriteAllText(path, `"x`");`n"
+    $roots3115 = @(
+        @{ Name = 'the main checkout'; Root = $main; Project = $main },
+        @{ Name = 'a worktree under .claude\worktrees'; Root = $wt; Project = $main },
+        @{ Name = 'a registered worktree outside .claude\worktrees'; Root = $beside3244; Project = $main3244 })
+    foreach ($location in $roots3115) {
+        $env:CLAUDE_PROJECT_DIR = $location.Project
+        $gate = Join-Path $location.Root $selfTest3115
+        New-Item -ItemType Directory -Force (Split-Path -Parent $gate) | Out-Null
+        Set-Content -LiteralPath $gate -Value $gateText3115
+        foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+            Invoke-Probe1854 $agent "dotnet run --file '$gate' -- --self-test" 0 "$agent`: dotnet run --file release-readiness.cs -- --self-test in $($location.Name) is allowed (#3115)" '' $location.Root
+        }
+        Invoke-Probe1854 'pr-reviewer' "dotnet run --file '$gate'" 0 "pr-reviewer: the same sanctioned path with no --self-test argument is allowed too, the sanction is by path only (#3115 D3)" '' $location.Root
+        Invoke-Probe1854 'adversarial-reviewer' "dotnet run --file .github\scripts\release-readiness.cs -- --self-test" 0 "adversarial-reviewer: the relative form from the cwd of $($location.Name) is allowed (#3115)" '' $location.Root
+        Invoke-Probe1854 'adversarial-reviewer' 'dotnet run --file $sp\.github\scripts\release-readiness.cs -- --self-test' 2 "adversarial-reviewer: a script path held in an unresolvable variable stays denied in $($location.Name) (#3115)" 'cannot resolve \(tried .\$sp' $location.Root
+        foreach ($tool in 'Write', 'Edit') {
+            foreach ($folder in 'src\Encina\X.cs', 'tests\X.cs') {
+                $json = @{ tool_name = $tool; agent_id = 'a3115'; agent_type = 'adversarial-reviewer'; cwd = $location.Root; tool_input = @{ file_path = (Join-Path $location.Root $folder) } } | ConvertTo-Json -Compress
+                Invoke-HookCase $orchestrator $json 2 "#3115 adversarial-reviewer: $tool of $folder in $($location.Name) stays denied"
+            }
+        }
+        Invoke-Probe1854 'pr-reviewer' "Set-Content '$($location.Root)\src\Encina\X.cs' -Value x" 2 "pr-reviewer: Set-Content into src/ of $($location.Name) stays denied (#3115)" '' $location.Root
+    }
+    $lookalikeGate3115 = Join-Path $unreg3244 '.github\scripts\x.cs'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $lookalikeGate3115) | Out-Null
+    Set-Content -LiteralPath $lookalikeGate3115 -Value $gateText3115
+    $env:CLAUDE_PROJECT_DIR = $main3244
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-Probe1854 $agent "dotnet run --file '$lookalikeGate3115'" 2 "$agent`: a .github/scripts/x.cs in an unregistered folder is not sanctioned and stays denied (#3115)" 'references src/ or tests/ and writes files' $unreg3244
+    }
+    $env:CLAUDE_PROJECT_DIR = $savedProjectDir3115
+    # ---- end #3115 block ----
 }
 finally {
     Pop-Location
