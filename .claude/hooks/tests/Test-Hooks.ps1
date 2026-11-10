@@ -1319,6 +1319,128 @@ try {
     }
     finally { $env:CLAUDE_PROJECT_DIR = $savedProjectDirForRest }
 
+    # #3274: the REST equivalents of `gh issue edit` (PATCH issues/<n>, POST/PUT issues/<n>/labels) are judged like
+    # gh issue edit. The fake gh serves the existing issue as JSON from $editDir/issue-<n>.json (and fails when the
+    # file is missing): 7001 a [DEBT] issue, 7002 a pull request, 7003 a [DEBT] issue whose body has a Dilemma,
+    # 7004 one without, 7005 unreadable.
+    $editDir = Join-Path $work 'edit-issues'
+    New-Item -ItemType Directory -Force $editDir | Out-Null
+    $fakeEditGh = Join-Path $work 'fake-gh-edit.ps1'
+    Set-Content $fakeEditGh @'
+$f = Join-Path $env:ENCINA_EDIT_DIR "issue-$(($args[1] -split '/')[-1]).json"
+if ($args[0] -eq 'api' -and (Test-Path -LiteralPath $f)) { Get-Content -LiteralPath $f -Raw; exit 0 }
+exit 1
+'@
+    function Write-EditIssue([int]$Number, [string]$Title, [string]$Body, [switch]$Pr) {
+        $o = [ordered]@{ number = $Number; title = $Title; body = $Body; labels = @() }
+        if ($Pr) { $o.pull_request = @{ url = 'https://api.github.com/repos/dlrivada/Encina/pulls/7002' } }
+        Set-Content (Join-Path $editDir "issue-$Number.json") ($o | ConvertTo-Json -Compress)
+    }
+    Write-EditIssue 7001 '[DEBT] existing' $debt
+    Write-EditIssue 7002 'fix(hooks): a pull request title' 'plain pull request body' -Pr
+    Write-EditIssue 7003 '[DEBT] with dilemma' ($debt + "`nDilemma D1: two valid options.`n")
+    Write-EditIssue 7004 '[DEBT] without dilemma' $debt
+    Set-Content (Join-Path $work 'patch-ok.json') (@{ body = $debt } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-no-evidence.json') (@{ body = $restBadJson.body } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-missing.json') (@{ body = ($debt -replace '## Root Cause\r?\nr\r?\n', '') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-state.json') (@{ state = 'closed' } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-labels-nd.json') (@{ labels = @('needs-decision') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'patch-labels-bug.json') (@{ labels = @('bug') } | ConvertTo-Json -Compress)
+    Set-Content (Join-Path $work 'labels-array-nd.json') '["needs-decision"]'
+    Set-Content (Join-Path $work 'labels-array-bug.json') '["bug"]'
+    $ei = 'repos/dlrivada/Encina/issues'
+    $editCases = @(
+        # PATCH of a body: template headers and local-draft evidence.
+        @("gh api $ei/7001 -X PATCH -F body=@debt-ok.md", 0, 'edit: a conforming body (the title comes from the issue)'),
+        @("gh api $ei/7001 --method=patch -F body=@debt-ok.md", 0, 'edit: --method=patch, a conforming body'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: a body missing a template header is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-order.md", 2, 'edit: a body with headers out of order is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@debt-no-evidence.md", 2, 'edit: a body file without local-draft evidence is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@draft-pointer-a.md", 0, 'edit: a body with a local-draft pointer and a ledger row'),
+        @("gh api $ei/7001 -X PATCH --input patch-ok.json", 0, 'edit: --input JSON with a conforming body'),
+        @("gh api $ei/7001 -X PATCH --input patch-no-evidence.json", 2, 'edit: --input JSON body without local-draft evidence is denied'),
+        @("gh api $ei/7001 -X PATCH --input patch-missing.json", 2, 'edit: --input JSON body missing a header is denied'),
+        @("gh api $ei/7001 -X PATCH -f 'body=no headers at all'", 2, 'edit: an inline body without headers is denied'),
+        @("gh api $ei/7001 -X PATCH -f 'title=No prefix' -F body=@debt-ok.md", 2, 'edit: a new title without a template prefix is denied'),
+        @("gh api https://api.github.com/$ei/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: full URL'),
+        @("gh api /$ei/7001/ -X PATCH -F body=@debt-missing.md", 2, 'edit: leading and trailing slash'),
+        @("gh api repositories/123456/issues/7001 -X PATCH -F body=@debt-missing.md", 2, 'edit: repository id form'),
+        @("gh api -X `$m $ei/7001 -F body=@debt-missing.md", 2, 'edit: a variable method with a data option is judged'),
+        @("gh api $ei/7001 -X PATCH -F body=@no-such-file.md", 2, 'edit: a missing body file is denied'),
+        @("gh api $ei/7001 -X PATCH -f `"body=`$b`"", 2, 'edit: a variable body is denied'),
+        @("gh api $ei/7001 -X PATCH -F body=@-", 2, 'edit: a body read from stdin that is not piped is denied'),
+        @("gh api $ei/7001 -X PATCH --input no-such-file.json", 2, 'edit: a missing --input file is denied'),
+        @("gh api $ei/7001 -X PATCH --input rest-malformed.json", 2, 'edit: malformed --input JSON is denied'),
+        @("gh api $ei/7005 -X PATCH -F body=@debt-ok.md", 2, 'edit: an unreadable issue denies (fail closed)'),
+        @("gh api $ei/7005 -X PATCH -f 'title=[DEBT] x' -F body=@debt-ok.md", 2, 'edit: an unreadable issue denies even with a title in the call'),
+        # A variable issue number is judged on what the call carries.
+        @("gh api `"$ei/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-ok.md", 0, 'edit: variable number, conforming body with a title'),
+        @("gh api `"$ei/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: variable number, body missing a header'),
+        @("gh api `"$ei/`$n`" -X PATCH -F body=@debt-ok.md", 2, 'edit: variable number, body without a title is denied'),
+        @("gh api `"repos/`$Repo/issues/`$n`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: variable repository and number are wildcards'),
+        @("gh api `"$ei/`$(`$i.number)`" -X PATCH -f 'title=[DEBT] x' -F body=@debt-missing.md", 2, 'edit: a $(...) issue number is a wildcard'),
+        # needs-decision through PATCH: a Dilemma in the resulting body.
+        @("gh api $ei/7003 -X PATCH -f 'labels[]=needs-decision'", 0, 'edit: needs-decision, the existing body has a Dilemma'),
+        @("gh api $ei/7004 -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the existing body has no Dilemma'),
+        @("gh api $ei/7005 -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the existing body cannot be read'),
+        @("gh api `"$ei/`$n`" -X PATCH -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, variable number and no body in the call'),
+        @("gh api $ei/7004 -X PATCH -F body=@debt-dilemma.md -f 'labels[]=needs-decision'", 0, 'edit: needs-decision, the call body has a Dilemma'),
+        @("gh api $ei/7003 -X PATCH -F body=@debt-ok.md -f 'labels[]=needs-decision'", 2, 'edit: needs-decision, the call body has no Dilemma (the existing one is replaced)'),
+        @("gh api $ei/7004 -X PATCH --input patch-labels-nd.json", 2, 'edit: needs-decision through --input JSON, no Dilemma'),
+        @("gh api $ei/7003 -X PATCH --input patch-labels-nd.json", 0, 'edit: needs-decision through --input JSON, with a Dilemma'),
+        # needs-decision through the labels endpoint.
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, no Dilemma'),
+        @("gh api $ei/7003/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels POST needs-decision, with a Dilemma'),
+        @("gh api $ei/7004/labels -f 'labels[]=needs-decision'", 2, 'edit: labels implicit POST needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X PUT -f 'labels[]=needs-decision'", 2, 'edit: labels PUT needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=Needs-Decision'", 2, 'edit: the label name compares case-insensitively'),
+        @("gh api $ei/7004/labels -X POST --input labels-array-nd.json", 2, 'edit: labels POST of a JSON array with needs-decision, no Dilemma'),
+        @("gh api $ei/7004/labels -X POST --input patch-labels-nd.json", 2, 'edit: labels POST of a JSON object with needs-decision, no Dilemma'),
+        @("gh api $ei/7005/labels -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, the body cannot be read'),
+        @("gh api `"$ei/`$n/labels`" -X POST -f 'labels[]=needs-decision'", 2, 'edit: labels POST needs-decision, variable number'),
+        @("gh api $ei/7004/labels -X POST --input no-such-file.json", 2, 'edit: labels POST with an unreadable --input is denied'),
+        # Still legal: what is not a body or a needs-decision write.
+        @("gh api $ei/7001 -X PATCH -f state=closed", 0, 'edit: a PATCH of state only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f state=closed -f state_reason=completed", 0, 'edit: closing with a reason is allowed'),
+        @("gh api $ei/7001 -X PATCH --input patch-state.json", 0, 'edit: --input JSON with a state only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'assignees[]=dlrivada'", 0, 'edit: a PATCH of assignees only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'title=[DEBT] renamed'", 0, 'edit: a PATCH of the title only is allowed'),
+        @("gh api $ei/7001 -X PATCH -F milestone=14", 0, 'edit: a PATCH of the milestone only is allowed'),
+        @("gh api $ei/7001 -X PATCH -f 'labels[]=bug'", 0, 'edit: a PATCH of other labels is allowed'),
+        @("gh api $ei/7001 -X PATCH --input patch-labels-bug.json", 0, 'edit: --input JSON with other labels is allowed'),
+        @("gh api `"$ei/`$n`" -X PATCH -f state=closed", 0, 'edit: variable number, state only is allowed'),
+        @("gh api `"$ei/`$n`" -X PATCH -f `"labels[]=`$l`"", 0, 'edit: a variable label is not judged'),
+        @("gh api $ei/7004/labels -X POST -f 'labels[]=bug'", 0, 'edit: labels POST of another label is allowed'),
+        @("gh api $ei/7004/labels -X POST --input labels-array-bug.json", 0, 'edit: labels POST of a JSON array of other labels is allowed'),
+        @("gh api $ei/7004/labels -X DELETE", 0, 'edit: removing labels is allowed'),
+        @("gh api $ei/7004/labels/needs-decision -X DELETE", 0, 'edit: removing needs-decision is allowed'),
+        @("gh api $ei/7004/labels", 0, 'edit: listing labels is allowed'),
+        @("gh api $ei/7004", 0, 'edit: reading an issue is allowed'),
+        @("gh api $ei/7004 -X GET -f body=x", 0, 'edit: a GET with fields is allowed'),
+        @("gh api $ei/7004 -X POST -f body=x", 0, 'edit: a POST to issues/<n> is not an edit'),
+        @("gh api $ei/7004/comments -X POST -F body=@debt-missing.md", 0, 'edit: a comment is allowed'),
+        @("gh api $ei/comments/7004 -X PATCH -F body=@debt-missing.md", 0, 'edit: editing a comment is allowed'),
+        @("gh api $ei/7004/sub_issues -F sub_issue_id=1", 0, 'edit: sub_issues is allowed'),
+        # Pull requests, other repositories and other hosts are untouched.
+        @("gh api $ei/7002 -X PATCH -F body=@debt-missing.md", 0, 'edit: issues/<n> of a pull request is not judged'),
+        @("gh api $ei/7002/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels of a pull request are not judged'),
+        @("gh api repos/dlrivada/Encina/pulls/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: the pulls endpoint is not judged'),
+        @("gh api repos/other/x/issues/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: another repository is not judged'),
+        @("gh api repos/other/x/issues/7004/labels -X POST -f 'labels[]=needs-decision'", 0, 'edit: labels of another repository are not judged'),
+        @("gh api --hostname other.example $ei/7001 -X PATCH -F body=@debt-missing.md", 0, 'edit: another host is not judged'),
+        @("gh api `$ep -X PATCH -F body=@debt-missing.md", 0, 'edit: a wholly variable endpoint is not judged')
+    )
+    $savedProjectDirForEdit = $env:CLAUDE_PROJECT_DIR; $savedGhForEdit = $env:ENCINA_ISSUE_GH
+    $env:CLAUDE_PROJECT_DIR = $issueRoot; $env:ENCINA_ISSUE_GH = $fakeEditGh; $env:ENCINA_EDIT_DIR = $editDir
+    try {
+        foreach ($case in $editCases) {
+            $command, $expected, $label = $case
+            $json = @{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = $command } } | ConvertTo-Json -Compress
+            Invoke-HookCase $issue $json $expected $label
+        }
+    }
+    finally { $env:CLAUDE_PROJECT_DIR = $savedProjectDirForEdit; $env:ENCINA_ISSUE_GH = $savedGhForEdit; Remove-Item Env:ENCINA_EDIT_DIR -ErrorAction SilentlyContinue }
+
     # #2823: the milestone cache has three columns and a new name. An old two-column file named through
     # ENCINA_MILESTONES_CACHE is never parsed: it is refreshed from the lookup (fresh file, usable gh) or
     # refused (lookup unusable), and a refresh writes the three-column format.
