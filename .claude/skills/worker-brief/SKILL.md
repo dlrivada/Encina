@@ -103,9 +103,8 @@ Rules:
   your agent definition, first draft by the local model, or by local-ai-standin when the local model is switched
   off), listed by path; token usage of every nested spawn (subagent_tokens from its completion notice) and each
   line of <wt>/artifacts/local-ai/ledger.csv and <wt>/artifacts/local-ai/standin-ledger.csv, verbatim.
-- Usage ledger, as your last step: append one line to <wt>/artifacts/agent-usage/ledger.csv with Add-Content
-  (create the folder and the header timestampUtc,agent,task,model,subagentTokens,notes when missing): UTC
-  time, your agent name, issue-<n>, your model, the sum of your nested spawns' tokens, a short quoted note.
+- Usage ledger: do not write it; the record-agent-usage SubagentStop hook appends a row per stopped subagent
+  to the main checkout's artifacts/agent-usage/ledger.csv (#2734).
 ```
 
 ### What applies to a docs-writer

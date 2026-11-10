@@ -5773,6 +5773,65 @@ The fluent builder chain described in the documentation is fictional. The parame
         $env:HOME = $savedOrch.Home
         $env:ENCINA_ORCHESTRATOR_NOW_UTC = $savedOrch.Now
     }
+
+    # #2734: record-agent-usage.ps1 appends one ledger row per subagent stop.
+    $usageHook = Join-Path $hooks 'record-agent-usage.ps1'
+    $usageDir = Join-Path $work 'usage'
+    New-Item -ItemType Directory -Force (Join-Path $usageDir 'proj\sess1\subagents') | Out-Null
+    $usageLedger = Join-Path $usageDir 'out\artifacts\agent-usage\ledger.csv'
+    $savedLedger = $env:ENCINA_AGENT_USAGE_LEDGER
+    try {
+        $env:ENCINA_AGENT_USAGE_LEDGER = $usageLedger
+        $briefLine = (@{ type = 'user'; message = @{ role = 'user'; content = 'Issue #4242 (read it). Worktree x' } } | ConvertTo-Json -Compress -Depth 5)
+        $turn1 = (@{ type = 'assistant'; message = @{ id = 'm1'; role = 'assistant'; model = 'claude-haiku-4-5'; usage = @{ input_tokens = 2; cache_creation_input_tokens = 100; cache_read_input_tokens = 0; output_tokens = 10 } } } | ConvertTo-Json -Compress -Depth 5)
+        $turn2 = (@{ type = 'assistant'; message = @{ id = 'm2'; role = 'assistant'; model = 'claude-sonnet-5-5'; usage = @{ input_tokens = 2; cache_creation_input_tokens = 3981; cache_read_input_tokens = 46584; output_tokens = 1004 } } } | ConvertTo-Json -Compress -Depth 5)
+        $agentFile = Join-Path $usageDir 'proj\sess1\subagents\agent-aXYZ.jsonl'
+        [IO.File]::WriteAllLines($agentFile, [string[]]@($briefLine, $turn1, $turn2, $turn2))
+        $usagePayload = @{ agent_id = 'aXYZ'; agent_type = 'mechanical-fixer'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: a subagent stop is recorded'
+        $rows = @(Get-Content -LiteralPath $usageLedger)
+        $script:total++
+        if ($rows.Count -eq 2 -and $rows[0] -eq 'timestampUtc,agent,task,model,subagentTokens,notes' -and $rows[1] -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ,mechanical-fixer,issue-4242,claude-sonnet-5-5,51571,"hook-recorded agent-aXYZ"$') { 'PASS record-agent-usage: header, task from the brief, last-turn model and notice token figure' } else { $script:failed++; "FAIL record-agent-usage: ledger was: $($rows -join ' | ')" }
+
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: the same stop twice'
+        $script:total++
+        if (@(Get-Content -LiteralPath $usageLedger).Count -eq 2) { 'PASS record-agent-usage: a repeated stop with the same figure is not recorded twice' } else { $script:failed++; 'FAIL record-agent-usage: duplicate row written' }
+
+        $turn3 = (@{ type = 'assistant'; message = @{ id = 'm3'; role = 'assistant'; model = 'claude-sonnet-5-5'; usage = @{ input_tokens = 1; cache_creation_input_tokens = 0; cache_read_input_tokens = 60000; output_tokens = 99 } } } | ConvertTo-Json -Compress -Depth 5)
+        Add-Content -LiteralPath $agentFile -Value $turn3
+        Invoke-HookCase $usageHook $usagePayload 0 'record-agent-usage: a resumed agent stops again'
+        $script:total++
+        if (@(Get-Content -LiteralPath $usageLedger).Count -eq 3 -and (Get-Content -LiteralPath $usageLedger -Raw) -match ',60100,"hook-recorded agent-aXYZ"') { 'PASS record-agent-usage: a resumed agent records its new figure' } else { $script:failed++; 'FAIL record-agent-usage: resumed stop not recorded' }
+
+        $noIssueFile = Join-Path $usageDir 'proj\sess1\subagents\agent-aNOISSUE.jsonl'
+        [IO.File]::WriteAllLines($noIssueFile, [string[]]@((@{ type = 'user'; message = @{ role = 'user'; content = 'Check the hooks' } } | ConvertTo-Json -Compress -Depth 5), $turn1))
+        $noIssuePayload = @{ agent_id = 'aNOISSUE'; agent_type = 'Explore'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+        Invoke-HookCase $usageHook $noIssuePayload 0 'record-agent-usage: a brief without an issue number'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',Explore,session-sess1abc,claude-haiku-4-5,112,"hook-recorded agent-aNOISSUE"') { 'PASS record-agent-usage: no issue number falls back to the session id' } else { $script:failed++; 'FAIL record-agent-usage: session fallback row missing' }
+
+        $synthetic = (@{ type = 'assistant'; message = @{ id = 'ms'; role = 'assistant'; model = '<synthetic>'; usage = @{ input_tokens = 0; cache_creation_input_tokens = 0; cache_read_input_tokens = 0; output_tokens = 0 } } } | ConvertTo-Json -Compress -Depth 5)
+        $laterUser = (@{ type = 'user'; message = @{ role = 'user'; content = 'tool result mentioning Issue #9999' } } | ConvertTo-Json -Compress -Depth 5)
+        $lowerBrief = (@{ type = 'user'; message = @{ role = 'user'; content = 'Review issue #3281 please' } } | ConvertTo-Json -Compress -Depth 5)
+        [IO.File]::WriteAllLines((Join-Path $usageDir 'proj\sess1\subagents\agent-aSYN.jsonl'), [string[]]@($lowerBrief, $turn2, $laterUser, $synthetic))
+        $synPayload = @{ agent_id = 'aSYN'; agent_type = 'adversarial-reviewer'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+        Invoke-HookCase $usageHook $synPayload 0 'record-agent-usage: a stop that ends on a synthetic message'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',adversarial-reviewer,issue-3281,claude-sonnet-5-5,51571,"hook-recorded agent-aSYN"') { 'PASS record-agent-usage: synthetic last turn is skipped, task is the brief''s (case-insensitive), not a later tool result' } else { $script:failed++; 'FAIL record-agent-usage: synthetic/brief-only task row wrong' }
+
+        $before = (Get-Content -LiteralPath $usageLedger -Raw)
+        Invoke-HookCase $usageHook 'not json' 0 'record-agent-usage: malformed payload never blocks'
+        Invoke-HookCase $usageHook (@{ cwd = $work } | ConvertTo-Json -Compress) 0 'record-agent-usage: the main session stop (no agent_id) is ignored'
+        Invoke-HookCase $usageHook (@{ agent_id = 'aGONE'; agent_type = 'Explore'; cwd = $work } | ConvertTo-Json -Compress) 0 'record-agent-usage: a missing transcript never blocks'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -eq $before) { 'PASS record-agent-usage: ignored stops leave the ledger unchanged' } else { $script:failed++; 'FAIL record-agent-usage: an ignored stop changed the ledger' }
+
+        $wiredUsage = @((Get-Content (Join-Path $repo '.claude\settings.json') -Raw | ConvertFrom-Json).hooks.SubagentStop | ForEach-Object { $_.hooks.command } | Where-Object { $_ -match 'record-agent-usage\.ps1' })
+        $script:total++
+        if ($wiredUsage.Count -eq 1) { 'PASS settings.json wires record-agent-usage on SubagentStop' } else { $script:failed++; "FAIL settings.json wiring of record-agent-usage: $($wiredUsage.Count) (expected 1)" }
+    }
+    finally { $env:ENCINA_AGENT_USAGE_LEDGER = $savedLedger }
 }
 finally {
     Pop-Location
