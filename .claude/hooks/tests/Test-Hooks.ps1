@@ -5896,7 +5896,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     $nested3244 = Join-Path $main3244 'side\w2'
     $unreg3244 = Join-Path $fx3244 'Encina-unregistered'
     New-Item -ItemType Directory -Force $main3244, $unreg3244 | Out-Null
-    function Invoke-Git3244 { & git -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+    function Invoke-Git3244 { & git -c user.name=hooks -c user.email=hooks@example.invalid -c commit.gpgsign=false @args 2>&1 | Out-Null }
     Invoke-Git3244 -C $main3244 init -q
     Invoke-Git3244 -C $main3244 commit -q --allow-empty -m init
     Invoke-Git3244 -C $main3244 worktree add -q $beside3244 -b wt3244-beside
