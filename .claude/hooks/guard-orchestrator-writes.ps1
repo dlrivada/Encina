@@ -41,7 +41,8 @@
 #     is denied when it both references src/ or tests/ and contains a file-write API
 #     (Test-ScriptHasWriteApi/Test-ScriptReferencesPath), so a throwaway
 #     probe script or `gh` stub outside src/ and tests/ runs freely (a relative path resolves against the
-#     payload cwd or a prior Set-Location; call-operator and quoted paths count). A script that the same
+#     payload cwd or a prior Set-Location; a payload without cwd uses the hook process's directory when it is
+#     inside a checkout, else CLAUDE_PROJECT_DIR, #3281; call-operator and quoted paths count). A script that the same
 #     command creates or overwrites is trusted only when every write to it is a literal in the command text: a
 #     quoted or here-string -Value/-InputObject of Set-Content/Add-Content/Out-File/Tee-Object/New-Item, a
 #     literal piped into them, or `'literal' > file`. Every literal such a command writes must not reference
@@ -223,7 +224,14 @@ try {
         return $full
     }
 
-    $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
+    # #3281: a payload without cwd resolves relative paths against the hook process's directory when that is inside
+    # a checkout (the main checkout or a worktree), otherwise against CLAUDE_PROJECT_DIR; a process directory such
+    # as C:\ would make every relative script path "not exist". The base is always a real checkout, so the script
+    # is still read and judged, and a missing one is still denied.
+    $cwd = if ($payload.cwd) { [string]$payload.cwd } else {
+        $processDir = (Get-Location).Path
+        if ($null -ne (Get-RepoLocation $processDir $layout)) { $processDir } else { $projectDir }
+    }
     $tool = [string]$payload.tool_name
 
     if ($tool -in 'Write', 'Edit', 'MultiEdit', 'NotebookEdit') {
@@ -285,7 +293,7 @@ try {
         # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
         # unresolvable only when the same command also writes a file, which could have created the script (#1854).
         if ($null -eq $s.Full -and $s.Dynamic -and @($scan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
-        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; pass its literal path, or assign the variable to a literal earlier in the same command (once, at the top level, e.g. `$wt = 'D:\path'; pwsh -File `"`$wt\script.ps1`")" }
+        if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; the hook sees only the command in front of it, never a variable set in an earlier tool call, so pass its literal path, or assign the variable to a literal earlier in the same command (once, at the top level, e.g. `$wt = 'D:\path'; pwsh -File `"`$wt\script.ps1`")" }
         # What this same command writes to the script (a script created or overwritten before it runs). The
         # hook trusts only text it can read in the command: a quoted or here-string literal written by
         # Set-Content/Add-Content/Out-File/Tee-Object/New-Item -Value, a literal piped into them, or

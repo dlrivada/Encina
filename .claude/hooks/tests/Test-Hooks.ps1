@@ -5162,6 +5162,39 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-Probe1854 'adversarial-reviewer' $case[0] 2 "adversarial-reviewer: $($case[1]) stays unresolved and blocked, naming the workaround (#2009)" $wordingPattern2009
     }
     Invoke-Probe1854 'pr-reviewer' "pwsh -NoProfile -File `"`$wt\benign.ps1`"" 2 'pr-reviewer: an unassigned variable path is blocked with the workaround in the message (#2009)' $wordingPattern2009
+    # ---- #3281 case (a): a variable set in an earlier tool call is not visible; the message says so, and the
+    # same-command literal workaround keeps passing (the #2009 cases above). ----
+    Invoke-Probe1854 'adversarial-reviewer' "pwsh -NoProfile -File `$s -Draft x" 2 'adversarial-reviewer: a variable from an earlier tool call is blocked and the message names the limit (#3281)' 'cannot resolve \(tried .\$s.*never a variable set in an earlier tool call.*assign the variable to a literal earlier in the same command'
+    Invoke-Probe1854 'adversarial-reviewer' "`$s = '$s\benign.ps1'; pwsh -NoProfile -File `$s -Draft x" 0 'adversarial-reviewer: assigning the variable to a literal in the same command passes (#3281)'
+
+    # ---- #3281 case (b): a payload WITHOUT cwd resolves a relative script path against the hook process's
+    # directory when that is inside a checkout, else against CLAUDE_PROJECT_DIR, never against a process
+    # directory such as the temp folder or C:\ (the 2026-11-10 shape: `pwsh -File .claude/hooks/tests/Test-Hooks.ps1`
+    # denied to a read-only reviewer). The hook process runs from a directory that is NOT a checkout. ----
+    $evil3281Dir = Join-Path $repo 'artifacts\test-3281'
+    New-Item -ItemType Directory -Force $evil3281Dir | Out-Null
+    Set-Content -LiteralPath (Join-Path $evil3281Dir 'evil.ps1') -Value "Set-Content -LiteralPath 'src/Encina/X.cs' -Value 'x'`n"
+    Set-Content -LiteralPath (Join-Path $evil3281Dir 'benign.ps1') -Value "Write-Output 'benign'`n"
+    function Invoke-NoCwd3281([string]$Agent, [string]$Command, [string]$ProcessDir, [int]$Expected, [string]$Label, [string]$Pattern) {
+        $json = @{ tool_name = 'PowerShell'; agent_id = 'a3281'; agent_type = $Agent; tool_input = @{ command = $Command } } | ConvertTo-Json -Compress
+        Push-Location -LiteralPath $ProcessDir
+        try { $out = $json | pwsh -NoProfile -File $orchestrator 2>&1; $code = $LASTEXITCODE } finally { Pop-Location }
+        $flat = Get-FlatOutput $out
+        $ok = ($code -eq $Expected) -and (-not $Pattern -or $flat -match $Pattern)
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected {2}] guard-orchestrator-writes.ps1: {3}" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $Expected, $Label
+        if (-not $ok) { "      output: $flat" }
+    }
+    $nonCheckout3281 = [IO.Path]::GetTempPath()
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-NoCwd3281 $agent 'pwsh -NoProfile -File .claude/hooks/tests/Test-Hooks.ps1' $nonCheckout3281 0 "$agent`: no cwd, process directory outside any checkout, relative pwsh -File of Test-Hooks.ps1 resolves against CLAUDE_PROJECT_DIR (#3281)"
+        Invoke-NoCwd3281 $agent 'pwsh -NoProfile -File artifacts/test-3281/benign.ps1' $nonCheckout3281 0 "$agent`: no cwd, outside a checkout, a relative benign script is allowed (#3281)"
+    }
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/benign.ps1' $repo 0 'adversarial-reviewer: no cwd, process directory inside the checkout, a relative script resolves against it (#3281)'
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/evil.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that writes src/ stays blocked (#3281)' 'which writes to src/ or tests/'
+    Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/missing.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that does not exist stays blocked against the project root (#3281)' "which does not exist \(resolved from .artifacts/test-3281/missing\.ps1. against base .[^ ]*$([regex]::Escape((Split-Path -Leaf $repo)))"
+    Remove-Item -LiteralPath $evil3281Dir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
 
