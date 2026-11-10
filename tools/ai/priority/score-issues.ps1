@@ -33,6 +33,8 @@
 # every non-urgent issue in the single Priority list. The entry keeps 'baseTotal' (the computed
 # value), 'urgent' (bool) and the flag 'urgent'. Urgency is recomputed from the issue's labels on
 # every run of the issue being scored, -Resume included (-Issue refreshes only that issue; -All the rest). The label 'priority-critical' is a star rating, not urgency.
+# p0-mandatory (#3386): the label 'p0-mandatory' adds +50 (flag 'p0-mandatory', field 'p0Mandatory'); with
+# both labels the larger bonus applies (urgent, +100), never the sum. 'baseTotal' stays the computed value.
 # Freshness: the ranking (scores.json generatedAtUtc) must be less than 24 h old when a front is
 # picked; if older, run -All -Resume first (only new or changed issues reach the model).
 #
@@ -258,6 +260,10 @@ function New-ScoredEntry {
     $urgentBonus = Get-PriorityUrgentBonus -Labels $IssueRecord.labels
     $isUrgent = $urgentBonus -gt 0
     if ($isUrgent) { $flags += 'urgent' }
+    # p0-mandatory (#3386): +50, smaller than urgent; with both labels the larger bonus (urgent, 100) applies, not the sum.
+    $isP0 = (Get-PriorityP0Bonus -Labels $IssueRecord.labels) -gt 0
+    if ($isP0) { $flags += 'p0-mandatory' }
+    $labelBonus = Get-PriorityLabelBonus -Labels $IssueRecord.labels
 
     $effortCk = Get-PriorityEffortCheckboxScore -Body $IssueRecord.body
 
@@ -390,8 +396,9 @@ function New-ScoredEntry {
         createdAtUtc = $IssueRecord.createdAt
         flags        = $flags
         urgent       = $isUrgent
+        p0Mandatory  = $isP0
         baseTotal    = $baseTotal
-        total        = [Math]::Round($baseTotal + $urgentBonus, 1)
+        total        = [Math]::Round($baseTotal + $labelBonus, 1)
         scores       = $scores
         why          = $why
         source       = $source
