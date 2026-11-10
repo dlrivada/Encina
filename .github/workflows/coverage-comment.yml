@@ -21,7 +21,8 @@ on:
     types: [completed]
 
 concurrency:
-  group: coverage-comment-${{ github.event.workflow_run.head_sha }}
+  # Per branch of the head repository, so two runs of one pull request never list and post at the same time.
+  group: coverage-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
@@ -112,7 +113,7 @@ jobs:
           PR_NUMBER: ${{ steps.resolve.outputs.pr-number }}
         run: |
           $ErrorActionPreference = 'Stop'
-          gh api "repos/$($env:REPO)/pulls/$($env:PR_NUMBER)/files" --paginate --jq '.[].filename' | Set-Content -Path touched.txt
+          gh api "repos/$($env:REPO)/pulls/$($env:PR_NUMBER)/files" --paginate --jq '.[] | select(.status != "removed") | .filename' | Set-Content -Path touched.txt
           if ($LASTEXITCODE -ne 0) { throw 'Could not list the files of the pull request.' }
 
       # The pull request's own manifests, so a file it adds is judged against the targets it adds. They are

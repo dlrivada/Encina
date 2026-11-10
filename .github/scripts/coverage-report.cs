@@ -578,7 +578,7 @@ static string RenderPullRequestComment(
         sb.AppendLine("|------|:----:|:--------:|:------:|:---:|:--------------:|:------:|");
         var ordered = OrderByGap(rows);
         foreach (var row in ordered.Take(maxRows))
-            sb.AppendLine($"| `{row.Package}/{row.File}` | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
+            sb.AppendLine($"| `{row.Package}/{row.File}` | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {LinesToCover(row)} | {(row.Measured is null && row.Target > 0 ? "no data" : IsBelowTarget(row) ? "below" : "met")} |");
         if (ordered.Count > maxRows)
             sb.AppendLine($"\n{ordered.Count - maxRows} more rows are in the CI run's coverage report.");
     }
@@ -857,6 +857,8 @@ int RunSelfTest()
     var comment = RenderPullRequestComment(commentRows, touchedList, ["unit"]);
     Check(comment.Contains("`Pkg/A.cs` | guard", StringComparison.Ordinal) && comment.Contains("`Pkg/A.cs` | unit", StringComparison.Ordinal),
         "the comment lists every target of a touched file");
+    Check(RenderPullRequestComment([new FileTargetRow("Pkg", "A.cs", "guard", 50, null)], touchedList, ["unit"]).Contains("| no data |", StringComparison.Ordinal),
+        "a pair without data has the status no data, not below");
     Check(!comment.Contains("Other.cs", StringComparison.Ordinal), "the comment leaves out a file the pull request does not touch");
     Check(comment.Contains("Targets met: 1/2", StringComparison.Ordinal), "the comment summarises only the touched rows");
     Check(comment.Contains("`src/Pkg/B.cs`", StringComparison.Ordinal) && comment.Contains("`src/Pkg/C.cs`", StringComparison.Ordinal) && !comment.Contains("`src/Pkg/A.cs`", StringComparison.Ordinal),
