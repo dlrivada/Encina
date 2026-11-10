@@ -925,6 +925,8 @@ $ownershipCases = @(
     # #1447: pr-reviewer writes only under artifacts/pr-review/**; it is read-only on the rest of the
     # repository, including documentation (docs-writer's) and every other artifacts/ subfolder.
     @('pr-reviewer', 'Write', "$wt\artifacts\pr-review\1447.md", $wt, 0, 'pr-reviewer: its own review under artifacts/pr-review'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review", $wt, 0, 'pr-reviewer: the artifacts/pr-review folder path itself is allowed (#3038)'),
+    @('pr-reviewer', 'Write', "$wt\artifacts\pr-review-other\x.md", $wt, 2, 'pr-reviewer: a sibling folder sharing the prefix is denied (#3038)'),
     @('pr-reviewer', 'Edit', "$wt\src\Encina\X.cs", $wt, 2, 'pr-reviewer: a repo source file is denied'),
     @('pr-reviewer', 'Edit', "$wt\docs\en\guide.md", $wt, 2, 'pr-reviewer: documentation is denied'),
     @('pr-reviewer', 'Write', "$wt\artifacts\site-health\report.md", $wt, 2, 'pr-reviewer: another artifacts/ subfolder is denied'),
@@ -1751,6 +1753,13 @@ exit 1
         # pr-reviewer directly, the same way the stage-agent cases above do.
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\src\Encina\X.cs' -Value 'fabricated'", 2, 'shell vector (#1447): pr-reviewer shell write outside artifacts/pr-review is denied'),
         @('pr-reviewer', 'PowerShell', "Set-Content -LiteralPath '$wt\artifacts\pr-review\1447.md' -Value 'ok'", 0, 'shell vector (#1447): pr-reviewer shell write to its own artifacts/pr-review is allowed'),
+        # #3038: the agent creates its own artifacts/pr-review folder in a fresh worktree; only that folder.
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review'", 0, 'shell vector (#3038): pr-reviewer creates its own artifacts/pr-review folder'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review\sub'", 0, 'shell vector (#3038): pr-reviewer creates a subfolder under artifacts/pr-review'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review-other'", 2, 'shell vector (#3038): a sibling folder sharing the prefix is denied'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\site-health'", 2, 'shell vector (#3038): another artifacts/ folder is denied'),
+        @('pr-reviewer', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts'", 2, 'shell vector (#3038): the artifacts folder itself is denied'),
+        @('site-steward', 'PowerShell', "New-Item -ItemType Directory -Force '$wt\artifacts\pr-review'", 2, 'shell vector (#3038): the pr-reviewer folder is not widened to site-steward'),
         # #2009 item 1: a redirection token is not a pathspec; real pathspecs and real redirections still count.
         @('pr-reviewer', 'PowerShell', 'git checkout main 2>&1', 0, 'redirect (#2009): git checkout <branch> 2>&1 is allowed for pr-reviewer'),
         @('pr-reviewer', 'PowerShell', 'git checkout main 2>$null', 0, 'redirect (#2009): git checkout <branch> 2>$null is allowed for pr-reviewer'),

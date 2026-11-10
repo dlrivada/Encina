@@ -507,7 +507,9 @@ try {
             }
         }
         elseif ($Agent -eq 'pr-reviewer') {
-            if ($relative -notmatch '^artifacts/pr-review/') {
+            # #3038: the folder itself (`New-Item -ItemType Directory artifacts/pr-review`) is the agent's own
+            # tree: a fresh worktree has no git-ignored folders, so the review file cannot be written without it.
+            if ($relative -notmatch '^artifacts/pr-review(/|$)') {
                 [Console]::Error.WriteLine("Blocked: pr-reviewer writes only under artifacts/pr-review/** (its own review of one published PR, #1447); '$relative' is not one of them. It is read-only on the rest of the repository: report anything else to the orchestrator instead of editing it.")
                 return $false
             }
