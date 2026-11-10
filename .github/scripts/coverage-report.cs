@@ -9,7 +9,12 @@
 //        dotnet run .github/scripts/coverage-report.cs -- --check-justifications [--manifest <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-unmeasured [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-flag-assignment [--min-lines <n>] [--input <dir>] [--output <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --files-from <list> [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// --files-from (#3289) reads a list of repository paths, one per line (the files a pull request touches, from
+// the GitHub API), and also writes <output>/pr-coverage-comment.md: the "Per-file targets" rows of those files
+// only. Names that are not plain src/ C# paths are ignored; with no src/ file in the list nothing is written.
 //
 // --check-flag-assignment (#2932) lists, per package and flag, the source files whose lines that flag's tests
 // execute although the manifest does not assign the flag to the file (override ?? defaultTests; a per-file
@@ -48,9 +53,11 @@ var checkUnmeasured = false;
 var checkFlagAssignment = false;
 var minLines = 5;
 var selfTest = false;
+string? filesFrom = null;
 
 for (int i = 0; i < args.Length; i++)
 {
+    if (args[i] == "--files-from" && i + 1 < args.Length) filesFrom = args[++i];
     if (args[i] == "--check-flag-assignment") checkFlagAssignment = true;
     if (args[i] == "--min-lines" && (i + 1 >= args.Length || !int.TryParse(args[++i], NumberStyles.None, CultureInfo.InvariantCulture, out minLines) || minLines < 1))
     {
@@ -517,6 +524,76 @@ static string FormatAttainment(double attainment)
 static string FormatGap(double gap)
     => (Math.Floor(gap * 100 + 1e-9) / 100).ToString("F2", CultureInfo.InvariantCulture);
 
+// ─── Pull request comment (#3289): the per-file targets of the files a PR touches ───────────────────
+
+// The touched-file list is data from the GitHub API, but a file name is still attacker-chosen text that ends
+// up in a comment, so only plain src/ C# paths are kept; anything else (markup, backticks, "..") is dropped.
+static HashSet<string> ParseTouchedFiles(IEnumerable<string> lines)
+{
+    var touched = new HashSet<string>(StringComparer.Ordinal);
+    foreach (var raw in lines)
+    {
+        var path = raw.Trim().Replace('\\', '/');
+        if (path.StartsWith("src/", StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal) &&
+            !path.Contains("..", StringComparison.Ordinal) &&
+            path.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '/' or '-' or '_' or '+'))
+            touched.Add(path);
+    }
+    return touched;
+}
+
+static string SourcePathOf(FileTargetRow row) => $"src/{row.Package}/{row.File}";
+
+// The comment body: the "Per-file targets" rows of the touched files, furthest from target first, then the
+// touched files that carry no per-file target. flagsWithData names the flags that have Cobertura data in the
+// run, so a "no data" cell can be told apart from a flag that PR CI did not run.
+static string RenderPullRequestComment(
+    IReadOnlyList<FileTargetRow> allRows, HashSet<string> touched, IReadOnlyCollection<string> flagsWithData, int maxRows = 60)
+{
+    var rows = allRows.Where(r => touched.Contains(SourcePathOf(r))).ToList();
+    var withTargets = rows.Select(SourcePathOf).ToHashSet(StringComparer.Ordinal);
+    var untargeted = touched.Where(t => !withTargets.Contains(t)).Order(StringComparer.Ordinal).ToList();
+
+    var sb = new StringBuilder();
+    sb.AppendLine("### Coverage of the files this pull request touches");
+    sb.AppendLine();
+    sb.AppendLine("Measured by the pull request CI against the per-file targets of `.github/coverage-manifest`. " +
+        "There is no project-wide percentage: each flag is judged against its own target.");
+    sb.AppendLine();
+    sb.AppendLine(flagsWithData.Count == 0
+        ? "No flag produced coverage data in this run."
+        : $"Flags with coverage data in this run: {string.Join(", ", flagsWithData.Order(StringComparer.Ordinal))}. " +
+          "A pull request CI runs only the test projects whose inputs the change touches, and does not run everything CI Full runs " +
+          "(the Observability integration shard and the SQLite EF Core job), so \"no data\" can mean the flag did not run here.");
+    sb.AppendLine();
+
+    if (rows.Count == 0)
+        sb.AppendLine("None of the touched files has a per-file target.");
+    else
+    {
+        var summary = SummariseAttainment(rows);
+        sb.AppendLine($"Targets met: {summary.Met}/{summary.Pairs} ({FormatRatio(summary.Ratio)}); no data: {summary.NoData}; lines to cover: {summary.LinesToCover}.");
+        sb.AppendLine();
+        sb.AppendLine("| File | Flag | Measured | Target | Gap | Lines to cover | Status |");
+        sb.AppendLine("|------|:----:|:--------:|:------:|:---:|:--------------:|:------:|");
+        var ordered = OrderByGap(rows);
+        foreach (var row in ordered.Take(maxRows))
+            sb.AppendLine($"| `{row.Package}/{row.File}` | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
+        if (ordered.Count > maxRows)
+            sb.AppendLine($"\n{ordered.Count - maxRows} more rows are in the CI run's coverage report.");
+    }
+
+    if (untargeted.Count > 0)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"Touched files without a per-file target ({untargeted.Count}): " +
+            string.Join(", ", untargeted.Take(20).Select(t => $"`{t}`")) + (untargeted.Count > 20 ? ", ..." : "") +
+            ". AGENTS.md section 9 asks for targets in the package manifest for every file a pull request touches.");
+    }
+
+    return sb.ToString();
+}
+
 // ─── Flag assignment (#2932): files a flag executes but the manifest does not assign to it ──────────
 
 // Flags that count as assigned to a file: its manifest entry (override ?? defaultTests, a file missing from
@@ -769,6 +846,29 @@ int RunSelfTest()
     Check(!JsonSerializer.Serialize(ToFileTargetEntry(new FileTargetRow("Pkg", "Z.cs", "unit", 60, null)), SummaryJsonOptions()).Contains("measured", StringComparison.Ordinal),
         "a pair without data omits measured instead of writing 0");
     Check(OrderByGap([Pair("B.cs", "unit", 80, 200, 190), Pair("A.cs", "unit", 50, 100, 30)])[0].File == "A.cs", "rows are ordered by gap, largest first");
+
+    // --- pull request comment (#3289) ---
+    var touchedList = ParseTouchedFiles([
+        "src/Pkg/A.cs", " src\\Pkg\\C.cs ", "src/Pkg/B.cs", "docs/x.md", "src/Pkg/../../etc.cs",
+        "src/Pkg/`x`.cs", "src/Pkg/<img src=x>.cs", "tests/Encina.UnitTests/T.cs", "", "src/Pkg/Readme.md"]);
+    Check(touchedList.SetEquals(["src/Pkg/A.cs", "src/Pkg/B.cs", "src/Pkg/C.cs"]),
+        "the touched list keeps plain src/ C# paths only (markup, backticks, .. and other folders are dropped)");
+    var commentRows = new List<FileTargetRow> { Pair("A.cs", "unit", 80, 100, 90), Pair("A.cs", "guard", 50, 100, 10), Pair("Other.cs", "unit", 80, 100, 10) };
+    var comment = RenderPullRequestComment(commentRows, touchedList, ["unit"]);
+    Check(comment.Contains("`Pkg/A.cs` | guard", StringComparison.Ordinal) && comment.Contains("`Pkg/A.cs` | unit", StringComparison.Ordinal),
+        "the comment lists every target of a touched file");
+    Check(!comment.Contains("Other.cs", StringComparison.Ordinal), "the comment leaves out a file the pull request does not touch");
+    Check(comment.Contains("Targets met: 1/2", StringComparison.Ordinal), "the comment summarises only the touched rows");
+    Check(comment.Contains("`src/Pkg/B.cs`", StringComparison.Ordinal) && comment.Contains("`src/Pkg/C.cs`", StringComparison.Ordinal) && !comment.Contains("`src/Pkg/A.cs`", StringComparison.Ordinal),
+        "the comment names the touched files that have no per-file target");
+    Check(comment.IndexOf("`Pkg/A.cs` | guard", StringComparison.Ordinal) < comment.IndexOf("`Pkg/A.cs` | unit", StringComparison.Ordinal),
+        "the comment orders rows by gap, largest first");
+    Check(RenderPullRequestComment(commentRows, touchedList, []).Contains("No flag produced coverage data", StringComparison.Ordinal),
+        "the comment says when no flag has data");
+    Check(RenderPullRequestComment(commentRows, new HashSet<string> { "src/Pkg/B.cs" }, ["unit"]).Contains("None of the touched files has a per-file target", StringComparison.Ordinal),
+        "the comment says when no touched file has a target");
+    Check(RenderPullRequestComment(commentRows, touchedList, ["unit"], maxRows: 1).Contains("1 more rows", StringComparison.Ordinal),
+        "the comment caps its table and says how many rows are left out");
 
     // A manifested package with no measured lines is a not-measured row, not an absent one (#2827).
     var seedFiles = new List<FileCoverage>
@@ -1466,6 +1566,25 @@ md.AppendLine("</details>");
 
 File.WriteAllText(Path.Combine(outputDir, "encina-coverage-report.md"), md.ToString());
 Console.WriteLine($"\n  Markdown: {Path.Combine(outputDir, "encina-coverage-report.md")}");
+
+// 1b. Pull request comment (#3289): only the touched files' per-file targets.
+if (filesFrom is not null)
+{
+    if (!File.Exists(filesFrom))
+    {
+        Console.WriteLine($"\nERROR: --files-from file '{filesFrom}' does not exist.");
+        Environment.Exit(1);
+    }
+    var touchedFiles = ParseTouchedFiles(File.ReadAllLines(filesFrom));
+    if (touchedFiles.Count == 0)
+        Console.WriteLine("  No src/ C# file in the touched-file list: no pull request comment written.");
+    else
+    {
+        var flagsWithData = coverageByFlag.Where(kv => kv.Value.Count > 0).Select(kv => kv.Key.ToString().ToLowerInvariant()).ToList();
+        File.WriteAllText(Path.Combine(outputDir, "pr-coverage-comment.md"), RenderPullRequestComment(fileTargetRows, touchedFiles, flagsWithData));
+        Console.WriteLine($"  Pull request comment: {Path.Combine(outputDir, "pr-coverage-comment.md")}");
+    }
+}
 
 // 2. JSON summary
 var jsonData = new
