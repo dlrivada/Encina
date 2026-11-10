@@ -14,8 +14,7 @@
 [![Dependabot](https://img.shields.io/badge/Dependabot-Enabled-025E8C?logo=dependabot&logoColor=white)](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196)](https://www.conventionalcommits.org/)
 
-<!-- Coverage (Codecov - per-module thresholds, see ADR-023) -->
-[![codecov](https://codecov.io/gh/dlrivada/Encina/graph/badge.svg)](https://codecov.io/gh/dlrivada/Encina)
+<!-- Coverage (per-file targets, see ADR-063) -->
 [![Coverage Dashboard](https://img.shields.io/badge/coverage-dashboard-blue)](https://dlrivada.github.io/Encina/coverage/)
 
 <!-- Performance (Benchmarks + Load Tests - see ADR-025) -->
