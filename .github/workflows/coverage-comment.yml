@@ -156,6 +156,9 @@ jobs:
           MANIFEST_DIR: ${{ steps.manifests.outputs.dir }}
         run: |
           $ErrorActionPreference = 'Stop'
+          # A run that produced no test artifacts leaves this folder missing; coverage-report.cs then writes no comment
+          # and an earlier one would stay stale. An empty folder renders the "no coverage data in this run" comment.
+          New-Item -ItemType Directory -Force artifacts/test-results | Out-Null
           $extra = @()
           if ($env:MANIFEST_DIR) { $extra = @('--manifest', $env:MANIFEST_DIR) }
           dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/test-results --output artifacts/coverage-out --files-from touched.txt @extra
