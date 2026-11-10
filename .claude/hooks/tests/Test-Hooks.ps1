@@ -1410,6 +1410,8 @@ exit 1
         @("gh api $ei/7001 -X PATCH --input patch-labels-bug.json", 0, 'edit: --input JSON with other labels is allowed'),
         @("gh api `"$ei/`$n`" -X PATCH -f state=closed", 0, 'edit: variable number, state only is allowed'),
         @("gh api `"$ei/`$n`" -X PATCH -f `"labels[]=`$l`"", 0, 'edit: a variable label is not judged'),
+        @("gh api $ei/7004 -X PATCH -f 'labels[]=needs-decision' -f `"labels[]=`$l`"", 2, 'edit: a literal needs-decision next to a variable label is judged'),
+        @("gh api $ei/7004/labels -X POST -f labels=needs-decision", 2, 'edit: a plain labels= field with needs-decision is judged'),
         @("gh api $ei/7004/labels -X POST -f 'labels[]=bug'", 0, 'edit: labels POST of another label is allowed'),
         @("gh api $ei/7004/labels -X POST --input labels-array-bug.json", 0, 'edit: labels POST of a JSON array of other labels is allowed'),
         @("gh api $ei/7004/labels -X DELETE", 0, 'edit: removing labels is allowed'),

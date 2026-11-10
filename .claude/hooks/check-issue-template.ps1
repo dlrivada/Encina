@@ -583,7 +583,7 @@ try {
             try { $text = [IO.File]::ReadAllText($path) }
             catch { return [pscustomobject]@{ Ok = $false; Json = $null; Path = $null; Why = "the --input file '$($t.Value)' cannot be read" } }
         }
-        try { $json = $text | ConvertFrom-Json -NoEnumerate -ErrorAction Stop }
+        try { $json = if ($AllowArray) { $text | ConvertFrom-Json -NoEnumerate -ErrorAction Stop } else { $text | ConvertFrom-Json -ErrorAction Stop } }
         catch { return [pscustomobject]@{ Ok = $false; Json = $null; Path = $null; Why = 'the --input JSON is malformed' } }
         # #3274: the labels endpoint also takes a bare JSON array of label names.
         if ($AllowArray -and $json -is [object[]]) { return [pscustomobject]@{ Ok = $true; Json = $json; Path = $path; Why = $null } }
@@ -764,7 +764,7 @@ try {
                     $r = Resolve-ApiFieldValue $f $Cwd $PipeText
                     if ($r.Ok) { $e.Body = $r.Text; $e.BodyPath = $r.Path } else { $e.BodyWhy = $r.Why }
                 }
-                'labels[]' {
+                { $_ -ceq 'labels[]' -or $_ -ceq 'labels' } {
                     $r = Resolve-ApiFieldValue $f $Cwd $PipeText
                     if ($r.Ok) { $e.Labels.Add($r.Text) } else { $e.LabelsDynamic = $true }
                 }
@@ -804,7 +804,8 @@ try {
             return "Blocked: $what is judged like gh issue edit and fails closed when it cannot be read (#3274). Could not read: $($Edit.InputWhy). Create the --input file in an earlier call, or pass the fields with -f/-F."
         }
         $hasBody = ($Target.Kind -eq 'issue') -and $Edit.BodyPresent
-        $needsDecision = (-not $Edit.LabelsDynamic) -and ($Edit.Labels -icontains 'needs-decision')
+        # A literal needs-decision is judged even next to a label that cannot be read (as Test-HasNeedsDecision does).
+        $needsDecision = ($Edit.Labels -icontains 'needs-decision')
         if (-not $hasBody -and -not $needsDecision) { return $null }
 
         $unread = @()
