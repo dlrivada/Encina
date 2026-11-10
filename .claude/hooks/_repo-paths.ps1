@@ -58,16 +58,56 @@ function Test-MainCheckout([string]$Path, $Layout) {
     return -not [string]::IsNullOrEmpty($Path) -and (Test-Under $Path $Layout.MainRoot) -and -not (Test-Under $Path $Layout.Worktrees)
 }
 
+# The linked worktrees git registers for the main checkout $MainRoot (`git worktree list`), wherever they
+# live (#3244): the orchestrator also creates them beside the repository (D:\Proyectos\Encina-w<issue>). The
+# list is read once per process and per MainRoot, and only when a path needs it. The main checkout is the
+# first entry of the list and is skipped. Git prints forward-slash paths, normalised here with Get-FullPath.
+# Any failure of git (not installed, not a repository, an error) gives an empty list.
+$script:RegisteredWorktreeCache = @{}
+function Get-RegisteredWorktrees([string]$MainRoot) {
+    if ([string]::IsNullOrEmpty($MainRoot)) { return @() }
+    if ($script:RegisteredWorktreeCache.ContainsKey($MainRoot)) { return $script:RegisteredWorktreeCache[$MainRoot] }
+    $roots = [System.Collections.Generic.List[string]]::new()
+    try {
+        $lines = @(& git -C $MainRoot worktree list --porcelain 2>$null)
+        if ($LASTEXITCODE -eq 0) {
+            $isMain = $true
+            foreach ($line in $lines) {
+                if (-not ([string]$line).StartsWith('worktree ', [StringComparison]::Ordinal)) { continue }
+                $isFirst = $isMain
+                $isMain = $false
+                if ($isFirst) { continue }
+                $root = Get-FullPath (([string]$line).Substring(9)) $null
+                if ($null -ne $root -and -not [string]::Equals($root.TrimEnd($script:RepoSeparator), $MainRoot.TrimEnd($script:RepoSeparator), $script:RepoIgnoreCase)) { $roots.Add($root.TrimEnd($script:RepoSeparator)) }
+            }
+        }
+    }
+    catch { $roots.Clear() }
+    $script:RegisteredWorktreeCache[$MainRoot] = $roots.ToArray()
+    return $script:RegisteredWorktreeCache[$MainRoot]
+}
+
 # The checkout that contains $Full: Root (a worktree root or the main checkout), Relative (forward slashes)
-# and InWorktree. $null when $Full is outside the project.
+# and InWorktree. $null when $Full is in neither the main checkout nor a worktree git registers for it.
 function Get-RepoLocation([string]$Full, $Layout) {
-    if (-not (Test-Under $Full $Layout.MainRoot)) { return $null }
-    if (Test-Under $Full $Layout.Worktrees) {
+    if ([string]::IsNullOrEmpty($Full)) { return $null }
+    if ((Test-Under $Full $Layout.MainRoot) -and (Test-Under $Full $Layout.Worktrees)) {
         $rest = $Full.Substring([Math]::Min($Layout.Worktrees.Length, $Full.Length))
         $slash = $rest.IndexOfAny([char[]]@('\', '/'))
         if ($slash -lt 0) { return [pscustomobject]@{ Root = $Layout.Worktrees + $rest; Relative = ''; InWorktree = $true } }
         return [pscustomobject]@{ Root = $Layout.Worktrees + $rest.Substring(0, $slash); Relative = $rest.Substring($slash + 1).Replace('\', '/'); InWorktree = $true }
     }
+    # A worktree registered with git, outside .claude\worktrees (beside the repository, or nested in it): the
+    # deepest registered root that contains the path.
+    $registered = $null
+    foreach ($candidate in (Get-RegisteredWorktrees $Layout.MainRoot)) {
+        if ((Test-Under $Full $candidate) -and ($null -eq $registered -or $candidate.Length -gt $registered.Length)) { $registered = $candidate }
+    }
+    if ($null -ne $registered) {
+        $inside = $Full.Substring([Math]::Min($registered.Length, $Full.Length)).TrimStart('\', '/').Replace('\', '/')
+        return [pscustomobject]@{ Root = $registered; Relative = $inside; InWorktree = $true }
+    }
+    if (-not (Test-Under $Full $Layout.MainRoot)) { return $null }
     $relative = $Full.Substring([Math]::Min($Layout.MainRoot.Length, $Full.Length)).TrimStart('\', '/').Replace('\', '/')
     return [pscustomobject]@{ Root = $Layout.MainRoot; Relative = $relative; InWorktree = $false }
 }

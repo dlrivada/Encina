@@ -5882,6 +5882,100 @@ The fluent builder chain described in the documentation is fictional. The parame
         if ($wiredUsage.Count -eq 1) { 'PASS settings.json wires record-agent-usage on SubagentStop' } else { $script:failed++; "FAIL settings.json wiring of record-agent-usage: $($wiredUsage.Count) (expected 1)" }
     }
     finally { $env:ENCINA_AGENT_USAGE_LEDGER = $savedLedger }
+
+    # ================================================================================================
+    # #3244: Get-RepoLocation recognises every worktree git registers (`git worktree list`), wherever it lives,
+    # not only those under .claude\worktrees. The fixture is a real repository in its own root (the shared $main
+    # above is a plain folder and must stay one): a main checkout, a registered worktree beside it, a registered
+    # worktree nested in it outside .claude\worktrees, and an unregistered sibling folder. Each Get-RepoLocation
+    # call runs in a fresh process because the registered list is cached per process.
+    # ================================================================================================
+    $fx3244 = Join-Path $work 'fx3244'
+    $main3244 = Join-Path $fx3244 'Encina'
+    $beside3244 = Join-Path $fx3244 'Encina-w1'
+    $nested3244 = Join-Path $main3244 'side\w2'
+    $unreg3244 = Join-Path $fx3244 'Encina-unregistered'
+    New-Item -ItemType Directory -Force $main3244, $unreg3244 | Out-Null
+    function Invoke-Git3244 { & git -c user.name=hooks -c user.email=hooks@example.invalid @args 2>&1 | Out-Null }
+    Invoke-Git3244 -C $main3244 init -q
+    Invoke-Git3244 -C $main3244 commit -q --allow-empty -m init
+    Invoke-Git3244 -C $main3244 worktree add -q $beside3244 -b wt3244-beside
+    Invoke-Git3244 -C $main3244 worktree add -q $nested3244 -b wt3244-nested
+    $repoPaths3244 = Join-Path $hooks '_repo-paths.ps1'
+
+    function Get-Location3244([string]$Path, [bool]$NoGit = $false) {
+        $prefix = if ($NoGit) { "`$env:PATH = ''; " } else { '' }
+        $command = ". '$repoPaths3244'; `$layout = Get-RepoLayout '$main3244'; $prefix`$l = Get-RepoLocation '$Path' `$layout; if (`$null -eq `$l) { 'NULL' } else { '{0}|{1}|{2}' -f `$l.Root, `$l.Relative, `$l.InWorktree }"
+        return ((& pwsh -NoProfile -Command $command) -join '')
+    }
+    function Test-Location3244([string]$Path, [string]$Expected, [string]$Label, [bool]$NoGit = $false) {
+        $actual = Get-Location3244 $Path $NoGit
+        $script:total++
+        if ($actual -ieq $Expected) { "PASS Get-RepoLocation (#3244): $Label" }
+        else { $script:failed++; "FAIL Get-RepoLocation (#3244): $Label - expected '$Expected', got '$actual'" }
+    }
+
+    Test-Location3244 "$beside3244\src\x.cs" "$beside3244|src/x.cs|True" 'a registered worktree beside the repository returns its Root, a forward-slash Relative and InWorktree'
+    Test-Location3244 $beside3244 "$beside3244||True" 'the root of a registered outside worktree has an empty Relative'
+    Test-Location3244 "$nested3244\tests\a\b.cs" "$nested3244|tests/a/b.cs|True" 'a registered worktree nested in the repository outside .claude\worktrees is a worktree, not the main checkout'
+    Test-Location3244 "$unreg3244\src\x.cs" 'NULL' 'a folder git does not register returns $null'
+    Test-Location3244 "$beside3244`x\src\x.cs" 'NULL' 'a sibling that only shares the prefix of a registered worktree returns $null'
+    Test-Location3244 "$main3244\src\x.cs" "$main3244|src/x.cs|False" 'the main checkout is not returned as a worktree'
+    Test-Location3244 $main3244 "$main3244||False" 'the root of the main checkout is not a worktree either'
+    Test-Location3244 "$beside3244\src\x.cs" 'NULL' 'git unavailable: a registered outside worktree returns $null, as before' $true
+    Test-Location3244 "$main3244\src\x.cs" "$main3244|src/x.cs|False" 'git unavailable: the main checkout is still recognised' $true
+
+    # Hook cases against the fixture. A worker's launch from the main checkout (the raw cwd after a reset) of
+    # the suite itself, which sits in the registered outside worktree.
+    $savedProjectDir3244 = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $main3244
+    $suiteText3244 = "# Mentions src/Foo.cs and tests/Bar.cs in guidance text.`nSet-Content 'x.log' 'y'`n"
+    foreach ($root in $beside3244, $unreg3244, $main3244) {
+        $suiteScript = Join-Path $root '.claude\hooks\tests\Test-Hooks.ps1'
+        New-Item -ItemType Directory -Force (Split-Path -Parent $suiteScript) | Out-Null
+        Set-Content -LiteralPath $suiteScript -Value $suiteText3244
+    }
+    $lookalike3244 = Join-Path $beside3244 'tools\other\Test-Hooks.ps1'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $lookalike3244) | Out-Null
+    Set-Content -LiteralPath $lookalike3244 -Value $suiteText3244
+    $nonSanctionedMain3244 = Join-Path $main3244 'artifacts\scratch.ps1'
+    New-Item -ItemType Directory -Force (Split-Path -Parent $nonSanctionedMain3244) | Out-Null
+    Set-Content -LiteralPath $nonSanctionedMain3244 -Value $suiteText3244
+    foreach ($case in @(
+            @("pwsh -NoProfile -File '$(Join-Path $beside3244 '.claude\hooks\tests\Test-Hooks.ps1')'", 0, 'issue-worker: pwsh -File of the suite in a registered worktree outside .claude\worktrees, launched from the main checkout, is allowed'),
+            @("pwsh -NoProfile -File '$(Join-Path $unreg3244 '.claude\hooks\tests\Test-Hooks.ps1')'", 2, 'issue-worker: the same sanctioned-looking path in an unregistered folder is still denied'),
+            @("pwsh -NoProfile -File '$nonSanctionedMain3244'", 2, 'issue-worker: a script in the main checkout that is not a sanctioned one is still denied'),
+            @("pwsh -NoProfile -File '$lookalike3244'", 2, 'issue-worker: a script in a registered worktree that is not on the sanctioned list is still denied'),
+            @('Set-Content -Path notes.log -Value x', 2, 'a relative write from the main checkout cwd stays denied'),
+            @("Set-Content '$main3244\notes.log' x", 2, 'an absolute write into the main checkout stays denied'),
+            @("Set-Content '$beside3244\notes.log' x", 0, 'an absolute write into the registered outside worktree is allowed'))) {
+        $command, $expected, $label = $case
+        Invoke-HookCase $mainCheckout (@{ tool_name = 'PowerShell'; cwd = $main3244; tool_input = @{ command = $command } } | ConvertTo-Json -Compress) $expected "#3244 $label"
+    }
+    Invoke-HookCase $mainCheckout (@{ tool_name = 'PowerShell'; cwd = $beside3244; tool_input = @{ command = "Set-Content '$main3244\notes.log' x" } } | ConvertTo-Json -Compress) 2 '#3244 an absolute write into the main checkout from the outside worktree stays denied'
+
+    # guard-orchestrator-writes: the orchestrator may not edit src/ or tests/ in a registered outside worktree
+    # (before #3244 the hook did not see the folder as a checkout and allowed it).
+    foreach ($case in @(
+            @('Write', "$beside3244\src\Encina\X.cs", 2, 'main session: src in a registered outside worktree is denied'),
+            @('Edit', "$beside3244\tests\X.cs", 2, 'main session: tests in a registered outside worktree is denied'),
+            @('Write', "$beside3244\artifacts\a.md", 0, 'main session: artifacts in a registered outside worktree is allowed'),
+            @('Write', "$unreg3244\src\Encina\X.cs", 0, 'main session: src in an unregistered folder is outside the checkouts and allowed'))) {
+        $tool, $path, $expected, $label = $case
+        Invoke-HookCase $orchestrator (@{ tool_name = $tool; cwd = $main3244; tool_input = @{ file_path = $path } } | ConvertTo-Json -Compress) $expected "#3244 $label"
+    }
+
+    # enforce-path-ownership: an issue-worker's ownership rules apply in a registered outside worktree.
+    foreach ($case in @(
+            @("$beside3244\docs\en\guides\x.md", 2, 'issue-worker: a docs page in a registered outside worktree is denied'),
+            @("$beside3244\changelog.d\1-x.fixed.md", 2, 'issue-worker: a changelog fragment in a registered outside worktree is denied'),
+            @("$beside3244\src\Encina\X.cs", 0, 'issue-worker: a source file in a registered outside worktree is allowed'),
+            @("$unreg3244\docs\en\guides\x.md", 0, 'issue-worker: a docs page in an unregistered folder is outside the checkouts and allowed'))) {
+        $path, $expected, $label = $case
+        Invoke-HookCase $ownership (@{ tool_name = 'Write'; cwd = $main3244; tool_input = @{ file_path = $path } } | ConvertTo-Json -Compress) $expected "#3244 $label" 'issue-worker'
+    }
+    $env:CLAUDE_PROJECT_DIR = $savedProjectDir3244
+    # ---- end #3244 block ----
 }
 finally {
     Pop-Location
