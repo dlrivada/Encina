@@ -288,7 +288,6 @@ function Split-CommandStatements {
                     # (a backslash-newline pair is removed); any other backslash is kept, so a Windows path survives.
                     if ($d -eq '\' -and $Bash) {
                         $next = if ($j + 1 -lt $n) { $Text[$j + 1] } else { $null }
-                        if ($next -eq "`r" -and $j + 2 -lt $n -and $Text[$j + 2] -eq "`n") { $j += 3; continue }
                         if ($next -eq "`n") { $j += 2; continue }
                         if ($null -ne $next -and '$`"\'.Contains($next)) {
                             [void]$sb.Append($next)

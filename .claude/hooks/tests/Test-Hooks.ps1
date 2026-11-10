@@ -5372,7 +5372,7 @@ The fluent builder chain described in the documentation is fictional. The parame
     Test-BashTokens3229 'echo "a\"b"' @('echo', 'a"b') 'a backslash before a double quote gives the quote (#3229)'
     Test-BashTokens3229 'echo "a\$b" "a\`b"' @('echo', 'a$b', 'a`b') 'a backslash before $ or a backtick gives that character (#3229)'
     Test-BashTokens3229 ("echo `"a\`nb`"") @('echo', 'ab') 'a backslash-newline pair inside double quotes is removed (#3229)'
-    Test-BashTokens3229 ("echo `"a\`r`nb`"") @('echo', 'ab') 'a backslash-CRLF pair inside double quotes is removed (#3229)'
+    Test-BashTokens3229 ("echo `"a\`r`nb`"") @('echo', "a\`r`nb") 'a backslash before CRLF inside double quotes is kept, with CR and LF, as Bash does (#3229)'
     Test-BashTokens3229 'echo C:\Users\a' @('echo', 'C:Usersa') 'an unquoted backslash is still consumed, as Bash does (#3229, D2)'
     Test-BashTokens3229 "echo 'C:\Users\a'" @('echo', 'C:\Users\a') 'single quotes keep every backslash (#3229)'
 
