@@ -224,21 +224,22 @@ try {
         return $full
     }
 
-    # #3281: a payload without cwd resolves relative paths against the hook process's directory when that is inside
-    # a checkout (the main checkout or a worktree), otherwise against CLAUDE_PROJECT_DIR; a process directory such
-    # as C:\ would make every relative script path "not exist". The base is always a real checkout, so the script
-    # is still read and judged, and a missing one is still denied.
-    $cwd = if ($payload.cwd) { [string]$payload.cwd } else {
-        $processDir = (Get-Location).Path
-        if ($null -ne (Get-RepoLocation $processDir $layout)) { $processDir } else { $projectDir }
-    }
+    # #3281: a payload without cwd uses the hook process's directory as its base. When that directory is outside
+    # every checkout (for example C:\), a relative script path would "not exist" there, so the script launches are
+    # also resolved against CLAUDE_PROJECT_DIR ($scriptCwd) and the script is read and judged from there; a missing
+    # one is still denied. Write targets are judged against BOTH bases and denied if either is guarded, so the
+    # fallback can only add denials, never remove one.
+    $cwd = if ($payload.cwd) { [string]$payload.cwd } else { (Get-Location).Path }
+    $scriptCwd = if (-not $payload.cwd -and $null -eq (Get-RepoLocation $cwd $layout)) { $projectDir } else { $cwd }
     $tool = [string]$payload.tool_name
 
     if ($tool -in 'Write', 'Edit', 'MultiEdit', 'NotebookEdit') {
         $target = [string]$payload.tool_input.file_path
         if ([string]::IsNullOrWhiteSpace($target)) { $target = [string]$payload.tool_input.notebook_path }
-        $full = Get-FullPath $target $cwd
-        if (Test-Guarded $full) { Write-Block "Target: $full" }
+        foreach ($base in @($cwd, $scriptCwd | Select-Object -Unique)) {
+            $full = Get-FullPath $target $base
+            if (Test-Guarded $full) { Write-Block "Target: $full" }
+        }
         exit 0
     }
 
@@ -247,7 +248,8 @@ try {
     if ([string]::IsNullOrWhiteSpace($command)) { exit 0 }
 
     $scan = Get-ShellWrites -Command $command -Bash:($tool -eq 'Bash') -Cwd $cwd
-    foreach ($w in $scan.Writes) {
+    $scriptScan = if ($scriptCwd -ne $cwd) { Get-ShellWrites -Command $command -Bash:($tool -eq 'Bash') -Cwd $scriptCwd } else { $scan }
+    foreach ($w in @($scan.Writes) + @(if ($scriptCwd -ne $cwd) { $scriptScan.Writes })) {
         if (Test-Guarded $w.Full $w.Directory) { Write-Block "Target: $($w.Full) ($($w.What))" }
         # A move removes its source, so a source under src/ or tests/ is a write there too.
         if ($w.PSObject.Properties['MoveSource'] -and $w.MoveSource -and (Test-Guarded $w.MoveSource)) { Write-Block "Source of a move: $($w.MoveSource) ($($w.What))" }
@@ -277,12 +279,12 @@ try {
     # `dotnet run <file>.cs` / `pwsh -File <file>.ps1`: read the script's own text, since the analysis above
     # only sees the invoking statement, not what the launched script does (#1181).
     $variableTable = $null
-    foreach ($s in $scan.Scripts) {
+    foreach ($s in $scriptScan.Scripts) {
         # #2009: a script path through a variable the command itself assigns once, at its top level, to a literal
         # (`$wt = 'D:\x'; pwsh -File "$wt\probe.ps1"`) resolves; the resolved script goes through every check
         # below. Not when the same command writes a file whose target the hook cannot resolve (it may create the
         # script), and not for Bash. A call through a variable that is not a .ps1 stays an executable, skipped below.
-        if ($null -eq $s.Full -and $tool -eq 'PowerShell' -and @($scan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory }).Count -eq 0) {
+        if ($null -eq $s.Full -and $tool -eq 'PowerShell' -and @($scriptScan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory }).Count -eq 0) {
             if ($null -eq $variableTable) { $variableTable = Get-LiteralVariableTable $command }
             $resolved = Resolve-LiteralVariablePath $s $variableTable
             if ($null -ne $resolved) {
@@ -292,7 +294,7 @@ try {
         }
         # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
         # unresolvable only when the same command also writes a file, which could have created the script (#1854).
-        if ($null -eq $s.Full -and $s.Dynamic -and @($scan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
+        if ($null -eq $s.Full -and $s.Dynamic -and @($scriptScan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
         if ($null -eq $s.Full) { Write-Block "runs '$($s.Raw)' ($($s.Kind)), whose script path the hook cannot resolve (tried '$($s.Raw)' against base '$($s.Base)'), so it cannot rule out writes to src/ or tests/; the hook sees only the command in front of it, never a variable set in an earlier tool call, so pass its literal path, or assign the variable to a literal earlier in the same command (once, at the top level, e.g. `$wt = 'D:\path'; pwsh -File `"`$wt\script.ps1`")" }
         # What this same command writes to the script (a script created or overwritten before it runs). The
         # hook trusts only text it can read in the command: a quoted or here-string literal written by
@@ -309,14 +311,14 @@ try {
             if ($Write.Full -notmatch $wildcard) { return $false }
             try { return [bool]($Full -like $Write.Full) } catch { return $true }
         }
-        $own = @($scan.Writes | Where-Object { Test-WriteHitsScript $_ $s.Full })
+        $own = @($scriptScan.Writes | Where-Object { Test-WriteHitsScript $_ $s.Full })
         $newText = $null
         if ($own.Count -gt 0) {
             $opaque = @($own | Where-Object { $null -eq $_.Literal -or $_.Full -match $wildcard })
             if ($opaque.Count -gt 0) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates or changes with '$($opaque[0].What)' from content that is not a quoted literal in the command (git or native output, a download, a copy, a file read, a variable or a subexpression), so it cannot rule out writes to src/ or tests/; write the script with a quoted or here-string literal (-Value, -InputObject, a literal piped in, or 'literal' > file), or create it in one call and run it in the next"
             }
-            $unresolved = @($scan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory })
+            $unresolved = @($scriptScan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory })
             if ($unresolved.Count -gt 0) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command writes, next to '$($unresolved[0].What)' to '$($unresolved[0].Target.Value)', a target the hook cannot resolve and which may be the same script, so it cannot rule out writes to src/ or tests/; pass literal paths"
             }
@@ -330,13 +332,13 @@ try {
                 'foreach-object', '%', '?', 'sort-object', 'measure-object', 'format-table', 'ft', 'format-list', 'fl', 'out-string', 'convertfrom-json', 'convertto-json',
                 'get-location', 'pwd', 'join-path', 'split-path', 'resolve-path', 'start-sleep', 'pwsh', 'powershell', 'dotnet',
                 'if', 'else', 'elseif', 'try', 'catch', 'finally', 'foreach', 'while', 'for', 'switch', 'exit', 'return', 'param')
-            $unknown = @($scan.Executables | Where-Object { $_ -notin $known })
+            $unknown = @($scriptScan.Executables | Where-Object { $_ -notin $known })
             if ($unknown.Count -gt 0) {
                 Write-Block "runs '$($s.Full)' ($($s.Kind)), which the same command creates, next to a statement running '$($unknown[0])', a program the hook does not understand and which may copy, link, extract or rewrite files, so it cannot rule out writes to src/ or tests/; create the script in one call and run it in the next"
             }
             # Every literal the command writes anywhere is judged: a script written here may launch another one
             # also written here, and neither may name src/ or tests/ or launch a third script the hook cannot read.
-            foreach ($literal in @($scan.Writes | Where-Object { $null -ne $_.Literal } | ForEach-Object { $_.Literal })) {
+            foreach ($literal in @($scriptScan.Writes | Where-Object { $null -ne $_.Literal } | ForEach-Object { $_.Literal })) {
                 if (Test-ScriptReferencesPath $literal $guardedTokens) {
                     Write-Block "runs '$($s.Full)' ($($s.Kind)), and the same command writes a literal that references src/ or tests/ (a script or a file), so it cannot rule out writes there; create the script in one call and run it in the next"
                 }

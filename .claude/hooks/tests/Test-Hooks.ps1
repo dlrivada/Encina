@@ -5194,6 +5194,23 @@ The fluent builder chain described in the documentation is fictional. The parame
     Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/benign.ps1' $repo 0 'adversarial-reviewer: no cwd, process directory inside the checkout, a relative script resolves against it (#3281)'
     Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/evil.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that writes src/ stays blocked (#3281)' 'which writes to src/ or tests/'
     Invoke-NoCwd3281 'adversarial-reviewer' 'pwsh -NoProfile -File artifacts/test-3281/missing.ps1' $nonCheckout3281 2 'adversarial-reviewer: no cwd, a relative script that does not exist stays blocked against the project root (#3281)' "which does not exist \(resolved from .artifacts/test-3281/missing\.ps1. against base .[^ ]*$([regex]::Escape((Split-Path -Leaf $repo)))"
+    # Review finding: the fallback must not turn a write that the process-directory base blocks into an allowed one.
+    # The process directory is the parent of the checkout, the path spells out the checkout folder.
+    $repoParent3281 = Split-Path -Parent $repo
+    $repoLeaf3281 = Split-Path -Leaf $repo
+    foreach ($case in @(
+            @{ tool_name = 'Write'; tool_input = @{ file_path = "$repoLeaf3281/src/Encina/X3281.cs"; content = 'x' } },
+            @{ tool_name = 'Edit'; tool_input = @{ file_path = "$repoLeaf3281/tests/X3281.cs"; old_string = 'a'; new_string = 'b' } },
+            @{ tool_name = 'PowerShell'; tool_input = @{ command = "Set-Content $repoLeaf3281/src/Encina/X3281.cs x" } })) {
+        $json = ($case + @{ agent_id = 'a3281'; agent_type = 'adversarial-reviewer' }) | ConvertTo-Json -Compress -Depth 5
+        Push-Location -LiteralPath $repoParent3281
+        try { $out = $json | pwsh -NoProfile -File $orchestrator 2>&1; $code = $LASTEXITCODE } finally { Pop-Location }
+        $ok = $code -eq 2
+        $script:total++
+        if (-not $ok) { $script:failed++ }
+        "{0} [{1}, expected 2] guard-orchestrator-writes.ps1: no cwd, process directory outside the checkout, relative {2} to the checkout's src/tests stays blocked (#3281)" -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $code, $case.tool_name
+        if (-not $ok) { "      output: $(Get-FlatOutput $out)" }
+    }
     Remove-Item -LiteralPath $evil3281Dir -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $scratch1854 -Recurse -Force -ErrorAction SilentlyContinue
     # ---- end #1854 block ----
