@@ -46,16 +46,23 @@ try {
     $task = $null
     $model = ''
     $tokens = $null
+    $firstUserSeen = $false
     foreach ($line in [IO.File]::ReadLines($transcript)) {
-        if (-not $task -and $line.Contains('"type":"user"')) {
-            $m = [regex]::Match($line, 'Issue #(?<n>\d+)')
+        # The task comes from the brief only (the first user line), never from a later tool result.
+        if (-not $firstUserSeen -and $line.Contains('"type":"user"')) {
+            $firstUserSeen = $true
+            $m = [regex]::Match($line, '(?i)issue #(?<n>\d+)')
             if ($m.Success) { $task = "issue-$($m.Groups['n'].Value)" }
         }
         if (-not $line.Contains('"usage"') -or -not $line.Contains('"assistant"')) { continue }
         try { $entry = $line | ConvertFrom-Json -Depth 64 } catch { continue }
         $usage = $entry.message.usage
         if ($entry.message.role -ne 'assistant' -or $null -eq $usage) { continue }
-        $tokens = [long]$usage.input_tokens + [long]$usage.cache_creation_input_tokens + [long]$usage.cache_read_input_tokens + [long]$usage.output_tokens
+        # Synthetic messages (rate limit, error) carry model <synthetic> and all-zero usage: not a real turn.
+        if ([string]$entry.message.model -eq '<synthetic>') { continue }
+        $turn = [long]$usage.input_tokens + [long]$usage.cache_creation_input_tokens + [long]$usage.cache_read_input_tokens + [long]$usage.output_tokens
+        if ($turn -le 0) { continue }
+        $tokens = $turn
         if ($entry.message.model) { $model = [string]$entry.message.model }
     }
     if ($null -eq $tokens) { exit 0 }

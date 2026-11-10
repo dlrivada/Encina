@@ -5527,6 +5527,15 @@ The fluent builder chain described in the documentation is fictional. The parame
         $script:total++
         if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',Explore,session-sess1abc,claude-haiku-4-5,112,"hook-recorded agent-aNOISSUE"') { 'PASS record-agent-usage: no issue number falls back to the session id' } else { $script:failed++; 'FAIL record-agent-usage: session fallback row missing' }
 
+        $synthetic = (@{ type = 'assistant'; message = @{ id = 'ms'; role = 'assistant'; model = '<synthetic>'; usage = @{ input_tokens = 0; cache_creation_input_tokens = 0; cache_read_input_tokens = 0; output_tokens = 0 } } } | ConvertTo-Json -Compress -Depth 5)
+        $laterUser = (@{ type = 'user'; message = @{ role = 'user'; content = 'tool result mentioning Issue #9999' } } | ConvertTo-Json -Compress -Depth 5)
+        $lowerBrief = (@{ type = 'user'; message = @{ role = 'user'; content = 'Review issue #3281 please' } } | ConvertTo-Json -Compress -Depth 5)
+        [IO.File]::WriteAllLines((Join-Path $usageDir 'proj\sess1\subagents\agent-aSYN.jsonl'), [string[]]@($lowerBrief, $turn2, $laterUser, $synthetic))
+        $synPayload = @{ agent_id = 'aSYN'; agent_type = 'adversarial-reviewer'; cwd = $work; session_id = 'sess1abcdef'; transcript_path = (Join-Path $usageDir 'proj\sess1.jsonl') } | ConvertTo-Json -Compress
+        Invoke-HookCase $usageHook $synPayload 0 'record-agent-usage: a stop that ends on a synthetic message'
+        $script:total++
+        if ((Get-Content -LiteralPath $usageLedger -Raw) -match ',adversarial-reviewer,issue-3281,claude-sonnet-5-5,51571,"hook-recorded agent-aSYN"') { 'PASS record-agent-usage: synthetic last turn is skipped, task is the brief''s (case-insensitive), not a later tool result' } else { $script:failed++; 'FAIL record-agent-usage: synthetic/brief-only task row wrong' }
+
         $before = (Get-Content -LiteralPath $usageLedger -Raw)
         Invoke-HookCase $usageHook 'not json' 0 'record-agent-usage: malformed payload never blocks'
         Invoke-HookCase $usageHook (@{ cwd = $work } | ConvertTo-Json -Compress) 0 'record-agent-usage: the main session stop (no agent_id) is ignored'
