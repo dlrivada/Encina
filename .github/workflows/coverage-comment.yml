@@ -1,0 +1,230 @@
+name: Coverage Comment
+
+# #3289, ADR-063: posts ONE comment per pull request (a hidden marker, updated in place) with the
+# "Per-file targets" table of the files the pull request touches, replacing the Codecov comment.
+#
+# Trust boundary. CI (pull_request, read-only token, fork pull requests included) measures coverage and uploads
+# the Cobertura data as test-results-* artifacts plus the pull request number and head SHA as coverage-comment-pr.
+# This workflow runs from the DEFAULT branch (workflow_run), so only base-repository code executes here:
+#   - the pull request's code is never checked out or run; the touched-file list comes from the API, and the
+#     pull request's coverage manifests are read as plain JSON blobs with git show;
+#   - the artifacts are untrusted data: the number must be numeric and the pull request it names must be open
+#     with exactly this run's head SHA, head repository and head branch (the run's pull_requests array is
+#     empty for fork pull requests, so the API is the only source for them); the Cobertura XML is only parsed;
+#   - the job that reads them (report) has a read-only token, and the only job that writes (comment) has
+#     pull-requests: write, no checkout and receives nothing but the rendered Markdown;
+#   - every value from the event payload reaches a script through env, never through ${{ }} in run:.
+# A workflow_run workflow only runs from the default branch, so this one can only really run once it is merged.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+concurrency:
+  # Per branch of the head repository, so two runs of one pull request never list and post at the same time.
+  group: coverage-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Render the coverage comment
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+    outputs:
+      pr-number: ${{ steps.resolve.outputs.pr-number }}
+      has-comment: ${{ steps.render.outputs.has-comment }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+      EVENT_PRS: ${{ toJSON(github.event.workflow_run.pull_requests.*.number) }}
+    steps:
+      # No ref: a workflow_run workflow checks out the default branch, never the pull request.
+      - name: Checkout the base repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Download the hand-off (untrusted data)
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-comment-pr
+          path: pr-meta
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Resolve and verify the pull request
+        id: resolve
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:HEAD_SHA -notmatch '^[0-9a-f]{40}$') { throw 'Unexpected head SHA in the event payload.' }
+
+          $candidates = [System.Collections.Generic.HashSet[int]]::new()
+
+          # The artifact is a claim, not a fact: two lines, a plain number and this run's head SHA.
+          $lines = @(Get-Content -LiteralPath pr-meta/pr.txt -TotalCount 3)
+          if ($lines.Count -ge 2 -and $lines[0] -cmatch '^[1-9][0-9]{0,8}$' -and $lines[1] -ceq $env:HEAD_SHA) {
+            [void]$candidates.Add([int]$lines[0])
+          } else {
+            Write-Host '::warning::The hand-off artifact is malformed or names another commit; it is ignored.'
+          }
+
+          # Same-repository pull requests are in the payload; fork pull requests are only found through the API.
+          foreach ($n in @($env:EVENT_PRS | ConvertFrom-Json)) { [void]$candidates.Add([int]$n) }
+          $associated = @(gh api "repos/$($env:REPO)/commits/$($env:HEAD_SHA)/pulls" --paginate --jq '.[].number')
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the pull requests of the head commit.' }
+          foreach ($n in $associated) { if ("$n" -cmatch '^[1-9][0-9]{0,8}$') { [void]$candidates.Add([int]$n) } }
+
+          $verified = @()
+          foreach ($n in $candidates) {
+            $pr = gh api "repos/$($env:REPO)/pulls/$n" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { continue }
+            if ($pr.state -eq 'open' -and $pr.head.sha -ceq $env:HEAD_SHA -and $pr.base.repo.full_name -eq $env:REPO `
+                -and $pr.head.repo.full_name -eq $env:HEAD_REPO -and $pr.head.ref -ceq $env:HEAD_BRANCH) {
+              $verified += $n
+            }
+          }
+
+          if ($verified.Count -ne 1) {
+            Write-Host "::notice::No single open pull request matches this run's head commit ($($verified.Count) found); no comment is posted."
+            'pr-number=' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          "pr-number=$($verified[0])" >> $env:GITHUB_OUTPUT
+
+      - name: Touched files, from the API
+        if: steps.resolve.outputs.pr-number != ''
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ steps.resolve.outputs.pr-number }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          gh api "repos/$($env:REPO)/pulls/$($env:PR_NUMBER)/files" --paginate --jq '.[] | select(.status != "removed") | .filename' | Set-Content -Path touched.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the files of the pull request.' }
+
+      # The pull request's own manifests, so a file it adds is judged against the targets it adds. They are
+      # read as blobs of the head commit and parsed as JSON by the base repository's coverage-report.cs.
+      - name: Coverage manifests of the pull request head (data only)
+        if: steps.resolve.outputs.pr-number != ''
+        id: manifests
+        shell: pwsh
+        env:
+          PR_NUMBER: ${{ steps.resolve.outputs.pr-number }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git fetch --no-tags --depth=1 origin "+refs/pull/$($env:PR_NUMBER)/head:refs/remotes/pull/head"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::warning::Could not fetch the pull request head; the base manifests are used.'; 'dir=' >> $env:GITHUB_OUTPUT; exit 0 }
+          if ((git rev-parse refs/remotes/pull/head) -cne $env:HEAD_SHA) {
+            Write-Host '::warning::The pull request moved on since this run; the base manifests are used.'; 'dir=' >> $env:GITHUB_OUTPUT; exit 0
+          }
+          New-Item -ItemType Directory -Force pr-manifest | Out-Null
+          $names = @(git ls-tree --name-only $env:HEAD_SHA .github/coverage-manifest/ | Where-Object { $_ -cmatch '^\.github/coverage-manifest/[A-Za-z0-9._-]+\.json$' })
+          foreach ($name in $names) {
+            git show "$($env:HEAD_SHA):$name" | Set-Content -Path (Join-Path pr-manifest (Split-Path $name -Leaf)) -Encoding utf8NoBOM
+          }
+          if ($names.Count -eq 0) { 'dir=' >> $env:GITHUB_OUTPUT } else { 'dir=pr-manifest' >> $env:GITHUB_OUTPUT }
+
+      - name: Download the Cobertura data (untrusted data)
+        if: steps.resolve.outputs.pr-number != ''
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-results-*
+          path: artifacts/test-results
+          merge-multiple: false
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Render the comment
+        id: render
+        if: steps.resolve.outputs.pr-number != ''
+        shell: pwsh
+        env:
+          MANIFEST_DIR: ${{ steps.manifests.outputs.dir }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # A run that produced no test artifacts leaves this folder missing; coverage-report.cs then writes no comment
+          # and an earlier one would stay stale. An empty folder renders the "no coverage data in this run" comment.
+          New-Item -ItemType Directory -Force artifacts/test-results | Out-Null
+          $extra = @()
+          if ($env:MANIFEST_DIR) { $extra = @('--manifest', $env:MANIFEST_DIR) }
+          dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/test-results --output artifacts/coverage-out --files-from touched.txt @extra
+          if ($LASTEXITCODE -ne 0) { throw 'coverage-report.cs failed.' }
+
+          $rendered = 'artifacts/coverage-out/pr-coverage-comment.md'
+          if (-not (Test-Path $rendered)) {
+            Write-Host '::notice::No touched src/ file or no coverage data in this run; no comment is posted.'
+            'has-comment=false' >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          New-Item -ItemType Directory -Force comment | Out-Null
+          $marker = '<!-- encina-coverage-comment -->'
+          $footer = '<sub>Updated for commit {0}. The comment is replaced on every push; coverage gates are crap-gate and target-ratchet.</sub>' -f $env:HEAD_SHA.Substring(0, 7)
+          ($marker, '', (Get-Content -Raw -LiteralPath $rendered), $footer) -join "`n" | Set-Content -Path comment/body.md -NoNewline
+          'has-comment=true' >> $env:GITHUB_OUTPUT
+
+      - name: Upload the rendered comment
+        if: steps.render.outputs.has-comment == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-comment
+          path: comment/body.md
+          retention-days: 7
+
+  comment:
+    name: Post or update the comment
+    needs: report
+    if: needs.report.outputs.has-comment == 'true' && needs.report.outputs.pr-number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ needs.report.outputs.pr-number }}
+    steps:
+      - name: Download the rendered comment
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-comment
+          path: comment
+
+      - name: Post or update the comment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:PR_NUMBER -cnotmatch '^[1-9][0-9]{0,8}$') { throw 'The pull request number is not numeric.' }
+          $marker = '<!-- encina-coverage-comment -->'
+          $body = Get-Content -Raw -LiteralPath comment/body.md
+          if (-not $body.StartsWith($marker, [System.StringComparison]::Ordinal)) { throw 'The rendered comment lacks its marker.' }
+          if ($body.Length -gt 60000) { $body = $body.Substring(0, 60000) }
+
+          # The first comment by this workflow's bot that starts with the marker is the one to update.
+          $existing = @(gh api "repos/$($env:REPO)/issues/$($env:PR_NUMBER)/comments" --paginate `
+              --jq '.[] | select(.user.login == "github-actions[bot]") | {id, body}' |
+            ForEach-Object { $_ | ConvertFrom-Json } |
+            Where-Object { $_.body.StartsWith($marker, [System.StringComparison]::Ordinal) })
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the comments of the pull request.' }
+
+          $payload = @{ body = $body } | ConvertTo-Json -Compress
+          if ($existing.Count -gt 0) {
+            $payload | gh api --method PATCH "repos/$($env:REPO)/issues/comments/$($existing[0].id)" --input - | Out-Null
+          } else {
+            $payload | gh api --method POST "repos/$($env:REPO)/issues/$($env:PR_NUMBER)/comments" --input - | Out-Null
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not post the comment.' }

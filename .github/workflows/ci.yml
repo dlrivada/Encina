@@ -201,15 +201,6 @@ jobs:
           path: artifacts/test-results/UnitTests-${{ matrix.shard.name }}
           if-no-files-found: ignore
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: unit
-          files: artifacts/test-results/UnitTests-${{ matrix.shard.name }}/**/coverage.cobertura.xml
-          fail_ci_if_error: false
-
   # Integration tests - split by data access provider for parallel execution
   test-integration:
     needs: [changes, build]
@@ -275,15 +266,6 @@ jobs:
           path: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}
           if-no-files-found: ignore
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: integration
-          files: artifacts/test-results/IntegrationTests-${{ matrix.shard.name }}/**/coverage.cobertura.xml
-          fail_ci_if_error: false
-
   # Contract tests
   test-contract:
     needs: [changes, build]
@@ -313,15 +295,6 @@ jobs:
           name: test-results-ContractTests
           path: artifacts/test-results/ContractTests
           if-no-files-found: ignore
-
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: contract
-          files: artifacts/test-results/ContractTests/**/coverage.cobertura.xml
-          fail_ci_if_error: false
 
   # Property tests
   test-property:
@@ -353,15 +326,6 @@ jobs:
           path: artifacts/test-results/PropertyTests
           if-no-files-found: ignore
 
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: property
-          files: artifacts/test-results/PropertyTests/**/coverage.cobertura.xml
-          fail_ci_if_error: false
-
   # Guard tests
   test-guard:
     needs: [changes, build]
@@ -391,15 +355,6 @@ jobs:
           name: test-results-GuardTests
           path: artifacts/test-results/GuardTests
           if-no-files-found: ignore
-
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: guard
-          files: artifacts/test-results/GuardTests/**/coverage.cobertura.xml
-          fail_ci_if_error: false
 
   # EF Core multi-provider integration tests
   # Tests EF Core against the 3 supported database providers (SqlServer, PostgreSQL, MySQL).
@@ -501,15 +456,6 @@ jobs:
           name: test-results-EFCore-${{ matrix.database.name }}
           path: artifacts/test-results/EFCore-${{ matrix.database.name }}
           if-no-files-found: ignore
-
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: integration
-          files: artifacts/test-results/EFCore-${{ matrix.database.name }}/**/coverage.cobertura.xml
-          fail_ci_if_error: false
 
   # NOTE: Coverage reporting and Pack are in ci-full.yml only.
   # CI-fast skips coverage to avoid partial data from skipped test jobs.
@@ -793,6 +739,34 @@ jobs:
           --base ${{ github.event.pull_request.base.sha }}
           --head ${{ github.event.pull_request.head.sha }}
           --pr ${{ github.event.pull_request.number }}
+
+  # #3289: hand-off to coverage-comment.yml, which posts the per-file coverage comment. This workflow runs
+  # with a read-only token on pull requests from forks too, so it posts nothing itself: it records the pull
+  # request number and head SHA, and the test-results-* artifacts above carry the Cobertura data. The
+  # workflow_run consumer treats both as untrusted data and re-checks the number against the API.
+  # Not in ci-result: the comment is informational, never a gate.
+  coverage-comment-input:
+    name: Coverage comment input
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Write the pull request number and head SHA
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p artifacts/coverage-comment-pr
+          printf '%s\n%s\n' "$PR_NUMBER" "$HEAD_SHA" > artifacts/coverage-comment-pr/pr.txt
+
+      - name: Upload the hand-off
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-comment-pr
+          path: artifacts/coverage-comment-pr
+          retention-days: 7
 
   # Single required status check for branch protection (SPEC-000 DEC-006).
   # Runs always, so it reports even on docs-only PRs where the test jobs are skipped

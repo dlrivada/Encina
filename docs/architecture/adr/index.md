@@ -32,7 +32,7 @@ has_children: true
 | [020](020-temporal-crypto-shredding-audit-store.md) | Temporal Crypto-Shredding Audit Store |
 | [021](021-eventid-uniqueness-enforcement.md) | EventId Uniqueness Enforcement |
 | [022](022-provider-agnostic-attestation.md) | Provider-Agnostic Attestation |
-| [023](023-coverage-strategy-codecov-sonarcloud.md) | Coverage Strategy (Codecov + SonarCloud) |
+| [023](023-coverage-strategy-codecov-sonarcloud.md) | Coverage Strategy (Codecov + SonarCloud) - superseded by [063](063-in-repo-coverage-comment-replaces-codecov.md) |
 | [024](024-remove-sqlite-provider-pre-1.0.md) | Remove SQLite Provider Pre-1.0 |
 | [025](025-performance-measurement-infrastructure.md) | Performance Measurement Infrastructure |
 | [027](027-marten-as-the-event-sourcing-provider.md) | Marten Is the Event-Sourcing Provider; EventStoreDB Deprecated |
@@ -57,6 +57,7 @@ has_children: true
 | [057](057-verifactu-boundary.md) | The Verifactu Boundary: Regulation-Neutral Primitives Only (Accepted) |
 | [058](058-encina-cli-command-architecture.md) | Encina.Cli Command Architecture: An In-App Command Host and One Command Contract (Accepted) |
 | [060](060-cpm-transitive-pinning-non-packable.md) | Central Package Management Transitive Pinning Only in Non-Packable Projects (Accepted) |
+| [063](063-in-repo-coverage-comment-replaces-codecov.md) | An In-Repository Coverage Comment Replaces Codecov (Accepted, supersedes 023) |
 
 ## Reserved numbers
 

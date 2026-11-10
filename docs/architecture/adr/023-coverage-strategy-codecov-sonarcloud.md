@@ -7,9 +7,11 @@ grand_parent: Architecture
 
 # ADR-023: Coverage Strategy — Codecov Components + SonarCloud Static Analysis
 
+> **Superseded by [ADR-063](063-in-repo-coverage-comment-replaces-codecov.md)** (2026-11-10): Codecov was replaced by an in-repository coverage comment. The text below is kept as the historical record.
+
 ## Status
 
-Accepted (March 2026)
+Superseded by [ADR-063](063-in-repo-coverage-comment-replaces-codecov.md) (was: Accepted, March 2026)
 
 ## Context
 

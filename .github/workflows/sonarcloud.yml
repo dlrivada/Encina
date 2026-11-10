@@ -17,7 +17,7 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
-  # Static analysis only — coverage is handled by Codecov (see ADR-023)
+  # Static analysis only — coverage is measured per flag against the manifests (see ADR-063)
   # SonarScanner for .NET requires begin → build → end in the SAME job
   sonarcloud:
     name: SonarCloud Analysis
@@ -57,7 +57,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          # Coverage is handled by Codecov (see ADR-023, Issue #911)
+          # Coverage is measured per flag against the manifests (see ADR-063)
           # SonarCloud focuses on static analysis: bugs, vulnerabilities, code smells, duplication
           # Exclusions, inclusions, and CPD settings are passed as /d: parameters below
           dotnet sonarscanner begin \
@@ -167,7 +167,7 @@ jobs:
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
       # No test execution needed — SonarScanner performs static analysis on built code
-      # Coverage is collected by Codecov in the CI workflow (see ADR-023)
+      # Coverage is measured by the CI workflow and reported by coverage-report.cs (see ADR-063)
 
       - name: End SonarCloud analysis
         env:
