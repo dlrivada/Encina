@@ -420,7 +420,7 @@ REFERENCE FILES:
 | 8 | Transactions | ❌ N/A | Read-only; the gate runs before the transaction stage |
 | 9 | Idempotency | ❌ N/A | No side effects |
 | 10 | Multi-Tenancy | ✅ Phase 1 | Tenant from `IRequestContext.TenantId` in `FeatureFlagContext`; tenant as a metric tag |
-| 11 | Module Isolation | ⏭️ Deferred | Module-scoped flags: issue file `feature-flag-module-scope` in `artifacts/issues/` |
+| 11 | Module Isolation | ❌ N/A | Flags are named by the application and shared across modules; the request's module name can already be passed as a context attribute by a custom provider |
 | 12 | Audit Trail | ⏭️ Deferred | Flag change audit belongs to the provider issues: issue file `feature-flag-change-audit` in `artifacts/issues/`; gate decisions are metered and logged here |
 
 ---
