@@ -346,12 +346,12 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceENISA = (9830, 9849);` with the summary "Encina.Compliance.ENISA — ENISA single entry point adapter".
+1. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceENISA = (6430, 6449);` with the summary "Encina.Compliance.ENISA — ENISA single entry point adapter".
 2. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify): map `"Encina.Compliance.ENISA"` to `[nameof(EventIdRanges.ComplianceENISA)]`.
-3. `Diagnostics/EnisaLogMessages.cs`: `[LoggerMessage]` from 9830, packed: serializer validation failed (field names), submission classified (status class), probe result, registration summary. No payload, URL query or response body.
+3. `Diagnostics/EnisaLogMessages.cs`: `[LoggerMessage]` from 6430, packed: serializer validation failed (field names), submission classified (status class), probe result, registration summary. No payload, URL query or response body.
 4. Metrics and spans: reuse the #812 activity `BreachNotification.ReportSubmission` and counter `breach.reporting.submissions.total` with `breach.reporting.authority = "ENISA-SEP"`; no new meter.
 
-The range 9830-9849 is proposed in this family of plans: 9800-9829 is plan #816 (DPIA criteria), 9860-9959 is plan #808 (EHDS), 9700-9749 is plan #812.
+The range 6430-6449 sits in the block 6400-6549 assigned to this family in the batch EventId registry: 6400-6429 is plan #816 (DPIA criteria), 6450-6549 is plan #808 (EHDS); 9700-9749 is plan #812.
 
 </details>
 
@@ -364,11 +364,11 @@ Plan #1942, Phase 4. ADR-021: register the range in src/Encina/Diagnostics/Event
 new assembly in EncinaEventIdAllocationTests.AssemblyRanges.
 
 TASK:
-Register ComplianceENISA = (9830, 9849), write EnisaLogMessages with [LoggerMessage], and run the architecture
+Register ComplianceENISA = (6430, 6449), write EnisaLogMessages with [LoggerMessage], and run the architecture
 tests.
 
 KEY RULES:
-- Packed EventIds, none outside 9830-9849. Never log EncinaError.Message, payloads, URL queries or response bodies.
+- Packed EventIds, none outside 6430-6449. Never log EncinaError.Message, payloads, URL queries or response bodies.
 
 REFERENCE FILES:
 - src/Encina/Diagnostics/EventIdRanges.cs
@@ -489,7 +489,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.ENISA` | **9830-9849** (new `ComplianceENISA`) | Free per `EventIdRanges.cs` today; 9700-9749 is plan #812, 9750-9799 is `SecurityBreakTheGlass`, 9800-9829 is proposed to plan #816, 9860-9959 to plan #808; register first (ADR-021) |
+| `Encina.Compliance.ENISA` | **6430-6449** (new `ComplianceENISA`) | Free per `EventIdRanges.cs` today and assigned to this family (block 6400-6549): 6400-6429 plan #816, 6450-6549 plan #808; plan #812 uses 9700-9749; register first (ADR-021) |
 
 ### Estimated File Count
 
@@ -527,7 +527,7 @@ IMPLEMENTATION OVERVIEW:
 2. AddEnisaSingleEntryPoint(IncidentReportingOptions, ...) with IsSingleEntryPoint = true; it never enables
    Reporting.SingleEntryPoint.Enabled.
 3. Probe, idempotency mapping, per-tenant registrations through #812's RouteForTenant.
-4. EventIds 9830-9849 (register first), reuse of the #812 activity and counter.
+4. EventIds 6430-6449 (register first), reuse of the #812 activity and counter.
 5. Tests on every flag including the gate test; WireMock stubs built from the published specification.
 6. Docs by docs-writer, changelog fragment, PublicAPI and manifest by mechanical-fixer, zero warnings.
 
@@ -554,7 +554,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Reports are never cached |
 | 2 | OpenTelemetry | ✅ | Reuses the #812 activity and counter with `breach.reporting.authority = "ENISA-SEP"`; no new meter (Phase 4) |
-| 3 | Structured Logging | ✅ | `EnisaLogMessages` in the new range 9830-9849 (Phase 4) |
+| 3 | Structured Logging | ✅ | `EnisaLogMessages` in the new range 6430-6449 (Phase 4) |
 | 4 | Health Checks | ✅ | `EnisaSepProbe` against the SEP status or test endpoint, only if the specification publishes one (Phase 3) |
 | 5 | Validation | ✅ | Required-field checks in the serializer and the options validator (Phases 1-2) |
 | 6 | Resilience | ✅ | #812's keyed pipeline `breach-reporting`; nothing new (Phase 3) |
