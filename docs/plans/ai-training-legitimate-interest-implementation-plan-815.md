@@ -36,7 +36,6 @@ Add a **registry of legitimate-interest definitions** to `Encina.Compliance.Lawf
 - #415 (AI Act) is closed and `src/Encina.Compliance.AIAct/` exists; the issue's "future AI compliance" is out of date. This plan does not depend on it.
 - The issue's Test Matrix lists Integration as conditional; because Design Choice 7 changes the LIA event, the Marten integration test is required, not optional.
 - The sample sets `AllowsIncidentalSpecialCategoryData` and `SubjectCanObjectUnconditionally` as if they acted. Nothing in `LawfulBasis` can act on them (no Art. 9 check, no objection handling in this package); this plan records them as metadata and defers the consumers (Design Choice 8). Without that, they would be properties with no purpose (AGENTS.md §3).
-- "Where definitions are registered: `LawfulBasisOptions.cs` L163" in the issue's choice list is out of date; the fluent methods start near the end of the file and the plan places `DefineInterest` after `DefaultBasis<TRequest>`.
 
 ### Affected packages
 
@@ -157,7 +156,9 @@ None of the 10 database providers. The LIA aggregate is Marten on PostgreSQL onl
 
 - I recommend B because an LIA is a record of a decision (Art. 5(2)); rejecting an incomplete one when it is written is the earliest and cheapest enforcement point. C wins for an application that turns the flag on with LIAs already approved; it can re-run `ScheduleLIAReviewAsync` instead. A wins only if the maintainer wants no change to LIA flows.
 - The rules test presence of fields the LIA already has; they do not judge content. The unconditional-objection and special-category flags are not checked here (Design Choice 8).
-- Fails closed (AGENTS.md §3): with the flag on and an `InterestId` that names no defined interest, creation returns `lawfulbasis.interest_not_defined`.
+- Fails closed (AGENTS.md §3) for an LIA that names an interest: with the flag on and an `InterestId` that names no defined interest, creation returns `lawfulbasis.interest_not_defined`.
+- Limit: the check runs only when `InterestId` is non-null and the flag is on. An LIA for AI training created without an `InterestId` is an ordinary LIA and bypasses every safeguard check, because the purpose is free text and cannot be matched reliably. The documentation states this plainly; no claim of "fails closed" extends to an LIA that does not name its interest.
+- Deviation from the issue: Alternatives 6 says the check covers "Safeguards, DPOInvolvement". The plan checks `DataMinimisationNotes`, `ImpactAssessment` and `Safeguards` (the fields the three draft safeguards map to) and does not check `DPOInvolvement`, which no draft safeguard requires; the maintainer can add it with this decision.
 
 </details>
 
@@ -185,20 +186,20 @@ None of the 10 database providers. The LIA aggregate is Marten on PostgreSQL onl
 <details>
 <summary><strong>7. Link from a request to its interest — through the LIA only</strong></summary>
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 11 (a worker's issue is one pull request, one package: `[LawfulBasis]` lives in `Encina.Compliance.GDPR`); the existing `LIAReference` link on `[LawfulBasis]`
+**Class:** Dilemma
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A request names its LIA through the existing `LIAReference`; the LIA names the interest (`InterestId`)** | No change to `Encina.Compliance.GDPR`; one hop already exists | The attribute does not show the interest at a glance |
-| **B) New `InterestId` property on `[LawfulBasis]`** | Visible on the request | Touches another package and its PublicAPI; two places to keep consistent |
+| **A) A request names its LIA through the existing `LIAReference`; the LIA names the interest (`InterestId`)** | No change to `Encina.Compliance.GDPR`; one hop already exists | The attribute does not show the interest at a glance; the pipeline must load the LIA to know the interest |
+| **B) New `InterestId` property on `[LawfulBasis]`** | Visible on the request; the pipeline can check the interest without loading the LIA (Design Choice 5 option C) | Touches another package (`Encina.Compliance.GDPR`) and its PublicAPI; two places to keep consistent |
 
-### Chosen Option: **A — Through the LIA**
+### Chosen Option: **A — Through the LIA** (recommended, pending the maintainer)
 
 ### Rationale
 
+- We recommend A because the LIA is already the record that carries the justification and the link needs one place; B wins if the maintainer wants the pipeline to check the interest on every request without loading the LIA.
 - The pipeline behavior is unchanged except that, if the maintainer picks C in Design Choice 5, it reads the LIA it already loads.
 
 </details>
@@ -206,21 +207,21 @@ None of the 10 database providers. The LIA aggregate is Marten on PostgreSQL onl
 <details>
 <summary><strong>8. Metadata whose consumers live in other packages — recorded, consumers deferred</strong></summary>
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 11 (one package per worker pull request); AGENTS.md section 6 (Defer with an issue); the packages concerned are `Encina.Compliance.DataSubjectRights` (Art. 21 objection) and the special-category checks outside `LawfulBasis`
+**Class:** Dilemma
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Record `SubjectCanObjectUnconditionally` and `AllowsIncidentalSpecialCategoryData` on the definition, expose them through `ILegitimateInterestRegistry`, and defer their consumers to an issue** | Stays inside one package; the data is available when the consumers are built | Two properties without a consumer today; the XML docs say so |
+| **A) Record `SubjectCanObjectUnconditionally` and `AllowsIncidentalSpecialCategoryData` on the definition, expose them through `ILegitimateInterestRegistry`, and defer their consumers to an issue** | Stays inside one package; the shape is built now as SPEC-002 DEC-012 asks; the draft's safeguards are fully represented | Two properties without a consumer today (dead data until the consumers exist); the XML docs say so |
 | **B) Implement the objection and Art. 9 consumers now** | Behaviour complete | Spans `DataSubjectRights` and another package; exceeds the size limits and mixes draft behaviours into current-law paths |
-| **C) Omit the two properties until a consumer exists** | No unused property | Adding them later changes the definition type after it ships; the draft's safeguards would be partly unrepresented |
+| **C) Omit the two properties until a consumer exists** | No unused property, which is what "every line serves a current purpose" (AGENTS.md section 3) asks | The draft's safeguards are partly unrepresented in the definition until the consumers are built |
 
-### Chosen Option: **A — Record and defer**
+### Chosen Option: **A — Record and defer** (recommended, pending the maintainer)
 
 ### Rationale
 
+- We recommend A because DEC-012 names #815 as a shape to build before 1.0, so the definition carries all three draft safeguards; C wins when the maintainer holds that a property without a consumer is dead API and prefers to add the two properties together with their consumers (the definition type is pre-1.0 and can change).
 - The issue file is `artifacts/issues/plan-815-interest-metadata-consumers.md` (see Prerequisites). The shape is what DEC-012 asks to build now; the consumers can follow when the text is adopted.
 
 </details>
@@ -242,7 +243,7 @@ All paths are in `src/Encina.Compliance.LawfulBasis/`, namespace `Encina.Complia
 2. `Model/LegitimateInterestDefinition.cs` (new, public sealed record): `Id`, `DisplayName`, `RequiresDataMinimization`, `RequiresRiskAssessment`, `SubjectCanObjectUnconditionally`, `AllowsIncidentalSpecialCategoryData`, `DraftArticle` (`string?`, set for the built-ins).
 3. `Model/LegitimateInterestDefinitionOptions.cs` (new, public sealed class): the mutable builder the lambda of `DefineInterest` configures; `internal LegitimateInterestDefinition Build(string id)`.
 4. `Abstractions/ILegitimateInterestRegistry.cs` (new, public): `bool TryGet(string id, out LegitimateInterestDefinition definition)`, `IReadOnlyCollection<LegitimateInterestDefinition> GetAll()`.
-5. `Services/DefaultLegitimateInterestRegistry.cs` (new, public sealed): built from `IOptions<LawfulBasisOptions>`; adds the three built-ins when `EnableOmnibusArticle88cAiTrainingInterests` is `true`; case-sensitive ids.
+5. `Services/DefaultLegitimateInterestRegistry.cs` (new, public sealed): built from `IOptions<LawfulBasisOptions>` and `ILogger<DefaultLegitimateInterestRegistry>`; adds the three built-ins when `EnableOmnibusArticle88cAiTrainingInterests` is `true`; case-sensitive ids.
 6. `LawfulBasisOptions.cs` (modify): `public bool EnableOmnibusArticle88cAiTrainingInterests { get; set; }` (default `false`), `internal Dictionary<string, LegitimateInterestDefinition> Interests`, `public LawfulBasisOptions DefineInterest(string id, Action<LegitimateInterestDefinitionOptions> configure)` (`ArgumentException.ThrowIfNullOrWhiteSpace`, `ArgumentNullException.ThrowIfNull`).
 7. `PublicAPI.Unshipped.txt`: lines for every new public symbol (written by `mechanical-fixer`).
 
@@ -285,7 +286,7 @@ REFERENCE FILES:
 
 1. `LawfulBasisOptionsValidator.cs` (modify): add `ValidateInterests(options, failures)` with the three rules of Design Choice 6 and update the class XML docs.
 2. `ServiceCollectionExtensions.cs` (modify): `services.TryAddSingleton<ILegitimateInterestRegistry, DefaultLegitimateInterestRegistry>();` (next to the other `TryAdd` lines); update the XML docs list of registrations.
-3. `Diagnostics/LawfulBasisLogMessages.cs`: log, once at start-up, that the Omnibus AI interests are active (Phase 5 lists the ids).
+3. `Diagnostics/LawfulBasisLogMessages.cs` (modify): EventId 8387 (Omnibus AI interests active) and 8388 (interest registry built, count), both logged once by the constructor of `DefaultLegitimateInterestRegistry`, a singleton built on first resolution, which therefore takes `ILogger<DefaultLegitimateInterestRegistry>`; 8387 is logged only when the flag is on and carries no interest content.
 4. A DI test (Phase 6) builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves `ILegitimateInterestRegistry` with the flag off and on.
 
 </details>
@@ -401,9 +402,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Diagnostics/LawfulBasisLogMessages.cs` (modify): five `[LoggerMessage]` entries with EventIds **8387-8391** inside `ComplianceLawfulBasis` (8350-8399, highest used 8386): 8387 invalid interest definition at start-up (property name only); 8388 Omnibus AI interests active; 8389 LIA rejected, interest not defined (error code); 8390 LIA rejected, safeguards missing (error code, requirement name); 8391 interest registry built (count). Packed, no gaps. No new range; `EventIdRanges.cs` and `EncinaEventIdAllocationTests` do not change.
+1. `Diagnostics/LawfulBasisLogMessages.cs` (modify): four `[LoggerMessage]` entries with EventIds **8387-8390** inside `ComplianceLawfulBasis` (8350-8399, highest used 8386), packed in the order the pull requests land: 8387 Omnibus AI interests active and 8388 interest registry built (count), both added with Phase 2 by the registry constructor; 8389 LIA rejected, interest not defined (error code) and 8390 LIA rejected, safeguards missing (error code, requirement name), added with Phase 4 by the service. An invalid definition at start-up needs no message: the validator's failures surface as an `OptionsValidationException` naming the property. No new range; `EventIdRanges.cs` and `EncinaEventIdAllocationTests` do not change.
 2. `Health/LawfulBasisHealthCheck.cs` (modify): add `data["omnibusAiInterestsEnabled"]` and `data["definedInterestCount"]`; no interest content beyond counts.
-3. XML docs: `/// Event IDs: 8387-8391 (see EventIdRanges.ComplianceLawfulBasis)`.
+3. XML docs: `/// Event IDs: 8387-8390 (see EventIdRanges.ComplianceLawfulBasis)`.
 
 </details>
 
@@ -415,7 +416,7 @@ CONTEXT:
 Plan #815, Phase 5. ADR-021: EventIds live in registered ranges. LawfulBasis owns 8350-8399, ids up to 8386 used.
 
 TASK:
-Add EventIds 8387-8391, the health data entries, and run the EventId allocation architecture test.
+Add EventIds 8387-8390, the health data entries, and run the EventId allocation architecture test.
 
 KEY RULES:
 - Packed sequentially, no gaps, no id outside 8350-8399.
@@ -503,14 +504,14 @@ REFERENCE FILES:
 | `LawfulBasisOptions`, `LawfulBasisOptionsValidator` | `src/Encina.Compliance.LawfulBasis/` | Flag, `DefineInterest`, validation |
 | `HighRiskTriggers` | `src/Encina.Compliance.DPIA/Model/HighRiskTriggers.cs` | String-constant precedent |
 | `DataSubjectRightsOptions.EnableOmnibusArticle12RefusalGrounds` | `src/Encina.Compliance.DataSubjectRights/DataSubjectRightsOptions.cs:96` | Off-by-default naming precedent |
-| `LawfulBasisLogMessages`, `LawfulBasisDiagnostics`, `LawfulBasisHealthCheck` | `src/Encina.Compliance.LawfulBasis/Diagnostics/`, `Health/` | EventIds 8387-8391, counter, health data |
+| `LawfulBasisLogMessages`, `LawfulBasisDiagnostics`, `LawfulBasisHealthCheck` | `src/Encina.Compliance.LawfulBasis/Diagnostics/`, `Health/` | EventIds 8387-8390, counter, health data |
 | `LawfulBasisErrors` | `src/Encina.Compliance.LawfulBasis/Errors/LawfulBasisErrors.cs` | Two new error codes |
 
 ### Event ID Allocation
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.LawfulBasis` | 8387-8391 (inside the registered `ComplianceLawfulBasis` 8350-8399) | Highest id in use is 8386; 13 free; no new range, no change to `EventIdRanges.cs` |
+| `Encina.Compliance.LawfulBasis` | 8387-8390 (inside the registered `ComplianceLawfulBasis` 8350-8399) | Highest id in use is 8386; 13 free; no new range, no change to `EventIdRanges.cs` |
 
 ### Estimated File Count
 
@@ -521,7 +522,14 @@ REFERENCE FILES:
 | Tests | ~14 | unit 6, guard 2, contract 1, property 1, integration 1, justifications 2, DI test counted in unit |
 | Documentation and records | 5 | README, specification row, feature page, changelog fragment, PublicAPI |
 
-Total about 37 files, above the 15-file limit of one worker PR (AGENTS.md §11). Proposed split into three PRs on #815: **PR A** (Phases 1-2: registry, options, validator, DI, their tests: about 14 files); **PR B** (Phase 3 and the Marten round-trip integration test: about 12 files); **PR C** (Phases 4-5 with their tests: about 12 files). Documentation lands in PR A, B and C by area, one file per row above. Each PR follows the per-flag targets of its files.
+Total about 37 files, above the 15-file limit of one worker PR (AGENTS.md §11). Split into four PRs on #815; counts include tests and records (`PublicAPI.Unshipped.txt`, coverage manifest), each PR at most 15 files and 1,500 lines:
+
+| PR | Phases | Files | Lines (est.) | Content |
+|----|--------|------:|-------------:|---------|
+| PR A | 1 and 2 | 14 | ~900 | 5 new production files; `LawfulBasisOptions`, validator, `ServiceCollectionExtensions`, `LawfulBasisLogMessages` (8387-8388); `PublicAPI.Unshipped.txt`, manifest; 3 unit test files (registry, options and validator, DI) |
+| PR B | 3 | 14 | ~900 | `LIAEvents`, `LIAAggregate`, `LIAReadModel`, `LIAProjection`, `ILawfulBasisService`, `DefaultLawfulBasisService`; `PublicAPI.Unshipped.txt`, manifest; aggregate/projection unit test, Marten round-trip integration test; guard, contract and property tests for the PR A types (3); integration, load, benchmark justifications (3) |
+| PR C | 4 | 9 | ~600 | `LawfulBasisErrors`, `DefaultLawfulBasisService`, `LawfulBasisDiagnostics`, `LawfulBasisLogMessages` (8389-8390); `PublicAPI.Unshipped.txt`, manifest; service enforcement unit test, guard test; two integration cases in the PR B test file are not counted (same file) |
+| PR D | 5 and 6 (docs) | 8 | ~350 | `LawfulBasisHealthCheck`, manifest; health check unit test; README, specification row, feature page, changelog fragment, `PublicAPI.Unshipped.txt` if needed |
 
 ---
 
@@ -548,7 +556,7 @@ IMPLEMENTATION OVERVIEW:
    the flag.
 4. With the flag on, CreateLIAAsync and ApproveLIAAsync reject an incomplete LIA for a defined interest
    (lawfulbasis.interest_not_defined, lawfulbasis.interest_safeguards_missing).
-5. Observability: EventIds 8387-8391 inside 8350-8399; counter; health data.
+5. Observability: EventIds 8387-8390 inside 8350-8399; counter; health data.
 6. Tests on every flag including the two AC-024 tests; Marten round trip; .md justifications.
 7. Docs by docs-writer, changelog fragment and PublicAPI by mechanical-fixer, zero warnings.
 
@@ -577,18 +585,18 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Definitions are configuration held in memory; the existing LIA read-model cache keys are invalidated by the existing paths |
 | 2 | OpenTelemetry | ✅ | Counter `lawful_basis.legitimate_interest.rejections.total` (Phase 4) |
-| 3 | Structured Logging | ✅ | EventIds 8387-8391 in the registered range 8350-8399 (Phase 5) |
+| 3 | Structured Logging | ✅ | EventIds 8387-8390 in the registered range 8350-8399 (Phase 5) |
 | 4 | Health Checks | ✅ | `LawfulBasisHealthCheck` reports the flag state and the number of defined interests (Phase 5) |
 | 5 | Validation | ✅ | Start-up validation of definitions and LIA safeguard checks (Phases 2 and 4) |
 | 6 | Resilience | ❌ | No external call |
 | 7 | Distributed Locks | ❌ | The LIA stream uses Marten's optimistic concurrency; the registry is read-only |
 | 8 | Transactions | ❌ | The LIA create is one aggregate save, as today; nothing new is atomic |
 | 9 | Idempotency | ❌ | LIA creation semantics unchanged |
-| 10 | Multi-Tenancy | ✅ | The LIA keeps its `TenantId`; interest definitions are global configuration by design (the same law for every tenant of a deployment) |
-| 11 | Module Isolation | ✅ | The LIA keeps its `ModuleId`; definitions are global configuration |
+| 10 | Multi-Tenancy | ❌ | Not applicable: interest definitions are global configuration (the same law for every tenant of a deployment) and the LIA keeps its existing `TenantId`; nothing is integrated |
+| 11 | Module Isolation | ❌ | Not applicable: definitions are global configuration and the LIA keeps its existing `ModuleId`; nothing is integrated |
 | 12 | Audit Trail | ✅ | `LIACreated` with `InterestId` is the audit record (ADR-019); the rejection path is counted and logged by error code |
 
-The deferred consumers (objection and special-category handling) are not cross-cutting functions; they have the issue file `artifacts/issues/plan-815-interest-metadata-consumers.md`.
+The deferred consumers (objection and special-category handling) are not cross-cutting functions; they are the follow-up drafted in `artifacts/issues/plan-815-interest-metadata-consumers.md`, which the orchestrator opens as an issue before this plan merges (the issue number then replaces the file path here and in Prerequisites).
 
 ---
 
@@ -620,7 +628,7 @@ The deferred consumers (objection and special-category handling) are not cross-c
 
 ## Next Steps
 
-1. The maintainer decides Design Choices 4 and 5 when work on #815 starts; the orchestrator records them in a "Maintainer Decisions" section, updates each Chosen Option, then runs `adversarial-reviewer` on Choices 1, 2, 3, 6, 7 and 8.
+1. The maintainer decides Design Choices 4, 5, 7 and 8 when work on #815 starts; the orchestrator records them in a "Maintainer Decisions" section, updates each Chosen Option, then runs `adversarial-reviewer` on Choices 1, 2, 3 and 6.
 2. Open the issue file above (`open-issue` skill) and link it here and from #815.
 3. Link this plan from #815, then start PR A in a worktree (`worker-brief` skill) with the local CRAP table required in the brief.
 4. Re-verify the draft article numbering and the safeguards against the Official Journal text within 30 days of any publication of COM(2025) 837 (SPEC-002 AC-025).
