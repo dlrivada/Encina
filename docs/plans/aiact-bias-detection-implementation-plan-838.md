@@ -2,7 +2,7 @@
 
 > **Issue**: [#838](https://github.com/dlrivada/Encina/issues/838) (child of [#881](https://github.com/dlrivada/Encina/issues/881), milestone v0.16.0 — AI Act)
 > **Type**: Feature
-> **Complexity**: High (9 phases, 7 pull requests, 1 new package, 1 core extension, no persistence, ~76 files)
+> **Complexity**: High (9 phases, 9 pull requests, 1 new package, 1 core extension, no persistence, ~80 files)
 > **Estimated Scope**: ~1,900-2,400 lines of production code + ~2,000-2,500 lines of tests
 > **Prerequisites**: none blocking; [#847](https://github.com/dlrivada/Encina/issues/847) (Marten) is independent, [#837](https://github.com/dlrivada/Encina/issues/837) (data governance) is a consumer
 
@@ -38,23 +38,25 @@ Implement the statistical core of EU AI Act Article 10(2)(f) and (g) for high-ri
 
 ### Scope per pull request (one worker issue = one PR, `AGENTS.md` §11)
 
-The whole feature is ~76 files and ~4,300 lines, five times a worker PR (15 files, 1,500 lines). It ships as seven sequential pull requests; each builds, passes its own tests and reaches its per-flag targets alone.
+The whole feature is ~80 files and ~4,300 lines, five times a worker PR (15 files, 1,500 lines). It ships as nine sequential pull requests; each builds, passes its own tests and reaches its per-flag targets alone. File counts include the tests, the `PublicAPI` files and the coverage manifest of each PR (the `pr-size` job counts them all), and no PR exceeds 15 files or 1,500 lines.
 
-| PR | Phases | Content | Files (est.) | Lines (est.) |
+| PR | Phases | Content | Files (est., tests included) | Lines (est.) |
 |---|---|---|---|---|
-| 1 | 1 | Shared core types and report extension (`Encina.Compliance.AIAct`) | 11 | ~600 |
-| 2 | 2 | Package skeleton, abstractions, requests, interval statistics | 15 | ~1,100 |
-| 3 | 3 | Rate-based metrics (disparate impact, demographic parity, equalized odds, predictive parity) and the calculator | 10 | ~1,000 |
-| 4 | 4 | Calibration, counterfactual, options, threshold evaluation | 10 | ~900 |
-| 5 | 5 | Registry, intersections, conflict detection, detector, seam wiring, DI | 14 | ~1,400 |
-| 6 | 6-8 | Cross-cutting (notification, audit), observability, benchmark, justifications | 10 | ~900 |
+| 1 | 1 | Shared core types and report extension (`Encina.Compliance.AIAct`): 5 new + 2 modified records, `PublicAPI.Unshipped.txt`, manifest, 2 test files | 11 | ~600 |
+| 2a | 2 | Package skeleton (csproj, 2 `PublicAPI`, `Encina.slnx`, manifest), errors, 2 abstractions, 4 request/observation/result records, 2 test files (unit, guard) | 14 | ~700 |
+| 2b | 2 | `IntervalStatistics`, its unit and property tests, manifest targets | 4 | ~450 |
+| 3 | 3 | Rate-based metrics (disparate impact, demographic parity, equalized odds, predictive parity) and the calculator: 7 production files, 5 test files, manifest | 13 | ~1,000 |
+| 4 | 4 | Calibration, counterfactual, options, validator, threshold evaluation: 5 production files, 5 test files, `PublicAPI`, manifest | 12 | ~900 |
+| 5a | 5 | `ProtectedAttribute`, registry, `IBiasDetector`, `SubgroupEnumerator`, `MetricConflictDetector`: 6 production files, 5 test files, `PublicAPI`, manifest | 13 | ~800 |
+| 5b | 5 | `DefaultBiasDetector`, `BiasAwareDataQualityValidator`, DI extension: 3 production files, 6 test files (including the DI test), `PublicAPI`, manifest | 11 | ~700 |
+| 6 | 6-8 | Cross-cutting (notification, audit), observability, benchmark, justifications: 5 production/registry files, 1 modified detector, 3 unit test files, benchmark, 2 `.md` justifications, `PublicAPI`, manifest | 14 | ~900 |
 | 7 | 9 | Documentation (`docs-writer`), changelog, ADR | 6 | ~600 |
 
 Counts are estimates re-measured when each worker brief is written (`Size:` line). **Affected packages**: `Encina.Compliance.AIAct` (modified), `Encina.Compliance.AIAct.BiasDetection` (new), `Encina` (EventIdRanges is not touched: the ids sit inside `ComplianceAIAct`; only the architecture test map changes).
 
 **Provider category**: none. The 10-provider database rule does not apply (`Encina.Compliance.AIAct` is a Marten event-sourced module, ADR-019; persistence is #847). No caching, transport, lock or validation-provider category applies.
 
-**Family coordination (AI Act modules #838, #840, #841, #843).** This plan owns the shared analysis types `FairnessMetricType`, `FairnessVerdict`, `ConfidenceInterval`, `SubgroupSize`, `MetricConflict` and the extended `BiasIndicator` and `BiasReport`, all in core `Encina.Compliance.AIAct.Model`, so that #840 (Annex IV technical documentation, point 2(g): metrics and "potentially discriminatory impacts") and #843 can cite bias results without referencing this package. EventIds 9548-9561 are this plan's; the remaining 9562-9599 of `ComplianceAIAct` must be split by the other plans of the family (collision to check when each plan is merged).
+**Family coordination (AI Act modules #838, #840, #841, #843).** This plan owns the shared analysis types `FairnessMetricType`, `FairnessVerdict`, `ConfidenceInterval`, `SubgroupSize`, `MetricConflict` and the extended `BiasIndicator` and `BiasReport`, all in core `Encina.Compliance.AIAct.Model`, so that #840 (Annex IV technical documentation, point 2(g): metrics and "potentially discriminatory impacts") and #843 can cite bias results without referencing this package. EventIds 9548-9561 are this plan's; the sub-allocation of `ComplianceAIAct` (9513-9529 #847, 9530-9547 #842, 9548-9561 here, the rest to #840, #841 and #843) is recorded in the batch EventId registry, and #845 takes its own new range outside `ComplianceAIAct`, so no id of this plan can collide.
 
 ---
 
@@ -139,7 +141,7 @@ We recommend A. Art. 10(3) asks that data sets have appropriate statistical prop
 
 ### Rationale
 
-We recommend A: the default level is 0.95 (`BiasDetectionOptions.ConfidenceLevel`), the bounds are clamped to the metric's range, a zero cell uses the standard +0.5 adjustment and the method is named in `BiasIndicator.Methodology` so a reviewer can reproduce the figure. B wins for a metric with no usable approximation (a full calibration curve); a backend plugged behind `IBiasDetector` can do that. C is rejected as the representation in every scenario except API brevity, and pre-1.0 brevity does not justify a wrong interval. The reproducibility of reports matters because Annex IV point 2(g) asks for test reports "dated and signed", which a seeded-bootstrap result can still satisfy but only with the seed stored.
+We recommend A: the default level (`BiasDetectionOptions.ConfidenceLevel`, value in Design Choice 11), the bounds are clamped to the metric's range, a zero cell uses the standard +0.5 adjustment and the method is named in `BiasIndicator.Methodology` so a reviewer can reproduce the figure. B wins for a metric with no usable approximation (a full calibration curve); a backend plugged behind `IBiasDetector` can do that. C is rejected as the representation in every scenario except API brevity, and pre-1.0 brevity does not justify a wrong interval. The reproducibility of reports matters because Annex IV point 2(g) asks for test reports "dated and signed", which a seeded-bootstrap result can still satisfy but only with the seed stored.
 
 **Class:** Dilemma
 
@@ -182,7 +184,7 @@ The maintainer's comment on #838 fixes the behavior: when two fairness metrics d
 
 ### Rationale
 
-The tier structure itself is the maintainer's decision on #838; only the below-minimum behavior is open. We recommend A because it keeps fail-closed semantics (`OverallFairness = false`, `RequiresHumanReview = true`) without throwing away valid results. B wins for a caller who wants a hard stop in a CI gate; that caller checks `RequiresHumanReview` and fails the build. C is not a valid option under `AGENTS.md` §3. Defaults: `MinimumSubgroupSize = 30` (an engineering default, documented as such, not a legal value), `IntersectionDepth = 1`, depth 2 by option, depth 3 or more only with `AllowHigherOrderIntersections = true`; the number of enumerated intersections is capped (`MaxIntersections`) so the combinatorial growth the maintainer mentioned cannot exhaust memory.
+The tier structure itself is the maintainer's decision on #838; only the below-minimum behavior is open. We recommend A because it keeps fail-closed semantics (`OverallFairness = false`, `RequiresHumanReview = true`) without throwing away valid results. B wins for a caller who wants a hard stop in a CI gate; that caller checks `RequiresHumanReview` and fails the build. C is not a valid option under `AGENTS.md` §3. Defaults: `MinimumSubgroupSize` (an engineering default, value in Design Choice 11, not a legal value), `IntersectionDepth = 1`, depth 2 by option, depth 3 or more only with `AllowHigherOrderIntersections = true`; the number of enumerated intersections is capped (`MaxIntersections`, value in Design Choice 11) so the combinatorial growth the maintainer mentioned cannot exhaust memory.
 
 **Class:** Dilemma
 
@@ -237,8 +239,8 @@ We recommend A. Per the consolidated text, Reg. (EU) 2026/1744 replaces Art. 10(
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — Sub-allocate 9548-9561 inside the existing `ComplianceAIAct` range (9500-9599) and map the new assembly to it; own `ActivitySource` and `Meter` named after the package** | The pattern #847 (9513-9529) and #842 (9530-9547) use; no new range to register; 9562-9599 stay free for the family | The family shares 52 ids, so the other plans must stay inside it |
-| **B — New range `ComplianceAIActBiasDetection` from the free 9800-9999 block** | Independent range | The block is already claimed by the #686-#688 plans; one more registration for 14 ids |
+| **A — Sub-allocate 9548-9561 inside the existing `ComplianceAIAct` range (9500-9599) and map the new assembly to it; own `ActivitySource` and `Meter` named after the package** | The pattern #847 (9513-9529) and #842 (9530-9547) use; no new range to register; 9562-9599 stay free for the family | The family shares the 52 ids from 9548, so #840, #841 and #843 must stay inside 9562-9599 (the sub-allocation is in the batch EventId registry) |
+| **B — New range `ComplianceAIActBiasDetection` from a free block of the batch EventId registry** | Independent range | One more registration in `EventIdRanges.cs` for 14 ids; the registry's free blocks are assigned to other families |
 
 ### Chosen Option: **A — Sub-allocation in `ComplianceAIAct`**
 
@@ -258,18 +260,39 @@ We recommend A. Per the consolidated text, Reg. (EU) 2026/1744 replaces Art. 10(
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — `BiasDetectionOptions` holds a threshold per `FairnessMetricType`; `BiasDetectionRequest.ThresholdOverrides` is a per-metric map; defaults: disparate impact at least 0.8, every difference-type metric at most 0.1** | A ratio and a gap each get a threshold of the right kind; the only legal figure (0.8) is the documented default | The 0.1 gap is an engineering default with no legal source, flagged as such |
+| **A — `BiasDetectionOptions` holds a threshold per `FairnessMetricType`; `BiasDetectionRequest.ThresholdOverrides` is a per-metric map; the disparate impact default is at least 0.8 (the gap defaults are Design Choice 11)** | A ratio and a gap each get a threshold of the right kind; the only legal figure (0.8) is the documented default | The gap thresholds need a value from Design Choice 11 |
 | **B — One `double? ThresholdOverride` (issue text)** | Matches the issue | One number cannot be both a ratio and a gap |
 | **C — No defaults for the non-ratio metrics; the caller must configure them** | No invented figures | The default detector would only run disparate impact |
 
-### Chosen Option: **A — Per-metric thresholds with documented defaults**
+### Chosen Option: **A — Per-metric thresholds; the only cited default is 0.8**
 
 ### Rationale
 
-The four-fifths rule for disparate impact comes from the EEOC Uniform Guidelines, which the issue cites (29 CFR 1607.4(D); that citation is unverified in this plan). The 0.1 figure for gaps is not from any law or guideline; the XML docs and the feature page say it is an engineering default to review per use case. Direction per metric (higher is better for the ratio, lower is better for gaps and the flip rate) is part of the metric definition.
+The four-fifths rule for disparate impact comes from the EEOC Uniform Guidelines, which the issue cites (29 CFR 1607.4(D); that citation is unverified in this plan), so the 0.8 default has a citation. The threshold shape (a ratio and a gap each get a threshold of the right kind) is forced by the metric definitions: option B cannot express both. Direction per metric (higher is better for the ratio, lower is better for gaps and the flip rate) is part of the metric definition. The numeric value of the gap threshold and the other engineering defaults are not settled by any source and are Design Choice 11.
 
 **Class:** Trivial
-**Settled by:** issue #838 references (EEOC Questions and Answers on the Uniform Guidelines, four-fifths rule); `AGENTS.md` §3 (options classes, no hidden constants)
+**Settled by:** issue #838 references (EEOC Questions and Answers on the Uniform Guidelines, four-fifths rule, for the 0.8 value); `AGENTS.md` §3 (options classes, no hidden constants)
+
+</details>
+
+<details>
+<summary><strong>11. Engineering defaults that change verdicts (gap threshold, minimum subgroup size, confidence level, intersection cap)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Ship engineering defaults, documented as such: gap threshold 0.1, `MinimumSubgroupSize` 30, `ConfidenceLevel` 0.95, `MaxIntersections` 200; every one overridable in `BiasDetectionOptions`** | The default detector runs all six metrics out of the box; the figures are conventional (0.95 is the usual level, 30 the usual rule of thumb for normal approximations) but none has a legal source | These figures decide Pass, Fail and Inconclusive for users; a wrong default is a silent policy |
+| **B — No default for these four; `BiasDetectionOptions` validation fails at startup until the application sets them** | No invented figure ever decides a verdict; the choice is explicit and reviewable in configuration (fail closed) | Friction: the package does not run until configured; four numbers every user must research |
+| **C — Defaults only for 0.95 and 0.8; the gap threshold, the minimum size and the cap are required** | Keeps the conventional level, forces the two figures that change verdicts most | A half-configured package; the cap is a safety limit that should not be optional |
+
+### Chosen Option: **A — Documented engineering defaults** (recommended, pending the maintainer)
+
+### Rationale
+
+We recommend A: the defaults are visible in the options class, the XML docs and the feature page state that only 0.8 has a legal source, and an application can override each one. B wins if the maintainer reads "compliance gates fail closed" (`AGENTS.md` §3) as requiring that no uncited figure decides a verdict. The 0.1, 30, 0.95 and 200 values have no citation in this plan; the worker verifies the 30 and 0.95 conventions against the cited interval papers (Design Choice 4) before documenting them.
+
+**Class:** Dilemma
 
 </details>
 
@@ -293,7 +316,7 @@ The four-fifths rule for disparate impact comes from the EEOC Uniform Guidelines
 7. **Modify `Model/BiasReport.cs`**: add `IReadOnlyList<MetricConflict> Conflicts { get; init; } = []` and `bool RequiresHumanReview { get; init; }`; `OverallFairness` stays and means "every verdict Pass and no conflict".
 8. **Modify `PublicAPI.Unshipped.txt`** for every changed or new symbol; update XML docs; update `Encina.Compliance.AIAct` tests that construct `BiasIndicator` (`DefaultDataQualityValidatorTests.cs`, `ServiceCollectionExtensionsTests.cs` if affected).
 9. **Tests** (`tests/Encina.UnitTests/Compliance/AIAct/Model/`): construction and equality of the new records, `BiasReport` defaults; guard-free records need no guard tests.
-10. **Coverage manifest**: per-file targets with one-sentence justifications for the new core files in `.github/coverage-manifest/Encina.Compliance.AIAct.json`.
+10. **Coverage manifest**: per-file targets with one-sentence justifications in `.github/coverage-manifest/Encina.Compliance.AIAct.json` for the five new core files and for the modified `Model/BiasIndicator.cs` (today default rule, no targets), `Model/BiasReport.cs` (today `guard` 95: kept, never lowered, and a `unit` target added) and `DefaultDataQualityValidator.cs` if the PR touches it (`AGENTS.md` §9: every touched `src/` file has targets).
 
 </details>
 
@@ -332,7 +355,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Package Skeleton, Abstractions & Interval Statistics (PR 2)
+### Phase 2: Package Skeleton, Abstractions & Interval Statistics (PR 2a: tasks 1-7 and the guard/unit tests of the records and errors; PR 2b: task 8 and its tests)
 
 > **Goal**: A buildable package with the contracts, the request models and the statistics every metric uses.
 
@@ -444,7 +467,7 @@ REFERENCE FILES:
 
 1. **Create `Metrics/CalibrationByGroupMetric.cs`**: per group, the gap between mean predicted score and observed positive rate (calibration-in-the-large); score is the largest gap between two groups; normal-approximation interval; needs Score and Label.
 2. **Create `Metrics/CounterfactualFairnessMetric.cs`**: flip rate (share of rows whose prediction changes when only the attribute changes) from `CounterfactualPredictions`; Wilson interval; direction "at most"; missing counterfactual data is `Left(aiact.bias_metric_input_missing)`.
-3. **Create `BiasDetectionOptions.cs`**: `ConfidenceLevel` (0.95), `DisparateImpactThreshold` (0.8), `DifferenceThreshold` (0.1) with per-metric overrides, `MinimumSubgroupSize` (30), `IntersectionDepth` (1), `AllowHigherOrderIntersections` (false), `MaxIntersections` (e.g. 200), `ProtectedAttributes` (list of `ProtectedAttribute`), `SpecialCategoryAcknowledgements` (set of attribute names). Options with free text hold no secrets; `ToString()` not required.
+3. **Create `BiasDetectionOptions.cs`**: `ConfidenceLevel`, `DisparateImpactThreshold` (0.8), `DifferenceThreshold` with per-metric overrides, `MinimumSubgroupSize`, `IntersectionDepth` (1), `AllowHigherOrderIntersections` (false), `MaxIntersections` (values of the engineering defaults per Design Choice 11, recommended 0.95, 0.1, 30, 200), `ProtectedAttributes` (list of `ProtectedAttribute`), `SpecialCategoryAcknowledgements` (set of attribute names). Options with free text hold no secrets; `ToString()` not required.
 4. **Create `BiasDetectionOptionsValidator.cs`** (`IValidateOptions<BiasDetectionOptions>`): level in (0,1), thresholds in range, depth >= 1, depth > 2 requires the flag, minimum size >= 2, unique attribute names, acknowledgements refer to registered special-category attributes.
 5. **Create `Metrics/ThresholdEvaluator.cs`** (internal static): `FairnessVerdict Evaluate(MetricDirection, ConfidenceInterval, double threshold)` used by every metric (refactor Phase 3 metrics to call it); a subgroup below the minimum size yields Inconclusive.
 6. **Tests**: unit, property (verdict monotonic in threshold), guard, validator tests for every failure message; manifest targets.
@@ -465,8 +488,9 @@ Add CalibrationByGroupMetric, CounterfactualFairnessMetric, BiasDetectionOptions
 route every metric's verdict through ThresholdEvaluator.
 
 KEY RULES:
-- Defaults: confidence level 0.95, disparate impact >= 0.8, gaps <= 0.1, minimum subgroup size 30, depth 1; the 0.1 and 30 figures
-  are documented engineering defaults, not legal values.
+- Defaults: disparate impact >= 0.8 (EEOC), depth 1; confidence level, gap threshold, minimum subgroup size and intersection cap
+  take the values the maintainer picks in Design Choice 11 (recommended 0.95, 0.1, 30, 200), documented as engineering defaults,
+  not legal values.
 - Options validated by IValidateOptions; every failure is a clear message naming the option.
 - A subgroup below the minimum size is Inconclusive, never Pass.
 - CRAP <= 10; tests execute real classes.
@@ -482,7 +506,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Registry, Intersections, Conflict Detection, Detector & Seam (PR 5)
+### Phase 5: Registry, Intersections, Conflict Detection, Detector & Seam (PR 5a: tasks 1-5, registry, enumerator and conflict detector with their tests; PR 5b: tasks 6-8, detector, composite validator and DI with the DI test)
 
 > **Goal**: `IBiasDetector` end to end, wired into `IDataQualityValidator` without overriding an application's own registration.
 
@@ -544,7 +568,7 @@ REFERENCE FILES:
 1. **Create `Notifications/BiasConflictDetectedNotification.cs`** (`sealed record ... : INotification`): `DatasetId`, `ProtectedAttribute`, failing and passing metric names, `SmallestSubgroupSize`, `OccurredAtUtc`; never attribute values or rows.
 2. **Modify `DefaultBiasDetector`**: publish one notification per conflict through `IEncina.Publish`; a publish `Left` fails the run visibly (logged by code, returned as `Left`), never reports success (`AGENTS.md` §3).
 3. **Modify `DefaultBiasDetector`**: validate the request before any work (dataset id not blank, attributes non-empty and distinct, depth within options) with `Left(aiact.bias_invalid_request)`.
-4. **Defer**: tenant scoping (#845) and `ModuleId` scoping (#846) of the AI Act enforcement; no issue file is needed, both exist.
+4. **Not applicable / deferred**: tenant scoping needs no deliverable here (the package holds no tenant data; #845 covers only the core gate); `ModuleId` scoping of the AI Act enforcement is deferred to #846, which exists.
 
 </details>
 
@@ -564,7 +588,7 @@ Add BiasConflictDetectedNotification, publish it for every conflict, add request
 KEY RULES:
 - A Left from IEncina.Publish fails the operation; it is never swallowed (AGENTS.md section 3).
 - Notifications carry names and counts, never rows, attribute values or EncinaError.Message.
-- Tenant and module scoping are deferred to #845 and #846.
+- No tenant data is held (nothing to scope); module scoping is deferred to #846.
 
 REFERENCE FILES:
 - src/Encina.Compliance.AIAct/Notifications/ProhibitedUseBlockedNotification.cs
@@ -681,7 +705,7 @@ REFERENCE FILES:
 3. `src/Encina.Compliance.AIAct.BiasDetection/README.md`: registration, observation source adapter example, metric table, thresholds, human review, Art. 4a note.
 4. `docs/features/aiact-compliance.md`: Art. 10(2)(f) and (g) section (what is measured, how to read verdicts and conflicts, intersection tiers, dates of Reg. (EU) 2026/1744), through `docs-writer`.
 5. `docs/INVENTORY.md`: new package and files; `ROADMAP.md`: mark the v0.16.0 bias detection item.
-6. ADR (number: the next one neither used nor reserved in `docs/architecture/adr/index.md` when PR 1 starts; reserve it in that PR): statistics approach, verdicts and conflict escalation, observation source.
+6. ADR 068 (assigned to the AI Act family in the batch ADR registry; PR 1 reserves it in `docs/architecture/adr/index.md`): statistics approach, verdicts and conflict escalation, observation source.
 7. `PublicAPI.Unshipped.txt` complete in both packages; build `dotnet build Encina.slnx --configuration Release` (0 errors, 0 warnings); `dotnet test`; every flag at its target.
 
 </details>
@@ -758,7 +782,7 @@ Status of each legal reference, checked on 2026-11-11: "text read" means read on
 | `Encina.Compliance.AIAct` (#415) | 9500-9512 | `Diagnostics/AIActLogMessages.cs`, in use |
 | `Encina.Compliance.AIAct` (#847) | 9513-9529 | Reserved by the #847 plan |
 | `Encina.Compliance.AIAct` (#842) | 9530-9547 | Reserved by the #842 plan |
-| **`Encina.Compliance.AIAct.BiasDetection` (#838)** | **9548-9561** | **14 ids inside `ComplianceAIAct`, no new range; 9562-9599 stay for #840, #841 and #843** |
+| **`Encina.Compliance.AIAct.BiasDetection` (#838)** | **9548-9561** | **14 ids inside `ComplianceAIAct`, no new range; 9562-9599 stay for #840, #841 and #843; #845 uses its own new range, not `ComplianceAIAct`** |
 
 ### Estimated File Count
 
@@ -775,7 +799,7 @@ Status of each legal reference, checked on 2026-11-11: "text read" means read on
 | Architecture test map and registry note | 2 | `EncinaEventIdAllocationTests.cs`, `EventIdRanges.cs` |
 | Tests (Phase 8) | ~23 | unit, guard, contract, property, DI, benchmark, two `.md` justifications |
 | Documentation (Phase 9) | 6 | changelog, README, feature page, ADR, INVENTORY, ROADMAP |
-| **Total** | **~76** | **Seven pull requests of 6 to 15 files** |
+| **Total** | **~80** | **Nine pull requests of 4 to 14 files each (see the scope table)** |
 
 ---
 
@@ -814,7 +838,8 @@ KEY PATTERNS:
 - EncinaError.Message and exception messages never reach logs or tags; error codes and ForLogging() only.
 - TryAdd registrations; DI completeness test with ValidateOnBuild and ValidateScopes.
 - Verdict: Pass when the interval is wholly on the passing side, Fail when wholly on the failing side, else Inconclusive.
-- Defaults: level 0.95, disparate impact >= 0.8 (EEOC), gaps <= 0.1 and minimum subgroup 30 (engineering defaults), depth 1.
+- Defaults: disparate impact >= 0.8 (EEOC), depth 1; level, gap threshold, minimum subgroup and intersection cap per Design Choice 11
+  (recommended 0.95, 0.1, 30, 200; engineering defaults).
 - CRAP <= 10 on every changed method; per-flag targets from .github/coverage-manifest/Encina.Compliance.AIAct.BiasDetection.json.
 
 REFERENCE FILES:
@@ -823,8 +848,7 @@ REFERENCE FILES:
 - src/Encina.Compliance.AIAct/ServiceCollectionExtensions.cs
 - src/Encina.Compliance.AIAct/Diagnostics/AIActLogMessages.cs
 - src/Encina/Diagnostics/EventIdRanges.cs
-- docs/plans/aiact-record-keeping-implementation-plan-842.md
-- docs/plans/aiact-marten-event-sourcing-implementation-plan-847.md
+- the #842 and #847 plans (sibling plans, found by issue number under docs/plans/)
 ```
 
 </details>
@@ -844,7 +868,7 @@ REFERENCE FILES:
 | 7 | **Distributed Locks** | ❌ N/A | No shared mutable state or background processor |
 | 8 | **Transactions** | ❌ N/A | Calculations are pure and persist nothing |
 | 9 | **Idempotency** | ❌ N/A | A detection run is a pure function of its input; repeating it is safe |
-| 10 | **Multi-Tenancy** | ⏭️ Defer ([#845](https://github.com/dlrivada/Encina/issues/845)) | Tenant-scoped AI Act enforcement is delivered package-wide by #845; the report carries no tenant data |
+| 10 | **Multi-Tenancy** | ❌ N/A | This package is stateless and holds no tenant data (no store, no rows); #845 delivers tenant scoping for the core gate only, so nothing in this package needs a tenant seam. If an application needs tenant-scoped datasets, that lives in its `IBiasObservationSource` |
 | 11 | **Module Isolation** | ⏭️ Defer ([#846](https://github.com/dlrivada/Encina/issues/846)) | `ModuleId`-scoped enforcement is delivered package-wide by #846 |
 | 12 | **Audit Trail** | ✅ Phase 6 | `BiasConflictDetectedNotification` per conflict through `IEncina.Publish`, like the core `Notifications/*`; a publish failure fails the run |
 
@@ -865,14 +889,14 @@ No other issue blocks this plan; `needs-decision` issues #3419 and #3400 are not
 - [#837](https://github.com/dlrivada/Encina/issues/837) data governance: consumes `IBiasDetector` and takes over `ValidateTrainingDataAsync`; its plan should agree on Design Choice 2 (the composite delegates `ValidateTrainingDataAsync` to whatever `DefaultDataQualityValidator` becomes).
 - [#840](https://github.com/dlrivada/Encina/issues/840) technical documentation: reads `BiasReport` and the shared types of Phase 1 for Annex IV point 2(g).
 - [#847](https://github.com/dlrivada/Encina/issues/847): a Marten-backed `IProtectedAttributeRegistry` if the maintainer wants runtime-editable catalogs (Design Choice 7, option C).
-- [#845](https://github.com/dlrivada/Encina/issues/845), [#846](https://github.com/dlrivada/Encina/issues/846): tenant and module scoping of the rest of the AI Act package.
-- The EventId split of 9562-9599 among the family plans (#840, #841, #843) must be reconciled when they merge.
+- [#845](https://github.com/dlrivada/Encina/issues/845), [#846](https://github.com/dlrivada/Encina/issues/846): tenant scoping of the core gate and module scoping of the rest of the AI Act package.
+- The EventId split of 9562-9599 among the family plans (#840, #841, #843) is recorded in the batch EventId registry.
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers Design Choices 2, 3, 4, 6, 7 and 8 when work on #838 starts; the orchestrator records the answers in a `## Maintainer Decisions` section after this one and runs `check-plan` without `-Draft`.
+1. The maintainer answers Design Choices 2, 3, 4, 6, 7, 8 and 11 when work on #838 starts; the orchestrator records the answers in a `## Maintainer Decisions` section after this one and runs `check-plan` without `-Draft`.
 2. `adversarial-reviewer` tries to break the Settled and Trivial choices (1, 5, 9, 10) before the first worker brief, and the `decision-extractor` lists any choice this plan left implicit.
-3. Brief the seven pull requests in order; each brief carries its `Size:` line re-measured, its per-file coverage targets and the local CRAP command.
+3. Brief the nine pull requests in order (1, 2a, 2b, 3, 4, 5a, 5b, 6, 7); each brief carries its `Size:` line re-measured, its per-file coverage targets and the local CRAP command.
 4. Update #838's acceptance criteria to the decided scope (per-metric thresholds, three-valued verdicts, observation source, read-only registry if option A stands).
