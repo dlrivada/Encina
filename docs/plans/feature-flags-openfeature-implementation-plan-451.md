@@ -487,7 +487,7 @@ REFERENCE FILES:
 | 8 | Transactions | ❌ N/A | Reads only |
 | 9 | Idempotency | ❌ N/A | Evaluation is a pure read |
 | 10 | Multi-Tenancy | ✅ Phase 1 | Tenant passed as an evaluation attribute and part of the cache key |
-| 11 | Module Isolation | ❌ N/A | Flags are cross-cutting; module-scoped flags are the item deferred by #604 and #345 |
+| 11 | Module Isolation | ❌ N/A | Flags are cross-cutting and shared across modules (same answer as #604, #345 and #300) |
 | 12 | Audit Trail | ⏭️ Deferred | Flag change audit: issue file `feature-flag-change-audit` in `artifacts/issues/` (flag state lives in the external service) |
 
 ---
