@@ -17,7 +17,7 @@ Let a consent record state that the subject is **below the age of digital consen
 - The issue asks for: `AgeOfDigitalConsent` configurable per jurisdiction (default table with `ES = 14`, GDPR Art. 8 range 13-16); consent records that carry `SubjectIsMinor` (or an age band at grant time) and `AuthorisedBy` (the holder of parental authority, identified), reusing the representation shape of P-09; and `ConsentRequiredPipelineBehavior` refusing a minor's own consent below the age unless a parental-authority holder is recorded.
 - The issue body is **settled by elimination** (comment of 2026-10-17): storing a birth date violates data minimisation and leaving the rule to the application accepts invalid consents (fail closed); both are rejected.
 - Today nothing in `src/Encina.Compliance.Consent/` knows about minors or parental authority (SPEC-002 §6, row REQ-059). `ConsentGranted` (`Events/ConsentEvents.cs:36-49`) has no age or representation field; `DefaultConsentService.GrantConsentAsync` (`Services/DefaultConsentService.cs:135-185`) records any grant; `DefaultConsentValidator.ValidateAsync` (`DefaultConsentValidator.cs:50-122`) judges only status and expiry; `ConsentValidationResult` (`Model/ConsentValidationResult.cs`) carries `Errors`, `Warnings` and `MissingPurposes` only.
-- **#1197 (representation) is the shape this issue reuses**: its plan (`docs/plans/data-subject-representation-implementation-plan-1197.md`) puts `DataSubjectRepresentation(RepresentativeId, Authority, ValidUntilUtc, AuthorityReference)` and `RepresentationAuthority` (`ParentalAuthority = 1`, `Guardian = 2`, ...) in `Encina.Compliance.GDPR`, adds a `Representation` field to the four consent events and a project reference from Consent to GDPR, and orders itself before this issue (its Design Choice 7, option C rejected because #1255 would otherwise define its own field and #1197 would then change a persisted shape). Nothing of #1197 is implemented yet, so this plan treats it as a prerequisite and names no second parental-authority field.
+- **#1197 (representation) is the shape this issue reuses**: its plan (the #1197 plan) puts `DataSubjectRepresentation(RepresentativeId, Authority, ValidUntilUtc, AuthorityReference)` and `RepresentationAuthority` (`ParentalAuthority = 1`, `Guardian = 2`, ...) in `Encina.Compliance.GDPR`, adds a `Representation` field to the four consent events and a project reference from Consent to GDPR, and orders itself before this issue (its Design Choice 7, option C rejected because #1255 would otherwise define its own field and #1197 would then change a persisted shape). Nothing of #1197 is implemented yet, so this plan treats it as a prerequisite and names no second parental-authority field.
 - Persisted consent shape: adding the fields after 1.0 is breaking (SPEC-002 DEC-011 (a)).
 
 ### Scope
@@ -25,8 +25,17 @@ Let a consent record state that the subject is **below the age of digital consen
 - **Affected package**: `Encina.Compliance.Consent` (plus tests, README, feature guide, coverage manifest, changelog fragment, `PublicAPI.Unshipped.txt`). `Encina.Compliance.GDPR` is read through #1197's types, not changed here.
 - **Provider category**: none of the AGENTS.md §5 matrices; event-sourced on Marten (SPEC-002 DEC-008 (a), ADR-019); unit tests mock `IAggregateRepository`, integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3).
 - **Estimated files**: ~4 new source files, ~12 modified source files, ~10 test files, ~4 documentation files.
-- **Pull request split** (the feature plus tests exceeds 15 files): **PR 1** = Phases 1-3 (shape, options, grant-side refusal; ~14 files); **PR 2** = Phases 4-8 (read-side check, behaviour, observability, remaining tests, docs).
-- **Event IDs**: 8288-8293 in `ComplianceConsent = (8200, 8299)`, after #1199 (8279-8287).
+- **Pull request split** (the feature plus tests exceeds 15 files). The counts include the tests of each phase, `PublicAPI.Unshipped.txt` and the coverage manifest; the 30 distinct files become about 44 file touches because the last two recur. Four pull requests, each checked against 15 files and 1,500 lines when its brief is written:
+
+| PR | Phases | Content (with its tests) | Files (approx.) |
+|----|--------|--------------------------|-----------------|
+| 1 | 1, 2 | `ConsentGranted` fields, aggregate, read model, projection, options, validator, `AgeOfDigitalConsentPolicy`, PublicAPI; aggregate, projection, options and policy unit tests; manifest | 12 |
+| 2 | 3 | `MinorConsentRule`, `ConsentErrors`, `IConsentService`, `DefaultConsentService`, PublicAPI; rule and service unit tests, guard and contract tests; manifest | 10 |
+| 3 | 4, 5 | `ConsentValidationResult.MinorRefusedPurposes`, `DefaultConsentValidator`, behaviour, PublicAPI; validator and behaviour unit tests; two-tenant Marten integration test; manifest | 9 |
+| 4 | 6, 7, 8 | Diagnostics, `ConsentMinorLogMessages`, startup log, PublicAPI; telemetry, leak and property tests; 2 justification files; README, feature guide, changelog fragment; manifest | 13 |
+
+Each PR depends on the one before it, and PR 1 on #1197.
+- **Event IDs**: 8290-8295 in `ComplianceConsent = (8200, 8299)`, after #811 (8269-8274), #1197 (8275-8276), #810 (8277-8280) and #1199 (8281-8289). The allocation is fixed whatever the order in which the pull requests land.
 
 ### Related open issues that touch the same files
 
@@ -91,14 +100,15 @@ Class: Dilemma
 | **A) `ConsentOptions.RequireAgeDeclaration` defaults to `true`: a grant with `subjectAgeYears == null` is refused (`consent.age_not_declared`); setting it to `false` is an explicit, logged opt-out for applications that never process minors** | Fail closed: missing context denies (AGENTS.md §3); the rule cannot be bypassed by omission | Every grant call site must pass the age; an adults-only back office flips one option |
 | **B) Default `false`: an undeclared age is treated as an adult** | No change for existing call sites | Accepts a minor's consent whenever the application forgets to say so: the exact gap the issue closes |
 
-### Chosen Option: **A — age declaration required by default** (recommended, pending the maintainer)
+### Chosen Option: **A — age declaration required by default**
 
-Class: Dilemma
+Class: Settled
+Settled by: `AGENTS.md` §3 (a gate whose context is missing denies; the only opt-out is explicit and logged), SPEC-002 DEC-006 and REQ-059; option B is the over-permissive default that rule forbids, so only A complies
 
 ### Rationale
 
-- We recommend A because REQ-059 and AGENTS.md §3 make the gate fail closed when context is missing, and the reference application books appointments for minors (the issue's Motivation).
-- B wins for a B2B application whose subjects are always adults and whose maintainers do not want to touch every call site; they set `RequireAgeDeclaration = false` once, and the startup log records the opt-out.
+- REQ-059 and AGENTS.md §3 make the gate fail closed when context is missing, and the reference application books appointments for minors (the issue's Motivation).
+- A B2B application whose subjects are always adults sets `RequireAgeDeclaration = false` once; that is the explicit opt-out, and the startup log records it (EventId 8295).
 
 </details>
 
@@ -115,7 +125,7 @@ Class: Dilemma
 ### Chosen Option: **A — reuse the #1197 representation**
 
 Class: Settled
-Settled by: issue #1255 Proposed Solution ("reusing the representation shape of P-09"), `docs/plans/data-subject-representation-implementation-plan-1197.md` Design Choice 7, LOPDGDD art. 7 (patria potestad or tutela)
+Settled by: issue #1255 Proposed Solution ("reusing the representation shape of P-09"), the #1197 plan Design Choice 7, LOPDGDD art. 7 (patria potestad or tutela)
 
 ### Rationale
 
@@ -142,7 +152,8 @@ Settled by: `AGENTS.md` §3 (compliance gates fail closed), issue #1255 Alternat
 
 ### Rationale
 
-- A pure `MinorConsentRule` (static class) takes the declared age, the threshold, the representation and `now` and returns a coded outcome; both the service and the validator call it, so the two cannot drift.
+- A pure `MinorConsentRule` (static class) has two entry points that share one representation-validity check, so the two sides cannot drift: `EvaluateGrant` (declared age, threshold, representation, time) for the grant, and `EvaluateStored` (the stored `SubjectIsMinor` flag, the stored representation, time) for the check. The check never needs the age, which is not stored (Design Choice 1).
+- The stored representation is evaluated at the **grant's own moment** (`ConsentReadModel.GivenAtUtc`), not at `now`: validity is judged when the consent was given (Design Choice 4), so a later lapse of the authority, for example at 18, does not silently invalidate a stored consent.
 
 </details>
 
@@ -158,7 +169,7 @@ Settled by: `AGENTS.md` §3 (compliance gates fail closed), issue #1255 Alternat
 <summary><strong>Tasks</strong></summary>
 
 1. **`Events/ConsentEvents.cs`** (modify `ConsentGranted`, line 36): add `bool? SubjectIsMinor`, `string? Jurisdiction`, `int? AgeOfDigitalConsentApplied` (with #1197's `Representation`, already added by then); parameter order agreed with #1199 and #1197.
-2. **`Aggregates/ConsentAggregate.cs`** (modify): properties for the three fields; `Grant(...)` and `Apply(ConsentGranted)`; `Renew` and `ProvideReconsent` read `SubjectIsMinor` to demand a representation (Phase 3).
+2. **`Aggregates/ConsentAggregate.cs`** (modify): properties for the three fields; `Grant(...)` and `Apply(ConsentGranted)`; `Renew` and `ProvideReconsent` take the flag and the representation as data only: the minor rule is evaluated in the service before the aggregate is called (Phase 3 task 2) and its failure is a `Left`; no new `throw` is introduced on the rule path (ADR-053; the existing throwing commands are not extended).
 3. **`ReadModels/ConsentReadModel.cs`** and **`ReadModels/ConsentProjection.cs`** (modify): the three fields set in `Create(ConsentGranted, ...)`.
 4. **`Model/MinorConsentOutcome.cs`** (new enum): `NotMinor = 1`, `AcceptedWithParentalAuthority = 2`, `RefusedNoParentalAuthority = 3`, `RefusedAuthorityInvalid = 4`, `RefusedAgeNotDeclared = 5`.
 5. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
@@ -188,7 +199,7 @@ REFERENCE FILES:
 - src/Encina.Compliance.Consent/Events/ConsentEvents.cs
 - src/Encina.Compliance.Consent/Aggregates/ConsentAggregate.cs
 - src/Encina.Compliance.Consent/ReadModels/ConsentProjection.cs
-- docs/plans/data-subject-representation-implementation-plan-1197.md
+- the #1197 plan (under docs/plans, found by issue number)
 ```
 
 </details>
@@ -204,7 +215,7 @@ REFERENCE FILES:
 
 1. **`ConsentOptions.cs`** (modify): `Dictionary<string, int> AgeOfDigitalConsent` (keys: ISO 3166-1 alpha-2, ordinal ignore-case comparer) pre-filled with `["ES"] = 14`; `int FallbackAgeOfDigitalConsent { get; set; } = 16`; `string? DefaultJurisdiction { get; set; }`; `bool RequireAgeDeclaration { get; set; } = true`; XML docs citing GDPR Art. 8(1), LOPDGDD art. 7 and the fallback reasoning.
 2. **`ConsentOptionsValidator.cs`** (modify): every value and the fallback within 13-16 (GDPR Art. 8(1)); every key two letters; `DefaultJurisdiction`, when set, two letters.
-3. **`AgeOfDigitalConsentPolicy.cs`** (new, `internal sealed`): `int Resolve(string? jurisdiction)` returning the table value, else the fallback; logs EventId 8292 (once per unknown jurisdiction) when the fallback is used.
+3. **`AgeOfDigitalConsentPolicy.cs`** (new, `internal sealed`): `int Resolve(string? jurisdiction)` returning the table value, else the fallback; logs EventId 8294 (once per unknown jurisdiction, and once with the code `none` when neither `DefaultJurisdiction` nor a per-grant jurisdiction is available) when the fallback is used.
 4. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
 </details>
@@ -243,7 +254,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`MinorConsentRule.cs`** (new, `internal static`): `MinorConsentOutcome Evaluate(int? subjectAgeYears, int threshold, DataSubjectRepresentation? representation, DateTimeOffset now, bool requireAgeDeclaration)` — `RefusedAgeNotDeclared` when the age is null and declaration is required; `NotMinor` when age is at or above the threshold; below it, `AcceptedWithParentalAuthority` only when the representation has a non-empty `RepresentativeId`, `Authority` of `ParentalAuthority` or `Guardian` and `ValidUntilUtc` null or after `now`, else `RefusedNoParentalAuthority` or `RefusedAuthorityInvalid`. No I/O, no clock read.
+1. **`MinorConsentRule.cs`** (new, `internal static`): two pure functions over one shared representation-validity check: `MinorConsentOutcome EvaluateStored(bool subjectIsMinor, DataSubjectRepresentation? representation, DateTimeOffset evaluatedAtUtc)` (check side: `NotMinor` when the flag is false, else the representation-validity outcomes below) and `MinorConsentOutcome EvaluateGrant(int? subjectAgeYears, int threshold, DataSubjectRepresentation? representation, DateTimeOffset now, bool requireAgeDeclaration)` — `RefusedAgeNotDeclared` when the age is null and declaration is required; `NotMinor` when age is at or above the threshold; below it, `AcceptedWithParentalAuthority` only when the representation has a non-empty `RepresentativeId`, `Authority` of `ParentalAuthority` or `Guardian` and `ValidUntilUtc` null or after `now`, else `RefusedNoParentalAuthority` or `RefusedAuthorityInvalid`. No I/O, no clock read.
 2. **`Abstractions/IConsentService.cs`** and **`Services/DefaultConsentService.cs`** (modify): `GrantConsentAsync` and `ProvideReconsentAsync` gain `int? subjectAgeYears = null, string? jurisdiction = null` (the age is never stored); the service resolves the threshold with `AgeOfDigitalConsentPolicy`, calls the rule with `TimeProvider.GetUtcNow()` and either refuses with `ConsentErrors.MinorConsentRefused(reason)` or passes `SubjectIsMinor`, `Jurisdiction` and the threshold to the aggregate. `RenewConsentAsync` and `WithdrawConsentAsync` on a record with `SubjectIsMinor == true`: renewal requires a valid representation in the act (the #1197 parameter), withdrawal does not (anyone entitled can withdraw: Art. 7(3)).
 3. **`ConsentErrors.cs`** (modify): `MinorConsentRefusedCode = "consent.minor_refused"`, `AgeNotDeclaredCode = "consent.age_not_declared"`, `ParentalAuthorityInvalidCode = "consent.parental_authority_invalid"` and factories; the error carries the code, purpose and threshold, never the age or the representative.
 4. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
@@ -288,7 +299,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Model/ConsentValidationResult.cs`** (modify): `IReadOnlyList<string> MinorRefusedPurposes` (empty by default) and an `Invalid(...)` overload that sets it.
-2. **`DefaultConsentValidator.cs`** (modify, after the status switch at lines 66-87): when `consent.SubjectIsMinor == true` the rule is re-evaluated with the stored threshold, the stored representation and `TimeProvider.GetUtcNow()` against the grant's own moment: the stored record is honoured only if it carries a valid representation (the read model's `Representation`); otherwise the purpose is added to `MissingPurposes` and `MinorRefusedPurposes`.
+2. **`DefaultConsentValidator.cs`** (modify, after the status switch at lines 66-87): when `consent.SubjectIsMinor == true` `MinorConsentRule.EvaluateStored` is called with the stored flag, the stored representation and the grant's own `GivenAtUtc` as the evaluation time (not `now`, so a representation whose `ValidUntilUtc` has passed since the grant does not invalidate a consent that was valid when given): the stored record is honoured only if it carries a valid representation (the read model's `Representation`); otherwise the purpose is added to `MissingPurposes` and `MinorRefusedPurposes`.
 3. **`ConsentRequiredPipelineBehavior.cs`** (modify, the `!result.IsValid` branch at line 155): when `MinorRefusedPurposes` is not empty, return `ConsentErrors.MinorConsentRefused` instead of the generic missing-consent error in `Block` mode, and log in `Warn` mode.
 4. The `consent.minor` tag on the existing `Consent.Check` activity (Phase 6).
 
@@ -302,7 +313,7 @@ You are implementing Phase 4 of consent given for a minor in Encina.Compliance.C
 
 CONTEXT:
 - DefaultConsentValidator.ValidateAsync (DefaultConsentValidator.cs:50-122) judges status and expiry per purpose; ConsentRequiredPipelineBehavior.Handle (ConsentRequiredPipelineBehavior.cs:85-192) maps an invalid result to ConsentErrors.MissingConsent in Block mode.
-- MinorConsentRule (Phase 3) is the single rule.
+- MinorConsentRule (Phase 3) is the single rule: call EvaluateStored with the stored SubjectIsMinor flag, the stored representation and the read model's GivenAtUtc (never now); the age is not stored.
 
 TASK:
 Add MinorRefusedPurposes to ConsentValidationResult, re-check minors in DefaultConsentValidator and return the specific minor error from the behaviour, as listed in the plan's Phase 4 Tasks.
@@ -369,8 +380,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Diagnostics/ConsentDiagnostics.cs`** (modify): counter `consent.minor.refusals.total` (tags `consent.jurisdiction`, `consent.failure_reason`), counter `consent.minor.grants.total` (tag `consent.jurisdiction`); the `Consent.Check` activity gains `consent.minor` (boolean) and `encina.tenant_id` (the tenant tag constant is introduced by #1199; whichever lands first adds it). The issue's names (`encina.consent.minor_refusals`, `encina.consent.check`) are replaced by the package's existing naming (`consent.*`, activity `Consent.Check`).
-2. **`Diagnostics/ConsentMinorLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8288-8293 (see EventIdRanges.ComplianceConsent)"): 8288 `MinorConsentRefusedAtGrant`, 8289 `MinorConsentRecordedWithParentalAuthority`, 8290 `MinorConsentInvalidAtCheck`, 8291 `AgeNotDeclaredRefused`, 8292 `UnknownJurisdictionFallbackApplied`, 8293 `AgeDeclarationOptOutActive` (warning at startup when `RequireAgeDeclaration` is false); jurisdiction codes and purposes only.
+1. **`Diagnostics/ConsentDiagnostics.cs`** (modify): counter `consent.minor.refusals.total` (tags `consent.jurisdiction`, `consent.failure_reason`), counter `consent.minor.grants.total` (tag `consent.jurisdiction`); the `Consent.Check` activity gains `consent.minor` (boolean) and `encina.tenant_id` (the tenant tag constant is introduced by the #1199 plan, which lands before this one in the order #1197, #1199, #1255; this phase rebases onto the constant and does not define it). The issue's names (`encina.consent.minor_refusals`, `encina.consent.check`) are replaced by the package's existing naming (`consent.*`, activity `Consent.Check`).
+2. **`Diagnostics/ConsentMinorLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8290-8295 (see EventIdRanges.ComplianceConsent)"): 8290 `MinorConsentRefusedAtGrant`, 8291 `MinorConsentRecordedWithParentalAuthority`, 8292 `MinorConsentInvalidAtCheck`, 8293 `AgeNotDeclaredRefused`, 8294 `UnknownJurisdictionFallbackApplied`, 8295 `AgeDeclarationOptOutActive` (warning at startup when `RequireAgeDeclaration` is false); jurisdiction codes and purposes only.
 3. No range change; the assembly is mapped in `EncinaEventIdAllocationTests.cs:63`.
 
 </details>
@@ -382,13 +393,13 @@ REFERENCE FILES:
 You are implementing Phase 6 of consent given for a minor in Encina.Compliance.Consent (issue #1255).
 
 CONTEXT:
-- ConsentDiagnostics owns the ActivitySource, Meter and tag constants. EventIds up to 8287 are taken by earlier consent work (#811 8269-8274, #810 8275-8278, #1199 8279-8287).
+- ConsentDiagnostics owns the ActivitySource, Meter and tag constants. EventIds up to 8289 are taken by earlier consent work (#811 8269-8274, #1197 8275-8276, #810 8277-8280, #1199 8281-8289).
 
 TASK:
-Add the two counters, the activity tags and ConsentMinorLogMessages with EventIds 8288-8293 as listed in the plan's Phase 6 Tasks, and call them from the service, validator and behaviour.
+Add the two counters, the activity tags and ConsentMinorLogMessages with EventIds 8290-8295 as listed in the plan's Phase 6 Tasks, and call them from the service, validator and behaviour.
 
 KEY RULES:
-- [LoggerMessage] source generator, packed sequentially 8288-8293, inside 8200-8299.
+- [LoggerMessage] source generator, packed sequentially 8290-8295, inside 8200-8299.
 - No subject id, age, representative id, authority reference or EncinaError.Message in any log, tag or metric.
 - Run EncinaEventIdAllocationTests.
 
@@ -457,7 +468,7 @@ REFERENCE FILES:
 
 1. XML docs on every new public API, with a Spanish-minor example.
 2. `changelog.d/1255-consent-minor.added.md` (via `mechanical-fixer`).
-3. `src/Encina.Compliance.Consent/README.md` and `docs/features/consent-management.md` (via `docs-writer`): the age table, the fallback, `RequireAgeDeclaration`, the limitation on authority that lapses after the grant.
+3. `src/Encina.Compliance.Consent/README.md` and `docs/features/consent-management.md` (via `docs-writer`): the age table, the fallback, `RequireAgeDeclaration`, the limitation on authority that lapses after the grant, and the pitfall that a deployment must set `DefaultJurisdiction` (for example `"ES"`) or pass `jurisdiction` per grant, otherwise the fallback of 16 applies and 14 and 15 year olds are treated as minors.
 4. The Consent specification (#1209): GDPR Art. 8 and LOPDGDD art. 7 rows; LOPDGDD article text re-read before it is cited.
 5. `PublicAPI.Unshipped.txt`; verification: `dotnet build Encina.slnx --configuration Release` (0 warnings), the five Consent test projects, EventId architecture tests, `dotnet run --file .github/scripts/changelog-fragments.cs -- --check`.
 
@@ -519,9 +530,9 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Compliance.Consent` (existing) | 8200-8299 (`EventIdRanges.ComplianceConsent`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 |
-| #811, #810, #1199 | 8269-8274, 8275-8278, 8279-8287 | Reserved by their plans |
-| **This plan (#1255)** | **8288-8293** | Packed after 8287; new `ConsentMinorLogMessages` |
-| Left in the range | 8294-8299 | A further Consent feature needs a second range |
+| #811, #1197, #810, #1199 | 8269-8274, 8275-8276, 8277-8280, 8281-8289 | Reserved by their plans |
+| **This plan (#1255)** | **8290-8295** | Packed after 8289; new `ConsentMinorLogMessages` |
+| Left in the range | 8296-8299 | A further Consent feature needs a second range |
 
 ### Estimated File Count
 
@@ -548,7 +559,7 @@ IMPLEMENTATION OVERVIEW:
 2. Add the age table (ES = 14), fallback 16, DefaultJurisdiction and RequireAgeDeclaration to ConsentOptions with validation (13-16).
 3. Add the internal MinorConsentRule and refuse invalid grants, renewals and reconsents in DefaultConsentService.
 4. Re-check stored minors in DefaultConsentValidator and return the specific error from the behaviour.
-5. Verify tenancy and audit; add counters, activity tags and EventIds 8288-8293.
+5. Verify tenancy and audit; add counters, activity tags and EventIds 8290-8295.
 6. Tests of every flag and Marten integration; docs, changelog, PublicAPI.
 
 KEY PATTERNS:
@@ -559,8 +570,7 @@ KEY PATTERNS:
 
 REFERENCE FILES:
 - src/Encina.Compliance.Consent/ (Events, Aggregates, Services, DefaultConsentValidator.cs, ConsentRequiredPipelineBehavior.cs, ConsentOptions.cs)
-- docs/plans/data-subject-representation-implementation-plan-1197.md
-- docs/plans/consent-channel-implementation-plan-1199.md
+- the #1197 plan and the #1199 plan (under docs/plans, found by issue number)
 ```
 
 </details>
@@ -573,7 +583,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | No read path that benefits from caching |
 | 2 | OpenTelemetry | ✅ | Counters and `Consent.Check` tags with the tenant, no identifiers (Phase 6) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8288-8293 in `ComplianceConsent` (ADR-021, Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8290-8295 in `ComplianceConsent` (ADR-021, Phase 6) |
 | 4 | Health Checks | ❌ N/A | No new checkable dependency |
 | 5 | Validation | ✅ | A minor's consent is refused without a valid holder; options validated at startup (Phases 2-4) |
 | 6 | Resilience | ❌ N/A | No call to an external system |
@@ -595,7 +605,7 @@ REFERENCE FILES:
 ### Coordination
 
 - **Same-file changes**: #1199 (channel), #811, #810 edit `ConsentGranted`, the aggregate, the service and the behaviour. Land one after another; recommended order for the persisted shape: #1197, #1199, #1255.
-- **EventIds**: this plan 8288-8293 after #1199's 8279-8287; the #810 plan (8275-8278) and the #1197 plan (8275-8276) overlap and need one owner.
+- **EventIds**: this plan 8290-8295 after #1199's 8281-8289; #811 8269-8274, #1197 8275-8276 and #810 8277-8280 precede it, so no id is shared.
 - **Tag constant** `TagTenantId` is introduced by whichever of #1199 and #1255 lands first.
 
 ### Deferred
@@ -608,6 +618,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Maintainer answers the three Dilemmas (Design Choices 1, 2 and 3) when work on #1255 starts; answers go in a `## Maintainer Decisions` section appended to this plan.
-2. Wait for #1197, then brief the worker for PR 1 (Phases 1-3).
-3. Implement PR 2 (Phases 4-8) and extend the Consent specification with #1209.
+1. Maintainer answers the two Dilemmas (Design Choices 1 and 2; Design Choice 3 is Settled by AGENTS.md section 3) when work on #1255 starts; answers go in a `## Maintainer Decisions` section appended to this plan.
+2. Wait for #1197, then brief the worker for PR 1 (Phases 1-2).
+3. Implement PR 2 to PR 4 in order and extend the Consent specification with #1209.
