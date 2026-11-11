@@ -552,14 +552,14 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Diagnostics/ConsentDiagnostics.cs`** (modify, source `Encina.Compliance.Consent`): counters `consent.refusals.total` and `consent.solicitations.blocked.total` (instrument names follow ADR-054 D3: lowercase, dot-separated, as the existing `consent.granted.total`); tags `consent.purpose` and, when multi-tenancy is on, the tenant id (ADR-054 D4, SPEC-002 AC-044); activity `Consent.Solicitation` around `GetSolicitationDecisionAsync` and `Consent.Refusal` around `RefuseConsentAsync`. Never the subject id.
-2. **`Diagnostics/ConsentCooldownLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8275-8278 (see EventIdRanges.ComplianceConsent)"):
-   - 8275 `ConsentRefusalRecorded` (Information; purpose)
-   - 8276 `ConsentRefusalDuringCooldown` (Warning; purpose; the application asked inside a cooldown)
-   - 8277 `ConsentSolicitationBlockedByCooldown` (Information; purpose)
-   - 8278 `ConsentCooldownEnabled` (Warning, once at startup; draft-law switch on; duration in days)
-3. **Startup warning**: `ConsentAutoRegistrationHostedService.StartAsync` (line 46) logs 8278 before its early return when `EnableOmnibusConsentCooldown` is true, independent of `AutoRegisterFromAttributes`.
-4. **EventIds**: no range change. 8275-8278 continue the packed sequence after #811's 8269-8274 inside `ComplianceConsent = (8200, 8299)` (`src/Encina/Diagnostics/EventIdRanges.cs:326`); the assembly is already mapped (`EncinaEventIdAllocationTests.cs:63`). If #810 lands first it takes 8269-8272 and #811 shifts; the second to land takes the next free block. Run the architecture tests.
-5. **Tests**: in-memory exporter test for the two counters and the activity; a logger test for 8275-8278; a PII test that no log or tag carries the subject id (extend `ConsentPiiLeakTests`).
+2. **`Diagnostics/ConsentCooldownLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8294-8297 (see EventIdRanges.ComplianceConsent)"):
+   - 8294 `ConsentRefusalRecorded` (Information; purpose)
+   - 8295 `ConsentRefusalDuringCooldown` (Warning; purpose; the application asked inside a cooldown)
+   - 8296 `ConsentSolicitationBlockedByCooldown` (Information; purpose)
+   - 8297 `ConsentCooldownEnabled` (Warning, once at startup; draft-law switch on; duration in days)
+3. **Startup warning**: `ConsentAutoRegistrationHostedService.StartAsync` (line 46) logs 8297 before its early return when `EnableOmnibusConsentCooldown` is true, independent of `AutoRegisterFromAttributes`.
+4. **EventIds**: no range change. 8294-8297 continue the packed sequence after #811's 8269-8274 inside `ComplianceConsent = (8200, 8299)` (`src/Encina/Diagnostics/EventIdRanges.cs:326`); the assembly is already mapped (`EncinaEventIdAllocationTests.cs:63`). If #810 lands first it takes 8269-8272 and #811 shifts; the second to land takes the next free block. Run the architecture tests.
+5. **Tests**: in-memory exporter test for the two counters and the activity; a logger test for 8294-8297; a PII test that no log or tag carries the subject id (extend `ConsentPiiLeakTests`).
 
 </details>
 
@@ -574,7 +574,7 @@ CONTEXT:
 - ADR-021 and AGENTS.md section 7: EventIds are registered in src/Encina/Diagnostics/EventIdRanges.cs before use, packed sequentially; new code uses the [LoggerMessage] source generator.
 
 TASK:
-Add the counters, tags and activities, create Diagnostics/ConsentCooldownLogMessages.cs with EventIds 8275-8278 (or the next free block if #811 has not landed), call them from DefaultConsentService, and emit the startup warning from ConsentAutoRegistrationHostedService.StartAsync. Write the exporter, logger and PII tests.
+Add the counters, tags and activities, create Diagnostics/ConsentCooldownLogMessages.cs with EventIds 8294-8297 (or the next free block if #811 has not landed), call them from DefaultConsentService, and emit the startup warning from ConsentAutoRegistrationHostedService.StartAsync. Write the exporter, logger and PII tests.
 
 KEY RULES:
 - No data subject id, actor or EncinaError.Message in any log, tag or activity (#1314); the error code or exception type only.
@@ -738,7 +738,7 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.Compliance.Consent` (existing) | 8200-8299 (`EventIdRanges.ComplianceConsent`, `EventIdRanges.cs:326`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 |
 | `Encina.Compliance.Consent` exemptions (#811, planned) | 8269-8274 | Reserved by the #811 plan |
-| **`Encina.Compliance.Consent` cooldown (new)** | **8275-8278** | Packed after #811; no new range; assembly already mapped in `EncinaEventIdAllocationTests` (line 63); if #810 lands first it takes 8269-8272 |
+| **`Encina.Compliance.Consent` cooldown (new)** | **8294-8297** | Packed after #811; no new range; assembly already mapped in `EncinaEventIdAllocationTests` (line 63); if #810 lands first it takes 8269-8272 |
 | `Encina.Compliance.Consent` remaining free | 8279-8299 | Left for later consent work |
 
 ### Estimated File Count
@@ -778,7 +778,7 @@ Phase 2: ConsentRefusalAggregate on a deterministic stream id (version 8 UUID fr
 Phase 3: EnableOmnibusConsentCooldown (false), ConsentCooldownAfterRefusal (TimeSpan, floor 184 days unless the maintainer chose 180), CooldownPerPurpose (true), validator floor.
 Phase 4: ConsentCooldown evaluator, IConsentService.RefuseConsentAsync and GetSolicitationDecisionAsync, DefaultConsentService on IOptionsMonitor<ConsentOptions>; with the switch off no refusal is read and Solicit is returned, but refusals are still recorded.
 Phase 5: tenant, module, audit and idempotency proven by Marten integration tests; DI completeness test.
-Phase 6: counters, activities, [LoggerMessage] EventIds 8275-8278 in ComplianceConsent (8200-8299), startup warning when the switch is on.
+Phase 6: counters, activities, [LoggerMessage] EventIds 8294-8297 in ComplianceConsent (8200-8299), startup warning when the switch is on.
 Phase 7: unit, guard, contract, property and integration tests, AC-024 tests, justification sections, manifest targets.
 Phase 8: XML docs, changelog.d/810-consent-cooldown-after-refusal.added.md, README, feature guide, build and test verification.
 
@@ -809,7 +809,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The cooldown is deliberately not cached: a stale `Solicit` after a refusal would fail open (Design Choice 10). The existing five-minute read-model cache (`DefaultConsentService.cs:442-517`) is untouched and a test proves no stale decision (Phase 5) |
 | 2 | OpenTelemetry | ✅ | `consent.refusals.total` and `consent.solicitations.blocked.total`, `Consent.Solicitation` and `Consent.Refusal` activities, purpose tag and tenant tag when multi-tenancy is on, never the subject id (Phase 6, ADR-054 D3 and D4) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8275-8278 in `ComplianceConsent` (8200-8299); startup warning when the draft switch is on (Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8294-8297 in `ComplianceConsent` (8200-8299); startup warning when the draft switch is on (Phase 6) |
 | 4 | Health Checks | ❌ | No new checkable dependency: the refusal store is the same Marten store `ConsentHealthCheck` already covers through `IConsentService` resolution |
 | 5 | Validation | ✅ | Options floor in `ConsentOptionsValidator` and argument guards on both new methods (Phases 3 and 4) |
 | 6 | Resilience | ❌ | No external call beyond the Marten store the package already uses; its failures return `Left` and the decision fails closed |
