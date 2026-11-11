@@ -2,7 +2,7 @@
 
 > **Issue**: [#763](https://github.com/dlrivada/Encina/issues/763)
 > **Type**: Feature
-> **Complexity**: Low (one service, one option, 1 pull request)
+> **Complexity**: Low (one service, one option, 2 pull requests)
 > **Estimated Scope**: ~120-180 lines of production code + ~350-450 lines of tests
 > **Specification**: GDPR Art. 35(11) (periodic review of the assessment); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); `AGENTS.md` section 3 (background infrastructure)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision)
@@ -14,14 +14,14 @@
 
 `DPIAReviewReminderService` is a `BackgroundService` that, when `DPIAOptions.EnableExpirationMonitoring` is on, runs a cycle at start and every `ExpirationCheckInterval` (default 1 hour) on a `PeriodicTimer`: it asks `IDPIAService.GetExpiredAssessmentsAsync`, logs, and publishes `DPIAAssessmentExpired` through `IEncina`. In a multi-instance deployment every instance runs every cycle, so the same assessment is published once per instance and the store is queried N times. This plan makes **only one instance run each cycle**:
 
-1. **Lock around the cycle.** Before the cycle opens its scope, the service tries `IDistributedLockProvider.TryAcquireAsync("encina:dpia:review-reminder", expiry: LockTimeout, wait: 0, retry: 0, ct)` and runs the cycle only while it holds the handle.
+1. **Lock around the cycle.** The cycle opens its async scope first and keeps it until the lock handle is disposed (a scoped provider must not outlive its scope); the service resolves the provider from that scope, tries `IDistributedLockProvider.TryAcquireAsync("encina:dpia:review-reminder", expiry: LockTimeout, wait: 0, retry: 0, ct)` and runs the cycle only while it holds the handle.
 2. **ADR-052 outcomes.** `Right(Some(handle))` runs the cycle and disposes the handle at the end; `Right(None)` skips the cycle (another instance holds it; logged at Debug, counted as `skipped`); `Left` fails the cycle visibly (logged by error code, counted as `failed`, retried at the next tick); cancellation propagates.
 3. **Opt-in.** The provider is resolved with `GetService` from the cycle scope; with no provider registered the service runs unlocked as today (single-instance assumption).
-4. **The lock must cover the publishing.** Today `PublishExpiredNotificationsAsync` is started with `_ = ...` and the scope is disposed when the cycle method returns, so a lock released at the end of the cycle would release before the notifications are published. The plan awaits the publishing inside the locked section (the error handling of that publishing stays with [#3502](https://github.com/dlrivada/Encina/issues/3502)).
+4. **The lock must cover the publishing.** Today `PublishExpiredNotificationsAsync` is started with `_ = ...` and the scope is disposed when the cycle method returns, so a lock released at the end of the cycle would release before the notifications are published. The plan awaits the publishing inside the locked section (Design Choice 7; the error handling of that publishing stays with [#3502](https://github.com/dlrivada/Encina/issues/3502)).
 
 **Standards**: GDPR Art. 35(11); ADR-052; `AGENTS.md` section 3 (errors are not swallowed in background infrastructure; a `PeriodicTimer` loop catches per iteration).
 
-**Estimated scope**: 0 new production files, 6 modified, about 3 test files extended, 2 documentation files.
+**Estimated scope**: 0 new production files, 7 modified (including `EventIdRanges.cs`), 4 test files extended, 2 documentation files; two pull requests (see Implementation Phases).
 
 **Affected packages**: `Encina.Compliance.DPIA` (with a new project reference to `Encina.DistributedLock`). No provider code is added.
 
@@ -31,7 +31,7 @@
 
 - `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` is `internal sealed class ... : BackgroundService`, registered by `services.AddHostedService<DPIAReviewReminderService>()` (`ServiceCollectionExtensions.cs:184`) and built from `(IServiceScopeFactory, IOptions<DPIAOptions>, ILogger<>)`. Its `ExecuteAsync` returns when monitoring is off, runs the first cycle at once, then loops on `PeriodicTimer(ExpirationCheckInterval)`.
 - `ExecuteReminderCycleAsync` creates an async scope, resolves `IDPIAService`, and matches the `Either`: `Right` logs and (when `PublishNotifications`) starts `_ = PublishExpiredNotificationsAsync(...)`; `Left` logs the code. It catches cancellation and any other exception per cycle (the loop never throws). Counter `dpia.review_reminder.cycles.total` already has outcomes `completed`, `failed`, `cancelled` (`DPIADiagnostics.ReviewReminderCyclesTotal`, tag `dpia.outcome`).
-- Log messages are extension methods in `Diagnostics/DPIALogMessages.cs`; the block `8840-8849` (Expiration monitoring) uses 8840-8848, so **8849 is the only free id in that block**, and `8897-8899` (the ids the original issue suggested) sit inside the ASP.NET Core endpoints block `8890-8899`.
+- Log messages are extension methods in `Diagnostics/DPIALogMessages.cs`; the block `8840-8849` (Expiration monitoring) uses 8840-8848, so **8849 is the only free id in that block**, every other group of the registered range `8800-8899` is assigned to its own area (8897-8899, the ids the original issue suggested, sit inside the ASP.NET Core endpoints block `8890-8899`), and the lock lifecycle needs two messages (skipped, and the once-per-service presence log), so no group of the range can hold them: Design Choice 6 registers a new range from the registry block `6350-6399`.
 - `Encina.Compliance.DPIA` does not reference `Encina.DistributedLock`; no production code under `src/` consumes `IDistributedLockProvider` yet (ADR-052 context), so this is its first consumer. `Encina.DistributedLock` references `Encina` and `Encina.Messaging`, so the new reference creates no cycle.
 - `DPIAOptionsValidator` (registered as `IValidateOptions<DPIAOptions>`, `ServiceCollectionExtensions.cs:109`) validates `ExpirationCheckInterval` when monitoring is enabled.
 - The manifest `.github/coverage-manifest/Encina.Compliance.DPIA.json` gives `DPIAReviewReminderService.cs` the targets unit 93 and guard 7.
@@ -97,7 +97,7 @@
 
 ### Rationale
 
-- The "distributed locks" row of ADR-050 is conditional on multi-instance and is enforced by startup validation of the lock providers (#2382), not by each consumer; this plan adds no requirement beyond it. One Information log at startup states whether the cycle is locked.
+- The "distributed locks" row of ADR-050 is conditional on multi-instance and is enforced by startup validation of the lock providers (#2382), not by each consumer; this plan adds no requirement beyond it. One Information log, written once on the first cycle (no scope exists at `ExecuteAsync` start, and the provider is resolved per cycle from the cycle scope), states whether a lock provider is present (message 6351, Design Choice 6). Until #2382 lands this log is the only runtime signal of "multi-instance without a lock provider".
 
 **Class:** Settled
 **Settled by:** `AGENTS.md` section 1 (pay-for-what-you-use), ADR-050 (closed list of requirements; "Distributed locks" is conditional on multi-instance)
@@ -132,7 +132,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Global lock named `encina:dpia:review-reminder`, wait 0 and retry 0, provider resolved from the cycle scope inside the cycle method** | The service checks all assessments, so one global cycle is right; the provider's `KeyPrefix` still applies; resolving per cycle needs no constructor change | The name is a constant in code |
+| **A) Global lock named `encina:dpia:review-reminder`, wait 0 and retry 0, provider resolved per cycle from the one scope the cycle opens first and holds until the handle is disposed** | The service checks all assessments, so one global cycle is right; the provider's `KeyPrefix` still applies; resolving per cycle needs no constructor change; a scoped provider never outlives its scope | The name is a constant in code; the scope opens before the lock is known (a skipped cycle opens one scope for nothing) |
 | **B) Tenant-scoped lock per tenant** | Per-tenant cycles | The store query is not per tenant; #741 is not needed here |
 
 ### Chosen Option: **A — global, per-cycle resolution**
@@ -147,23 +147,45 @@
 </details>
 
 <details>
-<summary><strong>6. Telemetry and EventIds — reuse the existing counter, one new log id</strong></summary>
+<summary><strong>6. Telemetry shape — reuse the cycle counter, or a separate lock counter as the issue states</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Add outcome `skipped` to `dpia.review_reminder.cycles.total` and a `dpia.lock.outcome` tag on the cycle activity; one new message `ReviewReminderCycleSkippedLockNotAcquired` with EventId 8849 (the last free id of the expiration-monitoring block); acquired and failed reuse the existing cycle-start and cycle-failed messages** | No new instrument; the id stays in its block; packed | The lock outcome is on the activity, not a separate counter |
-| **B) New counter `dpia.review_reminder.lock.total` and three messages at 8897-8899** | Separate lock metric | Ids inside the endpoints block (8890-8899); duplicates what the cycle counter already says |
+| **A) Add outcome `skipped` to `dpia.review_reminder.cycles.total` and a `dpia.lock.outcome` tag (`acquired`, `skipped`, `failed`, `unlocked`) on the cycle activity; no new instrument** | No new instrument; the existing dashboards keep working | An `acquired` lock is not distinguishable from `completed` on the metric (only on the activity); the issue's acceptance criterion "counter tracks lock outcomes" must be amended |
+| **B) New counter `dpia.review_reminder.lock.total` with outcomes `acquired`, `skipped`, `failed`, as the issue specifies** | Matches the issue; lock health is one metric | A second instrument to document and dashboard |
 
-### Chosen Option: **A — reuse, one new id (8849)**
+### Chosen Option: **A — reuse the cycle counter** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The DPIA range 8800-8899 is registered and fully grouped; no registry change is needed, and the issue's suggested ids 8944-8946 belong to Privacy by Design.
+- We recommend A because the cycle counter already carries the cycle result and the tag stays low-cardinality; B wins when operators alert on lock contention or lock faults directly from metrics.
 
-**Class:** Trivial
-**Settled by:** `AGENTS.md` section 7 (ids inside the package range, packed, grouped by area), `src/Encina.Compliance.DPIA/Diagnostics/DPIALogMessages.cs` allocation blocks
+**Class:** Dilemma
+
+**EventIds (the allocation follows from either option):** the lock lifecycle needs two log messages: `ReviewReminderCycleSkippedLockNotAcquired` (Debug) and `ReviewReminderLockPresence(bool lockProviderPresent)` (Information, once on the first cycle). The DPIA range `8800-8899` has no free group (the expiration-monitoring block has the single free id 8849 and every other block belongs to another area), so the lock lifecycle gets a new range registered from the registry block `6350-6399`: `ComplianceDPIALock = (6350, 6359)` in `src/Encina/Diagnostics/EventIdRanges.cs`, mapped to `Encina.Compliance.DPIA` in `AssemblyRanges` of `EncinaEventIdAllocationTests.cs`: 6350 skipped, 6351 presence. 8849 stays free; acquired and failed reuse the existing cycle-start and cycle-failed messages. The issue's suggested ids 8944-8946 belong to Privacy by Design.
+
+</details>
+
+<details>
+<summary><strong>7. Publishing inside the lock — await it in the locked section</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `PublishExpiredNotificationsAsync` is awaited inside the locked section instead of `_ = ...`** | The lock covers the work it protects; a failure or cancellation of the publishing is seen by the cycle | The cycle lasts as long as the handlers; the first cycle blocks `ExecuteAsync`; the cycle duration now interacts with the fixed 30 s expiry (Design Choice 1) |
+| **B) Keep the fire-and-forget publishing and keep the handle and the scope alive until the background publish task completes** | The cycle returns at once | The handle and scope outlive the cycle method, the `PeriodicTimer` loop no longer sees the outcome, and the dropped `Left` of #3502 stays hidden |
+
+### Chosen Option: **A — await inside the lock** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A because it is the simplest way for the lock to cover the publishing; B wins when handlers are slow enough that blocking the loop matters, at the cost of lifetime complexity.
+- The error handling of the publishing is not changed here; it belongs to #3502.
+
+**Class:** Dilemma
 
 </details>
 
