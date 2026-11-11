@@ -46,7 +46,7 @@ dotnet test tests/Encina.GuardTests/Encina.GuardTests.csproj --configuration Rel
 
 Done when: build ends with 0 warnings and 0 errors, format reports no changes, the guard tests pass. If `dotnet build` crashes with an internal CLR error, keep `Directory.Build.rsp` (it limits MSBuild to one node for that reason).
 
-For your own project, copy from the root: `Directory.Build.props` (analyzers, `TreatWarningsAsErrors`, nullable, `LangVersion`), `Directory.Packages.props` (central package management), `Directory.Build.rsp`, `.editorconfig`, `docker-compose.yml` with its profiles, `codecov.yml`, `.coderabbit.yaml`.
+For your own project, copy from the root: `Directory.Build.props` (analyzers, `TreatWarningsAsErrors`, nullable, `LangVersion`), `Directory.Packages.props` (central package management), `Directory.Build.rsp`, `.editorconfig`, `docker-compose.yml` with its profiles, `.coderabbit.yaml`.
 
 ## 2. Repository conventions
 
@@ -75,7 +75,7 @@ Files to copy:
 - `.github/scripts/coverage-report.cs`: reads the Cobertura XML of each test type and computes per-flag obligations. Usage: `dotnet run .github/scripts/coverage-report.cs -- --input <dir with one subfolder per flag> --output <dir>`.
 - `.github/scripts/coverage-history.cs`: appends a snapshot to `history.json`.
 - `docs/coverage/` (`index.html`, `app.js`, `data/`): the dashboard published to GitHub Pages by `publish-coverage.yml`.
-- `codecov.yml`: flags per test type, patch target, `wait_for_ci`.
+- `.github/workflows/coverage-comment.yml`: posts one informational comment per pull request with the per-file targets of the files it touches (ADR-063).
 
 Wire: one test project per test type (`tests/Encina.UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests`, `IntegrationTests`), each run separately with `--collect "XPlat Code Coverage"` and a distinct results folder; `ci-full.yml` does this weekly and on tags and feeds the report. Done when the dashboard shows a package green only if every applicable flag reaches its target, and a reflection-only test adds zero coverage.
 
@@ -116,7 +116,7 @@ Copy `.github/workflows/` and adapt names and paths. What each one does and when
 | publish-benchmarks.yml, publish-coverage.yml, publish-load-tests.yml, publish-mutations.yml | Publish … Data | workflow_run of the producing workflow; workflow_dispatch | Render citations, publish dashboards to Pages, persist data back | event |
 | release-on-milestone.yml | Release on Milestone Close | milestone closed | Version bump, tag, GitHub release (broken by branch protection, see #1100) | event |
 | sbom.yml | SBOM | push of `v*` tags; workflow_dispatch | Software bill of materials | slow |
-| sonarcloud.yml | SonarCloud Analysis | push to main; pull_request; workflow_dispatch | Static analysis only (coverage comes from Codecov) | fast (PR) |
+| sonarcloud.yml | SonarCloud Analysis | push to main; pull_request; workflow_dispatch | Static analysis only (coverage is measured per flag against the manifests, see ADR-063) | fast (PR) |
 | testing-dogfooding-validation.yml | Testing Dogfooding Validation | pull_request; push to main; workflow_dispatch | Validates examples and testing packages, audits test dependencies, migration progress | fast (PR) |
 
 The `ci-result` job in `ci.yml` is the one piece to copy exactly: `needs` every job, `if: always()`, fails when any upstream result is `failure` or `cancelled`. It lets branch protection require one stable check instead of matrix job names.
@@ -137,7 +137,7 @@ Audit every workflow that pushes to `main` afterwards; a release workflow that c
 
 ### 4.3 Bots
 
-- **Codecov:** install the GitHub app, add `CODECOV_TOKEN`, keep `codecov.yml`. Patch coverage is informational until all shards upload.
+- **Coverage comment:** nothing to install and no token; `coverage-comment.yml` runs from the default branch after `CI` completes and only starts working once it is merged there.
 - **SonarCloud:** create the project, add `SONAR_TOKEN` (a user token works; it expires, and an expired token fails the workflow with an authentication error).
 - **CodeQL:** enabled by the workflow; needs `security-events: write`.
 - **CodeRabbit:** install the app, keep `.coderabbit.yaml` with `request_changes_workflow: false` (otherwise its review blocks auto-merge until a human dismisses it). On the free plan for small repositories, request reviews explicitly with `@coderabbitai review`, one per hour; every push cancels the review in progress.
@@ -255,6 +255,6 @@ Two more watchers, next to `watch-pr-events.ps1` above, cost no model tokens eit
 - **Pull-request latency** after the fast lane: build plus the slowest shard, 15 to 25 minutes; CodeQL in source mode about 10; a docs-only PR under 5. Before the fast lane it was 40 minutes plus a 36-minute CodeQL on the critical path (`HOW-ENCINA-IS-BUILT.md` §6.1).
 - **Local model throughput:** 60 to 110 tokens per second generation on the reference GPU; a 30-issue classification batch in 15 to 20 seconds; a 1,000-word cited draft in 25 to 40 seconds; a 560-issue Historian pass in 11 minutes.
 - **Local model failure modes:** dropped instructions on long briefs, prose in paragraphs when bullets were asked, citations of the wrong identifier if any other identifier is visible, re-exploration loops on open-ended research. All are handled by bounded briefs, automatic validation and best-of-N; none by trusting the output.
-- **Bots:** CodeRabbit quota and cancelled reviews on push; Codecov patch evaluated per upload; external link checks flaky by nature; an expired Sonar token. Treat every bot signal as data to verify, never as a gate on its own.
+- **Bots:** CodeRabbit quota and cancelled reviews on push; the coverage comment is informational and appears only after its workflow is on the default branch; external link checks flaky by nature; an expired Sonar token. Treat every bot signal as data to verify, never as a gate on its own.
 - **If you have no GPU:** skip step 6; the briefs still make the paid model cheaper to steer, and the pipelines of 6.5 run on any OpenAI-compatible endpoint by changing `--url`.
 - **If you have no paid budget:** skip step 5; the human takes the Specifier, Verifier and gate roles, and the local model does everything mechanical. It is slower, not impossible; the quality system of step 3 does not care which tier produced the change.

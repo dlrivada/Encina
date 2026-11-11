@@ -10,7 +10,6 @@ nav_order: 1
 {: .fs-6 .fw-300 }
 
 [![.NET CI](https://github.com/dlrivada/Encina/actions/workflows/ci.yml/badge.svg)](https://github.com/dlrivada/Encina/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/dlrivada/Encina/graph/badge.svg)](https://codecov.io/gh/dlrivada/Encina)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/dlrivada/Encina/blob/main/LICENSE)
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
@@ -73,7 +72,6 @@ public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<Ord
 ## Quality & Coverage
 
 - [Coverage Dashboard](https://dlrivada.github.io/Encina/coverage/) — Per-package weighted coverage metrics
-- [Codecov](https://codecov.io/gh/dlrivada/Encina) — Per-module thresholds
 - [SonarCloud](https://sonarcloud.io/summary/new_code?id=dlrivada_Encina) — Static analysis
 
 ## Resources
