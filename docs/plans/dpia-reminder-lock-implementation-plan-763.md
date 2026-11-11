@@ -6,7 +6,7 @@
 > **Estimated Scope**: ~120-180 lines of production code + ~350-450 lines of tests
 > **Specification**: GDPR Art. 35(11) (periodic review of the assessment); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); `AGENTS.md` section 3 (background infrastructure)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision)
-> **Related**: [#3502](https://github.com/dlrivada/Encina/issues/3502) (the cycle publishes fire-and-forget and drops the `Left`), [#768](https://github.com/dlrivada/Encina/issues/768) (migrate the service to `Encina.Scheduling`), [#3270](https://github.com/dlrivada/Encina/issues/3270) (remove `EnableExpirationMonitoring`), [#717](https://github.com/dlrivada/Encina/issues/717) (generic leader election, same family, [plan](leader-election-implementation-plan-717.md)), [#741](https://github.com/dlrivada/Encina/issues/741) (tenant-scoped locks; this lock stays global), [#223](https://github.com/dlrivada/Encina/issues/223)
+> **Related**: [#3502](https://github.com/dlrivada/Encina/issues/3502) (the cycle publishes fire-and-forget and drops the `Left`), [#768](https://github.com/dlrivada/Encina/issues/768) (migrate the service to `Encina.Scheduling`), [#3270](https://github.com/dlrivada/Encina/issues/3270) (remove `EnableExpirationMonitoring`), [#717](https://github.com/dlrivada/Encina/issues/717) (generic leader election, same family, plan (#717)), [#741](https://github.com/dlrivada/Encina/issues/741) (tenant-scoped locks; this lock stays global), [#223](https://github.com/dlrivada/Encina/issues/223)
 
 ---
 
