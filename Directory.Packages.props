@@ -158,7 +158,7 @@
     <!-- 13.6.5 is the first release patched against GHSA-f7vh-h5g3-7jrh (Aspire.Hosting and Aspire.Hosting.AppHost below 13.6.5) (#3491) -->
     <PackageVersion Include="Aspire.Hosting.Testing" Version="13.6.5" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.5" />
-    <!-- Transitive pin (Encina.Testing.WireMock, Encina.Testing.Examples): GHSA-6527-9fp8-r4x6 affects 2.3.0-2.3.13; 2.3.14 is the first patched release (#3491) -->
+    <!-- Transitive pin (WireMock.Net, reached by Encina.Testing.Examples; Encina.Testing.WireMock references it directly because packable projects get no transitive pinning): GHSA-6527-9fp8-r4x6 affects 2.3.0-2.3.13; 2.3.14 is the first patched release (#3491) -->
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="2.3.14" />
     <!-- CLI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.7" />
@@ -177,7 +177,7 @@
     <PackageVersion Include="TngTech.ArchUnitNET.xUnitV3" Version="0.13.3" />
     <!-- HTML Sanitization -->
     <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
-    <!-- Transitive pin for test projects that combine Aspire (Humanizer.Core 3.x) with WireMock (Humanizer 2.14.1 satellites): resolves NU1608 (#2976) -->
+    <!-- Transitive pin for test projects that combine Aspire (Humanizer.Core 3.x) with WireMock (Humanizer 2.14.1 satellites): resolves NU1608 (#2976); Aspire 13.6.5 no longer depends on Humanizer.Core, the pin is kept for the WireMock satellites -->
     <PackageVersion Include="Humanizer" Version="3.0.10" />
     <!-- Secret Management -->
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
@@ -190,7 +190,7 @@
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.13" />
     <!-- Transitive pin (Microsoft.Data.SqlClient, Oracle.ManagedDataAccess.Core): GHSA-2fmv-rv2c-59x7 and GHSA-846f-f764-76mx affect 10.0.0-10.0.12; 10.0.13 is the first patched release (#2299) -->
     <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
-    <!-- Transitive pin (Aspire.Hosting.Testing -> StreamJsonRpc 2.25.29 -> MessagePack 2.5.302): the latest 2.5.x patch, 2.5.307, is pinned (#2338) -->
+    <!-- Transitive pin (Aspire.Hosting.Testing -> StreamJsonRpc 2.25.29 -> MessagePack 2.5.302): the latest 2.5.x patch, 2.5.307, is pinned (#2338); Aspire 13.6.5 now also requires 2.5.307 directly, so the pin is kept as the single source -->
     <PackageVersion Include="MessagePack" Version="2.5.307" />
     <PackageVersion Include="VaultSharp" Version="1.17.5.1" />
     <PackageVersion Include="Google.Cloud.SecretManager.V1" Version="2.7.0" />
