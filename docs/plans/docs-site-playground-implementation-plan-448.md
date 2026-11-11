@@ -24,7 +24,7 @@ State of the site (checked on `origin/main`, 2026-11-11):
 | Dark mode | Missing: `color_scheme: light`; note `mermaid_config.js` already forces `theme: "dark"` for diagrams, so diagrams and page disagree today |
 | Versioning | Missing: one version, `main` |
 | Copy buttons | Missing: `docs/_config.yml` has no `enable_copy_code_button` |
-| Migration guides (MediatR, MassTransit) | Missing: `docs/migrations/` holds only `compound-shard-keys.md`; MediatR appears only in `introduction.md` and architecture notes. They are not in the acceptance criteria of the rewritten issue, so a follow-up issue file records them |
+| Migration guides (MediatR, MassTransit) | Missing: `docs/migrations/` holds only `compound-shard-keys.md`; MediatR appears only in `introduction.md` and architecture notes. They are not in the acceptance criteria of the rewritten issue: the MediatR guide is tracked by #85, and a follow-up issue file records the MassTransit guide, which has no issue |
 
 - **Estimated scope**: 14 files, about 460 lines (see Research); one worker pull request.
 - **Affected packages**: none of `src/`; `docs/`, `.github/workflows/docs.yml`, `tools/ai/sites.json`. A playground host project is needed only if D1 is option B.
@@ -136,7 +136,7 @@ State of the site (checked on `origin/main`, 2026-11-11):
 
 1. Re-run the checks of the Summary table (search, DocFX, copy button, migration folder) and record any change in the pull request.
 2. Create `docs/playground/index.md` (how-to quadrant, `parent` and `nav_order` front matter) listing the examples and how to run them (per D1).
-3. The migration guides (MediatR, MassTransit) are not written here; they are a separate follow-up issue.
+3. The migration guides are not written here: the MediatR guide is #85 and the MassTransit guide is a separate follow-up issue.
 
 </details>
 
@@ -374,7 +374,7 @@ REFERENCE FILES:
 | 9 | Idempotency | ❌ | Static content |
 | 10 | Multi-Tenancy | ❌ | Public documentation |
 | 11 | Module Isolation | ❌ | Documentation organization |
-| 12 | Audit Trail | ❌ | Public documentation; no audit-relevant data. Deferred items outside this matrix: the migration guides (MediatR, MassTransit) and the post-1.0 versioned layout, each recorded as an issue file for the orchestrator to open |
+| 12 | Audit Trail | ❌ | Public documentation; no audit-relevant data. Deferred items outside this matrix: the MassTransit migration guide (the MediatR guide is #85) and the post-1.0 versioned layout, each recorded as an issue file for the orchestrator to open |
 
 ---
 
