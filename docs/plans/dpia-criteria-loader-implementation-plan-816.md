@@ -117,7 +117,8 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 ### Rationale
 
 - The loader mechanism is current-law: JSON file, URI and custom provider need no flag.
-- The AC-024 test: default options, the catalog holds no `EdpbHarmonisedList` origin and the engine uses only the built-in criteria and any `NationalList` or `Custom` sources the application added.
+- The AC-024 test: default options, the catalog holds no `EdpbHarmonisedList` origin and the engine uses only the built-in criteria and any `NationalList` or `Custom` sources the application added. Until #1243 lands there is no AEPD source, so the test uses a fake `NationalList` source; the "default uses the national lists (AEPD)" half of AC-024 is verified fully only after #1243.
+- Limit: `Origin` is declared by the application per source, so the flag guards a label, not the content: an application can label an EDPB URL `Custom`. The documentation says so; the validator cannot detect the real origin of a URI.
 
 </details>
 
@@ -139,6 +140,7 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 ### Rationale
 
 - I recommend A because the criteria change rarely (a published list), polling is enough, and one mechanism is easier to prove correct. B wins for an application that edits the file and expects immediate effect; it can be added behind the same catalog.
+- Departure from the issue: the issue records hot reload through `IOptionsMonitor` as settled, dependent on #817. Here only the refresh settings (`RefreshInterval`, `MaximumSnapshotAge`) reload through `IOptionsMonitor<DPIAOptions>`; the set of sources is fixed at DI time, and the criteria content refreshes by polling. The default `RefreshInterval` is `TimeSpan.Zero` (load once), so the issue's acceptance criterion "Hot-reload supported" reads "only when `RefreshInterval` is greater than zero"; the orchestrator records this on issue #816.
 - The loop catches per iteration and never lets an exception escape; a failure is handled by the failure policy of Design Choice 5 and logged by error code (AGENTS.md §3; `PeriodicTimer` rule, ADR-052, #2774). Cancellation from the stopping token ends the loop.
 
 </details>
@@ -152,7 +154,7 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) First load of a required source fails: the catalog is "unavailable" and `AssessAsync` returns `Left` `dpia.criteria_unavailable` until it loads (fail closed). Refresh fails with a previous snapshot: keep serving the last good snapshot, log by error code, report degraded health, with a configurable `MaximumSnapshotAge` defaulting to unbounded** | Availability for a flaky public URL; never evaluates against nothing | A stale list can be used for a long time (the age bound is opt-in) |
+| **A) First load of a required source fails: the catalog is "unavailable" and `LoadedCriteriaRiskCriterion` returns a `RiskItem` at `RiskLevel.VeryHigh` with category `CriteriaUnavailable`, so `AssessAsync` still returns a result whose overall risk is `VeryHigh` (a DPIA is required) until the source loads (fail closed); the code `dpia.criteria_unavailable` is the per-source last error code stored on the snapshot, logged and shown by the health check, never returned by `AssessAsync`. Refresh fails with a previous snapshot: keep serving the last good snapshot, log by error code, report degraded health, with a configurable `MaximumSnapshotAge` defaulting to unbounded** | Availability for a flaky public URL; never evaluates against nothing | A stale list can be used for a long time (the age bound is opt-in) |
 | **B) First load as in A. Refresh fails: expire the snapshot after `MaximumSnapshotAge` (default 7 days) and then fail closed** | Never evaluates against stale law for long | An outage of the source can block DPIA-gated requests after seven days |
 | **C) Any failure falls back to the built-in criteria only** | Never blocks | A configured national or EDPB list is silently ignored; a compliance gate failing open |
 
@@ -161,6 +163,7 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 ### Rationale
 
 - I recommend A with the bound available because the first-load case is settled by AGENTS.md §3 (compliance gates fail closed) while the refresh case is a trade between availability and freshness. B wins for a regulated application that wants a hard guarantee about the age of the law it evaluates against. C is rejected by AGENTS.md §3.
+- The fail-closed outcome is a value, not an `AssessAsync` error: the engine isolates a throwing criterion, and a blocked request would hide the reason; a `VeryHigh` item makes the caller run the DPIA, which is the protective side.
 - A source can be declared `IsRequired = false` (default `true`): a failed optional source is skipped, logged and shown in the health data, and the built-in criteria still apply.
 
 </details>
@@ -174,7 +177,7 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `https` only; named `HttpClient` from `IHttpClientFactory`; keyed Polly pipeline `dpia-criteria` (timeout, retry on transient failures); response size cap 1 MiB; `System.Text.Json` with a depth limit** | Integrity of a compliance list; one resilience pattern across NIS2, #812 and this plan | Integration tests need an HTTPS test endpoint (WireMock supports TLS) |
+| **A) `https` only; named `HttpClient` from `IHttpClientFactory` with automatic redirects disabled (`AllowAutoRedirect = false` on the primary handler; a 3xx response is `dpia.criteria_source_unreachable`, so a redirect can never reach another scheme or host); keyed Polly pipeline `dpia-criteria` (timeout, retry on transient failures); response size cap 1 MiB; `System.Text.Json` with a depth limit** | Integrity of a compliance list; one resilience pattern across NIS2, #812 and this plan | Integration tests need an HTTPS test endpoint (WireMock supports TLS) |
 | **B) A, plus `http` allowed for loopback addresses only** | WireMock on `localhost` works without certificates | A slightly larger surface to explain; a loopback exception is an extra rule to test |
 | **C) `Microsoft.Extensions.Http.Resilience` handler on the named client instead of Polly** | Standard handler pipeline | A different mechanism from NIS2 and #812; the keyed pipeline lets the application tune policy by key |
 
@@ -225,6 +228,27 @@ None of the 10 database providers (no store). Sources are: JSON file, URI (`Http
 ### Rationale
 
 - `listVersion` and `publishedAtUtc` are kept on the snapshot and exposed by the catalog, so a later issue can record which list version was in force for an assessment (see Prerequisites).
+
+</details>
+
+<details>
+<summary><strong>9. New package dependencies for the URI source</strong></summary>
+
+**Class:** Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Encina.Compliance.DPIA.csproj` references `Polly` and `Microsoft.Extensions.Http` directly** | One package; the same keyed-pipeline pattern as `Encina.Compliance.NIS2`; no new project | Every user of `Encina.Compliance.DPIA` carries both packages even with no URI source |
+| **B) The URI provider, the named client and the Polly pipeline live in a separate package (for example `Encina.Compliance.DPIA.Http`); the DPIA package keeps the JSON file source and the custom provider** | Pay-for-what-you-use applies to dependencies as well as features | A new package, README, manifest and PublicAPI; more files than this issue's size allows without another PR |
+
+### Chosen Option: **A — direct references** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A because the packages are already part of the solution (NIS2 uses Polly) and the registration stays opt-in; B wins when the maintainer holds that a library with no URI source should not carry an HTTP stack at all.
+- The worker confirms the central package versions in `Directory.Packages.props`.
 
 </details>
 
@@ -286,8 +310,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Providers/JsonFileDPIACriteriaProvider.cs` (public sealed): reads the file with `File.OpenRead` asynchronously and `JsonSerializer.DeserializeAsync` (depth limit 16, size cap 1 MiB), maps to `DPIACriteriaList`; `dpia.criteria_invalid` for a malformed document; `dpia.criteria_schema_unsupported` for an unknown `schemaVersion`.
-2. `Providers/UriDPIACriteriaProvider.cs` (public sealed): `IHttpClientFactory` named client, `https` (or loopback `http`, Design Choice 6), keyed pipeline `dpia-criteria` through `ResiliencePipelineProvider<string>` when registered, otherwise one attempt with `UriSourceTimeout`; response size cap; status classification (2xx ok; 4xx permanent `dpia.criteria_source_unreachable` with the status class; 5xx and network errors transient).
+1. `Providers/JsonFileDPIACriteriaProvider.cs` (`internal sealed`): reads the file with `File.OpenRead` asynchronously and `JsonSerializer.DeserializeAsync` (depth limit 16, size cap 1 MiB), maps to `DPIACriteriaList`; `dpia.criteria_invalid` for a malformed document; `dpia.criteria_schema_unsupported` for an unknown `schemaVersion`.
+2. `Providers/UriDPIACriteriaProvider.cs` (`internal sealed`): `IHttpClientFactory` named client with `AllowAutoRedirect = false` (a 3xx is `dpia.criteria_source_unreachable`, never followed), `https` (or loopback `http`, Design Choice 6), keyed pipeline `dpia-criteria` through `ResiliencePipelineProvider<string>` when registered, otherwise one attempt with `UriSourceTimeout`; response size cap; status classification (2xx ok; 4xx permanent `dpia.criteria_source_unreachable` with the status class; 5xx and network errors transient).
 3. `Providers/CriteriaDocumentMapper.cs` (internal static): shared parse, validation of each criterion (non-blank id and name, defined `RiskLevel`, sector strings non-blank), duplicate ids within a document.
 4. `DPIAOptions.cs` (modify, Phase 4): `LoadCriteriaFromProvider<T>()` registers custom providers.
 
@@ -326,10 +350,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `DPIACriteriaCatalog.cs` (public sealed, implements `IDPIACriteriaCatalog`): holds an immutable `DPIACriteriaSnapshot` in a volatile field; `internal void Replace(DPIACriteriaSnapshot)`.
-2. `DPIACriteriaLoadingService.cs` (public sealed `BackgroundService`): loads all sources at start, then every `RefreshInterval` while greater than zero. Constructor `(IEnumerable<ConfiguredCriteriaSource>, IDPIACriteriaCatalog, IOptionsMonitor<DPIAOptions>, TimeProvider, ILogger<...>)`. `ExecuteAsync` follows `DPIAReviewReminderService` (`PeriodicTimer`, catch per iteration, `OperationCanceledException` from the stopping token ends the loop). A cycle merges the per-source lists, applies the duplicate rule, applies the failure policy (Design Choice 5) and swaps the snapshot.
-3. `RiskCriteria/LoadedCriteriaRiskCriterion.cs` (public sealed, `IRiskCriterion`): `Name = "LoadedCriteria"`; matches `DPIAContext.HighRiskTriggers` against the snapshot (Design Choice 2); when the catalog is unavailable for a required source it returns a `RiskItem` at `RiskLevel.VeryHigh` with category `CriteriaUnavailable`, so the assessment cannot silently pass (fail closed). The engine's fault isolation does not hide this because it is a value, not an exception.
-4. The engine and the six built-in criteria are unchanged.
+1. `DPIACriteriaCatalog.cs` (`internal sealed`, implements the public `IDPIACriteriaCatalog`; the public surface is the interface, `DPIACriteriaSnapshot` and the model records): holds an immutable `DPIACriteriaSnapshot` in a volatile field; `void Replace(DPIACriteriaSnapshot)`. With no source configured the catalog is available and empty (`IsAvailable = true`).
+2. `ConfiguredCriteriaSource.cs` (new, `internal sealed record`): `Name`, `Origin`, `IsRequired` and a factory that resolves the `IDPIACriteriaProvider` from the service provider; one instance per `LoadCriteriaFrom*` call, registered by Phase 4.
+3. `DPIACriteriaLoadingService.cs` (`internal sealed`, like `DPIAReviewReminderService`, a `BackgroundService`): loads all sources at start, then every `RefreshInterval` while greater than zero. Constructor `(IEnumerable<ConfiguredCriteriaSource>, IDPIACriteriaCatalog, IOptionsMonitor<DPIAOptions>, TimeProvider, ILogger<...>)`. `ExecuteAsync` follows `DPIAReviewReminderService` (`PeriodicTimer`, catch per iteration, `OperationCanceledException` from the stopping token ends the loop). A cycle merges the per-source lists, applies the duplicate rule, applies the failure policy (Design Choice 5) and swaps the snapshot.
+4. `RiskCriteria/LoadedCriteriaRiskCriterion.cs` (`internal sealed`, `IRiskCriterion`): `Name = "LoadedCriteria"`; matches `DPIAContext.HighRiskTriggers` against the snapshot (Design Choice 2); when the catalog is unavailable for a required source it returns a `RiskItem` at `RiskLevel.VeryHigh` with category `CriteriaUnavailable`, so the assessment cannot silently pass (fail closed; Design Choice 5). The engine's fault isolation does not hide this because it is a value, not an exception. When no source is configured the catalog is available and empty, so the criterion returns `null` and an application that did not opt in sees no change (a unit test asserts it).
+5. The engine and the six built-in criteria are unchanged.
 
 </details>
 
@@ -369,7 +394,7 @@ REFERENCE FILES:
 
 1. `DPIAOptions.cs` (modify): `EnableOmnibusArticle35EdpbHarmonisedList` (default `false`, XML docs name the draft article and "off by default"); `RefreshInterval` (default `TimeSpan.Zero`), `MaximumSnapshotAge` (`TimeSpan?`, default `null`), `UriSourceTimeout` (default 30 s); fluent `LoadCriteriaFromJson(string path, Action<CriteriaSourceOptions>? configure = null)`, `LoadCriteriaFromUri(Uri uri, Action<CriteriaSourceOptions>? configure = null)`, `LoadCriteriaFromProvider<TProvider>(Action<CriteriaSourceOptions>? configure = null)`; `CriteriaSourceOptions` has `Name`, `Origin` (default `Custom`), `IsRequired` (default `true`).
 2. `DPIAOptionsValidator.cs` (modify): rules for a blank path, a relative URI, a non-`https` URI that is not loopback, a negative `RefreshInterval`, a non-positive `MaximumSnapshotAge`, duplicate source names, and an `EdpbHarmonisedList` source while the flag is off. Delegate to `ValidateCriteriaSources(options, failures)`.
-3. `ServiceCollectionExtensions.cs` (modify): `TryAddSingleton<IDPIACriteriaCatalog, DPIACriteriaCatalog>`, `TryAddEnumerable` of `LoadedCriteriaRiskCriterion`, source providers registered per configured source, `AddHostedService<DPIACriteriaLoadingService>` only when at least one source is configured (opt-in, pay for what you use), the named `HttpClient` only when a URI source exists.
+3. `ServiceCollectionExtensions.cs` (modify): `TryAddSingleton<IDPIACriteriaCatalog, DPIACriteriaCatalog>`, `TryAddEnumerable` of `LoadedCriteriaRiskCriterion`, one `ConfiguredCriteriaSource` and its provider registered per configured source, `AddHostedService<DPIACriteriaLoadingService>` only when at least one source is configured (opt-in, pay for what you use), the named `HttpClient` only when a URI source exists.
 4. A DI test (Phase 7) builds the provider with `ValidateOnBuild` and `ValidateScopes` for: no source; a JSON source; a URI source; a custom provider.
 
 </details>
@@ -488,7 +513,7 @@ REFERENCE FILES:
 2. **Guard**: public constructors and fluent methods, providers, catalog.
 3. **Contract**: `IDPIACriteriaProvider` contract base against the file, URI and a custom test provider; `IDPIACriteriaCatalog`.
 4. **Property**: JSON round trip of `DPIACriteriaList` (serialize, parse, equal); merge is order-independent when ids are disjoint.
-5. **Integration**: file loading from a temp directory; URI loading against WireMock through `Encina.Testing.WireMock` (success, 500 then 200 with the pipeline, oversized body, loopback `http`); an end-to-end assessment on the Marten fixture (shared `[Collection]`) showing a loaded criterion raises the overall risk.
+5. **Integration**: file loading from a temp directory; URI loading against WireMock through `Encina.Testing.WireMock` (success, 500 then 200 with the pipeline, oversized body, loopback `http`, and a `302` to an `http://` non-loopback URL that is not followed and yields `dpia.criteria_source_unreachable`); an end-to-end assessment on the Marten fixture (shared `[Collection]`) showing a loaded criterion raises the overall risk.
 6. **Load / Benchmark**: `.md` justifications (thin loading path, no concurrency beyond an atomic swap).
 7. **Per-flag targets** (AGENTS.md §9). Baselines are not measured by this plan; the worker measures them with the §9 commands and sets each target at or above the baseline (targets never go down). Planned targets for new files: providers and mapper unit 95, guard 100, contract 100; catalog unit 100, guard 100; loading service unit 90, guard 100 (every branch reachable with a fake clock and fake sources); `LoadedCriteriaRiskCriterion.cs` unit 95, guard 100, contract 100; `DPIAOptionsValidator.cs` unit 95, guard 100, property 90; `DPIAHealthCheck.cs` unit at least the baseline plus the new branches.
 8. **Documentation**: XML docs; `changelog.d/816-dpia-criteria-loader.added.md` (`mechanical-fixer`); package README; DPIA specification page naming the draft article and the unverified numbering (SPEC-002 AC-024); a configuration page with the JSON schema v1 and a failure-behaviour table (`docs-writer`); an ADR only if the maintainer's answers change the architecture; `docs/INVENTORY.md` rows.
@@ -574,7 +599,15 @@ REFERENCE FILES:
 | Tests | ~20 | unit 9, guard 2, contract 2, property 1, integration 3, justifications 2, event-id test update 1 |
 | Documentation and records | 6 | README, specification page, configuration page, changelog fragment, PublicAPI, INVENTORY |
 
-Total about 48 files, above the 15-file limit of one worker PR (AGENTS.md §11). Proposed split into four PRs on #816: **PR A** (Phases 1-2: models, contracts, providers, mapper, with tests: about 14 files); **PR B** (Phase 3: catalog, loading service, data-driven criterion, with tests: about 10 files); **PR C** (Phase 4: options, validator, DI, DI test: about 8 files); **PR D** (Phases 5-6: health check, EventIds, diagnostics, resilience helper, with tests: about 10 files). Documentation goes with the PR of its area. PR B needs PR C only for registration, so the merge order is A, B, C, D.
+Total about 50 files and about 3,300-4,600 lines, above the limits of one worker PR (AGENTS.md §11). Split into five PRs on #816, merged in the order A, B, C, D, E; counts include tests and records (`PublicAPI.Unshipped.txt`, coverage manifest), each PR at most 15 files and 1,500 lines:
+
+| PR | Phases | Files | Lines (est.) | Content |
+|----|--------|------:|-------------:|---------|
+| PR A | 1 and the file source of 2 | 14 | ~1,000 | models (criterion, origin, list, snapshot), `IDPIACriteriaProvider`, `IDPIACriteriaCatalog`, `CriteriaDocumentMapper`, `JsonFileDPIACriteriaProvider`, `DPIAErrors`, `PublicAPI.Unshipped.txt`, manifest; tests: mapper and JSON provider unit, provider contract, property (JSON round trip) |
+| PR B | URI source of 2 and the resilience helper | 9 | ~800 | `UriDPIACriteriaProvider`, `CriteriaResilience`, `Encina.Compliance.DPIA.csproj` (two references), `PublicAPI.Unshipped.txt`, manifest; tests: URI unit (fake handler), WireMock integration (including the `302`), guard, contract extension for the URI provider |
+| PR C | 3 and 6 | 14 | ~1,400 | `DPIACriteriaCatalog`, `ConfiguredCriteriaSource`, `DPIACriteriaLoadingService`, `LoadedCriteriaRiskCriterion`, `EventIdRanges.cs`, `DPIACriteriaLogMessages`, `DPIADiagnostics`, `PublicAPI.Unshipped.txt` (DPIA and `Encina`), manifest; tests: catalog, loading service, criterion, `EncinaEventIdAllocationTests` |
+| PR D | 4 | 11 | ~900 | `CriteriaSourceOptions`, `DPIAOptions`, `DPIAOptionsValidator`, `ServiceCollectionExtensions`, `PublicAPI.Unshipped.txt`, manifest; tests: options and validator unit, DI test, guard, file integration, end-to-end assessment on the Marten fixture |
+| PR E | 5 and 7 (docs) | 10 | ~700 | `DPIAHealthCheck`, manifest; health check unit test; load and benchmark justification `.md` files (2); README, specification page, configuration page, changelog fragment, `docs/INVENTORY.md` |
 
 ---
 
@@ -639,7 +672,7 @@ REFERENCE FILES:
 | 9 | Idempotency | ❌ | Loading is repeatable and side-effect free |
 | 10 | Multi-Tenancy | ❌ | Criteria are the legal list in force for the deployment, global configuration |
 | 11 | Module Isolation | ❌ | Same reason as multi-tenancy |
-| 12 | Audit Trail | ⏭️ | Recording which list version was in force for a DPIA assessment is deferred to the issue file `artifacts/issues/plan-816-dpia-criteria-list-version-audit.md`; the snapshot already carries `listVersion` and `publishedAtUtc` (Design Choice 8) |
+| 12 | Audit Trail | ⏭️ | Defer: recording which list version was in force for a DPIA assessment is the follow-up drafted in `artifacts/issues/plan-816-dpia-criteria-list-version-audit.md`, which the orchestrator opens as an issue before this plan merges (the number then replaces the path here and in Prerequisites); the snapshot already carries `listVersion` and `publishedAtUtc` (Design Choice 8) |
 
 ---
 
@@ -671,7 +704,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer decides Design Choices 4, 5, 6 and 7 when work on #816 starts; the orchestrator records them in a "Maintainer Decisions" section, updates each Chosen Option, then runs `adversarial-reviewer` on Choices 1, 2, 3 and 8.
+1. The maintainer decides Design Choices 4, 5, 6, 7 and 9 when work on #816 starts; the orchestrator records them in a "Maintainer Decisions" section, updates each Chosen Option, then runs `adversarial-reviewer` on Choices 1, 2, 3 and 8.
 2. Open the issue file above (`open-issue` skill) and link it here and from #816.
 3. Link this plan from #816, then start PR A in a worktree (`worker-brief` skill) with the local CRAP table required in the brief.
 4. Re-verify the draft article numbering and whether the EDPB publishes a machine-readable format within 30 days of any publication of COM(2025) 837 (SPEC-002 AC-025); then open the mapper issue for that format.
