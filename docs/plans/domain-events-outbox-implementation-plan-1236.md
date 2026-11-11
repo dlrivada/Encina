@@ -3,7 +3,7 @@
 > **Issue**: [#1236](https://github.com/dlrivada/Encina/issues/1236) (SPEC-002 P-34, REQ-043, AC-039, scenario S1; parent [#1186](https://github.com/dlrivada/Encina/issues/1186))
 > **Type**: Feature
 > **Complexity**: High (one opt-in mode, four different transaction-enlistment mechanisms across the 10 providers)
-> **Estimated Scope**: ~900-1,300 lines of production code + ~2,500-3,200 lines of tests; ~10 new and ~22 modified production files (split into 3 pull requests, see Next Steps)
+> **Estimated Scope**: ~900-1,300 lines of production code + ~2,500-3,200 lines of tests; ~10 new and ~22 modified production files (split into 6 pull requests, see Next Steps)
 
 ---
 
@@ -59,8 +59,8 @@ SPEC-002 REQ-043, AC-039, S1; transactional outbox pattern (at-least-once publis
 
 ### Chosen Option: **A — a `Delivery` mode on `DomainEventsOptions`**
 
-**Class:** Settled
-**Settled by:** issue #1236 comment ("Opt-in mode, as proposed"), AGENTS.md section 3 (every messaging pattern is optional and disabled by default)
+**Class:** Trivial
+**Settled by:** the issue #1236 comment ("Opt-in mode, as proposed") and AGENTS.md section 3 (every messaging pattern is optional and disabled by default) settle only that the mode is opt-in and that in-process stays the default; the shape (an enum on `DomainEventsOptions`) is this plan's own design. Option B (a separate flag) is the alternative the maintainer could prefer; it is one options property either way.
 
 ### Rationale
 
@@ -108,7 +108,7 @@ SPEC-002 REQ-043, AC-039, S1; transactional outbox pattern (at-least-once publis
 ### Rationale
 
 - The event is written with its runtime type like every outbox notification; P-19 later replaces the type name inside the factory and the serializer, with no change in this plan's code.
-- The event's own id (when `IDomainEvent` exposes one) becomes the outbox row id, so a retried flush cannot create a second row; this is checked in Phase 1 against `Encina.DomainModeling`.
+- Idempotency of a retried flush is not delivered here: `OutboxWriter.WriteAsync` creates every row with `Guid.NewGuid()` (`OutboxWriter.cs:66`) and takes an `INotification`, and a repeated primary key would throw rather than create nothing. `IDomainEvent.EventId` exists (`src/Encina.DomainModeling/IDomainEvent.cs:28`) but is not used as the row id; P-18 owns deduplication. A retry after a rollback simply flushes again, so no committed duplicate exists.
 
 </details>
 
@@ -153,6 +153,28 @@ SPEC-002 REQ-043, AC-039, S1; transactional outbox pattern (at-least-once publis
 
 </details>
 
+<details>
+<summary><strong>6. Tenant on the outbox rows — how AC-043 is met</strong></summary>
+
+### Options Considered
+
+`IOutboxMessage` has no tenant member on main (`src/Encina.Messaging/Outbox/IOutboxMessage.cs`), so rows do not carry the tenant today.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Add a nullable `TenantId` to the outbox row on all 10 providers (SQL scripts for ADO and Dapper, EF entity and configuration, Mongo document), set from `IRequestContext.TenantId`** | The row is queryable and purgeable per tenant; AC-043 met literally | Provider-dependent change to the outbox of 10 providers, its own pull request (sub-issue (c) below) |
+| **B) Carry the tenant inside the serialized event payload (events implement a tenant-carrying contract)** | No schema change | Relies on every event type exposing the tenant; not queryable |
+| **C) Defer the tenant to the issue that adds it to the outbox generally** | This plan stays small | AC-043 is not met by this plan |
+
+### Chosen Option: **A — nullable `TenantId` on the outbox row** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A because AC-043 and AGENTS.md section 6 function 10 require stored data to carry the tenant, and A is the only option that makes it queryable.
+- B wins if the maintainer prefers no outbox schema change; C wins if tenancy of the outbox is to be planned once for all patterns.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -165,10 +187,10 @@ SPEC-002 REQ-043, AC-039, S1; transactional outbox pattern (at-least-once publis
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.Messaging/DomainEvents/DomainEventDelivery.cs` — enum `InProcess = 0`, `Outbox = 1`; `DomainEventsOptions.Delivery` property.
-2. `src/Encina.Messaging/DomainEvents/DomainEventOutboxWriter.cs` — `WriteAsync(IReadOnlyCollection<INotification> events, ct)` returning `Either<EncinaError, int>`; requires an active lease from `ITransactionLeaseSource` (else `domain_events.transaction_required`); uses `OutboxWriter`; one row per event; the event id is the row id when available.
+2. `src/Encina.Messaging/DomainEvents/DomainEventOutboxWriter.cs` — `WriteAsync(IReadOnlyCollection<INotification> events, ct)` returning `Either<EncinaError, int>`; requires an active lease from `ITransactionLeaseSource` (else `domain_events.transaction_required`); uses `OutboxWriter`; one row per event; the row id is the one `OutboxWriter` generates (Design Choice 3). `DomainEventOutboxWriter` lives in `Encina.Messaging`, the assembly of the `internal` `OutboxWriter`, so it can call it.
 3. `src/Encina.Messaging/DomainEvents/DomainEventOutboxOptionsValidator.cs` — fails start-up when `Delivery = Outbox` and `UseOutbox` is false (Design Choice 4).
 4. `src/Encina.Messaging/DomainEvents/DomainEventErrors.cs` — `domain_events.transaction_required`, `domain_events.not_notification`, `domain_events.write_failed`.
-5. `src/Encina.DomainModeling/IUnitOfWork.cs` (modify) — a `TrackAggregate`-style member (name fixed in the implementation pull request; PublicAPI updated); `IDomainEventCollector` reused to drain events.
+5. `src/Encina.DomainModeling/IUnitOfWork.cs` (modify) — adds `void TrackAggregate(IAggregateRoot aggregate)`, the same name and signature as `IDomainEventCollector.TrackAggregate` (`src/Encina.DomainModeling/IDomainEventCollector.cs:67`); it is a breaking change for every `IUnitOfWork` implementer, accepted pre-1.0, and part of the cost of Design Choice 2 (PublicAPI updated); `IDomainEventCollector` reused to drain events.
 6. `src/Encina.Messaging/MessagingConfiguration.cs` (modify) — expose the `Delivery` setting through `DomainEventsOptions`.
 
 </details>
@@ -214,6 +236,7 @@ REFERENCE FILES:
 1. `src/Encina.EntityFrameworkCore/DomainEvents/DomainEventDispatcherInterceptor.cs` (modify) — in `Outbox` mode, `SavingChanges` and `SavingChangesAsync` add one `OutboxMessage` per collected event to the same `DbContext` (the same `SaveChanges`, so the same implicit or explicit transaction); `SavedChanges` skips publishing; events are cleared after the save succeeds.
 2. `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs` (modify) — `RegisterDomainEvents` reads `Delivery`, registers the validator.
 3. Events whose type is not an `INotification` return `domain_events.not_notification` (as `RequireINotification` does today).
+4. The outbox rows are entities of the same `DbContext`, so the context must map them (`OutboxMessageConfiguration`, applied when `UseOutbox` is on). `DomainEventOutboxOptionsValidator` therefore checks `UseOutbox` and, at first use, that the context model contains `OutboxMessage`; a missing mapping returns `domain_events.outbox_not_mapped`. A DI test and an integration test cover it.
 
 </details>
 
@@ -369,8 +392,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Tenant: the outbox rows carry the tenant like any outbox row written by the request context; a two-tenant test shows tenant A's events are never written under tenant B.
-2. Idempotency: the event id as row id (Design Choice 3); P-18 consumes it later.
+1. Tenant: `IOutboxMessage` has no tenant member on main (the only tenant mention in the outbox is `tenantId: null` in `OutboxBatchProcessor.cs:329`), so how the tenant is carried is Design Choice 6; the two-tenant test (AC-043) is written against the chosen option.
+2. Idempotency: not delivered here (Design Choice 3); P-18 owns it.
 3. Validation: `DomainEventOutboxOptionsValidator` (Phase 1).
 
 </details>
@@ -388,8 +411,8 @@ TASK:
 Add the tenancy and idempotency behaviour and their tests.
 
 KEY RULES:
-- The tenant id comes from the request context; with tenancy off a fixed default tenant applies.
-- A repeated flush of the same event never creates a second row.
+- The tenant is carried as decided in Design Choice 6.
+- A rolled-back flush leaves no row; deduplication of a retried flush belongs to P-18.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Outbox/OutboxWriter.cs
@@ -591,7 +614,7 @@ IMPLEMENTATION OVERVIEW:
 3. ADO x3 and Dapper x3: unit of work flushes tracked events before commit through IDbTransactionAccessor.
 4. MongoDB: flush through the session; standalone fails closed.
 5. DI and configuration for all families; startup validation (Outbox mode requires UseOutbox).
-6. Tenant and idempotency (event id as row id).
+6. Tenant (Design Choice 6); idempotency is deferred to P-18.
 7. EventIds 5700-5749, diagnostics.
 8. Tests on every flag across the 10 providers.
 9. Docs, ADR, changelog, PublicAPI, build, coverage, CRAP.
@@ -627,8 +650,8 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ | No call to an external system; delivery retries belong to the outbox processor |
 | 7 | Distributed Locks | ❌ | No shared state updated by concurrent hosts; the outbox processor already claims rows |
 | 8 | Transactions | ✅ | The whole point: event rows share the state change's transaction (Phases 2 to 4) |
-| 9 | Idempotency | ✅ | The event id is the outbox row id, so a retried flush creates no second row (Design Choice 3; P-18 builds on it) |
-| 10 | Multi-Tenancy | ✅ | Rows carry the tenant of the request context; fixed default tenant when tenancy is off (Phase 6, AC-043) |
+| 9 | Idempotency | ⏭️ | Defer: deduplication of a retried flush is owned by P-18 (Design Choice 3); a rolled-back flush leaves no row |
+| 10 | Multi-Tenancy | ✅ | The tenant is carried as decided in Design Choice 6 (Phase 6, AC-043) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ❌ | No compliance-relevant operation beyond those already audited |
 
@@ -642,7 +665,7 @@ REFERENCE FILES:
 | #718 Transactional outbox atomicity | merged | The lease and the fail-closed model are reused |
 | P-19 Stable message type names | open | Not blocking; replaces the type name inside the factory later (Design Choice 3) |
 | #1164 Persisted request context | open | Not blocking; same seam |
-| P-18 Per-handler completion | open | Not blocking; consumes the event id as idempotency key |
+| P-18 Per-handler completion | open | Not blocking; owns deduplication of a retried flush (this plan does not use the event id as the row id) |
 | #2988 MongoDB transaction pipeline behavior | open (`needs-decision`) | Independent: this plan flushes inside the unit of work's own transaction, not through a pipeline behavior |
 | P-25 Reference scenario (S1) | open | Verifies this feature end to end |
 | Plans #1234, #1235, #1238 | this family | EventId block 5700-5749 reserved here |
@@ -651,6 +674,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer decides Design Choices 2 and 4 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
-2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into three pull requests: (a) Phases 1, 5 and 7 (core writer, validation, DI, diagnostics) with the EF Core mode of Phase 2; (b) Phase 3 for the six ADO and Dapper providers; (c) Phase 4 for MongoDB with the remaining integration, property and documentation work.
+1. The maintainer decides Design Choices 2, 4 and 6 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
+2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into six pull requests, each at most 15 files and 1500 changed lines (sizes are estimates, re-measured when each sub-issue is written): (a1) Phase 1 core writer, options, validator, errors and the unit-of-work tracking hook, about 12 files with tests; (a2) Phases 5 and 7 (DI and configuration, EventId registration, diagnostics), about 8 files; (a3) Phase 2 EF Core mode with its mapping validation, about 8 files; (b) Phase 3 for the six ADO and Dapper providers, about 14 files with tests (the six unit-of-work classes plus DI and integration tests); (c) Phase 4 for MongoDB with the remaining integration, property and documentation work (about 12 files); (d) the tenant column on the outbox row for the 10 providers if Design Choice 6 is A, which is its own pull request.
 3. Link this plan from #1236 and start sub-issue (a) with an `issue-worker`.
