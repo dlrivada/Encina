@@ -3,7 +3,7 @@
 > **Issue**: [#1235](https://github.com/dlrivada/Encina/issues/1235) (SPEC-002 P-33, REQ-041, AC-039, AC-043, scenario S12; parent [#1186](https://github.com/dlrivada/Encina/issues/1186))
 > **Type**: Feature
 > **Complexity**: Very High (a core package, four channel satellites, a delivery-status store on the 10 database providers, consent and outbox integration)
-> **Estimated Scope**: ~3,500-4,500 lines of production code + ~5,000-6,500 lines of tests; ~70 new and ~25 modified production files (split into 8 pull requests, see Next Steps)
+> **Estimated Scope**: ~3,500-4,500 lines of production code + ~5,000-6,500 lines of tests; ~70 new and ~25 modified production files (split into 11 pull requests, see Next Steps)
 
 ---
 
@@ -85,6 +85,7 @@ LSSI-CE (Ley 34/2002) art. 21 (commercial communications, art. 21.2 existing-cli
 - We recommend A because `HasValidConsentAsync(subject, purpose)` exists (`IConsentService.cs:189`) and the gate is the only place that knows the convention; P-11 replaces one class.
 - The gate decides by message class (`NotificationClass.Transactional` needs no marketing consent; `Commercial` needs consent for the purpose and channel, or the existing-client basis of LSSI art. 21.2 for e-mail and equivalent electronic messages). The existing-client basis is an explicit `CommercialBasis.ExistingClient` supplied by the caller and is audited.
 - B wins if the maintainer prefers to avoid a temporary string convention.
+- Cost of A: a purpose containing `:` would collide with the separator (`"a:b"` plus channel versus `"a"` plus `"b:channel"`). The gate (and the purpose validator) rejects a purpose that contains `:`, which is one more constraint on callers until P-11.
 
 </details>
 
@@ -107,7 +108,7 @@ LSSI-CE (Ley 34/2002) art. 21 (commercial communications, art. 21.2 existing-cli
 ### Rationale
 
 - The delivery row stores no content and no recipient address, only an opaque recipient reference, the channel, the class, the status (`Queued`, `Sent`, `Delivered`, `Failed`), timestamps and the dedup key (REQ-018). The outbox row holds the payload and is purged by the outbox purge of P-12.
-- Quiet hours are evaluated per tenant in the tenant's time zone (`TimeZoneInfo`, `TimeProvider`); a message inside quiet hours is scheduled for the end of the window through the Encina scheduling store, never dropped.
+- Quiet hours are evaluated per tenant in the tenant's time zone (`TimeZoneInfo`, `TimeProvider`); a message inside quiet hours is deferred to the end of the window, never dropped. Which path carries the deferred message and how it stays atomic with its `Queued` delivery row is Design Choice 7 (`IScheduledMessageStore` does not use `ITransactionLeaseSource`, so joining the lease is not established).
 - Errors follow AGENTS.md section 3: a `Left` from the store, the gate or the channel fails the operation; transient provider failures are retried by the outbox, non-transient ones (`invalid recipient`, rejected template) go to the dead letter store and mark the delivery `Failed`.
 
 </details>
@@ -129,6 +130,8 @@ LSSI-CE (Ley 34/2002) art. 21 (commercial communications, art. 21.2 existing-cli
 
 - We recommend A because SPEC-002 H-R28 and H-R33 require an Art. 28 contract and a documented transfer basis for each processor; one EU-hosted vendor minimises both. The choice is behind `INotificationChannel`, so another vendor is one class.
 - B wins when deliverability tooling or an existing contract matters more than the number of processors. C wins when the application already runs on AWS.
+- The issue comment of 2026-10-17 says the HTTP vendors are a plan detail needing no maintainer decision; this plan still lists the choice as a Dilemma because asking is safe and the vendor carries processor-contract consequences. The maintainer may answer "plan detail" and the recommendation stands.
+- The claim that one EU-hosted vendor offers transactional e-mail and SMS under one DPA is unverified in this plan; verifying it (DPA, hosting region, API terms) is a gate before coding the satellites.
 - The plan fixes constraints, not a market study: the implementer verifies the vendor's current DPA, hosting region and API terms before coding, and the README states them.
 
 </details>
@@ -175,6 +178,47 @@ LSSI-CE (Ley 34/2002) art. 21 (commercial communications, art. 21.2 existing-cli
 
 - The default reads `NotificationsOptions.Tenants`; a production application registers a provider backed by `ISecretReader` of `Encina.Security.Secrets`.
 - Tenant resolution copies the decision table of `DefaultConsentService` (`RequireTenantContext`, ambient tenant, fixed default tenant when tenancy is off).
+
+</details>
+
+<details>
+<summary><strong>7. Quiet hours — which store carries the deferred message and how it stays atomic with its delivery row</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The delivery row is inserted as `Queued` with a `NotBeforeUtc`; the `SendNotificationCommand` is written to `IScheduledMessageStore` for `NotBeforeUtc`; the insert and the scheduling are idempotent by the dedup key, and the handler treats a missing row as a retryable error** | Uses the scheduling store built for delayed domain messages; no outbox change | Two stores are not one transaction (`IScheduledMessageStore` does not use `ITransactionLeaseSource`); atomicity is by idempotent retry |
+| **B) Write the command to the outbox now and let the handler re-defer itself until `NotBeforeUtc`** | One store, one lease, atomic with the row | The handler loops until the window opens; extra outbox cycles |
+| **C) Add lease support to `IScheduledMessageStore`** | True atomicity | Changes `Encina.Messaging` for 10 providers; out of this plan |
+
+### Chosen Option: **A — scheduling store with idempotent retry** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A: AGENTS.md section 3 names Scheduling for delayed messages; the failure window (row written, scheduling failed) returns a `Left` to the caller, who retries with the same dedup key.
+- B wins if the maintainer wants single-transaction atomicity without touching the scheduling store.
+
+</details>
+
+<details>
+<summary><strong>8. Writing to the outbox — which public seam <code>Encina.Notifications</code> calls</strong></summary>
+
+### Options Considered
+
+`OutboxWriter` is `internal sealed` (`src/Encina.Messaging/Outbox/OutboxWriter.cs:15`) and cannot be used from `Encina.Notifications`.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Public `OutboxOrchestrator.AddAsync<T>` (`src/Encina.Messaging/Outbox/OutboxOrchestrator.cs:87`), returning `Either<EncinaError, Unit>`** | Public today; no change to `Encina.Messaging` | Couples to the orchestrator type |
+| **B) `IOutboxStore.AddAsync` with `IOutboxMessageFactory` and `IMessageSerializer`** | Fully public lowest level | Rebuilds the writer |
+| **C) Make a writer public in `Encina.Messaging` with PublicAPI lines** | One seam shared with the #1234 plan | Public API growth |
+
+### Chosen Option: **A — `OutboxOrchestrator.AddAsync<T>`** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A: it is public and returns an `Either`, so a `Left` fails the send (AGENTS.md section 3). The #1234 plan has the same choice; both follow the maintainer's answer.
 
 </details>
 
@@ -242,7 +286,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Services/DefaultNotificationSender.cs` — implements `INotificationSender` (constructor: `INotificationDeliveryStore`, `INotificationConsentGate`, `INotificationTenantSettings`, `QuietHoursEvaluator`, `OutboxWriter`, `ITransactionLeaseSource`, `TimeProvider`, `IOptions<NotificationsOptions>`): dedup, gate, quiet hours, outbox, all in one lease.
+1. `Services/DefaultNotificationSender.cs` — implements `INotificationSender` (constructor: `INotificationDeliveryStore`, `INotificationConsentGate`, `INotificationTenantSettings`, `QuietHoursEvaluator`, `OutboxOrchestrator` (Design Choice 8), `IScheduledMessageStore` (Design Choice 7), `ITransactionLeaseSource`, `TimeProvider`, `IOptions<NotificationsOptions>`): dedup, gate, quiet hours, outbox, all in one lease.
 2. `Services/DefaultNotificationConsentGate.cs` — Design Choice 2; transactional bypasses marketing consent; commercial requires consent for `"{purpose}:{channel}"` or `CommercialBasis.ExistingClient`.
 3. `Services/QuietHoursEvaluator.cs` — pure: `(DateTimeOffset nowUtc, TimeZoneInfo zone, QuietHours window)` returns `DateTimeOffset? deferUntilUtc`; handles windows crossing midnight and DST.
 4. `Services/SimpleTemplateRenderer.cs` — `{{name}}` substitution from a registered template set; appends the opt-out text and link to commercial messages (LSSI art. 21.2); unknown template returns `notifications.template_unknown`.
@@ -274,7 +318,7 @@ KEY RULES:
 - One private method per step so every changed method has CRAP <= 10.
 
 REFERENCE FILES:
-- src/Encina.Messaging/Outbox/OutboxWriter.cs and OutboxOrchestrator.cs
+- src/Encina.Messaging/Outbox/OutboxOrchestrator.cs
 - src/Encina.Compliance.Consent/Services/DefaultConsentService.cs
 - src/Encina/Recoverability/ (IErrorClassifier)
 ```
@@ -377,7 +421,8 @@ REFERENCE FILES:
 2. `src/Encina.Notifications.MailApi/` — vendor channel (Design Choice 4) over `IHttpClientFactory`, webhook mapper with signature check (Design Choice 5).
 3. `src/Encina.Notifications.Sms/` — same shape for SMS.
 4. `src/Encina.Notifications.WhatsApp/` — WhatsApp Cloud API (template messages, `X-Hub-Signature-256` webhook, verification handshake).
-5. Each satellite: `PublicAPI.*.txt`, `README.md` (processor contract, hosting region, transfer basis), `Directory.Packages.props` entry for any new package (MailKit).
+5. Webhook route mapping lives in each satellite as a `MapXxxWebhook(this IEndpointRouteBuilder, string policyOrSignatureScheme)` extension (shape of `src/Encina.AspNetCore/DPIAEndpointExtensions.cs`); the satellite references ASP.NET Core through `<FrameworkReference Include="Microsoft.AspNetCore.App" />` and not `Encina.AspNetCore`, so the core stays free of it. SMTP has no webhook.
+6. Each satellite: `PublicAPI.*.txt`, `README.md` (processor contract, hosting region, transfer basis), `Directory.Packages.props` entry for any new package (MailKit).
 
 </details>
 
@@ -589,7 +634,7 @@ REFERENCE FILES:
 
 | Component | Location | Use in this feature |
 |-----------|----------|---------------------|
-| `OutboxWriter`, `OutboxOrchestrator`, `IOutboxStore` | `src/Encina.Messaging/Outbox/` | Reliable delivery and retries |
+| `OutboxOrchestrator`, `IOutboxStore` | `src/Encina.Messaging/Outbox/` | Reliable delivery and retries |
 | `IDeadLetterStore`, `IErrorClassifier`, `RetryAfterParser` | `src/Encina.Messaging/DeadLetter/`, `src/Encina/Recoverability/` | Non-transient failures, HTTP retry classification |
 | `IConsentService` | `src/Encina.Compliance.Consent/Abstractions/IConsentService.cs:189` | Default consent gate |
 | `DefaultConsentService` tenant decision table | `src/Encina.Compliance.Consent/Services/DefaultConsentService.cs:121-128` | `NotificationTenantResolver` |
@@ -664,7 +709,7 @@ KEY PATTERNS:
 - Integration tests on shared [Collection] fixtures; every flag reaches its target; CRAP <= 10.
 
 REFERENCE FILES:
-- src/Encina.Messaging/Outbox/OutboxWriter.cs, OutboxOrchestrator.cs
+- src/Encina.Messaging/Outbox/OutboxOrchestrator.cs
 - src/Encina.Compliance.Consent/Abstractions/IConsentService.cs
 - src/Encina.Security.Secrets.AzureKeyVault/ (satellite layout)
 - src/Encina/Recoverability/ (error classification, Retry-After)
@@ -712,7 +757,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer decides Design Choices 2 and 4 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
-2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into eight pull requests: (a) Phases 1-2 and the core diagnostics; (b) Phase 3 and the ADO providers; (c) the Dapper providers; (d) EF Core, MongoDB and schemas; (e) the SMTP satellite; (f) the HTTP mail API satellite; (g) the SMS satellite; (h) the WhatsApp satellite. Each PR carries its own tests, manifest entries and README.
+1. The maintainer decides Design Choices 2, 4, 7 and 8 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
+2. The feature exceeds one worker pull request (15 files, 1500 lines). The core alone is about 30 files plus tests, so the split is eleven pull requests, each at most 15 files and 1500 changed lines (sizes are estimates, re-measured when each sub-issue is written): (a1) Phase 1 model and abstractions, about 12 files with tests; (a2) Phase 2 services, templates, quiet hours and in-memory store, about 14 files; (a3) diagnostics, health check, audit and EventId registration, about 8 files; (b) Phase 3 and the ADO providers; (c) the Dapper providers; (d1) EF Core and the schemas; (d2) MongoDB; (e) the SMTP satellite, about 9 production files; (f) the HTTP mail API satellite, about 9 production files; (g) the SMS satellite; (h) the WhatsApp satellite. A satellite whose production files, tests, README and `Directory.Packages.props` entry exceed 15 splits tests into a second PR. Each PR carries its own manifest entries.
 3. The orchestrator opens the issue file `artifacts/issues/plan-1235-consent-channel-convention.md` and links it from #1235.
 4. Link this plan from #1235 and start sub-issue (a) with an `issue-worker`.
