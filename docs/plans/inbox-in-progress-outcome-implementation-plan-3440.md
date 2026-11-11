@@ -315,7 +315,7 @@ REFERENCE FILES: AGENTS.md section 6, src/Encina.Messaging/Inbox/InboxPipelineBe
 
 1. **`src/Encina.Messaging/Diagnostics/InboxOutcomeMetrics.cs`** (new, internal static, same shape as `MessagePurgeMetrics`): counter `encina.messaging.inbox.outcome_total` on the `Encina` meter (already added to OpenTelemetry by `AddMeter("Encina")`), tag `outcome` with the three enum names only (bounded, no message id, no tenant).
 2. **`src/Encina.Messaging/Diagnostics/InboxActivitySource.cs`** (modify): `CompleteWithOutcome(Activity?, InboxOutcome)` sets the tag `inbox.outcome`; the existing `inbox.message_id` tag stays as it is today.
-3. **`src/Encina.Messaging/Diagnostics/InboxOutcomeLog.cs`** (new, `[LoggerMessage]` source generator): EventId **5500** `InProgressDuplicate` (Information, message type and correlation id only) and **5501** `OutcomeRecorded` (Debug). Register `MessagingInboxIdempotency = (5500, 5549)` in `src/Encina/Diagnostics/EventIdRanges.cs` first (ADR-021), add `nameof(EventIdRanges.MessagingInboxIdempotency)` to the `Encina.Messaging` entry of `EncinaEventIdAllocationTests.AssemblyRanges`, add the field to `src/Encina/PublicAPI.Unshipped.txt` and run the architecture tests.
+3. **`src/Encina.Messaging/Diagnostics/InboxOutcomeLog.cs`** (new, `[LoggerMessage]` source generator): EventId **5800** `InProgressDuplicate` (Information, message type and correlation id only) and **5801** `OutcomeRecorded` (Debug). Register `MessagingInboxIdempotency = (5800, 5849)` in `src/Encina/Diagnostics/EventIdRanges.cs` first (ADR-021), add `nameof(EventIdRanges.MessagingInboxIdempotency)` to the `Encina.Messaging` entry of `EncinaEventIdAllocationTests.AssemblyRanges`, add the field to `src/Encina/PublicAPI.Unshipped.txt` and run the architecture tests.
 4. The orchestrator calls the metrics and log from one place (the outcome derivation), so the three paths cannot drift.
 
 </details>
@@ -325,11 +325,11 @@ REFERENCE FILES: AGENTS.md section 6, src/Encina.Messaging/Inbox/InboxPipelineBe
 
 ```text
 CONTEXT: ADR-021: register the EventId range first. Messaging 2800-2999 is exhausted (the plans of #718, #1200,
-#1251 and #583 reserved 2961-2992); 5500-6999 was free on 2026-10-10 and 5500 is still unused in EventIdRanges.cs.
-TASK: Register MessagingInboxIdempotency (5500, 5549); write InboxOutcomeLog (5500, 5501), InboxOutcomeMetrics and
+#1251 and #583 reserved 2961-2992); 5500-6999 was free on 2026-10-10 and the family's assigned block 5800-5849 (plan-batch registry, 2026-11-11) is still unused in EventIdRanges.cs.
+TASK: Register MessagingInboxIdempotency (5800, 5849); write InboxOutcomeLog (5800, 5801), InboxOutcomeMetrics and
 the activity tag; map the range to Encina.Messaging in EncinaEventIdAllocationTests; add the PublicAPI line.
 KEY RULES: dimensions are bounded and carry no personal data; EncinaError.Message never reaches a log, tag or
-metric; exceptions go through ForLogging(); pack EventIds sequentially; re-check that 5500 is still free on the
+metric; exceptions go through ForLogging(); pack EventIds sequentially; re-check that 5800 is still free on the
 branch before registering and take the next free block if not.
 REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, src/Encina.Messaging/Diagnostics/MessagePurgeMetrics.cs,
 src/Encina.Messaging/Diagnostics/InboxActivitySource.cs, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs
@@ -412,7 +412,7 @@ changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | SPEC-002 AC-036 | A duplicate arriving while the first delivery is in progress is answered with the configured 200 or 409 and processed once | The in-flight redelivery scenario of Phase 7 on 10 providers (processed once is delivered by #2401) |
 | ADR-001, ADR-006 | Operations return `Either<EncinaError, T>` | In-progress is a typed `Left` |
 | ADR-048 | Inbox record versus business transaction | The outcome never changes where the processed mark commits |
-| ADR-021 | EventId ranges are registered before use | `MessagingInboxIdempotency` (5500-5549) |
+| ADR-021 | EventId ranges are registered before use | `MessagingInboxIdempotency` (5800-5849) |
 | IETF idempotency-key header draft | An in-flight request with the same key is answered 409 | Default of Design Choice 2 (pending the maintainer) |
 
 ### Existing Encina Infrastructure to Leverage
@@ -427,7 +427,7 @@ changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | EncinaAspNetCoreOptions | src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs | gets the option for the in-progress answer (409 or 200) |
 | MessagePurgeMetrics | src/Encina.Messaging/Diagnostics/MessagePurgeMetrics.cs | pattern for the new InboxOutcomeMetrics counter on the Encina meter |
 | InboxActivitySource | src/Encina.Messaging/Diagnostics/InboxActivitySource.cs | gets the inbox.outcome tag |
-| EventIdRanges | src/Encina/Diagnostics/EventIdRanges.cs | new range MessagingInboxIdempotency 5500-5549 |
+| EventIdRanges | src/Encina/Diagnostics/EventIdRanges.cs | new range MessagingInboxIdempotency 5800-5849 |
 | Inbox test harnesses | tests/Encina.IntegrationTests/Messaging/InboxPipelineHarnesses.cs, InboxPipelineScenario.cs | provider matrix of the in-flight redelivery scenario |
 
 Callers of `InboxOrchestrator` to update when `ProcessAsync` changes its return type: `InboxPipelineBehavior`, `MessagingServiceCollectionExtensions` (registration only), `tests/Encina.UnitTests/Messaging/Inbox/InboxOrchestratorTests.cs`, `InboxOrchestratorRetryTests.cs`, `tests/Encina.UnitTests/Messaging/Pipeline/InboxPipelineBehaviorTests.cs`, `tests/Encina.GuardTests/Messaging/Inbox/InboxGuardTests.cs`, `tests/Encina.IntegrationTests/Messaging/InboxRetryScenario.cs`, `DeadLetter/DeadLetterSourcesEndToEndScenario.cs`, `tests/Encina.UnitTests/Messaging/DeadLetter/DeadLetterSourcesCaptureTests.cs`.
@@ -436,7 +436,7 @@ Callers of `InboxOrchestrator` to update when `ProcessAsync` changes its return 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` | **5500-5504** used of the new `MessagingInboxIdempotency` = (5500, 5549) | 5500 `InProgressDuplicate`, 5501 `OutcomeRecorded`; 5502-5504 left for this feature's review fixes. The range is the family's block for inbox idempotency; the plans of #3437, #3441 and #2401 take the next free numbers of it (5505 onward) when they land. `Messaging` 2800-2999 has no free packed block left (2961-2992 are reserved by other plans) |
+| `Encina.Messaging` | **5800-5804** used of the new `MessagingInboxIdempotency` = (5800, 5849) | 5800 `InProgressDuplicate`, 5801 `OutcomeRecorded`; 5802-5804 left for this feature's review fixes. The range is the family's block for inbox idempotency; the other plans of the family take the next free numbers of it (5805 onward) when they land. `Messaging` 2800-2999 has no free packed block left (2961-2992 are reserved by other plans) |
 | `Encina.AspNetCore` | none | The mapper is a pure function; it logs nothing |
 
 ### Estimated File Count
@@ -480,8 +480,8 @@ IMPLEMENTATION OVERVIEW:
    .ProcessAsync returns the result; InboxPipelineBehavior returns .Result (pipeline signature unchanged).
 2. Encina.AspNetCore: InboxInProgressResponse enum + EncinaAspNetCoreOptions property; ProblemDetailsExtensions
    maps inbox.in_progress to 409 with Retry-After or to 200; explicit statusCode still wins.
-3. Observability: InboxOutcomeMetrics counter, inbox.outcome activity tag, InboxOutcomeLog (EventIds 5500, 5501)
-   with the range MessagingInboxIdempotency (5500, 5549) registered first in EventIdRanges.cs.
+3. Observability: InboxOutcomeMetrics counter, inbox.outcome activity tag, InboxOutcomeLog (EventIds 5800, 5801)
+   with the range MessagingInboxIdempotency (5800, 5849) registered first in EventIdRanges.cs.
 4. Tests: unit, guard, contract, integration on all 10 providers (in-flight redelivery); load and benchmark
    justification files; per-flag manifest targets for each touched file.
 5. Docs: XML docs, changelog fragment, docs/messaging/inbox.md, docs/INVENTORY.md, PublicAPI files.
@@ -512,7 +512,7 @@ docs/architecture/adr/048-inbox-record-vs-business-transaction.md, docs/specific
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The replayed answer is the inbox's own cached response (existing), not an `ICacheProvider` concern |
 | 2 | OpenTelemetry | ✅ | `encina.messaging.inbox.outcome_total` counter and the `inbox.outcome` tag on the inbox activity (Phase 6); the `Encina` meter is already added by `Encina.OpenTelemetry` |
-| 3 | Structured Logging | ✅ | `InboxOutcomeLog` EventIds 5500 and 5501 in the new `MessagingInboxIdempotency` range (Phase 6) |
+| 3 | Structured Logging | ✅ | `InboxOutcomeLog` EventIds 5800 and 5801 in the new `MessagingInboxIdempotency` range (Phase 6) |
 | 4 | Health Checks | ⏭️ | A check for rows stuck past their lease needs a new store query on 10 providers and the row state of #2401; follow-up issue file `artifacts/issues/inbox-stuck-claims-health-check.md` (to open after the plan merges) |
 | 5 | Validation | ❌ | No new input: the idempotency key is validated by the existing `ValidateMessageId` |
 | 6 | Resilience | ⏭️ | The vendor's retry schedule is outside Encina; honoring `Retry-After` on the outbound side belongs to the outbound resilience work; no issue needed yet, noted in the inbox guide |
@@ -542,5 +542,5 @@ docs/architecture/adr/048-inbox-record-vs-business-transaction.md, docs/specific
 1. Wait for [#2401](https://github.com/dlrivada/Encina/issues/2401) before opening PR A; re-read its claim result type and adapt Phase 2 to it.
 2. At pick-up: re-check the Design Choices against today's code, ask the maintainer the Dilemmas 2 and 3 (default status, lease-expiry behavior) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
 3. Open the deferred follow-up as an issue: `artifacts/issues/inbox-stuck-claims-health-check.md`.
-4. Confirm the `MessagingInboxIdempotency` range (5500-5549) is still free when PR A starts; coordinate the next free numbers with the plans of #3437, #3441 and #2401.
+4. Confirm the `MessagingInboxIdempotency` range (5800-5849) is still free when PR A starts; coordinate the next free numbers with the plans of #3437, #3441 and #2401.
 5. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
