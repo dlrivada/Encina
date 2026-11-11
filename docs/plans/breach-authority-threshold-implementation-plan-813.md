@@ -55,7 +55,7 @@ None. The feature adds an options property and a pure decision over `BreachSever
 <summary><strong>1. Where the rule lives — a replaceable <code>IBreachAuthorityNotificationPolicy</code></strong></summary>
 
 **Class:** Trivial
-**Settled by:** AGENTS.md section 3 (registration completeness: default services registered with `TryAdd` so the application can replace them); precedent in plan #812 (`IIncidentReportingDeadlinePolicy`, a replaceable policy with an options-driven default)
+**Settled by:** internal structure with no user-visible difference between the options: the rule has three consumers (monitor, health check and, later, the #812 reporting service) that must agree, and one registered service is the smallest way to keep them equal. The `TryAdd` registration follows the registration-completeness rule of AGENTS.md section 3 (an application's own registration wins); the policy interface planned by #812 for deadlines is a sibling design, not a precedent on main.
 
 ### Options Considered
 
@@ -205,7 +205,7 @@ None. The feature adds an options property and a pure decision over `BreachSever
 </details>
 
 <details>
-<summary><strong>8. Per-tenant thresholds — not now, but the contract carries the tenant</strong></summary>
+<summary><strong>8. Per-tenant thresholds — a global threshold, no tenant parameter</strong></summary>
 
 **Class:** Dilemma
 
@@ -213,15 +213,14 @@ None. The feature adds an options property and a pure decision over `BreachSever
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One global threshold; `IBreachAuthorityNotificationPolicy.IsAuthorityNotificationRequired(BreachSeverity severity, string? tenantId = null)` already takes the tenant and ignores it** | Smallest change; adding per-tenant overrides later is not a signature change; the legal regime is a property of the deployment | The tenant argument is unused today |
-| **B) `TenantAuthorityNotificationSeverityThresholds` dictionary override now** | Satisfies SPEC-002 REQ-061 literally ("tenant-aware") | More options, validation and tests for a case with no known user; two tenants of one deployment are under the same law |
-| **C) Global threshold and no tenant parameter** | Simplest contract | A per-tenant override later would be an interface break after 1.0 |
+| **A) One global threshold; the policy has no tenant parameter (`IsAuthorityNotificationRequired(BreachSeverity severity)`, `GetEffectiveThreshold()`)** | Smallest change; no unused API (every line serves a current purpose); the legal regime is a property of the deployment; a tenant parameter is added when a user needs per-tenant thresholds | SPEC-002 REQ-061 ("tenant-aware") is not satisfied literally; a later per-tenant option changes the interface (acceptable pre-1.0) |
+| **B) `TenantAuthorityNotificationSeverityThresholds` dictionary override now, with a `tenantId` parameter that the policy uses** | Satisfies REQ-061 literally | More options, validation and tests for a case with no known user; two tenants of one deployment are under the same law |
 
-### Chosen Option: **A — Global value, tenant-aware signature** (recommended, pending the maintainer)
+### Chosen Option: **A — Global value, no tenant parameter** (recommended, pending the maintainer)
 
 ### Rationale
 
-- I recommend A because it keeps the contract stable at no cost. B wins for a hosting provider that runs controllers under different regimes in one deployment (for example a controller outside the EU that applies only its own rules); then the dictionary is an additive change behind the same interface.
+- We recommend A because nothing today needs a tenant-specific threshold and an unused parameter would be dead API. B wins for a hosting provider that runs controllers under different regimes in one deployment (for example a controller outside the EU that applies only its own rules); then the dictionary and the parameter are added together.
 
 </details>
 
@@ -239,8 +238,8 @@ None. The feature adds an options property and a pure decision over `BreachSever
 All paths are in `src/Encina.Compliance.BreachNotification/`.
 
 1. `BreachNotificationOptions.cs` (modify): add `public BreachSeverity AuthorityNotificationSeverityThreshold { get; set; } = BreachSeverity.Medium;` placed next to `SubjectNotificationSeverityThreshold` (line 181) and `public bool EnableOmnibusArticle33HighRiskThreshold { get; set; }` (default `false`). XML docs name the draft: "Digital Omnibus COM(2025) 837 (draft), GDPR Art. 33(1) as amended per SPEC-002 §3.5; off by default under SPEC-002 REQ-024". Update the `<example>` block.
-2. `Abstractions/IBreachAuthorityNotificationPolicy.cs` (new, public): `bool IsAuthorityNotificationRequired(BreachSeverity severity, string? tenantId = null);` and `BreachSeverity GetEffectiveThreshold(string? tenantId = null);`.
-3. `Services/DefaultBreachAuthorityNotificationPolicy.cs` (new, public sealed): constructor `(IOptionsMonitor<BreachNotificationOptions> options, ILogger<DefaultBreachAuthorityNotificationPolicy> logger)`. `GetEffectiveThreshold` returns `options.CurrentValue.AuthorityNotificationSeverityThreshold`; on `OptionsValidationException` logs by error code and returns `BreachSeverity.Medium` (Design Choice 7). `IsAuthorityNotificationRequired` returns `severity >= GetEffectiveThreshold(tenantId)`. Both methods are straight comparisons: complexity 2 and 1.
+2. `Abstractions/IBreachAuthorityNotificationPolicy.cs` (new, public): `bool IsAuthorityNotificationRequired(BreachSeverity severity);` and `BreachSeverity GetEffectiveThreshold();` (no tenant parameter, Design Choice 8).
+3. `Services/DefaultBreachAuthorityNotificationPolicy.cs` (new, public sealed): constructor `(IOptionsMonitor<BreachNotificationOptions> options, ILogger<DefaultBreachAuthorityNotificationPolicy> logger)`. `GetEffectiveThreshold` returns `options.CurrentValue.AuthorityNotificationSeverityThreshold`; on `OptionsValidationException` logs by error code and returns `BreachSeverity.Medium` (Design Choice 7). `IsAuthorityNotificationRequired` returns `severity >= GetEffectiveThreshold()`. Both methods are straight comparisons: complexity 2 and 1.
 4. `Model/BreachSeverity.cs` (modify): XML docs for `Low` and `Medium` say the authority-notification statement is the current-law default and refer to the policy.
 5. `PublicAPI.Unshipped.txt`: the two properties, the interface (two members), the default policy (type, constructor, two members). Written by `mechanical-fixer`.
 
@@ -288,7 +287,7 @@ REFERENCE FILES:
 
 1. `BreachNotificationOptionsValidator.cs` (modify): after the subject-threshold check (line 83) add three failures: `AuthorityNotificationSeverityThreshold` not a defined enum value; authority threshold greater than `SubjectNotificationSeverityThreshold`; authority threshold greater than `Medium` while `EnableOmnibusArticle33HighRiskThreshold` is `false`. Update the class XML docs list. Keep the method's complexity down by extracting `ValidateAuthorityThreshold(options, failures)`.
 2. `BreachDeadlineMonitorService.cs` (modify): inject `IBreachAuthorityNotificationPolicy` through the scope (the service is a singleton, the policy is a singleton, so constructor injection is fine). In `ExecuteMonitoringCycleAsync` (lines 99-156) filter `approaching` through a private method `SplitByAuthorityRequirement(IReadOnlyList<BreachReadModel>)` returning the breaches that require notification; below-threshold breaches are counted, not warned about. Keep `PublishDeadlineWarningsAsync` for the filtered list only.
-3. `Health/BreachNotificationHealthCheck.cs` (modify, lines 199-215): count overdue and approaching breaches only for breaches that require authority notification; add `data["belowThresholdBreachCount"]`. The health result values contain counts only, never breach content.
+3. `Health/BreachNotificationHealthCheck.cs` (modify, lines 199-215): the policy arrives by a new constructor parameter (the check is registered with `AddCheck<BreachNotificationHealthCheck>` and the policy is a singleton, so no scoped resolution is needed); the guard test and the DI test cover the new parameter. Count overdue and approaching breaches only for breaches that require authority notification; add `data["belowThresholdBreachCount"]`. The health result values contain counts only, never breach content.
 4. `ServiceCollectionExtensions.cs` (modify, near line 90): `services.TryAddSingleton<IBreachAuthorityNotificationPolicy, DefaultBreachAuthorityNotificationPolicy>();`. Update the class XML docs list of registrations. `IOptionsMonitor<>` is registered by `AddOptions`, which the existing `ConfigureOptions` already calls through `services.Configure`; the DI test proves it.
 5. `Services/DefaultBreachNotificationService.cs`: **no change** to `GetApproachingDeadlineBreachesAsync` or `ReportToDPAAsync` (Design Choice 4).
 
@@ -306,7 +305,7 @@ unreported breach as owing a notification.
 TASK:
 1. Extend BreachNotificationOptionsValidator with the three failures of Design Choice 6.
 2. Make BreachDeadlineMonitorService and BreachNotificationHealthCheck consult the policy so that only breaches
-   with IsAuthorityNotificationRequired(breach.Severity, breach.TenantId) == true produce deadline warnings,
+   with IsAuthorityNotificationRequired(breach.Severity) == true produce deadline warnings,
    overdue errors and overdue counts.
 3. Register the policy with TryAddSingleton.
 
@@ -332,7 +331,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Diagnostics/BreachNotificationLogMessages.cs` (modify): three `[LoggerMessage]` entries with EventIds **8792-8794** inside the existing range `ComplianceBreachNotification` (8700-8799, highest used 8791): 8792 policy options invalid (fallback to current law, error code only); 8793 below-threshold breaches skipped in a monitor cycle (count); 8794 Omnibus threshold active (logged once at start-up when `EnableOmnibusArticle33HighRiskThreshold` is `true`). No new range is registered, so `EventIdRanges.cs` and `EncinaEventIdAllocationTests` do not change.
+1. `Diagnostics/BreachNotificationLogMessages.cs` (modify): three `[LoggerMessage]` entries with EventIds **8792-8794** inside the existing range `ComplianceBreachNotification` (8700-8799, highest used 8791): 8792 policy options invalid (fallback to current law, error code only); 8793 below-threshold breaches skipped in a monitor cycle (count); 8794 Omnibus threshold active (logged once by `BreachDeadlineMonitorService.ExecuteAsync` at start, the only singleton with a logger that starts with the host, when `EnableOmnibusArticle33HighRiskThreshold` is `true` and the effective threshold is above `Medium`; it carries the effective threshold's enum name, which is not sensitive). No new range is registered, so `EventIdRanges.cs` and `EncinaEventIdAllocationTests` do not change.
 2. `Diagnostics/BreachNotificationDiagnostics.cs` (modify): counter `breach.authority_notification.below_threshold.total` on the package `Meter`, tag `breach.severity` only.
 3. XML docs: `/// Event IDs: 8792-8794 (see EventIdRanges.ComplianceBreachNotification)`.
 
@@ -374,7 +373,7 @@ REFERENCE FILES:
 
 1. **Unit** (`tests/Encina.UnitTests/Compliance/BreachNotification/`): `DefaultBreachAuthorityNotificationPolicyTests` (each severity against each threshold; fallback to `Medium` on an invalid reload; the **AC-024 test**: default options mean `Medium` and a `Low` breach is not required while `Medium`, `High` and `Critical` are); `BreachNotificationOptionsTests` (defaults: threshold `Medium`, flag `false`); `BreachNotificationOptionsValidatorTests` (the three failures and the valid combinations); `BreachDeadlineMonitorServiceTests` (with `FakeTimeProvider`: a `Low` breach produces no warning, a `Medium` one does under the default, and not under `High`; a threshold change through a test `IOptionsMonitor` takes effect on the next cycle); `BreachNotificationHealthCheckTests` (below-threshold breach not counted as overdue); a DI test building the provider with `ValidateOnBuild` and `ValidateScopes` that resolves `IBreachAuthorityNotificationPolicy`.
 2. **Guard** (`Encina.GuardTests`): constructor of the default policy (null monitor, null logger); the monitor's new constructor parameter.
-3. **Contract** (`Encina.ContractTests`): `IBreachAuthorityNotificationPolicy` contract base run against the default implementation (monotonic in severity; tenant argument accepted).
+3. **Contract** (`Encina.ContractTests`): `IBreachAuthorityNotificationPolicy` contract base run against the default implementation (monotonic in severity).
 4. **Property** (`Encina.PropertyTests`, FsCheck through `Encina.Testing.FsCheck`): monotonicity (if `s1 <= s2` and `s1` is required then `s2` is required, for every threshold); the validator accepts exactly the combinations with `authority <= subject` and, without the flag, `authority <= Medium`.
 5. **Integration**: justification file `tests/Encina.IntegrationTests/Compliance/BreachNotification/AuthorityThreshold.md` (no persistence or provider code is touched; the policy is pure). **Load** and **Benchmark**: `.md` justifications (pure comparison, no concurrency).
 6. **Per-flag targets** for the touched files (AGENTS.md §9). Baselines are not measured by this plan; the worker measures them with the commands in AGENTS.md §9 and sets each target at or above the baseline (targets never go down). Planned targets: new `DefaultBreachAuthorityNotificationPolicy.cs`: unit 95, guard 100, contract 100, property 100 (two tiny methods, every branch reachable by a pure test); `IBreachAuthorityNotificationPolicy.cs`: contract 100; `BreachNotificationOptions.cs`: unit 100 (property defaults); `BreachNotificationOptionsValidator.cs`: unit 95, guard 100, property 90 (three added rules, all pure); `BreachDeadlineMonitorService.cs` and `Health/BreachNotificationHealthCheck.cs`: unit at least the baseline plus the new branches covered.
@@ -494,11 +493,18 @@ REFERENCE FILES:
 | Category | Files | Notes |
 |----------|------:|-------|
 | New production files | 2 | `IBreachAuthorityNotificationPolicy`, `DefaultBreachAuthorityNotificationPolicy` |
-| Modified production files | 6 | options, validator, monitor, health check, DI, log messages and diagnostics (counted as 2) plus `BreachSeverity` docs |
-| Tests | ~9 | unit 5, guard 1, contract 1, property 1, justifications 3 (`.md`) |
-| Documentation and records | 4 | README, feature doc, changelog fragment, PublicAPI lines |
+| Modified production files | 8 | options, validator, monitor, health check, `ServiceCollectionExtensions`, `BreachNotificationLogMessages`, `BreachNotificationDiagnostics`, `BreachSeverity` (docs) |
+| Records | 2 | `PublicAPI.Unshipped.txt`, coverage manifest |
+| Tests | 11 | unit 5 (policy with the DI test and the AC-024 test, options, validator, monitor, health check), guard 1, contract 1, property 1, integration/load/benchmark justifications 3 (`.md`) |
+| Documentation | 4 | README, feature doc, changelog fragment, specification row (#1208) |
 
-Total about 24 files, above the 15-file limit of one worker PR (AGENTS.md §11). Proposed split: **PR A** (Phases 1 to 4: 2 new and 7 modified production files, PublicAPI, and the tests, grouped by flag) and **PR B** (Phase 5: README, feature page, changelog fragment, specification row). If PR A alone passes 15 files, move the guard, contract and property tests into a follow-up PR on the same issue.
+Total 27 files, above the 15-file limit (AGENTS.md §11); the monitor is touched in two PRs. Split (counts include tests; each PR at most 15 files and 1,500 lines):
+
+| PR | Phases | Files | Lines (est.) | Content |
+|----|--------|------:|-------------:|---------|
+| PR A | 1 and 2 | 15 | ~900 | 2 new production files; 6 modified (options, validator, monitor, health check, `ServiceCollectionExtensions`, `BreachSeverity` docs); `PublicAPI.Unshipped.txt`, manifest; 5 unit test files |
+| PR B | 3 and 4 (rest) | 10 | ~700 | `BreachNotificationLogMessages`, `BreachNotificationDiagnostics`, `BreachDeadlineMonitorService` (emits the counter and 8792-8794); manifest; guard, contract and property tests (3); three justification `.md` files |
+| PR C | 5 | 4 | ~200 | README, feature doc, changelog fragment, specification row (when #1208 exists) |
 
 ---
 
@@ -560,9 +566,9 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | No shared mutable state; the policy is stateless |
 | 8 | Transactions | ❌ | No write; the decision is not persisted (Design Choice 2) |
 | 9 | Idempotency | ❌ | Pure function of severity and options |
-| 10 | Multi-Tenancy | ⏭️ | The policy signature carries `tenantId` (Design Choice 8); per-tenant overrides are deferred and need no interface change; issue file `artifacts/issues/plan-813-breach-authority-decision-event.md` covers the stream record, and a per-tenant override issue is opened only if the maintainer picks B of Design Choice 8 |
+| 10 | Multi-Tenancy | ⏭️ | Defer: the threshold is global (Design Choice 8, recommended A); a per-tenant override is added with its parameter only if the maintainer picks B, in an issue opened then |
 | 11 | Module Isolation | ❌ | Global configuration; no module scoping needed |
-| 12 | Audit Trail | ⏭️ | Recording the threshold in force and the decision on the breach stream (GDPR Art. 33(5)) is deferred to the issue file `artifacts/issues/plan-813-breach-authority-decision-event.md` (Design Choice 5) |
+| 12 | Audit Trail | ⏭️ | Defer: recording the threshold in force and the decision on the breach stream (GDPR Art. 33(5)) is the follow-up issue drafted in `artifacts/issues/plan-813-breach-authority-decision-event.md` (Design Choice 5); the orchestrator opens it before this plan merges and the issue number replaces the file path here |
 
 ---
 
