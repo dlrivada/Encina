@@ -96,10 +96,11 @@ Deliverables, from the issue:
 | **B) An image model generates concepts, the maintainer picks and a designer cleans up the vector** | Fast first concepts | Unclear copyright of a generated image, and raster output must be redrawn as clean SVG before it can scale to 16x16 |
 | **C) Commission an external designer** | Professional result | Cost and delay; the issue gives no budget |
 
-### Chosen Option: **A — the maintainer or a designer they choose authors the SVG** (recommended, pending the maintainer)
+### Chosen Option: **A — the maintainer or a designer they choose authors the SVG**; decided 2026-11-11: the mark is a temporary, simple vector made with AI assistance within the plan's technical constraints, and a help-wanted issue invites a designer to refine it later by replacing the files in place
 
 ### Rationale
 
+- The project has no designer today, so the temporary mark is made with AI assistance; the help-wanted issue keeps the path to a designer-authored mark open, and the files are replaced in place without changing their paths.
 - Option A keeps the rights to the mark unambiguous for a logo that every package carries.
 - Option B wins if the maintainer wants options to react to before drawing anything; the concepts would then stay out of the repository and only the redrawn vector is committed.
 - Option C wins if no one on the project can draw the vector.
@@ -335,3 +336,7 @@ REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md, docs/as
 1. When work on #103 starts, ask the maintainer Design Choices 3 (who authors the artwork) and 4 (icon first or one pull request), and record the answers in a last section, `Maintainer Decisions`.
 2. Write the worker brief for PR 1 once the SVG sources exist; a worker only places and verifies them.
 3. After PR 1 merges, tell #102 that its Phase 5 can start, and comment on #103 with the link to this plan.
+
+## Maintainer Decisions
+
+**D3** (2026-11-11): temporary AI-assisted vector mark now; a help-wanted issue asks a contributor with design skills to refine it, replacing the files in place.
