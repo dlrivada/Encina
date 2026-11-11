@@ -3,7 +3,7 @@
 > **Issue**: [#1234](https://github.com/dlrivada/Encina/issues/1234) (SPEC-002 P-32, REQ-040, AC-039, AC-043, scenarios S10 and S20; parent [#1186](https://github.com/dlrivada/Encina/issues/1186))
 > **Type**: Feature
 > **Complexity**: Very High (new package, a new store on the 10 database providers, a lock-protected refresh, an outbox notification, an ASP.NET Core helper)
-> **Estimated Scope**: ~2,400-3,000 lines of production code + ~3,500-4,500 lines of tests; ~45 new and ~25 modified production files (split into 5 pull requests, see Phase 0 of Next Steps)
+> **Estimated Scope**: ~2,400-3,000 lines of production code + ~3,500-4,500 lines of tests; ~45 new and ~25 modified production files (split into 8 pull requests, see Phase 0 of Next Steps)
 
 ---
 
@@ -18,9 +18,9 @@ A practice reaches calendar and mail APIs over OAuth on behalf of each tenant (S
 | Package | `src/Encina.Security.OAuth` does not exist; no OAuth client code in `src/` | directory listing of `src/` |
 | Field encryption | `IFieldEncryptor` encrypts a string with an `EncryptionContext` and returns `EncryptedValue` | `src/Encina.Security.Encryption/Abstractions/IFieldEncryptor.cs:36`, `:48`, `:63` |
 | Column-level encryption (P-46) | Planned only (SPEC-002 REQ-055, #1250); no `EncryptedField` type in `Encina.Security.Encryption` | `docs/specifications/SPEC-002-eu-regulatory-readiness.md:377` |
-| Distributed lock | `TryAcquireAsync(resource, expiry, wait, retry, ct)` returns a disposable handle or `null` | `src/Encina.DistributedLock/IDistributedLockProvider.cs:53`, `:77` |
+| Distributed lock | `TryAcquireAsync(resource, expiry, wait, retry, ct)` returns a disposable handle or `null` (`null` conflates contention and fault; ADR-052 moves it to `Either<EncinaError, Option<ILockHandle>>`, and until that migration lands `oauth.lock_unavailable` maps both, while cancellation propagates) | `src/Encina.DistributedLock/IDistributedLockProvider.cs:53`, `:77` |
 | Lock providers | `InMemory`, `Redis`, `SqlServer` exist; PostgreSQL, MySQL, Azure Blob and DynamoDB are tracked elsewhere (AGENTS.md section 5) | `src/Encina.DistributedLock.*` |
-| Outbox | `IOutboxStore.AddAsync(IOutboxMessage)`, `OutboxWriter`, `TransactionalOutboxPipelineBehavior` | `src/Encina.Messaging/Outbox/IOutboxStore.cs:31`, `OutboxWriter.cs:60`, `TransactionalOutboxPipelineBehavior.cs:42` |
+| Outbox | `IOutboxStore.AddAsync(IOutboxMessage)`, public `OutboxOrchestrator.AddAsync<T>`, `TransactionalOutboxPipelineBehavior`; `OutboxWriter` is `internal sealed` and not callable from another assembly (Design Choice 7) | `src/Encina.Messaging/Outbox/IOutboxStore.cs:31`, `OutboxOrchestrator.cs:87`, `OutboxWriter.cs:15`, `TransactionalOutboxPipelineBehavior.cs:42` |
 | Transaction lease | `ITransactionLeaseSource.BeginOrJoinAsync`; `IDbTransactionAccessor` (ADO, Dapper, EF Core), `IMongoSessionAccessor` | `src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs:22`, `IDbTransactionAccessor.cs:38`, `src/Encina.MongoDB/Transactions/IMongoSessionAccessor.cs:21` |
 | Partition pause (#469) | Does not exist; `Partition` appears only in sharding code | SPEC-002 gap table (REQ-042 "Missing") |
 | `Encina.Http` (P-31) | Does not exist (only `Encina.Refit`) | SPEC-002 REQ-039 "Missing" |
@@ -176,8 +176,52 @@ OAuth 2.0 (RFC 6749, authorisation-code and refresh-token grants, `invalid_grant
 
 ### Rationale
 
-- The unique key is `(TenantId, ConnectionName)`; the default tenant constant is `"-"`, like the shared-row convention of the other tenant-aware stores.
+- The unique key is `(TenantId, ConnectionName)`.
+- Trivial defaults, each an internal constant or an option that one line changes and that no other package reads: the tenant used when tenancy is off is the sentinel `"-"` (a non-null, non-empty value so the unique key never holds NULL; no other store in `src/` defines it, so it is this package's own choice); `RefreshSkew` is 2 minutes (refresh before the token expires; an option); the access token is stored encrypted and its expiry in clear so the expiry check needs no decryption.
 - The store contract also accepts an explicit tenant for background work, validated against the ambient value when both exist.
+
+
+</details>
+
+<details>
+<summary><strong>7. Writing the revocation notification to the outbox — which public seam <code>Encina.Security.OAuth</code> calls</strong></summary>
+
+### Options Considered
+
+`OutboxWriter` is `internal sealed` (`src/Encina.Messaging/Outbox/OutboxWriter.cs:15`) and `Encina.Security.OAuth` is another assembly, so it cannot be called.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Call the public `OutboxOrchestrator.AddAsync<TNotification>` (`src/Encina.Messaging/Outbox/OutboxOrchestrator.cs:87`), which returns `Either<EncinaError, Unit>`** | No change to `Encina.Messaging`; the existing public seam | Couples this package to the orchestrator type |
+| **B) Call the public `IOutboxStore.AddAsync` with `IOutboxMessageFactory` and `IMessageSerializer`** | Lowest level, fully public | This package rebuilds what the writer does |
+| **C) Make a writer public in `Encina.Messaging` (plus PublicAPI lines)** | One reusable seam for #1234 and #1235 | Public API growth; touches another package |
+
+### Chosen Option: **A — `OutboxOrchestrator.AddAsync<TNotification>`** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A: it is public today and already returns an `Either`, so a `Left` rolls the revocation back (AGENTS.md section 3).
+- C wins if the maintainer wants one shared writer for this plan and the #1235 plan, which has the same defect.
+
+</details>
+
+<details>
+<summary><strong>8. OAuth <code>state</code> storage when several hosts run the application</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) In-memory `IOAuthStateStore` by default; start-up validation fails when the lock provider is not distributed (more than one host) and no durable state store is registered** | No new table; fails loudly | A single host works with no setup, several hosts need an explicit store |
+| **B) Persist `state` through the token store of the 10 providers** | Works across hosts without setup | A second table or row kind in 10 providers |
+| **C) In-memory only** | Simplest | A callback landing on another host fails with `oauth.state_invalid` |
+
+### Chosen Option: **A — in-memory default, start-up validation** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A: the issue premise is several hosts (S10), so a silent in-memory default would lose callbacks; the validator makes the gap visible.
+- B wins if the maintainer wants multi-host to work with no extra registration.
 
 </details>
 
@@ -252,9 +296,9 @@ REFERENCE FILES:
 
 1. `Services/OAuthTokenProtector.cs` — wraps `IFieldEncryptor`; `ProtectAsync(OAuthTokenSet, tenantId, connection)` returns two serialised `EncryptedValue` strings; `UnprotectAsync` reverses it (Design Choice 2).
 2. `Services/DefaultOAuthTokenService.cs` — implements `IOAuthTokenService`: read the grant; if `Revoked` return `oauth.grant_revoked`; if the access token is valid for more than `RefreshSkew` return it; otherwise `TryAcquireAsync("oauth:refresh:{tenant}:{connection}")`, re-read, refresh through `IOAuthTokenEndpointClient`, `UpsertAsync`, release. Constructor: `IOAuthTokenStore`, `IOAuthTokenEndpointClient`, `IDistributedLockProvider`, `IOAuthRevocationService`, `IOptions<OAuthOptions>`, `TimeProvider`.
-3. `Services/OAuthRevocationService.cs` — `RevokeAsync(tenant, connection)`: `ITransactionLeaseSource.BeginOrJoinAsync`, `MarkRevokedAsync`, `OutboxWriter` writes `OAuthGrantRevoked`, commit; a `Left` anywhere rolls back and returns the `Left`.
+3. `Services/OAuthRevocationService.cs` — `RevokeAsync(tenant, connection)`: `ITransactionLeaseSource.BeginOrJoinAsync`, `MarkRevokedAsync`, `OutboxOrchestrator.AddAsync<OAuthGrantRevoked>` writes the notification (Design Choice 7), commit; a `Left` anywhere rolls back and returns the `Left`.
 4. `Services/DefaultOAuthGrantGate.cs` — implements `IOAuthGrantGate` over the store.
-5. `Services/DefaultOAuthAuthorizationFlow.cs` — PKCE `S256` verifier and challenge, `state` stored with a short expiry (`IOAuthStateStore`, in-memory default), code exchange, `UpsertAsync`.
+5. `Services/DefaultOAuthAuthorizationFlow.cs` — PKCE `S256` verifier and challenge, `state` stored with a short expiry (`IOAuthStateStore`, in-memory default; start-up validation per Design Choice 8), code exchange, `UpsertAsync`.
 6. `Services/HttpOAuthTokenEndpointClient.cs` — `IHttpClientFactory` named client `encina-oauth`; maps `invalid_grant` (RFC 6749 section 5.2) to `oauth.grant_revoked`, other 4xx to `oauth.refresh_failed` (not retried), 5xx and network faults to a retryable error.
 7. `Stores/InMemoryOAuthTokenStore.cs` — thread-safe default; tenant-scoped key.
 8. `Tenancy/OAuthTenantResolver.cs` — ambient tenant, `RequireTenantContext` decision table copied from `DefaultConsentService` (`:121-128`).
@@ -290,7 +334,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.Compliance.Consent/Services/DefaultConsentService.cs (tenant decision table)
-- src/Encina.Messaging/Outbox/OutboxWriter.cs and TransactionalOutboxPipelineBehavior.cs
+- src/Encina.Messaging/Outbox/OutboxOrchestrator.cs and TransactionalOutboxPipelineBehavior.cs
 - src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs
 - src/Encina.DistributedLock/IDistributedLockProvider.cs
 ```
@@ -395,7 +439,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.AspNetCore/OAuthEndpointExtensions.cs` — `MapEncinaOAuthEndpoints(this IEndpointRouteBuilder, string prefix = "/oauth")` returning a `RouteGroupBuilder` with `GET {prefix}/{connection}/authorize` (redirect to the authorisation URL) and `GET {prefix}/{connection}/callback` (validates `state`, completes the exchange, returns 204 or a problem details with the error code only).
-2. `src/Encina.AspNetCore.csproj` reference to `Encina.Security.OAuth`, and the PublicAPI lines.
+2. `src/Encina.AspNetCore/Encina.AspNetCore.csproj` reference to `Encina.Security.OAuth`, and the PublicAPI lines.
 
 </details>
 
@@ -414,7 +458,7 @@ Add MapEncinaOAuthEndpoints to Encina.AspNetCore over IOAuthAuthorizationFlow.
 KEY RULES:
 - The callback fails closed on a missing or unknown state, a missing tenant or a replayed state.
 - Responses carry error codes only; authorisation codes and tokens are never echoed or logged.
-- The endpoints require authorisation by default (the caller adds the policy); no anonymous mapping.
+- The endpoints require authorisation by default (the caller passes a policy name, as `MapDPIAEndpoints` does at `src/Encina.AspNetCore/DPIAEndpointExtensions.cs`; the method throws at start-up when the name is blank or the policy is not registered); there is no anonymous mode.
 
 REFERENCE FILES:
 - src/Encina.AspNetCore/DPIAEndpointExtensions.cs
@@ -474,7 +518,7 @@ REFERENCE FILES:
 
 1. `src/Encina/Diagnostics/EventIdRanges.cs` — register `public static readonly (int Min, int Max) SecurityOAuth = (5500, 5549);` and add `["Encina.Security.OAuth"] = [nameof(EventIdRanges.SecurityOAuth)],` to `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
 2. `Diagnostics/OAuthDiagnostics.cs` — `ActivitySource` and `Meter` named `Encina.Security.OAuth`; counters `encina.oauth.refreshes` (tag `outcome`), `encina.oauth.revoked`; span `encina.oauth.refresh` with `encina.tenant_id` and `encina.oauth.connection`.
-3. `Diagnostics/OAuthLogMessages.cs` — `[LoggerMessage]` EventIds 5500-5515, packed (grant created, refresh started, refresh succeeded, refresh failed, grant revoked, lock unavailable, state invalid, tenant required), logging the error code or `ForLogging()` only.
+3. `Diagnostics/OAuthLogMessages.cs` — `[LoggerMessage]` EventIds 5500-5507, packed (grant created, refresh started, refresh succeeded, refresh failed, grant revoked, lock unavailable, state invalid, tenant required), logging the error code or `ForLogging()` only.
 
 </details>
 
@@ -492,7 +536,7 @@ Register the range, map the assembly in EncinaEventIdAllocationTests, and add OA
 then call them from the services.
 
 KEY RULES:
-- Register the range in EventIdRanges.cs before any EventId; pack IDs sequentially; XML doc "Event IDs: 5500-5515".
+- Register the range in EventIdRanges.cs before any EventId; pack IDs sequentially; XML doc "Event IDs: 5500-5507".
 - No token, authorisation code, client secret or subject identifier in tags, metrics or messages.
 - The tenant id is the attribute encina.tenant_id.
 
@@ -616,7 +660,7 @@ REFERENCE FILES:
 | `IFieldEncryptor` | `src/Encina.Security.Encryption/Abstractions/IFieldEncryptor.cs:36` | Encrypts the access and refresh token |
 | `IDistributedLockProvider` | `src/Encina.DistributedLock/IDistributedLockProvider.cs:53` | Single-flight refresh |
 | `ITransactionLeaseSource`, `IDbTransactionAccessor`, `IMongoSessionAccessor` | `src/Encina.Messaging/Transactions/`, `src/Encina.MongoDB/Transactions/` | Revocation and outbox row in one transaction |
-| `OutboxWriter`, `IOutboxStore` | `src/Encina.Messaging/Outbox/` | `OAuthGrantRevoked` notification |
+| `OutboxOrchestrator`, `IOutboxStore` | `src/Encina.Messaging/Outbox/` | `OAuthGrantRevoked` notification |
 | `RetryAfterParser`, `OutboundErrorCodes` | `src/Encina/Recoverability/` | Retry classification of the token endpoint |
 | `DefaultConsentService` tenant decision table | `src/Encina.Compliance.Consent/Services/DefaultConsentService.cs:121-128` | `OAuthTenantResolver` |
 | `DPIAEndpointExtensions` | `src/Encina.AspNetCore/DPIAEndpointExtensions.cs:69` | Shape of the endpoint helper |
@@ -627,7 +671,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Security.OAuth` | 5500-5549 (new `SecurityOAuth`) | 5500-5515 used by this plan; first free block after `MessagingRecoverability` 5450-5499 |
+| `Encina.Security.OAuth` | 5500-5549 (new `SecurityOAuth`) | 5500-5507 used by this plan; first free block after `MessagingRecoverability` 5450-5499 |
 | `Encina.Notifications*` (plan #1235) | 5550-5699 | Reserved by plan #1235 in this family |
 | Domain-event outbox (plan #1236) | 5700-5749 | Reserved by plan #1236 |
 | Sequences (plan #1238) | 5750-5799 | Reserved by plan #1238 |
@@ -690,7 +734,7 @@ KEY PATTERNS:
 REFERENCE FILES:
 - src/Encina.Security.Encryption/Abstractions/IFieldEncryptor.cs
 - src/Encina.DistributedLock/IDistributedLockProvider.cs
-- src/Encina.Messaging/Outbox/OutboxWriter.cs, src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs
+- src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs
 - src/Encina.Security.BreakTheGlass/ and its provider stores
 - src/Encina.AspNetCore/DPIAEndpointExtensions.cs
 - src/Encina/Diagnostics/EventIdRanges.cs
@@ -707,7 +751,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The token is read once per use and must never be served stale; no read path benefits from caching |
 | 2 | OpenTelemetry | ✅ | `encina.oauth.refresh` span and `refreshes` / `revoked` counters with `encina.tenant_id` (Phase 7, REQ-062) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5500-5515 in the new `SecurityOAuth` range (Phase 7) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5500-5507 in the new `SecurityOAuth` range (Phase 7) |
 | 4 | Health Checks | ✅ | `OAuthTokenStoreHealthCheck`: store reachable, number of revoked grants (Phase 6) |
 | 5 | Validation | ✅ | `OAuthOptionsValidator` at start-up; PKCE `state` validation in the flow (Phases 2 and 5) |
 | 6 | Resilience | ✅ | Polly retry on the named HTTP client for transient errors only (Phase 6) |
@@ -736,7 +780,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer decides Design Choices 2 and 4 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
-2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into five pull requests: (a) Phases 1-2 and 7 for the core package, in-memory store and diagnostics; (b) Phase 3 and the three ADO providers; (c) the three Dapper providers; (d) EF Core, MongoDB and the schemas; (e) Phases 5, 6 and the integration, load and documentation work. Each PR carries its own manifest entries and tests.
+1. The maintainer decides Design Choices 2, 4, 7 and 8 (the Dilemmas); the orchestrator records the answers in a `## Maintainer Decisions` section and updates each Chosen Option.
+2. The feature exceeds one worker pull request (15 files, 1500 lines). Phases 1, 2 and 7 alone are about 29 new files plus the modified ones and their tests, so the split is eight pull requests, each at most 15 files and 1500 changed lines (sizes are estimates, re-measured when each sub-issue is written): (a1) Phase 1, the model, abstractions, errors and options, about 12 files with their unit and guard tests; (a2) Phase 2 services and the in-memory store, about 12 files; (a3) Phase 7 (EventId range registration, allocation test, diagnostics, log messages) and the `UseOAuthTokenStore` flag, about 8 files; (b) Phase 3 and the three ADO providers; (c) the three Dapper providers; (d) EF Core, MongoDB and the schemas; (e1) Phase 5 (PKCE callback helper) and Phase 6 cross-cutting, about 10 files; (e2) the Phase 8 integration and load tests and Phase 9 documentation, about 12 files. Each PR carries its own manifest entries and tests.
 3. The orchestrator opens the issue file `artifacts/issues/plan-1234-oauth-partition-pause.md` and links it from #1234.
 4. Link this plan from #1234 and start sub-issue (a) with an `issue-worker`.
