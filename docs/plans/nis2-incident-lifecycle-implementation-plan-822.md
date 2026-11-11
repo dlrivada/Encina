@@ -2,8 +2,8 @@
 
 > **Issue**: [#822](https://github.com/dlrivada/Encina/issues/822)
 > **Type**: Feature
-> **Complexity**: Very High (event-sourced aggregate, projection, monitor, 3 pull requests)
-> **Estimated Scope**: ~2,200 lines of production code + ~1,600 lines of tests (about 31 files; split into 3 pull requests, see Phase 0)
+> **Complexity**: Very High (event-sourced aggregate, projection, monitor, 5 pull requests)
+> **Estimated Scope**: 55 file touches and about 5,550 lines including tests and per-PR metadata (PublicAPI, coverage manifest); split into 5 pull requests, see "Pull request split"
 > **Milestone**: v0.15.0 — EU Compliance: NIS2 & Digital Omnibus
 > **Provider Category**: None for databases (single event-sourcing provider: Marten on PostgreSQL, ADR-027)
 > **Family**: #822 to #826, five event-sourced modules of `Encina.Compliance.NIS2`. This plan owns the pieces the five share (see "Shared pieces of the family").
@@ -17,7 +17,7 @@
 **What it implements** (NIS2 Directive (EU) 2022/2555, Art. 23):
 
 - `NIS2IncidentAggregate` (an `AggregateBase`) with a state machine over `Detected -> EarlyWarningSent -> NotificationSent -> (IntermediateReportSent)* -> FinalReportSent -> Closed`. Escalation (deadline missed, severity or significance upgrade) is recorded as an event on top of the phase track.
-- Deadlines computed once from the facts: 24 h and 72 h from awareness of the significant incident, one month from the incident notification (Art. 23(4)(a), (b), (d); the rules already coded in `NIS2Incident`).
+- Deadlines computed once from the facts: 24 h and 72 h from awareness of the significant incident, one month from the incident notification (Art. 23(4)(a), (b), (d)). The one-month rule is the one `NIS2Incident` already codes; the 24 h and 72 h clocks differ from it (see the Corrections table).
 - `INIS2IncidentLifecycleService` (record-keeping commands that append events), an inline Marten projection for the dashboard (`NIS2IncidentReadModel`), a deadline monitor that raises the escalation, a health check (overdue means Degraded) and OpenTelemetry metrics.
 
 **Not in scope**: transmitting reports to a CSIRT (the service records what the entity submitted; see Design Choice 9 and the deferred issue file), the DORA incident infrastructure (#804), and changing `INIS2IncidentHandler` (it stays the stateless forwarder, as the issue's Alternatives section decides).
@@ -33,6 +33,7 @@
 | `EncinaAggregate<NIS2IncidentId>` | No such type. The base is `AggregateBase` (`Guid Id`) in `Encina.DomainModeling`; `BreachAggregate` extends it | Extend `AggregateBase`; no new strongly-typed id (Design Choice 2) |
 | `NIS2IncidentStatus` includes `Escalated` | Escalation can happen in any phase and the deadlines keep running | `Escalated` is not a status; it is an event plus `EscalationCount` (Design Choice 4) |
 | "Deadline calculator (24h, 72h, 1 month from detection)" vs table "1 month of notification" | `NIS2Incident.FinalReportDeadlineUtc` is `IncidentNotificationAtUtc + 1 month`, as Art. 23(4)(d) says | One month from the incident notification; the 24 h and 72 h clocks start at awareness of the significant incident |
+| `NIS2Incident.EarlyWarningDeadlineUtc` is `DetectedAtUtc.AddHours(24)` and `IncidentNotificationDeadlineUtc` is `DetectedAtUtc.AddHours(72)` (`Model/NIS2Incident.cs`): both clocks start at detection, not at awareness of the significant incident | The lifecycle starts them at awareness of the significant incident (`DetectedAtUtc`, or the time of a `BecameSignificant` escalation) per Art. 23(4)(a) and (b). `NIS2Incident` is not changed by this plan: it stays the stateless handler's simplification, which can therefore differ from the lifecycle for an incident that becomes significant later. Aligning it with the lifecycle is deferred: the maintainer opens a debt issue before PR 1 merges (Next Steps, item 3) |
 | Metrics `encina.nis2.incidents.*` | The package meter `Encina.Compliance.NIS2` names instruments `nis2.*` | Instruments `nis2.incident.*` (Phase 6) |
 | `NIS2IncidentSeverity` implied new | Exists (`Model/NIS2IncidentSeverity.cs`), as does `NIS2NotificationPhase` | Reuse both |
 
@@ -142,7 +143,7 @@ This plan registers and owns the following; plans #823 to #826 reference it inst
 <summary><strong>5. Deadline rules and significance — computed from facts in a pure calculator</strong></summary>
 
 - **Class**: Settled
-- **Settled by**: NIS2 Directive Art. 23(3) and 23(4)(a), (b), (d); the equivalent rules already in `NIS2Incident` (`EarlyWarningDeadlineUtc`, `IncidentNotificationDeadlineUtc`, `FinalReportDeadlineUtc`).
+- **Settled by**: NIS2 Directive Art. 23(3) and 23(4)(a), (b), (d). Only the final-report rule (`FinalReportDeadlineUtc`, one month after the notification) is already coded in `NIS2Incident`; the 24 h and 72 h rules there start at `DetectedAtUtc`, which the lifecycle changes (Corrections table).
 
 ### Options Considered
 
@@ -204,7 +205,7 @@ The incident events carry the identifier of the person who acted (`ReportedByUse
 
 ### Rationale
 
-- Idempotency instead of a lock: the monitor appends `NIS2IncidentEscalated(DeadlineMissed, phase)` only if the aggregate has not yet escalated for that phase (`EscalatedForPhases`), and Marten optimistic concurrency makes a duplicate from a second instance a handled `Left` (ADR-050 requires multi-instance coordination for event sourcing; a distributed lock is deferred to the cross-module work tracked by that ADR, see matrix row 7).
+- Idempotency instead of a lock: the monitor appends `NIS2IncidentEscalated(DeadlineMissed, phase)` only if the aggregate has not yet escalated for that phase (`EscalatedForPhases`), and Marten optimistic concurrency makes a duplicate from a second instance a handled `Left` (ADR-050 requires multi-instance coordination for event sourcing; a distributed lock is deferred to the multi-instance coordination work of [#1251](https://github.com/dlrivada/Encina/issues/1251), the issue ADR-050 names for it, see matrix row 7).
 - A failed query or append is logged by error code and retried on the next iteration; it never ends the loop. Registered only by the opt-in registration (default off).
 
 </details>
@@ -212,21 +213,24 @@ The incident events carry the identifier of the person who acted (`ReportedByUse
 <details>
 <summary><strong>8. Service contract — <code>ValueTask&lt;Either&lt;EncinaError, T&gt;&gt;</code> over <code>IAggregateRepository</code></strong></summary>
 
-- **Class**: Trivial
-- **Settled by**: `IBreachNotificationService` (`ValueTask<Either<EncinaError, Unit>>` methods over `IAggregateRepository<BreachAggregate>`); ADR-001 and AGENTS.md section 3 (Railway Oriented Programming); the issue's interface sketch.
+- **Class**: Settled
+- **Settled by**: ADR-053 (accepted; `docs/architecture/adr/053-aggregate-rule-violations-return-either.md`, Decision section: aggregate commands return `Either<EncinaError, Unit>`, factories `Either<EncinaError, TAggregate>`, a state-machine violation is a `Left` with a rule code decided before `RaiseEvent`); ADR-001 and AGENTS.md section 3 (Railway Oriented Programming); the issue's interface sketch.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Service with one method per transition; invalid transition returns `Left` (`NIS2Errors`), the aggregate throws `InvalidOperationException` only as a guard the service checks first** | Same as `BreachNotificationService`; no exceptions for business rules | The service pre-checks what the aggregate enforces |
-| B) Commands through the Encina pipeline only | No service interface | The issue and the Test Matrix require the service contract |
+| **A) Aggregate commands return `Either<EncinaError, Unit>` (factory `Either<EncinaError, NIS2IncidentAggregate>`); the service composes them with `Bind` over `IAggregateRepository<NIS2IncidentAggregate>`; one service method per transition** | The state machine lives in one place; no exception for a business rule; no duplicated pre-check | `BreachAggregate` on main still throws until #2668 lands, so the reference is not the pattern to copy |
+| B) Aggregate throws `InvalidOperationException`, the service pre-checks the status | Matches today's `BreachAggregate.Assess` | Violates ADR-053; rule duplicated in service and aggregate |
+| C) Commands through the Encina pipeline only | No service interface | The issue and the Test Matrix require the service contract |
 
 ### Chosen Option: **A**
 
 ### Rationale
 
-- The aggregate methods enforce the state machine (reference: `BreachAggregate.Assess` throws `InvalidOperationException`); the service maps a wrong state to `NIS2Errors.IncidentInvalidTransition(...)` before calling, so callers get `Either`, never an exception for a business rule.
+- Only A complies with ADR-053; B and C do not satisfy the cited rule, so this is settled, not a preference.
+- Rule codes: [#2668](https://github.com/dlrivada/Encina/issues/2668) (open) builds the shared catalogue of rule codes. This plan does not wait for it: it adds the codes it needs to `NIS2Errors` (`IncidentInvalidTransition`, `IncidentNotFound`, `IncidentCommandInvalid`, `IncidentEventStoreFailed`) in the PR that first needs them and moves them onto the shared catalogue when #2668 lands.
+- References for the state-machine shape are `BreachAggregate` and `BreachNotificationEvents` for events and `Apply`; the throwing guard style of `BreachAggregate` is NOT copied.
 
 </details>
 
@@ -283,19 +287,21 @@ The incident events carry the identifier of the person who acted (`ReportedByUse
 <details>
 <summary>Tasks</summary>
 
-The feature is about 31 files, over the limit of 15 files and 1,500 lines per pull request (AGENTS.md section 11). Split:
+The feature is 55 file touches and about 5,550 lines, over the limit of 15 files and 1,500 lines per pull request (AGENTS.md section 11; the blocking `pr-size` job counts test, PublicAPI, manifest and docs files). Split in 5; the counts include every file of the PR:
 
-| PR | Phases | Content | Files / lines (approx.) |
-|---|---|---|---|
-| 1 | 1 | Range registration, project references, model, commands, calculator, events, aggregate, unit/guard/property tests for the domain | 12 files / 1,400 |
-| 2 | 2, 3, 4 | Service, errors, projection and read model, Marten extension, DI, contract and integration tests | 11 files / 1,450 |
-| 3 | 5, 6, 7 (rest), 8 | Monitor, health check, diagnostics additions, cross-cutting wiring, remaining tests, docs, manifest | 10 files / 1,200 |
+| PR | Phases | Production and metadata files | Test files | Files / lines (approx.) |
+|---|---|---|---|---|
+| 1 | 1 (tasks 1 to 5) | `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, NIS2 csproj, `NIS2IncidentStatus`, `NIS2EscalationReason`, `NIS2DeadlineCalculator`, NIS2 `PublicAPI.Unshipped.txt`, coverage manifest (8) | `EncinaEventIdAllocationTests`, unit calculator, property deadlines (3) | 11 files / 500 |
+| 2 | 1 (tasks 6 to 8) | events, aggregate, `NIS2Errors` (aggregate codes), `PublicAPI.Unshipped.txt`, manifest (5) | unit aggregate, guard aggregate, property aggregate (3) | 8 files / 1,450 |
+| 3 | 2 | service interface, commands, default service, `NIS2Errors` (service codes), `PublicAPI.Unshipped.txt`, manifest (6) | unit service, guard service, contract (3) | 9 files / 1,100 |
+| 4 | 3, 4 | read model, projection, `NIS2MartenExtensions`, `ServiceCollectionExtensions`, `NIS2Options`, `NIS2OptionsValidator`, `PublicAPI.Unshipped.txt`, manifest (8) | unit projection, DI test, guard, integration (4) | 12 files / 1,200 |
+| 5 | 5, 6, 8 | monitor, health check, `NIS2Diagnostics`, `NIS2LogMessages`, `PublicAPI.Unshipped.txt`, manifest, changelog fragment, feature page, package README, `docs/INVENTORY.md`, ADR-064 (11) | unit monitor, unit health check and diagnostics, guard, integration monitor (4) | 15 files / 1,300 |
 
-Each PR keeps zero warnings and its own per-flag targets from `.github/coverage-manifest/Encina.Compliance.NIS2.json`.
+If the measured size of a PR exceeds 15 files or 1,500 lines during implementation, the worker splits it again (for example PR 5: docs in their own PR); it never asks for a `size-exception-approved` label. Each PR keeps zero warnings and its own per-flag targets from `.github/coverage-manifest/Encina.Compliance.NIS2.json`.
 
 </details>
 
-### Phase 1: Core Model, Events & Aggregate (PR 1)
+### Phase 1: Core Model, Events & Aggregate (PR 1: tasks 1 to 5; PR 2: tasks 6 to 8)
 
 <details>
 <summary>Tasks</summary>
@@ -305,9 +311,9 @@ Each PR keeps zero warnings and its own per-flag targets from `.github/coverage-
 3. `Model/NIS2IncidentStatus.cs`: `enum NIS2IncidentStatus { Detected, EarlyWarningSent, NotificationSent, IntermediateReportSent, FinalReportSent, Closed }`.
 4. `Model/NIS2EscalationReason.cs`: `enum { DeadlineMissed, SeverityUpgraded, BecameSignificant }`.
 5. `Model/NIS2DeadlineCalculator.cs`: `internal static class` with `EarlyWarningDeadline(DateTimeOffset awareAtUtc)`, `NotificationDeadline(...)`, `FinalReportDeadline(DateTimeOffset notificationAtUtc)`.
-6. `Events/NIS2IncidentEvents.cs`: sealed records implementing `INotification` (as `BreachNotificationEvents`): `NIS2IncidentDetected`, `NIS2EarlyWarningSent`, `NIS2IncidentNotificationSent`, `NIS2IntermediateReportSent`, `NIS2FinalReportSent`, `NIS2IncidentEscalated`, `NIS2IncidentClosed`. Every event carries `IncidentId`, a `...AtUtc` timestamp, `TenantId`, `ModuleId` where the reference events do; personal fields are separate nullable properties (Design Choice 6).
-7. `Aggregates/NIS2IncidentAggregate.cs`: `public sealed class NIS2IncidentAggregate : AggregateBase`; static `Detect(...)`; instance `SendEarlyWarning`, `SendNotification`, `SendIntermediateReport`, `SendFinalReport`, `Escalate`, `Close`; `protected override void Apply(object)` switch; properties `Status`, `Severity`, `IsSignificant`, `DetectedAtUtc`, `AwareAtUtc`, `EarlyWarningDeadlineUtc`, `NotificationDeadlineUtc`, `FinalReportDeadlineUtc`, `EscalationCount`, `TenantId`, `ModuleId`. Allowed transitions: `Detected -> EarlyWarningSent`; `EarlyWarningSent -> NotificationSent`; `NotificationSent` or `IntermediateReportSent -> IntermediateReportSent`; `NotificationSent` or `IntermediateReportSent -> FinalReportSent`; `FinalReportSent -> Closed`; `Detected -> Closed` only when not significant; `Escalate` from any non-closed status.
-8. Tests: unit (every legal transition, every illegal one, replay from history, deadline values), guard (public methods), property (no sequence of commands skips a phase; deadlines always set when significant).
+6. (PR 2) `Events/NIS2IncidentEvents.cs`: sealed records implementing `INotification` (as `BreachNotificationEvents`): `NIS2IncidentDetected`, `NIS2EarlyWarningSent`, `NIS2IncidentNotificationSent`, `NIS2IntermediateReportSent`, `NIS2FinalReportSent`, `NIS2IncidentEscalated`, `NIS2IncidentClosed`. Every event carries `IncidentId`, a `...AtUtc` timestamp, `TenantId`, `ModuleId` where the reference events do; personal fields are separate nullable properties (Design Choice 6).
+7. (PR 2) `Aggregates/NIS2IncidentAggregate.cs`: `public sealed class NIS2IncidentAggregate : AggregateBase`; static `Detect(...)` returning `Either<EncinaError, NIS2IncidentAggregate>`; instance `SendEarlyWarning`, `SendNotification`, `SendIntermediateReport`, `SendFinalReport`, `Escalate`, `Close`, each returning `Either<EncinaError, Unit>` (ADR-053: an illegal transition is a `Left` carrying the `NIS2Errors.IncidentInvalidTransition` rule code, decided before `RaiseEvent`, so no event is raised and nothing throws); `protected override void Apply(object)` switch; properties `Status`, `Severity`, `IsSignificant`, `DetectedAtUtc`, `AwareAtUtc`, `EarlyWarningDeadlineUtc`, `NotificationDeadlineUtc`, `FinalReportDeadlineUtc`, `EscalationCount`, `TenantId`, `ModuleId`. Allowed transitions: `Detected -> EarlyWarningSent`; `EarlyWarningSent -> NotificationSent`; `NotificationSent` or `IntermediateReportSent -> IntermediateReportSent`; `NotificationSent` or `IntermediateReportSent -> FinalReportSent`; `FinalReportSent -> Closed`; `Detected -> Closed` only when not significant; `Escalate` from any non-closed status.
+8. Tests: unit (every legal transition, every illegal one returns `Left` with the rule code and raises no event, replay from history, deadline values), guard (public methods), property (no sequence of commands skips a phase; deadlines always set when significant).
 
 </details>
 
@@ -320,7 +326,8 @@ You are implementing Phase 1 of the incident lifecycle for Encina.Compliance.NIS
 CONTEXT:
 - Encina is .NET 10 / C# 14, Either<EncinaError, T> for business results, TimeProvider for time (the aggregate takes timestamps as parameters).
 - Extend src/Encina.Compliance.NIS2; reuse Model/NIS2IncidentSeverity.cs and Model/NIS2NotificationPhase.cs.
-- Pattern to follow: src/Encina.Compliance.BreachNotification/Aggregates/BreachAggregate.cs and Events/BreachNotificationEvents.cs.
+- Pattern to follow for structure, events and Apply: src/Encina.Compliance.BreachNotification/Aggregates/BreachAggregate.cs and Events/BreachNotificationEvents.cs; the error style follows docs/architecture/adr/053-aggregate-rule-violations-return-either.md, not BreachAggregate.
+- This prompt is split over two pull requests: PR 1 does steps 1 and 2 and the enums and calculator of step 3 (with the PublicAPI lines and its tests); PR 2 does the events, the aggregate and its tests.
 
 TASK:
 1. Register EventIdRanges.ComplianceNIS2EventSourced = (9800, 9899) FIRST and map it in EncinaEventIdAllocationTests.
@@ -330,7 +337,7 @@ TASK:
 5. Write unit, guard and property tests that instantiate the real aggregate.
 
 KEY RULES:
-- Aggregate extends AggregateBase, Guid Id; no clock reads; invalid transition throws InvalidOperationException (guard), the service maps it to Left in Phase 2.
+- Aggregate extends AggregateBase, Guid Id; no clock reads; commands return Either<EncinaError, Unit> and the factory Either<EncinaError, NIS2IncidentAggregate> (ADR-053): an invalid transition is a Left with the NIS2Errors.IncidentInvalidTransition rule code decided BEFORE RaiseEvent; never throw InvalidOperationException for a rule (BreachAggregate still does until #2668; do not copy that).
 - 24 h / 72 h from awareness of the significant incident, one month from the notification (Art. 23(4)).
 - No [Obsolete], no compatibility code; zero warnings.
 
@@ -342,14 +349,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 2: Service, Errors & Default Implementation (PR 2)
+### Phase 2: Service, Errors & Default Implementation (PR 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `Abstractions/INIS2IncidentLifecycleService.cs`: `DetectIncidentAsync`, `SendEarlyWarningAsync`, `SendNotificationAsync`, `SendIntermediateReportAsync`, `SendFinalReportAsync`, `EscalateAsync`, `CloseAsync`, each `ValueTask<Either<EncinaError, ...>>` with `CancellationToken`; command records `NIS2IncidentDetectionCommand`, `NIS2EarlyWarningCommand`, `NIS2IncidentNotificationCommand`, `NIS2IntermediateReportCommand`, `NIS2FinalReportCommand`, `NIS2IncidentClosureCommand` in `Model/` (validated: required text not blank).
-2. `Services/DefaultNIS2IncidentLifecycleService.cs` (internal): constructor takes `IAggregateRepository<NIS2IncidentAggregate>`, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`. Loads, pre-checks the transition, calls the aggregate, saves; maps repository `Left` unchanged; never swallows a `Left`.
-3. `NIS2Errors.cs`: add `IncidentNotFound`, `IncidentInvalidTransition`, `IncidentCommandInvalid`, `IncidentEventStoreFailed` using the existing error-code scheme.
+2. `Services/DefaultNIS2IncidentLifecycleService.cs` (internal): constructor takes `IAggregateRepository<NIS2IncidentAggregate>`, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`. Loads the aggregate, calls the aggregate command and composes the returned `Either` with `Bind` (no status pre-check in the service: the aggregate owns the state machine, ADR-053), saves; maps repository `Left` unchanged; never swallows a `Left`. It also exposes the query side used by the monitor and the health check: `GetActiveIncidentsAsync` and `GetOverdueIncidentsAsync`, over `IReadModelRepository<NIS2IncidentReadModel>` (the abstraction `DefaultBreachNotificationService` uses for `BreachReadModel`; added to the constructor in PR 4 together with the read model, so PR 3 ships the command side only).
+3. `NIS2Errors.cs`: add `IncidentNotFound`, `IncidentCommandInvalid`, `IncidentEventStoreFailed` using the existing error-code scheme (`IncidentInvalidTransition` came with the aggregate in PR 2).
 4. Tenant and module ids come from `ITenantContext`/`IModuleContext` when registered (Phase 5).
 
 </details>
@@ -361,7 +368,7 @@ REFERENCE FILES:
 You are implementing Phase 2 of the incident lifecycle for Encina.Compliance.NIS2 (Issue #822).
 
 CONTEXT:
-- Phase 1 delivered NIS2IncidentAggregate and events. This phase adds the service over IAggregateRepository<NIS2IncidentAggregate>.
+- Phase 1 delivered NIS2IncidentAggregate (commands return Either, ADR-053) and events. This phase adds the command-side service over IAggregateRepository<NIS2IncidentAggregate>.
 - Pattern: src/Encina.Compliance.BreachNotification/Services/DefaultBreachNotificationService.cs and Abstractions/IBreachNotificationService.cs.
 
 TASK:
@@ -372,24 +379,23 @@ TASK:
 
 KEY RULES:
 - ROP: a Left from the repository fails the operation; log error codes, never EncinaError.Message; exceptions through ForLogging().
-- Pre-check the status so an illegal transition is Left(IncidentInvalidTransition).
+- Compose the aggregate's Either with Bind; an illegal transition is already Left(IncidentInvalidTransition) from the aggregate, so the service does not pre-check the status and nothing is wrapped in try/catch for a business rule.
 
 REFERENCE FILES:
 - src/Encina.Compliance.BreachNotification/Services/DefaultBreachNotificationService.cs
-- src/Encina.Compliance.NIS2/NIS2Errors.cs
 - src/Encina.Compliance.NIS2/NIS2Errors.cs
 ```
 
 </details>
 
-### Phase 3: Projection & Read Model (PR 2)
+### Phase 3: Projection & Read Model (PR 4)
 
 <details>
 <summary>Tasks</summary>
 
 1. `ReadModels/NIS2IncidentReadModel.cs`: id, status, severity, `IsSignificant`, the three deadlines, `EscalationCount`, last-report timestamps, `TenantId`, `ModuleId`.
 2. `ReadModels/NIS2IncidentProjection.cs`: inline projection (`IProjectionCreator<NIS2IncidentDetected, ...>` plus one `IProjectionHandler` per remaining event), idempotent like `BreachProjection`.
-3. Query surface used by the monitor and health check: the same read-model repository abstraction `BreachDeadlineMonitorService` uses, filtered by overdue and active incidents (confirm the abstraction in `BreachNotificationHealthCheck` before coding).
+3. Query surface used by the monitor and health check: `IReadModelRepository<NIS2IncidentReadModel>` (`QueryAsync`), the abstraction `DefaultBreachNotificationService` uses for `BreachReadModel`, behind the service methods `GetActiveIncidentsAsync` and `GetOverdueIncidentsAsync` (the monitor and the health check call the service, as `BreachDeadlineMonitorService` calls `GetApproachingDeadlineBreachesAsync`).
 
 </details>
 
@@ -417,14 +423,13 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 4: Configuration, DI & Marten Registration (PR 2)
+### Phase 4: Configuration, DI & Marten Registration (PR 4)
 
 <details>
 <summary>Tasks</summary>
 
 1. `NIS2MartenExtensions.cs`: `AddNIS2EventSourcing(this IServiceCollection)` calling `AddAggregateRepository<NIS2IncidentAggregate>()` and `AddProjection<NIS2IncidentProjection, NIS2IncidentReadModel>()` (reference: `BreachNotificationMartenExtensions.AddBreachNotificationAggregates`).
-2. `ServiceCollectionExtensions.cs`: register `INIS2IncidentLifecycleService` with `TryAddScoped` inside `AddEncinaNIS2` only when the event-sourcing registration is used, or fail at registration with a clear error (AGENTS.md section 3, registration completeness: every dependency the service resolves is registered).
-3. `NIS2Options.cs`: `IncidentDeadlineCheckInterval` (default 5 minutes) and `EnableIncidentDeadlineMonitoring` (default `false`); update `NIS2OptionsValidator`.
+2. `ServiceCollectionExtensions.cs`: `AddNIS2EventSourcing()` registers `INIS2IncidentLifecycleService` with `TryAddScoped` together with the Marten aggregate repository and projection it resolves, so the service exists only when the event-sourcing registration is called (opt-in) and every dependency it resolves is registered (AGENTS.md section 3, registration completeness). `AddEncinaNIS2` does not register it.3. `NIS2Options.cs`: `IncidentDeadlineCheckInterval` (default 5 minutes) and `EnableIncidentDeadlineMonitoring` (default `false`); update `NIS2OptionsValidator`.
 4. DI test: build the provider with `ValidateOnBuild` and `ValidateScopes` for every registration combination.
 
 </details>
@@ -454,7 +459,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Cross-Cutting Integration, Deadline Monitor & Health Check (PR 3)
+### Phase 5: Cross-Cutting Integration, Deadline Monitor & Health Check (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -491,7 +496,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: Observability (PR 3)
+### Phase 6: Observability (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -528,7 +533,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Testing (PRs 1 to 3)
+### Phase 7: Testing (PRs 1 to 5)
 
 <details>
 <summary>Tasks</summary>
@@ -537,7 +542,7 @@ REFERENCE FILES:
 |---|---|---|
 | Unit | Aggregate transitions and replay, calculator, service with a substituted repository, projection handlers, monitor, health check | `tests/Encina.UnitTests/Compliance/NIS2/` |
 | Guard | Public methods and constructors of aggregate, service, projection, extensions | `tests/Encina.GuardTests/Compliance/NIS2/` |
-| Contract | `INIS2IncidentLifecycleService`: every method returns `Left` for an illegal transition and never throws | `tests/Encina.ContractTests/Compliance/NIS2/` |
+| Contract | `INIS2IncidentLifecycleService` and the aggregate commands: every method returns `Left` with the `IncidentInvalidTransition` rule code for an illegal transition, raises no event and never throws | `tests/Encina.ContractTests/Compliance/NIS2/` |
 | Property | FsCheck: random command sequences never skip a phase; deadlines set when significant; replay equals live state | `tests/Encina.PropertyTests/Compliance/NIS2/` |
 | Integration | Full lifecycle with Marten on PostgreSQL through the shared Testcontainers fixture; projection updated inline; concurrent escalation yields one handled `Left` | `tests/Encina.IntegrationTests/Compliance/NIS2/` |
 | Load / Benchmark | Not implemented: incident volume is low and nothing here is a hot path; `.md` justification files in the load and benchmark projects | `tests/Encina.LoadTests`, `tests/Encina.BenchmarkTests` |
@@ -572,7 +577,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 8: Documentation & Finalization (PR 3)
+### Phase 8: Documentation & Finalization (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -638,7 +643,7 @@ REFERENCE FILES:
 | BreachProjection and BreachReadModel | src/Encina.Compliance.BreachNotification/ReadModels | Reference pattern for the inline projection |
 | BreachNotificationMartenExtensions | src/Encina.Compliance.BreachNotification | Reference pattern for Marten registration |
 | BreachDeadlineMonitorService | src/Encina.Compliance.BreachNotification | Reference pattern for the deadline monitor |
-| NIS2Incident, NIS2IncidentSeverity, NIS2NotificationPhase | src/Encina.Compliance.NIS2/Model | Existing types reused; deadline rules already coded |
+| NIS2Incident, NIS2IncidentSeverity, NIS2NotificationPhase | src/Encina.Compliance.NIS2/Model | Severity and phase enums reused; `NIS2Incident` itself unchanged (its 24 h / 72 h clocks start at detection, see Corrections) |
 | INIS2IncidentHandler and DefaultNIS2IncidentHandler | src/Encina.Compliance.NIS2 | Stateless handler kept unchanged |
 | NIS2Diagnostics and NIS2LogMessages | src/Encina.Compliance.NIS2/Diagnostics | ActivitySource, Meter, logger messages |
 | NIS2ResilienceHelper | src/Encina.Compliance.NIS2 | Not used here: returns a fallback on any failure (see Design Choice 9) |
@@ -657,24 +662,22 @@ REFERENCE FILES:
 | Issue 824 risk analysis | 9850-9869 | 20 ids |
 | Issue 825 coordinated vulnerability disclosure | 9870-9884 | 15 ids |
 | Issue 826 management accountability | 9885-9899 | 15 ids |
+| Issue 827 reporting and read models | none yet | Same package; 9800-9899 is fully split above, so #827 takes a block from `artifacts/decisions/plan-batch/eventid-blocks.md` (none assigned today; the orchestrator assigns it) |
 
 ### File Count Estimate
 
-| Category | Files | Approx. lines |
+Per pull request, tests and metadata included (the same totals as the split table; PublicAPI, manifest and `NIS2Errors` are touched in several PRs and count in each):
+
+| PR | Files | Approx. lines |
 | :--- | :--- | :--- |
-| Production: model, enum, commands, deadline calculator | 4 | 350 |
-| Production: aggregate and events | 2 | 650 |
-| Production: lifecycle service abstraction and default implementation | 2 | 450 |
-| Production: read model and projection | 2 | 300 |
-| Production: Marten registration extensions, options and DI changes | 2 | 120 |
-| Production: deadline monitor, health check, diagnostics and log messages additions | 3 | 350 |
-| Tests: unit | 5 | 900 |
-| Tests: guard | 2 | 200 |
-| Tests: contract | 1 | 120 |
-| Tests: property | 1 | 150 |
-| Tests: integration (Marten, PostgreSQL) | 1 | 250 |
-| Docs and metadata: PublicAPI, coverage manifest, changelog fragment, feature page, README, ADR | 6 | 250 |
-| Total | 31 | 4090 |
+| 1 Range, references, enums, calculator | 11 | 500 |
+| 2 Events and aggregate | 8 | 1,450 |
+| 3 Command-side service | 9 | 1,100 |
+| 4 Projection, read model, registration, options | 12 | 1,200 |
+| 5 Monitor, health check, observability, docs | 15 | 1,300 |
+| Total | 55 | 5,550 |
+
+No PR exceeds 15 files or 1,500 lines; the worker re-measures with `git diff --stat` before opening each PR.
 
 ---
 
@@ -697,11 +700,11 @@ IMPLEMENTATION OVERVIEW:
 7. NIS2DeadlineMonitorService, NIS2IncidentHealthCheck, tenant and module scoping.
 8. Diagnostics (activity, counters, histogram, gauges) and [LoggerMessage] ids 9800-9829.
 9. Unit, guard, contract, property and integration tests; load and benchmark justifications.
-10. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 3 pull requests of Phase 0.
+10. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 5 pull requests of "Pull request split".
 
 KEY PATTERNS:
-- Mirror BreachAggregate, BreachNotificationEvents, BreachProjection, BreachNotificationMartenExtensions, BreachDeadlineMonitorService.
-- ROP: Either<EncinaError, T>; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
+- Mirror the structure of BreachAggregate, BreachNotificationEvents, BreachProjection, BreachNotificationMartenExtensions, BreachDeadlineMonitorService (but not the throwing guards of BreachAggregate, see ADR-053).
+- ROP (ADR-053): aggregate commands return Either<EncinaError, Unit>, the factory Either<EncinaError, NIS2IncidentAggregate>, the service composes with Bind; an illegal transition is a Left with a rule code, never InvalidOperationException; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
 - 24 h / 72 h from awareness of the significant incident, one month from the notification.
 - Personal fields separate and nullable until Dilemma 6 is decided.
 
@@ -727,7 +730,7 @@ REFERENCE FILES:
 | 4 | Health Checks | ✅ | Phase 5: overdue incidents give Degraded, store failure Unhealthy |
 | 5 | Validation | ✅ | Command records validated in the service (blank text, empty services list) before any event is raised |
 | 6 | Resilience | ❌ | No external call: CSIRT transmission is out of scope (Design Choice 9; tracked by #812). The Marten calls are not wrapped in `NIS2ResilienceHelper` because it swallows failures |
-| 7 | Distributed Locks | ⏭️ | Escalation is idempotent and Marten optimistic concurrency protects duplicates (Design Choice 7); multi-instance coordination for event-sourced modules follows ADR-050 and its tracking issues; no new issue needed |
+| 7 | Distributed Locks | ⏭️ | Escalation is idempotent and Marten optimistic concurrency protects duplicates (Design Choice 7); multi-instance coordination for event-sourced modules is deferred to [#1251](https://github.com/dlrivada/Encina/issues/1251), the issue ADR-050 names for it |
 | 8 | Transactions | ✅ | The Marten session commits the event append atomically; no `TransactionPipelineBehavior` (ADR-050 forbids that pairing with Marten) |
 | 9 | Idempotency | ✅ | Aggregate version (optimistic concurrency) and the per-phase escalation guard; command retries after a conflict reload the aggregate |
 | 10 | Multi-Tenancy | ✅ | `TenantId` on the events, aggregate and read model, filter on queries |
@@ -744,7 +747,8 @@ REFERENCE FILES:
 | `Encina.Marten.GDPR` and a persistent key store (#1191) | Exists / open | Only if Dilemma 6 resolves to B |
 | ADR-050 coordination for event-sourced modules (Outbox in the Marten session, #2383) | Open | Delivery of the events as notifications; this plan does not depend on it |
 | Plans #823 to #826 | In parallel | Reference the shared pieces above |
-| #827 NIS2 reporting and read models (open sibling in the same package) | Open | Shares the range, the references and `AddNIS2EventSourcing`; outside this family, so it needs its own allocation in 9800-9899 or a later range |
+| #827 NIS2 reporting and read models (open sibling in the same package) | Open | Shares the range, the references and `AddNIS2EventSourcing`; outside this family, with no EventId block yet: the orchestrator assigns one in `artifacts/decisions/plan-batch/eventid-blocks.md` (9800-9899 is fully split among #822 to #826) |
+| Shared rule-code catalogue, #2668 (ADR-053 implementation) | Open | Not a blocker: this plan adds its codes to `NIS2Errors` and moves them onto the catalogue when it lands (Design Choice 8) |
 | #804 DORA incident infrastructure | Open | Will reuse the aggregate pattern; nothing here depends on it |
 
 ---
@@ -753,4 +757,5 @@ REFERENCE FILES:
 
 1. Maintainer answers Dilemmas 4, 6 and 9 when work on #822 starts (each is marked "recommended, pending the maintainer").
 2. Brief PR 1 (range, references, domain) first; PR 2 and 3 follow in order.
-3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
+3. Open a debt issue to align `NIS2Incident`'s 24 h and 72 h deadlines with the lifecycle rule (Corrections table).
+4. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
