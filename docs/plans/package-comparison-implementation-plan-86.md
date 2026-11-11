@@ -14,7 +14,7 @@ Give a reader choosing packages one place to compare them: a Reference page with
 What the code and the docs say today (read on 2026-11-11):
 
 - `docs/features/database-providers.md` already holds the database feature-by-provider matrix, written from store types in `src/` ("a store type living in `src/` is the only evidence this table accepts"), plus the package and registration table. The comparison page therefore links and summarises it for databases and adds only the dimensions it lacks (abstraction level, LINQ support, performance citations); it does not copy the matrix.
-- The original table's "Migrations" row (EF Core yes, others no) has no Encina feature behind it for the data-access packages: `src/Encina.EntityFrameworkCore` has no migrations folder, and the only migration code in `src/` is `src/Encina/Sharding/Migrations/` (schema migration coordination for sharding). The row is dropped unless the worker finds code that supports it.
+- The original table's "Migrations" row (EF Core yes, others no) has no Encina feature behind it for the data-access packages: verified with `git ls-tree -r -d --name-only origin/main -- src` filtered for `/Migrations$`: schema-migration coordination for sharding exists in all 8 data-access packages that cover the 10 providers (`Sharding/Migrations` in ADO.NET x3, Dapper x3, EF Core, MongoDB, plus the core `Encina`; plus `src/Encina.OpenTelemetry/Migrations`), and no application-schema migration feature exists. The original row is replaced by a "Sharding schema migrations" row (present in all 10 providers, each cell backed by its `Sharding/Migrations` folder); no row claims application-schema migrations.
 - The original MongoDB "Transactions: single doc" cell and the "Unit of Work" row have code to check: `src/Encina.MongoDB` has `Transactions/` and `UnitOfWork/` folders; `src/Encina.ADO.SqlServer` has `UnitOfWork/` and no `Transactions/` folder. The worker reads the types before writing any cell.
 - Caching: Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet and KeyDB exist under `src/Encina.Caching.*`; Memcached is planned. Performance is cited from `docs/benchmarks/caching-performance.md` and `caching-memory-`, `caching-hybrid-` and `caching-redis-benchmark-results.md`; the other four have no published benchmark page, so their cell says "no published benchmark".
 - Transports: RabbitMQ, AzureServiceBus, AmazonSQS, Kafka, NATS, Redis.PubSub, MQTT, InMemory, gRPC and GraphQL exist as packages; GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ and Dapr are planned for 1.0 and have no package yet (AGENTS.md section 5, SPEC-000 DEC-009).
@@ -39,17 +39,17 @@ What the code and the docs say today (read on 2026-11-11):
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `docs/features/package-comparison.md` (Reference) and `docs/guides/how-to-choose-a-provider.md` (How-to with the Mermaid flowcharts), linked sideways** | One quadrant per page; the tables stay scannable; the flowcharts can change without touching the facts | Two files |
-| **B) One page with tables and flowcharts, as the issue words it** | One file, one place to look | Mixes reference and how-to; breaks the one-quadrant rule |
+| **B) One page with tables and flowcharts, as the issue words it** | One file, one place to look | Mixes reference and how-to; breaks the one-quadrant rule, so it is not a valid alternative |
 
-### Chosen Option: **A — Reference page plus How-to page (recommended, pending the maintainer)**
+### Chosen Option: **A — Reference page plus How-to page**
 
 ### Rationale
 
-- Scenario where A wins: readers either look a fact up (tables) or decide what to use (flowcharts); the skill treats these as different moods.
-- Scenario where B wins: the maintainer wants a single "compare and choose" page for discoverability and accepts the mixed quadrant; the issue text asks for tables plus flowcharts in the same deliverable.
-- The skill says a feature that needs several moods becomes several pages; the issue does not say one page.
+- Readers either look a fact up (tables) or decide what to use (flowcharts); the skill treats these as different moods.
+- The skill says a feature that needs several moods becomes several pages; the issue asks for tables plus flowcharts in one deliverable, not on one page.
 
-**Class:** Dilemma
+**Class:** Settled
+**Settled by:** `.claude/skills/encina-docs/SKILL.md` section 1 (one Diátaxis quadrant per page) and section 4 step 3; the same choice is settled in the #907 plan
 
 </details>
 
@@ -171,7 +171,7 @@ What the code and the docs say today (read on 2026-11-11):
 <summary>Tasks</summary>
 
 1. Create the page, front matter `title: "Package comparison"`, `layout: default`, `parent: "Features"`. Opening sentence: for a developer choosing between Encina's packages of one category; they get a fact table per category.
-2. Database: table of the 10 providers with abstraction level and LINQ support (read from the packages), links to the benchmark pages per family, and a link to `docs/features/database-providers.md` for the store matrix and registration (Design Choice 2). Decide each of the original rows (Outbox, Inbox, Sagas, Scheduling, Transactions, Unit of Work) by reading the store types; drop "Migrations" unless code backs it.
+2. Database: table of the 10 providers with abstraction level and LINQ support (read from the packages), links to the benchmark pages per family, and a link to `docs/features/database-providers.md` for the store matrix and registration (Design Choice 2). Decide each of the original rows (Outbox, Inbox, Sagas, Scheduling, Transactions, Unit of Work) by reading the store types; replace the original "Migrations" row by "Sharding schema migrations" (see the Summary: the `Sharding/Migrations` folders back it) and claim no application-schema migrations.
 3. Caching: the 8 caches (Memory L1, Hybrid L1+L2, Redis, Valkey, Dragonfly, Garnet, KeyDB present; Memcached planned) with distributed, persistence and multi-tier cells read from the packages, and benchmark citations or "no published benchmark".
 4. Transports: the 10 existing transports with type (Design Choice 4), and the 6 planned for 1.0 (GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr) in a "Planned" table.
 5. Validation: the 3 libraries with custom rules, async validation and attribute-based cells read from each provider.
@@ -192,7 +192,7 @@ TASK
 Create <worktree>\docs\features\package-comparison.md as listed in Phase 1. Read first: docs/features/database-providers.md (do not copy its matrix), the package folders under src/ for caching, transports and validation, docs/benchmarks/README.md and the benchmark pages it lists, AGENTS.md section 5.
 
 KEY RULES
-- A cell is a mark only when a type or package in src/ backs it; otherwise write "not supported" or "planned" with the issue or reason. Drop the original "Migrations" row unless code backs it.
+- A cell is a mark only when a type or package in src/ backs it; otherwise write "not supported" or "planned" with the issue or reason. The original "Migrations" row becomes "Sharding schema migrations" (backed by the `Sharding/Migrations` folders); never claim application-schema migrations.
 - No hand-typed performance ratings: cite benchmark pages or write "no published benchmark".
 - Cover every provider of each category or state which it omits and link the issue (10 database, 8 caching with Memcached planned, 10 transports plus 6 planned, 3 validation).
 - Reference only: no recommendations, no flowcharts (they go to the how-to page).
@@ -209,8 +209,7 @@ REFERENCE FILES
 <details>
 <summary>Tasks</summary>
 
-1. Create the page, front matter `title: "How to choose a provider"`, `layout: default`, `parent: "Guides"`. If the maintainer answers Design Choice 1 with one page, fold these flowcharts into the Phase 1 page and skip this phase.
-2. One Mermaid flowchart per category, each node a requirement ("Need persistence across restarts?", "Already running RabbitMQ?") with the outcomes naming a package as written in the reference page.
+1. Create the page, front matter `title: "How to choose a provider"`, `layout: default`, `parent: "Guides"`.2. One Mermaid flowchart per category, each node a requirement ("Need persistence across restarts?", "Already running RabbitMQ?") with the outcomes naming a package as written in the reference page.
 3. A short paragraph per category giving the reason behind each outcome, each reason pointing to a fact in the reference page or to an ADR (for example ADR-009, ADR-024).
 4. Link sideways: the reference page for the facts, `docs/architecture/data-access-providers.md` for the explanation.
 
@@ -346,7 +345,7 @@ REFERENCE FILES
 | Category | Files | Notes |
 |----------|-------|-------|
 | Reference page (docs/features/package-comparison.md) | 1 | new |
-| How-to page (docs/guides/how-to-choose-a-provider.md) | 1 | new; dropped if Design Choice 1 is answered with one page |
+| How-to page (docs/guides/how-to-choose-a-provider.md) | 1 | new |
 | README.md | 1 | one link |
 | docs/features/index.md | 1 | one entry |
 | docs/guides/index.md | 1 | one entry |
@@ -366,13 +365,13 @@ Encina is a pre-1.0 .NET 10 / C# 14 library (no backward compatibility, no [Obso
 
 IMPLEMENTATION OVERVIEW
 1. Create docs/features/package-comparison.md (Reference): database (10 providers), caching (8, Memcached planned), transports (10 plus 6 planned), validation (3); every cell backed by a type or package in src/; performance cited from docs/benchmarks/.
-2. Create docs/guides/how-to-choose-a-provider.md (How-to): four Mermaid flowcharts with the reason for each outcome (or fold them into step 1 if the maintainer chose one page).
+2. Create docs/guides/how-to-choose-a-provider.md (How-to): four Mermaid flowcharts with the reason for each outcome.
 3. Link from README.md, docs/features/index.md, docs/guides/index.md and docs/features/database-providers.md.
 4. Verify (lychee, markdownlint-cli2, cov-docs-render check, cell-evidence table, Mermaid render), run docs-reviewer, commit locally.
 
 KEY PATTERNS
 - Do not copy the store matrix of docs/features/database-providers.md; link it.
-- The original "Migrations" row has no code behind it in the data-access packages: drop it unless the worker finds code.
+- The original "Migrations" row is replaced by "Sharding schema migrations": the data-access packages have only `Sharding/Migrations` (schema-migration coordination for sharding), no application-schema migration feature.
 - Planned providers are marked planned with the issue; no hand-typed performance ratings; "no published benchmark" is a valid cell.
 - One Diataxis quadrant per page, every identifier verified in src/, English only, no emojis.
 
@@ -405,8 +404,8 @@ docs/plans/package-comparison-implementation-plan-86.md, .claude/skills/encina-d
 
 ## Prerequisites & Dependencies
 
-- None blocking. Related: #85 (MediatR migration guide, plan `mediatr-migration-guide-implementation-plan-85.md`; link each other only after both exist), #4 (closed duplicate whose transport table is carried here), #907 and #908 (health checks and lock pages, linked when merged).
-- The planned transports (GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr) have issues of their own; the worker finds the numbers with `gh api repos/dlrivada/Encina/issues` before writing the "Planned" table and does not invent them.
+- None blocking. Related: #85 (MediatR migration guide; link each other only after both exist), #4 (closed duplicate whose transport table is carried here), #907 and #908 (health checks and lock pages, linked when merged).
+- The planned transports have issues of their own, looked up on 2026-11-11: GoogleCloudPubSub #237, AmazonEventBridge #238, Pulsar #239, Redis.Streams #240, ActiveMQ #241, Dapr #242; Memcached is #277. The worker re-checks that they are still open before writing the "Planned" table. The spike #3382 sizes the provider tables that the code does not match and is linked from the page.
 
 ---
 
