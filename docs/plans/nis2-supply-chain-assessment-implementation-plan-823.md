@@ -2,11 +2,11 @@
 
 > **Issue**: [#823](https://github.com/dlrivada/Encina/issues/823)
 > **Type**: Feature
-> **Complexity**: High (event-sourced aggregate, projection, overdue monitor, 3 pull requests)
-> **Estimated Scope**: ~2,150 lines of production code + ~1,660 lines of tests (about 28 files; split into 3 pull requests)
+> **Complexity**: High (event-sourced aggregate, projection, overdue monitor, 5 pull requests)
+> **Estimated Scope**: 52 file touches and about 5,400 lines including tests and per-PR metadata; split into 5 pull requests, see "Pull request split"
 > **Milestone**: v0.15.0 — EU Compliance: NIS2 & Digital Omnibus
 > **Provider Category**: None for databases (single event-sourcing provider: Marten on PostgreSQL, ADR-027)
-> **Family**: #822 to #826. Shared pieces are owned by the plan of #822 (`nis2-incident-lifecycle-implementation-plan-822.md`) and are referenced here, not redefined.
+> **Family**: #822 to #826. Shared pieces are owned by the plan of #822 and are referenced here, not redefined.
 
 ---
 
@@ -68,7 +68,7 @@ This plan adds an event-sourced **supplier assessment workflow** in the style of
 
 - A is better because the issue's events `SupplierSuspended`, `SupplierTerminated` and `SupplierCertificationUpdated` describe the relationship, not a cycle.
 - B wins if a supplier will hold hundreds of cycles, or when each cycle must be independently archived or erased; the read model can still expose cycle history in A.
-- With A the id is `NIS2SupplierStreamId.For(tenantId, supplierId)`, a name-based `Guid` over a normalised key; `CreateAsync` on an existing stream fails with a handled `Left`, and the service then loads the stream and appends `Initiated`.
+- With A the id is `NIS2SupplierStreamId.For(tenantId, supplierId)`: a UUIDv5 (RFC 9562, SHA-1 name-based) with a fixed namespace Guid constant of the NIS2 package, over the key `"{tenant}|{supplier}"` where each part is trimmed and lower-cased with the invariant culture (so `Supplier-A` and `supplier-a` map to the same stream, matching the `OrdinalIgnoreCase` comparer of `NIS2Options.Suppliers`); a null tenant is the empty string only when the options allow a missing tenant, otherwise the call is denied (Phase 2 task 4). The algorithm and normalisation are part of the Dilemma 1 outcome, and `CreateAsync` on an existing stream fails with a handled `Left`, after which the service loads the stream and appends `Initiated`.
 
 </details>
 
@@ -123,7 +123,7 @@ This choice is the same for #823, #824 and #826 (each has a boolean or snapshot 
 <summary><strong>4. Status set and transitions</strong></summary>
 
 - **Class**: Trivial
-- **Settled by**: the issue's `SupplierAssessmentStatus` and event table; the status handling of `DPIAAggregate` (`src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs`).
+- **Settled by**: the issue's event table; the status handling of `DPIAAggregate` (`src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs`) for structure only. The issue's `SupplierAssessmentStatus` is deliberately NOT followed on `Pending`: no event leads to it (Corrections table), so a value no transition can reach is dropped.
 
 ### Options Considered
 
@@ -136,7 +136,8 @@ This choice is the same for #823, #824 and #826 (each has a boolean or snapshot 
 
 ### Rationale
 
-- Transitions: `Initiated` from no stream, `Approved`, `Suspended` (reinstatement path) or after a verified remediation; `RiskAssessed` only from `InProgress`; `RemediationRequested` from `Assessed`; `RemediationSubmitted` from `RemediationRequired`; `RemediationVerified` from `RemediationInProgress`; `Approved` from `Assessed` (no findings) or `RemediationVerified`; `Suspended` and `CertificationUpdated` from any status except `Terminated`; `Terminated` from any status except itself; nothing leaves `Terminated`.
+- Illegal transitions are `Left` values with a rule code, never exceptions (ADR-053): the aggregate commands return `Either<EncinaError, Unit>` and `Initiate` returns `Either<EncinaError, SupplierAssessmentAggregate>`; the rule is decided before `RaiseEvent`. `DPIAAggregate` still throws on main only because [#2668](https://github.com/dlrivada/Encina/issues/2668) (the ADR-053 implementation, with the shared rule-code catalogue) is open; this plan uses `NIS2Errors.SupplierAssessmentInvalidTransition` and moves it onto the catalogue when #2668 lands, as the #822 plan does.
+- Transitions: `Initiated` from no stream, or from `Approved` (a new cycle), or from `Suspended` (the only way out of `Suspended`: a new `Initiated` cycle, which is the reinstatement path; there is no direct `Suspended` to `Approved`); `RiskAssessed` only from `InProgress`; `RemediationRequested` from `Assessed`; `RemediationSubmitted` from `RemediationRequired`; `RemediationVerified` from `RemediationInProgress`; `Approved` from `Assessed` (no findings) or `RemediationVerified`; `Suspended` and `CertificationUpdated` from any status except `Terminated`; `Terminated` from any status except itself; nothing leaves `Terminated`.
 
 </details>
 
@@ -235,19 +236,23 @@ This choice is the same for #823, #824 and #826 (each has a boolean or snapshot 
 <details>
 <summary>Tasks</summary>
 
-About 28 files, over the limit of 15 files and 1,500 lines (AGENTS.md section 11). Split:
+52 file touches and about 5,400 lines, over the limit of 15 files and 1,500 lines per pull request (AGENTS.md section 11; the blocking `pr-size` job counts tests, PublicAPI, manifest and docs). Split in 5, counts including every file:
 
-| PR | Phases | Content | Files / lines (approx.) |
-|---|---|---|---|
-| 1 | 1 | Model, scheduler, stream id, events, aggregate; unit, guard and property tests of the domain | 10 files / 1,400 |
-| 2 | 2, 3, 4 | Service and errors, projection, registration, options, evaluator and validator integration, contract and integration tests | 10 files / 1,450 |
-| 3 | 5, 6, 7 (rest), 8 | Monitor, health check, diagnostics, remaining tests, docs, manifest | 8 files / 1,000 |
+| PR | Phases | Files | Test files | Files / lines (approx.) |
+|---|---|---|---|---|
+| 1 | 1 (tasks 1 to 4) | `SupplierAssessmentStatus`, `SupplierRiskCriteria`, `SupplierAssessmentScheduler`, `NIS2SupplierStreamId`, `PublicAPI.Unshipped.txt`, manifest (6) | unit (scheduler, stream id), property (stream id normalisation) (2) | 8 files / 700 |
+| 2 | 1 (tasks 5 to 7) | events, aggregate, `NIS2Errors` (transition code), `PublicAPI.Unshipped.txt`, manifest (5) | unit aggregate, guard, property (3) | 8 files / 1,350 |
+| 3 | 2, 3 | service interface, command records, default service, `NIS2Errors`, read model, projection, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard, contract (4) | 12 files / 1,350 |
+| 4 | 4 | `NIS2MartenExtensions`, `ServiceCollectionExtensions`, `NIS2Options` and validator, `SupplyChainSecurityEvaluator`, `DefaultSupplyChainSecurityValidator`, `PublicAPI.Unshipped.txt`, manifest (8) | unit evaluator and validator, DI test, integration (3) | 11 files / 1,000 |
+| 5 | 5, 6, 8 | monitor, `NIS2ComplianceHealthCheck`, `NIS2Diagnostics`, `NIS2LogMessages`, `PublicAPI.Unshipped.txt`, manifest, changelog fragment, feature page, README, `docs/INVENTORY.md` (10) | unit monitor, unit health check, guard (3) | 13 files / 1,000 |
 
-Prerequisite: the PR 1 of the #822 plan (range, references, `AddNIS2EventSourcing`) is merged; this plan's PR 1 waits for it.
+If a PR measures over 15 files or 1,500 lines, the worker splits it again; it never asks for `size-exception-approved`.
+
+Prerequisite: PR 1 of the #822 plan (range, references, `AddNIS2EventSourcing`) is merged; this plan's PR 1 waits for it.
 
 </details>
 
-### Phase 1: Core Model, Events & Aggregate (PR 1)
+### Phase 1: Core Model, Events & Aggregate (PR 1: tasks 1 to 4; PR 2: tasks 5 to 7)
 
 <details>
 <summary>Tasks</summary>
@@ -257,8 +262,8 @@ Prerequisite: the PR 1 of the #822 plan (range, references, `AddNIS2EventSourcin
 3. `Model/SupplierAssessmentScheduler.cs` (internal, static): `NextDue(SupplierRiskLevel, DateTimeOffset, SupplierAssessmentOptions)`.
 4. `Model/NIS2SupplierStreamId.cs` (internal, static): `For(string? tenantId, string supplierId)` returns the deterministic `Guid`.
 5. `Events/SupplierAssessmentEvents.cs`: ten sealed records implementing `INotification`: `SupplierAssessmentInitiated`, `SupplierRiskAssessed`, `SupplierRemediationRequested`, `SupplierRemediationSubmitted`, `SupplierRemediationVerified`, `SupplierApproved`, `SupplierSuspended`, `SupplierTerminated`, `SupplierCertificationUpdated`, `SupplierAssessmentOverdueEscalated`. Each has the supplier id, a `...AtUtc` timestamp, `TenantId`, `ModuleId`; person ids are separate nullable properties.
-6. `Aggregates/SupplierAssessmentAggregate.cs`: `public sealed class ... : AggregateBase`; static `Initiate(...)`; instance `RecordRiskAssessment`, `RequestRemediation`, `SubmitRemediation`, `VerifyRemediation`, `Approve`, `Suspend`, `Terminate`, `UpdateCertification`, `EscalateOverdue`; `Apply` switch; properties of the issue plus `LastAssessedAtUtc`, `CertificationExpiresAtUtc`, `EscalatedForDueAtUtc`, `RequiresAttention`.
-7. Tests: unit (each legal and illegal transition, replay, scheduler 1/3/6/12), guard, property (no sequence leaves `Terminated`; `NextAssessmentDueAtUtc` set after approval).
+6. `Aggregates/SupplierAssessmentAggregate.cs`: `public sealed class ... : AggregateBase`; static `Initiate(...)`; instance `RecordRiskAssessment`, `RequestRemediation`, `SubmitRemediation`, `VerifyRemediation`, `Approve`, `Suspend`, `Terminate`, `UpdateCertification`, `EscalateOverdue`, each returning `Either<EncinaError, Unit>` (`Initiate` returns `Either<EncinaError, SupplierAssessmentAggregate>`; ADR-053: an illegal transition is a `Left` with the `SupplierAssessmentInvalidTransition` rule code before `RaiseEvent`); `Apply` switch; properties of the issue plus `LastAssessedAtUtc`, `CertificationExpiresAtUtc`, `EscalatedForDueAtUtc`, `RequiresAttention`.
+7. Tests: unit (each legal transition, each illegal one returns `Left` and raises no event, replay, scheduler 1/3/6/12, stream id normalisation), guard, property (no sequence leaves `Terminated`; `NextAssessmentDueAtUtc` set after approval).
 
 </details>
 
@@ -271,7 +276,8 @@ You are implementing Phase 1 of the supplier assessment workflow for Encina.Comp
 CONTEXT:
 - Encina is .NET 10 / C# 14, Either<EncinaError, T> for business results, TimeProvider for time (the aggregate takes timestamps as parameters).
 - The EventId range 9800-9899, the Marten and DomainModeling references and AddNIS2EventSourcing come from the plan of issue 822; this phase uses ids 9830-9849 only.
-- Pattern: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs and Events/DPIAEvents.cs.
+- Pattern for structure, events and Apply: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs and Events/DPIAEvents.cs; error style per docs/architecture/adr/053-aggregate-rule-violations-return-either.md (DPIAAggregate still throws until #2668; do not copy that).
+- Two pull requests: PR 1 = status enum, criteria, scheduler, stream id (UUIDv5, trim + invariant lower-case); PR 2 = events and aggregate.
 
 TASK:
 1. Create the status enum, criteria record, scheduler, stream id helper, the 10 events and SupplierAssessmentAggregate (Design Choices 1, 2, 4, 6).
@@ -279,7 +285,7 @@ TASK:
 3. Write unit, guard and property tests that instantiate the real aggregate.
 
 KEY RULES:
-- AggregateBase with Guid Id; no clock reads; an illegal transition throws InvalidOperationException (the service maps it to Left in Phase 2).
+- AggregateBase with Guid Id; no clock reads; commands return Either<EncinaError, Unit> (Initiate: Either<EncinaError, SupplierAssessmentAggregate>); an illegal transition is a Left with the SupplierAssessmentInvalidTransition rule code decided before RaiseEvent; never throw InvalidOperationException for a rule (ADR-053).
 - Person ids are separate nullable properties (shared personal-data decision of the #822 plan).
 - No [Obsolete], no compatibility code; zero warnings.
 
@@ -291,14 +297,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 2: Service, Errors & Default Implementation (PR 2)
+### Phase 2: Service, Errors & Default Implementation (PR 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `Abstractions/INIS2SupplierAssessmentService.cs`: `InitiateAssessmentAsync`, `RecordRiskAssessmentAsync`, `RequestRemediationAsync`, `SubmitRemediationAsync`, `VerifyRemediationAsync`, `ApproveSupplierAsync`, `SuspendSupplierAsync`, `TerminateSupplierAsync`, `UpdateCertificationAsync`, `GetOverdueAssessmentsAsync`; each `ValueTask<Either<EncinaError, ...>>` with `CancellationToken`. The issue's `Guid assessmentId` parameter is the supplier stream id returned by `InitiateAssessmentAsync`. Command records in `Model/`.
-2. `Services/DefaultNIS2SupplierAssessmentService.cs` (internal): `IAggregateRepository<SupplierAssessmentAggregate>`, the read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`. Validates commands, pre-checks the transition, calls the aggregate, saves; never swallows a `Left`.
-3. `NIS2Errors.cs`: `SupplierAssessmentNotFound`, `SupplierAssessmentInvalidTransition`, `SupplierAssessmentCommandInvalid`, `SupplierAssessmentStoreFailed`.
+2. `Services/DefaultNIS2SupplierAssessmentService.cs` (internal): `IAggregateRepository<SupplierAssessmentAggregate>`, the read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`. Validates commands, calls the aggregate and composes its `Either` with `Bind` (no transition pre-check: the aggregate owns the state machine, ADR-053), saves; never swallows a `Left`.
+3. `NIS2Errors.cs`: `SupplierAssessmentNotFound`, `SupplierAssessmentCommandInvalid`, `SupplierAssessmentStoreFailed` (`SupplierAssessmentInvalidTransition` came with the aggregate in PR 2).
 4. Tenant and module ids from `ITenantContext`/`IModuleContext`; a missing tenant where the options require one is denied (issue Alternatives 10).
 
 </details>
@@ -330,7 +336,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Projection & Read Model (PR 2)
+### Phase 3: Projection & Read Model (PR 3)
 
 <details>
 <summary>Tasks</summary>
@@ -364,7 +370,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 4: Configuration, DI, Evaluator & Validator Integration (PR 2)
+### Phase 4: Configuration, DI, Evaluator & Validator Integration (PR 4)
 
 <details>
 <summary>Tasks</summary>
@@ -372,7 +378,7 @@ REFERENCE FILES:
 1. `NIS2MartenExtensions` (created by the #822 plan): add `services.AddAggregateRepository<SupplierAssessmentAggregate>();` and `services.AddProjection<SupplierAssessmentProjection, SupplierAssessmentReadModel>();`.
 2. `ServiceCollectionExtensions.cs`: `TryAddScoped<INIS2SupplierAssessmentService, ...>` registered together with its dependencies (registration completeness, AGENTS.md section 3).
 3. `NIS2Options`: `SupplierAssessmentOptions` (`ReassessmentMonths` per level, `AlertThreshold`, `EnableSupplierAssessmentMonitoring`, `SupplierAssessmentCheckInterval` default 1 hour); extend `NIS2OptionsValidator`.
-4. Dilemma 3, option A: `SupplyChainSecurityEvaluator` and `DefaultSupplyChainSecurityValidator` read the register through the service when it is registered (a supplier counts when its status is `Approved` and not overdue; `Critical` risk or `Suspended`/`Terminated` fails), otherwise the code path stays as today.
+4. Dilemma 3, option A: `SupplyChainSecurityEvaluator` and `DefaultSupplyChainSecurityValidator` read the register through the service when it is registered (a supplier counts when its status is `Approved` and not overdue; `Critical` risk or `Suspended`/`Terminated` fails), otherwise the code path stays as today. Lifetimes: `INIS2SupplierAssessmentService` is scoped (Marten session), but `DefaultSupplyChainSecurityValidator` and the evaluators are singletons today (`ServiceCollectionExtensions.cs`: `TryAddSingleton<ISupplyChainSecurityValidator, ...>`, evaluators registered as `ServiceDescriptor.Singleton`), and a singleton must not capture a scoped service (`ValidateScopes` rejects it). Resolution: their lifetimes do NOT change; the evaluator resolves the service from the `ServiceProvider` of its evaluation context inside a scope, and `DefaultSupplyChainSecurityValidator` takes `IServiceScopeFactory` (a singleton-safe dependency, a constructor change in this PR) and creates a scope per call to resolve the optional service. When the service is not registered, `GetService` returns null and the static path runs.
 5. DI test with `ValidateOnBuild` and `ValidateScopes`, with and without the workflow.
 
 </details>
@@ -388,7 +394,7 @@ CONTEXT:
 
 TASK:
 1. Register the aggregate, projection and service; add the options and validate them.
-2. Make SupplyChainSecurityEvaluator and DefaultSupplyChainSecurityValidator use the register when the service is registered, otherwise unchanged.
+2. Make SupplyChainSecurityEvaluator and DefaultSupplyChainSecurityValidator use the register when the service is registered, otherwise unchanged. Both stay singletons: the evaluator resolves the scoped service through its context's service provider in a scope, the validator takes IServiceScopeFactory and creates a scope per call.
 3. Write the DI test (ValidateOnBuild, ValidateScopes) for both configurations.
 
 KEY RULES:
@@ -403,7 +409,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Cross-Cutting Integration, Monitor & Health Check (PR 3)
+### Phase 5: Cross-Cutting Integration, Monitor & Health Check (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -439,7 +445,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: Observability (PR 3)
+### Phase 6: Observability (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -476,7 +482,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Testing (PRs 1 to 3)
+### Phase 7: Testing (PRs 1 to 5)
 
 <details>
 <summary>Tasks</summary>
@@ -485,7 +491,7 @@ REFERENCE FILES:
 |---|---|---|
 | Unit | Aggregate transitions and replay, scheduler, stream id, service with a substituted repository, projection handlers, monitor, health check, evaluator with and without the register | `tests/Encina.UnitTests/Compliance/NIS2/` |
 | Guard | Public methods and constructors | `tests/Encina.GuardTests/Compliance/NIS2/` |
-| Contract | `INIS2SupplierAssessmentService`: illegal transitions return `Left`, never throw | `tests/Encina.ContractTests/Compliance/NIS2/` |
+| Contract | `INIS2SupplierAssessmentService` and the aggregate commands: illegal transitions return `Left` with the `SupplierAssessmentInvalidTransition` rule code, raise no event and never throw | `tests/Encina.ContractTests/Compliance/NIS2/` |
 | Property | Terminated is final; due date set after approval; replay equals live state | `tests/Encina.PropertyTests/Compliance/NIS2/` |
 | Integration | Full workflow on Marten and PostgreSQL through the shared Testcontainers fixture; projection registered with a real store; concurrent escalation yields one handled `Left` | `tests/Encina.IntegrationTests/Compliance/NIS2/` |
 | Load / Benchmark | Not implemented: low volume, no hot path; `.md` justification files | `tests/Encina.LoadTests`, `tests/Encina.BenchmarkTests` |
@@ -519,7 +525,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 8: Documentation & Finalization (PR 3)
+### Phase 8: Documentation & Finalization (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -598,20 +604,16 @@ REFERENCE FILES:
 
 ### File Count Estimate
 
-| Category | Files | Approx. lines |
+Per pull request, tests and metadata included (same figures as the split table; PublicAPI, manifest and `NIS2Errors` are touched in several PRs and count in each):
+
+| PR | Files | Approx. lines |
 | :--- | :--- | :--- |
-| Production: model (status enum, criteria, commands, interval calculator) | 4 | 350 |
-| Production: aggregate and events | 2 | 650 |
-| Production: service abstraction and default implementation | 2 | 450 |
-| Production: read model and projection | 2 | 300 |
-| Production: overdue monitor, health check additions, options, DI and evaluator integration | 4 | 400 |
-| Tests: unit | 4 | 800 |
-| Tests: guard | 2 | 180 |
-| Tests: contract | 1 | 100 |
-| Tests: property | 1 | 130 |
-| Tests: integration (Marten, PostgreSQL) | 1 | 250 |
-| Docs and metadata: PublicAPI, coverage manifest, changelog fragment, feature page, README | 5 | 200 |
-| Total | 28 | 3810 |
+| 1 Model, scheduler, stream id | 8 | 700 |
+| 2 Events and aggregate | 8 | 1,350 |
+| 3 Service, projection, read model | 12 | 1,350 |
+| 4 Registration, options, evaluator and validator | 11 | 1,000 |
+| 5 Monitor, health check, observability, docs | 13 | 1,000 |
+| Total | 52 | 5,400 |
 
 ---
 
@@ -633,11 +635,12 @@ IMPLEMENTATION OVERVIEW:
 6. NIS2SupplierAssessmentMonitorService (opt-in) and the health check addition.
 7. Diagnostics and [LoggerMessage] ids 9830-9849.
 8. Unit, guard, contract, property, integration tests; load and benchmark justifications.
-9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 3 pull requests of the split.
+9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 5 pull requests of the split.
 
 KEY PATTERNS:
 - Mirror DPIAAggregate, DPIAEvents, DPIAProjection, DPIAReviewReminderService, DPIAMartenExtensions.
-- ROP: Either<EncinaError, T>; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
+- ROP (ADR-053): aggregate commands return Either, an illegal transition is a Left with a rule code, never InvalidOperationException; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
+- Singleton evaluator/validator never capture the scoped service: scope per call (Phase 4).
 - NIS2ResilienceHelper returns a fallback on failure: never wrap store calls in it.
 - Dilemmas 1, 2 and 3 are recommended, pending the maintainer: keep them isolated.
 
@@ -645,7 +648,6 @@ REFERENCE FILES:
 - src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 - src/Encina.Compliance.NIS2/Evaluators/SupplyChainSecurityEvaluator.cs
 - src/Encina.Compliance.NIS2/DefaultSupplyChainSecurityValidator.cs
-- docs/plans/nis2-incident-lifecycle-implementation-plan-822.md
 - docs/architecture/adr/019-compliance-event-sourcing-marten.md, 050-modules-may-require-modules.md
 ```
 
@@ -663,7 +665,7 @@ REFERENCE FILES:
 | 4 | Health Checks | ✅ | Phase 5: overdue assessment or expired certification gives Degraded |
 | 5 | Validation | ✅ | Commands validated in the service (blank ids, criteria out of range, past due dates) before any event |
 | 6 | Resilience | ❌ | No external call; store calls are not wrapped in `NIS2ResilienceHelper`, which swallows failures |
-| 7 | Distributed Locks | ⏭️ | Escalation is idempotent per due date and Marten optimistic concurrency protects duplicates (Design Choice 5); multi-instance coordination follows ADR-050; no new issue |
+| 7 | Distributed Locks | ⏭️ | Escalation is idempotent per due date and Marten optimistic concurrency protects duplicates (Design Choice 5); multi-instance coordination is deferred to [#1251](https://github.com/dlrivada/Encina/issues/1251), the issue ADR-050 names for it |
 | 8 | Transactions | ✅ | The Marten session commits the event append atomically; no `TransactionPipelineBehavior` (ADR-050) |
 | 9 | Idempotency | ✅ | Aggregate version and the per-due-date escalation guard |
 | 10 | Multi-Tenancy | ✅ | `TenantId` in the events, aggregate, stream id and read model |
@@ -679,12 +681,13 @@ REFERENCE FILES:
 | #822 plan, PR 1: range 9800-9899, references, `AddNIS2EventSourcing` | Planned | PR 1 of this plan depends on it |
 | Personal-data decision (Dilemma 6 of the #822 plan) | Pending the maintainer | Assessor ids stay separate nullable properties until decided |
 | #1603 NIS2 reads the system clock instead of `TimeProvider` | Open | New code takes `TimeProvider`; the old code is not touched here |
-| #827 NIS2 reporting and read models | Open | Outside this family; needs its own allocation in the shared range |
+| #827 NIS2 reporting and read models | Open | Outside this family; no EventId block yet (9800-9899 is fully split among #822 to #826); the orchestrator assigns one in the batch registry |
+| #2668 ADR-053 implementation and shared rule-code catalogue | Open | Not a blocker: this plan adds its code to `NIS2Errors` and moves it onto the catalogue when it lands |
 
 ---
 
 ## Next Steps
 
 1. Maintainer answers Dilemmas 1, 2 and 3 when work on #823 starts (each is marked "recommended, pending the maintainer"; Dilemma 3 also decides #824 and #826).
-2. Brief PR 1 after the #822 PR 1 merges; PR 2 and 3 follow in order.
+2. Brief PR 1 after the #822 PR 1 merges; PR 2 to 5 follow in order. When the maintainer answers Dilemma 3, update the register statement of issue #823 (its Alternatives 1 says "not adopted" as Settled).
 3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
