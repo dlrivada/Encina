@@ -22,7 +22,7 @@ What this plan delivers: `ActivitySource("Encina.Resilience")` request spans wit
 
 - **Affected packages**: `Encina` (core, `Diagnostics/`, `Recoverability/RetryMetrics.cs`), `Encina.Polly`, `Encina.Extensions.Resilience`, `Encina.OpenTelemetry`.
 - **Provider category**: Resilience (Polly, Extensions.Resilience; `Encina.Http` is deferred to [#1233](https://github.com/dlrivada/Encina/issues/1233)). No database, caching, transport, lock or validation provider matrix applies.
-- **Estimated size**: about 40 files and 2,000-2,400 lines, which exceeds one worker pull request (15 files, 1,500 lines). The split into four pull requests is in "Implementation Phases" below.
+- **Estimated size**: about 40 files and 2,000-2,400 lines, which exceeds one worker pull request (15 files, 1,500 lines). The split into six pull requests is in "Implementation Phases" below.
 - **Prerequisites**: [#2277](https://github.com/dlrivada/Encina/issues/2277) (removes the dead `EnableTelemetry` and `EnableLogging`) and [#2274](https://github.com/dlrivada/Encina/issues/2274) (rate-limiter state change) are open; see "Prerequisites & Dependencies".
 
 ---
@@ -188,16 +188,17 @@ Polly's `ConfigureTelemetry(ILoggerFactory)` also enables Polly's own event logg
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `encina.resilience.shed_load` (`Counter<long>`), `encina.resilience.rate_limiter.state_changes` (`Counter<long>`), `encina.resilience.rate_limiter.state` (`ObservableGauge<int>`), `encina.resilience.partitions` (`ObservableGauge<int>`) under `Meter("Encina.Resilience")`** | Lowercase dotted, no `_total`, unit in metadata (ADR-054 rule 4); no clash with `resilience.polly.*` | Names are new and need one review |
-| **B) Names under `resilience.*`** | Looks like Polly's family | Easy to confuse with Polly's own instruments |
+| **A) `encina.resilience.shed_load` (`Counter<long>`), `encina.resilience.rate_limiter.state_changes` (`Counter<long>`), `encina.resilience.rate_limiter.state` (`ObservableGauge<int>`), `encina.resilience.partitions` (`ObservableGauge<int>`) under `Meter("Encina.Resilience")`; "adaptive concurrency state" of ADR-055 R5 is read as the adaptive rate limiter's state** | Lowercase dotted, no `_total`, unit in metadata (ADR-054 rule 4); no clash with `resilience.polly.*` | The bulkhead's concurrency and queue depth stay unobservable |
+| **B) A plus `encina.resilience.bulkhead.concurrency` and `encina.resilience.bulkhead.queued` (`ObservableGauge<int>`, read from `BulkheadMetrics.CurrentConcurrency` and `CurrentQueuedCount` through `BulkheadManager`)** | Covers ADR-055 R5 and the issue ("adaptive concurrency state, shed load and partition count") under both readings; `BulkheadManager` is already the source of rejection counts | Two more public metric names; gauges need a provider callback for the bulkhead too |
+| **C) Names under `resilience.*`** | Looks like Polly's family | Easy to confuse with Polly's own instruments |
 
-### Chosen Option: **A — `encina.resilience.*` instrument names**
+### Chosen Option: **B — `encina.resilience.*` instrument names, including the two bulkhead gauges** (recommended, pending the maintainer)
 
 ### Rationale
 
 - Bounded tags only: `resilience.policy`, request type, reason, state, tenant when multi-tenancy is on. Partition count is an observable gauge fed by the rate limiter's key count (one key per request type today).
-- **Class**: Trivial
-- **Settled by**: ADR-054 settled point 4 (instrument-name rules) and ADR-055 R5 (the three gap categories).
+- The reading of "adaptive concurrency state" decides whether the bulkhead gauges exist, and the names are public: this is the maintainer's choice, so it is a Dilemma. The tag key `encina.tenant_id` is the one `RetryTelemetry` uses today (`src/Encina.Polly/Diagnostics/RetryTelemetry.cs`); ADR-054 D4 fixes the rule (only when multi-tenancy is on) but not the key, so the key is a Trivial convention taken from existing code.
+- **Class**: Dilemma (the instrument names and the tag key follow ADR-054 settled point 4 and ADR-055 R5; only the bulkhead gauges need the decision)
 
 </details>
 
@@ -209,10 +210,12 @@ Polly's `ConfigureTelemetry(ILoggerFactory)` also enables Polly's own event logg
 
 | PR | Phases | Content | Depends on |
 |----|--------|---------|------------|
-| PR-1 | 1, 2, 3 (retry and breakers) | `ResilienceTelemetry` in core, Polly enricher, `RetryPipelineBehavior`, `CircuitBreakerPipelineBehavior`, `DatabaseCircuitBreakerPipelineBehavior`, remove `RetryTelemetry` and `RecordAttempt`, unit and guard tests | #2277 merged first (it edits the same options file) |
-| PR-2 | 3 (shed load), 5 (OpenTelemetry), 7 | Bulkhead and rate-limit instruments, rate-limiter state-change counter and gauge, `WithEncina()` subscriptions | PR-1; #2274 for the state-change event |
-| PR-3 | 4, 8, 9 | `StandardResiliencePipelineBehavior` and its enricher, contract, integration and benchmark tests, READMEs and the observability guide, changelog fragment | PR-1 |
-| PR-4 | 6 | `RateLimiterThrottledHealthCheck` and its tests | PR-2 and #2274 |
+| PR-1 | 1, 2, 3 (retry and breakers), 6 task 1 (tenant tag on spans), 8 (its unit and guard tests) | `ResilienceTelemetry` in core (tenant tag included), Polly enricher, `RetryPipelineBehavior`, `CircuitBreakerPipelineBehavior`, `DatabaseCircuitBreakerPipelineBehavior`, remove `RetryTelemetry` and `RecordAttempt`, unit and guard tests, `PublicAPI.Unshipped.txt` and manifest entries of the files it touches | #2277 merged first (it edits the same options file) |
+| PR-2 | 3 (shed load), 5 (OpenTelemetry), 7, 6 task 1 (tenant tag on its instruments), 8 (its unit and guard tests) | Bulkhead and rate-limit instruments, bulkhead and rate-limiter gauges, rate-limiter state-change counter, `WithEncina()` subscriptions, their tests, `PublicAPI`, manifests | PR-1; #2274 for the state-change event |
+| PR-3a | 4, 8 (its unit and guard tests), 9 task 2 | `StandardResiliencePipelineBehavior`, `ResilienceTelemetryEnricher`, registration, unit and guard tests, `PublicAPI`, manifest, the two changelog fragments (about 12 files) | PR-1 |
+| PR-3b | 8 (contract, integration, benchmark) | Contract test pinning the names, the two end-to-end integration tests, the two benchmark files (about 6 files) | PR-1, PR-2, PR-3a |
+| PR-3c | 9 (docs) | Two package READMEs, the observability guide and `docs/INVENTORY.md` (about 4 files, by `docs-writer`) | PR-3a |
+| PR-4 | 6 (health check) | `RateLimiterThrottledHealthCheck`, its tests, `PublicAPI`, manifest | PR-2 and #2274 |
 
 ### Phase 1: Core Telemetry Model and Names
 
@@ -388,7 +391,7 @@ TASK:
 In src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs add the Encina.Resilience source, the Encina.Resilience meter and the Polly meter to WithEncina(), and to the two AddEncinaInstrumentation builder overloads. Add a unit test per entry that builds a TracerProvider / MeterProvider and observes a recorded measurement.
 
 KEY RULES:
-- Do not touch the wildcard/"every source subscribed" work of #1787; add explicit entries only.
+- Do not touch the wildcard/"every source subscribed" work of #1787; add explicit entries only. When #1787 lands (a test that every source and meter is subscribed, and the wildcard subscription of ADR-054 D3), its worker keeps these explicit entries unless the wildcard already covers them; it removes them in the same PR only if the wildcard subscribes `Encina.Resilience` and `Polly`, so this work is neither duplicated nor dropped.
 - No enable/disable option (Design Choice 6).
 - Zero warnings; XML docs unchanged unless behavior text changes.
 
@@ -405,7 +408,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Tenant: every span and every enriched or Encina-owned instrument adds `encina.tenant_id` only when `IRequestContext.TenantId` is not null (ADR-054 D4); no tag when multi-tenancy is off.
+1. Tenant (delivered inside PR-1 for the spans and the Polly enricher, and inside PR-2 for the Encina-owned instruments, not in the health-check PR): every span and every enriched or Encina-owned instrument adds `encina.tenant_id` only when `IRequestContext.TenantId` is not null (ADR-054 D4); no tag when multi-tenancy is off.
 2. Health check (PR-4, after #2274): `src/Encina.Polly/Health/RateLimiterThrottledHealthCheck.cs` deriving from `EncinaHealthCheck` (`src/Encina.Messaging/Health/EncinaHealthCheck.cs`), `public const string DefaultName = "encina-polly-ratelimiter"`, static tags array, reads the rate-limiter state through the state-change event or `IRateLimiter.GetState`; returns `Degraded` while a key is `Throttled`, `Healthy` otherwise; registration via a `AddRateLimiterHealthCheck` extension on `IHealthChecksBuilder` with `TryAdd*`.
 3. Fail closed where context is missing: if the limiter cannot be resolved, the check reports `Unhealthy` rather than `Healthy`.
 
@@ -439,8 +442,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. In `ResilienceTelemetry` (Phase 1) define on `Meter("Encina.Resilience")`: `encina.resilience.shed_load` (`Counter<long>`, unit `{rejections}`, tags `resilience.policy`, `reason`, request type, tenant when on), `encina.resilience.rate_limiter.state_changes` (`Counter<long>`, tags `from`, `to`, request type), `encina.resilience.rate_limiter.state` (`ObservableGauge<int>`), `encina.resilience.partitions` (`ObservableGauge<int>`).
-2. The gauges read `AdaptiveRateLimiter` state through a small provider callback registered by `AddEncinaPolly` (no static mutable state; `TimeProvider` is not needed because no time is read).
+1. In `ResilienceTelemetry` (Phase 1) define on `Meter("Encina.Resilience")`: `encina.resilience.shed_load` (`Counter<long>`, unit `{rejections}`, tags `resilience.policy`, `reason`, request type, tenant when on), `encina.resilience.rate_limiter.state_changes` (`Counter<long>`, tags `from`, `to`, request type), `encina.resilience.rate_limiter.state` (`ObservableGauge<int>`), `encina.resilience.partitions` (`ObservableGauge<int>`), and, if Design Choice 8 stays option B, `encina.resilience.bulkhead.concurrency` and `encina.resilience.bulkhead.queued` (`ObservableGauge<int>`, read from `BulkheadMetrics.CurrentConcurrency` and `CurrentQueuedCount`).
+2. The gauges read `AdaptiveRateLimiter` and `BulkheadManager` state through a small provider callback registered by `AddEncinaPolly` (no static mutable state; `TimeProvider` is not needed because no time is read).
 3. Structured logging: no new `[LoggerMessage]`; the Polly range 3900-3949 (3900-3921 used) and the ExtensionsResilience range 3950-3999 (3950-3955 used) have free slots if a later review wants a log line; any new id is registered first in `src/Encina/Diagnostics/EventIdRanges.cs` (ADR-021).
 
 </details>
@@ -453,7 +456,7 @@ CONTEXT:
 Per ADR-055 R5 Encina-owned instruments exist only for what Polly does not measure: adaptive concurrency state, shed load and partition count. Retry, breaker and timeout events are native Polly events (enriched in Phase 2/4).
 
 TASK:
-Add the four instruments of Design Choice 8 to ResilienceTelemetry and record them from BulkheadPipelineBehavior and RateLimitingPipelineBehavior. The two observable gauges read the registered AdaptiveRateLimiter / BulkheadManager state.
+Add the instruments of Design Choice 8 (four, plus the two bulkhead gauges unless the maintainer picked option A) to ResilienceTelemetry and record them from BulkheadPipelineBehavior and RateLimitingPipelineBehavior. The two observable gauges read the registered AdaptiveRateLimiter / BulkheadManager state.
 
 KEY RULES:
 - Instrument names lowercase dotted, unit in metadata, no _total suffix (ADR-054 rule 4).
@@ -601,7 +604,7 @@ REFERENCE FILES:
 | Integration tests | 0 | 2 | Existing end-to-end tests extended |
 | Benchmarks | 1 | 1 | Zero-allocation benchmark |
 | Documentation | 0 | 5 | Two READMEs, observability guide, `docs/INVENTORY.md`, two changelog fragments |
-| **Total** | **~10** | **~33** | About 2,000-2,400 changed lines over four pull requests |
+| **Total** | **~10** | **~33** | About 2,000-2,400 changed lines over six pull requests (PR-1, PR-2, PR-3a, PR-3b, PR-3c, PR-4) |
 
 ---
 
@@ -622,7 +625,7 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 PR-1 (Phases 1-3 retry and breakers): src/Encina/Diagnostics/ResilienceTelemetry.cs; Polly enricher; Retry, CircuitBreaker, DatabaseCircuitBreaker behaviors; delete RetryTelemetry.cs and RetryMetrics.RecordAttempt.
 PR-2 (shed load, OpenTelemetry): bulkhead and rate-limit instruments; state-change counter/gauge (waits for #2274); WithEncina() subscribes Encina.Resilience source/meter and the Polly meter.
-PR-3 (Phases 4, 8, 9): StandardResiliencePipelineBehavior + enricher; contract, integration, benchmark tests; READMEs, guide, changelog.
+PR-3a (Phase 4): StandardResiliencePipelineBehavior + enricher, unit and guard tests, changelog fragments. PR-3b: contract, integration and benchmark tests. PR-3c: READMEs, guide, INVENTORY (docs-writer).
 PR-4 (Phase 6): RateLimiterThrottledHealthCheck (after #2274).
 Pending maintainer decisions: Design Choices 1 (class in core), 2 (keep RecordSkipped for Messaging), 3 (health check in Encina.Polly).
 
@@ -685,5 +688,5 @@ REFERENCE FILES:
 2. Link it from issue #728.
 3. When work on #728 starts, put Design Choices 1, 2 and 3 to the maintainer and record the answers in a `## Maintainer Decisions` section placed last.
 4. Merge #2277, then start PR-1 (Phases 1-3); each phase is a self-contained commit.
-5. PR-2 and PR-4 wait for #2274; PR-3 follows PR-1.
+5. PR-2 and PR-4 wait for #2274; PR-3a follows PR-1, PR-3b follows PR-3a, PR-2 and PR-1, PR-3c follows PR-3a.
 6. The final PR references `Fixes #728`.
