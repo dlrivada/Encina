@@ -15,8 +15,8 @@ The issue is about 30 pages, which exceeds the pull request limit of 15 files an
 
 | Sub-issue | Content | Files | Estimated lines | Depends on |
 |-----------|---------|------:|----------------:|------------|
-| S1 Foundations | `docs/compliance/index.md` (overview, layers, positioning, design principles), `industry-tools.md`, `architecture.md`, link from `docs/features/index.md` | 4 | about 600 | none |
-| S2 GDPR module pages A | `modules/index.md`, consent, lawful-basis, data-subject-rights, anonymization, retention, data-residency | 7 | about 750 | S1 |
+| S1 Foundations | `docs/compliance/index.md` (overview, layers, positioning, design principles), `industry-tools.md`, `architecture.md`, `modules/index.md` (the third navigation level, so S2 to S5 depend only on S1), link from `docs/features/index.md` | 5 | about 620 | none |
+| S2 GDPR module pages A | consent, lawful-basis, data-subject-rights, anonymization, retention, data-residency | 6 | about 730 | S1 |
 | S3 GDPR module pages B | breach-notification, read-auditing, crypto-shredding, pii-masking, encryption, sanitization | 6 | about 700 | S1 |
 | S4 Advanced module pages | dpia, processor-agreements, privacy-by-design, cross-border, nis2, ai-act, abac, message-encryption | 8 | about 900 | S1 |
 | S5 Modules the issue did not list | attestation, break-the-glass, anti-tampering, secrets (4 pages; 7 with the three planned ones if Design Choice 3 is answered with option A) | 4 | about 450 | S1 |
@@ -131,7 +131,7 @@ What the code, docs and open issues say today (read on 2026-11-11), which correc
 
 ### Rationale
 
-- The `modules/index.md` file is created by S2 and counted there as its seventh file; S3 to S5 may only merge after S2 (or each carries the file if S2 is delayed, with the second pull request dropping it).
+- The `modules/index.md` file is created by S1 (counted there as its fifth file), so S2 to S5 depend only on S1 and can run and merge in parallel.
 - The issue's URL `docs/compliance/README.md` is replaced by `docs/compliance/index.md`; the README of the repository links the hub.
 
 **Class:** Settled
@@ -216,11 +216,12 @@ Each of Phases 1 to 6 is one sub-issue and one pull request; Phase 7 is the veri
 <details>
 <summary>Tasks</summary>
 
-1. `docs/compliance/index.md` (front matter `title: "Compliance"`, `layout: default`, `nav_order`, `has_children: true`): what Encina does at application level and what it does not (the issue's sections 1.1 and 1.2), the layer diagram in Mermaid (Layer 5 highlighted), the design principles corrected for fail-closed behaviour (Design Choice 4 and the Summary), a map to the hub's pages, and the scope statement (EU and Spanish law, SPEC-002).
+1. `docs/compliance/index.md` (front matter `title: "Compliance"`, `layout: default`, `nav_order`, `has_children: true`): what Encina does at application level and what it does not (the issue's sections 1.1 and 1.2), the layer diagram in Mermaid (Layer 5 highlighted), the design principles corrected for fail-closed behaviour (the Summary), a map to the hub's pages, and the scope statement (EU and Spanish law, SPEC-002).
 2. `docs/compliance/industry-tools.md`: the ten-tool table of Design Choice 5, each row with a source and a reading date.
 3. `docs/compliance/architecture.md`: how enforcement enters the pipeline (`IPipelineBehavior<,>`), the attribute system (`[ProcessesPersonalData]`, `[RequireConsent]`, `[RetentionPeriod]`, `[PersonalData]` and the others found in `src/`), enforcement modes (Block, Warn, Disabled) with the default, how a registered module fails closed, and the planned modules table (#686, #687, #688) of Design Choice 3.
-4. `docs/features/index.md`: one entry linking the hub.
-5. `README.md` is not edited here; the README link goes with S6 so that it points to a complete hub.
+4. `docs/compliance/modules/index.md` (title "Modules", `parent: "Compliance"`, `has_children: true`): the list of module pages that S2 to S5 add, so those pages need no shared file.
+5. `docs/features/index.md`: one entry linking the hub.
+6. `README.md` is not edited here; the README link goes with S6 so that it points to a complete hub.
 
 </details>
 
@@ -232,7 +233,7 @@ CONTEXT
 Encina is a pre-1.0 .NET 10 library. Worktree: <worktree> (absolute paths only). You write Explanation pages of the Diataxis model for an architect evaluating Encina for compliance-sensitive applications. Plan: docs/plans/compliance-docs-hub-implementation-plan-689.md, sub-issue S1.
 
 TASK
-Create docs/compliance/index.md, docs/compliance/industry-tools.md and docs/compliance/architecture.md, and add one entry to docs/features/index.md, as in Phase 1 of the plan. Read first: docs/specifications/SPEC-002-eu-regulatory-readiness.md, docs/architecture/module-dependency-matrix.md, docs/architecture/adr/018-cross-cutting-integration-principle.md, docs/engineering/assessments/2026-10-10-competitive-landscape.md, docs/features/gdpr-compliance.md and the pipeline behaviors of the compliance packages.
+Create docs/compliance/index.md, docs/compliance/industry-tools.md, docs/compliance/architecture.md and docs/compliance/modules/index.md (title "Modules", parent "Compliance", has_children: true), and add one entry to docs/features/index.md, as in Phase 1 of the plan. Read first: docs/specifications/SPEC-002-eu-regulatory-readiness.md, docs/architecture/module-dependency-matrix.md, docs/architecture/adr/018-cross-cutting-integration-principle.md, docs/engineering/assessments/2026-10-10-competitive-landscape.md, docs/features/gdpr-compliance.md and the pipeline behaviors of the compliance packages.
 
 KEY RULES
 - The hub entry is index.md with has_children: true (not README.md); module pages will use parent "Compliance".
@@ -252,7 +253,7 @@ REFERENCE FILES
 <details>
 <summary>Tasks</summary>
 
-1. Create `docs/compliance/modules/index.md` (title "Modules", `parent: "Compliance"`, `has_children: true`) and six module pages with `parent: "Modules"`: `consent.md`, `lawful-basis.md`, `data-subject-rights.md`, `anonymization.md`, `retention.md`, `data-residency.md`.
+1. Create six module pages with `parent: "Modules"` (the `modules/index.md` parent page comes from S1): `consent.md`, `lawful-basis.md`, `data-subject-rights.md`, `anonymization.md`, `retention.md`, `data-residency.md`.
 2. Each page follows the structure of Design Choice 1 (thin page): purpose and regulation articles; registration method copied from `src/`; options pointer; provider support (which of the 10 database providers and Marten, read from the package); integration with other modules (a small Mermaid diagram); observability (health check, metrics, spans in the package); links to the feature page (`consent-management.md`, `lawful-basis-validation.md`, `data-subject-rights.md`, `data-retention.md`, `data-residency.md`) and the ADRs (ADR-014 for residency, ADR-031 for retention erasure).
 3. `anonymization.md` has no feature page today, so it carries the usage (registration, options, the pseudonymization and anonymization operations found in `Encina.Compliance.Anonymization`).
 4. Articles listed per page come from the module's code and XML docs, not from the issue table.
@@ -267,7 +268,7 @@ CONTEXT
 Encina is a pre-1.0 .NET 10 library. Worktree: <worktree> (absolute paths only). Sub-issue S2 of docs/plans/compliance-docs-hub-implementation-plan-689.md; S1 (docs/compliance/index.md) is merged.
 
 TASK
-Create docs/compliance/modules/index.md and the six pages listed in Phase 2, each from the module's package (src/Encina.Compliance.Consent, LawfulBasis, DataSubjectRights, Anonymization, Retention, DataResidency).
+Create the six pages listed in Phase 2 (docs/compliance/modules/index.md already exists from S1), each from the module's package (src/Encina.Compliance.Consent, LawfulBasis, DataSubjectRights, Anonymization, Retention, DataResidency).
 
 KEY RULES
 - Thin pages: link docs/features/*.md for usage; do not copy it. anonymization.md has no feature page and carries its own usage.
@@ -502,8 +503,8 @@ REFERENCE FILES
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Sub-issue S1 foundations (docs/compliance/index.md, industry-tools.md, architecture.md, features/index.md link) | 4 | new and modified |
-| Sub-issue S2 GDPR module pages A (consent, lawful-basis, data-subject-rights, anonymization, retention, data-residency) | 7 | new; includes docs/compliance/modules/index.md |
+| Sub-issue S1 foundations (docs/compliance/index.md, industry-tools.md, architecture.md, modules/index.md, features/index.md link) | 5 | new and modified |
+| Sub-issue S2 GDPR module pages A (consent, lawful-basis, data-subject-rights, anonymization, retention, data-residency) | 6 | new |
 | Sub-issue S3 GDPR module pages B (breach-notification, read-auditing, crypto-shredding, pii-masking, encryption, sanitization) | 6 | new |
 | Sub-issue S4 advanced module pages (dpia, processor-agreements, privacy-by-design, cross-border, nis2, ai-act, abac, message-encryption) | 8 | new |
 | Sub-issue S5 modules the issue did not list (attestation, break-the-glass, anti-tampering, secrets) | 4 | new; 7 if the three planned pages are requested (Design Choice 3, option A) |
@@ -522,8 +523,8 @@ PROJECT CONTEXT
 Encina is a pre-1.0 .NET 10 / C# 14 library (no backward compatibility, no [Obsolete]). You are a docs-writer in a git worktree <worktree> (absolute paths only; never touch the main checkout). Rules: AGENTS.md and .claude/skills/encina-docs/SKILL.md. Issue: https://github.com/dlrivada/Encina/issues/689, executed as six sub-issues (S1 to S6), one pull request each. No production code changes.
 
 IMPLEMENTATION OVERVIEW
-1. S1: docs/compliance/index.md (hub, has_children), industry-tools.md, architecture.md (pipeline, attributes, enforcement modes, planned-modules table), link from docs/features/index.md.
-2. S2 to S5 (parallel after S1): thin module pages under docs/compliance/modules/ (index.md created by S2), each linking the existing docs/features/ page; full pages only for anonymization, privacy-by-design and break-the-glass.
+1. S1: docs/compliance/index.md (hub, has_children), industry-tools.md, architecture.md (pipeline, attributes, enforcement modes, planned-modules table), modules/index.md, link from docs/features/index.md.
+2. S2 to S5 (parallel after S1): thin module pages under docs/compliance/modules/ (index.md created by S1), each linking the existing docs/features/ page; full pages only for anonymization, privacy-by-design and break-the-glass.
 3. S6: module-interactions.md, regulation-matrix.md, adoption-guide.md (Levels 0 to 3 compile; Levels 4 and 5 prose only), best-practices.md, faq.md, README link.
 4. Every sub-issue: verify (lychee, markdownlint-cli2, cov-docs-render check, compile samples, evidence list, Mermaid render), run docs-reviewer, commit locally.
 
@@ -551,7 +552,7 @@ docs/plans/compliance-docs-hub-implementation-plan-689.md, .claude/skills/encina
 | 1 | Caching | ❌ | Documentation only, no runtime code. |
 | 2 | OpenTelemetry | ❌ | Documentation only; the module pages record the metrics and spans each module already emits, read from the code, and change nothing. |
 | 3 | Structured Logging | ❌ | Documentation only; no `[LoggerMessage]`, so no EventId range is reserved. |
-| 4 | Health Checks | ❌ | Documentation only; the module pages name each module's health check where one exists (see #907 for the health check pages). |
+| 4 | Health Checks | ❌ | Documentation only; the module pages name each module's health check where one exists (link the health check reference pages of #907 only once they are merged; see Prerequisites). |
 | 5 | Validation | ❌ | Documentation only, no runtime code. |
 | 6 | Resilience | ❌ | Documentation only, no runtime code. |
 | 7 | Distributed Locks | ❌ | Documentation only, no runtime code. |
@@ -574,5 +575,6 @@ docs/plans/compliance-docs-hub-implementation-plan-689.md, .claude/skills/encina
 ## Next Steps
 
 1. The orchestrator links this plan from #689, opens the six sub-issues (S1 to S6, each a `[FEATURE]` with its own acceptance by command and the file list of its phase) and asks the maintainer about Dilemmas 1, 2 and 3 when work on the first sub-issue starts. Dilemma 3 changes only S5 and S6; Dilemma 1 changes S2 to S5; Dilemma 2 changes S1 and S6.
-2. Brief S1 first (it also needs Dilemma 2 for its scope statement).
-3. After S6 merges, the orchestrator re-checks the hub against #686 to #688 if any has landed in the meantime.
+2. When linking, the orchestrator also updates the decision register of #689 to match this plan: entry 4 (regulation scope) is a Dilemma here (Design Choice 2), not Trivial, because options B and C are legitimate and outside the scope SPEC-002 assessed; Design Choices 1 and 3 are added as Dilemmas, and Design Choices 4 to 7 as Settled, each with the same `Class:` and `Settled by:` citations. The issue's task list (`compliance-resolver.md`, `rule-engine.md`, `opa.md`) follows the answer to Dilemma 3.
+3. Brief S1 first (it also needs Dilemma 2 for its scope statement).
+4. After S6 merges, the orchestrator re-checks the hub against #686 to #688 if any has landed in the meantime.
