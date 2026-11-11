@@ -1,0 +1,652 @@
+# Implementation Plan: Leader Election for Background Message Processors
+
+> **Issue**: [#717](https://github.com/dlrivada/Encina/issues/717)
+> **Type**: Feature
+> **Complexity**: Very high (4 pull requests, 2 packages plus the 3 processor adoptions)
+> **Estimated Scope**: ~700-900 lines of production code + ~1,500-1,900 lines of tests
+> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-050](../architecture/adr/050-modules-may-require-modules.md)
+> **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision)
+> **Related**: [#216](https://github.com/dlrivada/Encina/issues/216) (`ILeaderElectionProvider`, overlaps), [#221](https://github.com/dlrivada/Encina/issues/221) (`[RequiresLeadership]` behavior), [#713](https://github.com/dlrivada/Encina/issues/713)-[#716](https://github.com/dlrivada/Encina/issues/716) (per-operation locks), [#1251](https://github.com/dlrivada/Encina/issues/1251) (row claiming), [#218](https://github.com/dlrivada/Encina/issues/218) (fencing), [#223](https://github.com/dlrivada/Encina/issues/223) (auto-extend), [#2405](https://github.com/dlrivada/Encina/issues/2405), [#763](https://github.com/dlrivada/Encina/issues/763) and [#741](https://github.com/dlrivada/Encina/issues/741) (same family; [#763 plan](dpia-reminder-lock-implementation-plan-763.md), [#741 plan](tenant-scoped-lock-implementation-plan-741.md))
+
+---
+
+## Summary
+
+Every replica of an Encina application runs every polling background processor: eight packages ship an `OutboxProcessor` over `OutboxProcessorBase`, and `ScheduledMessageProcessor`, `DelayedRetryProcessor`, `DeadLetterCleanupProcessor` and `MessagePurgeService` poll too. With N replicas the database is polled N times and, without row claiming (#1251), the same message can be published N times. This plan adds an opt-in **leader election built on `IDistributedLockProvider`**, so that the processors that adopt it run only on the replica that holds the lease:
+
+1. **Abstraction.** A small `ILeaderElection` in `Encina.Messaging` that processors consult: `bool IsLeader(string electionName)`, plus a read-only state snapshot for health checks. It performs no I/O.
+2. **Default implementation.** In `Encina.DistributedLock` (the dependency direction forbids it in `Encina.Messaging`): a `LeaderElectionService : BackgroundService` runs a heartbeat loop on a `PeriodicTimer` over the injected `TimeProvider`. For each configured election it tries `TryAcquireAsync` (lease = lock expiry), and while leading it renews with `ILockHandle.ExtendAsync` every heartbeat (default 15 s; lease default 45 s).
+3. **Safe leadership.** `IsLeader` is true only while `now < leaseExpiresAtUtc` as the local clock sees it, so a stalled renewal loop or a lost lock cannot leave a replica believing it still leads. A `Left`, a failed extension or an exception ends leadership visibly (logged by error code or exception type, counted), never silently.
+4. **Failover.** When the leader stops (graceful shutdown disposes the handle) or dies (the lease expires), another replica acquires the lock at its next heartbeat.
+5. **Adoption.** `OutboxProcessorBase` (covers the eight outbox packages without touching them), `ScheduledMessageProcessor` and `DelayedRetryProcessor` skip a cycle when `ILeaderElection` says they are not the leader (design choice 3 settles the scope).
+6. **Opt-in and enforcement.** `config.UseLeaderElection = true` in `MessagingConfiguration`; startup validation fails when the flag is on and no `ILeaderElection` or lock provider is registered (ADR-050 rule 3); the new requirement is an amendment row of ADR-050.
+
+**Standards**: ADR-052; ADR-050; ADR-001 (errors as values); lease-based election as in Hangfire (single active server for recurring work) and Kubernetes `coordination.k8s.io` Leases (named comparable products, not dependencies).
+
+**Estimated scope**: about 9 new production files, 8 modified, about 14 test files, 6 documentation files; 4 pull requests (see Implementation Phases).
+
+**Affected packages**: `Encina.Messaging` (abstraction, options, flag, validation, three processors); `Encina.DistributedLock` (implementation, service, health check, diagnostics). The eight `*.OutboxProcessor` classes in the provider packages are not edited.
+
+**Provider category**: Distributed locks as the engine (the election runs on any `IDistributedLockProvider`; every lock provider of SPEC-000 DEC-009 gets a contract test through it), and the Database (10) family only as a consumer of `OutboxProcessorBase` (one integration test per family proves the adoption). Messaging transports are not touched.
+
+**What the code does today** (`origin/main` at `7a0049c07`):
+
+- Nothing of this feature exists: no `ILeaderElection`, `UseLeaderElection` or leader service under `src/`. `MessagingConfiguration` has opt-in flags in the `UseOutbox` style (`src/Encina.Messaging/MessagingConfiguration.cs`, for example `UseOutbox` line 87, `UseScheduling` line 131, `UseTenancy` line 242).
+- `OutboxProcessorBase : BackgroundService` (`Outbox/OutboxProcessorBase.cs`) has a sealed `ExecuteAsync` loop: `ProcessPendingMessagesAsync` then `Task.Delay(_options.ProcessingInterval, stoppingToken)`; it takes `(IServiceProvider, ILogger, OutboxOptions, TimeProvider?)` and each of the eight provider processors derives from it. `ScheduledMessageProcessor` has the same loop shape (`ProcessOnceAsync`, `Task.Delay(_options.ProcessingInterval, ...)`); `DelayedRetryProcessor` loops with `Task.Delay(ProcessingInterval, stoppingToken)`; `DeadLetterCleanupProcessor` and `MessagePurgeService` use `Task.Delay(..., _timeProvider, ...)`. They are registered in `MessagingServiceCollectionExtensions.cs` (lines 288, 404, 532) and `RecoverabilityServiceCollectionExtensions.cs` (line 131). There is no Inbox or Saga polling processor.
+- `Encina.DistributedLock` references `Encina` and `Encina.Messaging` (`Encina.DistributedLock.csproj`), so the default implementation cannot live in `Encina.Messaging` without a project cycle.
+- `IDistributedLockProvider` is pre-ADR-052 (`Task<IAsyncDisposable?>`); `ILockHandle` already has `ExtendAsync`, `ExpiresAtUtc` and `IsReleased`. Bug #2405 (Redis provider-level `ExtendAsync(resource)` extends a lock it does not own) means renewal must go through `ILockHandle.ExtendAsync`, which checks ownership.
+- ADR-050's closed list has the Outbox row ("row claiming or a lock (#1251)") and the CDC row ("row claiming, lock or leader (#1251)"); it has no leader election row, so the requirement of this plan is an amendment.
+- The free EventId ranges now start at `5500` (`3850-3899` is `TenancyAspNetCore`); the `DistributedLock` range 5500-5549 is registered by the #741 plan (5500-5519 for it, **5520-5549 for this plan**); whichever pull request lands first registers it.
+- The manifests are `.github/coverage-manifest/Encina.Messaging.json` (targets contract 15, guard 20, property 15, unit 70) and `Encina.DistributedLock.json` (guard 20, unit 60).
+
+---
+
+## Design Choices
+
+<details>
+<summary><strong>1. One election abstraction or two: build the #216 API first, or the small <code>ILeaderElection</code> of this issue</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Build the general API of #216 first** (`ILeaderElectionProvider` with handle, `IsLeaderAsync`, `GetCurrentLeaderAsync`, `LeadershipLost`), and make this issue the Messaging adoption (flag, processors) on top of it | One public abstraction, no duplicate interfaces, usable outside messaging (#221, scheduled tasks) | This issue waits for #216; the first pull request is larger; #216 has no plan yet |
+| **B) Keep this issue as specified**: the small `ILeaderElection` (`IsLeader(name)`) in `Encina.Messaging`, implemented in `Encina.DistributedLock`; fold #216 into it later or close it | Delivers processor failover sooner; smallest surface | Risk of two abstractions and a naming conflict if #216 also ships; `LeadershipLost` cancellation tokens are not offered |
+
+### Chosen Option: **A — build the general API first, then the adoption** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when other consumers (#221 `[RequiresLeadership]`, scheduled tasks) are in the 1.0 scope; B wins when only the processors need election before 1.0. The plan's phases are written so that Phases 2 to 4 (service, adoption, health) are the same under both options; only the interface in Phase 1 changes shape (the `IsLeader(name)` reading stays as the processors' view of any richer API).
+- Under B, `ILeaderElection` is exactly the interface of Phase 1; under A, Phase 1 becomes "implement #216's interface" and its file list moves to that issue's plan.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>2. Coordination model for the processors: election, per-batch locks, or both</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Leader election only** | Least database polling (followers do not poll); simplest to reason about | A failover gap of up to the lease; a paused ex-leader may finish one batch (no fencing, #218) |
+| **B) Per-batch or per-message locks only** (#713-#716, row claiming #1251) | No failover gap; fine grained | Every replica still polls; N times the query load |
+| **C) Both** (election decides who polls, a batch lock or row claim is the safety net) | Fewest duplicate publications | Two mechanisms to build and maintain |
+
+### Chosen Option: **A — election only, #713-#716 and #1251 stay open** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins with many replicas where polling cost matters; B wins with few replicas or when a gap of seconds is unacceptable; C is not needed before 1.0 if duplicate delivery is acceptable under at-least-once semantics.
+- The limit (an in-flight batch of a replaced leader can still finish) is stated in the documentation; fencing is #218.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>3. Which processors adopt the election</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The dispatching processors: `OutboxProcessorBase`, `ScheduledMessageProcessor`, `DelayedRetryProcessor`** | These publish or dispatch, so duplicates matter; the base class covers eight packages with one edit | `DeadLetterCleanupProcessor` and `MessagePurgeService` keep running on every replica (idempotent deletes, only load) |
+| **B) All five polling processors** | Uniform; least load | Cleanup and purge are idempotent, and a leader-only purge concentrates deletes on one node |
+| **C) Only `OutboxProcessorBase` and `ScheduledMessageProcessor`** (the two the original issue names) | Smallest | Delayed retries would still duplicate redelivery |
+
+### Chosen Option: **A — the three dispatching processors** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins if the operators want exactly one active node for everything; C wins for the smallest first delivery. Each processor reads the gate through one shared helper, so extending the list later is a few lines.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>4. Where the implementation lives and how the processors reach it</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Interface and options in `Encina.Messaging`; implementation, service and health check in `Encina.DistributedLock`; processors resolve `ILeaderElection` optionally from the root provider at start** | Respects the dependency direction (`Encina.DistributedLock` references `Encina.Messaging`); the eight provider processors need no edit; no constructor change | The satellite registration `AddEncinaLeaderElection()` is a separate call |
+| **B) Implementation in `Encina.Messaging` over its own lock abstraction** | One package | A project cycle or a duplicate lock abstraction |
+
+### Chosen Option: **A — split by dependency direction**
+
+### Rationale
+
+- Provider coherence: abstractions and options live in `Encina.Messaging`; implementations differ only in the package that supplies them.
+
+**Class:** Settled
+**Settled by:** `src/Encina.DistributedLock/Encina.DistributedLock.csproj` (references `Encina.Messaging`), `AGENTS.md` section 5 (provider coherence: abstractions and options live in `Encina.Messaging`)
+
+</details>
+
+<details>
+<summary><strong>5. Opt-in and enforcement: <code>UseLeaderElection</code> requires a lock provider and an election implementation</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `config.UseLeaderElection = true` plus `AddEncinaLeaderElection()`; startup validation fails when the flag is on and no `ILeaderElection` or no `IDistributedLockProvider` is registered; ADR-050 gets an amendment row** | Opt-in; a missing dependency is a startup error, never a silent single-leader-less state | One more registration call |
+| **B) The flag auto-registers a lock provider (in-memory)** | Nothing to forget | An in-memory lock on several replicas elects a leader per replica, which breaks the guarantee silently |
+| **C) No flag: registering the service switches the processors** | Fewer settings | Not the opt-in style of `MessagingConfiguration`; hides the behavior change |
+
+### Chosen Option: **A — flag, explicit registration, startup validation**
+
+### Rationale
+
+- The flag is the switch the processors read; the validator reports the module, the requirement, ADR-050 and how to add the missing module.
+
+**Class:** Settled
+**Settled by:** ADR-050 (rule 3: a requirement is enforced by registration or startup validation, never a silent default; a requirement not in the table does not exist, so the table is amended), `AGENTS.md` section 3 (every messaging pattern optional; a module may require another only per ADR-050)
+
+</details>
+
+<details>
+<summary><strong>6. Error semantics and leadership safety</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Election operations return `Either`; a `Left` from acquire or a failed or faulted renewal ends leadership visibly; `IsLeader` is `now < localLeaseExpiryUtc` on the injected `TimeProvider`; the loop catches per iteration; graceful stop disposes the handle** | A stalled loop cannot leave a stale leader; no error is swallowed; failover is immediate on a clean stop | Followers may wait up to one heartbeat to take over |
+| **B) `IsLeader` returns the last known state without an expiry check** | Simplest | A frozen renewal loop keeps a replica "leading" past its lease |
+
+### Chosen Option: **A — visible loss, local expiry, per-iteration catch**
+
+### Rationale
+
+- The loop is a `PeriodicTimer` loop: an exception ends it silently, so it catches per iteration (cancellation from the stopping token ends the loop); the failure follows the background `Left` rule.
+
+**Class:** Settled
+**Settled by:** ADR-052 (`Left` for faults, cancellation propagates), `AGENTS.md` section 3 (errors never swallowed in background infrastructure; `PeriodicTimer` loops catch per iteration; time from `TimeProvider`)
+
+</details>
+
+<details>
+<summary><strong>7. Election names, heartbeat and lease</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) One election per processor kind** (`encina:leader:outbox`, `:scheduling`, `:delayed-retry`), heartbeat default 15 s (the issue), lease default 3 heartbeats (45 s); options validated at startup: heartbeat positive, lease greater than twice the heartbeat | Independent processors can lead on different replicas, spreading load; margin for one missed renewal | Three locks per deployment |
+| **B) One election for all processors** | One lock; one leader runs everything | All load on one replica; one slow processor affects the rest |
+
+### Chosen Option: **A — one election per processor kind**
+
+### Rationale
+
+- The processors are independent, so spreading their leadership across replicas costs three small locks; the lease of three heartbeats leaves room for one missed renewal before failover.
+
+**Class:** Trivial
+**Settled by:** `AGENTS.md` section 1 (every line serves a current purpose), the heartbeat default of issue #717, `src/Encina.DistributedLock/DistributedLockOptions.cs` (`KeyPrefix` still applies to the lock names)
+
+</details>
+
+<details>
+<summary><strong>8. Observability: tags are election name and outcome only</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Observable gauge `encina.leadership.state` (1/0), counters `encina.leadership.transitions` and `encina.leadership.renewals` (tag `outcome`), spans `encina.leadership.acquire` and `encina.leadership.renew` with `election.name`; a health check reporting leader or follower and the age of the last heartbeat** | Bounded cardinality (election names are a small fixed set); the health check detects a dead loop | A follower is healthy by design, so the check reports state as data, not as a failure |
+| **B) Add the replica or host name as a tag** | Shows who leads | Unbounded cardinality; host names are infrastructure identifiers in metrics |
+
+### Chosen Option: **A — bounded tags, health check on loop liveness**
+
+### Rationale
+
+- The health check is unhealthy only when the heartbeat loop has not run for more than twice the heartbeat interval.
+
+**Class:** Trivial
+**Settled by:** `AGENTS.md` section 6 (functions 2, 3 and 4), `AGENTS.md` section 7 (EventIds), SPEC-002 REQ-062 (no direct identifiers in tags)
+
+</details>
+
+---
+
+## Implementation Phases
+
+Four pull requests (each at most 15 files and 1500 changed lines, `AGENTS.md` section 11): **PR 1** Phase 1 (abstraction, options, flag, validation); **PR 2** Phases 2 and 3 (service, implementation, EventIds, health check, observability); **PR 3** Phase 4 (adoption in the three processors); **PR 4** Phases 5 and 6 (integration tests with competing instances, documentation, the ADR-050 amendment).
+
+### Phase 1: Abstraction, Options, Flag and Startup Validation
+
+> **Goal**: The contract and the switch, in `Encina.Messaging`.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+#### `src/Encina.Messaging/Leadership/` (new folder)
+
+1. **`ILeaderElection.cs`** — `bool IsLeader(string electionName)`; `IReadOnlyCollection<LeadershipSnapshot> GetSnapshots()` (`ElectionName`, `IsLeader`, `LeaseExpiresAtUtc`, `LastHeartbeatAtUtc`); no I/O. Under Dilemma 1 option A this interface follows #216's API and this file list moves to that plan
+2. **`LeaderElectionOptions.cs`** — `TimeSpan HeartbeatInterval` (15 s), `TimeSpan LeaseDuration` (45 s), election names for outbox, scheduling and delayed retry (constants in `LeaderElectionNames`)
+3. **`LeaderElectionOptionsValidator.cs`** — `IValidateOptions`: heartbeat positive, lease greater than twice the heartbeat
+4. **`LeaderGate.cs`** (internal static) — `bool ShouldRun(ILeaderElection? election, string electionName)`: true when election is null (feature off) or `IsLeader`
+
+#### `src/Encina.Messaging/`
+
+5. **`MessagingConfiguration.cs`** (modify) — `bool UseLeaderElection { get; set; }` (opt-in, XML docs: requires `AddEncinaLeaderElection()` and a lock provider)
+6. **`MessagingServiceCollectionExtensions.cs`** (modify) — when the flag is on: register `LeaderElectionOptions` with its validator and a startup check that fails (`InvalidOperationException` naming module, requirement, ADR-050 and the fix) when no `ILeaderElection` or no `IDistributedLockProvider`-providing registration exists; implemented as the validator of #2382 when it lands, otherwise an internal hosted check like `DelayedRetryStartupCheck`
+7. **`PublicAPI.Unshipped.txt`**
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 1</strong></summary>
+
+```
+You are implementing Phase 1 of issue #717: the leader election abstraction and switch in Encina.Messaging.
+
+CONTEXT:
+- Encina.DistributedLock references Encina.Messaging, so the abstraction and options live in Encina.Messaging and
+  the implementation in Encina.DistributedLock (Phase 2).
+- MessagingConfiguration has opt-in flags in the UseOutbox style. ADR-050 rule 3: a missing required module is a
+  startup error, never a silent default.
+
+TASK:
+Create ILeaderElection, LeaderElectionOptions (+ validator), LeaderElectionNames, LeaderGate and the
+UseLeaderElection flag with its registration and startup check, as listed in the Phase 1 tasks. Track public
+symbols in PublicAPI.Unshipped.txt (through mechanical-fixer). Write unit and guard tests, including a DI test with
+ValidateOnBuild and ValidateScopes for flag on and off.
+
+KEY RULES:
+- ILeaderElection.IsLeader performs no I/O and never throws.
+- Time from TimeProvider only; no Task.Delay in this phase.
+- ArgumentNullException guards; XML docs on every public member; zero warnings.
+
+REFERENCE FILES:
+- src/Encina.Messaging/MessagingConfiguration.cs
+- src/Encina.Messaging/MessagingServiceCollectionExtensions.cs
+- src/Encina.Messaging/Recoverability/DelayedRetryStartupCheck.cs
+- docs/architecture/adr/050-modules-may-require-modules.md
+```
+
+</details>
+
+### Phase 2: The Election Service and Default Implementation
+
+> **Goal**: Acquire, renew, lose and fail over, on any lock provider.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+#### `src/Encina.DistributedLock/Leadership/` (new folder; after #2667)
+
+1. **`LockLeaderElection.cs`** (internal sealed) — `ILeaderElection`; holds, per election name, the `ILockHandle?`, `LeaseExpiresAtUtc`, `LastHeartbeatAtUtc` in a lock-free snapshot; `IsLeader` = handle present and `now < LeaseExpiresAtUtc` on the `TimeProvider`
+2. **`LeaderElectionService.cs`** (internal sealed, `BackgroundService`) — constructor `(LockLeaderElection, IDistributedLockProvider, IOptions<LeaderElectionOptions>, TimeProvider, ILogger)`; `PeriodicTimer(HeartbeatInterval, timeProvider)`; one iteration per election name: follower tries `TryAcquireAsync(name, LeaseDuration, wait 0, retry 0, ct)` (`Right(Some)` becomes leader, `Right(None)` stays follower, `Left` logs the code and stays follower); leader calls `handle.ExtendAsync(LeaseDuration, ct)` (`true` updates the lease, `false` or an exception ends leadership and disposes the handle); the iteration catches everything except cancellation; `StopAsync` disposes every handle
+3. **`LeaderElectionServiceCollectionExtensions.cs`** — `AddEncinaLeaderElection(this IServiceCollection, Action<LeaderElectionOptions>? configure = null)`: `TryAddSingleton<LockLeaderElection>`, `TryAddSingleton<ILeaderElection>`, `AddHostedService<LeaderElectionService>`, `TimeProvider`; registration error when no `IDistributedLockProvider` is registered
+4. **`Diagnostics/LeaderElectionLogMessages.cs`** — see Phase 3
+5. **`PublicAPI.Unshipped.txt`**
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 2</strong></summary>
+
+```
+You are implementing Phase 2 of issue #717: the default leader election over IDistributedLockProvider.
+
+CONTEXT:
+- Issue #2667 has changed IDistributedLockProvider to the ADR-052 shapes: TryAcquireAsync returns
+  Either<EncinaError, Option<ILockHandle>>; read the current signatures. ILockHandle.ExtendAsync returns bool.
+- The service is a PeriodicTimer loop: it must catch per iteration (cancellation from the stopping token ends the
+  loop); a Left or a failed renewal ends leadership visibly; IsLeader must also expire locally so a stalled loop
+  cannot keep a stale leader.
+
+TASK:
+Implement LockLeaderElection, LeaderElectionService and AddEncinaLeaderElection as listed. Unit tests with
+FakeTimeProvider: acquire, renew, lose by false/Left/exception, local expiry without a renewal tick, failover between
+two services over the InMemory provider, graceful stop releases, cancellation, provider fault keeps the follower.
+
+KEY RULES:
+- Time only from the injected TimeProvider (PeriodicTimer(interval, timeProvider), GetUtcNow); never Task.Delay
+  without it.
+- Renew through ILockHandle.ExtendAsync, never the provider-level ExtendAsync(resource) (bug #2405).
+- Log error codes or exception types (ForLogging()), never EncinaError.Message.
+
+REFERENCE FILES:
+- src/Encina.DistributedLock/IDistributedLockProvider.cs
+- src/Encina.DistributedLock/ILockHandle.cs
+- src/Encina.DistributedLock.InMemory/InMemoryDistributedLockProvider.cs
+- docs/architecture/adr/052-distributed-lock-failure-contract.md
+```
+
+</details>
+
+### Phase 3: Observability — Diagnostics, Metrics, Health and Logging
+
+> **Goal**: Leadership is visible and a dead loop is detected.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. **Range** — `DistributedLock = (5500, 5549)` in `src/Encina/Diagnostics/EventIdRanges.cs` (registered by the first of #741 and this plan to land) and the `Encina.DistributedLock` entry in `EncinaEventIdAllocationTests`; this plan uses 5520-5527
+2. **`Diagnostics/LeaderElectionLogMessages.cs`** — `[LoggerMessage]` 5520 became leader (Information), 5521 lost leadership with a code or exception type (Warning), 5522 acquire fault (Warning), 5523 renewal failed (Warning), 5524 heartbeat iteration failed (Error, `ForLogging()`), 5525 released on shutdown (Debug), 5526 election service started (Information), 5527 lease expired locally without a renewal (Warning)
+3. **`Diagnostics/LeaderElectionDiagnostics.cs`** — `ActivitySource` `Encina.DistributedLock` (or the shared one of #724), observable gauge `encina.leadership.state`, counters `encina.leadership.transitions` and `encina.leadership.renewals` (tag `outcome`), spans `encina.leadership.acquire` and `encina.leadership.renew` (attribute `election.name`)
+4. **`Health/LeaderElectionHealthCheck.cs`** — `IEncinaHealthCheck`; healthy while the last heartbeat is younger than twice the interval, unhealthy otherwise; leader or follower is reported as data, not as status
+5. Processor skip counter: outcome `skipped_not_leader` on the existing processor counters (`Diagnostics/OutboxProcessorMetrics.cs`, `SchedulingProcessorMetrics.cs`), no new Messaging EventId
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 3</strong></summary>
+
+```
+You are implementing Phase 3 of issue #717: logging, telemetry and health of the election.
+
+CONTEXT:
+- AGENTS.md section 7: ids only inside a range registered first in EventIdRanges.cs, packed, no gaps; the assembly is
+  mapped in EncinaEventIdAllocationTests. This plan owns 5520-5549 of the DistributedLock range; #741 owns
+  5500-5519.
+- Health checks: DefaultName const, static Tags array, scoped resolution through IServiceProvider.CreateScope()
+  where scoped services are needed (the election is a singleton).
+
+TASK:
+Register or reuse the range, write the log messages, diagnostics and health check as listed, wire them into the
+service, and run the EventId architecture tests.
+
+KEY RULES:
+- Tags: election name and outcome only; never a host name, replica id or lock key.
+- Health result descriptions carry no exception message.
+
+REFERENCE FILES:
+- src/Encina/Diagnostics/EventIdRanges.cs
+- src/Encina.Messaging/Health/OutboxHealthCheck.cs
+- src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs
+- tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs
+```
+
+</details>
+
+### Phase 4: Adoption in the Processors
+
+> **Goal**: Followers skip their cycle; the eight outbox packages are covered by one edit.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. **`Outbox/OutboxProcessorBase.cs`** (modify) — at the start of `ExecuteAsync` resolve `ILeaderElection` with `GetService` and the `LeaderElectionOptions` flag; in the loop call `LeaderGate.ShouldRun` before `ProcessPendingMessagesAsync`; a skipped cycle still waits the processing interval; the sealed method and the constructor signature stay unchanged, so the eight provider `OutboxProcessor` classes are not edited
+2. **`Scheduling/ScheduledMessageProcessor.cs`** (modify) — the same gate before `ProcessOnceAsync`
+3. **`Recoverability/DelayedRetryProcessor.cs`** (modify) — the same gate before the batch
+4. **Existing tests** — the processor tests gain a leader and follower case each; the follower case asserts the store is never queried
+5. `DeadLetterCleanupProcessor` and `MessagePurgeService` are unchanged (design choice 3)
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 4</strong></summary>
+
+```
+You are implementing Phase 4 of issue #717: the processors consult the election.
+
+CONTEXT:
+- OutboxProcessorBase.ExecuteAsync is sealed and loops ProcessPendingMessagesAsync + Task.Delay; eight provider
+  packages derive from it. ScheduledMessageProcessor and DelayedRetryProcessor have the same loop shape.
+- With the feature off (no ILeaderElection or UseLeaderElection false) behavior must be unchanged.
+
+TASK:
+Add the gate to the three processors as listed and extend their unit tests: leader runs, follower skips and does
+not touch the store, feature off runs, leadership lost mid-run stops at the next cycle. Add one integration test per
+database family (ADO, Dapper, EF Core, MongoDB) proving a follower outbox processor leaves its pending rows to the
+leader.
+
+KEY RULES:
+- Do not change the sealed ExecuteAsync contract or any constructor signature.
+- A skipped cycle is not an error and not a failure counter.
+- Per-flag coverage of every touched file must not go below its manifest targets.
+
+REFERENCE FILES:
+- src/Encina.Messaging/Outbox/OutboxProcessorBase.cs
+- src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs
+- src/Encina.Messaging/Recoverability/DelayedRetryProcessor.cs
+- .github/coverage-manifest/Encina.Messaging.json
+```
+
+</details>
+
+### Phase 5: Testing
+
+> **Goal**: Every flag reaches its own target; failover runs against real infrastructure.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. **Unit** — phases 1 to 4 (`tests/Encina.UnitTests/Messaging/`, `tests/Encina.UnitTests/DistributedLock/`)
+2. **Guard** — constructors and public methods of the new types
+3. **Contract** (`tests/Encina.ContractTests/`) — the election runs over each lock provider of the suite created by #2667 (InMemory, Redis, SqlServer now; the four planned providers when they land): one leader at a time, release on stop, failover after the lease
+4. **Property** (`tests/Encina.PropertyTests/`) — FsCheck with a fake clock and random heartbeat delays: never two replicas with `IsLeader` true at the same instant while leases are valid; `IsLeader` false after local expiry
+5. **Integration** (`tests/Encina.IntegrationTests/`) — Redis and SqlServer through the existing Testcontainers fixtures: three competing services, stop the leader, observe failover within lease plus heartbeat; kill the lock backend, observe all replicas step down
+6. **Load** — extend the NBomber lock scenarios with an election scenario (renewal frequency) or a justification file if the maintainer prefers; **Benchmark** — justification file (acquisition latency is the lock provider's)
+7. **Coverage manifest** — per-file targets with one-sentence justifications for the new files (written by `mechanical-fixer`)
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 5</strong></summary>
+
+```
+You are implementing Phase 5 of issue #717: tests of the leader election.
+
+CONTEXT:
+- Tests execute real package code; assertions use Shouldly through Encina.Testing.Shouldly; time from FakeTimeProvider.
+- Integration tests use shared [Collection] fixtures and never swallow an exception; containers are stopped with the
+  Testcontainers API.
+- Coverage is per flag against the manifests of Encina.Messaging and Encina.DistributedLock.
+
+TASK:
+Write the tests of the Phase 5 tasks, measure each flag with
+`dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and report the per-file table.
+
+KEY RULES:
+- No Thread.Sleep; advance the fake clock instead.
+- A test that drives FakeTimeProvider.Advance must fix, not swallow, a throwing callback.
+
+REFERENCE FILES:
+- tests/Encina.IntegrationTests/Infrastructure/DistributedLock/
+- tests/Encina.UnitTests/DistributedLock/
+- .github/coverage-manifest/Encina.DistributedLock.json
+- .github/coverage-manifest/Encina.Messaging.json
+```
+
+</details>
+
+### Phase 6: Documentation and Finalization
+
+> **Goal**: Operators can enable it and know its limits; the records are complete.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. XML documentation on every new public member (`<example>` on `AddEncinaLeaderElection` and the flag)
+2. `docs-writer`: README of `Encina.Messaging` and `Encina.DistributedLock`, a leader election guide (configuration, heartbeat and lease, failover gap, no fencing, what is not covered), scaling guidance
+3. **ADR-050 amendment** — a row "Leader election" (requires distributed locks; mechanism: startup validation) via `mechanical-fixer`; **ADR** for the abstraction decision of Dilemma 1 (next free number at that time)
+4. `changelog.d/717-leader-election.added.md` (`mechanical-fixer`); `PublicAPI.Unshipped.txt` complete; `docs/INVENTORY.md` if packages or modules change; `ROADMAP.md` if the milestone text changes
+5. `dotnet build --configuration Release` with 0 warnings; `dotnet test`; every flag at its target; CRAP <= 10 on changed methods (local crap-gate table)
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 6</strong></summary>
+
+```
+You are finishing issue #717: documentation and verification.
+
+CONTEXT:
+- Documentation goes through docs-writer and the encina-docs skill; the changelog fragment, PublicAPI lines, the
+  ADR-050 row and the coverage manifest go through mechanical-fixer.
+
+TASK:
+Complete the Phase 6 tasks and report the per-flag figures of the touched files against their targets.
+
+KEY RULES:
+- State the limits: failover gap up to the lease, an in-flight batch of a replaced leader can finish, no fencing
+  tokens (#218), per-operation locks (#713-#716) and row claiming (#1251) are separate.
+- English only; no private client application named; no hand-typed coverage figures.
+
+REFERENCE FILES:
+- .claude/skills/encina-docs/SKILL.md
+- docs/architecture/adr/050-modules-may-require-modules.md
+- changelog.d/README.md
+```
+
+</details>
+
+---
+
+## Research
+
+### Relevant Standards and Specifications
+
+| Source | Provision | Relevance |
+|--------|-----------|-----------|
+| ADR-052 | Lock providers return `Either`; contention is `Right(None)` | The election's acquire mapping |
+| ADR-050 | Closed list of module requirements; rule 3 enforcement | Startup validation; a new row is an amendment |
+| ADR-001 | Errors are values | Election results as `Either` internally |
+| SPEC-000 REQ-027, DEC-009, AC-027 | Seven lock providers with contract tests | The election is contract-tested over each |
+| SPEC-002 REQ-062 | No direct identifiers in tags | Tag policy |
+| Hangfire, Kubernetes Leases (`coordination.k8s.io`) | Single active node / lease with renew time | Named comparable products for lease-based election |
+| `AGENTS.md` sections 3, 5, 6, 7 | Timers, errors, provider coherence, cross-cutting, EventIds | Constraints throughout |
+
+### Existing Encina Infrastructure to Leverage
+
+| Component | Location | Usage in this feature |
+|-----------|----------|----------------------|
+| `OutboxProcessorBase` | `src/Encina.Messaging/Outbox/OutboxProcessorBase.cs` | Gate added once; eight provider processors inherit it |
+| `ScheduledMessageProcessor` | `src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs` | Gate before `ProcessOnceAsync` |
+| `DelayedRetryProcessor` | `src/Encina.Messaging/Recoverability/DelayedRetryProcessor.cs` | Gate before the batch |
+| `MessagingConfiguration` | `src/Encina.Messaging/MessagingConfiguration.cs` | Home of `UseLeaderElection` |
+| `MessagingServiceCollectionExtensions` | `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` | Option registration and startup check |
+| `DelayedRetryStartupCheck` | `src/Encina.Messaging/Recoverability/` | Model for the interim startup check |
+| `IDistributedLockProvider`, `ILockHandle` | `src/Encina.DistributedLock/` | The engine: acquire, `ExtendAsync` renewal, dispose |
+| `InMemoryDistributedLockProvider` | `src/Encina.DistributedLock.InMemory/` | Fast tests of failover between two services |
+| `OutboxHealthCheck` | `src/Encina.Messaging/Health/OutboxHealthCheck.cs` | Model for health check shape |
+| `OutboxProcessorMetrics`, `SchedulingProcessorMetrics` | `src/Encina.Messaging/Diagnostics/` | Processor counters gain `skipped_not_leader` |
+| Lock integration fixtures | `tests/Encina.IntegrationTests/Infrastructure/DistributedLock/` | Redis and SQL Server competing-instance tests |
+
+### Provider Matrix (distributed locks, SPEC-000 DEC-009)
+
+| Provider | Election support | Notes |
+|----------|:-:|-------|
+| InMemory | Included | Contract and unit tests; single process only (never leader-safe across replicas) |
+| Redis | Included | Contract and Testcontainers failover test; the RedLock quorum (#226) strengthens it |
+| SqlServer | Included | Contract and Testcontainers failover test |
+| PostgreSQL (#207), MySQL (#208), Azure Blob (#209), DynamoDB (#210) | Deferred | Covered by the abstraction when each lands, with a contract-suite entry; tracked by those issues |
+
+Database (10): the outbox processors in ADO.SqlServer, ADO.PostgreSQL, ADO.MySQL, Dapper.SqlServer, Dapper.PostgreSQL, Dapper.MySQL, EntityFrameworkCore (one class for the three EF providers) and MongoDB derive from `OutboxProcessorBase`; no provider code changes, one integration test per family proves the adoption.
+
+### Event ID Allocation
+
+| Package | Range | Notes |
+|---------|-------|-------|
+| `Encina.DistributedLock` (`DistributedLock` entry, 5500-5549) | 5520-5527 | Election service messages; 5528-5549 spare. The range itself is registered by whichever of this plan and the #741 plan (5500-5519) lands first |
+| `Encina.Messaging` | none | The processors' skip is a counter outcome, not a log line |
+
+### Estimated File Count
+
+| Category | Files | Notes |
+|----------|------:|-------|
+| Production (new) | 9 | `ILeaderElection`, options, validator, names, gate (Messaging); `LockLeaderElection`, `LeaderElectionService`, registration extension, health check, diagnostics and log messages (DistributedLock) |
+| Production (modified) | 8 | `MessagingConfiguration`, `MessagingServiceCollectionExtensions`, three processors, two metrics classes, `EventIdRanges.cs` |
+| PublicAPI and manifests | 3 | Two `PublicAPI.Unshipped.txt`, two manifest entries |
+| Unit and guard tests | 8 | |
+| Contract, property, integration tests | 5 | |
+| Justification files | 2 | Load (if not implemented) and benchmark |
+| Documentation and changelog | 6 | Two READMEs, guide, ADR-050 amendment, ADR, fragment |
+| **Total** | **~41** | Across 4 pull requests of at most 15 files each |
+
+---
+
+## Combined AI Agent Prompts
+
+<details>
+<summary><strong>Full combined prompt for all phases</strong></summary>
+
+```
+You are implementing issue #717: opt-in leader election for Encina's polling background processors.
+
+PROJECT CONTEXT:
+- .NET 10 / C# 14, nullable enabled, pre-1.0: best solution first, no compatibility layers, no [Obsolete].
+- Lock contract: ADR-052, implemented by #2667 before this work (Either<EncinaError, Option<ILockHandle>>).
+- Encina.DistributedLock references Encina.Messaging: the abstraction is in Messaging, the implementation in
+  DistributedLock.
+
+IMPLEMENTATION OVERVIEW:
+1. Messaging: ILeaderElection (IsLeader(name), GetSnapshots), LeaderElectionOptions (heartbeat 15 s, lease 45 s)
+   with a validator, LeaderElectionNames, LeaderGate, MessagingConfiguration.UseLeaderElection, startup check that
+   fails without an ILeaderElection or lock provider (ADR-050 rule 3).
+2. DistributedLock: LockLeaderElection + LeaderElectionService (PeriodicTimer on TimeProvider; acquire with
+   TryAcquireAsync, renew with ILockHandle.ExtendAsync; per-iteration catch; local lease expiry; dispose on stop) and
+   AddEncinaLeaderElection.
+3. Observability: DistributedLock EventId range 5500-5549 (this plan 5520-5527), gauge, counters, spans, health check
+   on loop liveness.
+4. Adoption: OutboxProcessorBase (covers eight packages), ScheduledMessageProcessor, DelayedRetryProcessor skip a
+   cycle when not leader; cleanup and purge processors unchanged.
+5. Tests: unit, guard, contract over each lock provider, property (never two leaders while leases are valid),
+   integration (competing services on Redis and SqlServer, kill the leader), outbox adoption per family; docs through
+   docs-writer; changelog, PublicAPI, ADR-050 row and manifests through mechanical-fixer.
+
+KEY PATTERNS:
+- A Left, a failed renewal or an exception ends leadership visibly; nothing is swallowed.
+- IsLeader is false after the local lease expiry even if the renewal loop is stalled.
+- Followers skip cycles silently (counter outcome only); sealed ExecuteAsync and constructor signatures stay.
+
+REFERENCE FILES:
+- docs/plans/leader-election-implementation-plan-717.md
+- docs/architecture/adr/052-distributed-lock-failure-contract.md
+- docs/architecture/adr/050-modules-may-require-modules.md
+- src/Encina.Messaging/Outbox/OutboxProcessorBase.cs
+- .github/coverage-manifest/Encina.DistributedLock.json
+```
+
+</details>
+
+---
+
+## Cross-Cutting Integration Matrix
+
+| # | Function | Status | Notes |
+|---|----------|--------|-------|
+| 1 | Caching | ❌ | Election state is coordination state, not cacheable data |
+| 2 | OpenTelemetry | ✅ | Phase 3: gauge, transition and renewal counters, acquire and renew spans, bounded tags |
+| 3 | Structured Logging | ✅ | Phase 3: `[LoggerMessage]` 5520-5527 inside the `DistributedLock` range registered first |
+| 4 | Health Checks | ✅ | Phase 3: `LeaderElectionHealthCheck` on heartbeat liveness |
+| 5 | Validation | ✅ | Phase 1: options validator and the startup check for the flag |
+| 6 | Resilience | ✅ | Phases 2 and 6: lease margin of three heartbeats absorbs one missed renewal; a failed renewal is loss of leadership; no Polly policy around the lock call |
+| 7 | Distributed Locks | ✅ | The election is built on `IDistributedLockProvider` (Phase 2) |
+| 8 | Transactions | ❌ | Control flow, not a data transaction |
+| 9 | Idempotency | ❌ | Processors keep at-least-once semantics; the limits (failover gap, no fencing) are documented; per-operation protection is #713-#716 and #1251 |
+| 10 | Multi-Tenancy | ⏭️ | Processors are global today; per-tenant election names would build on [#741](https://github.com/dlrivada/Encina/issues/741) (existing issue) |
+| 11 | Module Isolation | ❌ | Elections are named per processor kind; `KeyPrefix` separates deployments; no module data held |
+| 12 | Audit Trail | ❌ | Leadership changes are operational events recorded by logs and metrics, not data access or state changes of audited entities |
+
+---
+
+## Prerequisites & Dependencies
+
+| Item | State | Effect on this plan |
+|------|-------|---------------------|
+| [#2667](https://github.com/dlrivada/Encina/issues/2667) — lock providers return `Either` (ADR-052) | Open, implementation issue | Phases 2 to 5 start after it merges; Phase 1 can start earlier |
+| [#216](https://github.com/dlrivada/Encina/issues/216), [#221](https://github.com/dlrivada/Encina/issues/221) — general election API and `[RequiresLeadership]` | Open, `status:proposal` | Dilemma 1; under option A, #216 is planned first |
+| [#2382](https://github.com/dlrivada/Encina/issues/2382) — ADR-050 startup validator | Open | The Phase 1 startup check migrates into it when it exists |
+| [#2405](https://github.com/dlrivada/Encina/issues/2405) — Redis provider-level `ExtendAsync` ownership | Open | Avoided by renewing through `ILockHandle.ExtendAsync` |
+| [#218](https://github.com/dlrivada/Encina/issues/218), [#223](https://github.com/dlrivada/Encina/issues/223), [#713](https://github.com/dlrivada/Encina/issues/713)-[#716](https://github.com/dlrivada/Encina/issues/716), [#1251](https://github.com/dlrivada/Encina/issues/1251) | Open | Out of scope; documented as the complementary mechanisms and limits |
+| [#741](https://github.com/dlrivada/Encina/issues/741) plan | Same family | Shares the `DistributedLock` EventId range (5500-5549) |
+| [#207](https://github.com/dlrivada/Encina/issues/207)-[#210](https://github.com/dlrivada/Encina/issues/210) | Open | Providers covered when they land |
+
+---
+
+## Next Steps
+
+1. Link this plan from issue #717 and start the PR 1 brief; PR 2 onward after [#2667](https://github.com/dlrivada/Encina/issues/2667) merges.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 1 to 3 (one abstraction or two; election, locks or both; which processors), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+3. One commit per phase; the last commit of PR 4 references `Fixes #717`.
