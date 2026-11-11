@@ -145,7 +145,14 @@ flowchart TD
     B -- "no key and no marker" --> G["EncryptedFieldDecryptionException<br/>reason KeyMissing<br/>shard paused"]
 ```
 
-The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection:All`. A paused shard does not retry. Marten applies events in ranges as one batch, so the healthy events of the failing range are also not projected until the shard runs again. Nothing is projected wrongly, and the read side keeps serving the last projected state meanwhile.
+The shards are `OperationAuditEntryProjection:All` and `ReadAuditEntryProjection:All`. Whether Marten retries a paused shard depends on how the async daemon runs:
+
+- A standalone daemon (`store.BuildProjectionDaemonAsync()` followed by `StartAllAsync()`) never retries a paused shard. The shard stays paused until it is started again or the projection is rebuilt.
+- A host daemon (registered with `AddAsyncDaemon` in `Solo` or `HotCold` mode) restarts the paused shard on every health check once `AgentPauseTime` has passed, and keeps doing so for as long as the event fails. The health check runs every `HealthCheckPollingTime`, so that setting sets the interval between attempts. Both settings live on `StoreOptions.Projections` and apply to every projection of the store. Each attempt that fails logs the same Error entries again.
+
+Spike #3026 measured this on Marten 9.38.0 with the defaults (`AgentPauseTime` 1 second, `HealthCheckPollingTime` 5 seconds): a host daemon, in `Solo` and in `HotCold`, made 18 attempts in 100 seconds, 5.0 to 6.1 seconds apart, and never stopped. Once the cause was resolved (in the spike, by storing a resolution, with no Marten call), the next health check resumed the shard: in the `Solo` run it was running again 2.0 seconds after the resolution was stored. A standalone daemon made one attempt and stayed paused, also after the resolution. The measurements and the other timer settings tried are in section 3.1 of the [spike report](../engineering/paused-shard-spike-3026.md).
+
+Marten applies events in ranges as one batch, so the healthy events of the failing range are also not projected until the shard runs again. Nothing is projected wrongly, and the read side keeps serving the last projected state meanwhile.
 
 ### Set Marten's projection error flags
 
@@ -183,7 +190,7 @@ To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSki
 | `KeyDestroyedWithoutErasureRecord` | The period's key was destroyed, but the marker has neither an erasure nor a retention reference, or has both (damaged or tampered, not trusted) | Restore the key, or add the reference only for a real erasure request or a real retention execution (see [Retention expiry reads [EXPIRED]](#retention-expiry-reads-expired)) |
 | `KeyMissing` | The event's period has neither an active key document nor a destroyed marker. This is not a recorded erasure, so the field is not projected as `[SHREDDED]` or `[EXPIRED]` | Restore or write the key document for the period (it may never have been written) |
 
-The `KeyMissing` failure uses the same fixed message as the other reasons, so it names no period or key. The daemon does not retry it: the shard pauses until the cause is repaired.
+The `KeyMissing` failure uses the same fixed message as the other reasons, so it names no period or key. A standalone daemon does not retry it, and a host daemon retries it on every health check without success (see [What happens](#what-happens)): either way, the shard does not move past the event until the cause is repaired.
 
 ### Repair the cause and rebuild
 
