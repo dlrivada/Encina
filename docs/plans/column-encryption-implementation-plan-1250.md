@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Very high (key management with KMS wrapping, 10 providers, a key table, 2 KMS packages; about 11 pull requests)
 > **Estimated Scope**: ~3,000-3,800 lines of production code + ~5,000-6,500 lines of tests
-> **Shared with**: [`storage-implementation-plan-1239.md`](storage-implementation-plan-1239.md) (blob envelope encryption uses `IKeyWrapper` from this plan)
+> **Shared with**: `storage-implementation-plan-1239.md` (#1239) (blob envelope encryption uses `IKeyWrapper` from this plan)
 
 ---
 
@@ -895,7 +895,7 @@ REFERENCE FILES:
 
 ### Parallel and follow-up work
 
-- [`storage-implementation-plan-1239.md`](storage-implementation-plan-1239.md): consumes `IKeyWrapper` (blob envelope encryption); merge Phase 1 and Phase 3 of this plan first.
+- `storage-implementation-plan-1239.md` (#1239): consumes `IKeyWrapper` (blob envelope encryption); merge Phase 1 and Phase 3 of this plan first.
 - Crypto-shredding subject keys (REQ-006, #1191) are a separate key hierarchy and not part of this plan.
 - Google Cloud KMS: post-1.0 (SPEC-000 §6.1), recorded as the cloud triangle gap.
 
