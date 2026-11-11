@@ -26,7 +26,7 @@ Implement the **rules that act on the REQ-011 fields** persisted by #1197: refus
 - **Provider category**: none of the AGENTS.md §5 matrices. The rules add no store: they read through #1197's abstractions. Unit tests mock `IAggregateRepository`/services; integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3).
 - **Estimated files**: ~10 new source files, ~7 modified source files, ~13 test files, ~5 documentation files.
 - **Pull request split** (exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (rule contract, the two rules, evaluator, options; pure logic with unit, guard, contract and property tests); **PR 2** = Phases 3, 5, 6 (service integration with persisted denial, cross-cutting, observability, EventIds); **PR 3** = Phases 4, 7 (rest) and 8 (applicability and DSL registration once #686 and #687 are merged, S15, documentation).
-- **Event IDs**: 9806-9813 in the second DSR range `ComplianceDSRExtensions = (9800, 9849)` that the #1195 plan registers (9800-9805 are #1195's).
+- **Event IDs**: 5906-5913 in the second DSR range `ComplianceDSRExtensions = (5900, 5949)` that the #1195 plan registers (5900-5905 are #1195's).
 
 ### Related open issues that touch the same files
 
@@ -287,7 +287,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Define the capability "data subject request rules" with the #686 contract (an open `ComplianceCapability` value or a new member, as the merged #686 decides) and ask `IComplianceApplicability.AppliesAsync` in the service before the evaluator; a skip is logged and traced with its evidence as #686 specifies (EventId 9813).
+1. Define the capability "data subject request rules" with the #686 contract (an open `ComplianceCapability` value or a new member, as the merged #686 decides) and ask `IComplianceApplicability.AppliesAsync` in the service before the evaluator; a skip is logged and traced with its evidence as #686 specifies (EventId 5913).
 2. Provide the #687 declaration used by S15: `AddRegulation("LOPDGDD", rule => rule.AppliesWhen(Spain).Enforces(<capability>))`, in the PracticeManagement scenario configuration and in the documentation example.
 3. `AddEncinaDataSubjectRequestRules()` also registers the capability with the applicability package when it is present (a soft reference through the core contract, no project reference from DSR to `Encina.Compliance.Applicability`).
 4. Re-run the Phase 7 integration tests with the resolver and DSL registered; the optional OPA alternative (#688) is not required.
@@ -369,8 +369,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina/Diagnostics/EventIdRanges.cs`**: the range `ComplianceDSRExtensions = (9800, 9849)` and its second-range mapping for `Encina.Compliance.DataSubjectRights` in `EncinaEventIdAllocationTests.cs` are registered by the #1195 plan's Phase 6; when this issue lands first it registers them identically (with the `PublicAPI.Unshipped.txt` line).
-2. **`Diagnostics/DSRRuleLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 9806-9813 (see EventIdRanges.ComplianceDSRExtensions)"): 9806 `RequestRefusedRequesterNotAuthorised`, 9807 `RequestRefusedProhibitedBySubject`, 9808 `RequestRefusedAuthorityInvalid` (reason code), 9809 `RequestRefusedStatusMissing`, 9810 `RequestAcceptedByRules` (Debug), 9811 `RuleEvaluationFailed` (error code), 9812 `RequestRulesOptOutActive` (startup warning when `EnforceRequestRules` is false), 9813 `RequestRulesCapabilityNotApplicable` (Phase 4); each carries rule id, right type and code only.
+1. **`src/Encina/Diagnostics/EventIdRanges.cs`**: the range `ComplianceDSRExtensions = (5900, 5949)` and its second-range mapping for `Encina.Compliance.DataSubjectRights` in `EncinaEventIdAllocationTests.cs` are registered by the #1195 plan's Phase 6; when this issue lands first it registers them identically (with the `PublicAPI.Unshipped.txt` line).
+2. **`Diagnostics/DSRRuleLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 5906-5913 (see EventIdRanges.ComplianceDSRExtensions)"): 5906 `RequestRefusedRequesterNotAuthorised`, 5907 `RequestRefusedProhibitedBySubject`, 5908 `RequestRefusedAuthorityInvalid` (reason code), 5909 `RequestRefusedStatusMissing`, 5910 `RequestAcceptedByRules` (Debug), 5911 `RuleEvaluationFailed` (error code), 5912 `RequestRulesOptOutActive` (startup warning when `EnforceRequestRules` is false), 5913 `RequestRulesCapabilityNotApplicable` (Phase 4); each carries rule id, right type and code only.
 3. **`Diagnostics/DataSubjectRightsDiagnostics.cs`** (modify): counter `dsr.rules.outcomes.total` (tags `dsr.rule`, `dsr.rule_outcome`, `dsr.right_type`); activity `DSR.Rules.Evaluate` with `dsr.rule`, `dsr.rule_outcome` and `encina.tenant_id`. The issue's names (`encina.compliance.dsr_rule_outcome_count`, `encina.compliance.dsr_rule.evaluate`, tag `rule.id`) are replaced by the package's naming (`dsr.*`).
 
 </details>
@@ -382,13 +382,13 @@ REFERENCE FILES:
 You are implementing Phase 6 of data subject request rules in Encina.Compliance.DataSubjectRights (issue #2700).
 
 CONTEXT:
-- DataSubjectRightsDiagnostics owns the ActivitySource, Meter and instruments. The second DSR EventId range 9800-9849 is registered by the #1195 plan; 9800-9805 belong to #1195.
+- DataSubjectRightsDiagnostics owns the ActivitySource, Meter and instruments. The second DSR EventId range 5900-5949 is registered by the #1195 plan; 5900-5905 belong to #1195.
 
 TASK:
-Create DSRRuleLogMessages with EventIds 9806-9813, the counter and the activity as listed in the plan's Phase 6 Tasks, and call them from the evaluator and the service.
+Create DSRRuleLogMessages with EventIds 5906-5913, the counter and the activity as listed in the plan's Phase 6 Tasks, and call them from the evaluator and the service.
 
 KEY RULES:
-- [LoggerMessage] source generator, packed sequentially 9806-9813 inside the registered range; register the range first if it is not there yet.
+- [LoggerMessage] source generator, packed sequentially 5906-5913 inside the registered range; register the range first if it is not there yet.
 - No subject id, requester id, prohibition content, explanation text or EncinaError.Message in any log, tag or metric.
 - Run EncinaEventIdAllocationTests.
 
@@ -521,9 +521,9 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Compliance.DataSubjectRights` (existing) | 8300-8349 (`EventIdRanges.ComplianceDSR`) | No packed free ids (8304-8309 and 8317-8319 are kept for #1937) |
-| #1195 | 9800-9805 in `ComplianceDSRExtensions = (9800, 9849)` | Registers the second range |
-| **This plan (#2700)** | **9806-9813** in the same range | Packed after 9805; `DSRRuleLogMessages` |
-| Left in the range | 9814-9849 | For #1937 and #1197 overflow |
+| #1195 | 5900-5905 in `ComplianceDSRExtensions = (5900, 5949)` | Registers the second range |
+| **This plan (#2700)** | **5906-5913** in the same range | Packed after 5905; `DSRRuleLogMessages` |
+| Left in the range | 5914-5949 | For #1937 and #1197 overflow |
 
 ### Estimated File Count
 
@@ -550,7 +550,7 @@ IMPLEMENTATION OVERVIEW:
 2. Add DeceasedSubjectAccessRule, RepresentationAuthorityRule and the evaluator; EnforceRequestRules (default true); AddEncinaDataSubjectRequestRules with a DI test.
 3. Evaluate the rules in SubmitRequestAsync; on refusal persist Submit and Deny in one CreateAsync and return the coded Left.
 4. When #686 and #687 are merged, gate the evaluator with IComplianceApplicability and add the DSL declaration used by S15.
-5. Pass the tenant; add the counter, activity and EventIds 9806-9813.
+5. Pass the tenant; add the counter, activity and EventIds 5906-5913.
 6. Tests of every flag, the S15 rules part on Marten replacing the skeleton; docs, changelog, PublicAPI.
 
 KEY PATTERNS:
@@ -575,7 +575,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Per-request decisions on mutable status; caching would risk stale permissions |
 | 2 | OpenTelemetry | ✅ | Counter and `DSR.Rules.Evaluate` activity with the tenant, codes only (Phase 6) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 9806-9813 in the `ComplianceDSRExtensions` range (ADR-021, Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5906-5913 in the `ComplianceDSRExtensions` range (ADR-021, Phase 6) |
 | 4 | Health Checks | ❌ N/A | No checkable external dependency |
 | 5 | Validation | ✅ | The representation is validated by the guardian rule before the request proceeds (Phase 2) |
 | 6 | Resilience | ❌ N/A | No external calls |
