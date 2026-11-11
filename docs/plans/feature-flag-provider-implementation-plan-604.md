@@ -222,7 +222,7 @@ This plan **owns the foundation of the family** (#300, #345, #451, #604, with #2
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.FeatureFlags/Encina.FeatureFlags.csproj` (net10.0; references `Encina`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Logging.Abstractions`).
+1. `src/Encina.FeatureFlags/Encina.FeatureFlags.csproj` (net10.0; references `Encina`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.Logging.Abstractions`; #300 Phase 2 adds `Microsoft.FeatureManagement` if its Dilemma 3 is decided for the core package).
 2. `Abstractions/IFeatureFlagProvider.cs` (four methods of Design Choice 2), `Model/FeatureFlagContext.cs`, `Model/FeatureFlag.cs`, `Model/FeatureFlagRule.cs`.
 3. `FeatureFlagErrors.cs` with codes `encina.featureflags.not_found`, `provider_failed`, `invalid_rule`, `disabled` (the last one is used by #300/#345).
 4. `FeatureFlagsOptions.cs` (`DefaultWhenUnavailable`, `CacheEnabled`, `CacheDuration`) and `ServiceCollectionExtensions.AddEncinaFeatureFlags` (registers options and `TimeProvider`; the provider comes from a provider package).
@@ -746,7 +746,7 @@ REFERENCE FILES:
 | 8 | Transactions | ❌ N/A | One row per operation; no multi-operation atomicity needed |
 | 9 | Idempotency | ❌ N/A | Evaluation is deterministic; an upsert of the same flag is idempotent |
 | 10 | Multi-Tenancy | ✅ Phases 3, 4 | `TenantId` column, tenant-over-global precedence, tenant in the cache key |
-| 11 | Module Isolation | ⏭️ Deferred | Module-scoped flag namespaces: issue file `feature-flag-module-scope` in `artifacts/issues/` |
+| 11 | Module Isolation | ❌ N/A | Flag names are chosen by the application and shared across modules; a module name can be a context attribute for rules that need it |
 | 12 | Audit Trail | ⏭️ Deferred | Audit of flag changes through `IOperationAuditStore`: issue file `feature-flag-change-audit` in `artifacts/issues/` |
 
 ---
