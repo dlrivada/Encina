@@ -26,8 +26,19 @@ Record, **per vendor and purpose**, whether the vendor acts as **processor, inde
 - **Affected packages**: `Encina.Compliance.ProcessorAgreements` (roles, validator, behaviour, options, observability) and `Encina.Compliance.GDPR` (shared vocabulary and the RoPA export), plus tests, READMEs, feature guide, coverage manifests, changelog fragment, `PublicAPI.Unshipped.txt` of both.
 - **Provider category**: none of the AGENTS.md §5 matrices; event-sourced on Marten (SPEC-002 DEC-008 (a), ADR-019); unit tests mock `IAggregateRepository`, integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3). The RoPA export changes no persisted `ProcessingActivity` shape, so the 10-provider rule is not touched (the #1196 plan, which does change that shape, is separate).
 - **Estimated files**: ~11 new source files, ~16 modified source files, ~14 test files, ~6 documentation files.
-- **Pull request split** (exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (shared types, aggregate, events, projection, service, purpose validator; ~15 files); **PR 2** = Phases 3, 5 and 6 (attribute, behaviour, options default, cross-cutting, observability); **PR 3** = Phases 4, 7 (rest) and 8 (RoPA, remaining tests, documentation).
-- **Event IDs**: 9486-9493 in `ComplianceProcessorAgreements = (9400, 9499)` (9400-9485 are used).
+- **Pull request split** (exceeds 15 files and 1,500 lines). The counts include the tests of each phase, both `PublicAPI.Unshipped.txt` files and the coverage manifests; the 47 distinct files become about 66 file touches because those recur. Six pull requests, each checked against 15 files and 1,500 lines when its brief is written:
+
+| PR | Phases | Content (with its tests) | Files (approx.) |
+|----|--------|--------------------------|-----------------|
+| 1 | 1 | `ProcessorRole`, `Art28TermsStatus`, `RoPAProcessorEntry` (GDPR), `ProcessorPurposeRole`, two events, aggregate, read model, projection, both PublicAPI files; aggregate and projection tests; manifests | 12 |
+| 2 | 2 | `IProcessorService` and `DefaultProcessorService` role members, `Art28TermsStatusResolver`, `IProcessorPurposeValidator` and default, `ProcessorPurposeValidation`, errors, registration, PublicAPI; resolver, validator and service tests; manifest | 13 |
+| 3 | 3 | `[RequiresProcessor]` purpose, behaviour, options default `Block` (and the `BlockOnFailure` alias decision of Design Choice 5), PublicAPI; behaviour and options tests; manifest | 9 |
+| 4 | 4 | `RoPAExportMetadata`, JSON and CSV exporters, `IProcessorRoPAEntryProvider` and default, registration, both PublicAPI files; provider and exporter tests; manifests | 13 |
+| 5 | 5, 6 | Tenant-scoped reads (after the prerequisite), diagnostics, log messages, PublicAPI; telemetry, leak and Marten integration tests; manifest | 8 |
+| 6 | 7, 8 | Guard, contract and property tests, 2 justification files, 2 READMEs, feature guide, 2 changelog fragments | 11 |
+
+Each PR depends on the one before it.
+- **Event IDs**: 9486-9493 in `ComplianceProcessorAgreements = (9400, 9499)` (the highest used id is 9485; gaps below it are left as they are).
 
 ### Related open issues that touch the same files
 
@@ -53,7 +64,7 @@ Record, **per vendor and purpose**, whether the vendor acts as **processor, inde
 ### Chosen Option: **A — shared types in GDPR**
 
 Class: Settled
-Settled by: `src/Encina.Compliance.ProcessorAgreements/Encina.Compliance.ProcessorAgreements.csproj` (references `Encina.Compliance.GDPR`) and `src/Encina.Compliance.GDPR/Encina.Compliance.GDPR.csproj` (does not reference ProcessorAgreements)
+Settled by: `src/Encina.Compliance.ProcessorAgreements/Encina.Compliance.ProcessorAgreements.csproj` (references `Encina.Compliance.GDPR`) and `src/Encina.Compliance.GDPR/Encina.Compliance.GDPR.csproj` (does not reference ProcessorAgreements); the csproj direction excludes B (a cycle), and option C (duplicate strings) is excluded by the issue's single-vocabulary requirement for the check and the export
 
 ### Rationale
 
@@ -101,7 +112,7 @@ Settled by: `src/Encina.Compliance.ProcessorAgreements/Services/DefaultDPAServic
 
 ### Rationale
 
-- A static `Art28TermsStatusResolver.Resolve(bool termsAvailable, DPAValidationResult? validation)` returns `NotAvailable` when the declaration says so, `Missing` when there is no active DPA, `Expired` when `DaysUntilExpiration` is zero or negative, otherwise `Signed`.
+- A static `Art28TermsStatusResolver.Resolve(bool termsAvailable, DPAValidationResult? validation)` fails closed: a DPA that failed validation is never `Signed`. It returns `NotAvailable` when the declaration says so; `Missing` when there is no validation result; then it reads `IsValid` and `Status` first: `Expired` when `IsValid` is false and `Status` is `DPAStatus.Expired` (with `DaysUntilExpiration` of zero or less only as a fallback when `Status` is null); `Missing` for every other invalid result (an active DPA whose `MissingTerms` is not empty, `PendingRenewal`, `Terminated`, `Status` null); and `Signed` only when `IsValid` is true, `Status` is `DPAStatus.Active` and `MissingTerms` is empty. The validator passes the whole `DPAValidationResult`, including `MissingTerms`, to the resolver.
 - The DPA is per processor (`DPAAggregate.ProcessorId`), so one active DPA covers every purpose of that vendor; a per-purpose DPA is not part of this issue.
 
 </details>
@@ -145,6 +156,7 @@ Settled by: issue #1198 comment of 2026-10-17 ("`[RequiresProcessor]` refuses by
 
 ### Rationale
 
+- The `BlockOnFailure` alias of `ProcessorAgreementOptions` (`ProcessorAgreementOptions.cs:44-67`, "convenience alias for setting `EnforcementMode` to `Block`") is removed in Phase 3, because AGENTS.md §3 forbids compatibility aliases and its XML docs describe `Block` as the non-default opt-in; the "Production systems should use Block" and "gradual adoption" sentences go with it, and any sample or test that sets it is changed to `EnforcementMode`.
 - `Defaults_EnforcementMode_ShouldBeWarn` (`ProcessorAgreementOptionsTests.cs:17`) becomes `Defaults_EnforcementMode_ShouldBeBlock`; any test fixture that expects pass-through now sets `Warn` explicitly.
 - A new startup log (EventId 9490) reports `Warn` and `Disabled` as active opt-outs.
 
@@ -168,7 +180,7 @@ Class: Dilemma
 
 - We recommend A because it keeps `IRoPAExporter` a pure formatter (its signature takes activities and metadata) and the change small; the provider is the only coupling point.
 - B wins when the maintainer weighs completeness by default above formatter purity: any application that registers ProcessorAgreements then gets roles in every export without remembering to pass them. The data shape (`RoPAProcessorEntry`) is the same, so switching later is a registration change.
-- Export text: `NotAvailable` renders as "no Art. 28 terms available" (AC-013 requires "no Art. 28 terms" to appear); `Missing` renders as "Art. 28 terms missing"; `Expired` and `Signed` as their names. JSON uses a `processors` array with `processorName`, `purpose`, `role`, `art28Terms`, `country`; CSV appends a separate `# Processors` block with the same columns.
+- Export text: `NotAvailable` renders as "no Art. 28 terms available" (AC-013 requires "no Art. 28 terms" to appear); `Missing` renders as "Art. 28 terms missing"; `Expired` and `Signed` as their names. JSON uses a `processors` array with `processorName`, `purpose`, `role`, `art28Terms`, `country`; CSV appends a separate `# Processors` block with the same columns. CSV compatibility: the block is added only when `Processors` is not empty, so an export without processors is byte-identical to today's (a unit test pins this); a consumer that parses the file as a single table sees the block only after the application starts passing processors, and the README states the two-section layout.
 
 </details>
 
@@ -179,7 +191,7 @@ Class: Dilemma
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Open a bug issue for the missing tenant scope of the processor and DPA reads (`artifacts/issues/processor-agreements-tenant-scoping.md`), fix it with the Consent/DSR pattern (`TryResolveTenantScope`, `RequireTenantContext`, `Encina.Tenancy` reference), then build this feature on it** | One tenant pattern in the package; the defect is fixed regardless of P-10; this plan's reads are tenant-safe from day one | Adds a prerequisite pull request |
+| **A) Open a bug issue for the missing tenant scope of the processor and DPA reads (a `[BUG]` issue the orchestrator opens before this plan merges, number `#n` inserted here when it exists), fix it with the Consent/DSR pattern (`TryResolveTenantScope`, `RequireTenantContext`, `Encina.Tenancy` reference), then build this feature on it** | One tenant pattern in the package; the defect is fixed regardless of P-10; this plan's reads are tenant-safe from day one | Adds a prerequisite pull request |
 | **B) Introduce the tenant-scope helper inside #1198 for the new reads only** | No prerequisite | #1198 grows by a cross-cutting change; the existing reads stay leaky; two pull requests touch the same helper |
 | **C) Store the tenant on the new events only and leave filtering to #1257** | Smallest #1198 | Fails the issue's tenant-aware acceptance item |
 
@@ -208,7 +220,7 @@ Class: Dilemma
 1. **`src/Encina.Compliance.GDPR/Model/ProcessorRole.cs`** and **`Model/Art28TermsStatus.cs`** (new enums, explicit values, no zero member, XML docs citing GDPR Art. 4(7), 4(8), 26 and 28); **`Export/RoPAProcessorEntry.cs`** (new `sealed record`, Phase 4 uses it).
 2. **`Model/ProcessorPurposeRole.cs`** in ProcessorAgreements (new `sealed record`): `Purpose`, `Role`, `Art28TermsAvailable`.
 3. **`Events/ProcessorEvents.cs`** (modify): `ProcessorRoleAssigned(Guid ProcessorId, string Purpose, ProcessorRole Role, bool Art28TermsAvailable, DateTimeOffset OccurredAtUtc) : INotification` and `ProcessorRoleRemoved(Guid ProcessorId, string Purpose, DateTimeOffset OccurredAtUtc) : INotification`.
-4. **`Aggregates/ProcessorAggregate.cs`** (modify): `Roles` dictionary by purpose; `AssignRole(...)` (replaces the entry of that purpose; `ArgumentException` for an empty purpose) and `RemoveRole(purpose, occurredAtUtc)` (throws `InvalidOperationException` when the purpose has no role or the processor is removed); `Apply` cases.
+4. **`Aggregates/ProcessorAggregate.cs`** (modify): `Roles` dictionary by purpose; `Either<EncinaError, Unit> AssignRole(...)` (replaces the entry of that purpose; an empty purpose is the `ThrowIfNullOrWhiteSpace` argument guard, the only exception that remains) and `Either<EncinaError, Unit> RemoveRole(purpose, occurredAtUtc)` (returns `Left` with `processor.role_not_found` when the purpose has no role and `processor.removed` when the processor is removed, decided before `RaiseEvent`, ADR-053; no new `throw` on the rule path, and the existing throwing commands are not extended); `Apply` cases.
 5. **`ReadModels/ProcessorReadModel.cs`** and **`ReadModels/ProcessorProjection.cs`** (modify): `Roles` list; handlers for the two events.
 6. **`PublicAPI.Unshipped.txt`** of both packages (via `mechanical-fixer`).
 
@@ -251,7 +263,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Abstractions/IProcessorService.cs`** and **`Services/DefaultProcessorService.cs`** (modify): `AssignRoleAsync(Guid processorId, string purpose, ProcessorRole role, bool art28TermsAvailable, CancellationToken)`, `RemoveRoleAsync(Guid processorId, string purpose, CancellationToken)`; `GetProcessorAsync` already returns the roles through the read model. Errors through `ProcessorAgreementErrors` (`NotFound`, `StoreError`), never the exception message in logs.
+1. **`Abstractions/IProcessorService.cs`** and **`Services/DefaultProcessorService.cs`** (modify): `AssignRoleAsync(Guid processorId, string purpose, ProcessorRole role, bool art28TermsAvailable, CancellationToken)`, `RemoveRoleAsync(Guid processorId, string purpose, CancellationToken)`; `GetProcessorAsync` already returns the roles through the read model. Errors through `ProcessorAgreementErrors` (`NotFound`, `StoreError`, and the aggregate's `processor.role_not_found` / `processor.removed` codes mapped as they arrive: the service never catches `InvalidOperationException` for these rules), never the exception message in logs.
 2. **`Model/Art28TermsStatusResolver.cs`** (new, `internal static`): the pure function of Design Choice 3.
 3. **`Abstractions/IProcessorPurposeValidator.cs`** and **`Services/DefaultProcessorPurposeValidator.cs`** (new, scoped): `ValueTask<Either<EncinaError, ProcessorPurposeValidation>> ValidateAsync(Guid processorId, string purpose, CancellationToken)` composing `IProcessorService` and `IDPAService`; **`Model/ProcessorPurposeValidation.cs`** (new record): `IsValid`, `Role?`, `TermsStatus`, `FailureReason` (`NotAProcessor`, `RoleNotRecorded`, `TermsNotAvailable`, `TermsMissing`, `TermsExpired` or none).
 4. **`ProcessorAgreementErrors.cs`** (modify): `NotAProcessorCode = "processor.not_a_processor"`, `RoleNotRecordedCode = "processor.role_not_recorded"`, `TermsNotAvailableCode = "processor.terms_not_available"` and factories.
@@ -436,7 +448,7 @@ REFERENCE FILES:
 You are implementing Phase 6 of processor roles in Encina.Compliance.ProcessorAgreements (issue #1198).
 
 CONTEXT:
-- ProcessorAgreementDiagnostics owns the ActivitySource, Meter and tag constants; ProcessorAgreementLogMessages uses [LoggerMessage] with EventIds 9400-9485 (the last used id is 9485).
+- ProcessorAgreementDiagnostics owns the ActivitySource, Meter and tag constants; ProcessorAgreementLogMessages uses [LoggerMessage] with EventIds up to 9485 (the highest used id is 9485; gaps below it are left as they are; new ids start at 9486).
 
 TASK:
 Add the two counters and the activity tags, and the log messages 9486-9493 as listed in the plan's Phase 6 Tasks; call them from the services, validator, behaviour and provider.
@@ -463,11 +475,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit** (`tests/Encina.UnitTests/Compliance/ProcessorAgreements/Roles/`): aggregate tests for the two events, `Art28TermsStatusResolverTests` (every combination), `DefaultProcessorPurposeValidatorTests` (processor with signed DPA passes; independent and joint controller refuse; no role refuses; `NotAvailable` refuses; expired DPA refuses), behaviour tests in `Block`, `Warn` and `Disabled`, options default test (`Block`), `DefaultProcessorRoPAEntryProviderTests`; GDPR exporter tests for the processors section ("no Art. 28 terms available" present in JSON and CSV); DI test with `ValidateOnBuild` and `ValidateScopes`.
+1. **Unit** (`tests/Encina.UnitTests/Compliance/ProcessorAgreements/Roles/`): aggregate tests for the two events, `Art28TermsStatusResolverTests` (every combination, including an active DPA with `MissingTerms`, a `PendingRenewal` DPA, a `Terminated` DPA and a null `Status`: none resolves to `Signed`), `DefaultProcessorPurposeValidatorTests` (processor with signed DPA passes; independent and joint controller refuse; no role refuses; `NotAvailable` refuses; expired DPA refuses), behaviour tests in `Block`, `Warn` and `Disabled`, options default test (`Block`), `DefaultProcessorRoPAEntryProviderTests`; GDPR exporter tests for the processors section ("no Art. 28 terms available" present in JSON and CSV); DI test with `ValidateOnBuild` and `ValidateScopes`.
 2. **Guard**: public members of the services, validator and provider; `RoPAExportMetadata` with null processors.
 3. **Contract**: `IProcessorPurposeValidator` and `IProcessorRoPAEntryProvider` against the real defaults.
 4. **Property** (`tests/Encina.PropertyTests/Compliance/ProcessorAgreements/`): the refusal matrix over role, declaration and DPA state — a request passes if and only if the role is `Processor` and the status is `Signed`.
-5. **Integration** (`[Collection(MartenCollection.Name)]`, PostgreSQL): S17 path — a gateway recorded as processor for payments and independent controller for fraud prevention; `[RequiresProcessor]` on fraud refuses, on payments passes; a consumer mail account with no terms is flagged and appears in the RoPA export; two-tenant isolation.
+5. **Integration** (`[Collection(MartenCollection.Name)]`, PostgreSQL): S17 path, plus a vendor whose DPA is active but lacks a mandatory Art. 28(3) term and one whose DPA is pending renewal, both refused — a gateway recorded as processor for payments and independent controller for fraud prevention; `[RequiresProcessor]` on fraud refuses, on payments passes; a consumer mail account with no terms is flagged and appears in the RoPA export; two-tenant isolation.
 6. **Telemetry/privacy**: in-memory exporter test (AC-044); leak test: no vendor name, contact e-mail or exception message in tags, metrics or logs.
 7. **Load and benchmark**: `.md` justifications (not concurrent or hot).
 8. **Coverage manifests**: per-file targets and justifications in both `.github/coverage-manifest/Encina.Compliance.ProcessorAgreements.json` and `Encina.Compliance.GDPR.json` (via `mechanical-fixer`); measure each flag; CRAP gate on the changed behaviour methods.
@@ -571,7 +583,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.ProcessorAgreements` (existing) | 9400-9499 (`EventIdRanges.ComplianceProcessorAgreements`) | Used: 9400-9485 |
+| `Encina.Compliance.ProcessorAgreements` (existing) | 9400-9499 (`EventIdRanges.ComplianceProcessorAgreements`) | Highest used id 9485 (gaps below it are left as they are) |
 | **This plan (#1198)** | **9486-9493** | Packed after 9485 in `ProcessorAgreementLogMessages.cs` |
 | Left in the range | 9494-9499 | A further feature needs a second range |
 
@@ -642,7 +654,7 @@ REFERENCE FILES:
 
 ### Blocking
 
-- **Tenant scoping of the processor and DPA reads** (Design Choice 7, option A): the bug issue file `artifacts/issues/processor-agreements-tenant-scoping.md` is opened first; Phases 2 and 5 depend on its helper.
+- **Tenant scoping of the processor and DPA reads** (Design Choice 7, option A): the `[BUG]` issue for it (opened by the orchestrator before this plan merges; its `#n` replaces this sentence) is implemented first; Phases 2 and 5 depend on its helper.
 
 ### Coordination
 
@@ -660,4 +672,4 @@ REFERENCE FILES:
 
 1. Maintainer answers the two Dilemmas (Design Choices 6 and 7) when work on #1198 starts; answers go in a `## Maintainer Decisions` section appended to this plan.
 2. Open the tenant-scoping bug issue and implement it before PR 1.
-3. Brief the worker for PR 1 (Phases 1-2); PR 2 and PR 3 follow in order.
+3. Brief the worker for PR 1 (Phase 1); PR 2 to PR 6 follow in order.
