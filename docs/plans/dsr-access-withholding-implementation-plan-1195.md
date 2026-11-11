@@ -27,7 +27,7 @@ Let a DSR access export **leave out declared fields or records** (third parties'
 - **Provider category**: none of the AGENTS.md §5 matrices. The module is event-sourced on Marten (SPEC-002 DEC-008 (a), ADR-019); unit tests mock `IAggregateRepository`, integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3).
 - **Estimated files**: ~9 new source files, ~14 modified source files, ~14 test files, ~5 documentation files.
 - **Pull request split** (exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (types, attribute, policy, evaluator, options; ~14 files); **PR 2** = Phases 3, 5 and 6 (service integration, request-stream event, cross-cutting, observability, EventId range; ~14 files); **PR 3** = Phases 4, 7 (rest) and 8 (portability, remaining tests, documentation).
-- **Event IDs**: a new second range `ComplianceDSRExtensions = (9800, 9849)` registered by this plan; 9800-9805 used here, 9806-9813 reserved for #2700.
+- **Event IDs**: a new second range `ComplianceDSRExtensions = (5900, 5949)` registered by this plan; 5900-5905 used here, 5906-5913 reserved for #2700.
 
 ### Related open issues that touch the same files
 
@@ -57,7 +57,7 @@ Settled by: `AGENTS.md` §3 (compliance gates fail closed: a locator that omits 
 
 ### Rationale
 
-- A location whose entity type has no property of that name cannot be classified statically; the runtime policy (Design Choice 2) is the route for such sources, and the evaluator logs EventId 9805 once per unresolvable `(EntityType, FieldName)` so the gap is visible.
+- A location whose entity type has no property of that name cannot be classified statically; the runtime policy (Design Choice 2) is the route for such sources, and the evaluator logs EventId 5905 once per unresolvable `(EntityType, FieldName)` so the gap is visible.
 - `PersonalDataField` (`Model/PersonalDataField.cs`) gains `Withhold` so the existing startup scan stays consistent with the attribute.
 
 </details>
@@ -125,7 +125,7 @@ Class: Dilemma
 
 - We recommend A because it records what was withheld at the moment of the export, and a retried export appends a new event rather than overwriting history.
 - B wins when the maintainer wants exactly one completion event per request carrying the final disclosure summary and accepts that `CompleteRequestAsync` takes the exclusions as an argument; the stored data is the same, only the event differs.
-- An access call without `RequestId` still filters and returns exclusions; it records none and logs the count (EventId 9803).
+- An access call without `RequestId` still filters and returns exclusions; it records none and logs the count (EventId 5903).
 
 </details>
 
@@ -379,10 +379,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify): register `ComplianceDSRExtensions = (9800, 9849)` in the compliance extensions area with the summary "Encina.Compliance.DataSubjectRights — second range (access withholding, request rules)"; add the field to `src/Encina/PublicAPI.Unshipped.txt`; add `nameof(EventIdRanges.ComplianceDSRExtensions)` as a second range of `Encina.Compliance.DataSubjectRights` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (line 66).
-2. **`Diagnostics/DSRWithholdingLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 9800-9805 (see EventIdRanges.ComplianceDSRExtensions)"): 9800 `AccessFieldWithheld` (reason only), 9801 `AccessRecordWithheld`, 9802 `AccessExclusionsRecorded` (count), 9803 `AccessExclusionsNotRecordedNoRequestId`, 9804 `WithholdingPolicyFailed` (error code only), 9805 `WithholdingFieldUnresolvable` (once per type and field name).
+1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify): register `ComplianceDSRExtensions = (5900, 5949)` in the compliance extensions area with the summary "Encina.Compliance.DataSubjectRights — second range (access withholding, request rules)"; add the field to `src/Encina/PublicAPI.Unshipped.txt`; add `nameof(EventIdRanges.ComplianceDSRExtensions)` as a second range of `Encina.Compliance.DataSubjectRights` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (line 66).
+2. **`Diagnostics/DSRWithholdingLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 5900-5905 (see EventIdRanges.ComplianceDSRExtensions)"): 5900 `AccessFieldWithheld` (reason only), 5901 `AccessRecordWithheld`, 5902 `AccessExclusionsRecorded` (count), 5903 `AccessExclusionsNotRecordedNoRequestId`, 5904 `WithholdingPolicyFailed` (error code only), 5905 `WithholdingFieldUnresolvable` (once per type and field name).
 3. **`Diagnostics/DataSubjectRightsDiagnostics.cs`** (modify): counter `dsr.access.exclusions.total` (tag `dsr.withhold_reason`); the `DSR.Request` activity gains `encina.tenant_id` and `dsr.access.exclusions` (count). The issue's proposed names (`encina.dsr.access_exclusions`, `encina.dsr.access_export`) are replaced by the package's naming (`dsr.*`, `DSR.Request`).
-4. Registration of the range is a prerequisite of PR 2; #2700 reuses it (9806-9813).
+4. Registration of the range is a prerequisite of PR 2; #2700 reuses it (5906-5913).
 
 </details>
 
@@ -397,10 +397,10 @@ CONTEXT:
 - DataSubjectRightsDiagnostics owns the ActivitySource, Meter and instruments; DSR.Request is the request activity.
 
 TASK:
-Register ComplianceDSRExtensions = (9800, 9849), map it as a second range for the assembly in EncinaEventIdAllocationTests, create DSRWithholdingLogMessages with EventIds 9800-9805, and add the counter and activity tags as listed in the plan's Phase 6 Tasks.
+Register ComplianceDSRExtensions = (5900, 5949), map it as a second range for the assembly in EncinaEventIdAllocationTests, create DSRWithholdingLogMessages with EventIds 5900-5905, and add the counter and activity tags as listed in the plan's Phase 6 Tasks.
 
 KEY RULES:
-- Register the range before using any id; ids packed sequentially from 9800.
+- Register the range before using any id; ids packed sequentially from 5900.
 - No excluded value, subject id, entity id or EncinaError.Message in any log, tag or metric; log the reason name or the error code only.
 - Run the EventId architecture tests.
 
@@ -531,9 +531,9 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Compliance.DataSubjectRights` (existing) | 8300-8349 (`EventIdRanges.ComplianceDSR`) | Used: 8300-8303, 8310-8314, 8320-8349; 8304-8309 and 8317-8319 kept for #1937; 8315-8316 named by the #1197 plan |
-| **This plan (#1195)** | **9800-9805** in the new `ComplianceDSRExtensions = (9800, 9849)` | Second range for the assembly, registered here; free in AGENTS.md §7 (9700-9999) and not claimed by any plan (9700-9749 is #812, 9750-9799 is #1244) |
-| #2700 | 9806-9813 | Reserved by its plan, same range |
-| Left in the range | 9814-9849 | For #1937 and #1197 overflow |
+| **This plan (#1195)** | **5900-5905** in the new `ComplianceDSRExtensions = (5900, 5949)` | Second range for the assembly, registered here; inside the free block 5500-6999 of AGENTS.md §7, assigned to this family in the plan-batch EventId block registry (9800-9849 was rejected: it collides with the NIS2 plan #822) |
+| #2700 | 5906-5913 | Reserved by its plan, same range |
+| Left in the range | 5914-5949 | For #1937 and #1197 overflow |
 
 ### Estimated File Count
 
@@ -560,7 +560,7 @@ IMPLEMENTATION OVERVIEW:
 2. Add IAccessWithholdingPolicy, the internal AccessWithholdingEvaluator and the legal-basis options table.
 3. Run the evaluator in HandleAccessAsync and record DSRAccessExclusionsRecorded on the request stream.
 4. Run the same evaluator in the portability exporter (separable).
-5. Pass the tenant; register the second EventId range 9800-9849; add the counter, activity tags and log messages 9800-9805.
+5. Pass the tenant; register the second EventId range 5900-5949; add the counter, activity tags and log messages 5900-5905.
 6. Tests of every flag and Marten integration; docs, changelog, PublicAPI.
 
 KEY PATTERNS:
@@ -585,7 +585,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | A withholding decision depends on mutable policy state; caching would risk disclosure |
 | 2 | OpenTelemetry | ✅ | Counter and `DSR.Request` tags with the tenant, no values or identifiers (Phase 6) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 9800-9805 in the new `ComplianceDSRExtensions` range (ADR-021, Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5900-5905 in the new `ComplianceDSRExtensions` range (ADR-021, Phase 6) |
 | 4 | Health Checks | ❌ N/A | No new checkable dependency |
 | 5 | Validation | ✅ | Options validated at startup: every reason has a legal basis (Phase 2) |
 | 6 | Resilience | ❌ N/A | No call to an external system |
@@ -607,7 +607,7 @@ REFERENCE FILES:
 ### Coordination
 
 - **Same-file changes**: #1197 edits `DSRRequestSubmitted`, `IDSRService`, `DefaultDSRService`, the projection and the read model; #1937 edits the instrumentation of `HandleAccessAsync`. Land one after another and rebase; this plan appends to `AccessRequest`, the events file and the read model, so conflicts are additive.
-- **EventIds**: the second DSR range (9800-9849) is registered by whichever of #1195 and #2700 lands first; the other reuses it.
+- **EventIds**: the second DSR range (5900-5949) is registered by whichever of #1195 and #2700 lands first; the other reuses it.
 - **Shared piece owned here**: `WithholdReason` and `AccessExclusion`; #2700 does not use them.
 
 ### Deferred
