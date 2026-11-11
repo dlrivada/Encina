@@ -170,7 +170,8 @@ jobs:
             // The same rule as inheritFromParent in issue-hygiene.yml; keep the two in step.
             async function inheritFromParent(issue) {
               const parent = await getParent(issue.number);
-              if (!parent) return;
+              // A parent in another repository has its own milestones and labels: nothing is copied from it.
+              if (!parent || !String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) return;
               const own = labelNames(issue);
               const fromParent = labelNames(parent);
               const add = [];
@@ -262,12 +263,22 @@ jobs:
               }
             };
 
-            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            let prs = [];
+            await attempt('listing the open pull requests', async () => {
+              prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            });
             for (const pr of prs) await attempt('pull request #' + pr.number, () => handlePr(pr.number));
 
-            const open = (await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 }))
-              .filter(i => !i.pull_request);
-            for (const issue of open) await attempt('issue #' + issue.number, () => inheritFromParent(issue));
+            let open = [];
+            await attempt('listing the open issues', async () => {
+              open = (await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 }))
+                .filter(i => !i.pull_request);
+            });
+            // Only an issue that lacks a milestone, an area label or (unless it is an EPIC) a priority label can inherit
+            // anything: the others skip the /parent call, which keeps the pass far below the token's hourly REST quota.
+            const canInherit = (i) => !i.milestone || !labelNames(i).some(n => n.startsWith(AREA_PREFIX)) ||
+              (!isEpic(i) && !labelNames(i).some(n => PRIORITY.includes(n)));
+            for (const issue of open.filter(canInherit)) await attempt('issue #' + issue.number, () => inheritFromParent(issue));
 
             core.info('Checked ' + prs.length + ' open pull request(s) and ' + open.length + ' open issue(s).');
             if (failures.length > 0) core.setFailed(failures.length + ' item(s) failed:\n' + failures.join('\n'));

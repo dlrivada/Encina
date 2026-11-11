@@ -23,7 +23,7 @@ $isIssues = $args[0] -eq 'api' -and ($args -join ' ') -like '*issues?state=open*
 if ($env:CPM_LIST_FAIL -and $isIssues) { $global:LASTEXITCODE = 1; exit 1 }
 if ($env:CPM_BAD_JSON -and $isIssues) { 'not json <html>'; exit 0 }
 if ($isIssues) {
-    # REST, --paginate --slurp: an array of pages; a pull request (pull_request member) must be dropped.
+    # REST, --paginate --slurp: an array of pages; a pull request (pull_request member) is kept: it belongs on the project too (#3328).
     $all = @(1, 2, 3) | ForEach-Object { @{ number = $_; title = "Issue $_"; html_url = "https://github.com/dlrivada/Encina/issues/$_" } }
     $all += @{ number = 4; title = 'A pull request'; html_url = 'https://github.com/dlrivada/Encina/pull/4'; pull_request = @{ url = 'x' } }
     ConvertTo-Json -InputObject @(, $all) -Depth 5; exit 0

@@ -81,8 +81,12 @@ jobs:
                 ({ data: parent } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/parent', { owner, repo, issue_number: issue.number }));
               } catch (e) {
                 if (e.status === 404) return issue; // no parent
-                throw e;
+                // Inheritance must not stop the completeness check: the daily repair retries it.
+                core.warning('Parent of #' + issue.number + ' could not be read: ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+                return issue;
               }
+              // A parent in another repository has its own milestones and labels: nothing is copied from it.
+              if (!String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) return issue;
               const own = labelNames(issue);
               const fromParent = labelNames(parent);
               const add = [];
