@@ -4,7 +4,7 @@
 > **Type**: Feature, [Tier B] (SPEC-002 REQ-011 rules part, scenario S15, REQ-038 and AC-038; SPEC-000 DEC-009, #2692)
 > **Milestone**: v0.17.0 — Compliance Lifecycle (order #686, #687, this issue, #688; parent EPIC #1186)
 > **Complexity**: Medium-High (8 phases, one package, depends on three unmerged features)
-> **Estimated Scope**: ~600-800 lines of production code + ~1,400-1,800 lines of tests; three pull requests (see Scope)
+> **Estimated Scope**: ~600-800 lines of production code + ~1,400-1,800 lines of tests; five pull requests (see Scope)
 
 ---
 
@@ -15,7 +15,7 @@ Implement the **rules that act on the REQ-011 fields** persisted by #1197: refus
 ### What the issue asks and what the code does today
 
 - The issue asks for: a deceased-subject rule (a requester not authorised by the subject, or authorised but covered by an expressed prohibition, gets `Left` with a reasoned code; an authorised requester without a prohibition proceeds); a guardian/proxy rule (accepted only when the authority exists and its validity covers the request time, from `TimeProvider`); fail-closed on missing representation, status or authority data, with an explicit logged opt-out only; every outcome audited and logged without `EncinaError.Message`; the registration `services.AddEncinaDataSubjectRequestRules()` "registered on top of the compliance DSL (#687)"; the S15 rules skeleton in the PracticeManagement scenario (#1227) replaced by the real scenario.
-- The issue has **no open design choices** by its own statement; the order #686 then #687 then these rules then #688 and the entry into 1.0 are the maintainer's decision of 2026-10-23 (SPEC-000 DEC-009, #2692). SPEC-002 already carries the superseding text (REQ-011 at `docs/specifications/SPEC-002-eu-regulatory-readiness.md:268`, S15 at `:218`, AC-038 at `:489`).
+- The issue states it has **no open design choices**; the plan finds three Dilemmas (Design Choices 1, 2 and 5) that the issue text does not settle, and the issue is to be linked to them before work starts (Next Steps 1). The order #686 then #687 then these rules then #688 and the entry into 1.0 are the maintainer's decision of 2026-10-23 (SPEC-000 DEC-009, #2692). SPEC-002 already carries the superseding text (REQ-011 at `docs/specifications/SPEC-002-eu-regulatory-readiness.md:268`, S15 at `:218`, AC-038 at `:489`).
 - **Nothing the rules read exists yet.** #1197 (open, plan `docs/plans/data-subject-representation-implementation-plan-1197.md`) adds `DataSubjectRepresentation`, `RepresentationAuthority`, `IDataSubjectStatusService.GetStatusAsync` returning a `DataSubjectStatusReadModel` (deceased flag, `AuthorisedRequester` list with `AuthorisedRequesterBasis`, `DataSubjectAccessProhibition` with `ProhibitedRights` and `AppliesTo`) and `DSRRequestReadModel.Representation`. #686 (open, plan `docs/plans/compliance-applicability-resolver-implementation-plan-686.md`) adds the core contract `IComplianceApplicability`. #687 (open) has no plan yet.
 - Today `DefaultDSRService.SubmitRequestAsync` (`Services/DefaultDSRService.cs:152-196`) creates a `DSRRequestAggregate` and returns its id; it takes neither a representation nor a requester. `DSRRequestAggregate.Deny` (`Aggregates/DSRRequestAggregate.cs:273-`) is allowed from any non-terminal status, including `Received`, and raises `DSRRequestDenied(reason, explanation, ...)`. `DSRRejectionReason` has `RestrictedByLaw` (legal basis text "GDPR Art. 23") and `IdentityNotVerifiable` ("GDPR Art. 12(2) with Art. 11(2)") (`Model/DSRRejectionReasonExtensions.cs`). The #1197 plan's chosen skeleton, `RepresentationRulesSkeleton` in `tests/Encina.UnitTests/Compliance/DataSubjectRights/Representation/`, is what this issue replaces.
 - The rules are not an applicability question: the #686 resolver and the #687 DSL decide which capabilities apply to which tenant, region or subject (the 686 plan: compliance is never optional, only territorial non-applicability, traced and audited, may disable a control; designed for Spain and the EU). The plan therefore builds the rules as plain decision objects in the DSR package and uses #686/#687 for the one question they answer: whether the rule capability applies (Design Choice 3).
@@ -24,8 +24,16 @@ Implement the **rules that act on the REQ-011 fields** persisted by #1197: refus
 
 - **Affected package**: `Encina.Compliance.DataSubjectRights` (plus tests, README, feature guide, coverage manifest, changelog fragment, `PublicAPI.Unshipped.txt`); `Encina` core only for the capability name if #686 does not already define an open capability set.
 - **Provider category**: none of the AGENTS.md §5 matrices. The rules add no store: they read through #1197's abstractions. Unit tests mock `IAggregateRepository`/services; integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3).
-- **Estimated files**: ~10 new source files, ~7 modified source files, ~13 test files, ~5 documentation files.
-- **Pull request split** (exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (rule contract, the two rules, evaluator, options; pure logic with unit, guard, contract and property tests); **PR 2** = Phases 3, 5, 6 (service integration with persisted denial, cross-cutting, observability, EventIds); **PR 3** = Phases 4, 7 (rest) and 8 (applicability and DSL registration once #686 and #687 are merged, S15, documentation).
+- **Estimated files**: ~11 new source files, ~7 modified source files, ~13 test files, ~5 documentation files.
+- **Pull request split** (the whole exceeds 15 files and 1,500 lines; counts include tests, each PR is at most 15 files and 1,500 changed lines):
+
+| PR | Phases | New source | Modified | Tests | Files | Lines (est.) |
+|----|--------|-----------|----------|-------|-------|--------------|
+| PR 1 | 1 and the evaluator, options and registration of Phase 2 | `IDataSubjectRequestRule`, context, outcome, `RuleOutcomeKind`, `DataSubjectRequestRuleEvaluator`, `DataSubjectRequestRulesExtensions` (6) | `DSRErrors`, `DataSubjectRightsOptions`, `PublicAPI.Unshipped.txt`, coverage manifest (4) | evaluator unit (with stub rules), DI test, guard (3) | 13 | ~650 |
+| PR 2 | 2 (the two rules) | `DeceasedSubjectAccessRule`, `RepresentationAuthorityRule` (2) | registration extension, `PublicAPI.Unshipped.txt`, coverage manifest (3) | two rule unit tests, contract, property (4) | 9 | ~800 |
+| PR 3 | 3 and 5 (service integration, persisted denial, tenant) | `DSRRuleExplanations` (1) | `DefaultDSRService`, `PublicAPI.Unshipped.txt`, coverage manifest (3) | service unit tests, Marten S15 rules integration, two-tenant integration (3) | 7 | ~600 |
+| PR 4 | 6 (observability, EventIds) | `DSRRuleLogMessages`, `DataSubjectRequestRulesStartupLogger` (2) | `DataSubjectRightsDiagnostics`, `EventIdRanges.cs` (only if first), `EncinaEventIdAllocationTests`, registration extension, `PublicAPI.Unshipped.txt`, coverage manifest (6) | telemetry and leak test (1) | 9 | ~450 |
+| PR 5 | 4, 7 (rest) and 8 (waits for #686 and #687) | capability declaration and S15 DSL configuration (2) | `DefaultDSRService`, `PublicAPI.Unshipped.txt`, coverage manifest, README (4) | load and benchmark justifications (2); documentation: feature guide, changelog fragment (2) | 10 | ~400 |
 - **Event IDs**: 5906-5913 in the second DSR range `ComplianceDSRExtensions = (5900, 5949)` that the #1195 plan registers (5900-5905 are #1195's).
 
 ### Related open issues that touch the same files
@@ -53,7 +61,7 @@ Class: Dilemma
 ### Rationale
 
 - We recommend A because it is what the issue and REQ-011 state and it never discloses to an unverified claimant (AGENTS.md §3, fail closed).
-- B wins in the reference application's scenario where a family arrives after a patient's death and nobody recorded them: option A refuses a person who has a statutory right to ask, and B accepts after the practice has verified kinship. If the maintainer chooses B, Phase 2 adds a requester-basis input to the rule (a field on the #1197 representation, `AuthorityReference` plus a basis value) and the rest of the plan is unchanged.
+- B wins in the reference application's scenario where a family arrives after a patient's death and nobody recorded them: option A refuses a person who has a statutory right to ask, and B accepts after the practice has verified kinship. If the maintainer chooses B, Phase 2 adds a requester-basis input to the rule (a field on the #1197 representation, `AuthorityReference` plus a basis value) and the rest of the plan is unchanged. Choosing B changes the persisted shape of #1197, which the issue's acceptance criterion "persisted shape of #1197 unchanged" excludes, so B also needs that criterion amended on the issue.
 
 </details>
 
@@ -131,17 +139,38 @@ Settled by: `AGENTS.md` §3 (compliance and security gates fail closed; errors a
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Deceased-subject refusals map to `DSRRejectionReason.RestrictedByLaw`; invalid or expired authority maps to `IdentityNotVerifiable`; rule codes `dsr.rule.requester_not_authorised`, `dsr.rule.prohibited_by_subject`, `dsr.rule.status_missing`, `dsr.rule.authority_invalid`, `dsr.rule.authority_expired` live in `DSRErrors`** | Reuses the closed enum and its legal-basis text (`DSRRejectionReasonExtensions.LegalBasis`); no new enum member for a persisted shape | The enum text says GDPR Art. 23; the specific article (LOPDGDD art. 3) goes in the explanation template |
+| **A) Deceased-subject refusals map to `DSRRejectionReason.RestrictedByLaw`; invalid or expired authority maps to `IdentityNotVerifiable`; rule codes `dsr.rule.requester_not_authorised`, `dsr.rule.prohibited_by_subject`, `dsr.rule.status_missing`, `dsr.rule.authority_not_applicable`, `dsr.rule.authority_invalid`, `dsr.rule.authority_expired` live in `DSRErrors`** | Reuses the closed enum and its legal-basis text (`DSRRejectionReasonExtensions.LegalBasis`); no new enum member for a persisted shape | The enum text says GDPR Art. 23; the specific article (LOPDGDD art. 3) goes in the explanation template; the persisted `DSRRequestDenied.rejectionReason` carries a coarser legal characterisation than the real basis |
 | **B) A new `DSRRejectionReason` member per rule** | Exact legal basis per member | Changes a persisted enum that #814 just stabilised and the draft-law switch logic |
 
-### Chosen Option: **A — reuse the existing reasons**
+### Chosen Option: **A — reuse the existing reasons** (recommended, pending the maintainer)
 
-Class: Trivial
-Settled by: `src/Encina.Compliance.DataSubjectRights/Model/DSRRejectionReasonExtensions.cs` (the `LegalBasis` mapping and the existing members) and `src/Encina.Compliance.DataSubjectRights/DSRErrors.cs` (code constants with the `dsr.` prefix)
+Class: Dilemma
 
 ### Rationale
 
+- We recommend A because it adds no persisted enum member and the existing members already carry a legal-basis text (`src/Encina.Compliance.DataSubjectRights/Model/DSRRejectionReasonExtensions.cs`, `LegalBasis`; code constants with the `dsr.` prefix in `DSRErrors.cs`).
+- B wins when the exact legal basis per refusal must be queryable in the event stream (for example for the reply under GDPR Art. 12(4)): the reason stored in `DSRRequestDenied` is a legal characterisation that is persisted, so a coarse mapping cannot be corrected later without a migration of events.
 - The refusal text never contains the subject's data, the requester id or the prohibition content.
+
+</details>
+
+<details>
+<summary><strong>6. Evaluation order of the rules — a fixed order, the deceased-subject rule first</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Each rule exposes an `int Order` (`DeceasedSubjectAccessRule` = 1, `RepresentationAuthorityRule` = 2); the evaluator runs them by `Order`, the first `Refused` wins** | The refusal code a caller sees is stable and documented | One more member on the contract |
+| **B) Order by `RuleId` string** | No extra member | The code a caller sees depends on string ordering of two ids |
+
+### Chosen Option: **A — explicit order**
+
+Class: Trivial
+
+### Rationale
+
+- Both rules can apply to one request (a deceased subject whose representative claims a guardian authority), so the order decides the code reported; the deceased-subject rule runs first and its refusal is reported.
 
 </details>
 
@@ -156,10 +185,10 @@ Settled by: `src/Encina.Compliance.DataSubjectRights/Model/DSRRejectionReasonExt
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Abstractions/IDataSubjectRequestRule.cs`** (new): `string RuleId { get; }` and `ValueTask<Either<EncinaError, DataSubjectRequestRuleOutcome>> EvaluateAsync(DataSubjectRequestRuleContext context, CancellationToken cancellationToken = default)`.
+1. **`Abstractions/IDataSubjectRequestRule.cs`** (new): `string RuleId { get; }`, `int Order { get; }` (Design Choice 6) and `ValueTask<Either<EncinaError, DataSubjectRequestRuleOutcome>> EvaluateAsync(DataSubjectRequestRuleContext context, CancellationToken cancellationToken = default)`.
 2. **`Model/DataSubjectRequestRuleContext.cs`** (new `sealed record`): `string SubjectId`, `DataSubjectRight Right`, `DataSubjectRepresentation? Representation`, `DateTimeOffset RequestTimeUtc`, `string? TenantId` (the representation and status types come from #1197).
 3. **`Model/DataSubjectRequestRuleOutcome.cs`** (new `sealed record`): `RuleOutcomeKind Kind` (`NotApplicable = 1`, `Accepted = 2`, `Refused = 3`), `string RuleId`, `string? Code`, `DSRRejectionReason? Reason`; static factories.
-4. **`DSRErrors.cs`** (modify): the five codes of Design Choice 5 and `RequestRefusedByRule(string ruleId, string code, Guid? requestId)`; messages carry codes only.
+4. **`DSRErrors.cs`** (modify): the six codes of Design Choice 5 and `RequestRefusedByRule(string ruleId, string code, Guid? requestId)`; messages carry codes only.
 5. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
 </details>
@@ -175,7 +204,7 @@ CONTEXT:
 - DSRErrors (DSRErrors.cs) holds coded errors with the dsr. prefix; DSRRejectionReason has RestrictedByLaw and IdentityNotVerifiable.
 
 TASK:
-Create IDataSubjectRequestRule, DataSubjectRequestRuleContext, DataSubjectRequestRuleOutcome (with RuleOutcomeKind) and the five rule error codes with RequestRefusedByRule, as listed in the plan's Phase 1 Tasks.
+Create IDataSubjectRequestRule, DataSubjectRequestRuleContext, DataSubjectRequestRuleOutcome (with RuleOutcomeKind) and the six rule error codes with RequestRefusedByRule, as listed in the plan's Phase 1 Tasks.
 
 KEY RULES:
 - Enums have explicit values and no zero member; XML docs on every public member.
@@ -199,9 +228,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Rules/DeceasedSubjectAccessRule.cs`** (new, `internal sealed`, `RuleId = "lopdgdd-art-3"`): applies when the representation's authority is `PersonLinkedToDeceased` or the subject's status is deceased; reads the status through `IDataSubjectStatusService`; the matrix: no status or no representation for a deceased subject refuses (`status_missing`); requester not in `AuthorisedRequesters`, or listed but without the right, refuses (`requester_not_authorised`); an `AccessProhibition` whose `ProhibitedRights` contains the right and whose `AppliesTo` contains the requester's `AuthorisedRequesterBasis` refuses (`prohibited_by_subject`) and always wins over the authorised list; otherwise accepts. Subject not deceased and authority `PersonLinkedToDeceased` refuses (`status_missing`).
-2. **`Rules/RepresentationAuthorityRule.cs`** (new, `internal sealed`, `RuleId = "representation-authority"`): applies when a representation is present and its authority is not `PersonLinkedToDeceased`; refuses an empty `RepresentativeId` or undefined authority (`authority_invalid`) and a `ValidUntilUtc` not after `RequestTimeUtc` (`authority_expired`); accepts otherwise.
-3. **`Rules/DataSubjectRequestRuleEvaluator.cs`** (new, `internal sealed`, scoped): runs every registered `IDataSubjectRequestRule` in `RuleId` order; the first `Refused` wins; any `Left` is returned as `Left` (fail closed); all `NotApplicable` or `Accepted` accepts.
+1. **`Rules/DeceasedSubjectAccessRule.cs`** (new, `internal sealed`, `RuleId = "lopdgdd-art-3"`): applies when the representation's authority is `PersonLinkedToDeceased` or the subject's status is deceased; reads the status through `IDataSubjectStatusService`; the matrix: no status or no representation for a deceased subject refuses (`status_missing`); requester not in `AuthorisedRequesters`, or listed but without the right, refuses (`requester_not_authorised`); an `AccessProhibition` whose `ProhibitedRights` contains the right and whose `AppliesTo` contains the requester's `AuthorisedRequesterBasis` refuses (`prohibited_by_subject`) and always wins over the authorised list; otherwise accepts. Subject not deceased and authority `PersonLinkedToDeceased` refuses (`authority_not_applicable`: the status exists but contradicts the claim). `Order = 1`.
+2. **`Rules/RepresentationAuthorityRule.cs`** (new, `internal sealed`, `RuleId = "representation-authority"`): applies when a representation is present and its authority is not `PersonLinkedToDeceased`; refuses an empty `RepresentativeId` or undefined authority (`authority_invalid`) and a `ValidUntilUtc` not after `RequestTimeUtc` (`authority_expired`); accepts otherwise. `Order = 2`.
+3. **`Rules/DataSubjectRequestRuleEvaluator.cs`** (new, `internal sealed`, scoped): runs every registered `IDataSubjectRequestRule` in `Order` (Design Choice 6); the first `Refused` wins; any `Left` is returned as `Left` (fail closed); all `NotApplicable` or `Accepted` accepts.
 4. **`DataSubjectRightsOptions.cs`** (modify): `bool EnforceRequestRules { get; set; } = true` with XML docs stating that `false` is an explicit, logged opt-out.
 5. **`ServiceCollectionExtensions.cs`** (modify) or **`DataSubjectRequestRulesExtensions.cs`** (new): `AddEncinaDataSubjectRequestRules(this IServiceCollection services)` registers both rules (`TryAddEnumerable`), the evaluator, and everything they resolve (`IDataSubjectStatusService` is registered by `AddEncinaDataSubjectRights`); a DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 6. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
@@ -370,7 +399,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina/Diagnostics/EventIdRanges.cs`**: the range `ComplianceDSRExtensions = (5900, 5949)` and its second-range mapping for `Encina.Compliance.DataSubjectRights` in `EncinaEventIdAllocationTests.cs` are registered by the #1195 plan's Phase 6; when this issue lands first it registers them identically (with the `PublicAPI.Unshipped.txt` line).
-2. **`Diagnostics/DSRRuleLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 5906-5913 (see EventIdRanges.ComplianceDSRExtensions)"): 5906 `RequestRefusedRequesterNotAuthorised`, 5907 `RequestRefusedProhibitedBySubject`, 5908 `RequestRefusedAuthorityInvalid` (reason code), 5909 `RequestRefusedStatusMissing`, 5910 `RequestAcceptedByRules` (Debug), 5911 `RuleEvaluationFailed` (error code), 5912 `RequestRulesOptOutActive` (startup warning when `EnforceRequestRules` is false), 5913 `RequestRulesCapabilityNotApplicable` (Phase 4); each carries rule id, right type and code only.
+2. **`Diagnostics/DSRRuleLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 5906-5913 (see EventIdRanges.ComplianceDSRExtensions)"): 5906 `RequestRefusedRequesterNotAuthorised`, 5907 `RequestRefusedProhibitedBySubject`, 5908 `RequestRefusedAuthorityInvalid` (reason code), 5909 `RequestRefusedStatusMissing`, 5910 `RequestAcceptedByRules` (Debug), 5911 `RuleEvaluationFailed` (error code), 5912 `RequestRulesOptOutActive` (startup warning when `EnforceRequestRules` is false, emitted once by `Services/DataSubjectRequestRulesStartupLogger.cs`, an `internal sealed` `IHostedService` registered by `AddEncinaDataSubjectRequestRules()`), 5913 `RequestRulesCapabilityNotApplicable` (Phase 4); each carries rule id, right type and code only.
 3. **`Diagnostics/DataSubjectRightsDiagnostics.cs`** (modify): counter `dsr.rules.outcomes.total` (tags `dsr.rule`, `dsr.rule_outcome`, `dsr.right_type`); activity `DSR.Rules.Evaluate` with `dsr.rule`, `dsr.rule_outcome` and `encina.tenant_id`. The issue's names (`encina.compliance.dsr_rule_outcome_count`, `encina.compliance.dsr_rule.evaluate`, tag `rule.id`) are replaced by the package's naming (`dsr.*`).
 
 </details>
@@ -416,7 +445,17 @@ REFERENCE FILES:
 5. **Integration** (`[Collection(MartenCollection.Name)]`, PostgreSQL): S15 rules part with the real aggregates of #1197 — a relative's access request for a deceased patient who prohibited access is refused with a stored `DSRRequestDenied`; an authorised requester without prohibition proceeds; a guardian with valid authority proceeds, an expired one is refused; two-tenant isolation. The skeleton `RepresentationRulesSkeleton` and its skipped test are replaced by the real scenario in #1227's PracticeManagement project (the README maps S15 to REQ-009 and REQ-011), and the AC-038 exemption wording is already removed from the SPEC.
 6. **Telemetry/privacy**: in-memory exporter test (AC-044) and a leak test: no subject id, requester id or prohibition content in tags, metrics, logs or the denial explanation.
 7. **Load and benchmark**: `.md` justifications (read-only decisions, not concurrent or hot).
-8. **Coverage manifest**: per-file targets and justifications for every new or changed file in `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` (via `mechanical-fixer`); measure each flag; CRAP gate on `SubmitRequestAsync`.
+8. **Coverage manifest**: per-file targets and justifications for every new or changed file in `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` (via `mechanical-fixer`); measure each flag; CRAP gate on `SubmitRequestAsync`. Planned targets (unit / guard / contract / property / integration, line coverage %; a 0 only with its reason):
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|------|-------|----------|----------|-------------|---------------|
+| `Rules/DeceasedSubjectAccessRule.cs` | 95 | 0 | 90 | 80 | 70 | Pure matrix, every cell tested; guards go through the public registration, which is not a null-check surface of an internal type |
+| `Rules/RepresentationAuthorityRule.cs` | 95 | 0 | 90 | 60 | 60 | Pure decisions; expiry tested at the exact instant |
+| `Rules/DataSubjectRequestRuleEvaluator.cs` | 95 | 90 | 80 | 60 | 60 | Public constructor guards; ordering and `Left` propagation covered by unit tests |
+| `Services/DefaultDSRService.cs` (changed method) | 90 | 80 | 0 | 0 | 60 | Contract and property add nothing for the service; the persisted denial is proved on Marten |
+| `Model/DataSubjectRequestRuleOutcome.cs`, `...RuleContext.cs` | 90 | 80 | 80 | 0 | 0 | Records with factories; no further flag exercises them |
+| `Services/DataSubjectRequestRulesStartupLogger.cs` | 90 | 70 | 0 | 0 | 0 | Hosted service started in unit tests; no behavior for the other flags |
+| `Diagnostics/DSRRuleLogMessages.cs` | 80 | 0 | 0 | 0 | 0 | Source-generated log methods exercised through the unit tests |
 
 </details>
 
@@ -529,7 +568,7 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| New source | 10 | Rule contract, context, outcome, two rules, evaluator, registration extension, explanations, log messages, `RuleOutcomeKind` |
+| New source | 11 | Rule contract, context, outcome, two rules, evaluator, registration extension, explanations, log messages, `RuleOutcomeKind`, startup logger |
 | Modified source | 7 | Service, options, errors, diagnostics, registration, `EventIdRanges.cs` (only if first), manifest |
 | Tests | 13 | Unit 5, guard 1, contract 1, property 1, integration 2, leak 1, justifications 2 |
 | Documentation | 5 | README, feature guide, changelog fragment, PublicAPI, SPEC check |
@@ -609,6 +648,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Maintainer answers the two Dilemmas (Design Choices 1 and 2) when work on #2700 starts; answers go in a `## Maintainer Decisions` section appended to this plan.
+1. Maintainer answers the three Dilemmas (Design Choices 1, 2 and 5) when work on #2700 starts; answers go in a `## Maintainer Decisions` section appended to this plan. The orchestrator links the three Dilemmas on issue #2700 so that issue and plan agree.
 2. Plan #687 (rule-based compliance DSL) before Phase 4 so that the declaration seam is fixed.
-3. After #1197 lands, brief the worker for PR 1 (Phases 1-2); PR 2 follows; PR 3 waits for #686 and #687.
+3. After #1197 lands, brief the worker for PR 1; PR 2 to PR 4 follow in order; PR 5 waits for #686 and #687.
