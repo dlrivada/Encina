@@ -143,7 +143,7 @@ Correctness first: anything less than all claims can conflate principals that a 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One counter on the shared `Encina` meter, `encina.authorization.cache.requests_total`, tag `outcome` = `hit`/`miss`/`bypass`/`error`; `[LoggerMessage]` EventIds 208-213 in the existing AspNetCore range** | Same shape as `TenancyMetrics`; low cardinality; no policy name or claim in tags | Per-policy breakdown unavailable |
+| **A) One counter on the shared `Encina` meter, `encina.authorization.cache.requests_total`, tag `outcome` = `hit`/`miss`/`bypass`/`error`; `[LoggerMessage]` EventIds 212-217 in the existing AspNetCore range** | Same shape as `TenancyMetrics`; low cardinality; no policy name or claim in tags | Per-policy breakdown unavailable |
 | **B) Separate `hit` and `miss` counters (the issue's names)** | Matches the issue text | Two instruments for one dimension; cannot express bypass and error |
 | **C) A `policy` tag** | Per-policy hit rate | Policy names are application data and unbounded; the issue forbids them in tags |
 
@@ -151,7 +151,7 @@ Correctness first: anything less than all claims can conflate principals that a 
 
 ### Rationale
 
-`TenancyMetrics` uses `new Meter("Encina", "1.0")` and tagged counters. EventIds 200-207 are used in `Encina.AspNetCore` (207 in `AuthorizationElevatedLog`); the range 200-249 is registered, so 208-213 need no new registration.
+`TenancyMetrics` uses `new Meter("Encina", "1.0")` and tagged counters. EventIds 200-207 are used in `Encina.AspNetCore` (207 in `AuthorizationElevatedLog`); the range 200-249 is registered, so 212-217 need no new registration (208-211 are taken by the #3443 plan).
 
 **Class:** Trivial
 
@@ -265,7 +265,7 @@ REFERENCE FILES: src/Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs, d
 <summary>Tasks</summary>
 
 1. `AuthorizationCacheMetrics` (singleton) with the counter and `outcome` tag of Design Choice 6 on the shared `Encina` meter; no `ActivitySource` (cache hits are too cheap to span).
-2. `AuthorizationCacheLog` (internal static partial) with `[LoggerMessage]` ids 208 hit, 209 miss, 210 stored, 211 bypass (policy not cacheable), 212 cache failure (exception type only), 213 invalidation; the XML docs name the range (`EventIdRanges.AspNetCore`, 200-249). Keys and policy names are not logged.
+2. `AuthorizationCacheLog` (internal static partial) with `[LoggerMessage]` ids 212 hit, 213 miss, 214 stored, 215 bypass (policy not cacheable), 216 cache failure (exception type only), 217 invalidation; the XML docs name the range (`EventIdRanges.AspNetCore`, 200-249). Keys and policy names are not logged.
 3. Run the architecture tests (EventId allocation).
 
 </details>
@@ -275,7 +275,7 @@ REFERENCE FILES: src/Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs, d
 
 ```text
 CONTEXT: EventIds 200-207 are used in Encina.AspNetCore; the range 200-249 is registered.
-TASK: Add the metrics class and the log class with ids 208 to 213; run the EventId architecture tests.
+TASK: Add the metrics class and the log class with ids 212 to 217; run the EventId architecture tests.
 KEY RULES: [LoggerMessage] generator; ids packed; no policy name, user id, claim or error message in tags or text.
 REFERENCE FILES: src/Encina.Tenancy/Diagnostics/TenancyMetrics.cs, src/Encina.AspNetCore/AuthorizationElevatedLog.cs, src/Encina/Diagnostics/EventIdRanges.cs.
 ```
@@ -354,7 +354,7 @@ REFERENCE FILES: src/Encina.AspNetCore/README.md, changelog.d/README.md, .claude
 |-----------------|-----------|-------|
 | `AGENTS.md` §3 | Fail closed, ROP, no error message in logs, registration completeness | Governs Design Choices 3 and 4 |
 | ASP.NET Core resource-based authorization | `IAuthorizationService.AuthorizeAsync(user, resource, policy)` | Policies may read the resource instance (D2) |
-| ADR-021 / `AGENTS.md` §7 | EventIds | 208-213 inside 200-249 |
+| ADR-021 / `AGENTS.md` §7 | EventIds | 212-217 inside 200-249 (208-211 reserved by #3443) |
 | #746 | Cache key grammar | Tenant and module segments |
 
 ### Existing Encina Infrastructure to Leverage
@@ -373,7 +373,7 @@ REFERENCE FILES: src/Encina.AspNetCore/README.md, changelog.d/README.md, .claude
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.AspNetCore` | 208-213 inside the registered 200-249 | 200-207 used today; 214-249 stay free |
+| `Encina.AspNetCore` | 212-217 inside the registered 200-249 | 200-207 used, 208-211 reserved by the #3443 plan; 218-249 stay free |
 
 ### Estimated File Count
 
@@ -396,7 +396,7 @@ REFERENCE FILES: src/Encina.AspNetCore/README.md, changelog.d/README.md, .claude
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library. IResourceAuthorizer is the Railway-Oriented facade over ASP.NET Core resource-based authorization; this feature adds an opt-in caching decorator in Encina.AspNetCore that uses ICacheProvider. Zero warnings, no backward compatibility, security gates fail closed.
 
-IMPLEMENTATION OVERVIEW: Phase 1 options, principal hash, invalidator contract; Phase 2 CachedResourceAuthorizer (allows only, every doubt falls through); Phase 3 AddEncinaAuthorizationCaching with order-independent registration and a startup check for ICacheProvider; Phase 4 tenant and module segments, audit note; Phase 5 one counter with an outcome tag and log ids 208-213; Phase 6 tests by flag; Phase 7 docs. Dilemmas D1 (backing cache) and D2 (decision identity) are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: Phase 1 options, principal hash, invalidator contract; Phase 2 CachedResourceAuthorizer (allows only, every doubt falls through); Phase 3 AddEncinaAuthorizationCaching with order-independent registration and a startup check for ICacheProvider; Phase 4 tenant and module segments, audit note; Phase 5 one counter with an outcome tag and log ids 212-217; Phase 6 tests by flag; Phase 7 docs. Dilemmas D1 (backing cache) and D2 (decision identity) are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Right(true) is the only cached value; Left and cache failures never become allows; keys follow the t:/m:/u: grammar; no policy, claim, user id or error message in tags or logs; TryAdd plus Replace for the decorator; Shouldly; CRAP at or below 10.
 
@@ -413,7 +413,7 @@ REFERENCE FILES: src/Encina.AspNetCore/Authorization/ResourceAuthorizer.cs, src/
 |---|----------|--------|-------|
 | 1 | Caching | ✅ | The feature: an `ICacheProvider` decorator over `IResourceAuthorizer`. |
 | 2 | OpenTelemetry | ✅ | One counter with an `outcome` tag on the shared meter; no policy names or claims in tags. |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 208-213 in the registered AspNetCore range; failures by exception type only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 212-217 in the registered AspNetCore range; failures by exception type only. |
 | 4 | Health Checks | ❌ | The backing cache has its own health check. |
 | 5 | Validation | ✅ | Options validated at startup (TTL greater than zero, an `ICacheProvider` is present). |
 | 6 | Resilience | ❌ | A cache failure falls through to the inner authorizer; no retry is wanted on an authorization path. |
