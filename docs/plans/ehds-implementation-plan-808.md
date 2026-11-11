@@ -26,7 +26,7 @@ Create `Encina.Compliance.EHDS`, the Encina compliance module for the **European
 - The pipeline behavior pattern with enforcement modes and an attribute is `src/Encina.Compliance.LawfulBasis/Pipeline/LawfulBasisValidationPipelineBehavior.cs` (`LawfulBasisEnforcementMode`: Block, Warn, Disabled) and `src/Encina.Compliance.DPIA/DPIARequiredPipelineBehavior`.
 - The read audit is `IReadAuditStore` in `src/Encina.Security.Audit/` (`LogReadAsync`, `GetAccessHistoryAsync`, `GetUserAccessHistoryAsync`, `QueryAsync`, `PurgeEntriesAsync`), ADR-036 (three audit stores). #1245 decides which extension points the read audit exposes to serve as the EHDS logging component.
 - Background loop and health-check patterns: `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs`, `Health/DPIAHealthCheck.cs`.
-- EventIds: the range map has no EHDS range; `9860-9959` is free today (9700-9749 is proposed to plan #812, 9750-9799 is `SecurityBreakTheGlass`, 9800-9829 to plan #816, 9830-9849 to plan #1942).
+- EventIds: the range map has no EHDS range; `6450-6549` is free today and assigned to this plan in the batch EventId registry (block 6400-6549: 6400-6429 plan #816, 6430-6449 plan #1942; plan #812 uses 9700-9749).
 
 ### Corrections to the issue body
 
@@ -366,9 +366,9 @@ REFERENCE FILES:
 
 1. `EhdsPermitExpirationService.cs` (public sealed `BackgroundService`): `PeriodicTimer` with `ExpirationCheckInterval`, `TimeProvider`, catch per iteration (AGENTS.md §3, #2774); each cycle expires granted permits past `ValidUntilUtc` through the service; a failed expiry is retried next cycle and logged by error code; registered only when `EnableExpirationMonitoring` is `true`.
 2. `Health/EhdsHealthCheck.cs` (`DefaultName = "encina-ehds"`, static `Tags`): permit service resolvable; counts of active and expiring permits; no content.
-3. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceEHDS = (9860, 9959);` with the summary "Encina.Compliance.EHDS — European Health Data Space".
+3. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceEHDS = (6450, 6549);` with the summary "Encina.Compliance.EHDS — European Health Data Space".
 4. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify): map `"Encina.Compliance.EHDS"` to `[nameof(EventIdRanges.ComplianceEHDS)]`.
-5. `Diagnostics/EhdsLogMessages.cs`: `[LoggerMessage]` from 9860, packed by area (service 9860-9879, enforcement 9880-9889, monitor and health 9890-9899, access log 9900-9909; the rest of the range stays unallocated until used).
+5. `Diagnostics/EhdsLogMessages.cs`: `[LoggerMessage]` from 6450, packed by area (service 6450-6469, enforcement 6470-6479, monitor and health 6480-6489, access log 6490-6499; the rest of the range stays unallocated until used).
 6. `Diagnostics/EhdsDiagnostics.cs`: `ActivitySource` and `Meter` named `Encina.Compliance.EHDS`; counters `ehds.permits.total` (tag `status`), `ehds.enforcement.checks.total` (tag `outcome`), `ehds.expiry.cycles.total`; activities per service operation and per enforcement check; no tenant-identifying content beyond the tenant tag.
 
 </details>
@@ -386,7 +386,7 @@ TASK:
 Implement the expiry service, health check, range registration, log messages and diagnostics.
 
 KEY RULES:
-- Packed EventIds, none outside 9860-9959; no gaps within an area block.
+- Packed EventIds, none outside 6450-6549; no gaps within an area block.
 - Never log EncinaError.Message, health data or permit content; error codes and ex.ForLogging() only.
 - All time from TimeProvider; tests with FakeTimeProvider; no Thread.Sleep.
 
@@ -549,7 +549,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.EHDS` | **9860-9959** (new `ComplianceEHDS`) | Free per `EventIdRanges.cs` today; 9700-9749 is proposed to plan #812, 9750-9799 is `SecurityBreakTheGlass`, 9800-9829 to plan #816, 9830-9849 to plan #1942; register first (ADR-021). Allocated in blocks by area as Phase 4 lists; the rest stays unused until needed |
+| `Encina.Compliance.EHDS` | **6450-6549** (new `ComplianceEHDS`) | Free per `EventIdRanges.cs` today and assigned to this plan (block 6400-6549: 6400-6429 plan #816, 6430-6449 plan #1942; plan #812 uses 9700-9749); register first (ADR-021). Allocated in blocks by area as Phase 4 lists; the rest stays unused until needed |
 
 ### Estimated File Count
 
@@ -588,7 +588,7 @@ IMPLEMENTATION OVERVIEW:
 2. HealthDataPermitAggregate with events PermitApplied, Granted, Denied, Suspended, Reinstated, Revoked, Expired;
    projection (IDocumentOperations), read model, IEhdsPermitService, AddEHDSAggregates.
 3. [EhdsSecondaryUse] and EhdsSecondaryUsePermitBehavior with Block (default), Warn, Disabled; fail closed.
-4. EhdsPermitExpirationService (PeriodicTimer, catch per iteration), EhdsHealthCheck, ComplianceEHDS = (9860, 9959)
+4. EhdsPermitExpirationService (PeriodicTimer, catch per iteration), EhdsHealthCheck, ComplianceEHDS = (6450, 6549)
    registered first, EhdsLogMessages, EhdsDiagnostics.
 5. IEhdsAccessLogProvider over IReadAuditStore, after #1245 is decided.
 6. Tests on every flag; Marten integration with Testcontainers; .md justifications for load and benchmark.
@@ -619,7 +619,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Health data and permit decisions must not be cached (issue); the enforcement behavior reads the projection on each request |
 | 2 | OpenTelemetry | ✅ | `ActivitySource` and `Meter` `Encina.Compliance.EHDS`, counters by status and outcome (Phase 4) |
-| 3 | Structured Logging | ✅ | `EhdsLogMessages` in the new range 9860-9959 (Phase 4) |
+| 3 | Structured Logging | ✅ | `EhdsLogMessages` in the new range 6450-6549 (Phase 4) |
 | 4 | Health Checks | ✅ | `EhdsHealthCheck` for the module's own stores; MyHealth@EU connectivity stays deferred (issue file) |
 | 5 | Validation | ✅ | Options validator; aggregate invariants on permit data (Phases 1-2) |
 | 6 | Resilience | ⏭️ | Only relevant to cross-border exchange, which is deferred with MyHealth@EU in `artifacts/issues/plan-808-ehds-deferred-areas.md` |
