@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (7 broker publishers, two new packages, a cleanup loop, an ADR; 8 pull requests)
 > **Estimated Scope**: ~1,800-2,400 lines of production code + ~2,500-3,200 lines of tests
-> **Sibling plan**: [`claim-check-implementation-plan-599.md`](claim-check-implementation-plan-599.md) (contract, in-memory store, `ClaimCheckService`, outbox integration)
+> **Sibling plan**: `claim-check-implementation-plan-599.md` (#599) (contract, in-memory store, `ClaimCheckService`, outbox integration)
 
 ---
 
