@@ -1,0 +1,2 @@
+- Raised Aspire.Hosting.Testing and Aspire.Hosting.PostgreSQL to 13.6.5, which resolves GHSA-f7vh-h5g3-7jrh (Aspire.Hosting and Aspire.Hosting.AppHost below 13.6.5), and pinned Microsoft.AspNetCore.WebUtilities 2.3.14 to resolve GHSA-6527-9fp8-r4x6 (#3491).
+- Aligned the central versions that Aspire 13.6.5 requires (OpenTelemetry 1.17.0, Microsoft.Extensions.Resilience and Http.Resilience 10.10.0, Polly.Extensions 8.7.0, Grpc.Net.Client and Grpc.AspNetCore 2.83.0, Google.Protobuf 3.36.1, System.IO.Hashing 10.0.14, YamlDotNet 18.1.0) (#3491).
