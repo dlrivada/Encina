@@ -2,7 +2,7 @@
 
 > **Issue**: [#3150](https://github.com/dlrivada/Encina/issues/3150) (child of EPIC [#3148](https://github.com/dlrivada/Encina/issues/3148), milestone v0.14.0 — Hardening)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 10 database providers in 8 implementations, 11 pull requests, ~75 files)
+> **Complexity**: High (10 phases, 10 database providers in 8 implementations, 11 pull requests, ~78 files)
 > **Estimated Scope**: ~1,800-2,400 lines of production code + ~2,500-3,200 lines of tests
 > **Related**: [#3149](https://github.com/dlrivada/Encina/issues/3149) (conformance suite, must exist first), [#3158](https://github.com/dlrivada/Encina/issues/3158) (follows this issue)
 
@@ -144,7 +144,7 @@ We recommend B. The six builders already build `Contains`/`StartsWith`/`EndsWith
 
 ### Rationale
 
-We recommend B. The maintainer's text asks for a required binary collation with "no silent default", and the dead-letter tables could require a constructor argument because Encina creates them (ADR-046 decision 2). The functional repositories map tables the application owns, so Encina cannot create the collation, only refuse to run on the wrong one. B does that with the fewest changes and cannot disagree with the database. A wins when the maintainer wants Encina to ship the DDL of application tables, and C when failing at startup matters more than library simplicity; a startup health signal is deferred in the matrix (function 4). The check applies to every mapped string column, including the `TenantId` column, where a case-insensitive collation would make tenants `A` and `a` collide (see the matrix, function 10).
+The decision text asks for the binary collation to be required in the schema configuration, with no silent default (the ADR-046 declaration pattern). Option A is the declaration; B satisfies the enforcement half of that text (a wrong column is refused) but not the declaration half, so choosing B is a gap against the wording that the maintainer must accept. Either way EF Core and ADO/Dapper stay consistent: Phase 5 already adds an EF helper that takes the collation as a required argument, so with B that helper remains an optional convenience for the schema and the model check enforces. We recommend B. The maintainer's text asks for a required binary collation with "no silent default", and the dead-letter tables could require a constructor argument because Encina creates them (ADR-046 decision 2). The functional repositories map tables the application owns, so Encina cannot create the collation, only refuse to run on the wrong one. B does that with the fewest changes and cannot disagree with the database. A wins when the maintainer wants Encina to ship the DDL of application tables, and C when failing at startup matters more than library simplicity; a startup health signal is deferred in the matrix (function 4). The check applies to every mapped string column, including the `TenantId` column, where a case-insensitive collation would make tenants `A` and `a` collide (see the matrix, function 10).
 
 </details>
 
@@ -166,7 +166,7 @@ We recommend B. The maintainer's text asks for a required binary collation with 
 
 ### Rationale
 
-The decision names the mechanism per engine, and the accent-sensitive collations keep clause 3 true. The index cost is documented in the guide (Phase 10) and measured by no benchmark, because the operation is opt-in and the ordinal path is unchanged.
+The decision names the mechanism per engine (`ILIKE`/`LOWER`, `COLLATE`, regex `i`) but not the collation names; the specific names `Latin1_General_100_CI_AS` (SQL Server) and `utf8mb4_0900_as_ci` (MySQL) are a Trivial choice of this plan: the case-insensitive, accent-sensitive members of the `Latin1_General_100` and `utf8mb4_0900` families, kept in one constant per package. They are not stated by the decision, and the worker confirms that both exist on the test containers before using them. Case folding is not identical on every engine: `ILIKE` folds by the database `LC_CTYPE`, the `_CI` collations by their Unicode tables and MongoDB regex `i` by PCRE rules, so non-ASCII letters can fold differently. The conformance suite (Phase 7) pins this limit with explicit non-ASCII cases and documents the parity as "ASCII identical; others per engine". `LOWER` is rejected for the same reason plus the lost index. The accent-sensitive collations keep clause 3 true. The index cost is documented in the guide (Phase 10) and measured by no benchmark, because the operation is opt-in and the ordinal path is unchanged.
 
 </details>
 
@@ -201,7 +201,7 @@ We recommend A because the contract is "the same rows on every provider" and A p
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Leave EF permissive** | No change for existing specifications; EF's own behavior stays available | A specification using `ToLower()` works on EF Core and answers `Left` on 7 other implementations: the parity gap the EPIC exists to close |
-| **B) The evaluator rejects `ToLower`, `ToUpper`, `ToLowerInvariant`, `ToUpperInvariant` on a string member with `Left`, naming the typed operation** | Same behavior on all 10 providers; the error message teaches the replacement | A specification that worked on EF Core before now answers `Left` (pre-1.0, no compatibility rule) |
+| **B) The EF repository checks the specification expression before building the query and returns `Left(RepositoryErrors.InvalidOperation)` for `ToLower`, `ToUpper`, `ToLowerInvariant`, `ToUpperInvariant` on a string member, naming the typed operation** | Same behavior on all 10 providers; the error message teaches the replacement | A specification that worked on EF Core before now answers `Left` (pre-1.0, no compatibility rule) |
 | **C) Teach the six SQL builders and MongoDB `ToLower`/`ToUpper`** | Existing EF specifications keep working everywhere | Implicit case-insensitivity through arbitrary functions, which the decision's clause 2 ("only through an explicit typed operation") excludes; folding rules differ per engine |
 
 ### Chosen Option: **B — EF rejects the implicit forms** (recommended, pending the maintainer)
@@ -266,7 +266,7 @@ The decision is explicit and #3158 is the issue that stops the silent dropping o
 1. `src/Encina.DomainModeling/StringSpecificationExtensions.cs` (new): `public static class StringSpecificationExtensions` in namespace `Encina.DomainModeling` with `EqualsIgnoreCase(this string? value, string? other)` and, per Choice 3, `ContainsIgnoreCase`, `StartsWithIgnoreCase`, `EndsWithIgnoreCase`. Each is implemented in memory with `StringComparison.OrdinalIgnoreCase` so `IsSatisfiedBy` works. XML documentation with an example; the remarks state the translation per provider and the index cost.
 2. `src/Encina.DomainModeling/RepositoryErrors.cs`: a new code `Repository.CollationNotOrdinal` (private const, public factory `CollationNotOrdinal<TEntity>(string columnName, string? actualCollation)`), built like the neighboring factories; the message names the column and the required family, never a value from a row.
 3. `src/Encina.DomainModeling/PublicAPI.Unshipped.txt`: the new public members (`mechanical-fixer`).
-4. `docs/architecture/adr/<next free number>-specification-string-comparison.md` (new; 062 is unreserved and unused in `index.md` today, confirm against open pull requests) and its row in `docs/architecture/adr/index.md`; `AGENTS.md` section 5 gains the parity rule: string comparison in a specification is ordinal on all 10 providers, case-insensitivity only through the typed operations (`docs-writer`).
+4. `docs/architecture/adr/<next free number>-specification-string-comparison.md` (new; ADR number assigned when the ADR pull request opens) and its row in `docs/architecture/adr/index.md`; `AGENTS.md` section 5 gains the parity rule: string comparison in a specification is ordinal on all 10 providers, case-insensitivity only through the typed operations (`docs-writer`).
 5. `.github/coverage-manifest/Encina.DomainModeling.json`: entries with per-flag targets and one-sentence justifications for the two new/changed files (`mechanical-fixer`).
 6. Tests: unit and guard tests for the four methods (null, empty, culture independence: `"I"` and `"i"` under `tr-TR`), a contract test that the in-memory result equals the expression result.
 
@@ -364,7 +364,7 @@ REFERENCE FILES: src/Encina.ADO.MySQL/Repository/SpecificationSqlBuilder.cs, src
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.EntityFrameworkCore/Repository/SpecificationEvaluator.cs`: before `Where`, run an `ExpressionVisitor` that (Choice 6) rewrites the marker calls by `Database.ProviderName` and (Choice 7) rejects `ToLower`/`ToUpper`/`ToLowerInvariant`/`ToUpperInvariant` on a string member with a `Left`-producing exception that `FunctionalRepositoryEF` already converts. The evaluator is static: the provider name travels as a parameter from `FunctionalRepositoryEF`.
+1. `src/Encina.EntityFrameworkCore/Repository/SpecificationEvaluator.cs`: before `Where`, run an `ExpressionVisitor` that (Choice 6) rewrites the marker calls by `Database.ProviderName` and (Choice 7) finds `ToLower`/`ToUpper`/`ToLowerInvariant`/`ToUpperInvariant` on a string member. The rejection is not an exception: `FunctionalRepositoryEF` runs the visitor's check on the specification expression before it builds the query and returns `Left(RepositoryErrors.InvalidOperation(...))` directly with a message naming the typed operation (its generic `catch (Exception)` would turn an exception into `Repository.PersistenceError` and lose the code of Choice 9). `SpecificationEvaluator.GetQuery` is public and static, so the provider name travels as a new parameter from `FunctionalRepositoryEF` and the changed signature goes into `PublicAPI.Unshipped.txt` (counted in the Phase 5 files).
 2. `src/Encina.EntityFrameworkCore/Repository/OrdinalStringCollation.cs` (new): a public `UseOrdinalStringCollation(this ModelConfigurationBuilder, string? collation)` convention helper (`Properties<string>().UseCollation(...)`) with the `SqlServerBinaryCollation` and `MySqlBinaryCollation` constants of `DeadLetterMessageConfiguration` reused (the helper takes them as the argument; no default), and an internal model check that reads `IProperty.GetCollation()` of each mapped string property for the entity type and returns `Left` (`Repository.CollationNotOrdinal`) on SQL Server and MySQL when it is not binary. PostgreSQL needs none.
 3. `FunctionalRepositoryEF.cs`: call the model check once per entity type.
 4. `PublicAPI.Unshipped.txt` (`mechanical-fixer`), manifest entries (`mechanical-fixer`).
@@ -462,10 +462,21 @@ REFERENCE FILES: src/Encina.DomainModeling/Diagnostics/SpecificationActivitySour
 1. Unit tests (per builder, evaluator, verifier): output of each operation; the `Left` paths; the culture test under `tr-TR`.
 2. Guard tests for every new public and changed method with parameters (`ArgumentNullException`).
 3. Contract test: the 8 implementations (and the in-memory evaluation) return the same rows for one set of specifications; instantiates the real builders.
-4. Property test (FsCheck, the logic is a string-matching rule): for random strings, `EqualsIgnoreCase(a, b)` equals `string.Equals(a, b, OrdinalIgnoreCase)` in memory and the ordinal operations never match strings that differ only in case.
+4. Property test (FsCheck, the logic is a string-matching rule): for random strings, the ordinal operations never match strings that differ only in case.
 5. Integration tests: Phase 7 (conformance suite), no `.md` justification for database features.
 6. Load and benchmark: justification files `tests/Encina.LoadTests/Repository/SpecificationStringComparison.md` and `tests/Encina.BenchmarkTests/Repository/SpecificationStringComparison.md` (not concurrent code; the opt-in translation is a string build per query, not a hot path).
-7. Per-flag coverage: each changed `src/` file has unit, guard, contract, property and integration targets in its manifest with justifications; measure with `coverage-report.cs` and report the measured values against the targets; CRAP <= 10 on every changed method.
+7. Per-flag coverage: each changed `src/` file has unit, guard, contract, property and integration targets in its manifest with justifications; measure with `coverage-report.cs` and report the measured values against the targets; CRAP <= 10 on every changed method. The targets (written by `mechanical-fixer`; the same shape per package, and a manifest entry that does not exist yet is created with these values; none goes down):
+
+| File (per package) | unit | guard | contract | property | integration | Justification |
+|---|:-:|:-:|:-:|:-:|:-:|---|
+| `Encina.DomainModeling/StringSpecificationExtensions.cs` (new) | 95 | 90 | 80 | 80 | 0 | Marker methods throw in memory by design; every operation is called, and integration is covered in the provider packages |
+| `Encina.DomainModeling/RepositoryErrors.cs` | existing | existing | 80 | 0 | 0 | One new factory built and checked like its neighbours |
+| `StringColumnCollationVerifier.cs` (new, each ADO/Dapper package) | 90 | 80 | 0 | 0 | 80 | Each catalog outcome (binary, not binary, missing column) is a unit case on a faked connection and a real-database case in the conformance suite |
+| `SpecificationSqlBuilder.cs` (each ADO/Dapper package) | existing, not lower | existing | 70 | 70 | 70 | The four operations add one translation each, covered by the shared conformance cases |
+| `Encina.EntityFrameworkCore/Repository/SpecificationEvaluator.cs` | 90 | 80 | 70 | 0 | 70 | The visitor is tested per provider name; MySQL by translation only (#2086) |
+| `Encina.EntityFrameworkCore/Repository/OrdinalStringCollation.cs` (new) | 90 | 90 | 0 | 0 | 70 | A helper and a model check with one `Left` per failing property |
+| `Encina.MongoDB/Repository/CollectionCollationVerifier.cs` (new) | 90 | 80 | 0 | 0 | 80 | `listCollections` outcomes are unit cases and one container case |
+| `Encina.MongoDB/Repository/SpecificationFilterBuilder.cs` | existing, not lower | existing | 70 | 70 | 70 | One regex branch per operation, covered by the conformance cases |
 
 </details>
 
@@ -585,7 +596,7 @@ REFERENCE FILES: src/Encina.ADO.PostgreSQL/Repository/SpecificationSqlBuilder.cs
 | 1 | Caching | ❌ | The change is a translation rule; the collation verdict is cached per mapping inside the verifier, not through `ICacheProvider` |
 | 2 | OpenTelemetry | ❌ | No new operation to trace; a collation `Left` is reported by the existing repository spans by error code (Phase 8) |
 | 3 | Structured Logging | ❌ | No new `[LoggerMessage]`; no EventId range is needed (Research, Event ID Allocation) |
-| 4 | Health Checks | ⏭️ | A readiness check that reports a non-binary column before the first request is useful but is a separate feature; issue file `artifacts/issues/health-check-string-column-collation.md`, to be opened by the orchestrator |
+| 4 | Health Checks | ⏭️ | A readiness check that reports a non-binary column before the first request is useful but is a separate feature; the follow-up issue file is to be drafted by the orchestrator when this plan is accepted |
 | 5 | Validation | ✅ | Narrowed to configuration validation in the `Either` style: the verifier returns `Left` for a column that is not binary (Phases 2-6). There is no request input, so no `IValidationProvider` work |
 | 6 | Resilience | ❌ | The verifier reads the catalog through the repository's own connection; no new external system |
 | 7 | Distributed Locks | ❌ | No shared mutable state; the verdict cache is idempotent |
@@ -605,7 +616,7 @@ REFERENCE FILES: src/Encina.ADO.PostgreSQL/Repository/SpecificationSqlBuilder.cs
 | #3158 `StringComparison` silently dropped by the SQL builders | open, follows this issue | Detects culture-aware and `OrdinalIgnoreCase` `StringComparison` arguments; may map `OrdinalIgnoreCase` onto the typed operations' translation (Choice 9) |
 | #2086 EF Core MySQL integration tests skipped | open | EFCore-MySQL is proven by translation tests only until Pomelo supports EF Core 10 |
 | #1276 composable row filters | open, related | Tenant and soft-delete filters will become composable; the verifier must keep covering their string columns |
-| ADR number | `index.md` lists 061 as reserved and 062 unreserved today | Reserve the number in `docs/architecture/adr/index.md` when the ADR PR is opened |
+| ADR number | ADR number assigned when the ADR pull request opens | The number is taken from the batch's ADR table at that time and added to `docs/architecture/adr/index.md` in the same PR |
 
 ---
 
