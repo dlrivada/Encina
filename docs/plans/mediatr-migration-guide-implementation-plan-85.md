@@ -166,7 +166,9 @@ Facts that shape the guide:
 2. Prerequisites: Encina is pre-1.0 and not on nuget.org; link `docs/tutorials/quickstart.md` for the local feed. State the MediatR version the samples were compiled against (Design Choice 2).
 3. Concept mapping table: the eight rows of the Summary of this plan, re-read from `src/` when writing, with file and line only if they are still correct.
 4. Steps, each a heading with a before-and-after sample:
-   - Replace the package references and `AddMediatR(...)` with `AddEncina(...)`.
+   - Replace the `MediatR` package reference with the single `Encina` package (`src/Encina/Encina.csproj`; `Encina.Messaging` is not needed to migrate) and `AddMediatR(...)` with `AddEncina(...)`; the scratch project of Phase 3 step 2 proves that one package is enough.
+   - Context: `Send`, `Publish` and `Stream` have overloads that take an `IRequestContext` (`IEncina.cs` lines 77, 108, 172); show one in the Send and Publish samples.
+   - Pre- and post-processing: MediatR pre/post processors map to `IRequestPreProcessor<TRequest>.Process` and `IRequestPostProcessor<TRequest, TResponse>.Process` (both return `ValueTask<Either<EncinaError, Unit>>`; `src/Encina/Abstractions/IRequestPreProcessor.cs` line 41, `IRequestPostProcessor.cs` line 40) and MediatR exception handlers to `IRequestErrorProcessor<TRequest, TResponse>` (`IRequestErrorProcessor.cs` line 43); re-read the three files when writing and state the mapping only as far as they back it.
    - Requests: `IRequest<T>` stays; choose `ICommand<T>` or `IQuery<T>` where the intent is clear.
    - Handlers: `Handle` returns `Task<Either<EncinaError, TResponse>>`; replace thrown exceptions with `Left` values.
    - Call sites: `IMediator.Send` becomes `IEncina.Send` and the caller handles an `Either` (match, `IfLeft`, or bind).
