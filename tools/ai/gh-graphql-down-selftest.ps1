@@ -36,14 +36,14 @@ function global:gh {
         return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"success","html_url":"https://x/run/2"}]}]'
     }
     if ($env:GQD_SETTLED -and $joined -like 'api repos/*/commits/abc/status*') {
-        return '{"state":"success","statuses":[{"context":"codecov/patch","state":"success","target_url":"https://x/cov"}]}'
+        return '{"state":"success","statuses":[{"context":"ci/external","state":"success","target_url":"https://x/ext"}]}'
     }
     # GQD_FAILED: one completed failed check, no pending check, a passing status (a failed job, settled on the sha).
     if ($env:GQD_FAILED -and $joined -like 'api --paginate --slurp repos/*/commits/abc/check-runs*') {
         return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"failure","html_url":"https://x/run/1"}]}]'
     }
     if ($env:GQD_FAILED -and $joined -like 'api repos/*/commits/abc/status*') {
-        return '{"state":"success","statuses":[{"context":"codecov/patch","state":"success","target_url":"https://x/cov"}]}'
+        return '{"state":"success","statuses":[{"context":"ci/external","state":"success","target_url":"https://x/ext"}]}'
     }
     if ($env:GQD_LOOP -and $joined -like 'api repos/*/pulls/7') {
         if ((Step 'pull') -ge 2) { return '{"head":{"sha":"abc"},"state":"closed","merged":true,"merge_commit_sha":"deadbeef"}' }
@@ -79,7 +79,7 @@ function global:gh {
         'api --paginate --slurp repos/*/commits/abc/check-runs*' {
             return '[{"check_runs":[{"name":"build","status":"completed","conclusion":"failure","html_url":"https://x/run/1"},{"name":"lint","status":"completed","conclusion":"success","html_url":"https://x/run/2"},{"name":"test","status":"in_progress","conclusion":null,"html_url":"https://x/run/3"}]}]'
         }
-        'api repos/*/commits/abc/status*' { return '{"state":"failure","statuses":[{"context":"codecov/patch","state":"failure","target_url":"https://x/cov"}]}' }
+        'api repos/*/commits/abc/status*' { return '{"state":"failure","statuses":[{"context":"ci/external","state":"failure","target_url":"https://x/ext"}]}' }
         'api repos/*/pulls/7/comments*' { return '[]' }
         'api repos/*/issues/7/comments*' { return '[]' }
         'api repos/*/pulls/7/reviews*' { return '[]' }
@@ -113,7 +113,7 @@ try {
     $r = Invoke-Down "& '$here\watch-pr-events.ps1' -Pr 7 -Once"
     Assert-That 'watch-pr-events -Once exits 0 with GraphQL down' ($r.Exit -eq 0) $r.Text
     Assert-That 'watch-pr-events reports the failed check with its html_url' ($r.Text -match 'CHECK-FAIL build https://x/run/1') $r.Text
-    Assert-That 'watch-pr-events reports the failed status too' ($r.Text -match 'CHECK-FAIL codecov/patch https://x/cov') $r.Text
+    Assert-That 'watch-pr-events reports the failed status too' ($r.Text -match 'CHECK-FAIL ci/external https://x/ext') $r.Text
     Assert-That 'watch-pr-events does not announce CHECKS-DONE while a check is pending' ($r.Text -notmatch 'CHECKS-DONE') $r.Text
     $r = Invoke-Down "& '$here\watch-pr-events.ps1' -Pr 7 -Once" @{ GQD_MERGED = '1' }
     Assert-That 'watch-pr-events reports PR-MERGED with the merge sha' ($r.Text -match 'PR-MERGED deadbeef') $r.Text
@@ -124,7 +124,7 @@ try {
     $r = Invoke-Down "& '$here\watch-open-prs.ps1' -Once"
     Assert-That 'watch-open-prs -Once exits 0 with GraphQL down' ($r.Exit -eq 0) $r.Text
     Assert-That 'watch-open-prs reports the failed check' ($r.Text -match 'PR #7 CHECK-FAIL build https://x/run/1') $r.Text
-    Assert-That 'watch-open-prs still excludes codecov/*' ($r.Text -notmatch 'codecov') $r.Text
+    Assert-That 'watch-open-prs reports the failed status too' ($r.Text -match 'PR #7 CHECK-FAIL ci/external https://x/ext') $r.Text
     Assert-That 'watch-open-prs skips the review threads with one WARN line' (@([regex]::Matches($r.Text, 'WARN GraphQL low \(0\); review threads of #7 skipped')).Count -eq 1) $r.Text
     Assert-That 'watch-open-prs makes no thread query while GraphQL is low' (@(Get-Calls | Where-Object { $_ -like 'api graphql*' -and $_ -notlike '*rateLimit*' }).Count -eq 0) ((Get-Calls) -join ' | ')
     Assert-That 'watch-open-prs prints the WATCHING line' ($r.Text -match 'WATCHING PRs 7') $r.Text
