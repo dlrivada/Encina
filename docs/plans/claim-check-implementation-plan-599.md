@@ -479,7 +479,7 @@ REFERENCE FILES:
 
 1. **`OutboxOrchestrator.AddAsync`** (`:87`): after `Serialize` (`:96`), when an `IClaimCheckService` is registered, call `OffloadAsync(content, new ClaimCheckRequest(notificationType))`; a `Left` is returned from `AddAsync`; the outbox message is created with the returned content. The optional constructor parameter is `IClaimCheckService? claimCheckService = null` so the outbox works unchanged without the feature.
 2. **`OutboxBatchProcessor`** (`:182`): before `Deserialize`, call `ResolveAsync(message.Content)`; a `Left` takes the existing failure path (`MarkAsFailedAsync` with the error code as reason, retry then dead letter), exactly like a deserialization failure (`OutboxErrorCodes.DeserializationFailed` today). The resolved string is used for the notification and for the dead-letter capture is **not** replaced: the capture keeps the stored `Content` (the envelope), so a replay does not need a second offload (`:389-392`).
-3. **Payload deletion is not in this plan.** The trigger (after the processed mark, on purge, on dead-letter expiry) is the cleanup of #122; this phase leaves the payload in the store until TTL.
+3. **Payload deletion is not in this plan.** The trigger (after the processed mark, on purge, on dead-letter expiry) is the cleanup of #122; this phase leaves the payload in the store (with no default TTL, choice 7, until the #122 cleanup deletes it).
 4. Tests: below the threshold nothing changes; above it the row holds an envelope and the dispatch publishes the original notification; store `Left` on write fails `AddAsync`; store `Left` on dispatch marks the message failed and never processed; feature off means byte-for-byte unchanged behavior.
 
 </details>
@@ -603,7 +603,7 @@ REFERENCE FILES:
 
 ### Phase 8: Testing
 
-> **Goal**: Every applicable flag reaches its own target; tests execute real package code.
+> **Goal**: Every applicable flag reaches its own target; tests execute real package code. This phase is not a pull request of its own: each pull request of the cut applies the table below to the files it adds, and PR 7 adds only the load and benchmark justifications.
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -634,8 +634,9 @@ CONTEXT:
 - Shouldly through Encina.Testing.Shouldly; FsCheck through Encina.Testing.FsCheck; FakeTimeProvider for time.
 
 TASK:
-Complete the unit, guard, contract (ClaimCheckStoreContract + InMemory subclass), property and integration tests, write the
-.md justifications for load and benchmark tests, update the manifest, and report measured per-flag coverage and CRAP.
+In each pull request of the cut, write the unit, guard, contract, property and integration tests of the files it adds (the
+pull request cut table lists them), update the manifest, and report measured per-flag coverage and CRAP. PR 7 writes the
+.md justifications for load and benchmark tests.
 
 KEY RULES:
 - Integration tests use a shared [Collection("...")] database fixture and ClearAllDataAsync; never a per-class fixture.
@@ -730,7 +731,7 @@ REFERENCE FILES:
 | EventIdRanges | src/Encina/Diagnostics/EventIdRanges.cs | register MessagingClaimCheck 6000-6049 first |
 | EncinaEventIdAllocationTests | tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs:91 | add the new range to the Encina.Messaging entry |
 | FakeTimeProvider | Microsoft.Extensions.Time.Testing | deterministic TTL tests of the in-memory store |
-| MultiTenancyMarker and ITenantProvider | src/Encina/Abstractions/MultiTenancyMarker.cs, src/Encina.Tenancy/Abstractions/ITenantProvider.cs | fail-closed tenant prefix |
+| MultiTenancyMarker and IRequestContextAccessor | src/Encina/Abstractions/MultiTenancyMarker.cs; ambient tenant read as in src/Encina.Messaging/DeadLetter/DeadLetterManager.cs | fail-closed tenant prefix (choices 9 and 10) |
 | Messaging coverage manifest | .github/coverage-manifest/Encina.Messaging.json | per-file targets |
 
 ### Event ID Allocation
@@ -769,12 +770,13 @@ REFERENCE FILES:
 PROJECT CONTEXT:
 You are implementing issue #599 in Encina (.NET 10, C# 14, nullable enabled, pre-1.0, no backward compatibility): the abstraction
 slice of the Claim Check pattern in Encina.Messaging. Issue #122 owns the rest of the feature (attribute, compression, cleanup,
-transports, stores, ADR); its plan is docs/plans/claim-check-implementation-plan-122.md. Rules: AGENTS.md.
+transports, stores, ADR); see the plan linked from #122. Rules: AGENTS.md.
 
 IMPLEMENTATION OVERVIEW:
 1. ClaimCheckReference, ClaimCheckMetadata, ClaimCheckErrors, ClaimCheckEnvelope (CLC:v1:{storeKey}:{flags}:{size}:{sha256}:{id}, flags "-" in this plan).
 2. IClaimCheckStore (bytes/Stream, Either) and InMemoryClaimCheckStore with TimeProvider TTL.
-3. ClaimCheckOptions, IClaimCheckService/ClaimCheckService (threshold in UTF-8 bytes, SHA-256 verification, tenant fail-closed).
+3. ClaimCheckOptions (no default TTL, 256 KiB threshold, 100 MiB cap), IClaimCheckService/ClaimCheckService (threshold in UTF-8
+   bytes, SHA-256 verification, tenant from IRequestContextAccessor + MultiTenancyMarker, fail-closed; never ITenantProvider).
 4. UseClaimCheck, RegisterClaimCheck, AddEncinaClaimCheckInMemory, start-up check for the missing store.
 5. Outbox: OffloadAsync after Serialize in OutboxOrchestrator.AddAsync; ResolveAsync before Deserialize in OutboxBatchProcessor.
 6. ClaimCheckHealthCheck.
@@ -794,7 +796,7 @@ REFERENCE FILES:
 - src/Encina.Messaging/MessagingConfiguration.cs, MessagingServiceCollectionExtensions.cs
 - src/Encina.Messaging.Encryption/EncryptedPayloadFormatter.cs
 - src/Encina.Security.Secrets/SecretsErrors.cs
-- docs/plans/claim-check-implementation-plan-122.md
+- src/Encina.Messaging/DeadLetter/DeadLetterManager.cs
 ```
 
 </details>
@@ -805,18 +807,18 @@ REFERENCE FILES:
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | Caching | ⏭️ | Frequently retrieved payloads could be cached; the store contract is cache-friendly (immutable ids). Follow-up issue to open at implementation start (see Next Steps) |
+| 1 | Caching | ⏭️ | Frequently retrieved payloads could be cached; the store contract is cache-friendly (immutable ids). Follow-up issue to be opened by the orchestrator before the first worker brief and referenced here (see Next Steps) |
 | 2 | OpenTelemetry | ✅ | Phase 7: `ActivitySource` `Encina.Messaging.ClaimCheck`, counters and the payload size histogram |
 | 3 | Structured Logging | ✅ | Phase 7: `[LoggerMessage]` EventIds 6000-6024 in the new `MessagingClaimCheck` range, registered first |
 | 4 | Health Checks | ✅ | Phase 6: `ClaimCheckHealthCheck` over the default store |
 | 5 | Validation | ✅ | `ClaimCheckOptions.Validate` at start-up and `ClaimCheckStartupCheck` (missing store); payload size cap `MaxPayloadBytes` |
 | 6 | Resilience | ⏭️ | The in-memory store has no external call; retry and circuit breaker for external stores are in the #122 plan where the stores live |
 | 7 | Distributed Locks | ❌ | Each claim id is written once and never updated; no shared mutable state |
-| 8 | Transactions | ⏭️ | The payload write and the outbox row write are two systems; a crash between them leaves an orphan payload that TTL (and the #122 cleanup) reclaims. Atomicity is not offered; recorded in the ADR of #122 |
-| 9 | Idempotency | ❌ | Offload is not a request entry point; a retried `AddAsync` creates a new claim and the earlier one expires by TTL |
+| 8 | Transactions | ⏭️ | The payload write and the outbox row write are two systems; a crash between them leaves an orphan payload that the #122 cleanup (or an explicit TTL, choice 7) reclaims. Atomicity is not offered; recorded in the ADR of #122 |
+| 9 | Idempotency | ❌ | Offload is not a request entry point; a retried `AddAsync` creates a new claim and the earlier one is an orphan reclaimed by the #122 cleanup |
 | 10 | Multi-Tenancy | ✅ | Phase 3: tenant segment in the claim id, `Left(claimcheck.tenant_required)` when tenancy is on and no tenant resolves |
 | 11 | Module Isolation | ⏭️ | Module-scoped claim namespaces are not needed by SPEC-002 (REQ-061 requires no module scoping); `ModuleId` in messaging stays with #747 |
-| 12 | Audit Trail | ⏭️ | Payload access audit for compliance; payloads may hold personal data. Follow-up issue to open at implementation start (see Next Steps) |
+| 12 | Audit Trail | ⏭️ | Payload access audit for compliance; payloads may hold personal data. Follow-up issue to be opened by the orchestrator before the first worker brief and referenced here (see Next Steps) |
 
 ---
 
@@ -829,7 +831,7 @@ REFERENCE FILES:
 
 ### Parallel and follow-up work
 
-- `claim-check-implementation-plan-122.md` (#122): builds on the names and the `ClaimCheckService` of this plan; merge order is this plan's PR 1 first.
+- #122: builds on the names and the `ClaimCheckService` of this plan; merge order is this plan's PR 1 first.
 - #600 (cloud blob implementations of `IClaimCheckStore`): related; the #122 plan proposes to cover it through the adapter over `IBlobStore` of #1239.
 - #1239 (`Encina.Storage`): the preferred backend for the stores of #122.
 
@@ -837,7 +839,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer reviews the Dilemmas (choices 1, 2, 4 and 5, shared with the #122 plan) and records the answers once; the orchestrator then adds the Maintainer Decisions section to both plans.
-2. At implementation start open two follow-up issues from the matrix: caching of retrieved payloads (function 1) and payload access audit (function 12).
+1. The maintainer reviews the Dilemmas (choices 1, 2, 4 and 5, shared with the #122 plan; choices 7, 8 and 10 of this plan) and records the answers once; the orchestrator then adds the Maintainer Decisions section to both plans.
+2. Before the first worker brief the orchestrator opens two follow-up issues from the matrix, caching of retrieved payloads (function 1) and payload access audit (function 12), and writes their numbers into the matrix.
 3. Link this plan from #599 and the #122 plan from #122 before any worker is briefed.
-4. Implement PR 1 (Phases 1-4), then PR 2 (Phases 5-7), then PR 3 (Phases 8-9), each with its own tests and measured per-flag coverage.
+4. Implement PR 1 to PR 7 in the order of the pull request cut, each with its own tests and measured per-flag coverage.
