@@ -26,7 +26,17 @@ Let a DSR access export **leave out declared fields or records** (third parties'
 - **Affected package**: `Encina.Compliance.DataSubjectRights` (plus tests, README, feature guide, coverage manifest, changelog fragment, `PublicAPI.Unshipped.txt`) and `src/Encina/Diagnostics/EventIdRanges.cs` (a second DSR EventId range, see Research).
 - **Provider category**: none of the AGENTS.md §5 matrices. The module is event-sourced on Marten (SPEC-002 DEC-008 (a), ADR-019); unit tests mock `IAggregateRepository`, integration tests run on Marten/PostgreSQL through Testcontainers (AGENTS.md §3).
 - **Estimated files**: ~9 new source files, ~14 modified source files, ~14 test files, ~5 documentation files.
-- **Pull request split** (exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (types, attribute, policy, evaluator, options; ~14 files); **PR 2** = Phases 3, 5 and 6 (service integration, request-stream event, cross-cutting, observability, EventId range; ~14 files); **PR 3** = Phases 4, 7 (rest) and 8 (portability, remaining tests, documentation).
+- **Pull request split** (exceeds 15 files and 1,500 lines). The counts include the tests of each phase, `PublicAPI.Unshipped.txt` and the coverage manifest; the 42 distinct files become about 56 file touches because the last two recur. Five pull requests, each checked against 15 files and 1,500 lines when its brief is written:
+
+| PR | Phases | Content (with its tests) | Files (approx.) |
+|----|--------|--------------------------|-----------------|
+| 1 | 1 | `WithholdReason`, `AccessExclusion`, attribute and field `Withhold`, `PersonalDataMap`, `AccessResponse.Exclusions`, `AccessRequest.RequestId`, PublicAPI; type, map and guard tests; manifest | 12 |
+| 2 | 2 | `IAccessWithholdingPolicy`, context, decision, evaluator and result type, options table and its validator, registration, PublicAPI; evaluator, options and DI tests; manifest | 13 |
+| 3 | 3 | `DefaultDSRService` integration, `DSRAccessExclusionsRecorded`, aggregate, projection, read model, PublicAPI; service, aggregate and projection tests; Marten integration test; manifest | 11 |
+| 4 | 5, 6 | Tenancy and audit proof, second EventId range (`EventIdRanges.cs`, `EncinaEventIdAllocationTests`), log messages, diagnostics, PublicAPI; telemetry and leak tests; manifest | 8 |
+| 5 | 4, 7, 8 | Portability exporter filter (isolated: Dilemma 5 option A drops it), property and contract tests, 2 justification files, README, feature guide, changelog fragment; manifest | 10 |
+
+Each PR depends on the one before it, except that PR 5 may merge before PR 4.
 - **Event IDs**: a new second range `ComplianceDSRExtensions = (5900, 5949)` registered by this plan; 5900-5905 used here, 5906-5913 reserved for #2700.
 
 ### Related open issues that touch the same files
@@ -52,12 +62,12 @@ Let a DSR access export **leave out declared fields or records** (third parties'
 
 ### Chosen Option: **B — the service resolves the attribute at export time**
 
-Class: Settled
-Settled by: `AGENTS.md` §3 (compliance gates fail closed: a locator that omits the classification must not cause disclosure), `src/Encina.Marten.GDPR/Locator/MartenEventPersonalDataLocator.cs:139-148` (locators build the location themselves)
+Class: Trivial
+Settled by: the existing `IPersonalDataLocator` contract stays unchanged (`src/Encina.Marten.GDPR/Locator/MartenEventPersonalDataLocator.cs:139-148`: locators build the location themselves), and `AGENTS.md` §3 (a locator that omits the classification must not cause disclosure, so the service is the guarantee). Option C also fails closed, but its optional hint adds a second source of truth that nothing needs until a non-CLR source exists; it can be added then without changing this choice.
 
 ### Rationale
 
-- A location whose entity type has no property of that name cannot be classified statically; the runtime policy (Design Choice 2) is the route for such sources, and the evaluator logs EventId 5905 once per unresolvable `(EntityType, FieldName)` so the gap is visible.
+- A location whose entity type has no property of that name cannot be classified statically; the runtime policy (Design Choice 2) is the route for such sources. Missing classification must not disclose (AGENTS.md §3), so `DataSubjectRightsOptions.FailOnUnresolvableLocation` defaults to `true`: the evaluator treats an unresolvable location as withheld-pending-classification and the access call returns `Left` with the code `dsr.access_location_unresolvable`; setting it to `false` is the explicit opt-out, logged at startup, under which the location is exported as unclassified. Either way EventId 5905 is logged once per unresolvable `(EntityType, FieldName)` so the gap is visible. The option is part of the options table of Phase 2 and has a unit test for both values.
 - `PersonalDataField` (`Model/PersonalDataField.cs`) gains `Withhold` so the existing startup scan stays consistent with the attribute.
 
 </details>
@@ -75,8 +85,8 @@ Settled by: `AGENTS.md` §3 (compliance gates fail closed: a locator that omits 
 
 ### Chosen Option: **A — enumerable policies, union, error fails**
 
-Class: Settled
-Settled by: issue #1195 Proposed Solution ("the application can register a runtime withholding policy"), `AGENTS.md` §3 (errors are never swallowed in background infrastructure; a `Left` fails the operation)
+Class: Trivial
+Settled by: the package's DI convention of `IEnumerable<T>` for pluggable collaborators (`CompositePersonalDataLocator` takes `IEnumerable<IPersonalDataLocator>`, `DefaultDataPortabilityExporter` takes `IEnumerable<IExportFormatWriter>`), issue #1195 Proposed Solution ("the application can register a runtime withholding policy"), and `AGENTS.md` §3 (a `Left` fails the operation). Option B (one slot) also complies; A is chosen because it follows the convention and lets concerns compose.
 
 ### Rationale
 
@@ -98,7 +108,7 @@ Settled by: issue #1195 Proposed Solution ("the application can register a runti
 ### Chosen Option: **B — options table with defaults**
 
 Class: Trivial
-Settled by: `src/Encina.Compliance.DataSubjectRights/DataSubjectRightsOptions.cs` (configuration lives in the options class with a validator, `DataSubjectRightsOptionsValidator.cs`), issue #1195 Motivation (names the two statutory sources)
+Settled by: `src/Encina.Compliance.DataSubjectRights/DataSubjectRightsOptions.cs` (configuration lives in the options class with a validator, `DataSubjectRightsOptionsValidator.cs`), issue #1195 Motivation (names the two statutory sources), and SPEC-002 (the module's scope is Spain and the EU, so Spanish statute text is the correct default; other jurisdictions replace the table)
 
 ### Rationale
 
@@ -146,7 +156,7 @@ Class: Dilemma
 ### Rationale
 
 - We recommend B because a classification that is honoured by one export and ignored by another is a disclosure path, and the evaluator is already built (AGENTS.md §3, fail closed).
-- A wins when the maintainer reads Art. 20 as limited to data the subject provided (so an application marks subjective annotations `Portable = false` and never needs withholding there) and prefers to keep PR 3 out of the 1.0 gate; the portability work is isolated in Phase 4 so it can be cut without touching the rest.
+- A wins when the maintainer reads Art. 20 as limited to data the subject provided (so an application marks subjective annotations `Portable = false` and never needs withholding there) and prefers to keep PR 5 out of the 1.0 gate; the portability work is isolated in Phase 4 so it can be cut without touching the rest.
 
 </details>
 
@@ -209,7 +219,7 @@ REFERENCE FILES:
 
 1. **`Abstractions/IAccessWithholdingPolicy.cs`** (new): `ValueTask<Either<EncinaError, AccessWithholdingDecision>> EvaluateAsync(AccessWithholdingContext context, CancellationToken cancellationToken = default)`; **`Model/AccessWithholdingContext.cs`** and **`Model/AccessWithholdingDecision.cs`** (new records; the decision has `Reasons`, `LegalBasis?`, `WholeRecord`, and static `NotWithheld`).
 2. **`Export/AccessWithholdingEvaluator.cs`** (new, `internal sealed`, scoped): input `IReadOnlyList<PersonalDataLocation>`; for each location resolve the static `Withhold` through a cached `(Type, string)` lookup of `[PersonalData]`, then ask every registered policy; produce `AccessWithholdingResult(IReadOnlyList<PersonalDataLocation> Included, IReadOnlyList<AccessExclusion> Exclusions)`. A whole-record decision excludes all locations of that `(EntityType, EntityId)` and yields one exclusion with `FieldName = null`. A `Left` from a policy is returned as `Left`. The legal basis comes from the policy, else from the options table.
-3. **`DataSubjectRightsOptions.cs`** (modify): `Dictionary<WithholdReason, string> WithholdingLegalBasis` with the two defaults of Design Choice 3; **`DataSubjectRightsOptionsValidator.cs`** (modify): every reason key has a non-empty text.
+3. **`DataSubjectRightsOptions.cs`** (modify): `Dictionary<WithholdReason, string> WithholdingLegalBasis` with the two defaults of Design Choice 3; **`DataSubjectRightsOptionsValidator.cs`** (modify): every reason key has a non-empty text; `bool FailOnUnresolvableLocation { get; set; } = true` (Design Choice 1; `false` is the explicit opt-out, logged at startup).
 4. **`ServiceCollectionExtensions.cs`** (modify): `TryAddScoped<AccessWithholdingEvaluator>()`; policies are plain `AddScoped<IAccessWithholdingPolicy, T>` by the application; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 5. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
@@ -253,9 +263,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Services/DefaultDSRService.cs`** (modify `HandleAccessAsync`, lines 535-587): after the locator call, run the evaluator; build `AccessResponse` with `Data = Included` and `Exclusions`; when `request.RequestId` is set, load the request aggregate, call `RecordAccessExclusions(...)` and save; a `Left` anywhere returns `Left` and no `AccessResponse` (fail closed). Extract the filter-and-record step into a private method to keep CRAP at or below 10.
+1. **`Services/DefaultDSRService.cs`** (modify `HandleAccessAsync`, lines 535-587): after the locator call, run the evaluator; build `AccessResponse` with `Data = Included` and `Exclusions`; when `request.RequestId` is set, load the request aggregate, call `RecordAccessExclusions(...)` and save; a `Left` anywhere returns `Left` and no `AccessResponse` (fail closed). A `RequestId` whose request is not `InProgress` (for example `Verified` or already `Completed`, or a stale id) makes the save return `Left` (`dsr.access_exclusions_wrong_state`) and the whole export fails closed; this is documented in the XML docs of `AccessRequest.RequestId` and covered by a unit test row. Extract the filter-and-record step into a private method to keep CRAP at or below 10.
 2. **`Events/DSRRequestEvents.cs`** (modify): `DSRAccessExclusionsRecorded(Guid RequestId, IReadOnlyList<AccessExclusionRecord> Exclusions, DateTimeOffset OccurredAtUtc)` implementing `INotification`; `AccessExclusionRecord` carries entity type name, entity id, field name or null, reason, legal basis.
-3. **`Aggregates/DSRRequestAggregate.cs`** (modify): `RecordAccessExclusions(IReadOnlyList<AccessExclusionRecord> exclusions, DateTimeOffset occurredAtUtc)` allowed in `InProgress` only; **`Projections/DSRRequestProjection.cs`** and **`Projections/DSRRequestReadModel.cs`** (modify): `AccessExclusions` list.
+3. **`Aggregates/DSRRequestAggregate.cs`** (modify): `Either<EncinaError, Unit> RecordAccessExclusions(IReadOnlyList<AccessExclusionRecord> exclusions, DateTimeOffset occurredAtUtc)` allowed in `InProgress` only: in any other state it returns `Left` with the code `dsr.access_exclusions_wrong_state`, decided before `RaiseEvent` (ADR-053); only `ThrowIf*` argument guards remain exceptions, and no new `throw` is added on the state path (the existing commands that throw are not extended); a unit test covers the `Left`; **`Projections/DSRRequestProjection.cs`** and **`Projections/DSRRequestReadModel.cs`** (modify): `AccessExclusions` list.
 4. The tenant of the request is resolved by the service's existing tenant scope (no new logic).
 5. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
@@ -382,7 +392,7 @@ REFERENCE FILES:
 1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify): register `ComplianceDSRExtensions = (5900, 5949)` in the compliance extensions area with the summary "Encina.Compliance.DataSubjectRights — second range (access withholding, request rules)"; add the field to `src/Encina/PublicAPI.Unshipped.txt`; add `nameof(EventIdRanges.ComplianceDSRExtensions)` as a second range of `Encina.Compliance.DataSubjectRights` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (line 66).
 2. **`Diagnostics/DSRWithholdingLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 5900-5905 (see EventIdRanges.ComplianceDSRExtensions)"): 5900 `AccessFieldWithheld` (reason only), 5901 `AccessRecordWithheld`, 5902 `AccessExclusionsRecorded` (count), 5903 `AccessExclusionsNotRecordedNoRequestId`, 5904 `WithholdingPolicyFailed` (error code only), 5905 `WithholdingFieldUnresolvable` (once per type and field name).
 3. **`Diagnostics/DataSubjectRightsDiagnostics.cs`** (modify): counter `dsr.access.exclusions.total` (tag `dsr.withhold_reason`); the `DSR.Request` activity gains `encina.tenant_id` and `dsr.access.exclusions` (count). The issue's proposed names (`encina.dsr.access_exclusions`, `encina.dsr.access_export`) are replaced by the package's naming (`dsr.*`, `DSR.Request`).
-4. Registration of the range is a prerequisite of PR 2; #2700 reuses it (5906-5913).
+4. Registration of the range is a prerequisite of PR 4; #2700 reuses it (5906-5913).
 
 </details>
 
@@ -393,7 +403,7 @@ REFERENCE FILES:
 You are implementing Phase 6 of DSR access withholding in Encina.Compliance.DataSubjectRights (issue #1195).
 
 CONTEXT:
-- ComplianceDSR = (8300, 8349) has no packed free ids (8304-8309 and 8317-8319 are kept for #1937, 8315-8316 for #1197), so a second range is registered first (ADR-021, AGENTS.md section 7).
+- ComplianceDSR = (8300, 8349) has no packed free ids (8304-8309 and 8317-8319 are kept for #1937), so a second range is registered first (ADR-021, AGENTS.md section 7).
 - DataSubjectRightsDiagnostics owns the ActivitySource, Meter and instruments; DSR.Request is the request activity.
 
 TASK:
@@ -421,7 +431,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit** (`tests/Encina.UnitTests/Compliance/DataSubjectRights/Withholding/`): `AccessWithholdingEvaluatorTests` (attribute reasons, policy reasons, union, whole-record exclusion, policy `Left` fails, unresolvable field), `WithholdReasonTests`, `AccessExclusionTests` (ToString omits ids), options validator tests, `DefaultDSRServiceAccessWithholdingTests` (response without excluded values, exclusions with reason and basis, event recorded with `RequestId`, none without), aggregate/projection tests for the new event, DI test with `ValidateOnBuild` and `ValidateScopes`.
+1. **Unit** (`tests/Encina.UnitTests/Compliance/DataSubjectRights/Withholding/`): `AccessWithholdingEvaluatorTests` (attribute reasons, policy reasons, union, whole-record exclusion, policy `Left` fails, unresolvable field with `FailOnUnresolvableLocation` true and false), a `RequestId` of a request that is not `InProgress` returns `Left` (`dsr.access_exclusions_wrong_state`), the aggregate `RecordAccessExclusions` `Left` in a wrong state, `WithholdReasonTests`, `AccessExclusionTests` (ToString omits ids), options validator tests, `DefaultDSRServiceAccessWithholdingTests` (response without excluded values, exclusions with reason and basis, event recorded with `RequestId`, none without), aggregate/projection tests for the new event, DI test with `ValidateOnBuild` and `ValidateScopes`.
 2. **Guard**: public members of the policy, evaluator inputs, new options.
 3. **Contract**: `IAccessWithholdingPolicy` against a real implementation; `AccessResponse`/`AccessExclusion` shape.
 4. **Property** (`tests/Encina.PropertyTests/Compliance/DataSubjectRights/`): for any generated set of locations and classifications an excluded value never appears in the response (checked on the serialised JSON of `Data`), and every exclusion has a non-empty reason and basis.
@@ -530,7 +540,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.DataSubjectRights` (existing) | 8300-8349 (`EventIdRanges.ComplianceDSR`) | Used: 8300-8303, 8310-8314, 8320-8349; 8304-8309 and 8317-8319 kept for #1937; 8315-8316 named by the #1197 plan |
+| `Encina.Compliance.DataSubjectRights` (existing) | 8300-8349 (`EventIdRanges.ComplianceDSR`) | Used: 8300-8303, 8310-8314, 8320-8349; 8304-8309 and 8317-8319 kept for #1937 |
 | **This plan (#1195)** | **5900-5905** in the new `ComplianceDSRExtensions = (5900, 5949)` | Second range for the assembly, registered here; inside the free block 5500-6999 of AGENTS.md §7, assigned to this family in the plan-batch EventId block registry (9800-9849 was rejected: it collides with the NIS2 plan #822) |
 | #2700 | 5906-5913 | Reserved by its plan, same range |
 | Left in the range | 5914-5949 | For #1937 and #1197 overflow |
@@ -619,5 +629,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Maintainer answers the two Dilemmas (Design Choices 4 and 5) when work on #1195 starts; answers go in a `## Maintainer Decisions` section appended to this plan.
-2. Brief the worker for PR 1 (Phases 1-2); PR 2 follows once #1197 and #1937 are merged or their order is agreed.
-3. Implement PR 3 (portability, tests, documentation).
+2. Brief the worker for PR 1 (Phase 1); PR 4 (the EventId range) follows once #1937 is merged or its order is agreed.
+3. Implement PR 2 to PR 5 (PR 5: portability, remaining tests, documentation).
