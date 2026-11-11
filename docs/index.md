@@ -51,7 +51,7 @@ public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<Ord
 
 ## Packages (107)
 
-| Category | # | Highlights |
+| Category | Providers / packages | Highlights |
 |----------|--:|-----------|
 | **Core** | 9 | ROP foundations, CQRS, pipeline behaviors, DomainModeling, GuardClauses, AspNetCore, SignalR, gRPC, GraphQL, Refit, CLI |
 | **Database Providers** | 10 | ADO.NET, Dapper, EF Core across SQL Server / PostgreSQL / MySQL + MongoDB. Same interfaces, swap with one line of DI |
