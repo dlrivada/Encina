@@ -15,7 +15,7 @@ nav_order: 1
 ![.NET 10.0](https://img.shields.io/badge/.NET-10.0-512BD4.svg)
 ![Status](https://img.shields.io/badge/status-pre--1.0-blue.svg)
 
-> **112 packages** · **13,000+ tests** · **13 database providers** · **8 cache providers** · **10 messaging transports** · **15 compliance modules**
+> **107 packages** · **13,000+ tests** · **10 database providers** · **7 cache providers** · **10 messaging transports** · **15 compliance modules**
 
 ---
 
@@ -49,13 +49,13 @@ app.Run();
 public sealed record CreateOrder(Guid CustomerId, decimal Amount) : ICommand<OrderId>;
 ```
 
-## Packages (112)
+## Packages (107)
 
 | Category | # | Highlights |
 |----------|--:|-----------|
 | **Core** | 9 | ROP foundations, CQRS, pipeline behaviors, DomainModeling, GuardClauses, AspNetCore, SignalR, gRPC, GraphQL, Refit, CLI |
-| **Database Providers** | 13 | ADO.NET, Dapper, EF Core across SQLite / SQL Server / PostgreSQL / MySQL + MongoDB. Same interfaces, swap with one line of DI |
-| **Caching** | 8 | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB — stampede protection, tag invalidation, eager refresh |
+| **Database Providers** | 10 | ADO.NET, Dapper, EF Core across SQL Server / PostgreSQL / MySQL + MongoDB. Same interfaces, swap with one line of DI |
+| **Caching** | 7 | Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB (Memcached planned) — stampede protection, tag invalidation, eager refresh |
 | **Messaging & Transports** | 10 | Outbox, Inbox, Saga, Scheduling + RabbitMQ, Kafka, NATS, Azure Service Bus, Amazon SQS, Redis PubSub, MQTT, InMemory |
 | **Message Encryption** | 4 | Encryption abstractions + Data Protection API, AWS KMS, Azure Key Vault |
 | **Security** | 13 | XACML 3.0 ABAC with EEL, Roslyn analyzers, field-level encryption, PII masking, sanitization, anti-tampering, read audit |

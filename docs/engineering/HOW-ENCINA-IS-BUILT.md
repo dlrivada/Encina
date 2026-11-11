@@ -12,7 +12,7 @@
 
 ## 1. The problem
 
-Encina is a large pre-1.0 .NET library: 105 projects in the solution, ten database providers with strict coherence rules, twelve cross-cutting concerns that every feature must address, and a compliance surface (GDPR, ePrivacy, NIS2, AI Act) that is part of the 1.0 contract because the target applications are European (SPEC-000 §2). It is maintained by one person.
+Encina is a large pre-1.0 .NET library: 107 packable projects under `src/` in the solution, ten database providers with strict coherence rules, twelve cross-cutting concerns that every feature must address, and a compliance surface (GDPR, ePrivacy, NIS2, AI Act) that is part of the 1.0 contract because the target applications are European (SPEC-000 §2). It is maintained by one person.
 
 In spring 2026 the project stalled for several months. When work resumed in September 2026, a diagnostic pass found the state that a stalled solo project tends to reach: the solution did not build (283 NuGet audit errors promoted to build errors by `TreatWarningsAsErrors`), every CI workflow had been red since May, the quality dashboards were frozen on data from April, the package inventory had four different answers depending on which document you read, and the public metrics in the roadmap were not backed by anything measurable ([`PHASE0-BASELINE.md`](PHASE0-BASELINE.md) §1, #1088, #1089, #1090).
 
