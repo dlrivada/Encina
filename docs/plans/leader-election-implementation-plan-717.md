@@ -36,7 +36,7 @@ Every replica of an Encina application runs every polling background processor: 
 - `Encina.DistributedLock` references `Encina` and `Encina.Messaging` (`Encina.DistributedLock.csproj`), so the default implementation cannot live in `Encina.Messaging` without a project cycle.
 - `IDistributedLockProvider` is pre-ADR-052 (`Task<IAsyncDisposable?>`); `ILockHandle` already has `ExtendAsync`, `ExpiresAtUtc` and `IsReleased`. Bug #2405 (Redis provider-level `ExtendAsync(resource)` extends a lock it does not own) means renewal must go through `ILockHandle.ExtendAsync`, which checks ownership.
 - ADR-050's closed list has the Outbox row ("row claiming or a lock (#1251)") and the CDC row ("row claiming, lock or leader (#1251)"); it has no leader election row, so the requirement of this plan is an amendment.
-- The free EventId ranges now start at `5500` (`3850-3899` is `TenancyAspNetCore`); the `DistributedLock` range 5500-5549 is registered by the #741 plan (5500-5519 for it, **5520-5549 for this plan**); whichever pull request lands first registers it.
+- `3850-3899` is `TenancyAspNetCore`; the family registry assigns the `DistributedLock` assembly the block 6250-6299 (6250-6269 for the #741 plan, **6270-6299 for this plan**); whichever pull request lands first registers it.
 - The manifests are `.github/coverage-manifest/Encina.Messaging.json` (targets contract 15, guard 20, property 15, unit 70) and `Encina.DistributedLock.json` (guard 20, unit 60).
 
 ---
@@ -330,8 +330,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Range** — `DistributedLock = (5500, 5549)` in `src/Encina/Diagnostics/EventIdRanges.cs` (registered by the first of #741 and this plan to land) and the `Encina.DistributedLock` entry in `EncinaEventIdAllocationTests`; this plan uses 5520-5527
-2. **`Diagnostics/LeaderElectionLogMessages.cs`** — `[LoggerMessage]` 5520 became leader (Information), 5521 lost leadership with a code or exception type (Warning), 5522 acquire fault (Warning), 5523 renewal failed (Warning), 5524 heartbeat iteration failed (Error, `ForLogging()`), 5525 released on shutdown (Debug), 5526 election service started (Information), 5527 lease expired locally without a renewal (Warning)
+1. **Range** — `DistributedLock = (6250, 6299)` in `src/Encina/Diagnostics/EventIdRanges.cs` (registered by the first of #741 and this plan to land) and the `Encina.DistributedLock` entry in `EncinaEventIdAllocationTests`; this plan uses 6270-6277
+2. **`Diagnostics/LeaderElectionLogMessages.cs`** — `[LoggerMessage]` 6270 became leader (Information), 6271 lost leadership with a code or exception type (Warning), 6272 acquire fault (Warning), 6273 renewal failed (Warning), 6274 heartbeat iteration failed (Error, `ForLogging()`), 6275 released on shutdown (Debug), 6276 election service started (Information), 6277 lease expired locally without a renewal (Warning)
 3. **`Diagnostics/LeaderElectionDiagnostics.cs`** — `ActivitySource` `Encina.DistributedLock` (or the shared one of #724), observable gauge `encina.leadership.state`, counters `encina.leadership.transitions` and `encina.leadership.renewals` (tag `outcome`), spans `encina.leadership.acquire` and `encina.leadership.renew` (attribute `election.name`)
 4. **`Health/LeaderElectionHealthCheck.cs`** — `IEncinaHealthCheck`; healthy while the last heartbeat is younger than twice the interval, unhealthy otherwise; leader or follower is reported as data, not as status
 5. Processor skip counter: outcome `skipped_not_leader` on the existing processor counters (`Diagnostics/OutboxProcessorMetrics.cs`, `SchedulingProcessorMetrics.cs`), no new Messaging EventId
@@ -346,8 +346,8 @@ You are implementing Phase 3 of issue #717: logging, telemetry and health of the
 
 CONTEXT:
 - AGENTS.md section 7: ids only inside a range registered first in EventIdRanges.cs, packed, no gaps; the assembly is
-  mapped in EncinaEventIdAllocationTests. This plan owns 5520-5549 of the DistributedLock range; #741 owns
-  5500-5519.
+  mapped in EncinaEventIdAllocationTests. This plan owns 6270-6299 of the DistributedLock range; #741 owns
+  6250-6269.
 - Health checks: DefaultName const, static Tags array, scoped resolution through IServiceProvider.CreateScope()
   where scoped services are needed (the election is a singleton).
 
@@ -548,7 +548,7 @@ Database (10): the outbox processors in ADO.SqlServer, ADO.PostgreSQL, ADO.MySQL
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.DistributedLock` (`DistributedLock` entry, 5500-5549) | 5520-5527 | Election service messages; 5528-5549 spare. The range itself is registered by whichever of this plan and the #741 plan (5500-5519) lands first |
+| `Encina.DistributedLock` (`DistributedLock` entry, 6250-6299) | 6270-6277 | Election service messages; 6278-6299 spare. The range itself is registered by whichever of this plan and the #741 plan (6250-6269) lands first |
 | `Encina.Messaging` | none | The processors' skip is a counter outcome, not a log line |
 
 ### Estimated File Count
@@ -587,7 +587,7 @@ IMPLEMENTATION OVERVIEW:
 2. DistributedLock: LockLeaderElection + LeaderElectionService (PeriodicTimer on TimeProvider; acquire with
    TryAcquireAsync, renew with ILockHandle.ExtendAsync; per-iteration catch; local lease expiry; dispose on stop) and
    AddEncinaLeaderElection.
-3. Observability: DistributedLock EventId range 5500-5549 (this plan 5520-5527), gauge, counters, spans, health check
+3. Observability: DistributedLock EventId range 6250-6299 (this plan 6270-6277), gauge, counters, spans, health check
    on loop liveness.
 4. Adoption: OutboxProcessorBase (covers eight packages), ScheduledMessageProcessor, DelayedRetryProcessor skip a
    cycle when not leader; cleanup and purge processors unchanged.
@@ -618,7 +618,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Election state is coordination state, not cacheable data |
 | 2 | OpenTelemetry | ✅ | Phase 3: gauge, transition and renewal counters, acquire and renew spans, bounded tags |
-| 3 | Structured Logging | ✅ | Phase 3: `[LoggerMessage]` 5520-5527 inside the `DistributedLock` range registered first |
+| 3 | Structured Logging | ✅ | Phase 3: `[LoggerMessage]` 6270-6277 inside the `DistributedLock` range registered first |
 | 4 | Health Checks | ✅ | Phase 3: `LeaderElectionHealthCheck` on heartbeat liveness |
 | 5 | Validation | ✅ | Phase 1: options validator and the startup check for the flag |
 | 6 | Resilience | ✅ | Phases 2 and 6: lease margin of three heartbeats absorbs one missed renewal; a failed renewal is loss of leadership; no Polly policy around the lock call |
@@ -640,7 +640,7 @@ REFERENCE FILES:
 | [#2382](https://github.com/dlrivada/Encina/issues/2382) — ADR-050 startup validator | Open | The Phase 1 startup check migrates into it when it exists |
 | [#2405](https://github.com/dlrivada/Encina/issues/2405) — Redis provider-level `ExtendAsync` ownership | Open | Avoided by renewing through `ILockHandle.ExtendAsync` |
 | [#218](https://github.com/dlrivada/Encina/issues/218), [#223](https://github.com/dlrivada/Encina/issues/223), [#713](https://github.com/dlrivada/Encina/issues/713)-[#716](https://github.com/dlrivada/Encina/issues/716), [#1251](https://github.com/dlrivada/Encina/issues/1251) | Open | Out of scope; documented as the complementary mechanisms and limits |
-| [#741](https://github.com/dlrivada/Encina/issues/741) plan | Same family | Shares the `DistributedLock` EventId range (5500-5549) |
+| [#741](https://github.com/dlrivada/Encina/issues/741) plan | Same family | Shares the `DistributedLock` EventId range (6250-6299) |
 | [#207](https://github.com/dlrivada/Encina/issues/207)-[#210](https://github.com/dlrivada/Encina/issues/210) | Open | Providers covered when they land |
 
 ---
