@@ -60,7 +60,7 @@ SPEC-002 DEC-009 (b) requires every capability SPEC-002 adds or changes to be te
 ### Rationale
 
 - A wins when the number of consumers is large and the rule is stable, which holds for the read/write rule (ambient wins; multi-tenant with no tenant is denied; single-tenant passes); B wins if the cross-tenant rule is still moving, which is why the primitive excludes it.
-- Proposed shape (names are proposals): `ITenantScopeResolver { Either<EncinaError, TenantScope> ResolveRead(string? requestedTenantId); Either<EncinaError, TenantScope> ResolveWrite(string? explicitTenantId); }`, `readonly record struct TenantScope(string? TenantId, bool IsMultiTenant)`, error code `encina.tenancy.tenant_required` and `encina.tenancy.tenant_mismatch` with fixed messages and no tenant value. A blank or whitespace tenant is no tenant (the #3147 bug class); a padded tenant id is rejected, never trimmed.
+- Proposed shape (names are proposals): `ITenantScopeResolver { Either<EncinaError, TenantScope> ResolveRead(string? requestedTenantId); Either<EncinaError, TenantScope> ResolveWrite(string? explicitTenantId, bool allowTenantless = false); }` (`allowTenantless` returns a null-tenant scope instead of `tenant_required` when there is neither an ambient nor an explicit tenant, for system writers such as audit and startup seeding; a mismatch is still denied), `readonly record struct TenantScope(string? TenantId, bool IsMultiTenant)`, error code `encina.tenancy.tenant_required` and `encina.tenancy.tenant_mismatch` with fixed messages and no tenant value. A blank or whitespace tenant is no tenant (the #3147 bug class); a padded tenant id is rejected, never trimmed.
 - Existing implementations (Consent, DSR, ABAC reader, dead letters) migrate in their own issues; they are not part of this plan.
 
 </details>
@@ -205,7 +205,7 @@ SPEC-002 DEC-009 (b) requires every capability SPEC-002 adds or changes to be te
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `src/Encina/Abstractions/ITenantScopeResolver.cs`**, **`TenantScope.cs`**, **`TenantScopeErrors.cs`** (codes `encina.tenancy.tenant_required`, `encina.tenancy.tenant_mismatch`; fixed messages).
-2. **Create `TenantCacheKey.cs`**: `static string Segment(string? tenantId)` (percent-encodes the separator so a tenant id cannot alias another; `_` for none) used by every cache-key builder of the family.
+2. **Create `TenantCacheKey.cs`**: `static string Segment(string? tenantId)` (returns `t.{percent-encoded tenant}` for a tenant and `g` for none, two disjoint namespaces, so no tenant id such as `_` can alias the global scope; the separator is percent-encoded) used by every cache-key builder of the family.
 3. **Create `DefaultTenant.cs`**: `public const string Id = "default"` (only if Design Choice 2 is B).
 4. **Modify `src/Encina.Tenancy/Configuration/TenancyOptions.cs` validation** (or the tenancy options validator): reject the reserved default id, blank ids and ids with leading or trailing whitespace.
 5. PublicAPI lines (mechanical-fixer).
