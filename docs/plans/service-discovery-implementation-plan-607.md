@@ -156,7 +156,7 @@ The register and health column assumes Design Choice 1 option C (pending the mai
 ### Rationale
 
 - Provider coherence: behavior shared across backends lives once in core; backends differ only in how they resolve (AGENTS.md section 3).
-- The cache key includes the tenant when one exists (function 10).
+- The cache key is the service name; a service registry is infrastructure, not tenant-owned data (function 10).
 
 **Class:** Trivial
 **Settled by:** AGENTS.md section 3 (provider coherence); implementation-plan prompt rule 3 (cross-cutting caching in the core, not per provider)
@@ -250,7 +250,7 @@ CONTEXT:
 TASK:
 - Implement the cache decorator, the round-robin selector and the Kubernetes DNS provider with its resolver seam.
 KEY RULES:
-- Time only through TimeProvider; the tenant is part of the cache key.
+- Time only through TimeProvider; the cache key is the service name.
 - Watch for Kubernetes is polling with a TTL; a polling loop catches per iteration and never lets an exception escape (AGENTS.md section 3).
 - Registration uses TryAdd* and never overrides the application's own.
 REFERENCE FILES:
@@ -404,7 +404,7 @@ REFERENCE FILES:
 1. `Diagnostics/ServiceDiscoveryDiagnostics.cs`: `ActivitySource` and `Meter` `Encina.ServiceDiscovery`; counter `encina.servicediscovery.resolutions` (tags `provider`, `outcome`), span `encina.servicediscovery.resolve` (tags `service.name`, `provider`).
 2. `Diagnostics/ServiceDiscoveryLogMessages.cs`: `[LoggerMessage]` EventIds 7340-7343 (resolve failed, cache hit, watch failed, no healthy endpoint).
 3. `Health/ServiceDiscoveryHealthCheck.cs` (`DefaultName` const, static `Tags` array, resolves the provider through `IServiceProvider.CreateScope()`).
-4. No endpoint addresses or metadata values in tags or logs; the tenant id is a metric tag.
+4. No endpoint addresses or metadata values in tags or logs.
 
 </details>
 
@@ -588,7 +588,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | Read-only lookups; registration is single-instance |
 | 8 | Transactions | ❌ N/A | No transactional state |
 | 9 | Idempotency | ❌ N/A | Lookups are idempotent; re-registering the same instance id is an upsert |
-| 10 | Multi-Tenancy | ⏭️ Deferred | Tenant-scoped registry: issue file `service-discovery-tenant-scope` in `artifacts/issues/`; the tenant id is already part of the cache key and a metric tag |
+| 10 | Multi-Tenancy | ❌ N/A | A service registry is infrastructure shared by all tenants, not tenant-owned data; a tenant-scoped registry has no use case in the issue |
 | 11 | Module Isolation | ❌ N/A | Discovery is cross-cutting |
 | 12 | Audit Trail | ⏭️ Deferred | Registration audit: issue file `service-discovery-registration-audit` in `artifacts/issues/` |
 
