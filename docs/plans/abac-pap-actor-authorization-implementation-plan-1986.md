@@ -78,7 +78,7 @@ Classes follow the decision register of #2470. Choices 1, 3, 5, 8 and 10 are Set
 - Option C is the meta-policy question left for a future feature; it cannot be the default because an empty policy store would make every change impossible.
 
 **Class:** Settled
-**Settled by:** Issue #1986 ("Settled by elimination (2026-10-17)": a permission checked by both PAPs before any mutation); SPEC-002 DEC-006 (fail closed); `RequestIdentity` contract (`src/Encina/Identity/RequestIdentity.cs`, "Every gate ... reads this same instance")
+**Settled by:** SPEC-002 DEC-006 (fail closed); `RequestIdentity` contract (`src/Encina/Identity/RequestIdentity.cs`, "Every gate ... reads this same instance")
 
 </details>
 
@@ -122,7 +122,7 @@ Classes follow the decision register of #2470. Choices 1, 3, 5, 8 and 10 are Set
 - The Marten audit resolver plan took the same position for its operator permission (`audit:resolve`, "no opt-out", `docs/plans/audit-projection-resolver-implementation-plan-3049.md`).
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 3 (compliance and security gates fail closed); SPEC-002 DEC-006; issue #1986 (secure default posture, example name `abac:policies:manage`); precedent in the plan of #3049 (`audit:resolve`)
+**Settled by:** AGENTS.md section 3 (compliance and security gates fail closed); SPEC-002 DEC-006; the example name `abac:policies:manage` comes from the issue text (an agent-written suggestion, not a maintainer decision); precedent in the plan of #3049 (`audit:resolve`)
 
 </details>
 
@@ -317,6 +317,28 @@ Classes follow the decision register of #2470. Choices 1, 3, 5, 8 and 10 are Set
 
 **Class:** Trivial
 **Settled by:** `src/Encina/Identity/RequestIdentity.cs` (`Permissions` is a case-insensitive set) and `ServiceIdentityCatalogOptionsValidator` (no wildcard in a role or permission); AGENTS.md section 3 (gates fail closed)
+
+</details>
+
+<details>
+<summary><strong>13. Side effects of a refusal — what is audited, counted and revealed</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Only the authenticated-without-permission refusal is audited (persistent PAP), counted (`abac.pap.change.denied`) and logged (9041); the anonymous refusal keeps today's behavior (error code, span outcome, no audit entry, no counter, no log); the required permission name goes to the log and the audit metadata but not to the 403 body; with no `IOperationAuditStore` registered a refusal only logs 9097** | The audit entry always has a caller to attribute; the anonymous path does not change (#1986 keeps it unchanged); no permission name advertised to a caller | An anonymous attempt leaves no counter, only a span |
+| B) Audit and count anonymous refusals too | Complete picture of attempts | Entries with no `UserId`; changes an acceptance criterion ("anonymous unchanged"); unauthenticated traffic could flood the audit store |
+
+### Chosen Option: **A — the refusal of an identified caller leaves the trail; the anonymous refusal is unchanged**
+
+### Rationale
+
+- Missing context (no caller) is a decision the register must hold (AGENTS.md section 3, fail closed): the call is still refused, only the audit and counter are skipped because there is nobody to attribute them to.
+- The 403 body shows the fixed message only (choice 6); the permission name stays in the log and the audit metadata.
+
+**Class:** Trivial
+**Settled by:** Issue #1986 acceptance criterion "anonymous behavior unchanged"; AGENTS.md section 3 (fail closed; no caller data in tags or logs); `PersistentPolicyAdministrationPoint.cs` (`RecordAuditAsync` logs 9097 when no audit store is registered)
 
 </details>
 
@@ -600,7 +622,7 @@ REFERENCE FILES
 | `Administration/PolicyChangeAuthorizer.cs` (new) | unit 95, guard 30 | Every outcome and the null context are unit tests; the guard flag only covers the constructor argument guard |
 | `Administration/PolicyActor.cs` (new) | unit 90, guard 0 | A data record with a kind-only `ToString`; no parameters to guard |
 | `Administration/PersistentPolicyAdministrationPoint.cs` | unit 90 (kept), guard 5 (kept), integration 50 (from 45) | The denied paths add unit coverage and the SQL Server scenario now exercises a refusal and its `Denied` row |
-| `Administration/InMemoryPolicyAdministrationPoint.cs` | unit 90, guard 30, contract 60 | Six guarded mutations are unit tested; guards cover the constructor and arguments; the contract theory covers the success and refusal paths |
+| `Administration/InMemoryPolicyAdministrationPoint.cs` (new manifest entry; it has none in `Encina.Security.ABAC.json` today) | unit 90, guard 30, contract 60 | Six guarded mutations are unit tested; guards cover the constructor and arguments; the contract theory covers the success and refusal paths |
 | `ABACOptions.cs` | unit 80 (kept), guard 95 (kept) | The new property is a plain accessor covered by the existing option tests |
 | `DecisionAudit/ABACOptionsValidator.cs` | unit 95 (kept), guard 95 (kept) | One more rule with a passing and three failing values |
 | `ABACErrors.cs` | unit 85 (kept), guard 90 (kept) | The new factory is built and checked like its neighbours |
@@ -809,7 +831,7 @@ REFERENCE FILES
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The check is a set lookup on the identity already in hand; nothing is read that a cache could serve (the issue's "deferred" is not needed). |
-| 2 | OpenTelemetry | ✅ | Counter `abac.pap.change.denied` and activity `ABAC.PAP.Authorize` in Phase 2; no caller data in tags. |
+| 2 | OpenTelemetry | ✅ | Counter `abac.pap.change.denied` and activity `ABAC.PAP.Authorize` in Phase 2; no caller data in tags. The issue's table names `encina.abac.policy_change_authorization_denied_total` and `encina.abac.policy_change_authorization`; choice 11 renames them to the package convention, so the criterion "OpenTelemetry denial counter incremented" is checked on the new names (the PR and issue comment must quote the issue's old names beside the new ones). The counter counts only permission refusals (choice 13). |
 | 3 | Structured Logging | ✅ | One `[LoggerMessage]` EventId 9041 (Warning) inside the registered `SecurityABAC` range. |
 | 4 | Health Checks | ❌ | The check has no external dependency to probe; `ABACHealthCheck` is unchanged. |
 | 5 | Validation | ✅ | `ABACOptionsValidator` rule for `PolicyAdministrationPermission` (Phase 1), proven at host build. |
