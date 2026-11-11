@@ -116,6 +116,15 @@ public sealed class ErrorCategoryCompletenessStaticScanTests
     }
 
     [Fact]
+    public void Scanner_DropsCommentsInsideTheArguments()
+    {
+        var call = ErrorCategoryCallScanner.Analyze(Wrap("return EncinaErrors.Create( // NOSONAR\n    code: Codes.X, /* why */ ErrorCategory.Forbidden, \"m\");")).ShouldHaveSingleItem();
+
+        call.CodeExpression.ShouldBe("Codes.X");
+        call.CategoryName.ShouldBe("Forbidden");
+    }
+
+    [Fact]
     public void Scanner_ReportsTheLineAndTheCodeOfEachCall()
     {
         const string Source = "class C\n{\n    E A() => EncinaErrors.Create(\"a.b\", \"m\");\n\n    E B() =>\n        EncinaErrors.FromException(\n            Codes.B, ErrorCategory.Timeout, ex);\n}\n";
@@ -298,20 +307,20 @@ internal static partial class ErrorCategoryCallScanner
 
     internal static IReadOnlyList<Call> Analyze(string source)
     {
-        var masked = Mask(source);
+        var (withoutComments, masked) = Mask(source);
         var calls = new List<Call>();
 
         foreach (Match match in CallRegex().Matches(masked))
         {
             var open = match.Index + match.Length - 1;
-            var arguments = SplitArguments(source, masked, open + 1);
+            var arguments = SplitArguments(withoutComments, masked, open + 1);
             calls.Add(Describe(match.Groups["method"].Value, LineOf(source, match.Index), arguments));
         }
 
         return calls;
     }
 
-    private static Call Describe(string method, int line, IReadOnlyList<string> arguments)
+    private static Call Describe(string method, int line, List<string> arguments)
     {
         var code = arguments.Count > 0 ? NamedCodeRegex().Replace(arguments[0], string.Empty) : string.Empty;
         var categorized = false;
@@ -371,11 +380,13 @@ internal static partial class ErrorCategoryCallScanner
     private static partial Regex WhitespaceRegex();
 
     /// <summary>
-    /// Returns a copy of the source of the same length where comments are spaces and string or character literal
-    /// contents are spaces (the quotes stay), so indices and line numbers still match the original.
+    /// Returns two copies of the source of the same length, so indices and line numbers still match the original:
+    /// one where comments are spaces, and one where string and character literal contents are spaces too (the quotes
+    /// stay). Structure is read from the second; argument text is cut from the first.
     /// </summary>
-    private static string Mask(string source)
+    private static (string WithoutComments, string Masked) Mask(string source)
     {
+        var withoutComments = new StringBuilder(source);
         var masked = new StringBuilder(source);
         var i = 0;
 
@@ -384,6 +395,7 @@ internal static partial class ErrorCategoryCallScanner
             var end = CommentEnd(source, i);
             if (end > i)
             {
+                Blank(withoutComments, i, end);
                 Blank(masked, i, end);
                 i = end;
                 continue;
@@ -400,7 +412,7 @@ internal static partial class ErrorCategoryCallScanner
             i++;
         }
 
-        return masked.ToString();
+        return (withoutComments.ToString(), masked.ToString());
     }
 
     /// <summary>Returns the index just after the comment that starts at <paramref name="start"/>, or <paramref name="start"/> when none does.</summary>
