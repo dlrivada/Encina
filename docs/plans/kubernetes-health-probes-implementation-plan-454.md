@@ -191,7 +191,7 @@ The plan delivers:
 2. **Create** `src/Encina.AspNetCore/Health/EncinaHealthTags.cs`: `public static class EncinaHealthTags { public const string Live = "live"; public const string Ready = "ready"; public const string Startup = "startup"; }`; the private tag literals in `HealthCheckBuilderExtensions.cs` use the constants.
 3. **Create** `src/Encina.AspNetCore/Health/HandlerHealthCheck.cs` (`DefaultName = "encina-handlers"`, tags `encina`, `startup`) and `PipelineHealthCheck.cs` (`DefaultName = "encina-pipeline"`): `EncinaHealthCheck` subclasses, evaluate once, cache the result (an `Interlocked`-guarded lazy `Task<HealthCheckResult>`), never throw.
 4. **Modify** `HealthCheckBuilderExtensions.cs`: `AddEncinaHandlers(...)` and `AddEncinaPipeline(...)` with the same parameters as `AddEncinaOutbox` (name, tags, failure status).
-5. **Create** `src/Encina.AspNetCore/Health/HealthCheckLog.cs`: `[LoggerMessage]` EventIds 208 (`HandlersUnresolvable`, count, Warning), 209 (`UnresolvableHandlerType`, type name, Warning), 210 (`PipelineValidationFailed`, exception type, Error) inside `AspNetCore` (200-249; 200-207 used).
+5. **Create** `src/Encina.AspNetCore/Health/HealthCheckLog.cs`: `[LoggerMessage]` EventIds 226 (`HandlersUnresolvable`, count, Warning), 227 (`UnresolvableHandlerType`, type name, Warning), 228 (`PipelineValidationFailed`, exception type, Error) inside `AspNetCore` (200-249; 200-207 used, 208-225 claimed by #3443, #710 and #2229).
 6. `PublicAPI.Unshipped.txt` lines (`mechanical-fixer`).
 
 </details>
@@ -207,12 +207,12 @@ src/Encina/Pipeline/Ordering. The host registration lives in src/Encina.AspNetCo
 
 TASK:
 Create EncinaHealthTags, HandlerHealthCheck, PipelineHealthCheck and the AddEncinaHandlers/AddEncinaPipeline builder
-extensions, plus the log messages with EventIds 208-210. Build with zero warnings.
+extensions, plus the log messages with EventIds 226-228. Build with zero warnings.
 
 KEY RULES:
 - Derive from EncinaHealthCheck; results carry counts and the exception type only, never a message or a handler type name.
 - Scoped services are resolved through IServiceProvider.CreateScope(); evaluate once and cache; the check never throws.
-- Use the [LoggerMessage] source generator; EventIds 208-210 sit inside the registered AspNetCore range.
+- Use the [LoggerMessage] source generator; EventIds 226-228 sit inside the registered AspNetCore range.
 - XML docs with examples; sealed classes; nullable enabled.
 
 REFERENCE FILES:
@@ -268,7 +268,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Logging is delivered in Phase 1 (EventIds 208-210) and extended in Phase 2 with 211 (`ProbeEndpointsMapped`, paths, Information) in the same `AspNetCore` range; no new range.
+1. Logging is delivered in Phase 1 (EventIds 226-228) and extended in Phase 2 with 229 (`ProbeEndpointsMapped`, paths, Information) in the same `AspNetCore` range; no new range.
 2. No `ActivitySource` and no `Meter` in this plan; the per-check gauge is #622 Phase 4.
 
 </details>
@@ -278,10 +278,10 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-EventIds 200-207 are used in the AspNetCore range (200-249); Phase 1 took 208-210.
+EventIds 200-207 are used in the AspNetCore range (200-249) and 208-225 are claimed by other plans; Phase 1 took 226-228.
 
 TASK:
-Add EventId 211 to HealthCheckLog and call it when MapEncinaHealthChecks maps the endpoints.
+Add EventId 229 to HealthCheckLog and call it when MapEncinaHealthChecks maps the endpoints.
 
 KEY RULES:
 - Source generator only; packed sequentially; no new range; EncinaEventIdAllocationTests must still pass.
@@ -398,7 +398,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.AspNetCore` | 200-249 (existing `AspNetCore`) | 200-207 used; this plan takes 208-211; no new range |
+| `Encina.AspNetCore` | 200-249 (existing `AspNetCore`) | 200-207 used, 208-225 claimed by #3443, #710, #2229; this plan takes 226-229; no new range |
 
 ### Estimated File Count
 
@@ -428,7 +428,7 @@ IMPLEMENTATION OVERVIEW:
 1. EncinaHealthTags (live, ready, startup); HandlerHealthCheck and PipelineHealthCheck evaluated once and cached.
 2. AddEncinaHandlers and AddEncinaPipeline builder extensions.
 3. EncinaProbeOptions (+ validator), MapEncinaHealthChecks (three endpoints, tag predicates), Encina JSON writer.
-4. EventIds 208-211 inside the AspNetCore range; no metric or span.
+4. EventIds 226-229 inside the AspNetCore range; no metric or span.
 5. Unit, guard, contract and TestServer integration tests; manifest, guide, README, ADR, changelog through the specialists.
 Three pull requests: checks, mapping, documentation.
 
@@ -457,7 +457,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Health checks must reflect real-time status; only the one-time startup result is cached, by design |
 | 2 | OpenTelemetry | ⏭️ Defer | The per-check gauge is #622 Phase 4; the probe metric and span of the issue text are replaced (Design Choice 7) |
-| 3 | Structured Logging | ✅ Include | Phases 1 and 3: EventIds 208-211 in the existing AspNetCore range |
+| 3 | Structured Logging | ✅ Include | Phases 1 and 3: EventIds 226-229 in the existing AspNetCore range |
 | 4 | Health Checks | ✅ Include | This is the feature |
 | 5 | Validation | ✅ Include | `EncinaProbeOptions` validated at startup (paths) |
 | 6 | Resilience | ❌ N/A | The endpoint makes no external call; per-check timeouts already come from `ProviderHealthCheckOptions.Timeout` |
@@ -481,7 +481,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | Existing checks and builder extensions | ✅ Available | `Encina.Messaging/Health`, `Encina.AspNetCore/Health` |
 | `InternalsVisibleTo` for `Encina.AspNetCore` | ✅ Available | `src/Encina/Encina.csproj` |
-| EventId range 200-249 | ✅ Available | 208-249 free |
+| EventId range 200-249 | ✅ Available | 226-249 free after the other plans' claims |
 | #2138 (SchedulingHealthCheck reports dead-lettered messages as overdue forever) | Open bug | Fix before the scheduling check is put in the readiness set, or readiness fails forever |
 | Registration of `PipelineOrderValidationHostedService` | Unverified | Phase 1 task 1 |
 | #181 (duplicate package request) | Open | Answered together with Design Choice 1 |
