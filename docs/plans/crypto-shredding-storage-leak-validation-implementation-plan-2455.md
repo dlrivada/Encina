@@ -128,8 +128,9 @@ This plan extends the existing startup validation (`CryptoShreddingStartupValida
 
 - The enum, the record and the exception are the established vehicle ("Every issue is reported once, on its declaring type" in the validator remarks); pre-1.0 permits changing the underlying type later (AGENTS.md section 1).
 - New flags: `DuplicatedFieldCarriesCryptoShredded`, `IdentityMemberCarriesCryptoShredded`, `FlatTableProjectionOverCryptoGraph`. The describing sentences name the fix and never a value (AGENTS.md section 3, `EncinaError.Message` rule).
+- Log content of the opt-out events (8486, 8487): owner type name and member name only, plus a problem name for a rejection; the justification text and its length are never logged (the text stays operator configuration shown in the health-check data). This is the logging rule for all new events of this plan.
 - **Class:** Trivial
-- **Settled by:** ADR-034 (single reporting path); AGENTS.md section 3 (fail closed, no values in messages); `CryptoShreddedPropertyIssue` remarks
+- **Settled by:** ADR-034 (single reporting path); AGENTS.md section 3 (fail closed, no values in messages; only type and member names reach logs); `CryptoShreddedPropertyIssue` remarks
 
 </details>
 
@@ -484,7 +485,7 @@ REFERENCE FILES
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Audit record of opt-outs** (mechanism per choice 8): log event 8486 per active opt-out (owner type name, member name, justification length only, never the free text if the maintainer prefers; the justification itself is operator-authored configuration, not personal data, but is kept out of logs by default) and the list in `CryptoShreddingHealthCheck` data. If the maintainer chooses option B, an optional `IOperationAuditStore` write is added and the project reference is reviewed.
+1. **Audit record of opt-outs** (mechanism per choice 8): log event 8486 per active opt-out (owner type name and member name only, as registered in choice 5; the justification text and its length are not logged) and the list in `CryptoShreddingHealthCheck` data. If the maintainer chooses option B, an optional `IOperationAuditStore` write is added and the project reference is reviewed.
 2. **Matrix items marked N/A** (see the matrix below): no work, one sentence each.
 
 </details>
@@ -576,8 +577,10 @@ REFERENCE FILES
 | `Metadata/FlatTableProjectionInspector.cs` (new) | 90 | 0 | 0 | The uninspectable-event branch depends on Marten internals; covered by the fail-closed test |
 | `CryptoShreddingStorageOptOut.cs` (new) | 100 | 100 | 90 | A record with a `ToString` and rules; guards and contract tests assert each rule |
 | `CryptoShreddingStartupValidationHostedService.cs` | >= 94 (existing) | 0 | 0 | The existing target must not go down; new branches are unit tested |
-| `Metadata/CryptoShreddedPropertyClassifier.cs` | 90 | 0 | 0 | Two new rule functions, each tested in both directions |
-| `CryptoShreddingOptionsValidator.cs` | >= existing | >= existing | 0 | Opt-out rules extend an already tested validator |
+| `Metadata/CryptoShreddedPropertyClassifier.cs` | 90 (new entry) | 0 | 0 | Two new rule functions, each tested in both directions; internal static, so guard 0 |
+| `CryptoShreddingOptionsValidator.cs` | 90 (new entry) | 90 (new entry) | 0 | Opt-out rules extend an already tested validator; its public `Validate` takes parameters, so guard applies; property is 0 because the opt-out rules are finite checks, covered by unit tests |
+
+The manifest `Encina.Marten.GDPR.json` has no `targets` or `justifications` today for the classifier and the validator (only the hosted service has `unit: 94`); the two rows above are created entries with new demanding targets, not kept ones. Only the hosted-service target must not go down.
 
    Measure with the commands of AGENTS.md section 9 (each flag's test project, then `coverage-report.cs` and `--check-justifications`).
 
@@ -618,7 +621,7 @@ REFERENCE FILES
 
 1. **XML docs** on every new public member (`CryptoShreddingStorageOptOut`, `StorageOptOuts`, the three enum members).
 2. **`docs/features/crypto-shredding.md`** (via `docs-writer`): replace the line 808 limitation text for duplicated fields, identity and flat-table with the enforced behaviour; keep the paragraph for `Patch` (still documented). Add the opt-out configuration example and the rule list. Figures come from covref markers, never typed by hand.
-3. **ADR**: the maintainer decision C9a asks for one new ADR amending ADR-034 (the guards of C2d and C4-C8, the reversed stance of ADR-034 line 47 for Encina-owned paths, the C1b scope principle) plus a one-line pointer in ADR-034. Coordinate with the sibling issues #2456, #2457 and #2462: the first PR that lands creates the ADR (next free number at that time; 061 and 062 are reserved), the others append their section.
+3. **ADR**: the maintainer decision C9a asks for one new ADR amending ADR-034 (the guards of C2d and C4-C8, the reversed stance of ADR-034 line 47 for Encina-owned paths, the C1b scope principle) plus a one-line pointer in ADR-034. Coordinate with the sibling issues #2456, #2457 and #2462: the first PR that lands creates the ADR (ADR number assigned when the ADR pull request opens), the others append their section.
 4. **`src/Encina.Marten.GDPR/README.md`**: update the limits section.
 5. **`changelog.d/2455-crypto-shredding-storage-leak-validation.added.md`** (via `mechanical-fixer`): one bullet naming the new startup rejections and the opt-out. Run `dotnet run --file .github/scripts/changelog-fragments.cs -- --check`.
 6. **`PublicAPI.Unshipped.txt`** and the **coverage manifest** entries (via `mechanical-fixer`, exact lines decided by the worker).
