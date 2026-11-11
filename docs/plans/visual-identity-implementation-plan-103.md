@@ -3,7 +3,7 @@
 > **Issue**: [#103](https://github.com/dlrivada/Encina/issues/103)
 > **Type**: Feature
 > **Complexity**: Low in code (none), medium in review (the artwork needs the maintainer's approval)
-> **Estimated Scope**: about 15 binary and SVG files under `assets/`, no production code, one documentation page and a README banner reference
+> **Estimated Scope**: 12 binary and SVG asset files under `assets/`, no production code, one documentation page and a README banner reference
 
 ---
 
@@ -26,7 +26,7 @@ Deliverables, from the issue:
 
 **Provider category**: none (`AGENTS.md` section 5; the issue is image assets only).
 
-**Consistency with the #102 plan** (`docs/plans/package-metadata-implementation-plan-102.md`, Design Choice 8 and Phase 5): this plan owns the files `assets/icons/package-icon-128.png` (at most 1 MB, PNG) and `assets/icons/package-icon.svg`; the #102 plan owns `PackageIcon`, the packed item and the name `icon.png` inside the package. Neither plan adds a placeholder.
+**Consistency with the #102 plan** (sibling plan [#102](https://github.com/dlrivada/Encina/issues/102), Design Choice 8 and Phase 5; its file is not on `main` yet, so it is linked by issue number only): this plan owns the files `assets/icons/package-icon-128.png` (at most 1 MB, PNG) and `assets/icons/package-icon.svg`; the #102 plan owns `PackageIcon`, the packed item and the name `icon.png` inside the package. Neither plan adds a placeholder.
 
 **Split** (each row one branch and pull request, at most 15 files and 1500 changed lines):
 
@@ -92,21 +92,21 @@ Deliverables, from the issue:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The maintainer (or a designer they choose) draws the SVG; agents only export, check and place the files** | Clear authorship and licence of the mark (it ships in 107 packages); the maintainer approves the artwork as the issue states | Needs the maintainer's time |
+| **A) The maintainer (or a designer they choose) draws the SVG; agents only export, check and place the files** | Clear authorship of the mark (it ships in 107 packages) | Needs the maintainer's time; no designer exists today |
 | **B) An image model generates concepts, the maintainer picks and a designer cleans up the vector** | Fast first concepts | Unclear copyright of a generated image, and raster output must be redrawn as clean SVG before it can scale to 16x16 |
 | **C) Commission an external designer** | Professional result | Cost and delay; the issue gives no budget |
+| **D) Temporary simple vector made with AI assistance now; a help-wanted issue invites a designer to refine it** | Unblocks #102 at once; the path to a designer stays open | The first mark is not designer-authored |
 
 ### Chosen Option: the mark is a temporary, simple vector made with AI assistance within the plan's technical constraints, and a help-wanted issue invites a designer to refine it later by replacing the files in place (decided 2026-11-11)
 
 ### Rationale
 
 - The project has no designer today, so the temporary mark is made with AI assistance; the help-wanted issue keeps the path to a designer-authored mark open, and the files are replaced in place without changing their paths.
-- Option A keeps the rights to the mark unambiguous for a logo that every package carries.
-- Option B wins if the maintainer wants options to react to before drawing anything; the concepts would then stay out of the repository and only the redrawn vector is committed.
-- Option C wins if no one on the project can draw the vector.
-- In every case the final artwork is approved by the maintainer when reviewing the pull request; no agent decides the look.
+- The mark ships in every package, so how its rights are held is recorded here: the temporary mark is committed to the repository and is licensed with it (MIT, like the rest of the repository), the maintainer being the owner of record. This is a recorded consequence of the decision; the maintainer may ask to change it, and the designer who later refines the mark contributes under the same licence.
+- The raster output of an image model is not committed; only a clean SVG source and the PNGs exported from it are.
+- The final artwork is approved by the maintainer when reviewing the pull request; the help-wanted issue (Next Steps) replaces the files in place without changing their paths.
 
-**Class:** Dilemma
+**Class:** Dilemma, decided by the maintainer on 2026-11-11 (Option D); recorded in `Maintainer Decisions`
 
 </details>
 
@@ -162,6 +162,7 @@ Deliverables, from the issue:
 <details>
 <summary>Tasks</summary>
 
+0. Produce the temporary mark with AI assistance (Design Choice 3), as clean hand-readable SVG source (no embedded raster, no third-party marks), legible at 16x16 and on light and dark backgrounds. This task is part of PR 1 and is done by the worker with AI assistance; the maintainer approves the result in the pull request (step 6).
 1. Create `assets/logo/encina-logo-horizontal.svg` and `.png`, `encina-logo-square.svg` and `.png`, `encina-logo-mono-dark.svg` and `encina-logo-mono-light.svg`.
 2. Create `assets/icons/package-icon.svg`, `package-icon-128.png` and `package-icon-256.png`.
 3. Use the issue's palette (Oak Green `#2D5016`, Bark Brown `#5C4033`, Leaf Gold `#D4A017`, Paper White `#FAFAF8`); the symbol is a stylised oak tree or leaf silhouette, clean and geometric, readable at 16x16.
@@ -179,11 +180,11 @@ Deliverables, from the issue:
 ```text
 CONTEXT: Encina is a pre-1.0 .NET library whose name means "holm oak". SPEC-000 REQ-018 needs an icon on every package; issue #102 wires PackageIcon and packs assets/icons/package-icon-128.png as icon.png. No assets/ folder exists yet. Issue #103, plan Design Choices 1 to 5.
 
-TASK: Place the maintainer-approved artwork under assets/logo/ and assets/icons/ with the exact file names of the plan. Do NOT invent or generate artwork: if the SVG sources are not supplied by the maintainer (Design Choice 3), stop and report. Run the size and dimension checks and report their output.
+TASK: Produce the temporary mark with AI assistance (Design Choice 3) as SVG source, export the PNGs and place them under assets/logo/ and assets/icons/ with the exact file names of the plan. Constraints: SVG source, no embedded raster, package-icon-128.png 128x128 and at most 1 MB, legible at 16x16, works on light and dark backgrounds, no third-party marks. The maintainer approves the look in the pull request; report the rendered sizes for that review. Run the size and dimension checks and report their output.
 
 KEY RULES: Files are added with the Write/copy tools, never by editing PNG bytes in a script. package-icon-128.png is 128x128 and at most 1 MB. No placeholder images. At most 15 files and 1500 changed lines.
 
-REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md (Phase 5), docs/assets/ (what stays documentation-only), https://learn.microsoft.com/en-us/nuget/reference/nuspec#icon.
+REFERENCE FILES: issue #102 (Phase 5 of its plan), docs/assets/ (what stays documentation-only), https://learn.microsoft.com/en-us/nuget/reference/nuspec#icon.
 ```
 
 </details>
@@ -206,9 +207,9 @@ REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md (Phase 5
 ```text
 CONTEXT: Phase 1 merged the logo and icon files. The repository needs a README banner and social cards. Issue #103.
 
-TASK: Place the maintainer-approved readme-banner.png, github-social-preview.png (1280x640) and twitter-card.png under assets/social/ and verify the dimensions by command.
+TASK: Create readme-banner.png, github-social-preview.png (1280x640) and twitter-card.png under assets/social/ from the Phase 1 mark and verify the dimensions by command.
 
-KEY RULES: No generated artwork without the maintainer's approval (Design Choice 3). Do not change repository settings. Keep each PNG reasonably small (GitHub social preview limit is 1 MB).
+KEY RULES: Same constraints as Phase 1 (Design Choice 3); the maintainer approves the look in the pull request. Do not change repository settings. Keep each PNG reasonably small (GitHub social preview limit is 1 MB).
 
 REFERENCE FILES: assets/logo/, https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/customizing-your-repositorys-social-media-preview.
 ```
@@ -262,7 +263,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, REA
 |-----------|----------|-----------------------|
 | Documentation-only images | `docs/assets/` | Stays as is; the new brand sources go to `assets/` |
 | Current identity image | `docs/assets/Encina Framework Identidad Visual.png` | Visual reference for the design direction; not used by `README.md` |
-| Package metadata plan | `docs/plans/package-metadata-implementation-plan-102.md` | Consumes the icon in its Phase 5 |
+| Package metadata plan | sibling plan of [#102](https://github.com/dlrivada/Encina/issues/102) | Consumes the icon in its Phase 5 |
 | README badges | `README.md` | Receives the banner reference |
 
 ### Event ID Allocation
@@ -294,9 +295,9 @@ PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 library; "encina" means holm oak. S
 
 IMPLEMENTATION OVERVIEW: Phase 1 adds assets/logo (6 files) and assets/icons (3 files). Phase 2 adds assets/social (3 files). Phase 3 documents the palette and asset locations (docs-writer), references the banner from README.md and adds a changelog fragment (mechanical-fixer). Three pull requests, at most 15 files each.
 
-KEY PATTERNS: The maintainer or a designer authors the SVG (Design Choice 3 is pending the maintainer); agents place, verify and document, and never invent artwork. package-icon-128.png is 128x128 and at most 1 MB. Palette: Oak Green #2D5016, Bark Brown #5C4033, Leaf Gold #D4A017, Paper White #FAFAF8. Scripts only in PowerShell or C#; no placeholder images.
+KEY PATTERNS: The mark is a temporary simple vector made with AI assistance (Design Choice 3, decided 2026-11-11), approved by the maintainer in the pull request and later refined by a designer through a help-wanted issue. package-icon-128.png is 128x128 and at most 1 MB. Palette: Oak Green #2D5016, Bark Brown #5C4033, Leaf Gold #D4A017, Paper White #FAFAF8. Scripts only in PowerShell or C#; no placeholder images.
 
-REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md, docs/assets/, README.md, changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, AGENTS.md sections 2 and 11.
+REFERENCE FILES: issue #102, docs/assets/, README.md, changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, AGENTS.md sections 2 and 11.
 ```
 
 </details>
@@ -318,7 +319,7 @@ REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md, docs/as
 | 9 | Idempotency | ❌ | Static files cannot arrive twice. |
 | 10 | Multi-Tenancy | ❌ | No tenant data is stored. |
 | 11 | Module Isolation | ❌ | The assets belong to no module. |
-| 12 | Audit Trail | ❌ | No compliance or security effect; the licence of the artwork is covered by Design Choice 3. |
+| 12 | Audit Trail | ❌ | No compliance or security effect; the rights to the AI-assisted mark are recorded in Design Choice 3 (Rationale, first bullet). |
 
 ---
 
@@ -327,15 +328,16 @@ REFERENCE FILES: docs/plans/package-metadata-implementation-plan-102.md, docs/as
 | Item | State | Effect |
 |------|-------|--------|
 | [#102](https://github.com/dlrivada/Encina/issues/102) package metadata | open | Consumes `package-icon-128.png` in its Phase 5; this plan does not wait for it |
-| Maintainer artwork or designer choice (Design Choice 3) | pending | Phase 1 cannot start without SVG sources |
+| Artwork source (Design Choice 3) | decided 2026-11-11 | Phase 1 produces the temporary AI-assisted SVG itself (task 0); nothing to wait for |
 
 ---
 
 ## Next Steps
 
 1. When work on #103 starts, ask the maintainer only Design Choice 4 (icon first or one pull request), and record the answer in the last section, `Maintainer Decisions`.
-2. Write the worker brief for PR 1 once the SVG sources exist; a worker only places and verifies them.
+2. Write the worker brief for PR 1; the worker produces the temporary AI-assisted SVG (Phase 1 task 0), exports and verifies the files.
 3. After PR 1 merges, tell #102 that its Phase 5 can start, and comment on #103 with the link to this plan.
+4. After PR 1 merges, open a help-wanted issue (`open-issue` skill) that invites a contributor with design skills to refine the mark, replacing the files under `assets/` in place with the same names.
 
 ## Maintainer Decisions
 
