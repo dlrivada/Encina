@@ -2,7 +2,7 @@
 
 > **Issue**: [#907](https://github.com/dlrivada/Encina/issues/907)
 > **Type**: Feature (documentation)
-> **Complexity**: Low (5 phases, 10 files, no production code, no provider code)
+> **Complexity**: Low (5 phases, 11 files, no production code, no provider code)
 > **Estimated Scope**: about 900-1,100 changed lines of Markdown, no tests
 
 ---
@@ -24,7 +24,7 @@ What the code says today and the plan corrects:
 
 **Affected packages**: none changed. Documented: `Encina.Messaging` (`IEncinaHealthCheck`, `EncinaHealthCheck`, `ProviderHealthCheckOptions`), `Encina.AspNetCore` (`HealthCheckBuilderExtensions`, the adapter, the composite), `Encina.Tenancy.AspNetCore` (`AddEncinaTenancy`) and every package that ships a health check.
 
-**Size for the worker brief**: 10 files (3 pages, 7 link edits), about 1,000 lines. Within the 15-file and 1,500-line limit of one pull request.
+**Size for the worker brief**: 11 files (3 pages, 8 edits), about 1,000 lines. Within the 15-file and 1,500-line limit of one pull request.
 
 ---
 
@@ -37,7 +37,7 @@ What the code says today and the plan corrects:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Keep the guide as the single page and grow it** | One file, no new navigation | Mixes how-to, concept and a 55-row reference table; breaks the one-quadrant rule; the table dominates the page |
+| **A) Keep the guide as the single page and grow it** | One file, no new navigation | Mixes how-to, concept and a long reference table (its row count is measured in Phase 2); breaks the one-quadrant rule; the table dominates the page |
 | **B) Guide (how-to) + `docs/features/health-checks.md` (concept) + `docs/configuration/health-checks-reference.md` (reference)** | One quadrant per page, pages link sideways, reference is scannable and can be re-verified alone | Three files to keep in step |
 | **C) Only a reference page inside `docs/features/health-checks.md`** | Fewer files | The issue and the #24 audit ask for separate concept and reference pages; the page would again mix moods |
 
@@ -396,6 +396,7 @@ REFERENCE FILES
 | Reference page (docs/configuration/health-checks-reference.md) | 1 | new |
 | How-to guide (docs/guides/health-checks.md) | 1 | modified |
 | Navigation and entry points (README.md, docs/features/index.md, docs/guides/index.md, docs/tutorials/index.md, docs/tutorials/quickstart.md, docs/index.md, docs/introduction.md) | 7 | modified, one link each |
+| Total | 11 | 3 pages (2 new, 1 modified), 7 entry points, 1 Messaging README |
 | Messaging README tag table (src/Encina.Messaging/README.md) | 1 | modified |
 | Changelog fragment | 0 | not applicable |
 
@@ -455,6 +456,7 @@ docs/plans/health-checks-docs-implementation-plan-907.md, .claude/skills/encina-
 
 - Bug [#1959](https://github.com/dlrivada/Encina/issues/1959) (tags): not a hard prerequisite; see Design Choice 2 for how the pages treat it.
 - The documentation milestone `v0.21.0 — Documentation` (#907 belongs to it); no code issue blocks the plan.
+- Follow-up issue for the providers with no health check (file `artifacts/issues/health-checks-missing-providers.md`, a local artifact): the orchestrator opens it and its number replaces `#<number to be filled>` here before the brief is written; Phase 2 step 5 (the "Not covered today" table) links it and is blocked until then. Issue: #<number to be filled>.
 - Tools for the verification step: `lychee`, `npx markdownlint-cli2`, the .NET 10 SDK for the scratch compile.
 
 ---
@@ -462,5 +464,5 @@ docs/plans/health-checks-docs-implementation-plan-907.md, .claude/skills/encina-
 ## Next Steps
 
 1. The orchestrator links this plan from #907 and asks the maintainer about Design Choice 2 when work on the issue starts.
-2. Brief a `docs-writer` for the three pages and the seven link edits (10 files, about 1,000 lines). If the guide rewrite grows past the 1,500-line limit, split the pull request in two: (a) the three pages, (b) the entry points.
+2. Brief a `docs-writer` for the three pages and the eight edits (11 files, about 1,000 lines). If the guide rewrite grows past the 1,500-line limit, split the pull request in two: (a) the three pages, (b) the entry points.
 3. A follow-up issue file is written with this plan: `artifacts/issues/health-checks-missing-providers.md`, `[DEBT]` for the packages with no `IEncinaHealthCheck` (the caching providers Memory, Hybrid, Valkey, Dragonfly, Garnet and KeyDB, the transports Redis.PubSub, InMemory and GraphQL, and the in-memory lock provider). Open it before the reference page's "Not covered today" table is written, so the table can link it.
