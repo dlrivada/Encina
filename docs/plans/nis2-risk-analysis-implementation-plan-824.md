@@ -2,11 +2,11 @@
 
 > **Issue**: [#824](https://github.com/dlrivada/Encina/issues/824)
 > **Type**: Feature
-> **Complexity**: High (event-sourced aggregate, risk register projection, review monitor, 3 pull requests)
-> **Estimated Scope**: ~2,350 lines of production code + ~1,680 lines of tests (about 29 files; split into 3 pull requests)
+> **Complexity**: High (event-sourced aggregate, risk register projection, review monitor, 5 pull requests)
+> **Estimated Scope**: 55 file touches and about 5,450 lines including tests and per-PR metadata; split into 5 pull requests, see "Pull request split"
 > **Milestone**: v0.15.0 — EU Compliance: NIS2 & Digital Omnibus
 > **Provider Category**: None for databases (single event-sourcing provider: Marten on PostgreSQL, ADR-027)
-> **Family**: #822 to #826. Shared pieces are owned by the plan of #822 (`nis2-incident-lifecycle-implementation-plan-822.md`); the opt-in decision for evaluators is owned by the plan of #823 (`nis2-supply-chain-assessment-implementation-plan-823.md`, Design Choice 3).
+> **Family**: #822 to #826. Shared pieces are owned by the plan of #822; the opt-in decision for evaluators is owned by the plan of #823 (Design Choice 3).
 
 ---
 
@@ -75,20 +75,23 @@ This plan adds an event-sourced **risk analysis lifecycle** in the style of the 
 <details>
 <summary><strong>2. Scoring — severity by likelihood matrix with bands</strong></summary>
 
-- **Class**: Settled
-- **Settled by**: issue #824 Acceptance Criteria ("Risk register with severity x likelihood scoring"); NIST SP 800-30 (risk as a function of likelihood and impact) and ISO/IEC 27005, both named in the issue.
+- **Class**: Dilemma
+
+The issue's acceptance criterion ("Risk register with severity x likelihood scoring") fixes that a score is severity times likelihood. NIST SP 800-30 and ISO/IEC 27005 treat risk as a function of likelihood and impact but prescribe neither a 5x5 scale nor cut-offs, so the scale and the bands below are conventions, not citations.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `RiskSeverity` and `RiskLikelihood` enums with five levels (1 to 5); `Score = severity x likelihood` (1 to 25); bands `Low` 1-4, `Medium` 5-9, `High` 10-16, `Critical` 17-25 in a pure `RiskScoring` class** | Familiar matrix, testable, bands configurable by options | Bands are a convention |
-| B) Free numeric score | Flexible | Not comparable |
+| **A) Five-level `RiskSeverity` and `RiskLikelihood` (1 to 5); `Score = severity x likelihood` (1 to 25); default bands `Low` 1-4, `Medium` 5-9, `High` 10-16, `Critical` 17-25 in a pure `RiskScoring` class, the band thresholds being options** | Familiar matrix, testable, adjustable per entity | The default cut-offs are a convention nobody has approved yet |
+| B) Qualitative matrix with fixed bands (no thresholds in options) | One behaviour for everyone | An entity with its own methodology (ISO 27005 asks each organisation to define its criteria) cannot express it |
+| C) The organisation supplies its own scoring function (`IRiskScorer`) with no default bands | Fits any methodology | The module is unusable out of the box; every user writes a scorer |
 
-### Chosen Option: **A**
+### Chosen Option: **A — default matrix, bands as options (recommended, pending the maintainer)**
 
 ### Rationale
 
+- A is better while there is no sector-specific method to cite: the defaults work, and the validator rejects thresholds that overlap or leave gaps. B is better when comparability across entities matters more than fit; C when most users already have a scoring method.
 - Residual risk after mitigation is scored the same way (`RiskMitigationImplemented` carries the residual severity and likelihood), and the highest residual score drives the review date. Out-of-range values return `Left` in the service.
 
 </details>
@@ -96,20 +99,23 @@ This plan adds an event-sourced **risk analysis lifecycle** in the style of the 
 <details>
 <summary><strong>3. Review scheduling — from the highest residual band, options with defaults</strong></summary>
 
-- **Class**: Trivial
-- **Settled by**: `DPIAOptions.DefaultReviewPeriod` (365 days) and `DPIAReviewReminderService`; issue #824 Alternatives Considered 8.
+- **Class**: Dilemma
+
+The periods drive `NextReviewDueAtUtc`, the review monitor, the health check (`Degraded`) and the evaluator verdict, so they have user consequences. Only the 365-day value has a code precedent (`DPIAOptions.DefaultReviewPeriod`, used by `DPIAReviewReminderService`); the 90 and 180 days have no citation.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `RiskAnalysisOptions.ReviewPeriods` per band: `Critical` 90 days, `High` 180 days, `Medium` and `Low` 365 days (the DPIA default)** | One rule, configurable, higher risk is reviewed sooner | Periods are a convention |
-| B) One review period | Simple | Ignores the risk level the issue asks for |
+| **A) `RiskAnalysisOptions.ReviewPeriods` per band with defaults `Critical` 90 days, `High` 180 days, `Medium` and `Low` 365 days (365 from the DPIA default; 90 and 180 are conventions)** | One rule, configurable, higher risk is reviewed sooner | Two of the defaults are conventions the maintainer must approve |
+| B) One review period (365 days, the DPIA precedent) | Fully cited, simple | Ignores the risk level the issue asks the review date to follow |
+| C) No default: the entity must set every period, validation fails otherwise | No invented number | Not usable out of the box |
 
-### Chosen Option: **A**
+### Chosen Option: **A — options-only defaults (recommended, pending the maintainer)**
 
 ### Rationale
 
+- A keeps the review date tied to the band as the issue asks, and the values are options, so approval of different numbers changes a default, not the design. B is better if the maintainer wants no unreferenced number; C if the entity must own its policy.
 - `RiskAnalysisCompleted` stores the computed `NextReviewDueAtUtc` so the date stays auditable if the options change later.
 
 </details>
@@ -133,7 +139,7 @@ The question and its options belong to the family decision in the #823 plan (Des
 ### Rationale
 
 - A is better while stateless users exist; B wins if NIS2 is declared Marten-only for 1.0. The GDPR alignment details of the evaluator stay in both paths.
-- The evaluator reads the register through `INIS2RiskAnalysisService` (a read, not a gate), resolved optionally.
+- The evaluator reads the register through `INIS2RiskAnalysisService` (a read, not a gate), resolved optionally. Lifetimes: `RiskAnalysisEvaluator` is a singleton (its constructor takes only a logger) and the service is scoped over the Marten repository, so the evaluator never captures it: it resolves the service from `context.ServiceProvider` inside a scope created with `IServiceScopeFactory` from that provider, which is safe whether the context's provider is scoped or the root. If the service is not registered, `GetService` returns null and the boolean path runs. The DI test covers both configurations with `ValidateScopes`.
 
 </details>
 
@@ -175,7 +181,8 @@ The question and its options belong to the family decision in the #823 plan (Des
 
 ### Rationale
 
-- Rules: `RiskIdentified` from `Initiated`, `RisksIdentified`; `RiskTreatmentDecided` for an identified risk once; the status becomes `TreatmentPlanned` when every risk has a decision; `RiskMitigationImplemented` for a risk decided as mitigate (status `TreatmentInProgress` until all mitigate risks have evidence); `RiskAnalysisCompleted` when every risk is treated (and mitigated where decided); `RiskAnalysisAccepted` from `ReviewComplete`; `RiskReviewTriggered` and `RiskEscalated` from `ReviewComplete` or `Accepted` (the latter sets `RequiresReview`); a new cycle is a new aggregate.
+- Rules: `RiskIdentified` from `Initiated`, `RisksIdentified`; `RiskTreatmentDecided` for an identified risk once; the status becomes `TreatmentPlanned` when every risk has a decision; `RiskMitigationImplemented` for a risk decided as mitigate (status `TreatmentInProgress` until all mitigate risks have evidence); `RiskAnalysisCompleted` when every risk is treated (and mitigated where decided); `RiskAnalysisAccepted` from `ReviewComplete`; `RiskReviewTriggered` and `RiskEscalated` from `ReviewComplete` or `Accepted`; either event sets the STATUS to `RequiresReview` (the event does not set a flag); a new cycle is a new aggregate. Idempotent triggering: the aggregate keeps `TriggeredForDueAtUtc` (the due date a `RiskReviewTriggered` was last raised for) and returns a `Left` with the `RiskAnalysisReviewAlreadyTriggered` rule code for a second trigger for the same due date, so the monitor treats it as already done.
+- Illegal transitions are `Left` values with a rule code, never exceptions (ADR-053): commands return `Either<EncinaError, Unit>`, `Initiate` returns `Either<EncinaError, RiskAnalysisAggregate>`, decided before `RaiseEvent`. `DPIAAggregate` still throws only because [#2668](https://github.com/dlrivada/Encina/issues/2668) (the ADR-053 implementation and its shared rule-code catalogue) is open; this plan adds `RiskAnalysisInvalidTransition` to `NIS2Errors` and moves it onto the catalogue when #2668 lands.
 
 </details>
 
@@ -251,19 +258,23 @@ The question and its options belong to the family decision in the #823 plan (Des
 <details>
 <summary>Tasks</summary>
 
-About 29 files, over the limit of 15 files and 1,500 lines (AGENTS.md section 11). Split:
+55 file touches and about 5,450 lines, over the limit of 15 files and 1,500 lines per pull request (AGENTS.md section 11; the blocking `pr-size` job counts tests, PublicAPI, manifest and docs). Split in 5, counts including every file:
 
-| PR | Phases | Content | Files / lines (approx.) |
-|---|---|---|---|
-| 1 | 1 | Model, scoring, review calculator, events, aggregate; unit, guard and property tests of the domain | 11 files / 1,450 |
-| 2 | 2, 3, 4 | Service and errors, risk register and trend projection, registration, options, evaluator integration, contract and integration tests | 10 files / 1,450 |
-| 3 | 5, 6, 7 (rest), 8 | Review monitor, health check, diagnostics, remaining tests, docs, manifest | 8 files / 1,000 |
+| PR | Phases | Files | Test files | Files / lines (approx.) |
+|---|---|---|---|---|
+| 1 | 1 (tasks 1 to 3) | five enums (`RiskAnalysisStatus`, `RiskSeverity`, `RiskLikelihood`, `RiskTreatment`, `RiskBand`), `IdentifiedRisk`, `RiskScoring`, `PublicAPI.Unshipped.txt`, manifest (9) | unit scoring, property scoring (2) | 11 files / 800 |
+| 2 | 1 (tasks 4 to 6) | events, aggregate, `NIS2Errors` (transition codes), `PublicAPI.Unshipped.txt`, manifest (5) | unit aggregate, guard, property (3) | 8 files / 1,400 |
+| 3 | 2, 3 | service interface, commands, default service, `NIS2Errors`, read model, register entry, projection, `PublicAPI.Unshipped.txt`, manifest (9) | unit service, unit projection, guard, contract (4) | 13 files / 1,400 |
+| 4 | 4 | `NIS2MartenExtensions`, `ServiceCollectionExtensions`, `NIS2Options` and validator, `RiskAnalysisEvaluator`, `PublicAPI.Unshipped.txt`, manifest (7) | unit evaluator, DI test, integration (3) | 10 files / 900 |
+| 5 | 5, 6, 8 | monitor, `NIS2ComplianceHealthCheck`, `NIS2Diagnostics`, `NIS2LogMessages`, `PublicAPI.Unshipped.txt`, manifest, changelog fragment, feature page, README, `docs/INVENTORY.md` (10) | unit monitor, unit health check, guard (3) | 13 files / 950 |
 
-Prerequisite: the PR 1 of the #822 plan is merged.
+If a PR measures over 15 files or 1,500 lines, the worker splits it again; it never asks for `size-exception-approved`.
+
+Prerequisite: PR 1 of the #822 plan is merged.
 
 </details>
 
-### Phase 1: Core Model, Events & Aggregate (PR 1)
+### Phase 1: Core Model, Events & Aggregate (PR 1: tasks 1 to 3; PR 2: tasks 4 to 6)
 
 <details>
 <summary>Tasks</summary>
@@ -272,8 +283,8 @@ Prerequisite: the PR 1 of the #822 plan is merged.
 2. `Model/IdentifiedRisk.cs`: record (`RiskId`, `Description`, severity, likelihood, treatment, `MitigationPlan`, residual severity and likelihood, `IdentifiedAtUtc`).
 3. `Model/RiskScoring.cs` (internal static): `Score`, `Band`, and `NextReviewDue(highestResidualBand, completedAtUtc, RiskAnalysisOptions)`.
 4. `Events/RiskAnalysisEvents.cs`: eight records implementing `INotification` (`RiskAnalysisInitiated`, `RiskIdentified`, `RiskTreatmentDecided`, `RiskMitigationImplemented`, `RiskAnalysisCompleted`, `RiskAnalysisAccepted`, `RiskReviewTriggered`, `RiskEscalated`) with timestamps, tenant and module ids; evidence fields per Design Choice 7; person ids separate nullable properties.
-5. `Aggregates/RiskAnalysisAggregate.cs`: `AggregateBase`; static `Initiate(...)`; `IdentifyRisk`, `DecideTreatment`, `ImplementMitigation`, `Complete`, `AcceptResidualRisk`, `TriggerReview`, `Escalate`; `Apply` switch; properties of the issue plus `HighestResidualBand`, `EscalationCount`.
-6. Tests: unit (transitions, scoring bands, review dates), guard, property (score in 1..25; the review date shortens with the band; a risk is decided once).
+5. `Aggregates/RiskAnalysisAggregate.cs`: `AggregateBase`; static `Initiate(...)`; `IdentifyRisk`, `DecideTreatment`, `ImplementMitigation`, `Complete`, `AcceptResidualRisk`, `TriggerReview`, `Escalate`, each returning `Either<EncinaError, Unit>` (`Initiate` returns `Either<EncinaError, RiskAnalysisAggregate>`; ADR-053); `Apply` switch; properties of the issue plus `HighestResidualBand`, `EscalationCount`, `TriggeredForDueAtUtc`.
+6. Tests: unit (each legal transition, each illegal one returns `Left` with the rule code and raises no event, scoring bands, review dates), guard, property (score in 1..25; the review date shortens with the band; a risk is decided once).
 
 </details>
 
@@ -286,7 +297,8 @@ You are implementing Phase 1 of the risk analysis lifecycle for Encina.Complianc
 CONTEXT:
 - Encina is .NET 10 / C# 14; the aggregate takes timestamps as parameters (TimeProvider in the service).
 - The EventId range 9800-9899, the Marten and DomainModeling references and AddNIS2EventSourcing come from the plan of issue 822; this phase uses ids 9850-9869 only.
-- Pattern: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs and Events/DPIAEvents.cs.
+- Pattern for structure, events and Apply: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs and Events/DPIAEvents.cs; error style per docs/architecture/adr/053-aggregate-rule-violations-return-either.md (DPIAAggregate still throws until #2668; do not copy that).
+- Two pull requests: PR 1 = enums, IdentifiedRisk, RiskScoring; PR 2 = events and aggregate.
 
 TASK:
 1. Create the enums, IdentifiedRisk, RiskScoring, the 8 events and RiskAnalysisAggregate (Design Choices 1 to 3, 6, 7).
@@ -294,7 +306,7 @@ TASK:
 3. Write unit, guard and property tests that instantiate the real aggregate.
 
 KEY RULES:
-- AggregateBase with Guid Id; no clock reads; an illegal transition throws InvalidOperationException (the service maps it to Left).
+- AggregateBase with Guid Id; no clock reads; commands return Either<EncinaError, Unit> (Initiate: Either<EncinaError, RiskAnalysisAggregate>); an illegal transition is a Left with the RiskAnalysisInvalidTransition rule code decided before RaiseEvent; never throw InvalidOperationException for a rule (ADR-053). A second RiskReviewTriggered for the same due date is a Left (TriggeredForDueAtUtc guard).
 - Evidence is a reference plus a SHA-256 hash, never the document.
 - Person ids are separate nullable properties; no [Obsolete]; zero warnings.
 
@@ -305,14 +317,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 2: Service, Errors & Default Implementation (PR 2)
+### Phase 2: Service, Errors & Default Implementation (PR 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `Abstractions/INIS2RiskAnalysisService.cs`: `InitiateAnalysisAsync`, `IdentifyRiskAsync`, `DecideTreatmentAsync`, `ImplementMitigationAsync`, `CompleteAnalysisAsync`, `AcceptResidualRiskAsync`, `TriggerReviewAsync`, `GetOverdueReviewsAsync`, `GetRiskRegisterAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`.
-2. `Services/DefaultNIS2RiskAnalysisService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates scores and blank text; pre-checks transitions.
-3. `NIS2Errors.cs`: `RiskAnalysisNotFound`, `RiskAnalysisInvalidTransition`, `RiskAnalysisCommandInvalid`, `RiskAnalysisStoreFailed`.
+2. `Services/DefaultNIS2RiskAnalysisService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates scores and blank text; composes the aggregate's `Either` with `Bind` (no transition pre-check: the aggregate owns the state machine, ADR-053).
+3. `NIS2Errors.cs`: `RiskAnalysisNotFound`, `RiskAnalysisCommandInvalid`, `RiskAnalysisStoreFailed` (`RiskAnalysisInvalidTransition` and `RiskAnalysisReviewAlreadyTriggered` came with the aggregate in PR 2).
 4. Missing tenant or assessor identity where required is denied (issue Alternatives 10).
 
 </details>
@@ -342,7 +354,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Projection, Risk Register & Trend (PR 2)
+### Phase 3: Projection, Risk Register & Trend (PR 3)
 
 <details>
 <summary>Tasks</summary>
@@ -377,7 +389,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 4: Configuration, DI & Evaluator Integration (PR 2)
+### Phase 4: Configuration, DI & Evaluator Integration (PR 4)
 
 <details>
 <summary>Tasks</summary>
@@ -385,7 +397,7 @@ REFERENCE FILES:
 1. `NIS2MartenExtensions` (from the #822 plan): add `AddAggregateRepository<RiskAnalysisAggregate>()` and `AddProjection<RiskAnalysisProjection, RiskAnalysisReadModel>()`.
 2. `ServiceCollectionExtensions.cs`: `TryAddScoped<INIS2RiskAnalysisService, ...>` with its dependencies.
 3. `NIS2Options`: `RiskAnalysisOptions` (`ReviewPeriods` per band, band thresholds, `EnableRiskReviewMonitoring`, `RiskReviewCheckInterval` default 1 hour); extend `NIS2OptionsValidator`.
-4. Design Choice 4: `RiskAnalysisEvaluator` uses the register when the service is registered, otherwise unchanged; GDPR alignment details kept in both paths.
+4. Design Choice 4: `RiskAnalysisEvaluator` (a singleton) uses the register when the service is registered, resolving it in a scope as Design Choice 4 describes, otherwise unchanged; GDPR alignment details kept in both paths.
 5. DI test with `ValidateOnBuild` and `ValidateScopes`, with and without the workflow.
 
 </details>
@@ -416,7 +428,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Cross-Cutting Integration, Review Monitor & Health Check (PR 3)
+### Phase 5: Cross-Cutting Integration, Review Monitor & Health Check (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -452,7 +464,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: Observability (PR 3)
+### Phase 6: Observability (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -489,7 +501,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Testing (PRs 1 to 3)
+### Phase 7: Testing (PRs 1 to 5)
 
 <details>
 <summary>Tasks</summary>
@@ -498,7 +510,7 @@ REFERENCE FILES:
 |---|---|---|
 | Unit | Aggregate transitions and replay, scoring and review calculator, service with a substituted repository, projection handlers, monitor, health check, evaluator with and without the register | `tests/Encina.UnitTests/Compliance/NIS2/` |
 | Guard | Public methods and constructors | `tests/Encina.GuardTests/Compliance/NIS2/` |
-| Contract | `INIS2RiskAnalysisService`: illegal transitions and out-of-range scores return `Left` | `tests/Encina.ContractTests/Compliance/NIS2/` |
+| Contract | `INIS2RiskAnalysisService` and the aggregate commands: illegal transitions (rule code `RiskAnalysisInvalidTransition`) and out-of-range scores return `Left`, raise no event and never throw | `tests/Encina.ContractTests/Compliance/NIS2/` |
 | Property | Score 1 to 25, band monotonic, review date shortens with the band, replay equals live state | `tests/Encina.PropertyTests/Compliance/NIS2/` |
 | Integration | Full lifecycle on Marten and PostgreSQL through the shared Testcontainers fixture; register and trend projections with a real store | `tests/Encina.IntegrationTests/Compliance/NIS2/` |
 | Load / Benchmark | Not implemented: low volume, no hot path; `.md` justification files | `tests/Encina.LoadTests`, `tests/Encina.BenchmarkTests` |
@@ -532,7 +544,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 8: Documentation & Finalization (PR 3)
+### Phase 8: Documentation & Finalization (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -610,20 +622,16 @@ REFERENCE FILES:
 
 ### File Count Estimate
 
-| Category | Files | Approx. lines |
+Per pull request, tests and metadata included (same figures as the split table; PublicAPI, manifest and `NIS2Errors` are touched in several PRs and count in each):
+
+| PR | Files | Approx. lines |
 | :--- | :--- | :--- |
-| Production: model (status, severity, likelihood, treatment enums, IdentifiedRisk, commands, scoring and review calculator) | 5 | 450 |
-| Production: aggregate and events | 2 | 700 |
-| Production: service abstraction and default implementation | 2 | 450 |
-| Production: read model and projection (register, trend) | 2 | 350 |
-| Production: review monitor, health check additions, options, DI and evaluator integration | 4 | 400 |
-| Tests: unit | 4 | 800 |
-| Tests: guard | 2 | 180 |
-| Tests: contract | 1 | 100 |
-| Tests: property | 1 | 150 |
-| Tests: integration (Marten, PostgreSQL) | 1 | 250 |
-| Docs and metadata: PublicAPI, coverage manifest, changelog fragment, feature page, README | 5 | 200 |
-| Total | 29 | 4030 |
+| 1 Enums, IdentifiedRisk, scoring | 11 | 800 |
+| 2 Events and aggregate | 8 | 1,400 |
+| 3 Service, projection, register | 13 | 1,400 |
+| 4 Registration, options, evaluator | 10 | 900 |
+| 5 Monitor, health check, observability, docs | 13 | 950 |
+| Total | 55 | 5,450 |
 
 ---
 
@@ -645,19 +653,17 @@ IMPLEMENTATION OVERVIEW:
 6. NIS2RiskReviewMonitorService (opt-in) and the health check addition.
 7. Diagnostics and [LoggerMessage] ids 9850-9869.
 8. Unit, guard, contract, property, integration tests; load and benchmark justifications.
-9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 3 pull requests of the split.
+9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 5 pull requests of the split.
 
 KEY PATTERNS:
 - Mirror DPIAAggregate, DPIAEvents, DPIAProjection, DPIAReviewReminderService, DPIAMartenExtensions.
-- ROP: Either<EncinaError, T>; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
+- ROP (ADR-053): aggregate commands return Either, an illegal transition is a Left with a rule code, never InvalidOperationException; the singleton evaluator resolves the scoped service in a scope; EncinaError.Message never reaches logs; TimeProvider for time; PeriodicTimer loop catches per iteration.
 - NIS2ResilienceHelper returns a fallback on failure: never wrap store calls in it.
-- Design Choice 4 is a Dilemma recommended, pending the maintainer: keep the fallback path isolated.
+- Design Choices 2, 3 and 4 are Dilemmas recommended, pending the maintainer: bands, review periods and the evaluator fallback path are options or isolated code.
 
 REFERENCE FILES:
 - src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 - src/Encina.Compliance.NIS2/Evaluators/RiskAnalysisEvaluator.cs
-- docs/plans/nis2-incident-lifecycle-implementation-plan-822.md
-- docs/plans/nis2-supply-chain-assessment-implementation-plan-823.md
 - docs/architecture/adr/019-compliance-event-sourcing-marten.md, 050-modules-may-require-modules.md
 ```
 
@@ -675,7 +681,7 @@ REFERENCE FILES:
 | 4 | Health Checks | ✅ | Phase 5: overdue review or no accepted analysis gives Degraded |
 | 5 | Validation | ✅ | Commands validated in the service (blank text, severity and likelihood bounds, duplicate risk ids) before any event |
 | 6 | Resilience | ❌ | No external call; store calls are not wrapped in `NIS2ResilienceHelper`, which swallows failures |
-| 7 | Distributed Locks | ⏭️ | Triggering is idempotent per due date and Marten optimistic concurrency protects duplicates; multi-instance coordination follows ADR-050; no new issue |
+| 7 | Distributed Locks | ⏭️ | Triggering is idempotent per due date and Marten optimistic concurrency protects duplicates; multi-instance coordination is deferred to [#1251](https://github.com/dlrivada/Encina/issues/1251), the issue ADR-050 names for it |
 | 8 | Transactions | ✅ | The Marten session commits the event append atomically; no `TransactionPipelineBehavior` (ADR-050) |
 | 9 | Idempotency | ✅ | Aggregate version, a risk decided once, the per-due-date trigger guard |
 | 10 | Multi-Tenancy | ✅ | `TenantId` in events, aggregate and read models |
@@ -697,6 +703,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Maintainer answers the Dilemma of Design Choice 4 (shared with #823, Design Choice 3) when work on #824 starts; it is marked "recommended, pending the maintainer".
-2. Brief PR 1 after the #822 PR 1 merges; PR 2 and 3 follow in order.
+1. Maintainer answers the Dilemmas of Design Choices 2 (scoring bands), 3 (review periods) and 4 (evaluator, shared with #823, Design Choice 3) when work on #824 starts; each is marked "recommended, pending the maintainer".
+2. Brief PR 1 after the #822 PR 1 merges; PR 2 to 5 follow in order.
 3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
