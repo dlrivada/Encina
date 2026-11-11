@@ -34,7 +34,7 @@ Deliverables, from the issue:
 |----|-------|---------|-------|
 | 1 | 1 | `assets/logo/` (6 files) and `assets/icons/` (3 files); unblocks #102 Phase 5 | 9 |
 | 2 | 2 | `assets/social/` (3 files) | 3 |
-| 3 | 3 | Palette and asset page under `docs/`, README banner reference, changelog fragment | 3 |
+| 3 | 3 | Palette and asset page under `docs/`, README banner reference, `docs/INVENTORY.md` update, changelog fragment | 4 |
 
 ---
 
@@ -125,7 +125,7 @@ Deliverables, from the issue:
 ### Rationale
 
 - #102 Phase 5 only needs `assets/icons/package-icon-128.png`; releasing it first shortens the critical path of SPEC-000 REQ-018.
-- Option B wins if the maintainer prefers to judge logo, banner and social card side by side before anything is merged; the 12 asset files plus the 3 documentation files are exactly 15, the limit of one pull request, with no margin.
+- Option B wins if the maintainer prefers to judge logo, banner and social card side by side before anything is merged; the 12 asset files plus the 4 documentation files are 16, one over the limit of one pull request, so option B needs the `size-exception-approved` label.
 
 **Class:** Dilemma
 
