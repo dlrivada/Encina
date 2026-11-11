@@ -23,7 +23,7 @@ Today `RedisDistributedLockProvider` (`src/Encina.DistributedLock.Redis/RedisDis
 
 **Standards**: the Redis distributed locks pattern ("Redlock", https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/); the critique that a lease needs fencing (Kleppmann, "How to do distributed locking", 2016), which is why fencing tokens stay in #218; ADR-052; SPEC-000 REQ-027 / AC-027.
 
-**Estimated scope**: 4 new production files, 5 modified, 1 new test fixture, about 10 test files, 3 documentation files; split into 3 pull requests (see Implementation Phases).
+**Estimated scope**: 6 new production files, 4 modified production files, 1 new test fixture, about 11 test files, 4 documentation files (with the ADR); 33 file touches in 3 pull requests (see Implementation Phases and the per-PR table).
 
 **Affected packages**: `Encina.DistributedLock.Redis` (all production changes); `Encina.TestInfrastructure` (a three-container Redis fixture); `Encina.NBomber` (a multi-instance variant of the existing Redis lock scenario factory). `Encina.DistributedLock` (the base options and the interface) is not changed by this plan.
 
@@ -117,16 +117,15 @@ Today `RedisDistributedLockProvider` (`src/Encina.DistributedLock.Redis/RedisDis
 | **A) Overloads take the endpoints** (`IReadOnlyList<string>` connection strings, or `IReadOnlyList<IConnectionMultiplexer>`), mirroring the four existing overloads; `RedisLockOptions` gains only `ClockDriftFactor` and `InstanceTimeout` | Connection strings (which can hold passwords) never enter an options object that could be logged or serialized; same style as today | Endpoints cannot be bound from `IConfiguration` into the options type |
 | **B) `RedisLockOptions.Endpoints` list** (the shape of the issue's sample) | Bindable from configuration | The property holds secrets, so it needs `[JsonIgnore]` and a `ToString()` override (`AGENTS.md` section 3); two places could define the connection (overload and options) |
 
-### Chosen Option: **A — endpoints on the overloads**
+### Chosen Option: **A — endpoints on the overloads (recommended, pending the maintainer)**
 
 ### Rationale
 
-- The rule of `AGENTS.md` section 3 (a connection string or password property is `[JsonIgnore]` and hidden from `ToString`) is avoided by design, not just satisfied.
-- New members: `ClockDriftFactor` (default 0.01, the factor of the Redis documentation), `InstanceTimeout` (default 250 ms, small against the 30 s default expiry as the documentation asks), both validated at startup by an `IValidateOptions<RedisLockOptions>` (drift in [0, 0.5], timeout positive and below `DefaultExpiry`).
-- The registration validates the endpoint count: one endpoint is the single-instance mode; two are rejected (no fault tolerance, quorum still needs both); three or more are accepted; an even count logs one warning.
+- Both options comply with `AGENTS.md` section 3: B only needs `[JsonIgnore]` and a `ToString()` override on the endpoints property. The trade-off is binding versus secret handling: A keeps connection strings off any options object by design and fits code-only registration; B wins when the endpoints must be bound from `IConfiguration` (for example `appsettings` or environment variables) and the application accepts the extra guard.
+- New members: `ClockDriftFactor` (default 0.01, the factor of the Redis documentation), `InstanceTimeout` (default 250 ms), both validated at startup by an `IValidateOptions<RedisLockOptions>` (drift in [0, 0.5], timeout positive and below `DefaultExpiry`).
+- Register entries for the sub-decisions this choice carries (all follow the Redis documentation, which is their citation, and apply to option A or B alike): (1) the 0.01 drift factor is the documented value; (2) the 250 ms per-instance timeout is not a documented number, only "small compared with the lock validity time", so it is a convention kept as an option and approved with this Dilemma; (3) one endpoint is the single-instance mode, two are rejected with `ArgumentException` at registration (no fault tolerance, the quorum of two is both; the Redis documentation asks for at least three independent masters), three or more are accepted; (4) an even count (4, 6) is accepted with one warning logged by `RedisLockConnections` creation (Phase 4), because it tolerates no more failures than the next lower odd count.
 
-**Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (options with a connection string or password), existing `ServiceCollectionExtensions` overload pattern in `src/Encina.DistributedLock.Redis/ServiceCollectionExtensions.cs`
+**Class:** Dilemma
 
 </details>
 
@@ -240,7 +239,15 @@ Today `RedisDistributedLockProvider` (`src/Encina.DistributedLock.Redis/RedisDis
 
 ## Implementation Phases
 
-The work is split into three pull requests (at most 15 files and 1500 changed lines each, `AGENTS.md` section 11): **PR 1** Phases 1 to 3 (options, coordinator, provider on the ADR-052 contract, with unit and guard tests); **PR 2** Phases 4 to 6 (registration, health check, cross-cutting, observability); **PR 3** Phases 7 and 8 (property, contract and integration tests, the NBomber variant, documentation).
+The work is split into three pull requests (at most 15 files and 1500 changed lines each, `AGENTS.md` section 11; the blocking `pr-size` job counts tests, PublicAPI, manifest and docs). **PR 1** Phases 1 to 3 (options, coordinator, log messages, provider on the ADR-052 contract, with unit and guard tests); **PR 2** Phases 4 to 6 (registration, health check, diagnostics); **PR 3** Phases 7 (rest) and 8 (property, contract and integration tests, the NBomber variant, documentation).
+
+| PR | Production and metadata files | Test and doc files | Files / lines (approx.) |
+|---|---|---|---|
+| 1 | `RedisLockOptions`, `RedisLockOptionsValidator`, `RedisLockConnections`, `RedLockCoordinator`, `RedLockScripts`, `RedLockLogMessages`, `RedisDistributedLockProvider`, `PublicAPI.Unshipped.txt`, manifest (9) | unit `RedLockCoordinatorTests`, unit `RedisLockOptionsValidatorTests`, unit provider (extended), guard provider (extended), guard new types (5) | 14 files / 1,400 |
+| 2 | `ServiceCollectionExtensions`, `RedisDistributedLockHealthCheck`, `RedLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (5) | unit `ServiceCollectionExtensionsTests` (extended, including the DI test), unit health check (extended), guard overloads (3) | 8 files / 700 |
+| 3 | manifest, `RedLockFixture` (2) | contract, property, integration scenarios, NBomber factory variant, benchmark justification, README, guide page, changelog fragment, ADR (9) | 11 files / 900 |
+
+If a PR measures over 15 files or 1,500 lines, the worker splits it again; it never asks for `size-exception-approved`. PR 1 has little slack (14 of 15 files): if the coordinator tests grow, the options validator and its test move to PR 2.
 
 ### Phase 1: Options, Validation and the Connection Holder
 
@@ -305,7 +312,9 @@ REFERENCE FILES:
    - `Task ReleaseAsync(string key, string value)` — the ownership-checked `DEL` script on every instance, never throws, logs each failure by exception type
    - `QuorumAttempt` — internal record struct (`Outcome`, `Validity`, `GrantedCount`, `FaultedCount`)
 2. **`RedLockScripts.cs`** (new, internal static) — the two Lua scripts moved out of `LockHandle` unchanged
-3. **`RedLockLogMessages.cs`** — see Phase 6
+3. **`Diagnostics/RedLockLogMessages.cs`** (new, internal static partial; created here in PR 1 so the coordinator compiles; the messages are listed in Phase 6, which wires the diagnostics only)
+
+Documented limit to state in the XML remarks and the guide: because each instance call is abandoned after `InstanceTimeout` (`WaitAsync`), a `SET NX` that completes on the server after the "unlock every instance" script ran leaves an orphaned key until its TTL (up to the 30 s default expiry). Safety is not affected (the value is a random GUID nobody else holds) but another acquirer waits for that instance until the TTL passes.
 
 </details>
 
@@ -402,7 +411,7 @@ REFERENCE FILES:
 #### `src/Encina.DistributedLock.Redis/ServiceCollectionExtensions.cs` (modify)
 
 1. Two new overloads, each with and without `Action<RedisLockOptions>`: `AddEncinaDistributedLockRedis(this IServiceCollection, IReadOnlyList<string> connectionStrings)` and `AddEncinaDistributedLockRedis(this IServiceCollection, IReadOnlyList<IConnectionMultiplexer> connectionMultiplexers)`; guards for null, empty and blank entries; the endpoint-count rule of design choice 4 (a count of 2 throws `ArgumentException` at registration)
-2. The core method registers `RedisLockConnections` (a singleton owning the multiplexers it created from connection strings, borrowing supplied ones), `IValidateOptions<RedisLockOptions>` (`RedisLockOptionsValidator`), `ValidateOnStart` on the options, the provider and the health check, all with `TryAdd*`, so a database or other registration keeps winning
+2. The core method registers `RedisLockConnections` (a singleton factory owning the multiplexers it created from connection strings, borrowing supplied ones; it resolves `ILogger<RedisLockConnections>` and logs the even-endpoint-count warning with EventId 3761 (Phase 6 list)), `IValidateOptions<RedisLockOptions>` (`RedisLockOptionsValidator`), the provider and the health check, all with `TryAdd*`, so a database or other registration keeps winning. Options registration moves from `services.TryAddSingleton(Options.Create(options))` / `services.Configure(configure)` (what the core method does on main, so `IValidateOptions` and `ValidateOnStart` would never run) to `services.AddOptions<RedisLockOptions>().Configure(configure).ValidateOnStart()`. `RegisterHealthCheck(options)` reads the options object at registration time today; it keeps working by running `configure` on a fresh `RedisLockOptions` for that registration-time decision only (as the code does now), while the container's options come from the `AddOptions` pipeline. The DI test adds: an invalid `ClockDriftFactor` fails at host start.
 3. The existing four overloads delegate with a single-element list
 
 #### `src/Encina.DistributedLock.Redis/Health/RedisDistributedLockHealthCheck.cs` (modify)
@@ -490,7 +499,7 @@ REFERENCE FILES:
 
 #### `src/Encina.DistributedLock.Redis/Diagnostics/`
 
-1. **`RedLockLogMessages.cs`** (new, internal static partial) — `[LoggerMessage]` methods with EventIds 3755-3762 (table in Research): quorum acquired (Debug), quorum not reached (Debug), instance faulted during acquire (Warning, exception type), instance faulted during release (Warning), validity exhausted (Debug), extend lost its majority (Warning), even endpoint count (Warning), faulted majority (Error)
+1. **`RedLockLogMessages.cs`** (created in PR 1, Phase 2; listed here) — `[LoggerMessage]` methods with EventIds 3755-3762 (table in Research): quorum acquired (Debug), quorum not reached (Debug), instance faulted during acquire (Warning, exception type), instance faulted during release (Warning), validity exhausted (Debug), extend lost its majority (Warning), even endpoint count (Warning, EventId 3761, emitted by the `RedisLockConnections` factory in the registration), faulted majority (Error). Packed in this order, the ids are 3755 to 3762 in the order listed, so the even-count message is 3761
 2. **`RedLockDiagnostics.cs`** (new, internal static) — `ActivitySource` named `Encina.DistributedLock.Redis` (version `1.0`, the convention of `Encina.Sharding`); `Meter` with the counter `encina.distributed_lock.redis.quorum` (tag `outcome`: acquired, contended, faulted) and the histogram `encina.distributed_lock.redis.instance_failures` (tag `operation`); the span `encina.distributed_lock.redis.acquire` with `endpoints.count` and `quorum.size`
 3. If #724 has merged a shared lock `Meter` and `ActivitySource` by then, register these instruments on them instead of creating a second set
 
@@ -584,10 +593,10 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation on every new public member (`<summary>`, `<remarks>`, `<param>`, `<returns>`, `<example>` for the new overloads)
-2. `src/Encina.DistributedLock.Redis/README.md`-level documentation through `docs-writer`: configuration (three endpoints), the failure semantics, what RedLock does and does not guarantee (no fencing; see #218), clock drift, when a single instance is enough
+2. `src/Encina.DistributedLock.Redis/README.md`-level documentation through `docs-writer`: configuration (three endpoints), the failure semantics, what RedLock does and does not guarantee (no fencing; see #218), clock drift, the orphaned-key limit after an abandoned instance call (Phase 2), when a single instance is enough
 3. `docs/features/` or the distributed lock guide page: a configuration example and the scaling guidance (odd endpoint count, independent failure domains)
 4. `changelog.d/226-redlock-quorum.added.md` (written by `mechanical-fixer`)
-5. `docs/architecture/adr/` — a short ADR only if the maintainer picks option B of design choice 1 (the library dependency); with option A the choice is recorded in the plan
+5. `docs/architecture/adr/` — a short ADR recording the quorum implementation choice (design choice 1, whichever option the maintainer picks, as the issue's documentation checklist asks); its number is assigned when the ADR pull request opens (the batch registry has none for this issue); written through `docs-writer` in PR 3
 6. `docs/INVENTORY.md` and `ROADMAP.md` — update if the lock provider list or the milestone text changes
 7. `PublicAPI.Unshipped.txt` complete; `dotnet build --configuration Release` with 0 warnings; `dotnet test` passes; every flag reaches its target; CRAP <= 10 on changed methods (local crap-gate table)
 
@@ -677,7 +686,7 @@ REFERENCE FILES:
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production (new) | 6 | `RedLockCoordinator.cs`, `RedLockScripts.cs`, `RedLockLogMessages.cs`, `RedLockDiagnostics.cs`, `RedisLockConnections.cs`, `RedisLockOptionsValidator.cs` |
-| Production (modified) | 4 | `RedisDistributedLockProvider.cs`, `RedisLockOptions.cs`, `ServiceCollectionExtensions.cs`, `Health/RedisDistributedLockHealthCheck.cs` |
+| Production (modified) | 4 | `RedisDistributedLockProvider.cs`, `RedisLockOptions.cs`, `ServiceCollectionExtensions.cs`, `Health/RedisDistributedLockHealthCheck.cs` (a fifth, `RedLockDiagnostics.cs`, is counted among the six new) |
 | PublicAPI and manifest | 2 | `PublicAPI.Unshipped.txt`, `Encina.DistributedLock.Redis.json` |
 | Unit tests | 5 | 2 new, 3 extended |
 | Guard tests | 2 | Extended |
@@ -685,8 +694,8 @@ REFERENCE FILES:
 | Property tests | 1 | New |
 | Integration tests | 2 | Fixture plus scenarios |
 | Load and benchmark | 2 | NBomber factory variant; benchmark justification |
-| Documentation and changelog | 3 | README, guide page, fragment |
-| **Total** | **~28** | Over 3 pull requests of at most 15 files each |
+| Documentation and changelog | 4 | README, guide page, fragment, ADR |
+| **Total** | **~28 distinct, 33 counting a file in each PR that touches it** | Over 3 pull requests of at most 15 files each (14, 8 and 11; see the split table) |
 
 ---
 
@@ -774,5 +783,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #226 and start the PR 1 brief after [#2667](https://github.com/dlrivada/Encina/issues/2667) merges (Phases 1 and 2 may start earlier).
-2. When work on the issue starts, ask the maintainer to answer Dilemma 1 (own implementation or RedLock.net), record the answer in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemma 1 (own implementation or RedLock.net) and Dilemma 4 (endpoints on the overloads or in the options, with the register entries it lists), record the answer in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
 3. One commit per phase; the last commit of PR 3 references `Fixes #226`.
