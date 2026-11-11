@@ -116,8 +116,16 @@ try {
 
     # $Root itself, every .claude/worktrees/<name> directory under it, and every worktree git registers for the
     # main checkout wherever it lives (#3475, Get-RegisteredWorktrees): a worker drafts and records its ledger
-    # line in its own worktree, never the main checkout's. Each root appears once. When git fails, the registered
-    # list is empty and the .claude/worktrees folders are still searched.
+    # line in its own worktree, never the main checkout's. A registered root already in the list is skipped
+    # (compared case-insensitively, ignoring a trailing separator; not normalised further, so the same folder
+    # spelled with the other slash direction may be read twice, which is harmless). When git fails, the
+    # registered list is empty and the .claude/worktrees folders are still searched.
+    # These roots feed every local-draft source, not only ledger.csv: standin-ledger.csv (Get-RecentLedgerRows)
+    # and the artifacts/knowledge/remediation/ drafts of (c) (Test-RemediationDraftMatch) are read from each of
+    # them too. When the hook runs in a worker worktree, MainRoot is the real main checkout, so the list holds
+    # every sibling worktree and one worker's ledger can vouch for another's body file; a ledger row matches by
+    # its outFile path, so that file must still exist in the sibling. This is a process guard, not a trust
+    # boundary: any folder git registers is searched, wherever it lives.
     function Get-CandidateRoots([string]$Root) {
         $roots = [System.Collections.Generic.List[string]]::new()
         if (-not $Root) { return $roots }
