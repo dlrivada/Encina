@@ -2,9 +2,9 @@
 
 > **Issue**: [#599](https://github.com/dlrivada/Encina/issues/599) (`[FEATURE] IClaimCheckStore abstraction`; the abstraction slice of the Claim Check feature owned by [#122](https://github.com/dlrivada/Encina/issues/122))
 > **Type**: Feature
-> **Complexity**: Medium-High (new contract in `Encina.Messaging`, outbox integration, opt-in registration, observability; 3 pull requests)
+> **Complexity**: Medium-High (new contract in `Encina.Messaging`, outbox integration, opt-in registration, observability; 7 pull requests)
 > **Estimated Scope**: ~1,100-1,500 lines of production code + ~1,800-2,300 lines of tests
-> **Sibling plan**: `claim-check-implementation-plan-122.md` (#122) (attribute, compression, cleanup, transports, stores, ADR)
+> **Sibling plan**: #122 (attribute, compression, cleanup, transports, stores, ADR)
 
 ---
 
@@ -45,7 +45,9 @@ Nothing of #599 or #122 exists: `src/` has no type or package named `ClaimCheck`
 - **Affected packages**: `Encina.Messaging` only. No provider package changes: the reference lives inside `Content`, so no schema changes on the 10 database providers (choice 4).
 - **Provider category**: none for this plan (provider-independent contract). The store backends (blob, file system, Redis) belong to #122, which also records the 10-provider rule if database stores are ever added.
 - **Out of scope**: attribute, compression, cleanup, transports, stores, ADR (all #122).
-- **Estimated files**: ~13 production files created, 6 modified, ~16 test files, ~6 documentation files. Three pull requests (see Phase 9).
+- **"Pipeline auto-offload" of the issue**: this plan offloads on the outbox path only. The issue's wider "message pipeline" (the transport publishers and the consumer-side resolve) is delivered by the #122 plan on top of `IClaimCheckService`.
+- **Database stores (the issue's D3)**: not addressed here; whether claim check payloads may live in the 10 database providers is choice 4 of the #122 plan, which then carries the 10-provider rule.
+- **Estimated files**: ~15 production files created, 7 modified, ~20 test files, ~5 documentation files. Seven pull requests, each with its own tests (see the pull request cut under Implementation Phases).
 
 ---
 
@@ -154,7 +156,7 @@ Nothing of #599 or #122 exists: `src/` has no type or package named `ClaimCheck`
 **Class:** Dilemma. Option A wins when payload sizes are unpredictable. Option B wins in a codebase where only two or three message types are ever large and offloading must stay visible in the type definition.
 
 - We recommend A with the attribute as a refinement (per-type threshold, `Always`, `Never`), because it covers both scenarios and the attribute work is already in #122.
-- The default threshold is 256 KiB (the Azure Service Bus Standard tier limit quoted in #122).
+- The default value of the threshold is choice 8. On the outbox path no broker limit applies (fact 3), so the threshold there serves row size and replay cost; the broker-driven threshold is a concern of the #122 transport integration.
 
 </details>
 
@@ -180,11 +182,107 @@ Nothing of #599 or #122 exists: `src/` has no type or package named `ClaimCheck`
 
 </details>
 
+<details>
+<summary><strong>7. Default payload lifetime — no TTL until the #122 cleanup, or 7 days with a retry and dead-letter check here</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `ClaimCheckOptions.DefaultTimeToLive = null` (no expiry by default)** | A retried, dead-lettered or replayed outbox row always resolves: replay copies the envelope in `Content` as it is (`OutboxBatchProcessor.cs:389-392`), so the payload must outlive the row; no cross-option validation is needed in this slice | Payloads accumulate until the #122 cleanup deletes them; in this slice the only store is the in-memory one, bounded by its cap (choice 8), so no production store grows unbounded before #122 ships |
+| **B) 7 days by default, plus a start-up validation in this plan** that rejects a `DefaultTimeToLive` shorter than the outbox's worst-case retry window plus `DeadLetterOptions.RetentionPeriod` (default 7 days, `null` disables expiry) | Space is reclaimed without the #122 cleanup | The validation must read the outbox and dead-letter options and reject the combination `RetentionPeriod = null` with any TTL; with the defaults of both, a message dead-lettered after its retries is still within its dead-letter retention when its 7-day payload has already expired (`claimcheck.not_found` on replay) |
+
+### Chosen Option: **A — no default TTL** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when every outbox row must stay replayable for as long as it exists. Option B wins when storage space matters more and the operator accepts that the TTL must be kept above the retry and dead-letter windows, enforced at start-up.
+
+- We recommend A because a payload that expires before its row turns a recoverable dead letter into permanent data loss, and the TTL-versus-retention validation of the #122 plan (its PR 2) ships after this slice. When #122 delivers the cleanup and the validation, it may introduce a default TTL.
+- An explicit `ClaimCheckMetadata.TimeToLive` or `DefaultTimeToLive` set by the application is honoured; the XML doc of `DefaultTimeToLive` states the replay risk of a value shorter than the dead-letter retention.
+
+</details>
+
+<details>
+<summary><strong>8. Size defaults — threshold, maximum payload and in-memory cap</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `ThresholdBytes` = 256 KiB, `MaxPayloadBytes` = 100 MiB, `InMemoryClaimCheckStoreOptions.MaxTotalBytes` = 256 MiB** | One threshold serves the outbox and the #122 transports alike: 256 KiB is the Azure Service Bus Standard message limit, the smallest among the brokers of the transport matrix, and on the outbox it keeps rows small for replay and for the hot table; 100 MiB matches the largest broker message (Azure Service Bus Premium) and bounds the memory the service uses for the UTF-8 copy and the SHA-256 of one payload; the in-memory cap protects a test or development process | The threshold offloads payloads an outbox table could hold inline (MongoDB documents allow 16 MiB, the relational columns are unbounded text) |
+| **B) A larger outbox threshold (for example 1 MiB) and no `MaxPayloadBytes` cap** | Fewer offloads on the outbox path; no artificial limit | The #122 transports need a second, lower threshold; an unbounded payload can exhaust memory in the service, which buffers the whole string |
+
+### Chosen Option: **A — 256 KiB, 100 MiB, 256 MiB** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when one configuration should serve the outbox and the transports. Option B wins in an outbox-only application with large but bounded payloads that would rather keep them inline.
+
+- All three values are options, validated by `ClaimCheckOptions.Validate` (`ThresholdBytes > 0`, `MaxPayloadBytes >= ThresholdBytes`) and `InMemoryClaimCheckStoreOptions` (`MaxTotalBytes > 0`).
+- The in-memory cap only protects tests and local development: the in-memory store is never a production default (choice 6).
+- A payload above `MaxPayloadBytes` is `Left(claimcheck.payload_too_large)`, never truncated.
+
+</details>
+
+<details>
+<summary><strong>9. Tenant source — the ambient request context of core, not <code>ITenantProvider</code></strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `IRequestContextAccessor.RequestContext?.TenantId` plus `MultiTenancyMarker`** (both in the core package `Encina`) | `Encina.Messaging` already references `Encina` (its only project reference); same mechanism as `DeadLetterManager` in the same package (`src/Encina.Messaging/DeadLetter/DeadLetterManager.cs`, `AmbientTenantId()` and `TenantMissing()`) | None found |
+| **B) `ITenantProvider` from `Encina.Tenancy`** | Direct tenant API | `Encina.Tenancy` references `Encina.Messaging` (`src/Encina.Tenancy/Encina.Tenancy.csproj`), so the reverse reference creates a project cycle and does not build |
+
+### Chosen Option: **A — ambient request context and `MultiTenancyMarker`**
+
+### Rationale
+
+**Class:** Settled. **Settled by:** the project graph (option B is a reference cycle, so it is not a valid option) and the precedent of `DeadLetterManager` in the same package.
+
+</details>
+
+<details>
+<summary><strong>10. Offload without an ambient tenant while multi-tenancy is on</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Fail closed: `Left(claimcheck.tenant_required)` from `OffloadAsync`, so `AddAsync` fails** | No payload is stored outside a tenant scope by accident; same behavior as `DeadLetterManager` (`TenantMissing()`) | A system publish (a background job without a request context) of a payload above the threshold fails while tenancy is on; such a job must set the tenant in the request context or the payload must stay below the threshold |
+| **B) Store under an explicit system scope when no tenant resolves** | System publishes keep working | A request that lost its tenant by mistake stores the payload in the shared scope instead of failing, which is the fail-open behavior AGENTS.md §3 forbids for security gates |
+
+### Chosen Option: **A — fail closed** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. AGENTS.md §3 makes compliance and security gates fail closed; the tenant segment of a claim id is an isolation boundary, but whether a size-based offload is a gate is a judgement, and option B with an explicit, logged system scope is the "explicit opt-out" the same rule allows. Option A wins when every message must belong to a tenant; option B wins when tenant-less system messages are a normal part of the application.
+
+- With tenancy off (no `MultiTenancyMarker`) no tenant segment is added and no tenant is required.
+- The tenant segment is the URL-safe Base64 (no padding) of the UTF-8 tenant id followed by `.`; the Base64 alphabet contains neither `.` nor `:`, so the prefix is injective (no two tenants share a prefix) and never breaks the `:`-separated envelope.
+
+</details>
+
 ---
 
 ## Implementation Phases
 
-Recommended pull request cut: PR 1 = Phases 1-4 (contract, service, in-memory store, configuration), PR 2 = Phases 5-7 (outbox integration, cross-cutting, observability), PR 3 = Phases 8-9 (remaining tests, documentation). Tests are written in each PR for the code it adds.
+### Pull request cut
+
+Seven pull requests, merged in order. Every pull request carries the tests of the code it adds (Phase 8 is the per-flag target table each one applies, not a separate pull request) and its own `.github/coverage-manifest/Encina.Messaging.json` targets. The counts include tests; none exceeds 15 files or 1,500 changed lines (AGENTS.md §11). Paths without a folder are under `src/Encina.Messaging/ClaimCheck/`.
+
+| PR | Phases | Files | Est. lines |
+|----|--------|-------|-----------|
+| 1 | 1: value types, errors, envelope | `ClaimCheckReference.cs`, `ClaimCheckMetadata.cs`, `ClaimCheckErrors.cs`, `ClaimCheckEnvelope.cs`, `src/Encina.Messaging/PublicAPI.Unshipped.txt`; tests: unit `ClaimCheckEnvelopeTests`, `ClaimCheckErrorsTests`, guard `ClaimCheckEnvelopeGuardTests`, property `ClaimCheckEnvelopeProperties`; manifest; `changelog.d/599-claim-check-abstraction.added.md` (11) | ~650 |
+| 2 | 2: store contract, in-memory store | `IClaimCheckStore.cs`, `InMemoryClaimCheckStore.cs`, `InMemoryClaimCheckStoreOptions.cs`, PublicAPI; tests: unit `InMemoryClaimCheckStoreTests`, guard `InMemoryClaimCheckStoreGuardTests`, contract `ClaimCheckStoreContract` and `InMemoryClaimCheckStoreContractTests`, property `InMemoryClaimCheckStoreProperties`; manifest (10) | ~1,000 |
+| 3 | 7: EventIds and diagnostics | `src/Encina/Diagnostics/EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`, `src/Encina.Messaging/Diagnostics/ClaimCheckLog.cs`, `ClaimCheckActivitySource.cs`, `ClaimCheckMetrics.cs`, Messaging PublicAPI; tests: unit `ClaimCheckLogTests`, `ClaimCheckTelemetryTests`; manifest (10) | ~600 |
+| 4 | 3: options, service | `ClaimCheckOptions.cs`, `IClaimCheckService.cs`, `ClaimCheckService.cs`, `ClaimCheckRequest.cs`, `ClaimCheckMode.cs`, PublicAPI; tests: unit `ClaimCheckServiceTests`, `ClaimCheckOptionsTests`, guard `ClaimCheckServiceGuardTests`, property `ClaimCheckServiceProperties`; manifest (11) | ~1,300 |
+| 5 | 4 and 6: configuration, DI, start-up check, health check | `src/Encina.Messaging/MessagingConfiguration.cs`, `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`, `ClaimCheckServiceCollectionExtensions.cs`, `ClaimCheckStartupCheck.cs`, `ClaimCheckHealthCheck.cs`, PublicAPI; tests: unit `ClaimCheckRegistrationTests`, `ClaimCheckStartupCheckTests`, `ClaimCheckHealthCheckTests`, guard `ClaimCheckRegistrationGuardTests`; manifest; changelog fragment bullet (12) | ~1,100 |
+| 6 | 5: outbox integration | `src/Encina.Messaging/Outbox/OutboxOrchestrator.cs`, `src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs`; tests: unit `OutboxOrchestratorClaimCheckTests`, `OutboxBatchProcessorClaimCheckTests`, integration `OutboxClaimCheckIntegrationTests`; manifest; changelog fragment bullet (7) | ~900 |
+| 7 | 8 (justifications) and 9: documentation | load and benchmark `.md` justifications (2), `docs/features/claim-check.md`, `src/Encina.Messaging/README.md`, `docs/INVENTORY.md` (5) | ~500 |
+
+Phase 7 (diagnostics) lands before Phase 3 (service) so the service logs through registered EventIds from its first pull request.
 
 ### Phase 1: Core models, errors and envelope
 
@@ -240,7 +338,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`IClaimCheckStore.cs`**: the six methods of choice 2: `StoreAsync(ReadOnlyMemory<byte>, ClaimCheckMetadata, CancellationToken)`, `StoreAsync(Stream, ...)`, `RetrieveAsync(string, ...)`, `RetrieveStreamAsync(string, ...)`, `DeleteAsync(string, ...)` (idempotent: deleting a missing id is `Right`), `ExistsAsync(string, ...)`, each returning `ValueTask<Either<EncinaError, T>>`.
-2. **`InMemoryClaimCheckStore.cs`**: `ConcurrentDictionary<string, Entry>`; constructor takes `TimeProvider` (default `TimeProvider.System`) and `IOptions<InMemoryClaimCheckStoreOptions>` (`MaxTotalBytes`, default 256 MiB, `Left(payload_too_large)` beyond it). Expired entries are evicted lazily on access. The id is a new `Guid` in `"N"` format. SHA-256 is computed on store.
+2. **`InMemoryClaimCheckStore.cs`**: `ConcurrentDictionary<string, Entry>`; constructor takes `TimeProvider` (default `TimeProvider.System`) and `IOptions<InMemoryClaimCheckStoreOptions>` (`MaxTotalBytes`, default 256 MiB per choice 8, `Left(payload_too_large)` beyond it). Entries with an `ExpiresAtUtc` are evicted lazily on access once expired; entries without one (the default, choice 7) stay until `DeleteAsync`. The id is a new `Guid` in `"N"` format. SHA-256 is computed on store.
 3. **`InMemoryClaimCheckStoreOptions.cs`**.
 4. XML docs state: "for tests and local development; not a production default" (registration is explicit, choice 6).
 
@@ -283,13 +381,13 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`ClaimCheckOptions.cs`**: `int ThresholdBytes` (default 262_144, must be > 0), `TimeSpan? DefaultTimeToLive` (default 7 days, null means store default), `string DefaultStoreKey` (default `"default"`), `bool VerifyChecksumOnRetrieve` (default true), `int MaxPayloadBytes` (default 100 MiB). `internal void Validate()` called by the service constructor and DI validation.
+1. **`ClaimCheckOptions.cs`**: `int ThresholdBytes` (default 262_144 per choice 8, must be > 0), `TimeSpan? DefaultTimeToLive` (default `null`, no expiry, per choice 7; when set it must be > 0), `string DefaultStoreKey` (default `"default"`), `bool VerifyChecksumOnRetrieve` (default true), `int MaxPayloadBytes` (default 100 MiB per choice 8, must be >= `ThresholdBytes`). `internal void Validate()` called by the service constructor and DI validation.
 2. **`IClaimCheckService.cs`**:
    - `ValueTask<Either<EncinaError, string>> OffloadAsync(string content, ClaimCheckRequest request, CancellationToken)` returns the content unchanged below the threshold, the envelope above it.
    - `ValueTask<Either<EncinaError, string>> ResolveAsync(string content, CancellationToken)` returns non-envelope content unchanged, otherwise the original string.
    - `ClaimCheckRequest(string TypeName, int? ThresholdBytes = null, ClaimCheckMode Mode = ClaimCheckMode.Conditional)`. The enum `ClaimCheckMode { Conditional, Always, Never }` is created here and used by #122.
-3. **`ClaimCheckService.cs`**: UTF-8 encodes the content, compares with the threshold, stores through the store resolved by the store key (keyed service; `DefaultStoreKey`), builds the envelope, and on resolve retrieves, verifies SHA-256 (`claimcheck.integrity_failed` on mismatch) and decodes. Tenant: when `MultiTenancyMarker` is registered and `ITenantProvider.GetCurrentTenantId()` is null at offload time, returns `Left(claimcheck.tenant_required)` (fail closed, AGENTS.md §3); the store id is prefixed with the tenant segment. With tenancy off no prefix is added.
-4. Constructor: `IServiceProvider` (keyed store lookup), `IOptions<ClaimCheckOptions>`, `TimeProvider`, `ILogger<ClaimCheckService>`, optional `ITenantProvider?`, optional `MultiTenancyMarker?`.
+3. **`ClaimCheckService.cs`**: UTF-8 encodes the content, compares with the threshold, stores through the store resolved by the store key (keyed service; `DefaultStoreKey`), builds the envelope, and on resolve retrieves, verifies SHA-256 (`claimcheck.integrity_failed` on mismatch) and decodes. Tenant (choices 9 and 10): the tenant is `IRequestContextAccessor.RequestContext?.TenantId`, as in `DeadLetterManager`; when `MultiTenancyMarker` is registered and no tenant resolves at offload time, returns `Left(claimcheck.tenant_required)` (fail closed, recommended in choice 10); the store id is prefixed with the tenant segment (URL-safe Base64 of the tenant id, then `.`). With tenancy off no prefix is added. Resolve needs no ambient tenant: the processor runs without a request context and the id already carries the segment.
+4. Constructor: `IServiceProvider` (keyed store lookup), `IOptions<ClaimCheckOptions>`, `TimeProvider`, `ILogger<ClaimCheckService>`, `IRequestContextAccessor`, optional `MultiTenancyMarker?`. All of them live in `Encina` or `Encina.Messaging`; no new project reference (choice 9).
 
 </details>
 
@@ -301,7 +399,9 @@ You are implementing Phase 3 of issue #599 in Encina: ClaimCheckOptions, IClaimC
 
 CONTEXT:
 - Phases 1-2 created the value types, the envelope, IClaimCheckStore and InMemoryClaimCheckStore.
-- Tenancy signal: src/Encina/Abstractions/MultiTenancyMarker.cs and src/Encina.Tenancy/Abstractions/ITenantProvider.cs.
+- Tenancy signal: src/Encina/Abstractions/MultiTenancyMarker.cs and IRequestContextAccessor.RequestContext?.TenantId, exactly as
+  src/Encina.Messaging/DeadLetter/DeadLetterManager.cs does. Never ITenantProvider: Encina.Tenancy references Encina.Messaging,
+  so referencing it back is a project cycle.
 - The #122 plan extends this service with the [ClaimCheck] attribute policy and compression; keep ClaimCheckRequest and ClaimCheckMode as the extension points.
 
 TASK:
@@ -317,6 +417,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Messaging/Outbox/OutboxOrchestrator.cs (service style, logging)
 - src/Encina/Abstractions/MultiTenancyMarker.cs
+- src/Encina.Messaging/DeadLetter/DeadLetterManager.cs (AmbientTenantId, TenantMissing)
 - src/Encina.Security.Secrets/SecretsErrors.cs
 ```
 
@@ -332,7 +433,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.Messaging/MessagingConfiguration.cs`**: `public bool UseClaimCheck { get; set; }` (XML doc, `Default: false (opt-in)`), added to the class remarks and example. `ClaimCheckThreshold` is not a second property: the threshold lives in `ClaimCheckOptions` (one place), configured with `services.Configure<ClaimCheckOptions>(...)` or the overload `AddEncinaMessaging(config, claimCheck => ...)` if the existing overloads allow it.
-2. **`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`**: `RegisterClaimCheck` (pattern of `RegisterOutbox`, `:253`) registers `ClaimCheckOptions`, `IClaimCheckService` as singleton, the health check, and `ClaimCheckStartupCheck` (an `IHostedService` that fails start-up with `InvalidOperationException` naming the feature and the missing store, until the validator of #2382 exists; the same interim mechanism as `DelayedRetryStartupCheck` in ADR-050).
+2. **`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`**: `RegisterClaimCheck` (pattern of `RegisterOutbox`, `:272`, called at `:259` and `:459`) registers `ClaimCheckOptions`, `IClaimCheckService` as singleton, the health check, and `ClaimCheckStartupCheck` (an `IHostedService` that fails start-up with `InvalidOperationException` naming the feature and the missing store, until the validator of #2382 exists; the same interim mechanism as `DelayedRetryStartupCheck` in ADR-050).
 3. **`AddEncinaClaimCheckInMemory(this IServiceCollection)`**: registers `InMemoryClaimCheckStore` as the keyed store `"default"` with `TryAdd`, so a database or blob store registered by the application wins in any order.
 4. **DI test**: builds the provider with `ValidateOnBuild` and `ValidateScopes`, with and without a store.
 
@@ -346,7 +447,7 @@ You are implementing Phase 4 of issue #599 in Encina: the UseClaimCheck flag, re
 
 CONTEXT:
 - MessagingConfiguration (src/Encina.Messaging/MessagingConfiguration.cs) has one Use* flag per pattern.
-- Registration lives in src/Encina.Messaging/MessagingServiceCollectionExtensions.cs (RegisterOutbox at :253 is the model).
+- Registration lives in src/Encina.Messaging/MessagingServiceCollectionExtensions.cs (RegisterOutbox at :272 is the model).
 - AGENTS.md §3: an AddEncina* method registers every option type and dependency it resolves, proven by a ValidateOnBuild DI test;
   a store registered by the application must win over the in-memory default in any registration order.
 
