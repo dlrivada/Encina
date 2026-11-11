@@ -21,7 +21,7 @@ Implement a declarative, fluent state machine for entities with a lifecycle (ord
 
 **Integration points that exist today** (the issue's sketch used an `ISaga` that does not exist): `ISagaRunner`, `SagaDefinition<TData>`/`BuiltSagaDefinition<TData>` (`src/Encina.Messaging/Sagas/LowCeremony/`), `SagaOrchestrator` and `ISagaState` (`src/Encina.Messaging/Sagas/`). The machine integrates with `SagaOrchestrator` (Dilemma D3), not with a base class.
 
-**Shared pieces with the saga family** (separate plans, same code): `SagaOrchestrator` is read and written by this plan, #1237 (correlation by external key and wait-for-event, which owns the lookup of a saga by key), #720 (transactional compensation), #738 (`TenantId` on `SagaState`) and #750 (audit of saga transitions). This plan owns `Encina.StateMachine`, the `statemachine.*` error codes and EventId range 5500-5549; it adds no member to `ISagaState`, `ISagaStore` or `SagaOrchestrator`, so it does not collide with their changes.
+**Shared pieces with the saga family** (separate plans, same code): `SagaOrchestrator` is read and written by this plan, #1237 (correlation by external key and wait-for-event, which owns the lookup of a saga by key), #720 (transactional compensation), #738 (`TenantId` on `SagaState`) and #750 (audit of saga transitions). This plan owns `Encina.StateMachine`, the `statemachine.*` error codes and EventId range 5850-5899; it adds no member to `ISagaState`, `ISagaStore` or `SagaOrchestrator`, so it does not collide with their changes.
 
 ---
 
@@ -248,7 +248,7 @@ Implement a declarative, fluent state machine for entities with a lifecycle (ord
 5. **`TransitionContext<TState, TTrigger>`**: sealed record handed to actions `(TState From, TState To, TTrigger Trigger)`.
 6. **`StateMachineErrorCodes`** (public static class): `statemachine.trigger_not_permitted`, `statemachine.guard_failed`, `statemachine.ambiguous_transition`, `statemachine.reentrant_fire`, `statemachine.action_failed`, `statemachine.async_action_requires_fire_async`, `statemachine.saga_not_found`, `statemachine.saga_not_running` (the last two are used by the coordinator; the style follows `SagaErrorCodes`, `src/Encina.Messaging/Sagas/SagaErrorCodes.cs`).
 7. **`StateMachineErrors`** (internal): factory methods over `EncinaErrors.Create(code, message)` (`src/Encina/Results/EncinaErrors.cs`) with messages that carry state and trigger enum names only.
-8. **EventId range**: add `StateMachine = (5500, 5524)` and `MessagingStateMachineSagas = (5525, 5549)` to `src/Encina/Diagnostics/EventIdRanges.cs`, map `Encina.StateMachine` to the first and add the second to the `Encina.Messaging` entry of `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (line 91), and add both fields to `src/Encina/PublicAPI.Unshipped.txt`.
+8. **EventId range**: add `StateMachine = (5850, 5874)` and `MessagingStateMachineSagas = (5875, 5899)` to `src/Encina/Diagnostics/EventIdRanges.cs`, map `Encina.StateMachine` to the first and add the second to the `Encina.Messaging` entry of `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (line 91), and add both fields to `src/Encina/PublicAPI.Unshipped.txt`.
 9. **`PublicAPI.Shipped.txt`** (empty) and **`PublicAPI.Unshipped.txt`** with all public symbols.
 10. **Coverage manifest** `.github/coverage-manifest/Encina.StateMachine.json` with per-file targets and one-sentence justifications (see Testing).
 
@@ -402,7 +402,7 @@ KEY RULES:
 - A Left from the machine or from the orchestrator is returned to the caller; nothing reports success on failure.
 - The error code passed to FailAsync is a constant, never exception text or user input.
 - Time comes from TimeProvider if needed (injection, default TimeProvider.System); no DateTime.UtcNow.
-- Log with [LoggerMessage] in range 5525-5549 (registered in Phase 1), error codes only, no EncinaError.Message.
+- Log with [LoggerMessage] in range 5875-5899 (registered in Phase 1), error codes only, no EncinaError.Message.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Sagas/SagaOrchestrator.cs
@@ -500,7 +500,7 @@ REFERENCE FILES:
 
 1. **`StateMachineActivitySource`** (internal, `src/Encina.StateMachine/Diagnostics/`): source `Encina.StateMachine`, `HasListeners()` guard, span `encina.statemachine.fire` with tags `state.from`, `state.to`, `trigger`, `outcome`.
 2. **`StateMachineMetrics`** (internal, `Meter` `Encina.StateMachine`): `Counter<long>` `encina.statemachine.transition_count` with tags `state.from`, `state.to`, `trigger`, `outcome`; the coordinator adds the span tag `saga.id` (span only).
-3. **`StateMachineLogMessages`** (`[LoggerMessage]`, range 5500-5524): permitted transition, ignored trigger, unpermitted trigger, guard rejected, action failed, reentrant fire. Coordinator messages in `src/Encina.Messaging/Diagnostics/` use 5525-5549. EventIds are packed sequentially; the XML docs name the range. Errors are logged by code, exceptions through `ForLogging()`.
+3. **`StateMachineLogMessages`** (`[LoggerMessage]`, range 5850-5874): permitted transition, ignored trigger, unpermitted trigger, guard rejected, action failed, reentrant fire. Coordinator messages in `src/Encina.Messaging/Diagnostics/` use 5875-5899. EventIds are packed sequentially; the XML docs name the range. Errors are logged by code, exceptions through `ForLogging()`.
 4. **Architecture test**: `EncinaEventIdAllocationTests` passes with both ranges mapped (Phase 1).
 5. **Machine without DI**: a standalone machine takes an optional `ILogger` through `definition.Create(...)`; no logger means no logging, no listener means no span.
 
@@ -511,7 +511,7 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Ranges 5500-5524 (Encina.StateMachine) and 5525-5549 (the coordinator in Encina.Messaging) were registered in Phase 1.
+- Ranges 5850-5874 (Encina.StateMachine) and 5875-5899 (the coordinator in Encina.Messaging) were registered in Phase 1.
 
 TASK:
 Implement the ActivitySource, the metrics class and the [LoggerMessage] classes of Phase 7 Tasks and call them from Fire/FireAsync and the coordinator.
@@ -631,10 +631,10 @@ REFERENCE FILES:
 | `Encina.Messaging` (saga store) | 2200-2299 | Existing `MessagingSaga`, unchanged |
 | `Encina.Messaging` (orchestrators and runners) | 2800-2999 | Existing `Messaging`, unchanged |
 | `Encina.Messaging` (recoverability) | 5450-5499 | Existing `MessagingRecoverability` |
-| **`Encina.StateMachine`** | **5500-5524** | **New `StateMachine`: permitted, ignored, rejected, failed, reentrant** |
-| **`Encina.Messaging` (state machine sagas)** | **5525-5549** | **New `MessagingStateMachineSagas`: coordinator start, fire, complete, fail** |
+| **`Encina.StateMachine`** | **5850-5874** | **New `StateMachine`: permitted, ignored, rejected, failed, reentrant** |
+| **`Encina.Messaging` (state machine sagas)** | **5875-5899** | **New `MessagingStateMachineSagas`: coordinator start, fire, complete, fail** |
 
-Free range as of 2026-11-11: 5500-6999 (`AGENTS.md` section 7). The other saga-family plans take their ranges from the same free block; this plan claims 5500-5549 and does not use anything beyond it.
+The block 5850-5899 is assigned to the saga state machine family in the plan batch registry (the free area 5500-6999 of `AGENTS.md` section 7 is shared with other families). The other plans of this family take ids inside their packages' existing ranges, and this plan does not use anything beyond 5850-5899.
 
 ### Provider Matrix
 
@@ -668,7 +668,7 @@ PROJECT CONTEXT:
 - The saga integration points are ISagaRunner, SagaDefinition and SagaOrchestrator (there is no ISaga). Plan: docs/plans/state-machine-implementation-plan-297.md. Dilemmas D1-D5 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
 
 IMPLEMENTATION OVERVIEW:
-1. New project src/Encina.StateMachine: contract, errors, EventId ranges 5500-5549 registered first (Phase 1).
+1. New project src/Encina.StateMachine: contract, errors, EventId ranges 5850-5899 registered first (Phase 1).
 2. Builder, configuration, immutable definition, DOT export (Phase 2); machine instance with Left-only failures (Phase 3).
 3. In Encina.Messaging: StateMachineSagaDefinition and a coordinator over SagaOrchestrator that persists the state in the saga data (Phase 4); AddEncinaStateMachineSagas (Phase 5).
 4. Cross-cutting (Phase 6), observability (Phase 7), tests and documentation (Phase 8).
@@ -700,7 +700,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: the machine reads nothing, and caching the state of a running saga would serve stale state to a writer. The issue listed it as deferred; this plan reclassifies it with that reason |
 | 2 | OpenTelemetry | ✅ | Phase 7: source and meter `Encina.StateMachine`, span `encina.statemachine.fire`, counter `encina.statemachine.transition_count` |
-| 3 | Structured Logging | ✅ | Phase 7: `[LoggerMessage]` in ranges 5500-5524 and 5525-5549, registered in Phase 1 |
+| 3 | Structured Logging | ✅ | Phase 7: `[LoggerMessage]` in ranges 5850-5874 and 5875-5899, registered in Phase 1 |
 | 4 | Health Checks | ❌ | Not applicable: the machine has no checkable dependency; saga store health is covered by the existing `SagaHealthCheck` (`src/Encina.Messaging/Health/SagaHealthCheck.cs`) |
 | 5 | Validation | ❌ | Not applicable: triggers and states are enums, so there is no free input; the definition is validated once in `Build()` |
 | 6 | Resilience | ❌ | Not applicable: entry and exit actions are the caller's code and may use Polly themselves; the machine makes no external call |
