@@ -78,6 +78,8 @@ public sealed class ErrorCategoryCompletenessStaticScanTests
     [InlineData("return EncinaErrors.FromException(Codes.Failed, ErrorCategory.Internal, ex);", "Internal")]
     [InlineData("return EncinaErrors.Create(code: Codes.Bad, message: \"m\", category: ErrorCategory.InvalidRequest);", "InvalidRequest")]
     [InlineData("return EncinaErrors.Create(\n    Codes.Gone,\n    ErrorCategory.NotFound,\n    \"m\",\n    details: new Dictionary<string, object?> { [\"k\"] = 1 });", "NotFound")]
+    [InlineData("return EncinaErrors.Create(Codes.X, ErrorCategory.NotFound, $\"{string.Join(\", \", xs)} missing\");", "NotFound")]
+    [InlineData("return EncinaErrors.Create(Codes.X, ErrorCategory.Timeout, $\"\"\"took {elapsed} \"\"\");", "Timeout")]
     public void Scanner_RecognisesALiteralCategory(string statement, string expectedCategory)
     {
         var call = ErrorCategoryCallScanner.Analyze(Wrap(statement)).ShouldHaveSingleItem();
@@ -289,6 +291,12 @@ internal sealed record PendingList(IReadOnlyList<PendingList.Entry> Entries, IRe
 /// whether each one declares a category. Comments and the contents of string literals are blanked first, so a call
 /// inside either is never reported.
 /// </summary>
+/// <remarks>
+/// A lexical scan, not a parser. Two literal forms can desynchronise it: a character literal holding a quote inside
+/// an interpolation hole (<c>$"{'"'}"</c>) and a raw string delimited by four or more quotes. Neither occurs in
+/// <c>src/</c> today; if one is added, the scan may miss calls after it in that file. An interpolation hole with a
+/// paired string (<c>{string.Join(", ", xs)}</c>) only adds a bogus argument, which can never look like a category.
+/// </remarks>
 internal static partial class ErrorCategoryCallScanner
 {
     internal sealed record Call(int Line, string Method, string CodeExpression, bool IsCategorized, string? CategoryName);
