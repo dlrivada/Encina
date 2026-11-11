@@ -504,7 +504,7 @@ You are implementing Phase 6 of issue #226: logging and telemetry of the quorum.
 
 CONTEXT:
 - EventIds 3750-3754 are used by RedisDistributedLockProvider inside the registered DistributedLockRedis range
-  3750-3799. This plan owns 3755-3769; the #741 plan must take 3770 onwards. The range is already registered in
+  3750-3799. This plan owns 3755-3769; the rest of the range stays spare for the Redis assembly (the tenant decorator of #741 and the election of #717 live in other assemblies and take their own range). The range is already registered in
   src/Encina/Diagnostics/EventIdRanges.cs and mapped in EncinaEventIdAllocationTests.
 - Contention (Right(None)) is not a failure: log it at Debug and count it with outcome=contended.
 
@@ -670,7 +670,7 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.DistributedLock.Redis` (existing) | 3750-3754 | Used by `RedisDistributedLockProvider` (acquired, released, extended, failed, release failed) |
 | `Encina.DistributedLock.Redis` (this plan) | 3755-3769 | 3755-3762 used by `RedLockLogMessages`; 3763-3769 spare for this plan |
-| `Encina.DistributedLock.Redis` (#741 plan) | 3770-3799 | Left to the tenant-scoped lock plan of the same family; no new `EventIdRanges.cs` entry is needed by either plan |
+| `Encina.DistributedLock.Redis` (spare) | 3770-3799 | Spare for this assembly only: the architecture test maps each assembly to its ranges, so the tenant decorator of #741 (assembly `Encina.DistributedLock`) cannot use ids here; it registers `DistributedLock` = 5500-5549 (3850-3899 is now `TenancyAspNetCore`) |
 
 ### Estimated File Count
 
@@ -765,7 +765,7 @@ REFERENCE FILES:
 | [#2667](https://github.com/dlrivada/Encina/issues/2667) — lock providers return `Either` (ADR-052) | Open, implementation issue (no pending maintainer decision) | Phases 3 and 7 start after it merges; Phases 1 and 2 can start before it |
 | [#2654](https://github.com/dlrivada/Encina/issues/2654) — Redis calls ignore the token, docs promise Redlock | Open | The coordinator's `WaitAsync(ct)` fixes the Redis half for the new path; the SQL Server half and the wording remain in that issue |
 | [#2405](https://github.com/dlrivada/Encina/issues/2405) — provider `ExtendAsync(resource)` extends a lock it does not own | Open | Not fixed here; the quorum `ExtendAsync` is ownership-checked |
-| [#741](https://github.com/dlrivada/Encina/issues/741) — tenant-scoped locks | Open (family plan) | Owns tenant key composition and EventIds 3770 onwards |
+| [#741](https://github.com/dlrivada/Encina/issues/741) — tenant-scoped locks | Open (family plan) | Owns tenant key composition; its decorator logs from its own range (`DistributedLock`, 5500-5549) |
 | [#222](https://github.com/dlrivada/Encina/issues/222), [#724](https://github.com/dlrivada/Encina/issues/724) — lock observability | Open | Phase 6 reuses a shared instrument set if it exists |
 | [#218](https://github.com/dlrivada/Encina/issues/218), [#223](https://github.com/dlrivada/Encina/issues/223) — fencing tokens, auto-extend | Open | Out of scope, documented as limits |
 
