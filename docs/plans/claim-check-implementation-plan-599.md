@@ -4,13 +4,13 @@
 > **Type**: Feature
 > **Complexity**: Medium-High (new contract in `Encina.Messaging`, outbox integration, opt-in registration, observability; 3 pull requests)
 > **Estimated Scope**: ~1,100-1,500 lines of production code + ~1,800-2,300 lines of tests
-> **Sibling plan**: [`claim-check-implementation-plan-122.md`](claim-check-implementation-plan-122.md) (attribute, compression, cleanup, transports, stores, ADR)
+> **Sibling plan**: `claim-check-implementation-plan-122.md` (#122) (attribute, compression, cleanup, transports, stores, ADR)
 
 ---
 
 ## Summary
 
-Define the Claim Check pattern (EIP) as an opt-in part of `Encina.Messaging`: a store contract that keeps a large payload outside the message, a small reference that travels instead, a service that decides by size when to offload and checks integrity when the payload comes back, an in-memory store for tests, and the first integration point, the outbox. #599 and #122 are one feature. This plan owns the abstraction slice; the [#122 plan](claim-check-implementation-plan-122.md) owns everything built on top of it. The names below are shared by both plans and must not change in one without the other.
+Define the Claim Check pattern (EIP) as an opt-in part of `Encina.Messaging`: a store contract that keeps a large payload outside the message, a small reference that travels instead, a service that decides by size when to offload and checks integrity when the payload comes back, an in-memory store for tests, and the first integration point, the outbox. #599 and #122 are one feature. This plan owns the abstraction slice; the #122 plan (#122) owns everything built on top of it. The names below are shared by both plans and must not change in one without the other.
 
 ### Who owns what
 
@@ -728,7 +728,7 @@ REFERENCE FILES:
 
 ### Parallel and follow-up work
 
-- [`claim-check-implementation-plan-122.md`](claim-check-implementation-plan-122.md): builds on the names and the `ClaimCheckService` of this plan; merge order is this plan's PR 1 first.
+- `claim-check-implementation-plan-122.md` (#122): builds on the names and the `ClaimCheckService` of this plan; merge order is this plan's PR 1 first.
 - #600 (cloud blob implementations of `IClaimCheckStore`): related; the #122 plan proposes to cover it through the adapter over `IBlobStore` of #1239.
 - #1239 (`Encina.Storage`): the preferred backend for the stores of #122.
 
