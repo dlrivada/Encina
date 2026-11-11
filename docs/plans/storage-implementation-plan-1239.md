@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Very high (new package family: core, file system, S3, Azure Blob, compliance adapters; 7 pull requests)
 > **Estimated Scope**: ~2,200-2,800 lines of production code + ~3,500-4,500 lines of tests
-> **Related plans**: [`column-encryption-implementation-plan-1250.md`](column-encryption-implementation-plan-1250.md) (owns `IKeyWrapper`), [`claim-check-implementation-plan-122.md`](claim-check-implementation-plan-122.md) (builds `Encina.ClaimCheck.Storage` on this package)
+> **Related plans**: `column-encryption-implementation-plan-1250.md` (#1250) (owns `IKeyWrapper`), `claim-check-implementation-plan-122.md` (#122) (builds `Encina.ClaimCheck.Storage` on this package)
 
 ---
 
@@ -780,7 +780,7 @@ REFERENCE FILES:
 
 ### Parallel and follow-up work
 
-- [`claim-check-implementation-plan-122.md`](claim-check-implementation-plan-122.md): `Encina.ClaimCheck.Storage` builds on `IBlobStore`; #600 is covered by it.
+- `claim-check-implementation-plan-122.md` (#122): `Encina.ClaimCheck.Storage` builds on `IBlobStore`; #600 is covered by it.
 - Google Cloud Storage: post-1.0, the recorded gap of the cloud triangle (follow-up issue at Phase 11).
 
 ---
