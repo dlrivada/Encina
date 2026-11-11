@@ -108,6 +108,7 @@ Copy `.github/workflows/` and adapt names and paths. What each one does and when
 | ci-full.yml | CI Full | schedule (Monday 03:17 UTC); push of `v*` tags; workflow_dispatch | Build, every test type separately with coverage, coverage report, pack | slow (main/nightly) |
 | ci.yml | CI | push to main; pull_request; workflow_dispatch | `changes` filter, build, unit/integration/contract/property/guard shards, EF providers, `ci-result` gate | fast (PR) |
 | codeql.yml | CodeQL | push to main; pull_request; schedule (Monday 03:00 UTC); workflow_dispatch | C# analysis in source mode (`build-mode: none`) | fast (PR) |
+| coverage-comment.yml | Coverage Comment | workflow_run of `CI` (pull request runs) | Posts one informational comment per pull request with the per-file coverage targets of the files it touches (ADR-063) | fast (PR) |
 | conventional-commits.yml | Conventional Commits | pull_request_target | Validates the PR title type | fast (PR) |
 | docs.yml | Documentation | push to main; pull_request; workflow_dispatch | Builds the docs site (DocFX API + Jekyll) and deploys on main | fast (PR) |
 | link-check.yml | Link Check | push to main and pull_request (md/config paths); schedule (daily 03:00 UTC); workflow_dispatch | lychee: on push and PR, internal links of the whole site offline plus the online links of the changed Markdown files; on schedule and dispatch, the full external scan, which never blocks a PR or push and opens or updates one `link-health` tracking issue and fails only for 404/410 | fast (PR) |
