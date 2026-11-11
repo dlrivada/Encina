@@ -11,8 +11,9 @@
 # a row of ledger.csv. One of:
 #   (a) the file's first line is `<!-- local-draft: <path> -->` (<path> relative to the repository root, or
 #       absolute) where <path> exists AND a row of a local-ai/ledger.csv from the last 24 hours (the
-#       repository root's own, or any .claude/worktrees/*/artifacts/local-ai/ledger.csv) names <path> as its
-#       outFile (paths compared normalised: slash direction, relative/absolute, case);
+#       repository root's own, any .claude/worktrees/*/artifacts/local-ai/ledger.csv, or the ledger of any
+#       worktree `git worktree list` registers, wherever it lives, #3475) names <path> as its outFile (paths
+#       compared normalised: slash direction, relative/absolute, case);
 #   (b) the body file itself IS such a recent ledger outFile (no pointer comment needed — this is the plain
 #       "--out <this file>" case, e.g. a worker's issue file copied verbatim to a scratchpad body file); or
 #   (c) the body file's content matches (once its own leading `<!-- ... -->` header is stripped, the same way
@@ -102,10 +103,21 @@ try {
         exit 2
     }
 
+    # #3475: Get-RegisteredWorktrees and Get-RepoLayout live in _repo-paths.ps1 (shared with the path hooks), so
+    # the ledger search below uses the same definition of a worktree as Get-RepoLocation. A missing or broken
+    # helper denies, like _issue-templates.ps1 above.
+    try { . (Join-Path $PSScriptRoot '_repo-paths.ps1') }
+    catch {
+        [Console]::Error.WriteLine("Blocked: check-issue-template.ps1 could not load its shared helper _repo-paths.ps1 ($($_.Exception.Message)), so this gh command cannot be checked. Restore the file.")
+        exit 2
+    }
+
     # #1410 local-draft evidence -----------------------------------------------------------------------------
 
-    # $Root itself, plus every .claude/worktrees/<name> directory under it — a worker drafts and records its
-    # ledger line in its own worktree, never the main checkout's.
+    # $Root itself, every .claude/worktrees/<name> directory under it, and every worktree git registers for the
+    # main checkout wherever it lives (#3475, Get-RegisteredWorktrees): a worker drafts and records its ledger
+    # line in its own worktree, never the main checkout's. Each root appears once. When git fails, the registered
+    # list is empty and the .claude/worktrees folders are still searched.
     function Get-CandidateRoots([string]$Root) {
         $roots = [System.Collections.Generic.List[string]]::new()
         if (-not $Root) { return $roots }
@@ -113,6 +125,16 @@ try {
         $wtDir = Join-Path $Root '.claude/worktrees'
         if (Test-Path -LiteralPath $wtDir) {
             foreach ($d in (Get-ChildItem -LiteralPath $wtDir -Directory -ErrorAction SilentlyContinue)) { $roots.Add($d.FullName) }
+        }
+        $layout = Get-RepoLayout $Root
+        if ($null -ne $layout) {
+            foreach ($registered in (Get-RegisteredWorktrees $layout.MainRoot)) {
+                $known = $false
+                foreach ($existing in $roots) {
+                    if ([string]::Equals($existing.TrimEnd('\', '/'), $registered.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) { $known = $true; break }
+                }
+                if (-not $known) { $roots.Add($registered) }
+            }
         }
         return , $roots
     }
