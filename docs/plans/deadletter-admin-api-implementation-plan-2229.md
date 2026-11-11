@@ -225,7 +225,7 @@ REFERENCE FILES:
 
 1. **Create** `Diagnostics/DeadLetterApiMetrics.cs` on a meter named `Encina.AspNetCore` (ADR-054 D3): `encina.dlq.api.requests_total` (tags operation, outcome code; tenant only with multi-tenancy on, ADR-054 D4) and `encina.dlq.api.purged_total`. The issue's `encina.deadletter.api.*` proposals are renamed to the existing `encina.dlq.*` family.
 2. **Create** an `ActivitySource` `Encina.AspNetCore` with spans `encina.dlq.api.replay` and `encina.dlq.api.purge`; no tenant or actor attributes beyond the ADR-054 rule.
-3. **Create** `Diagnostics/DeadLetterApiLog.cs` with `[LoggerMessage]` EventIds 208-215 inside the registered `AspNetCore` range (200-249); codes only, `ForLogging()` for exceptions. Add the type to the existing `Encina.AspNetCore` entry of `EncinaEventIdAllocationTests` (already mapped).
+3. **Create** `Diagnostics/DeadLetterApiLog.cs` with `[LoggerMessage]` EventIds 218-225 inside the registered `AspNetCore` range (200-249); codes only, `ForLogging()` for exceptions. Add the type to the existing `Encina.AspNetCore` entry of `EncinaEventIdAllocationTests` (already mapped).
 
 </details>
 
@@ -234,10 +234,10 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-Encina.AspNetCore has no Meter or ActivitySource yet. EventIds 200-207 are used; the range is (200, 249).
+Encina.AspNetCore has no Meter or ActivitySource yet. EventIds 200-207 are used and 208-217 are reserved by other plans; the range is (200, 249).
 
 TASK:
-1. Add DeadLetterApiMetrics, the ActivitySource and DeadLetterApiLog (EventIds 208-215, packed sequentially).
+1. Add DeadLetterApiMetrics, the ActivitySource and DeadLetterApiLog (EventIds 218-225, packed sequentially).
 
 KEY RULES:
 - Tags and logs carry operation and error code only; never EncinaError.Message, payload or actor.
@@ -346,7 +346,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.AspNetCore` | 208-215 inside `AspNetCore` (200-249; 200-207 used) | No new range; the allocation test already maps the assembly |
+| `Encina.AspNetCore` | 218-225 inside `AspNetCore` (200-249; 200-207 used, 208-217 reserved by the #3443 and #710 plans) | No new range; the allocation test already maps the assembly |
 
 ### Estimated File Count
 
@@ -375,7 +375,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. MapEncinaDeadLetterEndpoints with required policy and optional all-tenants policy; DTOs without payload;
-2. validator, purge confirmation by expected count; 3. metrics, spans, EventIds 208-215; 4. tests; 5. docs.
+2. validator, purge confirmation by expected count; 3. metrics, spans, EventIds 218-225; 4. tests; 5. docs.
 
 KEY PATTERNS:
 - Fail closed at mapping time; ambient tenant by default; audit stays in the manager (#2013).
@@ -397,7 +397,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Operator reads must be current; a cached list would hide new dead letters |
 | 2 | OpenTelemetry | ✅ Phase 3 | Request counter and spans; operation and error code only |
-| 3 | Structured Logging | ✅ Phase 3 | EventIds 208-215 in the `AspNetCore` range |
+| 3 | Structured Logging | ✅ Phase 3 | EventIds 218-225 in the `AspNetCore` range |
 | 4 | Health Checks | ❌ N/A | No new dependency; the dead letter store checks already exist |
 | 5 | Validation | ✅ Phase 2 | Filter, paging, batch limits and purge confirmation validated at the boundary |
 | 6 | Resilience | ❌ N/A | Local store calls only; replay resilience belongs to the manager |
