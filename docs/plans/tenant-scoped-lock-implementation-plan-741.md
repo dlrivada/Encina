@@ -7,7 +7,7 @@
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, AC-027 (lock providers); [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-061, REQ-062 (tenant awareness and instrumentation)
 > **Decision**: [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract), [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (registration errors)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision)
-> **Related**: [#226](https://github.com/dlrivada/Encina/issues/226) (RedLock, same family, [plan](redlock-implementation-plan-226.md)), [#717](https://github.com/dlrivada/Encina/issues/717) (leader election, global locks), [#763](https://github.com/dlrivada/Encina/issues/763) (DPIA reminder lock, global), [#2653](https://github.com/dlrivada/Encina/issues/2653)
+> **Related**: [#226](https://github.com/dlrivada/Encina/issues/226) (RedLock, same family, plan (#226)), [#717](https://github.com/dlrivada/Encina/issues/717) (leader election, global locks), [#763](https://github.com/dlrivada/Encina/issues/763) (DPIA reminder lock, global), [#2653](https://github.com/dlrivada/Encina/issues/2653)
 
 ---
 
