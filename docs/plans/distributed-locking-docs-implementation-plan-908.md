@@ -13,7 +13,7 @@ Create `docs/features/distributed-locking.md`, the first page about Encina's dis
 
 What the code says today, which the page must follow (read from `src/` on 2026-11-11):
 
-- `IDistributedLockProvider` has `Task<IAsyncDisposable?> TryAcquireAsync(...)`, `Task<IAsyncDisposable> AcquireAsync(...)`, `Task<bool> IsLockedAsync(string resource, CancellationToken)` and `Task<bool> ExtendAsync(string resource, TimeSpan extension, CancellationToken)`; the handle type is `ILockHandle` (the issue's earlier text named a type that does not exist).
+- `IDistributedLockProvider` has `Task<IAsyncDisposable?> TryAcquireAsync(...)`, `Task<IAsyncDisposable> AcquireAsync(...)`, `Task<bool> IsLockedAsync(string resource, CancellationToken)` and `Task<bool> ExtendAsync(string resource, TimeSpan extension, CancellationToken)`; the methods return `IAsyncDisposable`; the object returned is an `ILockHandle` (`ILockHandle : IAsyncDisposable`, `ILockHandle.cs` line 15), implemented by the private `LockHandle` class of each of the InMemory (line 250), Redis (line 223) and SqlServer (line 242) providers, so a caller reaches `Resource` and `ExtendAsync` by casting the result to `ILockHandle` (the issue's earlier text named a type that does not exist).
 - `DistributedLockOptions` has `KeyPrefix` (empty), `DefaultExpiry` (30 s), `DefaultWait` (10 s), `DefaultRetry` (100 ms) and `ProviderHealthCheck`. `InMemoryLockOptions.WarnOnUse` (true), `RedisLockOptions.Database` and `SqlServerLockOptions.ConnectionString` extend it.
 - Registration: `AddEncinaDistributedLock` (two overloads), the InMemory registration, `AddEncinaDistributedLockRedis` (four overloads: connection string or `IConnectionMultiplexer`, each with or without `Action<RedisLockOptions>`) and the SQL Server registration, in each package's `ServiceCollectionExtensions.cs`.
 - The Redis provider is a single-instance `SET NX` acquisition with Lua scripts; its own remarks say Redlock across instances is "to consider" (`RedisDistributedLockProvider.cs` line 11). The AGENTS.md section 5 table names the Redis lock "Redis (Redlock)". The page describes what the code does and does not claim Redlock; the wording of AGENTS.md is reported to the orchestrator, not edited here.
@@ -39,7 +39,7 @@ No open design choices. Every choice is settled by a cited source; the `Verified
 | 1 | One page, `docs/features/distributed-locking.md`, Explanation plus option and API tables as the other feature pages; no `docs/toc.yml` entry (the file does not exist, navigation is front matter) | Settled | `.claude/skills/encina-docs/SKILL.md` sections 1 and 2; issue comment (CodeRabbit plan, design choice 1) | |
 | 2 | Document the current API (`Task<IAsyncDisposable?>` and `LockAcquisitionException`) and link ADR-052 for the target `Either` contract; re-check the page when #2667 merges | Settled | ADR-052; issue #908 acceptance criterion "re-checked against the API when #2667 changes the return types"; SKILL.md section 3 rule 3 | |
 | 3 | Leader election and duplicate-processing patterns are presented as recommended usage, not built-in behaviour | Settled | ADR-052 context table (no `src/` consumer of `IDistributedLockProvider`); SKILL.md section 3 rule 7 | |
-| 4 | Redis is described as single-instance `SET NX` with Lua scripts, not as Redlock | Settled | `src/Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs` line 11 and the Lua scripts in the same file; SKILL.md section 3 rule 3 | |
+| 4 | Redis is described as single-instance `SET NX` with Lua scripts, not as Redlock | Settled | `src/Encina.DistributedLock.Redis/RedisDistributedLockProvider.cs` line 11 and the Lua scripts in the same file; SKILL.md section 3 rule 3. The page contradicts the wording "Redis (Redlock)" in the AGENTS.md section 5 table (Distributed locks row); a follow-up issue to correct that wording is opened by the orchestrator (number to be filled) | |
 | 5 | Planned providers are listed with their issues (#207 to #210) and Consul, etcd and ZooKeeper as post-1.0, with no implementation detail the code does not hold | Settled | AGENTS.md section 5 (distributed locks row); SPEC-000 DEC-009 | |
 | 6 | Mermaid for the class diagram and the leader-election flow | Trivial | SKILL.md section 2 (Mermaid is available) | |
 
@@ -54,7 +54,7 @@ No open design choices. Every choice is settled by a cited source; the `Verified
 
 1. Create `docs/features/distributed-locking.md`, front matter `title: "Distributed locking"`, `layout: default`, `parent: "Features"`. Opening sentence: who it is for (a developer coordinating work across several instances of an application) and what they get.
 2. Overview and problem: why a lock, and when optimistic concurrency (`docs/features/optimistic-concurrency.md`) is the better tool; link it.
-3. Abstraction: a table for `IDistributedLockProvider` (the four methods, parameters and return types copied from `src/Encina.DistributedLock/IDistributedLockProvider.cs`), a table for `ILockHandle` (`Resource`, `LockId`, `AcquiredAtUtc`, `ExpiresAtUtc`, `IsReleased`, `ExtendAsync`), `LockAcquisitionException`, and a Mermaid class diagram.
+3. Abstraction: a table for `IDistributedLockProvider` (the four methods, parameters and return types copied from `src/Encina.DistributedLock/IDistributedLockProvider.cs`), a table for `ILockHandle` (`Resource`, `LockId`, `AcquiredAtUtc`, `ExpiresAtUtc`, `IsReleased`, `ExtendAsync`), `LockAcquisitionException`, and a Mermaid class diagram. State that the returned `IAsyncDisposable` is an `ILockHandle` in all three providers and show the cast (`if (handle is ILockHandle lockHandle) { ... }`); verify the example compiles in Phase 3 step 2.
 4. Providers: one subsection each for InMemory (`ConcurrentDictionary`, testing, `WarnOnUse`), Redis (`SET NX` with expiry, Lua owner-checked release and extend, `Database`, the four registration overloads, no Redlock) and SQL Server (`sp_getapplock`, `ConnectionString`, timeout delegated to SQL Server). A provider matrix: persistence, cross-process, health check, production use.
 5. Patterns (flagged as recommended usage): leader election for a `BackgroundService` with `await using`, preventing duplicate Outbox or Inbox processing, and coordination in sharded environments with key naming and granularity trade-offs. Every sample compiles in a scratch project.
 6. Configuration: `DistributedLockOptions` table, `expiry` versus `wait` versus `retry`, cancellation tokens; the registration methods.
@@ -76,7 +76,7 @@ TASK
 Create <worktree>\docs\features\distributed-locking.md as listed in Phase 1 of the plan. Read first: src/Encina.DistributedLock/*.cs, src/Encina.DistributedLock.InMemory/*.cs, src/Encina.DistributedLock.Redis/*.cs and Health/*.cs, src/Encina.DistributedLock.SqlServer/*.cs and Health/*.cs, docs/architecture/adr/052-distributed-lock-failure-contract.md, docs/benchmarks/distributed-lock-performance.md.
 
 KEY RULES
-- Copy every signature, option name and default from src/; grep each identifier before writing it. The handle type is ILockHandle.
+- Copy every signature, option name and default from src/; grep each identifier before writing it. The returned IAsyncDisposable is an ILockHandle in all three providers (cast to reach Resource and ExtendAsync).
 - Redis is single-instance SET NX with Lua scripts; do not write Redlock.
 - Patterns are recommended usage: no src/ consumer of IDistributedLockProvider exists yet; say so.
 - Document the current API; link ADR-052 for the target Either contract; do not describe the target API as available.
@@ -224,7 +224,7 @@ IMPLEMENTATION OVERVIEW
 3. Verify (lychee, markdownlint-cli2, cov-docs-render check, compile every C# sample in a scratch project), run docs-reviewer, commit locally.
 
 KEY PATTERNS
-- TryAcquireAsync returns Task<IAsyncDisposable?>; AcquireAsync returns Task<IAsyncDisposable>; the handle type is ILockHandle; LockAcquisitionException is thrown by the SQL Server provider today.
+- TryAcquireAsync returns Task<IAsyncDisposable?>; AcquireAsync returns Task<IAsyncDisposable>; the returned object is an ILockHandle (cast); LockAcquisitionException is thrown by the SQL Server provider today.
 - Redis is single-instance SET NX with Lua scripts, not Redlock.
 - DistributedLockOptions defaults: DefaultExpiry 30 s, DefaultWait 10 s, DefaultRetry 100 ms.
 - One Diataxis quadrant, links not restatements, no typed performance figures, every identifier verified in src/, English only, no emojis.
