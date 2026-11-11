@@ -441,13 +441,13 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceDPIACriteria = (9800, 9829);` with the summary "Encina.Compliance.DPIA — external criteria loading".
+1. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceDPIACriteria = (6400, 6429);` with the summary "Encina.Compliance.DPIA — external criteria loading".
 2. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify): map `"Encina.Compliance.DPIA"` to `[nameof(EventIdRanges.ComplianceDPIA), nameof(EventIdRanges.ComplianceDPIACriteria)]`.
-3. `Diagnostics/DPIACriteriaLogMessages.cs` (new): `[LoggerMessage]` from 9800, packed: load started, load succeeded (count, list version), source failed (source name, error code), duplicate id, snapshot swapped, stale snapshot, unavailable, Omnibus EDPB list active, refresh loop failure.
+3. `Diagnostics/DPIACriteriaLogMessages.cs` (new): `[LoggerMessage]` from 6400, packed: load started, load succeeded (count, list version), source failed (source name, error code), duplicate id, snapshot swapped, stale snapshot, unavailable, Omnibus EDPB list active, refresh loop failure.
 4. `Diagnostics/DPIADiagnostics.cs` (modify): activity `DPIA.CriteriaLoad` per load; counters `dpia.criteria.loads.total` (tag `outcome`, `origin`) and `dpia.criteria.snapshot.age.seconds` (observable gauge).
-5. XML docs: `/// Event IDs: 9800-9829 (see EventIdRanges.ComplianceDPIACriteria)`.
+5. XML docs: `/// Event IDs: 6400-6429 (see EventIdRanges.ComplianceDPIACriteria)`.
 
-The ranges 9830-9859 (ENISA, plan #1942) and 9860-9959 (EHDS, plan #808) are proposed by the sibling plans of the same family; each plan owns its own registry entry. The range 9700-9749 belongs to plan #812 and 9750-9799 is `SecurityBreakTheGlass`.
+The block 6400-6549 is assigned to this family in the batch EventId registry: 6400-6429 here, 6430-6449 (ENISA, plan #1942) and 6450-6549 (EHDS, plan #808); each plan owns its own registry entry. The range 9700-9749 belongs to plan #812.
 
 </details>
 
@@ -457,7 +457,7 @@ The ranges 9830-9859 (ENISA, plan #1942) and 9860-9959 (EHDS, plan #808) are pro
 ```text
 CONTEXT:
 Plan #816, Phase 6. ADR-021: register the range in src/Encina/Diagnostics/EventIdRanges.cs before use; the DPIA
-range 8800-8899 has only three free ids, so a new range 9800-9829 is registered and mapped as a second range of
+range 8800-8899 has only three free ids, so a new range 6400-6429 is registered and mapped as a second range of
 the assembly in EncinaEventIdAllocationTests.AssemblyRanges.
 
 TASK:
@@ -465,7 +465,7 @@ Register the range, write DPIACriteriaLogMessages with [LoggerMessage], extend D
 architecture tests.
 
 KEY RULES:
-- Packed EventIds, no gaps, none outside 9800-9829.
+- Packed EventIds, no gaps, none outside 6400-6429.
 - Never log EncinaError.Message, document content or URLs with query strings; use error codes and ex.ForLogging().
 - Counters use bounded tag values (outcome, origin) only.
 
@@ -560,7 +560,7 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Compliance.DPIA` (existing) | 8800-8899 (`ComplianceDPIA`) | Highest id in use is 8896; three free, too few |
-| `Encina.Compliance.DPIA` (criteria) | **9800-9829** (new `ComplianceDPIACriteria`) | Free per `EventIdRanges.cs` today (9700-9749 belongs to plan #812, 9750-9799 to `SecurityBreakTheGlass`); register first (ADR-021) and map as a second range of the assembly. Sibling plans propose 9830-9859 (ENISA) and 9860-9959 (EHDS) |
+| `Encina.Compliance.DPIA` (criteria) | **6400-6429** (new `ComplianceDPIACriteria`) | Free per `EventIdRanges.cs` today and assigned to this family in the batch EventId registry (block 6400-6549); register first (ADR-021) and map as a second range of the assembly. Sibling plans: 6430-6449 (ENISA) and 6450-6549 (EHDS) |
 
 ### Estimated File Count
 
@@ -601,7 +601,7 @@ IMPLEMENTATION OVERVIEW:
    iteration, IOptionsMonitor settings), LoadedCriteriaRiskCriterion (fail closed on unavailable catalog).
 4. DPIAOptions fluent API LoadCriteriaFrom{Json,Uri,Provider<T>}, EnableOmnibusArticle35EdpbHarmonisedList
    (default false), validator rules, TryAdd registrations, hosted service only when a source is configured.
-5. Health check degradation; EventIds 9800-9829 (register first); activity and counters.
+5. Health check degradation; EventIds 6400-6429 (register first); activity and counters.
 6. Tests on every flag including the AC-024 default test; WireMock and file integration; .md justifications.
 7. Docs by docs-writer, changelog fragment and PublicAPI by mechanical-fixer, zero warnings.
 
@@ -630,7 +630,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The loaded list is held in memory by the catalog; there is nothing further to cache. The issue's "Defer" is withdrawn |
 | 2 | OpenTelemetry | ✅ | Activity `DPIA.CriteriaLoad`, counter `dpia.criteria.loads.total`, snapshot-age gauge (Phase 6) |
-| 3 | Structured Logging | ✅ | `DPIACriteriaLogMessages` in the new range 9800-9829 (Phase 6) |
+| 3 | Structured Logging | ✅ | `DPIACriteriaLogMessages` in the new range 6400-6429 (Phase 6) |
 | 4 | Health Checks | ✅ | `DPIAHealthCheck` reports degraded or unhealthy on stale or failed sources (Phase 5) |
 | 5 | Validation | ✅ | Each loaded criterion and the source configuration are validated (Phases 2 and 4) |
 | 6 | Resilience | ✅ | Keyed Polly pipeline `dpia-criteria` for the URI source, no swallowing (Design Choice 6, Phase 5) |
