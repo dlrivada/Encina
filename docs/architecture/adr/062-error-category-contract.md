@@ -58,6 +58,7 @@ Each protocol owns its column. HTTP is written once in core as data and consumed
 ### Header rules
 
 - `Retry-After` is written only with 429 or 503 and only when the details key `EncinaErrorMetadataKeys.RetryAfter` (a `TimeSpan`) is present. It is never guessed.
+- Core already has a second retry-after key, `OutboundErrorMetadataKeys.HttpRetryAfter` (`"http.retry_after"`), which `OutboundRetryRules.GetRetryAfter` reads for outbound retries. Hosts read only `EncinaErrorMetadataKeys.RetryAfter`: the outbound producer slice (`Encina.Refit`, rule R7) writes `EncinaErrorMetadataKeys.RetryAfter` alongside the outbound key, and [#3424](https://github.com/dlrivada/Encina/issues/3424) decides whether the two keys merge.
 - Every 401 carries `WWW-Authenticate` ([RFC 9110 section 15.5.2](https://www.rfc-editor.org/rfc/rfc9110#section-15.5.2)): the value of `EncinaErrorMetadataKeys.AuthenticateChallenge` when present, otherwise the default `Bearer`.
 
 ### Choice rules for producers
@@ -92,7 +93,7 @@ Also decided: `idempotency.in_progress` is `Conflict` (409), and the two `encina
 
 - **(b) One exact-code table in core**: rejected because it answers HTTP only, needs a second mapping for gRPC and a third for GraphQL, and moves the knowledge of each package's codes away from the package.
 - **(c) A per-package `IErrorStatusMapper`**: rejected because every package would register a mapper per protocol, and a package that forgets one answers 500 silently.
-- **(d) Keep the suffix rules and rename the codes**: rejected because the status stays implicit in the spelling of a string, tests reference code constants about 4,250 times (the count in #3419), and the rules are still HTTP-only.
+- **(d) Keep the suffix rules and rename the codes**: rejected because the status stays implicit in the spelling of a string, tests reference the code constants throughout the suite, and the rules are still HTTP-only.
 - **Typed code structs** (a code type that carries its category): rejected for the same reference count, and because they would not remove the need for a protocol table.
 
 ## Consequences
