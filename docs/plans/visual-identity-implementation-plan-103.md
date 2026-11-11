@@ -180,7 +180,7 @@ Deliverables, from the issue:
 ```text
 CONTEXT: Encina is a pre-1.0 .NET library whose name means "holm oak". SPEC-000 REQ-018 needs an icon on every package; issue #102 wires PackageIcon and packs assets/icons/package-icon-128.png as icon.png. No assets/ folder exists yet. Issue #103, plan Design Choices 1 to 5.
 
-TASK: Produce the temporary mark with AI assistance (Design Choice 3) as SVG source, export the PNGs and place them under assets/logo/ and assets/icons/ with the exact file names of the plan. Constraints: SVG source, no embedded raster, package-icon-128.png 128x128 and at most 1 MB, legible at 16x16, works on light and dark backgrounds, no third-party marks. The maintainer approves the look in the pull request; report the rendered sizes for that review. Run the size and dimension checks and report their output.
+TASK: Produce the temporary mark with AI assistance (Design Choice 3) as SVG source, export the PNGs and place them under assets/logo/ and assets/icons/ with these exact file names: assets/logo/encina-logo-horizontal.svg and .png, assets/logo/encina-logo-square.svg and .png, assets/logo/encina-logo-mono-dark.svg, assets/logo/encina-logo-mono-light.svg, assets/icons/package-icon.svg, assets/icons/package-icon-128.png (128x128) and assets/icons/package-icon-256.png (256x256); choose the PNG sizes of the logo files yourself and report them. Palette: Oak Green #2D5016, Bark Brown #5C4033, Leaf Gold #D4A017, Paper White #FAFAF8. Constraints: SVG source, no embedded raster, package-icon-128.png 128x128 and at most 1 MB, legible at 16x16, works on light and dark backgrounds, no third-party marks. The maintainer approves the look in the pull request; report the rendered sizes for that review. Run the size and dimension checks and report their output.
 
 KEY RULES: Files are added with the Write/copy tools, never by editing PNG bytes in a script. package-icon-128.png is 128x128 and at most 1 MB. No placeholder images. At most 15 files and 1500 changed lines.
 
@@ -222,10 +222,11 @@ REFERENCE FILES: assets/logo/, https://docs.github.com/en/repositories/managing-
 <summary>Tasks</summary>
 
 1. `docs-writer` writes a short page under `docs/` that documents the palette (the four colours and their use) and the asset locations, and references the banner from `README.md`.
-2. `mechanical-fixer` writes the changelog fragment `changelog.d/103-visual-identity.added.md`.
-3. No ADR (no architectural decision) and no `PublicAPI.*.txt` entry.
-4. Verification: the links in the page and in `README.md` resolve to existing files; `dotnet build` is unaffected (no code).
-5. Comment on #103 with the merged paths so #102 Phase 5 can start.
+2. `docs-writer` adds the new page and the new `assets/` files to `docs/INVENTORY.md`.
+3. `mechanical-fixer` writes the changelog fragment `changelog.d/103-visual-identity.added.md`.
+4. No ADR (no architectural decision) and no `PublicAPI.*.txt` entry.
+5. Verification: the links in the page and in `README.md` resolve to existing files; `dotnet build` is unaffected (no code).
+6. Comment on #103 with the merged paths so #102 Phase 5 can start.
 
 </details>
 
@@ -279,7 +280,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, REA
 | Logo files | 6 | 4 SVG and 2 PNG in `assets/logo/` |
 | Icon files | 3 | SVG source and two PNGs in `assets/icons/` |
 | Social images | 3 | PNG in `assets/social/` |
-| Documentation | 2 | Palette and assets page, `README.md` banner reference |
+| Documentation | 3 | Palette and assets page, `README.md` banner reference, `docs/INVENTORY.md` update |
 | Changelog fragment | 1 | `changelog.d/103-visual-identity.added.md` |
 | Tests | 0 | No code; dimensions and sizes are verified by command |
 
@@ -334,10 +335,11 @@ REFERENCE FILES: issue #102, docs/assets/, README.md, changelog.d/README.md, .cl
 
 ## Next Steps
 
-1. When work on #103 starts, ask the maintainer only Design Choice 4 (icon first or one pull request), and record the answer in the last section, `Maintainer Decisions`.
-2. Write the worker brief for PR 1; the worker produces the temporary AI-assisted SVG (Phase 1 task 0), exports and verifies the files.
-3. After PR 1 merges, tell #102 that its Phase 5 can start, and comment on #103 with the link to this plan.
-4. After PR 1 merges, open a help-wanted issue (`open-issue` skill) that invites a contributor with design skills to refine the mark, replacing the files under `assets/` in place with the same names.
+1. When work on #103 starts, re-check the Design Choices with `decision-extractor`, have `adversarial-reviewer` verify the Settled and Trivial ones (adding their `Verified:` lines), ask the maintainer only Design Choice 4 (icon first or one pull request) and any new Dilemma, and record the answers in the last section, `Maintainer Decisions`.
+2. Run `check-plan.ps1` on this plan without `-Draft`; it must exit 0 before the brief is written.
+3. Write the worker brief for PR 1; the worker produces the temporary AI-assisted SVG (Phase 1 task 0), exports and verifies the files.
+4. After PR 1 merges, tell #102 that its Phase 5 can start, and comment on #103 with the link to this plan.
+5. After PR 1 merges, open a help-wanted issue (`open-issue` skill) that invites a contributor with design skills to refine the mark, replacing the files under `assets/` in place with the same names.
 
 ## Maintainer Decisions
 
