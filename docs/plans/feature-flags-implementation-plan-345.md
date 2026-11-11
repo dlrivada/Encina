@@ -335,7 +335,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Diagnostics/FeatureFlagGateMetrics.cs`: counter `encina.featureflags.gate_evaluations` (tags `feature`, `outcome`: enabled, disabled, redirected, error) on the `Encina.FeatureFlags` meter from #604; span `encina.featureflags.gate`.
+1. Extend `Diagnostics/FeatureFlagGateMetrics.cs` (created by #300): add the outcomes `redirected` and `variant_selected` to the counter `encina.featureflags.gate_evaluations` (tags `feature`, `outcome`) and to the span `encina.featureflags.gate`.
 2. `[LoggerMessage]` EventIds 7310-7315 (gate disabled, redirected, variant selected, provider failed, redirect handler missing, evaluation skipped because no attribute).
 3. No user id and no `EncinaError.Message` in logs or tags.
 
@@ -521,7 +521,7 @@ REFERENCE FILES:
 | 8 | Transactions | ❌ N/A | The gate runs before the transaction stage; no mutation |
 | 9 | Idempotency | ❌ N/A | Evaluation is deterministic |
 | 10 | Multi-Tenancy | ✅ Phase 3 | `TenantFilter`; tenant in `FeatureFlagContext` and as a metric tag |
-| 11 | Module Isolation | ⏭️ Deferred | Module-scoped flags: issue file `feature-flag-module-scope` in `artifacts/issues/` |
+| 11 | Module Isolation | ❌ N/A | Flags are named by the application and shared across modules; the request's module name can be passed as a context attribute to a custom filter or provider |
 | 12 | Audit Trail | ⏭️ Deferred | Flag change and evaluation audit: issue file `feature-flag-change-audit` in `artifacts/issues/` |
 
 ---
