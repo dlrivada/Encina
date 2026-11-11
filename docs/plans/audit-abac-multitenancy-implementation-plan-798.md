@@ -2,8 +2,8 @@
 
 > **Issue**: [#798](https://github.com/dlrivada/Encina/issues/798)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 10 database providers, Marten, 5 worker pull requests)
-> **Estimated Scope**: ~91 files (about 45 production and script files, 34 test files, 8 documentation files); split into five pull requests (see Next Steps)
+> **Complexity**: High (10 phases, 10 database providers, Marten, 6 worker pull requests)
+> **Estimated Scope**: ~91 files (about 45 production and script files, 34 test files, 8 documentation files); split into six pull requests (see Next Steps)
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-061, INV-008, AC-043, DEC-006, DEC-009; Related plans: `abac-decision-audit-implementation-plan-751.md`, `audit-marten-implementation-plan-800.md`, `multitenancy-spec002-implementation-plan-1257.md` (owns the shared tenant-scope primitive used here)
 
 ---
@@ -117,7 +117,7 @@ Make the two Security stores tenant-safe without a manual `WHERE` at every call 
 
 ### Rationale
 
-- The wrapper sits in `ResolvePolicyStore`, below the caching decorator, so the cache sees tenant-scoped reads and the wrapper cannot be bypassed by registration order (the PAP resolves it per operation scope).
+- The wrapper is built in `ResolvePolicyStore` as the outermost layer, above the caching decorator, so the scope is resolved before every call (a cache hit included) and the wrapper cannot be bypassed by registration order (the PAP resolves it per operation scope).
 - `tenantId == null` means "rows with no tenant" and never "every tenant"; there is no `AllTenants` parameter (2972-D22).
 - `Policy` and `PolicySet` gain `string? TenantId { get; init; }` as the issue proposes; the entity column is the source of truth and the mapper overwrites the model value on read, so a serialized `PolicyJson` cannot smuggle another tenant.
 
@@ -133,7 +133,7 @@ Make the two Security stores tenant-safe without a manual `WHERE` at every call 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Keys `{prefix}:t:{segment}:policy-sets:all` and so on; global rows cached under segment `_`; a global write calls `RemoveByPatternAsync` for every tenant segment; the Pub/Sub message carries the tenant** | One cache; works on every `ICacheProvider` that supports patterns | Pattern removal needs provider support (all 8 caches implement `RemoveByPatternAsync`) |
+| **A) Keys `{prefix}:t:{segment}:policy-sets:all` and so on; global rows cached under a disjoint `g` namespace; a generation counter in the cache protects against in-flight fills (Phase 7); the Pub/Sub message carries the tenant** | One cache; works on every `ICacheProvider` that supports patterns | Pattern removal needs provider support (all 8 caches implement `RemoveByPatternAsync`) |
 | **B) A separate `ICacheProvider` per tenant** | Hard separation | Unbounded cache instances; breaks the singleton cache registration |
 | **C) No cache in a multi-tenant application** | Nothing to leak | Removes the stampede protection the decorator exists for |
 
@@ -156,7 +156,7 @@ Make the two Security stores tenant-safe without a manual `WHERE` at every call 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Reads: ambient tenant wins; a different requested tenant is denied; no ambient tenant in a multi-tenant application is denied. Writes: stamp the ambient tenant; an explicit different tenant is denied; no tenant writes a null-tenant row. Purge passes through** | Evidence is never lost (a background writer has no tenant); reads fail closed | A null-tenant audit row is visible only to the operator path |
+| **A) Reads: ambient tenant wins; a different requested tenant is denied; no ambient tenant in a multi-tenant application is denied. Writes: stamp the ambient tenant; an explicit different tenant is denied; no tenant writes a null-tenant row. Purge is refused when there is an ambient tenant (a tenant-scoped caller cannot delete other tenants' entries) and passes through when there is none (retention service, operator)** | Evidence is never lost (a background writer has no tenant); reads fail closed | A null-tenant audit row is visible only to the operator path |
 | **B) Writes also fail when there is no tenant** | Every row has a tenant | System actors (startup seeding, outbox processors) could not be audited, which loses evidence |
 | **C) Purge per tenant now** | Matches REQ-061 "retention per tenant" | The retention service is a background loop with no tenant; per-tenant retention belongs to the retention module |
 
@@ -166,7 +166,7 @@ Make the two Security stores tenant-safe without a manual `WHERE` at every call 
 
 - Single-tenant applications (no marker) pass through unchanged.
 - The platform-operator cross-tenant read is out of scope and will come from #3271 with a mandatory reason; no boolean switch is added here.
-- `PurgeEntriesAsync` deletes by age, not by tenant; the follow-up issue file `audit-per-tenant-retention` records the per-tenant variant.
+- `PurgeEntriesAsync` deletes by age across all tenants, so the gate denies it with `tenant_mismatch` whenever the request carries a tenant and lets it through only for the tenantless background caller; the audited platform-operator path is #3271. The follow-up issue file `audit-per-tenant-retention` records the per-tenant variant.
 
 </details>
 
@@ -280,12 +280,12 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `src/Encina.Security.Audit/TenantScopedOperationAuditStore.cs`**: `internal sealed class` implementing `IOperationAuditStore`, constructor `(IOperationAuditStore inner, ITenantScopeResolver tenants, ILogger<TenantScopedOperationAuditStore> logger)`.
-   - `RecordAsync(entry)`: `tenants.ResolveWrite(entry.TenantId)`; stamp the tenant (`entry with { TenantId = scope.TenantId }`); deny on mismatch; forward.
+   - `RecordAsync(entry)`: `tenants.ResolveWrite(entry.TenantId, allowTenantless: true)` (the resolver mode that returns a null-tenant scope instead of `tenant_required` when there is neither an ambient nor an explicit tenant, and still denies a mismatch; defined in the #1257 plan); stamp the tenant (`entry with { TenantId = scope.TenantId }`); deny on mismatch; forward.
    - `QueryAsync(query)`: `tenants.ResolveRead(query.TenantId)` then `query with { TenantId = scope.TenantId }`.
-   - `GetByEntityAsync`, `GetByUserAsync`, `GetByCorrelationIdAsync`: rewrite to `QueryAsync` pages with the resolved tenant and the same ordering and date bounds (`GetByCorrelationIdAsync` reverses to ascending), looping pages until exhausted; document the cost. The unit tests prove equivalence with the inner `Get*` for the in-memory store.
-   - `PurgeEntriesAsync`: forward unchanged (Design Choice 6).
+   - `GetByEntityAsync`, `GetByUserAsync`, `GetByCorrelationIdAsync`: rewrite to `QueryAsync` pages with the resolved tenant and the same ordering and date bounds (`GetByCorrelationIdAsync` reverses to ascending), looping pages until exhausted. To keep a complete history under concurrent audit writes, the first call pins an upper bound (`ToUtc` = the injected `TimeProvider` now, then re-read of the same bound for every page) so rows recorded during the loop fall outside the snapshot, and the order is the stable (timestamp, id) order the stores already guarantee (`OperationAuditStableOrderCheck`); a concurrent purge can still shorten the result and is an operator operation. Document the cost. The unit tests prove equivalence with the inner `Get*` for the in-memory store.
+   - `PurgeEntriesAsync`: `ResolveWrite(null, allowTenantless: true)`; when the scope carries a tenant return `tenant_mismatch`; with no ambient tenant forward (Design Choice 6).
 2. **Create `src/Encina.Security.Audit/TenantScopedReadAuditStore.cs`**: same for `IReadAuditStore` (`LogReadAsync`, `GetAccessHistoryAsync`, `GetUserAccessHistoryAsync`, `QueryAsync`, `PurgeEntriesAsync`).
-3. **Create `src/Encina.Security.ABAC/Persistence/TenantScopedPolicyStore.cs`**: implements `IPolicyStore` over an inner `IPolicyStore`; each read resolves `ResolveRead(null)` and passes `scope.TenantId` to the inner port; `Save*` stamps `Policy.TenantId`/`PolicySet.TenantId` from `ResolveWrite(policy.TenantId)`; a global save needs `scope.TenantId == null`.
+3. **Create `src/Encina.Security.ABAC/Persistence/TenantScopedPolicyStore.cs`**: implements `IPolicyStore` over an inner `IPolicyStore`; each read resolves `ResolveRead(null)` and passes `scope.TenantId` to the inner port; `Save*` stamps `Policy.TenantId`/`PolicySet.TenantId` from `ResolveWrite(policy.TenantId)`. **Permitted path for global writes** (Design Choice 3): a save with `TenantId == null` is accepted only when there is no ambient tenant **and** the caller is a declared service or operator identity (`PolicyActor.Kind`, the identity of `ABACPolicySeedingHostedService`), using `ResolveWrite(null, allowTenantless: true)`; an anonymous or user caller without a tenant in a multi-tenant application is denied with `PolicyStoreTenantRequired`. Tests: seeding writes global rows, a tenant caller cannot, an undeclared tenantless caller cannot.
 4. **Log messages** (`TenantScopedOperationAuditStoreLog`, `[LoggerMessage]`, ids from Event ID Allocation): tenant denied (code only, never the tenant id), gate active, write without tenant.
 
 </details>
@@ -295,7 +295,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- ITenantScopeResolver and TenantScope come from the #1257 plan (core, namespace Encina): ResolveRead(string? requested) and ResolveWrite(string? explicitTenant) return Either<EncinaError, TenantScope>. Ambient tenant wins; multi-tenant (MultiTenancyMarker) with no tenant is denied; single-tenant passes with a null tenant.
+- ITenantScopeResolver and TenantScope come from the #1257 plan (core, namespace Encina): ResolveRead(string? requested) and ResolveWrite(string? explicitTenant, bool allowTenantless = false) return Either<EncinaError, TenantScope>. Ambient tenant wins; multi-tenant (MultiTenancyMarker) with no tenant is denied; single-tenant passes with a null tenant.
 - Design Choices 2, 3, 4 and 6 of the #798 plan.
 
 TASK:
@@ -324,7 +324,7 @@ REFERENCE FILES:
 1. **Modify `src/Encina.Security.Audit/OperationAuditStoreRegistration.cs`**: add `public static void AddTenantGate(IServiceCollection services)` that wraps the current `IOperationAuditStore` descriptor with `TenantScopedOperationAuditStore` unless it is already wrapped (use `IDecoratedServiceFactory`, `src/Encina/Core/IDecoratedServiceFactory.cs`), and the same helper for `IReadAuditStore`. `RemoveInMemoryDefault` stays; providers call `AddTenantGate` right after their `TryAddScoped`.
 2. **Modify `src/Encina.Security.Audit/ServiceCollectionExtensions.cs`** (`AddEncinaAudit`): call `AddTenantGate` after the in-memory defaults.
 3. **Modify the audit registrations of the 8 provider packages and Marten**: `Encina.ADO.SqlServer`, `ADO.PostgreSQL`, `ADO.MySQL`, `Dapper.SqlServer`, `Dapper.PostgreSQL`, `Dapper.MySQL`, `EntityFrameworkCore` (`ServiceCollectionExtensions.cs:463`), `MongoDB` (`:675`), `Audit.Marten` (`ServiceCollectionExtensions.cs:125`, which uses `Replace`): call `OperationAuditStoreRegistration.AddTenantGate(services)` after registering the store, and the read store.
-4. **Modify `src/Encina.Security.ABAC/ServiceCollectionExtensions.cs`** `ResolvePolicyStore` (line 309): wrap the resolved `IPolicyStore` with `TenantScopedPolicyStore` first, then with `CachingPolicyStoreDecorator`.
+4. **Modify `src/Encina.Security.ABAC/ServiceCollectionExtensions.cs`** `ResolvePolicyStore` (line 309): build the chain inner store, then `CachingPolicyStoreDecorator`, then `TenantScopedPolicyStore` as the **outermost** wrapper, so the scope is resolved before every call, a cache hit included (a null-tenant entry can never answer a tenantless multi-tenant request); the cache decorator keys by the tenant parameter the gate passes down. A test proves a warm cache still denies a tenantless request.
 5. **DI tests** (`ValidateOnBuild`, `ValidateScopes`): for each provider, register the provider before and after `AddEncinaAudit`; the resolved `IOperationAuditStore` is gated in both orders and an application-registered store is never removed.
 
 </details>
@@ -362,7 +362,7 @@ REFERENCE FILES:
 
 1. **Modify the six `021_CreateAbacPolicySetsTable.sql` and six `022_CreateAbacPoliciesTable.sql`** (ADO and Dapper, SqlServer, PostgreSQL, MySQL): add `TenantId VARCHAR(128) NULL`; change the primary key to a unique index on `(COALESCE(TenantId, ''), Id)` (SQL Server and PostgreSQL: unique index with `ISNULL`/`COALESCE`; MySQL: generated column or `(IFNULL(TenantId, ''), Id)` functional index); add `IX_*_TenantId`. Edited in place: pre-1.0, no migration helpers (`AGENTS.md` sections 1 and 3).
 2. **EF Core**: the entity configuration for `PolicyEntity`/`PolicySetEntity` in `src/Encina.EntityFrameworkCore` (find the configuration with `HasKey(x => x.Id)`): composite key `(TenantId, Id)` is not possible with a nullable part, so use a unique index plus a surrogate shadow key as the audit entity does; verify against `OperationAuditEntryEntityConfiguration.cs`.
-3. **MongoDB**: `PolicyDocument`/`PolicySetDocument` (in `src/Encina.MongoDB/ABAC`): `TenantId` field, compound unique index `(TenantId, Id)` with a partial filter for null.
+3. **MongoDB**: `PolicyDocument`/`PolicySetDocument` (in `src/Encina.MongoDB/ABAC`): `TenantId` field, one non-partial compound unique index `(TenantId, Id)` (MongoDB indexes a missing or null `TenantId` as null, so it enforces uniqueness of global ids and of every non-null tenant's ids alike); a test inserts a duplicate `(tenant, id)` and a duplicate global id and expects both to fail.
 4. **Tenant id normalisation**: trim is rejected, not applied; a whitespace-only tenant is "no tenant" (decision of #3147).
 
 </details>
@@ -400,13 +400,13 @@ REFERENCE FILES:
 
 | Provider | File | Change |
 |----------|------|--------|
-| ADO-SqlServer | `src/Encina.ADO.SqlServer/ABAC/PolicyStoreADO.cs` | `@TenantId` parameter, `WHERE ((TenantId = @TenantId) OR TenantId IS NULL)` for a tenant and `TenantId IS NULL` for none; insert/update stamp the column |
+| ADO-SqlServer | `src/Encina.ADO.SqlServer/ABAC/PolicyStoreADO.cs` | `@TenantId` parameter. Reads: `WHERE ((TenantId = @TenantId) OR TenantId IS NULL)` for a tenant and `TenantId IS NULL` for none. Delete, exists-for-update and save: exact ownership only (`TenantId = @TenantId`, or `IS NULL` for the global writer), never the combined predicate; insert/update stamp the column |
 | ADO-PostgreSQL | `src/Encina.ADO.PostgreSQL/ABAC/PolicyStoreADO.cs` | same, quoted identifiers |
 | ADO-MySQL | `src/Encina.ADO.MySQL/ABAC/PolicyStoreADO.cs` | same, backticks |
 | Dapper-SqlServer | `src/Encina.Dapper.SqlServer/ABAC/PolicyStoreDapper.cs` | same with anonymous parameters |
 | Dapper-PostgreSQL | `src/Encina.Dapper.PostgreSQL/ABAC/PolicyStoreDapper.cs` | same |
 | Dapper-MySQL | `src/Encina.Dapper.MySQL/ABAC/PolicyStoreDapper.cs` | same |
-| EFCore-SqlServer / PostgreSQL / MySQL | `src/Encina.EntityFrameworkCore/ABAC/PolicyStoreEF.cs` (one class for the three) | `Where(e => e.TenantId == tenantId || e.TenantId == null)` and the null-only variant; stamp on save |
+| EFCore-SqlServer / PostgreSQL / MySQL | `src/Encina.EntityFrameworkCore/ABAC/PolicyStoreEF.cs` (one class for the three) | reads: `Where(e => e.TenantId == tenantId \|\| e.TenantId == null)` and the null-only variant; delete and save: exact ownership `e.TenantId == tenantId`; stamp on save |
 | MongoDB | `src/Encina.MongoDB/ABAC/PolicyStoreMongo.cs` | `Filter.Or(Eq(TenantId, t), Eq(TenantId, null))`; stamp on upsert |
 
 Every method: a `Left` is returned, never swallowed; asynchronous calls with `CancellationToken` only (`AGENTS.md` section 3). A tenant-scoped save of an existing global id is a conflict, not an overwrite.
@@ -443,9 +443,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify `CachingPolicyStoreDecorator.cs`**: key builders take the tenant segment (`{prefix}:t:{segment}:policy-sets:all`, `...:policy-set:{id}`, `...:policies:all`, `...:policy:{id}`); `segment` is the tenant id percent-encoded, or `_` for none; the wrapper passes the tenant to the decorator through the same port parameter.
-2. **Modify `PolicyCacheInvalidationMessage.cs`**: add `string? TenantId`; **modify `PolicyCachePubSubHostedService.cs`** to remove only that tenant's keys, and all tenants' keys (`RemoveByPatternAsync("{prefix}:t:*")`) for a global change.
-3. **Tests**: tenant A's cached policy is never returned to tenant B; a global save invalidates both; the message round-trip carries the tenant.
+1. **Modify `CachingPolicyStoreDecorator.cs`**: key builders take the scope from the tenant parameter: tenant keys are `{prefix}:t:{encodedTenant}:{gen}:policy-sets:all`, `...:policy-set:{id}`, `...:policies:all`, `...:policy:{id}`, global keys are `{prefix}:g:{gen}:...`. The two namespaces are disjoint by their tag (`t` against `g`), so tenant id `_` or any other id cannot alias the global scope; the tenant id is percent-encoded including the separator.
+2. **In-flight fills (generation counter)**: each scope has a generation number in the shared cache (`{prefix}:t:{encodedTenant}:gen`, `{prefix}:g:gen`). A read loads the generation before it reads the store and builds its keys with it; every save or delete increments the generation of its scope after the store write (a global change increments the global generation, and the tenant keys embed both generations). A fill that raced with a write lands under the old generation key and is never read again. This works across instances because the counter lives in the cache, and it needs no pattern removal for the stale-read guarantee (old keys expire by TTL).
+3. **Modify `PolicyCacheInvalidationMessage.cs`**: add `string? TenantId`; **modify `PolicyCachePubSubHostedService.cs`** so other nodes re-read the generation of that scope (a global message re-reads the global one).
+4. **Tests**: tenant A's cached policy is never returned to tenant B; tenant id `_` never reads the global entries; a global save makes both views fresh; the message round-trip carries the tenant; ordering test across two decorator instances sharing one cache: instance 1 reads the old policy, instance 2 saves and invalidates, instance 1 fills late, and the next read does not serve the old policy.
 
 </details>
 
@@ -693,7 +694,7 @@ REFERENCE FILES:
 | SQL scripts (021 and 022, ADO x3 and Dapper x3) | 12 | modified in place (pre-1.0, no migration) |
 | Tests (unit, guard, contract, property, integration, justification .md) | 34 | new and modified |
 | Documentation (READMEs, docs/features, ADR, changelog fragments, PublicAPI) | 8 | docs-writer and mechanical-fixer |
-| Total | 91 | split into five pull requests |
+| Total | 91 | split into six pull requests |
 
 ---
 
@@ -769,11 +770,12 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Maintainer answers Design Choices 2 and 3 when work on the issue starts (recorded in `## Maintainer Decisions`).
-2. Split into five worker pull requests, each at most 15 files and 1500 lines:
+2. Split into six worker pull requests, each at most 15 files and 1500 lines and each leaving `main` buildable (the port change and all 8 store classes that implement it land in the same pull request):
    - **PR 1** (audit gates): Phases 1 (audit errors), 3 (audit gates), 4 (audit registrations: 9 provider files), 9 (audit part), tests, about 15 files.
-   - **PR 2** (ABAC core): Phases 1 (ABAC), 2, 3 (policy store gate), 7, 4 (`ResolvePolicyStore`), about 14 files.
-   - **PR 3** (ABAC ADO and Dapper): 6 stores plus 6 scripts, 12 files; tests in the same PR only if the limit allows, else PR 3b.
-   - **PR 4** (ABAC EF Core and MongoDB): 4 files plus integration tests.
-   - **PR 5** (contract, property, two-tenant integration suite and docs): tests, justification files, ADR, READMEs.
+   - **PR 2** (ABAC schema, no port change): models, entities, mapper, EF configuration, Mongo documents and the 6 ADO scripts, about 14 files; the new column is nullable and unused until PR 4.
+   - **PR 3** (ABAC Dapper scripts): the 6 Dapper scripts and their schema tests.
+   - **PR 4** (policy port, stores and gate): `IPolicyStore`, both PAPs, `TenantScopedPolicyStore`, `ResolvePolicyStore`, `ABACErrors`, and all 8 store classes (ADO x3, Dapper x3, EF, Mongo): 14 files; tests ride in PR 6 only for the integration suite, unit and guard tests are in this PR if the limit allows, else in a PR 4b before PR 5.
+   - **PR 5** (cache): caching decorator, invalidation message, hosted service, generation counter and tests.
+   - **PR 6** (contract, property, two-tenant integration suite and docs): tests, justification files, ADR, READMEs.
 3. Follow-up issue file: `artifacts/issues/audit-per-tenant-retention.md` (per-tenant purge of audit entries, Design Choice 6).
 4. Link this plan from #798.
