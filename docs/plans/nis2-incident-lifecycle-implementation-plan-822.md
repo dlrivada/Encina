@@ -247,7 +247,7 @@ The incident events carry the identifier of the person who acted (`ReportedByUse
 ### Rationale
 
 - A is better today: Spain has not transposed NIS2 (SPEC-002 section on NIS2) so there is no national submission API; B is better once a CSIRT interface or the single entry point exists, which is the scope of #812.
-- The resilience row of the issue is therefore applied to the Marten calls through `NIS2ResilienceHelper`, and transmission belongs to the existing issue #812 (adapter pattern for incident reporting to external authorities, Digital Omnibus single entry point), so no new issue is needed.
+- The resilience row of the issue is therefore not applicable here: the Marten calls are not wrapped in `NIS2ResilienceHelper`, because that helper returns its fallback on any failure (`NIS2ResilienceHelper.cs`, the `catch (Exception)` branches) and would report a failed append as success, which AGENTS.md section 3 forbids. Transmission belongs to the existing issue #812 (adapter pattern for incident reporting to external authorities, Digital Omnibus single entry point), so no new issue is needed.
 
 </details>
 
@@ -348,7 +348,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `Abstractions/INIS2IncidentLifecycleService.cs`: `DetectIncidentAsync`, `SendEarlyWarningAsync`, `SendNotificationAsync`, `SendIntermediateReportAsync`, `SendFinalReportAsync`, `EscalateAsync`, `CloseAsync`, each `ValueTask<Either<EncinaError, ...>>` with `CancellationToken`; command records `NIS2IncidentDetectionCommand`, `NIS2EarlyWarningCommand`, `NIS2IncidentNotificationCommand`, `NIS2IntermediateReportCommand`, `NIS2FinalReportCommand`, `NIS2IncidentClosureCommand` in `Model/` (validated: required text not blank).
-2. `Services/DefaultNIS2IncidentLifecycleService.cs` (internal): constructor takes `IAggregateRepository<NIS2IncidentAggregate>`, `TimeProvider`, `IOptions<NIS2Options>`, `IServiceProvider` (for `NIS2ResilienceHelper`), `ILogger`. Loads, pre-checks the transition, calls the aggregate, saves; maps repository `Left` unchanged; never swallows a `Left`.
+2. `Services/DefaultNIS2IncidentLifecycleService.cs` (internal): constructor takes `IAggregateRepository<NIS2IncidentAggregate>`, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`. Loads, pre-checks the transition, calls the aggregate, saves; maps repository `Left` unchanged; never swallows a `Left`.
 3. `NIS2Errors.cs`: add `IncidentNotFound`, `IncidentInvalidTransition`, `IncidentCommandInvalid`, `IncidentEventStoreFailed` using the existing error-code scheme.
 4. Tenant and module ids come from `ITenantContext`/`IModuleContext` when registered (Phase 5).
 
@@ -366,7 +366,7 @@ CONTEXT:
 
 TASK:
 1. Create INIS2IncidentLifecycleService and the command records.
-2. Create the internal default implementation; time from TimeProvider; Marten calls through NIS2ResilienceHelper.
+2. Create the internal default implementation; time from TimeProvider; call the repository directly (NIS2ResilienceHelper returns a fallback on failure and would hide a failed append).
 3. Add the NIS2Errors factories; every failure is Left with an error code, never an exception for a business rule.
 4. Unit tests with NSubstitute for IAggregateRepository; guard tests; a contract test of the service.
 
@@ -377,7 +377,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Compliance.BreachNotification/Services/DefaultBreachNotificationService.cs
 - src/Encina.Compliance.NIS2/NIS2Errors.cs
-- src/Encina.Compliance.NIS2/NIS2ResilienceHelper.cs
+- src/Encina.Compliance.NIS2/NIS2Errors.cs
 ```
 
 </details>
@@ -641,7 +641,7 @@ REFERENCE FILES:
 | NIS2Incident, NIS2IncidentSeverity, NIS2NotificationPhase | src/Encina.Compliance.NIS2/Model | Existing types reused; deadline rules already coded |
 | INIS2IncidentHandler and DefaultNIS2IncidentHandler | src/Encina.Compliance.NIS2 | Stateless handler kept unchanged |
 | NIS2Diagnostics and NIS2LogMessages | src/Encina.Compliance.NIS2/Diagnostics | ActivitySource, Meter, logger messages |
-| NIS2ResilienceHelper | src/Encina.Compliance.NIS2 | Resilience for store calls |
+| NIS2ResilienceHelper | src/Encina.Compliance.NIS2 | Not used here: returns a fallback on any failure (see Design Choice 9) |
 | NIS2ComplianceHealthCheck | src/Encina.Compliance.NIS2/Health | Health check pattern |
 | CryptoShreddedAttribute | src/Encina.Marten.GDPR/Attributes | Field-level encryption of event properties (ADR-034), if Dilemma 6 picks B |
 | EventIdRanges | src/Encina/Diagnostics/EventIdRanges.cs | EventId registry (ADR-021) |
@@ -726,7 +726,7 @@ REFERENCE FILES:
 | 3 | Structured Logging | ✅ | Phase 6: `[LoggerMessage]` in the new range 9800-9829 |
 | 4 | Health Checks | ✅ | Phase 5: overdue incidents give Degraded, store failure Unhealthy |
 | 5 | Validation | ✅ | Command records validated in the service (blank text, empty services list) before any event is raised |
-| 6 | Resilience | ✅ | Marten calls through `NIS2ResilienceHelper`; CSIRT transmission is out of scope (Design Choice 9; tracked by #812) |
+| 6 | Resilience | ❌ | No external call: CSIRT transmission is out of scope (Design Choice 9; tracked by #812). The Marten calls are not wrapped in `NIS2ResilienceHelper` because it swallows failures |
 | 7 | Distributed Locks | ⏭️ | Escalation is idempotent and Marten optimistic concurrency protects duplicates (Design Choice 7); multi-instance coordination for event-sourced modules follows ADR-050 and its tracking issues; no new issue needed |
 | 8 | Transactions | ✅ | The Marten session commits the event append atomically; no `TransactionPipelineBehavior` (ADR-050 forbids that pairing with Marten) |
 | 9 | Idempotency | ✅ | Aggregate version (optimistic concurrency) and the per-phase escalation guard; command retries after a conflict reload the aggregate |
@@ -744,6 +744,7 @@ REFERENCE FILES:
 | `Encina.Marten.GDPR` and a persistent key store (#1191) | Exists / open | Only if Dilemma 6 resolves to B |
 | ADR-050 coordination for event-sourced modules (Outbox in the Marten session, #2383) | Open | Delivery of the events as notifications; this plan does not depend on it |
 | Plans #823 to #826 | In parallel | Reference the shared pieces above |
+| #827 NIS2 reporting and read models (open sibling in the same package) | Open | Shares the range, the references and `AddNIS2EventSourcing`; outside this family, so it needs its own allocation in 9800-9899 or a later range |
 | #804 DORA incident infrastructure | Open | Will reuse the aggregate pattern; nothing here depends on it |
 
 ---
