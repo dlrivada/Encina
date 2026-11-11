@@ -32,7 +32,7 @@ SPEC-002 DEC-009 (b) requires every capability SPEC-002 adds or changes to be te
 | Tenant telemetry helper (`SetTenantTag`) | #2676 | all packages (ADR-054 D4) |
 | Tenant restored from persisted context in background work | #1164 | outbox, inbox, saga, scheduler, retention sweep, purge |
 | Tenant columns in messaging entities | #737, #738, #739, #760 | AC-043 messaging rows |
-| EventId range for the primitives (about 50 ids, name `TenantIsolation`, block to be assigned by the orchestrator) | this plan, PR 1257-A | the primitives |
+| EventId range for the primitives (`TenantIsolation = (7420, 7469)`) | this plan, PR 1257-A | the primitives |
 
 **Scope.** (1) the shared primitive and the default-tenant rule; (2) the fail-closed tenant configuration contract with secret references; (3) tenant-scoped subject and column-encryption keys; (4) the registry-driven two-tenant isolation suite on 10 providers and Marten with an architecture test that fails when a SPEC-002 store has no isolation descriptor; (5) the AC-043 closure tracker. **Out of scope**: the stores of the children (each child plan lists its own provider work), the platform-operator cross-tenant permission (#3271, #2972), pacing implementation (#469, #740).
 
@@ -459,7 +459,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Register the new `TenantIsolation` range (about 50 ids; **block to be assigned by the orchestrator**) in `src/Encina/Diagnostics/EventIdRanges.cs` first, and add the `Encina` assembly entry to `AssemblyRanges` in `EncinaEventIdAllocationTests`.
+1. Register the new `TenantIsolation` range `TenantIsolation = (7420, 7469)` in `src/Encina/Diagnostics/EventIdRanges.cs` first, and add the `Encina` assembly entry to `AssemblyRanges` in `EncinaEventIdAllocationTests`.
 2. `[LoggerMessage]` ids, the first 10 of that range: tenant required, tenant mismatch, missing tenant configuration, default tenant used (debug), invalid tenant id; codes only.
 3. Counter and span of Phase 3; a test with an in-memory exporter (AC-044) asserts that the main operations emit them with the tenant attribute only when multi-tenancy is on, and that no tag, metric or log carries a payload or a direct identifier.
 
@@ -470,7 +470,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- ADR-021 and ADR-054 D4. The block for the new range is assigned by the orchestrator; do not pick one.
+- ADR-021 and ADR-054 D4. The new range is `TenantIsolation = (7420, 7469)`.
 
 TASK:
 Register the range, add the log messages, the exporter test, and the architecture-test map entry.
@@ -613,7 +613,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (tenant isolation primitives) | to be assigned by the orchestrator (new `TenantIsolation`, about 50 ids) | register in `EventIdRanges.cs` first; this plan uses the first 10 |
+| `Encina` (tenant isolation primitives) | 7420-7469 (new `TenantIsolation`) | register in `EventIdRanges.cs` first; this plan uses the first 10 |
 | `Encina.Tenancy` | none new | 1805-1809 are reserved by the #752 plan inside `Tenancy = (1800, 1899)`; the tenancy diagnostics of this plan are a counter and a span, its log messages use the new `TenantIsolation` range |
 
 ### Estimated File Count
@@ -650,7 +650,7 @@ IMPLEMENTATION OVERVIEW:
 5. DI tests in both registration orders; start-up check.
 6. Isolation suite: descriptors, registry, abstract bases, per-provider classes, architecture test; S11.
 7. Cache-key architecture test; verification of #1164, #596, #752.
-8. EventId range (assigned by the orchestrator) registered first; log messages; AC-044 exporter test.
+8. EventId range 7420-7469 registered first; log messages; AC-044 exporter test.
 9. Tests of 7 types; manifests via mechanical-fixer. 10. ADR, guide, READMEs, fragments via specialists.
 
 KEY PATTERNS:
@@ -678,7 +678,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ | `TenantCacheKey.Segment` is the one tenant segment builder; cache keys of the family include it (Phase 7). |
 | 2 | OpenTelemetry | ✅ | Span `encina.tenancy.resolve`, counter `encina.tenancy.missing_tenant_config`, tenant attribute only when multi-tenancy is on (ADR-054 D4, #2676). |
-| 3 | Structured Logging | ✅ | New `TenantIsolation` range (block to be assigned by the orchestrator) registered first; codes only. |
+| 3 | Structured Logging | ✅ | New `TenantIsolation` range 7420-7469 registered first; codes only. |
 | 4 | Health Checks | ⏭️ | The tenant store health check is #596 (open, already linked from the issue); this plan verifies it in the tracker. |
 | 5 | Validation | ✅ | Tenancy options validated at start-up: reserved default id, blank, padded ids; configuration sources non-empty in multi-tenant mode. |
 | 6 | Resilience | ❌ | The primitives call no external system; secret-provider resilience belongs to `Encina.Security.Secrets`. |
