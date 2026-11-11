@@ -515,7 +515,7 @@ REFERENCE FILES:
 
 1. **Metric**: `encina.audit.tenant_gate.denied` (`Counter<long>`, tag `reason` = `tenant_required` or `tenant_mismatch`) in `OperationAuditMeter` (`src/Encina.Security.Audit/Diagnostics/OperationAuditMeter.cs`); the same counter name family `encina.abac.policy_store.tenant_denied` in the ABAC meter. Instrument names follow ADR-054 settled point 4 (lowercase, dot separated, no `_total`).
 2. **Tenant tag**: use the shared helper of #2676 (`SetTenantTag`/`WithTenantTag`) when it exists; until then no tag is emitted (ADR-054 D4: tag only when multi-tenancy is on). The tenant id is never a log or exception value.
-3. **Logging**: Security.Audit ids 5013-5020 (existing range `SecurityAudit = (5000, 5099)`, used up to 5012); ABAC ids: 9000-9099 has 74 ids in use, so the ABAC part needs a new range of about 20 ids, **to be assigned by the orchestrator** (register it in `src/Encina/Diagnostics/EventIdRanges.cs` first and add it to the `AssemblyRanges` entry of `Encina.Security.ABAC` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`).
+3. **Logging**: Security.Audit ids 5013-5020 (existing range `SecurityAudit = (5000, 5099)`, used up to 5012); ABAC ids: 9000-9099 has 74 ids in use, so the ABAC part needs the new range `SecurityABACTenancy = (7400, 7419)` (register it in `src/Encina/Diagnostics/EventIdRanges.cs` first and add it to the `AssemblyRanges` entry of `Encina.Security.ABAC` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`).
 
 </details>
 
@@ -680,7 +680,7 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Security.Audit` | 5013-5020 | inside the registered `SecurityAudit = (5000, 5099)`; 5000-5012 are in use |
-| `Encina.Security.ABAC` | to be assigned by the orchestrator (about 20 ids, new range) | `SecurityABAC = (9000, 9099)` has 74 of 100 ids in use; register the new range in `EventIdRanges.cs` first and map it to the ABAC assembly in `EncinaEventIdAllocationTests` |
+| `Encina.Security.ABAC` | 7400-7419 (new `SecurityABACTenancy`) | `SecurityABAC = (9000, 9099)` has 74 of 100 ids in use; register the new range in `EventIdRanges.cs` first and map it to the ABAC assembly in `EncinaEventIdAllocationTests` |
 
 ### Estimated File Count
 
@@ -745,7 +745,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ | Policy cache partitioned by tenant segment with pattern invalidation for global changes (Phase 7). |
 | 2 | OpenTelemetry | ✅ | Denial counters now; tenant tag through the #2676 helper when it lands (ADR-054 D4). |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 5013-5020 and a new ABAC range to be assigned by the orchestrator; codes only, never tenant values. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 5013-5020 and the new ABAC range 7400-7419; codes only, never tenant values. |
 | 4 | Health Checks | ❌ | No new checkable dependency: the gates wrap existing stores. |
 | 5 | Validation | ❌ | No new user input; tenant ids come from the request context and are compared, not parsed. |
 | 6 | Resilience | ❌ | No new external call. |
