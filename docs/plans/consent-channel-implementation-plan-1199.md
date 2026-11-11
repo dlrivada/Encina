@@ -27,8 +27,18 @@ Make consent in `Encina.Compliance.Consent` specific to a **purpose and a channe
 - **Affected package**: `Encina.Compliance.Consent` only (plus tests, README, `docs/features/consent-management.md`, coverage manifest, changelog fragment, `PublicAPI.Unshipped.txt`).
 - **Provider category**: none of the AGENTS.md §5 matrices. Consent is event-sourced on Marten (PostgreSQL); SPEC-002 DEC-008 (a) and ADR-019 keep the nine event-sourced compliance modules Marten-only in 1.0; AGENTS.md §3 requires unit tests with a mocked `IAggregateRepository` and integration tests on Marten through Testcontainers.
 - **Estimated files**: ~12 new source files, ~14 modified source files, ~14 test files, ~5 documentation files.
-- **Pull request split** (the feature exceeds 15 files and 1,500 lines): **PR 1** = Phases 1-2 (shape: channel, basis, classification types, events, aggregate, projection, service key; ~13 files); **PR 2** = Phases 3-5 (options, evaluator, attribute, behaviour, cross-cutting; ~14 files); **PR 3** = Phases 6-8 (observability, remaining tests, documentation). Each PR carries the tests of its own phases.
-- **Event IDs**: 8279-8287 in `ComplianceConsent = (8200, 8299)`, after #811 (8269-8274) and #810 (8275-8278); #1255 takes 8288-8293 (its plan). See Research.
+- **Pull request split** (the feature exceeds 15 files and 1,500 lines). The counts include the tests of each phase, `PublicAPI.Unshipped.txt` and the coverage manifest; the 45 distinct files of the Estimated File Count become about 50 file touches because the last two recur. Five pull requests, each checked against 15 files and 1,500 lines when its brief is written:
+
+| PR | Phases | Content (with its tests) | Files (approx.) |
+|----|--------|--------------------------|-----------------|
+| 1 | 1 | Channel, basis and classification types, events, aggregate, read model, projection, PublicAPI; aggregate and projection unit tests; manifest | 11 |
+| 2 | 2 | `IConsentService` and `DefaultConsentService` channel key, `OptOutAsync`, `ConsentErrors`, PublicAPI; extended service unit tests, guard and contract tests; manifest | 9 |
+| 3 | 3, 4 | Options and validator, evaluator, attribute, behaviour (channel branch extracted), registration, PublicAPI; options, evaluator and behaviour unit tests, property test; manifest | 14 |
+| 4 | 5, 6 | Tenancy and audit proof, diagnostics, `ConsentChannelLogMessages`, PublicAPI; two-tenant and Marten integration tests, telemetry and leak tests; manifest | 9 |
+| 5 | 7, 8 | Remaining guard and contract rows, 2 justification files, README, feature guide, specification tables (with #1209), changelog fragment | 7 |
+
+Each PR depends on the one before it.
+- **Event IDs**: 8281-8289 in `ComplianceConsent = (8200, 8299)`, after #811 (8269-8274), #1197 (8275-8276) and #810 (8277-8280); #1255 takes 8290-8295 (its plan). The allocation is fixed whatever the order in which the pull requests land. See Research.
 
 ### Related open issues that touch the same files
 
@@ -53,8 +63,8 @@ Make consent in `Encina.Compliance.Consent` specific to a **purpose and a channe
 
 ### Chosen Option: **A — string identifiers, validated by options**
 
-Class: Trivial
-Settled by: `src/Encina.Compliance.Consent/Model/ConsentPurposes.cs` (purposes are lowercase hyphen-separated `const string` values stored as `string`), issue #1199 Proposed Solution ("channels are an extensible set with the five above built in")
+**Class:** Trivial
+**Settled by:** `src/Encina.Compliance.Consent/Model/ConsentPurposes.cs` (purposes are lowercase hyphen-separated `const string` values stored as `string`), issue #1199 Proposed Solution ("channels are an extensible set with the five above built in")
 
 ### Rationale
 
@@ -75,7 +85,7 @@ Settled by: `src/Encina.Compliance.Consent/Model/ConsentPurposes.cs` (purposes a
 
 ### Chosen Option: **A — null channel is channel-agnostic and never satisfies a channel requirement** (recommended, pending the maintainer)
 
-Class: Dilemma
+**Class:** Dilemma
 
 ### Rationale
 
@@ -96,7 +106,7 @@ Class: Dilemma
 
 ### Chosen Option: **A — basis field on the consent record** (recommended, pending the maintainer)
 
-Class: Dilemma
+**Class:** Dilemma
 
 ### Rationale
 
@@ -120,8 +130,8 @@ Class: Dilemma
 
 ### Chosen Option: **A — attribute properties, same pattern as `SubjectIdProperty`**
 
-Class: Trivial
-Settled by: `src/Encina.Compliance.Consent/Attributes/RequireConsentAttribute.cs` (`SubjectIdProperty` and its cached reflection in `ConsentRequiredPipelineBehavior.ExtractSubjectId`, lines 194-225)
+**Class:** Trivial
+**Settled by:** `src/Encina.Compliance.Consent/Attributes/RequireConsentAttribute.cs` (`SubjectIdProperty` and its cached reflection in `ConsentRequiredPipelineBehavior.ExtractSubjectId`, lines 194-225)
 
 ### Rationale
 
@@ -143,8 +153,8 @@ Settled by: `src/Encina.Compliance.Consent/Attributes/RequireConsentAttribute.cs
 
 ### Chosen Option: **A — `IChannelConsentEvaluator`**
 
-Class: Settled
-Settled by: issue #1199 Proposed Solution ("an opt-out that the notification layer (P-33) must offer in every message"), SPEC-002 scenario S12 ("the reminder is delivered through `Encina.Notifications`")
+**Class:** Settled
+**Settled by:** issue #1199 Proposed Solution ("an opt-out that the notification layer (P-33) must offer in every message"), SPEC-002 scenario S12 ("the reminder is delivered through `Encina.Notifications`")
 
 ### Rationale
 
@@ -165,12 +175,12 @@ Settled by: issue #1199 Proposed Solution ("an opt-out that the notification lay
 
 ### Chosen Option: **A — enforce by default, unclassified means Commercial**
 
-Class: Settled
-Settled by: `AGENTS.md` §3 (compliance and security gates fail closed; the only opt-out is explicit and logged), issue #1199 comment of 2026-10-17 ("compliance modules enforce by default")
+**Class:** Settled
+**Settled by:** `AGENTS.md` §3 (compliance and security gates fail closed; the only opt-out is explicit and logged), issue #1199 comment of 2026-10-17 ("compliance modules enforce by default")
 
 ### Rationale
 
-- `ConsentOptions.EnforcementMode` already defaults to `Block` (`ConsentOptions.cs`); `Warn` and `Disabled` keep their meaning and the Warn path logs through EventId 8279-8287 messages instead of passing silently.
+- `ConsentOptions.EnforcementMode` already defaults to `Block` (`ConsentOptions.cs`); `Warn` and `Disabled` keep their meaning and the Warn path logs through EventId 8281-8289 messages instead of passing silently.
 
 </details>
 
@@ -189,7 +199,7 @@ Settled by: `AGENTS.md` §3 (compliance and security gates fail closed; the only
 2. **`Model/ConsentBasis.cs`** (new enum, explicit numbering, no `0` member): `Consent = 1`, `ExistingClientLssi212 = 2`.
 3. **`Model/MessageClassification.cs`** (new enum): `Transactional = 1`, `Commercial = 2`; XML docs state that the application decides and that an unclassified message is treated as `Commercial`.
 4. **`Events/ConsentEvents.cs`** (modify `ConsentGranted`, line 36): add `string? Channel`, `ConsentBasis Basis`, `string? BasisReference` (the reference to the prior contractual relationship; an opaque identifier, never a name or contact data) before `TenantId`. Coordinate the parameter order with #1197 and #1255 (Prerequisites & Dependencies). `ConsentReconsentProvided` keeps the channel of its stream (no change).
-5. **`Aggregates/ConsentAggregate.cs`** (modify): properties `Channel`, `Basis`, `BasisReference`; `Grant(...)` gains `string? channel = null, ConsentBasis basis = ConsentBasis.Consent, string? basisReference = null` and throws `ArgumentException` for `ExistingClientLssi212` without a `basisReference`; `Apply(ConsentGranted)` sets them.
+5. **`Aggregates/ConsentAggregate.cs`** (modify): properties `Channel`, `Basis`, `BasisReference`; `Grant(...)` gains `string? channel = null, ConsentBasis basis = ConsentBasis.Consent, string? basisReference = null` and takes them as data only: the business rule "`ExistingClientLssi212` needs a `basisReference`" is evaluated by the service before the aggregate is created (Phase 2 task 2) and returns a `Left` (ADR-053); no new `throw` is added on the rule path (the existing aggregate commands that throw are not extended); `Apply(ConsentGranted)` sets them.
 6. **`ReadModels/ConsentReadModel.cs`** and **`ReadModels/ConsentProjection.cs`** (modify): `Channel`, `Basis`, `BasisReference` set in `Create(ConsentGranted, ...)`.
 7. **`PublicAPI.Unshipped.txt`**: every new public symbol (delegated to `mechanical-fixer`).
 
@@ -211,7 +221,7 @@ Add ConsentChannels (five const strings), ConsentBasis and MessageClassification
 
 KEY RULES:
 - Name the new field Channel, never Source (Source already means how consent was collected).
-- ExistingClientLssi212 requires a BasisReference; the aggregate throws ArgumentException without one.
+- ExistingClientLssi212 requires a BasisReference; the rule is checked by the service and returns Left (ConsentErrors.BasisReferenceRequired); the aggregate takes the values as data and adds no throw.
 - BasisReference is an opaque identifier; it never reaches logs, activity tags or metric tags.
 - XML docs on every public member; no [Obsolete], no compatibility shims; zero warnings.
 
@@ -233,9 +243,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Abstractions/IConsentService.cs`** (modify): `GrantConsentAsync` gains `string? channel = null, ConsentBasis basis = ConsentBasis.Consent, string? basisReference = null` before `CancellationToken`; `GetConsentBySubjectAndPurposeAsync` and `HasValidConsentAsync` gain `string? channel = null`; new `ValueTask<Either<EncinaError, Unit>> OptOutAsync(string dataSubjectId, string purpose, string channel, string optedOutBy, CancellationToken cancellationToken = default)` that finds the active record for the key and withdraws it (idempotent: no active record returns `Right(unit)`).
-2. **`Services/DefaultConsentService.cs`** (modify): queries filter `c.Channel == channel` (null matches null, so existing channel-less purposes behave as before); `HasValidConsentAsync` also requires `c.Basis == ConsentBasis.Consent` (Design Choice 3); the cache key (line 494) gains `:channel:{channel ?? "-"}`; `GrantConsentAsync` validates the channel against `ConsentOptions.ChannelDefinitions` and the basis against `SupportsExistingClientBasis`, returning `ConsentErrors.UnknownChannel` / `ConsentErrors.BasisNotAllowedOnChannel`.
-3. **`ConsentErrors.cs`** (modify): `UnknownChannelCode = "consent.unknown_channel"`, `BasisNotAllowedOnChannelCode = "consent.basis_not_allowed_on_channel"`, `ChannelConsentMissingCode = "consent.channel_missing"` and factories; messages carry codes and channel names only, never the subject id.
+1. **`Abstractions/IConsentService.cs`** (modify): `GrantConsentAsync` gains `string? channel = null, ConsentBasis basis = ConsentBasis.Consent, string? basisReference = null` before `CancellationToken`; `GetConsentBySubjectAndPurposeAsync` and `HasValidConsentAsync` gain `string? channel = null`; new `ValueTask<Either<EncinaError, Unit>> OptOutAsync(string dataSubjectId, string purpose, string channel, string optedOutBy, CancellationToken cancellationToken = default)` that finds every active record for the key and withdraws all of them, so a duplicate active record cannot leave the opt-out ineffective (idempotent: no active record returns `Right(unit)`; a failure on any withdrawal returns `Left`, fail closed).
+2. **`Services/DefaultConsentService.cs`** (modify): queries filter `c.Channel == channel` (null matches null, so existing channel-less purposes behave as before); `HasValidConsentAsync` also requires `c.Basis == ConsentBasis.Consent` (Design Choice 3); the cache key (line 494) gains `:channel:{channel ?? "-"}`; `GrantConsentAsync` validates the channel against `ConsentOptions.ChannelDefinitions` and the basis against `SupportsExistingClientBasis`, returning `ConsentErrors.UnknownChannel` / `ConsentErrors.BasisNotAllowedOnChannel`, and returns `ConsentErrors.BasisReferenceRequired` when the basis is `ExistingClientLssi212` and `basisReference` is null or whitespace.
+3. **`ConsentErrors.cs`** (modify): `UnknownChannelCode = "consent.unknown_channel"`, `BasisNotAllowedOnChannelCode = "consent.basis_not_allowed_on_channel"`, `ChannelConsentMissingCode = "consent.channel_missing"`, `BasisReferenceRequiredCode = "consent.basis_reference_required"` and factories; messages carry codes and channel names only, never the subject id.
 4. **`DefaultConsentValidator.cs`**: no signature change; it keeps the channel-less path (calls the service with `channel: null`).
 5. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
@@ -326,7 +336,7 @@ REFERENCE FILES:
 1. **`Abstractions/IChannelConsentEvaluator.cs`** (new): `ValueTask<Either<EncinaError, ChannelConsentDecision>> EvaluateAsync(string subjectId, IReadOnlyList<string> purposes, string channel, MessageClassification classification, CancellationToken cancellationToken = default)`.
 2. **`Model/ChannelConsentDecision.cs`** (new `sealed record`): `bool Allowed`, `ConsentBasis? Basis`, `bool OptOutRequired`, `IReadOnlyList<string> MissingPurposes`; factories `Allow(basis, optOutRequired)`, `Refuse(missingPurposes)`.
 3. **`DefaultChannelConsentEvaluator.cs`** (new, `sealed`, scoped): rule: `Transactional` is allowed without consent records (no marketing consent is read) and returns `OptOutRequired = false`; `Commercial` needs, per purpose, an active unexpired `Basis == Consent` record for the channel, else an active unexpired `ExistingClientLssi212` record for the channel when the channel definition allows it (then `OptOutRequired = true`); otherwise `Refuse`. Uses `IConsentService` and `TimeProvider`; a `Left` from the service is returned as `Left` (never a pass).
-4. **`ConsentRequiredPipelineBehavior.cs`** (modify `Handle`, after subject extraction at line 121): resolve channel and classification (static value, else cached property lookup; missing classification means `Commercial`); when a channel is present call the evaluator instead of `IConsentValidator`, map a refusal to `ConsentErrors.ChannelConsentMissing` in `Block` mode and log in `Warn` mode; requests without a channel keep the existing path. `OptOutRequired` is written to `IRequestContext` metadata item `encina.consent.opt_out_required` when the context offers items (verify the context type in the worker's first step), otherwise exposed only through the evaluator.
+4. **`ConsentRequiredPipelineBehavior.cs`** (modify `Handle`, after subject extraction at line 121): resolve channel and classification (static value, else cached property lookup; missing classification means `Commercial`); when a channel is present call the evaluator instead of `IConsentValidator`, map a refusal to `ConsentErrors.ChannelConsentMissing` in `Block` mode and log in `Warn` mode; requests without a channel keep the existing path. `OptOutRequired` is exposed only through the evaluator's decision: `IRequestContext.Metadata` is read-only and `WithMetadata` returns a new context (`src/Encina/Abstractions/IRequestContext.cs`), so a behaviour cannot hand a value to the next handler without changing the pipeline contract; no `encina.consent.opt_out_required` item is written.
 5. **`ServiceCollectionExtensions.cs`** (modify): `TryAddScoped<IChannelConsentEvaluator, DefaultChannelConsentEvaluator>()` in `AddEncinaConsent`.
 6. **`PublicAPI.Unshipped.txt`** (via `mechanical-fixer`).
 
@@ -413,7 +423,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Diagnostics/ConsentDiagnostics.cs`** (modify): counters `consent.channel.checks.total` (tags `consent.channel`, `consent.message_class`, `consent.outcome`), `consent.channel.refusals.total` (tags `consent.channel`, `consent.failure_reason`), `consent.existing_client.optouts.total` (tag `consent.channel`); tag constants `TagChannel`, `TagMessageClass`, `TagTenantId = "encina.tenant_id"`; the existing `Consent.Check` activity gains `consent.channel`, `consent.message_class` and `encina.tenant_id` (the activity has no tenant tag today). The issue's proposed names (`encina.consent.channel_refusals`, `encina.consent.check`) are replaced by the existing naming of the package (`consent.*`, activity `Consent.Check`).
-2. **`Diagnostics/ConsentChannelLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8279-8287 (see EventIdRanges.ComplianceConsent)"): 8279 `ChannelConsentPassed`, 8280 `ChannelConsentRefused`, 8281 `ExistingClientBasisUsed`, 8282 `ExistingClientOptedOut`, 8283 `TransactionalMessagePassed`, 8284 `ClassificationMissingTreatedAsCommercial`, 8285 `UnknownChannelRejected`, 8286 `ChannelEvaluationFailed` (error code only), 8287 `ChannelWarnModeProceeded`; each carries purpose, channel and class, never the subject, actor or basis reference.
+2. **`Diagnostics/ConsentChannelLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8281-8289 (see EventIdRanges.ComplianceConsent)"): 8281 `ChannelConsentPassed`, 8282 `ChannelConsentRefused`, 8283 `ExistingClientBasisUsed`, 8284 `ExistingClientOptedOut`, 8285 `TransactionalMessagePassed`, 8286 `ClassificationMissingTreatedAsCommercial`, 8287 `UnknownChannelRejected`, 8288 `ChannelEvaluationFailed` (error code only), 8289 `ChannelWarnModeProceeded`; each carries purpose, channel and class, never the subject, actor or basis reference.
 3. No range change: the assembly is already mapped in `EncinaEventIdAllocationTests.cs:63`. `PublicAPI.Unshipped.txt` unaffected by internal log classes.
 
 </details>
@@ -426,13 +436,13 @@ You are implementing Phase 6 of channel-scoped consent in Encina.Compliance.Cons
 
 CONTEXT:
 - ConsentDiagnostics (Diagnostics/ConsentDiagnostics.cs) owns the ActivitySource, the Meter and the tag constants; Consent.Check is the activity.
-- Existing logs use LoggerMessage.Define in Diagnostics/ConsentLogMessages.cs (EventIds up to 8268); #811 uses 8269-8274 and #810 uses 8275-8278.
+- Existing logs use LoggerMessage.Define in Diagnostics/ConsentLogMessages.cs (EventIds up to 8268); #811 uses 8269-8274, #1197 uses 8275-8276 and #810 uses 8277-8280.
 
 TASK:
-Add the three counters, the tag constants and the activity tags, and create ConsentChannelLogMessages with EventIds 8279-8287 as listed in the plan's Phase 6 Tasks. Call them from the evaluator, the behaviour and OptOutAsync.
+Add the three counters, the tag constants and the activity tags, and create ConsentChannelLogMessages with EventIds 8281-8289 as listed in the plan's Phase 6 Tasks. Call them from the evaluator, the behaviour and OptOutAsync.
 
 KEY RULES:
-- [LoggerMessage] source generator only, packed sequentially 8279-8287, all inside 8200-8299.
+- [LoggerMessage] source generator only, packed sequentially 8281-8289, all inside 8200-8299.
 - No subject id, actor, basis reference, payload or EncinaError.Message in any log, tag or metric (AGENTS.md section 3, #1314).
 - Run EncinaEventIdAllocationTests and the architecture tests.
 
@@ -454,14 +464,14 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit** (`tests/Encina.UnitTests/Compliance/Consent/Channels/`): `DefaultChannelConsentEvaluatorTests` (transactional passes with no record; commercial refused without channel consent; e-mail consent does not satisfy WhatsApp; art. 21.2 record accepted and `OptOutRequired`; expired and withdrawn records; basis not allowed on phone; service `Left` fails closed), `ConsentChannelOptionsTests`, `ConsentChannelAggregateTests`, `ConsentChannelProjectionTests`, behaviour tests for static and property channel and classification, unknown channel, missing classification as commercial, Warn and Disabled modes.
+1. **Unit** (`tests/Encina.UnitTests/Compliance/Consent/Channels/`): `DefaultChannelConsentEvaluatorTests` (transactional passes with no record; commercial refused without channel consent; e-mail consent does not satisfy WhatsApp; art. 21.2 record accepted and `OptOutRequired`; expired and withdrawn records; basis not allowed on phone; `ExistingClientLssi212` without a `basisReference` returns `Left`; `OptOutAsync` with two active records for one key withdraws both; service `Left` fails closed), `ConsentChannelOptionsTests`, `ConsentChannelAggregateTests`, `ConsentChannelProjectionTests`, behaviour tests for static and property channel and classification, unknown channel, missing classification as commercial, Warn and Disabled modes.
 2. **Guard** (`tests/Encina.GuardTests/Compliance/Consent/`): constructors and public methods of the evaluator, `OptOutAsync`, `DefineChannel`.
 3. **Contract** (`tests/Encina.ContractTests/Compliance/Consent/`): `IChannelConsentEvaluator` contract against the real default; `IConsentService` channel members.
 4. **Property** (`tests/Encina.PropertyTests/Compliance/Consent/`): for every channel and any consent state, a `Transactional` message never requires marketing consent and a `Commercial` one always does.
 5. **Integration** (`tests/Encina.IntegrationTests/Compliance/Consent/`, `[Collection(MartenCollection.Name)]`, PostgreSQL through Testcontainers): grant e-mail, refuse WhatsApp, opt out of an art. 21.2 record, two-tenant isolation, and the duplicate-active-record case that the follow-up issue covers.
 6. **Telemetry/privacy**: an in-memory exporter test (AC-044) and a leak test (no subject id, actor or basis reference in tags, metrics or log messages), extending `ConsentPiiLeakTests`.
 7. **Load and benchmark**: `.md` justifications in `tests/Encina.LoadTests/Compliance/Consent/` and `tests/Encina.BenchmarkTests/Encina.Benchmarks/Compliance/Consent/` (not concurrent or hot paths); never for unit, guard, contract or integration.
-8. **Coverage manifest**: per-file `targets` and one-sentence `justifications` in `.github/coverage-manifest/Encina.Compliance.Consent.json` for every new or changed file (delegated to `mechanical-fixer`, targets demanding and realistic); measure each flag as AGENTS.md §9 describes and run the CRAP gate on the changed methods (`ConsentRequiredPipelineBehavior.Handle` is already long: extract the channel branch into a private method to keep CRAP at or below 10).
+8. **Coverage manifest**: per-file `targets` and one-sentence `justifications` in `.github/coverage-manifest/Encina.Compliance.Consent.json` for every new or changed file (delegated to `mechanical-fixer`, targets demanding and realistic); measure each flag as AGENTS.md §9 describes (`dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests`, then `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`, and report the "Per-file targets" table in the PR) and run the CRAP gate on the changed methods (`ConsentRequiredPipelineBehavior.Handle` is already long: extract the channel branch into a private method to keep CRAP at or below 10).
 
 </details>
 
@@ -571,10 +581,11 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.Compliance.Consent` (existing) | 8200-8299 (`EventIdRanges.ComplianceConsent`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 |
 | #811 exemptions | 8269-8274 | Reserved by its plan |
-| #810 cooldown | 8275-8278 | Reserved by its plan (the #1197 plan also names 8275-8276: that overlap is to be reconciled by the maintainer's ordering) |
-| **This plan (#1199)** | **8279-8287** | Packed after 8278; new `ConsentChannelLogMessages` |
-| #1255 minors | 8288-8293 | Reserved by its plan |
-| Left in the range | 8294-8299 | A further Consent feature needs a second range |
+| #1197 representation | 8275-8276 | Reserved by its plan |
+| #810 cooldown | 8277-8280 | Reserved by its plan |
+| **This plan (#1199)** | **8281-8289** | Packed after 8280; new `ConsentChannelLogMessages` |
+| #1255 minors | 8290-8295 | Reserved by its plan |
+| Left in the range | 8296-8299 | A further Consent feature needs a second range |
 
 ### Estimated File Count
 
@@ -601,7 +612,7 @@ IMPLEMENTATION OVERVIEW:
 2. Add the channel to every IConsentService lookup and cache key; HasValidConsentAsync counts only Basis == Consent; add OptOutAsync.
 3. Add ChannelDefinitions, DefineChannel, validator rules, attribute properties and startup attribute checks.
 4. Add IChannelConsentEvaluator and DefaultChannelConsentEvaluator; call it from ConsentRequiredPipelineBehavior when a channel is declared.
-5. Verify tenant scoping and audit; add counters, activity tags and EventIds 8279-8287.
+5. Verify tenant scoping and audit; add counters, activity tags and EventIds 8281-8289.
 6. Write unit, guard, contract, property and Marten integration tests; coverage manifest targets.
 7. Document, changelog fragment, PublicAPI.
 
@@ -627,7 +638,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | No read path that benefits from caching; consent is a mutable permission, the existing 5-minute service cache only gains the channel in its key (Phase 2) |
 | 2 | OpenTelemetry | ✅ | Counters and activity tags with the tenant as attribute, no identifiers (Phase 6) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8279-8287 in `ComplianceConsent` (ADR-021, Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8281-8289 in `ComplianceConsent` (ADR-021, Phase 6) |
 | 4 | Health Checks | ❌ N/A | No new checkable dependency; `ConsentHealthCheck` is unchanged |
 | 5 | Validation | ✅ | Channel, basis and classification validated by the options validator, the service and the behaviour (Phases 2-4) |
 | 6 | Resilience | ❌ N/A | No call to an external system |
@@ -649,7 +660,7 @@ REFERENCE FILES:
 ### Coordination
 
 - **Same-file changes**: #811, #810, #1197 and #1255 edit `ConsentGranted`, `ConsentAggregate.Grant`, `ConsentReadModel`, `IConsentService`, `DefaultConsentService` and the behaviour. Land them one after another and rebase; parameter order in `ConsentGranted` is fixed by the first to land, the others append. Recommended order for the persisted shape: #1197 (representation), #1199, #1255, because #1255 reuses #1197's type and none of them reads the others' fields.
-- **EventIds**: this plan 8279-8287, #1255 8288-8293; the #810 plan (8275-8278) and the #1197 plan (8275-8276) overlap and need one owner for 8275-8276.
+- **EventIds**: this plan 8281-8289, #1255 8290-8295; the other Consent plans hold #811 8269-8274, #1197 8275-8276 and #810 8277-8280, so no id is shared.
 - **P-33 (`Encina.Notifications`)** consumes `IChannelConsentEvaluator` and must render the opt-out; S12 (#1227) verifies the whole path.
 
 ### Deferred
@@ -663,5 +674,5 @@ REFERENCE FILES:
 
 1. Maintainer answers the two Dilemmas (Design Choices 2 and 3) when work on #1199 starts; their answers go in a `## Maintainer Decisions` section appended to this plan.
 2. Open the follow-up issue for duplicate active consent records.
-3. Brief the worker for PR 1 (Phases 1-2) after #1197's shape has landed or its parameter order is agreed.
-4. Implement PR 2 and PR 3; update the Consent specification with #1209.
+3. Brief the worker for PR 1 (Phase 1) after #1197's shape has landed or its parameter order is agreed.
+4. Implement PR 2 to PR 5 in order; update the Consent specification with #1209.
