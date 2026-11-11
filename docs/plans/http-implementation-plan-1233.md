@@ -33,7 +33,7 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 **What the code does today** (`origin/main` at `7a0049c07`):
 
-- No `Encina.Http` package exists under `src/`; the free EventId ranges start at `5500`/`5600` (`src/Encina/Diagnostics/EventIdRanges.cs`; `Refit` is `4650-4699`).
+- No `Encina.Http` package exists under `src/`; the family registry assigns `6300-6349` to `Encina.Http` (`src/Encina/Diagnostics/EventIdRanges.cs` has no entry yet; `Refit` is `4650-4699`).
 - Core `Encina.Recoverability` already has `OutboundErrorCodes` (`encina.outbound.client_error`, `server_error`, `rate_limited`, `timeout`, `network_error`, `unexpected_response`, `unexpected`), `OutboundErrorMetadataKeys` (`http.status`, `http.retry_after`, `transient`, `outbound.ambiguous`), `RetryAfterParser.Parse(string?/RetryConditionHeaderValue?, TimeProvider)` and `IErrorClassifier` (closed #1223, P-21).
 - `Encina.Refit` (`RestApiRequestHandler<TRequest, TApiClient, TResponse>`, `AddEncinaRefitClient<TApiClient>` returning `IHttpClientBuilder`, `Diagnostics/OutboundTelemetry.cs` on the `Encina` source and meter) maps `ApiException` and network failures to those codes without the response body.
 - `ISecretReader` (`src/Encina.Security.Secrets/Abstractions/ISecretReader.cs`) returns `ValueTask<Either<EncinaError, string>>`. `Microsoft.Extensions.Http` 10.0.12 and `Microsoft.Extensions.Http.Resilience` 10.8.0 are in `Directory.Packages.props`; `Encina.Extensions.Resilience` references the latter today.
@@ -461,7 +461,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Range** — register `Http = (5600, 5649)` in `src/Encina/Diagnostics/EventIdRanges.cs` and map `Encina.Http` in `EncinaEventIdAllocationTests` (5500-5549 is the `DistributedLock` range of the lock plans); messages 5600 rate limited (Debug), 5601 partition paused by Retry-After (Information), 5602 auth failed by code (Warning), 5603 tenant required, denied (Warning), 5604 tenant opt-out in use (Warning, once per client), 5605 certificate unresolved or expired by code (Warning), 5606 tenant handler evicted (Debug), 5607 request completed (Debug, redacted)
+1. **Range** — register `Http = (6300, 6349)` in `src/Encina/Diagnostics/EventIdRanges.cs` and map `Encina.Http` in `EncinaEventIdAllocationTests` (6250-6299 is the `DistributedLock` range of the lock plans); messages 6300 rate limited (Debug), 6301 partition paused by Retry-After (Information), 6302 auth failed by code (Warning), 6303 tenant required, denied (Warning), 6304 tenant opt-out in use (Warning, once per client), 6305 certificate unresolved or expired by code (Warning), 6306 tenant handler evicted (Debug), 6307 request completed (Debug, redacted)
 2. **`Diagnostics/HttpDiagnostics.cs`** — `ActivitySource` `Encina.Http` (version `1.0`), `Meter`, counters `encina.http.requests` (tags client, status class, outcome), `encina.http.throttled` (tags client, reason) and histogram `encina.http.duration`; span `encina.http.send` with `encina.tenant_id`, `http.request.method`, `server.address`; tenant id from `IRequestContextAccessor`
 3. **`Health/OutboundClientHealthCheck.cs`** — optional per named client (`IEncinaHealthCheck`): reachability of the configured base address with a short timeout, no credentials sent; reports host only
 4. Tenancy: fixed default tenant segment when tenancy is off; with `Encina.Tenancy`, the tenant id comes from `IRequestContextAccessor`
@@ -623,7 +623,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Http` (new `Http` entry) | 5600-5649 | Registered first in `EventIdRanges.cs` (ADR-021); 5600-5607 allocated by this plan; 5500-5549 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
+| `Encina.Http` (new `Http` entry) | 6300-6349 | Registered first in `EventIdRanges.cs` (ADR-021); 6300-6307 allocated by this plan; 6250-6299 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
 | `Encina.Refit` | 4650-4699 | Existing; unchanged |
 
 ### Estimated File Count
@@ -668,7 +668,7 @@ IMPLEMENTATION OVERVIEW:
    a Kestrel server requiring client certificates.
 4. Rate limiting: PartitionedRateLimiter per (client, tenant), Retry-After gate pausing the partition, capped.
 5. Redacting logging handler closest to the transport; Refit mapping of OutboundRejectedException.
-6. Observability: EventId range Http = 5600-5649 registered first, ActivitySource and Meter Encina.Http, optional
+6. Observability: EventId range Http = 6300-6349 registered first, ActivitySource and Meter Encina.Http, optional
    health check; tenant id as span attribute only.
 7. Tests: unit, guard, contract (auth provider contract), property (rate bound, redaction), integration (WireMock S9/S10,
    Kestrel mTLS, two-tenant isolation); docs, ADR, changelog, PublicAPI, manifest through the specialists.
@@ -697,7 +697,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | No read path benefits from caching; the handler cache of Phase 3 is connection state, not data caching |
 | 2 | OpenTelemetry | ✅ | Phase 6: `ActivitySource` and `Meter` named `Encina.Http`; tenant id as span attribute only; no payloads |
-| 3 | Structured Logging | ✅ | Phase 6: `[LoggerMessage]` 5600-5607 in the new `Http` range registered first (ADR-021) |
+| 3 | Structured Logging | ✅ | Phase 6: `[LoggerMessage]` 6300-6307 in the new `Http` range registered first (ADR-021) |
 | 4 | Health Checks | ✅ | Phase 6: optional per-client reachability check, no credentials sent |
 | 5 | Validation | ✅ | Phase 1: named-client options validated at start-up |
 | 6 | Resilience | ✅ | Phases 1 and 4: composes with Microsoft.Extensions.Http.Resilience; Retry-After-aware pacing; circuit breaking stays in the resilience packages |
