@@ -35,7 +35,7 @@ Lock keys are global today: `process-payments` is one lock for the whole deploym
 - The three existing providers register with `TryAddSingleton<IDistributedLockProvider, ...>` (`Encina.DistributedLock.InMemory/ServiceCollectionExtensions.cs:70`, `.SqlServer/ServiceCollectionExtensions.cs:88`, `.Redis/ServiceCollectionExtensions.cs`). `AddEncinaDistributedLock(...)` in the core package registers only `Configure(configure)` on `DistributedLockOptions` and is a documentation marker otherwise.
 - The tenant abstraction is `ITenantProvider` (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`): `string? GetCurrentTenantId()`, null without a request context. `Encina.Tenancy` registers it as **scoped** (`DefaultTenantProvider`, `TryAddScoped<ITenantProvider, DefaultTenantProvider>`), reading the singleton `IRequestContextAccessor`. This matters: the lock providers are **singletons**, so a decorator cannot simply take `ITenantProvider` in its constructor (see Dilemma 2).
 - `Encina.DistributedLock` references `Encina` and `Encina.Messaging`; `Encina.Tenancy` references the same two, so a project reference from `Encina.DistributedLock` to `Encina.Tenancy` creates no cycle.
-- The package has no EventId range of its own. `3850-3899` is taken by `TenancyAspNetCore`; the free ranges now start at `5500` (`src/Encina/Diagnostics/EventIdRanges.cs`).
+- The package has no EventId range of its own. `3850-3899` is taken by `TenancyAspNetCore`; the block `6250-6299` is assigned to the `DistributedLock` assembly in the family registry (`src/Encina/Diagnostics/EventIdRanges.cs` has no entry yet).
 - The manifest `.github/coverage-manifest/Encina.DistributedLock.json` has package targets guard 20 and unit 60; `Encina.DistributedLock` has `InternalsVisibleTo` for the unit, integration, contract and property test projects.
 - The original issue's names (`ITenantContext`, lock keys in `Encina.Messaging`) are stale; this plan uses `ITenantProvider` and the real package layout.
 
@@ -360,8 +360,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Range registration** — add `DistributedLock = (5500, 5549)` to `src/Encina/Diagnostics/EventIdRanges.cs` (3850-3899 is taken; 5500-6999 is free); map `Encina.DistributedLock` to it in `EncinaEventIdAllocationTests`; this plan uses 5500-5509, the election of #717 uses 5520-5549 in the same assembly
-2. **`Diagnostics/TenantLockLogMessages.cs`** (new, internal static partial) — `[LoggerMessage]` 5500 scope resolved (Debug), 5501 tenant required, lock denied (Warning), 5502 scoping enabled at startup (Information)
+1. **Range registration** — add `DistributedLock = (6250, 6299)` to `src/Encina/Diagnostics/EventIdRanges.cs` (3850-3899 is taken; 6250-6299 is the block assigned to this assembly); map `Encina.DistributedLock` to it in `EncinaEventIdAllocationTests`; this plan uses 6250-6269, the election of #717 uses 6270-6299 in the same assembly
+2. **`Diagnostics/TenantLockLogMessages.cs`** (new, internal static partial) — `[LoggerMessage]` 6250 scope resolved (Debug), 6251 tenant required, lock denied (Warning), 6252 scoping enabled at startup (Information)
 3. **`Diagnostics/TenantLockDiagnostics.cs`** (new, internal static) — `ActivitySource` `Encina.DistributedLock` (version `1.0`), `Meter`, counter `encina.distributed_lock.scoped_acquisitions` (tags `scope`, `outcome`), span `encina.distributed_lock.scope_resolution` with `lock.scope` and `encina.tenant_id`; reuse the shared instruments of #724 if it has merged
 
 </details>
@@ -375,14 +375,14 @@ You are implementing Phase 4 of issue #741: logging and telemetry of the scope d
 CONTEXT:
 - AGENTS.md section 7: register the EventId range first in src/Encina/Diagnostics/EventIdRanges.cs, then add the
   assembly to the AssemblyRanges map of tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs.
-- This plan owns 5500-5519 of the DistributedLock range; #717 owns 5520-5549.
+- This plan owns 6250-6269 of the DistributedLock range; #717 owns 6270-6299.
 
 TASK:
 Register the range, write the log messages and diagnostics as listed, wire them into the decorator, run the EventId
 architecture tests.
 
 KEY RULES:
-- EventIds packed from 5500, no gaps; XML docs name the range.
+- EventIds packed from 6250, no gaps; XML docs name the range.
 - The tenant id is a span attribute only; never a metric tag or a log argument.
 - Contention (Right(None)) counts as outcome=contended, not as a failure.
 
@@ -522,7 +522,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.DistributedLock` (new `DistributedLock` entry) | 5500-5549 | Registered by this plan; #741 uses 5500-5519 (5500-5502 allocated), the election of #717 uses 5520-5549 |
+| `Encina.DistributedLock` (new `DistributedLock` entry) | 6250-6299 | Registered by this plan; #741 uses 6250-6269 (6250-6252 allocated), the election of #717 uses 6270-6299 |
 | `Encina.DistributedLock.Redis` | 3750-3799 | Not used by this plan (the Redis assembly keeps its range; see the #226 plan) |
 
 ### Estimated File Count
@@ -558,8 +558,8 @@ IMPLEMENTATION OVERVIEW:
    (percent-escape '%' and ':'), TenantScopedLockProvider (internal sealed decorator), lock.tenant_required code.
 2. AddEncinaDistributedLockTenantScoping: capture and replace the provider descriptor; registration errors when no
    provider or no ITenantProvider; options validator; DI test with ValidateOnBuild and ValidateScopes.
-3. Observability: register DistributedLock = 5500-5549 in EventIdRanges.cs, map the assembly in the EventId test,
-   log messages 5500-5502, counter with tags scope and outcome, span with encina.tenant_id.
+3. Observability: register DistributedLock = 6250-6299 in EventIdRanges.cs, map the assembly in the EventId test,
+   log messages 6250-6252, counter with tags scope and outcome, span with encina.tenant_id.
 4. Tests: unit, guard, contract (through the decorator), property (key injectivity), integration (Redis, SqlServer),
    justification files for load and benchmark; docs through docs-writer; changelog, PublicAPI and manifest through
    mechanical-fixer.
@@ -587,7 +587,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Lock state is ephemeral coordination; nothing to cache |
 | 2 | OpenTelemetry | ✅ | Phase 4: counter with `scope` and `outcome` tags, span with `encina.tenant_id`; moves onto the shared instruments of #724 if it lands first |
-| 3 | Structured Logging | ✅ | Phase 4: `[LoggerMessage]` 5500-5502 in the new `DistributedLock` range registered first |
+| 3 | Structured Logging | ✅ | Phase 4: `[LoggerMessage]` 6250-6252 in the new `DistributedLock` range registered first |
 | 4 | Health Checks | ❌ | No new dependency; the lock providers own their health checks (#755) |
 | 5 | Validation | ✅ | Phase 2: options validator and registration errors for a missing provider or tenancy |
 | 6 | Resilience | ❌ | The inner provider owns resilience (the RedLock plan #226 for Redis) |
@@ -606,7 +606,7 @@ REFERENCE FILES:
 |------|-------|---------------------|
 | [#2667](https://github.com/dlrivada/Encina/issues/2667) — lock providers return `Either` (ADR-052) | Open, implementation issue | Phases 1 and 5 start after it merges; `LockErrorCodes` and the contract suite come from it |
 | [#2653](https://github.com/dlrivada/Encina/issues/2653) — duplicate lock providers in the caching packages | Open | The decorator wraps whichever `IDistributedLockProvider` is registered; no coupling |
-| [#717](https://github.com/dlrivada/Encina/issues/717) and [#763](https://github.com/dlrivada/Encina/issues/763) | Open (same family) | Global lock users; share the `DistributedLock` range (5520-5549 for #717) |
+| [#717](https://github.com/dlrivada/Encina/issues/717) and [#763](https://github.com/dlrivada/Encina/issues/763) | Open (same family) | Global lock users; share the `DistributedLock` range (6270-6299 for #717) |
 | [#226](https://github.com/dlrivada/Encina/issues/226) | Open (same family) | Redis quorum; unaffected, the decorator passes a plain resource |
 | [#207](https://github.com/dlrivada/Encina/issues/207)-[#210](https://github.com/dlrivada/Encina/issues/210) | Open | Covered when each provider lands |
 
