@@ -3,8 +3,8 @@
 > **Issue**: [#810](https://github.com/dlrivada/Encina/issues/810)
 > **Type**: Feature
 > **Milestone**: v0.15.0 — EU Compliance: NIS2 & Digital Omnibus (parent EPICs #809, #1186)
-> **Complexity**: Medium (8 phases, one package, no database provider matrix, three pull requests)
-> **Estimated Scope**: ~650 lines of production code + ~1,300 lines of tests, split into three pull requests
+> **Complexity**: Medium (8 phases, one package, no database provider matrix, five pull requests)
+> **Estimated Scope**: ~650 lines of production code + ~1,300 lines of tests, split into five pull requests
 
 ---
 
@@ -36,17 +36,21 @@ Add a **consent cooldown after refusal** to `Encina.Compliance.Consent`: when a 
 - **Affected package**: `Encina.Compliance.Consent` only (plus its tests, README, feature guide and coverage manifest). No new package, no new project reference.
 - **Provider category**: none of the AGENTS.md §5 matrices. Consent is event-sourced on Marten (PostgreSQL); the database rule excludes Marten, and AGENTS.md §3 requires unit tests with a mocked `IAggregateRepository` and integration tests on Marten through Testcontainers.
 - **Out of scope**: a withdrawal starting a cooldown (the issue speaks of refusal only); channel-scoped consent (#1199, which will widen the purpose key); consent-exempt purposes (#811, which shares `ConsentSolicitationDecision`); the `IOptionsMonitor` migration of the other compliance options (#817).
-- **Estimated files**: 7 new source files, 9 modified source files, 12 test files, 2 justification files, 5 documentation and manifest files (~35 in total; table in Research).
+- **Estimated files**: 7 new source files, 9 modified source files, 12 test files, 2 justification files, 5 documentation and manifest files (35 distinct files in total; table in Research). `PublicAPI.Unshipped.txt` and the coverage manifest are touched by several pull requests, so the per-PR counts below add up to 44 file touches.
 
 ### Pull request split (the work exceeds one worker pull request: 15 files, 1,500 lines)
 
-| PR | Phases | Content | Files (approx.) | Lines (approx.) |
-|----|--------|---------|-----------------|-----------------|
-| 1. Persisted shape | 1, 2 | `ConsentRefused`, `ConsentRefusalAggregate`, read model, projection, Marten registration, PublicAPI; unit, guard and property tests; manifest entries | 11 | ~700 |
-| 2. Options and service | 3, 4 | Options, validator, cooldown evaluator, `IConsentService` methods, `DefaultConsentService` (including the `IOptionsMonitor` read), `ConsentSolicitationDecision`; unit, guard and contract tests; manifest entries | 14 | ~1,000 |
-| 3. Cross-cutting, observability, docs | 5, 6, 7 (integration), 8 | Diagnostics, log messages, startup warning, AC-024 tests, Marten integration tests, justification files, README, feature guide, changelog fragment | 12 | ~900 |
+The counts include tests, `PublicAPI.Unshipped.txt` and the coverage manifest. Five pull requests, each far inside the limit, so that a brief that grows still fits:
 
-PR 2 depends on PR 1 and PR 3 on PR 2. If #811 lands first, PR 2 does not create `ConsentSolicitationDecision` and `GetSolicitationDecisionAsync`; it adds the `CooldownActive` member and the cooldown branch (Design Choice 8). Each worker brief states the file list and `Size:` line of its own pull request.
+| PR | Phases | Content (files include their tests) | Files (approx.) | Lines (approx.) |
+|----|--------|-------------------------------------|-----------------|-----------------|
+| 1. Persisted shape | 1, 2 | `ConsentRefused`, `ConsentRefusalAggregate`, read model, projection, Marten registration, PublicAPI; aggregate and projection unit tests, guard test; manifest | 10 | ~700 |
+| 2. Options | 3 | Options, validator, `ConsentSolicitationDecision`, PublicAPI; options and validator unit tests; property test of the cooldown invariants; manifest | 8 | ~450 |
+| 3. Service | 4 | `ConsentCooldown` evaluator, `IConsentService` methods, `DefaultConsentService` (including the `IOptionsMonitor` read), PublicAPI; evaluator and service unit tests, extended guard tests, contract test; manifest | 10 | ~800 |
+| 4. Tenancy and observability | 5, 6 | Diagnostics, `ConsentCooldownLogMessages`, startup warning in the hosted service, PublicAPI; diagnostics, logger and PII unit tests; Marten integration and DI completeness tests; manifest | 9 | ~700 |
+| 5. AC-024 tests and docs | 7, 8 | AC-024 default-off test, 2 justification files, README, feature guide, changelog fragment | 7 | ~400 |
+
+Each pull request depends on the one before it. If #811 lands first, PR 2 does not create `ConsentSolicitationDecision` and PR 3 does not create `GetSolicitationDecisionAsync`; they add the `CooldownActive` member and the cooldown branch (Design Choice 8). Each worker brief states the file list and `Size:` line of its own pull request, re-measured when the brief is written.
 
 ---
 
@@ -115,6 +119,7 @@ PR 2 depends on PR 1 and PR 3 on PR 2. If #811 lands first, PR 2 does not create
 - I recommend B because the floor exists to prevent a non-compliant configuration, and 180 days can be non-compliant by days; the cost of B is a few extra days of not asking.
 - The floor lives in one constant (`ConsentOptions`), so the adopted text (days, months or another length) changes one line and one test; the validator applies it whether or not the switch is on, because the duration is used at refusal time even while off (Design Choice 2).
 - This choice depends on the unverified wording of draft Art. 88a(4): if the proposal text says 180 days, option A is correct.
+- The issue's acceptance criterion ("minimum 180 days validated") and its sample configuration change if the maintainer picks B; option A keeps 180 days as its explicit floor and default, and the PR text says which was chosen.
 - **Class:** Dilemma
 - Scenario for A: the text or the maintainer fixes the period at 180 days. Scenario for B: the text says "six months" and a refusal falls in a month pair longer than 180 days.
 
@@ -158,9 +163,30 @@ PR 2 depends on PR 1 and PR 3 on PR 2. If #811 lands first, PR 2 does not create
 ### Rationale
 
 - I recommend A because it delivers the acceptance criterion with the least new surface and aligns the class with where #817 is going.
-- Phase 4 includes a test that an invalid reloaded value (below the floor) does not silently disable a running cooldown: the option factory validates on reload, and the service keeps using the last valid value and logs the failure by code (to be confirmed with `OptionsMonitor` behaviour in the first test).
+- `IOptionsMonitor` does not keep the last valid value: a change invalidates the cached instance and the next `CurrentValue` rebuilds it through the options factory, so a failing `IValidateOptions` makes `CurrentValue` throw `OptionsValidationException`. What the service does then is Design Choice 5b.
 - **Class:** Dilemma
 - Scenario for A: #817 is not scheduled before the release candidate. Scenario for B: #817 is started now and defines a shared reload and validation pattern that this issue should not pre-empt.
+
+</details>
+
+<details>
+<summary><strong>5b. An invalid options reload — fail closed with a <code>Left</code>, or the service remembers the last valid value</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `GetSolicitationDecisionAsync` and `RefuseConsentAsync` catch `OptionsValidationException` from `CurrentValue`, log the error code (never the message) and return `Left` with an options error code; no refusal is recorded and no solicitation is allowed until a valid configuration is loaded** | Fails closed (AGENTS.md section 3); no hidden state; the failure is visible to the caller and in the logs | A bad reload stops solicitation decisions and refusal recording until it is corrected; the application must retry |
+| **B) The service keeps the last valid `ConsentOptions` itself (a field updated through `OnChange` or a successful read) and uses it when the current value cannot be built** | Operation continues on a configuration that was valid | State the monitor does not provide; the service silently runs on a stale configuration; `OnChange` registration and disposal to manage |
+
+### Chosen Option: **A — `Left` on an invalid reload (recommended, pending the maintainer)**
+
+### Rationale
+
+- I recommend A because the gate must deny when its inputs are unusable and an invalid reload is exactly that case; B turns a configuration error into silent staleness.
+- Scenario where B wins: the maintainer prefers availability of the consent flow over strictness and accepts a stale duration until the configuration is fixed.
+- Phase 7 asserts the chosen behaviour: with option A, an invalid reload makes both methods return `Left` and a later valid reload restores them; the framework's behaviour is not assumed to keep the old value.
+- **Class:** Dilemma
 
 </details>
 
@@ -180,7 +206,7 @@ PR 2 depends on PR 1 and PR 3 on PR 2. If #811 lands first, PR 2 does not create
 ### Rationale
 
 - I recommend A because B and C need platform work that is not part of this issue and that would apply to `ConsentGranted` (which carries an IP address and proof of consent) first.
-- The follow-up issue is written with this plan (`artifacts/issues/consent-streams-erasure-retention.md`); it also covers the DSR gap (`Encina.Compliance.DataSubjectRights` does not reference the Consent package).
+- The follow-up issue is to be drafted by the orchestrator when it links this plan; it also covers the DSR gap (`Encina.Compliance.DataSubjectRights` does not reference the Consent package).
 - **Class:** Dilemma
 - Scenario for A: the 1.0 scope keeps one shared answer for all consent events. Scenario for B: a regulator or the reference application requires refusal records to disappear when the cooldown ends.
 
@@ -500,7 +526,7 @@ REFERENCE FILES:
 
 ### Phase 5: Cross-Cutting Integration
 
-> **Goal**: Tenant, module, audit and the explicit non-integrations, each proven by a test. (PR 3)
+> **Goal**: Tenant, module, audit and the explicit non-integrations, each proven by a test. (PR 4)
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -546,20 +572,20 @@ REFERENCE FILES:
 
 ### Phase 6: Observability
 
-> **Goal**: Trace, count and log refusals and blocked solicitations; warn once when the draft behaviour is on. (PR 3)
+> **Goal**: Trace, count and log refusals and blocked solicitations; warn once when the draft behaviour is on. (PR 4)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. **`Diagnostics/ConsentDiagnostics.cs`** (modify, source `Encina.Compliance.Consent`): counters `consent.refusals.total` and `consent.solicitations.blocked.total` (instrument names follow ADR-054 D3: lowercase, dot-separated, as the existing `consent.granted.total`); tags `consent.purpose` and, when multi-tenancy is on, the tenant id (ADR-054 D4, SPEC-002 AC-044); activity `Consent.Solicitation` around `GetSolicitationDecisionAsync` and `Consent.Refusal` around `RefuseConsentAsync`. Never the subject id.
-2. **`Diagnostics/ConsentCooldownLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8294-8297 (see EventIdRanges.ComplianceConsent)"):
-   - 8294 `ConsentRefusalRecorded` (Information; purpose)
-   - 8295 `ConsentRefusalDuringCooldown` (Warning; purpose; the application asked inside a cooldown)
-   - 8296 `ConsentSolicitationBlockedByCooldown` (Information; purpose)
-   - 8297 `ConsentCooldownEnabled` (Warning, once at startup; draft-law switch on; duration in days)
-3. **Startup warning**: `ConsentAutoRegistrationHostedService.StartAsync` (line 46) logs 8297 before its early return when `EnableOmnibusConsentCooldown` is true, independent of `AutoRegisterFromAttributes`.
-4. **EventIds**: no range change. 8294-8297 continue the packed sequence after #811's 8269-8274 inside `ComplianceConsent = (8200, 8299)` (`src/Encina/Diagnostics/EventIdRanges.cs:326`); the assembly is already mapped (`EncinaEventIdAllocationTests.cs:63`). If #810 lands first it takes 8269-8272 and #811 shifts; the second to land takes the next free block. Run the architecture tests.
-5. **Tests**: in-memory exporter test for the two counters and the activity; a logger test for 8294-8297; a PII test that no log or tag carries the subject id (extend `ConsentPiiLeakTests`).
+2. **`Diagnostics/ConsentCooldownLogMessages.cs`** (new, `internal static partial class`, `[LoggerMessage]`, XML doc "Event IDs: 8277-8280 (see EventIdRanges.ComplianceConsent)"):
+   - 8277 `ConsentRefusalRecorded` (Information; purpose)
+   - 8278 `ConsentRefusalDuringCooldown` (Warning; purpose; the application asked inside a cooldown)
+   - 8279 `ConsentSolicitationBlockedByCooldown` (Information; purpose)
+   - 8280 `ConsentCooldownEnabled` (Warning, once at startup; draft-law switch on; duration in days)
+3. **Startup warning**: `ConsentAutoRegistrationHostedService.StartAsync` (line 46) logs 8280 before its early return when `EnableOmnibusConsentCooldown` is true, independent of `AutoRegisterFromAttributes`.
+4. **EventIds**: no range change. 8277-8280 continue the packed sequence after #811's 8269-8274 and #1197's 8275-8276 inside `ComplianceConsent = (8200, 8299)` (`src/Encina/Diagnostics/EventIdRanges.cs:326`); the assembly is already mapped (`EncinaEventIdAllocationTests.cs:63`). The fixed allocation across the consent plans is #811 8269-8274, #1197 8275-8276, #810 8277-8280, #1199 8281-8289, #1255 8290-8295, regardless of the order in which the pull requests land. Run the architecture tests.
+5. **Tests**: in-memory exporter test for the two counters and the activity; a logger test for 8277-8280; a PII test that no log or tag carries the subject id (extend `ConsentPiiLeakTests`).
 
 </details>
 
@@ -574,7 +600,7 @@ CONTEXT:
 - ADR-021 and AGENTS.md section 7: EventIds are registered in src/Encina/Diagnostics/EventIdRanges.cs before use, packed sequentially; new code uses the [LoggerMessage] source generator.
 
 TASK:
-Add the counters, tags and activities, create Diagnostics/ConsentCooldownLogMessages.cs with EventIds 8294-8297 (or the next free block if #811 has not landed), call them from DefaultConsentService, and emit the startup warning from ConsentAutoRegistrationHostedService.StartAsync. Write the exporter, logger and PII tests.
+Add the counters, tags and activities, create Diagnostics/ConsentCooldownLogMessages.cs with EventIds 8277-8280, call them from DefaultConsentService, and emit the startup warning from ConsentAutoRegistrationHostedService.StartAsync. Write the exporter, logger and PII tests.
 
 KEY RULES:
 - No data subject id, actor or EncinaError.Message in any log, tag or activity (#1314); the error code or exception type only.
@@ -597,16 +623,16 @@ REFERENCE FILES:
 
 ### Phase 7: Testing
 
-> **Goal**: Every applicable test type, per-flag targets met, AC-024 proven. (spread over the three pull requests; the AC-024 tests and the Marten tests land in PR 3)
+> **Goal**: Every applicable test type, per-flag targets met, AC-024 proven. (spread over the five pull requests; the Marten tests land in PR 4 and the AC-024 tests in PR 5)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. **Unit** (new): `ConsentRefusalAggregateTests`, `ConsentRefusalProjectionTests`, `ConsentCooldownTests`, `DefaultConsentServiceRefusalTests`; (extended): `ConsentOptionsTests`, `ConsentOptionsValidatorTests`, `DefaultConsentServiceTests`.
-2. **AC-024 tests** (PR 3, unit with mocks plus the Marten integration test):
+2. **AC-024 tests** (PR 5, unit with mocks plus the Marten integration test):
    - the default follows current law: `new ConsentOptions().EnableOmnibusConsentCooldown` is false, and with a stored active refusal and the switch off `GetSolicitationDecisionAsync` returns `Solicit`;
    - the shape exists while off: with the switch off `RefuseConsentAsync` writes `ConsentRefused` with `CooldownExpiresAtUtc` equal to `OccurredAtUtc` plus the configured duration, and the read model reads back unchanged (Marten);
-   - on: `CooldownActive` until the expiry, `Solicit` after `FakeTimeProvider` passes it; per-purpose and subject-wide modes; the hot swap: changing the duration and the switch through the options monitor stub changes the next call, and an invalid reload keeps the last valid value.
+   - on: `CooldownActive` until the expiry, `Solicit` after `FakeTimeProvider` passes it; per-purpose and subject-wide modes; the hot swap: changing the duration and the switch through the options monitor stub changes the next call, and an invalid reload (below the floor) makes both new methods return `Left` with the options error code, and a following valid reload restores them (Design Choice 5b, option A; adjust to the maintainer's answer).
 3. **Guard** (new `ConsentRefusalAggregateGuardTests`, extended `DefaultConsentServiceGuardTests`): null and whitespace arguments of both new methods and of the aggregate factories.
 4. **Contract** (extended `IConsentServiceContractTests`): both methods return `Either`, fail closed on a missing tenant, and instantiate the real `DefaultConsentService`.
 5. **Property** (new `ConsentRefusalPropertyTests`, FsCheck over generated instants and durations at or above the floor): a cooldown is active exactly while `now < OccurredAtUtc + duration`; the expiry never decreases across a series; refusals of different purposes do not affect each other when `CooldownPerPurpose` is true.
@@ -650,7 +676,7 @@ REFERENCE FILES:
 
 ### Phase 8: Documentation & Finalization
 
-> **Goal**: XML docs, README, feature guide, changelog and the AC-024 documentation items. (PR 3)
+> **Goal**: XML docs, README, feature guide, changelog and the AC-024 documentation items. (PR 5)
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -659,7 +685,7 @@ REFERENCE FILES:
 2. **`changelog.d/810-consent-cooldown-after-refusal.added.md`**: one or more bullets beginning with `-` (written by `mechanical-fixer`); never edit `CHANGELOG.md`.
 3. **`src/Encina.Compliance.Consent/README.md`** (sections "Configuration Options", "Error Codes", "Consent Lifecycle", "GDPR Compliance"): the three options, the two service methods, the decision order, the off-by-default statement and the draft article (written by `docs-writer`).
 4. **`docs/features/consent-management.md`** (section "Configuration Options", new section "Consent cooldown after refusal"): usage, the hot swap, the AC-024 statement.
-5. **Package specification**: AC-024 needs the draft article named in the package specification, which #1209 creates; this plan adds the rows to #1209's specification when it exists, otherwise comments on #1209.
+5. **Package specification**: AC-024 needs the draft article named in the package specification, which #1209 creates; this plan adds the rows to #1209's specification when it exists, otherwise comments on #1209. This acceptance item stays open on #810 until #1209 lands, because #810 must close before `1.0.0-rc.1`.
 6. **`docs/INVENTORY.md`** and **`ROADMAP.md`**: update only if they list the Consent package files or the v0.15.0 items.
 7. **ADR**: not required; the decisions are recorded in this plan, and the persisted-shape choice follows ADR-019 and ADR-053. Create one only if the maintainer's answer to Design Choice 1 or 5 sets a package-wide rule.
 8. **Build and test verification**: `dotnet build --configuration Release` with 0 errors and 0 warnings; `dotnet test` for the five Consent test areas; every coverage flag reaches its own target in the manifest.
@@ -738,8 +764,11 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.Compliance.Consent` (existing) | 8200-8299 (`EventIdRanges.ComplianceConsent`, `EventIdRanges.cs:326`) | Used: 8200-8207, 8230-8232, 8240-8243, 8250, 8260-8268 |
 | `Encina.Compliance.Consent` exemptions (#811, planned) | 8269-8274 | Reserved by the #811 plan |
-| **`Encina.Compliance.Consent` cooldown (new)** | **8294-8297** | Packed after #811; no new range; assembly already mapped in `EncinaEventIdAllocationTests` (line 63); if #810 lands first it takes 8269-8272 |
-| `Encina.Compliance.Consent` remaining free | 8279-8299 | Left for later consent work |
+| `Encina.Compliance.Consent` representation (#1197, planned) | 8275-8276 | Reserved by the #1197 plan |
+| **`Encina.Compliance.Consent` cooldown (new)** | **8277-8280** | Packed after #1197; no new range; assembly already mapped in `EncinaEventIdAllocationTests` (line 63); fixed whatever the landing order |
+| `Encina.Compliance.Consent` channel-scoped consent (#1199, planned) | 8281-8289 | Reserved by the #1199 plan |
+| `Encina.Compliance.Consent` minor (#1255, planned) | 8290-8295 | Reserved by the #1255 plan |
+| `Encina.Compliance.Consent` remaining free | 8296-8299 | Left for later consent work |
 
 ### Estimated File Count
 
@@ -754,7 +783,7 @@ REFERENCE FILES:
 | Integration test files | 1 | New, Marten on PostgreSQL |
 | Justification files | 2 | Load tests and benchmark tests (existing files, cooldown section added) |
 | Documentation and manifest | 5 | Changelog fragment, package README, feature guide, coverage manifest, ROADMAP only if affected |
-| **Total** | **35** | Split into three pull requests of 11, 14 and 12 files |
+| **Total** | **35** | Split into five pull requests of 10, 8, 10, 9 and 7 files (44 file touches: `PublicAPI.Unshipped.txt` and the manifest recur) |
 
 ---
 
@@ -764,7 +793,7 @@ REFERENCE FILES:
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```
-You are implementing the consent cooldown after refusal in Encina.Compliance.Consent for issue #810 (Digital Omnibus draft GDPR Art. 88a(4), off by default). Work in three pull requests (Phases 1-2, 3-4, 5-8), each with its own worker brief and at most 15 files and 1,500 changed lines.
+You are implementing the consent cooldown after refusal in Encina.Compliance.Consent for issue #810 (Digital Omnibus draft GDPR Art. 88a(4), off by default). Work in five pull requests (Phases 1-2, 3, 4, 5-6, 7-8), each with its own worker brief and at most 15 files and 1,500 changed lines.
 
 PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library, pre-1.0 (no backward compatibility, no [Obsolete]), Railway Oriented Programming with Either<EncinaError, T>.
@@ -778,7 +807,7 @@ Phase 2: ConsentRefusalAggregate on a deterministic stream id (version 8 UUID fr
 Phase 3: EnableOmnibusConsentCooldown (false), ConsentCooldownAfterRefusal (TimeSpan, floor 184 days unless the maintainer chose 180), CooldownPerPurpose (true), validator floor.
 Phase 4: ConsentCooldown evaluator, IConsentService.RefuseConsentAsync and GetSolicitationDecisionAsync, DefaultConsentService on IOptionsMonitor<ConsentOptions>; with the switch off no refusal is read and Solicit is returned, but refusals are still recorded.
 Phase 5: tenant, module, audit and idempotency proven by Marten integration tests; DI completeness test.
-Phase 6: counters, activities, [LoggerMessage] EventIds 8294-8297 in ComplianceConsent (8200-8299), startup warning when the switch is on.
+Phase 6: counters, activities, [LoggerMessage] EventIds 8277-8280 in ComplianceConsent (8200-8299), startup warning when the switch is on.
 Phase 7: unit, guard, contract, property and integration tests, AC-024 tests, justification sections, manifest targets.
 Phase 8: XML docs, changelog.d/810-consent-cooldown-after-refusal.added.md, README, feature guide, build and test verification.
 
@@ -809,7 +838,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The cooldown is deliberately not cached: a stale `Solicit` after a refusal would fail open (Design Choice 10). The existing five-minute read-model cache (`DefaultConsentService.cs:442-517`) is untouched and a test proves no stale decision (Phase 5) |
 | 2 | OpenTelemetry | ✅ | `consent.refusals.total` and `consent.solicitations.blocked.total`, `Consent.Solicitation` and `Consent.Refusal` activities, purpose tag and tenant tag when multi-tenancy is on, never the subject id (Phase 6, ADR-054 D3 and D4) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8294-8297 in `ComplianceConsent` (8200-8299); startup warning when the draft switch is on (Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 8277-8280 in `ComplianceConsent` (8200-8299); startup warning when the draft switch is on (Phase 6) |
 | 4 | Health Checks | ❌ | No new checkable dependency: the refusal store is the same Marten store `ConsentHealthCheck` already covers through `IConsentService` resolution |
 | 5 | Validation | ✅ | Options floor in `ConsentOptionsValidator` and argument guards on both new methods (Phases 3 and 4) |
 | 6 | Resilience | ❌ | No external call beyond the Marten store the package already uses; its failures return `Left` and the decision fails closed |
@@ -839,7 +868,7 @@ REFERENCE FILES:
 
 ### Deferred
 
-- Erasure, retention and archival of consent event streams (grants and refusals), and the missing link from Data Subject Rights to Consent data: one follow-up issue, `artifacts/issues/consent-streams-erasure-retention.md` (Design Choice 6).
+- Erasure, retention and archival of consent event streams (grants and refusals), and the missing link from Data Subject Rights to Consent data: one follow-up issue, to be drafted by the orchestrator when it links this plan (Design Choice 6).
 
 ---
 
