@@ -193,7 +193,7 @@
 
 ## Implementation Phases
 
-One pull request (about 11 files, well under 15 files and 1500 lines).
+Two pull requests, counts include tests. **PR 1** = Phases 1 to 5 (14 files, about 700 lines): 7 modified production files, 2 `PublicAPI.Unshipped.txt` files (DPIA and `Encina` for the new range field), the coverage manifest, and 4 test files (service tests, validator tests, DI test, `EncinaEventIdAllocationTests`). **PR 2** = Phase 5 justification files and Phase 6 (5 files, about 150 lines): three justification `.md` files, `docs/features/dpia.md`, the changelog fragment.
 
 ### Phase 1: Options and Validation
 
@@ -245,10 +245,10 @@ REFERENCE FILES:
 #### `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` (modify; after #2667)
 
 1. A constant `LockResource = "encina:dpia:review-reminder"`
-2. Split the cycle into small methods so CRAP stays at or under 10: `ExecuteReminderCycleAsync` (activity, catch blocks, counter) calls `TryAcquireCycleLockAsync` (resolves `IDistributedLockProvider` with `GetService` from a scope, calls `TryAcquireAsync(LockResource, _options.LockTimeout, TimeSpan.Zero, TimeSpan.Zero, ct)` and maps the `Either` to a small internal result: `Unlocked`, `Held(handle)`, `Skipped`, `Faulted(errorCode)`) and `RunLockedCycleAsync` (the current body)
+2. Split the cycle into small methods so CRAP stays at or under 10: `ExecuteReminderCycleAsync` (activity, catch blocks, counter) opens the async scope first and keeps it until the handle is disposed (a unit test asserts the order: acquire, publish, dispose handle, dispose scope), then calls `TryAcquireCycleLockAsync` (resolves `IDistributedLockProvider` with `GetService` from that scope, calls `TryAcquireAsync(LockResource, _options.LockTimeout, TimeSpan.Zero, TimeSpan.Zero, ct)` and maps the `Either` to a small internal result: `Unlocked`, `Held(handle)`, `Skipped`, `Faulted(errorCode)`) and `RunLockedCycleAsync` (the current body)
 3. `Held`: `await using` the handle around `RunLockedCycleAsync`; `Skipped`: `ReviewReminderCycleSkippedLockNotAcquired`, counter outcome `skipped`, activity tag `dpia.lock.outcome=skipped`; `Faulted`: `ReviewReminderCycleFailed(errorCode)`, counter outcome `failed`; `Unlocked`: run as today
 4. `PublishExpiredNotificationsAsync` is awaited inside the locked section instead of `_ = ...`; its own error handling is not changed (it belongs to #3502)
-5. One Information log at service start saying whether a lock provider is present
+5. `ReviewReminderLockPresence(lockProviderPresent)` (EventId 6351) logged once, on the first cycle, after the provider is resolved
 
 </details>
 
@@ -327,9 +327,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Diagnostics/DPIALogMessages.cs`** (modify) — `ReviewReminderCycleSkippedLockNotAcquired(this ILogger logger)`, `EventId = 8849`, Debug, inside the expiration-monitoring block; update the block comment
-2. **`Diagnostics/DPIADiagnostics.cs`** (modify) — a constant for the outcome value `skipped` and the activity tag key `dpia.lock.outcome`; no new instrument
-3. The architecture tests for EventIds keep passing (the range 8800-8899 and the assembly mapping already exist)
+1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify) — register `ComplianceDPIALock = (6350, 6359)` from the registry block 6350-6399 (plus its `PublicAPI.Unshipped.txt` line in `Encina`), and map it to `Encina.Compliance.DPIA` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`
+2. **`Diagnostics/DPIALogMessages.cs`** (modify) — `ReviewReminderCycleSkippedLockNotAcquired(this ILogger logger)`, `EventId = 6350`, Debug; `ReviewReminderLockPresence(this ILogger logger, bool lockProviderPresent)`, `EventId = 6351`, Information; XML doc "Event IDs: 6350-6351 (see EventIdRanges.ComplianceDPIALock)"
+3. **`Diagnostics/DPIADiagnostics.cs`** (modify) — a constant for the outcome value `skipped` and the activity tag key `dpia.lock.outcome`; no new instrument (if the maintainer picks option B of Design Choice 6, the new counter `dpia.review_reminder.lock.total` replaces this)
+4. The EventId architecture tests pass with the new range and mapping
 
 </details>
 
@@ -340,8 +341,8 @@ REFERENCE FILES:
 You are implementing Phase 4 of issue #763: logging and telemetry of the lock outcomes.
 
 CONTEXT:
-- DPIA ids live in 8800-8899, grouped in blocks of ten; the expiration-monitoring block 8840-8849 has exactly one
-  free id, 8849. The counter dpia.review_reminder.cycles.total has the tag dpia.outcome.
+- DPIA ids live in 8800-8899, grouped in blocks of ten, with no free group; the lock messages take the new range
+  ComplianceDPIALock = (6350, 6359): 6350 skipped, 6351 presence. The counter dpia.review_reminder.cycles.total has the tag dpia.outcome.
 
 TASK:
 Add the message and the diagnostics constants, use them in the service, run the EventId architecture tests.
@@ -453,7 +454,7 @@ REFERENCE FILES:
 | ADR-052 | Lock providers return `Either`; contention is `Right(None)` | Outcome mapping |
 | ADR-050 | Distributed locks conditional on multi-instance, enforced by startup validation | Why the provider stays optional here |
 | `AGENTS.md` section 3 | Background loops catch per iteration; a `Left` fails the operation | Cycle outcome handling |
-| `AGENTS.md` section 7 | EventIds in the package range, packed | Message 8849 |
+| `AGENTS.md` section 7 | EventIds in a registered range, packed | Messages 6350-6351 |
 
 ### Existing Encina Infrastructure to Leverage
 
@@ -462,7 +463,7 @@ REFERENCE FILES:
 | `DPIAReviewReminderService` | `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` | The service gaining the lock |
 | `DPIAOptions`, `DPIAOptionsValidator` | `src/Encina.Compliance.DPIA/DPIAOptions.cs`, `DPIAOptionsValidator.cs` | `LockTimeout` and its rule |
 | `DPIADiagnostics` | `src/Encina.Compliance.DPIA/Diagnostics/DPIADiagnostics.cs` | `ReviewReminderCyclesTotal` counter, `TagOutcome`, `StartReviewReminderCycle` |
-| `DPIALogMessages` | `src/Encina.Compliance.DPIA/Diagnostics/DPIALogMessages.cs` | Existing reminder messages 8840-8848; new 8849 |
+| `DPIALogMessages` | `src/Encina.Compliance.DPIA/Diagnostics/DPIALogMessages.cs` | Existing reminder messages 8840-8848; new 6350-6351 |
 | `IDistributedLockProvider`, `ILockHandle` | `src/Encina.DistributedLock/` | The abstraction consumed |
 | `InMemoryDistributedLockProvider` | `src/Encina.DistributedLock.InMemory/` | Real provider for the two-instances unit test |
 | `AddEncinaDPIA` registrations | `src/Encina.Compliance.DPIA/ServiceCollectionExtensions.cs` | Hosted service registration (line 184) and options validator (line 109) |
@@ -480,18 +481,19 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.DPIA` | 8849 | The last free id of the expiration-monitoring block (8840-8849) inside the registered range 8800-8899; no registry change |
+| `Encina.Compliance.DPIA` | 6350-6351 in the new range `ComplianceDPIALock = (6350, 6359)` | Taken from the registry block 6350-6399 because the DPIA range 8800-8899 has no free group (8849 stays free); 6352-6359 left in the range |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production (modified) | 6 | `DPIAReviewReminderService.cs`, `DPIAOptions.cs`, `DPIAOptionsValidator.cs`, `Diagnostics/DPIALogMessages.cs`, `Diagnostics/DPIADiagnostics.cs`, `Encina.Compliance.DPIA.csproj` |
-| PublicAPI and manifest | 2 | `PublicAPI.Unshipped.txt`, `Encina.Compliance.DPIA.json` |
-| Tests | 3 | Service tests, validator tests, DI test |
+| Production (modified) | 7 | `DPIAReviewReminderService.cs`, `DPIAOptions.cs`, `DPIAOptionsValidator.cs`, `Diagnostics/DPIALogMessages.cs`, `Diagnostics/DPIADiagnostics.cs`, `Encina.Compliance.DPIA.csproj`, `src/Encina/Diagnostics/EventIdRanges.cs` |
+| PublicAPI and manifest | 3 | `PublicAPI.Unshipped.txt` of DPIA and of `Encina`, `Encina.Compliance.DPIA.json` |
+| Tests | 4 | Service tests, validator tests, DI test, `EncinaEventIdAllocationTests.cs` |
+| **PR 1 total** | **14** | |
 | Justification files | 3 | Integration, load, benchmark |
 | Documentation and changelog | 2 | `docs/features/dpia.md`, fragment |
-| **Total** | **~16** | Production and manifest fit one PR; the three justification files may ship in the same PR if the limit allows, otherwise a second small PR |
+| **PR 2 total** | **5** | |
 
 ---
 
@@ -513,9 +515,10 @@ IMPLEMENTATION OVERVIEW:
    Encina.DistributedLock.
 2. In the service: resolve IDistributedLockProvider optionally per cycle; TryAcquireAsync("encina:dpia:review-reminder",
    LockTimeout, 0, 0, ct); Held runs the cycle under await using and awaits the notification publishing inside it;
-   Right(None) skips (Debug log 8849, counter outcome skipped); Left fails the cycle by error code; no provider
-   runs unlocked.
-3. Observability: outcome value skipped on the existing counter, activity tag dpia.lock.outcome, message 8849.
+   Right(None) skips (Debug log 6350, counter outcome skipped); Left fails the cycle by error code; no provider
+   runs unlocked. The scope opens first and is held until the handle is disposed.
+3. Observability: outcome value skipped on the existing counter, activity tag dpia.lock.outcome, messages 6350 and 6351
+   in the new range ComplianceDPIALock (6350, 6359), registered in EventIdRanges.cs and AssemblyRanges.
 4. Tests: unit (acquire, skip, Left, no provider, cancellation, order of publish and release, two real services over
    the InMemory provider), validator, DI proof; justification files for integration, load, benchmark; docs through
    docs-writer; changelog, PublicAPI and manifest through mechanical-fixer.
@@ -542,7 +545,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A lock attempt is instant; nothing to cache |
 | 2 | OpenTelemetry | ✅ | Phase 4: outcome `skipped` on the existing cycle counter and a `dpia.lock.outcome` activity tag |
-| 3 | Structured Logging | ✅ | Phase 4: one message, EventId 8849, inside the registered DPIA range |
+| 3 | Structured Logging | ✅ | Phase 4: two messages, EventIds 6350-6351, in the new range `ComplianceDPIALock` |
 | 4 | Health Checks | ❌ | The existing DPIA health check covers service state; lock providers have their own (#755) |
 | 5 | Validation | ✅ | Phase 1: `LockTimeout` must be positive when monitoring is on |
 | 6 | Resilience | ❌ | A failed acquisition fails the cycle and the next tick retries; no policy is added |
@@ -570,5 +573,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #763 and start the brief after [#2667](https://github.com/dlrivada/Encina/issues/2667) merges.
-2. When work on the issue starts, ask the maintainer to answer Dilemmas 1 and 2 (fixed lock expiry; lock now or wait for #768), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 1, 2, 6 and 7 (fixed lock expiry; lock now or wait for #768; telemetry shape; publishing awaited inside the lock), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
 3. One commit per phase; the last commit references `Fixes #763`.
