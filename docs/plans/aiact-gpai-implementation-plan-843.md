@@ -2,8 +2,8 @@
 
 > **Issue**: [#843](https://github.com/dlrivada/Encina/issues/843) (child of [#881](https://github.com/dlrivada/Encina/issues/881), milestone v0.16.0 — AI Act)
 > **Type**: Feature
-> **Complexity**: High (8 phases, 5 pull requests, 1 new package, no core change, in-memory registry pending the maintainer, ~56 files)
-> **Estimated Scope**: ~1,500-1,900 lines of production code + ~1,700-2,100 lines of tests
+> **Complexity**: High (8 phases, 6 pull requests, 1 new package, no core change, Marten event-sourced registry, ~70 files)
+> **Estimated Scope**: ~1,900-2,400 lines of production code + ~2,200-2,700 lines of tests
 > **Prerequisites**: none blocking; SPEC-000 §6 excludes only AI/LLM integration, and this package is a register and validator over documents a model provider keeps, with no model or inference code
 
 ---
@@ -18,7 +18,8 @@ Implement governance for providers of general-purpose AI models under Chapter V 
 |---|---|---|
 | GPAI types | none in `src/` | No `GPAI`, `ModelCard` or model registry type exists |
 | System-level classification | `src/Encina.Compliance.AIAct/Abstractions/IAIActClassifier.cs`, `Model/AIRiskLevel.cs` | For AI systems, a different subject from models |
-| System registry pattern | `Abstractions/IAISystemRegistry.cs`, `InMemoryAISystemRegistry.cs` (a `ConcurrentDictionary`, publishes notifications through `IEncina`) | The in-memory default that #847 replaces |
+| System registry pattern | `Abstractions/IAISystemRegistry.cs`, `InMemoryAISystemRegistry.cs` (publishes notifications through `IEncina`) | Notification pattern reused; its in-memory store is what #847 replaces and is not copied |
+| Marten aggregate pattern in a separate compliance package | `src/Encina.Compliance.Consent/Aggregates/`, `Events/`, `ReadModels/`, `ConsentMartenExtensions.cs` | Done; the shape this package follows |
 | Notifications, diagnostics, EventIds | `Notifications/*`, `Diagnostics/AIActDiagnostics.cs`, `EventIdRanges.ComplianceAIAct` (9500-9599) | Patterns reused; this plan takes 9588-9599 |
 
 ### Deviations from the issue text (each is put to the maintainer below or follows a binding rule)
@@ -27,24 +28,25 @@ Implement governance for providers of general-purpose AI models under Chapter V 
 - **Evidence is recorded by reference, not as inline text.** `TrainingDataSummary` and `CopyrightPolicy` strings become `GPAIEvidence` references (reference, version, `IsPublic`, recorded date); the Art. 53(1)(d) summary must be "made publicly available".
 - **`GPAIComplianceResult` booleans become obligation statuses** (Met, NotMet, Pending, NotApplicable) because the open-source exemption of Art. 53(2) and the transitional deadline of Art. 111(3) make a boolean wrong.
 - **Obligations beyond the issue's list are covered**: Art. 52(1) notification to the Commission within two weeks, Art. 54 authorised representative for third-country providers, and the Art. 53(4) and 55(2) reliance on codes of practice (Design Choice 3). Art. 56 (the AI Office encouraging codes of practice) imposes nothing on providers and is excluded in the article table.
-- **In-memory default.** The issue asks for in-memory defaults; `AGENTS.md` §3 says event-sourced compliance modules have no InMemory stores. Design Choice 1 puts this to the maintainer.
+- **No in-memory default.** The issue asks for in-memory defaults; `AGENTS.md` §3 says event-sourced compliance modules have no InMemory stores (unit tests mock `IAggregateRepository`, integration tests run Marten on PostgreSQL through Testcontainers). The registry is a Marten event-sourced aggregate from the first pull request (Design Choice 1); the acceptance criterion "In-memory default implementations" is dropped.
 - **Dates.** GPAI obligations apply from 2 Aug 2025; models placed on the market before that date comply by 2 Aug 2027 (Art. 111(3)); Commission enforcement from 2 Aug 2026 (SPEC-002 §3.2). Reg. (EU) 2026/1744 does not change them.
 
 ### Scope per pull request (one worker issue = one PR, `AGENTS.md` §11)
 
-About 56 files and 3,000 lines, so five sequential pull requests.
+About 70 files and 3,900 lines, so six sequential pull requests.
 
 | PR | Phases | Content | Files (est.) | Lines (est.) |
 |---|---|---|---|---|
-| 1 | 1 | Package skeleton, models, errors | 15 | ~700 |
-| 2 | 2 | Registry, systemic-risk classifier, options | 11 | ~800 |
+| 1 | 1 | Package skeleton, models, events, errors | 15 | ~800 |
+| 2 | 2 | Aggregate, Marten registry, projection, systemic-risk classifier, options | 15 | ~1,100 |
 | 3 | 3-4 | Obligation rules, compliance validator, model card generator | 11 | ~1,000 |
-| 4 | 5-7 | DI, audit notifications, observability, remaining tests, justifications | 13 | ~900 |
-| 5 | 8 | Documentation (`docs-writer`), changelog, ADR | 6 | ~600 |
+| 4 | 5 | Registration (`AddGPAIAggregates`, `AddEncinaAIActGPAI`), audit notifications, health check, DI tests | 8 | ~600 |
+| 5 | 6-7 | Observability, remaining tests, Marten integration suite, justifications | 13 | ~900 |
+| 6 | 8 | Documentation (`docs-writer`), changelog, ADR | 6 | ~600 |
 
 Counts are re-measured when each worker brief is written. **Affected packages**: `Encina.Compliance.AIAct.GPAI` (new); the core is not changed.
 
-**Provider category**: none; the 10-provider database rule does not apply (Marten event-sourced module, ADR-019; durable storage is a follow-up of #847, see the issue file listed in Next Steps).
+**Provider category**: event sourcing (Marten on PostgreSQL), ADR-019 and ADR-027. The 10-provider database rule does not apply (`AGENTS.md` §5 excludes event sourcing). The package references `Encina.Marten` itself, as `Encina.Compliance.Consent` does (`ConsentMartenExtensions.AddConsentAggregates`), so it does not wait for #847.
 
 **Family coordination (AI Act modules #838, #840, #841, #843).** Nothing here redefines the shared bias types of #838 or the Annex IV types of #840 (Annex XI and XII documents are a different list). EventIds 9588-9599 are this plan's; #838 holds 9548-9561, #840 holds 9562-9575, #841 holds 9576-9587.
 
@@ -59,17 +61,18 @@ Counts are re-measured when each worker brief is written. **Affected packages**:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — `InMemoryGPAIModelRegistry` as the default (the issue's criterion), replaced by a Marten-backed registry in a follow-up issue after #847** | Ships now; the core's own `InMemoryAISystemRegistry` is in the same state until #847; the validator and generator are testable | An InMemory store in an event-sourced module (`AGENTS.md` §3): registrations are lost on restart; a temporary exception |
-| **B — A Marten aggregate and projection in this package now** | Rule-compliant and durable | Duplicates the Marten wiring #847 is building (references, registration, fixtures); +15 files and a PostgreSQL integration suite; the registry design would precede #847's system identity decisions |
-| **C — Options-declared, read-only catalog of models (as in the #838 plan for protected attributes)** | No store; reviewed configuration | Evidence and notification dates change over a model's life; a restart per change; the issue's `RegisterModelAsync` disappears |
+| **A — `InMemoryGPAIModelRegistry` as the default (the issue's criterion)** | Ships without Marten; testable | An InMemory store in an event-sourced compliance module, which `AGENTS.md` §3 forbids; registrations lost on restart |
+| **B — A Marten event-sourced `GPAIModelAggregate` with an inline projection, from the first pull request; no in-memory default** | Complies with the rule; durable and auditable history; the dates the Art. 52(1) and Art. 111(3) checks use survive restarts; unit tests mock `IAggregateRepository`, integration tests use Marten on PostgreSQL through Testcontainers | More files (aggregate, events, projection, integration suite); a Marten reference in the package |
+| **C — Options-declared, read-only catalog of models** | No store | Evidence and notification dates change over a model's life; the issue's `RegisterModelAsync` disappears; still not an event-sourced record |
 
-### Chosen Option: **A — In-memory default now, Marten registry as a follow-up** (recommended, pending the maintainer)
+### Chosen Option: **B — Marten event-sourced aggregate from the first PR**
 
 ### Rationale
 
-We recommend A, and we state the tension with `AGENTS.md` §3: it is a conscious, temporary exception that the maintainer must approve, justified because the same rule is not yet met by the core (`InMemoryAISystemRegistry`) and B would front-run #847's design. B wins if the maintainer will not accept a new InMemory store in an event-sourced module; it is then planned after #847 merges. C wins for a provider with a handful of stable models who wants everything in source control. The follow-up issue file (`artifacts/issues/plan-843-gpai-marten-registry.md`) records the Marten registry as deferred work.
+`AGENTS.md` §3 is explicit: event-sourced compliance modules have no InMemory stores; unit tests mock `IAggregateRepository` (NSubstitute) and integration tests run against Marten on PostgreSQL through Testcontainers. The package follows the shape of `Encina.Compliance.Consent` (`Aggregates/`, `Events/`, `ReadModels/`, `Services/`, `AddConsentAggregates()` in `ConsentMartenExtensions.cs`), references `Encina.Marten` and `Encina.DomainModeling` itself and does not wait for #847, which migrates the core's own registries. The acceptance criterion "In-memory default implementations" is dropped and the issue is updated.
 
-**Class:** Dilemma
+**Class:** Settled
+**Settled by:** `AGENTS.md` §3 (event-sourced compliance modules have no InMemory stores); ADR-019; ADR-027; SPEC-002 DEC-008; `src/Encina.Compliance.Consent/ConsentMartenExtensions.cs`
 
 </details>
 
@@ -185,14 +188,14 @@ Art. 52(1): the provider shall notify the Commission without delay and within tw
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — New package `Encina.Compliance.AIAct.GPAI`; no health check (an in-memory registry has no checkable dependency); EventIds 9588-9599 sub-allocated in `ComplianceAIAct`** | Matches the issue and EPIC #881; no meaningless check; the pattern of the family | A health check returns with the Marten registry |
-| **B — Core folder, with a registry health check** | One assembly | The core grows; a health check of an in-memory dictionary proves nothing |
+| **A — New package `Encina.Compliance.AIAct.GPAI` with a registry health check (`GPAIHealthCheck`: the Marten store is reachable); EventIds 9588-9599 sub-allocated in `ComplianceAIAct`** | Matches the issue and EPIC #881; the registry has a checkable dependency now; the pattern of the family | One more registration |
+| **B — Core folder, no health check** | One assembly | The core grows; an unreachable store would go unnoticed |
 
-### Chosen Option: **A — New package, no health check, 9588-9599**
+### Chosen Option: **A — New package, registry health check, 9588-9599**
 
 ### Rationale
 
-The issue and its `new-package` label place the package; the first draft deferred a registry health check, which this plan decides: not applicable until a durable store exists. Messages are `[LoggerMessage]` packed from 9588 with the XML line `Event IDs: 9588-9599 (see EventIdRanges.ComplianceAIAct)`.
+The issue and its `new-package` label place the package; the first draft left the registry health check to this plan, which decides it: with a Marten store there is a dependency to check. Messages are `[LoggerMessage]` packed from 9588 with the XML line `Event IDs: 9588-9599 (see EventIdRanges.ComplianceAIAct)`.
 
 **Class:** Trivial
 **Settled by:** issue #843 (title, `new-package` label); EPIC #881; ADR-021; `AGENTS.md` §7; the EventId sections of the #838, #842 and #847 plans; `src/Encina/Diagnostics/EventIdRanges.cs:389`
@@ -210,7 +213,7 @@ The issue and its `new-package` label place the package; the first draft deferre
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create the project** `src/Encina.Compliance.AIAct.GPAI/` (csproj referencing `Encina.Compliance.AIAct`, `PublicAPI.*.txt`, `InternalsVisibleTo` the test projects), add to `Encina.slnx`, create its coverage manifest with `generate-coverage-manifest.cs`.
+1. **Create the project** `src/Encina.Compliance.AIAct.GPAI/` (csproj referencing `Encina.Compliance.AIAct`, `Encina.Marten`, `Encina.DomainModeling`, `PublicAPI.*.txt`, `InternalsVisibleTo` the test projects), add to `Encina.slnx`, create its coverage manifest with `generate-coverage-manifest.cs`. Create `Events/GPAIModelEvents.cs`: `GPAIModelRegistered`, `GPAIEvidenceRecorded`, `GPAICommissionNotified`, `GPAISystemicRiskDesignated`, `GPAIModelDetailsUpdated` (records, timestamps supplied by the service from `TimeProvider`).
 2. **Create `Model/GPAIModelRegistration.cs`**: `ModelId`, `ModelName`, `ProviderId`, `ProviderEstablishedInUnion`, `AuthorisedRepresentativeId?`, `TrainingComputeFlops?`, `DesignatedByCommission` plus `DesignationReference?`, `IsOpenSourceLicensed`, `PlacedOnMarketAtUtc?`, `ThresholdMetAtUtc?`, `CommissionNotifiedAtUtc?`, `Evidence` (list of `GPAIEvidence`), `DownstreamProviders`, `AdheredCodesOfPractice`, `ModelCardContent?`, `RegisteredAtUtc`.
 3. **Create `Model/GPAIEvidence.cs`** (`Obligation`, `Reference`, `Version?`, `IsPublic`, `RecordedAtUtc`), `Model/GPAIObligation.cs` (`TechnicalDocumentation` 53(1)(a), `DownstreamInformation` 53(1)(b), `CopyrightPolicy` 53(1)(c), `TrainingContentSummary` 53(1)(d), `CommissionNotification` 52(1), `AuthorisedRepresentative` 54(1), `AdversarialTesting` 55(1)(a), `SystemicRiskAssessment` 55(1)(b), `SeriousIncidentReporting` 55(1)(c), `Cybersecurity` 55(1)(d)), `Model/GPAIObligationStatusKind.cs` (`Met`, `NotMet`, `Pending`, `NotApplicable`), `Model/GPAIObligationStatus.cs` (`Obligation`, `Status`, `ArticleReference`, `Reason`).
 4. **Create `Model/GPAIComplianceResult.cs`** (`ModelId`, `HasSystemicRisk`, `Statuses`, `IsCompliant`, `EvaluatedAtUtc`), `Model/ModelCardContent.cs` (description, intended use, limitations, training data description, evaluation results, ethical considerations) and `Model/ModelCard.cs`.
@@ -248,19 +251,19 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Registry & Systemic-Risk Classification (PR 2)
+### Phase 2: Marten Aggregate, Registry & Systemic-Risk Classification (PR 2)
 
-> **Goal**: Register models and classify them.
+> **Goal**: Register models durably and classify them.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `Abstractions/IGPAIModelRegistry.cs`**: `RegisterModelAsync`, `GetModelAsync`, `GetSystemicRiskModelsAsync` (as in the issue; `Left(aiact.gpai_model_not_found)` for an unknown id).
-2. **Create `InMemoryGPAIModelRegistry.cs`** (`ConcurrentDictionary`, keyed by `ModelId`, repeat registration replaces the same key; publishes `GPAIModelRegisteredNotification` through `IEncina`; marked in XML docs as the default replaced by the Marten registry).
+2. **Create `Aggregates/GPAIModelAggregate.cs`** (`AggregateBase`, deterministic `Guid` stream id from the `ModelId` with a name-based UUID), `ReadModels/GPAIModelReadModel.cs` and `ReadModels/GPAIModelProjection.cs` (inline, keyed by `ModelId`), and `Services/MartenGPAIModelRegistry.cs` (`IGPAIModelRegistry` over `IAggregateRepository<GPAIModelAggregate>` and the read model; a repeat registration of the same `ModelId` is an update event, not a second stream). No in-memory implementation exists.
 3. **Create `Classification/SystemicRiskClassifier.cs`** (internal static): `bool? IsSystemicRisk(registration, threshold)`; null when compute is missing and no designation (Design Choice 3).
 4. **Create `GPAIOptions.cs`** and validator: `SystemicRiskComputeThresholdFlops` (1e25), `GpaiObligationsApplyFromUtc` (2025-08-02), `LegacyModelDeadlineUtc` (2027-08-02), `CommissionNotificationWindowDays` (14).
 5. **Create `RegistrationValidator.cs`** (internal): non-blank ids, non-negative compute, designation reference when designated, evidence kinds known.
-6. **Tests**: threshold boundary (exactly 10^25 is not above), designation, missing compute, repeat registration, unknown id, concurrency smoke test of the dictionary, validator failures.
+6. **Tests**: unit tests mock `IAggregateRepository` (NSubstitute): threshold boundary (exactly 10^25 is not above), designation, missing compute, repeat registration, unknown id, optimistic-concurrency conflict mapped to a `Left`, validator failures; integration tests in `tests/Encina.IntegrationTests/Compliance/AIAct/GPAI/` with `[Collection(MartenCollection.Name)]` against PostgreSQL through Testcontainers (register, read back, evidence recorded, replay equals projection).
 
 </details>
 
@@ -271,21 +274,25 @@ REFERENCE FILES:
 You are implementing Phase 2 of issue #843 in Encina.Compliance.AIAct.GPAI.
 
 CONTEXT:
-- Models exist (Phase 1). Design Choices 1 and 3: in-memory default pending the maintainer, derived systemic-risk classification with a
-  configurable threshold, strictly "greater than" per Art. 51(2).
+- Models and events exist (Phase 1). Design Choices 1 and 3: the registry is a Marten event-sourced aggregate (no in-memory store,
+  AGENTS.md section 3), derived systemic-risk classification with a configurable threshold, strictly "greater than" per Art. 51(2).
 
 TASK:
-Implement IGPAIModelRegistry, InMemoryGPAIModelRegistry, SystemicRiskClassifier, GPAIOptions and validator, RegistrationValidator.
+Implement IGPAIModelRegistry, GPAIModelAggregate, GPAIModelReadModel and projection, MartenGPAIModelRegistry, SystemicRiskClassifier,
+GPAIOptions and validator, RegistrationValidator. Unit tests mock IAggregateRepository; integration tests use the Marten collection.
 
 KEY RULES:
+- Integration tests: [Collection(MartenCollection.Name)], [Trait("Category", "Integration")], never a per-class fixture.
+- Projections take dependencies through IDocumentOperations/constructor injection, never IServiceProvider.
 - Missing compute without designation is "not classified", never "no systemic risk".
 - Time from TimeProvider; registration publishes an audit notification and a publish Left fails the call.
 - Thresholds and dates come from options; CRAP <= 10 per method; tests execute real classes.
 
 REFERENCE FILES:
-- src/Encina.Compliance.AIAct/InMemoryAISystemRegistry.cs
+- src/Encina.Compliance.Consent/Aggregates/ConsentAggregate.cs
+- src/Encina.Compliance.Consent/ReadModels/ConsentProjection.cs
+- src/Encina.Compliance.Consent/ConsentMartenExtensions.cs
 - src/Encina.Compliance.AIAct/AIActOptionsValidator.cs
-- src/Encina.Compliance.AIAct/Abstractions/IAISystemRegistry.cs
 ```
 
 </details>
@@ -375,7 +382,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Configuration, DI & Audit Notifications (PR 4)
+### Phase 5: Configuration, DI, Health Check & Audit Notifications (PR 4)
 
 > **Goal**: One registration call and audit evidence.
 
@@ -383,9 +390,9 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create notifications** `GPAIModelRegisteredNotification` (model id, systemic-risk flag, `OccurredAtUtc`) and `GPAIComplianceEvaluatedNotification` (model id, count of `NotMet`, count of `Pending`, `OccurredAtUtc`), published through `IEncina.Publish`; no evidence text.
-2. **Create `ServiceCollectionExtensions.cs`**: `AddEncinaAIActGPAI(Action<GPAIOptions>?)` registers options, validator, `TimeProvider`, registry (`TryAdd`, a store registered by the application or by the future Marten registry wins in any order), classifier, validator and model card generator.
-3. **DI test** with `ValidateOnBuild` and `ValidateScopes`, in both registration orders with `AddEncinaAIAct`.
-4. **Tests**: end-to-end register, validate and generate a card; publish failure fails the call.
+2. **Create `GPAIMartenExtensions.cs`** with `AddGPAIAggregates()` (aggregate repository and projection registration, as `AddConsentAggregates()`) and **`ServiceCollectionExtensions.cs`** with `AddEncinaAIActGPAI(Action<GPAIOptions>?)`: options, validator, `TimeProvider`, `MartenGPAIModelRegistry` (`TryAdd`, an application registry wins in any order), classifier, validator, model card generator, health check.
+3. **Create `Health/GPAIHealthCheck.cs`** (`DefaultName`, static `Tags`, scoped resolution via `IServiceProvider.CreateScope()`): the registry's Marten store answers a read.
+4. **DI test** with `ValidateOnBuild` and `ValidateScopes`, in both registration orders with `AddEncinaAIAct`, with the Marten services registered; **tests**: end-to-end register, validate and generate a card (integration, Marten collection); publish failure fails the call.
 
 </details>
 
@@ -402,7 +409,8 @@ TASK:
 Add the two audit notifications and AddEncinaAIActGPAI with a ValidateOnBuild/ValidateScopes DI test.
 
 KEY RULES:
-- Registration completeness (AGENTS.md section 3): every option type and dependency registered; an application's registry wins in any order.
+- Registration completeness (AGENTS.md section 3): every option type and dependency registered (including the Marten aggregate
+  services and the health check); an application's registry wins in any order.
 - A Left from Publish fails the operation; notifications carry ids and counts only.
 
 REFERENCE FILES:
@@ -415,7 +423,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 6: Observability (PR 4)
+### Phase 6: Observability (PR 5)
 
 > **Goal**: Spans, counters and twelve log events.
 
@@ -423,7 +431,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `Diagnostics/GPAIDiagnostics.cs`**: source and meter `Encina.Compliance.AIAct.GPAI`; span `aiact.gpai.validate` (model id, outcome); counters `aiact.gpai.models_registered` (tag systemic-risk flag) and `aiact.gpai.compliance_checks` (tag outcome).
-2. **Create `Diagnostics/GPAILogMessages.cs`**, `[LoggerMessage]`, ids 9588-9599 packed: model registered, registration rejected, model not found, systemic risk classified, classification pending (compute missing), notification overdue (Art. 52), obligation not met, obligation pending (transition), obligation not applicable (open source), validation completed, model card generated, model card incomplete.
+2. **Create `Diagnostics/GPAILogMessages.cs`**, `[LoggerMessage]`, ids 9588-9599 packed: model registered, registration rejected, model not found, systemic risk classified, classification pending (compute missing), notification overdue (Art. 52), obligation not met, obligation pending (transition), registry unavailable (store failure), validation completed, model card generated, model card incomplete.
 3. **Modify `EncinaEventIdAllocationTests.AssemblyRanges`**: `["Encina.Compliance.AIAct.GPAI"] = [nameof(EventIdRanges.ComplianceAIAct)]`.
 4. A notification publish failure is logged with the generic registry-failure event by code (counted in the 12 above through "registration rejected" and "validation completed" outcomes).
 
@@ -456,7 +464,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 7: Testing (spread over the PRs, completed in PR 4)
+### Phase 7: Testing (spread over the PRs, completed in PR 5)
 
 > **Goal**: Every flag reaches its target.
 
@@ -467,7 +475,7 @@ REFERENCE FILES:
 2. **Guard**: every public constructor and method parameter.
 3. **Contract**: `IGPAIModelRegistry`, `IGPAIComplianceValidator`, `IModelCardGenerator` on real implementations.
 4. **Property**: classification monotonic in compute; the list of `NotMet` obligations equals the obligations without evidence (for non-exempt, non-transition models); status list always has one entry per applicable obligation.
-5. **DI test** (Phase 5). **Integration**, **Load**, **Benchmark**: `.md` justifications under `Compliance/AIAct/GPAI/` (in-memory registry only until the Marten registry exists; thin non-concurrent code; not a hot path).
+5. **DI test** (Phase 5). **Integration**, **Load**, **Benchmark**: `.md` justifications under `Compliance/AIAct/GPAI/` for Load and Benchmark (append-only streams per model, no shared state; not a hot path). Integration is implemented, not justified: Marten on PostgreSQL through Testcontainers (`[Collection(MartenCollection.Name)]`) for the registry, projection, evidence and notification-date round trips and the validator against stored models.
 6. **Coverage manifest**: per-file targets and justifications; measure each flag; local CRAP table for changed methods (<= 10).
 
 </details>
@@ -482,7 +490,8 @@ CONTEXT:
 - Phases 1-6 are implemented; earlier PRs brought their own tests.
 
 TASK:
-Write the missing tests and the three .md justifications; bring every flag to its manifest target.
+Write the missing tests (including the Marten integration suite) and the two .md justifications (load, benchmark); bring every flag
+to its manifest target.
 
 KEY RULES:
 - Tests execute real code; Shouldly via Encina.Testing.Shouldly; FakeTimeProvider; no Thread.Sleep. Do not lower any target.
@@ -509,7 +518,7 @@ REFERENCE FILES:
 1. XML docs on all public APIs (`<summary>`, `<remarks>` with the article, `<param>`, `<returns>`, `<example>`).
 2. `changelog.d/843-aiact-gpai.added.md` (written by `mechanical-fixer`).
 3. Package README; `docs/features/aiact-compliance.md` Chapter V section with the article table of SPEC-000 REQ-024 (Art. 51 covered; 52, 53, 54, 55 covered; 56 excluded as it binds the AI Office), through `docs-writer`; state the dates and that the package is a register, not an LLM integration.
-4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR only if the maintainer approves the InMemory exception (Design Choice 1): the next number neither used nor reserved in `docs/architecture/adr/index.md`.
+4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR only if an architectural decision arises: the next number neither used nor reserved in `docs/architecture/adr/index.md`.
 5. `PublicAPI.Unshipped.txt` complete; build with 0 warnings; tests; every flag at target.
 
 </details>
@@ -567,7 +576,8 @@ Checked 2026-11-11 on the consolidated text at artificialintelligenceact.eu ("te
 
 | Component | Location | Usage in this feature |
 |-----------|----------|-----------------------|
-| `InMemoryAISystemRegistry`, `IAISystemRegistry` | `src/Encina.Compliance.AIAct/` | Pattern for the registry and its notification publishing |
+| `ConsentAggregate`, `ConsentProjection`, `ConsentMartenExtensions` | `src/Encina.Compliance.Consent/` | Pattern for the Marten aggregate, inline projection and `AddGPAIAggregates()` |
+| `MartenCollection` fixture | `tests/Encina.IntegrationTests/` | Integration tests on PostgreSQL |
 | Notifications and `IEncina.Publish` | `src/Encina.Compliance.AIAct/Notifications/`, `InMemoryAISystemRegistry.cs:109` | Audit evidence |
 | `AIActErrors`, `AIActOptionsValidator` | `src/Encina.Compliance.AIAct/` | Error naming and validator style |
 | `ServiceCollectionExtensions` | `src/Encina.Compliance.AIAct/ServiceCollectionExtensions.cs` | Registration pattern (`TryAdd`, `TimeProvider`) |
@@ -592,12 +602,13 @@ Checked 2026-11-11 on the consolidated text at artificialintelligenceact.eu ("te
 | Package project files | 5 | csproj, two PublicAPI files, `Encina.slnx`, manifest |
 | Models and errors | 11 | registration, evidence, obligation, status kind, status, result, model card content, model card, errors, options, options validator |
 | Abstractions | 3 | registry, compliance validator, model card generator |
-| Registry, classifier, rules, validators | 7 | in-memory registry, classifier, registration validator, obligation rules, transition rules, validator, generator |
-| DI and notifications | 3 | `ServiceCollectionExtensions`, two notifications |
+| Marten aggregate, events, read model, projection, registry | 5 | `GPAIModelEvents`, `GPAIModelAggregate`, `GPAIModelReadModel`, `GPAIModelProjection`, `MartenGPAIModelRegistry` |
+| Classifier, rules, validators | 6 | classifier, registration validator, obligation rules, transition rules, validator, generator |
+| DI, health check, notifications | 5 | `ServiceCollectionExtensions`, `GPAIMartenExtensions`, `GPAIHealthCheck`, two notifications |
 | Diagnostics | 2 | `GPAIDiagnostics`, `GPAILogMessages` |
-| Tests | ~19 | unit, guard, contract, property, DI, architecture map, three `.md` justifications |
+| Tests | ~27 | unit, guard, contract, property, Marten integration, DI, architecture map, two `.md` justifications |
 | Documentation | 6 | changelog fragment, README, feature page, ADR (conditional), INVENTORY, ROADMAP |
-| **Total** | **~56** | **Five pull requests of 6 to 15 files** |
+| **Total** | **~70** | **Six pull requests of 6 to 15 files** |
 
 ---
 
@@ -614,20 +625,20 @@ PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library, pre-1.0: no backward compatibility, no [Obsolete], best solution always.
 - Railway Oriented Programming: Either<EncinaError, T>; compliance gates fail closed (missing evidence or context is never a pass).
 - The package is a register and validator over references to documents a provider keeps; no model, weights, inference or LLM code.
-- The in-memory registry default is pending the maintainer (AGENTS.md section 3 says event-sourced modules have no InMemory stores);
-  a Marten registry is a follow-up after #847.
+- Event-sourced compliance module (AGENTS.md section 3): the registry is a Marten aggregate from the first PR, no InMemory store;
+  unit tests mock IAggregateRepository, integration tests use Marten on PostgreSQL through Testcontainers.
 
 IMPLEMENTATION OVERVIEW:
-Phase 1: package skeleton; GPAIModelRegistration (TrainingComputeFlops, designation, open-source flag, placement date, notification
+Phase 1: package skeleton (references Encina.Marten); stream events; GPAIModelRegistration (TrainingComputeFlops, designation, open-source flag, placement date, notification
          dates, evidence list, model card content), GPAIEvidence, GPAIObligation, statuses, GPAIComplianceResult, ModelCard, errors.
-Phase 2: IGPAIModelRegistry, InMemoryGPAIModelRegistry, SystemicRiskClassifier (strictly greater than 10^25 or designated),
+Phase 2: IGPAIModelRegistry, GPAIModelAggregate + inline projection + MartenGPAIModelRegistry, SystemicRiskClassifier (strictly greater than 10^25 or designated),
          GPAIOptions + validator, RegistrationValidator.
 Phase 3: ObligationRules (53(1)(a)-(d), 52(1), 54(1), 55(1)(a)-(d)), TransitionRules (2 Aug 2025 to 2 Aug 2027),
          DefaultGPAIComplianceValidator; open-source exemption never applies to systemic-risk models.
 Phase 4: DefaultModelCardGenerator from supplied ModelCardContent.
 Phase 5: two audit notifications and AddEncinaAIActGPAI with DI tests in both registration orders.
 Phase 6: ActivitySource/Meter and 12 log events 9588-9599; architecture-test map.
-Phase 7: all test types and three .md justifications. Phase 8: docs-writer pages with the Chapter V article table, changelog, INVENTORY, ROADMAP.
+Phase 7: all test types (Marten integration included) and two .md justifications. Phase 8: docs-writer pages with the Chapter V article table, changelog, INVENTORY, ROADMAP.
 
 KEY PATTERNS:
 - TimeProvider only; thresholds and dates from options; reasons are codes, never user text or EncinaError.Message.
@@ -635,7 +646,7 @@ KEY PATTERNS:
 - TryAdd registrations; DI completeness test with ValidateOnBuild and ValidateScopes; CRAP <= 10 per changed method.
 
 REFERENCE FILES:
-- src/Encina.Compliance.AIAct/InMemoryAISystemRegistry.cs
+- src/Encina.Compliance.Consent/ConsentMartenExtensions.cs
 - src/Encina.Compliance.AIAct/ServiceCollectionExtensions.cs
 - src/Encina.Compliance.AIAct/Diagnostics/AIActLogMessages.cs
 - docs/plans/aiact-transparency-implementation-plan-841.md
@@ -650,14 +661,14 @@ REFERENCE FILES:
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | **Caching** | ❌ N/A | The registry is in-memory and validation reflects the current evidence and clock; a cached result would hide a missed deadline |
+| 1 | **Caching** | ❌ N/A | Validation reflects the current evidence and clock; a cached result would hide a missed deadline |
 | 2 | **OpenTelemetry** | ✅ Phase 6 | Span `aiact.gpai.validate`; counters `aiact.gpai.models_registered` and `aiact.gpai.compliance_checks` |
 | 3 | **Structured Logging** | ✅ Phase 6 | 12 `[LoggerMessage]` events, ids 9588-9599 inside `ComplianceAIAct` (ADR-021) |
-| 4 | **Health Checks** | ❌ N/A | An in-memory registry has no checkable dependency; a health check returns with the Marten registry (Design Choice 7) |
+| 4 | **Health Checks** | ✅ Phase 5 | `GPAIHealthCheck`: the Marten store behind the registry answers a read (Design Choice 7) |
 | 5 | **Validation** | ✅ Phases 2, 4 | Options validator; registration validation; model card field validation |
 | 6 | **Resilience** | ❌ N/A | No external call |
-| 7 | **Distributed Locks** | ❌ N/A | The in-memory default is process-local; no coordination needed |
-| 8 | **Transactions** | ⏭️ Defer ([#847](https://github.com/dlrivada/Encina/issues/847) follow-up, issue file listed in Next Steps) | Durable atomic storage arrives with the Marten registry |
+| 7 | **Distributed Locks** | ❌ N/A | One stream per model; concurrent updates are resolved by Marten optimistic concurrency, mapped to a `Left` |
+| 8 | **Transactions** | ✅ Phase 2 | Each registration or evidence command appends its events and updates the inline projection in one `SaveChangesAsync` |
 | 9 | **Idempotency** | ✅ Phase 2 | Registration is keyed by `ModelId`; a repeat is the same registration |
 | 10 | **Multi-Tenancy** | ⏭️ Defer ([#845](https://github.com/dlrivada/Encina/issues/845)) | Per-tenant model registries are part of the tenant-scoped AI Act enforcement |
 | 11 | **Module Isolation** | ⏭️ Defer ([#846](https://github.com/dlrivada/Encina/issues/846)) | `ModuleId`-scoped enforcement is delivered package-wide |
@@ -677,7 +688,7 @@ No `needs-decision` issue blocks this plan.
 
 ### Recommended (Not Blocking)
 
-- [#847](https://github.com/dlrivada/Encina/issues/847): Marten machinery that the follow-up registry reuses.
+- [#847](https://github.com/dlrivada/Encina/issues/847): migrates the core's own registries to Marten; this package does not wait for it and follows the `Encina.Compliance.Consent` shape.
 - [#840](https://github.com/dlrivada/Encina/issues/840): a GPAI provider that also builds high-risk systems documents them separately; no shared types.
 - [#845](https://github.com/dlrivada/Encina/issues/845), [#846](https://github.com/dlrivada/Encina/issues/846): tenant and module scoping.
 - A new EventId range if another AI Act package is planned: `ComplianceAIAct` is full after this plan.
@@ -686,8 +697,7 @@ No `needs-decision` issue blocks this plan.
 
 ## Next Steps
 
-1. The maintainer answers Design Choices 1 and 2 when work on #843 starts; the orchestrator records the answers in a `## Maintainer Decisions` section after this one and runs `check-plan` without `-Draft`.
-2. `adversarial-reviewer` tries to break the Settled and Trivial choices (3, 4, 5, 6, 7) before the first worker brief, and `decision-extractor` lists any implicit choice.
-3. Open the deferred issue from `artifacts/issues/plan-843-gpai-marten-registry.md` (Marten-backed GPAI model registry after #847).
-4. Brief the five pull requests in order, each with its re-measured `Size:` line, per-file coverage targets and the local CRAP command.
-5. Update #843's acceptance criteria to the decided scope (renamed compute field, evidence references, obligation statuses, Arts. 52 and 54).
+1. The maintainer answers Design Choice 2 when work on #843 starts; the orchestrator records the answers in a `## Maintainer Decisions` section after this one and runs `check-plan` without `-Draft`.
+2. `adversarial-reviewer` tries to break the Settled and Trivial choices (1, 3, 4, 5, 6, 7) before the first worker brief, and `decision-extractor` lists any implicit choice.
+3. Brief the six pull requests in order, each with its re-measured `Size:` line, per-file coverage targets and the local CRAP command.
+4. Update #843's acceptance criteria to the decided scope (Marten registry instead of "In-memory default implementations", renamed compute field, evidence references, obligation statuses, Arts. 52 and 54).
