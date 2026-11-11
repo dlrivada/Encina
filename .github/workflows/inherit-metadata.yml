@@ -79,7 +79,11 @@ jobs:
                 'query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ pullRequest(number:$number){ closingIssuesReferences(first:50){ pageInfo{ hasNextPage } nodes{ number repository{ nameWithOwner } } } } } }',
                 { owner, repo, number });
               const refs = r.repository.pullRequest.closingIssuesReferences;
-              if (refs.pageInfo.hasNextPage) core.warning('#' + number + ' closes more than 50 issues; only the first 50 are read.');
+              // A truncated list could hide a closed issue with another milestone: nothing is decided from it.
+              if (refs.pageInfo.hasNextPage) {
+                core.warning('#' + number + ' closes more than 50 issues; no metadata is written.');
+                return null;
+              }
               const own = refs.nodes.filter(n => n.repository.nameWithOwner.toLowerCase() === (owner + '/' + repo).toLowerCase());
               const issues = [];
               for (const n of own) {
@@ -97,12 +101,16 @@ jobs:
                 if (!byParent.has(parent.number)) byParent.set(parent.number, { url: parent.html_url, children: [] });
                 byParent.get(parent.number).children.push(issue.number);
               }
-              if (byParent.size === 0) return;
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
+              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
+              if (byParent.size === 0) {
+                // The pull request no longer closes an issue that has a parent: an earlier EPIC claim is withdrawn.
+                if (existing) await github.rest.issues.deleteComment({ owner, repo, comment_id: existing.id });
+                return;
+              }
               const lines = [...byParent.entries()].sort((a, b) => a[0] - b[0])
                 .map(([n, p]) => '- EPIC [#' + n + '](' + p.url + '): closes ' + p.children.sort((a, b) => a - b).map(c => '#' + c).join(', '));
               const body = MARKER + '\nThis pull request closes issues that belong to an EPIC:\n\n' + lines.join('\n');
-              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
-              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
               if (!existing) await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
               else if (existing.body !== body) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             }
@@ -112,8 +120,10 @@ jobs:
               const { data: pr } = await github.rest.issues.get({ owner, repo, issue_number: number });
               if (pr.state !== 'open') return;
               const issues = await closedIssues(number);
+              if (issues === null) return; // more than 50 references: nothing is decided
               if (issues.length === 0) {
                 core.info('#' + number + ' closes no issue of this repository: nothing to inherit.');
+                await upsertEpicComment(number, []); // withdraws an earlier EPIC comment
                 return;
               }
               if (!pr.milestone) {
@@ -168,10 +178,29 @@ jobs:
             }
 
             // The same rule as inheritFromParent in issue-hygiene.yml; keep the two in step.
+            // Events caused by the default token start no workflow, so this pass keeps needs-triage in step with what the
+            // issue has: removed once it is complete; added (when asked) while it is not. The comment stays with issue-hygiene.
+            async function reconcileTriage(issue, addWhenIncomplete) {
+              const names = labelNames(issue);
+              const complete = issue.milestone && (isEpic(issue) || names.some(n => PRIORITY.includes(n)));
+              if (complete && names.includes(TRIAGE)) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: TRIAGE });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+              } else if (!complete && addWhenIncomplete && !names.includes(TRIAGE)) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [TRIAGE] });
+              }
+            }
+
             async function inheritFromParent(issue) {
               const parent = await getParent(issue.number);
               // A parent in another repository has its own milestones and labels: nothing is copied from it.
-              if (!parent || !String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) return;
+              if (!parent || !String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) {
+                await reconcileTriage(issue, false);
+                return;
+              }
               const own = labelNames(issue);
               const fromParent = labelNames(parent);
               const add = [];
@@ -181,21 +210,20 @@ jobs:
                 if (priority) add.push(priority);
               }
               const milestone = !issue.milestone && parent.milestone ? parent.milestone.number : null;
-              if (milestone === null && add.length === 0) return;
-              if (milestone !== null) await github.rest.issues.update({ owner, repo, issue_number: issue.number, milestone });
-              if (add.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: add });
-              // Events caused by the default token start no workflow, so the needs-triage label that the missing values
-              // earned is removed here once the issue is complete.
-              const { data: updated } = await github.rest.issues.get({ owner, repo, issue_number: issue.number });
-              const names = labelNames(updated);
-              const complete = updated.milestone && (isEpic(updated) || names.some(n => PRIORITY.includes(n)));
-              if (complete && names.includes(TRIAGE)) {
-                try {
-                  await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: TRIAGE });
-                } catch (e) {
-                  if (e.status !== 404) throw e;
-                }
+              if (milestone === null && add.length === 0) {
+                await reconcileTriage(issue, true);
+                return;
               }
+              let failure = null;
+              try {
+                if (milestone !== null) await github.rest.issues.update({ owner, repo, issue_number: issue.number, milestone });
+                if (add.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: add });
+              } catch (e) {
+                failure = e; // a partial repair still gets its triage state reconciled below, then the failure is reported
+              }
+              const { data: updated } = await github.rest.issues.get({ owner, repo, issue_number: issue.number });
+              await reconcileTriage(updated, true);
+              if (failure) throw failure;
             }
 
             // GraphQL only where no REST equivalent exists: closingIssuesReferences has none.
@@ -204,7 +232,11 @@ jobs:
                 'query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ pullRequest(number:$number){ closingIssuesReferences(first:50){ pageInfo{ hasNextPage } nodes{ number repository{ nameWithOwner } } } } } }',
                 { owner, repo, number });
               const refs = r.repository.pullRequest.closingIssuesReferences;
-              if (refs.pageInfo.hasNextPage) core.warning('#' + number + ' closes more than 50 issues; only the first 50 are read.');
+              // A truncated list could hide a closed issue with another milestone: nothing is decided from it.
+              if (refs.pageInfo.hasNextPage) {
+                core.warning('#' + number + ' closes more than 50 issues; no metadata is written.');
+                return null;
+              }
               const own = refs.nodes.filter(n => n.repository.nameWithOwner.toLowerCase() === (owner + '/' + repo).toLowerCase());
               const issues = [];
               for (const n of own) {
@@ -222,12 +254,16 @@ jobs:
                 if (!byParent.has(parent.number)) byParent.set(parent.number, { url: parent.html_url, children: [] });
                 byParent.get(parent.number).children.push(issue.number);
               }
-              if (byParent.size === 0) return;
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
+              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
+              if (byParent.size === 0) {
+                // The pull request no longer closes an issue that has a parent: an earlier EPIC claim is withdrawn.
+                if (existing) await github.rest.issues.deleteComment({ owner, repo, comment_id: existing.id });
+                return;
+              }
               const lines = [...byParent.entries()].sort((a, b) => a[0] - b[0])
                 .map(([n, p]) => '- EPIC [#' + n + '](' + p.url + '): closes ' + p.children.sort((a, b) => a - b).map(c => '#' + c).join(', '));
               const body = MARKER + '\nThis pull request closes issues that belong to an EPIC:\n\n' + lines.join('\n');
-              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
-              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
               if (!existing) await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
               else if (existing.body !== body) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
             }
@@ -237,7 +273,11 @@ jobs:
               const { data: pr } = await github.rest.issues.get({ owner, repo, issue_number: number });
               if (pr.state !== 'open') return;
               const issues = await closedIssues(number);
-              if (issues.length === 0) return;
+              if (issues === null) return; // more than 50 references: nothing is decided
+              if (issues.length === 0) {
+                await upsertEpicComment(number, []); // withdraws an earlier EPIC comment
+                return;
+              }
               if (!pr.milestone) {
                 const milestones = new Set(issues.map(i => (i.milestone ? i.milestone.number : 0)));
                 if (milestones.size === 1 && !milestones.has(0)) {
@@ -279,6 +319,10 @@ jobs:
             const canInherit = (i) => !i.milestone || !labelNames(i).some(n => n.startsWith(AREA_PREFIX)) ||
               (!isEpic(i) && !labelNames(i).some(n => PRIORITY.includes(n)));
             for (const issue of open.filter(canInherit)) await attempt('issue #' + issue.number, () => inheritFromParent(issue));
+            // A complete issue that still carries needs-triage (an earlier cleanup failed) is cleaned up without a /parent call.
+            for (const issue of open.filter(i => !canInherit(i) && labelNames(i).includes(TRIAGE))) {
+              await attempt('issue #' + issue.number, () => reconcileTriage(issue, false));
+            }
 
             core.info('Checked ' + prs.length + ' open pull request(s) and ' + open.length + ' open issue(s).');
             if (failures.length > 0) core.setFailed(failures.length + ' item(s) failed:\n' + failures.join('\n'));

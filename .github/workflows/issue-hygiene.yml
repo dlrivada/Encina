@@ -112,7 +112,15 @@ jobs:
               if (fetched.state !== 'open' || fetched.pull_request) return;
 
               // Inherit before the completeness check: an issue that is complete after inheriting is not labelled needs-triage.
-              const issue = await inheritFromParent(fetched);
+              // A failed write must not skip the check: the issue is read again and judged as it stands; inherit-metadata.yml
+              // retries the inheritance daily.
+              let issue;
+              try {
+                issue = await inheritFromParent(fetched);
+              } catch (e) {
+                core.warning('Inheritance for #' + fetched.number + ' failed: ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+                ({ data: issue } = await github.rest.issues.get({ owner, repo, issue_number: fetched.number }));
+              }
 
               const missing = missingOf(issue);
               const hasTriage = labelNames(issue).includes(TRIAGE);
