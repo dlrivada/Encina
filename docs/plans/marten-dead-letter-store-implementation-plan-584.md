@@ -65,7 +65,7 @@ What the code looks like today (main `7a0049c07`):
 
 - The dependency argument of the issue is the correction this plan brings: `Encina.Marten.csproj` already references `Encina.Messaging`, so B buys only packaging tidiness.
 - A is the established pattern of the 10 database providers and the cheapest to maintain. B wins when the maintainer wants every Marten capability to be an independently versioned opt-in, as `Encina.Audit.Marten` and `Encina.Marten.GDPR` are (they carry crypto and compliance dependencies that this store does not).
-- EventIds follow the choice: A uses free ids 2701-2715 inside `EventIdRanges.Marten` (2600-2799, "2701-2799 free for the package"); B takes a new range from the block assigned to this family, 6915-6924.
+- EventIds follow the choice: A uses free ids 2731-2745 inside `EventIdRanges.Marten` (2600-2799, "2701-2799 free for the package"); B takes a new range from the block assigned to this family, 6915-6924.
 
 </details>
 
@@ -274,7 +274,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Marten/DeadLetter/DeadLetterMartenLog.cs`: `[LoggerMessage]` source-generated messages (store failure by operation, claim lost, duplicate capture, delete count), ids 2701-2715 inside `EventIdRanges.Marten` (the range comment says 2701-2799 are free), packed sequentially; update the range comment in `src/Encina/Diagnostics/EventIdRanges.cs` to name them. If Design Choice 2 picks a separate package, register `DeadLetterMarten = (6915, 6924)` first (the block assigned to this family) and add the assembly to `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
+1. `src/Encina.Marten/DeadLetter/DeadLetterMartenLog.cs`: `[LoggerMessage]` source-generated messages (store failure by operation, claim lost, duplicate capture, delete count), ids 2731-2745 inside `EventIdRanges.Marten` (the range comment says 2701-2799 are free), packed sequentially; update the range comment in `src/Encina/Diagnostics/EventIdRanges.cs` to name them. If Design Choice 2 picks a separate package, register `DeadLetterMarten = (6915, 6924)` first (the block assigned to this family) and add the assembly to `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
 2. OpenTelemetry: no code; `InstrumentedDeadLetterStore` (Encina.OpenTelemetry) decorates any registered store; document it in the README and add a test that the decorator wraps `DeadLetterStoreMarten`.
 3. Tenant: no `TenantId` in logs or tags (SPEC-002 REQ-062).
 
@@ -293,7 +293,7 @@ Add DeadLetterMartenLog with the ids named in the Phase 4 Tasks, wire it into De
 KEY RULES:
 - Register the range before use; never assign an id outside it; pack ids sequentially.
 - Log error codes or exception types only; exception text and the tenant id never reach logs.
-- XML docs name the range ("Event IDs: 2701-2715 (see EventIdRanges.Marten)").
+- XML docs name the range ("Event IDs: 2731-2745 (see EventIdRanges.Marten)").
 
 REFERENCE FILES:
 - src/Encina.Marten/Log.cs
@@ -420,7 +420,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Marten` | 2701-2715 (inside `Marten` 2600-2799) | Used if Design Choice 2 keeps the store in `Encina.Marten`; 2701-2799 are free per `EventIdRanges.cs` |
+| `Encina.Marten` | 2731-2745 (inside `Marten` 2600-2799) | Used if Design Choice 2 keeps the store in `Encina.Marten`; 2701-2799 are free per `EventIdRanges.cs` |
 | `Encina.Marten.DeadLetter` | 6915-6924 (`DeadLetterMarten`) | Used only if Design Choice 2 picks a separate package; block 6900-6949 is this family's |
 
 ### Estimated File Count
@@ -451,7 +451,7 @@ IMPLEMENTATION OVERVIEW:
 Phase 1: DeadLetterDocument, DeadLetterDocumentFactory, content-free lifecycle events, schema with unique (SourcePattern, SourceMessageId) index.
 Phase 2: DeadLetterStoreMarten, 11 methods, session per operation, optimistic-revision claim.
 Phase 3: DeadLetterMartenOptions, AddEncinaDeadLetterMarten delegating to AddDeadLetterQueueServices, DI test with ValidateOnBuild and ValidateScopes.
-Phase 4: DeadLetterMartenLog with EventIds registered first (2701-2715 or 6915-6924 per the maintainer's package choice).
+Phase 4: DeadLetterMartenLog with EventIds registered first (2731-2745 or 6915-6924 per the maintainer's package choice).
 Phase 5: unit, guard, contract/integration (DeadLetterStoreContract), property tests; manifest targets.
 Phase 6: docs, changelog fragment, PublicAPI.
 
@@ -479,7 +479,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Dead letters are an operator tool and are not cached; the original "cache read models" is dropped. |
 | 2 | OpenTelemetry | ✅ | `InstrumentedDeadLetterStore` decorates any store; Phase 4 adds a test that it wraps this one. |
-| 3 | Structured logging | ✅ | Phase 4: `[LoggerMessage]` ids 2701-2715 (or 6915-6924), error codes and exception types only. |
+| 3 | Structured logging | ✅ | Phase 4: `[LoggerMessage]` ids 2731-2745 (or 6915-6924), error codes and exception types only. |
 | 4 | Health checks | ✅ | Phase 3 reuses `MartenHealthCheck` and adds a document-schema probe only if needed. |
 | 5 | Validation | ✅ | Contract argument rules throw before I/O in the store; input rules live once in the orchestrator and manager (ADR-046 decision 6). |
 | 6 | Resilience | ✅ | A Marten or Npgsql failure maps to `Left` (`dlq.store_failed`); retry belongs to the caller, as for the other stores. |
