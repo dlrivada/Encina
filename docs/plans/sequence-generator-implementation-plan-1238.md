@@ -3,7 +3,7 @@
 > **Issue**: [#1238](https://github.com/dlrivada/Encina/issues/1238) (SPEC-002 P-36, REQ-045, AC-039, AC-043, scenario S8; parent [#1186](https://github.com/dlrivada/Encina/issues/1186))
 > **Type**: Feature
 > **Complexity**: High (one primitive, four different SQL and driver mechanisms, concurrency correctness on every provider)
-> **Estimated Scope**: ~1,100-1,500 lines of production code + ~3,000-3,800 lines of tests; ~30 new and ~14 modified production files (split into 4 pull requests, see Next Steps)
+> **Estimated Scope**: ~1,100-1,500 lines of production code + ~3,000-3,800 lines of tests; ~30 new and ~14 modified production files (split into 8 pull requests, see Next Steps)
 
 ---
 
@@ -34,6 +34,7 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 
 - `Encina` (core): abstraction, tenant resolution, options, validator, in-memory store, health check, diagnostics (folder `Sequences/`).
 - `Encina.ADO.{SqlServer,PostgreSQL,MySQL}`, `Encina.Dapper.{SqlServer,PostgreSQL,MySQL}`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`: the store and its registration.
+- `Encina.Messaging`: the `MessagingConfiguration` flag `UseSequenceStore` only.
 - `tests/Encina.TestInfrastructure` (schemas), `src/Encina/Diagnostics/EventIdRanges.cs`.
 
 ### Provider category
@@ -75,7 +76,7 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Per provider: ensure the row exists, then one atomic statement that increments and returns the value, inside the caller's transaction (row lock held until commit or rollback)** | Gapless on rollback; one round trip for the hot path; concurrent callers on one key queue on the row lock | Callers on the same key serialise until the owning transaction ends (inherent to gapless) |
+| **A) Per provider: ensure the row exists, then one atomic statement that increments and returns the value, inside the caller's transaction (row lock held until commit or rollback)** | Gapless on rollback; one round trip for the hot path; concurrent callers on one key queue on the row lock (relational providers; MongoDB fails fast, see Design Choice 5) | Callers on the same key serialise until the owning transaction ends (inherent to gapless) |
 | **B) `SELECT ... FOR UPDATE` then `UPDATE`** | Familiar | Two round trips; SQL Server needs `UPDLOCK, ROWLOCK` hints; same serialisation |
 | **C) Database sequences** | Fast | Not gapless on rollback; rejected by the issue |
 | **D) Assign after commit** | No contention | A window with no number; rejected by the issue |
@@ -89,8 +90,8 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 
 - SQL Server: `INSERT ... SELECT ... WHERE NOT EXISTS (SELECT 1 FROM t WITH (UPDLOCK, HOLDLOCK) WHERE ...)`, then `UPDATE t SET LastValue = LastValue + 1 OUTPUT inserted.LastValue WHERE ...`.
 - PostgreSQL: `INSERT ... ON CONFLICT DO NOTHING`, then `UPDATE ... SET "LastValue" = "LastValue" + 1 ... RETURNING "LastValue"`.
-- MySQL: `INSERT IGNORE ...`, then `UPDATE ... SET LastValue = LAST_INSERT_ID(LastValue + 1)` and `SELECT LAST_INSERT_ID()` on the same connection.
-- MongoDB: `findOneAndUpdate` with `$inc`, `upsert: true`, `returnDocument: After`, inside the session; a duplicate-key error on the first concurrent upsert is retried once.
+- MySQL: `INSERT ... ON DUPLICATE KEY UPDATE TenantId = TenantId` (a no-op; `INSERT IGNORE` is not used because it downgrades truncation and constraint errors to warnings), then `UPDATE ... SET LastValue = LAST_INSERT_ID(LastValue + 1)` and `SELECT LAST_INSERT_ID()` on the same connection.
+- MongoDB: see Design Choice 5; a concurrent write to the same document inside a multi-document transaction fails immediately with a `WriteConflict` (`TransientTransactionError`) and does not queue on a lock.
 - A row created by a transaction that rolls back disappears with it, so even the first number of a series is returned on rollback.
 
 </details>
@@ -127,15 +128,38 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 | **B) Any string key** | Flexible | Length and collation differences between providers; a lookup surface |
 | **C) Tenant passed by the caller** | Explicit | Can be forgotten; no fail-closed default |
 
-### Chosen Option: **A — validated key, tenant-scoped row**
+### Chosen Option: **A — validated key, tenant-scoped row** (the key rules are recommended, pending the maintainer)
 
-**Class:** Settled
-**Settled by:** SPEC-002 REQ-061 and AC-043, issue #1238 ("Keys are tenant-scoped"), AGENTS.md section 3 (fail closed), `src/Encina.Compliance.Consent/Services/DefaultConsentService.cs:128`
+**Class:** Dilemma for the key rules; Settled for the tenant part
+**Settled by (tenant part only):** SPEC-002 REQ-061 and AC-043, issue #1238 ("Keys are tenant-scoped"), AGENTS.md section 3 (fail closed), `src/Encina.Compliance.Consent/Services/DefaultConsentService.cs:128`. These cover tenant scoping and fail-closed behaviour.
+**Not covered by those sources (plan inventions):** the key charset `[A-Za-z0-9._:-]`, the 128-character limit, the sentinel tenant `"-"` when tenancy is off (no other store in `src/` defines it), `StartAt` default 1 and the 8-hex key-hash metric tag. A public key restriction affects every caller, so these are recommended and pending the maintainer.
 
 ### Rationale
 
 - Binary or case-sensitive collation on the key column of every relational provider so `A-2026` and `a-2026` are different series on all of them.
 - The metric tag is a key hash (first 8 hex characters of SHA-256), never the key itself (issue observability table).
+
+</details>
+
+<details>
+<summary><strong>5. MongoDB allocation — blocking versus fail-fast on a write conflict</strong></summary>
+
+### Options Considered
+
+In a MongoDB multi-document transaction a concurrent write to the same document does not wait: it fails at once with a `WriteConflict` (`TransientTransactionError`) and the whole transaction must be retried; a duplicate-key error on an upsert also aborts the transaction, so a retry inside the session is impossible.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Create the counter document outside the allocation transaction (idempotent insert with `LastValue = StartAt - 1`, which consumes no number), allocate with `findOneAndUpdate $inc` inside the session, and map `WriteConflict` to the retryable error `sequence.conflict`; the caller retries the whole unit of work** | Correct on MongoDB; gapless on rollback; simple store | Concurrent allocations on one key fail fast instead of queuing; callers need a retry |
+| **B) A bounded retry of the whole transaction inside the store** | Callers see fewer conflicts | The store would own the transaction, which it does not (it enlists in the caller's) |
+| **C) Serialise MongoDB allocations with a distributed lock** | No conflicts | A second mechanism, and the lock is not part of the caller's transaction |
+
+### Chosen Option: **A — separate idempotent insert, `$inc` in the session, conflict as a retryable error** (recommended, pending the maintainer)
+
+### Rationale
+
+- We recommend A: it follows how MongoDB transactions behave. The integration test of 50 concurrent allocations expects conflicts to be reported as `sequence.conflict` and every successful number to be unique and gapless after the retried units of work, instead of expecting callers to queue.
+- B wins if the maintainer wants the retry hidden from callers; C wins if fail-fast is unacceptable for the series.
 
 </details>
 
@@ -181,7 +205,7 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 5. `SequenceOptions.cs` — `StartAt` (default 1), `RequireTenantContext` (nullable), `CommandTimeout`; `SequenceOptionsValidator.cs`.
 6. `SequenceErrors.cs` — `sequence.key_invalid`, `sequence.tenant_required`, `sequence.transaction_required`, `sequence.lock_timeout`, `sequence.store_failed`.
 7. `InMemorySequenceStore.cs` — thread-safe; allocation is tentative and honoured only when the ambient lease commits (test double for the contract, not for production).
-8. `ServiceCollectionExtensions.cs` (or the core registration file) — `AddEncinaSequences(Action<SequenceOptions>?)` with `TryAdd*`; `MessagingConfiguration` flag `UseSequenceStore` for the database stores.
+8. `ServiceCollectionExtensions.cs` (or the core registration file) — `AddEncinaSequences(Action<SequenceOptions>?)` with `TryAdd*`; `MessagingConfiguration` flag `UseSequenceStore` for the database stores, following the `UseBreakTheGlassStore` precedent (`MessagingConfiguration.cs:557`); `Encina.Messaging` is therefore listed in Affected packages even though a sequence is not a messaging pattern (the flag only selects the store).
 9. `README` sentence in the package documentation: "a regulation-neutral primitive; Encina ships no Verifactu code" (issue comment, ADR-057 D23).
 
 </details>
@@ -308,7 +332,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.EntityFrameworkCore/Sequences/SequenceStoreEF.cs` — uses the scoped `DbContext` and `Database.CurrentTransaction` (via `DbContextTransactionAccessor`); raw SQL per database selected by `Database.ProviderName` through a small `SequenceSqlDialect` (the existing branching mechanism of the EF project is checked first and reused).
-2. `src/Encina.MongoDB/Sequences/SequenceStoreMongoDB.cs` — `findOneAndUpdate` inside `IMongoSessionAccessor.CurrentSession`; no session returns `sequence.transaction_required`.
+2. `src/Encina.MongoDB/Sequences/SequenceStoreMongoDB.cs` — `findOneAndUpdate` inside `IMongoSessionAccessor.CurrentSession` (counter document created outside the transaction, `WriteConflict` mapped to `sequence.conflict`, Design Choice 5); no session returns `sequence.transaction_required`.
 3. Registration: `RegisterSequenceStore<TDbContext>` in the EF `ServiceCollectionExtensions.cs` (pattern `:488`) and the MongoDB `ServiceCollectionExtensions.cs`.
 
 </details>
@@ -327,7 +351,7 @@ Implement SequenceStoreEF and SequenceStoreMongoDB and register them.
 
 KEY RULES:
 - EF: no SaveChanges inside the store; the statement runs in the context's current transaction.
-- MongoDB: every operation uses the session; a duplicate-key error on the first upsert is retried once.
+- MongoDB: every operation uses the session; the counter document is inserted outside the transaction and a `WriteConflict` returns `sequence.conflict` (Design Choice 5); the concurrency test expects conflicts.
 - A standalone MongoDB server fails closed.
 - Async with CancellationToken; tenant filter on every operation.
 
@@ -603,7 +627,7 @@ REFERENCE FILES:
 | 4 | Health Checks | ✅ | `SequenceStoreHealthCheck`: table or collection reachable (Phase 5) |
 | 5 | Validation | ✅ | Key validator and options validator at start-up (Phases 1 and 5) |
 | 6 | Resilience | ❌ | No call to an external system; a lock timeout returns a `Left` and retrying belongs to the caller's transaction |
-| 7 | Distributed Locks | ✅ | The row lock inside the transaction serialises concurrent callers on every provider (Design Choice 2) |
+| 7 | Distributed Locks | ❌ | Not applicable: concurrent callers are serialised by the database row lock inside the transaction (MongoDB fails fast on a write conflict, Design Choice 5) |
 | 8 | Transactions | ✅ | Enlisted in the ambient transaction; fails closed without one (Design Choice 3) |
 | 9 | Idempotency | ❌ | Not a message or request entry point; a retried transaction that rolled back correctly gets the same number |
 | 10 | Multi-Tenancy | ✅ | Rows keyed by `(TenantId, SequenceKey)`, fail closed, default tenant when tenancy is off (Design Choice 4, AC-043) |
@@ -627,6 +651,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. No Dilemma is open: every Design Choice is Settled by the issue, ADR-050, ADR-057, SPEC-002 or AGENTS.md; they still need the adversarial verification before the worker brief.
-2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into four pull requests: (a) Phases 1, 5 and 6 (core, health, diagnostics, in-memory store); (b) Phase 2 and the three ADO providers; (c) the three Dapper providers; (d) EF Core and MongoDB with the integration, load and documentation work.
+1. The maintainer decides Design Choices 4 (key rules) and 5 (MongoDB conflict handling), the Dilemmas; the other choices are Settled by the issue, ADR-050, ADR-057, SPEC-002 or AGENTS.md. The orchestrator records the answers in a `## Maintainer Decisions` section.
+2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into eight pull requests, each at most 15 files and 1500 changed lines (sizes are estimates, re-measured when each sub-issue is written): (a1) Phase 1 core abstraction, options, validator and tenant resolution, about 11 files with tests; (a2) Phases 5 and 6 (health, diagnostics, in-memory store, EventIds), about 10 files; (b) Phase 2 and the three ADO providers; (c) the three Dapper providers; (d1) EF Core (entity, configuration, builder extension, store, registration, tests); (d2) MongoDB (document, index, store, registration, tests); (d3) load tests and the integration tests that remain; (d4) documentation.
 3. Link this plan from #1238 and start sub-issue (a) with an `issue-worker`.
