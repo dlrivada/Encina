@@ -66,14 +66,14 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 
 ### Chosen Option: **A — `Directory.Build.props`**
 
+**Class:** Settled
+**Settled by:** SPEC-000 AC-018 (`Directory.Build.props` carries the metadata) and REQ-001 (the path rule already lives there)
+
 ### Rationale
 
 - SPEC-000 AC-018 says `Directory.Build.props` carries the metadata.
 - The file already derives packability from the path (REQ-001) and sets `Authors` (`David Lozano Rivada`), `RepositoryUrl` and `RepositoryType` under the same `.csproj` condition; the new properties join that group.
 - What is specific to one package (description, tags, README) stays in its own `.csproj` or beside it.
-
-**Class:** Settled
-**Settled by:** SPEC-000 AC-018 (`Directory.Build.props` carries the metadata) and REQ-001 (the path rule already lives there)
 
 </details>
 
@@ -90,14 +90,14 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 
 ### Chosen Option: **A — `PackageLicenseExpression` `MIT`**
 
+**Class:** Settled
+**Settled by:** SPEC-000 REQ-018 (license metadata required on every package) and the repository `LICENSE` file (MIT)
+
 ### Rationale
 
 - `LICENSE` is the MIT license; the SPDX expression is the form NuGet recommends for a standard license.
 - Setting the expression in `Directory.Build.props` while a project still sets `PackageLicenseFile` makes that project fail to pack, so the 23 projects are cleaned first (PRs 2 and 3) and the shared property lands with the last of them.
 - Phase 2 confirms the exact NuGet error with `dotnet pack` on one of the 23 before the property lands.
-
-**Class:** Settled
-**Settled by:** SPEC-000 REQ-018 (license metadata required on every package) and the repository `LICENSE` file (MIT)
 
 </details>
 
@@ -114,13 +114,13 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 
 ### Chosen Option: **A — convention in `Directory.Build.props`** (recommended, pending the maintainer)
 
+**Class:** Dilemma
+
 ### Rationale
 
 - Option A touches the fewest files and makes the result checkable: the validation script asserts that the `.nuspec` carries a readme for every package, whichever option wires it.
 - Option B wins for a maintainer who wants every package's identity readable in its own project file; the cost is 81 edits in about six pull requests.
 - The core `Encina` package keeps its explicit item because it ships the repository `README.md` (there is no README beside `src/Encina/Encina.csproj`).
-
-**Class:** Dilemma
 
 </details>
 
@@ -137,13 +137,13 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 
 ### Chosen Option: **A — a short per-package README for each of the 40** (recommended, pending the maintainer)
 
+**Class:** Dilemma
+
 ### Rationale
 
 - Option A is the only one that lets a user choose between, for example, `Encina.Caching.Redis` and `Encina.Caching.Valkey` on the package page.
 - Option B wins if the maintainer wants the metadata gate closed before the READMEs are written; the cost is the 11 packages that already show the wrong page, plus the 40.
 - The 39 to write (40 projects have no README beside them; the core `Encina` packs the repository README): `Encina.AmazonSQS`, `Encina.AzureServiceBus`, `Encina.Caching`, `Encina.Caching.{Dragonfly,Garnet,Hybrid,KeyDB,Memory,Redis,Valkey}`, `Encina.Cdc.{Debezium,MongoDb,MySql,PostgreSql,SqlServer}`, `Encina.Cli`, `Encina.Compliance.{Anonymization,CrossBorderTransfer,PrivacyByDesign}`, `Encina.DistributedLock.{InMemory,Redis,SqlServer}`, `Encina.gRPC`, `Encina.InMemory`, `Encina.Kafka`, `Encina.Marten`, `Encina.MQTT`, `Encina.NATS`, `Encina.RabbitMQ`, `Encina.Redis.PubSub`, `Encina.Security.{Audit,BreakTheGlass}`, `Encina.SignalR`, `Encina.Tenancy`, `Encina.Tenancy.AspNetCore` and `Encina.Testing{,.Fakes,.Shouldly,.TUnit}`.
-
-**Class:** Dilemma
 
 </details>
 
@@ -160,13 +160,13 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 
 ### Chosen Option: **A — pack and read the nuspec** (recommended, pending the maintainer)
 
+**Class:** Dilemma
+
 ### Rationale
 
 - The issue asks for a script that "packs the packages and reads each `.nuspec`", so the result is verified by command and not by eye; option A is that script.
 - Option C wins if the measured pack time makes a per-pull-request run unaffordable; Phase 1 reports the time before the script is wired into `ci.yml`, and `ci-full.yml` already runs `dotnet pack` for the core package only (`src/Encina/Encina.csproj`).
 - The script follows `.github/scripts/check-src-projects.cs`: a file-based app with `--self-test` that `ci.yml` runs.
-
-**Class:** Dilemma
 
 </details>
 
@@ -180,16 +180,17 @@ Between PR 2 and PR 3 the 12 projects of PR 2 temporarily declare no license; no
 | **A) `Copyright` = `Copyright (c) 2025 David Lozano Rivada`, `Company` = `David Lozano Rivada`** | Identical to `LICENSE` and to the existing `Authors`; static, so builds stay deterministic | Needs a manual edit if the year range is to grow |
 | **B) A year range computed from the clock at build time** | Always current | Makes the nuspec change from build to build, against REQ-018's deterministic build settings |
 | **C) The issue's original text (`2025-2026`, a different author name)** | None | Disagrees with `LICENSE` and `Authors` |
+| **D) `Copyright (c) 2025-2026 David Lozano Rivada`, a static string** | Deterministic, and honest for a package first published in 2026 | Differs from the year in `LICENSE` until `LICENSE` is updated too |
 
-### Chosen Option: **A — the values of `LICENSE`**
+### Chosen Option: **A — the values of `LICENSE`** (the year is recommended, pending the maintainer: "2025" on a package first published in 2026 is user-visible, D is the alternative)
+
+**Class:** Dilemma
 
 ### Rationale
 
 - The author in `LICENSE` and `Directory.Build.props` is David Lozano Rivada; the rewritten issue keeps that value.
-- A static string keeps the package contents reproducible.
-
-**Class:** Trivial
-**Settled by:** the repository `LICENSE` file and the existing `Authors` property in `Directory.Build.props`; SPEC-000 REQ-018 (deterministic build settings)
+- A static string keeps the package contents reproducible (A and D both are).
+- The holder name is Settled by the repository `LICENSE` file and the existing `Authors` property in `Directory.Build.props`; only the year is open.
 
 </details>
 
@@ -330,11 +331,12 @@ REFERENCE FILES: src/Encina/Encina.csproj (style), src/Encina.Caching.Redis/Enci
 <details>
 <summary>Tasks</summary>
 
-1. PR 8 and 9 (if Design Choice 3 stays A): in `Directory.Build.props`, for a packable project with a `README.md` beside it, set `<PackageReadmeFile>README.md</PackageReadmeFile>` and add `<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="" />`; remove the explicit `PackageReadmeFile` and README `None` items from the 26 projects that have them, except the core `Encina` (its README is the repository root file).
+1. PR 8 and 9 (if Design Choice 3 stays A): in `Directory.Build.props`, for a packable project with a `README.md` beside it and no `PackageReadmeFile` of its own, set `<PackageReadmeFile>README.md</PackageReadmeFile>` under `Condition="'$(PackageReadmeFile)' == ''"` and add `<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="" />` under the same condition, so a project that still has the explicit entries packs the README once and PR 8 and PR 9 are independent; remove the explicit `PackageReadmeFile` and README `None` items from the 26 projects that have them, except the core `Encina` (its README is the repository root file).
 2. The 11 projects that pack the root README switch to their own README (they have one beside them, or get one in PRs 10 to 12).
 3. Confirm with `dotnet pack` that no `NU*` duplicate-file warning remains.
 4. PRs 10 to 12: `docs-writer` writes the missing package READMEs (Design Choice 4): purpose, install, minimal registration with the real `AddEncina*` call, link to the docs page. Each README is reviewed by `docs-reviewer` and checks that every identifier exists in `src/`.
 5. `Encina.Cli` is a tool package (`PackAsTool`): its README describes `dotnet tool install`.
+6. `check-package-metadata.cs` also checks that `PackageProjectUrl` and `RepositoryUrl` answer with a success status (an HTTP HEAD request, run in the release pipeline where network is available, not on every pull request), and that the packed README is non-empty and starts with a heading; "READMEs render properly in package preview" is otherwise confirmed on the pre-release listing of #100.
 
 </details>
 
