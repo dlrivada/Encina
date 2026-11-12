@@ -2,8 +2,8 @@
 
 > **Issue**: [#826](https://github.com/dlrivada/Encina/issues/826)
 > **Type**: Feature
-> **Complexity**: Medium (event-sourced aggregate, overdue monitor, 3 pull requests)
-> **Estimated Scope**: ~2,000 lines of production code + ~1,570 lines of tests (about 28 files; split into 3 pull requests)
+> **Complexity**: Medium (event-sourced aggregate, overdue monitor, 5 pull requests)
+> **Estimated Scope**: ~2,000 lines of production code + ~1,570 lines of tests (about 60 file touches counting edits, tests and metadata; split into 5 pull requests of at most 14 files each)
 > **Milestone**: v0.15.0 — EU Compliance: NIS2 & Digital Omnibus
 > **Provider Category**: None for databases (single event-sourcing provider: Marten on PostgreSQL, ADR-027)
 > **Family**: #822 to #826. Shared pieces are owned by the plan of #822 (`nis2-incident-lifecycle-implementation-plan-822.md`); the opt-in decision for evaluators is owned by the plan of #823 (`nis2-supply-chain-assessment-implementation-plan-823.md`, Design Choice 3).
@@ -130,7 +130,7 @@ This plan adds an event-sourced **management accountability lifecycle** in the s
 
 ### Rationale
 
-- Duplicate protection without a lock: the aggregate remembers the due date it escalated for (`LastEscalatedDueDate`, a field set by `Apply` from the escalation events, so replay keeps it) and an escalation for the same due date returns a `Left` rule code; Marten optimistic concurrency turns a race into a handled `Left`. A failed query or append is logged by error code and the loop continues. Registered only when `NIS2Options.EnableAccountabilityMonitoring` is true.
+- Duplicate protection without a lock: the aggregate remembers the due date it escalated for (`LastEscalatedDueDate`, a field set by `Apply` from the escalation events, so replay keeps it) and an escalation for the same due date returns a `Left` rule code; Marten optimistic concurrency turns a race into a handled `Left`. Both outcomes (`EscalationAlreadyRecorded` and the concurrency conflict) are the EXPECTED result of a repeated sweep or of two instances racing: the monitor counts them as skipped, not as a failure, and they are neither logged at error level nor fail the iteration (Phase 5 has the test row). A failed query or append is logged by error code and the loop continues. Registered only when `NIS2Options.EnableAccountabilityMonitoring` is true.
 
 </details>
 
@@ -252,13 +252,17 @@ The question belongs to Dilemma 6 of the #822 plan (personal data in append-only
 <details>
 <summary>Tasks</summary>
 
-About 28 files, over the limit of 15 files and 1,500 lines (AGENTS.md section 11). Split:
+About 60 file touches when every new file, every edit to an existing file, every test file and the metadata (PublicAPI, manifest, changelog, docs) are counted, over the limit of 15 files and 1,500 lines per pull request (AGENTS.md section 11). The count below is recounted from the task lists of the phases, edits and tests included; each PR builds on the one before it. Split:
 
-| PR | Phases | Content | Files / lines (approx.) |
+| PR | Phases | Content | Files (new + edited + tests + metadata) / lines (approx.) |
 |---|---|---|---|
-| 1 | 1 | Model, schedule calculator, events, aggregate, aggregate rule codes in `NIS2Errors`; unit, guard and property tests | 11 files / 1,380 |
-| 2 | 2, 3, 4 | Service and errors, projection, registration, options, evaluator integration, contract and integration tests | 10 files / 1,350 |
-| 3 | 5, 6, 7 (rest), 8 | Overdue monitor, health check, diagnostics, remaining tests, docs, manifest | 8 files / 900 |
+| 1 | 1 | Model (status, oversight type, delegation, training record, scheduler: 5 files), events, aggregate, `NIS2Errors` edit (aggregate rule codes); unit, guard and property tests; PublicAPI, manifest | 13 files (5 + 1 + 1 + 1 + 3 + 2) / 1,350 |
+| 2 | 2, options of 4, service log messages of 6 | Service interface and commands (2), default service, `NIS2Errors` edit, `NIS2Options` and its validator edits, `NIS2LogMessages` edit (ids 9885-9892); unit, guard and contract tests; PublicAPI, manifest | 12 files / 1,150 |
+| 3 | 3, rest of 4 | Read model, projection, queries (3), `NIS2MartenExtensions` and `ServiceCollectionExtensions` edits, `CyberHygieneEvaluator` edit, the two query methods added to the service interface and default service (2 edits); unit tests (projection; service queries and evaluator), DI test, integration test; PublicAPI, manifest | 14 files / 1,400 |
+| 4 | 5, monitor log messages of 6 | Overdue monitor, monitor registration (`ServiceCollectionExtensions` edit), health check edit, `NIS2LogMessages` edit (ids 9893-9897); unit tests (monitor, health check), guard test; PublicAPI, manifest | 9 files / 800 |
+| 5 | rest of 6, 7 (rest), 8 | `NIS2Diagnostics` edit (activity and instruments), metric recording edits in the service and the monitor (2), unit test of the diagnostics, two load and benchmark justification files, changelog fragment, feature page, README, INVENTORY; PublicAPI, manifest | 12 files / 700 |
+
+Why this order: PR 2 uses only options values (the scheduler of PR 1 takes the validity as a `TimeSpan` parameter, not `NIS2Options`), so it builds before the read model exists; the query methods arrive with the read model in PR 3; the EventIds are packed sequentially in merge order (9885-9892 in PR 2, 9893-9897 in PR 4, the remainder up to 9899 reserved). Phase 7 tests ship with the PR that adds the code they cover.
 
 Prerequisite: the PR 1 of the #822 plan is merged.
 
@@ -271,7 +275,7 @@ Prerequisite: the PR 1 of the #822 plan is merged.
 
 1. `Model/ManagementAccountabilityStatus.cs` (Design Choice 2), `Model/OversightActivityType.cs` (`Meeting`, `Review`, `Audit`).
 2. `Model/ComplianceDelegation.cs` and `Model/TrainingRecord.cs` records.
-3. `Model/AccountabilityScheduler.cs` (internal static): `TrainingValidUntil(completedAtUtc, options)`, `NextAcknowledgmentDue(acknowledgedAtUtc, options)`.
+3. `Model/AccountabilityScheduler.cs` (internal static): `TrainingValidUntil(completedAtUtc, validity)`, `NextAcknowledgmentDue(acknowledgedAtUtc, renewalPeriod)`, both taking a `TimeSpan` so PR 1 does not depend on the options added in PR 2; the service passes the option values.
 4. `Events/ManagementAccountabilityEvents.cs`: nine records implementing `INotification` (`ManagementPersonAppointed`, `ComplianceAreaDelegated`, `ComplianceDelegationRevoked`, `TrainingCompleted`, `AcknowledgmentRecorded`, `OversightActivityRecorded`, `TrainingOverdueEscalated`, `AcknowledgmentOverdueEscalated`, `ManagementPersonRevoked`) with timestamps, tenant and module ids; person ids separate nullable properties.
 5. `Aggregates/ManagementAccountabilityAggregate.cs`: `AggregateBase`; static `Appoint(...)` returning `Either<EncinaError, ManagementAccountabilityAggregate>`; `Delegate`, `RevokeDelegation`, `CompleteTraining`, `Acknowledge`, `RecordOversight`, `EscalateTrainingOverdue`, `EscalateAcknowledgmentOverdue`, `Revoke` returning `Either<EncinaError, Unit>` (ADR-053): the rule is decided and the `Left` returned before `RaiseEvent`, so an illegal transition or a repeated escalation never throws and never raises an event; `ArgumentNullException.ThrowIfNull` and similar argument guards stay as exceptions. `Apply` switch; properties of the issue plus the two due dates and `LastEscalatedDueDate` (an event field, so replay keeps the escalation guard).
 6. `NIS2Errors.cs`: the aggregate rule codes `ManagementAccountabilityInvalidTransition` (including any command on a `Revoked` stream), `ManagementAccountabilityEscalationAlreadyRecorded`, `ManagementAccountabilityDelegationDuplicate` and `ManagementAccountabilityDelegationNotFound`, as `nis2.management_accountability_*` codes in the existing style.
@@ -313,10 +317,12 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `Abstractions/INIS2ManagementAccountabilityService.cs`: `AppointResponsiblePersonAsync`, `RecordTrainingAsync`, `RecordAcknowledgmentAsync`, `DelegateComplianceAreaAsync`, `RevokeDelegationAsync`, `RecordOversightActivityAsync`, `RevokeResponsiblePersonAsync`, `GetOverdueTrainingAsync`, `GetOverviewAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`.
+1. `Abstractions/INIS2ManagementAccountabilityService.cs`: `AppointResponsiblePersonAsync`, `RecordTrainingAsync`, `RecordAcknowledgmentAsync`, `DelegateComplianceAreaAsync`, `RevokeDelegationAsync`, `RecordOversightActivityAsync`, `RevokeResponsiblePersonAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`. The two query methods `GetOverdueTrainingAsync` and `GetOverviewAsync` are added in PR 3 with the read model they read.
+1a. `NIS2Options`: `ManagementAccountabilityOptions` (`TrainingValidity`, `AcknowledgmentRenewalPeriod`, `EnableAccountabilityMonitoring`, `AccountabilityCheckInterval` default 1 hour) and the `NIS2OptionsValidator` extension (moved here from Phase 4 so the service has its options).
+1b. `NIS2LogMessages`: ids 9885-9892 for the service (one per transition group, invalid transition, store failure).
 2. `Services/DefaultNIS2ManagementAccountabilityService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates commands and returns the aggregate's `Left` as is (the aggregate already decided the transition, Phase 1).
 3. `NIS2Errors.cs`: `ManagementAccountabilityNotFound`, `...CommandInvalid`, `...StoreFailed` (the transition codes are Phase 1).
-4. Fail-closed gate (issue Alternatives 10), with this predicate, read from `IRequestContextAccessor` (`IRequestContext.Identity.UserId` and `IRequestContext.TenantId`): the acting principal is ALWAYS required for a command (no context, or a null or blank `UserId`, is denied with `...CommandInvalid`); the tenant is required when tenancy is configured (the `MultiTenancyMarker` is registered, the same trigger as `DeadLetterManager`), and when required a null or blank `TenantId` is denied; queries need the tenant under the same condition. The only opt-out is not registering the workflow. Test rows, one per combination: {context absent, principal absent, principal present} x {tenancy configured with tenant, tenancy configured without tenant, tenancy not configured}. The #822 plan owns the family predicate; if it defines a different trigger, this plan follows it (the five NIS2 plans must agree).
+4. Fail-closed gate (issue Alternatives 10), with this predicate, read from `IRequestContextAccessor` (`IRequestContext.Identity.UserId` and `IRequestContext.TenantId`): the acting principal is ALWAYS required for a command (no context, or a null or blank `UserId`, is denied with `...CommandInvalid`); the tenant is required when tenancy is configured (the `MultiTenancyMarker` is registered, the same trigger as `DeadLetterManager`), and when required a null or blank `TenantId` is denied; queries need the tenant under the same condition. The only opt-out is not registering the workflow. Test rows, one per combination: {context absent, principal absent, principal present} x {tenancy configured with tenant, tenancy configured without tenant, tenancy not configured}. Dependency on the family: the #822 plan on origin has no such predicate (its matrix row 10 only says "filter on queries"), so the family predicate has no owner yet. This text is the family proposal: the #822 plan (and the other NIS2 plans) must adopt it, or this plan follows whatever the #822 plan defines, before PR 2 is briefed so the five NIS2 plans agree.
 
 </details>
 
@@ -346,14 +352,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Projection & Read Model (PR 2)
+### Phase 3: Projection & Read Model (PR 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `ReadModels/ManagementAccountabilityReadModel.cs`: person id and role, status, delegations, `TrainingValidUntilUtc`, `NextAcknowledgmentDueAtUtc`, tenant and module ids, oversight count and last date.
 2. `ReadModels/ManagementAccountabilityProjection.cs`: inline projection for the nine events, idempotent, constructor-injected dependencies only.
-3. Queries: overdue training and acknowledgment, and the overview grouped by person id.
+3. `ReadModels/ManagementAccountabilityQueries.cs`: overdue training and acknowledgment, and the overview grouped by person id; `GetOverdueTrainingAsync` and `GetOverviewAsync` are added to the service interface and the default service (two edits).
 
 </details>
 
@@ -380,14 +386,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 4: Configuration, DI & Evaluator Integration (PR 2)
+### Phase 4: Configuration, DI & Evaluator Integration (PR 3; the options of task 3 are in PR 2)
 
 <details>
 <summary>Tasks</summary>
 
 1. `NIS2MartenExtensions` (from the #822 plan): add `AddAggregateRepository<ManagementAccountabilityAggregate>()` and `AddProjection<ManagementAccountabilityProjection, ManagementAccountabilityReadModel>()`.
 2. `ServiceCollectionExtensions.cs`: `TryAddScoped<INIS2ManagementAccountabilityService, ...>` with its dependencies.
-3. `NIS2Options`: `ManagementAccountabilityOptions` (`TrainingValidity`, `AcknowledgmentRenewalPeriod`, `EnableAccountabilityMonitoring`, `AccountabilityCheckInterval` default 1 hour); extend `NIS2OptionsValidator`.
+3. Options: delivered in PR 2 (Phase 2 task 1a); this PR only reads them.
 4. Design Choice 5: `CyberHygieneEvaluator` uses the register when the service is registered, otherwise unchanged.
 5. DI test with `ValidateOnBuild` and `ValidateScopes`, with and without the workflow.
 
@@ -419,12 +425,13 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Cross-Cutting Integration, Overdue Monitor & Health Check (PR 3)
+### Phase 5: Cross-Cutting Integration, Overdue Monitor & Health Check (PR 4)
 
 <details>
 <summary>Tasks</summary>
 
-1. `NIS2AccountabilityMonitorService.cs` (`BackgroundService`, `PeriodicTimer`, scope per iteration): escalates each overdue training and acknowledgment once per due date; per-iteration `try/catch`; failures logged by error code.
+1. `NIS2AccountabilityMonitorService.cs` (`BackgroundService`, `PeriodicTimer`, scope per iteration): escalates each overdue training and acknowledgment once per due date; per-iteration `try/catch`; failures logged by error code. An `EscalationAlreadyRecorded` rule code and a Marten concurrency conflict are the EXPECTED result of a repeated sweep or of a race between instances: the monitor counts them as skipped, logs nothing at error level and does not fail the iteration; only a store failure other than these two is logged as an iteration failure. Test row: two monitor instances sweep the same due date, one escalation event is appended, the second instance counts a skip and no error is logged.
+1a. `NIS2LogMessages`: ids 9893-9897 for the monitor (started/stopped, iteration failed, overdue found, escalation skipped).
 2. `Health/NIS2ComplianceHealthCheck.cs`: add the accountability check (any overdue, or no `Active` person, gives `Degraded`) behind `AddHealthCheck`.
 3. Tenant and module scoping on queries; the event stream is the audit record.
 
@@ -455,13 +462,13 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: Observability (PR 3)
+### Phase 6: Observability (PRs 2, 4 and 5)
 
 <details>
 <summary>Tasks</summary>
 
 1. `NIS2Diagnostics`: `StartManagementAccountabilityOperation(...)` activity, instruments `nis2.management_accountability.operations.total` (Counter, tags operation and outcome), `nis2.management_accountability.overdue` (ObservableGauge from the last monitor sweep, tag kind: training or acknowledgment).
-2. `NIS2LogMessages`: `[LoggerMessage]` ids 9885-9899 packed from 9885 (one per transition group, invalid transition, store failure, monitor started/stopped/iteration failed, overdue found). Merge related transitions into one message if the 15 ids run short.
+2. `NIS2LogMessages`: `[LoggerMessage]` ids 9885-9899 packed sequentially from 9885 in merge order: service messages 9885-9892 in PR 2, monitor messages 9893-9897 in PR 4 (one per transition group, invalid transition, store failure, monitor started/stopped/iteration failed, overdue found, escalation skipped); 9898-9899 stay free. Merge related transitions into one message if the ids run short. PR 5 adds only the activity, the instruments and the metric recording (task 1).
 3. Run the EventId architecture tests.
 
 </details>
@@ -492,7 +499,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Testing (PRs 1 to 3)
+### Phase 7: Testing (PRs 1 to 5)
 
 <details>
 <summary>Tasks</summary>
@@ -543,7 +550,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 8: Documentation & Finalization (PR 3)
+### Phase 8: Documentation & Finalization (PR 5)
 
 <details>
 <summary>Tasks</summary>
@@ -623,18 +630,24 @@ REFERENCE FILES:
 
 | Category | Files | Approx. lines |
 | :--- | :--- | :--- |
-| Production: model (status, delegation, training record, commands, schedule calculator) | 4 | 350 |
+| Production: model (status, oversight type, delegation, training record, scheduler) | 5 | 330 |
+| Production: commands | 1 | 120 |
 | Production: aggregate and events | 2 | 600 |
 | Production: service abstraction and default implementation | 2 | 400 |
-| Production: read model and projection | 2 | 280 |
-| Production: overdue monitor, health check additions, options, DI and evaluator integration | 4 | 380 |
-| Tests: unit | 4 | 750 |
-| Tests: guard | 2 | 170 |
+| Production: read model, projection, queries | 3 | 330 |
+| Production: overdue monitor | 1 | 200 |
+| Production: edits to existing files (`NIS2Errors`, `NIS2Options`, validator, `NIS2LogMessages`, `NIS2Diagnostics`, `NIS2MartenExtensions`, `ServiceCollectionExtensions`, `CyberHygieneEvaluator`, health check; some touched in two PRs) | 12 touches | 300 |
+| Tests: unit (aggregate and scheduler, service, projection, evaluator, monitor, health check, diagnostics) | 7 | 950 |
+| Tests: guard | 3 | 200 |
 | Tests: contract | 1 | 100 |
 | Tests: property | 1 | 120 |
+| Tests: DI | 1 | 90 |
 | Tests: integration (Marten, PostgreSQL) | 1 | 230 |
-| Docs and metadata: PublicAPI, coverage manifest, changelog fragment, feature page, README | 5 | 200 |
-| Total | 28 | 3580 |
+| Load and benchmark justification files | 2 | 60 |
+| Docs and metadata: PublicAPI (5 PRs), coverage manifest (5 PRs), changelog fragment, feature page, README, INVENTORY | 13 touches | 240 |
+| Total | about 56 | 4270 |
+
+The per-PR counts of the split table are the ones that bind; lines are estimates (the pre-review figure of 28 files omitted edits, per-PR PublicAPI and manifest touches and several test files).
 
 ---
 
@@ -656,7 +669,7 @@ IMPLEMENTATION OVERVIEW:
 6. NIS2AccountabilityMonitorService (opt-in) and the health check addition.
 7. Diagnostics and [LoggerMessage] ids 9885-9899.
 8. Unit, guard, contract, property, integration tests; load and benchmark justifications.
-9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 3 pull requests of the split.
+9. Docs, PublicAPI, changelog fragment, coverage manifest. Deliver in the 5 pull requests of the split.
 
 KEY PATTERNS:
 - Mirror DPIAAggregate, DPIAEvents, DPIAProjection, DPIAReviewReminderService, DPIAMartenExtensions.
@@ -702,6 +715,7 @@ REFERENCE FILES:
 |---|---|---|
 | #822 plan, PR 1: range 9800-9899, references, `AddNIS2EventSourcing` | Planned | PR 1 of this plan depends on it |
 | #823 plan, Design Choice 3 (evaluators and the static configuration) | Pending the maintainer | Design Choice 5 follows its outcome |
+| Family fail-closed predicate (principal always, tenant when `MultiTenancyMarker` is registered) | Not in the #822 plan on origin; this plan's Phase 2 task 4 is the proposal | PR 2 depends on the #822 plan adopting it (or on this plan adopting the #822 text) |
 | Personal-data decision (Dilemma 6 of the #822 plan) | Pending the maintainer | Person ids stay separate nullable properties until decided |
 | Employee training programme tracking (Art. 21(2)(g)) | Issue file written, not opened | Reuses `TrainingRecord` later |
 | #1603 NIS2 reads the system clock instead of `TimeProvider` | Open | New code takes `TimeProvider`; the old code is not touched here |
@@ -712,5 +726,5 @@ REFERENCE FILES:
 
 1. Maintainer answers the Dilemma of Design Choice 5 (shared with #823, Design Choice 3) when work on #826 starts; it is marked "recommended, pending the maintainer".
 2. The orchestrator opens `artifacts/issues/nis2-employee-training-programme.md`.
-3. Brief PR 1 after the #822 PR 1 merges; PR 2 and 3 follow in order.
+3. Brief PR 1 after the #822 PR 1 merges; PR 2 to PR 5 follow in order (PR 2 also needs the family predicate adopted by the #822 plan).
 4. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
