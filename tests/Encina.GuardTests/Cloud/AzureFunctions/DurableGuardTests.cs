@@ -375,49 +375,28 @@ public class DurableGuardTests
         ex.ParamName.ShouldBe("context");
     }
 
-    [Fact]
-    public async Task FanOutWithResultAsync_ThrowsOnNullContext()
-    {
-        TaskOrchestrationContext context = null!;
-
-        var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, Activity, [1]));
-
-        ex.ParamName.ShouldBe("context");
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task FanOutWithResultAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
+    public async Task FanOutFirstSuccessAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
     {
         var context = Substitute.For<TaskOrchestrationContext>();
 
         var ex = await Should.ThrowAsync<ArgumentException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, activityName!, [1]));
+            () => FanOut.FanOutFirstSuccessAsync<int, string>(context, activityName!, [1]));
 
         ex.ParamName.ShouldBe("activityName");
     }
 
     [Fact]
-    public async Task FanOutWithResultAsync_ThrowsOnNullInputs()
+    public async Task FanOutFirstSuccessAsync_ThrowsOnNullInputs()
     {
         var context = Substitute.For<TaskOrchestrationContext>();
 
         var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, Activity, null!));
+            () => FanOut.FanOutFirstSuccessAsync<int, string>(context, Activity, null!));
 
         ex.ParamName.ShouldBe("inputs");
-    }
-
-    [Fact]
-    public async Task FanOutWithResultAsync_ReturnsEmptyForNoInputs()
-    {
-        var context = Substitute.For<TaskOrchestrationContext>();
-
-        var results = await FanOut.FanOutWithResultAsync<int, string>(context, Activity, []);
-
-        results.ShouldBeEmpty();
     }
 
     [Fact]
