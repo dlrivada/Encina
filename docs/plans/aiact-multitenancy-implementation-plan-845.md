@@ -17,11 +17,11 @@ Let the AI Act gate of `Encina.Compliance.AIAct` behave per tenant: a tenant tha
 - `AIActCompliancePipelineBehavior<,>` (Transient, `src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs`) reads `AIActOptions.EnforcementMode` once at construction (`_options = options.Value`) and returns `nextStep()` when it is `Disabled`; prohibited practices block in `Block` and `Warn` alike (Art. 5). `AIActOptions` (`AIActOptions.cs`) has `EnforcementMode`, `AutoRegisterFromAttributes`, `AddHealthCheck`, `AssembliesToScan`. `BlockProhibitedUses` and `EnforceHumanOversight` of the issue's example do not exist.
 - `IAISystemRegistry` has five async members plus the synchronous `bool IsRegistered(string systemId)` that the validator and the auto-registration use; the only implementation is `InMemoryAISystemRegistry` (`TryAddSingleton`). Nothing carries a tenant: `AISystemRegistration`, `HumanDecisionRecord`, `AISystemReclassifiedNotification(SystemId, Reason, OccurredAtUtc)`, `ProhibitedUseBlockedNotification`.
 - `ITenantContext` and a `TenantId` type do not exist. The shipped fail-closed pattern is the ambient `IRequestContext.TenantId` plus `MultiTenancyMarker` (`DefaultConsentService.TryResolveWriteTenantScope`, `ABACDecisionAuditReader.ResolveTenant`, `DeadLetterManager`). `Encina.Compliance.AIAct` references only `Encina`, so using this pattern needs no new project reference (the issue's `ITenantProvider` route would add one to `Encina.Tenancy`).
-- **Overlap that changes the scope.** The merged plan for #847 (`aiact-marten-event-sourcing-implementation-plan-847.md`, p0-mandatory) replaces `IAISystemRegistry` and `IHumanOversightEnforcer` by `IAISystemService` and `IHumanOversightService`, stamps `TenantId` on every event, aggregate and read model, derives stream ids from `(tenantId, systemId)`, segments cache keys by tenant and fails closed without a tenant (its Design Choice 7A), and leaves per-tenant behavior to this issue. The merged plan for #686 gates the AI Act through `IComplianceApplicabilityResolver` and allows a skip only as binary territorial non-applicability, recorded and audited (its Design Choices 8 and 9). The maintainer's rewrite of this issue on 2026-11-11 already settles that `Disabled` per tenant is "an explicit, logged and audited tenant configuration for territorial non-applicability, never a convenience tier".
+- **Overlap that changes the scope.** The merged plan for #847 (p0-mandatory) replaces `IAISystemRegistry` and `IHumanOversightEnforcer` by `IAISystemService` and `IHumanOversightService`, stamps `TenantId` on every event, aggregate and read model, derives stream ids from `(tenantId, systemId)`, segments cache keys by tenant and fails closed without a tenant (its Design Choice 7A), and leaves per-tenant behavior to this issue. The merged plan for #686 gates the AI Act through `IComplianceApplicabilityResolver` and allows a skip only as binary territorial non-applicability, recorded and audited (its Design Choices 8 and 9). The maintainer's rewrite of this issue on 2026-11-11 already settles that `Disabled` per tenant is "an explicit, logged and audited tenant configuration for territorial non-applicability, never a convenience tier".
 
 **Scope.** (1) `ConfigureTenant` per-tenant overrides on `AIActOptions`, resolved per request; (2) the gate resolves the tenant, fails closed when it is required and absent; (3) a recorded skip for a tenant declared non-applicable; (4) `TenantId` on the notifications and records that survive #847; (5) the tenant in metrics, activity tags and logs; (6) resolver integration when #686 lands; (7) the tenant-scoped system lookup, which is delivered by #847 (Design Choice 1, recommended) and has a fallback task list if the maintainer chooses otherwise.
 
-**Out of scope.** A persistent tenant registry (#847); module-scoped enforcement (#846); dynamic per-tenant configuration from a store (the resolver of #686 owns tenant declarations); AI Act date logic (SPEC-002 INV-003 applies to defaults, none change here); **the AI Act satellite packages** (`Encina.Compliance.AIAct.BiasDetection` #838, `.TechnicalDocumentation` #840, `.Transparency` #841, `.GPAI` #843): this plan changes `Encina.Compliance.AIAct` only and the satellite plans did not receive a tenant deliverable from it. Each satellite carries its own tenant decision in its plan (the #843 plan integrates `TenantId` in its Marten registry; #840 and #841 persist nothing and inherit tenant scoping of the system lookup from the #847 service), and the follow-up issue file `artifacts/issues/aiact-satellites-per-tenant-enforcement.md` records the remaining gap: per-tenant `ConfigureTenant` overrides and the skip record do not reach the satellites' own gates until it is done.
+**Out of scope.** A persistent tenant registry (#847); module-scoped enforcement (#846); dynamic per-tenant configuration from a store (the resolver of #686 owns tenant declarations); AI Act date logic (SPEC-002 INV-003 applies to defaults, none change here); **the AI Act satellite packages** (`Encina.Compliance.AIAct.BiasDetection` #838, `.TechnicalDocumentation` #840, `.Transparency` #841, `.GPAI` #843): this plan changes `Encina.Compliance.AIAct` only and the satellite plans did not receive a tenant deliverable from it. Each satellite carries its own tenant decision in its plan (the #843 plan recommends `TenantId` in its Marten registry, a decision still pending the maintainer there; #840 and #841 persist nothing and inherit tenant scoping of the system lookup from the #847 service), and a follow-up issue (number to be cited here once opened; the plans of #840 and #841 that say "Defer (#845)" cite the same number) records the remaining gap: per-tenant `ConfigureTenant` overrides and the skip record do not reach the satellites' own gates until it is done.
 
 **Affected packages**: `Encina.Compliance.AIAct` only (plus `src/Encina/Diagnostics/EventIdRanges.cs` for the new range of Phase 7). **Provider category**: none (no database, cache, transport or lock provider code).
 
@@ -63,16 +63,17 @@ This entry contradicts a Settled entry of the issue: the maintainer's rewrite of
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `ITenantScopeResolver` (core, owned by the #1257 plan, not on `main` yet) over `IRequestContextAccessor` and `MultiTenancyMarker`** | No new project reference; the same rule as Consent, ABAC and dead letters; one place to change when #456 delivers a typed tenant | A hard prerequisite on an open plan (#1257): Phases 1-2 start only after its primitive merges; departs from the issue's Settled choice 1 |
-| **B) `ITenantProvider` from `Encina.Tenancy` (exists on `main`, `src/Encina.Tenancy/Abstractions/ITenantProvider.cs`), as the issue's Settled choice 1 says; the resolver is switched to the shared primitive when #1257 lands** | Follows the maintainer's Settled choice; no wait for #1257; string ids | Adds a project reference from a compliance package to `Encina.Tenancy`; the fail-closed rule (marker and no tenant) must be coded here until the primitive exists |
+| **B) `ITenantProvider` from `Encina.Tenancy` (exists on `main`, `src/Encina.Tenancy/Abstractions/ITenantProvider.cs`), as the issue's Settled choice 1 says; the resolver is switched to the shared primitive when #1257 lands** | Follows the maintainer's Settled choice; no wait for #1257; string ids | Adds a project reference from a compliance package to `Encina.Tenancy`; the fail-closed rule (tenant required and absent, Design Choice 5) must be coded here until the primitive exists |
 | **C) `ITenantContext` and `TenantId`** | Typed | Do not exist; #456 is open |
 
 ### Chosen Option: **B — `ITenantProvider` now, the shared resolver when #1257 lands** (recommended, pending the maintainer)
 
 ### Rationale
 
-- We recommend B because it honours the issue's Settled choice 1 and has no ordering dependency on an unmerged plan; A wins if the maintainer prefers not to reference `Encina.Tenancy` from a compliance package or #1257 merges first, in which case the plan below is unchanged (Phase 2 already names `ITenantScopeResolver`) and Phase 1 only waits for the first PR of #1257.
-- Under B, `AIActEffectiveOptionsResolver` takes `ITenantProvider` and the `MultiTenancyMarker` check itself (marker present and no tenant: `Left(aiact.tenant_context_required)`), and the dependency on `Encina.Tenancy` is declared in Phase 1 (project reference, `PublicAPI` unaffected). The resolver is internal, so swapping the source later changes one class and its tests.
-- With no marker (single-tenant application) a null tenant is returned and the global options apply under both options: every feature stays opt-in (`AGENTS.md` section 1).
+- We recommend B because it honours the issue's Settled choice 1 and has no ordering dependency on an unmerged plan; A wins if the maintainer prefers not to reference `Encina.Tenancy` from a compliance package or #1257 merges first, in which case Phase 2 swaps the tenant source for `ITenantScopeResolver` (stated there as the alternative) and Phase 1 only waits for the first PR of #1257.
+- Under B, `AIActEffectiveOptionsResolver` takes `ITenantProvider?` (optional, null when `Encina.Tenancy` is not registered) and the optional `MultiTenancyMarker`, and applies the same trigger as the #847 service (Design Choice 5); the dependency on `Encina.Tenancy` is declared in Phase 1 (project reference, `PublicAPI` unaffected). The resolver is internal, so swapping the source later changes one class and its tests.
+- With the tenant not required (no provider, no marker, `RequireTenantContext` null) a null tenant is returned and the global options apply under both options: every feature stays opt-in (`AGENTS.md` section 1).
+- Under A, `ITenantScopeResolver` replaces the provider lookup; the required-tenant trigger of Design Choice 5 is unchanged.
 
 </details>
 
@@ -129,13 +130,14 @@ This entry contradicts a Settled entry of the issue: the maintainer's rewrite of
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No marker: global options. Marker plus tenant: the tenant's override or, without one, the global options. Marker and no tenant: a `Left` with `aiact.tenant_context_required`, no fallback** | Fail closed; single-tenant apps pay nothing | A background job with no tenant must set one (#1164 rebuilds it) |
-| **B) Marker and no tenant: fall back to the global mode** | Never blocks | A permissive fallback in a compliance gate |
+| **A) One trigger shared with #847: a tenant is required when `AIActOptions.RequireTenantContext ?? (an ITenantProvider is registered or the MultiTenancyMarker is registered)`. Not required: global options. Required plus tenant: the tenant's override or, without one, the global options. Required and no tenant: a `Left` with `aiact.tenant_context_required`, no fallback. `RequireTenantContext = false` is an explicit opt-out, logged once at start-up (as in #847)** | Fail closed; the gate and the #847 system lookup cannot disagree; single-tenant apps pay nothing | A background job with no tenant must set one (#1164 rebuilds it) |
+| **B) Required and no tenant: fall back to the global mode** | Never blocks | A permissive fallback in a compliance gate |
 
 ### Chosen Option: **A — Fail closed**
 
 ### Rationale
 
+- The trigger is the one of the #847 plan (`IsTenantContextRequired => options.RequireTenantContext ?? (tenantProvider is not null)`); this plan adds the `MultiTenancyMarker` as a second signal so that hosts using only the ambient `IRequestContext.TenantId` are also covered. The resolver honours `RequireTenantContext` including the opt-out, so the gate and the system lookup give the same verdict for every combination of option, provider and marker (a test row per combination, Phase 2).
 - The error code `aiact.tenant_context_required` and the option `AIActOptions.RequireTenantContext` are introduced by #847 (its Phase 4 and 6). The order is fixed: #847 lands first and this plan reuses the exact names; it adds no conditional production branch, so the content of each pull request does not depend on merge order.
 
 </details>
@@ -173,7 +175,7 @@ This entry contradicts a Settled entry of the issue: the maintainer's rewrite of
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `src/Encina.Compliance.AIAct/AIActTenantOptions.cs`**: `public sealed class AIActTenantOptions` with `AIActEnforcementMode? EnforcementMode { get; set; }` (null inherits; only `Disabled` is accepted), `string? NotApplicableReason`, `string? TerritorialBasis`, and `ToString()`.
-2. **Modify `AIActOptions.cs`**: `public AIActOptions ConfigureTenant(string tenantId, Action<AIActTenantOptions> configure)`, an internal read-only map `TenantOverrides` (case-sensitive ordinal, blank ids rejected); `RequireTenantContext` already exists (#847) and is only read.
+2. **Modify `AIActOptions.cs`**: `public AIActOptions ConfigureTenant(string tenantId, Action<AIActTenantOptions> configure)`, an internal read-only map `TenantOverrides` (case-sensitive ordinal, blank ids rejected); `RequireTenantContext` already exists (#847) and is read by the resolver (Design Choice 5).
 3. **Modify `AIActOptionsValidator.cs`**: a tenant override with `Warn` fails; `Disabled` without `NotApplicableReason` and `TerritorialBasis` fails; duplicate or blank tenant ids fail; the failure messages never print the reason text.
 4. `aiact.tenant_context_required` and its factory come from #847; nothing is added to `AIActErrors.cs`.
 5. PublicAPI lines (mechanical-fixer). Under Design Choice 2 option B, add the project reference to `Encina.Tenancy`.
@@ -207,13 +209,13 @@ REFERENCE FILES:
 
 ### Phase 2: The Effective-Options Resolver
 
-> **Goal**: one class that answers "what applies to this request" (PR 1, with Phase 1). Tests: unit (five paths), guard, and a property test that resolution is total over every combination of marker present or absent, tenant present or absent and override absent, inheriting or `Disabled`, and never returns a permissive mode for marker-and-no-tenant.
+> **Goal**: one class that answers "what applies to this request" (PR 1, with Phase 1). Tests: unit (five paths), guard, and a property test that resolution is total over every combination of `RequireTenantContext` (null, true, false), provider registered or not, marker present or absent, tenant present or absent and override absent, inheriting or `Disabled`, and never returns a permissive mode when the tenant is required and absent. A unit row covers each combination of option, provider and marker, and one covers the logged opt-out.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create `AIActEffectiveOptionsResolver.cs`** (`internal sealed`): constructor `(IOptions<AIActOptions> options, ITenantScopeResolver tenants)` (under Design Choice 2 option B: `ITenantProvider` plus the `MultiTenancyMarker` check, same `Either` contract); `Either<EncinaError, AIActEffectiveOptions> Resolve()` where `AIActEffectiveOptions` is a `readonly record struct (AIActEnforcementMode Mode, string? TenantId, bool NotApplicable, string? ReasonCode)`.
-2. Rules (Design Choice 5): scope from `tenants.ResolveRead(null)`; denied scope returns the `Left`; a tenant with an override whose mode is `Disabled` returns `NotApplicable = true`; otherwise the global mode.
+1. **Create `AIActEffectiveOptionsResolver.cs`** (`internal sealed`), written for the recommended option B of Design Choice 2: constructor `(IOptions<AIActOptions> options, ITenantProvider? tenantProvider = null, MultiTenancyMarker? marker = null)` and the same `Either` contract; under option A it takes `ITenantScopeResolver` instead. `Either<EncinaError, AIActEffectiveOptions> Resolve()` where `AIActEffectiveOptions` is a `readonly record struct (AIActEnforcementMode Mode, string? TenantId, bool NotApplicable, string? ReasonCode)`.
+2. Rules (Design Choice 5): the tenant is required when `options.RequireTenantContext ?? (tenantProvider is not null || marker is not null)`; the tenant comes from `ITenantProvider.GetCurrentTenantId()`; required and absent returns `Left(aiact.tenant_context_required)`; `RequireTenantContext = false` in a multi-tenant host is logged once (opt-out) and absent tenant uses the global options; a tenant with an override whose mode is `Disabled` returns `NotApplicable = true`; otherwise the global mode.
 3. Register as a singleton in `ServiceCollectionExtensions.cs` with `TryAddSingleton`.
 
 </details>
@@ -223,10 +225,10 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Phase 1 merged. ITenantScopeResolver.ResolveRead(string?) returns Either<EncinaError, TenantScope>; a null tenant means single-tenant.
+- Phase 1 merged. Recommended option B: ITenantProvider.GetCurrentTenantId() returns string?; the tenant is required when AIActOptions.RequireTenantContext ?? (ITenantProvider or MultiTenancyMarker registered) (same rule as the #847 service). Alternative A: ITenantScopeResolver.ResolveRead(string?) returns Either<EncinaError, TenantScope>.
 
 TASK:
-Implement AIActEffectiveOptionsResolver and its registration; unit tests for single-tenant, tenant with override, tenant without override, multi-tenant without tenant (Left), not-applicable tenant.
+Implement AIActEffectiveOptionsResolver and its registration; unit tests for single-tenant, tenant with override, tenant without override, required without tenant (Left), not-applicable tenant, and every combination of RequireTenantContext, provider and marker (including the logged opt-out).
 
 KEY RULES:
 - The resolver is allocation-light: it is on the hot path of every decorated request.
@@ -382,7 +384,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Modify `Diagnostics/AIActDiagnostics.cs`**: the tenant tag on the existing activity and counters, only when a tenant is resolved (ADR-054 D4: no tag when multi-tenancy is off), through the key of the shared helper of #2676; until it exists, `TagTenantId = "encina.tenant_id"`, the key proposed by the #1257 plan. New counter `aiact.tenant.not_applicable` (`Counter<long>`, lowercase dot name per ADR-054, tag `aiact.request_type`).
-2. **Register a new EventId range** in `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) ComplianceAIActGPAI = (5950, 5969);` (the block assigned in `eventid-blocks.md`; `ComplianceAIAct` 9500-9599 is fully allocated to the AI Act family, so no id is left there for these events). Add the field to `src/Encina/PublicAPI.Unshipped.txt`, and extend the assembly map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: `["Encina.Compliance.AIAct"] = [nameof(EventIdRanges.ComplianceAIAct), nameof(EventIdRanges.ComplianceAIActGPAI)]` (the log messages stay in the `Encina.Compliance.AIAct` assembly).
+2. **Register a new EventId range** (the name `ComplianceAIActGPAI` is the one the registry assigned to this block in `eventid-blocks.md`; it is misleading here, since these are core AI Act tenant logs, not the #843 GPAI package whose logs use `ComplianceAIAct`; renaming the registry row, for example to `ComplianceAIActTenancy`, is proposed as a Dilemma for the maintainer before this PR and the #843 plan merge, and the plan keeps the registry name until then) in `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) ComplianceAIActGPAI = (5950, 5969);` (the block assigned in `eventid-blocks.md`; `ComplianceAIAct` 9500-9599 is fully allocated to the AI Act family, so no id is left there for these events). Add the field to `src/Encina/PublicAPI.Unshipped.txt`, and extend the assembly map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: `["Encina.Compliance.AIAct"] = [nameof(EventIdRanges.ComplianceAIAct), nameof(EventIdRanges.ComplianceAIActGPAI)]` (the log messages stay in the `Encina.Compliance.AIAct` assembly).
 3. **Create `Diagnostics/AIActTenantLogMessages.cs`** (`[LoggerMessage]`, EventIds 5950-5957 packed, inside `ComplianceAIActGPAI`; XML line `Event IDs: 5950-5957 (see EventIdRanges.ComplianceAIActGPAI)`): tenant required, tenant not applicable (code only), tenant override loaded at start-up, invalid override, and four more as the worker needs them without leaving gaps.
 4. Log scopes carry the tenant id only in structured fields already allowed for tenant ids; never the reason text.
 
@@ -431,7 +433,7 @@ REFERENCE FILES:
 
 | File | Flags | Justification |
 |------|-------|---------------|
-| `AIActCompliancePipelineBehavior.cs` (today unit 97, guard 8, contract 95) | unit 98, guard 10, contract 96 | the new branches are the resolver `Left`, the not-applicable skip and the skip-publish failure, each driven by a unit test, and the contract test adds two tenants; the new constructor null check raises the guard figure |
+| `AIActCompliancePipelineBehavior.cs` (today unit 97, guard 8, contract 95) | unit 99, guard 25, contract 98 | the new branches are the resolver `Left`, the not-applicable skip and the skip-publish failure, each driven by a unit test; the contract test runs two tenants through the real registry, classifier and validator, covering both skip and deny paths; the guard flag gains the new constructor parameter and the request and context null checks, so 25 is reachable and the old 8 is no ceiling |
 | `AIActOptionsValidator.cs` (today guard 95, property 95) | unit 98, guard 95, property 96 | every new rule (Warn, missing reason or basis, blank and duplicate ids) has a unit test and a generated-map property |
 | `AIActEffectiveOptionsResolver.cs` (new) | unit 100, guard 90, property 90 | five paths each tested, plus the totality property; the guard figure covers the constructor null checks |
 | `AIActOptions.cs` (today guard 95) | unit 95, guard 95 | `ConfigureTenant` guard clauses and the ordinal tenant map |
@@ -531,7 +533,7 @@ REFERENCE FILES:
 
 | PR | Phases | Files | Count |
 |----|--------|-------|-------|
-| 1 | 1-2 | `AIActTenantOptions.cs`, `AIActOptions.cs`, `AIActOptionsValidator.cs`, `AIActEffectiveOptionsResolver.cs`, `ServiceCollectionExtensions.cs`, `Encina.Compliance.AIAct.csproj` (only under Design Choice 2 B), `PublicAPI.Unshipped.txt`, manifest, 6 test files (validator unit, options unit and guard, resolver unit and guard, validator and resolver property) | 14 |
+| 1 | 1-2 | `AIActTenantOptions.cs`, `AIActOptions.cs`, `AIActOptionsValidator.cs`, `AIActEffectiveOptionsResolver.cs`, `ServiceCollectionExtensions.cs`, `Encina.Compliance.AIAct.csproj` (the `Encina.Tenancy` reference, option B of Design Choice 2, the recommended one), `PublicAPI.Unshipped.txt`, manifest, 6 test files (validator unit, options unit and guard, resolver unit and guard, validator and resolver property) | 14 |
 | 2 | 4 | `ProhibitedUseBlockedNotification.cs`, `HumanOversightRequiredNotification.cs`, `HumanDecisionRecord.cs`, `AIActNotApplicableNotification.cs`, the publishing sites (2), `PublicAPI.Unshipped.txt`, manifest, 5 test files | 13 |
 | 3 | 3 and 5 | `AIActCompliancePipelineBehavior.cs`, `AIActAutoRegistrationHostedService.cs` note, `PublicAPI.Unshipped.txt`, manifest, behavior unit, guard and contract tests, DI test, tenant-scoping contract test | 9 |
 | 4 | 7 | `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `AIActDiagnostics.cs`, `AIActTenantLogMessages.cs`, the instrumented sites (2), `PublicAPI.Unshipped.txt`, manifest, 2 test files | 11 |
@@ -547,19 +549,19 @@ REFERENCE FILES:
 
 ```text
 PROJECT CONTEXT:
-- Encina, .NET 10 / C# 14, pre-1.0, ROP. Issue #845: per-tenant AI Act enforcement in Encina.Compliance.AIAct. ITenantContext does not exist; the tenant is IRequestContext.TenantId; multi-tenancy is on when MultiTenancyMarker is registered. Missing tenant context fails closed.
+- Encina, .NET 10 / C# 14, pre-1.0, ROP. Issue #845: per-tenant AI Act enforcement in Encina.Compliance.AIAct. ITenantContext does not exist; the tenant comes from ITenantProvider (recommended) or IRequestContext.TenantId; a tenant is required when RequireTenantContext ?? (ITenantProvider or MultiTenancyMarker registered). Missing required tenant context fails closed.
 - Sibling plans: #847 (tenant-scoped AI systems and shared names: aiact.tenant_context_required, AIActOptions.RequireTenantContext), #686 (applicability resolver), #1257 (ITenantScopeResolver).
 
 IMPLEMENTATION OVERVIEW:
 1. AIActTenantOptions and AIActOptions.ConfigureTenant with validation (Inherit or Disabled with reason and territorial basis; no Warn; no BlockProhibitedUses or EnforceHumanOversight switches).
-2. AIActEffectiveOptionsResolver over ITenantScopeResolver.
+2. AIActEffectiveOptionsResolver over ITenantProvider (recommended; ITenantScopeResolver is the alternative), with the #847 trigger: RequireTenantContext ?? (provider or marker registered).
 3. The pipeline behavior resolves per request; a Left fails the request; a not-applicable tenant is recorded and skipped.
 4. TenantId on surviving notifications and records; AIActNotApplicableNotification.
 5. Tenant-scoped systems come from #847 (fallback tasks if the maintainer chooses otherwise).
 6. Resolver integration after #686. 7. Tag, counter, new range ComplianceAIActGPAI 5950-5969 and log messages 5950-5957. 8. Tests and documentation.
 
 KEY PATTERNS:
-- Ambient tenant wins; marker and no tenant is denied; no marker uses the global options.
+- Ambient tenant wins; tenant required and absent is denied; tenant not required uses the global options.
 - Logs and notifications carry codes, never the free-text reason or EncinaError.Message.
 - Coverage per flag; justification .md only for property, integration, load, benchmark.
 
