@@ -1154,7 +1154,11 @@ function Get-ShellWrites {
         if ($name -in 'cd', 'set-location', 'sl', 'chdir', 'push-location', 'pushd') {
             $target = Get-BoundArgument $tokens ($k + 1) @(, @('-path', '-literalpath', '-lp', '-pspath')) 0
             if ($name -in 'push-location', 'pushd') { $stack.Push($current) }
-            $current = if ($null -eq $target) { if ($Bash -and $name -eq 'cd') { Get-HomeDirectory } else { $current } } else { Resolve-TargetPath $target $current $Bash }
+            # `cd -` (the previous location) and a wildcard target do not name a directory the hook can compute:
+            # the base becomes unknown instead of a wrong one (the #3242 relative resolution trusts the base).
+            $current = if ($null -eq $target) { if ($Bash -and $name -eq 'cd') { Get-HomeDirectory } else { $current } }
+            elseif ($target.Value -eq '-' -or $target.Value -match '[*?\[]') { $null }
+            else { Resolve-TargetPath $target $current $Bash }
             continue
         }
         if ($name -in 'pop-location', 'popd') {

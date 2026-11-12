@@ -5143,7 +5143,8 @@ The fluent builder chain described in the documentation is fictional. The parame
     $stub1854 = Join-Path $scratch1854 'gh-stub.ps1'
     Set-Content -LiteralPath $stub1854 -Value "param([Parameter(ValueFromRemainingArguments)]`$a)`nSet-Content -LiteralPath (Join-Path `$PSScriptRoot 'gh.log') -Value (`$a -join ' ')`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'probe.cs') -Value "System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), `"probe.txt`"), `"x`");`n"
-    Set-Content -LiteralPath (Join-Path $scratch1854 'evil.ps1') -Value "Set-Content -LiteralPath 'src/Encina/X.cs' -Value 'x'`n"
+    # An absolute target in the real checkout: a relative one resolves against the launching cwd (#3242).
+    Set-Content -LiteralPath (Join-Path $scratch1854 'evil.ps1') -Value "Set-Content -LiteralPath '$(Join-Path $repo 'src\Encina\X.cs')' -Value 'x'`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign.ps1') -Value "Write-Output 'benign'`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign2.ps1') -Value "Write-Output 'benign2'`n"
     Set-Content -LiteralPath (Join-Path $scratch1854 'benign3.ps1') -Value "Write-Output 'benign3'`n"
@@ -6183,6 +6184,9 @@ The fluent builder chain described in the documentation is fictional. The parame
         Invoke-Probe1854 $agent 'dotnet run $wt\scan3600.cs' 2 "$agent`: a script path held in a variable set in an earlier tool call stays denied (#3600)" 'cannot resolve \(tried .\$wt' $wt
         Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run $wt\scan3600.cs' 2 "$agent`: an unresolvable variable path after a Set-Location into a variable stays denied (#3600)" 'cannot resolve \(tried .\$wt' $wt
         Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run missing3600.cs' 2 "$agent`: a relative script that does not exist stays denied against the worktree root (#3600)" 'which does not exist' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; Set-Content scan3600.cs -Value x; dotnet run scan3600.cs' 2 "$agent`: a fallback launch next to a write the hook cannot resolve stays denied (#3600)" 'cannot resolve' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run .github\scripts\knowledge-records.cs' 2 "$agent`: a sanctioned-looking relative script reached through the fallback is judged on its text, not sanctioned (#3600)" 'references src/ or tests/ and writes files' $wt
+        Invoke-Probe1854 $agent 'Set-Location D:\scratch3600; Set-Location -; pwsh -NoProfile -File writes-src.ps1' 2 "$agent`: Set-Location - leaves the base unknown, a relative script that writes src\ stays denied (#3600)" 'writes' $wt
         Invoke-Probe1854 $agent 'Set-Content -Path artifacts\src\x.md -Value x' 0 "$agent`: a write to artifacts\src\x.md with the cwd at the checkout root is allowed (#3242)" '' $wt
         Invoke-Probe1854 $agent 'Set-Content -Path src\file.cs -Value x' 2 "$agent`: a write to src\file.cs with the cwd at the checkout root stays denied (#3242)" 'Target:' $wt
         Invoke-Probe1854 $agent 'pwsh -NoProfile -File writes-artifacts-src.ps1' 0 "$agent`: a script that writes artifacts\src\x.md is allowed, the relative path is resolved before it is judged (#3242)" '' $wt
