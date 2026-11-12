@@ -10,9 +10,7 @@ using Encina.Security.Audit;
 using LanguageExt;
 
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Microsoft.Extensions.Options;
 
 using NSubstitute;
 
@@ -36,7 +34,6 @@ public sealed class ABACDecisionAuditReaderTests
     private ABACDecisionAuditReader Reader(
         string? ambientTenant = null,
         bool multiTenant = false,
-        bool allowCrossTenant = false,
         IOperationAuditStore? store = null,
         bool withStore = true)
     {
@@ -57,12 +54,8 @@ public sealed class ABACDecisionAuditReaderTests
             services.AddSingleton<MultiTenancyMarker>();
         }
 
-        var options = new ABACOptions();
-        options.DecisionAudit.AllowCrossTenantQueries = allowCrossTenant;
-
         return new ABACDecisionAuditReader(
             services.BuildServiceProvider().CreateScope().ServiceProvider,
-            Options.Create(options),
             new FakeLogger<ABACDecisionAuditReader>(_logs));
     }
 
@@ -136,15 +129,15 @@ public sealed class ABACDecisionAuditReaderTests
     }
 
     [Fact]
-    public async Task QueryAsync_MultiTenantWithCrossTenantOptOut_QueriesAndLogsTheOptOut()
+    public async Task QueryAsync_MultiTenantWithoutAmbientTenantOrFilter_DeniesInsteadOfReadingEveryTenant()
     {
         await SeedAsync("tenant-a");
         await SeedAsync("tenant-b");
 
-        var page = Page(await Reader(multiTenant: true, allowCrossTenant: true).QueryAsync(new ABACDecisionAuditQuery()));
+        var result = await Reader(multiTenant: true).QueryAsync(new ABACDecisionAuditQuery());
 
-        page.TotalCount.ShouldBe(2);
-        _logs.GetSnapshot().ShouldContain(log => log.Id.Id == 9090 && log.Level == LogLevel.Warning);
+        Code(result).ShouldBe(ABACErrors.DecisionAuditTenantRequiredCode);
+        _logs.GetSnapshot().ShouldBeEmpty();
     }
 
     [Fact]
@@ -192,17 +185,6 @@ public sealed class ABACDecisionAuditReaderTests
         var page = Page(await Reader(ambientTenant: "tenant-a", multiTenant: true).QueryAsync(new ABACDecisionAuditQuery { TenantId = "tenant-a" }));
 
         page.TotalCount.ShouldBe(1);
-    }
-
-    [Fact]
-    public async Task QueryAsync_AmbientTenantWithCrossTenantOptOut_StillForcesTheAmbientTenant()
-    {
-        await SeedAsync("tenant-a");
-        await SeedAsync("tenant-b");
-
-        var page = Page(await Reader(ambientTenant: "tenant-a", multiTenant: true, allowCrossTenant: true).QueryAsync(new ABACDecisionAuditQuery()));
-
-        page.Items.ShouldHaveSingleItem().TenantId.ShouldBe("tenant-a");
     }
 
     [Fact]
@@ -394,18 +376,31 @@ public sealed class ABACDecisionAuditReaderTests
     }
 
     [Fact]
-    public async Task ExportAsync_CrossTenantOptOut_LogsTheOptOutOncePerExport()
+    public async Task ExportAsync_MultiTenantWithoutAmbientTenant_DeniesAndWritesNothing()
     {
-        for (var i = 0; i < OperationAuditQuery.MaxPageSize + 1; i++)
-        {
-            await SeedAsync($"tenant-{i % 2}", minutes: i % 50);
-        }
+        await SeedAsync("tenant-a");
+        await SeedAsync("tenant-b");
 
         using var stream = new MemoryStream();
-        var result = await Reader(multiTenant: true, allowCrossTenant: true).ExportAsync(new ABACDecisionAuditQuery(), stream);
+        var result = await Reader(multiTenant: true).ExportAsync(new ABACDecisionAuditQuery(), stream);
 
-        result.Match(Right: count => count, Left: _ => -1).ShouldBe(OperationAuditQuery.MaxPageSize + 1);
-        _logs.GetSnapshot().Count(log => log.Id.Id == 9090).ShouldBe(1);
+        Code(result).ShouldBe(ABACErrors.DecisionAuditTenantRequiredCode);
+        stream.Length.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task ExportAsync_MultiTenantWithAmbientTenant_ExportsOnlyThatTenant()
+    {
+        await SeedAsync("tenant-a");
+        await SeedAsync("tenant-b");
+
+        using var stream = new MemoryStream();
+        var result = await Reader(ambientTenant: "tenant-a", multiTenant: true).ExportAsync(new ABACDecisionAuditQuery(), stream);
+
+        result.Match(Right: count => count, Left: _ => -1).ShouldBe(1);
+        var line = Encoding.UTF8.GetString(stream.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries).ShouldHaveSingleItem();
+        using var document = JsonDocument.Parse(line);
+        document.RootElement.GetProperty("tenantId").GetString().ShouldBe("tenant-a");
     }
 
     [Fact]
