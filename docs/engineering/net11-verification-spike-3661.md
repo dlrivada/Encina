@@ -42,20 +42,20 @@ Mitigation that does not need the move: a `global.json` pinning SDK 10.0.x with 
 
 ### Q1. Build with zero warnings on net11.0 and LangVersion 15
 
-With `net11.0` and `LangVersion` 15.0 there are 244 unique diagnostics. 31 `csproj` files hard-coded `net10.0` when the spike counted them (a recount on the worktree finds 30, so treat it as about 30) and had to be changed besides `Directory.Build.props` (11 of them also set `LangVersion` to `latest`).
+With `net11.0` and `LangVersion` 15.0 there are 244 unique diagnostics. 30 `csproj` files hard-coded `net10.0` and had to be changed besides `Directory.Build.props` (11 of them also set `LangVersion` to `latest`).
 
 | Id | Count | Where | Cause and fix |
 | --- | --- | --- | --- |
 | NU1510 | 207 (84 projects) | `PackageReference` to `Microsoft.Extensions.Logging.Abstractions` (74), `DependencyInjection.Abstractions` (56), `Options` (48), `Hosting.Abstractions` (27), `Caching.Abstractions` (1), `Configuration.Abstractions` (1) | These packages are now in the shared framework; remove the reference. A strict build fails at restore. |
 | SYSLIB0066 | 10 | tests only | `IStartupValidator` is obsolete; there is no use in `src/`. |
-| CA1307 | 6 | `src/Encina.ADO.PostgreSQL` `BulkOperationsPostgreSQL.cs:642-643`; `src/Encina.MongoDB` `ShardedMongoCollectionFactory.cs:211,218` and `ShardedReadWriteMongoCollectionFactory.cs:285,292` | Pass an explicit `StringComparison`. |
+| CA1307 | 6 | `src/Encina.ADO.PostgreSQL/BulkOperations/BulkOperationsPostgreSQL.cs:642-643`; `src/Encina.MongoDB/Sharding/ShardedMongoCollectionFactory.cs:211,218` and `src/Encina.MongoDB/Sharding/ShardedReadWriteMongoCollectionFactory.cs:285,292` | Pass an explicit `StringComparison`. |
 | CS0419 | 1 | `src/Encina.Security.AntiTampering/HMAC/HMACSigner.cs:22` | A new `FixedTimeEquals` overload makes the `cref` ambiguous; qualify the `cref`. |
 | CA2026 | 13 | 1 in src, 12 in tests | New SDK 11 rule. |
 | CA2027 | 5 | tests | New SDK 11 rule. |
 | CA1877 | 1 | src | New SDK 11 rule. |
 | CA1830 | 1 | src | New SDK 11 rule. |
 
-The 31 hard-coded `net10.0` project files must be touched by the move. Recommendation: remove the per-project `TargetFramework` so `Directory.Build.props` governs the whole solution.
+The 30 hard-coded `net10.0` project files must be touched by the move. Recommendation: remove the per-project `TargetFramework` so `Directory.Build.props` governs the whole solution.
 
 Analyzers on C# 15 syntax: Meziantou, SonarAnalyzer.CSharp and Roslynator produced zero diagnostics on a union, a closed record and a `with(...)` collection expression, both in a scratch project (`artifacts/spike3661/probe`) and on internal union and closed types inside `src/Encina` (strict build, NU1510 suppressed). One language note found on the way: `closed` together with `abstract` is CS9384, because a `closed` class is implicitly abstract.
 
@@ -109,7 +109,7 @@ Other packages, by target framework: Marten 9.59.0 supports net9.0 and net10.0 (
 
 ### Q6. CI images and workflows
 
-- `setup-dotnet` with `10.0.x` appears in 19 workflow files (`ci.yml` 13 times, `ci-full.yml` 9, the `encina-full-ci` template 7, `load-tests.yml` 6, and others). There is a `DOTNET_SDK_VERSION` environment variable in `ci.yml`, `ci-full.yml`, `mutation-tests.yml`, `load-tests.yml` and the default inputs of the templates.
+- `setup-dotnet` with `10.0.x` appears in 19 workflow files (`ci.yml` 13 setup-dotnet steps, `ci-full.yml` 9, the `encina-full-ci` template 7, `load-tests.yml` 6, and others). There is a `DOTNET_SDK_VERSION` environment variable in `ci.yml`, `ci-full.yml`, `mutation-tests.yml`, `load-tests.yml` and the default inputs of the templates.
 - `net10.0` is hard-coded in the artifact globs `bin/Release/net10.0` at `ci.yml:145-148` and `ci-full.yml:55-58`, and in `.github/scripts/generate-public-api.cs:9`.
 - `src/Encina.Cli/Services/ProjectScaffolder.cs` (and two tests) emit `net10.0` into scaffolded projects.
 - Runners: `ubuntu-latest` (64 uses) and `windows-latest` (2). `setup-dotnet` is v5 in the templates and v6 elsewhere.
@@ -141,7 +141,7 @@ Four of the five "not observed" items go to the follow-up code review (section 5
 | Item | Effort |
 | --- | --- |
 | `global.json` pin to SDK 10.0.x now, to 11.0.x on the move | S |
-| `TargetFramework` and `LangVersion` in `Directory.Build.props`; remove the per-project setting from the 31 `csproj` files (11 also set `LangVersion`) | M |
+| `TargetFramework` and `LangVersion` in `Directory.Build.props`; remove the per-project setting from the 30 `csproj` files (11 also set `LangVersion`) | M |
 | Remove 207 redundant `Microsoft.Extensions.*` `PackageReference` entries in 84 projects | M |
 | Fix 3 src errors from SDK 11 rules (CA1877, CA2026, CA1830) | S |
 | Fix 6 CA1307 and the CS0419 `cref` in src | S |
@@ -166,6 +166,6 @@ The issue files are drafted separately and opened by the orchestrator.
 
 ## 6. Open points and gaps
 
-- No ADR yet records the move to .NET 11; the issue asks for one on go (section 4).
+- No ADR yet records the move to .NET 11; the issue asks for one on go (section 4). The ADR and the ROADMAP update listed in the issue deliverables are deferred to the platform-move issue (#3667), and the raw build and test logs were not committed.
 - Stryker parse check (condition c) and the DataProtection cause (condition f) are open.
 - The unions question for the ROP core is a separate spike, blocked by #3661 and not covered here.
