@@ -196,8 +196,8 @@ REFERENCE FILES: src/Encina.Marten.GDPR/Locator/MartenEventPersonalDataLocator.c
 <details>
 <summary>Tasks</summary>
 
-1. EventIds 8489-8491 in `Diagnostics/CryptoShreddingLog.cs` (the class that holds the `[LoggerMessage]` source-generated methods, lines 76-86 are 8482-8484; `CryptoShreddingLogMessages.cs` holds the older `LoggerMessage.Define` ids up to 8469), inside the registered `MartenGDPRCryptoShredding` range (8450-8499). 8450-8484 are used on main, and 8485-8488 are taken by the merged #2455 plan (`crypto-shredding-storage-leak-validation-implementation-plan-2455.md`), so this plan uses 8489 header rejected (key, code), 8490 guard serializer unsupported, and 8491 `UserId` capture warning (only if choice 5 option B is chosen). The registry row `MartenGDPRCryptoShredding 8450-8499 | 8489-8491 | #2457` records the claim; re-read `eventid-blocks.md` before writing and follow it if #2455 changes.
-2. `Counter<long> HeaderRejectedTotal` (`crypto.header.rejected.total`) on the existing `CryptoShreddingDiagnostics.Meter`, with ONE fixed low-cardinality tag `reason` (`personal_data` or `serializer_unsupported`). The header key is chosen by arbitrary enricher code, so it is never a metric tag (ADR-054 D6 forbids data-carrying keys); it appears only in the log message. Activity failure through `CryptoShreddingDiagnostics.RecordFailed` with the error code. No `encina.tenant_id` tag: ADR-054 D4 adds the tenant tag only where the measurement is per tenant, and this counter is not.
+1. EventIds 8489-8491 in `Diagnostics/CryptoShreddingLog.cs` (the class that holds the `[LoggerMessage]` source-generated methods, lines 76-86 are 8482-8484; `CryptoShreddingLogMessages.cs` holds the older `LoggerMessage.Define` ids up to 8469), inside the registered `MartenGDPRCryptoShredding` range (8450-8499). 8450-8484 are used on main, and 8485-8488 are taken by the merged #2455 plan (`crypto-shredding-storage-leak-validation-implementation-plan-2455.md`), so this plan uses 8489 header rejected (key, code), 8490 guard serializer unsupported, and 8491 `UserId` capture warning (only if choice 5 option B is chosen). The batch registry records the claim 8489-8491 for #2457; re-read `eventid-blocks.md` before writing and follow it if #2455 changes.
+2. `Counter<long> HeaderRejectedTotal` (`crypto.header.rejected.total`) on the existing `CryptoShreddingDiagnostics.Meter`, with ONE fixed low-cardinality tag `reason` (`personal_data` or `serializer_unsupported`). The header key is chosen by arbitrary enricher code, so it is never a metric tag (ADR-054 D6 forbids data-carrying keys); it appears only in the log message. Activity failure through `CryptoShreddingDiagnostics.RecordFailed` with the error code. Tenant tag (ADR-054 D4): the counter and the failure activity carry `encina.tenant_id` (from the session's tenant) only when multi-tenancy is on, detected with `MultiTenancyMarker`, and none when it is off; a unit test asserts both.
 3. No new range: the registry and `EncinaEventIdAllocationTests` already cover the assembly.
 
 </details>
@@ -304,7 +304,7 @@ REFERENCE FILES: src/Encina.Marten.GDPR/README.md, src/Encina.Marten/README.md, 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| Encina.Marten.GDPR | 8489-8491 | Inside the registered `MartenGDPRCryptoShredding` range 8450-8499 (8450-8484 used on main, 8485-8488 taken by #2455); no new range. Registry row: `MartenGDPRCryptoShredding 8450-8499 | 8489-8491 | #2457` |
+| Encina.Marten.GDPR | 8489-8491 | Inside the registered `MartenGDPRCryptoShredding` range 8450-8499 (8450-8484 used on main, 8485-8488 taken by #2455); no new range. The batch registry records the claim 8489-8491 for #2457 under "Ids inside existing package ranges" |
 
 ### Estimated File Count
 
@@ -358,7 +358,7 @@ REFERENCE FILES: src/Encina.Marten/EventMetadataEnrichmentService.cs, src/Encina
 | 7 | Distributed Locks | ❌ | No shared mutable state |
 | 8 | Transactions | ✅ | The append is refused before `SaveChangesAsync` and the session is left untouched (staged `EnrichSession`, Design Choice 4), so nothing is stored and nothing leaks to the next save on the same scoped session |
 | 9 | Idempotency | ❌ | A rejected append can be retried with corrected headers |
-| 10 | Multi-Tenancy | ❌ | The `TenantId` header is an identifier and stays unchanged; the guard reads only the events being appended through the caller's tenant-scoped session, and the rejection counter carries no tenant tag (ADR-054 D4: tags only where the measurement is per tenant) |
+| 10 | Multi-Tenancy | ❌ | The `TenantId` header is an identifier and stays unchanged; the guard reads only the events being appended through the caller's tenant-scoped session, and the rejection counter and activity carry `encina.tenant_id` only when tenancy is on (ADR-054 D4); the guard never denies or allows by tenant, so there is no tenant-required branch |
 | 11 | Module Isolation | ❌ | Not module-scoped |
 | 12 | Audit Trail | ❌ | A rejection is an application error, not an audited operation |
 
