@@ -46,7 +46,7 @@ public sealed class MessageEncryptionOptions
 
     /// <summary>
     /// Gets or sets the default encryption key identifier used when no key is specified
-    /// per message type or per tenant.
+    /// per message type.
     /// </summary>
     /// <remarks>
     /// When <c>null</c>, the current active key from
@@ -56,18 +56,17 @@ public sealed class MessageEncryptionOptions
     public string? DefaultKeyId { get; set; }
 
     /// <summary>
-    /// Gets or sets whether to use tenant-specific encryption keys by default.
+    /// Gets or sets whether tenant-specific encryption keys are requested by default.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, <see cref="Abstractions.ITenantKeyResolver"/> resolves a per-tenant
-    /// key ID for each message. Can be overridden per message type via
-    /// <c>[EncryptedMessage(UseTenantKey = true/false)]</c>.
+    /// Currently this option has no effect: no key selection depends on it and the pipeline
+    /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// Defaults to <c>false</c>.
     /// </remarks>
     public bool UseTenantKeys { get; set; }
 
     /// <summary>
-    /// Gets or sets the naming pattern for tenant-specific encryption keys.
+    /// Gets or sets the naming pattern used by <c>DefaultTenantKeyResolver</c> to build a key ID from a tenant ID.
     /// </summary>
     /// <remarks>
     /// Uses <see cref="string.Format(string, object?)"/> with the tenant ID as <c>{0}</c>.
