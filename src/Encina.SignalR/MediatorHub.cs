@@ -72,7 +72,10 @@ public abstract class EncinaHub : Hub
     /// Initializes a new instance of the <see cref="EncinaHub"/> class.
     /// </summary>
     /// <param name="encina">The Encina instance.</param>
-    /// <param name="options">The SignalR options.</param>
+    /// <param name="options">
+    /// The SignalR options; pass the <see cref="IOptions{TOptions}"/> singleton so every hub shares the
+    /// allow-list the startup check freezes and logs.
+    /// </param>
     /// <param name="logger">The logger instance.</param>
     protected EncinaHub(
         IEncina encina,

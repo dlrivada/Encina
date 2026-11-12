@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 namespace Encina.SignalR;
 
 /// <summary>
-/// Freezes the <see cref="EncinaHub"/> allow-list once the host has started, logs each entry
+/// Freezes the <see cref="EncinaHub"/> allow-list when the host starts, logs each entry
 /// registered with <c>allowAnonymous: true</c> once, and warns when an <see cref="EncinaHub"/> is
 /// mapped while the allow-list is empty.
 /// </summary>
@@ -53,7 +53,12 @@ internal sealed class SignalRAllowListStartupCheck : IHostedLifecycleService
     }
 
     /// <inheritdoc />
-    public Task StartingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    /// <remarks>Freezes the allow-list before the server accepts connections, so a duplicate registration fails startup.</remarks>
+    public Task StartingAsync(CancellationToken cancellationToken)
+    {
+        _options.Value.GetAllowList();
+        return Task.CompletedTask;
+    }
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;

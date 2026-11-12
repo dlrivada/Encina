@@ -327,6 +327,7 @@ public sealed class EncinaHubAllowListTests
         var check = new SignalRAllowListStartupCheck(Options.Create(options), logger, [MappedHub(typeof(TestEncinaHub))]);
 
         await check.StartingAsync(CancellationToken.None);
+        Should.Throw<InvalidOperationException>(() => options.AllowRequest<UnitCommand>());
         await check.StartAsync(CancellationToken.None);
         await check.StartedAsync(CancellationToken.None);
         await check.StoppingAsync(CancellationToken.None);
@@ -337,7 +338,6 @@ public sealed class EncinaHubAllowListTests
         records.ShouldAllBe(record => record.Id.Id == 4612 && record.Level == LogLevel.Information);
         records.Select(record => record.GetStructuredStateValue("TypeName")).Order(StringComparer.Ordinal).ShouldBe(
             new[] { typeof(AllowedNotification).FullName, typeof(AllowedQuery).FullName }.Order(StringComparer.Ordinal));
-        Should.Throw<InvalidOperationException>(() => options.AllowRequest<UnitCommand>());
     }
 
     [Fact]

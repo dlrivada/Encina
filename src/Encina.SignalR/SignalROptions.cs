@@ -68,26 +68,12 @@ public sealed class SignalROptions
     /// </summary>
     public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; set; }
 
-    /// <summary>
-    /// Exposes a command or query type to <see cref="EncinaHub"/> clients.
-    /// </summary>
+    /// <inheritdoc cref="AllowRequest(Type, bool)"/>
     /// <typeparam name="TRequest">
     /// A concrete type implementing <see cref="ICommand{TResponse}"/> (callable only through
     /// <see cref="EncinaHub.SendCommand"/>) or <see cref="IQuery{TResponse}"/> (callable only through
     /// <see cref="EncinaHub.SendQuery"/>).
     /// </typeparam>
-    /// <param name="allowAnonymous">
-    /// <see langword="true"/> to let unauthenticated callers invoke the type; the opt-out is logged
-    /// once at startup. By default a caller must be authenticated.
-    /// </param>
-    /// <returns>These options, for chaining.</returns>
-    /// <exception cref="ArgumentException">
-    /// <typeparamref name="TRequest"/> is abstract, open generic, has no full name, or is not exactly
-    /// one of a command or a query.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// A type with the same full name is already registered, or the allow-list is already frozen.
-    /// </exception>
     public SignalROptions AllowRequest<TRequest>(bool allowAnonymous = false)
         => AllowRequest(typeof(TRequest), allowAnonymous);
 
@@ -127,21 +113,8 @@ public sealed class SignalROptions
         return Add(requestType, isCommand ? HubMessageKind.Command : HubMessageKind.Query, allowAnonymous);
     }
 
-    /// <summary>
-    /// Exposes a notification type to <see cref="EncinaHub.PublishNotification"/> clients.
-    /// </summary>
+    /// <inheritdoc cref="AllowNotification(Type, bool)"/>
     /// <typeparam name="TNotification">A concrete notification type.</typeparam>
-    /// <param name="allowAnonymous">
-    /// <see langword="true"/> to let unauthenticated callers publish the notification; the opt-out is
-    /// logged once at startup. By default a caller must be authenticated.
-    /// </param>
-    /// <returns>These options, for chaining.</returns>
-    /// <exception cref="ArgumentException">
-    /// <typeparamref name="TNotification"/> is abstract, open generic or has no full name.
-    /// </exception>
-    /// <exception cref="InvalidOperationException">
-    /// A type with the same full name is already registered, or the allow-list is already frozen.
-    /// </exception>
     public SignalROptions AllowNotification<TNotification>(bool allowAnonymous = false)
         where TNotification : INotification
         => AllowNotification(typeof(TNotification), allowAnonymous);
