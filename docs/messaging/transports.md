@@ -89,7 +89,7 @@ The recommendations name the broker that fits the scenario. For the five publish
 | --- | --- |
 | **Microservices task distribution** | RabbitMQ |
 | **Event sourcing / Event streaming** | Kafka |
-| **Real-time notifications** | NATS Core or Redis.PubSub |
+| **Real-time notifications** | NATS Core (publish side) or Redis.PubSub |
 | **IoT device messaging** | MQTT |
 | **Cloud-native (Azure)** | Azure Service Bus |
 | **Cloud-native (AWS)** | Amazon SQS/SNS |
@@ -229,7 +229,7 @@ The Model, Ordering, Persistence, Replay and Consumer Model columns describe the
 
 ## Detailed Transport Guides
 
-Every publisher is registered as a scoped service and returns `Either<EncinaError, T>`: a failure is a `Left`, not an exception ([ADR-001](../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../architecture/adr/006-pure-rop-exception-handling.md)). The samples show the options the publisher code reads; the option classes have more properties.
+Every publisher is registered as a scoped service (the InMemory bus is a singleton), and its publish and send methods return `Either<EncinaError, T>`: a failure is a `Left`, not an exception ([ADR-001](../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../architecture/adr/006-pure-rop-exception-handling.md)). The samples show the options the publisher code reads; the option classes have more properties.
 
 ### RabbitMQ
 
@@ -537,7 +537,7 @@ public sealed class OrdersGrpcService(IGrpcEncinaService encinaService)
 - Clients need flexible queries
 - You're using HotChocolate
 
-**Encina today:** `IGraphQLEncinaBridge` has `QueryAsync` and `MutateAsync`, which run an `IRequest<TResult>` through `IEncina` with `EncinaGraphQLOptions.ExecutionTimeout` as the deadline. `SubscribeAsync` returns a `GRAPHQL_SUBSCRIPTIONS_NOT_IMPLEMENTED` error. Of the options, only `ExecutionTimeout` and `EnableSubscriptions` are read ([#3409](https://github.com/dlrivada/Encina/issues/3409)). The HotChocolate server is configured by your application, not by `AddEncinaGraphQL`.
+**Encina today:** `IGraphQLEncinaBridge` has `QueryAsync` and `MutateAsync`, which run an `IRequest<TResult>` through `IEncina` with `EncinaGraphQLOptions.ExecutionTimeout` as the deadline. `SubscribeAsync` returns a `GRAPHQL_SUBSCRIPTIONS_NOT_IMPLEMENTED` error (`GRAPHQL_SUBSCRIPTIONS_DISABLED` when `EnableSubscriptions` is false). Of the options, only `ExecutionTimeout` and `EnableSubscriptions` are read ([#3409](https://github.com/dlrivada/Encina/issues/3409)). The HotChocolate server is configured by your application, not by `AddEncinaGraphQL`.
 
 ```csharp
 services.AddEncinaGraphQL();
@@ -631,7 +631,7 @@ services.AddEncinaRedisPubSub(options => options.ConnectionString = "localhost:6
 
 ### How do I handle transport failures?
 
-Every publisher method returns `Either<EncinaError, T>`, so a failed send is a `Left` you handle at the call site. `Encina.Polly` adds retry, circuit breaker, rate limit and bulkhead behaviors to requests sent through `IEncina`, configured with attributes on the request type:
+Every publish and send method returns `Either<EncinaError, T>`, so a failed send is a `Left` you handle at the call site. `Encina.Polly` adds retry, circuit breaker, rate limit and bulkhead behaviors to requests sent through `IEncina`, configured with attributes on the request type:
 
 ```csharp
 services.AddEncinaPolly();
