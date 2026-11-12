@@ -172,7 +172,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             var versionBeforeAppend = aggregate.Version - events.Length;
             _session.Events.Append(aggregate.Id, aggregate.Version, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
@@ -191,10 +191,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         }
         catch (Exception ex) when (IsConcurrencyException(ex))
         {
-            // The failed batch was rolled back as a whole: drop its operations so the next
-            // SaveChangesAsync on this session does not replay them (#3787).
-            _session.EjectAllPendingChanges();
-
             Log.ConcurrencyConflict(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             if (_options.ThrowOnConcurrencyConflict)
@@ -230,8 +226,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         }
         catch (Exception ex) when (!IsConcurrencyException(ex))
         {
-            _session.EjectAllPendingChanges();
-
             Log.ErrorSavingAggregate(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -271,7 +265,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             // Start a new stream
             _session.Events.StartStream<TAggregate>(aggregate.Id, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
@@ -287,9 +281,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         }
         catch (Exception ex) when (IsStreamCollisionException(ex))
         {
-            // The failed StartStream is still queued in the session; drop it so later writes succeed (#3787).
-            _session.EjectAllPendingChanges();
-
             Log.StreamAlreadyExists(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -300,8 +291,6 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
         }
         catch (Exception ex) when (!IsStreamCollisionException(ex))
         {
-            _session.EjectAllPendingChanges();
-
             Log.ErrorCreatingAggregate(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregate.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function

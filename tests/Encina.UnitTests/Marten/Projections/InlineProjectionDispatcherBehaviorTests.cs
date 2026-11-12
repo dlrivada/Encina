@@ -3,6 +3,7 @@ using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Shouldly;
 
 namespace Encina.UnitTests.Marten.Projections;
@@ -108,6 +109,21 @@ public sealed class InlineProjectionDispatcherBehaviorTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error => error.Message.ShouldContain("CounterCreated"));
+        // Failed before anything was flushed: unrelated operations queued by the caller must survive
+        _session.DidNotReceive().EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task DispatchAsync_SaveChangesFails_ReturnsLeftAndEjectsPendingChanges()
+    {
+        var streamId = Guid.NewGuid();
+        _session.LoadAsync<CounterReadModel>(streamId, Arg.Any<CancellationToken>()).Returns((CounterReadModel?)null);
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("flush failed"));
+        var sut = CreateSut();
+
+        var result = await sut.DispatchAsync(new CounterCreated("first"), new ProjectionContext(streamId, 1, 0, DateTime.UtcNow));
+
+        result.IsLeft.ShouldBeTrue();
         _session.Received(1).EjectAllPendingChanges();
     }
 

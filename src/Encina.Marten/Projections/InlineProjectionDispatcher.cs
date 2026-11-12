@@ -184,8 +184,6 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         }
         catch (Exception ex)
         {
-            _session.EjectAllPendingChanges();
-
             ProjectionLog.ErrorApplyingEvent(_logger, ex.ForLogging(), eventType.Name, registration.ProjectionName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -330,13 +328,13 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         where TReadModel : class
     {
         _session.Store(readModel);
-        await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async Task DeleteReadModelCoreAsync<TReadModel>(Guid id, CancellationToken cancellationToken)
         where TReadModel : class
     {
         _session.Delete<TReadModel>(id);
-        await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
     }
 }
