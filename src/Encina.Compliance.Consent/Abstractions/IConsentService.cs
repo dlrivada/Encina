@@ -62,7 +62,10 @@ public interface IConsentService
     /// method returns its consent id unchanged, whatever its status (Active, Withdrawn, Expired or
     /// RequiresReconsent), and records nothing: the arguments of the repeated grant are not stored.
     /// A withdrawn or expired key is therefore not re-granted by this method today; #3771 adds the
-    /// renewal and re-grant rules for an existing record.
+    /// renewal and re-grant rules for an existing record. With the Marten store, a repeated grant
+    /// currently leaves the rejected stream creation queued in the scoped session, so a later
+    /// write in the same scope fails; run it in a new scope until the store clears its session
+    /// after a failed save.
     /// </para>
     /// </remarks>
     /// <param name="dataSubjectId">Identifier of the data subject giving consent.</param>
