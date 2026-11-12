@@ -302,6 +302,18 @@ public sealed class SignalRNotificationBroadcasterTests
     }
 
     [Fact]
+    public async Task BroadcastAsync_UserTargetsResolvingToEmpty_AreRefusedWithoutFallingBackToGroups()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, _logger);
+
+        await broadcaster.BroadcastAsync(new UserAndGroupTargetedNotification(null!, "admins"));
+
+        hub.AssertNothingSent();
+        hub.Clients.DidNotReceive().Groups(Arg.Any<IReadOnlyList<string>>());
+    }
+
+    [Fact]
     public async Task BroadcastAsync_GroupTargetsResolvingToEmpty_IsRefusedEvenWhenRegisteredForAll()
     {
         var hub = new FakeHub(_serviceProvider);
@@ -472,6 +484,9 @@ public sealed class SignalRNotificationBroadcasterTests
 
     [BroadcastToSignalR(TargetUsers = "   ", TargetGroups = " ")]
     private sealed record WhitespaceTargetsNotification(string Message) : INotification;
+
+    [BroadcastToSignalR(TargetUsers = "{UserId}", TargetGroups = "{GroupName}")]
+    private sealed record UserAndGroupTargetedNotification(string UserId, string GroupName) : INotification;
 
     private sealed record GenericNotification<T>(T Value) : INotification;
 }
