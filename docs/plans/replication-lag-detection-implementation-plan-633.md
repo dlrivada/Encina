@@ -239,7 +239,7 @@ The driver is already staleness-aware (`ReadWriteMongoCollectionFactory.cs:80,17
 2. `ReplicationLagInfo` record: `ReplicaId`, `EstimatedLag` (`TimeSpan`), `MeasuredAtUtc` (from `TimeProvider`); the issue's `PrimaryPosition` / `ReplicaPosition` properties are dropped (they exist only under CDC measurement, option C).
 3. `IReplicationLagProbe`: `Task<Either<EncinaError, TimeSpan>> MeasureAsync(string replicaConnectionString, CancellationToken)`, implemented per database in the provider packages.
 4. `ReplicationLagOptions` (nested in `ReadWriteSeparationOptions.ReplicationLag`): `MaxAcceptableLag`, `FallbackToPrimary`, `CheckInterval`, `ProbeTimeout` (defaults per Design Choice 7: 5 s, true, 10 s, 3 s), `Enabled` (default false); `IValidateOptions` rejects non-positive values and `ProbeTimeout >= CheckInterval`.
-5. `ReplicationLagErrorCodes` (`encina.readwrite.lag_unknown`, `lag_probe_failed`, `lag_exceeded`), each declaring its category through the error category contract of #3419 (that contract is the reference; the plan claims no ADR number for it).
+5. `ReplicationLagErrorCodes` (`encina.readwrite.lag_unknown`, `lag_probe_failed`, `lag_exceeded`), each declaring its category through the merged error category contract of ADR 062 (`EncinaErrors.Create(code, ErrorCategory.X, ...)`, `GetCategory`; PR #3599).
 6. PublicAPI lines.
 
 </details>
@@ -491,7 +491,7 @@ REFERENCE FILES: .github/coverage-manifest/Encina.Messaging.json, docs/en/guides
 1. XML docs on all new public APIs.
 2. `changelog.d/633-replication-lag-detection.added.md`.
 3. `src/Encina.Messaging/README.md` and the provider READMEs; a read/write separation page that states the privileges per database, the unknown-is-primary rule, the MongoDB `MaxStaleness` minimum and the availability-group requirement of the SQL Server probe.
-4. ADR on the measurement approach: no number is claimed here; the number is taken from the batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`) when the ADR pull request opens, and 062 belongs to #3419.
+4. ADR on the measurement approach: no number is claimed here; the number is taken from the batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`) when the ADR pull request opens; 062 is already taken by the merged error category contract.
 4a. Operator-facing consequences stated in the page: with `FallbackToPrimary` off and unknown lag (including a SQL Server standalone instance) every read returns a `Left`; the privileges per database; the 90 s MongoDB minimum.
 5. `PublicAPI.Unshipped.txt` lines; `docs/INVENTORY.md`.
 6. Verification: build with zero warnings, tests, per-flag coverage of the new files against the manifest.
