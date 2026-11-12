@@ -28,7 +28,11 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Every factory is a one-line Create call that the IdGeneration unit tests run (measured 100% on 2026-11-11, #3545)."
+      }
     },
     "Abstractions/IdGeneration/IIdGenerator.cs": {
       "defaultTests": [],
@@ -577,6 +581,39 @@
         "unit": "The file holds only const strings, so it has no coverable lines.",
         "guard": "The file holds only const strings, so it has no coverable lines.",
         "contract": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "Errors/EncinaErrorMetadataKeys.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Metadata key constants",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "Errors/ErrorCategory.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enum of error categories",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An enum declaration has no coverable lines; ErrorCategoryTests asserts its stable values."
+      }
+    },
+    "Errors/LegacyErrorCategoryInference.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Transitional code-to-category inference, deleted by F2 of #3419",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Pure predicates over the code text with one LegacyErrorCategoryInferenceTests row per branch (measured 100% on 2026-11-11, #3545)."
       }
     },
     "GlobalSuppressions.cs": {
@@ -1571,10 +1608,10 @@
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods",
       "targets": {
-        "unit": 75
+        "unit": 90
       },
       "justifications": {
-        "unit": "Static error factory methods tested for major paths (measured 79%)."
+        "unit": "The factories, the categorized Create/FromException overloads and GetCategory are unit-tested on every branch (measured 95.7% on 2026-11-11, #3545); the uncovered lines are internal helpers exercised from other packages."
       }
     },
     "Results/NullFunctionalFailureDetector.cs": {
