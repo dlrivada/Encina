@@ -1,0 +1,328 @@
+name: Inherit metadata
+
+# A pull request that closes issues gets the milestone and the area labels it lacks from those issues, and shows the EPIC
+# of the issues it closes in one comment (#3328). A sub-issue gets the milestone, area labels and priority label it lacks
+# from its direct parent (issue-hygiene.yml does that on every issue event; the daily job here repairs the ones whose
+# parent was attached later, because GitHub has no workflow trigger for attaching a parent).
+#
+# Trust boundary (maintainer decision 2026-11-10, ADR-063): pull_request_target is NEVER used.
+#   - pull-request job: pull_request, same-repository pull requests only, at once. A pull request from a fork or from
+#     Dependabot runs with a read-only token: the job logs it and skips it, it does not fail.
+#   - daily job: schedule / workflow_dispatch with the default token; repairs fork and Dependabot pull requests and open
+#     sub-issues. It is idempotent, collects failures, goes on with the rest and fails at the end listing them.
+# Neither job checks out or runs code from a pull request, and no event value is interpolated into a script: they reach
+# the script only through env.
+#
+# Only what is missing is filled, never an overwrite. Project 1 membership is not written here: the default GITHUB_TOKEN
+# cannot write user projects and no long-lived secret is used (#1987); tools/ai/issues/check-project-membership.ps1
+# -Add (run locally, keyring token) adds open issues and open pull requests.
+
+on:
+  pull_request:
+    types: [opened, edited, reopened]
+  schedule:
+    - cron: '43 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: inherit-metadata-${{ github.event.pull_request.number || github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  pull-request:
+    name: Pull request metadata
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+      issues: read
+      contents: read
+    steps:
+      - name: Inherit milestone and area labels, show the EPIC
+        uses: actions/github-script@v9
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTOR: ${{ github.actor }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const prNumber = Number(process.env.PR_NUMBER);
+            const isBot = (login) => String(login || '').toLowerCase() === 'dependabot[bot]';
+            // A fork pull request and a Dependabot pull request run with a read-only token: writing would fail with 403.
+            // The daily job repairs them (maintainer decision 2026-11-10).
+            if (process.env.HEAD_REPO.toLowerCase() !== (owner + '/' + repo).toLowerCase() || isBot(process.env.PR_AUTHOR) || isBot(process.env.ACTOR)) {
+              core.notice('Pull request #' + prNumber + ' comes from a fork or from Dependabot (read-only token): skipped; the daily job repairs it.');
+              return;
+            }
+
+            const AREA_PREFIX = 'area-';
+            const MARKER = '<!-- pr-epic -->';
+            const labelNames = (x) => x.labels.map(l => (typeof l === 'string' ? l : l.name));
+
+            async function getParent(number) {
+              try {
+                const { data } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/parent', { owner, repo, issue_number: number });
+                return data;
+              } catch (e) {
+                if (e.status === 404) return null; // no parent
+                throw e;
+              }
+            }
+
+            // GraphQL only where no REST equivalent exists: closingIssuesReferences has none.
+            async function closedIssues(number) {
+              const r = await github.graphql(
+                'query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ pullRequest(number:$number){ closingIssuesReferences(first:50){ pageInfo{ hasNextPage } nodes{ number repository{ nameWithOwner } } } } } }',
+                { owner, repo, number });
+              const refs = r.repository.pullRequest.closingIssuesReferences;
+              // A truncated list could hide a closed issue with another milestone: nothing is decided from it.
+              if (refs.pageInfo.hasNextPage) {
+                core.warning('#' + number + ' closes more than 50 issues; no metadata is written.');
+                return null;
+              }
+              const own = refs.nodes.filter(n => n.repository.nameWithOwner.toLowerCase() === (owner + '/' + repo).toLowerCase());
+              const issues = [];
+              for (const n of own) {
+                const { data } = await github.rest.issues.get({ owner, repo, issue_number: n.number });
+                if (!data.pull_request) issues.push(data);
+              }
+              return issues;
+            }
+
+            async function upsertEpicComment(number, issues) {
+              const byParent = new Map();
+              for (const issue of issues) {
+                const parent = await getParent(issue.number);
+                if (!parent) continue;
+                if (!byParent.has(parent.number)) byParent.set(parent.number, { url: parent.html_url, children: [] });
+                byParent.get(parent.number).children.push(issue.number);
+              }
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
+              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
+              if (byParent.size === 0) {
+                // The pull request no longer closes an issue that has a parent: an earlier EPIC claim is withdrawn.
+                if (existing) await github.rest.issues.deleteComment({ owner, repo, comment_id: existing.id });
+                return;
+              }
+              const lines = [...byParent.entries()].sort((a, b) => a[0] - b[0])
+                .map(([n, p]) => '- EPIC [#' + n + '](' + p.url + '): closes ' + p.children.sort((a, b) => a - b).map(c => '#' + c).join(', '));
+              const body = MARKER + '\nThis pull request closes issues that belong to an EPIC:\n\n' + lines.join('\n');
+              if (!existing) await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+              else if (existing.body !== body) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            }
+
+            // Fills the milestone and the area labels the pull request lacks from the issues it closes, then shows the EPIC.
+            async function handlePr(number) {
+              const { data: pr } = await github.rest.issues.get({ owner, repo, issue_number: number });
+              if (pr.state !== 'open') return;
+              const issues = await closedIssues(number);
+              if (issues === null) return; // more than 50 references: nothing is decided
+              if (issues.length === 0) {
+                core.info('#' + number + ' closes no issue of this repository: nothing to inherit.');
+                await upsertEpicComment(number, []); // withdraws an earlier EPIC comment
+                return;
+              }
+              if (!pr.milestone) {
+                // The milestone is set only when every closed issue has the same one; otherwise it is skipped and logged.
+                const milestones = new Set(issues.map(i => (i.milestone ? i.milestone.number : 0)));
+                if (milestones.size === 1 && !milestones.has(0)) {
+                  await github.rest.issues.update({ owner, repo, issue_number: number, milestone: [...milestones][0] });
+                } else {
+                  core.info('#' + number + ': the closed issues do not share one milestone; the milestone is not set.');
+                }
+              }
+              if (!labelNames(pr).some(n => n.startsWith(AREA_PREFIX))) {
+                const areas = [...new Set(issues.flatMap(i => labelNames(i)).filter(n => n.startsWith(AREA_PREFIX)))];
+                if (areas.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: areas });
+              }
+              await upsertEpicComment(number, issues);
+            }
+
+            await handlePr(prNumber);
+
+  daily:
+    name: Daily repair
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Repair open sub-issues and open pull requests
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const PRIORITY = ['p0-mandatory', 'p1-recommended', 'p2-post-1.0'];
+            const TRIAGE = 'needs-triage';
+            const AREA_PREFIX = 'area-';
+            const MARKER = '<!-- pr-epic -->';
+            const isEpic = (issue) => issue.title.startsWith('[EPIC]');
+            const labelNames = (x) => x.labels.map(l => (typeof l === 'string' ? l : l.name));
+
+            async function getParent(number) {
+              try {
+                const { data } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/parent', { owner, repo, issue_number: number });
+                return data;
+              } catch (e) {
+                if (e.status === 404) return null; // no parent
+                throw e;
+              }
+            }
+
+            // The same rule as inheritFromParent in issue-hygiene.yml; keep the two in step.
+            // Events caused by the default token start no workflow, so this pass keeps needs-triage in step with what the
+            // issue has: removed once it is complete; added (when asked) while it is not. The comment stays with issue-hygiene.
+            async function reconcileTriage(issue, addWhenIncomplete) {
+              const names = labelNames(issue);
+              const complete = issue.milestone && (isEpic(issue) || names.some(n => PRIORITY.includes(n)));
+              if (complete && names.includes(TRIAGE)) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: TRIAGE });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+              } else if (!complete && addWhenIncomplete && !names.includes(TRIAGE)) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: [TRIAGE] });
+              }
+            }
+
+            async function inheritFromParent(issue) {
+              const parent = await getParent(issue.number);
+              // A parent in another repository has its own milestones and labels: nothing is copied from it.
+              if (!parent || !String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) {
+                await reconcileTriage(issue, false);
+                return;
+              }
+              const own = labelNames(issue);
+              const fromParent = labelNames(parent);
+              const add = [];
+              if (!own.some(n => n.startsWith(AREA_PREFIX))) add.push(...fromParent.filter(n => n.startsWith(AREA_PREFIX)));
+              if (!isEpic(issue) && !own.some(n => PRIORITY.includes(n))) {
+                const priority = fromParent.find(n => PRIORITY.includes(n));
+                if (priority) add.push(priority);
+              }
+              const milestone = !issue.milestone && parent.milestone ? parent.milestone.number : null;
+              if (milestone === null && add.length === 0) {
+                await reconcileTriage(issue, true);
+                return;
+              }
+              let failure = null;
+              try {
+                if (milestone !== null) await github.rest.issues.update({ owner, repo, issue_number: issue.number, milestone });
+                if (add.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: add });
+              } catch (e) {
+                failure = e; // a partial repair still gets its triage state reconciled below, then the failure is reported
+              }
+              const { data: updated } = await github.rest.issues.get({ owner, repo, issue_number: issue.number });
+              await reconcileTriage(updated, true);
+              if (failure) throw failure;
+            }
+
+            // GraphQL only where no REST equivalent exists: closingIssuesReferences has none.
+            async function closedIssues(number) {
+              const r = await github.graphql(
+                'query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ pullRequest(number:$number){ closingIssuesReferences(first:50){ pageInfo{ hasNextPage } nodes{ number repository{ nameWithOwner } } } } } }',
+                { owner, repo, number });
+              const refs = r.repository.pullRequest.closingIssuesReferences;
+              // A truncated list could hide a closed issue with another milestone: nothing is decided from it.
+              if (refs.pageInfo.hasNextPage) {
+                core.warning('#' + number + ' closes more than 50 issues; no metadata is written.');
+                return null;
+              }
+              const own = refs.nodes.filter(n => n.repository.nameWithOwner.toLowerCase() === (owner + '/' + repo).toLowerCase());
+              const issues = [];
+              for (const n of own) {
+                const { data } = await github.rest.issues.get({ owner, repo, issue_number: n.number });
+                if (!data.pull_request) issues.push(data);
+              }
+              return issues;
+            }
+
+            async function upsertEpicComment(number, issues) {
+              const byParent = new Map();
+              for (const issue of issues) {
+                const parent = await getParent(issue.number);
+                if (!parent) continue;
+                if (!byParent.has(parent.number)) byParent.set(parent.number, { url: parent.html_url, children: [] });
+                byParent.get(parent.number).children.push(issue.number);
+              }
+              const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number: number, per_page: 100 });
+              const existing = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes(MARKER));
+              if (byParent.size === 0) {
+                // The pull request no longer closes an issue that has a parent: an earlier EPIC claim is withdrawn.
+                if (existing) await github.rest.issues.deleteComment({ owner, repo, comment_id: existing.id });
+                return;
+              }
+              const lines = [...byParent.entries()].sort((a, b) => a[0] - b[0])
+                .map(([n, p]) => '- EPIC [#' + n + '](' + p.url + '): closes ' + p.children.sort((a, b) => a - b).map(c => '#' + c).join(', '));
+              const body = MARKER + '\nThis pull request closes issues that belong to an EPIC:\n\n' + lines.join('\n');
+              if (!existing) await github.rest.issues.createComment({ owner, repo, issue_number: number, body });
+              else if (existing.body !== body) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            }
+
+            // The same rule as handlePr in the pull-request job; keep the two in step.
+            async function handlePr(number) {
+              const { data: pr } = await github.rest.issues.get({ owner, repo, issue_number: number });
+              if (pr.state !== 'open') return;
+              const issues = await closedIssues(number);
+              if (issues === null) return; // more than 50 references: nothing is decided
+              if (issues.length === 0) {
+                await upsertEpicComment(number, []); // withdraws an earlier EPIC comment
+                return;
+              }
+              if (!pr.milestone) {
+                const milestones = new Set(issues.map(i => (i.milestone ? i.milestone.number : 0)));
+                if (milestones.size === 1 && !milestones.has(0)) {
+                  await github.rest.issues.update({ owner, repo, issue_number: number, milestone: [...milestones][0] });
+                } else {
+                  core.info('#' + number + ': the closed issues do not share one milestone; the milestone is not set.');
+                }
+              }
+              if (!labelNames(pr).some(n => n.startsWith(AREA_PREFIX))) {
+                const areas = [...new Set(issues.flatMap(i => labelNames(i)).filter(n => n.startsWith(AREA_PREFIX)))];
+                if (areas.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: areas });
+              }
+              await upsertEpicComment(number, issues);
+            }
+
+            // One failure never stops the pass: it is collected, the rest goes on, and the job fails at the end.
+            const failures = [];
+            const attempt = async (what, fn) => {
+              try {
+                await fn();
+              } catch (e) {
+                failures.push(what + ': ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+              }
+            };
+
+            let prs = [];
+            await attempt('listing the open pull requests', async () => {
+              prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            });
+            for (const pr of prs) await attempt('pull request #' + pr.number, () => handlePr(pr.number));
+
+            let open = [];
+            await attempt('listing the open issues', async () => {
+              open = (await github.paginate(github.rest.issues.listForRepo, { owner, repo, state: 'open', per_page: 100 }))
+                .filter(i => !i.pull_request);
+            });
+            // Only an issue that lacks a milestone, an area label or (unless it is an EPIC) a priority label can inherit
+            // anything: the others skip the /parent call, which keeps the pass far below the token's hourly REST quota.
+            const canInherit = (i) => !i.milestone || !labelNames(i).some(n => n.startsWith(AREA_PREFIX)) ||
+              (!isEpic(i) && !labelNames(i).some(n => PRIORITY.includes(n)));
+            for (const issue of open.filter(canInherit)) await attempt('issue #' + issue.number, () => inheritFromParent(issue));
+            // A complete issue that still carries needs-triage (an earlier cleanup failed) is cleaned up without a /parent call.
+            for (const issue of open.filter(i => !canInherit(i) && labelNames(i).includes(TRIAGE))) {
+              await attempt('issue #' + issue.number, () => reconcileTriage(issue, false));
+            }
+
+            core.info('Checked ' + prs.length + ' open pull request(s) and ' + open.length + ' open issue(s).');
+            if (failures.length > 0) core.setFailed(failures.length + ' item(s) failed:\n' + failures.join('\n'));
