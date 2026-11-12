@@ -1,7 +1,9 @@
+using Encina.Diagnostics;
 using Encina.Security.Secrets.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.Security.Secrets.Configuration;
 
@@ -26,24 +28,40 @@ namespace Encina.Security.Secrets.Configuration;
 /// </para>
 /// <para>
 /// <b>Reload support:</b> When <see cref="SecretsConfigurationOptions.ReloadInterval"/> is set,
-/// a <see cref="Timer"/> periodically calls <see cref="Load"/> to refresh secrets.
+/// a timer created through the injected <see cref="TimeProvider"/> periodically calls <see cref="Load"/>
+/// to refresh secrets. A failed reload never escapes the timer callback: it is logged (exception type
+/// and stack trace, never its message), the previously loaded data is kept and the timer keeps running.
 /// </para>
 /// </remarks>
 internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDisposable
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly SecretsConfigurationOptions _options;
-    private Timer? _reloadTimer;
+    private readonly TimeProvider _timeProvider;
+    private readonly ILogger _reloadLogger;
+    private ITimer? _reloadTimer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SecretsConfigurationProvider"/> class.
     /// </summary>
     /// <param name="serviceProvider">The service provider used to resolve <see cref="ISecretReader"/>.</param>
     /// <param name="options">The configuration options.</param>
-    public SecretsConfigurationProvider(IServiceProvider serviceProvider, SecretsConfigurationOptions options)
+    /// <param name="timeProvider">
+    /// The time provider that drives the reload timer. Pass <c>null</c> to use <see cref="TimeProvider.System"/>.
+    /// </param>
+    public SecretsConfigurationProvider(
+        IServiceProvider serviceProvider,
+        SecretsConfigurationOptions options,
+        TimeProvider? timeProvider = null)
     {
         _serviceProvider = serviceProvider;
         _options = options;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+
+        // Resolved once here, so logging a failed reload does not depend on a service provider that
+        // may already be disposed when the timer fires.
+        _reloadLogger = (ILogger?)serviceProvider.GetService<ILoggerFactory>()?.CreateLogger<SecretsConfigurationProvider>()
+            ?? NullLogger.Instance;
     }
 
     /// <summary>
@@ -127,15 +145,29 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
         if (_options.ReloadInterval is not null)
         {
             _reloadTimer?.Dispose();
-            _reloadTimer = new Timer(
-                _ =>
-                {
-                    Load();
-                    OnReload();
-                },
+            _reloadTimer = _timeProvider.CreateTimer(
+                _ => ReloadFromTimer(),
                 state: null,
                 dueTime: _options.ReloadInterval.Value,
                 period: _options.ReloadInterval.Value);
+        }
+    }
+
+    /// <summary>
+    /// The reload timer callback. It never throws: an exception escaping a timer callback on the system
+    /// clock terminates the process. A failed <see cref="Load"/> leaves <see cref="ConfigurationProvider.Data"/>
+    /// unchanged, and the timer keeps running so the next interval retries.
+    /// </summary>
+    private void ReloadFromTimer()
+    {
+        try
+        {
+            Load();
+            OnReload();
+        }
+        catch (Exception ex)
+        {
+            Log.ConfigurationReloadFailed(_reloadLogger, ex.ForLogging());
         }
     }
 
