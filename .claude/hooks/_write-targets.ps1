@@ -1160,8 +1160,9 @@ function Get-ShellWrites {
             $current = if ($null -eq $target) { if ($Bash -and $name -eq 'cd') { Get-HomeDirectory } else { $current } }
             elseif ($target.Value -eq '-' -or $target.Value -match '[*?\[]') { $null }
             else { Resolve-TargetPath $target $current $Bash }
-            # A directory that does not exist (yet) may leave the shell where it was: the computed base still
-            # judges writes (the stricter reading), but a launched script is analysed with an unknown base.
+            # A directory that does not exist (yet) may leave the shell where it was. Only a launched script becomes
+            # stricter: it is analysed with an unknown base. A direct write after an unsure base is still judged
+            # with the computed base (the real shell may be elsewhere): a known gap, tracked as a follow-up.
             $baseUnsure = $baseUnsure -or ($null -ne $current -and -not (Test-Path -LiteralPath $current -PathType Container -ErrorAction SilentlyContinue))
             continue
         }
