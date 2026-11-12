@@ -3,7 +3,7 @@
 > **Issue**: [#635](https://github.com/dlrivada/Encina/issues/635) (`area-cdc`, `priority-low`, `p1-recommended`)
 > **Type**: Feature
 > **Complexity**: High (a CDC handler, a retention engine decision, a purge executor on the 10 providers, a follow-up for crypto-shredding)
-> **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,500-3,200 lines of tests (about 137 files and up to about 9,350 line-changes in total with manifests, PublicAPI and documentation), delivered in 14 pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,500-3,200 lines of tests (about 156 files and up to about 10,000 line-changes in total with manifests, PublicAPI and documentation), delivered in 19 pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family (#633, #634, #636, #2393)**: independent of #633 and #2393. #634 and #636 add other CDC handlers through the same `CdcConfiguration` seam; #636 also decides how a CDC consumer excludes infrastructure tables. Sibling plans are referred to by issue number only.
 
 ---
@@ -32,22 +32,23 @@ When a soft delete is captured by CDC, the permanent (hard) delete of the row is
 
   | PR | Content (phase) | Files | Lines (est.) | Depends on |
   |----|-----------------|-------|--------------|------------|
-  | 1 | `ISoftDeletePurger`, its result and item types in `Encina.DomainModeling`, a contract test base, PublicAPI, manifest (Phase 4 task 1) | 5 | ~250 | none |
-  | 2 | Policy, builder, options, validator, error codes (with categories), PublicAPI, unit and guard tests, manifest (Phase 1) | 10 | ~600 | 1 |
-  | 3 | `ISoftDeleteRetentionTracker`, `SoftDeleteObservation`, `SoftDeleteRetentionCdcHandler<TEntity>`, `SoftDeleteRetentionLog` (4870-4875), allocation-test edit, unit and guard tests, manifest (Phase 2) | 9 | ~600 | 1, 2 |
-  | 4 | Purgers ADO.NET + Dapper for SQL Server (2 purgers, 2 DI edits, 2 PublicAPI, 2 manifests, 2 unit, 2 guard, 2 integration) (Phase 4) | 14 | ~900 | 1 |
-  | 5 | Same for PostgreSQL | 14 | ~900 | 1 |
-  | 6 | Same for MySQL | 14 | ~900 | 1 |
-  | 7 | EF Core purger (3 integration classes, one per database) and MongoDB purger: 2 purgers, 2 DI edits, 2 PublicAPI, 2 manifests, 2 unit, 2 guard, 4 integration (Phase 5) | 14 | ~900 | 1 |
-  | 8 | Bridge package: project file, Retention adapter (`RetentionModuleSoftDeleteTracker`), `SoftDeleteRetentionEraser` composite, README, PublicAPI, manifest, unit tests, DI order proof (both registration orders, application eraser kept) (Phase 3 tasks 1-2) | 12 | ~800 | 3 |
-  | 9 | `SoftDeleteRetentionSweepService` + unit and guard tests + manifest (Phase 3 task 3) | 7 | ~450 | 7, 8 |
-  | 10 | `WithSoftDeleteRetention`, registration method, startup validator, DI proof, PublicAPI, manifest (Phase 6) | 8 | ~500 | 8, 9 |
-  | 11 | Metrics, activity source, audit entry, OpenTelemetry subscription, unit and guard tests, manifest (Phase 7) | 8 | ~500 | 10 |
-  | 12 | End-to-end integration tests on the 9 relational providers (shared base + 9 classes) (Phase 8 task 5) | 10 | ~1,100 | 4-7, 10 |
-  | 13 | End-to-end MongoDB and Retention-module-on-Marten integration tests, load and benchmark justification `.md` files (Phase 8) | 5 | ~500 | 12 |
-  | 14 | Changelog fragment, bridge README, `Encina.Cdc` README, `docs/features/cdc.md`, Retention page, `docs/INVENTORY.md`, ADR (Phase 9) | 7 | ~450 | 13 |
+  | 1 | `ISoftDeletePurger`, its result type, its item type, a contract test base, PublicAPI, manifest in `Encina.DomainModeling` (Phase 4 task 1) | 6 | ~250 | none |
+  | 2 | The bridge project, created here because it is the first PR that adds files to it (project file, `Encina.slnx` entry, `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`, manifest), then policy, builder, options, validator, error codes (with categories), unit and guard tests (Phase 1) | 13 | ~700 | 1 |
+  | 3 | `ISoftDeleteRetentionTracker`, `SoftDeleteObservation`, `SoftDeleteRetentionCdcHandler<TEntity>`, `SoftDeleteRetentionLog` (4870-4875), the `AssemblyRanges` entry that maps the bridge assembly to the `Cdc` range in `EncinaEventIdAllocationTests` (checked and run here, where the first log class appears), PublicAPI edit, handler unit, guard and log tests, manifest (Phase 2) | 9 | ~600 | 2 |
+  | 4-6 | Purgers ADO.NET for SQL Server (PR 4), PostgreSQL (PR 5), MySQL (PR 6): purger, DI extension, PublicAPI, manifest, unit test, guard test, integration test, contract class of the 10-row matrix (Phase 4) | 8 each | ~450 each | 1 |
+  | 7-9 | Purgers Dapper for SQL Server (PR 7), PostgreSQL (PR 8), MySQL (PR 9), same eight files each (Phase 4) | 8 each | ~450 each | 1 |
+  | 10 | EF Core purger: purger, DI extension, PublicAPI, manifest, unit, guard, 3 integration classes and 3 contract classes (one per database) (Phase 5) | 12 | ~700 | 1 |
+  | 11 | MongoDB purger: purger, DI extension, PublicAPI, manifest, unit, guard, integration, contract class (Phase 5) | 8 | ~450 | 1 |
+  | 12 | Module change in `Encina.Compliance.Retention`, only if the maintainer's answers to Design Choices 5 and 11 need it (a distinct restored outcome, an expiry-based overload): `RetentionEnforcementService`, the eraser result type, PublicAPI, manifest, 2 unit tests, 1 guard test | 7 | ~400 | none |
+  | 13 | `RetentionModuleSoftDeleteTracker`, `SoftDeleteRetentionEraser` composite, PublicAPI, manifest, 2 unit tests, guard test, DI order proof (both registration orders, application eraser kept) (Phase 3 tasks 1-2) | 8 | ~700 | 3, 12 |
+  | 14 | `SoftDeleteRetentionSweepService` + unit and guard tests + manifest (Phase 3 task 3) | 7 | ~450 | 4-11, 13 |
+  | 15 | `WithSoftDeleteRetention`, registration method, startup validator, DI proof, PublicAPI, manifest (Phase 6) | 8 | ~500 | 13, 14 |
+  | 16 | Metrics, activity source, audit entry, OpenTelemetry subscription, unit and guard tests, manifest (Phase 7) | 8 | ~500 | 15 |
+  | 17 | End-to-end integration tests on the 9 relational providers (shared base + 9 classes) (Phase 8 task 5) | 10 | ~1,100 | 4-10, 15 |
+  | 18 | End-to-end MongoDB and Retention-module-on-Marten integration tests, load and benchmark justification `.md` files (Phase 8) | 5 | ~500 | 17 |
+  | 19 | Changelog fragment, bridge README, `Encina.Cdc` README, `docs/features/cdc.md`, Retention page, `docs/INVENTORY.md`, ADR (Phase 9) | 7 | ~450 | 18 |
 
-  Total: 14 PRs, 137 files, up to about 9,350 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 4-7 are independent of each other after PR 1; PR 2 and PR 1 are independent.
+  Total: 19 PRs, 156 files, up to about 10,000 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 4-11 are independent of each other after PR 1. PR 12 is skipped if the answers to Design Choices 5 and 11 need no module change (then 18 PRs and 149 files).
 
 ---
 
@@ -152,7 +153,7 @@ Keeping the full image in another store until the purge defeats data minimisatio
 
 ### Rationale
 
-Options A and B both satisfy idempotency (AGENTS.md section 6 function 9) and "a `Left` fails the operation" (section 3), so the cited rules do not choose between them; C fails the issue's "restore before expiry cancels the effect" and the GDPR Article 5(2) accountability record, and is excluded. Restore (`RestoreAsync`) clears `IsDeleted`; checking it at the moment of the irreversible action is the safe place, and A keeps the engine unchanged apart from the outcome. Whether the outcome is a new return value or a module cancel operation is for the maintainer; either way the plan's PR 8 carries the module change if needed.
+Options A and B both satisfy idempotency (AGENTS.md section 6 function 9) and "a `Left` fails the operation" (section 3), so the cited rules do not choose between them; C fails the issue's "restore before expiry cancels the effect" and the GDPR Article 5(2) accountability record, and is excluded. Restore (`RestoreAsync`) clears `IsDeleted`; checking it at the moment of the irreversible action is the safe place, and A keeps the engine unchanged apart from the outcome. Whether the outcome is a new return value or a module cancel operation is for the maintainer; either way the plan's PR 12 carries the module change if needed.
 
 **Class:** Dilemma
 
@@ -186,7 +187,7 @@ Provider-dependent behavior must exist on all 10 providers with the same contrac
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The purger takes the tenant and filters on it; the eraser denies (returns a `Left` and logs once) when the entity is tenant-scoped and `TenantId` is missing; the tracker deduplicates comparing the tenant; the policy supplies an optional `TenantIdSelector`, required by the validator for tenant-scoped entities** | Cannot delete another tenant's row; matches the eraser contract of the Retention module | One more selector in the policy |
+| **A) The purger takes the tenant and filters on it; the eraser denies (returns a `Left` and logs once) when the entity is tenant-scoped and `TenantId` is missing; the tracker deduplicates comparing the tenant; the policy supplies an optional `TenantIdSelector`. The validator learns that an entity is tenant-scoped from an explicit declaration on the policy builder (`WithTenant(selector)` or `NotTenantScoped()`), cross-checked against the registered tenancy mappings: when an `ITenantEntityMapping<TEntity, TId>` exists for the entity (ADO.NET and Dapper tenancy folders) or the EF Core or MongoDB tenancy configuration lists it, and the policy declares neither, startup fails (fail closed)** | Cannot delete another tenant's row; matches the eraser contract of the Retention module | One more selector in the policy |
 | **B) Purge by id alone (the earlier draft)** | Simplest | In a multi-tenant table whose keys are unique per tenant only, it can delete another tenant's row; fails open |
 
 ### Chosen Option: **A — tenant-scoped purge, deny when the tenant is missing**
@@ -207,7 +208,7 @@ Provider-dependent behavior must exist on all 10 providers with the same contrac
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A bridge package, recommended name `Encina.Cdc.SoftDeleteRetention`, referencing `Encina.Cdc`, `Encina.DomainModeling` and `Encina.Compliance.Retention`** | `Encina.Cdc` keeps its dependencies (`Encina`, `Encina.Caching`, `Encina.Messaging`); pay-for-what-you-use; the Marten dependency of the Retention module stays with those who use it | A new package with its own README, manifest and PublicAPI; its log class needs the `Cdc` range mapped to a second assembly in `EncinaEventIdAllocationTests` (to verify in PR 8: the batch registry notes that an assembly can map to more than one range) |
+| **A) A bridge package, recommended name `Encina.Cdc.SoftDeleteRetention`, referencing `Encina.Cdc`, `Encina.DomainModeling` and `Encina.Compliance.Retention`** | `Encina.Cdc` keeps its dependencies (`Encina`, `Encina.Caching`, `Encina.Messaging`); pay-for-what-you-use; the Marten dependency of the Retention module stays with those who use it | A new package with its own README, manifest and PublicAPI; its log class needs the `Cdc` range mapped to a second assembly in `EncinaEventIdAllocationTests` (checked in PR 3, where the first log class appears: the batch registry notes that an assembly can map to more than one range) |
 | **B) Inside `Encina.Compliance.Retention`, referencing `Encina.Cdc`** | No new package | The Retention module would depend on CDC |
 | **C) Inside `Encina.Cdc` (the earlier draft)** | No new package | Every CDC user depends on `Encina.Compliance.Retention` and through it on `Encina.Marten`; `where TEntity : ISoftDeletable` also adds `Encina.DomainModeling` |
 
@@ -215,7 +216,7 @@ Provider-dependent behavior must exist on all 10 providers with the same contrac
 
 ### Rationale
 
-C breaks pay-for-what-you-use (AGENTS.md section 1) for every CDC user and is excluded; A and B both comply, so the choice between them is the maintainer's. The eraser must be a composite: enforcement resolves a single `IRetentionDataEraser` through `GetService` (`RetentionEnforcementService.cs:137`), so the Encina eraser wraps the application's eraser for the categories it does not own, in either registration order, without overriding it (AGENTS.md section 3, registration completeness); PR 8 proves both orders with a DI test using `ValidateOnBuild` and `ValidateScopes`.
+C breaks pay-for-what-you-use (AGENTS.md section 1) for every CDC user and is excluded; A and B both comply, so the choice between them is the maintainer's. The eraser must be a composite: enforcement resolves a single `IRetentionDataEraser` through `GetService` (`RetentionEnforcementService.cs:137`), so the Encina eraser wraps the application's eraser for the categories it does not own, in either registration order, without overriding it (AGENTS.md section 3, registration completeness); PR 13 proves both orders with a DI test using `ValidateOnBuild` and `ValidateScopes`.
 
 **Class:** Dilemma
 
@@ -228,15 +229,16 @@ C breaks pay-for-what-you-use (AGENTS.md section 1) for every CDC user and is ex
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Fall back to the change timestamp (`ChangeContext.Metadata.CapturedAtUtc`) for the handler; the sweep uses the date returned by `EnumerateDeletedAsync` and, when that is also null, tracks with the sweep time from `TimeProvider`** | The period starts at the latest moment the deletion was provably known; no clock read in the handler | The period can start later than the real deletion |
-| **B) `TimeProvider` now at handling time** | Simple | Depends on processing delay (a replay after an outage shifts every date) |
-| **C) Return a `Left` and do not track** | Never guesses | An entity without a `DeletedAtUtc` value is never purged, which is a silent storage-limitation gap |
+| **A) Fall back to `ChangeContext.Metadata.CapturedAtUtc` in the handler; the sweep uses the date returned by `EnumerateDeletedAsync` and, when that is also null, the sweep time from `TimeProvider`** | No new clock read in the handler (the value is already on the event); one rule for the handler | `CapturedAtUtc` is not the source commit time: every connector sets it from `_timeProvider.GetUtcNow()` at read time (`SqlServerCdcConnector.cs:259-261`, `PostgresCdcConnector.cs:177-179`, `MySqlCdcConnector.cs:184-186`, `MongoCdcConnector.cs:237-239`, `DebeziumEventMapper.cs:148-150`), so after an outage or a replay the period starts at the replay time and the real deletion date is lost |
+| **B) `TimeProvider` now at handling time** | Simple; same drift as A (the processing clock) with no event dependency | Same drift after a replay; equal in effect to A, only the clock read moves into the handler |
+| **C) Use the source commit timestamp, which needs each connector to carry it on `ChangeMetadata` (a connector change in the five connector packages)** | The period starts at the true deletion; no drift on replay | A change in five connectors and the metadata contract, outside this plan's files; where the source offers no commit time the fallback to A still applies |
+| **D) Return a `Left` and do not track** | Never guesses | An entity without a `DeletedAtUtc` value is never purged, which is a silent storage-limitation gap |
 
-### Chosen Option: **A — change timestamp, then sweep time** (recommended, pending the maintainer)
+### Chosen Option: **A — processing-time fallback, then sweep time** (recommended, pending the maintainer)
 
 ### Rationale
 
-`ISoftDeletable.DeletedAtUtc` is `DateTime?`, and the ADO.NET and Dapper mapping has `DeletedAtColumnName` as `string?`, so a soft-deletable entity may not have the column at all. A `DateTime` of `Kind.Unspecified` after deserialization is treated as UTC (decision T3). `EnumerateDeletedAsync` therefore returns items with the identifier, the tenant and a nullable `DeletedAtUtc`, not bare ids.
+A and B are equivalent in effect (both use the processing clock), so the real trade-off is between accepting processing-time drift (A, B), paying for a connector change to remove it (C), or never purging such rows (D). A is recommended because it needs no connector change and drifts toward keeping data longer, which is visible and fixable, whereas an early purge is irreversible. `ISoftDeletable.DeletedAtUtc` is `DateTime?`, and the ADO.NET and Dapper mapping has `DeletedAtColumnName` as `string?`, so a soft-deletable entity may not have the column at all. A `DateTime` of `Kind.Unspecified` after deserialization is treated as UTC (decision T3). `EnumerateDeletedAsync` therefore returns items with the identifier, the tenant and a nullable `DeletedAtUtc`, not bare ids.
 
 **Class:** Dilemma
 
@@ -290,7 +292,7 @@ A needs no module change and is correct for erasure timing; the cost is an audit
 | T1 | Purgers and the tracker are registered scoped (`TryAddScoped`), never singleton | Trivial | `IDbConnection` is scoped (`Encina.ADO.SqlServer/ServiceCollectionExtensions.cs:299`) and `SoftDeletePurgerEF<TDbContext>` needs a scoped `DbContext`; a singleton would fail `ValidateScopes` |
 | T2 | Policy table name: the policy builder takes the table (`ForTable`), required; `WithSoftDeleteRetention` adds the `TableMapping` from it (`AddPolicy<TEntity, TId>` carries no table). The startup report of soft-deletable entities without a policy reads the registered `ISoftDeleteEntityMapping` implementations (ADO.NET, Dapper), the `ISoftDeletable` entity types of the EF Core model and the soft-deletable Mongo repositories; best effort per provider, a log and no failure | Trivial | Report only; reversible |
 | T3 | A `DateTime` with `Kind.Unspecified` read from CDC or the database is treated as UTC (`DateTime.SpecifyKind`) | Trivial | The `AtUtc` suffix convention (AGENTS.md section 4) |
-| T4 | SQL identifiers come from `ISoftDeleteEntityMapping` only and are quoted per database (`[x]`, `"x"`, backticks) and validated against an identifier pattern; they never come from user input | Trivial | The existing builders quote without escaping (`SoftDeleteSpecificationSqlBuilder.cs:136`), so validation is added |
+| T4 | SQL identifiers come from `ISoftDeleteEntityMapping` only and are quoted per database (`[x]`, `"x"`, backticks) and validated with the existing `SqlIdentifierValidator`, which the specification builder already uses for the table name (`SoftDeleteSpecificationSqlBuilder.cs:135`); the purger reuses it for the columns too, which the builder only quotes without escaping (`:136`), and adds no new pattern; identifiers never come from user input | Trivial | The existing builders quote without escaping (`SoftDeleteSpecificationSqlBuilder.cs:136`), so validation is added |
 | T5 | The eraser logs a restored row at Information, once per record | Trivial | Operational detail |
 | T6 | Error codes `soft_delete_tracking_failed`, `policy_missing`, `purge_failed`, `restored` each declare their category through the error category contract of #3419 (configuration lookups are Internal); a `GetCategory` test covers them. The plan cites that contract, not an ADR number | Trivial | Convention of the error code classes |
 | T7 | Surrogate keys: the entity id is copied into immutable Marten retention events and stays after the purge; the docs state that soft-delete retention requires surrogate keys (a natural personal identifier such as an email or a national id must not be the key). A keyed hash of the id is a possible later option | Trivial | GDPR Article 5(1)(c); documented consequence |
@@ -308,7 +310,7 @@ A needs no module change and is correct for erasure timing; the cost is an audit
 <summary><strong>Tasks</strong></summary>
 
 1. `SoftDeleteRetentionPolicy.cs` (in the package chosen by Design Choice 8; recommended `Encina.Cdc.SoftDeleteRetention`): `EntityType`, `TableName` (decision T2), `DataCategory` (default entity type name), `RetentionPeriod`, `EntityIdSelector` (`Func<object, string>`), optional `TenantIdSelector` (Design Choice 7); `CryptoShredOnExpiry` is not added.
-2. `SoftDeleteRetentionOptions`: `AddPolicy<TEntity, TId>(Func<TEntity, TId> idSelector, Action<SoftDeleteRetentionPolicyBuilder> configure)` (the builder has `ForTable`, `RetainFor`, `WithTenant`), `SweepInterval` (24 hours), `EnableSweep` (true); no default period (Design Choice 3).
+2. `SoftDeleteRetentionOptions`: `AddPolicy<TEntity, TId>(Func<TEntity, TId> idSelector, Action<SoftDeleteRetentionPolicyBuilder> configure)` (the builder has `ForTable`, `RetainFor`, `WithTenant`, `NotTenantScoped`), `SweepInterval` (24 hours), `EnableSweep` (true); no default period (Design Choice 3).
 3. `IValidateOptions` rejecting non-positive periods, policies with no id selector or no table, and tenant-scoped entities with no tenant selector; a startup report (log, no failure) of soft-deletable entities with no policy, sourced as in decision T2; under Design Choice 1 option A and Design Choice 10, a missing `IOperationAuditStore` fails startup.
 4. `SoftDeleteRetentionErrors` (`encina.cdc.soft_delete_tracking_failed`, `...policy_missing`, `...purge_failed`, `...restored`), each with its category from the error category contract of #3419 (decision T6) and a `GetCategory` test.
 
@@ -599,7 +601,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, doc
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Cdc` (existing range 4800-4899) | 4870-4875 | `SoftDeleteRetentionLog`: six messages, packed sequentially (the phase lists them); 4876-4879 are not claimed. The CDC family block in the batch registry is 4854-4891: 4854-4859 belong to #2393, 4860-4863 to #634, 4880-4885 to #636. If Design Choice 8 picks the bridge package, the allocation test maps that assembly to the `Cdc` range as well (to verify in PR 8) |
+| `Encina.Cdc` (existing range 4800-4899) | 4870-4875 | `SoftDeleteRetentionLog`: six messages, packed sequentially (the phase lists them); 4876-4879 are not claimed. The CDC family block in the batch registry is 4854-4891: 4854-4859 belong to #2393, 4860-4863 to #634, 4880-4885 to #636. If Design Choice 8 picks the bridge package, the allocation test maps that assembly to the `Cdc` range as well (checked in PR 3) |
 
 ### Per-file coverage targets (AGENTS.md section 9)
 
@@ -621,7 +623,7 @@ CRAP stays at or below 10 on every changed method: the handler update path is on
 
 ### Estimated File Count
 
-The per-PR counts are in "Split into pull requests" (137 files); this table groups the same files.
+The per-PR counts are in "Split into pull requests" (156 files); this table groups the same files.
 
 | Category | Files | Notes |
 |----------|-------|-------|
@@ -647,7 +649,7 @@ IMPLEMENTATION OVERVIEW: Phase 1 adds SoftDeleteRetentionPolicy and options (no 
 SoftDeleteRetentionCdcHandler<TEntity> and ISoftDeleteRetentionTracker. Phase 3 adds the engine adapter (the Retention
 module by default), the eraser that re-reads the row, and the daily sweep. Phases 4-5 add ISoftDeletePurger on the 10
 providers. Phase 6 adds WithSoftDeleteRetention and validation. Phase 7 adds metrics, spans, logs (EventIds
-4870-4875) and the audit entry. Phase 8 tests, Phase 9 documents. Deliver as the 14 pull requests of the Summary
+4870-4875) and the audit entry. Phase 8 tests, Phase 9 documents. Deliver as the 19 pull requests of the Summary
 after the CDC prerequisites land.
 
 KEY PATTERNS: identifiers only reach the retention engine; a Left is never swallowed; legal holds are honored; the
