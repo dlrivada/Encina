@@ -2,7 +2,7 @@
 
 > **Issue**: [#1246](https://github.com/dlrivada/Encina/issues/1246) (SPEC-002 REQ-053, AC-039, scenarios S9 and S10, tracking id P-44, priority P0; part of #1186)
 > **Type**: Feature
-> **Complexity**: Medium (one reader over the existing secret providers, a file source, a cache with rotation, a health check; 3 pull requests)
+> **Complexity**: Medium (one reader over the existing secret providers, a file source, a cache with rotation, a health check; 5 pull requests)
 > **Estimated Scope**: ~900-1,300 lines of production code + ~1,800-2,400 lines of tests
 
 ---
@@ -18,15 +18,16 @@ Add `ICertificateReader` to `Encina.Security.Secrets`: `GetCertificateAsync(name
 3. **The default chain would cache the private key in a shared cache.** `AddEncinaSecrets` wraps the reader in resilience (innermost), `CachingSecretReaderDecorator` and auditing (outermost) (`src/Encina.Security.Secrets/ServiceCollectionExtensions.cs`, `WrapWithDecorators`). `SecretsOptions.EnableCaching` defaults to `true`, and the caching decorator stores values through `ICacheProvider.GetOrSetAsync` (`Caching/CachingSecretReaderDecorator.cs`), which can be Redis or another distributed provider. A certificate read through the default reader would put private key text into that cache (Design Choice 2).
 4. **Rotation and expiry exist for secrets, not certificates.** `SecretRotationCoordinator` and `ISecretRotationHandler` rotate secrets written through Encina; `SecretsHealthCheck` (`DefaultName = "encina-secrets"`, tags `["encina","secrets","ready"]`) probes one secret and goes `Degraded` on failure or an open circuit breaker. Nothing reads a certificate's `NotAfter`.
 5. **Auditing exists.** `AuditedSecretReaderDecorator` records secret reads through `IOperationAuditStore` (resolved per write from a scope factory, `SecretAuditRecorder`); #1163 (an unregistered `IRequestContext`) is closed, so the recorder works.
-6. **Tenancy.** `ITenantProvider.GetCurrentTenantId()` returns null without context; `MultiTenancyMarker` signals that tenancy is on (`src/Encina/Abstractions/MultiTenancyMarker.cs`).
+6. **Tenancy.** `Encina.Security.Secrets.csproj` references `Encina`, `Encina.Caching` and `Encina.Security.Audit` only, so `ITenantProvider` and `ITenantStore` (`Encina.Tenancy`) are not reachable from it. The core package has what the fail-closed pattern needs: `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`; `IRequestContext.TenantId`) and `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`), the pair `DeadLetterManager` uses (choice 7).
 7. **EventIds.** `SecuritySecrets` (5100-5199) uses 5100-5150; certificates take 5151-5170 (51 IDs counted in the files of the package today).
+8. **Secret name rules differ per provider.** Azure Key Vault secret names allow letters, digits and hyphens and are case-insensitive; AWS Secrets Manager, Vault and Google names are case-sensitive. A tenant-qualified name must therefore be unambiguous after lower-casing (choice 4).
 
 ### Scope
 
 - **Affected packages**: `Encina.Security.Secrets` only. The four provider satellites are not modified: the reader works over `ISecretReader` (Design Choice 1).
 - **Provider category**: Cloud/secrets (AWS, Azure, plus the Vault and Google satellites that already exist). The feature adds no provider-specific code, as the issue states.
 - **Out of scope**: certificate issuance; writing certificates; the mTLS client (`Encina.Http`, P-31); native certificate APIs of the providers (Design Choice 1, option B).
-- **Estimated files**: ~15 production files, ~22 test files, ~6 documentation and manifest files. Three pull requests (Phase 9).
+- **Estimated files**: ~15 production files, ~22 test files, ~6 documentation and manifest files. Five pull requests (see "Pull request cut" under Implementation Phases).
 
 ---
 
@@ -71,8 +72,8 @@ Add `ICertificateReader` to `Encina.Security.Secrets`: `GetCertificateAsync(name
 **Class:** Dilemma. Option A wins in any deployment with a distributed `ICacheProvider`, the common case. Option B wins only if the team insists on one chain and accepts configuring exclusions. Option C is rejected: the private key would reach a shared cache.
 
 - We recommend A because key material must not be handed to a store the application shares with unrelated data; the in-process cache holds `X509Certificate2` instances only, never the text.
-- The in-process cache keeps `(tenant, name)` to certificate with `RefreshInterval` (default 15 minutes) and replaces an entry only when the thumbprint changes. A replaced certificate is disposed after `DisposeGracePeriod` (default 5 minutes) so that a handshake in flight does not see a disposed key. Callers must not dispose the instance they receive (XML docs).
-- A failed refresh keeps serving the cached certificate until it expires and records the failure (logged by code, health degraded); an expired certificate is never served silently: `Left(secrets.certificate_expired)`.
+- The in-process cache keeps `(tenant, name)` to certificate with `RefreshInterval` and replaces an entry only when the thumbprint changes. A replaced certificate is disposed after `DisposeGracePeriod` so that a handshake in flight does not see a disposed key. Callers must not dispose the instance they receive (XML docs). Defaults are choice 8.
+- What a failed refresh does is choice 6; an expired certificate is never served: `Left(secrets.certificate_expired)`.
 
 </details>
 
@@ -92,29 +93,41 @@ Add `ICertificateReader` to `Encina.Security.Secrets`: `GetCertificateAsync(name
 
 **Class:** Trivial. **Settled by:** the provider implementations (`AwsSecretsManagerProvider.cs:99` and `GoogleCloudSecretManagerProvider.cs:110` return text), the issue body ("returning `X509Certificate2`", file/PFX provider), and .NET 10 guidance (the `X509Certificate2` constructors that load files or bytes are obsolete in favor of `X509CertificateLoader`; AGENTS.md §1, latest C# and .NET 10 APIs).
 
-- Key storage flags (`X509KeyStorageFlags`) default to `DefaultKeySet`; whether `EphemeralKeySet` works for client authentication with `SslStream` on Windows (SChannel) is an open question to verify with the loopback test (Research). The option is exposed so that deployments choose.
+- Key storage flags (`X509KeyStorageFlags`) default to `DefaultKeySet` (choice 8); whether `EphemeralKeySet` works for client authentication with `SslStream` on Windows (SChannel) is an open question to verify with the loopback test (Research). The option is exposed so that deployments choose.
+- The chain is kept: `X509Certificate2.CreateFromPem` loads the leaf only, so the parser reads every further `CERTIFICATE` block of the PEM as an intermediate, and loads a PFX with `X509CertificateLoader.LoadPkcs12Collection` to keep its intermediates. `ICertificateReader.GetCertificateChainAsync(name, ct)` returns them (leaf excluded) so a consumer can build `SslStreamCertificateContext.Create(leaf, intermediates)`.
+- PEM keys are ephemeral on Windows, which SChannel can reject for client authentication; on Windows the parser re-exports a PEM-loaded certificate to PKCS#12 and reloads it with `X509CertificateLoader.LoadPkcs12` and the configured flags. The loopback mTLS test covers the PEM path and the chain on Windows and Linux.
 - The PFX password never lives in options: it is read as a secret named by a convention or by `CertificateOptions.PasswordSecretNameTemplate`; options hold no secret (AGENTS.md §3).
 
 </details>
 
 <details>
-<summary><strong>4. Per-tenant names and fail closed</strong></summary>
+<summary><strong>4. Per-tenant names — the tenant as part of the secret name, without collisions</strong></summary>
+
+The rule itself is settled: under tenancy the certificate resolves per tenant and a missing tenant fails closed (SPEC-002 REQ-061 and AC-043 as restated in #1246, "client certificates resolve per tenant; a missing tenant configuration fails closed"; AGENTS.md §3, gates fail closed). How the tenant becomes part of the stored name is not settled, because more than one encoding satisfies it.
+
+The first draft used `{tenant}--{name}` and only forbade `--` inside each part. That is not collision-free: tenant `a-` with name `b` and tenant `a` with name `-b` both give `a---b`, so tenant `a` could read tenant `a-`'s certificate. Key Vault names are also case-insensitive, so tenants `Clinic` and `clinic` would share a name there.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Secret name from `NameTemplate`: `{tenant}--{name}` when tenancy is on (`MultiTenancyMarker` registered), `{name}` when it is off; no resolvable tenant under tenancy returns `Left(secrets.certificate_tenant_required)`** | No tenant configuration needed with tenancy off (a fixed default); the `--` separator is accepted by Key Vault (letters, digits, hyphen), AWS, Vault and Google; collision-free because tenant ids and names are validated not to contain `--` | The separator is a convention applications must follow when naming secrets |
-| **B) A tenant-to-secret-name dictionary in configuration** | Arbitrary names | Configuration per tenant, which REQ-061 says must not be needed with tenancy off, and which drifts from the stored secrets |
+| **A) `{tenant}--{name}` with strict segments**: both the tenant id and the name must match `^[a-z0-9]+(-[a-z0-9]+)*$` (lower-case letters and digits, single hyphens, no leading, trailing or doubled hyphen), and the full name fits the shortest provider limit (127 characters, Key Vault). A tenant id or name that does not match is `Left(secrets.certificate_invalid_name)`, never rewritten | Readable names an operator can create by hand; the concatenation is injective: neither segment contains `--` or ends or starts with `-`, so the first `--` is always the separator; lower-case only, so no case collision on Key Vault | Tenant ids that use upper case, `_` or other characters cannot use the reader until they are mapped |
+| **B) Encoded tenant segment**: `t{base32(lower-case UTF-8 of the tenant id), lower-case, no padding}--{name}`, with the name under the rule of option A | Any tenant id works; injective by construction | Operators must compute the encoded segment to name a secret; names are opaque in the provider console |
+| **C) A tenant-to-secret-name dictionary in configuration** | Arbitrary names | Configuration per tenant, which REQ-061 says must not be needed with tenancy off, and which drifts from the stored secrets |
 
-### Chosen Option: **A — template with a validated separator, fail closed under tenancy**
+### Chosen Option: **A — strict segments, fail closed on any tenant id or name outside the rule** (recommended, pending the maintainer)
 
 ### Rationale
 
-**Class:** Settled. **Settled by:** SPEC-002 REQ-061 and AC-043 as restated in #1246 ("client certificates resolve per tenant; a missing tenant configuration fails closed"; with tenancy off a fixed default tenant applies and no tenant configuration is needed); AGENTS.md §3 (compliance and security gates fail closed; `MultiTenancyMarker` is the signal used by the dead-letter manager and ABAC audit).
+**Class:** Dilemma. Option A wins when tenant ids are slugs the application controls, which keeps secrets nameable by hand. Option B wins when tenant ids are free-form (upper case, underscores, display names). Option C is eliminated by REQ-061 (no tenant configuration needed with tenancy off).
 
-- The key prefix `SecretsOptions.KeyPrefix` is applied by the underlying reader as today; the template result is the logical name.
-- A tenant's certificate is never served to another tenant: the cache key includes the tenant, and a two-tenant test proves it (AC-043).
+Rules common to every option (settled by REQ-061, AC-043 and AGENTS.md §3):
+
+- Tenancy on (`MultiTenancyMarker` registered): the stored name always carries the tenant segment. A missing tenant is `Left(secrets.certificate_tenant_required)`; there is no fallback to the unqualified `{name}`, which would be a certificate shared by every tenant.
+- Tenancy off: the name is `{name}` (no tenant configuration, the fixed default of REQ-061).
+- The file source keys its entries by the same tenant-qualified logical name, so a file entry without the tenant segment is never served under tenancy.
+- The cache key is `(tenant, name)` and the audit record carries the tenant; `SecretsOptions.KeyPrefix` is applied by the underlying reader as today, after the template.
+- Tests: a property test generates pairs of (tenant, name) that pass validation and asserts that two different pairs never produce the same stored name, compared case-insensitively; a unit test covers `a-`/`b` against `a`/`-b` (both rejected under option A); a two-tenant integration test proves isolation (AC-043).
 
 </details>
 
@@ -132,10 +145,74 @@ Add `ICertificateReader` to `Encina.Security.Secrets`: `GetCertificateAsync(name
 
 ### Rationale
 
-**Class:** Trivial. **Settled by:** the issue body ("caching with rotation on change", "a health check that turns degraded before expiry (configurable window)") and the existing pattern of `SecretsHealthCheck` (`DefaultName`, static `Tags`, `Degraded` results).
+**Class:** Settled. **Settled by:** the issue body ("caching with rotation on change", "a health check that turns degraded before expiry (configurable window)"); option B misses the rotations made outside Encina, so it does not meet "rotation on change". The interval and window values are choice 8.
 
-- Which certificates the health check examines: the names in `CertificateOptions.MonitoredCertificates` (for each tenant returned by `ITenantStore` when tenancy is on). The check reads through the same cache, so it does not add provider calls beyond the refresh.
+- Which certificates the health check examines: the names in `CertificateOptions.MonitoredCertificates`, for each tenant returned by `ICertificateTenantSource` when tenancy is on (choice 7). The check reads through the same cache, so it does not add provider calls beyond the refresh.
 - The gauge `encina.secrets.certificate_days_to_expiry` is tagged by a hash of the certificate name (the issue's `name hash`), never the name or the tenant id alone, to bound cardinality and avoid leaking identifiers.
+- Source fall-through: with several sources (`Secrets`, `File`), only `Left(secrets.not_found)` moves to the next source; any other `Left` is returned. Settled by AGENTS.md §3 (errors are never swallowed): falling through on a provider error would hide it and could serve a different certificate.
+
+</details>
+
+<details>
+<summary><strong>6. A refresh that fails — serve the cached certificate until it expires, or only up to a maximum stale age</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Serve the cached certificate until `NotAfter`**, log the failure by code, count it, health degraded | Highest availability: a provider outage does not stop mTLS calls | A certificate rotated out because its key was compromised keeps being used for as long as the provider is unreachable, possibly months |
+| **B) Serve it at most `MaxStaleAge` after the last successful read** (proposed 24 hours), then `Left(secrets.certificate_stale)`; failures logged, counted, health degraded, then unhealthy | Bounds how long a revoked certificate can be used during an outage; still rides out ordinary outages | After the bound, calls that need the certificate fail until the provider answers |
+
+### Chosen Option: **B — maximum stale age, 24 hours** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option B wins when certificates protect personal data and a compromise must stop being usable in bounded time (fail closed, AGENTS.md §3). Option A wins when availability of the external call matters more than a bound on a revoked certificate.
+
+</details>
+
+<details>
+<summary><strong>7. How the package gets the tenant and the tenant list</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Core abstractions only**: the current tenant from `IRequestContextAccessor` and fail closed under `MultiTenancyMarker`, as `DeadLetterManager` does; the tenant list of the health check from a small `ICertificateTenantSource` in `Encina.Security.Secrets`, with a documented adapter over `ITenantStore` | No new package edge; the same tenant source as messaging and audit | The application registers the adapter to monitor every tenant |
+| **B) `Encina.Security.Secrets` references `Encina.Tenancy`** and uses `ITenantProvider` and `ITenantStore` | Direct | Every secrets user takes the tenancy package |
+
+### Chosen Option: **A — core abstractions with an adapter for the tenant list** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins for a lean dependency graph and single-tenant users. Option B wins when every deployment is multi-tenant.
+
+</details>
+
+<details>
+<summary><strong>8. Defaults</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The values below** | Each has a stated reason; all are options | They are proposals, not derived from a rule |
+| **B) Other values chosen by the maintainer** | Fits a deployment the maintainer knows | Needs a reason recorded per value |
+
+### Chosen Option: **A — the values below** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma (values that no rule fixes).
+
+| Default | Value | Reason |
+|---|---|---|
+| `RefreshInterval` | 15 minutes | A rotated certificate is picked up within a quarter of an hour; one provider read per certificate and host per interval |
+| `DisposeGracePeriod` | 5 minutes, and validated to be at least the consumer's pooled connection lifetime when the consumer declares it (`Encina.Http`, #1233) | A connection opened with the old certificate must not outlive its key handle |
+| `ExpiryWarningWindow` | 30 days | Enough time to renew by hand; Key Vault auto-renewal policies commonly act earlier |
+| `MaxStaleAge` (choice 6) | 24 hours | Rides out ordinary provider outages; bounds the use of a revoked certificate |
+| `KeyStorageFlags` | `DefaultKeySet` | Works for client authentication on Windows and Linux; `EphemeralKeySet` is an open question (Research) |
+| `TenantSeparator` | `--` | Accepted by all four providers; injective under the segment rule of choice 4 |
 
 </details>
 
@@ -143,7 +220,15 @@ Add `ICertificateReader` to `Encina.Security.Secrets`: `GetCertificateAsync(name
 
 ## Implementation Phases
 
-Pull request cut: PR 1 = Phases 1-3 (contract, parser, reader, cache), PR 2 = Phases 4-6 (file source, DI, health), PR 3 = Phases 7-9 (cross-cutting, observability, tests, docs).
+**Pull request cut.** The `WrapWithDecorators` refactor (Phase 7) comes first, because the keyed uncached chain of Phase 3 needs it. Counts include tests, PublicAPI and the manifest; every pull request stays within 15 files and 1,500 changed lines.
+
+| PR | Content | Files | Est. lines |
+|----|---------|-------|-----------|
+| 1 | Phase 7 refactor and Phase 1: `ServiceCollectionExtensions` (`WrapWithDecorators` can omit caching; keyed `"certificates"` chain registration helper), `ICertificateReader`, `ICertificateRotationListener`, `CertificateOptions`, `CertificateNameResolver`, `ICertificateTenantSource`, `SecretsErrors`, PublicAPI; unit tests (chain never calls a recording `ICacheProvider`; resolver), guard test, property test (name injectivity); manifest | 13 | ~1,100 |
+| 2 | Phases 2-3: `CertificateParser` (PEM chain, PFX collection, Windows re-export), `SecretCertificateReader`, `CertificateCache` (stale age of choice 6), `Log.cs` (5151-5160), PublicAPI; unit tests (parser, reader, cache with `FakeTimeProvider`), guard test; manifest | 10 | ~1,300 |
+| 3 | Phases 4-5: `FileCertificateReader`, `FileCertificateOptions`, `CompositeCertificateReader`, `AuditedCertificateReaderDecorator`, `AddEncinaCertificates` in `ServiceCollectionExtensions`, PublicAPI; unit tests (file reader, composite fall-through, audit), DI test (`ValidateOnBuild`, `ValidateScopes`), guard test; manifest | 11 | ~1,200 |
+| 4 | Phases 6 and 8: `CertificateExpiryHealthCheck`, `SecretsMetrics`, `SecretsActivitySource`, `Log.cs` (5161-5170), PublicAPI; unit test (health window), AC-044 exporter test, contract test over the provider-shaped fakes and the file reader; manifest | 9 | ~900 |
+| 5 | Phase 9: `LocalStackFixture` (Secrets Manager client), integration tests (Vault dev server, LocalStack, file source, loopback mTLS with the PEM path and the chain, two tenants), load and benchmark justification files, README, `docs/features/` page, changelog fragment, `ROADMAP.md`, `docs/INVENTORY.md` | 14 | ~1,300 |
 
 ### Phase 1: Abstractions, options and errors
 
@@ -152,12 +237,13 @@ Pull request cut: PR 1 = Phases 1-3 (contract, parser, reader, cache), PR 2 = Ph
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina.Security.Secrets/Abstractions/ICertificateReader.cs`**: `ValueTask<Either<EncinaError, X509Certificate2>> GetCertificateAsync(string name, CancellationToken cancellationToken = default)`; XML docs: shared instance, do not dispose, tenant resolved from context.
+1. **`src/Encina.Security.Secrets/Abstractions/ICertificateReader.cs`**: `ValueTask<Either<EncinaError, X509Certificate2>> GetCertificateAsync(string name, CancellationToken cancellationToken = default)` and `ValueTask<Either<EncinaError, X509Certificate2Collection>> GetCertificateChainAsync(string name, CancellationToken cancellationToken = default)` (intermediates, leaf excluded); XML docs: shared instances, do not dispose, tenant resolved from context.
 2. **`Abstractions/ICertificateRotationListener.cs`**: `ValueTask OnCertificateRotatedAsync(string name, string thumbprint, CancellationToken)`.
-3. **`Certificates/CertificateOptions.cs`**: `NameTemplate`, `TenantSeparator` (default `--`), `RefreshInterval`, `DisposeGracePeriod`, `ExpiryWarningWindow`, `KeyStorageFlags`, `PasswordSecretNameTemplate`, `MonitoredCertificates`, `Sources` ordering; `Validate`.
-4. **`Certificates/CertificateNameResolver.cs`**: builds the logical name from the template and `ITenantProvider`; validates names and tenant ids (no separator inside, length, characters).
-5. **`SecretsErrors.cs`**: codes `secrets.certificate_invalid`, `secrets.certificate_expired`, `secrets.certificate_tenant_required`, `secrets.certificate_password_missing` and factories.
-6. `PublicAPI.Unshipped.txt`.
+3. **`Certificates/CertificateOptions.cs`**: `NameTemplate`, `TenantSeparator` (default `--`), `RefreshInterval`, `DisposeGracePeriod`, `ExpiryWarningWindow`, `MaxStaleAge`, `KeyStorageFlags`, `PasswordSecretNameTemplate`, `MonitoredCertificates`, `Sources` ordering (defaults of choice 8); `Validate`.
+4. **`Certificates/CertificateNameResolver.cs`**: builds the logical name from the template, the tenant of `IRequestContextAccessor` and `MultiTenancyMarker` (choice 7); validates the tenant id and the name against the segment rule of choice 4 (`^[a-z0-9]+(-[a-z0-9]+)*$`, total length at most 127) and never rewrites them; under tenancy a missing tenant is `Left(secrets.certificate_tenant_required)` and there is no fallback to the unqualified name.
+5. **`Abstractions/ICertificateTenantSource.cs`**: the tenant list for the health check (choice 7); no default implementation beyond "no tenants" with tenancy off.
+6. **`SecretsErrors.cs`**: codes `secrets.certificate_invalid`, `secrets.certificate_invalid_name`, `secrets.certificate_expired`, `secrets.certificate_stale`, `secrets.certificate_tenant_required`, `secrets.certificate_password_missing` and factories.
+7. `PublicAPI.Unshipped.txt`.
 
 </details>
 
@@ -169,12 +255,19 @@ You are implementing Phase 1 of issue #1246 in Encina: the certificate reader co
 
 CONTEXT:
 - Package src/Encina.Security.Secrets/. ISecretReader returns ValueTask<Either<EncinaError, string>>; error codes live in SecretsErrors.cs.
-- ITenantProvider (src/Encina.Tenancy/Abstractions/ITenantProvider.cs) and MultiTenancyMarker (src/Encina/Abstractions/MultiTenancyMarker.cs)
-  decide the tenant; tenancy on with no tenant must fail closed.
+- Encina.Security.Secrets does not reference Encina.Tenancy. The tenant comes from IRequestContextAccessor (IRequestContext.TenantId,
+  src/Encina/Abstractions/IRequestContextAccessor.cs) and MultiTenancyMarker (src/Encina/Abstractions/MultiTenancyMarker.cs), as in
+  src/Encina.Messaging/DeadLetter/DeadLetterManager.cs; tenancy on with no tenant must fail closed. Do not add a Tenancy reference.
+- Stored name under tenancy: {tenant}--{name}; tenant and name must each match ^[a-z0-9]+(-[a-z0-9]+)*$ (no leading, trailing or
+  doubled hyphen, lower case only), total length <= 127. Anything else is Left(secrets.certificate_invalid_name), never rewritten.
+  This makes the concatenation injective, also case-insensitively (Key Vault).
 
 TASK:
-Create ICertificateReader, ICertificateRotationListener, CertificateOptions (with Validate), CertificateNameResolver and the new
-SecretsErrors codes, with unit and guard tests (name resolution with tenancy on/off, invalid separators, missing tenant).
+Refactor WrapWithDecorators so a keyed chain can omit caching (the default chain is unchanged), then create ICertificateReader,
+ICertificateRotationListener, ICertificateTenantSource, CertificateOptions (with Validate), CertificateNameResolver and the new
+SecretsErrors codes, with unit, guard and property tests (name resolution with tenancy on/off, missing tenant, no fallback to the
+unqualified name, tenant "a-" + name "b" versus tenant "a" + name "-b" both rejected, and a property that two different valid
+(tenant, name) pairs never map to the same stored name compared case-insensitively).
 
 KEY RULES:
 - No secret in options (the password is a secret name template); options remain [JsonIgnore]-free because they hold none.
@@ -184,7 +277,8 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Security.Secrets/SecretsErrors.cs, SecretsOptions.cs
 - src/Encina.Security.Secrets/Abstractions/ISecretReader.cs
-- docs/plans/certificate-reader-implementation-plan-1246.md (Design Choices 3 and 4)
+- src/Encina.Security.Secrets/ServiceCollectionExtensions.cs (WrapWithDecorators)
+- the plan of #1246 (Design Choices 2, 3, 4 and 7)
 ```
 
 </details>
@@ -198,9 +292,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Certificates/CertificateParser.cs`**: `Either<EncinaError, X509Certificate2> Parse(string text, string? password, X509KeyStorageFlags flags)`: PEM detected by `-----BEGIN`, loaded with `X509Certificate2.CreateFromPem(certPem, keyPem)` (certificate chain and key blocks split by label); otherwise base64-decoded PFX loaded with `X509CertificateLoader.LoadPkcs12`; a certificate without a private key is `Left(secrets.certificate_invalid)`.
+1. **`Certificates/CertificateParser.cs`**: `Either<EncinaError, ParsedCertificate> Parse(string text, string? password, X509KeyStorageFlags flags)` where `ParsedCertificate` holds the leaf and its intermediates: PEM detected by `-----BEGIN`, the leaf loaded with `X509Certificate2.CreateFromPem(certPem, keyPem)` (the first `CERTIFICATE` block and the key block, split by label) and every further `CERTIFICATE` block loaded as an intermediate; on Windows the PEM-loaded leaf is re-exported to PKCS#12 and reloaded with `X509CertificateLoader.LoadPkcs12` and the configured flags (ephemeral PEM keys, choice 3); otherwise base64-decoded PFX loaded with `X509CertificateLoader.LoadPkcs12Collection` (the entry with the private key is the leaf); a certificate without a private key is `Left(secrets.certificate_invalid)`.
 2. Expiry check helper: `NotAfter` against `TimeProvider`.
-3. Tests: valid PFX with and without password, PEM with RSA and ECDSA keys, truncated input, wrong password, certificate without key, expired and not-yet-valid certificates (generated in the test with `CertificateRequest`).
+3. Tests: valid PFX with and without password, PEM with RSA and ECDSA keys, PEM and PFX with an intermediate (the chain is kept), truncated input, wrong password, certificate without key, expired and not-yet-valid certificates (generated in the test with `CertificateRequest`).
 
 </details>
 
@@ -240,9 +334,9 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Certificates/SecretCertificateReader.cs : ICertificateReader`**: resolves the logical name (Phase 1), reads the certificate secret and, when needed, the password secret through the keyed `ISecretReader` `"certificates"`, parses (Phase 2), checks validity, and stores the instance in the cache.
-2. **`Certificates/CertificateCache.cs`**: `ConcurrentDictionary<(string Tenant, string Name), Entry>`; `GetOrAddAsync` with single-flight per key (a `Lazy<Task>` or per-key semaphore); a refresh task per entry on `RefreshInterval` via `TimeProvider.CreateTimer` whose callback catches everything and never throws (AGENTS.md §3, timer callbacks); thumbprint comparison; the replaced instance is disposed after `DisposeGracePeriod`; listeners notified on change.
-3. **Registration of the keyed reader**: `AddEncinaCertificates` registers the keyed `ISecretReader` `"certificates"` as the base provider wrapped in resilience (if enabled) and auditing, without caching (Design Choice 2).
-4. Tests: first read, cached read (no provider call), rotation (provider returns a new certificate, listener fires, old instance disposed after the grace period with `FakeTimeProvider`), refresh failure keeps serving, expired certificate refused, two tenants isolated, tenancy on without tenant fails closed.
+2. **`Certificates/CertificateCache.cs`**: `ConcurrentDictionary<(string Tenant, string Name), Entry>` (the entry holds the leaf, the intermediates and the time of the last successful read); `GetOrAddAsync` with single-flight per key (a `Lazy<Task>` or per-key semaphore); a refresh task per entry on `RefreshInterval` via `TimeProvider.CreateTimer` whose callback catches everything and never throws (AGENTS.md §3, timer callbacks); thumbprint comparison; the replaced instance is disposed after `DisposeGracePeriod`; listeners notified on change; after a failed refresh the entry is served until `MaxStaleAge` past its last successful read, then `Left(secrets.certificate_stale)` (choice 6).
+3. **The keyed reader**: the keyed `ISecretReader` `"certificates"` is the base provider wrapped in resilience (if enabled) and auditing, without caching (Design Choice 2), built with the helper added in PR 1; `AddEncinaCertificates` (Phase 5, PR 3) registers it.
+4. Tests: first read, cached read (no provider call), rotation (provider returns a new certificate, listener fires, old instance disposed after the grace period with `FakeTimeProvider`), refresh failure serves until `MaxStaleAge` and then refuses, expired certificate refused, two tenants isolated, tenancy on without tenant fails closed.
 
 </details>
 
@@ -259,8 +353,8 @@ CONTEXT:
   and never swallow an exception thrown by the code under test.
 
 TASK:
-Implement the reader, the cache (single flight, refresh, grace-period disposal, listeners), the keyed reader chain without caching,
-and the unit tests listed in the plan.
+Implement the reader, the cache (single flight, refresh, grace-period disposal, listeners, MaxStaleAge), using the keyed uncached
+chain helper from PR 1, and the unit tests listed in the plan.
 
 KEY RULES:
 - Private key material never reaches ICacheProvider, logs, activity tags or exceptions.
@@ -285,8 +379,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Certificates/FileCertificateReader.cs : ICertificateReader`**: `FileCertificateOptions` maps a logical name to a path (PFX or PEM) and a password source (an environment variable name or a secret name; never a literal password); files are read asynchronously, re-read when the file's last write time changes (checked at refresh), parsed by `CertificateParser`.
-2. **Source ordering**: `CertificateOptions.Sources` (`Secrets`, `File`); a composite reader tries them in order and returns the first `Right`; `Left(secrets.not_found)` falls through, any other `Left` is returned (no silent failover on errors).
+1. **`Certificates/FileCertificateReader.cs : ICertificateReader`**: `FileCertificateOptions` maps a tenant-qualified logical name (choice 4) to a path (PFX or PEM) and a password source (an environment variable name or a secret name; never a literal password); files are read asynchronously, re-read when the file's last write time changes (checked at refresh), parsed by `CertificateParser`.
+2. **Source ordering**: `CertificateOptions.Sources` (`Secrets`, `File`); a composite reader tries them in order and returns the first `Right`; `Left(secrets.not_found)` falls through, any other `Left` is returned (no silent failover on errors, choice 5).
 3. **Audit**: `AuditedCertificateReaderDecorator` records file reads through `SecretAuditRecorder` (secret reads are already audited by the secret chain).
 4. Tests with temp files and `FakeTimeProvider`.
 
@@ -327,8 +421,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`AddEncinaCertificates(this IServiceCollection, Action<CertificateOptions>?)`** in `ServiceCollectionExtensions`: options with validation, name resolver, parser, cache, the keyed reader chain, `ICertificateReader` (composite), the health check and metrics; `TryAdd` throughout so an application's own `ICertificateReader` wins.
-2. Requires `AddEncinaSecrets` for the provider; without a registered `ISecretReader` and without a file source, start-up fails naming the missing source (ADR-050 rule 3).
+1. **`AddEncinaCertificates(this IServiceCollection, Action<CertificateOptions>?)`** in `ServiceCollectionExtensions`: options with validation, name resolver, parser, cache, the keyed reader chain, `ICertificateReader` (composite); the health check and metrics are added to it in PR 4; `TryAdd` throughout so an application's own `ICertificateReader` wins.
+2. Needs a source: `AddEncinaSecrets` for the provider or a file source. Without either, `AddEncinaCertificates` fails at start-up naming the missing registration. This is a registration-completeness check inside one feature (AGENTS.md §3), not a requirement between modules, so it needs no ADR-050 amendment.
 3. DI test with `ValidateOnBuild` and `ValidateScopes` for: secrets only, file only, both, with and without tenancy.
 
 </details>
@@ -366,7 +460,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Health/CertificateExpiryHealthCheck.cs : IHealthCheck`** (model `SecretsHealthCheck`): `DefaultName = "encina-certificates"`, static `Tags` `["encina","secrets","certificates","ready"]`; for each monitored name (and each tenant when tenancy is on) reads through the reader; `Healthy` outside the window, `Degraded` inside `ExpiryWarningWindow` (description carries the number of certificates and the smallest remaining days, never names), `Unhealthy` when any is expired or unreadable.
+1. **`Health/CertificateExpiryHealthCheck.cs : IHealthCheck`** (model `SecretsHealthCheck`): `DefaultName = "encina-certificates"`, static `Tags` `["encina","secrets","certificates","ready"]`; for each monitored name (and each tenant of `ICertificateTenantSource` when tenancy is on) reads through the reader under that tenant's scope; `Healthy` outside the window, `Degraded` inside `ExpiryWarningWindow` (description carries the number of certificates and the smallest remaining days, never names), `Unhealthy` when any is expired or unreadable.
 2. Registered by `AddEncinaCertificates` when `MonitoredCertificates` is not empty.
 3. Tests with `FakeTimeProvider` and generated certificates around the window boundary.
 
@@ -404,6 +498,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
+0. The `WrapWithDecorators` refactor of this phase ships in PR 1, before the reader that needs it (see the pull request cut).
 1. **Resilience**: the keyed chain keeps `ResilientSecretReaderDecorator` when `SecretsOptions.EnableResilience` is on (transient provider errors retried).
 2. **Audit**: secret-backed reads audited by `AuditedSecretReaderDecorator` in the keyed chain; file reads by Phase 4.
 3. **Validation**: `CertificateOptions.Validate` and `FileCertificateOptions` validation at start-up.
@@ -417,7 +512,8 @@ REFERENCE FILES:
 <summary><strong>Prompt for AI Agents — Phase 7</strong></summary>
 
 ```
-You are implementing Phase 7 of issue #1246 in Encina: wiring resilience and audit into the keyed certificate chain.
+You are implementing Phase 7 of issue #1246 in Encina (delivered in PR 1, before Phases 1-3 use it): wiring resilience and audit
+into the keyed certificate chain.
 
 CONTEXT:
 - WrapWithDecorators in src/Encina.Security.Secrets/ServiceCollectionExtensions.cs builds the default chain; the keyed chain reuses
@@ -492,8 +588,8 @@ REFERENCE FILES:
 | Unit | parser, name resolver, reader, cache, file reader, health check | 90 for the parser, resolver and cache: pure logic with generated certificates and `FakeTimeProvider` |
 | Guard | every public method with parameters | 90 |
 | Contract | the same `ICertificateReader` contract over a fake `ISecretReader` per provider shape (Azure Key Vault, AWS, Vault, Google) and the file reader | 85: real reader against provider-shaped fakes |
-| Property | `.md` justification: parsing and retrieval are covered by unit and integration tests | |
-| Integration | Vault dev server (a generic `hashicorp/vault` dev-mode container through `Testcontainers`), AWS Secrets Manager on LocalStack (fixture extended), file source on a temp directory; Azure Key Vault and Google through fakes of their clients; a loopback mTLS handshake with the returned certificate | real services where an emulator exists |
+| Property | name resolution: two different valid (tenant, name) pairs never produce the same stored name, compared case-insensitively (choice 4); parser round trip of generated certificates | 80: the resolver is pure logic |
+| Integration | Vault dev server (a generic `hashicorp/vault` dev-mode container through `Testcontainers`), AWS Secrets Manager on LocalStack (fixture extended), file source on a temp directory; Azure Key Vault and Google through fakes of their clients; a loopback mTLS handshake with the returned certificate, once loaded from PEM and once from PFX, each with an intermediate, using `SslStreamCertificateContext.Create(leaf, intermediates)`; two tenants with the same logical name | real services where an emulator exists |
 | Load, Benchmark | `.md` justifications: not a concurrent hot path (cached reads) | |
 
 - Documentation (docs-writer): XML docs; `changelog.d/1246-certificate-reader.added.md`; package README of `Encina.Security.Secrets` and a section in `docs/features/` (storage format, naming convention, rotation, health check, the mTLS key storage flags); `docs/INVENTORY.md`; `ROADMAP.md`. No ADR is needed: the keyed uncached chain and the format are recorded in the feature page.
@@ -558,7 +654,9 @@ REFERENCE FILES:
 | SecretRotationCoordinator | src/Encina.Security.Secrets/Rotation/SecretRotationCoordinator.cs | rotation done through Encina |
 | SecretsMetrics and SecretsActivitySource | src/Encina.Security.Secrets/Diagnostics/ | meter and activity source to extend |
 | Provider satellites | src/Encina.Security.Secrets.AzureKeyVault, .AwsSecretsManager, .HashiCorpVault, .GoogleCloudSecretManager | serve the certificate text; unchanged |
-| ITenantProvider and MultiTenancyMarker | src/Encina.Tenancy/Abstractions/ITenantProvider.cs, src/Encina/Abstractions/MultiTenancyMarker.cs | per-tenant names and fail closed |
+| IRequestContextAccessor and MultiTenancyMarker | src/Encina/Abstractions/ | per-tenant names and fail closed (choice 7) |
+| DeadLetterManager | src/Encina.Messaging/DeadLetter/DeadLetterManager.cs | the fail-closed tenant pattern to follow |
+| ITenantStore | src/Encina.Tenancy/Abstractions/ITenantStore.cs | source of the documented `ICertificateTenantSource` adapter; not referenced by the package |
 | EventIdRanges SecuritySecrets 5100-5199 | src/Encina/Diagnostics/EventIdRanges.cs | 5100-5150 used; certificates take 5151-5170 |
 | Secrets coverage manifest | .github/coverage-manifest/Encina.Security.Secrets.json | per-file targets |
 
@@ -575,6 +673,7 @@ REFERENCE FILES:
 | Question | How to verify |
 |----------|---------------|
 | Does `X509KeyStorageFlags.EphemeralKeySet` work for client authentication with `SslStream`/`HttpClient` on Windows? | The loopback mTLS integration test on Windows and Linux CI; pick the default flag set from the result |
+| Is the Windows re-export of a PEM-loaded certificate (choice 3) needed for client authentication, or only for server authentication? | The loopback test on Windows with and without the re-export; keep the re-export only if the handshake fails without it |
 | Does the Azure Key Vault secret of a certificate return the PFX base64 or PEM depending on the certificate content type? | Read the provider test doubles and the Key Vault documentation; both formats are parsed anyway |
 | Can `hashicorp/vault` dev mode run through the generic `Testcontainers` package already in `Directory.Packages.props`? | Spike in the PR 2 integration test; fall back to a fake `IVaultClient` if not |
 | Does the existing `HashiCorpVault` provider return a single value suitable for PEM text? | Read `HashiCorpVaultProvider` and its options (path and key) |
@@ -583,7 +682,7 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| New production files in Encina.Security.Secrets (ICertificateReader, listener, options, parser, name resolver, reader, cache, composite) | 8 | |
+| New production files in Encina.Security.Secrets (ICertificateReader, listener, tenant source, options, parser, name resolver, reader, cache, composite, audit decorator) | 10 | |
 | File provider (FileCertificateReader, options) | 2 | |
 | Health check | 1 | |
 | Diagnostics additions (log messages, metrics, activity) | 3 | edits to existing files |
@@ -592,10 +691,11 @@ REFERENCE FILES:
 | Guard tests | 2 | |
 | Contract tests | 2 | |
 | Integration tests | 4 | Vault dev server, LocalStack, file source, loopback mTLS handshake |
-| Load, benchmark and property justification files | 3 | |
+| Property tests | 1 | name injectivity and parser round trip |
+| Load and benchmark justification files | 2 | |
 | Documentation | 5 | README, feature page, changelog fragment, ROADMAP line, INVENTORY |
 | Coverage manifest edits | 1 | |
-| Total | 43 | Three pull requests |
+| Total | 45 | Distinct files; the per-PR table under Implementation Phases counts 57 file changes over 5 pull requests, because `ServiceCollectionExtensions`, `Log.cs`, PublicAPI and the manifest change in several |
 
 ---
 
@@ -610,10 +710,13 @@ You are implementing issue #1246 in Encina (.NET 10, C# 14, nullable enabled, pr
 certificate retrieval in Encina.Security.Secrets (SPEC-002 REQ-053). Rules: AGENTS.md. The consumer is Encina.Http (P-31, not part of this plan).
 
 IMPLEMENTATION OVERVIEW:
-1. ICertificateReader, ICertificateRotationListener, CertificateOptions, CertificateNameResolver, new SecretsErrors codes.
-2. CertificateParser: PEM or base64 PFX text to X509Certificate2 through X509CertificateLoader / CreateFromPem.
+0. WrapWithDecorators refactor so a keyed chain can omit caching (first PR).
+1. ICertificateReader (certificate and chain), ICertificateRotationListener, ICertificateTenantSource, CertificateOptions,
+   CertificateNameResolver ({tenant}--{name}, both segments ^[a-z0-9]+(-[a-z0-9]+)*$, injective; tenant from IRequestContextAccessor;
+   no fallback to the unqualified name under tenancy), new SecretsErrors codes.
+2. CertificateParser: PEM or base64 PFX text to the leaf and its intermediates through X509CertificateLoader / CreateFromPem.
 3. SecretCertificateReader over a keyed ISecretReader chain without caching, plus CertificateCache (single flight, TimeProvider timer refresh,
-   thumbprint change, grace-period disposal, listeners).
+   thumbprint change, grace-period disposal, listeners, MaxStaleAge after a failed refresh).
 4. FileCertificateReader and the ordered composite; audit decorator for file reads.
 5. AddEncinaCertificates; CertificateExpiryHealthCheck (degraded inside the warning window, unhealthy after expiry).
 6. EventIds 5151-5170 in the registered SecuritySecrets range; gauge certificate_days_to_expiry (tag: name hash), span get_certificate.
@@ -629,8 +732,7 @@ KEY PATTERNS:
 REFERENCE FILES:
 - src/Encina.Security.Secrets/ServiceCollectionExtensions.cs, Caching/CachingSecretReaderDecorator.cs, Health/SecretsHealthCheck.cs
 - src/Encina.Security.Secrets.AwsSecretsManager/AwsSecretsManagerProvider.cs
-- src/Encina/Abstractions/MultiTenancyMarker.cs
-- docs/plans/certificate-reader-implementation-plan-1246.md
+- src/Encina/Abstractions/MultiTenancyMarker.cs, src/Encina/Abstractions/IRequestContextAccessor.cs
 ```
 
 </details>
@@ -672,7 +774,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas of this plan (choices 1 and 2); the orchestrator adds the Maintainer Decisions section.
+1. The maintainer answers the Dilemmas of this plan (choices 1, 2, 4, 6, 7 and 8); the orchestrator adds the Maintainer Decisions section.
 2. Link this plan from #1246.
-3. Implement PR 1 (Phases 1-3), PR 2 (Phases 4-6), PR 3 (Phases 7-9).
-4. Verify the open questions (key storage flags, Vault dev container) during PR 2.
+3. Implement PR 1 to PR 5 in the order of the cut; PR 5 needs PR 3 and PR 4.
+4. Verify the open questions (key storage flags, the Windows PEM re-export, Vault dev container) during PR 2 and PR 5.
