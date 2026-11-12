@@ -2,6 +2,7 @@
 
 > **Issue**: [#1942](https://github.com/dlrivada/Encina/issues/1942)
 > **Type**: Feature
+> **Verified against**: origin/main `c49b987e9` (2026-11-12)
 > **Milestone**: none yet; the issue is blocked on an external publication (see Phase 0)
 > **Complexity**: Medium (7 phases including a go/no-go gate, new package, no store, ~12 production files)
 > **Estimated Scope**: ~600-1,000 lines of production code + ~1,200-1,800 lines of tests
@@ -54,7 +55,7 @@ None of the 10 database providers: no store. Submissions are recorded on the Mar
 <summary><strong>1. Go/no-go gate — nothing is built before the SEP specification is published</strong></summary>
 
 **Class:** Settled
-**Settled by:** the issue comment of 2026-10-17 on #1942 ("keep it off by default and do not ship a placeholder adapter"); plan #812 Design Choice 7 (a placeholder adapter that cannot submit is dead code); AGENTS.md section 3 (no legacy or dead code)
+**Settled by:** the maintainer's issue comment of 2026-10-17 on #1942 ("keep it off by default and do not ship a placeholder adapter") and AGENTS.md section 3 (no legacy or dead code). Related, not the basis: plan #812 Design Choice 8 rejects the placeholder adapter too (its option C), but that choice is still "(recommended, pending the maintainer)"; the gate here stands on the maintainer comment alone.
 
 ### Options Considered
 
@@ -75,7 +76,7 @@ None of the 10 database providers: no store. Submissions are recorded on the Mar
 <summary><strong>2. Adapter class versus configuration only</strong></summary>
 
 **Class:** Settled
-**Settled by:** the issue comment of 2026-10-17 on #1942 (reduce to serializer plus configuration if the SEP is a plain JSON endpoint); plan #812 Design Choice 7 (generic `HttpIncidentReportingAdapter`)
+**Settled by:** the maintainer's issue comment of 2026-10-17 on #1942 (build on the generic adapter once the specification is published; reduce to serializer plus configuration if the SEP is a plain JSON endpoint). **Dependency on a pending #812 choice**: Variant 1 uses the generic `HttpIncidentReportingAdapter`, which is plan #812 Design Choice 8 option B, still "(recommended, pending the maintainer)"; it holds if the maintainer confirms #812 DC8 B, and otherwise Variant 2 applies.
 
 ### Options Considered
 
@@ -138,7 +139,7 @@ None of the 10 database providers: no store. Submissions are recorded on the Mar
 <summary><strong>5. Gate that keeps the adapter unreachable while the flag is off</strong></summary>
 
 **Class:** Settled
-**Settled by:** SPEC-002 REQ-024, DEC-012 and AC-024; plan #812 Design Choice 6 (`Reporting.SingleEntryPoint.Enabled`, default `false`; the validator refuses routes to an `IsSingleEntryPoint` adapter)
+**Settled by:** SPEC-002 REQ-024, DEC-012 and AC-024 (off by default; a registration call that turned it on would violate REQ-024, so only option A complies). **Dependency on a pending #812 choice**: the mechanism (`Reporting.SingleEntryPoint.Enabled`, default `false`; the validator refuses routes to an `IsSingleEntryPoint` adapter) is plan #812 Design Choice 7 option A, still "(recommended, pending the maintainer)"; if the maintainer picks another gate there, this choice follows it.
 
 ### Options Considered
 
@@ -158,21 +159,21 @@ None of the 10 database providers: no store. Submissions are recorded on the Mar
 <details>
 <summary><strong>6. Per-tenant credentials and routes</strong></summary>
 
-**Class:** Settled
-**Settled by:** SPEC-002 REQ-061 (tenant-aware capabilities) and plan #812 (`RouteForTenant`, per-tenant routes with fail-closed fallback)
+**Class:** Trivial
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddEnisaSingleEntryPoint(string targetAuthority = "ENISA-SEP", ...)` can be called several times with different keys and named clients; `RouteForTenant` points a tenant to its own key** | Reuses #812's routing; credentials stay in the application's clients | The application registers one adapter per tenant that needs its own credentials |
+| **A) `AddEnisaSingleEntryPoint(string targetAuthority = "ENISA-SEP", ...)` can be called several times, each call with a distinct authority key and a distinct `HttpClientName`; `RouteForTenant` points a tenant to its own key** | Reuses #812's routing; credentials stay in the application's clients | The application registers one adapter per tenant that needs its own credentials |
 | **B) A tenant-keyed credential store inside the package** | One adapter | A new store of secrets in a package that should hold none |
 
 ### Chosen Option: **A — One registration per credential set**
 
 ### Rationale
 
-- A tenant without its own route falls back to the global route and never to another tenant's (#812, AC-043).
+- Option B also satisfies REQ-061 (tenant-aware capabilities); it is rejected for a design reason, not a rule: this package should hold no secrets (Design Choice 3). Routing per tenant is `RouteForTenant` of plan #812 Design Choice 5 (string-keyed routes; still "(recommended, pending the maintainer)"), with a fail-closed fallback: a tenant without its own route falls back to the global route and never to another tenant's (AC-043).
+- The validator requires `TargetAuthority` to be unique among adapters and the default is a constant, so calling the method twice with the default fails: every call after the first must pass a distinct authority key (and a distinct `HttpClientName`, because the named client of each call is keyed by it). A unit test pins this and the message names the offending key.
 
 </details>
 
@@ -192,7 +193,7 @@ None of the 10 database providers: no store. Submissions are recorded on the Mar
 3. Check the adoption status of COM(2025) 837 (SPEC-002 §3.5, AC-025) and update the "draft" wording in the XML docs accordingly; the adapter stays off by default either way.
 4. Apply Design Choice 2: choose Variant 1 or Variant 2 and update Phases 2-3.
 5. Check that #812 has landed and that its names are the ones this plan uses; if not, wait or adapt.
-6. Commit the one-page record in this plan under "Maintainer Decisions" or as a new section agreed with the maintainer; classify any new choice (Trivial, Settled, Dilemma).
+6. Commit the one-page record in this plan under "Maintainer Decisions" or as a new section agreed with the maintainer; classify any new choice (Trivial, Settled, Dilemma). This is a docs-only pull request on the plan, and the first code pull request (A1) is blocked until it has merged.
 
 </details>
 
@@ -235,6 +236,7 @@ All paths are in `src/Encina.Compliance.ENISA/` unless noted.
 2. `.github/coverage-manifest/Encina.Compliance.ENISA.json`: per-package targets and per-file defaults (written by `mechanical-fixer`).
 3. `Serialization/EnisaSepIncidentReportSerializer.cs` (public sealed, `IIncidentReportSerializer`): `Format` is the published schema's version label (provisional `"ENISA-SEP-v1"`, the name the #812 issue proposes), `ContentType` and `FileExtension` per the specification; maps `IncidentReport` to the SEP payload with `System.Text.Json` and a source-generated context; `Either` return; required-field checks (Design Choice 4); report content never appears in errors.
 4. `EnisaSepOptions.cs` (public sealed): `Endpoint` (`Uri`, https), `HttpClientName`, `TargetAuthority` (default `"ENISA-SEP"`), `SupportedRegulations` (from the specification). No secret property (Design Choice 3).
+4a. `EnisaSepErrorCodes.cs` (new), in the `breach.reporting.*` convention of #812, each created with an `ErrorCategory` (ADR-062, `EncinaErrors.Create(code, ErrorCategory, message, ...)`) and a unit test asserting `GetCategory()`: `breach.reporting.enisa_field_missing` (`Validation`: a required field of the SEP payload is absent; the error names the field, never its content) and `breach.reporting.enisa_options_invalid` (`InvalidRequest`: a malformed endpoint, a blank client name or a duplicate authority key). The gate failure `breach.reporting.single_entry_point_disabled` belongs to #812 and is not redefined here.
 5. `PublicAPI.Unshipped.txt`: every public symbol (by `mechanical-fixer`).
 
 </details>
@@ -273,7 +275,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `ServiceCollectionExtensions.cs` / `EnisaReportingOptionsExtensions.cs`: `public static IncidentReportingOptions AddEnisaSingleEntryPoint(this IncidentReportingOptions options, Action<EnisaSepOptions> configure, string targetAuthority = "ENISA-SEP")` (guards on both arguments). **Variant 1**: registers `HttpIncidentReportingAdapter` with `IsSingleEntryPoint = true`, the serializer and the named client. **Variant 2**: registers `EnisaSingleEntryPointAdapter` (`Adapters/`, public sealed, `IIncidentReportingAdapter`, `IsSingleEntryPoint = true`) and the serializer.
-2. `EnisaSepOptionsValidator.cs` (internal): `Endpoint` is an absolute https `Uri`, `HttpClientName` is non-blank, `TargetAuthority` is non-blank and unique among adapters.
+2. `EnisaSepOptionsValidator.cs` (internal): `Endpoint` is an absolute https `Uri`, `HttpClientName` is non-blank, `TargetAuthority` is non-blank and unique among adapters (a second `AddEnisaSingleEntryPoint` call with the default authority fails with `breach.reporting.enisa_options_invalid`; Design Choice 6); failures are reported as `breach.reporting.enisa_options_invalid` in the validator result text, codes only.
 3. The method never sets `Reporting.SingleEntryPoint.Enabled` (Design Choice 5).
 4. DI test: builds the provider with `ValidateOnBuild` and `ValidateScopes` with the adapter registered and the flag off (start-up fails when a route reaches it) and on.
 
@@ -349,7 +351,7 @@ REFERENCE FILES:
 1. `src/Encina/Diagnostics/EventIdRanges.cs` (modify, register first, ADR-021): `public static readonly (int Min, int Max) ComplianceENISA = (6430, 6449);` with the summary "Encina.Compliance.ENISA — ENISA single entry point adapter".
 2. `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify): map `"Encina.Compliance.ENISA"` to `[nameof(EventIdRanges.ComplianceENISA)]`.
 3. `Diagnostics/EnisaLogMessages.cs`: `[LoggerMessage]` from 6430, packed: serializer validation failed (field names), submission classified (status class), probe result, registration summary. No payload, URL query or response body.
-4. Metrics and spans: reuse the #812 activity `BreachNotification.ReportSubmission` and counter `breach.reporting.submissions.total` with `breach.reporting.authority = "ENISA-SEP"`; no new meter.
+4. Metrics and spans: reuse the #812 activity `BreachNotification.ReportSubmission` and counter `breach.reporting.submissions.total` with `breach.reporting.authority = "ENISA-SEP"`; no new meter. Per ADR-054 D4 the tenant is a span attribute and a metric tag **only when multi-tenancy is enabled**, and is not emitted otherwise; no new tag carries a URL, credential or report content.
 
 The range 6430-6449 sits in the block 6400-6549 assigned to this family in the batch EventId registry: 6400-6429 is plan #816 (DPIA criteria), 6450-6549 is plan #808 (EHDS); 9700-9749 is plan #812.
 
@@ -390,7 +392,15 @@ REFERENCE FILES:
 4. **Property**: serializer round trip against the published schema (schema copy under `tests/`, only if its licence allows; otherwise hand-written invariants).
 5. **Integration**: WireMock stub built from the published specification: accepted, duplicate, transient failure then success, permanent rejection, authentication failure; two-tenant routing.
 6. **Load / Benchmark**: `.md` justifications (low throughput, not a hot path).
-7. **Per-flag targets** (AGENTS.md §9). The package is new, so there is no baseline; the worker proposes a manifest with at least: serializer unit 95, guard 100, contract 100, property 90; adapter or extension unit 95, guard 100, contract 100; probe unit 90, guard 100; options validator unit 95, guard 100. Each target carries a one-sentence justification in the manifest.
+7. **Per-flag targets** (AGENTS.md §9). The package is new, so there is no baseline (the manifest, `Encina.slnx` entry and README arrive in the first code pull request); the manifest has at least these targets, each with the one-sentence justification below recorded in the manifest:
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|-----:|------:|---------:|---------:|------------:|---------------|
+| `Serialization/EnisaSepIncidentReportSerializer.cs` | 95 | 100 | 100 | 90 | 0 | A pure mapping: every regulation, phase and required-field failure is a unit case; property is 90 and not 95 because the schema round trip depends on a licence-permitting schema copy, otherwise on hand-written invariants. |
+| `EnisaReportingOptionsExtensions.cs` / `Adapters/EnisaSingleEntryPointAdapter.cs` (Variant 2 only) | 95 | 100 | 100 | 0 | 90 | Registration and guards are fully unit-testable; the adapter's wire behavior is proven against the WireMock stub. |
+| `EnisaSepOptionsValidator.cs` | 95 | 100 | 0 | 0 | 0 | Rules over one options object; each rule, including the duplicate authority, is one case. |
+| `Health/EnisaSepProbe.cs` | 90 | 100 | 100 | 0 | 80 | The probe is a thin call to the status endpoint; success, failure and timeout are unit cases and the integration test runs it against the WireMock stub (80 because the stub cannot reproduce every transport failure). |
+| `Diagnostics/EnisaLogMessages.cs` | 90 | 0 | 0 | 0 | 0 | Source-generated logging; one test per message through a capturing logger. |
 
 </details>
 
@@ -501,7 +511,18 @@ REFERENCE FILES:
 | Tests | ~14 | unit 6, guard 2, contract 2, property 1, integration 2, justifications 2, event-id test update 1 (counted in unit) |
 | Documentation and records | 5 | README, configuration page, manifest, changelog fragment, INVENTORY |
 
-Total about 33 files, above the 15-file limit of one worker PR (AGENTS.md §11). Proposed split on #1942: **PR A** (Phases 1-2: project, serializer, options, extension, DI, with tests, manifest and PublicAPI: about 15 files); **PR B** (Phases 3-4: probe, EventIds, integration tests with WireMock: about 10 files); **PR C** (Phase 6 documentation: about 5 files). Phase 0 is a separate commit on the plan, not a PR of code.
+Total about 45 files across the pull requests below (a file edited in more than one pull request, such as the manifest and the `PublicAPI` files, is counted once per pull request), above the 15-file limit of one worker PR (AGENTS.md §11). Counts include tests, the coverage manifest and `PublicAPI` files. Proposed split on #1942, each pull request building alone:
+
+| PR | Content | Files (approx.) |
+|----|---------|-----------------|
+| Phase 0 | Docs-only pull request: the one-page specification record in this plan; blocks A1 | 1 |
+| A1 | Scaffold: csproj, 2 `PublicAPI` files, `Encina.slnx` entry, coverage manifest, README, `EnisaSepOptions`, `EnisaSepOptionsValidator`, `EnisaSepErrorCodes`, unit and guard tests for the options and codes | 12 |
+| A2 | Serializer and its JSON context, with unit, guard, contract and property tests, manifest and `PublicAPI` updates | 9 |
+| A3 | `AddEnisaSingleEntryPoint` (and the adapter in Variant 2), DI test with `ValidateOnBuild`/`ValidateScopes`, the AC-024 gate test, unit and guard tests, `PublicAPI` | 8 |
+| B | Probe, `EventIdRanges.cs` and `EncinaEventIdAllocationTests` edits, `EnisaLogMessages`, integration tests with WireMock (acceptance, two tenants), load and benchmark justification files, manifest | 13 |
+| C | Phase 6 documentation: configuration page, INVENTORY, changelog fragment, BreachNotification spec page row | 5 |
+
+A1 requires Phase 0 and #812's Phases 1 to 4 on `main`; A2, A3 follow A1; B follows A3; C last.
 
 ---
 
@@ -553,7 +574,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Reports are never cached |
-| 2 | OpenTelemetry | ✅ | Reuses the #812 activity and counter with `breach.reporting.authority = "ENISA-SEP"`; no new meter (Phase 4) |
+| 2 | OpenTelemetry | ✅ | Reuses the #812 activity and counter with `breach.reporting.authority = "ENISA-SEP"`; no new meter; the tenant is a span attribute and tag only when multi-tenancy is on (ADR-054 D4), and no tag carries a URL, credential or content (Phase 4) |
 | 3 | Structured Logging | ✅ | `EnisaLogMessages` in the new range 6430-6449 (Phase 4) |
 | 4 | Health Checks | ✅ | `EnisaSepProbe` against the SEP status or test endpoint, only if the specification publishes one (Phase 3) |
 | 5 | Validation | ✅ | Required-field checks in the serializer and the options validator (Phases 1-2) |
@@ -561,7 +582,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | Concurrency handled by the breach stream (#812) |
 | 8 | Transactions | ❌ | The submission is recorded by #812 in one aggregate save |
 | 9 | Idempotency | ✅ | `ReportId` as the SEP's idempotency mechanism or `Idempotency-Key` (Phase 3; confirmed in Phase 0) |
-| 10 | Multi-Tenancy | ✅ | One registration per credential set and `RouteForTenant` (Design Choice 6) |
+| 10 | Multi-Tenancy | ✅ | One registration per credential set, each with a distinct authority key and client name, and `RouteForTenant` (Design Choice 6) |
 | 11 | Module Isolation | ❌ | No module scoping |
 | 12 | Audit Trail | ✅ | Submission events on the breach stream (#812, ADR-019) |
 
