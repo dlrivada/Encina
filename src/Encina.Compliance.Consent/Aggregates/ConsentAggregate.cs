@@ -9,9 +9,11 @@ namespace Encina.Compliance.Consent.Aggregates;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each aggregate instance represents consent for a single (DataSubjectId, Purpose) pair,
+/// Each aggregate instance represents consent for a single (TenantId, DataSubjectId, Purpose) key,
 /// following GDPR Article 6(1)(a) which requires consent to be granular and purpose-specific.
-/// The aggregate ID is deterministic from the subject and purpose, enabling natural lookup.
+/// The aggregate itself accepts any identifier; <c>IConsentService.GrantConsentAsync</c> derives it
+/// deterministically from the effective tenant, the data subject and the purpose (an RFC 9562
+/// version 8 UUID, #3769), so the event store holds at most one consent stream per key.
 /// </para>
 /// <para>
 /// The lifecycle progresses through: <see cref="ConsentStatus.Active"/> →
