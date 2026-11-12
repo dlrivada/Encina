@@ -60,5 +60,5 @@ internal static class EncryptedMessageAttributeCache
 /// </summary>
 /// <param name="Enabled">Whether encryption is enabled for this message type.</param>
 /// <param name="KeyId">The specific key identifier for this type, or <c>null</c> for the default key.</param>
-/// <param name="UseTenantKey">Whether to use tenant-specific encryption keys.</param>
+/// <param name="UseTenantKey">The attribute's <c>UseTenantKey</c> value; not consumed yet.</param>
 internal sealed record EncryptedMessageInfo(bool Enabled, string? KeyId, bool UseTenantKey);
