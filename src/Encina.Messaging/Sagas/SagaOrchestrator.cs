@@ -113,7 +113,9 @@ public sealed class SagaOrchestrator
 
         var sagaId = Guid.NewGuid();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var serializedData = _messageSerializer.Serialize(data);
+        // The runtime type, not TSagaData, so saga data typed as a base class is stored complete and
+        // encrypted when its concrete type is marked (#3780).
+        var serializedData = _messageSerializer.SerializeAsRuntimeType(data);
 
         var effectiveTimeout = timeout ?? _options.DefaultSagaTimeout;
         var timeoutAtUtc = effectiveTimeout.HasValue ? now.Add(effectiveTimeout.Value) : (DateTime?)null;
@@ -185,7 +187,7 @@ public sealed class SagaOrchestrator
         if (updateData != null)
         {
             data = updateData(data);
-            state.Data = _messageSerializer.Serialize(data);
+            state.Data = _messageSerializer.SerializeAsRuntimeType(data);
         }
 
         state.CurrentStep++;

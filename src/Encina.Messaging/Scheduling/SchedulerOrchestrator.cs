@@ -124,11 +124,14 @@ public sealed class SchedulerOrchestrator
                 "Scheduled time must be in the future.");
         }
 
-        var requestType = typeof(TRequest).AssemblyQualifiedName
-            ?? typeof(TRequest).FullName
-            ?? typeof(TRequest).Name;
+        // The runtime type, not TRequest: a request typed as an interface or base class must still be
+        // stored complete, encrypted when its concrete type is marked, and rebuilt from the stored name (#3780).
+        var runtimeType = request.GetType();
+        var requestType = runtimeType.AssemblyQualifiedName
+            ?? runtimeType.FullName
+            ?? runtimeType.Name;
 
-        var content = _messageSerializer.Serialize(request);
+        var content = _messageSerializer.SerializeAsRuntimeType(request);
 
         var message = _messageFactory.Create(
             Guid.NewGuid(),
@@ -209,11 +212,13 @@ public sealed class SchedulerOrchestrator
         return await nextExecutionResult.MatchAsync(
             RightAsync: async nextExecution =>
             {
-                var requestType = typeof(TRequest).AssemblyQualifiedName
-                    ?? typeof(TRequest).FullName
-                    ?? typeof(TRequest).Name;
+                // The runtime type, not TRequest (#3780): see ScheduleAsync.
+                var runtimeType = request.GetType();
+                var requestType = runtimeType.AssemblyQualifiedName
+                    ?? runtimeType.FullName
+                    ?? runtimeType.Name;
 
-                var content = _messageSerializer.Serialize(request);
+                var content = _messageSerializer.SerializeAsRuntimeType(request);
 
                 var message = _messageFactory.Create(
                     Guid.NewGuid(),
