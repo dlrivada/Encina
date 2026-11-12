@@ -83,12 +83,20 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
     /// <remarks>
     /// Serializes the message to JSON via the inner serializer, then encrypts the payload
     /// if encryption is required for the message type (via attribute or global configuration).
+    /// <para>
+    /// The decision, the key and the type name in logs and traces come from the message's
+    /// runtime type, so a message passed as an interface or a base type is encrypted when its
+    /// concrete type carries <c>[EncryptedMessage]</c>. A <see langword="null"/> message falls
+    /// back to <typeparamref name="T"/>. The inner serializer is called with the same generic
+    /// argument, so the JSON it produces does not depend on this decorator.
+    /// </para>
     /// </remarks>
     public string Serialize<T>(T message)
     {
         var json = _inner.Serialize(message);
         var opts = _options.Value;
-        var messageTypeName = typeof(T).Name;
+        var messageType = message?.GetType() ?? typeof(T);
+        var messageTypeName = messageType.Name;
 
         if (!opts.Enabled)
         {
@@ -96,7 +104,6 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
             return json;
         }
 
-        var messageType = typeof(T);
         if (!ShouldEncrypt(messageType, opts))
         {
             _logger.EncryptionSkippedNotRequired(messageTypeName);
