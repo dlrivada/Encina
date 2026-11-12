@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.AzureFunctions.Benchmarks.ErrorCodeMappingBenchmarks-20261112-162007</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 2.61GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]     : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  ShortRun   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>Job </th><th>IterationCount</th><th>LaunchCount</th><th>WarmupCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MapAuthorizationUnauthenticated</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>14.97 ns</td><td>0.047 ns</td><td>0.042 ns</td><td>1.41</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>16.94 ns</td><td>0.057 ns</td><td>0.045 ns</td><td>1.59</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>13.75 ns</td><td>0.047 ns</td><td>0.039 ns</td><td>1.29</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>14.98 ns</td><td>0.022 ns</td><td>0.019 ns</td><td>1.41</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>56.39 ns</td><td>0.274 ns</td><td>0.256 ns</td><td>5.31</td><td>0.05</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>71.11 ns</td><td>0.589 ns</td><td>0.522 ns</td><td>6.69</td><td>0.07</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>10.62 ns</td><td>0.098 ns</td><td>0.092 ns</td><td>1.00</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>DefaultJob</td><td>Default</td><td>Default</td><td>Default</td><td>12.22 ns</td><td>0.056 ns</td><td>0.047 ns</td><td>1.15</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationUnauthenticated</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>14.79 ns</td><td>0.023 ns</td><td>0.001 ns</td><td>1.43</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapAuthorizationForbidden</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>16.36 ns</td><td>0.193 ns</td><td>0.011 ns</td><td>1.58</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapConflictError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>13.48 ns</td><td>1.633 ns</td><td>0.089 ns</td><td>1.30</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapUnknownError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>14.75 ns</td><td>1.998 ns</td><td>0.109 ns</td><td>1.43</td><td>0.01</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMultipleValidationErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>55.57 ns</td><td>3.792 ns</td><td>0.208 ns</td><td>5.38</td><td>0.02</td><td>-</td><td>NA</td>
+</tr><tr><td>MapMixedErrors</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>71.28 ns</td><td>6.794 ns</td><td>0.372 ns</td><td>6.90</td><td>0.03</td><td>-</td><td>NA</td>
+</tr><tr><td>MapValidationError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>10.34 ns</td><td>0.362 ns</td><td>0.020 ns</td><td>1.00</td><td>0.00</td><td>-</td><td>NA</td>
+</tr><tr><td>MapNotFoundError</td><td>ShortRun</td><td>3</td><td>1</td><td>3</td><td>12.53 ns</td><td>2.393 ns</td><td>0.131 ns</td><td>1.21</td><td>0.01</td><td>-</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>

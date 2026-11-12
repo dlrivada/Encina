@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Extensions.Resilience.Benchmarks.StandardResilienceBenchmarks-20261112-161727</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 3.24GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                 </th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>NoResilience_Baseline</td><td>3.014 &mu;s</td><td>0.2585 &mu;s</td><td>0.0142 &mu;s</td><td>1.00</td><td>0.01</td><td>1</td><td>0.1106</td><td>1.83 KB</td><td>1.00</td>
+</tr><tr><td>StandardResilience_Success</td><td>7.150 &mu;s</td><td>0.1001 &mu;s</td><td>0.0055 &mu;s</td><td>2.37</td><td>0.01</td><td>2</td><td>0.1297</td><td>2.15 KB</td><td>1.18</td>
+</tr><tr><td>StandardResilience_MultipleSequentialRequests</td><td>68.676 &mu;s</td><td>7.3455 &mu;s</td><td>0.4026 &mu;s</td><td>22.79</td><td>0.15</td><td>3</td><td>1.2207</td><td>20.38 KB</td><td>11.15</td>
+</tr><tr><td>StandardResilience_ConcurrentRequests</td><td>71.053 &mu;s</td><td>9.5169 &mu;s</td><td>0.5217 &mu;s</td><td>23.57</td><td>0.18</td><td>3</td><td>1.2207</td><td>21.84 KB</td><td>11.95</td>
+</tr><tr><td>StandardResilience_WithRetry</td><td>1,816.127 &mu;s</td><td>1,338.9616 &mu;s</td><td>73.3930 &mu;s</td><td>602.57</td><td>21.23</td><td>4</td><td>-</td><td>52.51 KB</td><td>28.72</td>
+</tr></tbody></table>
+</body>
+</html>
