@@ -682,6 +682,22 @@ public sealed class DefaultProcessorServiceTests
     }
 
     [Fact]
+    public async Task RegisterProcessorAsync_ExplicitTenantEqualToTheAmbientOne_IsAccepted()
+    {
+        // Arrange
+        var created = CaptureCreated();
+        var sut = CreateSut(TenantA, multiTenant: true);
+
+        // Act
+        var result = await sut.RegisterProcessorAsync(
+            "P", "DE", null, null, 0, SubProcessorAuthorizationType.General, tenantId: TenantA);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        created().TenantId.ShouldBe(TenantA);
+    }
+
+    [Fact]
     public async Task RegisterProcessorAsync_NoExplicitTenant_DefaultsToTheAmbientTenant()
     {
         // Arrange

@@ -63,18 +63,8 @@ internal sealed class ProcessorAgreementTenantScope
     /// <param name="tenantId">The resolved tenant, or <c>null</c> for the null-tenant scope.</param>
     /// <param name="error">The <see cref="ProcessorAgreementErrors.TenantRequiredCode"/> error when refused.</param>
     /// <returns><c>true</c> when the operation may proceed.</returns>
-    public bool TryResolve(string operation, out string? tenantId, out EncinaError? error)
-    {
-        tenantId = Normalize(_requestContextAccessor.RequestContext?.TenantId);
-
-        if (tenantId is null && _isTenantContextRequired)
-        {
-            return Refuse(operation, out tenantId, out error);
-        }
-
-        error = null;
-        return true;
-    }
+    public bool TryResolve(string operation, out string? tenantId, out EncinaError? error) =>
+        Accept(operation, AmbientTenantId, out tenantId, out error);
 
     /// <summary>
     /// Resolves the tenant a new record is written under: the explicit tenant when it agrees with
@@ -89,24 +79,15 @@ internal sealed class ProcessorAgreementTenantScope
     public bool TryResolveWrite(
         string operation, string? explicitTenantId, out string? tenantId, out EncinaError? error)
     {
-        var ambientTenantId = Normalize(_requestContextAccessor.RequestContext?.TenantId);
+        var ambientTenantId = AmbientTenantId;
         var requestedTenantId = Normalize(explicitTenantId);
 
-        if (requestedTenantId is not null && ambientTenantId is not null
-            && !Matches(requestedTenantId, ambientTenantId))
+        if (Contradicts(requestedTenantId, ambientTenantId))
         {
             return Refuse(operation, out tenantId, out error);
         }
 
-        tenantId = requestedTenantId ?? ambientTenantId;
-
-        if (tenantId is null && _isTenantContextRequired)
-        {
-            return Refuse(operation, out tenantId, out error);
-        }
-
-        error = null;
-        return true;
+        return Accept(operation, requestedTenantId ?? ambientTenantId, out tenantId, out error);
     }
 
     /// <summary>
@@ -128,8 +109,30 @@ internal sealed class ProcessorAgreementTenantScope
     public static string CacheKey(string? tenantId, string suffix) =>
         $"pa:tenant:{Normalize(tenantId) ?? "-"}:{suffix}";
 
+    private string? AmbientTenantId => Normalize(_requestContextAccessor.RequestContext?.TenantId);
+
     private static string? Normalize(string? tenantId) =>
         string.IsNullOrEmpty(tenantId) ? null : tenantId;
+
+    private static bool Contradicts(string? requestedTenantId, string? ambientTenantId) =>
+        requestedTenantId is not null && ambientTenantId is not null
+        && !string.Equals(requestedTenantId, ambientTenantId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Accepts <paramref name="candidate"/> as the tenant of the operation, unless it is the
+    /// null-tenant scope while tenant isolation is required.
+    /// </summary>
+    private bool Accept(string operation, string? candidate, out string? tenantId, out EncinaError? error)
+    {
+        if (candidate is null && _isTenantContextRequired)
+        {
+            return Refuse(operation, out tenantId, out error);
+        }
+
+        tenantId = candidate;
+        error = null;
+        return true;
+    }
 
     private bool Refuse(string operation, out string? tenantId, out EncinaError? error)
     {
