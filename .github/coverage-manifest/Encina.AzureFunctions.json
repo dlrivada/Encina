@@ -86,15 +86,16 @@
     "Durable/FanOutFanInExtensions.cs": {
       "defaultTests": [
         "unit",
-        "guard"
+        "guard",
+        "integration"
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 35, "guard": 25, "integration": 0 },
+      "targets": { "unit": 95, "guard": 40, "integration": 95 },
       "justifications": {
-        "unit": "FanOutFanInExtensionsTests run the FanOut methods with substituted orchestration contexts; the aggregate methods still lack unit coverage.",
-        "guard": "DurableGuardTests call FanOutAsync and FanOutWithResultAsync with a null context, null or empty activity name, null inputs and empty inputs, and FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync overloads with a null context.",
-        "integration": "Not yet run on the Durable Task in-process test host; the fan-out and fan-in integration tests are deferred to #3214 and #3216; see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md."
+        "unit": "FanOutFanInExtensionsTests complete the activities of a fake orchestration context in a controlled order: failure and success ActivityResult unwrapping, the aggregate durable.fanout_failed error with its details, the Task.WhenAny first-success cases (fast failure, fast success, slow success, all fail), the plain-value JsonException fail-closed path, both FanOutMultipleAsync overloads and Partition; the target leaves room for line attribution noise.",
+        "guard": "DurableGuardTests call FanOutAsync, FanOutAllAsync and FanOutFirstSuccessAsync with a null context, null or empty activity name and null inputs, the empty-input results, and both FanOutMultipleAsync overloads with a null context; the activity-reading and aggregation lines belong to the unit and integration flags.",
+        "integration": "FanOutFanInOnTestHostIntegrationTests run FanOutAsync, FanOutAllAsync, FanOutFirstSuccessAsync and both FanOutMultipleAsync through real orchestrations and activities on the Durable Task in-process test host (success, failure, throwing and plain-value activities, aggregate error details, slow success, empty inputs, Partition); the Azure Functions host and Azure Storage are not tested, see tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md and #3252."
       }
     },
     "Durable/OrchestrationContextExtensions.cs": {
