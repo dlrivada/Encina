@@ -2,9 +2,9 @@
 
 > **Issue**: [#1239](https://github.com/dlrivada/Encina/issues/1239) (SPEC-002 REQ-046, AC-039 and AC-043, scenario S11, tracking id P-37, priority P0; part of #1186)
 > **Type**: Feature
-> **Complexity**: Very high (new package family: core, file system, S3, Azure Blob, compliance adapters; 7 pull requests)
+> **Complexity**: Very high (new package family: core, file system, S3, Azure Blob, compliance adapters; 11 pull requests)
 > **Estimated Scope**: ~2,200-2,800 lines of production code + ~3,500-4,500 lines of tests
-> **Related plans**: `column-encryption-implementation-plan-1250.md` (#1250) (owns `IKeyWrapper`), `claim-check-implementation-plan-122.md` (#122) (builds `Encina.ClaimCheck.Storage` on this package)
+> **Related plans**: #1250 (owns `IKeyWrapper` and the tenant data keys), #122 (builds `Encina.ClaimCheck.Storage` on this package)
 
 ---
 
@@ -19,7 +19,7 @@ Add a new package `Encina.Storage` with the file abstraction `IBlobStore` (put, 
 | `IBlobStore`, `BlobAddress`, `BlobInfo`, `BlobMetadata`, `BlobPutOptions`, `BlobContent`, `BlobPage` | `Encina.Storage` | The contract; consumed by `Encina.ClaimCheck.Storage` (#122 plan) |
 | `IBlobLifecycleGuard`, `BlobOperation` | `Encina.Storage` | The hook for retention, hold and blocking |
 | `Encina.Storage.Compliance` | new package | Adapters from the guard to `ILegalHoldService` now, `IRetentionFloorQuery` (#1187) and blocking (#1189) when they exist |
-| Consumed from #1250 | `Encina.Security.Encryption` | `IKeyWrapper` and `WrappedKey` for the per-blob data key |
+| Consumed from #1250 | `Encina.Security.Encryption` | `ITenantDataKeyService` (the tenant's data key, itself wrapped by a KMS through `IKeyWrapper`) or `IKeyWrapper` directly, per choice 6 |
 
 ### What the code does today (2026-11-11, `main` at `7a0049c07`)
 
@@ -29,7 +29,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 2. **Tenancy.** `ITenantProvider.GetCurrentTenantId()` returns null when there is no context (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`); `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`) is the signal that tenancy is on so that readers fail closed. This is the fail-closed pattern of the dead-letter manager and the ABAC decision audit.
 3. **Hold, retention and blocking.** `ILegalHoldService` exists (`src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs`: `HasActiveHoldsAsync`, `GetActiveHoldsForEntityAsync`). The retention floor query `IRetentionFloorQuery` is planned by the #1187 plan and the blocked state (`IBlockedDataFilterContext`, audited disclosure) by the #1189 plan; neither exists in `src/` today.
 4. **Audit.** The issue names `IAuditStore`; the interfaces in `src/Encina.Security.Audit/Abstractions/` are `IOperationAuditStore` and `IReadAuditStore` (disclosure reads). The plan uses those.
-5. **Encryption primitives.** The existing KMS providers return a fresh key per call (#2386), so envelope encryption needs `IKeyWrapper` of the #1250 plan (wrap and unwrap a given key). `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) shows the tenant-to-key-id convention.
+5. **Encryption primitives.** The existing KMS providers return a fresh key per call (#2386), so envelope encryption needs `IKeyWrapper` of the #1250 plan (wrap and unwrap a given key). `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) shows the tenant-to-key-id convention. The .NET 10 BCL already has AES Key Wrap: `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` (RFC 5649) and `EncryptKeyWrap`/`DecryptKeyWrap` (RFC 3394) are in the `net10.0` reference pack (checked 2026-11-12 with SDK 10.0.404: a file-based app targeting `net10.0` reproduced the RFC 5649 section 6 test vector for the 20-octet key). Spike #3661 lists AES Key Wrap among its .NET 11 follow-ups; this plan does not need the platform move for it.
 6. **No other blob store.** `#600` (cloud blob implementations of `IClaimCheckStore`) is open and the #122 plan builds the claim-check blob backends on this package, so `IBlobStore` is the single storage primitive.
 
 ### Scope
@@ -37,7 +37,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 - **Affected packages**: new `Encina.Storage` (core and file system), `Encina.Storage.S3`, `Encina.Storage.AzureBlob`, `Encina.Storage.Compliance`; `Encina.Testing.Fakes` (`FakeBlobStore`); `Directory.Packages.props`, `Encina.slnx`.
 - **Provider category**: Cloud (AWS and Azure; the file system is the local provider). Not a database feature; the 10-provider matrix does not apply. The category rule asks for the same contract on every storage provider: put, get, delete, list, metadata, tenant partition, guard and encryption decorators, health check.
 - **Out of scope**: Google Cloud Storage (post-1.0); database BLOB storage (rejected in the issue); the key management (#1250); a content delivery or presigned URL feature.
-- **Estimated files**: ~45 production files, ~55 test files, ~20 documentation and manifest files. Seven pull requests (Phase 11).
+- **Estimated files**: ~45 production files, ~55 test files, ~20 documentation and manifest files. Eleven pull requests (see "Pull request cut" under Implementation Phases).
 
 ---
 
@@ -82,7 +82,8 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 - We recommend A with `ForTenant` because it keeps the common path safe and still gives background code an explicit, auditable way to name a tenant.
 - Physical layout: `{tenantId}/{name}`; the prefixes of two tenants never overlap because tenant ids are validated (letters, digits, `-`, `_`, no separators); a property test generates random tenant ids and names and asserts that a physical key maps back to exactly one tenant (AC-043).
-- Names are validated by `BlobAddress`: no `..`, no backslash, no leading `/`, no control characters, at most 512 characters. The file system provider additionally resolves the full path and refuses anything outside the root.
+- Names are validated by `BlobAddress`: no `..`, no backslash, no leading `/`, no control characters, at most 512 characters (choice 7). The file system provider additionally resolves the full path and refuses anything outside the root.
+- `TenantBlobStore` does not rewrite the name: it sets the tenant on the address (`BlobAddress.TenantId`, set only by this decorator or by `ForTenant`), and the innermost provider composes the physical key `{tenantId}/{name}`. The decorators in between, including the encrypting one, therefore see the tenant and the logical name separately (choice 4, AAD).
 
 </details>
 
@@ -106,6 +107,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 - The guard fails closed: when a guard throws or cannot decide (lookup fails), the operation is refused (AGENTS.md §3, SPEC-002 DEC-006).
 - Link from a blob to the data it belongs to: `BlobMetadata` carries `OwnerEntityType`, `OwnerEntityId` and `RetentionCategory`. The retention adapter asks `ILegalHoldService.GetActiveHoldsForEntityAsync` now and `IRetentionFloorQuery` when the #1187 plan is implemented; the blocking adapter uses the `IBlockedDataFilterContext` and the audited disclosure scope of the #1189 plan and is built in a later pull request after #1189 (Phase 6, last task).
 - Reads of a blocked blob are allowed only inside a disclosure scope and are recorded through `IReadAuditStore`.
+- The guard decides before the provider deletes, so a hold placed between the decision and the delete is not seen; choice 9 covers that window.
 
 </details>
 
@@ -116,7 +118,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Single-shot AES-GCM per blob: a fresh 256-bit data key per blob wrapped by the tenant key through `IKeyWrapper` (#1250), header `0x01 | wrappedKey length | wrappedKey | nonce | tag`, default size cap 64 MiB (`MaxEncryptedBlobBytes`)** | Simple; a per-blob key avoids any limit on the number of encryptions per key; deleting the tenant key makes every blob unreadable (crypto-shredding of files); the format has a version byte for a later chunked version | The blob is buffered in memory for the cipher (bounded by the cap) |
+| **A) Single-shot AES-GCM per blob: a fresh 256-bit data key per blob, wrapped per choice 6, header `0x01 | wrapping info | wrappedKey length | wrappedKey | nonce | tag`, default size cap 64 MiB (`MaxEncryptedBlobBytes`, choice 7)** | Simple; a per-blob key avoids any limit on the number of encryptions per key; deleting the tenant key makes every blob unreadable (crypto-shredding of files); the format has a version byte for a later chunked version | The blob is buffered in memory for the cipher (bounded by the cap) |
 | **B) Chunked AEAD stream (64 KiB chunks, counter-derived nonces, a final-chunk flag)** | Constant memory for very large files; streaming reads | A new format to design, test and review; no consumer needs it (consents and clinical documents are small) |
 
 ### Chosen Option: **A — single-shot AES-GCM with a per-blob wrapped data key and a size cap** (recommended, pending the maintainer)
@@ -127,8 +129,8 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 - We recommend A with the version byte so that B can ship as format version 2 without a migration.
 - The wrapped key lives in the blob header, so rotation of the tenant key re-wraps by rewriting the header with a metadata-only update where the provider allows it, or by a copy in place; the exact mechanism per provider is an open question (Research).
-- Encryption is a decorator (`EncryptingBlobStore`) that is on by default when `Encina.Security.Encryption` and a key wrapper are registered; turning it off is an explicit, logged option (`AllowUnencrypted`), because the requirement says encryption is part of the store.
-- The AAD is `tenantId | container | name`, so a blob copied to another name or tenant does not decrypt.
+- Encryption is a decorator (`EncryptingBlobStore`). Whether it is on by default with a start-up failure when no key source is registered, or opt-in, is choice 8.
+- The AAD is `0x01 | tenantId | container | name`, where `name` is the logical name the caller passed (without the tenant prefix) and `tenantId` is the address's tenant set by `TenantBlobStore` (choice 2). The tenant appears once, a blob copied to another name, container or tenant does not decrypt, and a change of the physical layout (the `{tenantId}/{name}` key composed by the provider) does not break decryption.
 
 </details>
 
@@ -153,11 +155,119 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 </details>
 
+<details>
+<summary><strong>6. How the per-blob data key is wrapped — a KMS call per blob, or AES Key Wrap under the tenant data key</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `IKeyWrapper` (#1250) wraps every per-blob key with the tenant's KMS key** | One key level; the KMS sees and can audit every blob key | One KMS round trip per put and per get (latency, cost, KMS quotas, and a KMS outage stops every read); the wrapped key size varies per KMS |
+| **B) AES Key Wrap with padding (RFC 5649) of the per-blob key under the tenant data key of #1250** (`ITenantDataKeyService.GetCurrentKeyAsync(tenantId, purpose: "storage")`, itself KMS-wrapped and cached by #1250), with `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` from the .NET 10 BCL; the header stores the tenant key version (4 bytes) and the 40-byte wrapped key | One KMS call per tenant key per cache period; the BCL primitive has its own integrity check, so a tampered wrapped key fails to unwrap; deleting the tenant data key still shreds every blob of the tenant; rotation re-wraps headers with the new key version and no KMS call per blob | Two key levels; the per-blob key is protected by a key that lives in process memory while cached (the same exposure as the column keys of #1250) |
+
+### Chosen Option: **B — RFC 5649 under the tenant data key** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option B wins on latency, cost and availability for a store whose reads happen on every document view. Option A wins when policy requires that every data key is wrapped by the KMS itself and the KMS logs every unwrap.
+
+- The primitive is in the `net10.0` reference pack (fact 5), so option B does not wait for the .NET 11 move discussed in spike #3661.
+- Unit tests of the wrap use the RFC 5649 section 6 vectors and the RFC 3394 section 4 vectors through the same BCL calls.
+- With option A, the header keeps `wrappedKey length | wrappedKey` from the KMS and the #1250 `WrappedKey` type; with option B, the header carries `keyVersion | wrappedKey` (fixed 40 bytes for a 256-bit key).
+
+</details>
+
+<details>
+<summary><strong>7. Defaults and public names</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The values below** | Each has a stated reason; all are options the application can change | They are proposals, not derived from a rule |
+| **B) Other values chosen by the maintainer** | Fits a deployment the maintainer knows | Needs a reason recorded per value |
+
+### Chosen Option: **A — the values below** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma (values that no rule fixes).
+
+| Default or name | Value | Reason |
+|---|---|---|
+| `MaxEncryptedBlobBytes` | 64 MiB | Bounds the memory of the single-shot cipher (choice 4); documents and consents are far smaller |
+| `StorageOptions.MaxBlobBytes` | 64 MiB | Same as the encryption cap, so an unencrypted store does not accept blobs the encrypted one would refuse |
+| `StorageOptions.PageSize` | 1000 | The maximum page of S3 `ListObjectsV2`; Azure allows more, the file system has no limit |
+| Blob name | at most 512 characters; letters, digits, `-`, `_`, `.`, `/` as a separator; no `..` segment, no leading `/`, no control characters | Portable across the file system, S3 and Azure Blob without escaping |
+| Tenant id when tenancy is off | `default` | Valid under the tenant id rule of choice 2; when tenancy is off there is no other tenant to collide with |
+| `BlobPutOptions.Overwrite` | `false` | An accidental overwrite of a document is a data loss; overwriting is explicit |
+| `RefuseWhenOwnerUnknown` (Compliance) | `true` | Fail closed: a blob without an owner cannot be checked for holds (AGENTS.md §3) |
+| Log level of `AllowUnencrypted = true` at start-up | Warning, once per start | Visible in every deployment that turns encryption off |
+
+</details>
+
+<details>
+<summary><strong>8. Encryption on by default with a start-up failure, or opt-in</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) On by default: `AddEncinaStorage` fails at start-up when no key source of choice 6 is registered, unless `AllowUnencrypted = true` (explicit and logged, choice 7)** | No blob is stored in plaintext by accident; matches REQ-046 ("`IBlobStore` with envelope encryption") as part of the store | A new module requirement: `Encina.Storage` requires `Encina.Security.Encryption` and a key source, which ADR-050 rule 1 only allows through an amendment of its closed list; every dependent package inherits it (the `Encina.ClaimCheck.Storage` adapter of #122) |
+| **B) Opt-in: `UseEncryption()` adds the decorator; without it blobs are stored as the provider stores them** | Pay-for-what-you-use (AGENTS.md §1); no ADR-050 change | Plaintext by default for a store that will hold health documents; the gap is silent unless the application opts in |
+
+### Chosen Option: **A — on by default, start-up failure, explicit opt-out** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Both options deliver the encryption REQ-046 asks for; they differ on the default. Option A wins for an application that stores personal data, which is the reference use case. Option B wins for an application that stores only public assets and wants no key management.
+
+- With option A, Phase 11 adds the ADR-050 amendment: a new row `Storage (Encina.Storage) | a key source for envelope encryption (Encina.Security.Encryption, #1250) | | Required unless the explicit, logged AllowUnencrypted is set | Startup validation | #1239`. Without the amendment the requirement does not exist (ADR-050 rule 1).
+
+</details>
+
+<details>
+<summary><strong>9. A hold placed while a delete is in flight</strong></summary>
+
+`GuardedBlobStore` reads the blob info, asks the guards, then deletes. A legal hold is stored by `ILegalHoldService`, not on the blob, so a conditional delete on the blob's ETag does not detect it: the blob does not change when a hold is placed.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Accept and document the window; audit both events** | No new mechanism; the window is milliseconds; the audit shows the delete decision and the hold with their times, so a dispute is resolvable | A hold placed inside the window does not stop that delete |
+| **B) A distributed lock on the owner entity, taken by the hold placement and by the blob delete** | Closes the window | Requires a lock provider for every storage user (an ADR-050 requirement), and a change to `Encina.Compliance.Retention` to take the same lock |
+| **C) Two-phase delete: mark pending, re-check the guard after a grace period, then delete** | Closes the window without a lock | A sweeper and a pending state on every provider; deletes are no longer immediate, which conflicts with erasure deadlines only if the grace period is long |
+
+### Chosen Option: **A — document and audit** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when holds are placed by people (seconds to days ahead of deletion) and the audit is the evidence. Option B or C wins when automated processes place holds and delete concurrently.
+
+- The feature guide states the window; the S11 integration test covers a hold placed before the delete.
+
+</details>
+
 ---
 
 ## Implementation Phases
 
-Pull request cut: PR 1 = Phase 1 and the DI of Phase 7 (contract, models, options); PR 2 = Phase 2 (decorators); PR 3 = Phase 3 (file system); PR 4 = Phase 4 (S3); PR 5 = Phase 5 (Azure Blob); PR 6 = Phase 6 (compliance adapters); PR 7 = Phases 8-11 remainder (cross-cutting, observability, docs). Tests are written in each pull request for the code it adds.
+**Pull request cut.** Phases 7-10 are not pull requests of their own: each item lands with the code it concerns. Counts include tests, PublicAPI files and coverage manifests; every pull request stays within 15 files and 1,500 changed lines. The decorator chain is registered in PR 5, after the last decorator exists.
+
+| PR | Content | Files | Est. lines |
+|----|---------|-------|-----------|
+| 1 | Phase 1: csproj, `IBlobStore`, `BlobAddress`, `BlobInfo`, `BlobMetadata`, `BlobPutOptions`, `BlobContent`, `BlobPage`, `StorageErrors`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `Encina.slnx`; unit and guard tests; manifest `Encina.Storage.json` | 15 | ~900 |
+| 2 | Phase 2 (tenant and guard): `StorageOptions`, `IBlobLifecycleGuard`, `BlobOperation`, `CompositeBlobLifecycleGuard`, `TenantBlobStore`, `GuardedBlobStore`, PublicAPI; unit tests (composite, tenant, guarded), guard test, property test (addresses never traverse, tenant prefixes never overlap); manifest | 12 | ~1,100 |
+| 3 | Phase 2 (encryption): `EncryptingBlobStore`, `BlobEncryptionHeader`, `StorageOptions` (encryption options), PublicAPI; unit test (header, tamper, RFC 5649 and RFC 3394 vectors), property test (round trip); manifest | 7 | ~800 |
+| 4 | Phase 2 (audit, resilience, telemetry) and Phase 9: `AuditedBlobStore`, `ResilientBlobStore`, `InstrumentedBlobStore`, `StorageActivitySource`, `StorageMetrics`, `StorageLog` (6050-6079), `EventIdRanges.cs` (`StorageCore`, `StorageProviders`), `EncinaEventIdAllocationTests.cs`, PublicAPI; unit tests (audited, resilient, instrumented with the AC-044 exporter test); manifest | 14 | ~1,300 |
+| 5 | Phase 7: `ServiceCollectionExtensions` (`AddEncinaStorage`, chain in the order of Phase 2), `StorageStartupValidator` (choice 8), PublicAPI; DI test (`ValidateOnBuild`, `ValidateScopes`), validator unit test; manifest | 6 | ~600 |
+| 6 | Phase 3: `FileSystemBlobStore`, `FileSystemStorageOptions`, `FileSystemBlobStoreHealthCheck`, registration, PublicAPI; unit and guard tests; `IBlobStore` contract base and its file-system subclass (ContractTests); integration test on a temp directory; manifest | 11 | ~1,300 |
+| 7 | Phase 4: `Encina.Storage.S3` csproj, `S3BlobStore`, `S3StorageOptions` (with `Validate`), registration, `S3StorageLog` (6100-6124), health check, README, 2 PublicAPI files, `Directory.Packages.props` (`AWSSDK.S3`), `Encina.slnx`, `EncinaEventIdAllocationTests.cs`; unit and guard tests; manifest | 15 | ~1,100 |
+| 8 | Phase 5: `Encina.Storage.AzureBlob` (same shape, log 6125-6149, no package version change) | 14 | ~1,000 |
+| 9 | Integration of the cloud providers and Phase 8: `LocalStackFixture` (S3 client), contract subclass and integration test for S3 (LocalStack) and Azure Blob (Azurite), two-tenant isolation test on every provider (AC-043); `FakeBlobStore`, its PublicAPI, contract subclass and manifest in `Encina.Testing.Fakes` | 10 | ~1,100 |
+| 10 | Phase 6: `Encina.Storage.Compliance` csproj, `LegalHoldBlobGuard`, registration, `StorageComplianceLog` (6080-6099), README, 2 PublicAPI files, `Encina.slnx`, `EncinaEventIdAllocationTests.cs`; unit and guard tests, S11 integration test; manifest | 13 | ~1,000 |
+| 11 | Phase 11: ADR 067, ADR-050 amendment (choice 8, option A), `docs/features/storage.md`, `docs/INVENTORY.md`, `ROADMAP.md`, changelog fragment, load and benchmark justification files | 8 | ~700 |
 
 ### Phase 1: Core models and the `IBlobStore` contract
 
@@ -174,7 +284,7 @@ Pull request cut: PR 1 = Phase 1 and the DI of Phase 7 (contract, models, option
    - `ValueTask<Either<EncinaError, bool>> ExistsAsync(BlobAddress address, CancellationToken)`.
    - `ValueTask<Either<EncinaError, BlobPage>> ListAsync(string container, string prefix, string? continuationToken, int pageSize, CancellationToken)`.
 2. **`BlobAddress.cs`** (`Container`, `Name`, validation per Design Choice 2), **`BlobInfo.cs`** (address, `SizeBytes`, `ContentType`, `CreatedAtUtc`, `ModifiedAtUtc`, `ETag`, `BlobMetadata`), **`BlobMetadata.cs`** (`OwnerEntityType`, `OwnerEntityId`, `RetentionCategory`, `Tags`), **`BlobPutOptions.cs`** (`ContentType`, `Overwrite`, `Metadata`), **`BlobContent.cs`** (`Stream`, `BlobInfo`, `IAsyncDisposable`), **`BlobPage.cs`**.
-3. **`StorageErrors.cs`** (codes of Design Choice 5), **`StorageOptions.cs`** (`DefaultContainer`, `MaxBlobBytes`, `AllowUnencrypted`, `PageSize`) with `Validate`.
+3. **`StorageErrors.cs`** (codes of Design Choice 5). **`StorageOptions.cs`** (`DefaultContainer`, `MaxBlobBytes`, `AllowUnencrypted`, `PageSize`, defaults of choice 7) with `Validate` lands in PR 2.
 4. `PublicAPI.Unshipped.txt`; add the project to `Encina.slnx`.
 
 </details>
@@ -202,7 +312,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Security.Secrets/SecretsErrors.cs and SecretsOptions.cs
 - src/Encina.Security.Secrets/Abstractions/ISecretReader.cs (API documentation style)
-- docs/plans/storage-implementation-plan-1239.md
+- the plan of #1239 (linked from the issue)
 ```
 
 </details>
@@ -217,9 +327,9 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`IBlobLifecycleGuard.cs`**, **`BlobOperation.cs`** (`Read`, `Overwrite`, `Delete`), **`CompositeBlobLifecycleGuard.cs`** (ordered, first `Left` wins, a thrown exception becomes `Left(storage.delete_refused|read_refused)`).
-2. **`TenantBlobStore.cs`** (Design Choice 2) and `ForTenant`.
-3. **`GuardedBlobStore.cs`**: `GetInfoAsync` then `AuthorizeAsync` before delete, overwrite and read.
-4. **`EncryptingBlobStore.cs`**: header format of Design Choice 4, `IKeyWrapper` from the #1250 plan; refuses to read an unencrypted blob unless `AllowUnencrypted`.
+2. **`TenantBlobStore.cs`** (Design Choice 2) and `ForTenant`: sets `BlobAddress.TenantId`; the name stays logical and the provider composes the physical key.
+3. **`GuardedBlobStore.cs`**: `GetInfoAsync` then `AuthorizeAsync` before delete, overwrite and read; the window between the decision and the delete is choice 9.
+4. **`EncryptingBlobStore.cs`**: header format of Design Choice 4, per-blob key wrapped per choice 6 (recommended: `Aes.EncryptKeyWrapPadded` under the tenant data key of #1250's `ITenantDataKeyService`), AAD over the tenant and the logical name; refuses to read an unencrypted blob unless `AllowUnencrypted`.
 5. **`AuditedBlobStore.cs`**: deletes and refusals to `IOperationAuditStore`; disclosure reads to `IReadAuditStore`; the audit carries tenant, container, a hash of the name and the outcome, never the name or content.
 6. **`ResilientBlobStore.cs`**: retry transient errors (pattern `ResilientSecretReaderDecorator`, ADR-055).
 7. Decorator order, outermost to innermost: instrumented, audited, guarded, tenant, encrypting, resilient, provider.
@@ -233,7 +343,10 @@ REFERENCE FILES:
 You are implementing Phase 2 of issue #1239 in Encina: the IBlobStore decorators and the lifecycle guard.
 
 CONTEXT:
-- IBlobStore and the models exist (Phase 1). IKeyWrapper comes from the #1250 plan (src/Encina.Security.Encryption/).
+- IBlobStore and the models exist (Phase 1). ITenantDataKeyService and IKeyWrapper come from the #1250 plan (src/Encina.Security.Encryption/).
+- AES Key Wrap with padding (RFC 5649) is in the .NET 10 BCL: Aes.EncryptKeyWrapPadded / Aes.DecryptKeyWrapPadded. Test it with the
+  RFC 5649 section 6 vectors; a tampered wrapped key must fail to unwrap and surface as Left(storage.encryption_failed).
+- The AAD is 0x01 | tenantId | container | logical name (TenantBlobStore sets TenantId; the name is never prefixed before the provider).
 - ITenantProvider / MultiTenancyMarker decide the tenant; IOperationAuditStore and IReadAuditStore are in src/Encina.Security.Audit/Abstractions/.
 - Decorator registration pattern: DecorateService in src/Encina.Security.Secrets/ServiceCollectionExtensions.cs.
 
@@ -421,7 +534,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs
-- docs/plans/retention-floor-implementation-plan-1187.md and blocked-data-state-implementation-plan-1189.md
+- the plans of #1187 (retention floor) and #1189 (blocked data state), linked from those issues
 ```
 
 </details>
@@ -438,7 +551,7 @@ REFERENCE FILES:
 1. **`AddEncinaStorage(Action<StorageOptions>)`** in `Encina.Storage`: options with start-up validation, the decorator chain in the order of Phase 2, `CompositeBlobLifecycleGuard` collecting every registered `IBlobLifecycleGuard`.
 2. Each provider registers `IBlobStore` with `TryAdd`, called before `AddEncinaStorage` (prompt rule); a store registered by the application wins.
 3. DI tests with `ValidateOnBuild` and `ValidateScopes` for each provider and for the chain.
-4. Encryption enabled by default when `IKeyWrapper` is registered; without it and without `AllowUnencrypted`, start-up fails with a message naming the option (the guarantee is false without it, ADR-050 rule 3).
+4. Choice 8 (recommended option A): encryption enabled by default when the key source of choice 6 is registered; without it and without `AllowUnencrypted`, start-up fails with a message naming the option. This is a new requirement in the closed list of ADR-050 (rule 1), so it ships together with the ADR-050 amendment of Phase 11. If the maintainer picks option B, this task becomes the `UseEncryption()` registration and no amendment is needed.
 
 </details>
 
@@ -458,7 +571,8 @@ Add AddEncinaStorage, the provider registrations, the options validation and the
 
 KEY RULES:
 - TryAdd for defaults; satellites are called before the core registration.
-- Start-up fails (not a silent default) when encryption is required but not available.
+- Start-up fails (not a silent default) when encryption is required but not available (choice 8, option A, with the ADR-050
+  amendment row of Phase 11).
 
 REFERENCE FILES:
 - src/Encina.Security.Secrets/ServiceCollectionExtensions.cs
@@ -517,7 +631,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **EventIds**: register `StorageCore = (6050, 6099)` and `StorageProviders = (6100, 6149)` in `EventIdRanges.cs`; add `Encina.Storage`, `Encina.Storage.S3` (6100-6124), `Encina.Storage.AzureBlob` (6125-6149) and `Encina.Storage.Compliance` (6050-6099 shared with the core, from 5580) to `EncinaEventIdAllocationTests`.
+1. **EventIds**: register `StorageCore = (6050, 6099)` and `StorageProviders = (6100, 6149)` in `EventIdRanges.cs`; add `Encina.Storage`, `Encina.Storage.S3` (6100-6124), `Encina.Storage.AzureBlob` (6125-6149) and `Encina.Storage.Compliance` (6080-6099, inside `StorageCore`; the core uses 6050-6079) to `EncinaEventIdAllocationTests`.
 2. **`StorageActivitySource`** (`Encina.Storage`): spans `encina.storage.put`, `get`, `delete`, `list` with `encina.tenant_id` and `encina.storage.provider`; no name or content.
 3. **`StorageMetrics`**: counters `encina.storage.operations` (provider, operation, outcome) and `encina.storage.delete_refused` (reason code), histogram of sizes.
 4. **Test** (AC-044): in-memory exporter asserts the tenant attribute and the absence of names, content and subject identifiers in tags, metrics and logs.
@@ -607,10 +721,11 @@ REFERENCE FILES:
 
 1. XML docs on all new public APIs; `PublicAPI.Unshipped.txt` for the four packages.
 2. `changelog.d/1239-encina-storage.added.md`.
-3. ADR (next free number; 067 on 2026-11-11, reserved in the ADR index when work starts): the guard hook, tenant model, envelope format, package layout.
-4. READMEs for the four packages; `docs/features/storage.md` (configuration, providers, tenant partition, retention and hold behavior, encryption, limits); `docs/INVENTORY.md`; `ROADMAP.md`.
-5. Follow-up issues: retention floor and blocked-state guards (after #1187 and #1189), Google Cloud Storage (post-1.0), chunked encryption format version 2 (if needed).
-6. `dotnet build --configuration Release` with 0 warnings, `dotnet test`, every flag at target.
+3. ADR (next free number; 067 on 2026-11-11, reserved in the ADR index when work starts): the guard hook, tenant model, envelope format and key wrapping (choice 6), package layout, the hold window (choice 9).
+4. ADR-050 amendment (only with choice 8, option A): the row `Storage (Encina.Storage)` requiring a key source for envelope encryption unless `AllowUnencrypted` is set, mechanism start-up validation, source #1239; the amendment note names #122 as an inheriting dependent.
+5. READMEs for the four packages; `docs/features/storage.md` (configuration, providers, tenant partition, retention and hold behavior including the window of choice 9, encryption, limits); `docs/INVENTORY.md`; `ROADMAP.md`.
+6. Follow-up issues: retention floor and blocked-state guards (after #1187 and #1189), Google Cloud Storage (post-1.0), chunked encryption format version 2 (if needed).
+7. `dotnet build --configuration Release` with 0 warnings, `dotnet test`, every flag at target.
 
 </details>
 
@@ -649,6 +764,8 @@ REFERENCE FILES:
 | SPEC-000 | §6.1 (GCP post-1.0) | Cloud triangle gap |
 | GDPR | Art. 5(1)(e) storage limitation, Art. 17 erasure, Art. 32 security | Retention and encryption of files |
 | NIST SP 800-38D, SP 800-57 | AES-GCM, key wrapping | Envelope format |
+| RFC 5649, RFC 3394 (NIST SP 800-38F) | AES Key Wrap with and without padding; `Aes.EncryptKeyWrapPadded` in the .NET 10 BCL | Per-blob key wrapping (choice 6) and its test vectors |
+| ADR-050 | Rule 1: the closed list of module requirements; a new requirement is an amendment | Choice 8 |
 | Comparable products | Azure Blob Storage SDK, AWS SDK for .NET S3, MinIO, Apache Commons VFS | Contract shape; server-side encryption is complementary, not a replacement |
 | AGENTS.md §3, §5 | Fail closed, ROP, registration completeness; cloud category | Rules applied |
 
@@ -659,10 +776,11 @@ REFERENCE FILES:
 | ITenantProvider | src/Encina.Tenancy/Abstractions/ITenantProvider.cs | tenant prefix of every blob key |
 | MultiTenancyMarker | src/Encina/Abstractions/MultiTenancyMarker.cs | signal that tenancy is on, so a missing tenant fails closed |
 | ILegalHoldService | src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs | hold check before delete |
-| IRetentionFloorQuery (planned by #1187) | docs/plans/retention-floor-implementation-plan-1187.md | retention floor check before delete |
-| IBlockedDataFilterContext (planned by #1189) | docs/plans/blocked-data-state-implementation-plan-1189.md | blocked state and the audited disclosure scope |
+| IRetentionFloorQuery (planned by #1187) | the plan of #1187 | retention floor check before delete |
+| IBlockedDataFilterContext (planned by #1189) | the plan of #1189 | blocked state and the audited disclosure scope |
 | IOperationAuditStore and IReadAuditStore | src/Encina.Security.Audit/Abstractions/ | audit of deletes, refusals and disclosures |
-| IKeyWrapper and WrappedKey (planned by #1250) | docs/plans/column-encryption-implementation-plan-1250.md | per-blob data key wrapped by the tenant key |
+| ITenantDataKeyService, IKeyWrapper and WrappedKey (planned by #1250) | the plan of #1250 | tenant data key that wraps the per-blob key (choice 6) |
+| Aes.EncryptKeyWrapPadded / DecryptKeyWrapPadded | .NET 10 BCL, System.Security.Cryptography | RFC 5649 wrap of the per-blob key |
 | ITenantKeyResolver | src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs | tenant key id convention |
 | Azure.Storage.Blobs 12.30.1 | Directory.Packages.props | Azure Blob provider |
 | AWSSDK.S3 | not yet in Directory.Packages.props | new version entry for the S3-compatible provider |
@@ -679,7 +797,7 @@ REFERENCE FILES:
 | `Encina.Storage` and `Encina.Storage.Compliance` | `StorageCore` 6050-6099 (new) | Core 6050-6079, Compliance 6080-6099 |
 | `Encina.Storage.S3` | `StorageProviders` 6100-6149 (new) | **6100-6124** |
 | `Encina.Storage.AzureBlob` | `StorageProviders` 6100-6149 | **6125-6149** |
-| Family of plans | 6000-6049 claim check (#599, #122), 6150-6199 claim check providers (#122), 6200-6249 column encryption (#1250), `SecuritySecrets` 5151-5170 (#1246) | Disjoint, in the family block 6000-6249 (registry eventid-blocks.md) |
+| Family of plans | 6000-6049 claim check (#599, #122), 6150-6199 claim check providers (#122), 6200-6249 column encryption (#1250) | Disjoint, in the family block 6000-6249 of the batch registry |
 
 ### Open Questions to Verify During Implementation
 
@@ -710,7 +828,7 @@ REFERENCE FILES:
 | Load and benchmark justification files | 2 | |
 | Documentation | 8 | |
 | Coverage manifest edits | 4 | |
-| Total | 93 | Split over seven pull requests |
+| Total | 93 | Distinct files; the per-PR table under Implementation Phases counts 125 file changes over 11 pull requests, because some files (PublicAPI, manifests, `EncinaEventIdAllocationTests.cs`, `Encina.slnx`) change in several |
 
 ---
 
@@ -722,13 +840,13 @@ REFERENCE FILES:
 ```
 PROJECT CONTEXT:
 You are implementing issue #1239 in Encina (.NET 10, C# 14, nullable enabled, pre-1.0, no backward compatibility): the Encina.Storage
-package family with IBlobStore (SPEC-002 REQ-046). Rules: AGENTS.md. IKeyWrapper comes from docs/plans/column-encryption-implementation-plan-1250.md;
-Encina.ClaimCheck.Storage (docs/plans/claim-check-implementation-plan-122.md) builds on this package.
+package family with IBlobStore (SPEC-002 REQ-046). Rules: AGENTS.md. ITenantDataKeyService and IKeyWrapper come from the #1250 plan;
+Encina.ClaimCheck.Storage (#122) builds on this package.
 
 IMPLEMENTATION OVERVIEW:
 1. Contract and models: IBlobStore, BlobAddress (validated), BlobInfo, BlobMetadata, BlobPutOptions, BlobContent, BlobPage, StorageErrors, StorageOptions.
 2. Decorators: tenant partition (ambient tenant, ForTenant scope), lifecycle guard (composite), single-shot AES-GCM envelope encryption with a per-blob
-   wrapped key, audit, resilience, telemetry.
+   key wrapped by RFC 5649 (Aes.EncryptKeyWrapPadded, .NET 10 BCL) under the tenant data key of #1250 (choice 6), audit, resilience, telemetry.
 3. Providers: file system (core), Encina.Storage.S3 (S3-compatible, LocalStack tests), Encina.Storage.AzureBlob (Azurite tests).
 4. Encina.Storage.Compliance: legal hold guard now; retention floor and blocked-state guards after #1187 and #1189.
 5. Registration, health checks, FakeBlobStore, EventIds StorageCore 6050-6099 and StorageProviders 6100-6149, metrics, spans.
@@ -744,7 +862,6 @@ REFERENCE FILES:
 - src/Encina.Security.Secrets/ (decorators, options validators, health check, DI)
 - tests/Encina.TestInfrastructure/Fixtures/AzuriteFixture.cs and LocalStackFixture.cs
 - src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs
-- docs/plans/storage-implementation-plan-1239.md
 ```
 
 </details>
@@ -774,20 +891,20 @@ REFERENCE FILES:
 
 ### Advisable before or with this work
 
-- #1250 plan, Phase 1 and Phase 3: `IKeyWrapper` and the KMS wrappers for the encryption decorator. Phases 1, 3, 4, 5 and the guard of this plan do not wait for it.
+- #1250 plan, Phases 1-3: `IKeyWrapper`, `ITenantDataKeyService` and the KMS wrappers for the encryption decorator (PR 3 and the start-up validation of PR 5). The other pull requests of this plan do not wait for it.
 - #1187 (retention floor) and #1189 (blocked data state): the floor and blocking adapters of Phase 6 wait for them; the legal hold adapter does not.
 - #1257 (multi-tenancy of the SPEC-002 capabilities): REQ-061 for blob storage is implemented here; #1257 tracks the cross-feature verification.
 
 ### Parallel and follow-up work
 
-- `claim-check-implementation-plan-122.md` (#122): `Encina.ClaimCheck.Storage` builds on `IBlobStore`; #600 is covered by it.
+- #122: `Encina.ClaimCheck.Storage` builds on `IBlobStore` and inherits the encryption default of choice 8; #600 is covered by it.
 - Google Cloud Storage: post-1.0, the recorded gap of the cloud triangle (follow-up issue at Phase 11).
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas of this plan (choices 2, 3 and 4); the orchestrator adds the Maintainer Decisions section.
+1. The maintainer answers the Dilemmas of this plan (choices 2, 3, 4, 6, 7, 8 and 9); the orchestrator adds the Maintainer Decisions section.
 2. Link this plan from #1239 and reserve the ADR number in `docs/architecture/adr/index.md`.
-3. Start with PR 1 and PR 2; PR 3 to PR 5 (providers) can run in parallel after PR 1.
-4. Open the follow-up issues of Phase 11 task 5 when the corresponding dependencies are merged.
+3. Order: PR 1, PR 2, then PR 3 (after #1250 Phases 1-3) and PR 4 in parallel, PR 5 after PR 2-4; PR 6-8 after PR 5 in parallel; PR 9 after PR 6-8; PR 10 after PR 5; PR 11 last.
+4. Open the follow-up issues of Phase 11 task 6 when the corresponding dependencies are merged.
