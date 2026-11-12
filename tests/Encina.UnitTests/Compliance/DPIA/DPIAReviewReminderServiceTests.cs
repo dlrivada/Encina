@@ -169,6 +169,22 @@ public class DPIAReviewReminderServiceTests
     }
 
     [Fact]
+    public void AddEncinaDPIA_IntervalOutsidePeriodicTimerRange_FailsWhenTheReminderServiceIsResolved()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(_service);
+
+        services.AddEncinaDPIA(o => o.ExpirationCheckInterval = TimeSpan.Zero);
+
+        using var provider = services.BuildServiceProvider();
+
+        // The host resolves its hosted services at start, so a bad interval stops the start loudly
+        var ex = Should.Throw<OptionsValidationException>(() => provider.GetServices<IHostedService>().ToList());
+        ex.Message.ShouldContain("ExpirationCheckInterval");
+    }
+
+    [Fact]
     public void AddEncinaDPIA_CalledTwice_RegistersTheReminderServiceOnce()
     {
         var services = new ServiceCollection();
