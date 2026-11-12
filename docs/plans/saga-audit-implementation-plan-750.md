@@ -50,31 +50,35 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 <details>
 <summary><strong>2. Atomicity of the audit record with the state change (Dilemma D2)</strong></summary>
 
-Verified on origin/main: `SagaOrchestrator` only calls `ISagaStore.AddAsync` and `UpdateAsync` and never `SaveChangesAsync` (`src/Encina.Messaging/Sagas/`, grep); `SagaStoreEF.UpdateAsync` only stages the change on the `DbContext` (`SagaStoreEF.cs` line 66) and the commit is `SaveChangesAsync` (line 128), owned by the caller or an ambient unit of work. The ADO.NET and Dapper stores execute and commit inside each call. So "after the save" means different things per store family.
+Verified on origin/main: `SagaOrchestrator` only calls `ISagaStore.AddAsync` and `UpdateAsync` and never `SaveChangesAsync` (`src/Encina.Messaging/Sagas/`, grep); `SagaStoreEF.UpdateAsync` only stages the change on the `DbContext` (`SagaStoreEF.cs` line 66) and the commit is `SaveChangesAsync` (line 128), owned by the caller or an ambient unit of work.
 
-| Store family | When the saga change is durable | Order of an emission right after the store call |
+The ADO.NET and Dapper saga stores do NOT always commit inside the call: every command runs through `DbLease.Enlisted(_connection, _transactionAccessor)` (`src/Encina.ADO.PostgreSQL/Sagas/SagaStoreADO.cs` lines 59, 89, 129, 171, 214; `src/Encina.Dapper.PostgreSQL/Sagas/SagaStoreDapper.cs` lines 64, 87, 113, 157, 195; the SqlServer and MySQL siblings use the same call). They join the scope's transaction when one is active (the normal `IEncina.Send` path under `TransactionPipelineBehavior`) and run in autocommit only when there is none. The MongoDB saga store does the same through `IMongoSessionAccessor` (`SagaStoreMongoDB.cs` lines 20, 52). The operation audit stores take no accessor: `OperationAuditStoreADO`/`OperationAuditStoreDapper` receive only an `IDbConnection` (constructor at line 53/52, no `DbLease` or `IDbTransactionAccessor` in `src/Encina.*/Auditing`), `OperationAuditStoreMongoDB` has no `IMongoSessionAccessor`, and `OperationAuditStoreEF` calls `SaveChangesAsync` itself (line 64). So the audit write is independent of the saga's ambient transaction in every family, and "after the save" depends on whether a transaction is active:
+
+| Store family | No ambient transaction | Ambient transaction (the usual `IEncina.Send` path) |
 |---|---|---|
-| ADO.NET, Dapper (6 stores) | Inside `UpdateAsync`/`AddAsync` | Audit written after the commit; a failed audit leaves the transition applied and unaudited |
-| EF Core (3 providers, one store) | At `SaveChangesAsync`, by the caller | Audit written BEFORE the commit; a rollback of the saga unit of work leaves an audit entry for a transition that never happened |
-| MongoDB | Inside the call | After the commit, like ADO.NET |
+| ADO.NET, Dapper (6 stores) | Saga change committed in the call; audit written after the commit; a failed audit leaves the transition applied and unaudited | Saga change durable only when the lease owner commits; audit already written on its own connection; a rollback leaves an audit entry for a transition that never happened |
+| EF Core (3 providers, one store) | Durable at the caller's `SaveChangesAsync`; the audit is written before that commit | Same as without: durable at the unit of work's commit, audit written before it; a rollback of the saga leaves a phantom entry unless the audit store shares the same `DbContext` instance and transaction, which the implementation must prove with a test |
+| MongoDB | Committed in the call; audit after the commit | Saga write in the session's transaction; the audit write is outside it, so a rolled-back transaction leaves a phantom entry |
+
+The phantom-entry risk of option A therefore applies to ADO.NET, Dapper and MongoDB as well as EF Core whenever a transaction is active, and it also applies to the #720 plan, whose per-step lease can roll back after the audit for that step was written (a rolled-back compensation step leaves an audit entry; the #720 plan notes the same interaction).
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The orchestrator emits right after each successful `AddAsync`/`UpdateAsync`; a sink `Left` is returned** | Simple; the orchestrator is the single emission point; no new commit coupling | For EF Core the entry can describe a rolled-back transition (the inverse of the gap); for the other stores an unaudited-but-applied transition is possible |
-| B) A decorator over `ISagaStore` records the pending events at `AddAsync`/`UpdateAsync` and emits them after the inner `SaveChangesAsync` succeeds | Correct for EF Core: no entry for a rolled-back transition | The non-EF stores commit in the call and nobody calls `SaveChangesAsync` (the orchestrator does not), so the decorator needs a per-family rule; more moving parts |
-| C) Write both in the same unit of work | No gap and no phantom entry | The audit store must join the saga store's connection or transaction, possible only when both use the same database provider; `IOperationAuditStore` has no transaction support |
+| **A) The orchestrator emits right after each successful `AddAsync`/`UpdateAsync`; a sink `Left` is returned** | Simple; the orchestrator is the single emission point; no new commit coupling | With an ambient transaction (every family) the entry can describe a rolled-back transition; without one, an unaudited-but-applied transition is possible |
+| B) A decorator over `ISagaStore` records the pending events at `AddAsync`/`UpdateAsync` and emits them once the saga write is durable: after the inner `SaveChangesAsync` succeeds (EF Core), after the lease owner's commit when a transaction is ambient (ADO.NET, Dapper, MongoDB: needs a hook on the transaction's completion, which `ITransactionLease` does not expose today), or immediately after the call when there is no transaction | No entry for a rolled-back transition in any family | Nobody calls `SaveChangesAsync` on the non-EF stores and the orchestrator does not either, so the decorator needs a per-family and per-transaction-state rule and a commit-completion hook; more moving parts |
+| C) Write both in the same unit of work | No gap and no phantom entry | The audit store must join the saga store's connection or transaction (`DbLease.Enlisted` / the Mongo session accessor, which the audit stores do not use today), possible only when both use the same database provider; `IOperationAuditStore` has no transaction support |
 
 ### Chosen Option: **A — Emit after the store call** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Option A wins when simplicity matters and the saga write is committed by the caller before or soon after (the usual `IEncina.Send` with the transaction behavior). Option B wins in regulated deployments on EF Core where an audit entry for a rolled-back transition is unacceptable. Option C is tracked for when `IOperationAuditStore` gains transaction support.
-- Cost of the recommendation in the losing scenario: on EF Core a rollback after the audit write leaves a phantom entry in the audit trail, and the audit store (`OperationAuditStoreEF` calls `SaveChangesAsync` on its own context) cannot be rolled back with the saga. The documentation says so per store family.
+- Option A wins when simplicity matters and the saga write is committed by the caller before or soon after (the usual `IEncina.Send` with the transaction behavior). Option B wins in regulated deployments, on any family, where an audit entry for a rolled-back transition is unacceptable. Option C is tracked for when `IOperationAuditStore` gains transaction support (the audit stores would enlist like the saga stores).
+- Cost of the recommendation in the losing scenario: whenever the saga write runs inside an ambient transaction (all four store kinds, not only EF Core) a rollback after the audit write leaves a phantom entry in the audit trail, because the audit stores write on their own (`OperationAuditStoreEF` calls `SaveChangesAsync` itself). The documentation says so per store family and per transaction state.
 - The caller of the orchestrator receives the `Left` from the audit write, so the unaudited case is never silent (see choice 5).
 - The same premise (who commits the saga write) is in the #297 plan (Design Choice 11, D6); the maintainer's answer should be one for the saga family.
-- Tests, one per store family: a fake ADO-style store (durable in the call), a fake EF-style store (staged until `SaveChangesAsync`), proving the documented ordering and that a sink `Left` is returned in both.
+- Tests, one per store family and transaction state: a fake ADO-style store (durable in the call without a transaction; durable at the lease owner's commit with one), a fake EF-style store (staged until `SaveChangesAsync`), proving the documented ordering and that a sink `Left` is returned in each; plus an ADO-style test where the ambient transaction is rolled back after the sink call, asserting the documented phantom entry (option A) or its absence (option B) as the maintainer decides; and a #720 interaction test: a compensation step rolled back after its audit write.
 - **Class:** Dilemma
 
 </details>
@@ -255,7 +259,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `SagaOrchestrator`: optional constructor parameter `ISagaAuditSink? auditSink`; after each successful `ISagaStore.UpdateAsync`/`AddAsync` call the sink (emission points of choice 4); a `Left` from the sink is returned (choice 5). With no sink nothing is emitted and nothing is allocated.
+1. `SagaOrchestrator`: optional constructor parameter `ISagaAuditSink? auditSink`; after each successful `ISagaStore.UpdateAsync`/`AddAsync` call the sink (emission points of choice 4); a `Left` from the sink is returned (choice 5). With no sink nothing is emitted and nothing is allocated. The same `SagaOrchestrator` constructor is changed by #738 (two optional parameters: `IRequestContextAccessor?`, `MultiTenancyMarker?`) and, through its dependencies, by #720 (`CommitAsync` and the definition registry). `PublicAPI.Unshipped.txt` churn: each of the three plans removes the constructor line it found and adds the new one, so the merge order decides the lines. Merge order of the three constructor edits: #738 first (it owns the tenant parameters and the other plans rebase onto it, as the #738 plan states), then #720, then this plan; whichever plan merges next re-reads the current constructor line and removes exactly that line before adding its own.
 2. Entry ids are assigned by the adapter (Phase 3, random, D3 option A), not by the orchestrator.
 3. `[LoggerMessage]` entries (audit recorded at Debug, audit failed at Error with the error code) in the `MessagingSaga` range, ids 2250-2274, sequential.
 4. `RegisterSagas` (`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`, line 355) does not register the sink; it is resolved optionally.
@@ -273,8 +277,8 @@ TASK:
 Emit the events from SagaOrchestrator at the points listed in Phase 2 Tasks.
 
 KEY RULES:
-- Emit only after the store call returned Right (the orchestrator never calls SaveChangesAsync: on EF Core that is before the commit, see Design Choice 2); return the sink's Left to the caller, never swallow it.
-- Unit tests per store family: a fake that commits in the call and a fake that stages until SaveChangesAsync.
+- Emit only after the store call returned Right (the orchestrator never calls SaveChangesAsync: on EF Core that is before the commit, and with an ambient transaction the ADO.NET, Dapper and MongoDB stores have not committed yet either, see Design Choice 2); return the sink's Left to the caller, never swallow it.
+- Unit tests per store family and transaction state: a fake that commits in the call, a fake that joins an ambient transaction and a fake that stages until SaveChangesAsync; one test rolls the ambient transaction back after the sink call.
 - Time from the existing TimeProvider; log the error code only, exceptions via ForLogging().
 - EventIds 2250-2274 inside the registered MessagingSaga range; run EncinaEventIdAllocationTests.
 
@@ -573,7 +577,7 @@ REFERENCE FILES:
 | 5 | Validation | ❌ | Not applicable: no external input; startup validation of the flag and sink is registration completeness |
 | 6 | Resilience | ❌ | Not applicable: the audit store implementation owns retries and the orchestrator does not retry; a failed write is returned as a `Left` |
 | 7 | Distributed Locks | ❌ | Not applicable: no shared state is locked |
-| 8 | Transactions | ⏭️ | Deferred: depends on D2 option B, when `IOperationAuditStore` gains transaction support (to be opened as an issue if the maintainer chooses B) |
+| 8 | Transactions | ⏭️ | Deferred (the phantom entry on a rolled-back ambient transaction affects all store families and the #720 per-step lease): depends on D2 option B or C, when `IOperationAuditStore` gains transaction support (to be opened as an issue if the maintainer chooses B) |
 | 9 | Idempotency | ⏭️ | Deferred with D3 option A: a retried transition can write a second row, distinguishable by metadata; exactly-once needs insert-or-ignore in the 8 operation audit stores and is opened as an issue only if the maintainer picks D3 option B |
 | 10 | Multi-Tenancy | ✅ | Phase 4: ambient tenant; the row's tenant once #738 lands |
 | 11 | Module Isolation | ❌ | Not applicable: saga rows have no module scope (#747 is separate) |
