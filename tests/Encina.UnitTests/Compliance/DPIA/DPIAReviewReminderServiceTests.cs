@@ -94,8 +94,7 @@ public class DPIAReviewReminderServiceTests
         await calls.Reached.WaitAsync(SignalTimeout);
         await Should.NotThrowAsync(() => sut.StopAsync(CancellationToken.None));
 
-        sut.ExecuteTask.ShouldNotBeNull();
-        sut.ExecuteTask!.IsFaulted.ShouldBeFalse();
+        (sut.ExecuteTask?.IsFaulted).ShouldBe(false);
     }
 
     [Fact]
@@ -119,8 +118,7 @@ public class DPIAReviewReminderServiceTests
         await calls.Reached.WaitAsync(SignalTimeout);
         await Should.NotThrowAsync(() => sut.StopAsync(CancellationToken.None));
 
-        sut.ExecuteTask.ShouldNotBeNull();
-        sut.ExecuteTask!.IsFaulted.ShouldBeFalse();
+        (sut.ExecuteTask?.IsFaulted).ShouldBe(false);
     }
 
     #endregion
