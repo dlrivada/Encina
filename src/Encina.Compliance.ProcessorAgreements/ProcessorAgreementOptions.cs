@@ -86,6 +86,38 @@ public sealed class ProcessorAgreementOptions
     /// </remarks>
     public int MaxSubProcessorDepth { get; set; } = 3;
 
+    // --- Tenant isolation ---
+
+    /// <summary>
+    /// Gets or sets whether processor and DPA operations fail closed when no tenant is present in
+    /// the ambient <see cref="IRequestContext"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every query filters the read model's <c>TenantId</c> against the ambient tenant, and a record
+    /// of another tenant read or mutated by id is reported as not found, so a request scoped to one
+    /// tenant never observes or changes another tenant's processor register (#3517). With no
+    /// ambient tenant the operations read and write the null-tenant scope: a record stored with a
+    /// tenant is never visible there, and a record stored without one is never visible to a
+    /// tenanted caller. This flag only controls what happens when the ambient tenant is missing.
+    /// </para>
+    /// <para>
+    /// The default is <c>null</c> (auto-detect, SPEC-002 DEC-006/DEC-009): when
+    /// <c>Encina.Tenancy</c> is registered (<c>Encina.Tenancy.ITenantProvider</c> is resolvable),
+    /// a missing ambient tenant returns <see cref="ProcessorAgreementErrors.TenantRequiredCode"/>;
+    /// when tenancy is not registered, operations run in the null-tenant scope, which is what a
+    /// single-tenant application expects without configuration.
+    /// </para>
+    /// <para>
+    /// Set explicitly to override the auto-detection: <c>true</c> always fails closed, even without
+    /// <c>Encina.Tenancy</c>. <c>false</c> is an explicit opt-out that runs a tenant-less operation
+    /// in the null-tenant scope even when multi-tenancy is enabled; the services log this opt-out
+    /// whenever they are constructed (once per scope, because they are registered scoped) so it is
+    /// never silent.
+    /// </para>
+    /// </remarks>
+    public bool? RequireTenantContext { get; set; }
+
     // --- Expiration monitoring ---
 
     /// <summary>
