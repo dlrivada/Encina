@@ -228,8 +228,8 @@ Rules common to every option (settled by REQ-061, AC-043 and AGENTS.md §3):
 | PR | Content | Files | Est. lines |
 |----|---------|-------|-----------|
 | 1 | Phase 7 refactor and Phase 1: `ServiceCollectionExtensions` (`WrapWithDecorators` can omit caching; keyed `"certificates"` chain registration helper), `ICertificateReader`, `ICertificateRotationListener`, `CertificateOptions`, `CertificateNameResolver`, `ICertificateTenantSource`, `SecretsErrors`, PublicAPI; unit tests (chain never calls a recording `ICacheProvider`; resolver), guard test, property test (name injectivity); manifest | 13 | ~1,100 |
-| 2 | Phases 2-3: `CertificateParser` (PEM chain, PFX collection, Windows re-export), `SecretCertificateReader`, internal `ITenantCertificateReader` (explicit-tenant path: source read for the refresh, cached read for the health check), `CertificateCache` (stale age of choice 6, disposal of an unchanged re-parse), `Log.cs` (5151-5160), PublicAPI; unit tests (parser, reader, cache with `FakeTimeProvider`), guard test; manifest | 11 | ~1,300 |
-| 3 | Phases 4-5: `FileCertificateReader`, `FileCertificateOptions`, `CompositeCertificateReader`, `AuditedCertificateReaderDecorator`, `AddEncinaCertificates` in `ServiceCollectionExtensions`, PublicAPI; unit tests (file reader, composite fall-through, audit), DI test (`ValidateOnBuild`, `ValidateScopes`), guard test; manifest | 11 | ~1,200 |
+| 2 | Phases 2-3: `CertificateParser` (PEM chain, PFX collection, Windows re-export), `SecretCertificateReader` (source reader), internal `ICertificateSourceReader` and `ITenantCertificateReader` (explicit-tenant path: source read for the refresh, cached read for the health check), `CachingCertificateReader` (the one cache owner), `CertificateCache` (stale age of choice 6, disposal of an unchanged re-parse), `Log.cs` (5151-5160), PublicAPI; unit tests (parser, reader, cache with `FakeTimeProvider`), guard test; manifest | 14 | ~1,400 |
+| 3 | Phases 4-5: `FileCertificateReader`, `FileCertificateOptions`, `CompositeCertificateReader`, `AuditedCertificateReaderDecorator`, `AddEncinaCertificates` in `ServiceCollectionExtensions`, PublicAPI; unit tests (file reader, file certificate cached on the second read, composite fall-through, audit), DI test (`ValidateOnBuild`, `ValidateScopes`), guard test; manifest | 11 | ~1,200 |
 | 4 | Phases 6 and 8: `CertificateExpiryHealthCheck`, `SecretsMetrics`, `SecretsActivitySource`, `Log.cs` (5161-5170), PublicAPI; unit test (health window), AC-044 exporter test, contract test over the provider-shaped fakes and the file reader; manifest | 9 | ~900 |
 | 5 | Phase 9: `LocalStackFixture` (Secrets Manager client), integration tests (Vault dev server, LocalStack, file source, loopback mTLS with the PEM path and the chain, two tenants), load and benchmark justification files, README, `docs/features/` page, changelog fragment, `ROADMAP.md`, `docs/INVENTORY.md` | 14 | ~1,300 |
 
@@ -338,15 +338,16 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Certificates/SecretCertificateReader.cs : ICertificateReader`**: resolves the logical name (Phase 1), reads the certificate secret and, when needed, the password secret through the keyed `ISecretReader` `"certificates"`, parses (Phase 2) and checks validity; the public read and the cached read of task 5 store the instance in the cache, the source read of task 5 (used by the refresh) does not touch it.
+1. **`Certificates/SecretCertificateReader.cs : ICertificateSourceReader`**: resolves the logical name (Phase 1), reads the certificate secret and, when needed, the password secret through the keyed `ISecretReader` `"certificates"`, parses (Phase 2) and checks validity. It is a source reader only (the source read of task 5) and never touches the cache.
+   **`Certificates/CachingCertificateReader.cs : ICertificateReader, ITenantCertificateReader`**: the one owner of `CertificateCache`, over one inner `ICertificateSourceReader`. It implements the public `GetCertificateAsync` and the cached read of task 5, and forwards the source read to its inner reader. In PR 2 the inner reader is `SecretCertificateReader`; from PR 3 it is `CompositeCertificateReader` (Phase 4), so certificates from every source, file included, are cached once, in one place, and refreshed through the same path: there is no second cache and no uncached source.
 2. **`Certificates/CertificateCache.cs`**: `ConcurrentDictionary<(string Tenant, string Name), Entry>` (the entry holds the leaf, the intermediates and the time of the last successful read); `GetOrAddAsync` with single-flight per key (a `Lazy<Task>` or per-key semaphore); a refresh task per entry on `RefreshInterval` via `TimeProvider.CreateTimer` whose callback catches everything and never throws (AGENTS.md §3, timer callbacks); thumbprint comparison; the replaced instance is disposed after `DisposeGracePeriod`, and a re-parsed instance whose thumbprint is unchanged (leaf and intermediates) is disposed at once (choice 2, Windows key files); the refresh calls the source read of task 5 (`ReadFromSourceAsync`, caller `Refresh`) with the entry's own `(tenant, name)`, which bypasses the cache, never the cached read `GetCertificateForTenantAsync`; listeners notified on change; after a failed refresh the entry is served until `MaxStaleAge` past its last successful read, then `Left(secrets.certificate_stale)` (choice 6).
 3. **The keyed reader**: the keyed `ISecretReader` `"certificates"` is the base provider wrapped in resilience (if enabled) and auditing, without caching (Design Choice 2), built with the helper added in PR 1; `AddEncinaCertificates` (Phase 5, PR 3) registers it.
 4. Tests: first read, cached read (no provider call), rotation (provider returns a new certificate, listener fires, old instance disposed after the grace period with `FakeTimeProvider`), a refresh with an unchanged thumbprint disposes the newly parsed instance and keeps the cached one, refresh failure serves until `MaxStaleAge` and then refuses, expired certificate refused, two tenants isolated, tenancy on without tenant fails closed, a refresh with no request context reads the entry's tenant and records it in the audit; the refresh bypasses the cache: with `FakeTimeProvider`, a provider substitute that returns certificate A on the first read and B afterwards receives a second call on the first refresh tick, the cache then serves B, and a refresh that keeps failing reaches `Left(secrets.certificate_stale)` after `MaxStaleAge` (a refresh routed through the cached read would make all three assertions fail).
-5. **Explicit-tenant read path** (internal), split in two levels so that the refresh never goes back through the cache: an internal interface `ITenantCertificateReader` with
-   - `ValueTask<Either<EncinaError, ParsedCertificate>> ReadFromSourceAsync(string? tenant, string name, CertificateReadCaller caller, CancellationToken cancellationToken)`: the **source read**, below the cache. It crosses the sources (keyed secret chain or file), the fall-through of choice 5 and the audit, parses and checks validity, and never touches `CertificateCache`. Implemented by `SecretCertificateReader` here and by `FileCertificateReader`, `CompositeCertificateReader` and `AuditedCertificateReaderDecorator` in Phase 4. The audit entry is recorded here, with the tenant and the caller (`CertificateReadCaller`: `Request`, `Refresh` or `Health`), rather than the empty request context.
-   - `ValueTask<Either<EncinaError, ParsedCertificate>> GetCertificateForTenantAsync(string? tenant, string name, CancellationToken cancellationToken)`: the **cached read**, `CertificateCache.GetOrAddAsync((tenant, name), ...)` whose factory is `ReadFromSourceAsync` of the source chain.
+5. **Explicit-tenant read path** (internal), split in two levels so that the refresh never goes back through the cache: an internal interface `ICertificateSourceReader` holds the source read, and an internal interface `ITenantCertificateReader : ICertificateSourceReader` adds the cached read:
+   - `ValueTask<Either<EncinaError, ParsedCertificate>> ReadFromSourceAsync(string? tenant, string name, CertificateReadCaller caller, CancellationToken cancellationToken)` (on `ICertificateSourceReader`): the **source read**, below the cache. It crosses the sources (keyed secret chain or file), the fall-through of choice 5 and the audit, parses and checks validity, and never touches `CertificateCache`. Implemented by `SecretCertificateReader` here and by `FileCertificateReader`, `CompositeCertificateReader` and `AuditedCertificateReaderDecorator` in Phase 4; `CachingCertificateReader` forwards it to its inner reader. The audit entry is recorded here, with the tenant and the caller (`CertificateReadCaller`: `Request`, `Refresh` or `Health`), rather than the empty request context.
+   - `ValueTask<Either<EncinaError, ParsedCertificate>> GetCertificateForTenantAsync(string? tenant, string name, CancellationToken cancellationToken)` (on `ITenantCertificateReader`, implemented only by `CachingCertificateReader`): the **cached read**, `CertificateCache.GetOrAddAsync((tenant, name), ...)` whose factory is `ReadFromSourceAsync` of the inner source reader.
 
-   Who calls what: each public `GetCertificateAsync` resolves the tenant from `IRequestContextAccessor` and `MultiTenancyMarker` (choice 7) and calls the cached read (caller `Request` on a miss); the health check (Phase 6) calls the cached read (caller `Health` on a miss), because the health check reads through the cache (Design Choices, health check); the cache refresh (task 2) calls **only** the source read with caller `Refresh`, on the outermost source reader (the composite of Phase 4, or `SecretCertificateReader` before PR 3), never the cached read: a refresh through the cache would get the cached instance back, compare equal thumbprints and never re-read (no rotation, and `MaxStaleAge` would never trip), and with single flight per key it could wait on itself. Both levels apply the same segment validation (choice 4) and refuse a null tenant under tenancy. `ParsedCertificate` is the leaf plus its intermediates returned by `CertificateParser` (Phase 2) and `CertificateReadCaller` is an internal enum of this PR. The interface is not public: application code always goes through the ambient tenant.
+   Who calls what: `CachingCertificateReader` is the only `ICertificateReader` and the only `ITenantCertificateReader` registered, before and after PR 3. Its public `GetCertificateAsync` resolves the tenant from `IRequestContextAccessor` and `MultiTenancyMarker` (choice 7) and calls the cached read (caller `Request` on a miss); the health check (Phase 6) calls the cached read (caller `Health` on a miss), because the health check reads through the cache (Design Choices, health check); the cache refresh (task 2) calls **only** the source read with caller `Refresh`, on the inner source reader of `CachingCertificateReader` (the composite of Phase 4, or `SecretCertificateReader` before PR 3), so an entry is always refreshed through the same source chain that created it, never the cached read: a refresh through the cache would get the cached instance back, compare equal thumbprints and never re-read (no rotation, and `MaxStaleAge` would never trip), and with single flight per key it could wait on itself. Both levels apply the same segment validation (choice 4) and refuse a null tenant under tenancy. `ParsedCertificate` is the leaf plus its intermediates returned by `CertificateParser` (Phase 2) and `CertificateReadCaller` is an internal enum of this PR. The two interfaces are not public: application code always goes through the ambient tenant.
 
 </details>
 
@@ -373,6 +374,9 @@ KEY RULES:
 - The refresh calls ITenantCertificateReader.ReadFromSourceAsync (source read, below the cache), never
   GetCertificateForTenantAsync (cached read): a refresh through the cache never re-reads and can wait on its own single flight.
   The audit entry is recorded on the source read, with the tenant and the caller.
+- One cache level: CachingCertificateReader is the only owner of CertificateCache and the only registered ICertificateReader;
+  SecretCertificateReader is a source reader (ICertificateSourceReader) and never touches the cache. PR 3 swaps the inner
+  source reader for the composite; it adds no cache.
 - TimeProvider only; CancellationToken on every async call.
 
 REFERENCE FILES:
@@ -392,10 +396,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Certificates/FileCertificateReader.cs : ICertificateReader`**: `FileCertificateOptions` maps a tenant-qualified logical name (choice 4) to a path (PFX or PEM) and a password source (an environment variable name or a secret name; never a literal password); files are read asynchronously, re-read when the file's last write time changes (checked at refresh), parsed by `CertificateParser`.
-2. **Source ordering**: `CertificateOptions.Sources` (`Secrets`, `File`); a composite reader tries them in order and returns the first `Right`; `Left(secrets.not_found)` falls through, any other `Left` is returned (no silent failover on errors, choice 5).
+1. **`Certificates/FileCertificateReader.cs : ICertificateSourceReader`**: `FileCertificateOptions` maps a tenant-qualified logical name (choice 4) to a path (PFX or PEM) and a password source (an environment variable name or a secret name; never a literal password); files are read asynchronously and parsed by `CertificateParser`. The file reader is a source reader only: it holds no instance and no cache, and every source read reads and parses the file. File results are cached by `CachingCertificateReader` like secret results, and a rotated file is detected the same way: the refresh re-reads the file, and the cache compares thumbprints, swaps a changed certificate and disposes an unchanged re-parse at once. A last-write-time shortcut would need the reader to keep the instance it returned, which the cache may dispose, so the plan does not add one.
+2. **Source ordering**: `CertificateOptions.Sources` (`Secrets`, `File`); `CompositeCertificateReader : ICertificateSourceReader` tries them in order and returns the first `Right`; `Left(secrets.not_found)` falls through, any other `Left` is returned (no silent failover on errors, choice 5).
 3. **Audit**: `AuditedCertificateReaderDecorator` records file reads through `SecretAuditRecorder` (secret reads are already audited by the secret chain).
-4. Tests with temp files and `FakeTimeProvider`.
+4. Wiring: from this PR the inner source reader of `CachingCertificateReader` is `CompositeCertificateReader` over the secret reader and the audited file reader; neither source reader nor the composite caches.
+5. Tests with temp files and `FakeTimeProvider`: a file-sourced certificate is served from the cache on the second read (one file read); a file replaced on disk is served after the next refresh tick; composite fall-through.
 
 </details>
 
@@ -417,6 +422,8 @@ KEY RULES:
 - Passwords come from environment variables or secrets, never from options values; options with a path or variable name are fine.
 - Async file reads with CancellationToken; no sync File.ReadAllBytes.
 - Only not_found falls through to the next source; other errors are returned.
+- FileCertificateReader and the composite are source readers (ICertificateSourceReader) with no cache of their own; the composite
+  becomes the inner reader of CachingCertificateReader, the one cache owner. Test that a file certificate is cached on the second read.
 
 REFERENCE FILES:
 - src/Encina.Security.Secrets/Providers/EnvironmentSecretProvider.cs
@@ -434,7 +441,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`AddEncinaCertificates(this IServiceCollection, Action<CertificateOptions>?)`** in `ServiceCollectionExtensions`: options with validation, name resolver, parser, cache, the keyed reader chain, `ICertificateReader` (composite); the health check and metrics are added to it in PR 4; `TryAdd` throughout so an application's own `ICertificateReader` wins.
+1. **`AddEncinaCertificates(this IServiceCollection, Action<CertificateOptions>?)`** in `ServiceCollectionExtensions`: options with validation, name resolver, parser, cache, the keyed reader chain, `ICertificateReader` and `ITenantCertificateReader` (both the one `CachingCertificateReader`, over `CompositeCertificateReader`); the health check and metrics are added to it in PR 4; `TryAdd` throughout so an application's own `ICertificateReader` wins.
 2. Needs a source: `AddEncinaSecrets` for the provider or a file source. Without either, `AddEncinaCertificates` fails at start-up naming the missing registration. This is a registration-completeness check inside one feature (AGENTS.md §3), not a requirement between modules, so it needs no ADR-050 amendment.
 3. DI test with `ValidateOnBuild` and `ValidateScopes` for: secrets only, file only, both, with and without tenancy.
 
@@ -695,7 +702,7 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| New production files in Encina.Security.Secrets (ICertificateReader, listener, tenant source, options, parser, name resolver, reader, cache, composite, audit decorator) | 10 | |
+| New production files in Encina.Security.Secrets (ICertificateReader, listener, tenant source, options, parser, name resolver, secret source reader, source reader interface, tenant reader interface, caching reader, cache, composite, audit decorator) | 13 | |
 | File provider (FileCertificateReader, options) | 2 | |
 | Health check | 1 | |
 | Diagnostics additions (log messages, metrics, activity) | 3 | edits to existing files |
@@ -708,7 +715,7 @@ REFERENCE FILES:
 | Load and benchmark justification files | 2 | |
 | Documentation | 5 | README, feature page, changelog fragment, ROADMAP line, INVENTORY |
 | Coverage manifest edits | 1 | |
-| Total | 45 | Distinct files; the per-PR table under Implementation Phases counts 57 file changes over 5 pull requests, because `ServiceCollectionExtensions`, `Log.cs`, PublicAPI and the manifest change in several |
+| Total | 48 | Distinct files; the per-PR table under Implementation Phases counts 61 file changes over 5 pull requests, because `ServiceCollectionExtensions`, `Log.cs`, PublicAPI and the manifest change in several |
 
 ---
 
@@ -728,7 +735,8 @@ IMPLEMENTATION OVERVIEW:
    CertificateNameResolver ({tenant}--{name}, both segments ^[a-z0-9]+(-[a-z0-9]+)*$, injective; tenant from IRequestContextAccessor;
    no fallback to the unqualified name under tenancy), new SecretsErrors codes.
 2. CertificateParser: PEM or base64 PFX text to the leaf and its intermediates through X509CertificateLoader / CreateFromPem.
-3. SecretCertificateReader over a keyed ISecretReader chain without caching, plus CertificateCache (single flight, TimeProvider timer refresh,
+3. SecretCertificateReader (a source reader) over a keyed ISecretReader chain without caching, plus CachingCertificateReader, the one
+   owner of CertificateCache over the inner source reader (the composite from step 4 on) (single flight, TimeProvider timer refresh,
    thumbprint change, grace-period disposal, listeners, MaxStaleAge after a failed refresh).
 4. FileCertificateReader and the ordered composite; audit decorator for file reads.
 5. AddEncinaCertificates; CertificateExpiryHealthCheck (degraded inside the warning window, unhealthy after expiry).
