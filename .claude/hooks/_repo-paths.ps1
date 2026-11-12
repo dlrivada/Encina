@@ -54,8 +54,14 @@ function Get-RepoLayout([string]$ProjectDir) {
     return [pscustomobject]@{ MainRoot = $mainRoot; Worktrees = $mainRoot + $marker }
 }
 
+# True when $Path is in the main checkout itself, not in one of its worktrees. Worktrees are the ones
+# Get-RepoLocation recognises (#3475): those under .claude\worktrees and every worktree git registers, so a
+# registered worktree nested in the main checkout outside .claude\worktrees is not the main checkout. A path
+# outside $Layout.MainRoot returns false before git is asked.
 function Test-MainCheckout([string]$Path, $Layout) {
-    return -not [string]::IsNullOrEmpty($Path) -and (Test-Under $Path $Layout.MainRoot) -and -not (Test-Under $Path $Layout.Worktrees)
+    if (-not (Test-Under $Path $Layout.MainRoot)) { return $false }
+    $location = Get-RepoLocation $Path $Layout
+    return $null -ne $location -and -not $location.InWorktree
 }
 
 # The linked worktrees git registers for the main checkout $MainRoot (`git worktree list`), wherever they
