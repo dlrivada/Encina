@@ -233,7 +233,8 @@ REFERENCE FILES:
 All paths are in `src/Encina.Compliance.ENISA/` unless noted.
 
 1. `Encina.Compliance.ENISA.csproj`: references `Encina.Compliance.BreachNotification` and `Encina`; `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`; package metadata and `README.md` like the other compliance packages. Add the project to `Encina.slnx`.
-2. `.github/coverage-manifest/Encina.Compliance.ENISA.json`: per-package targets and per-file defaults (written by `mechanical-fixer`).
+1a. `ProjectReference` edits in the consolidated test projects, in the pull request that first needs each (verified: `Encina.Compliance.BreachNotification.csproj` is referenced by `tests/Encina.UnitTests`, `GuardTests`, `ContractTests`, `PropertyTests`, `IntegrationTests` and `LoadTests`): `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj` in A1; `Encina.ContractTests.csproj` and `Encina.PropertyTests.csproj` in A2; `Encina.IntegrationTests.csproj` in B (WireMock tests). The load and benchmark tests are justification files only, so `Encina.LoadTests.csproj` is not edited.
+2. `.github/coverage-manifest/Encina.Compliance.ENISA.json` (written by `mechanical-fixer`): A1 carries the package-level targets only; A2, A3 and B each add the per-file entries (targets and one-sentence justifications) for the files they introduce, so `--check-justifications` passes at every pull request.
 3. `Serialization/EnisaSepIncidentReportSerializer.cs` (public sealed, `IIncidentReportSerializer`): `Format` is the published schema's version label (provisional `"ENISA-SEP-v1"`, the name the #812 issue proposes), `ContentType` and `FileExtension` per the specification; maps `IncidentReport` to the SEP payload with `System.Text.Json` and a source-generated context; `Either` return; required-field checks (Design Choice 4); report content never appears in errors.
 4. `EnisaSepOptions.cs` (public sealed): `Endpoint` (`Uri`, https), `HttpClientName`, `TargetAuthority` (default `"ENISA-SEP"`), `SupportedRegulations` (from the specification). No secret property (Design Choice 3).
 4a. `EnisaSepErrorCodes.cs` (new), in the `breach.reporting.*` convention of #812, each created with an `ErrorCategory` (ADR-062, `EncinaErrors.Create(code, ErrorCategory, message, ...)`) and a unit test asserting `GetCategory()`: `breach.reporting.enisa_field_missing` (`Validation`: a required field of the SEP payload is absent; the error names the field, never its content) and `breach.reporting.enisa_options_invalid` (`InvalidRequest`: a malformed endpoint, a blank client name or a duplicate authority key). The gate failure `breach.reporting.single_entry_point_disabled` belongs to #812 and is not redefined here.
@@ -392,7 +393,7 @@ REFERENCE FILES:
 4. **Property**: serializer round trip against the published schema (schema copy under `tests/`, only if its licence allows; otherwise hand-written invariants).
 5. **Integration**: WireMock stub built from the published specification: accepted, duplicate, transient failure then success, permanent rejection, authentication failure; two-tenant routing.
 6. **Load / Benchmark**: `.md` justifications (low throughput, not a hot path).
-7. **Per-flag targets** (AGENTS.md §9). The package is new, so there is no baseline (the manifest, `Encina.slnx` entry and README arrive in the first code pull request); the manifest has at least these targets, each with the one-sentence justification below recorded in the manifest:
+7. **Per-flag targets** (AGENTS.md §9). The package is new, so there is no baseline (the manifest with the package-level targets, the `Encina.slnx` entry and the README arrive in the first code pull request A1; the per-file entries below are added by the pull request that introduces each file, A2, A3 or B); the manifest ends with at least these targets, each with the one-sentence justification below recorded in the manifest:
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|-----:|------:|---------:|---------:|------------:|---------------|
@@ -510,16 +511,17 @@ REFERENCE FILES:
 | Modified production files | 1 | `EventIdRanges.cs` |
 | Tests | ~14 | unit 6, guard 2, contract 2, property 1, integration 2, justifications 2, event-id test update 1 (counted in unit) |
 | Documentation and records | 5 | README, configuration page, manifest, changelog fragment, INVENTORY |
+| Test project references | 5 | `ProjectReference` edits in `Encina.UnitTests.csproj`, `Encina.GuardTests.csproj`, `Encina.ContractTests.csproj`, `Encina.PropertyTests.csproj`, `Encina.IntegrationTests.csproj` |
 
-Total about 45 files across the pull requests below (a file edited in more than one pull request, such as the manifest and the `PublicAPI` files, is counted once per pull request), above the 15-file limit of one worker PR (AGENTS.md §11). Counts include tests, the coverage manifest and `PublicAPI` files. Proposed split on #1942, each pull request building alone:
+Total about 50 files across the pull requests below (a file edited in more than one pull request, such as the manifest and the `PublicAPI` files, is counted once per pull request), above the 15-file limit of one worker PR (AGENTS.md §11). Counts include tests, the coverage manifest and `PublicAPI` files. Proposed split on #1942, each pull request building alone:
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | Phase 0 | Docs-only pull request: the one-page specification record in this plan; blocks A1 | 1 |
-| A1 | Scaffold: csproj, 2 `PublicAPI` files, `Encina.slnx` entry, coverage manifest, README, `EnisaSepOptions`, `EnisaSepOptionsValidator`, `EnisaSepErrorCodes`, unit and guard tests for the options and codes | 12 |
-| A2 | Serializer and its JSON context, with unit, guard, contract and property tests, manifest and `PublicAPI` updates | 9 |
-| A3 | `AddEnisaSingleEntryPoint` (and the adapter in Variant 2), DI test with `ValidateOnBuild`/`ValidateScopes`, the AC-024 gate test, unit and guard tests, `PublicAPI` | 8 |
-| B | Probe, `EventIdRanges.cs` and `EncinaEventIdAllocationTests` edits, `EnisaLogMessages`, integration tests with WireMock (acceptance, two tenants), load and benchmark justification files, manifest | 13 |
+| A1 | Scaffold: csproj, 2 `PublicAPI` files, `Encina.slnx` entry, coverage manifest (package-level targets), README, `EnisaSepOptions`, `EnisaSepOptionsValidator`, `EnisaSepErrorCodes`, 3 unit test files (options, validator, codes), 1 guard test file, and the `ProjectReference` edits of `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj` | 15 |
+| A2 | Serializer and its JSON context, with unit, guard, contract and property tests, manifest per-file entries and `PublicAPI` updates, and the `ProjectReference` edits of `Encina.ContractTests.csproj` and `Encina.PropertyTests.csproj` | 11 |
+| A3 | `AddEnisaSingleEntryPoint` (and the adapter in Variant 2), DI test with `ValidateOnBuild`/`ValidateScopes`, the AC-024 gate test, unit and guard tests, manifest entries, `PublicAPI` | 8 |
+| B | Probe, `EventIdRanges.cs` and `EncinaEventIdAllocationTests` edits, `EnisaLogMessages`, integration tests with WireMock (acceptance, two tenants), the `ProjectReference` edit of `Encina.IntegrationTests.csproj`, load and benchmark justification files, manifest entries | 14 |
 | C | Phase 6 documentation: configuration page, INVENTORY, changelog fragment, BreachNotification spec page row | 5 |
 
 A1 requires Phase 0 and #812's Phases 1 to 4 on `main`; A2, A3 follow A1; B follows A3; C last.
