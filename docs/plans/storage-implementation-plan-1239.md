@@ -26,10 +26,10 @@ Add a new package `Encina.Storage` with the file abstraction `IBlobStore` (put, 
 Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobStore` type. What exists and shapes the design:
 
 1. **Cloud SDKs and fixtures.** `Azure.Storage.Blobs` 12.30.1 is in `Directory.Packages.props`; `AWSSDK.S3` is not (the SQS, SNS, KMS and Secrets Manager SDKs are). The test fixtures `AzuriteFixture` (Blob, Queue and Table services; collection `Cloud-Azurite`) and `LocalStackFixture` (collection `Cloud-LocalStack`) are in `tests/Encina.TestInfrastructure/Fixtures/`.
-2. **Tenancy.** `ITenantProvider.GetCurrentTenantId()` returns null when there is no context (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`); `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`) is the signal that tenancy is on so that readers fail closed. This is the fail-closed pattern of the dead-letter manager and the ABAC decision audit.
+2. **Tenancy.** Two tenant sources exist. The core package `Encina` has `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`), whose `IRequestContext.TenantId` is null when there is no tenant; `Encina.Tenancy` has `ITenantProvider.GetCurrentTenantId()` (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`), and `Encina.Tenancy` references `Encina.Messaging`. `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`) is the signal that tenancy is on so that readers fail closed. This is the fail-closed pattern of the dead-letter manager (`src/Encina.Messaging/DeadLetter/DeadLetterManager.cs`, which reads the core accessor) and the ABAC decision audit. Which source this package uses is choice 10.
 3. **Hold, retention and blocking.** `ILegalHoldService` exists (`src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs`: `HasActiveHoldsAsync`, `GetActiveHoldsForEntityAsync`). The retention floor query `IRetentionFloorQuery` is planned by the #1187 plan and the blocked state (`IBlockedDataFilterContext`, audited disclosure) by the #1189 plan; neither exists in `src/` today.
 4. **Audit.** The issue names `IAuditStore`; the interfaces in `src/Encina.Security.Audit/Abstractions/` are `IOperationAuditStore` and `IReadAuditStore` (disclosure reads). The plan uses those.
-5. **Encryption primitives.** The existing KMS providers return a fresh key per call (#2386), so envelope encryption needs `IKeyWrapper` of the #1250 plan (wrap and unwrap a given key). `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) shows the tenant-to-key-id convention. The .NET 10 BCL already has AES Key Wrap: `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` (RFC 5649) and `EncryptKeyWrap`/`DecryptKeyWrap` (RFC 3394) are in the `net10.0` reference pack (checked 2026-11-12 with SDK 10.0.404: a file-based app targeting `net10.0` reproduced the RFC 5649 section 6 test vector for the 20-octet key). Spike #3661 lists AES Key Wrap among its .NET 11 follow-ups; this plan does not need the platform move for it.
+5. **Encryption primitives.** The existing KMS providers return a fresh key per call (#2386), so envelope encryption needs `IKeyWrapper` of the #1250 plan (wrap and unwrap a given key). `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) shows the tenant-to-key-id convention. The .NET 10 BCL has AES Key Wrap with padding (RFC 5649) only: the `net10.0` reference pack (Microsoft.NETCore.App.Ref 10.0.15, `System.Security.Cryptography.xml`) has `Aes.EncryptKeyWrapPadded`, `Aes.DecryptKeyWrapPadded`, `Aes.TryDecryptKeyWrapPadded` and `Aes.GetKeyWrapPaddedLength` (with their `*Core` methods), and no unpadded RFC 3394 `EncryptKeyWrap`/`DecryptKeyWrap`; the 11.0.0 pack has the same members (both checked 2026-11-12). A file-based app targeting `net10.0` reproduced the RFC 5649 section 6 test vector for the 20-octet key (SDK 10.0.404). Spike #3661 lists AES Key Wrap among its .NET 11 follow-ups; the padded variant this plan uses does not need the platform move.
 6. **No other blob store.** `#600` (cloud blob implementations of `IClaimCheckStore`) is open and the #122 plan builds the claim-check blob backends on this package, so `IBlobStore` is the single storage primitive.
 
 ### Scope
@@ -71,7 +71,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `TenantBlobStore` decorator prefixes every key with the tenant resolved from `ITenantProvider` (fail closed under `MultiTenancyMarker`, fixed default tenant when tenancy is off), with an explicit `IBlobStore ForTenant(string tenantId)` scope for code without an ambient tenant** | Calling code does not carry a tenant; the safe path is the default; background jobs use `ForTenant` explicitly | An implicit dependency on the ambient context; code that forgets `ForTenant` in a job gets `Left(storage.tenant_required)` (the intended fail-closed result) |
+| **A) A `TenantBlobStore` decorator sets on every address the tenant resolved from the tenant source of choice 10 (fail closed under `MultiTenancyMarker`, fixed default tenant when tenancy is off), with an explicit `IBlobStore ForTenant(string tenantId)` scope for code without an ambient tenant** | Calling code does not carry a tenant; the safe path is the default; background jobs use `ForTenant` explicitly | An implicit dependency on the ambient context; code that forgets `ForTenant` in a job gets `Left(storage.tenant_required)` (the intended fail-closed result) |
 | **B) The tenant is a required parameter of every method (`BlobAddress` includes `TenantId`)** | Nothing implicit; trivial to audit | Every caller threads the tenant; a caller can pass the wrong one, which the ambient model prevents |
 
 ### Chosen Option: **A — ambient tenant with an explicit `ForTenant` scope** (recommended, pending the maintainer)
@@ -83,7 +83,11 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 - We recommend A with `ForTenant` because it keeps the common path safe and still gives background code an explicit, auditable way to name a tenant.
 - Physical layout: `{tenantId}/{name}`; the prefixes of two tenants never overlap because tenant ids are validated (letters, digits, `-`, `_`, no separators); a property test generates random tenant ids and names and asserts that a physical key maps back to exactly one tenant (AC-043).
 - Names are validated by `BlobAddress`: no `..`, no backslash, no leading `/`, no control characters, at most 512 characters (choice 7). The file system provider additionally resolves the full path and refuses anything outside the root.
-- `TenantBlobStore` does not rewrite the name: it sets the tenant on the address (`BlobAddress.TenantId`, set only by this decorator or by `ForTenant`), and the innermost provider composes the physical key `{tenantId}/{name}`. The decorators in between, including the encrypting one, therefore see the tenant and the logical name separately (choice 4, AAD).
+- `TenantBlobStore` does not rewrite the name: it sets the tenant on the address (`BlobAddress.TenantId`), and the innermost provider composes the physical key `{tenantId}/{name}`. The decorators in between, including the encrypting one, therefore see the tenant and the logical name separately (choice 4, AAD).
+- Callers cannot name a tenant through the address: `BlobAddress.TenantId` and `BlobAddress.TenantScope` (`Ambient` or `Explicit`) have a public getter and an `internal init`, so only `TenantBlobStore` sets them (provider satellites read them). An address that reaches `TenantBlobStore` with a tenant already set (possible only from code inside `Encina.Storage`) and different from the resolved one is refused with `Left(storage.invalid_address)`.
+- Where the tenant reaches the chain: `TenantBlobStore` is the outermost layer (Phase 2, decorator order), so the instrumented, audited, guarded and encrypting layers all receive an address with the tenant already set, on the ambient path as on the explicit one.
+- Where `ForTenant` lives: on the public interface `IBlobTenantScope` (`IBlobStore ForTenant(string tenantId)`), implemented by `TenantBlobStore`; `AddEncinaStorage` registers the same instance as `IBlobStore` and `IBlobTenantScope`. The returned store is a `TenantBlobStore` bound to the given tenant over the same inner chain; providers and inner decorators do not implement the interface. The tenant id is validated as in the physical layout rule above.
+- `ForTenant` is auditable: addresses it produces carry `TenantScope = Explicit`, and `AuditedBlobStore` records the scope with the tenant on every operation, so a background job's cross-request access is visible in the audit.
 
 </details>
 
@@ -163,7 +167,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `IKeyWrapper` (#1250) wraps every per-blob key with the tenant's KMS key** | One key level; the KMS sees and can audit every blob key | One KMS round trip per put and per get (latency, cost, KMS quotas, and a KMS outage stops every read); the wrapped key size varies per KMS |
-| **B) AES Key Wrap with padding (RFC 5649) of the per-blob key under the tenant data key of #1250** (`ITenantDataKeyService.GetCurrentKeyAsync(tenantId, purpose: "storage")`, itself KMS-wrapped and cached by #1250), with `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` from the .NET 10 BCL; the header stores the tenant key version (4 bytes) and the 40-byte wrapped key | One KMS call per tenant key per cache period; the BCL primitive has its own integrity check, so a tampered wrapped key fails to unwrap; deleting the tenant data key still shreds every blob of the tenant; rotation re-wraps headers with the new key version and no KMS call per blob | Two key levels; the per-blob key is protected by a key that lives in process memory while cached (the same exposure as the column keys of #1250) |
+| **B) AES Key Wrap with padding (RFC 5649) of the per-blob key under the tenant data key of #1250** (`ITenantDataKeyService.GetCurrentKeyAsync(tenantId, DataKeyPurpose.Storage)`, itself KMS-wrapped and cached by #1250; the `Storage` member is a cross-plan dependency, see below), with `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` from the .NET 10 BCL; the header stores the tenant key version (4 bytes) and the 40-byte wrapped key | One KMS call per tenant key per cache period; the BCL primitive has its own integrity check, so a tampered wrapped key fails to unwrap; deleting the tenant data key still shreds every blob of the tenant; rotation re-wraps headers with the new key version and no KMS call per blob | Two key levels; the per-blob key is protected by a key that lives in process memory while cached (the same exposure as the column keys of #1250) |
 
 ### Chosen Option: **B — RFC 5649 under the tenant data key** (recommended, pending the maintainer)
 
@@ -172,7 +176,8 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 **Class:** Dilemma. Option B wins on latency, cost and availability for a store whose reads happen on every document view. Option A wins when policy requires that every data key is wrapped by the KMS itself and the KMS logs every unwrap.
 
 - The primitive is in the `net10.0` reference pack (fact 5), so option B does not wait for the .NET 11 move discussed in spike #3661.
-- Unit tests of the wrap use the RFC 5649 section 6 vectors and the RFC 3394 section 4 vectors through the same BCL calls.
+- Unit tests of the wrap use the two RFC 5649 section 6 vectors (the 20-octet and the 7-octet key data under the same 192-bit key-encryption key) through `Aes.EncryptKeyWrapPadded`/`Aes.DecryptKeyWrapPadded`, a 32-byte key that wraps to 40 bytes (`Aes.GetKeyWrapPaddedLength(32) == 40`), and a tamper test (a flipped bit in the wrapped key fails to unwrap). RFC 3394 vectors are not used: the BCL has no unpadded key wrap (fact 5), and RFC 5649 uses a different initial value (`A65959A6 || MLI`), so the padded calls cannot reproduce them.
+- **Cross-plan dependency (option B): key separation.** `DataKeyPurpose` of #1250 has `Column` and `BlindIndex` only. Option B needs a third member, `Storage`, so that the blob key-encryption key is a separate key per tenant: without it the column key, which #1250 choice 8 uses as HKDF input, would also serve as an AES Key Wrap key, one key for two algorithms. The member is added in the #1250 plan's shared-names table and in its PR 3 (where `DataKeyPurpose` is created) before PR 3 of this plan; if #1250 merges without it, PR 3 of this plan adds the member to `Encina.Security.Encryption` and its PublicAPI file.
 - With option A, the header keeps `wrappedKey length | wrappedKey` from the KMS and the #1250 `WrappedKey` type; with option B, the header carries `keyVersion | wrappedKey` (fixed 40 bytes for a 256-bit key).
 
 </details>
@@ -249,6 +254,50 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 </details>
 
+<details>
+<summary><strong>10. Tenant source — the core request context, or <code>ITenantProvider</code> of <code>Encina.Tenancy</code></strong></summary>
+
+`TenantBlobStore` needs the current tenant. The choice adds or avoids a package edge from `Encina.Storage` core to `Encina.Tenancy` (and, through it, to `Encina.Messaging`, fact 2) for every storage user.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Core abstractions: `IRequestContextAccessor.RequestContext?.TenantId` plus `MultiTenancyMarker`** (both in `Encina`), fail closed as `DeadLetterManager` does | No package edge to `Encina.Tenancy`; the same choice as the sibling plans (#1250 choice 9, #1246 choice 7, #599 choice 9), so the whole family reads the tenant the same way | The tenant is whatever the pipeline put in the request context; an application that resolves tenants only through `Encina.Tenancy` relies on its pipeline to fill the context |
+| **B) `ITenantProvider` of `Encina.Tenancy`** | Direct use of the tenancy package's resolution | Every storage user takes `Encina.Tenancy` and `Encina.Messaging`, multi-tenant or not; differs from the sibling plans |
+
+### Chosen Option: **A — core request context and `MultiTenancyMarker`** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins for a lean dependency graph, for single-tenant users and for one tenant model across the family. Option B wins when every deployment is multi-tenant through `Encina.Tenancy` and the maintainer prefers its resolution over the request context.
+
+- Background code (sweepers, the #122 claim-check adapter) uses `ForTenant` in both options (choice 2).
+
+</details>
+
+<details>
+<summary><strong>11. Package edges of the audit and encryption decorators — in the core package, or in satellites</strong></summary>
+
+`AuditedBlobStore` uses `IOperationAuditStore` and `IReadAuditStore` (`Encina.Security.Audit`, which references `Encina.Messaging`) and `EncryptingBlobStore` uses `ITenantDataKeyService` (`Encina.Security.Encryption`, #1250). Where they live decides which packages every storage user takes.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Both decorators in `Encina.Storage` core**, which references `Encina.Security.Audit` and `Encina.Security.Encryption` | One package to install; the same layout as `Encina.Security.Secrets`, whose core hosts its audited decorators (`src/Encina.Security.Secrets/Auditing/`) and references `Encina.Security.Audit`; option A of choice 8 can validate the key source without a satellite | Every storage user takes the audit and encryption packages (and `Encina.Messaging` through the audit package), even one that stores public assets |
+| **B) Satellites `Encina.Storage.Audit` and `Encina.Storage.Encryption`**, registered by their own `AddEncinaStorage*` calls | Strict pay-for-what-you-use at package level | Two more packages (csproj, README, PublicAPI, manifest each); with option A of choice 8, the start-up validation must detect a missing satellite rather than a missing key source; the audit of disclosure reads (SPEC-002) would be optional by package |
+
+### Chosen Option: **A — both decorators in the core package** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when the store will hold personal data, where audit and encryption are part of the feature (REQ-046, AC-044), and for consistency with `Encina.Security.Secrets`. Option B wins when the maintainer wants storage for public assets without the security packages.
+
+- The decision interacts with choice 8: option B of this choice with option A of choice 8 makes the encryption satellite mandatory in practice.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -258,8 +307,8 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 | PR | Content | Files | Est. lines |
 |----|---------|-------|-----------|
 | 1 | Phase 1: csproj, `IBlobStore`, `BlobAddress`, `BlobInfo`, `BlobMetadata`, `BlobPutOptions`, `BlobContent`, `BlobPage`, `StorageErrors`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `Encina.slnx`; unit and guard tests; manifest `Encina.Storage.json` | 15 | ~900 |
-| 2 | Phase 2 (tenant and guard): `StorageOptions`, `IBlobLifecycleGuard`, `BlobOperation`, `CompositeBlobLifecycleGuard`, `TenantBlobStore`, `GuardedBlobStore`, PublicAPI; unit tests (composite, tenant, guarded), guard test, property test (addresses never traverse, tenant prefixes never overlap); manifest | 12 | ~1,100 |
-| 3 | Phase 2 (encryption): `EncryptingBlobStore`, `BlobEncryptionHeader`, `StorageOptions` (encryption options), PublicAPI; unit test (header, tamper, RFC 5649 and RFC 3394 vectors), property test (round trip); manifest | 7 | ~800 |
+| 2 | Phase 2 (tenant and guard): `StorageOptions`, `IBlobLifecycleGuard`, `BlobOperation`, `CompositeBlobLifecycleGuard`, `TenantBlobStore`, `IBlobTenantScope`, `BlobTenantScope`, `BlobAddress` (`TenantScope` added), `GuardedBlobStore`, PublicAPI; unit tests (composite, tenant with a caller-set tenant refused, guarded), guard test, property test (addresses never traverse, tenant prefixes never overlap); manifest | 15 | ~1,200 |
+| 3 | Phase 2 (encryption): `EncryptingBlobStore`, `BlobEncryptionHeader`, `StorageOptions` (encryption options), PublicAPI; unit test (header, tamper, the two RFC 5649 section 6 vectors), property test (round trip); manifest | 7 | ~800 |
 | 4 | Phase 2 (audit, resilience, telemetry) and Phase 9: `AuditedBlobStore`, `ResilientBlobStore`, `InstrumentedBlobStore`, `StorageActivitySource`, `StorageMetrics`, `StorageLog` (6050-6079), `EventIdRanges.cs` (`StorageCore`, `StorageProviders`), `EncinaEventIdAllocationTests.cs`, PublicAPI; unit tests (audited, resilient, instrumented with the AC-044 exporter test); manifest | 14 | ~1,300 |
 | 5 | Phase 7: `ServiceCollectionExtensions` (`AddEncinaStorage`, chain in the order of Phase 2), `StorageStartupValidator` (choice 8), PublicAPI; DI test (`ValidateOnBuild`, `ValidateScopes`), validator unit test; manifest | 6 | ~600 |
 | 6 | Phase 3: `FileSystemBlobStore`, `FileSystemStorageOptions`, `FileSystemBlobStoreHealthCheck`, registration, PublicAPI; unit and guard tests; `IBlobStore` contract base and its file-system subclass (ContractTests); integration test on a temp directory; manifest | 11 | ~1,300 |
@@ -283,7 +332,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
    - `ValueTask<Either<EncinaError, Unit>> DeleteAsync(BlobAddress address, CancellationToken)`.
    - `ValueTask<Either<EncinaError, bool>> ExistsAsync(BlobAddress address, CancellationToken)`.
    - `ValueTask<Either<EncinaError, BlobPage>> ListAsync(string container, string prefix, string? continuationToken, int pageSize, CancellationToken)`.
-2. **`BlobAddress.cs`** (`Container`, `Name`, validation per Design Choice 2), **`BlobInfo.cs`** (address, `SizeBytes`, `ContentType`, `CreatedAtUtc`, `ModifiedAtUtc`, `ETag`, `BlobMetadata`), **`BlobMetadata.cs`** (`OwnerEntityType`, `OwnerEntityId`, `RetentionCategory`, `Tags`), **`BlobPutOptions.cs`** (`ContentType`, `Overwrite`, `Metadata`), **`BlobContent.cs`** (`Stream`, `BlobInfo`, `IAsyncDisposable`), **`BlobPage.cs`**.
+2. **`BlobAddress.cs`** (`Container`, `Name`, validation per Design Choice 2; `TenantId` with a public getter and an `internal init`, set only by `TenantBlobStore`, choice 2; PR 2 adds `TenantScope` the same way), **`BlobInfo.cs`** (address, `SizeBytes`, `ContentType`, `CreatedAtUtc`, `ModifiedAtUtc`, `ETag`, `BlobMetadata`), **`BlobMetadata.cs`** (`OwnerEntityType`, `OwnerEntityId`, `RetentionCategory`, `Tags`), **`BlobPutOptions.cs`** (`ContentType`, `Overwrite`, `Metadata`), **`BlobContent.cs`** (`Stream`, `BlobInfo`, `IAsyncDisposable`), **`BlobPage.cs`**.
 3. **`StorageErrors.cs`** (codes of Design Choice 5). **`StorageOptions.cs`** (`DefaultContainer`, `MaxBlobBytes`, `AllowUnencrypted`, `PageSize`, defaults of choice 7) with `Validate` lands in PR 2.
 4. `PublicAPI.Unshipped.txt`; add the project to `Encina.slnx`.
 
@@ -327,12 +376,12 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`IBlobLifecycleGuard.cs`**, **`BlobOperation.cs`** (`Read`, `Overwrite`, `Delete`), **`CompositeBlobLifecycleGuard.cs`** (ordered, first `Left` wins, a thrown exception becomes `Left(storage.delete_refused|read_refused)`).
-2. **`TenantBlobStore.cs`** (Design Choice 2) and `ForTenant`: sets `BlobAddress.TenantId`; the name stays logical and the provider composes the physical key.
+2. **`TenantBlobStore.cs`** (Design Choices 2 and 10), **`IBlobTenantScope.cs`** (`IBlobStore ForTenant(string tenantId)`) and **`BlobTenantScope.cs`** (`Ambient`, `Explicit`): sets `BlobAddress.TenantId` and `TenantScope` from the request context (choice 10) or from `ForTenant`; refuses an address that arrives with a different tenant already set (`storage.invalid_address`); the name stays logical and the provider composes the physical key.
 3. **`GuardedBlobStore.cs`**: `GetInfoAsync` then `AuthorizeAsync` before delete, overwrite and read; the window between the decision and the delete is choice 9.
 4. **`EncryptingBlobStore.cs`**: header format of Design Choice 4, per-blob key wrapped per choice 6 (recommended: `Aes.EncryptKeyWrapPadded` under the tenant data key of #1250's `ITenantDataKeyService`), AAD over the tenant and the logical name; refuses to read an unencrypted blob unless `AllowUnencrypted`.
-5. **`AuditedBlobStore.cs`**: deletes and refusals to `IOperationAuditStore`; disclosure reads to `IReadAuditStore`; the audit carries tenant, container, a hash of the name and the outcome, never the name or content.
+5. **`AuditedBlobStore.cs`**: deletes and refusals to `IOperationAuditStore`; disclosure reads to `IReadAuditStore`; the audit carries tenant, tenant scope (`Ambient` or `Explicit`, so `ForTenant` use is recorded), container, a hash of the name and the outcome, never the name or content.
 6. **`ResilientBlobStore.cs`**: retry transient errors (pattern `ResilientSecretReaderDecorator`, ADR-055).
-7. Decorator order, outermost to innermost: instrumented, audited, guarded, tenant, encrypting, resilient, provider.
+7. Decorator order, outermost to innermost: tenant, instrumented, audited, guarded, encrypting, resilient, provider. The tenant layer is outermost so that every other layer sees the tenant (choice 2); its own `storage.tenant_required` refusals are logged by code and counted in `StorageMetrics` by `TenantBlobStore` itself.
 
 </details>
 
@@ -347,7 +396,9 @@ CONTEXT:
 - AES Key Wrap with padding (RFC 5649) is in the .NET 10 BCL: Aes.EncryptKeyWrapPadded / Aes.DecryptKeyWrapPadded. Test it with the
   RFC 5649 section 6 vectors; a tampered wrapped key must fail to unwrap and surface as Left(storage.encryption_failed).
 - The AAD is 0x01 | tenantId | container | logical name (TenantBlobStore sets TenantId; the name is never prefixed before the provider).
-- ITenantProvider / MultiTenancyMarker decide the tenant; IOperationAuditStore and IReadAuditStore are in src/Encina.Security.Audit/Abstractions/.
+- IRequestContextAccessor.RequestContext?.TenantId and MultiTenancyMarker decide the tenant (choice 10, recommended; do not
+  reference Encina.Tenancy); ForTenant lives on IBlobTenantScope, implemented by TenantBlobStore, the outermost layer.
+  BlobAddress.TenantId and TenantScope are internal init. IOperationAuditStore and IReadAuditStore are in src/Encina.Security.Audit/Abstractions/.
 - Decorator registration pattern: DecorateService in src/Encina.Security.Secrets/ServiceCollectionExtensions.cs.
 
 TASK:
@@ -364,7 +415,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Security.Secrets/Resilience/ResilientSecretReaderDecorator.cs
 - src/Encina.Security.Secrets/Auditing/AuditedSecretReaderDecorator.cs
-- src/Encina.Tenancy/Abstractions/ITenantProvider.cs
+- src/Encina/Abstractions/IRequestContextAccessor.cs and src/Encina.Messaging/DeadLetter/DeadLetterManager.cs (ambient tenant, fail closed)
 ```
 
 </details>
@@ -764,7 +815,7 @@ REFERENCE FILES:
 | SPEC-000 | §6.1 (GCP post-1.0) | Cloud triangle gap |
 | GDPR | Art. 5(1)(e) storage limitation, Art. 17 erasure, Art. 32 security | Retention and encryption of files |
 | NIST SP 800-38D, SP 800-57 | AES-GCM, key wrapping | Envelope format |
-| RFC 5649, RFC 3394 (NIST SP 800-38F) | AES Key Wrap with and without padding; `Aes.EncryptKeyWrapPadded` in the .NET 10 BCL | Per-blob key wrapping (choice 6) and its test vectors |
+| RFC 5649 (NIST SP 800-38F, KWP) | AES Key Wrap with padding; `Aes.EncryptKeyWrapPadded`, `Aes.DecryptKeyWrapPadded` and `Aes.GetKeyWrapPaddedLength` in the .NET 10 BCL (no unpadded RFC 3394 variant, fact 5) | Per-blob key wrapping (choice 6) and its section 6 test vectors |
 | ADR-050 | Rule 1: the closed list of module requirements; a new requirement is an amendment | Choice 8 |
 | Comparable products | Azure Blob Storage SDK, AWS SDK for .NET S3, MinIO, Apache Commons VFS | Contract shape; server-side encryption is complementary, not a replacement |
 | AGENTS.md §3, §5 | Fail closed, ROP, registration completeness; cloud category | Rules applied |
@@ -773,7 +824,7 @@ REFERENCE FILES:
 
 | Component | Location | Usage in this feature |
 |-----------|----------|-----------------------|
-| ITenantProvider | src/Encina.Tenancy/Abstractions/ITenantProvider.cs | tenant prefix of every blob key |
+| IRequestContextAccessor and MultiTenancyMarker | src/Encina/Abstractions/IRequestContextAccessor.cs, src/Encina/Abstractions/MultiTenancyMarker.cs | tenant of every blob address (choice 10, recommended; `ITenantProvider` in src/Encina.Tenancy/Abstractions/ITenantProvider.cs is option B) |
 | MultiTenancyMarker | src/Encina/Abstractions/MultiTenancyMarker.cs | signal that tenancy is on, so a missing tenant fails closed |
 | ILegalHoldService | src/Encina.Compliance.Retention/Abstractions/ILegalHoldService.cs | hold check before delete |
 | IRetentionFloorQuery (planned by #1187) | the plan of #1187 | retention floor check before delete |
@@ -845,8 +896,10 @@ Encina.ClaimCheck.Storage (#122) builds on this package.
 
 IMPLEMENTATION OVERVIEW:
 1. Contract and models: IBlobStore, BlobAddress (validated), BlobInfo, BlobMetadata, BlobPutOptions, BlobContent, BlobPage, StorageErrors, StorageOptions.
-2. Decorators: tenant partition (ambient tenant, ForTenant scope), lifecycle guard (composite), single-shot AES-GCM envelope encryption with a per-blob
-   key wrapped by RFC 5649 (Aes.EncryptKeyWrapPadded, .NET 10 BCL) under the tenant data key of #1250 (choice 6), audit, resilience, telemetry.
+2. Decorators: tenant partition, outermost (ambient tenant from IRequestContextAccessor + MultiTenancyMarker per choice 10, ForTenant on
+   IBlobTenantScope, TenantId internal init), lifecycle guard (composite), single-shot AES-GCM envelope encryption with a per-blob
+   key wrapped by RFC 5649 (Aes.EncryptKeyWrapPadded, .NET 10 BCL; no RFC 3394 API exists) under the tenant data key of #1250
+   (DataKeyPurpose.Storage, choice 6), audit (records the tenant scope), resilience, telemetry.
 3. Providers: file system (core), Encina.Storage.S3 (S3-compatible, LocalStack tests), Encina.Storage.AzureBlob (Azurite tests).
 4. Encina.Storage.Compliance: legal hold guard now; retention floor and blocked-state guards after #1187 and #1189.
 5. Registration, health checks, FakeBlobStore, EventIds StorageCore 6050-6099 and StorageProviders 6100-6149, metrics, spans.
@@ -881,7 +934,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | No shared state updated by concurrent hosts; object stores provide atomic puts |
 | 8 | Transactions | ❌ | Single-operation writes; no atomicity with other systems is offered |
 | 9 | Idempotency | ❌ | Not a message or request entry point |
-| 10 | Multi-Tenancy | ✅ | Phase 2: tenant prefix, fail closed, default tenant when tenancy is off; two-tenant test on every provider (AC-043) |
+| 10 | Multi-Tenancy | ✅ | Phase 2: tenant prefix (tenant source of choice 10), fail closed, default tenant when tenancy is off, `ForTenant` for background code recorded in the audit, caller-set tenants refused; two-tenant test on every provider (AC-043) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ✅ | Phase 2: deletes, hold refusals and disclosures through `IOperationAuditStore` and `IReadAuditStore` |
 
@@ -891,7 +944,8 @@ REFERENCE FILES:
 
 ### Advisable before or with this work
 
-- #1250 plan, Phases 1-3: `IKeyWrapper`, `ITenantDataKeyService` and the KMS wrappers for the encryption decorator (PR 3 and the start-up validation of PR 5). The other pull requests of this plan do not wait for it.
+- #1250 plan, by pull request: PR 3 of this plan (the encryption decorator, choice 6 B) needs #1250 PR 1 (`IKeyWrapper`, `WrappedKey`), PR 3 (`ITenantDataKeyService`, `DataKeyPurpose` with the `Storage` member of choice 6, the in-memory key store) and PR 4 (the key cache and `LocalKeyWrapper`, which the unit tests use); PR 5 of this plan (start-up validation of choice 8) needs #1250 PR 5 (its `ServiceCollectionExtensions`, which registers the key service). The KMS wrappers (#1250 PR 6 and PR 7) are needed only by deployments, not by any pull request of this plan. This matches #1250's own note that its PR 1-5 come first. The other pull requests of this plan do not wait for #1250.
+- #1250 shared names: `DataKeyPurpose` gains the `Storage` member (choice 6, cross-plan dependency); the #1250 plan's shared-names table and its PR 3 must carry it.
 - #1187 (retention floor) and #1189 (blocked data state): the floor and blocking adapters of Phase 6 wait for them; the legal hold adapter does not.
 - #1257 (multi-tenancy of the SPEC-002 capabilities): REQ-061 for blob storage is implemented here; #1257 tracks the cross-feature verification.
 
@@ -904,7 +958,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas of this plan (choices 2, 3, 4, 6, 7, 8 and 9); the orchestrator adds the Maintainer Decisions section.
+1. The maintainer answers the Dilemmas of this plan (choices 2, 3, 4, 6, 7, 8, 9, 10 and 11); the orchestrator adds the Maintainer Decisions section.
 2. Link this plan from #1239 and reserve the ADR number in `docs/architecture/adr/index.md`.
-3. Order: PR 1, PR 2, then PR 3 (after #1250 Phases 1-3) and PR 4 in parallel, PR 5 after PR 2-4; PR 6-8 after PR 5 in parallel; PR 9 after PR 6-8; PR 10 after PR 5; PR 11 last.
+3. Order: PR 1, PR 2, then PR 3 (after #1250 PR 1, PR 3 and PR 4) and PR 4 in parallel, PR 5 after PR 2-4; PR 6-8 after PR 5 in parallel; PR 9 after PR 6-8; PR 10 after PR 5; PR 11 last.
 4. Open the follow-up issues of Phase 11 task 6 when the corresponding dependencies are merged.
