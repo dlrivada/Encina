@@ -1,7 +1,7 @@
 {
   "package": "Encina.SignalR",
   "generated": "2026-04-13T00:00:00Z",
-  "totalFiles": 9,
+  "totalFiles": 11,
   "targets": {
     "unit": 55
   },
@@ -25,24 +25,68 @@
       "defaultRule": "*HealthCheck.cs",
       "reason": "Health check — constructor has no null guards, code relies on DI framework guarantees"
     },
+    "HubTypeRegistration.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Allow-list entry record and the log sanitizer for client-supplied type names",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "ClientTypeName.ForLog is pure string logic fully exercised by unit tests (null, truncation, control, separator and surrogate characters); measured 100% (#3677)."
+      }
+    },
     "Log.cs": {
       "defaultTests": [],
       "defaultRule": "Log.cs",
-      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants"
+      "reason": "Source-generated [LoggerMessage] delegates — no guards, no invariants",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The class is [ExcludeFromCodeCoverage] source-generated [LoggerMessage] delegates with no hand-written logic; the log calls are asserted through FakeLogger in the hub tests (#3677)."
+      }
     },
     "MediatorHub.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Hub.cs",
-      "reason": "SignalR Hub — constructor has no null guards, depends on DI injection"
+      "reason": "SignalR Hub — constructor has no null guards, depends on DI injection",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive every hub path (allowed, denied by name, kind and authentication, deserialization failure, Left and thrown errors) against a substitute IEncina; measured 98.7% (#3677)."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "DI registration extensions — no ThrowIfNull guards on parameters"
+      "reason": "DI registration extensions — no ThrowIfNull guards on parameters",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "A ValidateOnBuild/ValidateScopes DI test and the descriptor tests execute every registration line; measured 100% (#3677)."
+      }
+    },
+    "SignalRAllowListStartupCheck.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Hosted lifecycle service that freezes the allow-list and logs anonymous entries and the empty-list warning",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests run every lifecycle method with FakeLogger and in-memory endpoint data sources, with and without a mapped EncinaHub; measured 100% (#3677)."
+      }
     },
     "SignalRNotificationBehavior.cs": {
       "defaultTests": [
@@ -63,7 +107,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults — no guard clauses"
+      "reason": "Configuration POCO with defaults — no guard clauses",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests cover every registration rule (kinds, abstract and open generic types, duplicates, freeze) and the frozen lookup; measured 100% (#3677)."
+      }
     }
   }
 }
