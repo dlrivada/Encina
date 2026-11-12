@@ -1,0 +1,38 @@
+Remediation for #63:
+- code 1 (Major): draft 63-code-1-the-gather-handler-receives-a-token-the-runner.md
+- code 2 (Major): draft 63-code-2-scattergatheroptions-includefailedresultsingather-is-compute.md
+- code 3 (Major): draft 63-code-3-waitforfirst-and-waitforquorum-ignore-executesequentially-ex.md
+- code 4 (Major): draft 63-code-4-waitforallallowpartial-returns-right-when-every-handler-fail.md
+- code 5 (Major): draft 63-code-5-the-outcome-of-a-timeout-or-a-caller.md
+- code 6 (Major): draft 63-code-6-three-options-and-three-error-codes-are-dead.md
+- code 7 (Minor): draft 63-code-7-the-runner-s-cancellation-catches-below-the-top.md
+- code 8 (Minor): draft 63-code-8-scattergatheroptions-is-not-validated-defaulttimeout-scatter.md
+- code 9 (Minor): draft 63-code-9-the-operation-timeout-is-a-wall-clock-timer.md
+- code 10 (Minor): draft 63-code-10-the-scatter-gather-run-emits-no-trace-span.md
+- code 11 (Minor): draft 63-code-11-scattergatherresult-counts-a-cancelled-handler-as-both-a.md
+- tests 1 (Major): draft 63-tests-1-github-coverage-manifest-encina-messaging-json-1401-1483.md
+- tests 2 (Minor): merged into tests 1 (same location)
+- tests 3 (Major): draft 63-tests-3-tests-encina-unittests-messaging-scattergather-scattergather.md
+- tests 4 (Major): merged into code 5 (manual override)
+- tests 5 (Major): draft 63-tests-5-tests-encina-contracttests-and-tests-encina-propertytests-th.md
+- tests 6 (Minor): merged into code 6 (manual override)
+- tests 7 (Minor): draft 63-tests-7-tests-encina-unittests-messaging-scattergather-scattergather.md
+- tests 8 (Minor): draft 63-tests-8-tests-encina-loadtests-messaging-and-tests-encina-unittests.md
+- docs 1 (Major): draft 63-docs-1-no-concept-or-guide-page-and-no-reference.md
+- docs 2 (Major): draft 63-docs-2-the-pattern-appears-in-no-tutorial-or-learning.md
+- docs 3 (Blocker): draft 63-docs-3-the-only-code-sample-of-the-feature-does.md
+- docs 4 (Major): duplicate of #1299 (manual override)
+
+## Lessons for the pipeline
+- tests 4: merged into code 5 by manual override
+- code 11 is written with one fix (failures exclude cancelled handlers): the property documentation already defines two disjoint counts, so the code stage's second shape (cancelled as a subset of failed) contradicts it.
+- code 10 (observability) is settled by ADR-054 decision D3, so the draft has no design choice; the code stage found that the routing slip observability issue does not cover this file.
+- The Glob tool returned no files for `docs/architecture/adr/054*` and `src/Encina.Messaging/PublicAPI*.txt` although the ADR exists (a Grep found it); absence claims (no PublicAPI line, no Scatter hit in the Messaging README, no tutorial hit) were checked with count-mode or content Grep.
+- The Glob tool returned no files for `docs/architecture/adr/054*` and `src/Encina.Messaging/PublicAPI*.txt` although both exist (a Grep found them); `src/Encina.Messaging` has `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`, and neither holds a ScatterGather line (count-mode Grep, with a positive control of 934 lines). Absence claims (no PublicAPI line, no Scatter hit in the Messaging README, no tutorial hit) were checked with count-mode or content Grep.
+- The tests stage cites `ScatterGatherRunnerTests.cs:404` for the WaitForFirst test; the draft cites the stage's line without re-reading that region (lines 255-343 and 600-629 of the test file were read).
+- docs 4: recorded as duplicate of #1299 by manual override
+- tests 6: merged into code 6 by manual override
+- code 2 is written as a Dilemma (does IncludeFailedResultsInGather govern WaitForAllAllowPartial, whose GatherStrategy documentation says it receives failures), now with a Pro and a Con for each option; the draft carries no needs-decision label, the orchestrator adds it with the board gate.
+- code 6 is written as a neutral Dilemma on the three dead options (remove them, or wire them as defaults the way the runner already does for DefaultTimeout and MaxDegreeOfParallelism at ScatterGatherRunner.cs:55 and :134); the three dead error codes are removed outside the choice because Build() throws. A verified absence of readers did not settle the options: wiring complies too. The draft carries no needs-decision label, the orchestrator adds it with the board gate.
+- code 4 cites #3235 as filed for the sharded executor, open and not yet decided, in a `Related Issues:` label inside Additional Context (bug_report.md has no Related Issues header); the interface citation is `IScatterGatherRunner.cs:16`. Drafts code 4 and code 6 were not on disk when this re-run started, so both were written again and re-verified in the audit worktree.
+- code 6 cites open [SPIKE] #3412 (confirms the 63 option properties nothing reads, plans a child per package family) as the parent and states that the draft is its child for the Messaging scatter-gather family; #3480 (open [INFRA] gate: every public option has a reader) is cited under Related Issues. The Dilemma (A remove, B wire) is kept with no needs-decision label.
