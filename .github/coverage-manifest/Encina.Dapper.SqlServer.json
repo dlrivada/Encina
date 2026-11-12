@@ -552,7 +552,15 @@
         "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100,
+        "guard": 100
+      },
+      "justifications": {
+        "unit": "The options POCO has five executable lines and the unit tests read every default and setter.",
+        "guard": "The guard tests construct the options and reach every line of the POCO."
+      }
     },
     "Tenancy/ITenantConnectionFactory.cs": {
       "defaultTests": [
@@ -589,7 +597,15 @@
         "integration"
       ],
       "defaultRule": "*RepositoryDapper.cs",
-      "reason": "Dapper repository — needs real database"
+      "reason": "Dapper repository — needs real database",
+      "targets": {
+        "unit": 35,
+        "integration": 65
+      },
+      "justifications": {
+        "unit": "The repository unit tests drive every operation without a tenant context and assert Repository.TenantRequired with no database call, so the early-return paths run; the database paths need a real SQL Server.",
+        "integration": "The Dapper repository needs a real SQL Server: the tenancy integration tests reach the read, add, update, versioned update, update range, delete and paging paths; the remaining lines are the duplicate-key mapping and the specification overloads that other suites cover."
+      }
     },
     "Tenancy/TenantAwareSpecificationSqlBuilder.cs": {
       "defaultTests": [
@@ -597,7 +613,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 95,
+        "guard": 25
+      },
+      "justifications": {
+        "unit": "The unit tests drive every overload with and without a tenant context, with the opt-out and with a non-tenant mapping, so nearly every line runs.",
+        "guard": "The guard tests cover only the null-argument checks of the constructor and the public overloads, which is about a quarter of the file; the SQL assembly is reached by the unit tests."
+      }
     },
     "Tenancy/TenantConnectionFactory.cs": {
       "defaultTests": [
