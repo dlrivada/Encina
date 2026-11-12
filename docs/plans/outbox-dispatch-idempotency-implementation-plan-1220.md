@@ -2,7 +2,8 @@
 
 > **Issue**: [#1220](https://github.com/dlrivada/Encina/issues/1220)
 > **Type**: Feature
-> **Complexity**: High (8 phases, 10 database providers, ~60 files in 5 pull requests)
+> **Verified against**: origin/main `c49b987e9` (2026-11-12)
+> **Complexity**: High (8 phases, 10 database providers, ~95 files in 8 pull requests)
 > **Estimated Scope**: ~1,400-1,800 lines of production code + ~2,000-2,400 lines of tests
 
 ---
@@ -14,13 +15,13 @@ When an outbox message has two notification handlers and the second fails, the r
 What it implements:
 
 - The dispatch context carries the outbox id as `IRequestContext.IdempotencyKey`: `OutboxProcessorBase` calls the existing `IEncina.Publish<TNotification>(notification, IRequestContext, CancellationToken)` overload instead of the context-less one.
-- A per-handler completion store (`IOutboxHandlerCompletionStore`) keyed by (outbox id, handler type), implemented on the 10 database providers; the row is written when a handler returns `Right`, in the handler's transaction where one exists (the ADR-048 enlistment pattern of the inbox).
+- A per-handler completion store (`IOutboxHandlerCompletionStore`) keyed by (outbox id, handler type), implemented on the 10 database providers; the row is written when a handler returns `Right`, enlisted in the ambient transaction of the dispatcher's scope when one exists (the ADR-048 enlistment pattern of the inbox). **Delivery guarantee: at-least-once with a narrowed window, not at-most-once.** The completion is recorded after the handler returns, in the dispatcher's own fresh scope (`using var scope`, `Encina.NotificationDispatcher.cs` line 48), where a background processor has no ambient unit of work; a crash between the handler's side effect and `MarkCompletedAsync` re-runs that handler on the retry. The window closes only for a handler that takes part in a transaction of the same scope (it resolves the scope's transaction accessor), in which case the handler's writes and the completion row commit together. When `MarkCompletedAsync` fails after a successful handler the dispatch fails with `Left(outbox.handler_completion_failed)` (the message is retried and the handler may run again).
 - The notification dispatcher, for a dispatch that carries the outbox marker, skips handlers already completed, attempts every remaining handler and returns one aggregated error when any fails.
-- Tenant-aware rows (REQ-061) and instrumentation without payloads (REQ-062).
+- Tenant-aware rows (REQ-061, Design Choice 8) and instrumentation without payloads (REQ-062).
 
 Standards: SPEC-002 REQ-031, AC-031, S1, REQ-061 (AC-043), REQ-062 (AC-044); ADR-001 (ROP); ADR-048 (record versus business transaction); AGENTS.md section 3 (a `Left` is never reported as success).
 
-Estimated scope: about 60 files (core 12, provider 33, tests 10, docs and metadata 5), shipped as 5 pull requests (see "Pull request split"). Affected packages: `Encina` (dispatcher, aggregation), `Encina.Messaging` (store abstraction, processor), the ADO.NET, Dapper and EF Core providers for SqlServer, PostgreSQL and MySQL, `Encina.MongoDB`, `Encina.OpenTelemetry` (instrumented store decorator), `Encina.Testing.Fakes`.
+Estimated scope: about 95 files (production 45, tests 28, documentation and metadata 22), shipped as 8 pull requests (see "Pull request split"). Affected packages: `Encina` (dispatcher, aggregation), `Encina.Messaging` (store abstraction, processor), the ADO.NET, Dapper and EF Core providers for SqlServer, PostgreSQL and MySQL, `Encina.MongoDB`, `Encina.OpenTelemetry` (instrumented store decorator), `Encina.Testing.Fakes`.
 
 Provider category: Database (10), with one EF Core implementation verified on three databases.
 
@@ -85,6 +86,7 @@ Provider category: Database (10), with one EF Core implementation verified on th
 ### Rationale
 
 - The completion rows live only until the outbox message is purged (days, not years), so a rename affects at most the messages pending during the deployment; B wins for deployments that rename handlers while thousands of messages are pending.
+- Registered values under Option A: `FullName` of the concrete handler type as resolved from the container; for a generic handler the closed type's `FullName` (which includes the type arguments' assembly-qualified names, so two closings never collide); for a nested type the `+`-separated `FullName` (unique). A `FullName` is `null` only for open generic parameters, which cannot be resolved handlers; the gate returns `Left(outbox.handler_completion_failed)` rather than a null key. A handler type registered twice for the same notification is one completion key: it runs once per dispatch under the gate, and the duplicate is skipped with the completion of the first (the plan documents it; ordinary unmarked publishes still run both).
 - **Class:** Dilemma
 
 </details>
@@ -96,14 +98,14 @@ Provider category: Database (10), with one EF Core implementation verified on th
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Reuse the aggregate error built by `ParallelWhenAllDispatchStrategy` (all failure details in one `EncinaError`)** | Existing convention and tests; the retry and dead-letter path of `OutboxBatchProcessor` already treats any `Left` as a failed delivery | The aggregate carries codes, not messages: the persisted `ErrorMessage` of the outbox row stays a code list |
+| **A) Reuse the aggregate error shape of `ParallelWhenAllDispatchStrategy` (its `CreateAggregateError` extracted to an internal shared helper used by the marked path)** | Existing convention and tests; the retry and dead-letter path of `OutboxBatchProcessor` already treats any `Left` as a failed delivery | The aggregate's `details` carry `EncinaError.Message` per handler (verified: `["message"] = e.Error.Message` and a composed message string), so nothing may persist or log the details |
 | **B) A new `AggregateHandlerError` type** | Typed access to each error | New type for what the existing error already represents |
 
-### Chosen Option: **A — The existing aggregate error**
+### Chosen Option: **A — The existing aggregate shape, persisted as a code only**
 
 ### Rationale
 
-- `OutboxBatchProcessor` sends any `Left` through `PublishFailedAsync` (retry, then dead letter); the persisted failure reason stays an error code (never `EncinaError.Message`).
+- `OutboxBatchProcessor` sends any `Left` through `PublishFailedAsync` (retry, then dead letter); the persisted `ErrorMessage` is built from `error.GetCode()` only (verified: `PublishFailedAsync` uses `error.GetCode().IfNone("encina.unknown")`, line 232), so it holds the aggregate's code and never `EncinaError.Message`. The details with the messages stay in memory for the caller; no processor, log or tag reads `details` (a test pins the persisted text and the captured log output, AGENTS.md section 3, #1168 family).
 - **Class:** Trivial
 - **Settled by:** AGENTS.md section 3 (errors are never swallowed; `EncinaError.Message` never reaches logs or plaintext storage) and `src/Encina/Dispatchers/Strategies/ParallelWhenAllDispatchStrategy.cs` (the existing aggregation convention)
 
@@ -123,9 +125,8 @@ Provider category: Database (10), with one EF Core implementation verified on th
 
 ### Rationale
 
-- The issue asks for a per-handler completion table; B couples the completion write to the batch outcome write and loses one of them under concurrency.
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 4 (stores are `{Pattern}Store{Provider}`) and AGENTS.md section 5 (every store feature on all 10 database providers)
+- The issue asks for a per-handler completion table; B couples the completion write to the batch outcome write and loses one of them under concurrency (two writers rewrite one JSON value). Option B also complies with AGENTS.md sections 4 and 5, so the reason is technical, not a rule.
+- **Class:** Trivial
 
 </details>
 
@@ -143,9 +144,47 @@ Provider category: Database (10), with one EF Core implementation verified on th
 
 ### Rationale
 
-- A completion row has no meaning without its outbox message; the purge of #1200 already removes outbox rows by batch and deletes the completions in the same call.
+- A completion row has no meaning without its outbox message, so the rows are removed in the same call that removes the message. The purge of processed messages is the #1200 work item (a plan on a branch, not code on main); this plan's `RemoveForMessagesAsync` is what #1200's purge calls. `IOutboxStore` has no deletion operation on main (verified), so until #1200 lands the completion rows grow exactly like the processed outbox rows they belong to, and no earlier.
 - **Class:** Trivial
-- **Settled by:** the plan of #1200 (`docs/plans/processed-message-purge-implementation-plan-1200.md`, purge of processed outbox messages) and AGENTS.md section 3 (Outbox is opt-in; no unbounded growth)
+
+</details>
+
+<details>
+<summary><strong>7. Concurrency of a marked dispatch</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A marked dispatch runs the handlers sequentially, attempting every one even after a failure (a new "sequential, attempt all" behavior of the gate path, whatever the global strategy)** | The scoped completion store, its `DbContext` or ADO connection and the gate are used by one handler at a time (thread-safe); deterministic order and logs | Slower than parallel for slow handlers |
+| **B) Keep the aggregating parallel strategy and give each handler its own child scope, completion store instance and connection** | Handlers still run concurrently | One scope and connection per handler; a handler that shares scoped state with another (the ambient transaction) loses it; more code on every provider |
+
+### Chosen Option: **A — Sequential, attempt all (recommended, pending the maintainer)**
+
+### Rationale
+
+- `ParallelWhenAllDispatchStrategy` runs handlers concurrently with `Task.WhenAll`; a scoped `DbContext` or an ADO connection is not thread-safe, so the completion store cannot be shared across them. A wins on safety and simplicity; B wins when marked notifications have slow, independent handlers. Tests run parallel handlers on EF Core and ADO under the chosen option.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Tenant of a completion row and the default tenant</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The tenant comes from the ambient context of the dispatch (once #1164 persists it, from the persisted context); with tenancy off the column holds the fixed value `default`, and a tenant id `default` (compared case-insensitively) is refused while tenancy is on** | One constant shared with the rule of #1239 (choice 7: `default` reserved for the default partition) and #122; a real tenant can never share rows with the no-tenant segment | A tenant literally named `default` cannot use the feature |
+| **B) Nullable `TenantId` column, null when tenancy is off** | No reserved name | Two code paths in every query (`IS NULL` versus equality) on ten providers, and `NULL` has no tenant-style reserved-value check |
+
+### Chosen Option: **A — Fixed `default`, refused as a real tenant id (recommended, pending the maintainer)**
+
+### Rationale
+
+- The completion key is (outbox id, handler type), so a collision would need two tenants with the same outbox id; the column is for the isolation proof (AC-043) and the purge, and the reserved value keeps the no-tenant segment disjoint. The constant is defined once in `Encina.Messaging` (the unresolved decision of #738 and #1164) and `MarkCompletedAsync` returns `Left(outbox.handler_completion_failed)` for a resolved tenant equal to it while tenancy is on.
+- Observability follows ADR-054 D4: the tenant is a span attribute (`encina.tenant_id`) and a metric tag (`tenant`) **only when multi-tenancy is enabled** (the `MultiTenancyMarker` is registered); when it is off no tenant tag or attribute is emitted. The issue's "a fixed default tenant applies" concerns the stored column; the two statements agree because the tag is conditional and the column is not.
+- **Class:** Dilemma
 
 </details>
 
@@ -161,7 +200,7 @@ Provider category: Database (10), with one EF Core implementation verified on th
 1. `src/Encina.Messaging/Outbox/IOutboxHandlerCompletionStore.cs` (new): `Task<Either<EncinaError, bool>> IsCompletedAsync(Guid outboxId, string handlerType, CancellationToken)`, `Task<Either<EncinaError, Unit>> MarkCompletedAsync(Guid outboxId, string handlerType, string? tenantId, CancellationToken)`, `Task<Either<EncinaError, int>> RemoveForMessagesAsync(IEnumerable<Guid> outboxIds, CancellationToken)`; all `Either`, all with a token.
 2. `src/Encina/Abstractions/IHandlerCompletionGate.cs` (new, public): `ValueTask<bool> ShouldRunAsync(IRequestContext context, Type handlerType, CancellationToken)` and `ValueTask<Either<EncinaError, Unit>> RecordCompletionAsync(IRequestContext context, Type handlerType, CancellationToken)`.
 3. `OutboxDispatchMarker` (new, internal to `Encina.Messaging`, public key constant in `Encina`): the context metadata key `encina.outbox.dispatch` set by the processor.
-4. `OutboxErrorCodes`: `HandlerCompletionFailed = "outbox.handler_completion_failed"`.
+4. `OutboxErrorCodes`: `HandlerCompletionFailed = "outbox.handler_completion_failed"`, created with an `ErrorCategory` (ADR-062): `Unavailable` when the store call fails, `Internal` for a missing gate or an unusable handler key; and the marked-dispatch aggregate keeps the category of the existing `NotificationMultipleFailures` aggregate mapping (`UpstreamFailure`). A unit test asserts `GetCategory()` for each.
 5. `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Messaging` (via `mechanical-fixer`).
 
 </details>
@@ -186,9 +225,9 @@ src/Encina/Abstractions/IRequestContext.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `OutboxProcessorBase.PublishAsync`: build the context (correlation id from the message, `WithIdempotencyKey(message.Id.ToString("D"))`, `WithMetadata(OutboxDispatchMarker.Key, true)`; the tenant id from the persisted context once #1164 lands, the default tenant before) and call `encina.Publish(notification, context, ct)`.
-2. `Encina.NotificationDispatcher.ExecuteAsync`: when `context.Metadata` has the marker and an `IHandlerCompletionGate` is registered: before each handler `ShouldRunAsync`; after a `Right` `RecordCompletionAsync` (a failed record write is a handler failure, not success); dispatch with the aggregating strategy for marked dispatches whatever the global strategy is; zero handlers stays `Right` (and see #2385 for the integration-event route).
-3. A gate registered but a marked dispatch without it is a startup validation error in the outbox registration, not a silent skip.
+1. `OutboxProcessorBase.PublishAsync` (today `private static`, receiving only the callback; it becomes an instance method so it can resolve the optional gate; the constructor change of every provider's `OutboxProcessor` is listed in `PublicAPI.Unshipped.txt`, and the order with #2385, #1221 and #1251, which edit the same method, is: whichever lands first, the others rebase): when an `IHandlerCompletionGate` is registered, build the context (correlation id from the message, `WithIdempotencyKey(message.Id.ToString("D"))`, `WithMetadata(OutboxDispatchMarker.Key, true)`; the tenant id from the persisted context once #1164 lands, the ambient tenant or the fixed `default` before, Design Choice 8) and call `encina.Publish(notification, context, ct)`; when no gate is registered the processor dispatches as today (this keeps the first pull requests inert).
+2. `Encina.NotificationDispatcher.ExecuteAsync`: when `context.Metadata` has the marker: resolve the gate; **no gate resolved is `Left(outbox.handler_completion_failed)`, never a skip** (fail closed; the processor only sets the marker when a gate exists, so this is reachable only through a caller that sets the marker by hand). Before each handler `ShouldRunAsync`; after a `Right` `RecordCompletionAsync` (a failed record write is a handler failure, not success); handlers run sequentially and every one is attempted (Design Choice 7), the errors aggregated by the shared helper of Design Choice 4; zero handlers stays `Right` (and see #2385 for the integration-event route).
+3. The marked path lives in its own method (a new internal class `MarkedNotificationDispatch`).
 4. Keep CRAP at 10 or less: the marked path is its own method.
 5. Update the fail-fast remark of `INotificationHandler`.
 
@@ -201,7 +240,8 @@ src/Encina/Abstractions/IRequestContext.cs
 CONTEXT: Encina.NotificationDispatcher resolves handlers, runs them through the configured strategy and returns the
 first error (Sequential, Parallel) or an aggregate (ParallelWhenAll). OutboxProcessorBase publishes without a context.
 TASK: Pass the outbox id as the idempotency key with a marker; for marked dispatches skip completed handlers, run
-the rest with the aggregating strategy, record each Right through the gate and return one aggregated Left.
+the rest sequentially (attempt all), record each Right through the gate and return one aggregated Left; a marked
+dispatch with no gate is a Left, never a skip.
 KEY RULES: errors never swallowed (a Left from the gate or the store fails the dispatch); unmarked publishes keep
 their behavior exactly; TimeProvider for timestamps; no EncinaError.Message in logs or persisted text.
 REFERENCE FILES: src/Encina/Dispatchers/Encina.NotificationDispatcher.cs,
@@ -216,9 +256,10 @@ src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `MessagingServiceCollectionExtensions.AddMessagingServices`: when `UseOutbox` is on, register `IHandlerCompletionGate` (`OutboxHandlerCompletionGate`, scoped, wraps the store) and require an `IOutboxHandlerCompletionStore` (registered by the provider package with `TryAdd*`, before the core registration).
+1. `Encina.Messaging` exposes one helper (`AddOutboxHandlerCompletion`) that registers `IHandlerCompletionGate` (`OutboxHandlerCompletionGate`, scoped, wraps the store); each provider registration calls it together with its completion store, so the gate exists exactly when a store does.
 2. Every provider's `AddEncina{Provider}` registration adds its completion store; a store registered by the application wins (AGENTS.md section 3).
-3. DI test building the provider with `ValidateOnBuild` and `ValidateScopes` for each provider registration and in both registration orders.
+3. Startup validation (last pull request of the provider series, see the split): when `UseOutbox` is on and no `IOutboxHandlerCompletionStore` is registered, startup fails with a clear message naming the interface. It lands after every provider registration exists, so no earlier pull request breaks an existing outbox registration.
+4. DI test building the provider with `ValidateOnBuild` and `ValidateScopes` for each provider registration and in both registration orders.
 
 </details>
 
@@ -274,9 +315,9 @@ src/Encina.ADO.SqlServer/Scripts/001_CreateOutboxMessagesTable.sql
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Multi-tenancy: the row carries the tenant id; every query filters by it; the two-tenant test (AC-043); with tenancy off a fixed default tenant applies.
-2. Transactions: the completion write enlists in the handler's transaction when the ambient unit of work exists.
-3. Validation: startup validation fails when the outbox is on and no completion store is registered.
+1. Multi-tenancy (Design Choice 8): the row carries the tenant id; every query filters by it; the two-tenant test (AC-043); with tenancy off the fixed value `default` is stored, and a tenant id `default` (case-insensitive) is refused while tenancy is on (tested).
+2. Transactions: the completion write enlists in the ambient transaction of the dispatcher's scope when one exists (a handler that takes part in it commits with the completion row); otherwise it is a separate write and the window of the Summary applies.
+3. Validation: startup validation fails when the outbox is on and no completion store is registered (lands with the last provider pull request, Phase 3).
 4. Deferred rows of the matrix keep their reason.
 
 </details>
@@ -298,9 +339,10 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxWriter.cs, ITenantContext usa
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Counters on the `Encina` meter: `encina.outbox.handlers_skipped_total` and `encina.outbox.handler_failures_total` with tags `handler_type` (bounded by the registered handler set) and `tenant` (SPEC-002 REQ-062 asks for the tenant as an attribute); a span `encina.outbox.dispatch_handler` with `encina.tenant_id` and `encina.handler_type`.
-2. `[LoggerMessage]` in `OutboxDispatchLog` with EventIds 5805-5810 inside the family block (5800-5849) of `EventIdRanges.MessagingInboxIdempotency`, registered by plan #3440 (`docs/plans/inbox-in-progress-outcome-implementation-plan-3440.md`) or by whichever plan of the family lands first; assembly mapping for `Encina.Messaging` is added once in `EncinaEventIdAllocationTests`.
-3. No payload, response body or subject identifier in any tag, metric or log (test with an in-memory exporter, AC-044).
+1. Counters on the `Encina` meter: `encina.outbox.handlers_skipped_total` and `encina.outbox.handler_failures_total` with tag `handler_type` (bounded by the registered handler set) and, **only when multi-tenancy is enabled (ADR-054 D4)**, the tag `tenant`; a span `encina.outbox.dispatch_handler` with `encina.handler_type` and, only when multi-tenancy is enabled, `encina.tenant_id`. With multi-tenancy off no tenant tag or attribute is emitted (the stored column still holds `default`).
+2. `[LoggerMessage]` in `OutboxDispatchLog` with EventIds 5805-5810 inside the family block (5800-5849) of `EventIdRanges.MessagingInboxIdempotency`, registered by plan #3440 or by whichever plan of the family lands first; assembly mapping for `Encina.Messaging` is added once in `EncinaEventIdAllocationTests`. This plan follows #3440's 5800-5804 with no gap; the sibling plans of #1221 and #2385 continue from 5811 (the family's packed order is #3440, #1220, #1221, #2385).
+3. Health check (function 4, AC-044 "a health-check test covers each checkable dependency"): the completion store is a database dependency, but it uses the same database and connection configuration as the outbox store, so the existing database health check of that provider already covers reachability; PR D adds a test per provider family that a health check built from the provider's registration fails when the shared connection is unavailable, with the completion store registered. No separate check.
+4. No payload, response body or subject identifier in any tag, metric or log (test with an in-memory exporter, AC-044).
 
 </details>
 
@@ -326,10 +368,20 @@ tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs
 1. Unit: dispatcher marked path (skip, all attempted, aggregate), processor context building, gate; `FakeTimeProvider`.
 2. Guard: every new public member.
 3. Contract: `IOutboxHandlerCompletionStore` on every provider harness (idempotent insert, tenant filter, removal).
-4. Property: for any failure pattern across handlers and retries, each handler succeeds at most once per outbox id.
+4. Property: for any failure pattern across handlers and retries, no handler re-runs after its completion row is committed (the guarantee is at-least-once with a narrowed window, not at-most-once, see the Summary); a separate unit test pins the window: handler success followed by a failing `MarkCompletedAsync` fails the dispatch and the retry re-runs that handler. Further tests: the persisted `ErrorMessage` of an aggregate failure holds the code only and the captured logs hold no handler error text; parallel-capable handlers on EF Core and ADO run one at a time (Design Choice 7); a marked dispatch with no gate is a `Left`; `GetCategory()` of each new code.
 5. Integration: all 10 providers through the shared `[Collection]` fixtures; AC-031 scenario: two handlers, the second fails, retry runs only the second, both errors aggregated; reference scenario S1.
 6. Load and Benchmark: `.md` justifications (one extra indexed insert per handler on a path dominated by the handler itself).
-7. Manifest targets with justifications for each touched file; CRAP table.
+7. Manifest targets per touched `src/` file (floors for the worker, never lowered; `.github/coverage-manifest/{Package}.json`):
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|-----:|------:|---------:|---------:|------------:|---------------|
+| `Encina/Dispatchers/Encina.NotificationDispatcher.cs`, `MarkedNotificationDispatch.cs` | 95 | 100 | 0 | 90 | 0 | The marked path is pure orchestration over fakes; every branch (skip, run, fail, record failure, no gate) is reachable in unit tests. |
+| `OutboxProcessorBase.cs` (context building) | 95 | 100 | 0 | 0 | 0 | One method building a context; the gate-present and gate-absent branches are unit-testable. |
+| `OutboxHandlerCompletionGate.cs` | 95 | 100 | 0 | 90 | 0 | Thin logic over the store abstraction with the tenant rule. |
+| `OutboxHandlerCompletionStore{ADO,Dapper,EF,MongoDB}.cs` (x10 providers) | 0 | 100 | 100 | 0 | 90 | SQL and driver behavior is only provable on a real database through the shared collections and the store contract. |
+| `FakeOutboxHandlerCompletionStore.cs`, `InstrumentedOutboxHandlerCompletionStore.cs` | 95 | 100 | 100 | 0 | 0 | Test double and decorator exercised by the unit tests and the contract suite. |
+
+CRAP table of every changed method before each pull request.
 
 </details>
 
@@ -354,7 +406,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/Outbox, tests/Encina.Un
 
 1. XML docs; `changelog.d/1220-outbox-dispatch-idempotency.added.md` (via `mechanical-fixer`).
 2. `docs/features/transactional-outbox.md` (by `docs-writer`): key, completion table, aggregation, the fail-fast change; remarks of `INotificationHandler`.
-3. ADR for Design Choice 2 once decided (next free number at implementation time); `docs/INVENTORY.md`; PublicAPI files.
+3. ADR for the decided Dilemmas (2, 3, 7 and 8) once decided (ADR number assigned when the ADR pull request opens); `docs/INVENTORY.md`; PublicAPI files.
 4. Build 0 warnings; tests at manifest targets.
 
 </details>
@@ -405,27 +457,34 @@ REFERENCE FILES: docs/features/transactional-outbox.md, .claude/skills/encina-do
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` | 5805-5810 inside `MessagingInboxIdempotency` (5800-5849) | Family block assigned 2026-11-11; #3440 uses 5800-5804. The first plan of the family to land registers the block; this plan registers nothing when it exists |
+| `Encina.Messaging` | 5805-5810 inside `MessagingInboxIdempotency` (5800-5849) | Family block assigned 2026-11-11; #3440 uses 5800-5804. Packed order of the family: #3440 (5800-5804), this plan (5805-5810), #1221 (5811-5816), #2385 (5817-5822), with no gaps. The first plan of the family to land registers the block; this plan registers nothing when it exists |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Core abstractions and dispatcher | 12 | store interface, gate, marker, error code, dispatcher, processor, registration, gate implementation, metrics, log, fake store, instrumented store |
+| Core abstractions and dispatcher | 14 | store interface, gate, marker, error codes, dispatcher, marked-dispatch class, processor, registration helper, gate implementation, metrics, log, fake store, instrumented store, validator |
 | Provider implementations | 33 | ADO 6, Dapper 6, EF 3, Mongo 2, 12 SQL scripts (6 new scripts and 6 aggregate-script edits), registrations 4 |
-| Tests | 10 | unit, guard, contract, property, integration, DI tests, 2 justification files, EventId map |
-| Documentation and metadata | 5 | changelog, outbox guide, ADR, INVENTORY, manifests |
-| **Total** | **60** | Five pull requests |
+| Tests | 28 | unit, guard, contract, property, 10-provider integration, DI tests, health tests, 2 justification files, EventId map, existing tests that construct the processor |
+| Documentation and metadata | 20 | changelog, outbox guide, ADR, INVENTORY, one coverage manifest per touched package, PublicAPI files |
+| **Total** | **95** | Eight pull requests |
 
 ### Pull request split
 
+Counts include tests, coverage manifests and `PublicAPI.Unshipped.txt`. Each pull request builds alone and leaves existing outbox registrations working: the processor marks a dispatch only when a gate is registered (Phase 2), and the gate exists only where a provider registered its store, so the startup validation lands last.
+
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
-| A | Phases 1, 2, 3 (core, dispatcher, processor, registration), fake store, unit, guard, property tests | 14 |
-| B | ADO.NET x3 stores, scripts, registrations, integration and contract additions | 14 |
-| C | Dapper x3, same content | 14 |
-| D | EF Core and MongoDB, instrumented store, same content | 12 |
-| E | Phases 5-6 remainder (metrics, logs, tenant test), Phase 8 documentation, justifications | 6 |
+| A1 | Abstractions: store interface, gate interface, marker, error codes, gate implementation, registration helper, unit and guard tests, PublicAPI of Encina and Messaging, 2 manifests | 13 |
+| A2 | Dispatcher marked path, processor context, `INotificationHandler` remarks, fake store, unit and property tests, existing processor tests that change, manifests, PublicAPI of Fakes | 13 |
+| B1 | SQL Server: ADO and Dapper stores, scripts, aggregate-script edits, registrations, integration tests, manifests | 13 |
+| B2 | PostgreSQL: same content | 13 |
+| B3 | MySQL: same content | 13 |
+| C | EF Core and MongoDB stores, entity, configuration, document, registrations, instrumented store, integration tests, manifests | 13 |
+| D | Observability (metrics, `OutboxDispatchLog`, EventId map), startup validation, DI tests for every provider, health tests | 12 |
+| E | Documentation, ADR, justification files, changelog | 6 |
+
+A1 first; A2 and B1, B2, B3, C depend on A1 and may land in any order after it; D depends on B1, B2, B3 and C; E last. The contract additions for `IOutboxHandlerCompletionStore` ride in the provider pull request that first implements each store.
 
 ---
 
@@ -442,8 +501,10 @@ by outbox id and handler type), every handler is attempted and errors are aggreg
 
 IMPLEMENTATION OVERVIEW:
 1. IOutboxHandlerCompletionStore (Messaging), IHandlerCompletionGate (core), marker key, error code.
-2. OutboxProcessorBase passes the context with the outbox id; the notification dispatcher skips, attempts all and
-   aggregates for marked dispatches only (gate design pending the maintainer).
+2. OutboxProcessorBase passes the context with the outbox id (only when a gate is registered); the notification
+   dispatcher skips, attempts all sequentially and aggregates for marked dispatches only (gate design and
+   sequential execution pending the maintainer); a marked dispatch with no gate is a Left. Guarantee: at-least-once
+   with a narrowed window.
 3. Registration and DI tests; per-provider table/collection, stores, scripts, instrumented and fake stores.
 4. Tenant-aware rows, ambient-transaction enlistment, startup validation.
 5. Counters, span, OutboxDispatchLog EventIds 5805-5810 in the family block 5800-5849.
@@ -471,15 +532,15 @@ src/Encina.MongoDB/Outbox/OutboxStoreMongoDB.cs, src/Encina/Diagnostics/EventIdR
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | No read path that benefits from caching; completion checks need read-your-writes |
-| 2 | OpenTelemetry | ✅ | Counters and the per-handler span with the tenant attribute (Phase 6) |
+| 2 | OpenTelemetry | ✅ | Counters and the per-handler span; the tenant tag and attribute only when multi-tenancy is on (ADR-054 D4, Phase 6) |
 | 3 | Structured Logging | ✅ | `OutboxDispatchLog` EventIds 5805-5810 in the family block (Phase 6) |
-| 4 | Health Checks | ❌ | No new checkable dependency; the store is part of the existing outbox database |
-| 5 | Validation | ✅ | Startup validation when the outbox is on and no completion store is registered (Phase 5) |
+| 4 | Health Checks | ✅ | The completion store shares the outbox database connection, which the existing provider health check already exercises; PR D adds a test per provider family (Phase 6 task 3) |
+| 5 | Validation | ✅ | Startup validation when the outbox is on and no completion store is registered (Phase 3, last provider pull request) |
 | 6 | Resilience | ❌ | No external call: handlers keep their own policies; retry is the existing outbox retry |
 | 7 | Distributed Locks | ❌ | The idempotent insert with a composite primary key serializes duplicates without a lock |
-| 8 | Transactions | ✅ | The completion write enlists in the handler's ambient transaction (Phase 4) |
-| 9 | Idempotency | ✅ | The feature itself |
-| 10 | Multi-Tenancy | ✅ | Tenant column and the two-tenant test (Phase 5) |
+| 8 | Transactions | ✅ | The completion write enlists in the ambient transaction of the dispatcher's scope when one exists; otherwise it is a separate write and the at-least-once window applies (Summary, Phase 5) |
+| 9 | Idempotency | ✅ | The feature itself (at-least-once with a narrowed window) |
+| 10 | Multi-Tenancy | ✅ | Tenant column, fixed `default` reserved when tenancy is off, and the two-tenant test (Design Choice 8, Phase 5) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ❌ | A completion record is operational state, not a compliance event |
 
@@ -491,15 +552,16 @@ src/Encina.MongoDB/Outbox/OutboxStoreMongoDB.cs, src/Encina/Diagnostics/EventIdR
 |-------|----------|-------|
 | [#1164](https://github.com/dlrivada/Encina/issues/1164) | Soft dependency | Persisted request context; until it lands the tenant id comes from the ambient context or the default tenant |
 | [#1200](https://github.com/dlrivada/Encina/issues/1200) | Coordinates | Purge removes completion rows with their message |
-| [#2385](https://github.com/dlrivada/Encina/issues/2385) | Shares the processor | Outbox-to-transport publisher; its route replaces in-process dispatch for integration events and both plans change `OutboxProcessorBase` |
+| [#2385](https://github.com/dlrivada/Encina/issues/2385), [#1221](https://github.com/dlrivada/Encina/issues/1221), [#1251](https://github.com/dlrivada/Encina/issues/1251) | Share the processor | `OutboxProcessorBase` is edited by all four plans (#2385 routes integration events to a transport, #1221 resolves stored type names, #1251 changes row claiming); rebase order is the order in which they land, and the later pull request rebases onto the instance-method change of `PublishAsync` |
 | [#1186](https://github.com/dlrivada/Encina/issues/1186) | Parent EPIC | SPEC-002 readiness |
-| [#3440](https://github.com/dlrivada/Encina/issues/3440) | Shares the EventId block | Family block 5800-5849 |
+| [#3440](https://github.com/dlrivada/Encina/issues/3440) | Shares the EventId block | Family block 5800-5849 (packed order in Event ID Allocation) |
+| [#738](https://github.com/dlrivada/Encina/issues/738) | Soft dependency | Defines the default-tenant constant and tenancy marker used by Design Choice 8 |
 
 ---
 
 ## Next Steps
 
-1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 2 and 3 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
+1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 2, 3, 7 and 8 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
 2. Re-check that 5805-5810 are free and that the family block is registered before PR A.
 3. Coordinate `OutboxProcessorBase` changes with the plan of #2385.
 4. Measure per-flag coverage and the CRAP table for every touched file before each pull request.
