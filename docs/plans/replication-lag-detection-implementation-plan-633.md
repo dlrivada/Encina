@@ -3,7 +3,7 @@
 > **Issue**: [#633](https://github.com/dlrivada/Encina/issues/633) (`area-cdc`, `priority-medium`, `p1-recommended`)
 > **Type**: Feature
 > **Complexity**: Medium-High (one new abstraction, a selector change in `Encina.Messaging`, a probe per database family)
-> **Estimated Scope**: ~1,100-1,500 lines of production code + ~1,800-2,400 lines of tests, delivered in five pull requests
+> **Estimated Scope**: ~1,100-1,500 lines of production code + ~1,800-2,400 lines of tests, delivered in nine pull requests of at most 15 files and 1,500 lines each (about 96 files in total, see "Split into pull requests")
 > **Related plans of the same family (#634, #635, #636, #2393)**: independent of this plan; none of them shares a type with it. Sibling plans are referred to by issue number only.
 
 ---
@@ -27,7 +27,21 @@ A query routed to a read replica can return stale data when that replica is behi
 - **Affected packages**: `Encina.Messaging` (contracts, options, selector, probe service), `Encina` (tracker reuse only), `Encina.ADO.SqlServer|PostgreSQL|MySQL`, `Encina.Dapper.SqlServer|PostgreSQL|MySQL`, `Encina.EntityFrameworkCore` (probes and registration), `Encina.MongoDB` (validation), `Encina.OpenTelemetry` (subscription).
 - **Provider category**: Database, all 10 providers (AGENTS.md section 5). SQLite and Oracle are out of the matrix.
 - **Corrections to the issue text**: the routing behaviors are not changed; the replica list comes from `ReadWriteSeparationOptions.ReadConnectionStrings` (a second `Replicas` dictionary with connection strings would duplicate the configuration and spread secrets); metric names follow the final package (Design Choice 2).
-- **Split into pull requests**: PR 1 = Phases 1-3 (Messaging core, about 14 files); PR 2 = Phase 4 (ADO.NET, about 9 files); PR 3 = Phase 5 (Dapper, about 9 files); PR 4 = Phase 6 (EF Core and MongoDB, about 7 files); PR 5 = Phases 7-9 remainder (OpenTelemetry, integration tests, documentation).
+- **Split into pull requests** (every count includes the tests, coverage-manifest edits and PublicAPI lines of the code in that PR; the probes are `internal sealed` and registered only, so they add no PublicAPI lines). The numbering is the merge order.
+
+  | PR | Content (phase) | Files | Lines (est.) | Depends on |
+  |----|-----------------|-------|--------------|------------|
+  | 1 | Contracts, options, validator, error codes, PublicAPI, options-validation unit test, guard test, manifest (Phase 1) | 9 | ~450 | none |
+  | 2 | `LagAwareReplicaSelector`, `ReadWriteConnectionSelector` change, registration of the tracker, selector/decorator/connection-selector unit tests, boundary property test, manifest (Phase 2) | 8 | ~600 | 1 |
+  | 3 | `ReplicationLagMonitor`, `ReplicationLagProbeService`, `ReplicationLagLog`, `EventIdRanges.cs` and allocation-test edits, `AddEncinaReplicationLagDetection`, PublicAPI, service/monitor unit tests, DI proof test, manifest (Phase 3) | 12 | ~750 | 1, 2 |
+  | 4 | ADO.NET probes for SQL Server, PostgreSQL, MySQL: 3 probes, 3 registration edits, 3 unit tests, 3 manifest edits (Phase 4) | 12 | ~650 | 1 |
+  | 5 | Dapper probes for the same three databases, same shape (Phase 5) | 12 | ~600 | 1 |
+  | 6 | EF Core probe and MongoDB `MaxStaleness` validation: 2 sources, 2 registration edits, 2 unit tests, 2 manifest edits (Phase 6) | 8 | ~450 | 1 |
+  | 7 | Metrics, activity source, health check, OpenTelemetry subscription, PublicAPI, 3 unit tests, 1 guard test, 2 manifest edits (Phase 7) | 10 | ~600 | 3 |
+  | 8 | Contract tests of the probes, integration fixtures and classes (PostgreSQL, MySQL, SQL Server unknown path, MongoDB validation), benchmark class, load justification `.md` (Phase 8) | 12 | ~1,200 | 4, 5, 6, 7 |
+  | 9 | Changelog fragment, `Encina.Messaging` README and the eight provider READMEs, read/write separation page, `docs/INVENTORY.md`, ADR (Phase 9) | 13 | ~600 | 8 |
+
+  Total: 9 PRs, 96 files, about 5,900 line-changes (the sum of the per-PR upper estimates, including manifests and documentation); no PR exceeds 15 files or 1,500 lines. PRs 4-6 are independent of each other after PR 1.
 
 ---
 
@@ -83,17 +97,16 @@ The consumer is the selector, which lives in `Encina.Messaging`. A would force a
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) A background `ReplicationLagProbeService` writes readings into `IReplicaHealthTracker`; the selector only reads them** | No I/O on the query path; the synchronous selector contract stays; shared with the sharded health check | A reading is up to one interval old |
-| **B) Probe the chosen replica before every query** | Freshest reading | A round trip per query; the selector is synchronous and AGENTS.md forbids synchronous database calls |
-| **C) Probe lazily and cache for the interval** | Fewer probes than B | The first query after an expiry pays the round trip and blocks the request thread |
+| **B) Probe the chosen replica before every query** | Freshest reading | A round trip per query; with the synchronous selector it breaks the asynchronous-database-call rule |
+| **C) Probe lazily and cache for the interval, asynchronously (async selector signature or an async refresh that never blocks the request)** | Fewer probes than B; the first reading appears without waiting for a timer | Changes `IReadWriteConnectionSelector` (allowed pre-1.0) or adds a refresh task per replica; the first query after expiry may still use an old reading |
 
-### Chosen Option: **A — background probes, in-memory reads**
+### Chosen Option: **A — background probes, in-memory reads** (recommended, pending the maintainer)
 
 ### Rationale
 
-`IReadWriteConnectionSelector.GetReadConnectionString()` is synchronous, and database calls must be asynchronous with a `CancellationToken`; a probe on the request path would break one rule or the other.
+A, and C with an asynchronous refresh, both satisfy "database calls are asynchronous with a `CancellationToken`", and pre-1.0 allows changing the selector signature, so the rule does not choose between them. A is recommended because it keeps `GetReadConnectionString()` synchronous and I/O free, and the readings also feed the sharded health check; B is excluded by the rule while the selector is synchronous.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 3 (database calls are asynchronous with a `CancellationToken`)
+**Class:** Dilemma
 
 </details>
 
@@ -104,17 +117,17 @@ The consumer is the selector, which lives in `Encina.Messaging`. A would force a
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A replica with no reading, a failed probe or a reading older than three intervals is not eligible; with `FallbackToPrimary` the query goes to the primary, otherwise it returns a `Left`** | Matches the acceptance criterion; no stale read after a monitor failure; the failure is counted and logged by error code | For one interval after startup every query uses the primary |
-| **B) Treat "no reading" as healthy** (what `GetAvailableReplicas(..., maxAcceptableLag)` does today) | No startup warm-up | A monitor that is down is indistinguishable from "no lag" |
+| **A) A replica with no reading, a failed probe or a stale reading is not eligible; with `FallbackToPrimary` the query goes to the primary, otherwise it returns a `Left`** | Matches the acceptance criterion; no stale read after a monitor failure; the failure is counted and logged by error code | For one interval after startup every query uses the primary; on a SQL Server standalone instance (no availability group) lag is always unknown, so reads always go to the primary (or fail when `FallbackToPrimary` is off) |
+| **B) Treat "no reading" as healthy** (what `GetAvailableReplicas(..., maxAcceptableLag)` does today) | No startup warm-up | A monitor that is down is indistinguishable from "no lag"; the gate would admit a replica on missing context |
 
 ### Chosen Option: **A — unknown is not eligible**
 
 ### Rationale
 
-The issue states that unknown lag never routes to a replica; the sharded tracker keeps its lenient rule for its own callers and the new gate does not reuse it. The behavior applies only when lag detection is enabled.
+Compliance and security gates fail closed: when context is missing or a lookup fails, the gate denies. B admits a replica when the reading is missing, so only A complies. The sharded tracker keeps its lenient rule for its own callers and the new gate does not reuse it. The behavior applies only when lag detection is enabled. The reading-age limit that defines "stale" (3 x `CheckInterval`) is part of Design Choice 7.
 
 **Class:** Settled
-**Settled by:** #633 (acceptance criteria: unknown lag routes to the primary)
+**Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed"); the issue's acceptance criterion (unknown lag routes to the primary) restates it
 
 </details>
 
@@ -128,14 +141,13 @@ The issue states that unknown lag never routes to a replica; the sharded tracker
 | **A) Replicas come from `ReadWriteSeparationOptions.ReadConnectionStrings`; the id is `replica-<index>`; connection strings never reach logs, tags or metrics** | One configuration; no second secret holder; ids are safe to log | The id depends on list order |
 | **B) A separate `Replicas` dictionary of id to connection string in the lag options (the issue sketch)** | Stable names | Duplicates the connection strings; a second options class that must be `[JsonIgnore]` with a `ToString()` override |
 
-### Chosen Option: **A — reuse `ReadConnectionStrings`**
+### Chosen Option: **A — reuse `ReadConnectionStrings`** (recommended, pending the maintainer)
 
 ### Rationale
 
-`ReadWriteSeparationOptions` already carries the strings and overrides `ToString()`. The tracker is keyed by connection string internally (`MarkHealthy(shardId, replicaConnectionString)`), which stays inside the process; everything observable uses the id.
+Both options can satisfy the secrets rule (AGENTS.md section 3: `[JsonIgnore]` and a `ToString()` override, #851), so the rule does not choose between them. A is recommended because `ReadWriteSeparationOptions` already carries the strings and overrides `ToString()`, so no second holder exists. The tracker is keyed by connection string internally (`MarkHealthy(shardId, replicaConnectionString)`), which stays inside the process; everything observable uses the id. The `replica-<index>` id is a consequence of A and changes with list order (documented).
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 3 (options with connection strings are `[JsonIgnore]` with a `ToString()` override, #851)
+**Class:** Dilemma
 
 </details>
 
@@ -146,19 +158,71 @@ The issue states that unknown lag never routes to a replica; the sharded tracker
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `LagAwareReplicaSelector` decorates the configured strategy: it asks the inner selector up to N times (N = replica count) for an eligible replica, then returns "none"; the connection selector turns "none" into the primary or a `Left`** | The configured strategy (round robin, random, least connections) is kept; works with every existing `IReplicaSelector` | Up to N selector calls per query when most replicas are stale |
-| **B) Filter first, then run the strategy on the filtered list** | Exactly one selection | `IReplicaSelector` has no list parameter; every strategy would need a new signature |
+| **A) A `LagAwareReplicaSelector` decorates the configured strategy: it asks the inner selector up to N times (N = replica count) for an eligible replica, then returns "none"; the connection selector turns "none" into the primary or a `Left`** | The configured strategy (round robin, random, least connections) is kept; works with every existing `IReplicaSelector` | Up to N selector calls per query when most replicas are stale; with `RandomReplicaSelector` the N draws may repeat the same stale replica, so the decorator can report "none" while an eligible replica exists (a false negative, which only costs a primary read) |
+| **B) Filter first, then run the strategy on the filtered list** | Exactly one selection and no false negative | `IReplicaSelector` has no list parameter; every strategy would need a new signature |
 
-### Chosen Option: **A — decorator over `IReplicaSelector`**
+### Chosen Option: **A — decorator over `IReplicaSelector`** (recommended, pending the maintainer)
 
 ### Rationale
 
-Pre-1.0 allows a new signature, but the three strategies hold private lists and rotate state; a decorator keeps their behavior and adds the lag rule in one class. Selection bias towards the first eligible replica under heavy staleness is acceptable because the fallback is rare.
+Pre-1.0 allows the new signature of B, so no rule or convention excludes it. The three strategies hold private lists and rotate state; a decorator keeps their behavior and adds the lag rule in one class. The false negative with the random strategy is accepted in the recommendation because it fails safe (a primary read) and only occurs while some replicas are stale; if the maintainer wants it gone, B (or drawing without replacement inside the decorator) removes it. The decorator is registered only when lag detection is enabled (pay-for-what-you-use applies to either option).
 
-**Class:** Trivial
-**Settled by:** AGENTS.md section 1 (pay for what you use: the decorator is registered only when lag detection is enabled)
+**Class:** Dilemma
 
 </details>
+
+<details>
+<summary><strong>7. Defaults of <code>ReplicationLagOptions</code> and the staleness window of a reading</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `MaxAcceptableLag` 5 s, `CheckInterval` 10 s, `ProbeTimeout` 3 s, `FallbackToPrimary` true, reading valid for 3 x `CheckInterval`** | Tolerates one or two missed probes; a failed monitor reaches the primary within 30 s; fails safe | A reading can be 30 s old, so a replica can have lagged up to 30 s unseen |
+| **B) Same values, but a reading valid for 1.5 x `CheckInterval`** | Smaller blind window | One missed probe sends all reads to the primary |
+| **C) No defaults: the options are required when `Enabled` is true** | The operator states the tolerance for their data | More ceremony; every adopter must choose |
+
+### Chosen Option: **A — the values above** (recommended, pending the maintainer)
+
+### Rationale
+
+No rule fixes a number; the choice trades staleness against primary load. `Enabled` stays false by default (pay-for-what-you-use). `FallbackToPrimary` true fails safe for reads; with it false and lag unknown every read returns a `Left`, which the docs phase states for operators (this includes a SQL Server standalone instance, whose probe always reports unknown lag).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. MongoDB deviation from the acceptance criteria and its startup validation</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) MongoDB keeps the driver's `MaxStaleness`; the plan adds only startup validation (minimum 90 s, per the MongoDB server selection specification) and a configured-staleness metric** | No polling; the driver is authoritative | Deviates from two acceptance criteria: unknown lag does not route to the primary (the driver decides, and the plan adds no unknown-lag handling to MongoDB) and there is no fallback metric parity; the validation can reject existing configurations below 90 s |
+| **B) A MongoDB probe (`replSetGetStatus` optime comparison) feeding the same tracker, so the selector semantics match the nine relational providers** | Criteria met on all 10 providers | Needs cluster-monitoring privileges; duplicates what the driver already does |
+| **C) A MongoDB option that disables the startup validation (warn only)** | No rejected configuration | Allows a value the driver ignores or rejects at runtime |
+
+### Chosen Option: **A — driver `MaxStaleness`, validation and metric only** (recommended, pending the maintainer)
+
+### Rationale
+
+The driver is already staleness-aware (`ReadWriteMongoCollectionFactory.cs:80,176-178`). The plan states openly that this is a deviation from the acceptance criteria "unknown lag never routes to a replica" and "behavior identical in the eight routing packages" for MongoDB; only the maintainer can accept it.
+
+**Class:** Dilemma
+
+</details>
+
+### Smaller decisions (Trivial)
+
+| Id | Decision | Class | Basis |
+|----|----------|-------|-------|
+| T1 | The non-sharded path uses the constant tracker scope id `"readwrite"`; the tracker state is keyed by (scope id, replica), so readings of the sharded and the non-sharded path never mix, and a shard literally named `readwrite` is documented as unsupported | Trivial | `ReplicaHealthTracker` keys states by `shardId` (`ReplicaHealthTracker.cs:22`); one tracker instance may serve both paths |
+| T2 | Replica ids are `replica-<index>` (follows Design Choice 5) | Trivial | Safe to log |
+| T3 | `ReplicationLagOptions` validation rejects `ProbeTimeout >= CheckInterval` and non-positive values | Trivial | Startup validation of options, pattern of the existing options validators |
+| T4 | Meter and activity source `Encina.Messaging.ReadWriteSeparation`; instruments `encina.readwrite.replica.lag_seconds`, `.fallbacks`, `.healthy`; span `encina.readwrite.replica.probe` | Trivial | Names follow `DeadLetterMetrics` in the same package; renamed from the issue's `encina.cdc.*` (a correction) |
+| T5 | No circuit breaker around a probe: a failed probe marks the replica unhealthy and the next interval retries | Trivial | Read-only probe; matrix row 6 |
+| T6 | Registration order: the tracker is `TryAddSingleton`; an application-owned tracker registered earlier or later is kept, and `AddEncinaReplicationLagDetection` adds only what is missing | Trivial | AGENTS.md section 3 (registration completeness) applied by analogy; proven by the DI test of PR 3 |
 
 ---
 
@@ -174,8 +238,8 @@ Pre-1.0 allows a new signature, but the three strategies hold private lists and 
 1. `ReadWriteSeparation/IReplicationLagMonitor.cs`: `Task<Either<EncinaError, ReplicationLagInfo>> GetLagAsync(string replicaId, CancellationToken)` and `Task<Either<EncinaError, bool>> IsReplicaHealthyAsync(string replicaId, CancellationToken)`; ROP returns replace the issue's bare tasks.
 2. `ReplicationLagInfo` record: `ReplicaId`, `EstimatedLag` (`TimeSpan`), `MeasuredAtUtc` (from `TimeProvider`); the issue's `PrimaryPosition` / `ReplicaPosition` properties are dropped (they exist only under CDC measurement, option C).
 3. `IReplicationLagProbe`: `Task<Either<EncinaError, TimeSpan>> MeasureAsync(string replicaConnectionString, CancellationToken)`, implemented per database in the provider packages.
-4. `ReplicationLagOptions` (nested in `ReadWriteSeparationOptions.ReplicationLag`): `MaxAcceptableLag` (default 5 s), `FallbackToPrimary` (default true), `CheckInterval` (default 10 s), `ProbeTimeout` (default 3 s), `Enabled` (default false); `IValidateOptions` rejects non-positive values and `ProbeTimeout >= CheckInterval`.
-5. `ReplicationLagErrorCodes` (`encina.readwrite.lag_unknown`, `lag_probe_failed`, `lag_exceeded`).
+4. `ReplicationLagOptions` (nested in `ReadWriteSeparationOptions.ReplicationLag`): `MaxAcceptableLag`, `FallbackToPrimary`, `CheckInterval`, `ProbeTimeout` (defaults per Design Choice 7: 5 s, true, 10 s, 3 s), `Enabled` (default false); `IValidateOptions` rejects non-positive values and `ProbeTimeout >= CheckInterval`.
+5. `ReplicationLagErrorCodes` (`encina.readwrite.lag_unknown`, `lag_probe_failed`, `lag_exceeded`), each declaring its category through the error category contract of #3419 (that contract is the reference; the plan claims no ADR number for it).
 6. PublicAPI lines.
 
 </details>
@@ -203,9 +267,9 @@ src/Encina/Sharding/ReplicaSelection/IReplicaHealthTracker.cs.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `LagAwareReplicaSelector : IReplicaSelector`: wraps the strategy selector; consults the tracker state for the id and applies Design Choice 4 (reading age limit = 3 x `CheckInterval`, `TimeProvider`).
+1. `LagAwareReplicaSelector : IReplicaSelector`: wraps the strategy selector; consults the tracker state for the id and applies Design Choice 4 (reading age limit = 3 x `CheckInterval` per Design Choice 7, `TimeProvider`) and the selection strategy of Design Choice 6.
 2. `ReadWriteConnectionSelector.GetReadConnectionString()`: when lag detection is on and no replica is eligible, return the write connection string (`FallbackToPrimary`) or `Left(lag_exceeded)`; catch the "no replica" signal of the decorator instead of letting `InvalidOperationException` escape.
-3. Registration in `ReadWriteSeparationServiceCollectionExtensions` (or the existing registration path in each provider package, `RegisterReadWriteSeparation`): `TryAddSingleton<IReplicaHealthTracker>` for the non-sharded path with the constant scope id `"readwrite"`.
+3. Registration in `ReadWriteSeparationServiceCollectionExtensions` (or the existing registration path in each provider package, `RegisterReadWriteSeparation`): `TryAddSingleton<IReplicaHealthTracker>` for the non-sharded path with the constant scope id `"readwrite"` (decision T1: sharded and non-sharded readings are separate by scope id; a tracker an application already registered is kept, T6).
 4. A `DatabaseIntent.ForceWrite` or `Write` request never reaches the lag gate.
 
 </details>
@@ -322,7 +386,7 @@ REFERENCE FILES: src/Encina.Dapper.SqlServer/ReadWriteSeparation/ReadWriteConnec
 <summary><strong>Tasks</strong></summary>
 
 1. EF Core: `EfCoreReplicationLagProbe` chooses the SQL by `DbContext.Database.ProviderName` (SQL Server, Npgsql, MySQL) and runs it on a short-lived connection built from the replica connection string with `DbConnection.OpenAsync(ct)`.
-2. MongoDB: `MongoReadWriteSeparationOptions.MaxStaleness` is validated at startup against the 90-second minimum of the MongoDB server selection specification; no probe is added, the driver enforces the threshold. Metrics record the configured staleness.
+2. MongoDB: `MongoReadWriteSeparationOptions.MaxStaleness` is validated at startup against the 90-second minimum of the MongoDB server selection specification (Design Choice 8, which also states the deviation from the acceptance criteria and that the validation can reject an existing configuration below 90 s); no probe is added, the driver enforces the threshold. Metrics record the configured staleness.
 3. Registration in `AddEncinaEntityFrameworkCore` and `AddEncinaMongoDB` paths.
 
 </details>
@@ -381,8 +445,26 @@ src/Encina.OpenTelemetry (WithEncina registration).
 2. Guard: all public methods.
 3. Contract: `IReplicationLagProbe` behavior across the nine relational implementations (unknown is a `Left`) and the routing outcome in the eight routing packages (behaviors unchanged, selector shared).
 4. Property: lag arithmetic and threshold boundaries for any `MaxAcceptableLag` and reading age.
-5. Integration: PostgreSQL and MySQL with a primary and a streaming replica on Testcontainers in a dedicated shared fixture; a standalone SQL Server container proves the unknown path (no availability group in a single container). A real availability group probe is not reproducible with one container; this is recorded in the PR as the coverage limit of the SQL Server probe, not as a `.md` justification.
+5. Integration, per the provider matrix below: PostgreSQL and MySQL with a primary and a streaming replica on Testcontainers in a dedicated shared fixture, for the ADO.NET, Dapper and EF Core probes of each; a standalone SQL Server container proves the unknown path (no availability group in a single container); MongoDB proves the startup validation on a replica set. A real availability group probe is not reproducible with one container, so the SQL Server lag query has no real-database test in this plan: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/sqlserver-ag-lag-probe-integration-test.md). The gap is also recorded in the PR.
 6. Benchmark: overhead of `GetReadConnectionString()` with the gate (hot path). Load: justification file (reads only an in-memory value).
+7. Per-file targets (below) are entered in the manifests by the PR that creates each file.
+
+#### Provider matrix
+
+| # | Family | Database | Probe / mechanism | Test coverage |
+|---|--------|----------|-------------------|---------------|
+| 1 | ADO.NET | SQL Server | `SqlServerReplicationLagProbe` | unit (faked reader), contract, integration: unknown path on a standalone container |
+| 2 | ADO.NET | PostgreSQL | `PostgreSqlReplicationLagProbe` | unit, contract, integration with a streaming replica |
+| 3 | ADO.NET | MySQL | `MySqlReplicationLagProbe` | unit, contract, integration with a replica |
+| 4 | Dapper | SQL Server | `SqlServerReplicationLagProbe` | unit, contract, integration: unknown path |
+| 5 | Dapper | PostgreSQL | `PostgreSqlReplicationLagProbe` | unit, contract, integration with a streaming replica |
+| 6 | Dapper | MySQL | `MySqlReplicationLagProbe` | unit, contract, integration with a replica |
+| 7 | EF Core | SQL Server | `EfCoreReplicationLagProbe` (provider name switch) | unit, contract, integration: unknown path |
+| 8 | EF Core | PostgreSQL | `EfCoreReplicationLagProbe` | unit, contract, integration with a streaming replica |
+| 9 | EF Core | MySQL | `EfCoreReplicationLagProbe` | unit, contract, integration with a replica |
+| 10 | MongoDB | MongoDB | driver `MaxStaleness` (Design Choice 8) | unit for the validation, integration on a replica set |
+
+Other applicability-matrix rows (AGENTS.md section 5): Caching (8), Transport, Lock and Validation (3) providers are not applicable; the feature touches only database routing.
 
 </details>
 
@@ -409,7 +491,8 @@ REFERENCE FILES: .github/coverage-manifest/Encina.Messaging.json, docs/en/guides
 1. XML docs on all new public APIs.
 2. `changelog.d/633-replication-lag-detection.added.md`.
 3. `src/Encina.Messaging/README.md` and the provider READMEs; a read/write separation page that states the privileges per database, the unknown-is-primary rule, the MongoDB `MaxStaleness` minimum and the availability-group requirement of the SQL Server probe.
-4. ADR number assigned when the ADR pull request opens (measurement approach).
+4. ADR on the measurement approach: no number is claimed here; the number is taken from the batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`) when the ADR pull request opens, and 062 belongs to #3419.
+4a. Operator-facing consequences stated in the page: with `FallbackToPrimary` off and unknown lag (including a SQL Server standalone instance) every read returns a `Left`; the privileges per database; the 90 s MongoDB minimum.
 5. `PublicAPI.Unshipped.txt` lines; `docs/INVENTORY.md`.
 6. Verification: build with zero warnings, tests, per-flag coverage of the new files against the manifest.
 
@@ -457,7 +540,21 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md.
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` (new range `ReplicationLag`) | 7100-7109 used; 7110-7119 spare | Registered in `EventIdRanges.cs` from the family block 7100-7149; if Design Choice 2 picks `Encina.Cdc` the range maps to that assembly instead |
+| `Encina.Messaging` (new range `ReplicationLag`) | 7100-7109 used, packed sequentially; 7110-7119 spare (continue at 7110 if more are needed) | Registered in `EventIdRanges.cs` from the block 7100-7119 that the batch registry assigns to #633 (the older text "7100-7149" is superseded); if Design Choice 2 picks `Encina.Cdc` the range maps to that assembly instead |
+
+### Per-file coverage targets (AGENTS.md section 9)
+
+Per flag: U unit, G guard, C contract, P property, I integration. Entered in the package manifests by the PR that creates the file; never lowered afterwards.
+
+| File (new or changed) | U | G | C | P | I | Justification |
+|-----------------------|---|---|---|---|---|---------------|
+| `ReplicationLagOptions` and its validator | 90 | 90 | 0 | 0 | 0 | Pure validation branches, all reachable |
+| `LagAwareReplicaSelector` | 90 | 90 | 0 | 80 | 0 | Gate decisions are deterministic with a fake `TimeProvider`; property test covers threshold boundaries |
+| `ReadWriteConnectionSelector` (changed lines) | 90 | 0 | 80 | 0 | 0 | Fallback and `Left` paths are unit-testable; contract keeps the routing outcome |
+| `ReplicationLagMonitor`, `ReplicationLagProbeService` | 85 | 90 | 0 | 0 | 0 | Loop body, failed probe, cancellation, via a fake timer and probe |
+| Nine relational probes | 70 | 90 | 80 | 0 | 80 | SQL is only exercised against a real database; the SQL Server path is limited to the unknown case |
+| `ReplicationLagMetrics`, activity source, health check | 90 | 90 | 0 | 0 | 0 | Meter listener and states are deterministic |
+| MongoDB option validation | 90 | 90 | 0 | 0 | 80 | One comparison; replica-set test covers the startup path |
 
 ### Estimated File Count
 
@@ -466,8 +563,12 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md.
 | Messaging core | 12 | contracts, options, validator, decorator, monitor, service, log, metrics, activity source, health check, errors, registration |
 | Provider probes | 7 | three ADO.NET, three Dapper, one EF Core |
 | MongoDB and OpenTelemetry | 2 | validation, subscription |
-| Tests | ~26 | unit, guard, contract, property, integration fixture and classes, benchmark |
-| Docs, changelog, manifests | ~10 | READMEs, page, fragment, manifest entries |
+| Registration and registry edits | 6 | provider registration edits, `EventIdRanges.cs`, allocation test, PublicAPI |
+| Manifests | ~14 | one edit per package that gains a file |
+| Tests | ~34 | unit, guard, contract, property, DI proof, integration fixtures and classes, benchmark, load justification |
+| Docs, changelog | ~11 | READMEs, page, fragment, inventory, ADR |
+
+The per-PR counts are in "Split into pull requests" (96 files in total).
 
 ---
 
@@ -485,7 +586,7 @@ IMPLEMENTATION OVERVIEW: Phase 1 adds the contracts and options. Phase 2 adds La
 changes the connection selector. Phase 3 adds the background probe service and monitor writing readings into
 IReplicaHealthTracker. Phases 4-6 add a native-lag probe per database (ADO.NET, Dapper, EF Core) and MongoDB
 validation. Phase 7 adds metrics, spans, a health check and the OpenTelemetry subscription. Phase 8 tests,
-Phase 9 documents. Deliver as five pull requests (see the Summary).
+Phase 9 documents. Deliver as the nine pull requests of the Summary.
 
 KEY PATTERNS: lag detection is opt-in; unknown or stale lag is not eligible and routes to the primary; no I/O
 on the query path; the loop catches per iteration; secrets never in logs, tags or metrics (replica id only);
@@ -509,11 +610,11 @@ src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, .github/coverage-manifest/En
 | 3 | Structured Logging | ✅ | `ReplicationLagLog`, EventIds 7100-7109, range registered first |
 | 4 | Health Checks | ✅ | Phase 7: `ReplicationLagHealthCheck` |
 | 5 | Validation | ✅ | Options validated at startup (`IValidateOptions`); MongoDB `MaxStaleness` minimum |
-| 6 | Resilience | ✅ | Each probe has `ProbeTimeout`; a failed probe marks the replica unhealthy and the next interval retries; no circuit breaker needed for a read-only probe |
+| 6 | Resilience | ✅ | Each probe has `ProbeTimeout`; a failed probe marks the replica unhealthy and the next interval retries; no circuit breaker (decision T5) |
 | 7 | Distributed Locks | ❌ | Not applicable: every instance needs its own reading and probes are read-only |
 | 8 | Transactions | ❌ | Not applicable: reads only |
 | 9 | Idempotency | ❌ | Not applicable: a measurement is idempotent |
-| 10 | Multi-Tenancy | ⏭️ | Per-tenant replica sets follow the multi-tenancy work of #1257; the scope id `"readwrite"` leaves room for a per-tenant id |
+| 10 | Multi-Tenancy | ⏭️ | Defer: per-tenant replica sets are not in this plan; follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/replica-lag-per-tenant-replica-sets.md); the scope id `"readwrite"` leaves room for a per-tenant id |
 | 11 | Module Isolation | ❌ | Not applicable: infrastructure-level |
 | 12 | Audit Trail | ❌ | Not applicable: operational, not an audit event |
 
@@ -523,7 +624,7 @@ src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, .github/coverage-manifest/En
 
 | Item | State | Effect |
 |------|-------|--------|
-| Sharded connection factories ignore the lag threshold | to be tracked by an issue (draft in the delivery report) | After this plan the sharded health check sees readings; the sharded factories still call `GetAvailableReplicas` without the threshold |
+| Sharded connection factories ignore the lag threshold | follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/sharded-factories-lag-threshold.md) | After this plan the sharded health check sees readings; the sharded factories still call `GetAvailableReplicas` without the threshold |
 | #3412 (option properties nothing reads) | open spike | `StalenessOptions` and `ShardedReadWriteOptions.MaxAcceptableReplicationLag` are candidates; this plan feeds the producer side only |
 | #2396 (processor liveness health checks) | open | The probe service is another background processor to include in liveness checks |
 
@@ -531,7 +632,7 @@ src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, .github/coverage-manifest/En
 
 ## Next Steps
 
-1. Review and approve this plan; the maintainer answers the two Dilemmas (choices 1 and 2) when work on the issue starts.
+1. Review and approve this plan; the maintainer answers the Dilemmas (choices 1, 2, 3, 5, 6, 7 and 8) when work on the issue starts; none is decided here.
 2. Publish the plan link as a comment on #633.
-3. Begin PR 1 (Phases 1-3) after the Dilemmas are answered.
+3. Begin PR 1 (the contracts and options, Phase 1) after the Dilemmas are answered.
 4. Each phase is a self-contained commit; the final commit references `Fixes #633`.
