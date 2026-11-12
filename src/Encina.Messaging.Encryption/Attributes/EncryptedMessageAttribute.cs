@@ -71,7 +71,7 @@ public sealed class EncryptedMessageAttribute : Attribute
     /// Gets or sets whether tenant-specific encryption keys are requested for this message type.
     /// </summary>
     /// <remarks>
-    /// Currently this property has no effect: the encryption pipeline does not read it and
+    /// Currently this property has no effect: no key selection depends on it and the pipeline
     /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// Defaults to <c>false</c>.
     /// </remarks>

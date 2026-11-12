@@ -46,7 +46,7 @@ public sealed class MessageEncryptionOptions
 
     /// <summary>
     /// Gets or sets the default encryption key identifier used when no key is specified
-    /// per message type or per tenant.
+    /// per message type.
     /// </summary>
     /// <remarks>
     /// When <c>null</c>, the current active key from
@@ -59,7 +59,7 @@ public sealed class MessageEncryptionOptions
     /// Gets or sets whether tenant-specific encryption keys are requested by default.
     /// </summary>
     /// <remarks>
-    /// Currently this option has no effect: the encryption pipeline does not read it and
+    /// Currently this option has no effect: no key selection depends on it and the pipeline
     /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// Defaults to <c>false</c>.
     /// </remarks>
