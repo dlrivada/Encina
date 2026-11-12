@@ -15,7 +15,7 @@ internal static class DocumentSessionFlushExtensions
     /// Marten does not clear the operations of a failed batch, so the next <c>SaveChangesAsync</c> on the same
     /// session would replay them (#3787). The eject is scoped to the flush on purpose: a failure before the
     /// operations are queued (validation, an invalid stream id) must not discard unrelated work the caller
-    /// queued on the session.
+    /// queued on the session. A cancelled flush also ejects, because the batch may have been partly sent.
     /// </remarks>
     /// <param name="session">The session to flush.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
