@@ -2,7 +2,7 @@
 
 > **Issue**: [#738](https://github.com/dlrivada/Encina/issues/738)
 > **Type**: Feature
-> **Complexity**: High (8 phases, 10 database providers, about 60 files in 6 pull requests)
+> **Complexity**: High (8 phases, 10 database providers, about 90 files in 14 pull requests)
 > **Estimated Scope**: ~900 lines of production code + ~2,600 lines of tests
 
 ---
@@ -53,13 +53,15 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) In the orchestrator, after loading the row** | One implementation for all 10 providers; `ISagaStore.GetAsync` keeps its signature | The store still returns another tenant's row to the orchestrator |
-| **B) In every store query as well (`WHERE TenantId = @tenant`), with `GetAsync(Guid sagaId, string? tenantId, ...)` and the orchestrator check as a second layer** | Defence in depth: other tenants' rows never leave the database | The `ISagaStore` signature changes in 10 stores, `FakeSagaStore` and `InstrumentedSagaStore` |
+| **B) In every store query as well, with a new tenant-aware lookup `GetForTenantAsync(Guid sagaId, string? tenantId, ...)` that the orchestrator's tenant paths use, and the orchestrator check as a second layer** | Defence in depth: other tenants' rows never leave the database | The `ISagaStore` interface gains two members implemented by 9 stores, `FakeSagaStore` and `InstrumentedSagaStore` |
 
 ### Chosen Option: **B — Store filter plus orchestrator check** (recommended, pending the maintainer)
 
 ### Rationale
 
 - Option B wins under strict isolation requirements (the reference application handles health data in Spain; SPEC-002 AC-043 requires a two-tenant test showing tenant A never reads tenant B's data). Option A wins when the identical behavior across 10 providers is the priority and the orchestrator is the only caller.
+- The lookup is a NEW member next to `GetAsync(Guid sagaId, ...)`, not a replacement: the one-argument `GetAsync` stays as the system-scope lookup that the background paths of D4 need (they load a row of any tenant), and being additive it lets each provider pull request build alone (D5). The orchestrator's tenant paths (`AdvanceAsync`, `CompleteAsync`, `StartCompensationAsync`, `CompensateStepAsync`, `FailAsync`) never call the unfiltered `GetAsync`; a unit test with a recording fake store fails if they do.
+- **Store predicate** (strict, fails closed): with a non-null tenant, `WHERE SagaId = @SagaId AND TenantId = @TenantId`; with a null tenant, `WHERE SagaId = @SagaId AND TenantId IS NULL` (written `AND ((@TenantId IS NULL AND TenantId IS NULL) OR TenantId = @TenantId)` where one statement serves both). Never `@TenantId IS NULL OR ...`, which would let a caller without a tenant read every tenant's saga. Under D3 option B the tenant is never null, so the predicate is plain `TenantId = @TenantId`.
 - **Class:** Dilemma
 
 </details>
@@ -80,6 +82,7 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 - Option B wins when the platform-wide tenancy design (#1164) defines the constant: one rule for every table. Option A wins if #1164 keeps null for "no tenant" and the saga should stay consistent with the dead letter table (`TenantId` null when there is no ambient tenant).
 - The column stays nullable in both cases (`VARCHAR(128) NULL`, as the dead letter tables); only the value written differs.
+- Store predicate per option (see D2): option B is plain `TenantId = @TenantId`; option A is `TenantId IS NULL` for a null tenant and `TenantId = @TenantId` otherwise. Neither lets a null tenant match every row.
 - **Class:** Dilemma
 
 </details>
@@ -99,6 +102,7 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 ### Rationale
 
 - `GetStuckSagasAsync` and `GetExpiredSagasAsync` return rows of all tenants and run without a request context; denying them would stop timeouts. Option A wins because the caller is infrastructure that already holds the row; Option B wins when the maintainer wants every cross-tenant action to be an explicit, auditable opt-in.
+- SPEC-002 REQ-061 ("background processing restores the tenant from persisted context and never mixes tenants in one unit of work") and AC-043 ("a background cycle run for tenant A never acts on a record of tenant B") bear on option A, which processes a batch that holds all tenants: each row is processed under its own restored tenant (the ambient tenant is set from the row for the duration of that row) and its own unit of work, never one unit of work across rows of different tenants. Option B satisfies the same requirement with an explicit scope per tenant.
 - **Class:** Dilemma
 
 </details>
@@ -129,7 +133,7 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A saga with a tenant is advanced only when the ambient tenant equals it; a missing ambient tenant on a tenant-owned saga is denied** | Compliance gates fail closed | A caller without a context cannot advance a tenant's saga (the background paths are D4) |
+| **A) A saga is advanced only when the ambient tenant equals the saga's tenant; every other combination is denied, using the same "tenancy configured" trigger as `DeadLetterManager` (`_tenancy is not null`, the `MultiTenancyMarker` registered)** | Compliance gates fail closed; the sibling stores agree on the trigger | A caller without a context cannot advance a tenant's saga (the background paths are D4) |
 | **B) Allow when the ambient tenant is missing** | Fewer breakages | Violates the rule |
 
 ### Chosen Option: **A — Fail closed**
@@ -137,7 +141,21 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** `AGENTS.md` section 3 (compliance and security gates fail closed; the only opt-out is explicit and logged) and SPEC-002 AC-043.
+- **Settled by:** `AGENTS.md` section 3 (compliance and security gates fail closed; the only opt-out is explicit and logged) and SPEC-002 AC-043; option B is the opposite of that rule.
+- **Full matrix** (the orchestrator tenant paths; under D3 option B the "null" rows cannot occur, because the ambient tenant is the fixed default when tenancy is off):
+
+  | Tenancy configured | Ambient tenant | Saga tenant | Result |
+  |---|---|---|---|
+  | yes | absent | any | Denied (`saga.not_found`, logged as tenant required) |
+  | yes | T | T | Allowed |
+  | yes | T | null | Denied (a null-tenant saga is not visible under tenancy) |
+  | yes | T | other | Denied |
+  | no | absent | null | Allowed |
+  | no | absent | X | Denied (a tenant-owned saga is not visible without a tenant) |
+  | no | T | T | Allowed |
+  | no | T | null or other | Denied |
+
+  One unit-test row per line. The orchestrator takes `MultiTenancyMarker?` as an optional constructor parameter next to `IRequestContextAccessor?`.
 
 </details>
 
@@ -156,7 +174,7 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** `AGENTS.md` section 3 (pay-for-what-you-use; opt-in) and section 4 (descriptive names); the type follows `src/Encina.ADO.MySQL/Scripts/000_CreateAllTables.sql` line 173 (`TenantId VARCHAR(128) ... NULL`, with `utf8mb4_bin` collation on MySQL so tenant ids compare case-sensitively). The PostgreSQL identifier case rules and the SQL Server column types follow the neighbouring columns of each script.
+- **Convention followed:** the neighbouring column in the same package; the type follows `src/Encina.ADO.MySQL/Scripts/000_CreateAllTables.sql` line 173 (`TenantId VARCHAR(128) ... NULL`, with `utf8mb4_bin` collation on MySQL so tenant ids compare case-sensitively). The PostgreSQL identifier case rules and the SQL Server column types follow the neighbouring columns of each script.
 - No migration helper: the project is pre-1.0 and the scripts are `CREATE TABLE` scripts (`AGENTS.md` section 1).
 
 </details>
@@ -175,8 +193,30 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** the issue's own requirement ("tenant-filtered saga queries") and SPEC-002 AC-043 ("queries ... filter by it").
+- **Class:** Trivial (depends on D2: if D2 is answered A, option B, an in-memory filter over the unfiltered rows, is acceptable and this method is dropped)
+- **Convention followed:** the issue's own requirement ("tenant-filtered saga queries") and SPEC-002 AC-043 ("queries ... filter by it"); the predicate is the strict one of D2 (a non-null tenant is plain equality).
+
+</details>
+
+<details>
+<summary><strong>9. Build order of the pull request split (Dilemma D5)</strong></summary>
+
+The change touches an interface with many implementers: `ISagaState` (10 state classes, `FakeSagaState`, `ArbitrarySagaState` in `src/Encina.Testing.FsCheck/ArbitraryMessages.cs`, the two benchmark `BenchmarkSagaState` classes in `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`, `TestSagaState` in `SagaOrchestratorTests.cs`) and `ISagaStore` (9 stores, `FakeSagaStore`, `InstrumentedSagaStore`, and the test doubles `RecordingSagaStore` in `tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs` and `FailingUpdateStore` in `SagaRunnerTests.cs`). A pull request that changes an interface before its implementers does not compile (`AGENTS.md` section 8), and a pull request is one package or provider, at most 15 files and 1,500 lines counting tests and manifests (section 11).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Implementers first, interface last: each provider pull request adds the `TenantId` property and the new members `GetForTenantAsync` and `GetActiveByTenantAsync` to its concrete classes (they compile against the old interface), with its SQL and its integration test; the last-but-one pull request adds the members to the interface and the orchestrator logic. The orchestrator stamps the tenant on the state after `ISagaStateFactory.Create(...)` instead of changing the factory signature, so no factory changes** | Every pull request builds and carries its own tests and manifest entries; no scaffold or compatibility code ever merges; the factory interface and its 10 implementations and 8 factory test files are untouched | The new members exist on the concrete classes for a few pull requests before the interface has them; 14 pull requests |
+| B) One pull request with the whole change (about 60 files) | One review | Over the limits; needs the `size-exception-approved` label from the maintainer |
+| C) Default interface members as a scaffold, removed in the last pull request | The interface is first | A compatibility layer merges, if only for a while (`AGENTS.md` section 1); the default behaviors are untested production code |
+
+### Chosen Option: **A — Implementers first, interface last** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins because every step is green and reviewable and no transitional code merges. Option B wins if the maintainer prefers one large review and applies the label. Option C is rejected only by the rule against compatibility layers, which is the maintainer's to relax.
+- **Class:** Dilemma
 
 </details>
 
@@ -186,18 +226,20 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 ### Phase 1: Core Contract and Orchestrator
 
-> **Goal**: The tenant in the interface, the factory, the error and the orchestrator rule.
+> **Goal**: The tenant in the interfaces and the orchestrator rule (PR 12, after every implementer has the members).
 
 <details>
 <summary>Tasks</summary>
 
+This phase is delivered in PR 12 of the split, after every implementer has the members (D5 option A); the provider phases come first in the order of the split.
+
 1. `ISagaState`: add `string? TenantId { get; set; }`.
-2. `ISagaStateFactory.Create(...)`: add `string? tenantId = null` after `timeoutAtUtc` (declared in `src/Encina.Messaging/Sagas/SagaOrchestrator.cs`).
-3. `ISagaStore` (D2 recommendation): `GetAsync(Guid sagaId, string? tenantId, CancellationToken)` replaces the one-argument form (no compatibility overload), plus `GetActiveByTenantAsync(string tenantId, int batchSize, CancellationToken)`.
-4. `SagaOrchestrator`: optional constructor parameter `IRequestContextAccessor? requestContextAccessor`; `StartAsync` stamps the ambient tenant (D3); `AdvanceAsync`, `CompleteAsync`, `StartCompensationAsync`, `CompensateStepAsync`, `FailAsync` read the row through the tenant-aware `GetAsync` and deny a mismatch with `saga.not_found` (D1); `TimeoutAsync` and the stuck/expired paths act under the row's tenant (D4) and log it.
+2. `ISagaStateFactory` is NOT changed (D5): `SagaOrchestrator.StartAsync` calls `Create(...)` as today and then sets `state.TenantId` before `AddAsync`.
+3. `ISagaStore` (D2 recommendation): add `GetForTenantAsync(Guid sagaId, string? tenantId, CancellationToken)` and `GetActiveByTenantAsync(string tenantId, int batchSize, CancellationToken)`; `GetAsync(Guid sagaId, CancellationToken)` stays as the system-scope lookup (XML remarks say the orchestrator's tenant paths never call it).
+4. `SagaOrchestrator`: optional constructor parameters `IRequestContextAccessor? requestContextAccessor` and `MultiTenancyMarker? tenancy` (the same trigger as `DeadLetterManager`); the ambient tenant is resolved as `DeadLetterManager.AmbientTenantId` does (an empty id is no tenant, edge white space is rejected); `StartAsync` stamps the ambient tenant (D3); `AdvanceAsync`, `CompleteAsync`, `StartCompensationAsync`, `CompensateStepAsync`, `FailAsync` read the row through `GetForTenantAsync` and apply the matrix of Design Choice 6, denying with `saga.not_found` (D1); `TimeoutAsync` and the stuck/expired paths act under the row's own tenant and unit of work (D4) and log it.
 5. `SagaErrorCodes`: add `saga.tenant_mismatch` only if D1 is answered B.
-6. `[LoggerMessage]` entries for the denial in the `MessagingSaga` range, ids 2230-2249 (verify with the architecture test that none is used).
-7. `PublicAPI.Unshipped.txt` of `Encina.Messaging`.
+6. `[LoggerMessage]` entries in the `MessagingSaga` range, ids packed sequentially from 2230 inside 2230-2249: tenant denied (2230), tenant required and not resolved (2231), background action under the row's tenant (2232); verify with the architecture test that none is used.
+7. `PublicAPI.Unshipped.txt` of `Encina.Messaging`: the interface members and the changed `SagaOrchestrator` constructor (remove the old line, add the new one).
 
 </details>
 
@@ -206,14 +248,16 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 ```
 CONTEXT:
-- Issue #738; plan docs/plans/saga-tenant-implementation-plan-738.md. Dilemmas D1-D4 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
-- Encina is pre-1.0: no compatibility overloads, no migration helpers.
+- Issue #738; plan docs/plans/saga-tenant-implementation-plan-738.md. Dilemmas D1-D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Encina is pre-1.0: no compatibility overloads, no migration helpers. All implementers already have TenantId, GetForTenantAsync and GetActiveByTenantAsync (earlier pull requests of the split).
 
 TASK:
 Implement the Phase 1 tasks in src/Encina.Messaging.
 
 KEY RULES:
-- A tenant mismatch fails closed and never reveals another tenant's saga when D1 is A.
+- A tenant mismatch fails closed and never reveals another tenant's saga when D1 is A; the full matrix of Design Choice 6 is one unit-test row per line.
+- The tenant paths never call the unfiltered ISagaStore.GetAsync (a recording fake store test fails if they do).
+- Do not change ISagaStateFactory; stamp state.TenantId after Create.
 - Time from TimeProvider; EncinaError.Message never logged; exceptions through ForLogging().
 - EventIds inside 2230-2249 of the registered MessagingSaga range (2200-2299), sequential.
 - Update PublicAPI.Unshipped.txt; zero warnings.
@@ -231,15 +275,17 @@ REFERENCE FILES:
 
 ### Phase 2: ADO.NET and Dapper Providers (6)
 
-> **Goal**: Column, state class, factory and SQL in the six packages.
+> **Goal**: Column, state class and SQL in the six packages, one pull request per package (PRs 1 to 6), each carrying its integration test and manifest entries.
 
 <details>
 <summary>Tasks</summary>
 
-1. SQL scripts: add `TenantId` and the composite index in `Scripts/003_CreateSagaStatesTable.sql` and `Scripts/000_CreateAllTables.sql` of `Encina.ADO.SqlServer|PostgreSQL|MySQL` and `Encina.Dapper.SqlServer|PostgreSQL|MySQL` (12 files). MySQL uses `VARCHAR(128) COLLATE utf8mb4_bin NULL`, PostgreSQL a quoted-identifier-aware lower-case column as its neighbours.
-2. `Sagas/SagaState.cs` (6): `TenantId` property.
-3. `Sagas/SagaStateFactory.cs` (6): pass `tenantId`.
-4. `Sagas/SagaStoreADO.cs` (3) and `Sagas/SagaStoreDapper.cs` (3): include `TenantId` in `INSERT`, `UPDATE` and every `SELECT` column list; `GetAsync(sagaId, tenantId)` adds `AND (@TenantId IS NULL OR TenantId = @TenantId)` per D3; implement `GetActiveByTenantAsync` with the provider's paging syntax (SQL Server `TOP (@n)`, PostgreSQL and MySQL `LIMIT @n`). All database calls stay asynchronous with a `CancellationToken`.
+Per package (`Encina.ADO.SqlServer|PostgreSQL|MySQL`, `Encina.Dapper.SqlServer|PostgreSQL|MySQL`):
+
+1. SQL scripts: add `TenantId` and the composite index in `Scripts/003_CreateSagaStatesTable.sql` and `Scripts/000_CreateAllTables.sql` (2 files per package). MySQL uses `VARCHAR(128) COLLATE utf8mb4_bin NULL`, PostgreSQL a quoted-identifier-aware lower-case column as its neighbours.
+2. `Sagas/SagaState.cs`: `TenantId` property (compiles against the old interface; the factory is unchanged and stays untouched).
+3. `Sagas/SagaStoreADO.cs` or `Sagas/SagaStoreDapper.cs`: include `TenantId` in `INSERT`, `UPDATE` and every `SELECT` column list; add the public method `GetForTenantAsync(Guid sagaId, string? tenantId, CancellationToken)` with the strict predicate of D2 (`AND ((@TenantId IS NULL AND TenantId IS NULL) OR TenantId = @TenantId)`, plain `TenantId = @TenantId` under D3 option B) and `GetActiveByTenantAsync` with the provider's paging syntax (SQL Server `TOP (@n)`, PostgreSQL and MySQL `LIMIT @n`). Both are concrete-class members until PR 12 adds them to `ISagaStore`. All database calls stay asynchronous with a `CancellationToken`.
+4. The package's `PublicAPI.Unshipped.txt`, its coverage manifest entries (per-file targets of Phase 7), and the store-level integration test of the package (`[Collection("ADO-<Db>")]` or `[Collection("Dapper-<Db>")]`): tenant round trip, strict `GetForTenantAsync` (a different tenant and a null tenant get `None`), `GetActiveByTenantAsync` isolation between two tenants.
 
 </details>
 
@@ -248,12 +294,13 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Phase 1 changed ISagaState, ISagaStateFactory and ISagaStore. This phase updates the 6 ADO/Dapper packages (issue #738).
+- Issue #738. The interfaces are NOT changed yet (D5): this pull request adds TenantId and the two tenant members to ONE package's concrete classes so that it builds against the current interfaces.
 
 TASK:
-Apply the Phase 2 tasks to every package; the six implementations must stay identical in behavior and differ only in SQL dialect.
+Apply the Phase 2 tasks to the one package of this pull request; the six implementations must stay identical in behavior and differ only in SQL dialect.
 
 KEY RULES:
+- Strict predicate of D2: a null tenant never matches every row.
 - SQL Server: @param, TOP (@n); PostgreSQL: LIMIT @n, case-sensitive identifiers; MySQL: LIMIT @n, backticks, utf8mb4_bin on the tenant column.
 - Asynchronous database calls with a CancellationToken; never IDbConnection.Open().
 - Do not drop existing columns or add migrations.
@@ -271,13 +318,13 @@ REFERENCE FILES:
 
 ### Phase 3: EF Core and MongoDB Providers
 
-> **Goal**: The same behavior in `SagaStoreEF` (three databases) and `SagaStoreMongoDB`.
+> **Goal**: The same behavior in `SagaStoreEF` (three databases, PR 7) and `SagaStoreMongoDB` (PR 8), each with its integration tests, PublicAPI and manifest entries.
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.EntityFrameworkCore/Sagas/SagaState.cs`: `TenantId`; `SagaStateConfiguration.cs`: `HasMaxLength(128)` and `HasIndex(x => new { x.TenantId, x.Status, x.LastUpdatedAtUtc })` (beside the existing indexes); `SagaStateFactory.cs`; `SagaStoreEF.cs`: tenant-aware `GetAsync` and `GetActiveByTenantAsync` as LINQ predicates. No EF migration is added (pre-1.0).
-2. `src/Encina.MongoDB/Sagas/SagaState.cs`, `SagaStateFactory.cs`, `SagaStoreMongoDB.cs`: the property, the filter and the query; `MongoDbIndexCreator.CreateSagaIndexesAsync` (line 163) adds the compound index.
+1. `src/Encina.EntityFrameworkCore/Sagas/SagaState.cs`: `TenantId`; `SagaStateConfiguration.cs`: `HasMaxLength(128)` and `HasIndex(x => new { x.TenantId, x.Status, x.LastUpdatedAtUtc })` (beside the existing indexes); `SagaStoreEF.cs`: `GetForTenantAsync` and `GetActiveByTenantAsync` as LINQ predicates with the strict equality of D2. No EF migration is added (pre-1.0). Integration tests: one class per database (`EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`).
+2. `src/Encina.MongoDB/Sagas/SagaState.cs`, `SagaStoreMongoDB.cs`: the property, the filter and the query; `MongoDbIndexCreator.CreateSagaIndexesAsync` (line 163) adds the compound index. One integration test class on the MongoDB fixture.
 
 </details>
 
@@ -286,10 +333,10 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Phases 1-2 are done (issue #738).
+- Phase 2 pull requests are merged (issue #738); the interfaces are still unchanged (D5).
 
 TASK:
-Implement the Phase 3 tasks in Encina.EntityFrameworkCore and Encina.MongoDB.
+Implement the Phase 3 tasks, one pull request per package (Encina.EntityFrameworkCore, then Encina.MongoDB).
 
 KEY RULES:
 - One SagaStoreEF behavior for SQL Server, PostgreSQL and MySQL; verified by integration tests on each database.
@@ -313,9 +360,11 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Testing.Fakes/Models/FakeSagaState.cs` and `Stores/FakeSagaStore.cs`: `TenantId` and the tenant-aware methods.
-2. `src/Encina.Testing.Bogus/SagaStateFaker.cs`: `TenantId` rule.
-3. `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs`: delegate the new methods and set the span tag `tenant.id` only when it is not high-cardinality for the backend in use (the activity tag, never a metric label).
+PRs 9 to 11 of the split (each builds against the old interfaces, D5):
+
+1. PR 9, `src/Encina.Testing.Fakes/Models/FakeSagaState.cs` and `Stores/FakeSagaStore.cs`: `TenantId` and the tenant-aware methods with the strict predicate, plus `PublicAPI.Unshipped.txt`, manifest and unit tests.
+2. PR 10, `src/Encina.Testing.Bogus/SagaStateFaker.cs` (`TenantId` rule) and `ArbitrarySagaState` in `src/Encina.Testing.FsCheck/ArbitraryMessages.cs` (the `TenantId` property), with their PublicAPI and manifest entries.
+3. PR 11, `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs`: delegate the new methods and set the span tag `tenant.id` ALWAYS on the activity (when it has listeners) and NEVER on a metric; the two benchmark `BenchmarkSagaState` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`) get the property; the test doubles `RecordingSagaStore` (`tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs`), `FailingUpdateStore` (`SagaRunnerTests.cs`) and `TestSagaState` (`SagaOrchestratorTests.cs`) get the members.
 
 </details>
 
@@ -331,7 +380,8 @@ Update FakeSagaStore, FakeSagaState, SagaStateFaker and InstrumentedSagaStore.
 
 KEY RULES:
 - The fake store behaves exactly like the real stores for the tenant rules (contract tests run against it too).
-- The tenant is a span tag only, never a metric label.
+- The tenant is a span tag only (always set when the activity has listeners), never a metric label.
+- Each pull request builds against the current interfaces: add the members to the classes, do not touch the interfaces.
 
 REFERENCE FILES:
 - src/Encina.Testing.Fakes/Stores/FakeSagaStore.cs
@@ -421,14 +471,23 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: tenant stamping, fail-closed rule, D1 error, D4 background path, fake store, instrumented store.
-2. **Guard**: new public methods with parameters.
-3. **Contract**: `ISagaStore` tenant behavior identical across the real stores (run against `FakeSagaStore` and the provider stores).
-4. **Property (FsCheck)**: a saga is never advanced by another tenant for any pair of tenants.
-5. **Integration**: all 10 providers through the shared collections (`ADO-`, `Dapper-` x `SqlServer`/`PostgreSQL`/`MySQL`, `EFCore-` x three, MongoDB), including the two-tenant test of AC-043; `ClearAllDataAsync` in `InitializeAsync`; never `IClassFixture`.
-6. **Load**: concurrent starts for two tenants (AGENTS.md section 9 says multi-tenancy is implemented); a justification `.md` only with a reason the plan does not foresee.
-7. **Benchmark**: justification `tests/Encina.BenchmarkTests/Sagas/SagaTenant.md` (one extra column and predicate).
-8. **Per-file targets** with a one-sentence justification in the manifests of each touched package (`Encina.Messaging`, the six ADO/Dapper packages, `Encina.EntityFrameworkCore`, `Encina.MongoDB`, `Encina.OpenTelemetry`, `Encina.Testing.Fakes`); measured with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`.
+Tests travel with the pull request that adds the code they cover (see the split); none waits for the end.
+
+1. **Unit** (PR 12, plus the fake and instrumented stores in PRs 9 and 11): tenant stamping, the full matrix of Design Choice 6 (one row per line), D1 error, D4 background path, "tenant paths never call the unfiltered `GetAsync`", fake store, instrumented store.
+2. **Guard**: new public methods with parameters, in the pull request that adds them.
+3. **Contract** (PR 12): `ISagaStore` tenant behavior identical across the real stores (run against `FakeSagaStore` and the provider stores).
+4. **Property (FsCheck)** (PR 12): a saga is never advanced by another tenant for any pair of tenants.
+5. **Integration**: the store-level tests in each provider pull request (PRs 1 to 8, see Phases 2 and 3); the orchestrator-level two-tenant test of AC-043 on all 10 providers through the shared collections (`ADO-`, `Dapper-` x `SqlServer`/`PostgreSQL`/`MySQL`, `EFCore-` x three, MongoDB) in PR 13; `ClearAllDataAsync` in `InitializeAsync`; never `IClassFixture`.
+6. **Load** (PR 13): concurrent starts for two tenants (AGENTS.md section 9 says multi-tenancy is implemented); a justification `.md` only with a reason the plan does not foresee.
+7. **Benchmark**: justification `tests/Encina.BenchmarkTests/Sagas/SagaTenant.md` (one extra column and predicate), in PR 13.
+8. **Per-file targets** in the manifests of each touched package, each flag with a one-sentence justification written in the manifest; measured with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`. Starting values:
+
+   | File group | Unit | Guard | Contract | Property | Integration | Justification |
+   |---|---|---|---|---|---|---|
+   | `SagaOrchestrator` tenant code (`Encina.Messaging`) | 95 | 90 | 80 | 60 | 0 | Every row of the matrix and each denial are testable with fake stores; the property flag proves isolation for any tenant pair; the real stores are covered by their own integration flag |
+   | Provider stores and state classes (ADO.NET x3, Dapper x3, EF Core, MongoDB) | 0 | 90 | 80 | 0 | 80 | The SQL, LINQ and Mongo filters can only be proved against real databases (`AGENTS.md` section 5); guard and contract cover the new members |
+   | `FakeSagaStore`, `FakeSagaState`, `SagaStateFaker`, `ArbitrarySagaState` | 90 | 90 | 80 | 0 | 0 | Test doubles that must behave like the real stores for the tenant rules; the contract test runs against them |
+   | `InstrumentedSagaStore` (`Encina.OpenTelemetry`) | 90 | 90 | 0 | 0 | 0 | Delegation plus one span tag, fully reachable through a listener test |
 
 </details>
 
@@ -437,7 +496,7 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Phases 1-6 are implemented (issue #738). AGENTS.md section 9 per-flag coverage model.
+- Issue #738. Tests travel with the pull request that adds the code they cover (see the split); the orchestrator-level two-tenant test is PR 13. AGENTS.md section 9 per-flag coverage model.
 
 TASK:
 Write the tests of Phase 7 Tasks 1-7 and fill the manifest targets.
@@ -462,7 +521,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. XML docs on every new public member; `PublicAPI.Unshipped.txt` per touched package.
-2. `changelog.d/738-saga-tenant-id.added.md`; the saga guide and schema documentation (through docs-writer); an ADR only if a Dilemma is decided architecturally (read `docs/architecture/adr/index.md` for the next free number).
+2. `changelog.d/738-saga-tenant-id.added.md`; the saga guide and schema documentation (through docs-writer); an ADR only if a Dilemma is decided architecturally (ADR number assigned when the ADR pull request opens).
 3. `dotnet build --configuration Release` with 0 warnings; `dotnet test` with every flag at its target.
 
 </details>
@@ -491,14 +550,26 @@ REFERENCE FILES:
 
 ### Proposed split into pull requests (limit 15 files and 1500 lines each)
 
+Order rule (D5 option A): implementers first, interface last; every pull request builds, carries its own tests, `PublicAPI.Unshipped.txt` and manifest entries, and is one package (or one test-infrastructure group). Counts include tests and manifests.
+
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
-| 1 | Phase 1: contract, orchestrator, error, logs, PublicAPI, unit tests | 10 | 700 |
-| 2 | Phase 2a: ADO.NET (3 providers: state, factory, store, 2 scripts each) | 15 | 900 |
-| 3 | Phase 2b: Dapper (3 providers) | 15 | 900 |
-| 4 | Phase 3: EF Core and MongoDB | 10 | 600 |
-| 5 | Phase 4 and 6: fakes, faker, instrumented store, counter | 8 | 400 |
-| 6 | Phase 7 and 8: integration, contract and property tests, docs | 14 | 1,400 |
+| 1 | `Encina.ADO.SqlServer`: `SagaState`, `SagaStoreADO`, 2 scripts, PublicAPI, manifest, store integration test | 7 | 450 |
+| 2 | `Encina.ADO.PostgreSQL`: same set | 7 | 450 |
+| 3 | `Encina.ADO.MySQL`: same set | 7 | 450 |
+| 4 | `Encina.Dapper.SqlServer`: same set | 7 | 450 |
+| 5 | `Encina.Dapper.PostgreSQL`: same set | 7 | 450 |
+| 6 | `Encina.Dapper.MySQL`: same set | 7 | 450 |
+| 7 | `Encina.EntityFrameworkCore`: state, configuration, store, PublicAPI, manifest, 3 integration test classes | 8 | 550 |
+| 8 | `Encina.MongoDB`: state, store, index creator, PublicAPI, manifest, integration test | 6 | 400 |
+| 9 | `Encina.Testing.Fakes`: `FakeSagaState`, `FakeSagaStore`, PublicAPI, manifest, unit tests | 6 | 400 |
+| 10 | `Encina.Testing.Bogus` and `Encina.Testing.FsCheck`: `SagaStateFaker`, `ArbitrarySagaState`, PublicAPI x2, manifests x2 | 6 | 200 |
+| 11 | `Encina.OpenTelemetry` `InstrumentedSagaStore` (+ PublicAPI, manifest, unit test), 2 benchmark states, 3 test doubles | 9 | 450 |
+| 12 | Interface and orchestrator: `ISagaState`, `ISagaStore`, `SagaOrchestrator`, saga log file, saga metrics, PublicAPI, manifest, unit, contract and property tests | 11 | 1,100 |
+| 13 | Orchestrator two-tenant integration test (AC-043) on 10 providers, load test, benchmark justification | 12 | 1,000 |
+| 14 | Documentation: changelog fragment, saga guide, schema documentation, ADR if a Dilemma needs one (through docs-writer) | 4 | 300 |
+
+A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -520,7 +591,7 @@ REFERENCE FILES:
 | `IRequestContext.TenantId` | `src/Encina/Abstractions/IRequestContext.cs` | Source of the tenant |
 | `DeadLetterManager.AmbientTenantId` | `src/Encina.Messaging/DeadLetter/DeadLetterManager.cs` | Precedent for resolving and trimming the ambient tenant |
 | `InboxPipelineBehavior` | `src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs` | Precedent (line 87) |
-| `SagaOrchestrator`, `ISagaStateFactory` | `src/Encina.Messaging/Sagas/SagaOrchestrator.cs` | Tenant stamping and check |
+| `SagaOrchestrator`, `ISagaStateFactory` | `src/Encina.Messaging/Sagas/SagaOrchestrator.cs` | Tenant stamping (after `Create`, the factory is unchanged) and check |
 | `ISagaStore` and 9 store files | `src/Encina.*/Sagas/` | Tenant column and filter |
 | `SagaStateConfiguration` | `src/Encina.EntityFrameworkCore/Sagas/SagaStateConfiguration.cs` | Index |
 | `MongoDbIndexCreator` | `src/Encina.MongoDB/MongoDbIndexCreator.cs` | Compound index |
@@ -549,13 +620,13 @@ No new range is registered; the architecture test (`EncinaEventIdAllocationTests
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Messaging core | ~6 | Interface, factory, store, orchestrator, errors, logs |
-| ADO.NET x3 and Dapper x3 | ~36 | State, factory, store, 2 scripts, per package |
-| EF Core and MongoDB | ~9 | State, configuration, factory, store, index creator |
-| Fakes, faker, instrumented store | ~4 | |
-| Tests | ~14 | Unit, guard, contract, property, 10 integration (grouped), justification |
-| Documentation | ~3 | Changelog fragment, guide, schema docs |
-| **Total** | **~72 across 6 pull requests** | |
+| Messaging core | ~7 | Two interfaces, orchestrator, logs, metrics, PublicAPI, manifest (no factory change) |
+| ADO.NET x3 and Dapper x3 | ~30 | State, store, 2 scripts, PublicAPI, manifest per package (the 6 integration tests are counted under tests) |
+| EF Core and MongoDB | ~9 | State, configuration, store, PublicAPI, manifest, index creator |
+| Fakes, faker, arbitrary, instrumented store, benchmark states, test doubles | ~16 | With their PublicAPI and manifests |
+| Tests | ~24 | Unit, contract, property, 10 store-level and 10 orchestrator-level integration classes (counted in the PR rows), load, justification |
+| Documentation | ~4 | Changelog fragment, guide, schema docs, ADR if needed |
+| **Total** | **~90 across 14 pull requests** | Counts by PR in the split table above; the sum of its rows is the authority |
 
 ---
 
@@ -567,13 +638,13 @@ No new range is registered; the architecture test (`EncinaEventIdAllocationTests
 ```
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers, no migrations.
-- Issue #738: TenantId on the saga row for all 10 database providers (SPEC-002 REQ-061, AC-043). Plan: docs/plans/saga-tenant-implementation-plan-738.md; Dilemmas D1-D4 are recommended, pending the maintainer.
+- Issue #738: TenantId on the saga row for all 10 database providers (SPEC-002 REQ-061, AC-043). Plan: docs/plans/saga-tenant-implementation-plan-738.md; Dilemmas D1-D5 are recommended, pending the maintainer.
 
-IMPLEMENTATION OVERVIEW:
-1. Contract and orchestrator in Encina.Messaging (Phase 1).
-2. ADO.NET and Dapper packages (Phase 2); EF Core and MongoDB (Phase 3).
-3. Fakes, faker and instrumented store (Phase 4); cross-cutting and observability (Phases 5-6).
-4. Tests on real databases and documentation (Phases 7-8).
+IMPLEMENTATION OVERVIEW (the order of the 14 pull requests; every one builds):
+1. ADO.NET and Dapper packages, one per pull request (Phase 2); EF Core and MongoDB (Phase 3).
+2. Fakes, faker, arbitrary, instrumented store, benchmark states, test doubles (Phase 4).
+3. Interfaces and orchestrator in Encina.Messaging (Phase 1), with cross-cutting and observability (Phases 5-6).
+4. Orchestrator-level tests on real databases, then documentation (Phases 7-8).
 
 KEY PATTERNS:
 - Tenant from IRequestContextAccessor (as DeadLetterManager); mismatch fails closed; background paths act under the row's tenant when D4 is A.
@@ -598,7 +669,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: saga state needs read-your-writes |
-| 2 | OpenTelemetry | ✅ | Phase 4 and 6: tenant as a span tag, a denial counter without tenant label |
+| 2 | OpenTelemetry | ✅ | Phase 4 and 6: tenant as a span tag only (always on the activity, never on a metric), a denial counter without tenant label |
 | 3 | Structured Logging | ✅ | Phase 1 and 6: denial message in the saga range, error code only |
 | 4 | Health Checks | ❌ | Not applicable: no new dependency; the existing `SagaHealthCheck` is unchanged |
 | 5 | Validation | ❌ | Not applicable: tenant checking is a security gate, not input validation |
@@ -621,5 +692,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1 to D4 when work on #738 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1 to D5 when work on #738 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Brief pull request 1 first; the provider pull requests follow in order.
