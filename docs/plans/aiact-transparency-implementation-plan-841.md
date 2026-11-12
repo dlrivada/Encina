@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Medium-High (8 phases, 6 pull requests, 1 new package (recommended), 1 core hook, no persistence, ~62 files)
 > **Estimated Scope**: ~1,500-1,900 lines of production code + ~1,600-2,000 lines of tests
-> **Prerequisites**: none blocking; the maintainer's placement decision (Design Choice 1) changes Phases 1-2 only
+> **Prerequisites**: none blocking, but ordering with [#847](https://github.com/dlrivada/Encina/issues/847) (Design Choice 7: the registration date and the system lookup are written against the #847 system service); the maintainer's placement decision (Design Choice 1) changes Phases 1-2 only
 
 ---
 
@@ -33,7 +33,7 @@ Implement the runtime transparency duties of EU AI Act Article 50 (chatbot inter
 - **Roles.** Art. 50 splits the duty: providers (paragraphs 1 and 2) and deployers (paragraphs 3 and 4). `TransparencyRequirement` carries the obligated party; the issue's record does not.
 - **Exemptions of Art. 50 are first-class.** "Obvious from context", assistive editing, law-enforcement authorisation, artistic works (limited disclosure) and editorial responsibility are an explicit, logged `TransparencyExemption` on the attribute, never an implicit skip.
 - **Art. 13 is not a runtime type.** Art. 13(2)-(3) instructions for use are Annex IV point 1(h) content; the #840 plan's General Description section carries it. This plan records that in the article table instead of inventing a parallel type.
-- **Placed-on-the-market date.** The Art. 50(2) grace period needs the date a system was placed on the market, which `AISystemRegistration` lacks; Phase 1 adds `PlacedOnMarketAtUtc` (nullable).
+- **Placed-on-the-market date.** The Art. 50(2) grace period needs the date a system was placed on the market, which `AISystemRegistration` lacks; Phase 1 adds `PlacedOnMarketAtUtc` (nullable) where the #847 plan stores a system's registration (Design Choice 7: the registered event, the read model and the registration request, not only the in-memory record).
 - **Dates.** Art. 50(2) marking for generative systems placed on the market before 2 Aug 2026 is due by 2 Dec 2026 (new Art. 111(4)); Annex III high-risk obligations apply from 2 Dec 2027 and Annex I from 2 Aug 2028 (Reg. (EU) 2026/1744, SPEC-002 §3.2).
 
 ### Scope per pull request (one worker issue = one PR, `AGENTS.md` §11)
@@ -42,18 +42,18 @@ About 62 files and 3,300 lines, so six sequential pull requests.
 
 | PR | Phases | Content | Files (est.) | Lines (est.) |
 |---|---|---|---|---|
-| 1 | 1 | Core hook, attribute exemption, registration date, enforcement option | 10 | ~700 |
-| 2 | 2 | Package skeleton, models, `ITransparencyEnforcer`, `IContentMarker` | 15 | ~800 |
-| 3 | 3 | Requirement catalog, enforcer, disclosure ledger, date rules, options | 11 | ~900 |
-| 4 | 4-5 | Manifest marker, DI, audit notifications | 11 | ~800 |
+| 1 | 1 | Core hook, attribute exemption, registration date, enforcement option (hook, context, exemption, `TransparencyObligationType`, attribute, registration date, options, validator, pipeline, `PublicAPI.Unshipped.txt`, manifest = 11 production/config files, plus 3 test files) | 14 | ~800 |
+| 2 | 2 (tasks 1-2, 5) | Package skeleton (csproj, two PublicAPI files, slnx entry, manifest) and the six models, with 3 test files | 14 | ~650 |
+| 3 | 2 (tasks 3-4) and 3 | `ITransparencyEnforcer`, `IContentMarker`, errors, requirement catalog, enforcer, scoped context, hook, date rules, options and validator = 10 files, plus 4 test files | 14 | ~1,150 |
+| 4 | 4-5 | Manifest marker, DI, audit notifications (3 notifications/DI files, 3 marker files, 4 test files) | 10 | ~800 |
 | 5 | 6-7 | Observability, tests, justifications | 9 | ~700 |
 | 6 | 8 | Documentation (`docs-writer`), changelog, ADR | 6 | ~600 |
 
-Counts are re-measured when each worker brief is written. **Affected packages**: `Encina.Compliance.AIAct` (modified), `Encina.Compliance.AIAct.Transparency` (new, under option B).
+Test files are counted in every row; no PR of the split exceeds 15 files or 1,500 lines. Counts are re-measured when each worker brief is written. **Affected packages**: `Encina.Compliance.AIAct` (modified), `Encina.Compliance.AIAct.Transparency` (new, under option B).
 
 **Provider category**: none; the 10-provider database rule does not apply (Marten event-sourced module, ADR-019; persistence of disclosures is #847).
 
-**Family coordination (AI Act modules #838, #840, #841, #843).** Nothing here redefines the bias types of #838. Art. 13 content lives in #840's General Description section. EventIds 9576-9587 are this plan's (#838 holds 9548-9561, #840 holds 9562-9575, #843 holds 9588-9599).
+**Family coordination (AI Act modules #838, #840, #841, #843).** Multi-tenancy (cross-cutting row 10): this package stores nothing; tenant scoping of the system lookup comes from the #847 service (Design Choice 7) and per-tenant options belong to #845, whose plan covers the core gate only, so this package adds no tenant code of its own. Nothing here redefines the bias types of #838. Art. 13 content lives in #840's General Description section. EventIds 9576-9587 are this plan's (#838 holds 9548-9561, #840 holds 9562-9575, #843 holds 9588-9599).
 
 ---
 
@@ -186,6 +186,57 @@ Event-sourced compliance modules have no InMemory stores; the notification is th
 
 </details>
 
+<details>
+<summary><strong>7. Ordering with #847: where the placement date lives and what the enforcer reads</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Write the registration date and the system lookup against the #847 plan: `PlacedOnMarketAtUtc` is a field of the `AISystemRegistered` event, of `AISystemReadModel` and of `AISystemRegistrationRequest`; the enforcer resolves the system through `IAISystemService.FindActiveSystemAsync` (tenant-scoped by that service, fail closed without a tenant); the #841 core PR (Phase 1 task 4) and the enforcer (Phase 3) are briefed after the #847 core PR merges** | No code against an interface that #847 deletes; tenant handling is inherited, not reimplemented; one place stores the date | #841 Phases 1 (task 4) and 3 wait for #847 |
+| **B — Build now against `IAISystemRegistry` and `AISystemRegistration`; #847 later carries the field into its event and read model** | #841 does not wait | The enforcer and the property are rewritten when #847 deletes `IAISystemRegistry`; #847 gets an unplanned extra field |
+| **C — Keep the date outside the registry (an options map from system id to date)** | No dependency on the registry | A second source of truth for a fact the registration owns |
+
+### Chosen Option: **A — Written against #847** (recommended, pending the maintainer)
+
+### Rationale
+
+We recommend A: the #847 plan (Design Choice 2, recommended option A) replaces `IAISystemRegistry` with `IAISystemService` and moves registrations to Marten events, so a field added to `AISystemRegistration` would have to be re-added to the event and the read model, and an enforcer written against `IAISystemRegistry` would be written against a deleted interface. B wins if #841 must ship before #847: then Phase 1 task 4 and Phase 3 task 4 use the registry and the #847 worker moves the field and the lookup (coordination task: comment on #847 to add `PlacedOnMarketAtUtc` to its event, read model and request). C is rejected as a second source of truth. Tenant handling: the scoped `TransparencyContext` holds one request's data and no tenant of its own; the tenant comes from the service (the #847 plan resolves it and fails closed in a multi-tenant application without one); notifications carry the `TenantId` of the system read model; per-tenant enforcement options stay with #845.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. How the two enforcement switches combine</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — One table: `AIActOptions.EnforcementMode` decides whether the check runs and what a `Left` does; `TransparencyEnforcement` decides only what happens when no hook is registered** | Each switch has one job; reuses the existing mode semantics | Two switches to document |
+| **B — Fold both into `EnforcementMode`** | One switch | `LogOnly` for transparency alone could not be chosen while other violations block |
+
+### Chosen Option: **A — Two switches, one combination table**
+
+### Rationale
+
+| `EnforcementMode` | `TransparencyEnforcement` | Hook registered | Result |
+|---|---|---|---|
+| `Disabled` | any | any | Nothing runs: the pipeline returns before any check (`AIActCompliancePipelineBehavior.cs:108`), the hook is not called |
+| `Block` | `Enforce` or `LogOnly` | yes | `BeginAsync` before the handler, `CompleteAsync` after; a `Left` blocks with its error (`LogOnly` concerns a missing hook only) |
+| `Block` | `Enforce` | no | `Left(aiact.transparency_required)` (fail closed) |
+| `Block` | `LogOnly` | no | Logged as an explicit opt-out; the request proceeds |
+| `Warn` | `Enforce` or `LogOnly` | yes | The hook runs; a `Left` is logged by error code and the response is returned (Warn relaxes violations, `AIActCompliancePipelineBehavior.cs:252-263`) |
+| `Warn` | `Enforce` or `LogOnly` | no | Logged; the request proceeds |
+
+The combinations follow the existing meaning of the three modes in the pipeline; the new switch only adds the opt-out for a missing hook, and it is the only opt-out (`AGENTS.md` §3).
+
+**Class:** Trivial
+**Settled by:** `src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs:39-48,107-110,252-263` (existing mode semantics); `AGENTS.md` §3 (fail closed, explicit logged opt-out)
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -200,10 +251,11 @@ Event-sourced compliance modules have no InMemory stores; the notification is th
 1. **Create `Abstractions/ITransparencyObligationHook.cs`**: `ValueTask<Either<EncinaError, Unit>> BeginAsync(TransparencyHookContext context, CancellationToken)` and `ValueTask<Either<EncinaError, Unit>> CompleteAsync(TransparencyHookContext context, CancellationToken)`; `Model/TransparencyHookContext.cs` (`RequestType`, `SystemId`, `ObligationType`, `DisclosureText`, `Exemption`).
 2. **Create `Model/TransparencyExemption.cs`**: `None`, `ObviousFromContext`, `AssistiveEditing`, `LawEnforcementAuthorised`, `ArtisticOrSatirical`, `EditorialResponsibility`; add `TransparencyObligationType.PublishedAIText`.
 3. **Modify `Attributes/AITransparencyAttribute.cs`**: `TransparencyExemption Exemption { get; set; }`.
-4. **Modify `Model/AISystemRegistration.cs`**: `DateTimeOffset? PlacedOnMarketAtUtc { get; init; }`.
+4. **Add `PlacedOnMarketAtUtc` (`DateTimeOffset?`)** where the registration lives when the worker is briefed (Design Choice 7): on `AISystemRegistration` (`Model/AISystemRegistration.cs`) with `init`, or, after #847, on the `AISystemRegistered` event, `AISystemReadModel` and `AISystemRegistrationRequest`.
 5. **Modify `AIActOptions.cs`**: `TransparencyEnforcement` (`Enforce` default, `LogOnly`) and its use in `AIActOptionsValidator`.
-6. **Modify `AIActCompliancePipelineBehavior.cs`** (`LogObligations`, lines ~160 and ~274): when `RequiresTransparency`, call the hook before `nextStep()` and `CompleteAsync` after; no hook in `Enforce` mode returns `Left(AIActErrors.TransparencyRequired(...))`; `LogOnly` keeps the log and logs the opt-out.
-7. **Modify `PublicAPI.Unshipped.txt`**; tests: pipeline with hook, without hook (both modes), exemption logged, registration date round trip; manifest targets.
+6. **Modify `AIActCompliancePipelineBehavior.cs`** (`LogObligations`, lines ~160 and ~274): when `RequiresTransparency`, call the hook before `nextStep()` and `CompleteAsync` after, following the combination table of Design Choice 8 (`Disabled` never reaches this code; `Warn` logs a hook `Left`; `Block` with `Enforce` and no hook returns `Left(AIActErrors.TransparencyRequired(...))`; `LogOnly` keeps the log and logs the opt-out).
+7. **Modify `PublicAPI.Unshipped.txt`**; tests: one test per row of the Design Choice 8 table, exemption logged, registration date round trip.
+8. **Manifest** (`.github/coverage-manifest/Encina.Compliance.AIAct.json`): add per-file targets with one-sentence justifications for the new files and for the three modified files that have none today: `Attributes/AITransparencyAttribute.cs`, `Model/TransparencyObligationType.cs` and `Model/AISystemRegistration.cs` (or the #847 replacement files if the registration moved); no target is lowered.
 
 </details>
 
@@ -238,7 +290,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Package Skeleton, Models & Abstractions (PR 2)
+### Phase 2: Package Skeleton, Models & Abstractions (PR 2: tasks 1-2 and 5 for the models; PR 3: tasks 3-4)
 
 > **Goal**: Buildable package with the contracts.
 
@@ -281,7 +333,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Requirement Catalog, Enforcer & Date Rules (PR 3)
+### Phase 3: Requirement Catalog, Enforcer & Date Rules (PR 3, after the #847 core PR; Design Choice 7)
 
 > **Goal**: The package decides what must be disclosed to whom and by when.
 
@@ -291,7 +343,7 @@ REFERENCE FILES:
 1. **Create `Catalog/Article50Catalog.cs`** (internal static): per `TransparencyObligationType` the article reference, party and permitted exemptions (Design Choice 4).
 2. **Create `Dates/Article50ApplicabilityRules.cs`** (internal): given the registration, the obligation and `TimeProvider.GetUtcNow()` decide `Applies` or `GracePeriodUntil`; no `PlacedOnMarketAtUtc` means no grace (Design Choice 5).
 3. **Create `TransparencyOptions.cs`** and validator: `MarkingGraceCutoffPlacedBeforeUtc` (2026-08-02), `MarkingGraceEndsUtc` (2026-12-02), minimum disclosure text length, allowed exemptions per obligation.
-4. **Create `DefaultTransparencyEnforcer.cs`** (`ITransparencyEnforcer`): resolve the registration through `IAISystemRegistry` (`Left(aiact.transparency_system_not_found)` when unknown), build the requirement, validate and record a disclosure (`DisclosureId` non-empty, matching system, text not blank) into the scoped ledger.
+4. **Create `DefaultTransparencyEnforcer.cs`** (`ITransparencyEnforcer`): resolve the registration through `IAISystemService.FindActiveSystemAsync` (or `IAISystemRegistry` if #841 ships first, Design Choice 7; `Left(aiact.transparency_system_not_found)` when unknown), build the requirement, validate and record a disclosure (`DisclosureId` non-empty, matching system, text not blank) into the scoped ledger.
 5. **Create `Context/TransparencyContext.cs`** (scoped): requirement and recorded disclosures of one request.
 6. **Create `TransparencyObligationHook.cs`** (`ITransparencyObligationHook`): `BeginAsync` determines and stores, `CompleteAsync` verifies a disclosure matching the requirement exists unless exempt or in grace period.
 7. **Tests**: every obligation type; each exemption; grace period boundaries (before, at and after each date, missing `PlacedOnMarketAtUtc`); unknown system; unmet and met verification; `FakeTimeProvider`.
@@ -377,7 +429,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `Notifications/TransparencyDisclosureRecordedNotification.cs`** and `ContentMarkedNotification.cs` (system id, obligation or kind, method, `OccurredAtUtc`; never content), published through `IEncina.Publish`; a publish `Left` fails the operation.
-2. **Create `ServiceCollectionExtensions.cs`**: `AddEncinaAIActTransparency(Action<TransparencyOptions>?)` registers options, validator, `TimeProvider`, `TransparencyContext` (scoped), enforcer, hook, `ManifestContentMarker` (`TryAdd`, an application marker wins).
+2. **Create `ServiceCollectionExtensions.cs`**: `AddEncinaAIActTransparency(Action<TransparencyOptions>?)` registers options, validator, `TimeProvider`, `TransparencyContext` (**Scoped**), `DefaultTransparencyEnforcer` and `TransparencyObligationHook` (both **Scoped**, because they hold or use the scoped context; the pipeline behavior is Transient, so a Singleton would capture a scoped service and fail `ValidateScopes`), `ManifestContentMarker` (Singleton, stateless; `TryAdd`, an application marker wins).
 3. **DI test** with `ValidateOnBuild` and `ValidateScopes`, in both registration orders with `AddEncinaAIAct`; a test that the pipeline now verifies disclosures end to end.
 
 </details>
@@ -396,7 +448,8 @@ Add the two audit notifications and AddEncinaAIActTransparency with a ValidateOn
 
 KEY RULES:
 - Registration completeness (AGENTS.md section 3): every option type and dependency registered; an application's own marker or hook wins.
-- Notifications never carry content or disclosure text bodies longer than the id; a Left from Publish fails the operation.
+- Notifications carry identifiers (system id, disclosure id, obligation type, method) and never content or disclosure text; a Left from Publish fails the operation.
+- Lifetimes: context, enforcer and hook Scoped; marker Singleton; the DI test builds with ValidateScopes so a captured scoped service fails.
 
 REFERENCE FILES:
 - src/Encina.Compliance.AIAct/ServiceCollectionExtensions.cs
@@ -501,7 +554,7 @@ REFERENCE FILES:
 1. XML docs on all public APIs (`<summary>`, `<remarks>` with the Art. 50 paragraph, `<param>`, `<returns>`, `<example>`).
 2. `changelog.d/841-aiact-transparency.added.md` (and a `changed` fragment for the fail-closed pipeline behavior), written by `mechanical-fixer`.
 3. Package README; `docs/features/aiact-compliance.md` Art. 13 and Art. 50 section with the article table (SPEC-000 REQ-024: Art. 13 covered through #840 Annex IV 1(h); Art. 50(1)-(4) covered; Art. 50(5) accessibility is the application's) through `docs-writer`.
-4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR (next number neither used nor reserved in `docs/architecture/adr/index.md`, reserved by PR 1): hook in the core, determine-before and verify-after, sidecar default.
+4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR (number 068 is assigned to the AI Act family ADR of the #838 plan in `eventid-blocks.md`; agree with #838 whether this ADR extends it, otherwise write the number assigned when the ADR pull request opens): hook in the core, determine-before and verify-after, sidecar default.
 5. `PublicAPI.Unshipped.txt` complete in both packages; build with 0 warnings; tests; every flag at target.
 
 </details>
@@ -562,7 +615,7 @@ Checked 2026-11-11 on the consolidated text at artificialintelligenceact.eu ("te
 | `AITransparencyAttribute`, `TransparencyObligationType` | `src/Encina.Compliance.AIAct/Attributes/`, `Model/` | Vocabulary; extended with `Exemption` and `PublishedAIText` |
 | `AIActCompliancePipelineBehavior` | `src/Encina.Compliance.AIAct/AIActCompliancePipelineBehavior.cs:160`, `:274` | Hook call sites |
 | `AIActErrors.TransparencyRequired` | `src/Encina.Compliance.AIAct/AIActErrors.cs:151` | Returned when an unmet duty blocks |
-| `IAISystemRegistry`, `AISystemRegistration` | `src/Encina.Compliance.AIAct/` | System lookup; new `PlacedOnMarketAtUtc` |
+| `IAISystemRegistry`, `AISystemRegistration` (replaced by `IAISystemService` and the `AISystemRegistered` event under the #847 plan) | `src/Encina.Compliance.AIAct/` | System lookup; new `PlacedOnMarketAtUtc` (Design Choice 7) |
 | Notifications and `IEncina.Publish` | `src/Encina.Compliance.AIAct/Notifications/`, `InMemoryAISystemRegistry.cs:109` | Audit evidence |
 | `AIActOptions`, `AIActOptionsValidator` | `src/Encina.Compliance.AIAct/` | `TransparencyEnforcement` option |
 | `EventIdRanges.ComplianceAIAct`, `EncinaEventIdAllocationTests` | `src/Encina/Diagnostics/EventIdRanges.cs:389` | Range 9576-9587 |
@@ -581,7 +634,7 @@ Checked 2026-11-11 on the consolidated text at artificialintelligenceact.eu ("te
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Core hook and attribute changes (Phase 1) | 10 | hook, context, exemption, attribute, registration, options, validator, pipeline, PublicAPI, tests counted below |
+| Core hook and attribute changes (Phase 1) | 11 | hook, context, exemption, `TransparencyObligationType`, attribute, registration date, options, validator, pipeline, PublicAPI, manifest; tests counted below |
 | Package project files | 5 | csproj, two PublicAPI files, `Encina.slnx`, manifest |
 | Models and errors | 8 | requirement, party, disclosure, `ContentKind`, `MarkingRequest`, `MarkedContent`, errors, options |
 | Abstractions | 2 | `ITransparencyEnforcer`, `IContentMarker` |
@@ -651,7 +704,7 @@ REFERENCE FILES:
 | 7 | **Distributed Locks** | ❌ N/A | No shared mutable state |
 | 8 | **Transactions** | ❌ N/A | The package persists nothing; the notification is the record |
 | 9 | **Idempotency** | ❌ N/A | Disclosures are per request, identified by `DisclosureId`; marking is deterministic for the same content and clock |
-| 10 | **Multi-Tenancy** | ⏭️ Defer ([#845](https://github.com/dlrivada/Encina/issues/845)) | Per-tenant disclosure rules are part of the tenant-scoped AI Act enforcement |
+| 10 | **Multi-Tenancy** | ⏭️ Defer ([#845](https://github.com/dlrivada/Encina/issues/845)) | Per-tenant disclosure rules are part of the tenant-scoped AI Act enforcement; the #845 plan covers the core gate only, so this package adds no tenant code (nothing is stored) and inherits tenant scoping of the system lookup from the #847 service (Design Choice 7) |
 | 11 | **Module Isolation** | ⏭️ Defer ([#846](https://github.com/dlrivada/Encina/issues/846)) | `ModuleId`-scoped enforcement is delivered package-wide |
 | 12 | **Audit Trail** | ✅ Phase 5 | Disclosure-recorded and content-marked notifications through `IEncina.Publish`; a publish failure fails the operation |
 
