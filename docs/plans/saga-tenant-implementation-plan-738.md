@@ -101,6 +101,7 @@ Add the tenant to the saga: `ISagaState.TenantId`, filled at `SagaOrchestrator.S
 
 ### Rationale
 
+- Background callers: `TimeoutAsync` and the stuck/expired paths, and also the #720 compensation retry processor, which calls the orchestrator tenant paths (`CompensateStepAsync`, `FailAsync`) for rows of every tenant with no request context. Under the matrix row "tenancy configured, ambient absent: denied" such a caller would be denied, so EVERY background caller (the #720 processor and any sibling) MUST set the ambient tenant from the row before calling a tenant path (the #720 plan promises this in its Phase 3 task 3). Test row: a background caller without the ambient tenant is denied; with the ambient tenant set from the row it is allowed.
 - `GetStuckSagasAsync` and `GetExpiredSagasAsync` return rows of all tenants and run without a request context; denying them would stop timeouts. Option A wins because the caller is infrastructure that already holds the row; Option B wins when the maintainer wants every cross-tenant action to be an explicit, auditable opt-in.
 - SPEC-002 REQ-061 ("background processing restores the tenant from persisted context and never mixes tenants in one unit of work") and AC-043 ("a background cycle run for tenant A never acts on a record of tenant B") bear on option A, which processes a batch that holds all tenants: each row is processed under its own restored tenant (the ambient tenant is set from the row for the duration of that row) and its own unit of work, never one unit of work across rows of different tenants. Option B satisfies the same requirement with an explicit scope per tenant.
 - **Class:** Dilemma
@@ -360,11 +361,12 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-PRs 9 to 11 of the split (each builds against the old interfaces, D5):
+PRs 9 to 11 of the split build against the old interfaces (D5); the decorator `InstrumentedSagaStore` moves to PR 12 with the interface (it wraps `private readonly ISagaStore _inner`, which has no `GetForTenantAsync` or `GetActiveByTenantAsync` before PR 12, so a delegating call would not compile earlier):
 
 1. PR 9, `src/Encina.Testing.Fakes/Models/FakeSagaState.cs` and `Stores/FakeSagaStore.cs`: `TenantId` and the tenant-aware methods with the strict predicate, plus `PublicAPI.Unshipped.txt`, manifest and unit tests.
 2. PR 10, `src/Encina.Testing.Bogus/SagaStateFaker.cs` (`TenantId` rule) and `ArbitrarySagaState` in `src/Encina.Testing.FsCheck/ArbitraryMessages.cs` (the `TenantId` property), with their PublicAPI and manifest entries.
-3. PR 11, `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs`: delegate the new methods and set the span tag `tenant.id` ALWAYS on the activity (when it has listeners) and NEVER on a metric; the two benchmark `BenchmarkSagaState` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`) get the property; the test doubles `RecordingSagaStore` (`tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs`), `FailingUpdateStore` (`SagaRunnerTests.cs`) and `TestSagaState` (`SagaOrchestratorTests.cs`) get the members.
+3. PR 11 (benchmark states and test doubles only): the two benchmark `BenchmarkSagaState` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`) get the property; the test doubles `RecordingSagaStore` (`tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs`), `FailingUpdateStore` (`SagaRunnerTests.cs`) and `TestSagaState` (`SagaOrchestratorTests.cs`) get the members. They compile against the old interfaces.
+4. PR 12 (with the interface, because the decorator is itself an `ISagaStore` implementer): `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs` delegates `GetForTenantAsync` and `GetActiveByTenantAsync` to `_inner` and sets the span tag `tenant.id` ALWAYS on the activity (when it has listeners) and NEVER on a metric; its unit test and the `Encina.OpenTelemetry` manifest entry travel in the same PR.
 
 </details>
 
@@ -376,12 +378,12 @@ CONTEXT:
 - ISagaStore gained a tenant parameter and GetActiveByTenantAsync (issue #738).
 
 TASK:
-Update FakeSagaStore, FakeSagaState, SagaStateFaker and InstrumentedSagaStore.
+Update FakeSagaStore, FakeSagaState, SagaStateFaker (PRs 9 and 10), the benchmark states and test doubles (PR 11); InstrumentedSagaStore is changed in PR 12 together with the interface.
 
 KEY RULES:
 - The fake store behaves exactly like the real stores for the tenant rules (contract tests run against it too).
 - The tenant is a span tag only (always set when the activity has listeners), never a metric label.
-- Each pull request builds against the current interfaces: add the members to the classes, do not touch the interfaces.
+- PRs 9 to 11 build against the current interfaces: add the members to the classes, do not touch the interfaces and do not call the new members through an `ISagaStore` field (that is the decorator, PR 12).
 
 REFERENCE FILES:
 - src/Encina.Testing.Fakes/Stores/FakeSagaStore.cs
@@ -473,7 +475,7 @@ REFERENCE FILES:
 
 Tests travel with the pull request that adds the code they cover (see the split); none waits for the end.
 
-1. **Unit** (PR 12, plus the fake and instrumented stores in PRs 9 and 11): tenant stamping, the full matrix of Design Choice 6 (one row per line), D1 error, D4 background path, "tenant paths never call the unfiltered `GetAsync`", fake store, instrumented store.
+1. **Unit** (PR 12, plus the fake store in PR 9 and the instrumented store in PR 12): tenant stamping, the full matrix of Design Choice 6 (one row per line), D1 error, D4 background path, "tenant paths never call the unfiltered `GetAsync`", fake store, instrumented store.
 2. **Guard**: new public methods with parameters, in the pull request that adds them.
 3. **Contract** (PR 12): `ISagaStore` tenant behavior identical across the real stores (run against `FakeSagaStore` and the provider stores).
 4. **Property (FsCheck)** (PR 12): a saga is never advanced by another tenant for any pair of tenants.
@@ -564,8 +566,8 @@ Order rule (D5 option A): implementers first, interface last; every pull request
 | 8 | `Encina.MongoDB`: state, store, index creator, PublicAPI, manifest, integration test | 6 | 400 |
 | 9 | `Encina.Testing.Fakes`: `FakeSagaState`, `FakeSagaStore`, PublicAPI, manifest, unit tests | 6 | 400 |
 | 10 | `Encina.Testing.Bogus` and `Encina.Testing.FsCheck`: `SagaStateFaker`, `ArbitrarySagaState`, PublicAPI x2, manifests x2 | 6 | 200 |
-| 11 | `Encina.OpenTelemetry` `InstrumentedSagaStore` (+ PublicAPI, manifest, unit test), 2 benchmark states, 3 test doubles | 9 | 450 |
-| 12 | Interface and orchestrator: `ISagaState`, `ISagaStore`, `SagaOrchestrator`, saga log file, saga metrics, PublicAPI, manifest, unit, contract and property tests | 11 | 1,100 |
+| 11 | Benchmark and test doubles only: 2 benchmark states, `RecordingSagaStore`, `FailingUpdateStore`, `TestSagaState` (they build against the old interfaces) | 5 | 200 |
+| 12 | Interface and orchestrator: `ISagaState`, `ISagaStore`, `SagaOrchestrator`, saga log file, saga metrics, PublicAPI, manifest, unit, contract and property tests (11 files) plus `InstrumentedSagaStore`, its unit test and the `Encina.OpenTelemetry` manifest entry (3 files) | 14 | 1,400 |
 | 13 | Orchestrator two-tenant integration test (AC-043) on 10 providers, load test, benchmark justification | 12 | 1,000 |
 | 14 | Documentation: changelog fragment, saga guide, schema documentation, ADR if a Dilemma needs one (through docs-writer) | 4 | 300 |
 
