@@ -203,7 +203,7 @@ Implement a declarative, fluent state machine for entities with a lifecycle (ord
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** `AGENTS.md` section 1 (pay-for-what-you-use: every feature opt-in) and section 3 (registration completeness: the `AddEncina*` method registers every dependency it resolves, proven by a DI test built with `ValidateOnBuild` and `ValidateScopes`); ADR-050 lists the module requirements, and the saga row requires the saga store.
+- **Settled by:** `AGENTS.md` section 1 (pay-for-what-you-use: every feature opt-in) and section 3 (registration completeness: the `AddEncina*` method registers every dependency it resolves, proven by a DI test built with `ValidateOnBuild` and `ValidateScopes`); no ADR-050 row is needed because the coordinator is not a module.
 - The pure machine (definition, instance) has no DI registration: it is a plain object built by the application.
 
 </details>
@@ -225,6 +225,29 @@ Implement a declarative, fluent state machine for entities with a lifecycle (ord
 - **Class:** Trivial
 - **Settled by:** `SagaActivitySource` (`src/Encina.Messaging/Diagnostics/SagaActivitySource.cs`: dedicated source, `HasListeners()` guard, `encina.saga.transition` span) and `MessagingStoreMetrics` (`Counter<long>` fields); `AGENTS.md` section 7 for logging.
 - The coordinator's spans and counters use the same names with the tag `saga.id` on the span only (never on the counter).
+
+</details>
+
+<details>
+<summary><strong>11. Who commits the saga write, and what a failed second write leaves (Dilemma D6)</strong></summary>
+
+Verified on origin/main: `SagaOrchestrator` calls only `ISagaStore.AddAsync` and `UpdateAsync` and never `SaveChangesAsync` (`src/Encina.Messaging/Sagas/SagaOrchestrator.cs`: `AddAsync` line 130, `UpdateAsync` lines 194, 234 and 381); `SagaStoreEF.UpdateAsync` only stages the change on the `DbContext` (`SagaStoreEF.cs` line 66) and the commit is `SaveChangesAsync` (line 128). The Outbox, Scheduler and DeadLetter orchestrators do call `SaveChangesAsync`; the saga orchestrator does not. The coordinator calls `AdvanceAsync` and then `CompleteAsync` or `FailAsync`, which are separate `UpdateAsync` calls.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The coordinator also takes `ISagaStore` (the scoped instance the orchestrator uses) and calls `SaveChangesAsync` once after the orchestrator calls of one `StartAsync`/`FireAsync`** | The transition is durable for EF Core without an ambient unit of work; for EF Core the advance and the complete/fail are one commit, so they cannot be split; no change to `SagaOrchestrator` | A second dependency; a caller that already wraps the call in a unit of work commits twice (harmless); the commit is the coordinator's, unlike the other orchestrators |
+| **B) Require an ambient unit of work (the call is dispatched through `IEncina.Send` with the transaction behavior) and document it** | The coordinator stays a thin layer over the orchestrator | A handler outside a transaction (the `sagaId` addressing of #1237) silently loses the EF Core write; needs a startup or runtime check that is hard to make reliable |
+
+### Chosen Option: **A — The coordinator commits** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins because the coordinator is addressed by `sagaId` from handlers that are not necessarily in a transaction; Option B wins if the maintainer wants one commit point owned by the application's unit of work and accepts the documented requirement. The same premise (who commits the saga write) appears in the #750, #738 and #720 plans and the maintainer's answer should be one for the family.
+- **Failure window (both options, ADO.NET and Dapper commit per `UpdateAsync`)**: if `AdvanceAsync` succeeds and `CompleteAsync`/`FailAsync` returns a `Left`, the saga stays `Running` with the stored machine state already in a `CompleteIn`/`FailIn` state, and a retry of the trigger would return `statemachine.trigger_not_permitted`. Recovery rule: `FireAsync` first checks a loaded `Running` saga whose stored state is already in `CompleteIn`/`FailIn`, finishes it (`CompleteAsync` or `FailAsync`) and then returns `Left` `statemachine.saga_not_running`; a persistence `Left` during this recovery is returned too.
+- **At-least-once actions**: machine actions run before the persist. When the persist returns a `Left` the actions already ran and the state is not stored, so a retry of the same trigger runs them again. Entry and exit actions on a saga machine must therefore be idempotent; the guide and the XML remarks say so.
+- **Class:** Dilemma
 
 </details>
 
@@ -261,7 +284,7 @@ Implement a declarative, fluent state machine for entities with a lifecycle (ord
 CONTEXT:
 - Encina is a .NET 10 / C# 14 library using Railway Oriented Programming (Either<EncinaError, T>).
 - This phase creates the NEW project src/Encina.StateMachine/ with the public contract only (no engine).
-- Issue #297; plan docs/plans/state-machine-implementation-plan-297.md. Dilemmas D1-D5 are recommended, pending the maintainer: read the Maintainer Decisions section if it exists and follow the answers.
+- Issue #297; plan docs/plans/state-machine-implementation-plan-297.md. Dilemmas D1-D6 are recommended, pending the maintainer: read the Maintainer Decisions section if it exists and follow the answers.
 
 TASK:
 Create the project, the interfaces, records, error codes, the EventId range registration and the PublicAPI files listed in Phase 1 Tasks.
@@ -293,7 +316,7 @@ REFERENCE FILES:
 
 1. **`StateMachineBuilder<TState, TTrigger>`**: `static Create()`, `State(TState)` returning a `StateConfiguration`, `Build()` returning `StateMachineDefinition<TState, TTrigger>`. `Build()` throws `InvalidOperationException` for programmer errors: no state configured, a superstate cycle, an undeclared destination state reachable by `Permit`, or the same trigger permitted twice from one state without distinct guards.
 2. **`StateConfiguration<TState, TTrigger>`** (fluent): `Permit`, `PermitIf(trigger, destination, Func<bool> guard, string? guardDescription = null)`, `PermitReentry`, `Ignore`, `OnEntry(Action<TransitionContext<...>>)`, `OnEntryAsync(Func<TransitionContext<...>, CancellationToken, Task>)`, `OnExit`, `OnExitAsync`, `SubstateOf(TState superstate)`. An overload per action form that returns `ValueTask<Either<EncinaError, Unit>>` lets an action return a typed failure instead of throwing.
-3. **`StateMachineDefinition<TState, TTrigger>`** (immutable): the compiled graph (per-state permits, guards, actions, parent), `Create(TState initial)`, `Create(Func<TState> getState, Action<TState> setState)`, `Create(IStateMachineStateAccessor<TState>)`, `IReadOnlyCollection<TState> States`, `bool IsDescendantOf(TState state, TState ancestor)` and `string ToDotGraph()`.
+3. **`StateMachineDefinition<TState, TTrigger>`** (immutable): the compiled graph (per-state permits, guards, actions, parent), `Create(TState initial, ILogger? logger = null)`, `Create(Func<TState> getState, Action<TState> setState, ILogger? logger = null)`, `Create(IStateMachineStateAccessor<TState> accessor, ILogger? logger = null)` (the optional logger is part of the overloads from PR 2, so PR 4 adds no public API churn), `IReadOnlyCollection<TState> States`, `bool IsDescendantOf(TState state, TState ancestor)` and `string ToDotGraph()`.
 4. **Resolution rules** (Stateless semantics, Trivial): a trigger is looked up in the current state, then in its superstates, nearest first; the first permit whose guard passes wins; two guards passing return `Left` `statemachine.ambiguous_transition`; `Ignore` returns a no-op result with `IsIgnored = true`. On a transition the exit actions run from the source up to, not including, the common ancestor, then the entry actions from just below the common ancestor down to the destination; `PermitReentry` exits and re-enters the same state.
 5. **`ToDotGraph()`**: a deterministic `digraph` with one node per state, one edge per permit labelled with trigger and guard description, substates as `subgraph cluster_*`; golden-file tested.
 
@@ -377,8 +400,10 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. **`StateMachineSagaDefinition<TState, TTrigger, TData>`** (`src/Encina.Messaging/Sagas/StateMachine/`, `where TData : class, new()`): `SagaType` (string), the `StateMachineDefinition<TState, TTrigger>`, `Func<TData, TState> GetState`, `Action<TData, TState> SetState`, `InitialState`, `CompleteIn(params TState[])` (the saga is completed when the machine enters one of them), `FailIn(string errorCode, params TState[])` (the saga is failed, the code is never free text), and an optional timeout. This replaces the issue's `StateMachineSaga` base class and its `GetState`/`SetState` overrides.
-2. **`IStateMachineSagaCoordinator`** and its implementation `StateMachineSagaCoordinator`: constructor takes `SagaOrchestrator`, `ILogger`, and an optional `TimeProvider`. Methods: `Task<Either<EncinaError, Guid>> StartAsync<TState, TTrigger, TData>(definition, TData initialData, CancellationToken)` (sets the initial state, calls `SagaOrchestrator.StartAsync`) and `Task<Either<EncinaError, TransitionInfo<TState, TTrigger>>> FireAsync<TState, TTrigger, TData>(definition, Guid sagaId, TTrigger trigger, CancellationToken)`.
-3. **`FireAsync` flow**: `SagaOrchestrator.GetAsync<TData>` (`None` becomes `Left` `statemachine.saga_not_found`; a status other than `Running` becomes `Left` `statemachine.saga_not_running`); create a machine instance over an accessor bound to the loaded data; fire; on `Left`, return it and persist nothing (the saga stays `Running`); on `Right`, persist with `SagaOrchestrator.AdvanceAsync(sagaId, updateData: d => { setState(d, to); return d; })` (one `UpdateAsync` on the saga row writes state and data together); then `CompleteAsync` when the new state is in `CompleteIn`, or `FailAsync(sagaId, code)` when it is in `FailIn`. A persistence `Left` is returned, never swallowed (`AGENTS.md` section 3).
+2. **`IStateMachineSagaCoordinator`** and its implementation `StateMachineSagaCoordinator`: constructor takes `SagaOrchestrator`, `ISagaStore` (only to commit, Design Choice 11 recommended option A), `ILogger`, and an optional `TimeProvider`. Methods: `Task<Either<EncinaError, Guid>> StartAsync<TState, TTrigger, TData>(definition, TData initialData, CancellationToken)` (sets the initial state, calls `SagaOrchestrator.StartAsync`) and `Task<Either<EncinaError, TransitionInfo<TState, TTrigger>>> FireAsync<TState, TTrigger, TData>(definition, Guid sagaId, TTrigger trigger, CancellationToken)`.
+3. **`FireAsync` flow**: `SagaOrchestrator.GetAsync<TData>` (`None` becomes `Left` `statemachine.saga_not_found`; a status other than `Running` becomes `Left` `statemachine.saga_not_running`); create a machine instance over an accessor bound to the loaded data; fire; on `Left`, return it and persist nothing (the saga stays `Running`); on `Right`, persist with `SagaOrchestrator.AdvanceAsync(sagaId, updateData: d => { setState(d, to); return d; })` (one `UpdateAsync` on the saga row writes state and data together); then `CompleteAsync` when the new state is in `CompleteIn`, or `FailAsync(sagaId, code)` when it is in `FailIn`; then `ISagaStore.SaveChangesAsync` (D6 option A). These are separate `UpdateAsync` calls, so the transition is NOT atomic across them on ADO.NET and Dapper. A persistence `Left` is returned, never swallowed (`AGENTS.md` section 3).
+   - **Recovery of a half-finished transition (D6)**: before firing, a loaded `Running` saga whose stored state is already in `CompleteIn`/`FailIn` (advance succeeded, complete or fail did not) is finished first (`CompleteAsync`/`FailAsync`, then `SaveChangesAsync`) and the call returns `Left` `statemachine.saga_not_running`; otherwise the saga would stay `Running` until timeout.
+   - **At-least-once actions (D6)**: the machine actions run before the persist; on a persistence `Left` they already ran and the state is not stored, so a retry runs them again. Actions on a saga machine must be idempotent (XML remarks and guide).
 4. **Compensation**: expressed as transitions of the machine (for example `Refund` from `Paid` to `Cancelled`); the reverse-order step replay of `SagaRunner` is not used. Transactional safety of compensation is #720.
 5. **Correlation**: the coordinator is addressed by `sagaId`; lookup by an external key and waiting for an event are #1237's, which can call `FireAsync` with the saga it resolves.
 6. **No change** to `ISagaState`, `ISagaStore`, `SagaOrchestrator` or any of the saga stores (the nine store files, the EF Core store serving three databases).
@@ -391,14 +416,15 @@ REFERENCE FILES:
 ```
 CONTEXT:
 - Phases 1-3 deliver the pure Encina.StateMachine package. This phase adds the saga coordinator in Encina.Messaging (Dilemma D2 Option C; under Option A or B only the folder changes).
-- Dilemma D3 is recommended, pending the maintainer: a durable coordinator over SagaOrchestrator.
+- Dilemmas D3 (a durable coordinator over SagaOrchestrator) and D6 (the coordinator commits through ISagaStore.SaveChangesAsync, and the recovery of a half-finished transition) are recommended, pending the maintainer.
 - Siblings: #1237 (correlation by key), #720 (transactional compensation), #738 (TenantId), #750 (audit), #2213 (concurrency on the saga row). Do not touch their code.
 
 TASK:
 Implement StateMachineSagaDefinition, IStateMachineSagaCoordinator and StateMachineSagaCoordinator as listed in Phase 4 Tasks.
 
 KEY RULES:
-- Use only the public members of SagaOrchestrator (StartAsync, AdvanceAsync, CompleteAsync, FailAsync, GetAsync); add nothing to it.
+- Use only the public members of SagaOrchestrator (StartAsync, AdvanceAsync, CompleteAsync, FailAsync, GetAsync); add nothing to it. SagaOrchestrator never calls ISagaStore.SaveChangesAsync: the coordinator does (D6), after the orchestrator calls of one StartAsync/FireAsync.
+- Implement the recovery rule of task 3 (a Running saga already in a CompleteIn/FailIn state is finished first) and make its unit test fail if the recovery is removed.
 - A Left from the machine or from the orchestrator is returned to the caller; nothing reports success on failure.
 - The error code passed to FailAsync is a constant, never exception text or user input.
 - Time comes from TimeProvider if needed (injection, default TimeProvider.System); no DateTime.UtcNow.
@@ -461,7 +487,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Transactions (Include)**: state and data are written by one `ISagaStore.UpdateAsync` through `AdvanceAsync`, so the persisted transition is atomic; when the caller dispatches through `IEncina.Send` with the transaction behavior active, the write joins that unit of work. Atomic compensation is #720.
+1. **Transactions (Include, partial)**: state and data of one step are written by one `ISagaStore.UpdateAsync` through `AdvanceAsync`, but `CompleteAsync`/`FailAsync` is a second `UpdateAsync`, so the whole transition is not atomic where each `UpdateAsync` commits (ADO.NET, Dapper); the commit owner (D6) and the recovery rule of Phase 4 task 3 cover the gap. When the caller dispatches through `IEncina.Send` with the transaction behavior active, the writes join that unit of work. Atomic compensation is #720.
 2. **OpenTelemetry and logging (Include)**: Phase 7.
 3. **Deferred**: concurrent and duplicate triggers on one saga (a lock or a version check, and a deduplication key) go into the issue file `artifacts/issues/state-machine-saga-concurrent-triggers.md`, linked to #2213 (concurrency control on the saga row); multi-tenancy is #738, module isolation is #747, audit of transitions is #750 (`TransitionInfo` is the data it records).
 4. **Not applicable**: caching, health checks, validation and resilience, with the reasons in the matrix.
@@ -476,10 +502,11 @@ CONTEXT:
 - Cross-cutting matrix of docs/plans/state-machine-implementation-plan-297.md; AGENTS.md section 6.
 
 TASK:
-Verify that the coordinator persists state and data in a single AdvanceAsync call, that a Left never leaves a half-written state, and add the unit tests that prove it. Do not add locks, tenant or audit code in this plan.
+Verify that the coordinator persists state and data of a step in a single AdvanceAsync call, that a Left from the machine persists nothing, that "advance succeeded, complete failed" is recovered on the next FireAsync (D6), and add the unit tests that prove it. Do not add locks, tenant or audit code in this plan.
 
 KEY RULES:
 - A test fails if a persistence Left is swallowed.
+- Do not claim the transition is atomic across AdvanceAsync and CompleteAsync/FailAsync; they are separate UpdateAsync calls.
 - Deferred items stay deferred: reference #2213, #738, #747, #750 in XML remarks where a reader would expect them.
 
 REFERENCE FILES:
@@ -502,7 +529,7 @@ REFERENCE FILES:
 2. **`StateMachineMetrics`** (internal, `Meter` `Encina.StateMachine`): `Counter<long>` `encina.statemachine.transition_count` with tags `state.from`, `state.to`, `trigger`, `outcome`; the coordinator adds the span tag `saga.id` (span only).
 3. **`StateMachineLogMessages`** (`[LoggerMessage]`, range 5850-5874): permitted transition, ignored trigger, unpermitted trigger, guard rejected, action failed, reentrant fire. Coordinator messages in `src/Encina.Messaging/Diagnostics/` use 5875-5899. EventIds are packed sequentially; the XML docs name the range. Errors are logged by code, exceptions through `ForLogging()`.
 4. **Architecture test**: `EncinaEventIdAllocationTests` passes with both ranges mapped (Phase 1).
-5. **Machine without DI**: a standalone machine takes an optional `ILogger` through `definition.Create(...)`; no logger means no logging, no listener means no span.
+5. **Machine without DI**: a standalone machine takes the optional `ILogger` that the `definition.Create(...)` overloads already declare (Phase 2); this phase only uses it. No logger means no logging, no listener means no span.
 
 </details>
 
@@ -542,18 +569,28 @@ REFERENCE FILES:
 
 #### Testing (`tests/Encina.<Flag>Tests/StateMachine/` and `tests/Encina.UnitTests/Messaging/Sagas/StateMachine/`)
 
-1. **Unit** (real implementations): every transition rule (permit, guard, reentry, ignore, ambiguity), hierarchy entry/exit order, sync and async actions, failing and throwing actions (D5), reentrant `Fire` (D4), accessor round trip, DOT golden file, the coordinator against a minimal in-test `ISagaStore` (start, fire, complete, fail, not found, not running, persistence `Left`), the DI test (Phase 5), telemetry through a listener.
+1. **Unit** (real implementations): every transition rule (permit, guard, reentry, ignore, ambiguity), hierarchy entry/exit order, sync and async actions, failing and throwing actions (D5), reentrant `Fire` (D4), accessor round trip, DOT golden file, the coordinator against a minimal in-test `ISagaStore` (start, fire, complete, fail, not found, not running, persistence `Left`, "advance succeeded, complete failed" then recovered by the next `FireAsync`, `SaveChangesAsync` called once per transition, an action run twice after a persistence `Left`), the DI test (Phase 5), telemetry through a listener.
 2. **Guard**: `ArgumentNullException` for every public parameter of the builder, configuration, definition, instance and coordinator.
 3. **Contract**: `IStateMachine<,>` and `IStateMachineStateAccessor<>` keep their shape, using the real implementation.
 4. **Property (FsCheck)**: a machine never reaches a state that is not reachable by permitted triggers; `CanFire` agrees with `Fire`; a failed `Fire` never changes the state.
-5. **Integration**: one test class on the existing ADO.NET PostgreSQL saga store (`[Collection("ADO-PostgreSQL")]`, `[Trait("Category", "Integration")]`) drives start, fire and complete end to end. The coordinator touches only `ISagaStore`, which the plan does not change, so repeating it on the other nine providers is not part of this feature; the provider stores already have their own integration tests.
+5. **Integration**: two test classes, each end to end (start, fire, complete, then reload): one on the existing ADO.NET PostgreSQL saga store (`[Collection("ADO-PostgreSQL")]`, `[Trait("Category", "Integration")]`) and one on the EF Core PostgreSQL saga store (`[Collection("EFCore-PostgreSQL")]`), which proves that the coordinator's `SaveChangesAsync` makes the transition durable (a second `DbContext` reads the committed state). The coordinator touches only `ISagaStore`, which the plan does not change, so repeating it on the other providers is not part of this feature; the provider stores already have their own integration tests.
 6. **Load and Benchmark**: justification files `tests/Encina.LoadTests/StateMachine/StateMachine.md` and `tests/Encina.BenchmarkTests/StateMachine/StateMachine.md` (instances hold no shared state; the definition is immutable). A benchmark is added only if the measured cost of `Fire` shows it is a hot path.
-7. **Per-file targets** in `.github/coverage-manifest/Encina.StateMachine.json` (and `Encina.Messaging.json` for the new coordinator files), each flag with a one-sentence justification: the engine files target unit 90 and guard 90, property 60 on the resolution file; the interfaces and records follow the manifest default rules (no coverable lines for interfaces). Measure with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`; run `-- --check-justifications`.
+7. **Per-file targets** in `.github/coverage-manifest/Encina.StateMachine.json` (and `Encina.Messaging.json` for the new coordinator files), each flag with a one-sentence justification written in the manifest. Starting values:
+
+   | File group | Unit | Guard | Contract | Property | Integration | Justification |
+   |---|---|---|---|---|---|---|
+   | Engine: builder, configuration, definition, machine | 90 | 90 | 80 | 60 | 0 | Pure logic with deterministic outcomes; property tests cover the resolution file; no database, so no integration |
+   | Coordinator (`StateMachineSagaCoordinator`, saga definition) | 95 | 90 | 0 | 0 | 70 | Every branch (not found, not running, recovery, persistence `Left`, complete, fail) is testable against an in-test store; the real stores prove durability |
+   | Telemetry (`StateMachineActivitySource`, `StateMachineMetrics`, log messages) | 90 | 0 | 0 | 0 | 0 | Exercised through a listener in unit tests; no public parameters beyond the machine's own |
+   | Registration (`AddEncinaStateMachineSagas`) | 95 | 90 | 0 | 0 | 0 | Small and fully covered by the DI test with and without `UseSagas` |
+   | Interfaces, records, error codes | 0 | 0 | 0 | 0 | 0 | No coverable lines (declarations) beyond what the engine tests reach |
+
+   Measure with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`; run `-- --check-justifications`.
 
 #### Documentation (mandatory set)
 
 8. XML docs with `<example>` on all new public APIs; `PublicAPI.Unshipped.txt` for `Encina.StateMachine`, `Encina.Messaging` and `Encina` (EventIdRanges fields).
-9. `changelog.d/297-state-machine.added.md`; `ROADMAP.md` (the state machine row); package README `src/Encina.StateMachine/README.md`; `docs/features/state-machine.md` (usage guide, order example, saga example, DOT export); `docs/INVENTORY.md` (new package and files); an ADR in `docs/architecture/adr/` recording the decided D1-D5 (next free number: read `docs/architecture/adr/index.md`, which reserves some numbers); `docs/releases/v0.18.0/` notes (the issue's milestone).
+9. `changelog.d/297-state-machine.added.md`; `ROADMAP.md` (the state machine row); package README `src/Encina.StateMachine/README.md`; `docs/features/state-machine.md` (usage guide, order example, saga example, DOT export); `docs/INVENTORY.md` (new package and files); an ADR in `docs/architecture/adr/` recording the decided D1-D6 (ADR number assigned when the ADR pull request opens); `docs/releases/v0.18.0/` notes (the issue's milestone).
 10. `dotnet build --configuration Release` with 0 errors and 0 warnings; `dotnet test` with every flag at its target.
 
 </details>
@@ -588,12 +625,14 @@ REFERENCE FILES:
 
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
-| 1 | Phase 1: project, contract, errors, EventId ranges, PublicAPI, manifest, slnx | 13 | 450 |
-| 2 | Phases 2-3: builder, configuration, definition, machine, DOT, unit and guard tests | 11 | 1,300 |
+| 1 | Phase 1: project (10 files: csproj, 5 contract types, error codes, errors, 2 PublicAPI files; plus the manifest), `Encina.slnx`, `EventIdRanges.cs`, the `AssemblyRanges` test, `Encina` PublicAPI (the package README is in PR 6) | 14 | 450 |
+| 2 | Phases 2-3: builder, configuration, definition, machine, DOT, unit and guard tests, with the optional `ILogger` parameter of `Create(...)` already in the overloads | 11 | 1,300 |
 | 3 | Phase 8 tests for the engine: contract, property, load and benchmark justifications | 7 | 600 |
 | 4 | Phase 7: observability, listener tests, EventId tests | 8 | 600 |
-| 5 | Phases 4-6: coordinator, definition, DI, unit and integration tests, Messaging manifest | 14 | 1,300 |
+| 5 | Phases 4-6: coordinator, definition, DI, unit tests, two integration classes (ADO.NET and EF Core PostgreSQL), `Encina.Messaging` project reference, PublicAPI and manifest | 14 | 1,350 |
 | 6 | Documentation: README, guide, ADR, changelog, ROADMAP, INVENTORY, release notes (through docs-writer) | 7 | 500 |
+
+The total is the sum of the rows (61 files); the Estimated File Count in Research uses the same figure. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -647,12 +686,12 @@ The block 5850-5899 is assigned to the saga state machine family in the plan bat
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| `Encina.StateMachine` source | ~16 | Contract, builder, configuration, definition, machine, DOT, diagnostics, project, PublicAPI x2, README |
-| `Encina.Messaging` coordinator | ~5 | Definition, interface, implementation, DI extension, log messages |
-| Registry and manifests | ~5 | `EventIdRanges.cs`, `AssemblyRanges` test, two manifests, `Encina.slnx` |
-| Tests | ~18 | Unit, guard, contract, property, integration, DI, three justification files |
-| Documentation | ~7 | Guide, ADR, changelog fragment, ROADMAP, INVENTORY, release notes |
-| **Total** | **~51 in 6 pull requests** | |
+| `Encina.StateMachine` source | ~15 | Contract, builder, configuration, definition, machine, DOT, diagnostics, project, PublicAPI x2 (README counted under documentation) |
+| `Encina.Messaging` coordinator | ~6 | Definition, interface, implementation, DI extension, log messages, project reference |
+| Registry and manifests | ~6 | `EventIdRanges.cs`, `AssemblyRanges` test, two manifests, `Encina.slnx`, `Encina` PublicAPI |
+| Tests | ~28 | Unit, guard, contract, property, two integration classes, DI, telemetry, three justification files |
+| Documentation | ~7 | README, guide, ADR, changelog fragment, ROADMAP, INVENTORY, release notes |
+| **Total** | **~61 in 6 pull requests** | Equals the sum of the split table |
 
 ---
 
@@ -665,7 +704,7 @@ The block 5850-5899 is assigned to the saga state machine family in the plan bat
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Railway Oriented Programming (Either<EncinaError, T>); no [Obsolete], no compatibility layers; XML docs on every public API; zero warnings.
 - Issue #297: a fluent state machine (Permit, PermitIf, PermitReentry, Ignore, OnEntry/OnExit sync and async, SubstateOf, external state accessor, DOT export) and a saga integration.
-- The saga integration points are ISagaRunner, SagaDefinition and SagaOrchestrator (there is no ISaga). Plan: docs/plans/state-machine-implementation-plan-297.md. Dilemmas D1-D5 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
+- The saga integration points are ISagaRunner, SagaDefinition and SagaOrchestrator (there is no ISaga). Plan: docs/plans/state-machine-implementation-plan-297.md. Dilemmas D1-D6 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
 
 IMPLEMENTATION OVERVIEW:
 1. New project src/Encina.StateMachine: contract, errors, EventId ranges 5850-5899 registered first (Phase 1).
@@ -705,7 +744,7 @@ REFERENCE FILES:
 | 5 | Validation | ❌ | Not applicable: triggers and states are enums, so there is no free input; the definition is validated once in `Build()` |
 | 6 | Resilience | ❌ | Not applicable: entry and exit actions are the caller's code and may use Polly themselves; the machine makes no external call |
 | 7 | Distributed Locks | ⏭️ | Deferred: concurrent triggers on one saga row need a lock or a version check, related to #2213; issue file `artifacts/issues/state-machine-saga-concurrent-triggers.md` |
-| 8 | Transactions | ✅ | Phase 6: state and data are persisted by one `UpdateAsync`; atomic compensation is #720 |
+| 8 | Transactions | ✅ | Phase 6: a step's state and data are persisted by one `UpdateAsync`; complete/fail is a second one, so the coordinator commits (D6) and recovers a half-finished transition; atomic compensation is #720 |
 | 9 | Idempotency | ⏭️ | Deferred with item 7: a deduplication key for a trigger delivered twice, same issue file |
 | 10 | Multi-Tenancy | ⏭️ | Deferred: `TenantId` on the saga row is #738; the coordinator inherits it when #738 lands |
 | 11 | Module Isolation | ⏭️ | Deferred: `ModuleId` on the saga row is #747 |
@@ -723,6 +762,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas D1 to D5 when work on #297 starts; the answers go into `## Maintainer Decisions` at the end of this plan, and the markers "(recommended, pending the maintainer)" are removed.
+1. The maintainer answers the Dilemmas D1 to D6 when work on #297 starts; the answers go into `## Maintainer Decisions` at the end of this plan, and the markers "(recommended, pending the maintainer)" are removed.
 2. Open the deferred issue (`artifacts/issues/state-machine-saga-concurrent-triggers.md`) and link it from #297.
 3. Brief pull request 1 (Phase 1) first; pull requests 2 to 6 follow in order.
