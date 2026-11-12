@@ -34,12 +34,12 @@ public sealed class SignalROptions
     public bool EnableNotificationBroadcast { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets the authorization policy name required for clients to invoke
-    /// Encina methods through the hub.
+    /// Gets or sets an authorization policy name. This property is not read by any code.
     /// </summary>
     /// <remarks>
-    /// When set, clients must satisfy this policy to call SendCommand, SendQuery, etc.
-    /// Leave null to allow anonymous access (not recommended for production).
+    /// Setting it has no effect: hub calls are gated by the allow-list and by the authentication
+    /// requirement of <see cref="AllowRequest{TRequest}(bool)"/> and
+    /// <see cref="AllowNotification{TNotification}(bool)"/>. It is tracked for removal in #3366.
     /// </remarks>
     public string? AuthorizationPolicy { get; set; }
 
@@ -59,6 +59,10 @@ public sealed class SignalROptions
     public System.Text.Json.JsonSerializerOptions? JsonSerializerOptions { get; set; }
 
     /// <inheritdoc cref="AllowRequest(Type, bool)"/>
+    /// <remarks>
+    /// A type that carries <c>[JsonDerivedType]</c> lets the client choose a derived type outside the
+    /// allow-list, so register only types whose polymorphism the host controls.
+    /// </remarks>
     /// <typeparam name="TRequest">
     /// A concrete type implementing <see cref="ICommand{TResponse}"/> (callable only through
     /// <see cref="EncinaHub.SendCommand"/>) or <see cref="IQuery{TResponse}"/> (callable only through

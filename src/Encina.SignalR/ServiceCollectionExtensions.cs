@@ -61,7 +61,6 @@ public static class ServiceCollectionExtensions
     /// builder.Services.AddEncinaSignalR(options =>
     /// {
     ///     options.EnableNotificationBroadcast = true;
-    ///     options.AuthorizationPolicy = "RequireAuth";
     ///     options.IncludeDetailedErrors = builder.Environment.IsDevelopment();
     ///     options.AllowRequest&lt;GetOrderQuery&gt;();
     ///     options.AllowNotification&lt;OrderViewed&gt;();
