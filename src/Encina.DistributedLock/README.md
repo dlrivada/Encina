@@ -122,6 +122,12 @@ await using var lockHandle = await _lockProvider.TryAcquireAsync(
     TimeSpan.FromSeconds(30),
     TimeSpan.FromMilliseconds(500),
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance holds the saga lock: fail this step so it is retried later.
+    throw new LockAcquisitionException($"saga:payment:{orderId}");
+}
 ```
 
 ### Cache Stampede Prevention
@@ -132,6 +138,12 @@ await using var lockHandle = await _lockProvider.TryAcquireAsync(
     TimeSpan.FromSeconds(5),
     TimeSpan.FromMilliseconds(100),
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance is rebuilding this entry: skip the rebuild.
+    return;
+}
 ```
 
 ### Scheduled Task Execution
@@ -142,6 +154,12 @@ await using var lockHandle = await _lockProvider.TryAcquireAsync(
     TimeSpan.Zero, // No wait - fail immediately if locked
     TimeSpan.Zero,
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance is running the task: skip this run.
+    return;
+}
 ```
 
 ## Provider Comparison
