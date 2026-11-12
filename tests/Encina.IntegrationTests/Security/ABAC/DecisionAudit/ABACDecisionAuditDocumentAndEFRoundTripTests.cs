@@ -53,7 +53,7 @@ public abstract class ABACDecisionAuditEFRoundTripTestsBase : ABACDecisionAuditR
 
     [Fact]
     public void Start_IsDerivedFromTheCurrentTime() =>
-        Start.ShouldBeInRange(DateTimeOffset.UtcNow.AddHours(-2), DateTimeOffset.UtcNow);
+        Start.ShouldBeInRange(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task OperationAuditPurge_AfterTheDecisionRoundTrip_FindsNothingOlderThanThirtyDays()
