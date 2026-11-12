@@ -88,11 +88,11 @@
       "reason": "Nonce store with ThrowIfNull guards",
       "targets": {
         "unit": 95,
-        "guard": 0
+        "guard": 30
       },
       "justifications": {
         "unit": "InMemoryNonceStoreTests cover add, replay, the lazy expiry paths of TryAddAsync and ExistsAsync, the cleanup timer driven by the injected clock, a failing sweep that is logged and does not stop the timer, and disposal (measured 100%); 95 leaves room only for the TryUpdate race, which no deterministic test reaches.",
-        "guard": "The guard test project has no InMemoryNonceStore tests; its only argument checks (ThrowIfNullOrWhiteSpace on the nonce) are asserted by the unit class's guard-clause region, so the zero target is explicit."
+        "guard": "AntiTamperingGuardTests reject a null, empty or whitespace nonce in TryAddAsync and ExistsAsync, which runs the constructor and both argument checks (measured 34.1%); the store logic past the checks belongs to the unit flag."
       }
     },
     "Pipeline/HMACValidationPipelineBehavior.cs": {
