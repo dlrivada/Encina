@@ -157,7 +157,11 @@ internal sealed class DefaultConsentService : IConsentService
 
         try
         {
-            var id = Guid.NewGuid();
+            // The stream id is derived from (effective tenant, subject, purpose), so the event
+            // store itself rejects a second stream for the same key, atomically and also under
+            // concurrent grants (#3769). A null subject or purpose throws here and is reported
+            // as a service error, as Grant reports blank ones.
+            var id = ConsentStreamId.For(effectiveTenantId, dataSubjectId, purpose);
             var occurredAtUtc = _timeProvider.GetUtcNow();
             var effectiveMetadata = metadata ?? new Dictionary<string, object?>();
 
@@ -167,6 +171,11 @@ internal sealed class DefaultConsentService : IConsentService
                 grantedBy, occurredAtUtc, effectiveTenantId, moduleId);
 
             var result = await _repository.CreateAsync(aggregate, cancellationToken);
+
+            if (result.Match(Right: _ => false, Left: IsStreamAlreadyExists))
+            {
+                return await GrantOnExistingConsentAsync(id, purpose, cancellationToken);
+            }
 
             return result.Match<Either<EncinaError, Guid>>(
                 Right: _ =>
@@ -183,6 +192,37 @@ internal sealed class DefaultConsentService : IConsentService
             return ConsentErrors.ServiceError("GrantConsent", ex);
         }
     }
+
+    /// <summary>
+    /// Handles a grant whose deterministic consent stream already exists: a sequential repeat or
+    /// the loser of a concurrent first grant for the same (tenant, subject, purpose) key (#3769).
+    /// </summary>
+    /// <remarks>
+    /// Interim behavior until #3771: the existing stream is re-read and its consent id is returned
+    /// unchanged, whatever its state (Active, Withdrawn, Expired or RequiresReconsent); nothing is
+    /// appended. #3771 replaces this method with the renewal, regrant and act-ordering rules.
+    /// </remarks>
+    private async Task<Either<EncinaError, Guid>> GrantOnExistingConsentAsync(
+        Guid consentId,
+        string purpose,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug(
+            "Consent for purpose '{Purpose}' already recorded as '{ConsentId}'; returning the existing consent",
+            purpose,
+            consentId);
+
+        var existing = await _repository.LoadAsync(consentId, cancellationToken);
+        return existing.Map(aggregate => aggregate.Id);
+    }
+
+    /// <summary>
+    /// Whether a repository error reports that the consent stream already exists.
+    /// </summary>
+    private static bool IsStreamAlreadyExists(EncinaError error) =>
+        error.GetCode().Match(
+            Some: code => string.Equals(code, MartenErrorCodes.StreamAlreadyExists, StringComparison.Ordinal),
+            None: () => false);
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> WithdrawConsentAsync(
