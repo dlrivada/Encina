@@ -1,328 +1,242 @@
+#pragma warning disable CA2012 // NSubstitute ValueTask stubbing pattern
+
+using System.Security.Claims;
 using System.Text.Json;
 using Encina.SignalR;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Abstractions;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.SignalR;
 
 /// <summary>
-/// Tests for the <see cref="EncinaHub"/> class.
+/// Tests for the <see cref="EncinaHub"/> dispatch paths of registered types; the allow-list,
+/// the authentication gate and the uniform denial are covered by <see cref="EncinaHubAllowListTests"/>.
 /// </summary>
 public sealed class EncinaHubTests
 {
-    /// <summary>
-    /// Creates a new test hub with fresh mocks for each test.
-    /// Each call returns an isolated hub with its own IEncina, IOptions, and ILogger instances.
-    /// </summary>
-    private static TestEncinaHub CreateHub(SignalROptions? options = null)
-    {
-        var encina = Substitute.For<IEncina>();
-        var opts = Options.Create(options ?? new SignalROptions());
-        var logger = Substitute.For<ILogger<TestEncinaHub>>();
-        var hub = new TestEncinaHub(encina, opts, logger);
-        hub.Context = CreateMockHubContext();
-        return hub;
-    }
+    private static readonly JsonElement Payload = JsonSerializer.SerializeToElement(new { Message = "test", Query = "test" });
 
     [Fact]
     public void Constructor_SetsEncinaProperty()
     {
-        // Act
-        using var hub = CreateHub();
+        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out _);
 
-        // Assert
         Assert.NotNull(hub.GetEncina());
     }
 
     [Fact]
     public async Task SendCommand_WithUnknownType_ReturnsTypeNotFoundError()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
+        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out _);
 
-        // Act
-        var result = await hub.SendCommand("NonExistent.Command", json);
+        var response = EncinaHubTestFactory.Parse(await hub.SendCommand("NonExistent.Command", Payload));
 
-        // Assert
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
-        AssertHasErrorCode(response, "command.type_not_found");
+        response.success.ShouldBeFalse();
+        response.error!.code.ShouldBe("command.type_not_found");
+        response.error.message.ShouldBe("Command type not found.");
     }
 
     [Fact]
     public async Task SendQuery_WithUnknownType_ReturnsTypeNotFoundError()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
+        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out _);
 
-        // Act
-        var result = await hub.SendQuery("NonExistent.Query", json);
+        var response = EncinaHubTestFactory.Parse(await hub.SendQuery("NonExistent.Query", Payload));
 
-        // Assert
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
-        AssertHasErrorCode(response, "query.type_not_found");
+        response.success.ShouldBeFalse();
+        response.error!.code.ShouldBe("query.type_not_found");
+        response.error.message.ShouldBe("Query type not found.");
     }
 
     [Fact]
-    public async Task PublishNotification_WithUnknownType_DoesNotThrow()
+    public async Task PublishNotification_WithUnknownType_DoesNotPublish()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
+        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out var encina);
 
-        // Act
-        var exception = await Record.ExceptionAsync(() =>
-            hub.PublishNotification("NonExistent.Notification", json));
+        await hub.PublishNotification("NonExistent.Notification", Payload);
 
-        // Assert
-        Assert.Null(exception);
+        encina.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task SendCommand_WhenExceptionOccurs_ReturnsErrorResponse()
+    public async Task SendCommand_WithRegisteredFullName_SendsCommandAndReturnsData()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Message = "test" });
-        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
+        var options = new SignalROptions().AllowRequest<TestCommand>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
+        encina.Send(Arg.Any<IRequest<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Right<EncinaError, string>("done")));
 
-        // The Hub uses dynamic dispatch which will cause the Encina.Send to throw
-        // because our mock doesn't handle the specific command type
+        var json = JsonSerializer.Serialize(await hub.SendCommand(typeof(TestCommand).FullName!, Payload));
 
-        // Act
-        var result = await hub.SendCommand(typeName, json);
-
-        // Assert
-        Assert.NotNull(result);
-        // The result should be an error response (either exception or failed to process)
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
+        json.ShouldBe("""{"success":true,"data":"done"}""");
+        await encina.Received(1).Send(Arg.Is<IRequest<string>>(r => ((TestCommand)r).Message == "test"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SendQuery_WhenExceptionOccurs_ReturnsErrorResponse()
+    public async Task SendQuery_WhenEncinaReturnsError_ReturnsErrorCodeAndMessage()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Query = "test" });
-        var typeName = typeof(TestQuery).AssemblyQualifiedName!;
+        var options = new SignalROptions().AllowRequest<TestQuery>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
+        encina.Send(Arg.Any<IRequest<string>>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(Left<EncinaError, string>(EncinaErrors.Create("orders.missing", "Order missing"))));
 
-        // Act
-        var result = await hub.SendQuery(typeName, json);
+        var response = EncinaHubTestFactory.Parse(await hub.SendQuery(typeof(TestQuery).FullName!, Payload));
 
-        // Assert
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
+        response.success.ShouldBeFalse();
+        response.error!.code.ShouldBe("orders.missing");
     }
 
     [Fact]
-    public async Task PublishNotification_WhenExceptionOccurs_DoesNotThrow()
+    public async Task SendCommand_WhenEncinaThrows_ReturnsExecutionFailedWithGenericMessage()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement(new { Message = "test" });
-        var typeName = typeof(TestHubNotification).AssemblyQualifiedName!;
+        var options = new SignalROptions().AllowRequest<TestCommand>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
+        encina.Send(Arg.Any<IRequest<string>>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, string>>>(_ => throw new InvalidOperationException("boom"));
 
-        // Act
-        var exception = await Record.ExceptionAsync(() =>
-            hub.PublishNotification(typeName, json));
+        var response = EncinaHubTestFactory.Parse(await hub.SendCommand(typeof(TestCommand).FullName!, Payload));
 
-        // Assert
-        Assert.Null(exception);
+        response.error!.code.ShouldBe("command.execution_failed");
+        response.error.message.ShouldBe("An error occurred while processing your request.");
     }
 
     [Fact]
-    public void ResolveType_WithExactTypeName_ReturnsType()
+    public async Task SendQuery_WhenEncinaThrowsWithDetailedErrors_ReturnsExceptionDetails()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
+        var options = new SignalROptions { IncludeDetailedErrors = true }.AllowRequest<TestQuery>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
+        encina.Send(Arg.Any<IRequest<string>>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, string>>>(_ => throw new InvalidOperationException("boom"));
 
-        // Act
-        var type = hub.TestResolveType(typeName);
+        var response = EncinaHubTestFactory.Parse(await hub.SendQuery(typeof(TestQuery).FullName!, Payload));
 
-        // Assert
-        Assert.Equal(typeof(TestCommand), type);
+        response.error!.code.ShouldBe("query.execution_failed");
+        response.error.message!.ShouldContain("boom");
     }
 
     [Fact]
-    public void ResolveType_WithSimpleName_ReturnsMatchingType()
+    public async Task SendCommand_WithDetailedErrorsEnabled_DoesNotEchoUnknownTypeName()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var typeName = nameof(TestCommand);
+        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions { IncludeDetailedErrors = true }, out _);
 
-        // Act
-        var type = hub.TestResolveType(typeName);
+        var response = EncinaHubTestFactory.Parse(await hub.SendCommand("NonExistent.CommandType", Payload));
 
-        // Assert - Should find some type with matching name (may not be this exact type
-        // due to multiple types with same simple name in consolidated test assembly)
-        Assert.NotNull(type);
-        Assert.Equal(typeName, type.Name);
+        response.error!.code.ShouldBe("command.type_not_found");
+        response.error.message!.ShouldNotContain("NonExistent");
     }
 
     [Fact]
-    public void ResolveType_WithNonExistentType_ReturnsNull()
+    public async Task SendCommand_WithNullPayload_ReturnsDeserializationError()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var typeName = "NonExistent.Type.That.Does.Not.Exist";
+        var options = new SignalROptions().AllowRequest<TestCommand>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out _);
 
-        // Act
-        var type = hub.TestResolveType(typeName);
+        var response = EncinaHubTestFactory.Parse(
+            await hub.SendCommand(typeof(TestCommand).FullName!, JsonSerializer.SerializeToElement<object?>(null)));
 
-        // Assert
-        Assert.Null(type);
+        response.error!.code.ShouldBe("command.deserialization_failed");
     }
 
     [Fact]
-    public async Task SendCommand_WithDetailedErrorsEnabled_IncludesExceptionDetails()
+    public async Task SendQuery_WithNullPayload_ReturnsDeserializationError()
     {
-        // Arrange
-        using var hub = CreateHub(new SignalROptions { IncludeDetailedErrors = true });
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
-        var typeName = "NonExistent.CommandType"; // This will trigger type_not_found error
+        var options = new SignalROptions().AllowRequest<TestQuery>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out _);
 
-        // Act
-        var result = await hub.SendCommand(typeName, json);
+        var response = EncinaHubTestFactory.Parse(
+            await hub.SendQuery(typeof(TestQuery).FullName!, JsonSerializer.SerializeToElement<object?>(null)));
 
-        // Assert - Verify detailed error message is included
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
-        AssertHasErrorCode(response, "command.type_not_found");
-        AssertErrorMessageContains(response, typeName);
+        response.error!.code.ShouldBe("query.deserialization_failed");
     }
 
     [Fact]
-    public async Task SendQuery_WithDetailedErrorsEnabled_IncludesExceptionDetails()
+    public async Task PublishNotification_WithRegisteredType_PublishesNotification()
     {
-        // Arrange
-        using var hub = CreateHub(new SignalROptions { IncludeDetailedErrors = true });
-        var json = JsonSerializer.SerializeToElement(new { Value = "test" });
-        var typeName = "NonExistent.QueryType"; // This will trigger type_not_found error
+        var options = new SignalROptions().AllowNotification<TestHubNotification>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
 
-        // Act
-        var result = await hub.SendQuery(typeName, json);
+        await hub.PublishNotification(typeof(TestHubNotification).FullName!, Payload);
 
-        // Assert - Verify detailed error message is included
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
-        AssertHasErrorCode(response, "query.type_not_found");
-        AssertErrorMessageContains(response, typeName);
+        await encina.Received(1).Publish(Arg.Is<TestHubNotification>(n => n.Message == "test"), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task SendCommand_WithNullDeserialization_ReturnsDeserializationError()
+    public async Task PublishNotification_WithNullPayload_DoesNotPublish()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement<object?>(null);
-        var typeName = typeof(TestCommand).AssemblyQualifiedName!;
+        var options = new SignalROptions().AllowNotification<TestHubNotification>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
 
-        // Act
-        var result = await hub.SendCommand(typeName, json);
+        await hub.PublishNotification(typeof(TestHubNotification).FullName!, JsonSerializer.SerializeToElement<object?>(null));
 
-        // Assert
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
+        encina.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]
-    public async Task SendQuery_WithNullDeserialization_ReturnsDeserializationError()
+    public async Task PublishNotification_WhenEncinaThrows_DoesNotThrow()
     {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement<object?>(null);
-        var typeName = typeof(TestQuery).AssemblyQualifiedName!;
+        var options = new SignalROptions().AllowNotification<TestHubNotification>();
+        using var hub = EncinaHubTestFactory.CreateHub(options, out var encina);
+        encina.Publish(Arg.Any<TestHubNotification>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<Either<EncinaError, Unit>>>(_ => throw new InvalidOperationException("boom"));
 
-        // Act
-        var result = await hub.SendQuery(typeName, json);
+        var exception = await Record.ExceptionAsync(() => hub.PublishNotification(typeof(TestHubNotification).FullName!, Payload));
 
-        // Assert
-        Assert.NotNull(result);
-        var response = ParseHubResponse(result);
-        AssertIsFailedResponse(response);
+        exception.ShouldBeNull();
     }
 
-    [Fact]
-    public async Task PublishNotification_WithNullDeserialization_DoesNotThrow()
-    {
-        // Arrange
-        using var hub = CreateHub();
-        var json = JsonSerializer.SerializeToElement<object?>(null);
-        var typeName = typeof(TestHubNotification).AssemblyQualifiedName!;
+    // Test types - public for NSubstitute proxy generation.
+    public sealed record TestCommand(string Message) : ICommand<string>;
 
-        // Act
-        var exception = await Record.ExceptionAsync(() =>
-            hub.PublishNotification(typeName, json));
-
-        // Assert
-        Assert.Null(exception);
-    }
-
-    private sealed record HubResponse(bool success, ErrorInfo? error);
-
-    private sealed record ErrorInfo(string code, string? message);
-
-    private static HubResponse ParseHubResponse(object result)
-    {
-        var json = JsonSerializer.Serialize(result);
-        return JsonSerializer.Deserialize<HubResponse>(json)
-            ?? throw new InvalidOperationException("Failed to parse hub response");
-    }
-
-    private static void AssertIsFailedResponse(HubResponse response)
-    {
-        Assert.False(response.success, "Expected 'success' property to be false for a failed response");
-    }
-
-    private static void AssertHasErrorCode(HubResponse response, string expectedCode)
-    {
-        Assert.NotNull(response.error);
-        Assert.Equal(expectedCode, response.error.code);
-    }
-
-    private static void AssertErrorMessageContains(HubResponse response, string expectedContent)
-    {
-        Assert.NotNull(response.error);
-        Assert.NotNull(response.error.message);
-        Assert.Contains(expectedContent, response.error.message);
-    }
-
-    private static HubCallerContext CreateMockHubContext()
-    {
-        var hubContext = Substitute.For<HubCallerContext>();
-        hubContext.ConnectionId.Returns("test-connection-id");
-        hubContext.ConnectionAborted.Returns(CancellationToken.None);
-        return hubContext;
-    }
-
-    // Test hub implementation for testing abstract EncinaHub
-    // Must be public for NSubstitute proxy generation
-    public sealed class TestEncinaHub : EncinaHub
-    {
-        public TestEncinaHub(IEncina encina, IOptions<SignalROptions> options, ILogger logger)
-            : base(encina, options, logger)
-        {
-        }
-
-        public IEncina GetEncina() => Encina;
-
-        public Type? TestResolveType(string typeName) => ResolveType(typeName);
-    }
-
-    // Test types for hub tests - Must be public for NSubstitute proxy generation
-    public sealed record TestCommand(string Message) : IRequest<string>;
-
-    public sealed record TestQuery(string Query) : IRequest<string>;
+    public sealed record TestQuery(string Query) : IQuery<string>;
 
     public sealed record TestHubNotification(string Message) : INotification;
+}
+
+/// <summary>
+/// Builds <see cref="EncinaHub"/> instances over a substitute <see cref="IEncina"/> and a caller
+/// context whose authentication state the test chooses.
+/// </summary>
+internal static class EncinaHubTestFactory
+{
+    internal static TestEncinaHub CreateHub(
+        SignalROptions options,
+        out IEncina encina,
+        ClaimsPrincipal? user = null,
+        ILogger? logger = null,
+        bool authenticated = true)
+    {
+        encina = Substitute.For<IEncina>();
+        var hub = new TestEncinaHub(encina, Options.Create(options), logger ?? NullLogger.Instance);
+        var context = Substitute.For<HubCallerContext>();
+        context.ConnectionId.Returns("test-connection-id");
+        context.ConnectionAborted.Returns(CancellationToken.None);
+        context.User.Returns(user ?? (authenticated ? AuthenticatedUser() : null));
+        hub.Context = context;
+        return hub;
+    }
+
+    internal static ClaimsPrincipal AuthenticatedUser()
+        => new(new ClaimsIdentity([new Claim(ClaimTypes.Name, "alice")], authenticationType: "Test"));
+
+    internal static HubResponse Parse(object result)
+        => JsonSerializer.Deserialize<HubResponse>(JsonSerializer.Serialize(result))
+           ?? throw new InvalidOperationException("Failed to parse hub response");
+
+#pragma warning disable IDE1006, SA1300 // Lower-case names mirror the hub's JSON response shape.
+    internal sealed record HubResponse(bool success, ErrorInfo? error);
+
+    internal sealed record ErrorInfo(string code, string? message);
+#pragma warning restore IDE1006, SA1300
+}
+
+/// <summary>A concrete hub over the abstract <see cref="EncinaHub"/>; public for NSubstitute.</summary>
+public sealed class TestEncinaHub : EncinaHub
+{
+    public TestEncinaHub(IEncina encina, IOptions<SignalROptions> options, ILogger logger)
+        : base(encina, options, logger)
+    {
+    }
+
+    public IEncina GetEncina() => Encina;
 }
