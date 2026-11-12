@@ -521,6 +521,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     private static List<IEvent> CreateFakeEvents(Guid id, params int[] versions)
