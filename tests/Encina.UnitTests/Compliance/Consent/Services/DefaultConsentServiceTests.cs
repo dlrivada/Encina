@@ -295,6 +295,7 @@ public class DefaultConsentServiceTests
     [InlineData(ConsentStatus.Active)]
     [InlineData(ConsentStatus.Withdrawn)]
     [InlineData(ConsentStatus.RequiresReconsent)]
+    [InlineData(ConsentStatus.Expired)]
     public async Task GrantConsentAsync_StreamAlreadyExists_ReturnsExistingIdWithoutMutation(ConsentStatus existingStatus)
     {
         // Arrange — the key already has a stream (sequential repeat or concurrent loser).
@@ -303,8 +304,10 @@ public class DefaultConsentServiceTests
         {
             ConsentStatus.Withdrawn => CreateWithdrawnAggregate(existingId),
             ConsentStatus.RequiresReconsent => CreateRequiresReconsentAggregate(existingId),
+            ConsentStatus.Expired => CreateExpiredAggregate(existingId),
             _ => CreateActiveAggregate(existingId)
         };
+        existing.Status.ShouldBe(existingStatus);
         _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
             .Returns(Left<EncinaError, Unit>(EncinaErrors.Create(MartenErrorCodes.StreamAlreadyExists, "Stream already exists")));
         _repository.LoadAsync(existingId, Arg.Any<CancellationToken>())
@@ -971,6 +974,15 @@ public class DefaultConsentServiceTests
     {
         var aggregate = CreateActiveAggregate(id);
         aggregate.Withdraw("admin", "User requested", FixedNow.AddDays(-5));
+        return aggregate;
+    }
+
+    private static ConsentAggregate CreateExpiredAggregate(Guid id)
+    {
+        var aggregate = ConsentAggregate.Grant(
+            id, "subject-1", "marketing", "v1", "web-form", null, null,
+            new Dictionary<string, object?>(), FixedNow.AddDays(-1), "admin", FixedNow.AddDays(-10));
+        aggregate.Expire(FixedNow);
         return aggregate;
     }
 

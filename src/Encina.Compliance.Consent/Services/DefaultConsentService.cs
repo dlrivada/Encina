@@ -201,6 +201,9 @@ internal sealed class DefaultConsentService : IConsentService
     /// Interim behavior until #3771: the existing stream is re-read and its consent id is returned
     /// unchanged, whatever its state (Active, Withdrawn, Expired or RequiresReconsent); nothing is
     /// appended. #3771 replaces this method with the renewal, regrant and act-ordering rules.
+    /// Known limit: the failed stream creation stays queued in the scoped Marten session, so a
+    /// later write on the same session fails until <c>Encina.Marten</c> clears the session after a
+    /// failed save (follow-up of #3769).
     /// </remarks>
     private async Task<Either<EncinaError, Guid>> GrantOnExistingConsentAsync(
         Guid consentId,
