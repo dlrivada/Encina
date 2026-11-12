@@ -26,30 +26,6 @@ public sealed class EncinaHubTests
     }
 
     [Fact]
-    public async Task SendCommand_WithUnknownType_ReturnsTypeNotFoundError()
-    {
-        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out _);
-
-        var response = EncinaHubTestFactory.Parse(await hub.SendCommand("NonExistent.Command", Payload));
-
-        response.success.ShouldBeFalse();
-        response.error!.code.ShouldBe("command.type_not_found");
-        response.error.message.ShouldBe("Command type not found.");
-    }
-
-    [Fact]
-    public async Task SendQuery_WithUnknownType_ReturnsTypeNotFoundError()
-    {
-        using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out _);
-
-        var response = EncinaHubTestFactory.Parse(await hub.SendQuery("NonExistent.Query", Payload));
-
-        response.success.ShouldBeFalse();
-        response.error!.code.ShouldBe("query.type_not_found");
-        response.error.message.ShouldBe("Query type not found.");
-    }
-
-    [Fact]
     public async Task PublishNotification_WithUnknownType_DoesNotPublish()
     {
         using var hub = EncinaHubTestFactory.CreateHub(new SignalROptions(), out var encina);

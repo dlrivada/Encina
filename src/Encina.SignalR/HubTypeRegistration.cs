@@ -9,13 +9,8 @@ namespace Encina.SignalR;
 /// </summary>
 internal enum HubMessageKind
 {
-    /// <summary>A command, invoked through <see cref="EncinaHub.SendCommand"/>.</summary>
     Command,
-
-    /// <summary>A query, invoked through <see cref="EncinaHub.SendQuery"/>.</summary>
     Query,
-
-    /// <summary>A notification, invoked through <see cref="EncinaHub.PublishNotification"/>.</summary>
     Notification,
 }
 

@@ -17,16 +17,6 @@ namespace Encina.SignalR;
 /// type inside the <c>AddEncinaSignalR</c> configuration delegate.
 /// </para>
 /// </remarks>
-/// <example>
-/// <code>
-/// services.AddEncinaSignalR(options =>
-/// {
-///     options.AllowRequest&lt;GetOrderQuery&gt;();                   // authenticated callers only
-///     options.AllowRequest&lt;PingQuery&gt;(allowAnonymous: true);   // explicit, logged at startup
-///     options.AllowNotification&lt;OrderViewed&gt;();
-/// });
-/// </code>
-/// </example>
 public sealed class SignalROptions
 {
     private readonly Dictionary<string, HubTypeRegistration> _allowList = new(StringComparer.Ordinal);

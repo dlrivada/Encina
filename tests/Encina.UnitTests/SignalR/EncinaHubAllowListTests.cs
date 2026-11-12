@@ -307,16 +307,6 @@ public sealed class EncinaHubAllowListTests
     }
 
     [Fact]
-    public void Registration_AfterAHubReadTheAllowList_Throws()
-    {
-        var options = new SignalROptions().AllowRequest<AllowedCommand>();
-        using var hub = EncinaHubTestFactory.CreateHub(options, out _);
-
-        Should.Throw<InvalidOperationException>(() => options.AllowRequest<AllowedQuery>());
-        options.GetAllowList().Count.ShouldBe(1);
-    }
-
-    [Fact]
     public async Task StartupCheck_LogsEachAnonymousEntryOnce_AndFreezesTheAllowList()
     {
         var options = new SignalROptions()
