@@ -50,19 +50,31 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 <details>
 <summary><strong>2. Atomicity of the audit record with the state change (Dilemma D2)</strong></summary>
 
+Verified on origin/main: `SagaOrchestrator` only calls `ISagaStore.AddAsync` and `UpdateAsync` and never `SaveChangesAsync` (`src/Encina.Messaging/Sagas/`, grep); `SagaStoreEF.UpdateAsync` only stages the change on the `DbContext` (`SagaStoreEF.cs` line 66) and the commit is `SaveChangesAsync` (line 128), owned by the caller or an ambient unit of work. The ADO.NET and Dapper stores execute and commit inside each call. So "after the save" means different things per store family.
+
+| Store family | When the saga change is durable | Order of an emission right after the store call |
+|---|---|---|
+| ADO.NET, Dapper (6 stores) | Inside `UpdateAsync`/`AddAsync` | Audit written after the commit; a failed audit leaves the transition applied and unaudited |
+| EF Core (3 providers, one store) | At `SaveChangesAsync`, by the caller | Audit written BEFORE the commit; a rollback of the saga unit of work leaves an audit entry for a transition that never happened |
+| MongoDB | Inside the call | After the commit, like ADO.NET |
+
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Record after the saga state was saved; a failure leaves the transition applied but unaudited and returns `Left`** | Simple; no shared transaction | A gap is possible between state and audit |
-| **B) Write both in the same unit of work** | No gap | The audit store must join the saga store's connection or transaction, possible only when both use the same database provider |
+| **A) The orchestrator emits right after each successful `AddAsync`/`UpdateAsync`; a sink `Left` is returned** | Simple; the orchestrator is the single emission point; no new commit coupling | For EF Core the entry can describe a rolled-back transition (the inverse of the gap); for the other stores an unaudited-but-applied transition is possible |
+| B) A decorator over `ISagaStore` records the pending events at `AddAsync`/`UpdateAsync` and emits them after the inner `SaveChangesAsync` succeeds | Correct for EF Core: no entry for a rolled-back transition | The non-EF stores commit in the call and nobody calls `SaveChangesAsync` (the orchestrator does not), so the decorator needs a per-family rule; more moving parts |
+| C) Write both in the same unit of work | No gap and no phantom entry | The audit store must join the saga store's connection or transaction, possible only when both use the same database provider; `IOperationAuditStore` has no transaction support |
 
-### Chosen Option: **A — Record after the save** (recommended, pending the maintainer)
+### Chosen Option: **A — Emit after the store call** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Option A wins when the audit store and the saga store do not share a connection (different providers, MongoDB, the in-memory store). Option B wins in regulated deployments where a gap is unacceptable; it is tracked for when `IOperationAuditStore` gains transaction support.
-- The caller of the orchestrator receives the `Left` from the audit write, so the gap is never silent (see choice 5).
+- Option A wins when simplicity matters and the saga write is committed by the caller before or soon after (the usual `IEncina.Send` with the transaction behavior). Option B wins in regulated deployments on EF Core where an audit entry for a rolled-back transition is unacceptable. Option C is tracked for when `IOperationAuditStore` gains transaction support.
+- Cost of the recommendation in the losing scenario: on EF Core a rollback after the audit write leaves a phantom entry in the audit trail, and the audit store (`OperationAuditStoreEF` calls `SaveChangesAsync` on its own context) cannot be rolled back with the saga. The documentation says so per store family.
+- The caller of the orchestrator receives the `Left` from the audit write, so the unaudited case is never silent (see choice 5).
+- The same premise (who commits the saga write) is in the #297 plan (Design Choice 11, D6); the maintainer's answer should be one for the saga family.
+- Tests, one per store family: a fake ADO-style store (durable in the call), a fake EF-style store (staged until `SaveChangesAsync`), proving the documented ordering and that a sink `Left` is returned in both.
 - **Class:** Dilemma
 
 </details>
@@ -83,7 +95,9 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 
 - **Class:** Settled
 - **Settled by:** `AGENTS.md` section 6, function 12 (`IOperationAuditStore`, `IEntityChangeAuditStore` (today `IAuditLogStore`, #1778), `IReadAuditStore` (ADR-036)); the issue itself.
-- Mapping to `OperationAuditEntry` (`src/Encina.Security.Audit/OperationAuditEntry.cs`): `Action` = `Saga.<Event>`, `EntityType` = `Saga`, `EntityId` = saga id, `CorrelationId` = the request correlation id or the saga id when there is none, `Outcome` = `Success` (started, step executed, completed, compensated), `Failure` (step failed, compensating), `Error` (failed, timed out), `TenantId` from the ambient context, `Metadata` = saga type, step index, previous and new status, duration since the previous transition.
+- Mapping to `OperationAuditEntry` (`src/Encina.Security.Audit/OperationAuditEntry.cs`): `Action` = `Saga.<Event>`, `EntityType` = `Saga`, `EntityId` = saga id, `CorrelationId` = the request correlation id or the saga id when there is none, `Outcome` = `Success` (started, step executed, completed, compensated), `Failure` (step failed, compensating), `Error` (failed, timed out), `TenantId` from the ambient context, `Metadata` = saga type, step index, previous and new status, error code (`error_code`, codes only), duration since the previous transition.
+- The required members: `Id` (choice 7), `TimestampUtc` = `OccurredAtUtc.UtcDateTime`, `StartedAtUtc` and `CompletedAtUtc` = `OccurredAtUtc` (a transition is instantaneous), all from `TimeProvider` through the event, never `DateTime.UtcNow`.
+- The optional members: `UserId` from `IRequestContext.Identity.UserId` of the ambient request context, or null when there is none (a background timeout has no user); `IpAddress`, `UserAgent`, `ErrorMessage` (the code is in `Metadata`), `RequestPayload`, `ResponsePayload` and `RequestPayloadHash` are null. No personal data beyond the user id is copied.
 
 </details>
 
@@ -103,7 +117,7 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 
 - **Class:** Settled
 - **Settled by:** the issue's acceptance criterion "All saga state transitions audited (including `Compensated` and `TimedOut`)" and `SagaStatus` in `src/Encina.Messaging/Sagas/SagaOrchestrator.cs`.
-- Emission points: `StartAsync` (Started), `AdvanceAsync` (StepExecuted), `StartCompensationAsync` (StepFailed and Compensating, two entries with distinct ids, the failing step index and the error code), `CompensateStepAsync` when no step remains (Compensated), `CompleteAsync` (Completed), `FailAsync` (Failed), `TimeoutAsync` (TimedOut). The runner (`SagaRunner`) does not emit: the orchestrator is the single place that persists transitions.
+- Emission points: `StartAsync` (Started), `AdvanceAsync` (StepExecuted), `StartCompensationAsync` (StepFailed and Compensating, two entries, the failing step index and the error code; one orchestrator call changes the status and also ends a failed step, so each fact is its own row: `StepFailed` is the step outcome, `Compensating` the status change, a Trivial convention that follows "one row per event kind"), `CompensateStepAsync` when no step remains (Compensated), `CompleteAsync` (Completed), `FailAsync` (Failed), `TimeoutAsync` (TimedOut). The runner (`SagaRunner`) does not emit: the orchestrator is the single place that persists transitions.
 
 </details>
 
@@ -148,22 +162,25 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 </details>
 
 <details>
-<summary><strong>7. Entry identity and idempotency</strong></summary>
+<summary><strong>7. Entry identity and idempotency (Dilemma D3)</strong></summary>
+
+Verified on origin/main: the operation audit stores do a plain insert (`INSERT INTO` in the ADO.NET and Dapper stores, `AddAsync` plus `SaveChangesAsync` in `OperationAuditStoreEF`, `InsertOneAsync` in `OperationAuditStoreMongoDB`), none with insert-or-ignore; a duplicate id is a primary-key violation that every store turns into the same generic `OperationAuditErrors.StoreError("Record", ex)` `Left`. `IOperationAuditStore.RecordAsync` only says implementations "should handle duplicate IDs gracefully (e.g., update or reject)". So the adapter cannot tell a duplicate from a real failure, and by choice 5 a retried saga operation would fail every time with a deterministic id.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A deterministic `Guid` derived from saga id, event name and step index (SHA-256, first 16 bytes)** | A retried transition cannot write two entries for one transition (if the store honours the id) | Needs a stable derivation helper |
-| **B) `Guid.NewGuid()` per call** | Trivial | A retry duplicates the entry |
+| **A) A random `Guid` per entry (the id is identity only); the metadata (saga id, kind, step index) lets a reader spot a duplicate** | A retry never fails because of the audit; no store change | A retried transition can write two entries (at-least-once audit) |
+| B) A deterministic `Guid` derived from saga id, event kind and step index (SHA-256, first 16 bytes), with `IOperationAuditStore.RecordAsync` made insert-or-ignore (a duplicate id is success) in all the stores | Exactly-once entry per transition | Changes the behavior of 8 store implementations (3 ADO.NET, 3 Dapper, EF Core, MongoDB) and their tests, outside this feature's scope; a new issue would own it |
 
-### Chosen Option: **A — Deterministic id**
+### Chosen Option: **A — Random id, duplicates distinguishable by metadata** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** the idempotency question of `AGENTS.md` section 6, function 9 (can receive duplicates: deduplication key); `OperationAuditEntry.Id` is a required `Guid`.
+- Option A wins because it is correct with the stores as they are: a duplicate-key `Left` is indistinguishable from a real failure, so Option B without the store change is wrong. Option B wins if the maintainer wants exactly-once audit and accepts the store change (open an issue for it, then switch).
+- Cost in the losing scenario: under A an at-least-once retry duplicates a row in the audit trail; consumers deduplicate on (`EntityId`, `Action`, `step_index`).
 - Timestamps come from `TimeProvider` (`AGENTS.md` section 3).
+- **Class:** Dilemma
 
 </details>
 
@@ -210,7 +227,7 @@ Record every saga state transition as an operation audit entry, opt-in, so the l
 
 ```
 CONTEXT:
-- Issue #750; plan docs/plans/saga-audit-implementation-plan-750.md. Dilemmas D1-D2 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #750; plan docs/plans/saga-audit-implementation-plan-750.md. Dilemmas D1-D3 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - Encina.Messaging cannot reference Encina.Security.Audit (the reverse reference exists).
 
 TASK:
@@ -233,13 +250,13 @@ REFERENCE FILES:
 
 ### Phase 2: Orchestrator Emission
 
-> **Goal**: Every transition is recorded after its state is saved.
+> **Goal**: Every transition is recorded right after its store call returns (D2 option A; the commit point differs per store family, see Design Choice 2).
 
 <details>
 <summary>Tasks</summary>
 
 1. `SagaOrchestrator`: optional constructor parameter `ISagaAuditSink? auditSink`; after each successful `ISagaStore.UpdateAsync`/`AddAsync` call the sink (emission points of choice 4); a `Left` from the sink is returned (choice 5). With no sink nothing is emitted and nothing is allocated.
-2. Stable entry ids are derived by the adapter (Phase 3) from the event, not by the orchestrator.
+2. Entry ids are assigned by the adapter (Phase 3, random, D3 option A), not by the orchestrator.
 3. `[LoggerMessage]` entries (audit recorded at Debug, audit failed at Error with the error code) in the `MessagingSaga` range, ids 2250-2274, sequential.
 4. `RegisterSagas` (`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`, line 355) does not register the sink; it is resolved optionally.
 
@@ -256,7 +273,8 @@ TASK:
 Emit the events from SagaOrchestrator at the points listed in Phase 2 Tasks.
 
 KEY RULES:
-- Emit only after the state was saved; return the sink's Left to the caller, never swallow it.
+- Emit only after the store call returned Right (the orchestrator never calls SaveChangesAsync: on EF Core that is before the commit, see Design Choice 2); return the sink's Left to the caller, never swallow it.
+- Unit tests per store family: a fake that commits in the call and a fake that stages until SaveChangesAsync.
 - Time from the existing TimeProvider; log the error code only, exceptions via ForLogging().
 - EventIds 2250-2274 inside the registered MessagingSaga range; run EncinaEventIdAllocationTests.
 
@@ -277,7 +295,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `SagaAuditSink` (internal, `src/Encina.Security.Audit/Sagas/`): maps `SagaTransitionEvent` to `OperationAuditEntry` (choice 3), derives the deterministic id (choice 7), calls `IOperationAuditStore.RecordAsync`.
+1. `SagaAuditSink` (internal, `src/Encina.Security.Audit/Sagas/`): maps `SagaTransitionEvent` to `OperationAuditEntry` (choice 3), assigns a random id (choice 7, D3 option A), fills the required timestamps and the optional members as choice 3 lists, calls `IOperationAuditStore.RecordAsync`.
 2. `AddEncinaAudit()` registers `ISagaAuditSink` with `TryAddScoped` (`src/Encina.Security.Audit/ServiceCollectionExtensions.cs`, line 79).
 3. Startup validation: `UseSagaAudit` with no `ISagaAuditSink` registered fails with a clear message.
 4. DI test with `ValidateOnBuild` and `ValidateScopes`: with and without `AddEncinaAudit()`.
@@ -317,7 +335,7 @@ REFERENCE FILES:
 
 1. **OpenTelemetry**: a counter `encina.saga.audit_events` (`Counter<long>`, tags `saga.type`, `kind`, `outcome`) on the saga meter source; failures counted with `outcome=failed`.
 2. **Structured logging**: Phase 2 messages.
-3. **Idempotency**: the deterministic entry id (choice 7).
+3. **Idempotency**: not an id derivation (choice 7, D3 option A); duplicates are distinguishable by the metadata (saga id, kind, step index).
 4. **Multi-tenancy**: the entry's `TenantId` comes from the ambient `IRequestContext.TenantId` (`IRequestContextAccessor`); when #738 lands the row's tenant is used.
 5. **Deferred**: transactions (D2 B), resilience of the audit write (owned by the store), module scoping, health.
 
@@ -382,13 +400,20 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: each event kind is emitted at its point; opt-out emits nothing; a sink `Left` is returned; mapping to `OperationAuditEntry` (outcome, metadata, no payload); deterministic id.
+1. **Unit**: each event kind is emitted at its point; opt-out emits nothing; a sink `Left` is returned; mapping to `OperationAuditEntry` (outcome, metadata, required timestamps, user id from the context or null, no payload, no `ErrorMessage`); two entries of a retried transition carry the same (saga id, kind, step index) metadata; per store family ordering (D2); a sink `Left` returned in both families.
 2. **Guard**: new public members with parameters.
 3. **Contract**: `ISagaAuditSink` implemented by the adapter and a fake.
 4. **Property (FsCheck)**: any lifecycle sequence produces events in order with consistent previous and new status.
 5. **Integration**: the adapter against `OperationAuditStoreADO` on one real database through `[Collection("ADO-PostgreSQL")]` (the adapter has no provider-specific code, so one provider proves the mapping; the stores have their own integration tests).
 6. **Load and Benchmark**: justification files `tests/Encina.LoadTests/Sagas/SagaAudit.md` and `tests/Encina.BenchmarkTests/Sagas/SagaAudit.md` (thin write path).
-7. **Per-file targets** with a one-sentence justification in `.github/coverage-manifest/Encina.Messaging.json` and `Encina.Security.Audit.json`.
+7. **Per-file targets** in `.github/coverage-manifest/Encina.Messaging.json` and `Encina.Security.Audit.json`, each with a one-sentence justification written in the manifest. Starting values:
+
+   | File group | Unit | Guard | Contract | Property | Integration | Justification |
+   |---|---|---|---|---|---|---|
+   | `SagaOrchestrator` (changed emission code) | 90 | 90 | 0 | 60 | 0 | Every emission point and the `Left` return are testable with fake stores; the property flag checks event order and status consistency |
+   | `SagaAuditSink` (adapter and mapping) | 95 | 90 | 80 | 0 | 70 | Pure mapping plus one store call; the real operation audit store proves the entry is written |
+   | Event record, kind enum, sink interface, flag | 0 | 90 | 0 | 0 | 0 | Declarations; the guard flag covers the constructor and members with parameters |
+   | Registration and startup check | 95 | 90 | 0 | 0 | 0 | Fully covered by the DI test with and without `AddEncinaAudit()` |
 
 </details>
 
@@ -420,7 +445,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. XML docs; `PublicAPI.Unshipped.txt`; `changelog.d/750-saga-audit-trail.added.md`; the saga guide (through docs-writer); an ADR for D1 (read `docs/architecture/adr/index.md` for the next free number); package README note for `Encina.Security.Audit`.
+1. XML docs; `PublicAPI.Unshipped.txt`; `changelog.d/750-saga-audit-trail.added.md`; the saga guide (through docs-writer); an ADR for D1 (ADR number assigned when the ADR pull request opens); package README note for `Encina.Security.Audit`.
 2. `dotnet build --configuration Release` with 0 warnings; `dotnet test` with every flag at its target.
 
 </details>
@@ -513,17 +538,17 @@ REFERENCE FILES:
 ```
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete]; XML docs; zero warnings.
-- Issue #750: opt-in audit of saga transitions through IOperationAuditStore. Encina.Security.Audit references Encina.Messaging, so Messaging owns a sink interface. Plan: docs/plans/saga-audit-implementation-plan-750.md; Dilemmas D1-D2 are recommended, pending the maintainer.
+- Issue #750: opt-in audit of saga transitions through IOperationAuditStore. Encina.Security.Audit references Encina.Messaging, so Messaging owns a sink interface. Plan: docs/plans/saga-audit-implementation-plan-750.md; Dilemmas D1-D3 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW:
 1. Event record, sink interface, UseSagaAudit flag (Phase 1).
-2. Emission from SagaOrchestrator after each saved transition (Phase 2).
+2. Emission from SagaOrchestrator right after each store call (Phase 2; the orchestrator never commits, see Design Choice 2).
 3. Adapter and registration in Encina.Security.Audit (Phase 3).
 4. Cross-cutting, observability, tests, documentation (Phases 4-7).
 
 KEY PATTERNS:
 - A Left from the sink is returned to the caller, never swallowed; error code only in entries and logs.
-- Deterministic entry ids; TimeProvider for time; TryAdd registrations with a ValidateOnBuild DI test.
+- Random entry ids with duplicates distinguishable by metadata (D3, the stores do plain inserts); TimeProvider for time; TryAdd registrations with a ValidateOnBuild DI test.
 - EventIds 2250-2274 inside the registered MessagingSaga range.
 
 REFERENCE FILES:
@@ -549,7 +574,7 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ | Not applicable: the audit store implementation owns retries and the orchestrator does not retry; a failed write is returned as a `Left` |
 | 7 | Distributed Locks | ❌ | Not applicable: no shared state is locked |
 | 8 | Transactions | ⏭️ | Deferred: depends on D2 option B, when `IOperationAuditStore` gains transaction support (to be opened as an issue if the maintainer chooses B) |
-| 9 | Idempotency | ✅ | Phase 3: deterministic entry id |
+| 9 | Idempotency | ⏭️ | Deferred with D3 option A: a retried transition can write a second row, distinguishable by metadata; exactly-once needs insert-or-ignore in the 8 operation audit stores and is opened as an issue only if the maintainer picks D3 option B |
 | 10 | Multi-Tenancy | ✅ | Phase 4: ambient tenant; the row's tenant once #738 lands |
 | 11 | Module Isolation | ❌ | Not applicable: saga rows have no module scope (#747 is separate) |
 | 12 | Audit Trail | ✅ | This is the feature |
@@ -566,5 +591,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1 and D2 when work on #750 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2 and D3 when work on #750 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Brief pull request 1 (with or after #1581).
