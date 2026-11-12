@@ -3,7 +3,7 @@
 > **Issue**: [#635](https://github.com/dlrivada/Encina/issues/635) (`area-cdc`, `priority-low`, `p1-recommended`)
 > **Type**: Feature
 > **Complexity**: High (a CDC handler, a retention engine decision, a purge executor on the 10 providers, a follow-up for crypto-shredding)
-> **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,500-3,200 lines of tests (about 158 files and up to about 10,050 line-changes in total with manifests, PublicAPI and documentation), delivered in 19 pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,500-3,200 lines of tests (about 160 files and up to about 10,050 line-changes in total with manifests, PublicAPI and documentation), delivered in 19 pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family (#633, #634, #636, #2393)**: independent of #633 and #2393. #634 and #636 add other CDC handlers through the same `CdcConfiguration` seam; #636 also decides how a CDC consumer excludes infrastructure tables. Sibling plans are referred to by issue number only.
 
 ---
@@ -44,11 +44,11 @@ When a soft delete is captured by CDC, the permanent (hard) delete of the row is
   | 14 | `SoftDeleteRetentionSweepService` + unit and guard tests + manifest (Phase 3 task 3) | 7 | ~450 | 4-11, 13 |
   | 15 | `WithSoftDeleteRetention`, registration method, startup validator, DI proof, PublicAPI, manifest (Phase 6) | 8 | ~500 | 13, 14 |
   | 16 | Metrics, activity source, audit entry, OpenTelemetry subscription, unit and guard tests, manifest (Phase 7) | 8 | ~500 | 15 |
-  | 17 | End-to-end integration tests on the 9 relational providers (shared base + 9 classes) (Phase 8 task 5) | 10 | ~1,100 | 4-10, 15 |
-  | 18 | End-to-end MongoDB and Retention-module-on-Marten integration tests, load and benchmark justification `.md` files (Phase 8) | 5 | ~500 | 17 |
+  | 17 | End-to-end integration tests on the 9 relational providers (shared base + 9 classes) and the bridge manifest edit that holds the handler, tracker and eraser integration targets (Phase 8 task 5) | 11 | ~1,100 | 4-10, 15 |
+  | 18 | End-to-end MongoDB and Retention-module-on-Marten integration tests, load and benchmark justification `.md` files, and the bridge manifest edit for the Marten-path integration targets (Phase 8) | 6 | ~500 | 17 |
   | 19 | Changelog fragment, bridge README, `Encina.Cdc` README, `docs/features/cdc.md`, Retention page, `docs/INVENTORY.md`, ADR (Phase 9) | 7 | ~450 | 18 |
 
-  Total: 19 PRs, 158 files, up to about 10,050 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 4-11 are independent of each other after PR 1. PR 12 is skipped if the answers to Design Choices 5 and 11 need no module change (then 18 PRs and 151 files).
+  Total: 19 PRs, 160 files, up to about 10,050 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 4-11 are independent of each other after PR 1. PR 12 is skipped if the answers to Design Choices 5 and 11 need no module change (then 18 PRs and 153 files).
 
 ---
 
@@ -626,18 +626,18 @@ CRAP stays at or below 10 on every changed method: the handler update path is on
 
 ### Estimated File Count
 
-The per-PR counts are in "Split into pull requests" (158 files); this table groups the same file touches (a file edited in two PRs counts in each) and sums to that total.
+The per-PR counts are in "Split into pull requests" (160 files); this table groups the same file touches (a file edited in two PRs counts in each) and sums to that total.
 
 | Category | Files | Notes |
 |----------|-------|-------|
 | Production under `src/`, new or edited | 39 | PR 1: purger interface, result type, item type (3); PR 2: policy, builder, options, validator, errors (5); PR 3: tracker interface, observation, handler, log (4); PRs 4-11: purger and DI extension per package (16); PR 12: `RetentionEnforcementService`, eraser result type (2); PR 13: tracker adapter, eraser (2); PR 14: sweep (1); PR 15: `WithSoftDeleteRetention` and the startup validator (2); PR 16: metrics, activity source, OpenTelemetry subscription, eraser audit edit (4) |
 | Project and solution | 2 | bridge project file and `Encina.slnx` entry (PR 2) |
-| PublicAPI and manifests | 32 | PR 1: 2; PR 2: 3; PR 3: 2; PRs 4-9: 12; PRs 10-13: 8; PR 14: 1; PRs 15-16: 4 |
+| PublicAPI and manifests | 34 | PR 1: 2; PR 2: 3; PR 3: 2; PRs 4-9: 12; PRs 10-13: 8; PR 14: 1; PRs 15-16: 4; PRs 17-18: 1 each (the bridge manifest edit holding the integration targets) |
 | Tests | 76 | contract base (1); PR 2: 3; PR 3: 5 (handler unit, guard, log test, handler property test, allocation test edit); PRs 4-9: 24; PR 10: 8; PR 11: 4; PR 12: 3; PR 13: 4; PR 14: 5; PR 15: 4; PR 16: 2; PR 17: 10; PR 18: 3 |
 | Justification `.md` | 2 | load and benchmark (PR 18) |
 | Docs, changelog | 7 | fragment, bridge README, `Encina.Cdc` README, feature page, Retention page, inventory, ADR (PR 19) |
 
-Total 39 + 2 + 32 + 76 + 2 + 7 = 158.
+Total 39 + 2 + 34 + 76 + 2 + 7 = 160.
 
 ---
 
