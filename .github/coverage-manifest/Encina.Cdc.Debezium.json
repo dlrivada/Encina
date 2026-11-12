@@ -69,7 +69,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 0,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "The listener binds a real System.Net.HttpListener port; no unit test exists (measured 0%), it is covered only by integration runs of the Debezium connector.",
+        "guard": "The constructor is internal and takes injected options and a channel writer; no guard test exists."
+      }
     },
     "Health/DebeziumCdcHealthCheck.cs": {
       "defaultTests": [
