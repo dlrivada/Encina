@@ -160,7 +160,7 @@ Make saga compensation recoverable: each compensation step and the saga state up
 - **Class:** Settled
 - **Settled by:** the precedent in the same package, `src/Encina.Messaging/TransactionPipelineBehavior.cs` (lease begin, commit on `Right`, rollback on `Left` or exception, commit and rollback with `CancellationToken.None`), and `AGENTS.md` section 3 (provider coherence: abstractions live in `Encina.Messaging`).
 - `ISagaStore.SaveChangesAsync` remains the commit point for EF Core.
-- **Who owns the commit and the dependencies** (verified on origin/main: `SagaRunner` holds only the orchestrator, `IRequestContextAccessor` and a logger, `SagaRunner.cs` lines 22-24, and `SagaOrchestrator` never calls `SaveChangesAsync`): the runner takes the lease and owns the transaction boundary; the orchestrator owns the store, so it gets one new method, `SagaOrchestrator.CommitAsync(CancellationToken)`, that calls `ISagaStore.SaveChangesAsync` and returns its `Either`. The runner never touches `ISagaStore`. The constructor changes, all listed in `PublicAPI.Unshipped.txt` (remove the old line, add the new one): `SagaRunner` gains `IDbTransactionAccessor? transactionAccessor`, `IEncina encina` (publishes `SagaCompensationFailed`, Design Choice 8) and `IOptions<SagaOptions> options`, and an optional `TimeProvider? timeProvider = null`; `SagaOrchestrator` gains no dependency (it already holds `SagaOptions` and a `TimeProvider`). With `CompensationTransaction` on and no `IDbTransactionAccessor` registered, startup validation fails with a clear message.
+- **Who owns the commit and the dependencies** (verified on origin/main: `SagaRunner` holds only the orchestrator, `IRequestContextAccessor` and a logger, `SagaRunner.cs` lines 22-24, and `SagaOrchestrator` never calls `SaveChangesAsync`): the runner takes the lease and owns the transaction boundary; the orchestrator owns the store, so it gets one new method, `SagaOrchestrator.CommitAsync(CancellationToken)`, that calls `ISagaStore.SaveChangesAsync` and returns its `Either`. The runner never touches `ISagaStore`. **`SagaOrchestrator.CommitAsync` is the single commit owner of the saga family**: any other caller that must persist saga writes (for example the #297 coordinator, which its own plan has call `ISagaStore.SaveChangesAsync` and add nothing to `SagaOrchestrator`) calls `CommitAsync` instead of holding an `ISagaStore`; the #297 plan needs a follow-up to say so (listed in Prerequisites). The constructor changes, all listed in `PublicAPI.Unshipped.txt` (remove the old line, add the new one): `SagaRunner` gains `IDbTransactionAccessor? transactionAccessor`, `IEncina encina` (publishes `SagaCompensationFailed`, Design Choice 8) and `IOptions<SagaOptions> options`, and an optional `TimeProvider? timeProvider = null`; `SagaOrchestrator` gains no dependency (it already holds `SagaOptions` and a `TimeProvider`). With `CompensationTransaction` on and no `IDbTransactionAccessor` registered, startup validation fails with a clear message.
 
 </details>
 
@@ -209,7 +209,7 @@ Compensation delegates are closures of the application's `BuiltSagaDefinition<TD
 <details>
 <summary><strong>10. Build order of the pull request split (Dilemma D6)</strong></summary>
 
-`ISagaState` gains `RetryCount` and `NextRetryAtUtc` and `ISagaStore` gains `GetCompensationRetryDueAsync`. Their implementers: 10 state classes, 9 stores, `FakeSagaState`, `FakeSagaStore`, `ArbitrarySagaState` (`src/Encina.Testing.FsCheck/ArbitraryMessages.cs`), the two benchmark `BenchmarkSagaState` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`), `TestSagaState` (`SagaOrchestratorTests.cs`) and the store doubles `RecordingSagaStore` (`tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs`) and `FailingUpdateStore` (`SagaRunnerTests.cs`). An interface change before its implementers does not compile (`AGENTS.md` section 8), and a pull request is one package, at most 15 files and 1,500 lines counting tests and manifests (section 11).
+`ISagaState` gains `RetryCount` and `NextRetryAtUtc` and `ISagaStore` gains `GetCompensationRetryDueAsync`. Their implementers (re-checked by grep of `: ISagaState` and `: ISagaStore` across `src/` and `tests/`; 20 production and test classes): 10 state classes, 9 stores, `FakeSagaState`, `FakeSagaStore`, the Bogus state `FakeSagaState : ISagaState` in `src/Encina.Testing.Bogus/SagaStateFaker.cs`, the decorator `InstrumentedSagaStore : ISagaStore` in `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs` (it wraps an inner `ISagaStore`, so it can only delegate `GetCompensationRetryDueAsync` once the interface has it: it is changed in the interface PR), `ArbitrarySagaState` (`src/Encina.Testing.FsCheck/ArbitraryMessages.cs`), the two benchmark `BenchmarkSagaState` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks|Encina.Dapper.Benchmarks/Infrastructure/BenchmarkEntityFactory.cs`), `TestSagaState` (`SagaOrchestratorTests.cs`) and the store doubles `RecordingSagaStore` (`tests/Encina.IntegrationTests/Infrastructure/Sagas/SagaRunnerOutcomeScenarios.cs`) and `FailingUpdateStore` (`SagaRunnerTests.cs`). An interface change before its implementers does not compile (`AGENTS.md` section 8), and a pull request is one package, at most 15 files and 1,500 lines counting tests and manifests (section 11).
 
 ### Options Considered
 
@@ -228,6 +228,29 @@ Compensation delegates are closures of the application's `BuiltSagaDefinition<TD
 
 </details>
 
+<details>
+<summary><strong>11. A lease that joins an existing transaction (Dilemma D7)</strong></summary>
+
+Verified on origin/main: the saga stores enlist in the scope's transaction through `DbLease.Enlisted(_connection, _transactionAccessor)` (`src/Encina.ADO.PostgreSQL/Sagas/SagaStoreADO.cs` line 59 and siblings), and `ITransactionLease` has `IsOwner`: a joiner's `CommitAsync` is a no-op that succeeds and a joiner's `RollbackAsync` only marks the outer transaction rollback-only (`src/Encina.Messaging/Transactions/ITransactionLease.cs`, lines 33-34 of the interface; `DbTransactionAccessor.cs` line 264, `IsOwner => false` for the joiner). When the saga runs inside `TransactionPipelineBehavior`'s transaction (the usual `IEncina.Send` path), `BeginOrJoinAsync` returns a non-owner lease: "commit the step" does nothing, a delegate failure rolls back the WHOLE outer transaction, and a failure record written "on its own" (Phase 2 task 1) would be written into that same doomed transaction, so the persisted `RetryCount` and `NextRetryAtUtc` that the retry depends on would be lost. `DbLease.IndependentAsync` (`DbLease.cs` line 59) exists for "writes that must survive the business transaction's rollback", but the saga stores do not use it.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The mode requires owning the transaction: after `BeginOrJoinAsync`, a lease with `IsOwner == false` is denied before any delegate runs, with `Left` `saga.compensation_transaction_not_owned` (logged by code); the failure record is written in a NEW owner lease started after the step's lease was rolled back** | Fails closed; the persisted retry state is never silently lost; no change to the saga stores | The mode cannot run inside an enclosing `TransactionPipelineBehavior` transaction: the application starts the compensation outside it (the retry processor always does, it has no ambient transaction) |
+| B) Allow joiners, and write the failure record through `DbLease.IndependentAsync` (its own connection) so it survives the outer rollback | Works inside the pipeline transaction; the retry state survives | The outer rollback also undoes the earlier steps' compensations and forward work that the saga assumed committed, so the per-step atomicity of the mode no longer holds; the saga stores would need an independent-write method on every provider (10) |
+
+### Chosen Option: **A — Require the owner lease** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins because it keeps the guarantee of the mode (a step and its state record commit or roll back together) and fails closed when it cannot. Option B wins if the maintainer needs the mode inside the pipeline transaction and accepts the weaker guarantee and a store change in 10 providers.
+- Cost in the losing scenario: under A an application that compensates inside `TransactionPipelineBehavior` gets `saga.compensation_transaction_not_owned` until it moves the compensation out of that transaction; under B the application keeps the retry state but loses step atomicity.
+- Test rows (Phase 8): an owner lease runs the step; a joiner lease returns the `Left` before any delegate runs and writes nothing; the failure record after a rolled-back owner lease is persisted; interaction with #750: the audit entry written for a step whose lease is rolled back stays in the audit trail (the #750 plan describes the phantom entry).
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -239,14 +262,14 @@ Compensation delegates are closures of the application's `BuiltSagaDefinition<TD
 <details>
 <summary>Tasks</summary>
 
-Delivered in PR 11 of the split, after every implementer already has the members (D6 option A).
+Delivered in PR 11 of the split, after every implementer already has the members (D6 option A). The decorator `InstrumentedSagaStore` (`src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs`) is an `ISagaStore` implementer too: PR 11 adds its `GetCompensationRetryDueAsync` delegation to `_inner`, its unit test and the manifest entry.
 
 1. `SagaOptions` (`src/Encina.Messaging/Sagas/SagaOrchestrator.cs`, line 615): `CompensationTransaction` (bool, false), `MaxCompensationRetries` (int, 3), `CompensationRetryDelay` (TimeSpan, 30 s), `CompensationRetryBackoffFactor` (double, 2.0), `CompensationRetryBatchSize` (int, 100), `CompensationRetryCheckInterval` (TimeSpan, 30 s); a validator class (`IValidateOptions<SagaOptions>`) rejecting non-positive values.
 2. `ISagaState`: add `int RetryCount { get; set; }` and `DateTime? NextRetryAtUtc { get; set; }`.
 3. `ISagaStateFactory.Create(...)`: no change (defaults zero and null).
 4. `ISagaStore`: add `GetCompensationRetryDueAsync(int batchSize, CancellationToken)` returning sagas with `Status = Compensating` and `NextRetryAtUtc <= now`.
 5. `SagaCompensationFailed` (sealed record, `INotification`): `SagaId`, `SagaType`, `StepIndex`, `Attempt`, `ErrorCode`, `WillRetry`, `OccurredAtUtc`.
-6. `SagaErrorCodes`: new `saga.compensation_retry_exhausted` and `saga.definition_not_registered`; the existing `saga.deserialization_failed` (`SagaErrorCodes.DeserializationFailed`) is reused.
+6. `SagaErrorCodes`: new `saga.compensation_retry_exhausted`, `saga.definition_not_registered` and `saga.compensation_transaction_not_owned` (Design Choice 11); the existing `saga.deserialization_failed` (`SagaErrorCodes.DeserializationFailed`) is reused.
 7. `PublicAPI.Unshipped.txt` of `Encina.Messaging`.
 8. Unit tests of the validator, a contract test that the members exist with the documented semantics on the fake and on the real stores, and the manifest entries.
 
@@ -257,7 +280,7 @@ Delivered in PR 11 of the split, after every implementer already has the members
 
 ```
 CONTEXT:
-- Issue #720; plan docs/plans/saga-compensation-transaction-implementation-plan-720.md. Dilemmas D1-D6 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #720; plan docs/plans/saga-compensation-transaction-implementation-plan-720.md. Dilemmas D1-D7 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - Encina.Messaging does not reference Encina.DomainModeling; transactions use IDbTransactionAccessor leases.
 - All implementers already have the new members (earlier pull requests of the split, D6); this pull request adds them to the interfaces.
 
@@ -288,7 +311,7 @@ REFERENCE FILES:
 
 Constructor and ownership changes (Design Choice 7), all in `PublicAPI.Unshipped.txt`: `SagaRunner` gains `IDbTransactionAccessor?`, `IEncina`, `IOptions<SagaOptions>` and an optional `TimeProvider`; `SagaOrchestrator` gains the methods below and no dependency.
 
-1. `SagaRunner.CompensateAsync`: when `CompensationTransaction` is on, for each step in reverse order: take a lease from `IDbTransactionAccessor`, run the delegate, call `SagaOrchestrator.CompensateStepAsync`, then the new `SagaOrchestrator.CommitAsync(ct)` (`ISagaStore.SaveChangesAsync`), then commit the lease; on a delegate failure roll back the lease, call the new `SagaOrchestrator.RecordCompensationFailureAsync(sagaId, errorCode, ct)` (increments `RetryCount`, sets `NextRetryAtUtc = now + delay * factor^RetryCount`, keeps `Compensating`) in a fresh write that is committed on its own, then publish `SagaCompensationFailed` through `IEncina.Publish`, and stop (D4). With the mode off the current behavior is kept.
+1. `SagaRunner.CompensateAsync`: when `CompensationTransaction` is on, for each step in reverse order: take a lease from `IDbTransactionAccessor` and, if `lease.IsOwner` is false, return the `Left` `saga.compensation_transaction_not_owned` before any delegate runs (Design Choice 11, D7), otherwise run the delegate, call `SagaOrchestrator.CompensateStepAsync`, then the new `SagaOrchestrator.CommitAsync(ct)` (`ISagaStore.SaveChangesAsync`), then commit the lease; on a delegate failure roll back the lease, call the new `SagaOrchestrator.RecordCompensationFailureAsync(sagaId, errorCode, ct)` (increments `RetryCount`, sets `NextRetryAtUtc = now + delay * factor^RetryCount`, keeps `Compensating`) in a fresh write that is committed on its own (a NEW owner lease begun after the step's lease was rolled back, so it is never written into a transaction that rolls back), then publish `SagaCompensationFailed` through `IEncina.Publish`, and stop (D4). With the mode off the current behavior is kept.
 2. `SagaOrchestrator.RecordCompensationFailureAsync`: when `RetryCount` reaches `MaxCompensationRetries`, call `FailAsync` (dead letter) with `saga.compensation_retry_exhausted`.
 3. `SagaRunner.RetryCompensationAsync<TData>(BuiltSagaDefinition<TData> definition, Guid sagaId, CancellationToken ct)`: for the processor (through the registry entry of D5) and for manual use; loads the row with `SagaOrchestrator.GetAsync<TData>`, re-enters `CompensateAsync` at the persisted cursor (`CurrentStep`) with the deserialized data and the definition's delegates. It lives on the runner because only the runner can run the delegates.
 4. Handle the existing swallow: the runner must honour the `Left` of these calls (#1581 is the same defect for the forward path; both can be fixed together or the plan's calls are written correctly from the start).
@@ -414,7 +437,7 @@ PRs 7 to 10 of the split, each building against the current interfaces (D6):
 1. PR 7, EF Core: `SagaState` properties, `SagaStateConfiguration` (`HasIndex(x => new { x.Status, x.NextRetryAtUtc })`), `SagaStoreEF.GetCompensationRetryDueAsync`; one implementation for the three databases, with one integration test class per database. No EF migration (pre-1.0).
 2. PR 8, MongoDB: `SagaState` fields, `SagaStoreMongoDB.GetCompensationRetryDueAsync`, the compound index in `MongoDbIndexCreator.CreateSagaIndexesAsync` (line 163), one integration test class. Multi-document transactions need a replica set; the integration fixture states it.
 3. PR 9, `Encina.Testing.Fakes`: `FakeSagaState`/`FakeSagaStore` support the fields and the query, with unit tests.
-4. PR 10, test-side implementers: `ArbitrarySagaState` (`src/Encina.Testing.FsCheck/ArbitraryMessages.cs`), the two benchmark `BenchmarkSagaState` classes, `TestSagaState`, `RecordingSagaStore` and `FailingUpdateStore` get the properties and the method (named in Design Choice 10).
+4. PR 10, test-side implementers: `ArbitrarySagaState` (`src/Encina.Testing.FsCheck/ArbitraryMessages.cs`), the Bogus `FakeSagaState` (`src/Encina.Testing.Bogus/SagaStateFaker.cs`, properties only, with its PublicAPI and manifest entries), the two benchmark `BenchmarkSagaState` classes, `TestSagaState`, `RecordingSagaStore` and `FailingUpdateStore` get the properties and the method (named in Design Choice 10). `InstrumentedSagaStore` is NOT here: it is changed in PR 11 with the interface.
 
 </details>
 
@@ -516,7 +539,7 @@ REFERENCE FILES:
 
 Tests travel with the pull request that adds the code they cover; none waits for the end.
 
-1. **Unit**: each failure point against a fake store (step fails, commit fails, publish fails after the state is stored, retry exhausted, unknown saga type, deserialization failure, mode off keeps today's behavior), options validator, registry (duplicate type), processor loop (`FakeTimeProvider`, a throwing store: the loop survives and logs the error code), notification content.
+1. **Unit**: each failure point against a fake store (joiner lease denied before any delegate, owner lease runs the step, failure record persisted after a rolled-back owner lease (D7), step fails, commit fails, publish fails after the state is stored, retry exhausted, unknown saga type, deserialization failure, mode off keeps today's behavior), options validator, registry (duplicate type), processor loop (`FakeTimeProvider`, a throwing store: the loop survives and logs the error code), notification content.
 2. **Guard**: new public members, in the pull request that adds them.
 3. **Contract**: `ISagaStore` retry state and query identical across all stores (PR 11).
 4. **Property (FsCheck)** (PR 14): after a failure at any point the persisted state and the compensation outcome do not diverge.
@@ -562,7 +585,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. XML docs; `PublicAPI.Unshipped.txt` per package; `changelog.d/720-saga-compensation-transaction.added.md`; the saga guide `docs/messaging/sagas.md` (through docs-writer); an ADR recording D1-D6 (ADR number assigned when the ADR pull request opens).
+1. XML docs; `PublicAPI.Unshipped.txt` per package; `changelog.d/720-saga-compensation-transaction.added.md`; the saga guide `docs/messaging/sagas.md` (through docs-writer); an ADR recording D1-D7 (ADR number assigned when the ADR pull request opens).
 2. `dotnet build --configuration Release` with 0 warnings; `dotnet test` with every flag at its target.
 
 </details>
@@ -603,8 +626,8 @@ Order rule (D6 option A): implementers first, interfaces last. Every pull reques
 | 7 | `Encina.EntityFrameworkCore`: state, configuration, store, PublicAPI, manifest, 3 integration test classes | 8 | 600 |
 | 8 | `Encina.MongoDB`: state, store, index creator, PublicAPI, manifest, integration test | 6 | 450 |
 | 9 | `Encina.Testing.Fakes`: `FakeSagaState`, `FakeSagaStore`, PublicAPI, manifest, unit tests | 6 | 400 |
-| 10 | Test-side implementers: `ArbitrarySagaState` (+ PublicAPI, manifest), 2 benchmark states, `TestSagaState`, `RecordingSagaStore`, `FailingUpdateStore` | 8 | 250 |
-| 11 | Phase 1: `ISagaState`, `ISagaStore`, `SagaOptions` + validator, `SagaCompensationFailed`, error codes, PublicAPI, manifest, validator unit and contract tests | 11 | 800 |
+| 10 | Test-side implementers: `ArbitrarySagaState` (+ PublicAPI, manifest), Bogus `FakeSagaState` (+ PublicAPI, manifest), 2 benchmark states, `TestSagaState`, `RecordingSagaStore`, `FailingUpdateStore` | 11 | 300 |
+| 11 | Phase 1: `ISagaState`, `ISagaStore`, `SagaOptions` + validator, `SagaCompensationFailed`, error codes, PublicAPI, manifest, validator unit and contract tests (11 files) plus `InstrumentedSagaStore` (delegates `GetCompensationRetryDueAsync`), its unit test and the `Encina.OpenTelemetry` manifest entry (3 files) | 14 | 1,000 |
 | 12 | Phase 2 and 7: orchestrator (`RecordCompensationFailureAsync`, `CommitAsync`), runner (`RetryCompensationAsync`, constructor changes), logs, counter, unit tests | 9 | 1,300 |
 | 13 | Phase 3: registry, `AddSagaDefinition`, `SagaCompensationRetryProcessor`, `RegisterSagas`, PublicAPI, manifest, unit and DI tests | 10 | 1,200 |
 | 14 | Orchestrator-level integration test on 10 providers, property test, load and benchmark justifications | 14 | 1,200 |
@@ -677,7 +700,7 @@ No new range; `Encina.Messaging` already maps to `MessagingSaga` in `EncinaEvent
 ```
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no migrations; XML docs; zero warnings.
-- Issue #720: transactional, persisted, retryable saga compensation across the 10 database providers. Plan: docs/plans/saga-compensation-transaction-implementation-plan-720.md; Dilemmas D1-D6 are recommended, pending the maintainer.
+- Issue #720: transactional, persisted, retryable saga compensation across the 10 database providers. Plan: docs/plans/saga-compensation-transaction-implementation-plan-720.md; Dilemmas D1-D7 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (the order of the 15 pull requests; every one builds):
 1. Providers first, one package per pull request: ADO/Dapper (Phase 4), EF Core, MongoDB, fakes, test-side implementers (Phase 5).
@@ -728,12 +751,14 @@ REFERENCE FILES:
 
 - #1581 (SagaRunner discards the `Left` of the orchestrator's persisting calls) touches the same lines; fix it first or with Phase 2.
 - #736, #738 and #1237 change the same scripts and stores: agree the merge order; this plan's columns are independent of theirs.
+- #297 plan follow-up: the #297 plan (Design Choice 11, D6 recommended A) has its coordinator call `ISagaStore.SaveChangesAsync` and adds nothing to `SagaOrchestrator`. With this plan the saga family has ONE commit owner, `SagaOrchestrator.CommitAsync` (Design Choice 7): the #297 coordinator must call it instead of holding an `ISagaStore`. That is a dependency of #297 on this plan's PR 12, to be recorded in a follow-up of the #297 plan (it is not edited here).
+- #750 interaction: the #750 plan emits the audit entry right after `CompensateStepAsync`, inside the lease; if the step's lease is rolled back the entry stays in the audit trail. Both plans state it; the maintainer's D2 answer in the #750 plan decides whether it is accepted.
 - #2208 (timeouts never enforced) concerns `TimeoutAsync`; independent, but the compensation retry loop follows its processor design.
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers D1 to D6 when work on #720 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1 to D7 when work on #720 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Open the deferred issues (health check, retry concurrency) and link them from #720.
 3. Brief pull request 1 first.
