@@ -2,10 +2,10 @@
 
 > **Issue**: [#1233](https://github.com/dlrivada/Encina/issues/1233) (SPEC-002 tracking id **P-31**, priority P0)
 > **Type**: Feature
-> **Complexity**: High (new package, 6 pull requests)
+> **Complexity**: High (new package, 8 pull requests)
 > **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,500-3,200 lines of tests
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-039 (AC-039; scenarios S9, S10), REQ-034 (coded outbound errors), REQ-061 (AC-043, tenant awareness), REQ-062 (AC-044, instrumentation)
-> **Decisions**: [ADR-055](../architecture/adr/055-resilience-family.md) (resilience family: `Encina.Http` is built on Microsoft.Extensions.Http.Resilience and partitions per client by tenant), [ADR-057](../architecture/adr/057-verifactu-boundary.md) D9 (no AEAT endpoint, Verifactu preset or RRSIF type), [ADR-029](../architecture/adr/029-recoverability-error-classification.md)
+> **Decisions**: [ADR-055](../architecture/adr/055-resilience-family.md) (resilience family: `Encina.Http` is built on Microsoft.Extensions.Http.Resilience and partitions per client by tenant), [ADR-057](../architecture/adr/057-verifactu-boundary.md) D9 (no AEAT endpoint, Verifactu preset or RRSIF type), [ADR-029](../architecture/adr/029-recoverability-error-classification.md), [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D3 and D4 (meter names, tenant tag), [ADR-062](../architecture/adr/062-error-category-contract.md) (error category set where the error is created)
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
 > **Depends on**: [#1223](https://github.com/dlrivada/Encina/issues/1223) (P-21, outbound error taxonomy; closed, merged); [#1234](https://github.com/dlrivada/Encina/issues/1234) (P-32, `Encina.Security.OAuth`; open) and [#1246](https://github.com/dlrivada/Encina/issues/1246) (P-44, X.509 retrieval; open) only through interfaces this plan defines
 > **Related**: [#1257](https://github.com/dlrivada/Encina/issues/1257) (per-tenant credentials, multi-tenancy of the SPEC-002 capabilities), [#2414](https://github.com/dlrivada/Encina/issues/2414) (rate limiters spike), [#469](https://github.com/dlrivada/Encina/issues/469) (cross-host pacing), [#2278](https://github.com/dlrivada/Encina/issues/2278)
@@ -18,25 +18,25 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 1. **Outbound auth providers.** `IOutboundAuthProvider` applies credentials to a request. Shipped: API key and static bearer read from `ISecretReader` (`Encina.Security.Secrets`). Hooks defined here and implemented by their owners: `IAccessTokenSource` (OAuth tokens, #1234) and `IClientCertificateSource` (X.509, #1246).
 2. **Client certificates and mTLS.** A certificate-bearing primary handler **per (client, tenant)**, so one tenant's certificate is never presented on another tenant's connection.
-3. **Per-client, per-tenant rate limiter** over `System.Threading.RateLimiting.PartitionedRateLimiter`, plus a partition pause when a 429 or 503 carries `Retry-After` (parsed with the existing `RetryAfterParser`).
-4. **Coded errors.** Handler-level rejections (rate limit, missing tenant, auth failure, certificate failure) use the existing `OutboundErrorCodes` plus two new codes, reach `Either` consumers through a typed `OutboundRejectedException` that `RestApiRequestHandler` maps, and never carry bodies or credentials.
-5. **Redacting logging and OpenTelemetry.** Logs and spans carry method, host, status class and client name only; metrics tags are bounded.
+3. **Per-client, per-tenant rate limiter** over `System.Threading.RateLimiting.PartitionedRateLimiter`, plus a partition pause when a 429 or 503 carries `Retry-After` (parsed with the existing `RetryAfterParser`). The limiter and the auth handler run **per attempt**, inside the resilience pipeline, so a retried 429 or 5xx is paced and re-authenticated (Design Choice 4).
+4. **Coded errors.** Handler-level rejections (rate limit, missing tenant, auth failure, certificate failure) use the existing `OutboundErrorCodes` plus two new codes, each created with an `ErrorCategory` (ADR-062), reach `Either` consumers through a typed `OutboundRejectedException` that `RestApiRequestHandler` maps, and never carry bodies or credentials.
+5. **Redacting logging and OpenTelemetry.** Logs and spans carry method, host, status class and client name only (the framework's own `IHttpClientFactory` loggers are removed); metrics tags are bounded, and the tenant id is a span attribute and a metric tag when multi-tenancy is on (ADR-054 D4).
 6. **Boundary.** `Encina.Http` has no AEAT endpoint, no Verifactu preset and no RRSIF type, and its README says so (ADR-057 D9).
 
 **Standards**: SPEC-002 REQ-039, REQ-034, REQ-061, REQ-062; RFC 9110 section 10.2.3 (`Retry-After`); mutual TLS (RFC 8446 section 4.4.2, client certificate authentication); ADR-055; ADR-057.
 
-**Estimated scope**: about 22 new production files in one new package, 3 modified files in `Encina` and `Encina.Refit`, about 28 test files, 5 documentation files; 6 pull requests (see Implementation Phases).
+**Estimated scope**: about 22 new production files in one new package, 3 modified files in `Encina` and `Encina.Refit`, about 28 test files, 5 documentation files; 8 pull requests (see Implementation Phases).
 
 **Affected packages**: new `Encina.Http`; `Encina` (two codes and one exception type next to `OutboundErrorCodes`); `Encina.Refit` (maps the new exception); `Encina.Security.Secrets` (read only); `Encina.OpenTelemetry` (registers the new source and meter names, if the package lists sources).
 
 **Provider category**: None (provider-independent). The distributed-lock and database matrices do not apply; rate limiting is per process (see the matrix note on #469).
 
-**What the code does today** (`origin/main` at `7a0049c07`):
+**What the code does today** (`origin/main` at `c49b987e9`):
 
 - No `Encina.Http` package exists under `src/`; the family registry assigns `6300-6349` to `Encina.Http` (`src/Encina/Diagnostics/EventIdRanges.cs` has no entry yet; `Refit` is `4650-4699`).
 - Core `Encina.Recoverability` already has `OutboundErrorCodes` (`encina.outbound.client_error`, `server_error`, `rate_limited`, `timeout`, `network_error`, `unexpected_response`, `unexpected`), `OutboundErrorMetadataKeys` (`http.status`, `http.retry_after`, `transient`, `outbound.ambiguous`), `RetryAfterParser.Parse(string?/RetryConditionHeaderValue?, TimeProvider)` and `IErrorClassifier` (closed #1223, P-21).
 - `Encina.Refit` (`RestApiRequestHandler<TRequest, TApiClient, TResponse>`, `AddEncinaRefitClient<TApiClient>` returning `IHttpClientBuilder`, `Diagnostics/OutboundTelemetry.cs` on the `Encina` source and meter) maps `ApiException` and network failures to those codes without the response body.
-- `ISecretReader` (`src/Encina.Security.Secrets/Abstractions/ISecretReader.cs`) returns `ValueTask<Either<EncinaError, string>>`. `Microsoft.Extensions.Http` 10.0.12 and `Microsoft.Extensions.Http.Resilience` 10.8.0 are in `Directory.Packages.props`; `Encina.Extensions.Resilience` references the latter today.
+- `ISecretReader` (`src/Encina.Security.Secrets/Abstractions/ISecretReader.cs`) returns `ValueTask<Either<EncinaError, string>>`. `Microsoft.Extensions.Http` 10.0.12 and `Microsoft.Extensions.Http.Resilience` 10.10.0 are in `Directory.Packages.props`; `Encina.Extensions.Resilience` references the latter today.
 - `Encina.Resilience`, the shared partitioned rate-limiting core of #2414 and the shared `Retry-After` delay function named by ADR-055 **do not exist yet**; the spike #2414 is open.
 - `AGENTS.md` section 5 names `Extensions.Http.Resilience` among the resilience packages, which does not exist (the P-30 note in the issue); this plan uses the real package names.
 - Neither #1234 nor #1246 is built, and neither is blocked by an open maintainer decision; this plan defines the two interfaces they implement.
@@ -73,7 +73,7 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Define one internal convention now:** the secret name is `{client}/{tenant}/{purpose}` (tenant segment `default` when tenancy is off), composed by one class `OutboundSecretNames`, resolved through `ISecretReader`; a missing secret for a tenant is a coded `Left`, never a fallback to another tenant | AC-043 is testable in this package; the convention is in one place and #1257 can adjust it | If #1257 chooses another layout (a per-tenant secret store, a vault path prefix) the class changes |
+| **A) Define one internal convention now:** the secret name is `{client}/{tenant}/{purpose}` where **each segment is percent-encoded injectively** (`%` becomes `%25`, `/` becomes `%2F`), so a tenant id such as `b/c` can never shift a segment; the no-tenant segment is the reserved token `default` (tenancy off, or the explicit `AllowMissingTenant` opt-out), and **when tenancy is on a tenant id equal to `default` is refused** with the coded `tenant_required` rejection (the reserved-`default` rule of the claim-check storage plan: `default` is never a tenant id, so no real tenant shares the no-tenant partition); composed by one class `OutboundSecretNames`, resolved through `ISecretReader`; a missing secret for a tenant is a coded `Left`, never a fallback to another tenant. The limiter partition key and the handler-cache key are structured keys (client, tenant-or-none, purpose) and are never built by concatenating strings | AC-043 is testable in this package; a tenant cannot address another tenant's or client's secret, and a tenant called `default` cannot reach the tenant-less secret or partition; the convention is in one place and #1257 can adjust it | If #1257 chooses another layout (a per-tenant secret store, a vault path prefix) the class changes; a deployment with a real tenant named `default` must rename it |
 | **B) Defer all per-tenant credentials to #1257** | One decision owner | `Encina.Http` would ship single-tenant credentials only, contradicting AC-043 in this issue |
 
 ### Chosen Option: **A — one convention class now** (recommended, pending the maintainer)
@@ -81,6 +81,7 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 ### Rationale
 
 - B wins if #1257 is going to land before this package; A wins when this package ships first. The acceptance criterion AC-043 of this very issue requires per-tenant resolution.
+- Tests: a property test proves `Compose` is injective over (client, tenant, purpose) triples including `/`, `%` and `default`; a two-tenant test with a tenant named `default` proves it is refused when tenancy is on and that the tenant-less opt-out never resolves a tenant's secret.
 
 **Class:** Dilemma
 
@@ -114,17 +115,18 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Compose:** Encina handlers (auth, tenant guard, rate limit, redaction) are added to the named client's pipeline; retry, circuit breaker and timeout stay in `AddStandardResilienceHandler` or `Encina.Resilience` later | No second retry layer (ADR-055 conflict check); smallest code | The order of handlers matters and must be documented and tested |
+| **A) Compose:** Encina handlers (tenant guard, rate limit, auth, redaction) are added to the named client's pipeline **after** the resilience handler, so they run on every attempt; retry, circuit breaker and timeout stay in `AddStandardResilienceHandler` or `Encina.Resilience` later | No second retry layer (ADR-055 conflict check); a retried 429 or 5xx acquires a permit and re-runs auth, and the `Retry-After` gate is fed by each attempt's response | The order of handlers matters and must be documented and tested |
 | **B) Own retry and circuit breaker inside `Encina.Http`** | One package | Stacks two retries on one request, the conflict ADR-055 forbids |
 
-### Chosen Option: **A — compose**
+### Chosen Option: **A — compose, with the Encina handlers per attempt**
 
 ### Rationale
 
-- The order is fixed by the builder extension: tenant guard, rate limiter, auth, then the resilience handler the application adds, then redacting logging closest to the transport.
+- The order, from the outside in, is: resilience handler (retry, breaker, timeout), then tenant guard, rate limiter, auth, redacting logging closest to the transport. With the limiter outside the retry, every retry would be sent without a permit, an expired bearer would be reused across attempts and the `Retry-After` gate would see only the final response, which defeats REQ-039; so the per-attempt placement is required, not optional.
+- Who adds the resilience handler is Dilemma 9. A tenant-guard rejection is an `OutboundRejectedException`, which the standard retry predicates do not handle, so it is not retried (a unit test proves it, and a second one proves a retried 429 acquires a new permit and waits or is rejected on the second attempt).
 
 **Class:** Settled
-**Settled by:** ADR-055 (Encina.Http is built on Microsoft.Extensions.Http.Resilience; one retry layer), the 2026-10-17 comment on issue #1233 ("composed, not replaced")
+**Settled by:** ADR-055 (Encina.Http is built on Microsoft.Extensions.Http.Resilience; one retry layer), SPEC-002 REQ-039 (a per-client limiter honouring `Retry-After`, which only holds per attempt), the 2026-10-17 comment on issue #1233 ("composed, not replaced")
 
 </details>
 
@@ -137,16 +139,18 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 |--------|------|------|
 | **A) A cache of primary handlers (`SocketsHttpHandler` with `SslOptions.ClientCertificates`) keyed by (client, tenant), each with its own connection pool, lifetime-bounded and evicted before the certificate expires** | A tenant's certificate is presented only on its own connections; satisfies AC-043 | More handler instances; the cache needs a lifetime and eviction |
 | **B) One handler with a certificate-selection callback** | One connection pool | The callback runs at connection time while the pool is keyed by endpoint, so a connection opened with tenant A's certificate may serve tenant B's request |
+| **C) One named client per tenant** (the client name includes the tenant, registered at runtime or by a tenant list) | Each tenant has its own factory handler chain and pool with no custom cache | Clients must be registered ahead of use or on demand, the named-client set grows with the tenant count, and options are repeated per tenant |
 
-### Chosen Option: **A — handler per (client, tenant)**
+### Chosen Option: **A — handler per (client, tenant)** (recommended, pending the maintainer)
 
 ### Rationale
 
+- A and C both satisfy AC-043; A wins because the tenant set is dynamic and the named-client registry is not, C wins when the tenant list is small and static (no custom handler cache to write).
+- The factory builds one handler chain per named client, so the primary handler of A is a **dispatching `HttpMessageHandler`** that picks the tenant's `SocketsHttpHandler` per request from a singleton `TenantHandlerCache` owned by the DI container. The factory rotates and disposes the chain every `HandlerLifetime` (default 2 minutes); the dispatching handler must not dispose the shared cache or the per-tenant handlers still serving in-flight requests, and eviction disposes a tenant handler only after its in-flight requests finish. The cache is bounded (`MaxCachedTenants`, Dilemma 10) and evicts least-recently-used, so a stream of hostile tenant ids cannot grow handlers without limit.
 - Phase 3 proves it with a test: two tenants with different certificates against one Kestrel server (`RequireCertificate`) must each be seen with their own certificate, including when requests alternate over a pooled connection.
-- Without a tenant, the fixed default tenant segment applies; a certificate that cannot be resolved is a coded `Left` (`encina.outbound.auth_failed`), never an unauthenticated request.
+- Without a tenant, the reserved no-tenant segment applies (Design Choice 2); a certificate that cannot be resolved is a coded `Left` (`encina.outbound.auth_failed`), never an unauthenticated request.
 
-**Class:** Settled
-**Settled by:** SPEC-002 REQ-061 and AC-043 (certificates resolve per tenant; a missing configuration fails closed), `AGENTS.md` section 3 (gates fail closed)
+**Class:** Dilemma
 
 </details>
 
@@ -160,14 +164,13 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 | **A) Define `IAccessTokenSource` and `IClientCertificateSource` in `Encina.Http`; `Encina.Security.OAuth` (#1234) and `Encina.Security.Secrets` (#1246) implement them** | `Encina.Http` ships and is tested with fakes; no dependency on unbuilt packages; dependency direction is satellite to base | Two interfaces to keep stable; the owners must honour them |
 | **B) Wait for #1234 and #1246** | Interfaces designed by their owners | Blocks a P0 on two very-high and medium issues |
 
-### Chosen Option: **A — interfaces here**
+### Chosen Option: **A — interfaces here** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The issue text names the sources ("OAuth from P-32, client certificate from P-44") and treats them as hooks; the implementing issues add a one-method adapter each.
+- The issue text names the sources ("OAuth from P-32, client certificate from P-44") and treats them as hooks; the implementing issues add a one-method adapter each. B (wait for #1234 and #1246) is also valid; A wins because it unblocks a P0, B wins if the owners should design the interfaces. `IAccessTokenSource`, `IClientCertificateSource`, `IOutboundAuthProvider` and `OutboundCallContext` are public API, so their names and shapes are the maintainer's to confirm.
 
-**Class:** Settled
-**Settled by:** issue #1233 body (auth providers: OAuth from P-32, client certificate from P-44), `AGENTS.md` section 5 (abstractions and options in the base package, implementations in satellites)
+**Class:** Dilemma
 
 </details>
 
@@ -178,7 +181,7 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A call without tenant context is a coded `Left` (`encina.outbound.tenant_required`) unless the client sets `AllowMissingTenant` (explicit), in which case the fixed default tenant applies and the opt-out is logged once per client** | Fail closed; no shared anonymous partition | A background job without a tenant must opt out explicitly |
+| **A) A call without tenant context is a coded `Left` (`encina.outbound.tenant_required`, created with `ErrorCategory.InvalidRequest`, ADR-062 R3) unless the client sets `AllowMissingTenant` (explicit), in which case the reserved no-tenant segment applies and the opt-out is logged once per client. "Tenancy is on" is the `MultiTenancyMarker` registration, the trigger `DeadLetterManager` uses (`_tenancy is not null`, `DeadLetterManager.cs:155`), and the tenant is read from `IRequestContextAccessor` exactly as `DeadLetterManager.AmbientTenantId` does (line 100), so the sibling stores and this package agree; with tenancy off no tenant is required and no tenant tag is emitted** | Fail closed; no shared anonymous partition; one trigger and one source across the plans | A background job without a tenant must opt out explicitly |
 | **B) Route to a shared anonymous partition** | Never blocks | Two tenants' calls share one pacing and credential partition |
 
 ### Chosen Option: **A — deny unless explicit opt-out**
@@ -193,23 +196,64 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 </details>
 
 <details>
-<summary><strong>8. Redaction and telemetry: nothing from the request or response body, bounded tags</strong></summary>
+<summary><strong>8. Redaction and telemetry: nothing from the request or response body, bounded tags, the tenant per ADR-054 D4</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Logs, spans and metrics carry client name, HTTP method, `server.address`, status class and the error code; never URL path or query, headers, bodies, credentials or exception messages; tenant id is a span attribute only, never a metric tag** | Safe by construction; bounded cardinality; a test asserts it | Less detail when debugging; operators use the correlation id |
+| **A) Logs, spans and metrics carry client name, HTTP method, `server.address`, status class and the error code; never URL path or query, headers, bodies, credentials or exception messages; the tenant id is a span attribute and a metric tag (`encina.tenant_id`) on `encina.http.requests` and `encina.http.throttled` when multi-tenancy is on, and no tenant tag when it is off (ADR-054 D4)** | Safe by construction; follows ADR-054 D4 and AC-044; a test asserts it | Less detail when debugging; operators use the correlation id; tenant cardinality (documented in the observability guide, #906) |
 | **B) Log the full URL and status** | Easier debugging | URLs can carry identifiers and tokens in the query string |
 
 ### Chosen Option: **A — redacting by construction**
 
 ### Rationale
 
-- The handler order puts redacting logging closest to the transport so lower handlers cannot log first; a test with an in-memory exporter and a log capture asserts that no credential, body or path appears.
+- The handler order puts redacting logging closest to the transport so Encina's own lower handlers cannot log first. That does not stop the framework: `AddHttpClient` adds `IHttpClientFactory` logging handlers that log the request URI. The builder (Phase 1) therefore calls `RemoveAllLoggers()` on the `IHttpClientBuilder` and the redacting handler is the only logger; a test with an in-memory exporter and a log capture asserts that no credential, body, path or query appears, including in the factory's categories.
+- The meter is named `Encina.Http` and instruments carry no `_total` suffix (ADR-054 D3 and point 4).
 
 **Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (`EncinaError.Message` never reaches logs or tags; options with secrets hide them), SPEC-002 REQ-062 and AC-044 (no payloads or direct identifiers in activity attributes, metric tags or logs), issue #1233 comment (logs and errors never carry bodies or credentials)
+**Settled by:** `AGENTS.md` section 3 (`EncinaError.Message` never reaches logs or tags; options with secrets hide them), ADR-054 D3 and D4 (package-named meter; tenant as span attribute and metric tag when tenancy is on), SPEC-002 REQ-062 and AC-044 (no payloads or direct identifiers in activity attributes, metric tags or logs), issue #1233 comment (logs and errors never carry bodies or credentials)
+
+</details>
+
+<details>
+<summary><strong>9. Who adds the resilience handler: the Encina extension, or the application with order validation</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `AddEncinaHttpClient` / `AddEncinaHttpHandlers` add `AddStandardResilienceHandler` themselves (configurable through an `Action<HttpStandardResilienceOptions>`), then the Encina handlers** | The order of Design Choice 4 is guaranteed by construction; one retry layer; nothing to forget | An application with its own resilience handler must express it through the delegate (or not use the extension) |
+| **B) The application adds the resilience handler; `AddEncinaHttpHandlers` must be called after it and validates the order when the chain is built (fails with a coded `InvalidOperationException` naming the client)** | Full control for applications and for `Encina.Resilience` later | Order depends on call order (`AddHttpMessageHandler` order is call order); the validation must recognise a resilience handler it did not add |
+
+### Chosen Option: **A — the extension owns the order** (recommended, pending the maintainer)
+
+### Rationale
+
+- A removes a class of misconfiguration; B wins if applications routinely bring their own resilience handler or when `Encina.Resilience` replaces the standard one (the extension then changes in one place).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Defaults and placement that are visible to users</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `MaxQueueWait` 0 (reject at once with `rate_limited`), `HonourRetryAfter` true, `MaxRetryAfter` 5 minutes, `MaxCachedTenants` 256 with least-recently-used eviction, and `OutboundRejectedException` plus the two new codes in core `Encina` next to `OutboundErrorCodes`** | Predictable latency (no hidden queueing); the server's wait is honoured but a hostile or mistaken server cannot pause a partition for hours; bounded memory; `Encina.Refit` maps the exception without referencing `Encina.Http` | Bursts above the limit fail instead of waiting; new public API in core `Encina` |
+| **B) A short queue (for example 2 s), no `Retry-After` cap or a smaller one, a larger cache bound, and the exception and codes in `Encina.Http` with `Encina.Refit` referencing it** | Smooths bursts; fewer rejections | Holds requests; an unbounded pause; more memory; `Encina.Refit` gains a dependency on the new package |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- None of these values is fixed by a rule; each changes behaviour for users (queueing, pause length, memory) or the public API of another package (core `Encina`). `AllowMissingTenant = false` is not in this list: it is settled by the fail-closed rule (Design Choice 7).
+
+**Class:** Dilemma
 
 </details>
 
@@ -217,7 +261,20 @@ Applications call tax, messaging, calendar and payment APIs with API keys, OAuth
 
 ## Implementation Phases
 
-Six pull requests (each at most 15 files and 1500 changed lines, `AGENTS.md` section 11): **PR 1** Phase 1 (scaffold, options, DI, diagnostics shell, EventId range); **PR 2** Phase 2 (auth providers and hooks, core additions); **PR 3** Phase 3 (mTLS handler cache); **PR 4** Phase 4 (rate limiter and Retry-After gate); **PR 5** Phase 5 (coded errors, redacting logging, Refit mapping); **PR 6** Phases 6 to 8 (integration tests, health check, documentation, ADR).
+Eight pull requests, each at most 15 files and 1500 changed lines counting tests, `PublicAPI.*.txt`, `.github/coverage-manifest/*.json` and fragments (`AGENTS.md` section 11), each building green on its own and each carrying the contract, property and integration tests of the `src/` files it adds (AGENTS.md section 9: a file's per-flag targets are met by the PR that adds it):
+
+| PR | Content | Own tests |
+|----|---------|-----------|
+| 1 | Phase 1: scaffold, options, validator, builder (adds the resilience handler, removes the framework loggers), README, solution entry | unit, guard, DI test |
+| 2 | Core: `OutboundErrorCodes.AuthFailed` / `TenantRequired`, `OutboundRejectedException`, the `RestApiRequestHandler` mapping with its `ErrorCategory` per code, classifier tests (Phase 2 task 8, Phase 5 tasks 2-3) | unit, guard, contract of the mapping |
+| 3 | Phase 2 tasks 1-6: auth providers, `OutboundCallContext`, `OutboundSecretNames` | unit, guard, contract (every provider), property (name injectivity) |
+| 4 | Phase 2 task 7 and Phase 4 task 4: `AuthHandler`, `TenantGuardHandler`, builder wiring | unit, guard, integration (two-tenant secrets, tenant named `default`) |
+| 5 | Phase 3: `IClientCertificateSource`, `TenantHandlerCache`, dispatching primary handler | unit, guard, integration (Kestrel `RequireCertificate`) |
+| 6 | Phase 4 tasks 1-3 and 5: rate limiter, `RetryAfterGate`, `RateLimitHandler` | unit, guard, property (rate bound), integration (WireMock S9/S10, retried 429) |
+| 7 | Phase 5 tasks 1 and 4 and Phase 6: redacting handler, diagnostics, EventIds, health check | unit, guard, property (redaction), integration (exporter and log capture) |
+| 8 | Phase 7 justification files and Phase 8: guide, ADR, index, fragment, INVENTORY | docs only |
+
+The counts per PR are in Estimated File Count.
 
 ### Phase 1: Package Scaffold, Options and Registration
 
@@ -231,8 +288,8 @@ Six pull requests (each at most 15 files and 1500 changed lines, `AGENTS.md` sec
 1. **`Encina.Http.csproj`** — `net10.0`; references `Encina`, `Encina.Security.Secrets`; packages `Microsoft.Extensions.Http`, `Microsoft.Extensions.Http.Resilience`, `Microsoft.Extensions.Options`, `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `InternalsVisibleTo` the test projects; `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt`; add to `Encina.slnx`
 2. **`Options/EncinaHttpClientOptions.cs`** — per client: `double PermitsPerSecond` (0 = no limit), `int Burst`, `TimeSpan MaxQueueWait` (default 0: reject at once), `bool HonourRetryAfter` (default true), `bool AllowMissingTenant` (default false), `ClientCertificateName`, `AuthPurpose`; no secret value property (names only)
 3. **`Options/EncinaHttpClientOptionsValidator.cs`** — `IValidateOptions` per named client (named options): permits and burst consistent, wait non-negative
-4. **`HttpClientBuilderExtensions.cs`** — `AddEncinaHttpClient(this IServiceCollection, string name, Action<EncinaHttpClientBuilder> configure)` returning `IHttpClientBuilder`, and `AddEncinaHttpHandlers(this IHttpClientBuilder, ...)` for an existing client (used with Refit's `AddEncinaRefitClient`); `EncinaHttpClientBuilder` offers `UseApiKey`, `UseBearer`, `UseAccessTokenSource`, `UseClientCertificate`, `RateLimit(permitsPerSecond)`; handler order per design choice 4
-5. **`Diagnostics/`** — the EventId range registration and the diagnostics shell (Phase 6 fills it)
+4. **`HttpClientBuilderExtensions.cs`** — `AddEncinaHttpClient(this IServiceCollection, string name, Action<EncinaHttpClientBuilder> configure)` returning `IHttpClientBuilder`, and `AddEncinaHttpHandlers(this IHttpClientBuilder, Action<HttpStandardResilienceOptions>? configureResilience = null, ...)` for an existing client (used with Refit's `AddEncinaRefitClient`); both add `AddStandardResilienceHandler` first (Dilemma 9, option A) and then the Encina handlers, so the order of Design Choice 4 holds by construction, and both call `RemoveAllLoggers()` so the redacting handler is the only logger (Design Choice 8); `EncinaHttpClientBuilder` offers `UseApiKey`, `UseBearer`, `UseAccessTokenSource`, `UseClientCertificate`, `RateLimit(permitsPerSecond)`
+5. **Diagnostics and the EventId range** — none in this phase; the range is registered in Phase 6 (PR 7)
 6. **`README.md`** — package README stating plainly that `Encina.Http` has no AEAT endpoint, Verifactu preset or RRSIF type (ADR-057 D9)
 
 </details>
@@ -279,13 +336,13 @@ REFERENCE FILES:
 #### `src/Encina.Http/Auth/`
 
 1. **`IOutboundAuthProvider.cs`** — `ValueTask<Either<EncinaError, Unit>> ApplyAsync(HttpRequestMessage request, OutboundCallContext context, CancellationToken ct)`; `OutboundCallContext` = client name, tenant id (nullable), purpose
-2. **`ApiKeyAuthProvider.cs`** — header name configurable; the key from `ISecretReader` by `OutboundSecretNames.Compose(client, tenant, purpose)`; the value is set on the request and never logged
+2. **`ApiKeyAuthProvider.cs`** — header name configurable; the key from `ISecretReader` by `OutboundSecretNames.Compose(client, tenant, purpose)` (injective, Design Choice 2); the value is set on the request and never logged. The auth handler runs per attempt (Design Choice 4), so an expired token is re-read on each retry
 3. **`BearerAuthProvider.cs`** — static bearer from a secret
 4. **`IAccessTokenSource.cs`** (OAuth hook, implemented by #1234) and **`AccessTokenAuthProvider.cs`** — `ValueTask<Either<EncinaError, string>> GetAccessTokenAsync(OutboundCallContext, CancellationToken)`; sets `Authorization: Bearer`
 5. **`IClientCertificateSource.cs`** (certificate hook, implemented by #1246) — `ValueTask<Either<EncinaError, X509Certificate2>> GetCertificateAsync(OutboundCallContext, CancellationToken)`
-6. **`OutboundSecretNames.cs`** (internal) — the one convention class of Dilemma 2
+6. **`OutboundSecretNames.cs`** (internal) — the one convention class of Dilemma 2: segments percent-encoded, reserved no-tenant token `default`, a tenant id equal to `default` refused when tenancy is on
 7. **`AuthHandler.cs`** — `DelegatingHandler` running the provider; a `Left` becomes `OutboundRejectedException` with `encina.outbound.auth_failed`; a missing secret or tenant never falls back
-8. **Core** (`src/Encina/Recoverability/`): `OutboundErrorCodes.AuthFailed = "encina.outbound.auth_failed"` and `TenantRequired = "encina.outbound.tenant_required"`; `OutboundRejectedException` (public sealed; `Code`, metadata dictionary; no message text from remote systems) — `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Http`
+8. **Core** (`src/Encina/Recoverability/`): `OutboundErrorCodes.AuthFailed = "encina.outbound.auth_failed"` and `TenantRequired = "encina.outbound.tenant_required"`; `OutboundRejectedException` (public sealed; `Code`, metadata dictionary; no message text from remote systems) — `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Http`. **Error categories (ADR-062, set where the `EncinaError` is created, in the `RestApiRequestHandler` mapping of `OutboundRejectedException`)**: `tenant_required` is `InvalidRequest` (R3); `auth_failed` is `Internal` (R1 and R4: a missing secret or certificate is a server-side lookup failure, not something the caller sent); `rate_limited` raised by the local limiter keeps the category `Unavailable` that ADR-062 R7 gives the outbound `rate_limited` code (the completeness scan fails on one code created with two categories) and carries the wait as a `TimeSpan` under `EncinaErrorMetadataKeys.RetryAfter` alongside the outbound `http.retry_after`, so hosts write `Retry-After` from the former. A unit test per code asserts `GetCategory`
 
 </details>
 
@@ -330,8 +387,8 @@ REFERENCE FILES:
 
 #### `src/Encina.Http/Tls/`
 
-1. **`TenantHandlerCache.cs`** (internal) — keyed by (client, tenant): builds a `SocketsHttpHandler` with `SslOptions.ClientCertificates` from `IClientCertificateSource`, bounded `PooledConnectionLifetime`, evicted and disposed before the certificate's `NotAfter` (read through the injected `TimeProvider`), concurrency-safe creation, no certificate private material in logs
-2. **`ClientCertificateHandlerFactory.cs`** — plugs the cache in as the primary handler of the named client through `ConfigurePrimaryHttpMessageHandler`
+1. **`TenantHandlerCache.cs`** (internal, a singleton owned by the DI container, never by a factory-built chain) — keyed by a structured (client, tenant-or-none) key: builds a `SocketsHttpHandler` with `SslOptions.ClientCertificates` from `IClientCertificateSource`, bounded `PooledConnectionLifetime`, evicted before the certificate's `NotAfter` (read through the injected `TimeProvider`) and disposed only after its in-flight requests finish, bounded by `MaxCachedTenants` with least-recently-used eviction (Dilemma 10), concurrency-safe creation, no certificate private material in logs
+2. **`ClientCertificateHandlerFactory.cs`** — plugs a **dispatching `HttpMessageHandler`** in as the primary handler of the named client through `ConfigurePrimaryHttpMessageHandler`: it picks the tenant's `SocketsHttpHandler` from the cache per request and never disposes the cache or the tenant handlers when the factory rotates the chain every `HandlerLifetime` (its `Dispose` is a no-op for them); a test rotates the chain while a tenant request is in flight
 3. A certificate that cannot be resolved, is expired or not yet valid is `encina.outbound.auth_failed`; the request is not sent
 4. Server-certificate validation stays the platform default; a callback that accepts everything is never installed
 
@@ -376,10 +433,10 @@ REFERENCE FILES:
 
 #### `src/Encina.Http/RateLimiting/`
 
-1. **`OutboundRateLimiter.cs`** (internal) — a `PartitionedRateLimiter<OutboundCallContext>` with a token-bucket limiter per (client, tenant) partition from `EncinaHttpClientOptions` (permits per second, burst, queue wait); a limiter is created lazily and disposed with the cache
-2. **`RetryAfterGate.cs`** (internal) — per partition, `PauseUntilUtc`; after a response with status 429 or 503 and a valid `Retry-After` (`RetryAfterParser.Parse(header, TimeProvider)`), the partition is paused and later calls wait or are rejected per `MaxQueueWait`; a pause is capped by an option to bound a hostile server
-3. **`RateLimitHandler.cs`** — `DelegatingHandler`: acquire a lease; rejection throws `OutboundRejectedException(OutboundErrorCodes.RateLimited, retry-after metadata)`; the response of the inner handler feeds the gate
-4. Tenant guard: no tenant and no opt-out throws `OutboundRejectedException(TenantRequired)` before any partition is touched
+1. **`OutboundRateLimiter.cs`** (internal) — a `PartitionedRateLimiter<OutboundCallContext>` with a token-bucket limiter per (client, tenant) partition (a structured key, never a concatenated string) from `EncinaHttpClientOptions` (permits per second, burst, queue wait); a limiter is created lazily and disposed with the cache
+2. **`RetryAfterGate.cs`** (internal) — per partition, `PauseUntilUtc`; after a response with status 429 or 503 and a valid `Retry-After` (`RetryAfterParser.Parse(header, TimeProvider)`), the partition is paused and later calls wait or are rejected per `MaxQueueWait`; a pause is capped by `MaxRetryAfter` (default in Dilemma 10) to bound a hostile server
+3. **`RateLimitHandler.cs`** — `DelegatingHandler` placed after the resilience handler, so it runs on **every attempt**: acquire a lease (a retried 429 waits or is rejected on its second attempt); rejection throws `OutboundRejectedException(OutboundErrorCodes.RateLimited, retry-after metadata)`; the response of the inner handler feeds the gate on each attempt, so retries cannot hit the server before the pause ends
+4. Tenant guard (`TenantGuardHandler`, PR 4): no tenant and no opt-out throws `OutboundRejectedException(TenantRequired)` before any partition is touched; the tenant comes from `IRequestContextAccessor` and "tenancy on" is the `MultiTenancyMarker` (Design Choice 7); a tenant id equal to `default` under tenancy is refused (Design Choice 2)
 5. The internal interface hides the engine so the Encina.Resilience core can replace it (Dilemma 1)
 
 </details>
@@ -397,13 +454,16 @@ CONTEXT:
 
 TASK:
 Implement the limiter, gate and handler as listed. Unit tests on a FakeTimeProvider: permits never exceeded, burst,
-queue wait, two tenants do not share a partition, Retry-After pauses only the partition that received it, an absurd
-Retry-After is capped, no tenant denied, opt-out logged once. Property test (FsCheck): over any sequence of calls
+queue wait, two tenants do not share a partition (including a tenant named `default` versus the tenant-less opt-out),
+Retry-After pauses only the partition that received it, an absurd Retry-After is capped, no tenant denied, opt-out
+logged once, and a 429 retried by the standard resilience handler acquires a new permit on its second attempt (waits or
+is rejected) instead of bypassing the limiter. Property test (FsCheck): over any sequence of calls
 the granted permits in any window never exceed the configured rate plus burst.
 
 KEY RULES:
 - Time only from TimeProvider; no Task.Delay without it; no Thread.Sleep in tests.
-- Tags and logs carry client name and outcome only; the tenant id is a span attribute, never a metric tag.
+- Tags and logs carry client name and outcome only, plus `encina.tenant_id` as a span attribute and metric tag when
+  tenancy is on (ADR-054 D4); the tenant id is never a log argument.
 
 REFERENCE FILES:
 - src/Encina/Recoverability/RetryAfterParser.cs
@@ -420,10 +480,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Diagnostics/RedactingLoggingHandler.cs`** — outermost-to-transport handler logging method, `server.address`, status class, elapsed time and the error code; never path, query, headers or bodies
-2. **`src/Encina.Refit/Handlers/RestApiRequestHandler.cs`** (modify) — catch `OutboundRejectedException` and return `Left` with its code and metadata (`http.retry_after`, `transient` = false for tenant and auth failures, true for rate limited); the message is fixed text
+1. **`Diagnostics/RedactingLoggingHandler.cs`** — the handler closest to the transport (the builder removed the framework's URI-logging handlers with `RemoveAllLoggers()` in Phase 1) logging method, `server.address`, status class, elapsed time and the error code; never path, query, headers or bodies
+2. **`src/Encina.Refit/Handlers/RestApiRequestHandler.cs`** (modify) — catch `OutboundRejectedException` and return `Left` created with the `ErrorCategory` of its code (Phase 2 task 8) and its metadata (`http.retry_after` and `EncinaErrorMetadataKeys.RetryAfter` as a `TimeSpan`, `transient` = false for tenant and auth failures, true for rate limited); the message is fixed text
 3. **`src/Encina/Recoverability/IErrorClassifier` mapping** — verify that `rate_limited` stays transient and `auth_failed` / `tenant_required` are not retried; add classifier tests (no change to the classifier unless a test shows a gap)
-4. Tests: unit and property (no secret string, header value or body ever appears in any captured log, exception message, metric tag or activity attribute for generated inputs)
+4. Tests: unit and property (no secret string, header value, body, path or query ever appears in any captured log, including the `IHttpClientFactory` categories, exception message, metric tag or activity attribute for generated inputs)
 
 </details>
 
@@ -462,9 +522,9 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Range** — register `Http = (6300, 6349)` in `src/Encina/Diagnostics/EventIdRanges.cs` and map `Encina.Http` in `EncinaEventIdAllocationTests` (6250-6299 is the `DistributedLock` range of the lock plans); messages 6300 rate limited (Debug), 6301 partition paused by Retry-After (Information), 6302 auth failed by code (Warning), 6303 tenant required, denied (Warning), 6304 tenant opt-out in use (Warning, once per client), 6305 certificate unresolved or expired by code (Warning), 6306 tenant handler evicted (Debug), 6307 request completed (Debug, redacted)
-2. **`Diagnostics/HttpDiagnostics.cs`** — `ActivitySource` `Encina.Http` (version `1.0`), `Meter`, counters `encina.http.requests` (tags client, status class, outcome), `encina.http.throttled` (tags client, reason) and histogram `encina.http.duration`; span `encina.http.send` with `encina.tenant_id`, `http.request.method`, `server.address`; tenant id from `IRequestContextAccessor`
-3. **`Health/OutboundClientHealthCheck.cs`** — optional per named client (`IEncinaHealthCheck`): reachability of the configured base address with a short timeout, no credentials sent; reports host only
-4. Tenancy: fixed default tenant segment when tenancy is off; with `Encina.Tenancy`, the tenant id comes from `IRequestContextAccessor`
+2. **`Diagnostics/HttpDiagnostics.cs`** — `ActivitySource` `Encina.Http` (version `1.0`), `Meter` `Encina.Http` (ADR-054 D3), counters `encina.http.requests` (tags client, status class, outcome) and `encina.http.throttled` (tags client, reason), each with the tag `encina.tenant_id` when the `MultiTenancyMarker` is registered and no tenant tag when it is not (ADR-054 D4), and histogram `encina.http.duration`; span `encina.http.send` with `encina.tenant_id` (when tenancy is on), `http.request.method`, `server.address`; tenant id from `IRequestContextAccessor`
+3. **`Health/OutboundClientHealthCheck.cs`** — optional per named client (`IEncinaHealthCheck`), registered only for a client with a configured base address (no base address, no probe): reachability of that address through a dedicated probe `HttpClient` built **without** the Encina handler stack, so the probe sends no credentials, takes no limiter permit, needs no tenant (the tenant guard is not in its pipeline) and counts nothing against any partition; short timeout; reports host only
+4. Tenancy: no tenant is required and no tenant tag is emitted when the `MultiTenancyMarker` is absent (the reserved no-tenant segment of Design Choice 2 applies); with `Encina.Tenancy`, the tenant id comes from `IRequestContextAccessor`, the same trigger and source as `DeadLetterManager`
 5. Validation: options validator (Phase 1); resilience: composition order documented and tested with `AddStandardResilienceHandler` (one retry layer)
 
 </details>
@@ -486,8 +546,8 @@ Add the in-memory exporter test of AC-044 (main operations emit their activity a
 attribute) and the health check test.
 
 KEY RULES:
-- Metric tags: client name, status class, outcome, reason only; never tenant id, path or host names beyond the
-  configured server.address.
+- Metric tags: client name, status class, outcome, reason, plus encina.tenant_id only when multi-tenancy is on
+  (ADR-054 D4); never path or host names beyond the configured server.address.
 - A test asserts that no tag, attribute or log carries a payload, response body or direct identifier.
 
 REFERENCE FILES:
@@ -512,7 +572,18 @@ REFERENCE FILES:
 4. **Property** (`tests/Encina.PropertyTests/Http/`) — the rate limiter bound and the redaction property
 5. **Integration** (`tests/Encina.IntegrationTests/Http/`) — WireMock via `Encina.Testing.WireMock` (scenarios S9 and S10: pacing, a server-directed wait honoured, a rejection) and a Kestrel server with `RequireCertificate` for mTLS; two-tenant isolation tests (tenant A never uses, reads or paces on tenant B's credentials, certificate or partition) per AC-043
 6. **Load and benchmark** — justification files (the handlers are thin and per-process; a rate-limiter benchmark only if the maintainer wants a number)
-7. **Coverage manifest** — new `Encina.Http.json` with per-file targets and one-sentence justifications (`mechanical-fixer`)
+7. **Coverage manifest** — new `Encina.Http.json` (created in PR 1, extended in each PR) with per-file targets and one-sentence justifications (`mechanical-fixer`). The handlers and the limiter are pure logic over `FakeTimeProvider`, so unit targets are demanding:
+
+   | File | Unit | Guard | Contract | Property | Integration | Justification |
+   |------|-----:|------:|---------:|---------:|------------:|---------------|
+   | `OutboundSecretNames.cs` | 100 | 0 | 0 | 100 | 0 | One pure function; the injectivity property is its safety net; internal |
+   | `ApiKeyAuthProvider.cs`, `BearerAuthProvider.cs`, `AccessTokenAuthProvider.cs` | 95 | 100 | 90 | 0 | 80 | Small classes over `ISecretReader` fakes; the provider contract runs over each; two-tenant integration |
+   | `AuthHandler.cs`, `TenantGuardHandler.cs` | 95 | 100 | 0 | 0 | 80 | Branches are success, `Left`, no tenant, opt-out; the two-tenant test runs through the real chain |
+   | `RateLimitHandler.cs`, `OutboundRateLimiter.cs`, `RetryAfterGate.cs` | 95 | 100 | 0 | 90 | 80 | Pure logic over `FakeTimeProvider`; property proves the rate bound; WireMock proves S9/S10 and the retried 429 |
+   | `TenantHandlerCache.cs`, `ClientCertificateHandlerFactory.cs` | 90 | 100 | 0 | 0 | 85 | Creation, eviction and rotation on a fake clock; Kestrel `RequireCertificate` proves the isolation |
+   | `RedactingLoggingHandler.cs`, `HttpDiagnostics.cs` | 90 | 100 | 0 | 90 | 70 | Redaction property over generated secrets, URLs and bodies; exporter test for the instruments |
+   | `OutboundClientHealthCheck.cs` | 95 | 100 | 0 | 0 | 0 | Healthy, unhealthy, no base address |
+   | `EncinaHttpClientOptions.cs`, validator, builder extensions | 90 | 100 | 0 | 0 | 0 | Property bag, three validation rules and registration branches |
 
 </details>
 
@@ -553,7 +624,7 @@ REFERENCE FILES:
 
 1. XML documentation on every public API (`<example>` on the builder extensions)
 2. `docs-writer`: package README (including the ADR-057 D9 boundary statement), a configuration guide (named client, auth, mTLS, rate limit, handler order with Microsoft.Extensions.Http.Resilience), tenant behavior and the opt-out
-3. ADR in `docs/architecture/adr/` (next free number at that time) for the handler per (client, tenant) and the handler order; `mechanical-fixer` adds it to the ADR index
+3. ADR in `docs/architecture/adr/` (number assigned when the ADR pull request opens) for the handler per (client, tenant) and the handler order; `mechanical-fixer` adds it to the ADR index
 4. `changelog.d/1233-encina-http.added.md` (`mechanical-fixer`); `PublicAPI.Unshipped.txt` complete in `Encina`, `Encina.Http`; `docs/INVENTORY.md` for the new package; `ROADMAP.md` if the milestone text changes; the `AGENTS.md` section 5 Resilience row names `Extensions.Http.Resilience`, which does not exist (the P-30 note): that wording is the maintainer's and is changed in its own change, not in this pull request
 5. `dotnet build --configuration Release` with 0 warnings; `dotnet test`; every flag at its target; CRAP <= 10 on changed methods; the pull request records the ADR-018 evaluation of the 12 functions
 
@@ -615,7 +686,7 @@ REFERENCE FILES:
 | `OutboundTelemetry` | `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` | Pattern for outbound activity and metric names |
 | `ISecretReader` | `src/Encina.Security.Secrets/Abstractions/ISecretReader.cs` | Source of API keys and bearer secrets |
 | `IRequestContextAccessor` | registered by `Encina.Tenancy` (`src/Encina.Tenancy/ServiceCollectionExtensions.cs`) | Ambient tenant id |
-| Microsoft.Extensions.Http(.Resilience) | `Directory.Packages.props` (10.0.12 / 10.8.0) | `IHttpClientBuilder`, `AddStandardResilienceHandler` |
+| Microsoft.Extensions.Http(.Resilience) | `Directory.Packages.props` (10.0.12 / 10.10.0) | `IHttpClientBuilder`, `AddStandardResilienceHandler` |
 | `EncinaWireMockFixture` | `src/Encina.Testing.WireMock/EncinaWireMockFixture.cs` | Integration tests for pacing and errors |
 | `EncinaEventIdAllocationTests` | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | Assembly-to-range map |
 
@@ -623,22 +694,33 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Http` (new `Http` entry) | 6300-6349 | Registered first in `EventIdRanges.cs` (ADR-021); 6300-6307 allocated by this plan; 6250-6299 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
+| `Encina.Http` (new `Http` entry) | 6300-6349 | Registered first in `EventIdRanges.cs` (ADR-021) by PR 7; 6300-6307 allocated by this plan, 6308-6349 left to the family; 6250-6299 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
 | `Encina.Refit` | 4650-4699 | Existing; unchanged |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production (new, `Encina.Http`) | 22 | Options (2), builder (2), auth (8), TLS (2), rate limiting (3), diagnostics and logging (3), health (1), csproj and README (2 counted in docs) |
+| Production (new, `Encina.Http`) | 24 | Options (2), builder (2), auth (8), TLS (3), rate limiting (3), tenant guard (1), diagnostics and logging (3), health (1), csproj (1) |
 | Production (modified) | 4 | `OutboundErrorCodes.cs`, new `OutboundRejectedException.cs` (new), `RestApiRequestHandler.cs`, `EventIdRanges.cs` |
-| PublicAPI, manifests, solution | 5 | Two `PublicAPI.Unshipped.txt`, `PublicAPI.Shipped.txt`, `Encina.Http.json`, `Encina.slnx` |
+| PublicAPI, manifests, solution | 7 | `PublicAPI.Unshipped.txt` in `Encina` and `Encina.Http`, `PublicAPI.Shipped.txt`, `Encina.Http.json`, `Encina.json`, `Encina.Refit.json`, `Encina.slnx` |
 | Unit and guard tests | 14 | |
-| Contract, property tests | 4 | |
+| Contract, property tests | 5 | |
 | Integration tests | 5 | WireMock, Kestrel mTLS, two-tenant isolation |
 | Justification files | 2 | Load, benchmark |
 | Documentation and changelog | 5 | README, guide, ADR, fragment, INVENTORY entry |
-| **Total** | **~61** | Across 6 pull requests of at most 15 files each |
+| **Total** | **~66** | Across 8 pull requests |
+
+| PR | Files (production + PublicAPI + manifests + tests) | Lines (estimate) |
+|----|-----|-----:|
+| 1: scaffold | 13 (csproj, slnx, options, validator, 2 builder files, README, 2 PublicAPI files, `Encina.Http.json`, unit, DI/unit, guard) | ~900 |
+| 2: core codes and Refit mapping | 11 (2 core files modified, `OutboundRejectedException`, `RestApiRequestHandler`, `PublicAPI.Unshipped.txt` in `Encina`, 2 manifests, unit (3 test files), guard) | ~700 |
+| 3: auth providers | 13 (7 production, `PublicAPI.Unshipped.txt`, manifest, unit, guard, contract, property) | ~1100 |
+| 4: auth and tenant handlers | 10 (`AuthHandler`, `TenantGuardHandler`, builder mod, manifest, `PublicAPI.Unshipped.txt`, 2 unit, guard, integration, plus the tenant resolver) | ~900 |
+| 5: mTLS | 10 (3 production, builder mod, `PublicAPI.Unshipped.txt`, manifest, unit, guard, integration with the Kestrel fixture) | ~1000 |
+| 6: rate limiting | 10 (3 production, builder mod, manifest, unit, property, guard, WireMock integration) | ~1000 |
+| 7: observability | 14 (4 production, `EventIdRanges.cs`, EventId map test, 2 `PublicAPI.Unshipped.txt`, manifest, 2 unit, guard, property, integration) | ~1300 |
+| 8: documentation | 7 (guide, ADR, index, fragment, INVENTORY, 2 justification files) | ~500 |
 
 ---
 
@@ -656,12 +738,13 @@ PROJECT CONTEXT:
 - Errors: core OutboundErrorCodes/OutboundErrorMetadataKeys/RetryAfterParser already exist (P-21, closed). Handlers
   cannot return Either: they throw OutboundRejectedException, mapped to a coded Left by RestApiRequestHandler.
 - Tenant awareness (REQ-061): credentials, certificates and rate limits per tenant; missing tenant denied unless an
-  explicit, logged opt-out; fixed default tenant when tenancy is off.
+  explicit, logged opt-out; the reserved no-tenant segment `default` when tenancy is off (a tenant id `default` is
+  refused when tenancy is on); tenancy on = the MultiTenancyMarker, tenant from IRequestContextAccessor.
 
 IMPLEMENTATION OVERVIEW:
 1. Package scaffold, named-client options and validator, AddEncinaHttpClient / AddEncinaHttpHandlers, README stating
    no AEAT endpoint, no Verifactu preset, no RRSIF type (ADR-057 D9).
-2. Auth: IOutboundAuthProvider, API key and bearer from ISecretReader (secret name {client}/{tenant}/{purpose}),
+2. Auth: IOutboundAuthProvider, API key and bearer from ISecretReader (secret name {client}/{tenant}/{purpose} with each segment percent-encoded),
    IAccessTokenSource (hook for #1234), IClientCertificateSource (hook for #1246), AuthHandler; new core codes
    auth_failed and tenant_required; OutboundRejectedException.
 3. mTLS: a SocketsHttpHandler per (client, tenant) with a lifetime-bounded, certificate-expiry-aware cache; test with
@@ -669,14 +752,15 @@ IMPLEMENTATION OVERVIEW:
 4. Rate limiting: PartitionedRateLimiter per (client, tenant), Retry-After gate pausing the partition, capped.
 5. Redacting logging handler closest to the transport; Refit mapping of OutboundRejectedException.
 6. Observability: EventId range Http = 6300-6349 registered first, ActivitySource and Meter Encina.Http, optional
-   health check; tenant id as span attribute only.
+   health check; tenant id as span attribute and metric tag when tenancy is on (ADR-054 D4). Encina handlers run per
+   attempt after the standard resilience handler; error codes carry an ErrorCategory (ADR-062).
 7. Tests: unit, guard, contract (auth provider contract), property (rate bound, redaction), integration (WireMock S9/S10,
    Kestrel mTLS, two-tenant isolation); docs, ADR, changelog, PublicAPI, manifest through the specialists.
 
 KEY PATTERNS:
 - Never log or tag credentials, bodies, URLs with query, headers, certificate content or exception messages.
 - Time only from TimeProvider; handlers dispose evicted resources safely.
-- Six pull requests of at most 15 files each.
+- Eight pull requests of at most 15 files each, each carrying the tests of its own files.
 
 REFERENCE FILES:
 - docs/plans/http-implementation-plan-1233.md
@@ -696,7 +780,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | No read path benefits from caching; the handler cache of Phase 3 is connection state, not data caching |
-| 2 | OpenTelemetry | ✅ | Phase 6: `ActivitySource` and `Meter` named `Encina.Http`; tenant id as span attribute only; no payloads |
+| 2 | OpenTelemetry | ✅ | Phase 6: `ActivitySource` and `Meter` named `Encina.Http`; tenant id as span attribute and metric tag when tenancy is on (ADR-054 D4); no payloads |
 | 3 | Structured Logging | ✅ | Phase 6: `[LoggerMessage]` 6300-6307 in the new `Http` range registered first (ADR-021) |
 | 4 | Health Checks | ✅ | Phase 6: optional per-client reachability check, no credentials sent |
 | 5 | Validation | ✅ | Phase 1: named-client options validated at start-up |
@@ -726,5 +810,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #1233 and start the PR 1 brief (Phase 1); the other PRs follow in order.
-2. When work on the issue starts, ask the maintainer to answer Dilemmas 1 to 3 (limiter now or after the Encina.Resilience core; the per-tenant secret naming; handlers only or an `Either` client), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled choices.
-3. One commit per phase; the last commit of PR 6 references `Fixes #1233`.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 1, 2, 3, 5, 6, 9 and 10 (limiter now or after the Encina.Resilience core; the per-tenant secret naming; handlers only or an `Either` client; handler per tenant or a client per tenant; interfaces defined here or by their owners; who adds the resilience handler; the visible defaults), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled choices.
+3. One commit per phase; the last commit of PR 8 references `Fixes #1233`.
