@@ -12,7 +12,7 @@
 
 ## Summary
 
-`DPIAReviewReminderService` is a `BackgroundService` that, when `DPIAOptions.EnableExpirationMonitoring` is on, runs a cycle at start and every `ExpirationCheckInterval` (default 1 hour) on a `PeriodicTimer`: it asks `IDPIAService.GetExpiredAssessmentsAsync`, logs, and publishes `DPIAAssessmentExpired` through `IEncina`. In a multi-instance deployment every instance runs every cycle, so the same assessment is published once per instance and the store is queried N times. This plan makes **only one instance run each cycle**:
+`DPIAReviewReminderService` is a `BackgroundService` that always runs (the `EnableExpirationMonitoring` switch was removed by #3270/#3786; Article 35(11) makes the review a legal obligation) and runs a cycle at start and every `ExpirationCheckInterval` (default 1 hour) on a `PeriodicTimer`: it asks `IDPIAService.GetExpiredAssessmentsAsync`, logs, and publishes `DPIAAssessmentExpired` through `IEncina`. In a multi-instance deployment every instance runs every cycle, so the same assessment is published once per instance and the store is queried N times. This plan makes **only one instance run each cycle**:
 
 1. **Lock around the cycle.** The cycle opens its async scope first and keeps it until the lock handle is disposed (a scoped provider must not outlive its scope); the service resolves the provider from that scope, tries `IDistributedLockProvider.TryAcquireAsync("encina:dpia:review-reminder", expiry: LockTimeout, wait: 0, retry: 0, ct)` and runs the cycle only while it holds the handle.
 2. **ADR-052 outcomes.** `Right(Some(handle))` runs the cycle and disposes the handle at the end; `Right(None)` skips the cycle (another instance holds it; logged at Debug, counted as `skipped`); `Left` fails the cycle visibly (logged by error code, counted as `failed`, retried at the next tick); cancellation propagates.
@@ -31,7 +31,7 @@
 
 - `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` is `internal sealed class ... : BackgroundService`, registered by `services.AddHostedService<DPIAReviewReminderService>()` (`ServiceCollectionExtensions.cs:184`) and built from `(IServiceScopeFactory, IOptions<DPIAOptions>, ILogger<>)`. Its `ExecuteAsync` returns when monitoring is off, runs the first cycle at once, then loops on `PeriodicTimer(ExpirationCheckInterval)`.
 - `ExecuteReminderCycleAsync` creates an async scope, resolves `IDPIAService`, and matches the `Either`: `Right` logs and (when `PublishNotifications`) starts `_ = PublishExpiredNotificationsAsync(...)`; `Left` logs the code. It catches cancellation and any other exception per cycle (the loop never throws). Counter `dpia.review_reminder.cycles.total` already has outcomes `completed`, `failed`, `cancelled` (`DPIADiagnostics.ReviewReminderCyclesTotal`, tag `dpia.outcome`).
-- Log messages are extension methods in `Diagnostics/DPIALogMessages.cs`; the block `8840-8849` (Expiration monitoring) uses 8840-8848, so **8849 is the only free id in that block**, every other group of the registered range `8800-8899` is assigned to its own area (8897-8899, the ids the original issue suggested, sit inside the ASP.NET Core endpoints block `8890-8899`), and the lock lifecycle needs two messages (skipped, and the once-per-service presence log), so no group of the range can hold them: Design Choice 6 registers a new range from the registry block `6350-6399`.
+- Log messages are extension methods in `Diagnostics/DPIALogMessages.cs`; the block `8840-8849` (Expiration monitoring) uses 8840-8847 after #3786 (8848-8849 are free), every other group of the registered range `8800-8899` is assigned to its own area (8897-8899, the ids the original issue suggested, sit inside the ASP.NET Core endpoints block `8890-8899`), and the lock lifecycle needs two messages (skipped, and the once-per-service presence log): Design Choice 6 registers a new range from the registry block `6350-6399`. Before #3786 the block had a single free id (8849) and no group could hold both messages; whether the lock messages move into 8848-8849 is to be revisited when #763 is implemented.
 - `Encina.Compliance.DPIA` does not reference `Encina.DistributedLock`; no production code under `src/` consumes `IDistributedLockProvider` yet (ADR-052 context), so this is its first consumer. `Encina.DistributedLock` references `Encina` and `Encina.Messaging`, so the new reference creates no cycle.
 - `DPIAOptionsValidator` (registered as `IValidateOptions<DPIAOptions>`, `ServiceCollectionExtensions.cs:109`) validates `ExpirationCheckInterval` when monitoring is enabled.
 - The manifest `.github/coverage-manifest/Encina.Compliance.DPIA.json` gives `DPIAReviewReminderService.cs` the targets unit 93 and guard 7.
@@ -164,7 +164,7 @@
 
 **Class:** Dilemma
 
-**EventIds (the allocation follows from either option):** the lock lifecycle needs two log messages: `ReviewReminderCycleSkippedLockNotAcquired` (Debug) and `ReviewReminderLockPresence(bool lockProviderPresent)` (Information, once on the first cycle). The DPIA range `8800-8899` has no free group (the expiration-monitoring block has the single free id 8849 and every other block belongs to another area), so the lock lifecycle gets a new range registered from the registry block `6350-6399`: `ComplianceDPIALock = (6350, 6359)` in `src/Encina/Diagnostics/EventIdRanges.cs`, mapped to `Encina.Compliance.DPIA` in `AssemblyRanges` of `EncinaEventIdAllocationTests.cs`: 6350 skipped, 6351 presence. 8849 stays free; acquired and failed reuse the existing cycle-start and cycle-failed messages. The issue's suggested ids 8944-8946 belong to Privacy by Design.
+**EventIds (the allocation follows from either option):** the lock lifecycle needs two log messages: `ReviewReminderCycleSkippedLockNotAcquired` (Debug) and `ReviewReminderLockPresence(bool lockProviderPresent)` (Information, once on the first cycle). The DPIA range `8800-8899` has no free group (the expiration-monitoring block had the single free id 8849 when this plan was written; after #3786 it has two, 8848-8849, and whether the lock messages move there is to be revisited when #763 is implemented; every other block belongs to another area), so the lock lifecycle gets a new range registered from the registry block `6350-6399`: `ComplianceDPIALock = (6350, 6359)` in `src/Encina/Diagnostics/EventIdRanges.cs`, mapped to `Encina.Compliance.DPIA` in `AssemblyRanges` of `EncinaEventIdAllocationTests.cs`: 6350 skipped, 6351 presence. 8848-8849 stay free; acquired and failed reuse the existing cycle-start and cycle-failed messages. The issue's suggested ids 8944-8946 belong to Privacy by Design.
 
 </details>
 
@@ -204,7 +204,7 @@ Two pull requests, counts include tests. **PR 1** = Phases 1 to 5 (14 files, abo
 
 1. **`Encina.Compliance.DPIA.csproj`** (modify) — `ProjectReference` to `..\Encina.DistributedLock\Encina.DistributedLock.csproj`
 2. **`DPIAOptions.cs`** (modify) — `TimeSpan LockTimeout { get; set; } = TimeSpan.FromSeconds(30)` with XML docs: the lock expiry of a review cycle; raise it when publishing is slow (see design choice 1)
-3. **`DPIAOptionsValidator.cs`** (modify) — when `EnableExpirationMonitoring` is true, `LockTimeout` must be positive
+3. **`DPIAOptionsValidator.cs`** (modify) — `LockTimeout` must be positive (the validator checks the monitoring options unconditionally since #3786)
 4. **`PublicAPI.Unshipped.txt`** — `DPIAOptions.LockTimeout.get/set`
 
 </details>
@@ -216,7 +216,7 @@ Two pull requests, counts include tests. **PR 1** = Phases 1 to 5 (14 files, abo
 You are implementing Phase 1 of issue #763: the LockTimeout option of the DPIA review reminder.
 
 CONTEXT:
-- DPIAOptions has EnableExpirationMonitoring (default false) and ExpirationCheckInterval (default 1 hour);
+- The review reminder service always runs (#3270/#3786; no EnableExpirationMonitoring switch); DPIAOptions has ExpirationCheckInterval (default 1 hour);
   DPIAOptionsValidator rejects a non-positive interval when monitoring is on.
 
 TASK:
@@ -341,7 +341,7 @@ REFERENCE FILES:
 You are implementing Phase 4 of issue #763: logging and telemetry of the lock outcomes.
 
 CONTEXT:
-- DPIA ids live in 8800-8899, grouped in blocks of ten, with no free group; the lock messages take the new range
+- DPIA ids live in 8800-8899, grouped in blocks of ten (after #3786 the block 8840-8849 has two free ids, 8848-8849; whether the lock messages move there is to be revisited); the lock messages take the new range
   ComplianceDPIALock = (6350, 6359): 6350 skipped, 6351 presence. The counter dpia.review_reminder.cycles.total has the tag dpia.outcome.
 
 TASK:
@@ -463,7 +463,7 @@ REFERENCE FILES:
 | `DPIAReviewReminderService` | `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` | The service gaining the lock |
 | `DPIAOptions`, `DPIAOptionsValidator` | `src/Encina.Compliance.DPIA/DPIAOptions.cs`, `DPIAOptionsValidator.cs` | `LockTimeout` and its rule |
 | `DPIADiagnostics` | `src/Encina.Compliance.DPIA/Diagnostics/DPIADiagnostics.cs` | `ReviewReminderCyclesTotal` counter, `TagOutcome`, `StartReviewReminderCycle` |
-| `DPIALogMessages` | `src/Encina.Compliance.DPIA/Diagnostics/DPIALogMessages.cs` | Existing reminder messages 8840-8848; new 6350-6351 |
+| `DPIALogMessages` | `src/Encina.Compliance.DPIA/Diagnostics/DPIALogMessages.cs` | Existing reminder messages 8840-8847 after #3786; new 6350-6351 |
 | `IDistributedLockProvider`, `ILockHandle` | `src/Encina.DistributedLock/` | The abstraction consumed |
 | `InMemoryDistributedLockProvider` | `src/Encina.DistributedLock.InMemory/` | Real provider for the two-instances unit test |
 | `AddEncinaDPIA` registrations | `src/Encina.Compliance.DPIA/ServiceCollectionExtensions.cs` | Hosted service registration (line 184) and options validator (line 109) |
@@ -481,7 +481,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.DPIA` | 6350-6351 in the new range `ComplianceDPIALock = (6350, 6359)` | Taken from the registry block 6350-6399 because the DPIA range 8800-8899 has no free group (8849 stays free); 6352-6359 left in the range |
+| `Encina.Compliance.DPIA` | 6350-6351 in the new range `ComplianceDPIALock = (6350, 6359)` | Taken from the registry block 6350-6399 because the DPIA range 8800-8899 has no free group (8848-8849 stay free after #3786; revisit when #763 is implemented); 6352-6359 left in the range |
 
 ### Estimated File Count
 
@@ -565,7 +565,7 @@ REFERENCE FILES:
 | [#2667](https://github.com/dlrivada/Encina/issues/2667) — lock providers return `Either` (ADR-052) | Open, implementation issue (no pending maintainer decision) | Phase 2 starts after it merges; Phases 1, 3 and 4 can start earlier |
 | [#3502](https://github.com/dlrivada/Encina/issues/3502) — publishing is fire-and-forget and drops the `Left` | Open | This plan only awaits the publishing inside the lock; the error handling is that issue's scope. If #3502 lands first, rebase Phase 2 task 4 onto its result |
 | [#768](https://github.com/dlrivada/Encina/issues/768) — migrate the service to `Encina.Scheduling` | Open | Dilemma 2; would remove the lock call |
-| [#3270](https://github.com/dlrivada/Encina/issues/3270) — remove `EnableExpirationMonitoring` | Open | The lock code does not depend on the flag; the validator rule changes with it |
+| [#3270](https://github.com/dlrivada/Encina/issues/3270) — remove `EnableExpirationMonitoring` | Open (DPIA part done in #3786) | The lock code does not depend on the flag; the validator rule is unconditional |
 | [#223](https://github.com/dlrivada/Encina/issues/223) — automatic lock extension | Open | Removes the fixed-expiry limit of Dilemma 1 later |
 
 ---
