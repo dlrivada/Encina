@@ -94,8 +94,8 @@ public sealed class EncinaHubAllowListTests
     {
         var options = new SignalROptions().AllowRequest<AllowedCommand>().AllowRequest<AllowedQuery>();
         using var hub = EncinaHubTestFactory.CreateHub(options, out _);
-        using var anonymousHub = EncinaHubTestFactory.CreateHub(
-            options, out _, user: new ClaimsPrincipal(new ClaimsIdentity()));
+        // A principal with no identity at all must count as unauthenticated.
+        using var anonymousHub = EncinaHubTestFactory.CreateHub(options, out _, user: new ClaimsPrincipal());
 
         string[] responses =
         [
@@ -188,15 +188,11 @@ public sealed class EncinaHubAllowListTests
 
         var first = EncinaHubTestFactory.Parse(await noUserHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
         var second = EncinaHubTestFactory.Parse(await unauthenticatedHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
-        using var noIdentityHub = EncinaHubTestFactory.CreateHub(options, out var noIdentityEncina, user: new ClaimsPrincipal());
-        var third = EncinaHubTestFactory.Parse(await noIdentityHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
 
         first.error!.code.ShouldBe("command.type_not_found");
         second.error!.code.ShouldBe("command.type_not_found");
-        third.error!.code.ShouldBe("command.type_not_found");
         noUserEncina.ReceivedCalls().ShouldBeEmpty();
         unauthenticatedEncina.ReceivedCalls().ShouldBeEmpty();
-        noIdentityEncina.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]

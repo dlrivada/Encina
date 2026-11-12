@@ -169,10 +169,7 @@ public sealed class EncinaHubTests
     public sealed record TestHubNotification(string Message) : INotification;
 }
 
-/// <summary>
-/// Builds <see cref="EncinaHub"/> instances over a substitute <see cref="IEncina"/> and a caller
-/// context whose authentication state the test chooses.
-/// </summary>
+/// <summary>Builds hubs over a substitute <see cref="IEncina"/> and a caller of the test's choosing.</summary>
 internal static class EncinaHubTestFactory
 {
     internal static TestEncinaHub CreateHub(
