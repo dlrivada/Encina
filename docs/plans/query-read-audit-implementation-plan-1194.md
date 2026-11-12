@@ -32,7 +32,7 @@ This plan adds **query-level read audit**:
 
 **Provider category**: none of its own. The behavior writes through `IReadAuditStore`, whose 10 database providers (ADO.NET x3, Dapper x3, EF Core x3, MongoDB) and Marten implementation are owned by #1193. This plan adds no provider-specific code; one integration test proves a Dapper query handler on PostgreSQL end to end (S13) and one test per provider family proves the entries are stored and queryable by subject.
 
-**Size**: the code is small, but the tests and documentation add many files, so it ships as two worker pull requests (see Phase 6 and Next Steps): PR A (contract, behavior, DI, diagnostics, unit and guard tests; about 13 files, 900 lines) and PR B (contract, property and integration tests, docs, changelog; about 12 files, 1,000 lines).
+**Size**: the code is small, but the tests and documentation add many files, so it ships as two worker pull requests, counted with tests, manifest, PublicAPI file and changelog fragment (see Estimated File Count and Next Steps): PR A (contract, behavior, DI, diagnostics, unit and guard tests, manifest, PublicAPI, fragment; 13 files, about 900 lines) and PR B (contract, property and integration tests, the `.md` justifications, documentation; 11 files, about 1,000 lines). Each builds and passes its own tests. PR A starts only after the store contract of #1193 (`LogReadsAsync`, the entry shape, `ReadAuditFailureMode`, `PurposeEnforcement`, `IDataSubjectIdConverter`) has merged; the two features are never put in one pull request.
 
 ---
 
@@ -56,7 +56,7 @@ This plan adds **query-level read audit**:
 - The issue records the choice (comment of 2026-10-17, "Settled by elimination"): B cannot compute subjects, C fails open while SPEC-002 REQ-016 and DEC-006 require fail closed.
 - The marker is the opt-in: a query that does not implement it is never touched by the behavior (pay-for-what-you-use, AGENTS.md section 1).
 - `TResponse` is contravariant (`in`): the interface only consumes the response.
-- Departure from the issue's sketch: `GetDataSubjects` returns `IEnumerable<object?>` instead of `IEnumerable<string>`. The sketch converts with `ToString()` in the query, which is the defect of #1149 (a `Guid` or strongly-typed id formatted by hand, or a `null` turned into an empty string). Returning the typed ids lets the shared converter apply the same rules as DSR and consent.
+- The type of the returned subject ids is a separate decision (Design Choice 6).
 
 **Class:** Settled
 **Settled by:** Issue #1194 comment of 2026-10-17 (settled by elimination); SPEC-002 REQ-016 and DEC-006; AGENTS.md section 3 ("Compliance and security gates fail closed")
@@ -81,8 +81,8 @@ This plan adds **query-level read audit**:
 - `IOperationAuditStore` (what was requested, by whom, with what outcome) and `IReadAuditStore` (which subject's data was read) are separate abstractions with separate retention and queries; the behavior follows that split.
 - The behavior reuses the shape of `AuditPipelineBehavior`: static per-closed-generic-type decisions, scoped store resolution through `IServiceScopeFactory`, `TransactionScope.Suppress` around the write.
 
-**Class:** Trivial
-**Settled by:** Existing convention in `src/Encina.Security.Audit/` (`IOperationAuditStore` and `IReadAuditStore` are separate abstractions); AGENTS.md section 3 (provider coherence: abstractions live apart from implementations); SPEC-002 REQ-008 ("the audit behaviour writes one REQ-007 entry per subject")
+- **Class:** Trivial
+- **Convention:** `IOperationAuditStore` and `IReadAuditStore` are separate abstractions in `src/Encina.Security.Audit/`, and SPEC-002 REQ-008 says "the audit behaviour writes one REQ-007 entry per subject"; a sibling behavior in the same package is the existing shape.
 
 </details>
 
@@ -101,7 +101,7 @@ This plan adds **query-level read audit**:
 
 ### Rationale
 
-- Entry fields: `EntityType` = the request type name; `EntityId` = `null`; `DataSubjectId` and `DataCategory` as declared (the subject id is stored as a keyed hash, per #1193 OD-5); `UserId`, `TenantId` and `CorrelationId` from `IRequestContext`; `Purpose` from `IReadAuditContext`; `AccessMethod = ReadAccessMethod.DirectQuery` (already in the enum); `EntityCount` = the number of times the subject occurs in the response; `Metadata["request_type"]`; shared `ReadOperationId`.
+- Entry fields: `EntityType` = the request type name (it already identifies the query, so no `Metadata["request_type"]` is written); `EntityId` = `null`; `DataSubjectId` and `DataCategory` as declared (the subject id is stored as a keyed hash, per #1193 OD-5); `UserId`, `TenantId` and `CorrelationId` from `IRequestContext`; `Purpose` from `IReadAuditContext`; `AccessMethod = ReadAccessMethod.DirectQuery` (already in the enum); `EntityCount` = the number of times the subject occurs in the response; shared `ReadOperationId`.
 - Distinctness uses the converted subject string with ordinal comparison.
 - A response that exposes no subject writes one entry with `EntityCount = 0` and no subject (evidence that the lookup happened), as #1193 does for repository reads.
 
@@ -125,7 +125,8 @@ This plan adds **query-level read audit**:
 
 ### Rationale
 
-- Order in the behavior: purpose check (reject before the handler runs) -> handler -> on `Right`, resolve subjects -> `LogReadsAsync` awaited -> return the response, or `Left(read_audit.audit_write_failed)` / `Left(read_audit.subject_unresolved)` in fail-closed mode.
+- Order in the behavior: tenant check (tenancy on and no tenant: `Left(read_audit.tenant_required)` before the handler runs, so an audited read is never written untenanted) -> purpose check (reject before the handler runs) -> handler -> on `Right`, resolve subjects -> `LogReadsAsync` awaited -> return the response, or `Left(read_audit.audit_write_failed)` / `Left(read_audit.subject_unresolved)` in fail-closed mode. Tenancy is detected with `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`); with tenancy off the tenant is `null` and no tenant tag is emitted (ADR-054 D4; the wording of #1193: "with tenancy off, tenant null matches"). If the maintainer's decision on the `default` tenant of #1257 stores a `default` row instead of `null`, only the single `ResolveTenant` helper of the behavior changes.
+- Error categories (ADR-062), the same code carrying the same category as in #1193: `read_audit.subject_unresolved` is `Internal` (R4): the null, unconvertible or throwing declaration is a defect of the query's author, not of the caller's input, so answering 400 would blame the caller; `read_audit.audit_write_failed` is `Internal` (R4); `read_audit.purpose_required` and `read_audit.tenant_required` are `InvalidRequest` (R3). A `GetCategory` unit test covers each.
 - In fail-open mode (the explicit, logged opt-out of #1193 OD-4) a failure is logged by error code, metered, and the response is returned; an unresolved subject is skipped and counted.
 - A `Left` from the handler writes no entry: a failed query exposed no data. A cancelled request propagates `OperationCanceledException`; the audit write itself uses `CancellationToken.None`, as `AuditPipelineBehavior` does, so a completed read is never left unrecorded because the caller went away.
 - An exception from `GetDataSubjects` is caught, mapped to `read_audit.subject_unresolved` and logged with `ForLogging()` (exception type and stack trace, never the message).
@@ -159,7 +160,71 @@ This plan adds **query-level read audit**:
 </details>
 
 <details>
-<summary><strong>6. Subject-Id Conversion and Subject Protection — shared with P-05, no new rules</strong></summary>
+<summary><strong>6. Type of the declared subject ids — <code>IEnumerable&lt;object?&gt;</code> or <code>IEnumerable&lt;string&gt;</code></strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `GetDataSubjects` returns `IEnumerable<object?>`; the shared converter turns each element into the stored id** | A `Guid` or strongly-typed id is converted by the same rules as DSR and consent; a `null` element is detectable and fails closed | Less obvious signature than `string` |
+| **B) `IEnumerable<string>` as sketched in the issue** | Simple, matches the sketch | The query converts with `ToString()` itself, the defect of #1149 (hand-formatted ids, a `null` turned into an empty string); the author needs a public conversion helper to avoid it |
+
+### Chosen Option: **A — `IEnumerable<object?>` (recommended, pending the maintainer)**
+
+### Rationale
+
+- This departs from the issue's sketch, so it is registered as its own decision with #1149 as its basis. Option B also satisfies #1149 if the application converts correctly by hand; option A makes the correct conversion the only path.
+- Option A wins when the query author should not own conversion rules; option B wins when the maintainer prefers the smallest public surface and documents a public conversion helper instead.
+
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Constraint: queries only, not every request</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The behavior constrains `TRequest : IQuery<TResponse>` (`CqrsContracts.cs:60`); the interface documents "queries only"** | A mutating command cannot be wrapped, so a committed command is never reported as failed because the audit write failed | A read-shaped request that is a command by type is not covered |
+| **B) Constrain on `IRequest<TResponse>` and document "intended for queries"** | Wider | A command that implements the interface commits its change and then returns `Left(read_audit.audit_write_failed)` in fail-closed mode: the caller is told it failed although the write happened, and a retry duplicates it |
+
+### Chosen Option: **A — `IQuery<TResponse>` only**
+
+### Rationale
+
+- Open-generic registration of `QueryReadAuditPipelineBehavior<,>` skips requests that do not satisfy the constraint, so a command is never wrapped; a DI test asserts it.
+
+- **Class:** Settled
+- **Settled by:** AGENTS.md section 3 (errors never report success or failure falsely; a `Left` after a committed write is a wrong outcome); option B produces that outcome
+
+</details>
+
+<details>
+<summary><strong>8. Position of the behavior in the pipeline (cache hits must still be audited)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Declare `[PipelineStage(PipelineStage.Audit)]` on the behavior** | The `Audit` stage (300) runs outside `Caching` (1000), `Authorization` (500) and the handler stages, whatever the registration order of the application | None |
+| **B) Rely on registration order (default `Application` stage)** | No attribute | A query-result cache behavior registered outside the audit behavior would short-circuit and return data with no read-audit entry: a silent fail-open of the evidence control |
+
+### Chosen Option: **A — `PipelineStage.Audit`**
+
+### Rationale
+
+- `PipelineStage` (`src/Encina/Pipeline/Ordering`) is the closed, documented set that fixes where a step runs; it has an `Audit` stage for audit behaviors, and `QueryCachingPipelineBehavior` (`src/Encina.Caching/Behaviors/`) is inside it. The pipeline order resolver validates and caches the order once per closed pipeline.
+- Tests: a unit test sends the same declared query twice through `AddEncina` with the real query-caching behavior and asserts that the second (cache hit) still writes its entries; a registration test asserts the resolved order puts the audit behavior before the caching behavior.
+
+- **Class:** Trivial
+- **Convention:** the `PipelineStage` enum assigns audit behaviors the `Audit` stage; no other stage is outside caching and meant for audit.
+
+</details>
+
+<details>
+<summary><strong>9. Subject-Id Conversion and Subject Protection — shared with P-05, no new rules</strong></summary>
 
 ### Options Considered
 
@@ -192,8 +257,8 @@ This plan adds **query-level read audit**:
 
 #### `src/Encina.Security.Audit/`
 
-1. **`Abstractions/IExposesDataSubjects.cs`** (new) — `public interface IExposesDataSubjects<in TResponse>` with `string DataCategory { get; }` and `IEnumerable<object?> GetDataSubjects(TResponse response)`; XML docs with the `GetAgendaQuery` example of the issue, the fail-closed rule (a `null` element or a throw is an error) and "valid on any `IRequest<TResponse>`, intended for queries"
-2. **`ReadAuditErrors.cs`** (modify) — only if #1193 has not added them: `read_audit.subject_unresolved` (details: request type, never the subject), reuse `read_audit.audit_write_failed` and `read_audit.purpose_required` from #1193
+1. **`Abstractions/IExposesDataSubjects.cs`** (new) — `public interface IExposesDataSubjects<in TResponse>` with `string DataCategory { get; }` and `IEnumerable<object?> GetDataSubjects(TResponse response)`; XML docs with the `GetAgendaQuery` example of the issue, the fail-closed rule (a `null` element or a throw is an error) and "queries only: the behavior wraps `IQuery<TResponse>`"
+2. **`ReadAuditErrors.cs`** (modify) — only if #1193 has not added them: `read_audit.subject_unresolved` (details: request type, never the subject), reuse `read_audit.audit_write_failed`, `read_audit.purpose_required` and `read_audit.tenant_required` from #1193; categories per Design Choice 4 (`Internal`, `Internal`, `InvalidRequest`, `InvalidRequest`)
 3. **`PublicAPI.Unshipped.txt`** (modify) — the interface and its members
 
 </details>
@@ -203,8 +268,8 @@ This plan adds **query-level read audit**:
 
 ```
 CONTEXT:
-- Issue #1194 (SPEC-002 P-06, REQ-008). Package src/Encina.Security.Audit. #1193 (P-05) has landed or is on the
-  same branch: ReadAuditEntry has DataSubjectId, DataCategory, ReadOperationId; IReadAuditStore has
+- Issue #1194 (SPEC-002 P-06, REQ-008). Package src/Encina.Security.Audit. #1193 (P-05) has landed and merged:
+  ReadAuditEntry has DataSubjectId, DataCategory, ReadOperationId; IReadAuditStore has
   LogReadsAsync; ReadAuditFailureMode and PurposeEnforcement exist; core Encina has IDataSubjectIdConverter.
 - Pre-1.0: no [Obsolete], no compatibility layers.
 
@@ -232,11 +297,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`QueryReadAuditPipelineBehavior.cs`** (new, `src/Encina.Security.Audit/`) — `public sealed partial class QueryReadAuditPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`
+1. **`QueryReadAuditPipelineBehavior.cs`** (new, `src/Encina.Security.Audit/`) — `[PipelineStage(PipelineStage.Audit)] public sealed partial class QueryReadAuditPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IQuery<TResponse>` (Design Choices 7 and 8)
    - Constructor: `IServiceScopeFactory`, `IReadAuditContext`, `IOptions<ReadAuditOptions>`, `IDataSubjectIdConverter`, `ILogger<…>`, `TimeProvider? timeProvider = null` (defaults to `TimeProvider.System`)
    - Static per-closed-generic-type flag `IsDeclared = typeof(IExposesDataSubjects<TResponse>).IsAssignableFrom(typeof(TRequest))`; when false, `return await nextStep()` immediately
-   - `Handle`: options enabled? -> system-access exclusion (`ExcludeSystemAccess` and `IdentityKind.Service`, as in `AuditedReadOnlyRepository.ShouldAudit`) -> purpose enforcement (reject before `nextStep`, recording the refused attempt per #1193 OD-6) -> `nextStep()` -> on `Left` return unchanged -> on `Right` call `GetDataSubjects` inside try/catch -> convert and de-duplicate -> build the entries -> `WriteAsync` -> reconcile with the failure mode
-   - `WriteAsync`: `TransactionScope(Suppress, AsyncFlowOption.Enabled)`, `CreateAsyncScope()`, resolve `IReadAuditStore`, `LogReadsAsync(entries, CancellationToken.None)`, catch provider exceptions into `Left(read_audit.audit_write_failed)`
+   - `Handle`: options enabled? -> tenant check (tenancy on and none: `Left(read_audit.tenant_required)`) -> system-access exclusion (`ExcludeSystemAccess` and `IdentityKind.Service`, as in `AuditedReadOnlyRepository.ShouldAudit`) -> purpose enforcement (reject before `nextStep`, recording the refused attempt per #1193 OD-6) -> `nextStep()` -> on `Left` return unchanged -> on `Right` call `GetDataSubjects` inside try/catch -> convert and de-duplicate -> build the entries -> `WriteAsync` -> reconcile with the failure mode
+   - `WriteAsync`: `TransactionScope(Suppress, AsyncFlowOption.Enabled)`, `CreateAsyncScope()`, resolve `IReadAuditStore`, `LogReadsAsync(entries, CancellationToken.None)`, catch provider exceptions into `Left(read_audit.audit_write_failed)`. The batch is written in a new scope outside the caller's transaction on purpose, so a rolled-back caller still leaves the read entries. That holds for a store that does not enlist in `Transaction.Current`; `TransactionScope.Suppress` removes the ambient transaction before the store runs, and the integration tests prove it on one ADO.NET and one EF Core store (a caller that rolls back after an audited read still has its entries)
 2. **Entry building** — shared with the repository decorator through the entry-building helper that #1193 introduces; if it does not exist when this plan is implemented, extract it there, never duplicate it here
 
 </details>
@@ -283,7 +348,7 @@ REFERENCE FILES:
 
 1. **`ServiceCollectionExtensions.AddEncinaReadAuditing`** (modify) — `services.AddScoped(typeof(IPipelineBehavior<,>), typeof(QueryReadAuditPipelineBehavior<,>))` (pending Design Choice 5); `IDataSubjectIdConverter` is registered by #1193 (`TryAdd`), and a missing one fails the DI test
 2. **Start-up validation** — nothing new: the `ReadAuditStartupValidator` of #1193 already rejects fail-closed with the in-memory store outside `Development`, which covers query audit
-3. **DI test** — builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves `IPipelineBehavior<GetAgendaQuery, …>` (AGENTS.md section 3, registration completeness)
+3. **DI test** — builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves `IPipelineBehavior<GetAgendaQuery, …>` (AGENTS.md section 3, registration completeness); a command request does not resolve the behavior (Design Choice 7); the resolved pipeline order puts the audit behavior outside the query-caching behavior (Design Choice 8)
 
 </details>
 
@@ -318,7 +383,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Multi-tenancy** — entries take `TenantId` from `IRequestContext`; with tenancy off the value is the fixed default tenant of REQ-061; the per-subject query of #1193 is tenant-scoped; the two-tenant test is in Phase 6
+1. **Multi-tenancy** — entries take `TenantId` from `IRequestContext`. Tenancy on and no tenant: `Left(read_audit.tenant_required)` before the handler runs and nothing is written (fail closed). Tenancy off: `null` tenant and no `encina.tenant_id` tag (ADR-054 D4), the wording of #1193 ("with tenancy off, tenant null matches"); the per-subject query of #1193 is tenant-scoped. The two-tenant test and the tests "tenancy on without tenant denies" and "tenancy off emits no tenant tag" are in Phase 6. The single `ResolveTenant` helper is the only place that changes under either outcome of the `default` tenant decision of #1257
 2. **Purpose** — `IReadAuditContext.Purpose` is copied to each entry; `PurposeEnforcement.Reject` rejects before the handler runs
 3. **Validation** — a declared subject that cannot be read returns the coded error (Design Choice 4)
 4. **Audit trail** — the entries are the audit trail; a query also remains subject to `AuditPipelineBehavior` when the application audits queries, giving one operation entry and N read entries
@@ -340,7 +405,7 @@ PurposeEnforcement.Reject and the system-access exclusion behave as in the repos
 
 KEY RULES:
 - Tenant is never taken from the request body.
-- A fixed default tenant applies when tenancy is off; no tenant configuration is needed.
+- Tenancy on and no tenant is Left(read_audit.tenant_required) before the handler; tenancy off is a null tenant and no tenant tag (ADR-054 D4); detect tenancy with MultiTenancyMarker.
 - A read refused by purpose enforcement records an entry of the attempt (no data read), per #1193 OD-6.
 
 REFERENCE FILES:
@@ -360,9 +425,9 @@ REFERENCE FILES:
 
 The names in the issue (`encina.read_audit.query_entries`, `encina.read_audit.query`) were proposals. The plan follows the package's existing names so that repository and query audit appear in the same series.
 
-1. **`Diagnostics/ReadAuditMeter.cs`** (modify) — no new counter for entries: `read_audit.entries_logged.total` already has the tags `entity_type` and `access_method`; query entries use `access_method = DirectQuery`, `entity_type` = the request type name, and the tags `data_category` and `encina.tenant_id` added by #1193. New counters: `read_audit.subject_unresolved.total` (tag `entity_type`), and reuse `read_audit.log_failures.total`
-2. **`Diagnostics/ReadAuditActivitySource.cs`** (modify) — the `ReadAudit.Write` activity of #1193 is started by the behavior with `read_audit.access_method = DirectQuery`, `read_audit.entity_type`, `read_audit.entity_count`, `encina.tenant_id`; never a subject id
-3. **`Diagnostics/ReadAuditLog.cs`** (modify) — new `[LoggerMessage]` in the registered range `SecurityAuditRead` (1700-1799), packed after the ids #1193 reserves (1739-1749): `QueryReadsRecorded` (1750, Debug), `QueryAuditWriteFailed` (1751, Error, fail closed), `QueryAuditWriteFailedOpen` (1752, Warning), `QuerySubjectUnresolved` (1753, Warning), `QueryPurposeRejected` (1754, Warning), `QueryDeclarationThrew` (1755, Error, exception through `ForLogging()`); messages carry the request type and the error code, never a subject or a payload
+1. **`Diagnostics/ReadAuditMeter.cs`** (modify) — no new counter for entries: `read_audit.entries_logged.total` already has the tags `entity_type` and `access_method`; query entries use `access_method = DirectQuery`, `entity_type` = the request type name, and the tags `data_category` and, only when multi-tenancy is on, `encina.tenant_id` (added by #1193; ADR-054 D4: no tenant tag when tenancy is off). New counter: `read_audit.subject_unresolved.total` (tag `entity_type`) unless #1193 has added it by then (recheck against #1193 when it lands), and reuse `read_audit.log_failures.total`
+2. **`Diagnostics/ReadAuditActivitySource.cs`** (modify) — the `ReadAudit.Write` activity of #1193 is started by the behavior with `read_audit.access_method = DirectQuery`, `read_audit.entity_type`, `read_audit.entity_count`, `encina.tenant_id` (only when tenancy is on); never a subject id
+3. **`Diagnostics/ReadAuditLog.cs`** (modify) — reuse the messages #1193 reserves for the same events instead of duplicating them: `ReadFailedClosed` (1739), `AuditWriteFailedOpen` (1740), `PurposeRejected` (1741) and `SubjectUnresolved` (1742); the entity type already identifies the query. New `[LoggerMessage]` in the registered range `SecurityAuditRead` (1700-1799), only the ids this behavior needs, packed after the ids #1193 reserves (1739-1749): `QueryReadsRecorded` (1750, Debug) and `QueryDeclarationThrew` (1751, Error, exception through `ForLogging()`); messages carry the request type and the error code, never a subject or a payload. 1750-1751 are used; the batch registry row for #1194 (1750-1755) keeps 1752-1755 reserved and unused. Recheck against #1193 when it lands
 4. **`EventIdRanges.cs` and `EncinaEventIdAllocationTests`** — no change: `SecurityAuditRead` is registered and `Encina.Security.Audit` is mapped to it
 5. Health checks: none (no new dependency; the store health check of #1193 covers the store)
 
@@ -377,12 +442,12 @@ CONTEXT:
   (registered); 1700-1702, 1710-1712, 1720-1722, 1730-1738 are used today; #1193 reserves 1739-1749.
 
 TASK:
-Add the query counters, the activity tags and the [LoggerMessage] entries 1750-1755 listed in the Phase 5 tasks.
+Add the query counter, the activity tags and the [LoggerMessage] entries 1750-1751 listed in the Phase 5 tasks, reusing the #1193 messages 1739-1742.
 
 KEY RULES:
-- Pack EventIds sequentially from 1750; stay inside 1700-1799; use the [LoggerMessage] generator.
-- XML docs name the range ("Event IDs: 1750-1755 (see EventIdRanges.SecurityAuditRead)").
-- No subject ids, response bodies or purposes in tags or messages; tenant as "encina.tenant_id".
+- Pack EventIds sequentially from 1750; stay inside 1700-1799; use the [LoggerMessage] generator; do not duplicate a #1193 message.
+- XML docs name the range ("Event IDs: 1750-1751 (see EventIdRanges.SecurityAuditRead)").
+- No subject ids, response bodies or purposes in tags or messages; tenant as "encina.tenant_id" only when tenancy is on.
 - Run the architecture test EncinaEventIdAllocationTests.
 
 REFERENCE FILES:
@@ -400,13 +465,25 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Manifest first: `.github/coverage-manifest/Encina.Security.Audit.json` gets per-file targets for `QueryReadAuditPipelineBehavior.cs` and `Abstractions/IExposesDataSubjects.cs` with a one-sentence justification per flag (the interface has no executable lines: unit target 0).
+Manifest first: `.github/coverage-manifest/Encina.Security.Audit.json` gets per-file targets with a one-sentence justification per flag for every touched file (the worker measures the baseline with the AGENTS.md section 9 commands; these numbers are the floor):
 
-1. **UnitTests** (`tests/Encina.UnitTests/Security/Audit/`) — `QueryReadAuditPipelineBehaviorTests`: undeclared query passes through untouched; one entry per distinct subject with tenant, user, correlation, purpose and `DirectQuery`; duplicates collapse with the right `EntityCount`; empty response writes the zero entry; a `Left` from the handler writes nothing; fail closed on store `Left` and on a throwing store; fail open logs and returns; a `null` subject, a conversion failure and a throwing `GetDataSubjects` return `subject_unresolved`; `Reject` stops before the handler; cancellation propagates; `FakeTimeProvider` for timestamps; telemetry test with an in-memory exporter (activity and counter carry the tenant tag, no subject id anywhere in tags, metrics or captured logs); DI test with `ValidateOnBuild`/`ValidateScopes`
+| File (PR) | Unit | Guard | Contract | Property | Integration | One-sentence justification |
+|-----------|------|-------|----------|----------|-------------|----------------------------|
+| `QueryReadAuditPipelineBehavior.cs` (A) | 90 | 60 | 0 | 0 | 80 | Every branch (undeclared, disabled, tenant, purpose, handler `Left`, unresolved, write failure, fail open, cache hit) has a unit case; guard covers the constructor and `Handle` arguments; PostgreSQL proves the end-to-end entries (contract and property drive the declaration, not this class). |
+| `Abstractions/IExposesDataSubjects.cs` (A) | 0 | 0 | 0 | 0 | 0 | An interface with no executable lines; its contract is exercised through the behavior. |
+| `ServiceCollectionExtensions.cs` (A) | 90 | 65 | 0 | 0 | 0 | The registration, the constraint and the order are covered by the DI tests. |
+| `ReadAuditErrors.cs` (A) | 95 | 0 | 0 | 0 | 0 | Error factories and their categories are asserted one by one. |
+| `Diagnostics/ReadAuditMeter.cs`, `ReadAuditActivitySource.cs`, `ReadAuditLog.cs` (A) | 80 | 0 | 0 | 0 | 50 | Counter, activity and log calls run on every behavior outcome; unit telemetry tests assert the tags, including no tenant tag with tenancy off. |
+| `Abstractions/IExposesDataSubjects.cs` contract surface (B) | 0 | 0 | 80 | 0 | 0 | The contract tests drive real declarations of four id types through the behavior. |
+| `QueryReadAuditPipelineBehavior.cs` property (B) | 0 | 0 | 0 | 80 | 0 | The FsCheck test covers the distinct-subject and count invariants through the real behavior. |
+
+`Handle` must stay at CRAP 10 or below: the plan extracts resolve, build and write steps.
+
+1. **UnitTests** (`tests/Encina.UnitTests/Security/Audit/`) — `QueryReadAuditPipelineBehaviorTests`: undeclared query passes through untouched; one entry per distinct subject with tenant, user, correlation, purpose and `DirectQuery`; duplicates collapse with the right `EntityCount`; empty response writes the zero entry; a `Left` from the handler writes nothing; fail closed on store `Left` and on a throwing store; fail open logs and returns; tenancy on without a tenant returns `tenant_required` before the handler and writes nothing, tenancy off writes a null tenant and emits no tenant tag; a cache hit through the real query-caching behavior still writes its entries; a command request is not wrapped; `GetCategory` of each error; a `null` subject, a conversion failure and a throwing `GetDataSubjects` return `subject_unresolved`; `Reject` stops before the handler; cancellation propagates; `FakeTimeProvider` for timestamps; telemetry test with an in-memory exporter (activity and counter carry the tenant tag, no subject id anywhere in tags, metrics or captured logs); DI test with `ValidateOnBuild`/`ValidateScopes`
 2. **GuardTests** (`tests/Encina.GuardTests/Security/Audit/`) — constructor and `Handle` null arguments
 3. **ContractTests** (`tests/Encina.ContractTests/Security/Audit/`) — the declaration contract: real implementations of `IExposesDataSubjects<T>` honoured identically for `string`, `Guid`, strongly-typed and `int` ids (same output as the DSR extractor rules)
 4. **PropertyTests** (`tests/Encina.PropertyTests/Security/Audit/`) — FsCheck: for any list of subjects the number of entries equals the number of distinct converted subjects, and the sum of `EntityCount` equals the number of non-null elements
-5. **IntegrationTests** (`tests/Encina.IntegrationTests/Security/Audit/ReadAudit/`) — `[Collection("Dapper-PostgreSQL")]` S13 test: a Dapper query handler declares its subjects, `AddEncinaReadAuditing` with the Dapper PostgreSQL store, one entry per patient is stored, "who accessed patient X" returns it, and with fail-closed on a failing store fails the read; a two-tenant test (tenant A never sees tenant B's entries); one equivalent test per remaining family (ADO.NET SqlServer, EF Core MySQL, MongoDB) because the behavior is provider-independent and the 10-provider store matrix is exercised by #1193
+5. **IntegrationTests** (`tests/Encina.IntegrationTests/Security/Audit/ReadAudit/`) — `[Collection("Dapper-PostgreSQL")]` S13 test: a Dapper query handler declares its subjects, `AddEncinaReadAuditing` with the Dapper PostgreSQL store, one entry per patient is stored, "who accessed patient X" returns it, and with fail-closed on a failing store fails the read; a two-tenant test (tenant A never sees tenant B's entries); a rollback test on one ADO.NET and one EF Core store (a caller that rolls back after an audited read still has its entries, Phase 2); one equivalent test per remaining family (ADO.NET SqlServer, EF Core MySQL, MongoDB) because the behavior is provider-independent and the 10-provider store matrix is exercised by #1193
 6. **LoadTests / BenchmarkTests** — `.md` justifications under `tests/Encina.LoadTests/Security/Audit/ReadAudit/` and `tests/Encina.BenchmarkTests/Encina.Benchmarks/Security/Audit/ReadAudit/` (the existing `ReadAuditLoadTests.md` and `ReadAuditBenchmarks.md` are updated; the behavior is not a concurrent hot path and its cost is one cached type check plus the batch write)
 7. **Split** — PR A: Phases 1-5 plus unit and guard tests; PR B: contract, property and integration tests, justification updates, documentation (Phase 7)
 
@@ -450,7 +527,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML doc comments on all new public APIs (`<summary>`, `<remarks>`, `<param>`, `<returns>`, `<example>`)
-2. `changelog.d/1194-query-read-audit.added.md` — one bullet for `IExposesDataSubjects<TResponse>` and the query read-audit behavior
+2. `changelog.d/1194-query-read-audit.added.md` (in PR A, counted there) — one bullet for `IExposesDataSubjects<TResponse>` and the query read-audit behavior
 3. `src/Encina.Security.Audit/README.md` — section "Auditing reads outside repositories"
 4. `docs/features/read-auditing.md` — query-level audit, the declaration example, failure mode and the S13 flow
 5. `docs/INVENTORY.md` — new files
@@ -515,18 +592,20 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Security.Audit` (read audit) | 1700-1799 (`SecurityAuditRead`, registered) | This plan: 1750-1755, after the ids #1193 reserves (1739-1749); no new range |
+| `Encina.Security.Audit` (read audit) | 1700-1799 (`SecurityAuditRead`, registered) | This plan uses 1750-1751 (the batch registry row for #1194 reserves 1750-1755; 1752-1755 stay unused), after the ids #1193 reserves (1739-1749) whose messages 1739-1742 it reuses; no new range |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Production | ~6 | interface, behavior, error, meter, activity source, log, DI (edits count as one each) |
-| Tests | ~10 | unit, guard, contract, property, integration (Dapper PostgreSQL plus three families), DI test |
-| Justification updates | 2 | load and benchmark `.md` |
-| Manifest, PublicAPI, changelog | 3 | coverage manifest, `PublicAPI.Unshipped.txt`, `changelog.d` fragment |
-| Documentation | ~4 | README, feature page, INVENTORY, release notes |
-| **Total** | **~25** | two pull requests (PR A about 13 files, PR B about 12) |
+| PR A production | 7 | interface (new), behavior (new), `ReadAuditErrors.cs`, `ReadAuditMeter.cs`, `ReadAuditActivitySource.cs`, `ReadAuditLog.cs`, `ServiceCollectionExtensions.cs` |
+| PR A tests | 3 | behavior unit test (includes telemetry, cache-hit and order cases), DI/registration test, guard test |
+| PR A metadata | 3 | coverage manifest, `PublicAPI.Unshipped.txt`, `changelog.d/1194-query-read-audit.added.md` |
+| **PR A total** | **13** | builds and passes alone once #1193 has merged |
+| PR B tests | 6 | contract, property, integration (S13 plus tenant plus rollback), integration (three other families), load and benchmark `.md` updates |
+| PR B documentation and metadata | 5 | README, `docs/features/read-auditing.md`, `docs/INVENTORY.md`, release notes (only if the milestone text names the item), manifest |
+| **PR B total** | **11** | needs PR A; heaviest part is the four-family integration tests, kept under 1,500 lines |
+| **Grand total** | **24** | two pull requests |
 
 ---
 
@@ -550,7 +629,8 @@ Phase 2: QueryReadAuditPipelineBehavior<TRequest,TResponse>: purpose check -> ha
          distinct subject in one LogReadsAsync batch -> fail closed or open per ReadAuditOptions
 Phase 3: register the open-generic behavior in AddEncinaReadAuditing (pending maintainer decision 5); DI completeness test
 Phase 4: tenant, correlation, user, purpose in every entry; Reject before the handler
-Phase 5: Encina.ReadAudit meter/activity reuse; EventIds 1750-1755 in SecurityAuditRead
+Phase 5: Encina.ReadAudit meter/activity reuse; reuse #1193 messages 1739-1742; EventIds 1750-1751 in SecurityAuditRead
+Pipeline: behavior declares PipelineStage.Audit (outside caching, so cache hits are audited), constrained to IQuery<TResponse>; tenancy on without a tenant is Left(read_audit.tenant_required)
 Phase 6: unit, guard, contract, property, integration (Dapper PostgreSQL S13 + three families + two tenants); manifest targets
 Phase 7: docs, README, changelog fragment, PublicAPI
 
@@ -577,16 +657,16 @@ REFERENCE FILES:
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | Caching | ❌ | No read path that benefits from caching: audit writes are never cached, and a cached query result would still need its access recorded |
+| 1 | Caching | ✅ | Integrated as an ordering rule, not a cache use: the behavior declares `PipelineStage.Audit`, outside the `Caching` stage, so a cached query result still writes its access entries (Design Choice 8, tested with the real query-caching behavior); audit writes are never cached |
 | 2 | OpenTelemetry | ✅ | `ReadAudit.Write` activity with `DirectQuery`, existing counters plus `read_audit.subject_unresolved.total`, `encina.tenant_id` tag, no subject ids (Phase 5) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` 1750-1755 in the registered `SecurityAuditRead` range (ADR-021) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` 1750-1751 in the registered `SecurityAuditRead` range (ADR-021); #1193 messages 1739-1742 reused |
 | 4 | Health Checks | ❌ | No new checkable dependency; the store health check of #1193 covers `IReadAuditStore` |
 | 5 | Validation | ✅ | A declared subject that is `null`, unconvertible or whose declaration throws returns `read_audit.subject_unresolved` (fail closed, REQ-016) |
 | 6 | Resilience | ❌ | Local store write; fail closed is the explicit behavior on failure and retrying inside a read only adds latency |
 | 7 | Distributed Locks | ❌ | Append-only entries per request; no shared state updated by concurrent hosts |
-| 8 | Transactions | ❌ | The batch is written atomically by the store; the audit write is deliberately outside the application's transaction (`TransactionScope.Suppress`) so an audited read is recorded even if the caller later rolls back |
+| 8 | Transactions | ❌ | The batch is written by one store call; the audit write is deliberately outside the application's transaction (`TransactionScope.Suppress`, new scope) so an audited read is recorded even if the caller later rolls back; proven on one ADO.NET and one EF Core store (a store that enlists in `Transaction.Current` is the risk the test guards) |
 | 9 | Idempotency | ❌ | Not a message entry point; each query execution is a distinct access and must be recorded as such |
-| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043: entries carry the tenant from `IRequestContext`; the per-subject query of #1193 is tenant-scoped; two-tenant test; a fixed default tenant when tenancy is off |
+| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043: entries carry the tenant from `IRequestContext`; tenancy on without a tenant is `Left(read_audit.tenant_required)` (fail closed); tenancy off is a null tenant and no tenant tag (ADR-054 D4, as #1193); the per-subject query of #1193 is tenant-scoped; two-tenant test |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ✅ | This feature writes read-audit entries; the operation audit of `AuditPipelineBehavior` is unchanged |
 
@@ -596,7 +676,7 @@ REFERENCE FILES:
 
 | Item | Why | State |
 |------|-----|-------|
-| #1193 (P-05) entry shape, `LogReadsAsync`, `ReadAuditFailureMode`, `PurposeEnforcement` | The behavior writes through them | Open, plan merged; implement #1193 first or on the same branch |
+| #1193 (P-05) entry shape, `LogReadsAsync`, `ReadAuditFailureMode`, `PurposeEnforcement` | The behavior writes through them | Open, plan merged; #1193 is implemented and merged first, never on the same branch: PR A starts after its store contract has merged |
 | `IDataSubjectIdConverter` in core `Encina` (#1193 OD-3) | Shared subject-id conversion | Created by #1193 |
 | Keyed-hash storage of the subject id (#1193 OD-5) | The behavior hands a plain converted id to the shared entry path | Owned by #1193 |
 | Reference scenario S13 (P-25) | End-to-end acceptance | S13 passes when #1193 and this plan have both landed |
@@ -605,7 +685,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Land #1193 (or its entry shape and store contract), then implement PR A (Phases 1-5 with unit and guard tests)
-2. Implement PR B (contract, property and integration tests, justifications, documentation, changelog fragment)
-3. Link this plan from issue #1194; ask the maintainer the Dilemma of Design Choice 5 when work on the issue starts
+1. Land #1193 (its entry shape and store contract must be merged), then implement PR A (Phases 1-5 with unit and guard tests, manifest, PublicAPI and changelog fragment; 13 files)
+2. Implement PR B (contract, property and integration tests, justifications, documentation; 11 files)
+3. Link this plan from issue #1194; ask the maintainer the Dilemmas of Design Choices 5 and 6 when work on the issue starts
 4. The final commit references `Fixes #1194`
