@@ -149,7 +149,19 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 95,
+        "guard": 14,
+        "contract": 22,
+        "integration": 68
+      },
+      "justifications": {
+        "unit": "Unit tests drive every failure path of the aggregate repository with a substituted session; measured 100% on 2026-11-12.",
+        "guard": "Guard tests cover only the null-argument paths of the public methods; measured 14.5% on 2026-11-12.",
+        "contract": "Contract tests only instantiate the repository and check the IAggregateRepository contract; measured 22.5% on 2026-11-12.",
+        "integration": "Integration tests run against Marten on PostgreSQL (Testcontainers) and include the #3787 regression tests for the aggregate repositories; measured 70.5% on 2026-11-12."
+      }
     },
     "MartenErrorCodes.cs": {
       "defaultTests": [
@@ -182,7 +194,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 93,
+        "guard": 14,
+        "integration": 70
+      },
+      "justifications": {
+        "unit": "Unit tests drive the dispatcher with a substituted session, including the failed-save path that ejects pending changes; measured 95.7% on 2026-11-12.",
+        "guard": "Guard tests cover only the null-argument paths of the public methods; measured 14.3% on 2026-11-12.",
+        "integration": "Integration tests run inline projections against Marten on PostgreSQL (Testcontainers), including the #3787 regression tests; measured 71.4% on 2026-11-12."
+      }
     },
     "Projections/InlineProjectionRelay.cs": {
       "defaultTests": [
@@ -234,7 +256,19 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 80,
+        "guard": 10,
+        "contract": 10,
+        "integration": 45
+      },
+      "justifications": {
+        "unit": "Unit tests drive every failure path of the read model repository with a substituted session; measured 83.3% on 2026-11-12.",
+        "guard": "Guard tests cover only the null-argument paths of the public methods; measured 10.2% on 2026-11-12.",
+        "contract": "Contract tests only instantiate the repository and check the IReadModelRepository contract; measured 10.2% on 2026-11-12.",
+        "integration": "Integration tests run against Marten on PostgreSQL (Testcontainers) for the read model reads and writes; measured 46.8% on 2026-11-12."
+      }
     },
     "Projections/ProjectionContext.cs": {
       "defaultTests": [
@@ -330,7 +364,17 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 55,
+        "guard": 7,
+        "integration": 52
+      },
+      "justifications": {
+        "unit": "Unit tests drive the store with a substituted session, including the failed-save path that ejects pending changes; measured 56.6% on 2026-11-12.",
+        "guard": "Guard tests cover only the null-argument paths of the public methods; measured 7.8% on 2026-11-12.",
+        "integration": "Integration tests run against Marten on PostgreSQL (Testcontainers) for the save and load round trips; measured 54.2% on 2026-11-12."
+      }
     },
     "Snapshots/SnapshotAwareAggregateRepository.cs": {
       "defaultTests": [
@@ -339,7 +383,19 @@
         "contract"
       ],
       "defaultRule": "*Repository.cs",
-      "reason": "Abstract/base repository"
+      "reason": "Abstract/base repository",
+      "targets": {
+        "unit": 85,
+        "guard": 16,
+        "contract": 16,
+        "integration": 50
+      },
+      "justifications": {
+        "unit": "Unit tests drive the snapshot-aware save and load paths and every failure path with a substituted session; measured 88.4% on 2026-11-12.",
+        "guard": "Guard tests cover only the null-argument paths of the public methods; measured 16.9% on 2026-11-12.",
+        "contract": "Contract tests only instantiate the repository and check the IAggregateRepository contract; measured 16.9% on 2026-11-12.",
+        "integration": "Integration tests run against Marten on PostgreSQL (Testcontainers) and include the #3787 regression tests for the aggregate repositories; measured 51.5% on 2026-11-12."
+      }
     },
     "Snapshots/SnapshotEnvelope.cs": {
       "defaultTests": [
