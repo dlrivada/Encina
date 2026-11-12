@@ -23,7 +23,7 @@ Lock keys are global today: `process-payments` is one lock for the whole deploym
 
 **Standards**: ADR-052; SPEC-002 REQ-061 (tenant id on every record and fail-closed tenant resolution) and REQ-062 (tenant as span attribute and, with ADR-054 D4, as a metric tag when tenancy is on); ADR-062 (error category); `AGENTS.md` sections 3 and 6.
 
-**Estimated scope**: 5 new production files, 4 modified, about 8 test files, 3 documentation files, split in 3 pull requests (see Estimated File Count).
+**Estimated scope**: 6 new production files, 4 modified, about 9 test files, 3 documentation files, split in 3 pull requests (see Estimated File Count).
 
 **Affected packages**: `Encina.DistributedLock` (decorator, options, registration, a new project reference to `Encina.Tenancy`); `Encina.Tenancy` is read only. No change in `Encina.DistributedLock.InMemory`, `.Redis` or `.SqlServer`.
 
@@ -161,15 +161,16 @@ Lock keys are global today: `process-payments` is one lock for the whole deploym
 | **B) Hash the tenant id** | Fixed length, no escaping | Keys unreadable in Redis or SQL Server tooling |
 | **C) Prefix or wildcard name rules** | Fewer list entries | A rule engine nobody asked for |
 
-### Chosen Option: **A — escaped prefix, exact names**
+### Chosen Option: **A — escaped prefix, exact names** (recommended, pending the maintainer)
 
 ### Rationale
 
 - A property test shows injectivity over (scope, tenant, resource) triples, including global names that contain `:` or start with `@` or `%` and tenant ids that contain `:`, `%` or `@`, which is the safety property of the feature: no two distinct triples yield the same key, so a global lock and a tenant's lock never exclude each other.
 - There is no "no tenant" segment in a key (a global name carries no prefix), so a tenant whose id is `default` is an ordinary tenant here and cannot clash with a global lock.
 
-**Class:** Trivial
-**Settled by:** `AGENTS.md` section 1 (every line serves a current purpose), the `KeyPrefix` convention of `src/Encina.DistributedLock/DistributedLockOptions.cs`
+- A wins on readability and the injectivity proof; B (hash) wins when key length or tenant ids in key names are a concern; C wins when the maintainer wants prefix rules. The escape scheme is user-visible in Redis and SQL Server tooling and other schemes satisfy the same rules, so this is a choice, not a settled point. Only the `:` separator follows an existing convention (the `KeyPrefix` of `src/Encina.DistributedLock/DistributedLockOptions.cs`).
+
+**Class:** Dilemma
 
 </details>
 
@@ -226,8 +227,8 @@ Three pull requests, each within 15 files and 1500 lines counting tests, `Public
 | PR | Content | Own tests (each flag travels with the files it covers) |
 |----|---------|-----------------------------------------------------|
 | 1 | Phase 1 key, options and validator (`TenantLockKey`, `TenantLockScopingOptions`, validator, csproj reference, `LockErrorCodes.TenantRequired`) | unit (key, validator), guard (options), property (key injectivity), manifest, `PublicAPI.Unshipped.txt` |
-| 2 | Phase 1 decorator, Phase 2 registration, Phase 4 diagnostics (`EventIdRanges.DistributedLock`, the `AssemblyRanges` mapping, `DistributedLockDiagnostics`, log messages 6250-6252) | unit (decorator, DI, diagnostics), guard, contract through the decorator (InMemory, Redis, SqlServer), integration (Redis, SqlServer), README, changelog fragment |
-| 3 | Phase 6 guide page and any ADR | docs only |
+| 2 | Phase 1 decorator, Phase 2 registration, Phase 4 diagnostics (`EventIdRanges.DistributedLock`, the `AssemblyRanges` mapping, `DistributedLockDiagnostics`, log messages 6250-6252) | unit (decorator, DI, diagnostics), guard (decorator, registration), contract through the decorator (InMemory, Redis, SqlServer), integration (Redis, SqlServer) |
+| 3 | Phase 6 README, changelog fragment, guide page and any ADR | docs only |
 
 If Dilemma 3 picks a separate package, PR 1 becomes the package scaffold and the same content moves to the new assembly.
 
@@ -473,7 +474,7 @@ REFERENCE FILES:
 2. `src/Encina.DistributedLock/README.md` and the lock guide page through `docs-writer`: configuration, default scope, fail-closed behavior, the registration order
 3. `changelog.d/741-tenant-scoped-locks.added.md` (written by `mechanical-fixer`)
 4. `PublicAPI.Unshipped.txt`; `docs/INVENTORY.md` if the package list changes
-5. ADR only if the maintainer's answers to Dilemmas 1, 2, 3 and 7 warrant one (decision 3 changes the package layout; the ADR number is assigned when the ADR pull request opens)
+5. ADR only if the maintainer's answers to Dilemmas 1, 2, 3, 6 and 7 warrant one (decision 3 changes the package layout; the ADR number is assigned when the ADR pull request opens)
 6. `dotnet build --configuration Release` with 0 warnings; `dotnet test`; every flag at its target; CRAP <= 10 on changed methods
 
 </details>
@@ -556,16 +557,16 @@ REFERENCE FILES:
 | Production (new) | 6 | `TenantLockScopingOptions.cs`, `TenantLockKey.cs`, `TenantScopedLockProvider.cs`, `TenantLockScopingOptionsValidator.cs`, `Diagnostics/DistributedLockDiagnostics.cs`, `Diagnostics/TenantLockLogMessages.cs` |
 | Production (modified) | 4 | `Encina.DistributedLock.csproj`, `ServiceCollectionExtensions.cs`, `EventIdRanges.cs`, `LockErrorCodes` (from #2667) |
 | PublicAPI and manifest | 3 | `PublicAPI.Unshipped.txt` in `Encina.DistributedLock` and in `Encina`, `Encina.DistributedLock.json` |
-| Unit and guard tests | 5 | Key and validator, decorator, DI, diagnostics (with the `AssemblyRanges` map change in `EncinaEventIdAllocationTests`), guard |
+| Unit and guard tests | 6 | Key and validator, decorator, DI, diagnostics (with the `AssemblyRanges` map change in `EncinaEventIdAllocationTests`), options guard (PR 1), decorator and registration guard (PR 2) |
 | Contract, property, integration tests | 3 | |
 | Documentation and changelog | 3 | README, guide page, fragment |
-| **Total** | **~24** | Split in three PRs, each counted with tests, PublicAPI, manifest and fragment |
+| **Total** | **~25** | Split in three PRs, each counted with tests, PublicAPI, manifest and fragment |
 
 | PR | Files | Lines (estimate) |
 |----|------:|-----------------:|
-| 1: key, options, validator, `LockErrorCodes`, csproj | 10 (4 production, 1 PublicAPI, 1 manifest, 4 tests: key unit, validator unit, options guard, key property) | ~600 |
-| 2: decorator, registration, diagnostics, EventIds | 14 (`TenantScopedLockProvider.cs`, `ServiceCollectionExtensions.cs`, 2 diagnostics files, `EventIdRanges.cs`, 2 `PublicAPI.Unshipped.txt`, manifest, 5 tests: decorator unit, DI, diagnostics with map change, contract, integration; README, fragment) | ~1100 |
-| 3: guide page (and ADR if the answers warrant one) | 1-2 | ~300 |
+| 1: key, options, validator, `LockErrorCodes`, csproj | 11 (5 production, 1 PublicAPI, 1 manifest, 4 tests: key unit, validator unit, options guard, key property) | ~600 |
+| 2: decorator, registration, diagnostics, EventIds | 14 (`TenantScopedLockProvider.cs`, `ServiceCollectionExtensions.cs`, 2 diagnostics files, `EventIdRanges.cs`, 2 `PublicAPI.Unshipped.txt`, manifest, 6 tests: decorator unit, DI, diagnostics with map change, guard, contract, integration) | ~1100 |
+| 3: README, changelog fragment, guide page (and ADR if the answers warrant one) | 3-4 | ~400 |
 
 ---
 
@@ -648,5 +649,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #741 and start the brief after [#2667](https://github.com/dlrivada/Encina/issues/2667) merges.
-2. When work on the issue starts, ask the maintainer to answer Dilemmas 1, 2, 3 and 7 (default scope, tenant source, package placement, registration order), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 1, 2, 3, 6 and 7 (default scope, tenant source, package placement, key format, registration order), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled choices.
 3. One commit per phase; the last commit references `Fixes #741`.
