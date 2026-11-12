@@ -122,6 +122,35 @@ public sealed class TenantConnectionFactoryBaseTests
     }
 
     [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task GetConnectionStringAsync_ExplicitBlankTenantAndRequireTenant_ReturnsTenantRequired(string explicitTenantId)
+    {
+        _tenantProvider.GetCurrentTenantId().Returns("acme");
+        var factory = CreateFactory(requireTenant: true);
+
+        var result = await factory.GetConnectionStringAsync(explicitTenantId);
+
+        result.IsLeft.ShouldBeTrue();
+        result.LeftToSeq().Single().GetCode().ShouldBe(Prelude.Some(TenancyErrors.TenantRequiredCode));
+        await _tenantStore.DidNotReceiveWithAnyArgs().GetTenantAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task GetConnectionStringAsync_PassesCancellationTokenToStore()
+    {
+        using var cts = new CancellationTokenSource();
+        _tenantStore.GetTenantAsync("acme", cts.Token)
+            .Returns(new TenantInfo("acme", "Acme", TenantIsolationStrategy.DatabasePerTenant, TenantConnectionString));
+        var factory = CreateFactory(requireTenant: true);
+
+        var result = await factory.GetConnectionStringAsync("acme", cts.Token);
+
+        result.ShouldBe(Prelude.Right<EncinaError, string>(TenantConnectionString));
+        await _tenantStore.Received(1).GetTenantAsync("acme", cts.Token);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
