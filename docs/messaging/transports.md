@@ -503,7 +503,7 @@ await using var subscription = await publisher.SubscribePatternAsync<SensorReadi
 - You expose `IEncina` requests and notifications to gRPC clients from your own server
 - Synchronous service-to-service communication
 
-**Encina today:** `IGrpcEncinaService` is a server-side bridge. `SendAsync` and `PublishAsync` take the assembly-qualified type name and the JSON-serialized message, and run it through `IEncina`. The package has no outbound client and no server address option. `StreamAsync` returns a `GRPC_STREAMING_NOT_IMPLEMENTED` error, so the page makes no streaming claim. The options class `EncinaGrpcOptions` exists, but the bridge does not read it yet ([#3409](https://github.com/dlrivada/Encina/issues/3409)).
+**Encina today:** `IGrpcEncinaService` is a server-side bridge. `SendAsync` and `PublishAsync` take the assembly-qualified type name and the JSON-serialized message, and run it through `IEncina`. The package has no outbound client and no server address option. `StreamAsync` returns a `GRPC_STREAMING_NOT_IMPLEMENTED` error. The options class `EncinaGrpcOptions` exists, but the bridge does not read it yet ([#3409](https://github.com/dlrivada/Encina/issues/3409)).
 
 ```csharp
 services.AddEncinaGrpc();
