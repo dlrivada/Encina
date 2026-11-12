@@ -2,8 +2,8 @@
 
 > **Issue**: [#2457](https://github.com/dlrivada/Encina/issues/2457)
 > **Type**: Feature
-> **Complexity**: Medium (5 phases, 1 provider: Marten, ~14 files)
-> **Estimated Scope**: ~450 lines of production code + ~900 lines of tests
+> **Complexity**: Medium (5 phases, 1 provider: Marten, 3 pull requests, about 33 files in total)
+> **Estimated Scope**: ~500 lines of production code + ~1,000 lines of tests (each pull request under 1,500 changed lines)
 
 ---
 
@@ -16,7 +16,10 @@ Marten stores event headers as a plain string-keyed dictionary on the event row.
 - **Affected packages**: `Encina.Marten` (hook, `EnrichSession` result, `CaptureUserId` default, repositories), `Encina.Marten.GDPR` (guard, registration, error code, logs, counter).
 - **Provider category**: event sourcing, Marten on PostgreSQL only; the database, caching, transport and lock matrices do not apply.
 - **Prerequisites**: none open. Related: the Roslyn analyzer issue #2461 (build-time advisory, separate) and #2423/#2433 (other crypto-shredding items).
-- **Scope**: 14 files, about 1,350 lines: fits one worker PR; the plan proposes no split.
+- **Scope and split**: counted with tests, manifests, PublicAPI files and changelog fragments the work is about 33 files, over the 15-file limit of one worker PR, so it ships as three pull requests that each build and pass their own tests (the table under Estimated File Count lists the files of each):
+  - **PR 1, hook in `Encina.Marten`** (13 files): `IEventMetadataHeaderGuard`, the `Either`-returning staged `EnrichSession`, the repository constructors, the `CaptureUserId` default; tested with a test-double guard.
+  - **PR 2, guard in `Encina.Marten.GDPR`** (10 files): `CryptoShreddedHeaderGuard`, the error factory and its category, the registration and DI test; unit, guard and contract tests with the real guard. Needs PR 1 merged.
+  - **PR 3, observability, property and integration tests, documentation** (10 files): log messages, counter, the property test, the PostgreSQL integration tests, the `.md` justifications and the README of the GDPR package. Needs PR 2 merged.
 
 ---
 
@@ -41,7 +44,7 @@ Marten stores event headers as a plain string-keyed dictionary on the event row.
 - The guard is registered with `TryAddEnumerable`, so applications can add their own guards beside it.
 
 - **Class:** Settled
-- **Settled by:** maintainer decision C5 on #1770 (https://github.com/dlrivada/Encina/issues/1770#issuecomment-6436978234) and AGENTS.md section 3 (fail closed)
+- **Settled by:** AGENTS.md section 3 (compliance and security gates fail closed, which excludes the after-the-fact option B and the advisory-only option C) and the module dependency direction (`Encina.Marten.GDPR` references `Encina.Marten`, so the hook can only live in `Encina.Marten`). Decision C5 of #1770 decides matching, scope and `UserId` (choices 2, 3 and 5), not the placement of the hook.
 
 </details>
 
@@ -104,8 +107,9 @@ Marten stores event headers as a plain string-keyed dictionary on the event row.
 
 ### Rationale
 
-- `SetHeader` is session-wide: failing before the session commits guarantees no event of the batch carries the value.
+- `SetHeader` is session-wide and the session is scoped and reused (by the unit of work and by the next `SaveChangesAsync` of another aggregate). Failing before the commit is therefore not enough: a header set before the rejection would stay on the session and be stamped on unrelated events. So `EnrichSession` is staged: (1) it collects every enricher header into a local dictionary (an enricher that throws contributes nothing, and is logged as today), (2) it runs every guard over the whole batch, (3) only when all guards pass does it mutate the session (correlation id, causation id, built-in headers, `CustomHeaders`, then the collected enricher headers, in the same precedence as today). A `Left` leaves the session exactly as it was.
 - The error carries the header key and the code `crypto.header_contains_personal_data`; never the value.
+- Error categories (ADR-062), created with `EncinaErrors.Create(code, category, ...)`: `crypto.header_contains_personal_data` is `Validation` (R3: a rule about an input value); the reused `crypto.serializer_unsupported` is `Internal` (R4: a serialization/crypto configuration failure). Tests assert both with `GetCategory`.
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 (Railway Oriented Programming; errors never swallowed) and ADR-001
@@ -144,8 +148,8 @@ Marten stores event headers as a plain string-keyed dictionary on the event row.
 <summary>Tasks</summary>
 
 1. New public `IEventMetadataHeaderGuard` (`src/Encina.Marten/IEventMetadataHeaderGuard.cs`): `Either<EncinaError, Unit> Validate(IDocumentSession session, IReadOnlyCollection<object> events, string headerKey, object headerValue)`.
-2. `EventMetadataEnrichmentService`: take `IEnumerable<IEventMetadataHeaderGuard>`; `EnrichSession` returns `Either<EncinaError, Unit>`; in `ApplyEnricherHeaders` call every guard for each header before `session.SetHeader`; the enricher `try/catch` stays for enricher exceptions only, the guard call sits outside it.
-3. `MartenAggregateRepository` (lines 75, 194, 293) and `SnapshotAwareAggregateRepository` (lines 71, 167, 263): resolve guards from DI, propagate the `Left` of `EnrichSession` before saving.
+2. `EventMetadataEnrichmentService`: take `IEnumerable<IEventMetadataHeaderGuard>` in its constructor (a trailing optional parameter, so its seven existing direct constructions in `EventMetadataEnrichmentServiceTests.cs` (lines 387, 454-530) and the three in `EventMetadataEnrichmentServiceGuardTests.cs` (lines 11, 20, 29) keep compiling). `EnrichSession` returns `Either<EncinaError, Unit>` and is staged as in Design Choice 4: collect the enricher headers into a local dictionary (the enricher `try/catch` stays around the enricher call only), run every guard for each collected header, and call `session.SetHeader`, `CorrelationId` and `CausationId` only after every guard passed. The guard call sits outside the `try`.
+3. `MartenAggregateRepository` (constructor line 53, call sites 194 and 293) and `SnapshotAwareAggregateRepository` (constructor line 43, call sites 167 and 263): the public constructors gain a trailing optional `IEnumerable<IEventMetadataHeaderGuard>? headerGuards = null` after `projectionDispatcher`, passed to the service built at lines 75 and 71; the `Left` of `EnrichSession` is returned before `SaveChangesAsync`. DI resolves the extra parameter by constructor injection with no change to the three registrations in `ServiceCollectionExtensions.cs` (lines 52, 143, 372); the existing positional constructions in the tests (about 60 across the Marten unit, guard, contract and integration tests and the compliance aggregate integration tests) keep compiling because the parameter is optional last. A DI test resolves an `IAggregateRepository<T>` with a guard registered and asserts the guard is invoked.
 4. `EventMetadataOptions.CaptureUserId` default (per choice 5) and XML docs.
 5. `PublicAPI.Unshipped.txt` lines (via `mechanical-fixer`).
 
@@ -156,8 +160,8 @@ Marten stores event headers as a plain string-keyed dictionary on the event row.
 
 ```text
 CONTEXT: Encina.Marten (src/Encina.Marten). EventMetadataEnrichmentService.EnrichSession is void and swallows enricher exceptions. Issue #2457.
-TASK: Add IEventMetadataHeaderGuard, make EnrichSession return Either<EncinaError, Unit>, call the guards before session.SetHeader for enricher headers, and propagate a Left from the four repository call sites before the session is saved. Apply the CaptureUserId default chosen in Design Choice 5.
-KEY RULES: ROP, no exceptions for business outcomes; a guard failure is never inside the enricher try/catch; never log the header value or EncinaError.Message; async where the repositories are async; XML docs; PublicAPI.Unshipped.txt; zero warnings.
+TASK: Add IEventMetadataHeaderGuard, make EnrichSession return Either<EncinaError, Unit> and staged (collect enricher headers, guard them all, then mutate the session), add the optional trailing headerGuards constructor parameter to both repositories, and propagate a Left from the four repository call sites before the session is saved. Apply the CaptureUserId default chosen in Design Choice 5. Tests use a test-double guard; add the unit test "a rejection leaves no header, correlation id or causation id set on the session" and a unit test "a second save after a rejected one carries no header of the rejected batch".
+KEY RULES: ROP, no exceptions for business outcomes; a guard failure is never inside the enricher try/catch; no session mutation before every guard passed; never log the header value or EncinaError.Message; async where the repositories are async; XML docs; PublicAPI.Unshipped.txt; zero warnings.
 REFERENCE FILES: src/Encina.Marten/EventMetadataEnrichmentService.cs, src/Encina.Marten/IEventMetadataEnricher.cs, src/Encina.Marten/MartenAggregateRepository.cs, src/Encina.Marten/Snapshots/SnapshotAwareAggregateRepository.cs, src/Encina.Marten/EventMetadataOptions.cs
 ```
 
@@ -169,7 +173,7 @@ REFERENCE FILES: src/Encina.Marten/EventMetadataEnrichmentService.cs, src/Encina
 <summary>Tasks</summary>
 
 1. New `src/Encina.Marten.GDPR/Metadata/CryptoShreddedHeaderGuard.cs` (`internal sealed`, implements `IEventMetadataHeaderGuard`): gets the `CryptoShredderSerializer` from `session.DocumentStore.Options.Serializer()` (as `MartenEventPersonalDataLocator.LocateAsync` does), walks each event with `CryptoShreddedGraphWalker.Walk(event, serializer.WalkOptions!, serializer.Registry)`, reads `occurrence.Field.Getter(occurrence.Owner)`, normalizes and compares.
-2. `CryptoShreddingErrors.HeaderContainsPersonalData(string headerKey)` and `HeaderContainsPersonalDataCode = "crypto.header_contains_personal_data"`.
+2. `CryptoShreddingErrors.HeaderContainsPersonalData(string headerKey)` and `HeaderContainsPersonalDataCode = "crypto.header_contains_personal_data"`, created with `ErrorCategory.Validation`; the reused `SerializerUnsupported` error is `Internal` (ADR-062 R3 and R4), with a `GetCategory` unit test for each.
 3. `AddEncinaMartenGdpr`: `services.TryAddEnumerable(ServiceDescriptor.Singleton<IEventMetadataHeaderGuard, CryptoShreddedHeaderGuard>())`. Serializer unsupported (store without `CryptoShredderSerializer`) returns the existing `SerializerUnsupported` error (fail closed).
 4. DI test with `ValidateOnBuild` and `ValidateScopes` (AGENTS.md section 3, registration completeness).
 
@@ -192,8 +196,8 @@ REFERENCE FILES: src/Encina.Marten.GDPR/Locator/MartenEventPersonalDataLocator.c
 <details>
 <summary>Tasks</summary>
 
-1. EventIds 8485-8487 in `Diagnostics/CryptoShreddingLogMessages.cs`, inside the registered `MartenGDPRCryptoShredding` range (8450-8499; 8450-8484 are used): header rejected (key, code), guard serializer unsupported, `UserId` capture warning (if choice 5 option B).
-2. `Counter<long> HeaderRejectedTotal` (`crypto.header.rejected.total`, tag `crypto.header_key`) on the existing `CryptoShreddingDiagnostics.Meter`; activity failure through `CryptoShreddingDiagnostics.RecordFailed` with the error code.
+1. EventIds 8489-8491 in `Diagnostics/CryptoShreddingLog.cs` (the class that holds the `[LoggerMessage]` source-generated methods, lines 76-86 are 8482-8484; `CryptoShreddingLogMessages.cs` holds the older `LoggerMessage.Define` ids up to 8469), inside the registered `MartenGDPRCryptoShredding` range (8450-8499). 8450-8484 are used on main, and 8485-8488 are taken by the merged #2455 plan (`crypto-shredding-storage-leak-validation-implementation-plan-2455.md`), so this plan uses 8489 header rejected (key, code), 8490 guard serializer unsupported, and 8491 `UserId` capture warning (only if choice 5 option B is chosen). The registry row `MartenGDPRCryptoShredding 8450-8499 | 8489-8491 | #2457` records the claim; re-read `eventid-blocks.md` before writing and follow it if #2455 changes.
+2. `Counter<long> HeaderRejectedTotal` (`crypto.header.rejected.total`) on the existing `CryptoShreddingDiagnostics.Meter`, with ONE fixed low-cardinality tag `reason` (`personal_data` or `serializer_unsupported`). The header key is chosen by arbitrary enricher code, so it is never a metric tag (ADR-054 D6 forbids data-carrying keys); it appears only in the log message. Activity failure through `CryptoShreddingDiagnostics.RecordFailed` with the error code. No `encina.tenant_id` tag: ADR-054 D4 adds the tenant tag only where the measurement is per tenant, and this counter is not.
 3. No new range: the registry and `EncinaEventIdAllocationTests` already cover the assembly.
 
 </details>
@@ -202,10 +206,10 @@ REFERENCE FILES: src/Encina.Marten.GDPR/Locator/MartenEventPersonalDataLocator.c
 <summary>Prompt for AI Agents — Phase 3</summary>
 
 ```text
-CONTEXT: Encina.Marten.GDPR owns EventIds 8450-8499 (EventIdRanges.MartenGDPRCryptoShredding); 8450-8484 are used.
-TASK: Add the log messages 8485-8487 and the rejection counter; call them from CryptoShreddedHeaderGuard.
-KEY RULES: ADR-021 sequential ids; low-cardinality tags only (header key is acceptable, the value never); EncinaError.Message never logged.
-REFERENCE FILES: src/Encina.Marten.GDPR/Diagnostics/CryptoShreddingLogMessages.cs, src/Encina.Marten.GDPR/Diagnostics/CryptoShreddingDiagnostics.cs, src/Encina/Diagnostics/EventIdRanges.cs
+CONTEXT: Encina.Marten.GDPR owns EventIds 8450-8499 (EventIdRanges.MartenGDPRCryptoShredding); 8450-8484 are used and 8485-8488 are taken by plan #2455 (re-read the batch registry eventid-blocks.md first).
+TASK: Add the log messages 8489-8491 in CryptoShreddingLog.cs and the rejection counter; call them from CryptoShreddedHeaderGuard.
+KEY RULES: ADR-021 sequential ids; the counter has one fixed tag (reason), never the header key or value; the key may appear in the log only; EncinaError.Message never logged.
+REFERENCE FILES: src/Encina.Marten.GDPR/Diagnostics/CryptoShreddingLog.cs, src/Encina.Marten.GDPR/Diagnostics/CryptoShreddingDiagnostics.cs, src/Encina/Diagnostics/EventIdRanges.cs
 ```
 
 </details>
@@ -215,12 +219,23 @@ REFERENCE FILES: src/Encina.Marten.GDPR/Diagnostics/CryptoShreddingLogMessages.c
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`Encina.UnitTests`): guard accepts clean headers, rejects exact and case/whitespace-different plaintext, ignores blank values, nested `[CryptoShredded]` fields, unsupported serializer; `EnrichSession` returns `Left` and calls `SetHeader` for no header when a guard rejects; enricher exceptions are still logged and tolerated.
+1. Unit (`Encina.UnitTests`): guard accepts clean headers, rejects exact and case/whitespace-different plaintext, ignores blank values, nested `[CryptoShredded]` fields, unsupported serializer; `EnrichSession` returns `Left` and a rejection leaves no header, correlation id or causation id set on the session (including headers an earlier enricher returned for the same batch); enricher exceptions are still logged and tolerated; `GetCategory` of both errors.
 2. Guard tests: new public members (`IEventMetadataHeaderGuard` consumers, constructors) throw `ArgumentNullException`.
 3. Contract tests: `IEventMetadataHeaderGuard` contract with the real `CryptoShreddedHeaderGuard` and a test double.
 4. Property tests (FsCheck): any non-blank `[CryptoShredded]` string, with arbitrary case and padding, is rejected; arbitrary strings that differ after normalization are accepted.
-5. Integration (Marten on PostgreSQL via Testcontainers, `MartenCollection`): an enricher returning the subject's email makes `SaveAsync` return `Left` and store nothing; a clean enricher stores its header.
+5. Integration (Marten on PostgreSQL via Testcontainers, `MartenCollection`): an enricher returning the subject's email makes `SaveAsync` return `Left` and store nothing; a clean enricher stores its header; after a rejected save, a second aggregate saved through the same session carries none of the rejected batch's headers.
 6. Load and benchmark: `.md` justifications (not concurrent infrastructure; per-append cost is one graph walk).
+7. Per-file coverage targets (numbers are the floor; the worker measures the baseline with the AGENTS.md section 9 commands and writes them, with their sentences, to `Encina.Marten.json` and `Encina.Marten.GDPR.json` via `mechanical-fixer`; the current manifests carry only `defaultTests` for these files):
+
+| File (PR) | Unit | Guard | Contract | Property | Integration | One-sentence justification |
+|-----------|------|-------|----------|----------|-------------|----------------------------|
+| `Encina.Marten/EventMetadataEnrichmentService.cs` (1) | 90 | 40 | 0 | 0 | 70 | Staging, rejection and enricher-failure branches are unit-tested with a test-double guard; guard tests cover argument checks. |
+| `Encina.Marten/MartenAggregateRepository.cs`, `SnapshotAwareAggregateRepository.cs` (1) | 85 | 50 | 40 | 0 | 75 | The new `Left` propagation is unit-tested on both save paths; integration reaches them on a real store. |
+| `Encina.Marten/EventMetadataOptions.cs` (1) | 100 | 0 | 0 | 0 | 0 | A property default asserted by a unit test. |
+| `Encina.Marten.GDPR/Metadata/CryptoShreddedHeaderGuard.cs` (2) | 95 | 70 | 90 | 90 | 85 | Match, miss, blank, nested field and unsupported-serializer branches are unit-tested; the contract and property tests drive the real guard; PostgreSQL tests cover the end-to-end rejection. |
+| `Encina.Marten.GDPR/CryptoShreddingErrors.cs` (2) | 90 | 0 | 0 | 0 | 0 | The new factory and code constant are asserted, with their categories. |
+| `Encina.Marten.GDPR/ServiceCollectionExtensions.cs` (2) | 95 | 65 | 0 | 0 | 0 | The `TryAddEnumerable` registration is covered by the DI test with `ValidateOnBuild` and `ValidateScopes`. |
+| `Encina.Marten.GDPR/Diagnostics/CryptoShreddingLog.cs`, `CryptoShreddingDiagnostics.cs` (3) | 80 | 0 | 0 | 0 | 60 | Counter and log calls run when the guard rejects; the unit tests assert the counter tag. |
 
 </details>
 
@@ -289,15 +304,25 @@ REFERENCE FILES: src/Encina.Marten.GDPR/README.md, src/Encina.Marten/README.md, 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| Encina.Marten.GDPR | 8485-8487 | Inside the registered `MartenGDPRCryptoShredding` range 8450-8499 (8450-8484 used); no new range |
+| Encina.Marten.GDPR | 8489-8491 | Inside the registered `MartenGDPRCryptoShredding` range 8450-8499 (8450-8484 used on main, 8485-8488 taken by #2455); no new range. Registry row: `MartenGDPRCryptoShredding 8450-8499 | 8489-8491 | #2457` |
 
 ### Estimated File Count
 
-| Category | Files | Notes |
-|----------|-------|-------|
-| Production | 8 | Hook, service, two repositories, options, guard, errors, registration, log messages and diagnostics |
-| Tests | 7 | Unit, guard, contract, property, integration, two `.md` justifications |
-| Docs and metadata | 5 | Two READMEs, two changelog fragments, PublicAPI and manifests |
+| PR | Category | Files | Notes |
+|----|----------|-------|-------|
+| 1 | Production | 5 | `IEventMetadataHeaderGuard.cs` (new), `EventMetadataEnrichmentService.cs`, `MartenAggregateRepository.cs`, `SnapshotAwareAggregateRepository.cs`, `EventMetadataOptions.cs` |
+| 1 | Tests | 4 | `EventMetadataEnrichmentServiceTests.cs`, `EventMetadataEnrichmentServiceGuardTests.cs`, repository DI/unit test (modified), contract test with a test double (new) |
+| 1 | Metadata and docs | 4 | `PublicAPI.Unshipped.txt` (Marten), `Encina.Marten.json` manifest, fragment `2457-capture-userid-opt-in.changed.md`, `src/Encina.Marten/README.md` |
+| 1 | **Total** | **13** | Builds and passes alone: no implementer of the hook exists yet |
+| 2 | Production | 3 | `Metadata/CryptoShreddedHeaderGuard.cs` (new), `CryptoShreddingErrors.cs`, `ServiceCollectionExtensions.cs` |
+| 2 | Tests | 4 | Unit guard tests (new), GDPR guard test (new), contract test with the real guard (new), DI test (existing registration test, modified) |
+| 2 | Metadata | 3 | `PublicAPI.Unshipped.txt` (GDPR), `Encina.Marten.GDPR.json` manifest, fragment `2457-event-header-crypto-guard.added.md` |
+| 2 | **Total** | **10** | Needs PR 1 |
+| 3 | Production | 3 | `CryptoShreddingLog.cs`, `CryptoShreddingDiagnostics.cs`, `CryptoShreddedHeaderGuard.cs` (log and counter calls) |
+| 3 | Tests | 5 | Property test (new), PostgreSQL integration test (new), observability unit test (new), load and benchmark `.md` justifications (2) |
+| 3 | Metadata and docs | 2 | `src/Encina.Marten.GDPR/README.md`, manifest update |
+| 3 | **Total** | **10** | Needs PR 2 |
+| | **Grand total** | **33** | Each PR is under 15 files and about 500 lines of changes |
 
 ---
 
@@ -309,7 +334,7 @@ REFERENCE FILES: src/Encina.Marten.GDPR/README.md, src/Encina.Marten/README.md, 
 ```text
 PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #2457: event metadata headers must never carry [CryptoShredded] personal data. Maintainer decisions C5 of #1770 apply: normalized equality, enricher values only, UserId not retained by default. AGENTS.md rules apply (ROP, fail closed, no EncinaError.Message in logs, per-flag coverage, CRAP <= 10).
 
-IMPLEMENTATION OVERVIEW: (1) IEventMetadataHeaderGuard in Encina.Marten and an Either-returning EnrichSession; (2) CryptoShreddedHeaderGuard registered by AddEncinaMartenGdpr; (3) EventIds 8485-8487 and a rejection counter; (4) unit, guard, contract, property and PostgreSQL integration tests; (5) docs, changelog, PublicAPI, manifests.
+IMPLEMENTATION OVERVIEW: (1) IEventMetadataHeaderGuard in Encina.Marten and an Either-returning EnrichSession; (2) CryptoShreddedHeaderGuard registered by AddEncinaMartenGdpr; (3) EventIds 8489-8491 (8485-8488 belong to #2455) and a rejection counter with one fixed tag; (4) unit, guard, contract, property and PostgreSQL integration tests; (5) docs, changelog, PublicAPI, manifests.
 
 KEY PATTERNS: Either<EncinaError, T>; TryAddEnumerable; the guard call outside the enricher try/catch; DI test with ValidateOnBuild and ValidateScopes; shared Marten collection fixture.
 
@@ -326,14 +351,14 @@ REFERENCE FILES: src/Encina.Marten/EventMetadataEnrichmentService.cs, src/Encina
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | No reads of cacheable data |
 | 2 | OpenTelemetry | ✅ | Rejection counter and failed activity on the existing GDPR meter (Phase 3) |
-| 3 | Structured Logging | ✅ | EventIds 8485-8487; header key and error code only |
+| 3 | Structured Logging | ✅ | EventIds 8489-8491; header key and error code only |
 | 4 | Health Checks | ❌ | No new checkable dependency |
 | 5 | Validation | ✅ | The guard validates header values at the append boundary |
 | 6 | Resilience | ❌ | No external call |
 | 7 | Distributed Locks | ❌ | No shared mutable state |
-| 8 | Transactions | ✅ | The append fails before commit, so nothing is stored (Phase 1) |
+| 8 | Transactions | ✅ | The append is refused before `SaveChangesAsync` and the session is left untouched (staged `EnrichSession`, Design Choice 4), so nothing is stored and nothing leaks to the next save on the same scoped session |
 | 9 | Idempotency | ❌ | A rejected append can be retried with corrected headers |
-| 10 | Multi-Tenancy | ❌ | The `TenantId` header is an identifier and stays unchanged |
+| 10 | Multi-Tenancy | ❌ | The `TenantId` header is an identifier and stays unchanged; the guard reads only the events being appended through the caller's tenant-scoped session, and the rejection counter carries no tenant tag (ADR-054 D4: tags only where the measurement is per tenant) |
 | 11 | Module Isolation | ❌ | Not module-scoped |
 | 12 | Audit Trail | ❌ | A rejection is an application error, not an audited operation |
 
@@ -343,13 +368,13 @@ REFERENCE FILES: src/Encina.Marten/EventMetadataEnrichmentService.cs, src/Encina
 
 1. Commit this plan, open its PR and link it from #2457.
 2. When the issue is picked up, re-check the choices against today's code and ask the maintainer about Design Choice 5 (the only open one).
-3. Brief one worker for Phases 1-5 (14 files).
+3. Brief three workers in sequence, one per pull request of the split (13, 10 and 10 files); PR 2 starts after PR 1 merges and PR 3 after PR 2.
 
 ---
 
 ## Maintainer Decisions
 
-2. (2026-10-27) Matching rule: normalized equality (trim, case) with the misses documented (decision C5 on #1770, https://github.com/dlrivada/Encina/issues/1770#issuecomment-6436978234). Recorded as Settled in Design Choice 2.
-3. (2026-10-27) Scope: enricher values only (decision C5 on #1770). Recorded as Settled in Design Choice 3.
+1. (2026-10-27) Matching rule: normalized equality (trim, case) with the misses documented (decision C5 on #1770, https://github.com/dlrivada/Encina/issues/1770#issuecomment-6436978234). Recorded as Settled in Design Choice 2.
+2. (2026-10-27) Scope: enricher values only (decision C5 on #1770). Recorded as Settled in Design Choice 3.
 
 The built-in `UserId` header (Design Choice 5) was decided only as "explicit opt-in capture or startup warning, not retained by default"; the maintainer has not yet chosen between the two, so it has no entry here.
