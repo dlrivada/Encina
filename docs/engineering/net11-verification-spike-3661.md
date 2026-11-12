@@ -6,7 +6,7 @@ nav_exclude: true
 
 This page is the go/no-go report of [#3661](https://github.com/dlrivada/Encina/issues/3661) for the maintainer and for the authors of the platform-move issues. It records what was measured when Encina was built and tested on the .NET 11 SDK, what breaks, what it costs to fix, and the conditions under which the move to `net11.0` and C# 15 can proceed. The platform was decided by the maintainer on 2026-11-11 (option B of the issue); this report is the verification that decision was made subject to. Nothing in `src/` was changed.
 
-**Evidence date:** 2026-11-11, SDK 11.0.100, against `origin/main`. Raw logs and the working notes are in the spike worktree under `artifacts/spike3661/`. Pre-1.0, backward compatibility is not a criterion ([AGENTS.md](../../AGENTS.md) section 1, [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md)).
+**Evidence date:** 2026-11-11, SDK 11.0.100, against `origin/main`. The raw logs and working notes were kept locally and are not part of the repository. Pre-1.0, backward compatibility is not a criterion ([AGENTS.md](../../AGENTS.md) section 1, [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md)).
 
 ## 1. Verdict: GO, with conditions
 
