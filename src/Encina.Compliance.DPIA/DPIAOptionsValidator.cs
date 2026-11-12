@@ -38,24 +38,40 @@ internal sealed class DPIAOptionsValidator : IValidateOptions<DPIAOptions>
 
         var failures = new List<string>();
 
-        // Validate EnforcementMode is a defined enum value
+        ValidateEnforcementMode(options, failures);
+        ValidateDefaultReviewPeriod(options, failures);
+        ValidateExpirationCheckInterval(options, failures);
+        ValidateDPOEmail(options, failures);
+
+        return failures.Count > 0
+            ? ValidateOptionsResult.Fail(failures)
+            : ValidateOptionsResult.Success;
+    }
+
+    private static void ValidateEnforcementMode(DPIAOptions options, List<string> failures)
+    {
         if (!Enum.IsDefined(options.EnforcementMode))
         {
             failures.Add(
                 $"DPIAOptions.EnforcementMode has an invalid value '{(int)options.EnforcementMode}'. "
                 + "Valid values are Block (0), Warn (1), or Disabled (2).");
         }
+    }
 
-        // Validate DefaultReviewPeriod is positive
+    private static void ValidateDefaultReviewPeriod(DPIAOptions options, List<string> failures)
+    {
         if (options.DefaultReviewPeriod <= TimeSpan.Zero)
         {
             failures.Add(
                 $"DPIAOptions.DefaultReviewPeriod must be positive. "
                 + $"Current value: {options.DefaultReviewPeriod}.");
         }
+    }
 
-        // Validate ExpirationCheckInterval is within the range PeriodicTimer accepts:
-        // the review-reminder service always runs, so the interval is always checked
+    // The review-reminder service always runs, so the interval is always checked against
+    // the range PeriodicTimer accepts.
+    private static void ValidateExpirationCheckInterval(DPIAOptions options, List<string> failures)
+    {
         if (options.ExpirationCheckInterval < MinExpirationCheckInterval
             || options.ExpirationCheckInterval > MaxExpirationCheckInterval)
         {
@@ -64,8 +80,10 @@ internal sealed class DPIAOptionsValidator : IValidateOptions<DPIAOptions>
                 + $"and {MaxExpirationCheckInterval} (the range PeriodicTimer supports). "
                 + $"Current value: {options.ExpirationCheckInterval}.");
         }
+    }
 
-        // Validate DPOEmail format when provided
+    private static void ValidateDPOEmail(DPIAOptions options, List<string> failures)
+    {
         if (options.DPOEmail is { Length: > 0 }
             && !options.DPOEmail.Contains('@'))
         {
@@ -73,9 +91,5 @@ internal sealed class DPIAOptionsValidator : IValidateOptions<DPIAOptions>
                 $"DPIAOptions.DPOEmail has an invalid format '{options.DPOEmail}'. "
                 + "The email must contain an '@' character.");
         }
-
-        return failures.Count > 0
-            ? ValidateOptionsResult.Fail(failures)
-            : ValidateOptionsResult.Success;
     }
 }
