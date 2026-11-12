@@ -3,7 +3,7 @@
 > **Issue**: [#636](https://github.com/dlrivada/Encina/issues/636) (`area-cdc`, `priority-low`, `complexity-low`, `p1-recommended`)
 > **Type**: Feature
 > **Complexity**: Medium (the issue is labelled low; the dispatcher hook, redaction that fails closed and the write-through rule add scope)
-> **Estimated Scope**: ~1,100-1,500 lines of production code + ~2,000-2,700 lines of tests (about 82 files and up to about 6,000 line-changes in total with manifests, PublicAPI and documentation), delivered in nine pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~1,100-1,500 lines of production code + ~2,000-2,700 lines of tests (about 94 files and up to about 6,200 line-changes in total with manifests, PublicAPI and documentation), delivered in ten pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family (#633, #634, #635, #2393)**: independent of #633. #634 and #635 add typed CDC handlers; this plan adds a dispatcher-level observer instead (Design Choice 4) and owns the rule that infrastructure tables are never audited. Sibling plans are referred to by issue number only.
 
 ---
@@ -31,17 +31,18 @@ Changes captured by CDC are streamed as structured audit entries to external sin
 
   | PR | Content (phase) | Files | Lines (est.) | Depends on |
   |----|-----------------|-------|--------------|------------|
-  | 1 | `CdcAuditEntry`, `ICdcAuditSink`, `CdcAuditOptions` and validator, `CdcAuditErrors` (with categories), PublicAPI, unit and guard tests, manifest (Phase 1) | 9 | ~550 | none |
-  | 2 | `ICdcChangeObserver`, the dispatcher change (observers resolved from the processor's scope, own try/catch, connector id passed in, Design Choices 4 and 7), processor edits, PublicAPI, unit and contract tests, manifest (Phase 2) | 12 | ~800 | 1 |
-  | 3 | `AuditRowProjector`, `AuditFieldPolicy`, `AuditStreamObserver`, `AuditInfrastructureTables`, unit, guard and property tests, manifest (Phase 3) | 10 | ~900 | 1, 2 |
-  | 4 | `ConsoleAuditSink`, `FileAuditSink` and their options, sink contract tests, unit and guard tests, manifest (Phase 4 tasks 1, 2, 4) | 10 | ~800 | 1 |
-  | 5 | `OutboxAuditSink` (owns the commit, Design Choice 5 note), `CdcAuditNotification`, unit tests, a `ValidateScopes = true` dispatch test, manifest (Phase 4 task 3) | 6 | ~400 | 1, 2 |
-  | 6 | `WithAuditStreaming`, registration method, startup validator, DI proof per sink, PublicAPI, manifest (Phase 5) | 8 | ~500 | 3, 4, 5 |
-  | 7 | `CdcAuditMetrics`, activity source, `CdcAuditLog` (4880-4885), `Encina.OpenTelemetry` subscription, unit and guard tests, PublicAPI, manifest (Phase 7) | 9 | ~550 | 6 |
-  | 8 | Cross-connector shape contract test, connector-driven integration tests (PostgreSQL, MySQL, SQL Server, MongoDB), outbox-sink integration for each outbox family (ADO.NET, Dapper, EF Core, MongoDB), benchmark class, load justification `.md` (Phases 6, 8) | 13 | ~1,200 | 6, 7 |
-  | 9 | Changelog fragment, `Encina.Cdc` README, `docs/features/cdc.md`, `docs/INVENTORY.md`, ADR (Phase 9) | 5 | ~300 | 8 |
+  | 1 | `CdcAuditEntry`, `ICdcAuditSink`, `CdcAuditOptions` and validator, `CdcAuditErrors` (with categories), `CdcAuditLog` (EventIds 4880-4885, created here so every later PR that logs can use it), PublicAPI, unit and guard tests, log test, manifest (Phase 1) | 11 | ~700 | none |
+  | 2 | Connector id and scoped provider through the dispatcher contract (Design Choice 7): new `CdcDispatchContext`, `ICdcDispatcher`, `CdcDispatcher`, `CdcProcessor`, `ShardedCdcProcessor` (5 src files), PublicAPI, manifest, and the 8 existing test files whose `DispatchAsync(` calls must change (`CdcDispatcherTests.cs` 14 calls, `CdcDispatcherIntegrationTests.cs` 11, `CdcMessagingBridgeIntegrationTests.cs` 6, `ShardedCdcProcessorTests.cs` 4, `CdcProcessorDeadLetterTests.cs` 2, `CdcDispatcherGuardTests.cs`, `CdcDispatcherPayloadTests.cs`, `ShardedCdcProcessorFailureTests.cs` stubs; call-site count re-run with `git grep -c "DispatchAsync(" -- tests` when the PR opens) (Phase 2 task 1) | 15 | ~450 | none |
+  | 3 | `ICdcChangeObserver`, the observer loop in `CdcDispatcher` (resolved from the context's scoped provider, own try/catch), PublicAPI, unit tests with a scoped fake observer (scope resolution under `ValidateScopes = true`), contract test (ordering, short-circuit, tables without a handler), manifest (Phase 2 tasks 2-4) | 8 | ~500 | 1, 2 |
+  | 4 | `AuditRowProjector`, `AuditFieldPolicy`, `AuditStreamObserver`, `AuditInfrastructureTables`, unit, guard and property tests, manifest (Phase 3) | 10 | ~900 | 1, 3 |
+  | 5 | `ConsoleAuditSink`, `FileAuditSink` and their options, sink contract tests, unit and guard tests, manifest (Phase 4 tasks 1, 2, 4) | 10 | ~800 | 1 |
+  | 6 | `OutboxAuditSink` (owns the commit, Design Choice 5 note), `CdcAuditNotification`, unit tests, a `ValidateScopes = true` dispatch test through the real `OutboxAuditSink`, manifest (Phase 4 task 3) | 6 | ~400 | 1, 3 |
+  | 7 | `WithAuditStreaming`, registration method, startup validator, DI proof per sink, PublicAPI, manifest (Phase 5) | 8 | ~500 | 4, 5, 6 |
+  | 8 | `CdcAuditMetrics`, activity source, `Encina.OpenTelemetry` subscription, unit and guard tests, PublicAPI, manifest (Phase 7) | 8 | ~450 | 7 |
+  | 9 | Cross-connector shape contract test, connector-driven integration tests (PostgreSQL, MySQL, SQL Server, MongoDB), outbox-sink integration for each outbox family (ADO.NET, Dapper, EF Core, MongoDB), benchmark class, load justification `.md` (Phases 6, 8) | 13 | ~1,200 | 7, 8 |
+  | 10 | Changelog fragment, `Encina.Cdc` README, `docs/features/cdc.md`, `docs/INVENTORY.md`, ADR (Phase 9) | 5 | ~300 | 9 |
 
-  Total: 9 PRs, 82 files, about 6,000 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 3, 4 and 5 are independent of each other once PRs 1 and 2 are in.
+  Total: 10 PRs, 94 files, about 6,200 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PR 2 is at the limit. PRs 2 and 5 are independent; PRs 4, 5 and 6 are independent of each other once their dependencies are in.
 
 ---
 
@@ -180,7 +181,7 @@ The cited rule (AGENTS.md section 1, opt-in) is about the feature, not about the
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Add the connector id to `ChangeMetadata`** | Every consumer of the event sees it | `ChangeMetadata` is built in all five connectors and the sharded path; many files |
-| **B) Pass the connector id to the dispatcher: `ICdcDispatcher.DispatchAsync(ChangeEvent, string connectorId, CancellationToken)` (the processors already know `connector.ConnectorId`) and on to `ICdcChangeObserver.ObserveAsync`** | Few files (dispatcher contract, two processors, observer); no connector change | Changes a public dispatcher contract (allowed pre-1.0) |
+| **B) Pass the connector id to the dispatcher: `ICdcDispatcher.DispatchAsync(ChangeEvent, CdcDispatchContext, CancellationToken)`, where the context carries `connector.ConnectorId` (the processors already know it) and the processor's scoped `IServiceProvider` (needed to resolve observers, R6), and on to `ICdcChangeObserver.ObserveAsync`** | Few src files (dispatcher contract, two processors, context type); no connector change; one signature change serves both needs | Changes a public dispatcher contract (allowed pre-1.0) and breaks every existing call site: 8 existing test files, counted in PR 2 |
 | **C) Key on `SourceDatabase` + `SourceSchema` + position and argue uniqueness** | No contract change | Two connectors on the same database collide; uniqueness is argued, not guaranteed |
 
 ### Chosen Option: **B — connector id passed to the dispatcher** (recommended, pending the maintainer)
@@ -220,7 +221,7 @@ Compliance gates fail closed; B is a bypass of the control that the allow list e
 | R1 | The entry's timestamp is named `CapturedAtUtc` (from `ChangeMetadata.CapturedAtUtc`), not `TimestampUtc` | Trivial | AGENTS.md section 4 (`AtUtc` suffix) |
 | R2 | The file sink's day boundary is the UTC day of the entry's `CapturedAtUtc` (deterministic on replay), not the time of writing | Trivial | Reversible; no clock read |
 | R3 | `IncludeValues` is allowed only when an `IHostEnvironment` is registered and reports Development; with no environment registered it is denied | Settled | AGENTS.md section 3 (gates fail closed: missing context denies) |
-| R4 | Error codes `audit_sink_failed` (category Unavailable), `audit_policy_invalid` and `audit_infrastructure_table` (category Internal, configuration), each declared through the error category contract of #3419 (the plan cites that contract, not an ADR number), with a `GetCategory` test | Trivial | Convention of the error code classes |
+| R4 | Error codes `audit_sink_failed` (category Unavailable), `audit_policy_invalid` and `audit_infrastructure_table` (category Internal, configuration), each declared through the error category contract of ADR 062, owned by #3419 (reserved, pending until #3419 merges), with a `GetCategory` test | Trivial | Convention of the error code classes |
 | R5 | `Encina.Cdc` is already mapped in `AssemblyRanges` of `EncinaEventIdAllocationTests` (`EncinaEventIdAllocationTests.cs:55`), so the 4880-4885 ids need no map change | Trivial | Verified on `main` |
 | R6 | Observers are resolved from the processor's scope (a scope per event or batch passed to the dispatcher), never from the dispatcher's root provider, and the observer call has its own try/catch: the existing catch uses `handlerType.Name`, which is unset before handler lookup | Trivial | `CdcDispatcher` is a singleton (`ServiceCollectionExtensions.cs:80`), `OutboxOrchestrator` is scoped (`MessagingServiceCollectionExtensions.cs:283`) |
 
@@ -238,7 +239,7 @@ Compliance gates fail closed; B is a bypass of the control that the allow list e
 1. `src/Encina.Cdc/Auditing/CdcAuditEntry.cs`: `EntityType`, `EntityId`, `Operation`, `Before`, `After` (JSON strings after redaction), `CapturedAtUtc` (`ChangeMetadata.CapturedAtUtc`), `Source` (`SourceDatabase.SourceSchema`), `Position` (`ToString()`, opaque), `ChangedBy`, `DeduplicationKey` (`{ConnectorId}:{Position}`; the connector id reaches the observer as in Design Choice 7). Sinks may receive duplicates; the key is the deduplication contract.
 2. `ICdcAuditSink`: `WriteAsync(CdcAuditEntry, CancellationToken)` and `WriteBatchAsync(IReadOnlyList<CdcAuditEntry>, CancellationToken)`, both `Task<Either<EncinaError, Unit>>`.
 3. `CdcAuditOptions`: `Tables` (allow list), per-table `AuditFieldPolicy`, `IncludeOperations` / `ExcludeOperations`, `EntityIdField` per table, `ChangedByField` per table; validated by `IValidateOptions`; sink options holding paths or keys are `[JsonIgnore]` with a `ToString()` override.
-4. `CdcAuditErrors` (`encina.cdc.audit_sink_failed`, `encina.cdc.audit_policy_invalid`, `encina.cdc.audit_infrastructure_table`), each with its category from the error category contract of #3419 (decision R4) and a `GetCategory` test.
+4. `CdcAuditErrors` (`encina.cdc.audit_sink_failed`, `encina.cdc.audit_policy_invalid`, `encina.cdc.audit_infrastructure_table`), each with its category from the error category contract of ADR 062, which is owned by #3419 (the number is reserved and pending until #3419 merges; decision R4), and a `GetCategory` test. `CdcAuditLog` (EventIds 4880-4885) is created in this phase so later PRs that log (projector, sinks, validator) use it without retrofits.
 
 </details>
 
@@ -263,8 +264,8 @@ src/Encina.Cdc/Messaging/CdcMessagingOptions.cs.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `ICdcChangeObserver` (public): `ValueTask<Either<EncinaError, Unit>> ObserveAsync(ChangeEvent, CancellationToken)`.
-2. `CdcDispatcher.DispatchAsync`: resolve the observers (`GetServices<ICdcChangeObserver>()`) from the processor's scope, not from the dispatcher's root provider (the dispatcher is a singleton, `ServiceCollectionExtensions.cs:80`; observers such as `OutboxAuditSink` depend on scoped services), and await them in order before the handler lookup, so a table with no handler is still observed; the first `Left` is returned and the handler is not invoked (the event fails as a whole). The observer call sits in its own try/catch and an exception becomes an observer-specific `Left` (the existing catch at `CdcDispatcher.cs:103-107` uses `handlerType.Name`, which is unset before the handler lookup). The connector id is passed in per Design Choice 7. A test dispatches one event through `OutboxAuditSink` with `ValidateScopes = true`.
+1. PR 2: `CdcDispatchContext` (connector id and the processor's scoped provider), the new `DispatchAsync(ChangeEvent, CdcDispatchContext, CancellationToken)` signature in `ICdcDispatcher`/`CdcDispatcher`, both processors, and the 8 existing test files that call `DispatchAsync(` (counted in the PR table).
+2. PR 3: `ICdcChangeObserver` (public): `ValueTask<Either<EncinaError, Unit>> ObserveAsync(ChangeEvent, CdcDispatchContext, CancellationToken)`. `CdcDispatcher.DispatchAsync`: resolve the observers (`GetServices<ICdcChangeObserver>()`) from the context's scoped provider, not from the dispatcher's root provider (the dispatcher is a singleton, `ServiceCollectionExtensions.cs:80`; observers such as `OutboxAuditSink` depend on scoped services), and await them in order before the handler lookup, so a table with no handler is still observed; the first `Left` is returned and the handler is not invoked (the event fails as a whole). The observer call sits in its own try/catch and an exception becomes an observer-specific `Left` (the existing catch at `CdcDispatcher.cs:103-107` uses `handlerType.Name`, which is unset before the handler lookup). The connector id comes from the context (Design Choice 7). PR 3 tests scope resolution with a scoped fake observer under `ValidateScopes = true`; the test through the real `OutboxAuditSink` belongs to Phase 4 task 3 (PR 6).
 3. The sharded processor path calls the same dispatcher, so it is covered; `ICdcEventInterceptor` is left unchanged.
 4. Contract and unit tests prove ordering, short-circuit on `Left`, and that tables without a handler are observed.
 
@@ -398,7 +399,7 @@ The stream depends on the source database's connector, not on the application's 
 | 10 | MongoDB | MongoDB | change stream (JSON `string`, `MongoCdcConnector.cs:244-245`) | only with pre-images enabled |
 | extra | any | Debezium-captured database | Debezium envelope (`JsonElement`) | per the source connector configuration |
 
-Each connector shape has a contract case in PR 8; the integration tests run PostgreSQL, MySQL, SQL Server and MongoDB (the Debezium shape is a unit case). The other applicability-matrix rows (caches, transports, locks, validation providers) are not applicable.
+Each connector shape has a contract case in PR 9; the integration tests run PostgreSQL, MySQL, SQL Server and MongoDB (the Debezium shape is a unit case). The other applicability-matrix rows (caches, transports, locks, validation providers) are not applicable.
 
 </details>
 
@@ -424,7 +425,7 @@ src/Encina.Cdc.Debezium/DebeziumCdcConnector.cs.
 
 1. `CdcAuditMetrics` (meter `Encina.Cdc.Audit`): counters `encina.cdc.audit.entries` (tags `sink`, `operation`), `encina.cdc.audit.errors` (tag `sink`), `encina.cdc.audit.redacted_fields`.
 2. `CdcAuditActivitySource` spans per entry with `sink` and `operation`.
-3. `CdcAuditLog` (EventIds 4880-4885, six ids packed sequentially: 4880 entry written, 4881 filtered out, 4882 sink failed, 4883 malformed row, 4884 allow-all opt-out, 4885 infrastructure table rejected; 4886-4891 stay unassigned inside the #636 block; error code and ids only, never entry contents).
+3. `CdcAuditLog` is created in PR 1 (Phase 1); this phase only uses it for the metrics-related messages. Its ids: (EventIds 4880-4885, six ids packed sequentially: 4880 entry written, 4881 filtered out, 4882 sink failed, 4883 malformed row, 4884 allow-all opt-out, 4885 infrastructure table rejected; 4886-4891 stay unassigned inside the #636 block; error code and ids only, never entry contents).
 4. `Encina.OpenTelemetry` subscription.
 
 </details>
@@ -534,28 +535,43 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, doc
 
 ### Per-file coverage targets (AGENTS.md section 9)
 
-Per flag: U unit, G guard, C contract, P property, I integration; entered in `.github/coverage-manifest/Encina.Cdc.json` by the PR that creates each file and never lowered afterwards. Touched files (`CdcDispatcher.cs`, `CdcConfiguration.cs`, `CdcOptions.cs`, `ServiceCollectionExtensions.cs`, the processors) are listed with the targets of their changed lines.
+Per flag: U unit, G guard, C contract, P property, I integration; entered in `.github/coverage-manifest/Encina.Cdc.json` by the PR that creates each file and never lowered afterwards. Targets are per file: the manifest has no per-line targets. For the existing files a PR touches, the row states the whole-file target, which is the current manifest target of that file at the time the PR opens (read from the manifest, never lowered) or the value shown if that is higher; the new lines are tested to the same flags.
 
 | File | U | G | C | P | I | Justification |
 |------|---|---|---|---|---|---------------|
 | `CdcAuditEntry.cs` | 80 | 0 | 0 | 0 | 0 | Record; computed members only |
-| `CdcAuditOptions` and validator | 90 | 90 | 0 | 0 | 0 | Pure validation, every branch reachable |
+| `ICdcAuditSink.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable lines |
+| `CdcAuditOptions.cs` | 90 | 90 | 0 | 0 | 0 | Plain options; `ToString()` override and defaults reachable |
+| `CdcAuditOptionsValidator.cs` | 95 | 90 | 0 | 0 | 0 | Pure validation, every branch reachable |
 | `CdcAuditErrors.cs` | 90 | 0 | 0 | 0 | 0 | Factories plus the category test |
+| `CdcAuditLog.cs` | 70 | 0 | 0 | 0 | 0 | Generated logger methods reached by the projector, sink and validator tests |
+| `CdcDispatchContext.cs` | 90 | 90 | 0 | 0 | 0 | Small type with null checks |
+| `ICdcDispatcher.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable lines |
+| `CdcProcessor.cs` (whole file, passes the context) | 90 | 0 | 0 | 0 | 0 | Processor tests already exist; the context hand-off is covered by them |
+| `ShardedCdcProcessor.cs` (whole file, passes the context) | 90 | 0 | 0 | 0 | 0 | Same as `CdcProcessor.cs` |
+| `ICdcChangeObserver.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable lines |
 | `AuditRowProjector.cs` | 95 | 90 | 85 | 80 | 0 | Pure normalization of four shapes; malformed rows are a `Left` |
 | `AuditFieldPolicy.cs` | 95 | 90 | 0 | 90 | 0 | Property test: a non-listed field never appears |
 | `AuditStreamObserver.cs` | 90 | 90 | 85 | 0 | 70 | Filters, ordering and short-circuit with fake sinks; connector-driven integration |
 | `AuditInfrastructureTables.cs` | 90 | 0 | 0 | 0 | 0 | Static list and lookup |
-| `ConsoleAuditSink.cs`, `FileAuditSink.cs` | 90 | 90 | 85 | 0 | 70 | File I/O against a temp directory; contract shared by the three sinks |
+| `ConsoleAuditSink.cs` | 90 | 90 | 85 | 0 | 0 | Metadata-only log; contract shared by the three sinks |
+| `ConsoleAuditSinkOptions.cs` | 90 | 90 | 0 | 0 | 0 | Options with the `IncludeValues` switch |
+| `FileAuditSink.cs` | 90 | 90 | 85 | 0 | 70 | File I/O against a temp directory; connector-driven integration |
+| `FileAuditSinkOptions.cs` | 90 | 90 | 0 | 0 | 0 | `[JsonIgnore]` directory and `ToString()` |
 | `OutboxAuditSink.cs` | 85 | 90 | 85 | 0 | 80 | The commit behavior is provider-dependent, hence integration per outbox family |
-| `CdcDispatcher.cs` (changed lines) | 90 | 0 | 85 | 0 | 0 | Observer ordering, short-circuit and scope resolution are deterministic |
-| `CdcAuditMetrics`, activity source, log | 85 | 0 | 0 | 0 | 0 | Meter listener, generated logger |
-| `WithAuditStreaming`, registration, validator | 90 | 90 | 0 | 0 | 0 | DI proof builds the provider for each sink with `ValidateOnBuild` and `ValidateScopes` |
+| `CdcAuditNotification.cs` | 80 | 0 | 0 | 0 | 0 | Record |
+| `CdcDispatcher.cs` (whole file) | 90 | 90 | 85 | 0 | 70 | Observer ordering, short-circuit, scope resolution and context handling are deterministic; the existing integration tests exercise the file |
+| `CdcAuditMetrics.cs` | 90 | 0 | 0 | 0 | 0 | Meter listener asserts every instrument |
+| `CdcAuditActivitySource.cs` | 85 | 0 | 0 | 0 | 0 | Spans asserted with an activity listener |
+| `CdcConfiguration.cs` (whole file, `WithAuditStreaming`) | 90 | 90 | 0 | 0 | 0 | Fluent registration, all branches reachable |
+| `CdcOptions.cs` (whole file) | 90 | 90 | 0 | 0 | 0 | Plain options |
+| `ServiceCollectionExtensions.cs` (whole file, `RegisterAuditStreamingServices`) | 90 | 90 | 0 | 0 | 0 | DI proof builds the provider for each sink with `ValidateOnBuild` and `ValidateScopes` |
 
 CRAP stays at or below 10 on every changed method; the dispatcher gets a small private method for the observer loop so `DispatchAsync` does not grow.
 
 ### Estimated File Count
 
-The per-PR counts are in "Split into pull requests" (82 files); this table groups the same files.
+The per-PR counts are in "Split into pull requests" (94 files); this table groups the same files.
 
 | Category | Files | Notes |
 |----------|-------|-------|
@@ -580,7 +596,7 @@ IMPLEMENTATION OVERVIEW: Phase 1 adds CdcAuditEntry, ICdcAuditSink and options. 
 from CdcDispatcher for every event. Phase 3 adds the row projector, the allow-list redaction and AuditStreamObserver.
 Phase 4 adds the console, file and outbox sinks (write-through). Phase 5 adds WithAuditStreaming, registration and
 validation. Phase 6 proves the four connector shapes. Phase 7 adds metrics, spans and logs (EventIds 4880-4885).
-Phase 8 tests; Phase 9 documents. Deliver as the nine pull requests of the Summary after the CDC prerequisites land.
+Phase 8 tests; Phase 9 documents. Deliver as the ten pull requests of the Summary after the CDC prerequisites land.
 
 KEY PATTERNS: fail closed (allow list; infrastructure tables rejected); a Left from a sink fails the CDC event; no
 buffering past the position save; never log row contents or EncinaError.Message; opt-in; TimeProvider; registration
