@@ -88,7 +88,7 @@ No `ClaimCheck` type or package exists. The facts that this plan depends on, bey
 - Marker: on every broker that has headers the marker is mandatory, not an optimization: RabbitMQ message headers, Kafka headers, NATS headers, Azure Service Bus application properties, SQS message attributes and MQTT 5 user properties carry the marker header (its name and value are choice 10). Redis Pub/Sub and MQTT 3.1.1 have no headers, so consumers detect the body prefix `CLC:v1:` there.
 - Enabling claim check on a publisher changes what its consumers receive: an offloaded message arrives as the `CLC:v1:` envelope text, not as JSON, and a consumer that does not call the resolver of Phase 4 fails to deserialize it. The behavior is opt-in (the publisher only offloads when `IClaimCheckService` is registered), and the XML doc of each publisher, the feature guide and the changelog fragment state that consumers must call the resolver before the feature is turned on.
 - Not applicable: `Encina.InMemory` (no wire), `Encina.gRPC` and `Encina.GraphQL` (request and response protocols with server limits). If the maintainer wants gRPC covered, it becomes a follow-up issue.
-- Delivery split: two transports per pull request, MQTT with the resolver and the transport contract test (Phase 4, PR 3-6).
+- Delivery split: RabbitMQ with the byte overloads and the resolver, then two transports per pull request, the last two with the transport contract test (Phase 4, PR 3-6).
 
 </details>
 
@@ -191,7 +191,6 @@ This choice covers payloads offloaded on the outbox path (#599). Payloads offloa
 |--------|------|------|
 | **A) Compression inside `ClaimCheckService` (gzip, optional, flag in the envelope); SHA-256 always (from #599); encryption by composition: the serializer chain encrypts before the offload, and `IBlobStore` envelope encryption (#1239) protects blobs at rest** | No new encryption code; the order is explicit; already-encrypted content is not compressed (it does not compress) | Compression is skipped for content that starts with `ENC:v1:` |
 | **B) Compression and encryption options on the store** (the first draft of #122: `ClaimCheckOptions.Compress`, `Encryption`) | Visible on the store API | Each store would implement them; duplicates `Encina.Messaging.Encryption` and the encryption of `Encina.Storage` |
-
 | **C) Compression as an `IMessageSerializer` decorator** (the seam that `IMessageSerializer.cs` names for "encryption, compression, and schema versioning via the decorator pattern") | Follows the documented extension point; compression also applies to messages that are not offloaded | The serializer API is synchronous and works on strings (#599 explains why the claim check does not sit there); a compressed body is binary, so it would need a text encoding inside `Content`; the envelope could not record the flag |
 
 ### Chosen Option: **A — compression in the service, encryption by composition** (recommended, pending the maintainer)
@@ -280,6 +279,38 @@ The global `ThresholdBytes` of #599 is 256 KiB, the Azure Service Bus Standard l
 
 </details>
 
+<details>
+<summary><strong>11. Tenant of the Storage adapter on the background paths — how resolve, delete and the sweeper reach the right partition</strong></summary>
+
+`IBlobStore` (#1239 choice 2, recommended option) takes the tenant from the ambient context and returns `Left(storage.tenant_required)` when tenancy is on and none resolves; code without an ambient tenant uses `IBlobTenantScope.ForTenant(tenantId)` (#1239 choice 2: the scope is implemented by the outermost tenant layer and registered next to `IBlobStore`). The background paths of this plan have no request context: the outbox processor resolves an envelope and, after the processed mark, deletes its payload (Phase 3 (a)); the sweeper purges expired payloads (choice 6). If `BlobClaimCheckStore` called the ambient store on those paths, every one of them would fail closed: no offloaded outbox message would publish and no payload would ever be deleted, so payloads that may hold personal data would be kept without end (GDPR Art. 5(1)(e), storage limitation).
+
+**The carrier is the claim id.** #599 (choice 10 and Phase 3, `ClaimCheckService`) already prefixes every store id with the tenant segment when tenancy is on: the URL-safe Base64 (no padding) of the UTF-8 tenant id followed by `.`. With #599 choice 10 A (recommended, pending the maintainer) the offload fails closed with `claimcheck.tenant_required` when no tenant resolves, so under tenancy an id without a segment is never written; with #599 choice 10 B the system scope needs its own reserved segment (a value no tenant id can encode to, chosen in #599), which this adapter maps to the default partition of #1239 choice 2. `BlobClaimCheckStore` reads the tenant from that segment for get, delete and put:
+
+- It splits the id at the first `.` (the Base64 alphabet has no `.`), decodes the tenant and calls `IBlobTenantScope.ForTenant(tenant)`; the blob name is the rest of the id. The segment is therefore applied once, by `IBlobStore` (`{tenantId}/{name}` in the provider, #1239 choice 2), and never also kept in the name.
+- With tenancy off (no `MultiTenancyMarker`) the id has no segment and the adapter uses the ambient store, which then uses its fixed default tenant (#1239 choice 2).
+- With tenancy on, an id without a segment returns `Left(claimcheck.tenant_required)` and an undecodable segment returns `Left(claimcheck.invalid_envelope)`; the adapter never falls back to the ambient tenant or to the default partition (AGENTS.md §3, fail closed). These are malformed or foreign ids, not the normal background case, so the fail-closed result does not stop the normal paths.
+- Each operation through `ForTenant` is recorded by the audit decorator of #1239 with the tenant and the explicit tenant scope.
+
+The sweeper has no claim id to read, so it needs a list of tenants.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `IClaimCheckTenantSource`** (`IAsyncEnumerable<string> GetTenantIdsAsync(CancellationToken)`, implemented by the application, the same shape as `IColumnEncryptionTenantSource` of #1250 and `ICertificateTenantSource` of #1246); the sweeper runs `ListAsync` and deletes per tenant through `ForTenant`; when tenancy is on and the Storage adapter is registered without a tenant source, start-up fails with a message naming the interface | Works on every backend, the file system included; the sweeper can never silently skip a tenant, because a missing source stops start-up rather than leaving payloads behind | One more interface for the application to implement; a tenant missing from the source is not swept (the feature guide states it) |
+| **B) Native lifecycle rules for the blob backends** (Azure Blob lifecycle management, S3 lifecycle on the `claimchecks` container); the adapter does not implement `IExpiringClaimCheckStore` under tenancy | No tenant list; the backend expires every partition | The file system has no lifecycle rules, so file system payloads under tenancy would never expire; rules live outside Encina and can be forgotten (the con of choice 6 B) |
+
+### Chosen Option: **A — tenant source, start-up failure when it is missing** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when expiry must hold on every backend under tenancy, the file system included. Option B wins when only cloud backends are used and the operations team already manages lifecycle rules.
+
+- The sweeper also passes the default partition of #1239 choice 2, so payloads written while tenancy was off still expire after tenancy is switched on.
+- A failure for one tenant is logged by code and counted, and the pass continues with the next tenant (choice 6, per-iteration rule).
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -290,14 +321,14 @@ The global `ThresholdBytes` of #599 is 256 KiB, the Azure Service Bus Standard l
 |----|---------|-------|-----------|
 | 1 | Phases 1-2: `ClaimCheckAttribute`, `ClaimCheckAttributeCache`, `ClaimCheckCompression`, `ClaimCheckService` and `ClaimCheckOptions` (modified), Messaging `PublicAPI.Unshipped.txt`; unit tests (attribute cache, compression, service policy), guard test, property test (compression round trip and threshold boundary); `Encina.Messaging.json` manifest | 12 | ~1,000 |
 | 2 | Phase 3 and the Messaging part of Phase 8: `IExpiringClaimCheckStore`, `ClaimCheckCleanupOptions`, `ClaimCheckCleanupProcessor`, `ClaimCheckLog` (6025-6034), `InMemoryClaimCheckStore`, `OutboxBatchProcessor`, `ClaimCheckOptions` (validation, default TTL) and the messaging registration (modified), `PublicAPI.Unshipped.txt`; unit tests (processor with `FakeTimeProvider`, deletion point, validation), guard test, integration test (outbox end to end with deletion), load-test justification; manifest | 15 | ~1,300 |
-| 3 | Phase 4 base + RabbitMQ, Kafka: byte overloads in `ClaimCheckService`, `ClaimCheckBody`, transport offload log (6035-6039) in `ClaimCheckLog`, Messaging `PublicAPI.Unshipped.txt`; the 2 publishers and their 2 registrations, 2 `PublicAPI.Unshipped.txt`; unit tests (overloads, 2 publishers); 2 manifests | 15 | ~1,100 |
-| 4 | Phase 4: NATS, Azure Service Bus (publisher, registration, PublicAPI, unit test, manifest each) | 10 | ~700 |
-| 5 | Phase 4: Amazon SQS, Redis Pub/Sub (same shape) | 10 | ~800 |
-| 6 | Phase 4: MQTT (same shape) + `ClaimCheckResolver` + its unit test + transport contract test across the 7 publishers + Messaging PublicAPI | 9 | ~800 |
+| 3 | Phase 4 base + RabbitMQ: byte overloads in `ClaimCheckService`, `ClaimCheckBody`, `ClaimCheckResolver`, transport offload log (6035-6039) in `ClaimCheckLog`, Messaging `PublicAPI.Unshipped.txt`; `RabbitMQMessagePublisher`, its registration, `EncinaRabbitMQOptions` (`ClaimCheckThresholdBytes`), RabbitMQ `PublicAPI.Unshipped.txt`; unit tests (overloads, resolver, RabbitMQ publisher); `Encina.Messaging.json` and RabbitMQ manifests | 14 | ~1,100 |
+| 4 | Phase 4: Kafka, NATS (publisher, registration, options file, PublicAPI, unit test, manifest each) | 12 | ~800 |
+| 5 | Phase 4: Azure Service Bus, Amazon SQS (same shape) | 12 | ~850 |
+| 6 | Phase 4: Redis Pub/Sub, MQTT (same shape) + transport contract test across the 7 publishers | 13 | ~900 |
 | 7 | Phase 6 (keyed stores in `Encina.Messaging`): `ClaimCheckService`, `ClaimCheckErrors` (`claimcheck.store_not_found`), `PublicAPI.Unshipped.txt`; unit test, DI test (`ValidateOnBuild`, `ValidateScopes`, two keyed stores); manifest | 6 | ~400 |
 | 8 | Phase 5 Redis store: csproj, `RedisClaimCheckStore`, `RedisClaimCheckOptions` (with `Validate`), registration, `ClaimCheckProvidersLog` (6150-6159), README, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `EventIdRanges.cs` (`ClaimCheckProviders`), `EncinaEventIdAllocationTests.cs`, `Encina.slnx`; unit and guard tests; manifest (the contract test goes to PR 9 to stay within 15 files) | 15 | ~1,200 |
 | 9 | Phase 7 for Redis: `ResilientClaimCheckStore`, health check, registration and log (6160-6164) modified, PublicAPI; unit tests (decorator, health check); contract test (from PR 8); integration test (`RedisFixture`); manifest | 9 | ~800 |
-| 10 | Phase 5 Storage adapter: csproj, `BlobClaimCheckStore`, registration, log (6165-6174), health check, README, 2 PublicAPI files, `EncinaEventIdAllocationTests.cs`, `Encina.slnx`; unit, guard and contract tests; manifest | 14 | ~1,100 |
+| 10 | Phase 5 Storage adapter: csproj, `BlobClaimCheckStore` (tenant carrier of choice 11), `IClaimCheckTenantSource`, registration (with the start-up check of choice 11), log (6165-6174), health check, README, 2 PublicAPI files, `EncinaEventIdAllocationTests.cs`, `Encina.slnx`; unit, guard and contract tests; manifest | 15 | ~1,200 |
 | 11 | Phase 5 integration and Phase 10: integration tests through the adapter (file system, Azurite, LocalStack), benchmark of the offload path, ADR, `docs/features/claim-check.md`, `docs/INVENTORY.md`, `ROADMAP.md`, changelog fragment | 9 | ~1,000 |
 
 ### Phase 1: `[ClaimCheck]` attribute and per-type policy
@@ -444,11 +475,11 @@ REFERENCE FILES:
 1. **`ClaimCheckService`** gains byte overloads: `OffloadAsync(ReadOnlyMemory<byte> body, ClaimCheckRequest, CancellationToken)` returning `Either<EncinaError, ClaimCheckBody>` where `ClaimCheckBody(ReadOnlyMemory<byte> Body, bool IsReference)`, and `ResolveAsync(ReadOnlyMemory<byte> body, CancellationToken)`. `IsReference` drives the header marker.
 2. **Public consumer helper**: `ClaimCheckResolver` (static extension `ResolveClaimCheckAsync(this IClaimCheckService, ReadOnlyMemory<byte>)`) for application consumers; documented with a RabbitMQ and an Azure Service Bus consumer example.
 3. **Publishers** (each: optional `IClaimCheckService? claimCheck = null` constructor parameter, call after serialization at every site listed in "What the code does today" with the transport's threshold (choice 9) and `TransportTimeToLive` (choice 8), mandatory marker header where the broker has headers, `Left` returned as the publish result):
-   - PR 3: `RabbitMQMessagePublisher`, `KafkaMessagePublisher`.
-   - PR 4: `NATSMessagePublisher`, `AzureServiceBusMessagePublisher`.
-   - PR 5: `AmazonSQSMessagePublisher`, `RedisPubSubMessagePublisher`.
-   - PR 6: `MQTTMessagePublisher`, the consumer helper and the transport contract test.
-4. **Per-transport threshold** (choice 9): each transport's options gain `ClaimCheckThresholdBytes` with the default of choice 9; a unit test publishes a body of threshold minus one byte and one of threshold plus one byte.
+   - PR 3: `RabbitMQMessagePublisher` and the consumer helper.
+   - PR 4: `KafkaMessagePublisher`, `NATSMessagePublisher`.
+   - PR 5: `AzureServiceBusMessagePublisher`, `AmazonSQSMessagePublisher`.
+   - PR 6: `RedisPubSubMessagePublisher`, `MQTTMessagePublisher` and the transport contract test.
+4. **Per-transport threshold** (choice 9): each transport's options file (`EncinaRabbitMQOptions.cs`, `EncinaKafkaOptions.cs`, `EncinaNATSOptions.cs`, `EncinaAzureServiceBusOptions.cs`, `EncinaAmazonSQSOptions.cs`, `EncinaRedisPubSubOptions.cs`, `EncinaMQTTOptions.cs`, each at the root of its package) gains `ClaimCheckThresholdBytes` with the default of choice 9 and lands in the pull request of its publisher; a unit test publishes a body of threshold minus one byte and one of threshold plus one byte.
 5. Each `AddEncina<Transport>` registration resolves the service with `GetService` (optional), so the transport works without the feature.
 6. Transport contract test (ContractTests): the same assertions on all 7 publishers with their existing test doubles: above the threshold the broker receives a reference, below it the unchanged body.
 
@@ -499,7 +530,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.ClaimCheck.Redis/`** (new package): `RedisClaimCheckStore : IClaimCheckStore` using `IConnectionMultiplexer`, `SET key value EX ttl`, payload cap `MaxPayloadBytes` (default 8 MiB: Redis is for small payloads), key prefix `encina:claimcheck:`; `RedisClaimCheckOptions` (connection string `[JsonIgnore]` with `ToString()` override, AGENTS.md §3); `AddEncinaClaimCheckRedis(...)` registering the store as the keyed store with `TryAdd`; log messages in `ClaimCheckProviders` 6150-6164.
-2. **`src/Encina.ClaimCheck.Storage/`** (new package, depends on `Encina.Storage` of #1239): `BlobClaimCheckStore : IClaimCheckStore, IExpiringClaimCheckStore` over `IBlobStore` (id = blob name under the container `claimchecks`, TTL kept as blob metadata, `PurgeExpiredAsync` lists by prefix and deletes expired); `AddEncinaClaimCheckStorage(...)`; log messages 6165-6174.
+2. **`src/Encina.ClaimCheck.Storage/`** (new package, depends on `Encina.Storage` of #1239): `BlobClaimCheckStore : IClaimCheckStore, IExpiringClaimCheckStore` over `IBlobStore` (container `claimchecks`, TTL kept as blob metadata); tenant per choice 11: get, put and delete decode the #599 tenant segment from the claim id and call `IBlobTenantScope.ForTenant(tenant)` with the rest of the id as the blob name (the tenant is applied once, by `IBlobStore`), an id without a segment under tenancy returns `Left(claimcheck.tenant_required)` and an undecodable one `Left(claimcheck.invalid_envelope)`; `PurgeExpiredAsync` takes each tenant of `IClaimCheckTenantSource` plus the default partition, lists through `ForTenant(tenant).ListAsync` and deletes expired blobs; `IClaimCheckTenantSource`; `AddEncinaClaimCheckStorage(...)` with the start-up failure of choice 11 when tenancy is on and no tenant source is registered; log messages 6165-6174. Tests: an outbox processor run with no request context resolves and deletes a tenant's payload; tenant `a` cannot read a payload whose id carries tenant `b`; the sweeper purges two tenants and the default partition.
 3. Both stores subclass `ClaimCheckStoreContract` (#599) in the contract tests; integration tests: Redis (`RedisFixture`), file system (temp directory), Azure Blob (Azurite) and S3 (LocalStack) through the adapter.
 4. `Directory.Packages.props`: no new version for these two packages beyond what #1239 adds.
 
@@ -584,7 +615,7 @@ REFERENCE FILES:
 
 1. **Resilience**: `ResilientClaimCheckStore` decorator for the Redis store, shaped like `ResilientSecretReaderDecorator` (`src/Encina.Security.Secrets/Resilience/`), registered when `Encina.Resilience` is present (ADR-055); the Storage adapter inherits the resilience of `IBlobStore` (#1239).
 2. **Health checks**: the Redis and Storage packages add a check of their backend through `IEncinaHealthCheck`; the #599 check covers the default store.
-3. **Tenancy**: inherited from `ClaimCheckService` (#599); the Storage adapter relies on `IBlobStore` tenant partitioning, so the claim id keeps the tenant segment.
+3. **Tenancy**: inherited from `ClaimCheckService` (#599), which writes the tenant segment into the claim id; the Storage adapter carries that segment to `IBlobTenantScope.ForTenant` on every path, the background ones included, and the sweeper walks `IClaimCheckTenantSource` (choice 11).
 4. **Deferred** (matrix): caching and audit trail (the follow-up issues opened with the #599 plan), idempotency, module isolation.
 
 </details>
@@ -775,7 +806,7 @@ REFERENCE FILES:
 | IBlobStore (Encina.Storage, created by the #1239 plan) | src/Encina.Storage/ | blob, file system and S3 backends for claim check payloads |
 | EncryptedMessageAttributeCache and EncryptingMessageSerializer | src/Encina.Messaging.Encryption/ | static attribute cache model; encryption already applied before the offload |
 | ResilientSecretReaderDecorator | src/Encina.Security.Secrets/Resilience/ | model for ResilientClaimCheckStore |
-| ITenantProvider and MultiTenancyMarker | src/Encina.Tenancy/Abstractions/ITenantProvider.cs, src/Encina/Abstractions/MultiTenancyMarker.cs | tenant prefix on claim ids, fail closed |
+| IRequestContextAccessor and MultiTenancyMarker | src/Encina/Abstractions/MultiTenancyMarker.cs; ambient tenant read as in src/Encina.Messaging/DeadLetter/DeadLetterManager.cs | tenant prefix on claim ids, fail closed (#599 choice 9; `ITenantProvider` would create a project cycle, because `Encina.Tenancy` references `Encina.Messaging`) |
 | Encina.Messaging coverage manifest | .github/coverage-manifest/Encina.Messaging.json | per-file targets |
 
 ### Event ID Allocation
@@ -871,7 +902,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | The sweeper is idempotent (delete by expiry), so several hosts need no lock |
 | 8 | Transactions | ⏭️ | Payload and outbox row are two systems; no atomicity is offered. Orphans are reclaimed by TTL; recorded in the ADR. No issue needed |
 | 9 | Idempotency | ❌ | A redelivered message resolves the same stored payload; no deduplication is added by this feature |
-| 10 | Multi-Tenancy | ✅ | Inherited from `ClaimCheckService` (#599); the Storage adapter relies on `IBlobStore` partitioning |
+| 10 | Multi-Tenancy | ✅ | Inherited from `ClaimCheckService` (#599); the Storage adapter passes the tenant segment of the claim id to `IBlobTenantScope.ForTenant` and sweeps per tenant of `IClaimCheckTenantSource` (choice 11) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ⏭️ | Payload access audit; the follow-up issue is opened by the orchestrator before the first worker brief of #599 (function 12 there) and its number is written here |
 
@@ -883,7 +914,7 @@ REFERENCE FILES:
 
 - The #599 plan, PR 1 (contract, service, in-memory store): required by every phase here.
 - The #1239 plan (`Encina.Storage`): required by Phase 5 for the blob backends only; Phases 1-4 and the Redis store do not wait for it.
-- #1250 (column-level encryption, owner of `IKeyWrapper`), through #1239: `Encina.Storage` turns envelope encryption on by default and, in its Phase 7, fails start-up when no `IKeyWrapper` is registered unless `AllowUnencrypted` is set explicitly (and logged). `Encina.ClaimCheck.Storage` inherits that rule, so every blob backend of this plan needs #1250's key wrapper or the explicit opt-out; the feature guide states it and the integration tests of PR 11 register a key wrapper.
+- #1250 (column-level encryption, owner of `ITenantDataKeyService` and `IKeyWrapper`), through #1239. Whether `Encina.Storage` encrypts by default is #1239 choice 8, a Dilemma still pending the maintainer, and its key source is #1239 choice 6 (recommended option B: the per-blob key wrapped under the tenant data key of #1250's `ITenantDataKeyService`, itself wrapped by `IKeyWrapper`). If the maintainer picks #1239 choice 8 A, `Encina.Storage` encrypts by default and its Phase 7 fails start-up when the key source of choice 6 is not registered unless `AllowUnencrypted` is set explicitly (and logged); `Encina.ClaimCheck.Storage` inherits that rule, so every blob backend of this plan then needs the #1250 key source or the explicit opt-out, the feature guide states it and the integration tests of PR 11 register the key source. If the maintainer picks #1239 choice 8 B, encryption is opt-in and the feature guide recommends turning it on for payloads that may hold personal data.
 - #1200 (outbox purge on the 10 database providers): the purge deletion point of choice 5 is delivered there, not here; this plan works without it.
 
 ### Parallel and follow-up work
