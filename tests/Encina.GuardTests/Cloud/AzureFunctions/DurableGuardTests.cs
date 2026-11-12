@@ -399,6 +399,51 @@ public class DurableGuardTests
         ex.ParamName.ShouldBe("inputs");
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task FanOutAllAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var ex = await Should.ThrowAsync<ArgumentException>(
+            () => FanOut.FanOutAllAsync<int, string>(context, activityName!, [1]));
+
+        ex.ParamName.ShouldBe("activityName");
+    }
+
+    [Fact]
+    public async Task FanOutAllAsync_ThrowsOnNullInputs()
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            () => FanOut.FanOutAllAsync<int, string>(context, Activity, null!));
+
+        ex.ParamName.ShouldBe("inputs");
+    }
+
+    [Fact]
+    public async Task FanOutAllAsync_ReturnsEmptyRightForNoInputs()
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var result = await FanOut.FanOutAllAsync<int, string>(context, Activity, []);
+
+        result.Match(Right: values => values.Count, Left: _ => -1).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task FanOutFirstSuccessAsync_ReturnsTheAggregateErrorForNoInputs()
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var result = await FanOut.FanOutFirstSuccessAsync<int, string>(context, Activity, []);
+
+        result.Match(Right: _ => "", Left: error => error.GetCode().IfNone(string.Empty))
+            .ShouldBe("durable.fanout_failed");
+    }
+
     [Fact]
     public async Task FanOutMultipleAsync_TwoActivities_ThrowsOnNullContext()
     {

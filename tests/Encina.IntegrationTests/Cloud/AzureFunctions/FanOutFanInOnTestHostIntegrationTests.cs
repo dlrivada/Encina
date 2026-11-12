@@ -157,6 +157,47 @@ public sealed class FanOutFanInOnTestHostIntegrationTests
     }
 
     [Fact]
+    public async Task FanOutAsync_NoInputs_ReturnsAnEmptyList()
+    {
+        await using var host = await DurableTestHostSupport.StartAsync(registry =>
+        {
+            registry.AddOrchestratorFunc<List<int>, FanOutOutcome>("FanThEmpty_Orch",
+                async (c, i) => ToOutcome(await c.FanOutAsync<int, string>("FanThEmpty_Act", i)));
+            registry.AddActivityFunc<int, ActivityResult<string>>("FanThEmpty_Act", (_, i) =>
+                Task.FromResult(ActivityResult<string>.Success($"v{i}")));
+        });
+
+        var metadata = await DurableTestHostSupport.RunAsync(host, "FanThEmpty_Orch", new List<int>());
+
+        metadata.RuntimeStatus.ShouldBe(OrchestrationRuntimeStatus.Completed);
+        metadata.ReadOutputAs<FanOutOutcome>()!.Values.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task PlainValueActivities_RunWithCallEncinaActivityAsyncAndPartition_SplitSuccessesFromFailures()
+    {
+        var outcome = await RunAsync(registry =>
+        {
+            registry.AddOrchestratorFunc<List<int>, FanOutOutcome>("FanThPartition_Orch", async (c, i) =>
+            {
+                var results = await Task.WhenAll(
+                    i.Select(input => c.CallEncinaActivityAsync<int, string>("FanThPartition_Act", input)));
+                var (successes, failures) = FanOutFanInExtensions.Partition(results);
+                return new FanOutOutcome
+                {
+                    Values = [.. successes],
+                    Failures = [.. failures.Select(f => f.GetCode().IfNone(string.Empty))]
+                };
+            });
+            registry.AddActivityFunc<int, string>("FanThPartition_Act", (_, i) =>
+                i == 1 ? DurableTestHostSupport.ThrowAsync<string>() : Task.FromResult($"plain{i}"));
+        }, "FanThPartition_Orch");
+
+        outcome.Values.ShouldBe(["plain0", "plain2"]);
+        outcome.Failures.ShouldBe(["durable.activity_failed"]);
+    }
+
+    [Fact]
     public async Task FanOutFirstSuccessAsync_FastFailureAndSlowSuccess_ReturnsTheSuccess()
     {
         var outcome = await RunAsync(registry =>
