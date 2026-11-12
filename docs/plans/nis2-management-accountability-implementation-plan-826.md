@@ -116,8 +116,8 @@ This plan adds an event-sourced **management accountability lifecycle** in the s
 <details>
 <summary><strong>4. Overdue detection — hosted service with idempotent escalation</strong></summary>
 
-- **Class**: Settled
-- **Settled by**: issue #826 Alternatives Considered 8; `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` (opt-in through `DPIAOptions.EnableExpirationMonitoring`, `PeriodicTimer`); AGENTS.md section 3 (a `PeriodicTimer` loop catches per iteration; cancellation ends it); ADR-050 (multi-instance coordination).
+- **Class**: Trivial
+- **Convention followed**: issue #826 Alternatives Considered 8; `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` (opt-in through `DPIAOptions.EnableExpirationMonitoring`, `PeriodicTimer`); AGENTS.md section 3 (a `PeriodicTimer` loop catches per iteration; cancellation ends it). Option B (compute overdue on read) also complies with AGENTS.md section 3 and ADR-050, so the choice rests on the DPIA precedent and the issue, not on a rule.
 
 ### Options Considered
 
@@ -130,7 +130,7 @@ This plan adds an event-sourced **management accountability lifecycle** in the s
 
 ### Rationale
 
-- Duplicate protection without a lock: the aggregate remembers the due date it escalated for and ignores a second escalation for it; Marten optimistic concurrency turns a race into a handled `Left`. A failed query or append is logged by error code and the loop continues. Registered only when `NIS2Options.EnableAccountabilityMonitoring` is true.
+- Duplicate protection without a lock: the aggregate remembers the due date it escalated for (`LastEscalatedDueDate`, a field set by `Apply` from the escalation events, so replay keeps it) and an escalation for the same due date returns a `Left` rule code; Marten optimistic concurrency turns a race into a handled `Left`. A failed query or append is logged by error code and the loop continues. Registered only when `NIS2Options.EnableAccountabilityMonitoring` is true.
 
 </details>
 
@@ -160,8 +160,8 @@ The question and its options belong to the family decision in the #823 plan (Des
 <details>
 <summary><strong>6. Employee training programmes — out of scope, with a follow-up issue</strong></summary>
 
-- **Class**: Settled
-- **Settled by**: NIS2 Directive Art. 20(2) (Member States require management training and encourage entities to offer similar training to employees) and Art. 21(2)(g) (cyber hygiene and cybersecurity training as an entity measure, already covered by `HumanResourcesSecurityEvaluator` and `CyberHygieneEvaluator`); issue #826 Implementation Tasks (the plan decides).
+- **Class**: Trivial
+- **Convention followed**: NIS2 Directive Art. 20(2) (Member States require management training and encourage entities to offer similar training to employees) and Art. 21(2)(g) (cyber hygiene and cybersecurity training as an entity measure, already covered by `HumanResourcesSecurityEvaluator` and `CyberHygieneEvaluator`); issue #826 Implementation Tasks (the plan decides). Art. 20(2) does not forbid option B; the reason for A is scope.
 
 ### Options Considered
 
@@ -202,21 +202,23 @@ The question and its options belong to the family decision in the #823 plan (Des
 <details>
 <summary><strong>8. Person identity in the events</strong></summary>
 
-- **Class**: Trivial
-- **Settled by**: the #822 plan, Dilemma 6 (personal data in events).
+- **Class**: Dilemma
+
+The question belongs to Dilemma 6 of the #822 plan (personal data in append-only Marten streams); this plan applies its outcome.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ResponsiblePersonId` and `DelegateId` are user ids in separate nullable properties, annotated as the shared decision requires; the display name and role are separate properties too** | Follows the family outcome | Management liability (Art. 20(1)) argues for keeping the record, and the shared decision must weigh it |
-| B) Decide here | Independent | Contradicts the family decision |
+| **A) `ResponsiblePersonId` and `DelegateId` are user ids in separate nullable properties, annotated as the shared decision requires; the display name and role are separate properties too** | Follows the family outcome; the shape is ready for either outcome of Dilemma 6 | The accountable manager (a natural person) is stored in an immutable stream |
+| B) Events carry only an opaque appointment key; the person's identity lives in a mutable directory outside the stream | Erasure is a directory delete, the stream stays clean | A second store, and the proof of who was accountable depends on a mutable record, which weakens Art. 20(1) evidence |
 
-### Chosen Option: **A**
+### Chosen Option: **A (recommended, pending the maintainer; follows Dilemma 6 of the #822 plan)**
 
 ### Rationale
 
-- This module is the strongest case for the shared decision: the data subject is the accountable manager, and the record exists to prove accountability.
+- This module is the strongest case for the shared decision: the data subject is the accountable manager, and the record exists to prove accountability under Art. 20(1), which argues for retention.
+- Cost in the losing scenario: if the maintainer later picks erasure for Dilemma 6, an erasure request against an already written stream cannot be met without crypto-shredding the separate person properties (`Encina.Marten.GDPR`) or a stream rewrite; keeping the properties separate and nullable is what keeps that door open.
 
 </details>
 
@@ -254,7 +256,7 @@ About 28 files, over the limit of 15 files and 1,500 lines (AGENTS.md section 11
 
 | PR | Phases | Content | Files / lines (approx.) |
 |---|---|---|---|
-| 1 | 1 | Model, schedule calculator, events, aggregate; unit, guard and property tests | 10 files / 1,300 |
+| 1 | 1 | Model, schedule calculator, events, aggregate, aggregate rule codes in `NIS2Errors`; unit, guard and property tests | 11 files / 1,380 |
 | 2 | 2, 3, 4 | Service and errors, projection, registration, options, evaluator integration, contract and integration tests | 10 files / 1,350 |
 | 3 | 5, 6, 7 (rest), 8 | Overdue monitor, health check, diagnostics, remaining tests, docs, manifest | 8 files / 900 |
 
@@ -271,8 +273,9 @@ Prerequisite: the PR 1 of the #822 plan is merged.
 2. `Model/ComplianceDelegation.cs` and `Model/TrainingRecord.cs` records.
 3. `Model/AccountabilityScheduler.cs` (internal static): `TrainingValidUntil(completedAtUtc, options)`, `NextAcknowledgmentDue(acknowledgedAtUtc, options)`.
 4. `Events/ManagementAccountabilityEvents.cs`: nine records implementing `INotification` (`ManagementPersonAppointed`, `ComplianceAreaDelegated`, `ComplianceDelegationRevoked`, `TrainingCompleted`, `AcknowledgmentRecorded`, `OversightActivityRecorded`, `TrainingOverdueEscalated`, `AcknowledgmentOverdueEscalated`, `ManagementPersonRevoked`) with timestamps, tenant and module ids; person ids separate nullable properties.
-5. `Aggregates/ManagementAccountabilityAggregate.cs`: `AggregateBase`; static `Appoint(...)`; `Delegate`, `RevokeDelegation`, `CompleteTraining`, `Acknowledge`, `RecordOversight`, `EscalateTrainingOverdue`, `EscalateAcknowledgmentOverdue`, `Revoke`; `Apply` switch; properties of the issue plus the two due dates.
-6. Tests: unit (status rules, both overdue conditions, renewal restores, revoked is final), guard, property (Active implies both dates in the future; revoked accepts nothing).
+5. `Aggregates/ManagementAccountabilityAggregate.cs`: `AggregateBase`; static `Appoint(...)` returning `Either<EncinaError, ManagementAccountabilityAggregate>`; `Delegate`, `RevokeDelegation`, `CompleteTraining`, `Acknowledge`, `RecordOversight`, `EscalateTrainingOverdue`, `EscalateAcknowledgmentOverdue`, `Revoke` returning `Either<EncinaError, Unit>` (ADR-053): the rule is decided and the `Left` returned before `RaiseEvent`, so an illegal transition or a repeated escalation never throws and never raises an event; `ArgumentNullException.ThrowIfNull` and similar argument guards stay as exceptions. `Apply` switch; properties of the issue plus the two due dates and `LastEscalatedDueDate` (an event field, so replay keeps the escalation guard).
+6. `NIS2Errors.cs`: the aggregate rule codes `ManagementAccountabilityInvalidTransition` (including any command on a `Revoked` stream), `ManagementAccountabilityEscalationAlreadyRecorded`, `ManagementAccountabilityDelegationDuplicate` and `ManagementAccountabilityDelegationNotFound`, as `nis2.management_accountability_*` codes in the existing style.
+7. Tests: unit (status rules, both overdue conditions, renewal restores, revoked is final, every rule path returns the expected `Left` code and raises no event), guard, property (Active implies both dates in the future; revoked accepts nothing).
 
 </details>
 
@@ -288,12 +291,13 @@ CONTEXT:
 - Pattern: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs; existing snapshot: src/Encina.Compliance.NIS2/Model/ManagementAccountabilityRecord.cs.
 
 TASK:
-1. Create the enums, records, scheduler, the 9 events and ManagementAccountabilityAggregate (Design Choices 1, 2, 3, 7).
+1. Create the enums, records, scheduler, the 9 events and ManagementAccountabilityAggregate (Design Choices 1, 2, 3, 7), and the aggregate rule codes in NIS2Errors.
 2. Add PublicAPI.Unshipped.txt lines and XML docs.
 3. Write unit, guard and property tests that instantiate the real aggregate.
 
 KEY RULES:
-- AggregateBase with Guid Id; no clock reads; an illegal transition throws InvalidOperationException (the service maps it to Left).
+- AggregateBase with Guid Id; no clock reads; commands return Either<EncinaError, Unit> and the factory Either<EncinaError, ManagementAccountabilityAggregate> (ADR-053): an illegal transition returns a Left with a NIS2Errors code decided BEFORE RaiseEvent; never throw for a business rule. Argument guards (ThrowIfNull) are the only exceptions.
+- DPIAAggregate throws InvalidOperationException on rule paths: do NOT copy that part of the pattern.
 - Due dates are stored on the events, not recomputed from options on replay.
 - Person ids are separate nullable properties; no [Obsolete]; zero warnings.
 
@@ -310,9 +314,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `Abstractions/INIS2ManagementAccountabilityService.cs`: `AppointResponsiblePersonAsync`, `RecordTrainingAsync`, `RecordAcknowledgmentAsync`, `DelegateComplianceAreaAsync`, `RevokeDelegationAsync`, `RecordOversightActivityAsync`, `RevokeResponsiblePersonAsync`, `GetOverdueTrainingAsync`, `GetOverviewAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`.
-2. `Services/DefaultNIS2ManagementAccountabilityService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates commands, pre-checks transitions.
-3. `NIS2Errors.cs`: `ManagementAccountabilityNotFound`, `...InvalidTransition`, `...CommandInvalid`, `...StoreFailed`.
-4. A missing acting principal or tenant where required is denied (issue Alternatives 10).
+2. `Services/DefaultNIS2ManagementAccountabilityService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates commands and returns the aggregate's `Left` as is (the aggregate already decided the transition, Phase 1).
+3. `NIS2Errors.cs`: `ManagementAccountabilityNotFound`, `...CommandInvalid`, `...StoreFailed` (the transition codes are Phase 1).
+4. Fail-closed gate (issue Alternatives 10), with this predicate, read from `IRequestContextAccessor` (`IRequestContext.Identity.UserId` and `IRequestContext.TenantId`): the acting principal is ALWAYS required for a command (no context, or a null or blank `UserId`, is denied with `...CommandInvalid`); the tenant is required when tenancy is configured (the `MultiTenancyMarker` is registered, the same trigger as `DeadLetterManager`), and when required a null or blank `TenantId` is denied; queries need the tenant under the same condition. The only opt-out is not registering the workflow. Test rows, one per combination: {context absent, principal absent, principal present} x {tenancy configured with tenant, tenancy configured without tenant, tenancy not configured}. The #822 plan owns the family predicate; if it defines a different trigger, this plan follows it (the five NIS2 plans must agree).
 
 </details>
 
@@ -502,7 +506,15 @@ REFERENCE FILES:
 | Integration | Full lifecycle on Marten and PostgreSQL through the shared Testcontainers fixture; projection registered with a real store | `tests/Encina.IntegrationTests/Compliance/NIS2/` |
 | Load / Benchmark | Not implemented: very low volume, no hot path; `.md` justification files | `tests/Encina.LoadTests`, `tests/Encina.BenchmarkTests` |
 
-Per-file per-flag targets with one-sentence justifications go into `.github/coverage-manifest/Encina.Compliance.NIS2.json`; targets only go up. CRAP of new or changed methods is 10 or less; the aggregate `Apply` switch carries the `crap-exempt` marker.
+Per-file per-flag targets go into `.github/coverage-manifest/Encina.Compliance.NIS2.json`; targets only go up. Starting values, each with its one-sentence justification written in the manifest:
+
+| File group | Unit | Guard | Contract | Property | Integration | Justification |
+|---|---|---|---|---|---|---|
+| Aggregate, scheduler, events, model | 95 | 95 | 0 | 60 | 0 | Pure logic with every rule path returning a `Left`; the property flag checks the Active/Revoked invariants and replay; contract and integration are covered at the service level |
+| Service and projection | 90 | 90 | 80 | 0 | 70 | Thin orchestration over the repository (unit with a substituted repository); the projection and the full lifecycle are proved against real Marten and PostgreSQL |
+| Monitor, health check, diagnostics, evaluator change | 90 | 90 | 0 | 0 | 0 | Loop survival, escalation idempotence and health states are deterministic with `FakeTimeProvider`; no public contract of their own |
+
+A group where a flag is 0 has no coverable lines for that flag, or the lines are covered by another group's test type (the flags do not share lines). CRAP of new or changed methods is 10 or less; the aggregate `Apply` switch carries the `crap-exempt` marker.
 
 </details>
 
