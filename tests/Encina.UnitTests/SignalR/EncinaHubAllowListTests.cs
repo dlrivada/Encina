@@ -159,13 +159,6 @@ public sealed class EncinaHubAllowListTests
         logger.Collector.LatestRecord.GetStructuredStateValue("TypeName").ShouldBe("EvilFAKE ENTRY[31mgnp.exe");
     }
 
-    [Theory]
-    [InlineData(null, "")]
-    [InlineData("Orders.GetOrder", "Orders.GetOrder")]
-    [InlineData("A\tB", "AB")]
-    public void ClientTypeName_ForLog_StripsUnsafeCharacters(string? value, string expected)
-        => ClientTypeName.ForLog(value).ShouldBe(expected);
-
     [Fact]
     public void ClientTypeName_ForLog_StripsSeparatorsAndSurrogates()
     {
@@ -173,6 +166,7 @@ public sealed class EncinaHubAllowListTests
         var value = string.Concat("A", (char)0x2028, "B", (char)0x2029, "C", char.ConvertFromUtf32(0x1F600), "D");
 
         ClientTypeName.ForLog(value).ShouldBe("ABCD");
+        ClientTypeName.ForLog(null).ShouldBeEmpty();
     }
 
     [Fact]

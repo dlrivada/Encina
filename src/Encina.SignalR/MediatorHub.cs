@@ -120,11 +120,7 @@ public abstract class EncinaHub : Hub
     /// </param>
     /// <param name="queryJson">The query data as a JSON object.</param>
     /// <returns>The result of the query execution.</returns>
-    /// <remarks>
-    /// A name that is not registered, is registered as a command, or is not callable by an
-    /// unauthenticated caller gets the same <c>query.type_not_found</c> response, and the payload
-    /// is not deserialized.
-    /// </remarks>
+    /// <remarks>Denials behave as in <see cref="SendCommand"/>, with <c>query.type_not_found</c>.</remarks>
     public Task<object> SendQuery(string queryTypeName, JsonElement queryJson)
         => SendRequestAsync(HubMessageKind.Query, "query", queryTypeName, queryJson, Log.ErrorExecutingQuery);
 

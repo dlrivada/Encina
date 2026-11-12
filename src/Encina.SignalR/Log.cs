@@ -28,8 +28,7 @@ internal static partial class Log
     [LoggerMessage(EventId = 4605, Level = LogLevel.Warning, Message = "Property '{PropertyName}' not found on {NotificationType}")]
     public static partial void PropertyNotFound(ILogger logger, string propertyName, string notificationType);
 
-    // EncinaHub: EventIds 4606-4610. The type names below are the registered Type.FullName, never
-    // the raw client string; 4608 carries a client string only after ClientTypeName.ForLog.
+    // EncinaHub: EventIds 4606-4610. Type names are the registered FullName; 4608 uses ClientTypeName.ForLog.
     [LoggerMessage(EventId = 4606, Level = LogLevel.Error, Message = "Error executing command {CommandType}")]
     public static partial void ErrorExecutingCommand(ILogger logger, Exception exception, string commandType);
 
