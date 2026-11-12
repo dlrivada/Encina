@@ -21,7 +21,7 @@ using static LanguageExt.Prelude;
 namespace Encina.UnitTests.Security.ABAC.DecisionAudit;
 
 /// <summary>
-/// Unit tests for the decision audit reader (#751 Phase 3): the five tenant-gate cases, the
+/// Unit tests for the decision audit reader (#751 Phase 3, fail closed since #3271): the tenant-gate cases, the
 /// mismatch denial, query validation, filter normalization and the JSON Lines export.
 /// </summary>
 public sealed class ABACDecisionAuditReaderTests
@@ -94,7 +94,7 @@ public sealed class ABACDecisionAuditReaderTests
     private static string Code<T>(Either<EncinaError, T> result) =>
         result.Match(Right: _ => "<right>", Left: error => error.GetCode().IfNone("<none>"));
 
-    // ── Tenant gate: the five cases ──────────────────────────────────
+    // ── Tenant gate ──────────────────────────────────────────────────
 
     [Fact]
     public async Task QueryAsync_AmbientTenantPresent_IsForced()
