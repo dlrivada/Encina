@@ -1,0 +1,1 @@
+- `[EncryptedMessage]` no longer has an `Enabled` property, so a message type can no longer be excluded from payload encryption: a type marked with the attribute, or derived from a marked type, is always encrypted, and `MessageEncryptionOptions.EncryptAllMessages = true` encrypts every type without exception (#3273).

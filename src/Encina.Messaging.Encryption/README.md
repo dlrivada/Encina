@@ -52,7 +52,7 @@ services.AddEncinaMessageEncryption(options =>
     // Global encryption toggle
     options.Enabled = true;
 
-    // Encrypt all messages by default (opt-out via [EncryptedMessage(Enabled = false)])
+    // Encrypt every message type (when false, only [EncryptedMessage] types; there is no per-type opt-out)
     options.EncryptAllMessages = false;
 
     // Default key (null = resolve from IKeyProvider.GetCurrentKeyIdAsync())

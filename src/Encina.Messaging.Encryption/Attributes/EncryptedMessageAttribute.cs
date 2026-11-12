@@ -16,9 +16,10 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// use <see cref="Security.Encryption.EncryptAttribute"/> instead.
 /// </para>
 /// <para>
-/// <strong>Precedence</strong>: This attribute overrides global configuration.
-/// <c>[EncryptedMessage(Enabled = false)]</c> disables encryption for a specific type
-/// even when <c>MessageEncryptionOptions.EncryptAllMessages</c> is <c>true</c>.
+/// <strong>No opt-out</strong>: a type marked with this attribute, or a type derived from a
+/// marked type (the attribute is inherited), is always encrypted, whatever the value of
+/// <c>MessageEncryptionOptions.EncryptAllMessages</c>. The attribute has no member that
+/// disables encryption: once a type is marked, it cannot be left unencrypted.
 /// </para>
 /// <para>
 /// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key.
@@ -37,25 +38,11 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// // Per-type key for PCI-DSS compliance
 /// [EncryptedMessage(KeyId = "payment-key")]
 /// public sealed record PaymentProcessedNotification(Guid PaymentId) : INotification;
-///
-/// // Explicitly disable encryption for a type (overrides global config)
-/// [EncryptedMessage(Enabled = false)]
-/// public sealed record PublicAnnouncementNotification(string Message) : INotification;
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class EncryptedMessageAttribute : Attribute
 {
-    /// <summary>
-    /// Gets or sets whether encryption is enabled for this message type.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to <c>true</c>. Set to <c>false</c> to explicitly disable encryption
-    /// for this type, even when global encryption is enabled via
-    /// <c>MessageEncryptionOptions.EncryptAllMessages</c>.
-    /// </remarks>
-    public bool Enabled { get; set; } = true;
-
     /// <summary>
     /// Gets or sets the specific encryption key identifier for this message type.
     /// </summary>
