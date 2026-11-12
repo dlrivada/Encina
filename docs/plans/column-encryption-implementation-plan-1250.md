@@ -2,9 +2,9 @@
 
 > **Issue**: [#1250](https://github.com/dlrivada/Encina/issues/1250) (SPEC-002 REQ-055 and REQ-020, AC-039 and AC-020, tracking id P-46, priority P0; part of #1186; closes the orphan attribute #857)
 > **Type**: Feature
-> **Complexity**: Very high (key management with KMS wrapping, 10 providers, a key table, 2 KMS packages; about 11 pull requests)
+> **Complexity**: Very high (key management with KMS wrapping, 10 providers, a key table, 2 KMS packages; 18 pull requests)
 > **Estimated Scope**: ~3,000-3,800 lines of production code + ~5,000-6,500 lines of tests
-> **Shared with**: `storage-implementation-plan-1239.md` (#1239) (blob envelope encryption uses `IKeyWrapper` from this plan)
+> **Shared with**: #1239 (blob envelope encryption uses `ITenantDataKeyService` and `IKeyWrapper` from this plan)
 
 ---
 
@@ -28,16 +28,18 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 2. **The existing encryption is payload-level.** `EncryptionPipelineBehavior` encrypts request and response properties marked `[Encrypt]` (`src/Encina.Security.Encryption/EncryptionPipelineBehavior.cs`), and `AesGcmFieldEncryptor` (`Algorithms/AesGcmFieldEncryptor.cs`, internal, 12-byte nonce, `ValueTask<Either<...>>` API over `IFieldEncryptor`) encrypts values. Nothing touches a table column.
 3. **The existing KMS key providers cannot serve stored data.** `AwsKmsKeyProvider.GetKeyAsync` calls `GenerateDataKey` and returns the plaintext of a fresh data key on every call, discarding the encrypted copy (`src/Encina.Messaging.Encryption.AwsKms/AwsKmsKeyProvider.cs`); the Azure Key Vault provider wraps a fresh local key on each call in the same way. Anything encrypted with such a key cannot be decrypted later. That is the open bug #2386 for message encryption; for columns it would be silent data loss, so this plan does not reuse `IKeyProvider` and adds `IKeyWrapper` (wrap and unwrap of a given key), which the fix of #2386 can also use.
 4. **Encryption APIs are asynchronous, ORM hooks are synchronous.** `IFieldEncryptor`, `IKeyProvider` and the KMS clients return `ValueTask`. EF Core `ValueConverter`, Dapper `SqlMapper.TypeHandler` and the MongoDB `IBsonSerializer` are synchronous. Design Choice 1 resolves it.
-5. **Tenant context exists.** `ITenantProvider.GetCurrentTenantId()` returns null when no context is available (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`), and `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`) signals that tenancy is on so that readers fail closed. `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) maps a tenant to a KMS key id.
+5. **Tenant context exists, in two places.** `ITenantProvider.GetCurrentTenantId()` returns null when no context is available (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`), and `ITenantStore` (the tenant list) is in the same package; `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`, whose `IRequestContext` carries `TenantId`) and `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs`) are in the core package, and `DeadLetterManager` fails closed with exactly those two. `Encina.Security.Encryption.csproj` references only `Encina`, so `ITenantProvider` and `ITenantStore` are not reachable from it today (choice 9). `ITenantKeyResolver` (`src/Encina.Messaging.Encryption/Abstractions/ITenantKeyResolver.cs`) maps a tenant to a KMS key id.
 6. **Per-provider mapping hooks exist.** EF Core has value converters (`src/Encina.EntityFrameworkCore/Converters/`), Dapper has type handlers (`src/Encina.Dapper.*/TypeHandlers/`) and an entity mapping layer (`Repository/EntityMappingBuilder.cs`, `IEntityMapping.cs`, `FunctionalRepositoryDapper.cs`), MongoDB has serialization conventions. Dapper and ADO.NET type handlers select by CLR type, not by property, which shapes Design Choice 5.
 7. **No range exists for column encryption.** `Encina.Security.Encryption` registers no EventIds today; a new range is needed (Event ID table).
+8. **The provider packages reference security and compliance packages directly.** `Encina.ADO.SqlServer`, `Encina.Dapper.SqlServer`, `Encina.EntityFrameworkCore` and `Encina.MongoDB` already reference `Encina.Security.Audit`, `Encina.Security.ABAC`, `Encina.Tenancy` and the `Encina.Compliance.*` packages in their `.csproj` files; none references `Encina.Security.Encryption` (choice 10). The three ADO.NET packages have their own `Repository/EntityMappingBuilder.cs`, like Dapper.
+9. **AES Key Wrap is in the .NET 10 BCL.** `Aes.EncryptKeyWrapPadded` and `Aes.DecryptKeyWrapPadded` (RFC 5649) and `Aes.EncryptKeyWrap`/`DecryptKeyWrap` (RFC 3394) are in the `net10.0` reference pack; checked on 2026-11-12 with SDK 10.0.404, where a file-based app targeting `net10.0` reproduced the RFC 5649 section 6 test vector. Spike #3661 lists AES Key Wrap among its .NET 11 follow-ups; this plan uses it on .NET 10 (`LocalKeyWrapper`, choice 3) without waiting for the platform move. `HKDF` (`System.Security.Cryptography.HKDF`) and `AesGcm` are also in the BCL.
 
 ### Scope
 
 - **Affected packages**: `Encina.Security.Encryption` (core), new `Encina.Security.Encryption.AwsKms` and `Encina.Security.Encryption.AzureKeyVault` (Design Choice 3), `Encina.Messaging.Encryption` (the attribute leaves it), `Encina.EntityFrameworkCore`, `Encina.Dapper.{SqlServer,PostgreSQL,MySQL}`, `Encina.ADO.{SqlServer,PostgreSQL,MySQL}`, `Encina.MongoDB`, `Encina.Testing.*` fakes where needed.
 - **Provider category**: Database, all 10 providers (AGENTS.md §5). SQLite is out of the matrix (ADR-024).
 - **Out of scope**: encryption of existing plaintext data (a migration helper is forbidden pre-1.0 by AGENTS.md §3; the guide documents re-save); searchable encryption beyond equality; the fix of #2386 (its own issue, but it should use `IKeyWrapper`); key management UI.
-- **Estimated files**: ~55 production files, ~70 test files, ~20 documentation, script and manifest files. About 11 pull requests (Phase 12).
+- **Estimated files**: ~55 production files, ~70 test files, ~20 documentation, script and manifest files. 18 pull requests (see "Pull request cut" under Implementation Phases).
 
 ---
 
@@ -61,8 +63,10 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 **Class:** Dilemma. Option A wins in services that run in request scopes with a known tenant set and need predictable latency. Option B wins only for a rarely used batch tool that cannot be warmed and where a few blocked threads are acceptable. Option C wins if a team forbids any ambient cache of key material.
 
 - We recommend A because the KMS is the slow, rate-limited dependency; unwrapping per row is not viable, and blocking violates the async rule.
-- The cache holds unwrapped keys for `KeyCacheDuration` (default 15 minutes, absolute) and is in-process only: key material is never put in `ICacheProvider` or a distributed cache. Buffers are zeroed on eviction (`CryptographicOperations.ZeroMemory`).
+- The cache holds unwrapped keys for `KeyCacheDuration` (default 15 minutes, absolute; choice 11) and is in-process only: key material is never put in `ICacheProvider` or a distributed cache. Buffers are zeroed on eviction (`CryptographicOperations.ZeroMemory`).
+- Refresh ahead: `ColumnKeyWarmupService` is a `BackgroundService` over a `PeriodicTimer` with `KeyRefreshInterval` (default 10 minutes, shorter than `KeyCacheDuration`; validated at start-up). Each tick re-reads and re-unwraps every key in the cache and the current key of every warm-up tenant, so a purely synchronous path (a hand-written Dapper query, a MongoDB call outside the repository) keeps finding the key as long as the KMS answers. The loop catches per iteration and logs by error code (AGENTS.md §3, background loops); a failed refresh leaves the entry until its expiry.
 - A miss throws `ColumnEncryptionKeyUnavailableException` at the ORM boundary (the only place in this feature where an exception is unavoidable, because converters return values); the exception carries the error code and tenant id only, and the pipeline above converts it to `Left` where it can. Plaintext is never written as a fallback (fail closed, AGENTS.md §3).
+- Synchronous EF Core calls (`SaveChanges()`, `ToList()`) run the synchronous interceptor hooks (`SavingChanges`, `ReaderExecuting`), which do not fetch a key: they read the cache only, and a miss throws the same typed exception. Encina code uses the asynchronous calls (AGENTS.md §3, database calls); the feature guide states the behavior for application code that does not.
 
 </details>
 
@@ -86,6 +90,7 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 - We recommend A because the correctness property (one current key per tenant and purpose) is guaranteed by a database constraint instead of by a lock, and the database stores must exist for the 10 providers anyway for the converters' integration tests.
 - Table `EncinaDataKeys` (`TenantId`, `Purpose`, `Version`, `KekId`, `WrappedKey`, `Algorithm`, `State` (`Current`, `Retired`), `CreatedAtUtc`, `RetiredAtUtc`). Store names follow AGENTS.md §4: `WrappedKeyStoreADO`, `WrappedKeyStoreDapper`, `WrappedKeyStoreEF`, `WrappedKeyStoreMongoDB`, in a `ColumnEncryption/` folder of each provider package (named after the feature, AGENTS.md §4).
 - `IWrappedKeyStore` is an abstraction, so a secrets-store implementation can be added later without changing the service.
+- "One current key per tenant and purpose" is a database constraint on all 10 providers, with no application-level fallback: SQL Server a filtered unique index (`WHERE State = 'Current'`), PostgreSQL a partial unique index, MySQL a stored generated column `CurrentMarker` (`CASE WHEN State = 'Current' THEN 1 END`, NULL otherwise) with a unique index on (`TenantId`, `Purpose`, `CurrentMarker`) (MySQL unique indexes accept several NULLs), MongoDB a unique index with `partialFilterExpression: { State: "Current" }`. Rotation retires the old current row and inserts the new one in one transaction, so the constraint never sees two current rows.
 
 </details>
 
@@ -106,7 +111,7 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 **Class:** Dilemma. Option B wins when column encryption is adopted without messaging. Option A wins when a team already runs the message encryption satellites and wants the smallest change.
 
 - We recommend B because a provider package must not drag an unrelated pattern into its dependency graph (AGENTS.md §1, pay-for-what-you-use).
-- Cloud triangle (AGENTS.md §5): AWS and Azure are covered; Google Cloud KMS is post-1.0 (SPEC-000 §6.1) and is noted as the gap. A `LocalKeyWrapper` (a configured master key, enabled only by an explicit development option and refused outside Development) serves tests and local runs.
+- Cloud triangle (AGENTS.md §5): AWS and Azure are covered; Google Cloud KMS is post-1.0 (SPEC-000 §6.1) and is noted as the gap. A `LocalKeyWrapper` (a configured 256-bit master key, enabled only by an explicit development option and refused outside Development) serves tests and local runs; it wraps with AES Key Wrap with padding (RFC 5649) through `Aes.EncryptKeyWrapPadded`/`DecryptKeyWrapPadded` of the .NET 10 BCL (fact 9), `WrappedKey.Algorithm = "AES-KWP"`, and its unit tests use the RFC 5649 section 6 vectors. No hand-written key wrap and no third-party library.
 - Integration tests: AWS KMS against LocalStack (`LocalStackFixture`, collection `Cloud-LocalStack`); Azure Key Vault keys through a fake `CryptographyClient`, because no emulator for Key Vault keys exists.
 
 </details>
@@ -154,23 +159,136 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 </details>
 
 <details>
-<summary><strong>6. Ciphertext format, blind index and tenancy</strong></summary>
+<summary><strong>6. Algorithm, key ownership, query scope and tenancy rule</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Binary value `0x01 | keyVersion(4, big endian) | nonce(12) | tag(16) | ciphertext`; AAD = tenant, table and column; blind index = HMAC-SHA256 under a separate `BlindIndex` key, stored in a shadow column `<Name>_bidx`; tenant from `ITenantProvider`, fail closed under `MultiTenancyMarker`, fixed default tenant when tenancy is off** | Key version in the value makes rotation and decrypt-by-version possible; AAD stops swapping ciphertext between columns or tenants; no new primitive | Binary columns (`varbinary(max)`, `bytea`, `LONGBLOB`, BSON binary); a tenant switch needs a re-encryption |
-| **B) Text value (base64) in the original string column** | No column type change | 33% larger; the column keeps `NVARCHAR` limits; ambiguity with plaintext rows |
+| **A) AES-GCM from the .NET BCL; data keys per tenant, wrapped by a KMS key; equality-only queries through an optional HMAC-SHA256 blind index under a separate `BlindIndex` key, everything else unsupported and documented; fail closed under `MultiTenancyMarker`, a fixed default tenant when tenancy is off** | What the issue and the maintainer settled | Queries beyond equality are not possible on encrypted columns |
+| **B) Anything else (provider-native encryption, searchable encryption beyond equality)** | Richer queries | Rejected by the maintainer's comment ("settled by elimination") and by provider coherence |
 
-### Chosen Option: **A — binary format with AAD, HMAC blind index, tenant-bound keys**
+### Chosen Option: **A**
 
 ### Rationale
 
-**Class:** Settled. **Settled by:** the body and the maintainer's comment of 2026-10-17 on #1250 (AES-GCM from the .NET BCL, KMS-wrapped per-tenant keys, equality-only queries through an optional blind index otherwise unsupported and documented, "settled by elimination"); SPEC-002 REQ-055 and REQ-061 / AC-043 (a key of tenant A cannot decrypt tenant B's data; with tenancy off a fixed default tenant applies); AGENTS.md §3 (security gates fail closed; `MultiTenancyMarker` is the repository's signal).
+**Class:** Settled. **Settled by:** the body and the maintainer's comment of 2026-10-17 on #1250 (AES-GCM from the .NET BCL, KMS-wrapped per-tenant keys, equality-only queries through an optional blind index otherwise unsupported and documented, "settled by elimination"); SPEC-002 REQ-055 and REQ-061 / AC-043 (a key of tenant A cannot decrypt tenant B's data; "with tenancy off, a fixed default tenant applies"); AGENTS.md §3 (security gates fail closed; `MultiTenancyMarker` is the repository's signal).
+
+- Blind index scope: equality on the exact value, `Where(x => x.Field == value)` rewritten by an EF extension (`WhereEncryptedEquals`) and a documented helper for Dapper, ADO.NET and MongoDB. Range, `LIKE` and ordering are unsupported and the guide says so.
+- The guide also states the limit of the blind index: an HMAC of a low-entropy value (a postcode, a yes/no field) can be guessed by anyone who can read the table and obtain the HMAC of candidate values, so the blind index is for high-entropy identifiers.
+- The format, the column type and the AAD shape are not settled by the comment; they are choice 7. The per-key usage limit is choice 8.
+
+</details>
+
+<details>
+<summary><strong>7. Stored format — binary column, or base64 text in the original column</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Binary value `0x01 | keyVersion(4, big endian) | salt(16) | nonce(12) | tag(16) | ciphertext` (salt per choice 8); AAD = UTF-8 of tenant, table and column separated by NUL; blind index in a shadow column `<Name>_bidx`** | Key version in the value makes rotation and decrypt-by-version possible; AAD stops swapping ciphertext between columns or tenants; no encoding overhead; a plaintext row cannot be mistaken for ciphertext (different column type) | Every encrypted property needs a binary column on the 10 providers (`varbinary(max)`, `bytea`, `LONGBLOB`, BSON binary), so adopting the feature changes the schema of each marked column |
+| **B) The same value base64-encoded in the original string column** | No column type change; existing schemas and tools keep working | About 33% larger; the column's length limit (`NVARCHAR(n)`) must fit the encoding; a plaintext row and a ciphertext row look alike, so a version prefix must be parsed to tell them apart |
+
+### Chosen Option: **A — binary column** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins for new schemas and when the column type itself should prevent plaintext from being stored. Option B wins when the schema of existing tables cannot change, at the price of size and ambiguity.
 
 - The 12-byte nonce and the tag layout follow `AesGcmFieldEncryptor`.
-- Blind index scope: equality on the exact value, `Where(x => x.Field == value)` rewritten by an EF extension (`WhereEncryptedEquals`) and a documented helper for Dapper, ADO.NET and MongoDB. Range, `LIKE` and ordering are unsupported and the guide says so.
+- With option B, the converters encode and decode base64 and the prefix `CE1:` marks ciphertext; everything else is identical.
+
+</details>
+
+<details>
+<summary><strong>8. Usage limit of one data key — per-value subkeys, or automatic rotation by volume and age</strong></summary>
+
+NIST SP 800-38D section 8.3 limits the number of AES-GCM encryptions with random 96-bit nonces to 2^32 per key. One data key per tenant and purpose encrypts every row of that tenant, so a busy tenant can exceed the limit, and a nonce collision under one key breaks confidentiality and authenticity of the two values.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A subkey per value**: `subkey = HKDF-SHA256(ikm = data key, salt = 16 random bytes stored in the value, info = "encina-column-v1")`, then AES-GCM with a random nonce under the subkey | Each AES-GCM key encrypts one value, so the 2^32 limit does not apply; no counter shared across hosts; rotation stays a key-management choice, not a safety need; `HKDF` is in the BCL | 16 bytes more per value; one HKDF (two HMAC-SHA256) per encrypt and decrypt |
+| **B) Automatic rotation**: each host counts its encryptions per key version and the service rotates at `MaxEncryptionsPerKey` (for example 2^30 split over the expected number of hosts) or `MaxKeyAge` | Format unchanged | The count is per host, so the bound relies on a configured host count; a rotation storm when several hosts reach the bound together; old versions stay readable but the safety bound depends on configuration |
+
+### Chosen Option: **A — HKDF subkey per value** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins when write volume is unknown or several hosts write, which is the general case. Option B wins when the stored size must stay minimal and the deployment's write volume is known and bounded.
+
+- With option A, `RotateAsync` remains for policy rotation (a new current version for new writes, old versions kept for reads); an optional `MaxKeyAge` can trigger it (choice 11).
+- The blob encryption of #1239 uses a fresh key per blob and is not affected.
+
+</details>
+
+<details>
+<summary><strong>9. How the core package gets the tenant and the tenant list</strong></summary>
+
+`TenantDataKeyService` needs the current tenant, and `ColumnKeyWarmupService` needs the list of tenants, but `Encina.Security.Encryption` references only `Encina` (fact 5).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Core abstractions only**: the current tenant from `IRequestContextAccessor` (`IRequestContext.TenantId`) and fail closed under `MultiTenancyMarker`, as `DeadLetterManager` does; the warm-up list from a small `IColumnEncryptionTenantSource` defined in `Encina.Security.Encryption` (default: the default tenant plus every tenant whose key the hooks have ensured), with a documented adapter over `ITenantStore` registered by the application or by the provider package that already references `Encina.Tenancy` | No new package edge from `Encina.Security.Encryption`; same tenant source as the rest of the messaging and audit code | A warm-up of tenants that never had a request since start needs the adapter |
+| **B) `Encina.Security.Encryption` references `Encina.Tenancy`** and uses `ITenantProvider` and `ITenantStore` directly | Direct; the warm-up knows every tenant | Every user of `Encina.Security.Encryption` (including message encryption) takes the tenancy package, whether or not it is multi-tenant |
+
+### Chosen Option: **A — core abstractions with an adapter for the tenant list** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins for a lean dependency graph and for single-tenant users. Option B wins when every deployment of the feature is multi-tenant and the simpler code matters more than the package edge.
+
+</details>
+
+<details>
+<summary><strong>10. How the 10 provider packages reach the cipher — direct references, or encryption satellites per provider</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Each provider package (`Encina.ADO.*`, `Encina.Dapper.*`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`) references `Encina.Security.Encryption`**; the stores and protectors live in a `ColumnEncryption/` folder of the provider package | Same layout as the other compliance and security features of these packages (fact 8); `Encina.Security.Encryption` has no cloud SDK and only `Microsoft.Extensions.*` dependencies; registration stays `AddEncinaColumnEncryption{Provider}()` on the provider package | Users of a provider package who never encrypt take one more small package |
+| **B) Satellites per provider family** (`Encina.ADO.SqlServer.ColumnEncryption`, ...) | Strict pay-for-what-you-use at package level | 8 more packages (csproj, README, PublicAPI, manifest each) and a pattern no other feature of these packages follows |
+
+### Chosen Option: **A — direct references** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma. Option A wins for consistency with how these packages already host compliance and security features. Option B wins if the maintainer wants to start splitting optional features out of the provider packages.
+
+</details>
+
+<details>
+<summary><strong>11. Defaults</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The values below** | Each has a stated reason; all are options | They are proposals, not derived from a rule |
+| **B) Other values chosen by the maintainer** | Fits a deployment the maintainer knows | Needs a reason recorded per value |
+
+### Chosen Option: **A — the values below** (recommended, pending the maintainer)
+
+### Rationale
+
+**Class:** Dilemma (values that no rule fixes).
+
+| Default | Value | Reason |
+|---|---|---|
+| `KeyCacheDuration` | 15 minutes, absolute | Bounds how long unwrapped key material stays after a KMS key is disabled |
+| `KeyRefreshInterval` | 10 minutes | Shorter than the cache duration, so a warm key never expires while the KMS answers |
+| Data key size | 256 bits | AES-256-GCM; the largest AES key size |
+| Azure Key Vault wrap algorithm | `RsaOaep256` | Standard and Premium vaults hold RSA keys; AES key wrap (`A256KW`) needs a Managed HSM, which can be an option later |
+| `FailStartupOnWarmupError` | `false` | A KMS outage at start-up should not stop hosts that do not touch encrypted columns; the refresh loop keeps trying and a miss fails closed |
+| `AllowLocalKeyWrapper` | `false`, and even when `true` refused outside the Development environment | The local master key is not a KMS |
+| Retired key versions | kept and readable, never deleted by the service | Rows written under them must stay readable; deleting a key is crypto-shredding, outside this plan |
+| `MaxKeyAge` (optional rotation trigger, choice 8) | not set | Rotation by age is a policy the application chooses |
+| `DefaultTenantId` | `default` | The fixed default tenant of REQ-061 |
 
 </details>
 
@@ -178,7 +296,28 @@ Make `[EncryptedField]` do what its name says: a marked property is ciphertext i
 
 ## Implementation Phases
 
-Pull request cut (each at most 15 files and 1500 lines): PR 1 = Phase 1; PR 2 = Phases 2 and 4; PR 3 = Phase 3; PR 4 = key stores for the three ADO.NET providers; PR 5 = key stores for Dapper; PR 6 = key stores and converter for EF Core (Phase 6); PR 7 = MongoDB (Phase 9) ; PR 8 = Dapper protector (Phase 7); PR 9 = ADO.NET protector (Phase 8); PR 10 = Phases 10-11; PR 11 = Phase 13. Phase 5 is the key-store part of PRs 4-7.
+**Pull request cut.** Phases 5, 11 and 12 are not pull requests of their own: each item lands with the code it concerns. Counts include tests, scripts, PublicAPI files and coverage manifests; every pull request stays within 15 files and 1,500 changed lines.
+
+| PR | Content | Files | Est. lines |
+|----|---------|-------|-----------|
+| 1 | Phase 1a: attribute move (old file removed, new file), `IKeyWrapper`, `WrappedKey`, `ColumnEncryptionErrors`, `ColumnEncryptionOptions`, PublicAPI of `Encina.Security.Encryption` and `Encina.Messaging.Encryption`; unit and guard tests; 2 manifests | 12 | ~700 |
+| 2 | Phase 1b: `IColumnCipher`, `ColumnCipher` (format of choice 7, subkey of choice 8), `ColumnContext`, `BlindIndex`, `IColumnKeyCache`, the two exceptions, PublicAPI; unit tests (cipher, blind index), guard test, property test; manifest | 13 | ~1,200 |
+| 3 | Phase 2a: `IWrappedKeyStore`, `WrappedKeyRecord`, `InMemoryWrappedKeyStore`, `ITenantDataKeyService`, `TenantDataKeyService`, `DataKey`, `DataKeyPurpose`, PublicAPI; unit tests (key service, in-memory store), guard test, `IWrappedKeyStore` contract base with the in-memory subclass; manifest | 13 | ~1,300 |
+| 4 | Phase 2b and Phase 3 (local): `ColumnKeyCache`, `ColumnKeyWarmupService` (refresh loop), `ColumnKeyEnsurer`, `IColumnEncryptionTenantSource` (choice 9), `LocalKeyWrapper` (RFC 5649), `ColumnProtector<T>` (public helper), PublicAPI; unit tests (cache and refresh with `FakeTimeProvider`, local wrapper with the RFC vectors, protector); manifest | 12 | ~1,200 |
+| 5 | Phase 4 and the core part of Phase 11: `ServiceCollectionExtensions`, `ColumnEncryptionHealthCheck`, start-up validation, `ColumnEncryptionLog` (6200-6224), `EventIdRanges.cs` (`SecurityColumnEncryption`), `EncinaEventIdAllocationTests.cs`, PublicAPI; DI test, health check unit test; manifest | 10 | ~800 |
+| 6 | Phase 3 AWS: `Encina.Security.Encryption.AwsKms` csproj, `AwsKmsKeyWrapper`, options (with `Validate`), registration, log (6225-6236), README, 2 PublicAPI files, `Encina.slnx`, `EncinaEventIdAllocationTests.cs`; unit, guard and contract tests, LocalStack integration test; manifest | 15 | ~1,100 |
+| 7 | Phase 3 Azure: `Encina.Security.Encryption.AzureKeyVault`, same shape with a fake `CryptographyClient` instead of the integration test (log 6237-6249) | 14 | ~1,000 |
+| 8 | Phase 5, ADO.NET SqlServer and PostgreSQL: per provider `WrappedKeyStoreADO`, DDL script, registration, PublicAPI, integration test (concurrent first key), manifest | 12 | ~1,200 |
+| 9 | Phase 5, ADO.NET MySQL (store, script with the generated column, registration, PublicAPI, integration test, manifest) and Dapper MySQL (store, registration, PublicAPI, integration test, manifest) | 11 | ~1,100 |
+| 10 | Phase 5, Dapper SqlServer and PostgreSQL (store, registration, PublicAPI, integration test, manifest each) | 10 | ~900 |
+| 11 | Phase 5, EF Core: `WrappedKeyStoreEF`, `WrappedKeyRecordConfiguration` (filtered, partial and generated-column unique index per provider), registration, PublicAPI; unit test, integration tests on the 3 EF Core collections; manifest | 9 | ~1,000 |
+| 12 | Phase 5 and Phase 9, MongoDB: `WrappedKeyStoreMongoDB`, index creation, `EncryptedFieldSerializer`, `EncryptedFieldConventionPack`, ensure hook in the repository, registration, PublicAPI; unit test, integration tests (key store, S20); manifest | 11 | ~1,300 |
+| 13 | Phase 6, EF Core converters: `EncryptedFieldConvention`, `EncryptedStringConverter`, `EncryptedBytesConverter`, `ColumnEncryptionInterceptor` (sync and async hooks), `WhereEncryptedEquals`, registration, PublicAPI; unit tests (convention, interceptor), S20 integration tests on the 3 EF Core collections; manifest | 14 | ~1,400 |
+| 14 | Phase 7, Dapper SqlServer and PostgreSQL: per provider `ColumnProtectorDapper`, `EntityMappingBuilder` and `FunctionalRepositoryDapper` (modified), PublicAPI, S20 integration test, manifest; one unit test | 13 | ~1,200 |
+| 15 | Phase 7 and Phase 8 for MySQL: Dapper and ADO.NET protectors, mapping and repository changes, PublicAPI, integration test and manifest each | 12 | ~1,100 |
+| 16 | Phase 8, ADO.NET SqlServer and PostgreSQL: per provider `ColumnProtectorADO`, `EntityMappingBuilder` and repository (modified), PublicAPI, S20 integration test, manifest; one unit test | 13 | ~1,200 |
+| 17 | Phase 10, the rest of Phase 11 and Phase 12: `ResilientKeyWrapper`, audit recording in `TenantDataKeyService`, counters and spans in `EncryptionDiagnostics`, PublicAPI; unit tests (decorator, audit, AC-044 exporter test); benchmark of the converter path; load justification; manifest | 10 | ~1,000 |
+| 18 | Phase 13: ADR 066, `docs/features/column-encryption.md`, core README update, `docs/INVENTORY.md`, `ROADMAP.md`, 2 changelog fragments | 7 | ~700 |
 
 ### Phase 1: Core cipher, contracts and models
 
@@ -189,9 +328,9 @@ Pull request cut (each at most 15 files and 1500 lines): PR 1 = Phase 1; PR 2 = 
 
 1. **Move `EncryptedFieldAttribute`** to `src/Encina.Security.Encryption/Attributes/` (namespace `Encina.Security.Encryption`), add `BlindIndex` and `Purpose`; update `Encina.Messaging.Encryption` references.
 2. **`IKeyWrapper.cs`**: `ValueTask<Either<EncinaError, WrappedKey>> WrapAsync(ReadOnlyMemory<byte> dataKey, string kekId, CancellationToken)` and `ValueTask<Either<EncinaError, byte[]>> UnwrapAsync(WrappedKey wrapped, CancellationToken)`; `WrappedKey(string KekId, ImmutableArray<byte> Bytes, string Algorithm)`.
-3. **`IColumnCipher.cs`, `ColumnCipher.cs`**: `byte[] Encrypt(ReadOnlySpan<byte> plaintext, in ColumnContext context)` and `byte[]? Decrypt(ReadOnlySpan<byte> value, in ColumnContext context)`; `ColumnContext(string TenantId, string Table, string Column)`; uses `AesGcm` and the format of Design Choice 6; reads keys from `IColumnKeyCache`; throws `ColumnEncryptionKeyUnavailableException` (code `encryption.column_key_unavailable`) on a miss and `ColumnEncryptionException` (code `encryption.column_decrypt_failed`) on a tag mismatch.
+3. **`IColumnCipher.cs`, `ColumnCipher.cs`**: `byte[] Encrypt(ReadOnlySpan<byte> plaintext, in ColumnContext context)` and `byte[]? Decrypt(ReadOnlySpan<byte> value, in ColumnContext context)`; `ColumnContext(string TenantId, string Table, string Column)`; uses `HKDF` (per-value subkey, choice 8) and `AesGcm` with the format of Design Choice 7; reads keys from `IColumnKeyCache`; throws `ColumnEncryptionKeyUnavailableException` (code `encryption.column_key_unavailable`) on a miss and `ColumnEncryptionException` (code `encryption.column_decrypt_failed`) on a tag mismatch.
 4. **`BlindIndex.cs`**: `byte[] Compute(ReadOnlySpan<byte> value, in ColumnContext context)` (HMAC-SHA256, key purpose `BlindIndex`).
-5. **`ColumnEncryptionErrors.cs`, `ColumnEncryptionOptions.cs`** (`DefaultTenantId`, `KeyCacheDuration`, `KekIdTemplate`, `AllowLocalKeyWrapper`).
+5. **`ColumnEncryptionErrors.cs`, `ColumnEncryptionOptions.cs`** (`DefaultTenantId`, `KeyCacheDuration`, `KeyRefreshInterval`, `KekIdTemplate`, `AllowLocalKeyWrapper`, `FailStartupOnWarmupError`, `MaxKeyAge`; defaults of choice 11).
 6. `PublicAPI.Unshipped.txt`.
 
 </details>
@@ -206,7 +345,9 @@ CONTEXT:
 - Package Encina.Security.Encryption (src/Encina.Security.Encryption/). AesGcmFieldEncryptor (Algorithms/AesGcmFieldEncryptor.cs) is the
   reference for AES-GCM usage and the 12-byte nonce; it is internal and asynchronous, so do not reuse it.
 - EncryptedFieldAttribute currently lives in src/Encina.Messaging.Encryption/Attributes/EncryptedFieldAttribute.cs and is unused.
-- Value format: 0x01 | keyVersion(4 BE) | nonce(12) | tag(16) | ciphertext; AAD = UTF-8(tenant NUL table NUL column).
+- Value format (choices 7 and 8): 0x01 | keyVersion(4 BE) | salt(16) | nonce(12) | tag(16) | ciphertext;
+  subkey = HKDF-SHA256(ikm = data key, salt, info = "encina-column-v1"); AAD = UTF-8(tenant NUL table NUL column).
+  Each AES-GCM subkey encrypts one value, so the NIST SP 800-38D 2^32 random-nonce limit per key does not apply.
 
 TASK:
 Move the attribute, create IKeyWrapper/WrappedKey, IColumnCipher/ColumnCipher/ColumnContext, BlindIndex, the options and the errors,
@@ -221,7 +362,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Security.Encryption/Algorithms/AesGcmFieldEncryptor.cs
 - src/Encina.Messaging.Encryption/Attributes/EncryptedFieldAttribute.cs
-- docs/plans/column-encryption-implementation-plan-1250.md (Design Choices 1, 4 and 6)
+- the plan of #1250 (Design Choices 1, 4, 6, 7 and 8)
 ```
 
 </details>
@@ -238,7 +379,8 @@ REFERENCE FILES:
 1. **`IWrappedKeyStore.cs`**: `GetAsync(tenantId, purpose, version)`, `GetCurrentAsync(tenantId, purpose)`, `TryAddCurrentAsync(WrappedKeyRecord)` (returns the existing current record when the unique constraint is hit), `RetireAsync(tenantId, purpose, version)`, `ListAsync(tenantId, purpose)`; all `ValueTask<Either<EncinaError, ...>>`.
 2. **`InMemoryWrappedKeyStore.cs`** (tests and development; the event-sourced no-InMemory rule of AGENTS.md §3 does not apply to this package).
 3. **`TenantDataKeyService.cs : ITenantDataKeyService`**: `GetCurrentKeyAsync` reads the current record, or generates a 256-bit key with `RandomNumberGenerator`, wraps it through `IKeyWrapper` with `KekIdTemplate`, `TryAddCurrentAsync`, and unwraps; `GetKeyAsync(version)`; `RotateAsync` creates a new current version and retires the old one; `RewrapAsync(tenantId, newKekId)` re-wraps every record without touching data.
-4. **`ColumnKeyCache.cs : IColumnKeyCache`** (`TryGet(tenantId, purpose, version, out DataKey)`, `Set`, absolute expiry from `TimeProvider`) and **`ColumnKeyWarmupService.cs`** (`IHostedService`: warms the current key of every tenant returned by `ITenantStore` plus the default tenant; a failure is logged by code and retried at the next refresh, never fatal for the host unless `FailStartupOnWarmupError` is set).
+4. **`ColumnKeyCache.cs : IColumnKeyCache`** (`TryGet(tenantId, purpose, version, out DataKey)`, `Set`, absolute expiry from `TimeProvider`) and **`ColumnKeyWarmupService.cs`** (`BackgroundService` over a `PeriodicTimer` with `KeyRefreshInterval`: at start and on every tick it loads the current key of every tenant returned by `IColumnEncryptionTenantSource` (choice 9) plus the default tenant, and re-unwraps every key already in the cache; it catches per iteration and logs by code, a failure is retried at the next tick, never fatal for the host unless `FailStartupOnWarmupError` is set).
+4a. **`IColumnEncryptionTenantSource.cs`** and its default implementation (default tenant plus tenants ensured at runtime); the guide shows the adapter over `ITenantStore` for applications using `Encina.Tenancy`.
 5. **`ColumnKeyEnsurer.cs`**: `ValueTask EnsureAsync(string tenantId, CancellationToken)` used by the provider hooks (Phase 6-9).
 
 </details>
@@ -251,7 +393,9 @@ You are implementing Phase 2 of issue #1250 in Encina: tenant data key managemen
 
 CONTEXT:
 - Phase 1 created IKeyWrapper, IColumnCipher, ColumnContext and the options in src/Encina.Security.Encryption/.
-- ITenantStore lives in src/Encina.Tenancy/Abstractions/ITenantStore.cs; ITenantProvider and MultiTenancyMarker decide the tenant.
+- Encina.Security.Encryption references only Encina (choice 9): the current tenant comes from IRequestContextAccessor
+  (IRequestContext.TenantId) with MultiTenancyMarker for fail closed, as DeadLetterManager does; the warm-up tenant list comes from
+  IColumnEncryptionTenantSource. Do not add a reference to Encina.Tenancy.
 - The first current key of a tenant must be created atomically: the store's unique constraint decides the winner, the loser reads it.
 
 TASK:
@@ -262,11 +406,14 @@ creation yields one current key; rotation keeps old versions readable; rewrap ch
 KEY RULES:
 - Time from TimeProvider; all I/O async with CancellationToken; Either results.
 - Key material only in the in-process cache, never in ICacheProvider; zero buffers on eviction.
-- The warm-up service never lets an exception escape its loop or startup; failures are logged by error code.
+- The warm-up service is a PeriodicTimer loop with KeyRefreshInterval < KeyCacheDuration; it never lets an exception escape its loop
+  or startup; failures are logged by error code.
+- RotateAsync retires the old current record and inserts the new one in one store transaction.
 - Tenancy off: use ColumnEncryptionOptions.DefaultTenantId; tenancy on and no tenant: Left(encryption.tenant_required).
 
 REFERENCE FILES:
-- src/Encina.Tenancy/Abstractions/ITenantStore.cs, src/Encina/Abstractions/MultiTenancyMarker.cs
+- src/Encina/Abstractions/IRequestContextAccessor.cs, src/Encina/Abstractions/MultiTenancyMarker.cs
+- src/Encina.Messaging/DeadLetter/DeadLetterManager.cs (fail-closed tenant pattern)
 - src/Encina.Security.Encryption/InMemoryKeyProvider.cs
 - src/Encina.Security.Secrets/Rotation/SecretRotationCoordinator.cs
 ```
@@ -283,8 +430,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.Security.Encryption.AwsKms/`**: `AwsKmsKeyWrapper : IKeyWrapper` using `Encrypt` and `Decrypt` of the KMS client (data key sizes are well under the 4096-byte limit), `AwsKmsWrapperOptions` (region, endpoint override for LocalStack; no secrets in options, credentials come from the SDK chain), validator, `AddEncinaColumnEncryptionAwsKms()`, log messages, README, PublicAPI.
-2. **`src/Encina.Security.Encryption.AzureKeyVault/`**: `AzureKeyVaultKeyWrapper` using `CryptographyClient.WrapKeyAsync` / `UnwrapKeyAsync` (`RsaOaep256`), options, validator, DI, README.
-3. **`LocalKeyWrapper`** in the core package for development and tests; refuses to start unless `AllowLocalKeyWrapper` is set and the environment is Development.
+2. **`src/Encina.Security.Encryption.AzureKeyVault/`**: `AzureKeyVaultKeyWrapper` using `CryptographyClient.WrapKeyAsync` / `UnwrapKeyAsync` (`RsaOaep256`, choice 11), options, validator, DI, README.
+3. **`LocalKeyWrapper`** in the core package for development and tests (PR 4): RFC 5649 through `Aes.EncryptKeyWrapPadded` / `Aes.DecryptKeyWrapPadded` (.NET 10 BCL, fact 9), `Algorithm = "AES-KWP"`; refuses to start unless `AllowLocalKeyWrapper` is set and the environment is Development; unit tests with the RFC 5649 section 6 vectors and a tampered wrapped key that fails to unwrap.
 4. Dependencies: `AWSSDK.KeyManagementService` and `Azure.Security.KeyVault.Keys` are already in `Directory.Packages.props`.
 
 </details>
@@ -301,7 +448,7 @@ CONTEXT:
 - Fixtures: LocalStackFixture (collection Cloud-LocalStack). Key Vault keys have no emulator: fake CryptographyClient.
 
 TASK:
-Create the two packages and LocalKeyWrapper with options validators, DI (TryAdd), log messages, READMEs, contract tests that wrap then
+Create the two packages (LocalKeyWrapper already exists from PR 4) with options validators, DI (TryAdd), log messages, READMEs, contract tests that wrap then
 unwrap through each wrapper, and the LocalStack integration test for AWS KMS.
 
 KEY RULES:
@@ -369,10 +516,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **ADO.NET** (`Encina.ADO.SqlServer`, `.PostgreSQL`, `.MySQL`): `ColumnEncryption/WrappedKeyStoreADO.cs`; scripts add table `EncinaDataKeys` with `UNIQUE (TenantId, Purpose, Version)` and a partial unique index on the current row (`WHERE State = 'Current'`; MySQL uses a generated column or an application-level check inside the transaction).
+1. **ADO.NET** (`Encina.ADO.SqlServer`, `.PostgreSQL`, `.MySQL`): `ColumnEncryption/WrappedKeyStoreADO.cs`; scripts add table `EncinaDataKeys` with `UNIQUE (TenantId, Purpose, Version)` and the one-current-row constraint of choice 2: a filtered unique index on SQL Server, a partial unique index on PostgreSQL, and on MySQL the stored generated column `CurrentMarker` (`CASE WHEN State = 'Current' THEN 1 END`) with a unique index on (`TenantId`, `Purpose`, `CurrentMarker`). There is no application-level fallback.
 2. **Dapper** (3): `ColumnEncryption/WrappedKeyStoreDapper.cs`, same SQL as ADO.NET adapted to Dapper.
 3. **EF Core** (`Encina.EntityFrameworkCore`): `ColumnEncryption/WrappedKeyStoreEF.cs` and `WrappedKeyRecordConfiguration` (SqlServer, PostgreSQL, MySQL share the model).
-4. **MongoDB**: `ColumnEncryption/WrappedKeyStoreMongoDB.cs` with a unique compound index created by `MongoDbIndexCreator`.
+4. **MongoDB**: `ColumnEncryption/WrappedKeyStoreMongoDB.cs` with a unique compound index on (`TenantId`, `Purpose`, `Version`) and a unique index on (`TenantId`, `Purpose`) with `partialFilterExpression: { State: "Current" }`, created by `MongoDbIndexCreator`.
 5. SQL differences follow AGENTS.md §5: SQL Server `@param`, `bit`, native GUID; PostgreSQL case-sensitive identifiers, `true/false`; MySQL backticks, `0/1`. First-key creation uses `INSERT` and treats a duplicate-key error as "someone else won", then reads.
 6. All calls async with a `CancellationToken` (`OpenAsync`, `ExecuteNonQueryAsync`).
 
@@ -398,6 +545,8 @@ KEY RULES:
 - Async with CancellationToken; never IDbConnection.Open(); Either results; duplicate key is not an error but a lost race.
 - Use the family's shared [Collection("<Family>-<Database>")] fixture, ClearAllDataAsync in InitializeAsync; never a per-class fixture.
 - Keep all 3 relational dialects consistent; the wrapped key bytes are binary columns (varbinary/bytea/LONGBLOB).
+- One current row per tenant and purpose is a database constraint on every provider (MySQL: stored generated column plus unique
+  index); never an application-level check. Rotation runs retire and insert in one transaction.
 
 REFERENCE FILES:
 - src/Encina.ADO.SqlServer/Outbox/OutboxStoreADO.cs and Scripts/
@@ -417,8 +566,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Encina.EntityFrameworkCore/ColumnEncryption/EncryptedFieldConvention.cs`**: `modelBuilder.UseColumnEncryption(serviceProvider)` scans entity properties for `[EncryptedField]` and applies `EncryptedStringConverter` (string to `byte[]`), `EncryptedBytesConverter` and, for `BlindIndex = true`, a shadow property `<Name>_bidx` kept in sync by the interceptor.
-2. **Converters** call `IColumnCipher` with `ColumnContext(tenant, table, column)`; the tenant is read from `ITenantProvider` at conversion time; the converter instance holds the cipher through the model's service provider, not a static.
-3. **`ColumnEncryptionInterceptor`** (`SaveChangesInterceptor` and `DbCommandInterceptor`): `SavingChangesAsync` and `ReaderExecutingAsync` await `ColumnKeyEnsurer.EnsureAsync(tenant)` before any conversion runs.
+2. **Converters** call `IColumnCipher` with `ColumnContext(tenant, table, column)`; the tenant is read from `IRequestContextAccessor` at conversion time (choice 9); the converter instance holds the cipher through the model's service provider, not a static.
+3. **`ColumnEncryptionInterceptor`** (`SaveChangesInterceptor` and `DbCommandInterceptor`): `SavingChangesAsync` and `ReaderExecutingAsync` await `ColumnKeyEnsurer.EnsureAsync(tenant)` before any conversion runs; the synchronous `SavingChanges` and `ReaderExecuting` do not fetch (no blocking, choice 1): they check the cache and throw `ColumnEncryptionKeyUnavailableException` on a miss, which the refresh loop makes rare.
 4. **`WhereEncryptedEquals`** extension for blind-index equality queries.
 5. #857 is closed by this pull request.
 
@@ -433,7 +582,9 @@ You are implementing Phase 6 of issue #1250 in Encina: EF Core value converters 
 CONTEXT:
 - Converter pattern: src/Encina.EntityFrameworkCore/Converters/UuidV7IdConverter.cs. Converters are synchronous (Design Choice 1):
   the interceptor ensures keys asynchronously before conversion; IColumnCipher reads the warmed cache.
-- Tenant: ITenantProvider.GetCurrentTenantId(); MultiTenancyMarker means fail closed; tenancy off uses ColumnEncryptionOptions.DefaultTenantId.
+- Tenant: IRequestContextAccessor (IRequestContext.TenantId); MultiTenancyMarker means fail closed; tenancy off uses
+  ColumnEncryptionOptions.DefaultTenantId.
+- Synchronous SaveChanges/ToList hooks never block on the KMS: cache only, typed exception on a miss.
 - Integration fixtures: EFCoreSqlServerFixture, EFCorePostgreSqlFixture, EFCoreMySqlFixture ([Collection("EFCore-...")]).
 
 TASK:
@@ -508,7 +659,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Encina.ADO.{SqlServer,PostgreSQL,MySQL}/ColumnEncryption/ColumnProtectorADO.cs`**: the same protector as Phase 7, with `DbParameter` and `DbDataReader` helpers (`AddEncrypted`, `GetEncryptedString(reader, ordinal)`).
-2. The ADO.NET repositories apply it through the same mapping metadata used by the Dapper phase (read the ADO repository classes first; if they have no mapping layer, only the public helpers ship and the repositories gain the call at their bind and read sites).
+2. The ADO.NET packages have their own `Repository/EntityMappingBuilder.cs` (for example `src/Encina.ADO.SqlServer/Repository/EntityMappingBuilder.cs`): the builder records the encrypted columns, and the ADO.NET repositories apply the protector when they bind parameters and map rows, after awaiting `ColumnKeyEnsurer`, as in Phase 7.
 3. Tests per provider as in Phase 7.
 
 </details>
@@ -520,7 +671,8 @@ REFERENCE FILES:
 You are implementing Phase 8 of issue #1250 in Encina: column encryption in the ADO.NET providers (SqlServer, PostgreSQL, MySQL).
 
 CONTEXT:
-- Phase 7 created the protector shape for Dapper; ADO.NET has no ORM, so the protector offers DbParameter and DbDataReader helpers.
+- Phase 7 created the protector shape for Dapper; ADO.NET has no ORM, so the protector offers DbParameter and DbDataReader helpers,
+  and the ADO repositories use their own Repository/EntityMappingBuilder.cs to know the encrypted columns.
 - Fixtures: [Collection("ADO-SqlServer")], "ADO-PostgreSQL", "ADO-MySQL".
 
 TASK:
@@ -533,8 +685,8 @@ KEY RULES:
 - Fail closed; no plaintext fallback.
 
 REFERENCE FILES:
-- src/Encina.ADO.SqlServer/ (repository classes and Outbox/OutboxStoreADO.cs for the ADO style)
-- docs/plans/column-encryption-implementation-plan-1250.md (Phase 7)
+- src/Encina.ADO.SqlServer/Repository/EntityMappingBuilder.cs and the repository classes; Outbox/OutboxStoreADO.cs for the ADO style
+- the Phase 7 section of this plan
 ```
 
 </details>
@@ -763,7 +915,9 @@ REFERENCE FILES:
 | SPEC-002 | REQ-055, REQ-020, AC-039, AC-020, scenario S20, DEC-011 (e) | Scope and acceptance |
 | SPEC-002 | REQ-061 / AC-043 | Keys scoped per tenant; a key of tenant A cannot decrypt tenant B |
 | SPEC-002 | REQ-062 / AC-044 | Instrumentation without plaintext or identifiers |
-| NIST SP 800-38D | AES-GCM: 96-bit nonce, 128-bit tag, associated data | Format and AAD |
+| NIST SP 800-38D | AES-GCM: 96-bit nonce, 128-bit tag, associated data; section 8.3: at most 2^32 invocations per key with random nonces | Format and AAD; the per-value subkey of choice 8 |
+| RFC 5869 | HKDF | Per-value subkey derivation (choice 8) |
+| RFC 5649, RFC 3394 (NIST SP 800-38F) | AES Key Wrap with and without padding; in the .NET 10 BCL | `LocalKeyWrapper` and its test vectors |
 | NIST SP 800-57 | Key management: key hierarchy, rotation, wrapping | DEK and KEK model |
 | Comparable products | SQL Server Always Encrypted, PostgreSQL pgcrypto, AWS Encryption SDK, Azure Key Vault wrap | Provider-specific alternatives rejected for provider coherence (AGENTS.md §3) |
 | AGENTS.md §3, §5 | Fail closed, async DB calls, registration completeness, 10 database providers | Rules applied |
@@ -780,7 +934,9 @@ REFERENCE FILES:
 | EncryptionHealthCheck | src/Encina.Security.Encryption/Health/EncryptionHealthCheck.cs | model for the KMS reachability check |
 | Converters | src/Encina.EntityFrameworkCore/Converters/ | EF Core value converter pattern |
 | TypeHandlers, EntityMappingBuilder, FunctionalRepositoryDapper | src/Encina.Dapper.SqlServer/TypeHandlers/, src/Encina.Dapper.SqlServer/Repository/ (also PostgreSQL and MySQL) | Dapper mapping hook |
-| ITenantProvider, ITenantStore and MultiTenancyMarker | src/Encina.Tenancy/Abstractions/, src/Encina/Abstractions/MultiTenancyMarker.cs | per-tenant keys, fail closed, warm-up tenant list |
+| IRequestContextAccessor and MultiTenancyMarker | src/Encina/Abstractions/ | current tenant and fail closed (choice 9) |
+| ITenantStore | src/Encina.Tenancy/Abstractions/ITenantStore.cs | source of the documented warm-up adapter (choice 9); not referenced by the core package |
+| Aes.EncryptKeyWrapPadded, HKDF, AesGcm | .NET 10 BCL, System.Security.Cryptography | LocalKeyWrapper (RFC 5649), per-value subkey, cipher |
 | MongoDbIndexCreator | src/Encina.MongoDB/MongoDbIndexCreator.cs | unique index for the key collection and the blind index |
 | ResilientSecretReaderDecorator and SecretAuditRecorder | src/Encina.Security.Secrets/Resilience/, src/Encina.Security.Secrets/Auditing/ | models for the wrapper decorator and audit recording |
 | IOperationAuditStore | src/Encina.Security.Audit/Abstractions/IOperationAuditStore.cs | audit of key lifecycle events |
@@ -794,14 +950,13 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `Encina.Security.Encryption` and its two KMS packages | `SecurityColumnEncryption` 6200-6249 (new) | Core 6200-6224, AWS KMS 6225-6236, Azure Key Vault 6237-6249 |
 | Provider packages (ADO, Dapper, EF Core, MongoDB) | existing ranges (3000-3499) | Key stores log nothing new; failures return `Left` |
-| Family of plans | 6000-6049 claim check (#599, #122), 6050-6149 storage (#1239), 6150-6199 claim check providers, `SecuritySecrets` 5151-5170 (#1246) | Disjoint, in the family block 6000-6249 (registry eventid-blocks.md) |
+| Family of plans | 6000-6049 claim check (#599, #122), 6050-6149 storage (#1239), 6150-6199 claim check providers (#122) | Disjoint, in the family block 6000-6249 of the batch registry |
 
 ### Open Questions to Verify During Implementation
 
 | Question | How to verify |
 |----------|---------------|
-| Do the ADO.NET repositories have a mapping layer like Dapper's? | Read `src/Encina.ADO.*/Repository/`; if not, only the public helpers ship (Phase 8, task 2) |
-| Can MySQL enforce "one current row" with a unique index? | MySQL has no partial indexes; use a generated column on `State = 'Current'` or a check inside the insert transaction; test with the `mysql:9.1` fixture |
+| Does the MySQL EF Core provider in use express the stored generated column and its unique index of choice 2 in `WrappedKeyRecordConfiguration`? | Build the model on the `EFCore-MySQL` collection; if the provider cannot, the EF Core MySQL table is created by the same DDL script as ADO.NET MySQL |
 | Does EF Core's model cache keep one converter instance per model (so the cipher must come from the service provider)? | Test two contexts with different tenants in one process |
 
 ### Estimated File Count
@@ -824,7 +979,7 @@ REFERENCE FILES:
 | Load justification file | 1 | |
 | Documentation | 7 | |
 | Coverage manifest edits | 12 | |
-| Total | 115 | Split over about 11 pull requests |
+| Total | 115 | Distinct files; the per-PR table under Implementation Phases counts 211 file changes over 18 pull requests, because PublicAPI files, manifests, registrations and `EncinaEventIdAllocationTests.cs` change in several |
 
 ---
 
@@ -837,12 +992,14 @@ REFERENCE FILES:
 PROJECT CONTEXT:
 You are implementing issue #1250 in Encina (.NET 10, C# 14, nullable enabled, pre-1.0, no backward compatibility): column-level
 encryption at rest for [EncryptedField] properties on the 10 database providers (SPEC-002 REQ-055, REQ-020). Rules: AGENTS.md.
-The blob envelope encryption of issue #1239 consumes IKeyWrapper from this plan (docs/plans/storage-implementation-plan-1239.md).
+The blob envelope encryption of issue #1239 consumes ITenantDataKeyService and IKeyWrapper from this plan.
 
 IMPLEMENTATION OVERVIEW:
 1. Move EncryptedFieldAttribute to Encina.Security.Encryption; IKeyWrapper, IColumnCipher (synchronous AES-GCM with AAD), BlindIndex.
-2. Key management: IWrappedKeyStore, TenantDataKeyService (create, rotate, rewrap), in-process ColumnKeyCache, warm-up service.
-3. KMS wrappers: Encina.Security.Encryption.AwsKms and .AzureKeyVault, LocalKeyWrapper for development.
+2. Key management: IWrappedKeyStore, TenantDataKeyService (create, rotate, rewrap), in-process ColumnKeyCache, warm-up and
+   refresh-ahead loop, tenant from IRequestContextAccessor (no Encina.Tenancy reference).
+3. KMS wrappers: Encina.Security.Encryption.AwsKms and .AzureKeyVault; LocalKeyWrapper for development with RFC 5649
+   (Aes.EncryptKeyWrapPadded, .NET 10 BCL).
 4. AddEncinaColumnEncryption, options validation, health check.
 5. Wrapped key stores on the 10 providers (table EncinaDataKeys with a unique constraint).
 6. EF Core convention, converters, interceptor; Dapper and ADO.NET protectors through the mapping layer; MongoDB serializer and convention.
@@ -850,7 +1007,8 @@ IMPLEMENTATION OVERVIEW:
 
 KEY PATTERNS:
 - Synchronous ORM hooks read a warmed in-process key cache; asynchronous ensure hooks fill it; a miss throws a typed exception, never plaintext.
-- Value format 0x01 | keyVersion | nonce(12) | tag(16) | ciphertext, AAD = tenant, table, column.
+- Value format 0x01 | keyVersion | salt(16) | nonce(12) | tag(16) | ciphertext, HKDF subkey per value, AAD = tenant, table, column.
+- One current key per tenant and purpose is a database constraint on all 10 providers (MySQL: stored generated column + unique index).
 - Either<EncinaError, T> everywhere except the ORM boundary; no EncinaError.Message or key material in logs, tags or exceptions.
 - Fail closed under MultiTenancyMarker; fixed default tenant when tenancy is off; TimeProvider; CancellationToken; no sync DB calls.
 - Provider coherence: same public API and behavior on the 10 providers; shared [Collection] fixtures; per-flag coverage; CRAP <= 10.
@@ -859,7 +1017,6 @@ REFERENCE FILES:
 - src/Encina.Security.Encryption/Algorithms/AesGcmFieldEncryptor.cs
 - src/Encina.EntityFrameworkCore/Converters/, src/Encina.Dapper.SqlServer/Repository/, src/Encina.MongoDB/MongoDbIndexCreator.cs
 - src/Encina.Messaging.Encryption.AwsKms/AwsKmsKeyProvider.cs (what not to reuse)
-- docs/plans/column-encryption-implementation-plan-1250.md
 ```
 
 </details>
@@ -891,11 +1048,11 @@ REFERENCE FILES:
 
 - #2386 (the KMS key providers return a fresh key on every call): independent of this plan, but its fix should use `IKeyWrapper`; do not build column encryption on those providers.
 - #857 (orphan attributes): closed by Phase 6.
-- #1257 (multi-tenancy of the SPEC-002 capabilities): the tenant-scoped keys of this plan are part of the same requirement (REQ-061); it supplies the tenant enumeration used by the warm-up if it is merged first; otherwise `ITenantStore` is used.
+- #1257 (multi-tenancy of the SPEC-002 capabilities): the tenant-scoped keys of this plan are part of the same requirement (REQ-061); if it ships a tenant enumeration first, it can provide the `IColumnEncryptionTenantSource` adapter of choice 9.
 
 ### Parallel and follow-up work
 
-- `storage-implementation-plan-1239.md` (#1239): consumes `IKeyWrapper` (blob envelope encryption); merge Phase 1 and Phase 3 of this plan first.
+- #1239: consumes `ITenantDataKeyService` and `IKeyWrapper` (blob envelope encryption); PR 1-5 of this plan come first.
 - Crypto-shredding subject keys (REQ-006, #1191) are a separate key hierarchy and not part of this plan.
 - Google Cloud KMS: post-1.0 (SPEC-000 §6.1), recorded as the cloud triangle gap.
 
@@ -903,7 +1060,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas of this plan (choices 1, 2, 3 and 5); the orchestrator adds the Maintainer Decisions section.
+1. The maintainer answers the Dilemmas of this plan (choices 1, 2, 3, 5, 7, 8, 9, 10 and 11); the orchestrator adds the Maintainer Decisions section.
 2. Open the follow-up issue for #2386 to use `IKeyWrapper` (or comment on it) when work starts.
 3. Link this plan from #1250; reserve the ADR number in `docs/architecture/adr/index.md`.
-4. Implement the pull requests in the order of the cut above; PR 1 and PR 3 unblock the #1239 blob encryption.
+4. Implement the pull requests in the order of the cut above; PR 1-5 unblock the #1239 blob encryption.
