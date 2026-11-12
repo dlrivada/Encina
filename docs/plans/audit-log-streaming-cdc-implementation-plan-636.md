@@ -3,7 +3,7 @@
 > **Issue**: [#636](https://github.com/dlrivada/Encina/issues/636) (`area-cdc`, `priority-low`, `complexity-low`, `p1-recommended`)
 > **Type**: Feature
 > **Complexity**: Medium (the issue is labelled low; the dispatcher hook, redaction that fails closed and the write-through rule add scope)
-> **Estimated Scope**: ~1,100-1,500 lines of production code + ~2,000-2,700 lines of tests, delivered in three pull requests
+> **Estimated Scope**: ~1,100-1,500 lines of production code + ~2,000-2,700 lines of tests (about 82 files and up to about 6,000 line-changes in total with manifests, PublicAPI and documentation), delivered in nine pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family (#633, #634, #635, #2393)**: independent of #633. #634 and #635 add typed CDC handlers; this plan adds a dispatcher-level observer instead (Design Choice 4) and owns the rule that infrastructure tables are never audited. Sibling plans are referred to by issue number only.
 
 ---
@@ -12,7 +12,7 @@
 
 Changes captured by CDC are streamed as structured audit entries to external sinks, so the audit trail is independent of the application's write path, includes changes made by any source (not only the application), and does not share a database with the data it audits.
 
-### What the code does today (2026-11-11, `main` at `942c0f124`)
+### What the code does today (2026-11-12, `main` at `c49b987e9`)
 
 1. **Entity audit data lives in the application database.** `IAuditable` is filled by `AuditInterceptor` (`src/Encina.EntityFrameworkCore/Auditing`) and change entries go to `IAuditLogStore.LogAsync(AuditLogEntry)` (`src/Encina.DomainModeling/Auditing/IAuditLogStore.cs`), which returns a bare `Task`; its rename and redesign are tracked by #1778 (ADR-036). `AuditLogEntry` already has `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc`, `OldValues`, `NewValues`, `CorrelationId`. Operation and read audit have their own stores in `Encina.Security.Audit` (`IOperationAuditStore`, `IReadAuditStore`); `IPiiMasker` there masks typed request objects, not JSON rows.
 2. **Nothing streams CDC changes.** There is no `IAuditSink` or `CdcAuditEntry` in the repository.
@@ -27,7 +27,21 @@ Changes captured by CDC are streamed as structured audit entries to external sin
 - **Affected packages**: `Encina.Cdc` (abstractions, observer, projection, redaction, sinks, configuration, diagnostics), `Encina.Messaging` (read-only: `OutboxOrchestrator`), `Encina.OpenTelemetry` (subscription).
 - **Provider category**: Database through the four CDC connectors (SQL Server, PostgreSQL, MySQL, MongoDB; Debezium carries the same shapes). The streaming code is written once against `ChangeEvent`; the shapes per connector are covered by tests.
 - **Corrections to the issue text**: the sink abstraction is `ICdcAuditSink` (avoids confusion with the `Encina.Security.Audit` and #1778 vocabulary); `BatchSize` and `FlushInterval` are dropped (Design Choice 5); the console sink writes metadata only; compliance references other than the EU and Spain (HIPAA, PCI-DSS) are out of scope.
-- **Split into pull requests**: PR 1 = Phases 1-3 (abstractions, observer, projection and redaction, about 13 files); PR 2 = Phases 4-5 (sinks, configuration, about 11 files); PR 3 = Phases 6-9 (provider shapes, observability, integration tests, documentation).
+- **Split into pull requests** (counts include the tests, manifest edits and PublicAPI lines of the code in the PR, so every `src/` PR meets its own flags; the numbering is the merge order):
+
+  | PR | Content (phase) | Files | Lines (est.) | Depends on |
+  |----|-----------------|-------|--------------|------------|
+  | 1 | `CdcAuditEntry`, `ICdcAuditSink`, `CdcAuditOptions` and validator, `CdcAuditErrors` (with categories), PublicAPI, unit and guard tests, manifest (Phase 1) | 9 | ~550 | none |
+  | 2 | `ICdcChangeObserver`, the dispatcher change (observers resolved from the processor's scope, own try/catch, connector id passed in, Design Choices 4 and 7), processor edits, PublicAPI, unit and contract tests, manifest (Phase 2) | 12 | ~800 | 1 |
+  | 3 | `AuditRowProjector`, `AuditFieldPolicy`, `AuditStreamObserver`, `AuditInfrastructureTables`, unit, guard and property tests, manifest (Phase 3) | 10 | ~900 | 1, 2 |
+  | 4 | `ConsoleAuditSink`, `FileAuditSink` and their options, sink contract tests, unit and guard tests, manifest (Phase 4 tasks 1, 2, 4) | 10 | ~800 | 1 |
+  | 5 | `OutboxAuditSink` (owns the commit, Design Choice 5 note), `CdcAuditNotification`, unit tests, a `ValidateScopes = true` dispatch test, manifest (Phase 4 task 3) | 6 | ~400 | 1, 2 |
+  | 6 | `WithAuditStreaming`, registration method, startup validator, DI proof per sink, PublicAPI, manifest (Phase 5) | 8 | ~500 | 3, 4, 5 |
+  | 7 | `CdcAuditMetrics`, activity source, `CdcAuditLog` (4880-4885), `Encina.OpenTelemetry` subscription, unit and guard tests, PublicAPI, manifest (Phase 7) | 9 | ~550 | 6 |
+  | 8 | Cross-connector shape contract test, connector-driven integration tests (PostgreSQL, MySQL, SQL Server, MongoDB), outbox-sink integration for each outbox family (ADO.NET, Dapper, EF Core, MongoDB), benchmark class, load justification `.md` (Phases 6, 8) | 13 | ~1,200 | 6, 7 |
+  | 9 | Changelog fragment, `Encina.Cdc` README, `docs/features/cdc.md`, `docs/INVENTORY.md`, ADR (Phase 9) | 5 | ~300 | 8 |
+
+  Total: 9 PRs, 82 files, about 6,000 line-changes (the sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PRs 3, 4 and 5 are independent of each other once PRs 1 and 2 are in.
 
 ---
 
@@ -104,7 +118,7 @@ A wins while #1778 is in flight and when the stream must run without `Encina.Sec
 |--------|------|------|
 | **A) A typed handler per entity** (`AuditStreamCdcHandler<TEntity>`, the proposal) | Fits the handler model | Only one handler per entity type, a table needs a mapping and a handler, the typed row loses every unmapped column, and an update with no before image fails the event |
 | **B) `ICdcEventInterceptor`** | Exists today | Runs only after a handler dispatch, ignores the `Either` and swallows exceptions, so a sink failure cannot fail the event |
-| **C) A new `ICdcChangeObserver` that the dispatcher awaits for every event before handler lookup; a `Left` fails the event** | Sees the raw row with all columns; independent of handlers; failure semantics match the acceptance criterion | A small, new dispatcher contract |
+| **C) A new `ICdcChangeObserver` that the dispatcher awaits for every event before handler lookup; a `Left` fails the event** | Sees the raw row with all columns; independent of handlers; failure semantics match the acceptance criterion | A small, new dispatcher contract; an audit sink outage (a full disk on the file sink) halts every CDC consumer of that connector, including the CDC outbox relay (`OutboxCdcHandler`) and cache invalidation, because the observer runs first and its `Left` fails the event; the dispatcher is a singleton (`ServiceCollectionExtensions.cs:80`), so observers must be resolved from the processor's scope (Phase 2) |
 
 ### Chosen Option: **C — `ICdcChangeObserver`** (recommended, pending the maintainer)
 
@@ -125,16 +139,15 @@ C is the only option that satisfies "every change reaches the sink and a sink fa
 |--------|------|------|
 | **A) Each observed event is written to the sinks before the observer returns; `WriteBatchAsync` exists for sinks and callers that already hold a batch** | A crash cannot lose an entry that CDC has already moved past; satisfies the acceptance criterion | One write per event; sinks decide whether to buffer internally and must flush before returning |
 | **B) Buffer in memory and flush on `BatchSize` or `FlushInterval` (the proposal)** | Fewer writes | The processor saves the position after the observer returns, so a crash drops buffered entries for good |
-| **C) Buffer, and hold the position until the flush** | Batching without loss | Needs a batch-commit hook in the processor (not present: positions are saved per event) |
+| **C) Buffer, and hold the position until the flush** | Batching without loss; fewer writes | Needs a batch-commit hook in the processor (not present: positions are saved per event, `CdcProcessor.cs:161`), which is a larger change in the code that #2343 and #2393 also edit |
 
-### Chosen Option: **A — write-through; `BatchSize` and `FlushInterval` are dropped**
+### Chosen Option: **A — write-through; `BatchSize` and `FlushInterval` are dropped** (recommended, pending the maintainer)
 
 ### Rationale
 
-The acceptance criteria say no entry is dropped and a sink failure fails the CDC operation; with per-event position saves (`CdcProcessor.cs:161`) only a write-through observer meets both.
+Options A and C both satisfy the acceptance criteria (no entry is dropped, a sink failure fails the CDC operation) and AGENTS.md section 3 (errors are never swallowed), so those rules do not choose between them; C costs a processor hook and is a trade-off, not a non-compliance. B is excluded: the processor saves the position after the observer returns, so a crash drops buffered entries for good. A is recommended because it needs no processor change. `OutboxAuditSink` under A must own the commit: `OutboxOrchestrator.AddAsync` only calls `IOutboxStore.AddAsync` and never saves, and `OutboxStoreEF.AddAsync` only adds to the `DbContext` (persisted by `SaveChangesAsync` within the caller's unit of work, `OutboxStoreEF.cs:177,222`); the CDC processor has no unit of work, so without `IOutboxStore.SaveChangesAsync` after `AddAsync` (or a dedicated scope per write) the EF Core providers would return `Right` and lose the entry. The integration test covers each outbox family because the behavior is provider-dependent.
 
-**Class:** Settled
-**Settled by:** #636 (acceptance criteria: a sink failure fails the CDC operation, no entry is dropped); AGENTS.md section 3 (errors are never swallowed in background infrastructure)
+**Class:** Dilemma
 
 </details>
 
@@ -145,19 +158,71 @@ The acceptance criteria say no entry is dropped and a sink failure fails the CDC
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Tables are included only by an explicit allow list; a startup validation rejects the infrastructure tables (outbox, inbox, saga, scheduled message, dead letter, CDC positions, the audit tables)** | No feedback loop through `OutboxAuditSink`; no audit noise | The list of infrastructure tables is maintained in one place |
-| **B) Audit all tables except a deny list** | Less configuration | A forgotten table creates a loop (outbox row, audit entry, outbox row) |
+| **A) Tables are included only by an explicit allow list; a startup validation rejects every infrastructure table (outbox, inbox, saga, scheduled message, dead letter, CDC positions, the audit tables)** | No feedback loop through `OutboxAuditSink`; no audit noise | The list of infrastructure tables is maintained in one place; auditing saga state changes, which can be wanted, is impossible |
+| **B) An allow list, and the validation rejects only the tables an enabled sink writes to (the outbox table with `OutboxAuditSink`, the audit tables); other infrastructure tables (saga, scheduled message, dead letter) may be audited** | The loop is prevented where it exists; saga state changes can be audited | The "tables written by an enabled sink" set must be derived from the sinks' configuration |
+| **C) Audit all tables except a deny list that always contains the infrastructure tables** | Less configuration | A forgotten table creates a loop (outbox row, audit entry, outbox row) |
 
-### Chosen Option: **A — allow list plus validation**
+### Chosen Option: **B — allow list; reject the tables written by an enabled sink** (recommended, pending the maintainer)
 
 ### Rationale
 
-An outbox sink that writes to a table that is itself audited never ends; the allow list prevents it by construction and the validation names the offending table.
+The cited rule (AGENTS.md section 1, opt-in) is about the feature, not about the table list, so it does not choose between A and B; a deny list with infrastructure tables always excluded (C) also prevents the loop. What is not negotiable is the invariant: a table that an enabled sink writes to is never audited (an outbox sink that writes to an audited table never ends); the validation names the offending table. Rejecting the saga, scheduled message and dead-letter tables as well (A) is a user-visible choice, hence a Dilemma.
 
-**Class:** Settled
-**Settled by:** #636 (the proposal's own `ExcludeEntities<AuditLog>()` rule against recursive auditing); AGENTS.md section 1 (every feature is opt-in)
+**Class:** Dilemma
 
 </details>
+
+<details>
+<summary><strong>7. Where the entry's deduplication key gets the connector id</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Add the connector id to `ChangeMetadata`** | Every consumer of the event sees it | `ChangeMetadata` is built in all five connectors and the sharded path; many files |
+| **B) Pass the connector id to the dispatcher: `ICdcDispatcher.DispatchAsync(ChangeEvent, string connectorId, CancellationToken)` (the processors already know `connector.ConnectorId`) and on to `ICdcChangeObserver.ObserveAsync`** | Few files (dispatcher contract, two processors, observer); no connector change | Changes a public dispatcher contract (allowed pre-1.0) |
+| **C) Key on `SourceDatabase` + `SourceSchema` + position and argue uniqueness** | No contract change | Two connectors on the same database collide; uniqueness is argued, not guaranteed |
+
+### Chosen Option: **B — connector id passed to the dispatcher** (recommended, pending the maintainer)
+
+### Rationale
+
+Neither `ChangeEvent` nor `ChangeMetadata` (Position, CapturedAtUtc, TransactionId, SourceDatabase, SourceSchema) carries a connector id today, and `ICdcDispatcher.DispatchAsync(ChangeEvent, CancellationToken)` does not receive one, so the key `{ConnectorId}:{Position}` cannot be built from the planned contract. Sinks may still receive duplicates: after #2343 a retried event whose handler failed is observed again, and with several sinks a partial failure re-writes the earlier ones; the key is the deduplication contract for consumers.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. <code>EntityId</code> and <code>ChangedBy</code> against the allow list</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `EntityId` and `ChangedBy` go through the same allow list as every field (redacted unless the field is listed); the console sink logs the id only when allowed** | Fails closed; both can be personal data | An audit entry without an id is less useful, so a table policy normally lists the id field |
+| **B) Always taken from the raw row, bypassing the allow list** | Entries are always attributable | Personal data leaves the allow list; the console sink would log it |
+
+### Chosen Option: **A — same allow list** (recommended, pending the maintainer)
+
+### Rationale
+
+Compliance gates fail closed; B is a bypass of the control that the allow list exists to enforce. The maintainer decides whether attribution outweighs it.
+
+**Class:** Dilemma
+
+</details>
+
+### Smaller decisions (register)
+
+| Id | Decision | Class | Basis |
+|----|----------|-------|-------|
+| R1 | The entry's timestamp is named `CapturedAtUtc` (from `ChangeMetadata.CapturedAtUtc`), not `TimestampUtc` | Trivial | AGENTS.md section 4 (`AtUtc` suffix) |
+| R2 | The file sink's day boundary is the UTC day of the entry's `CapturedAtUtc` (deterministic on replay), not the time of writing | Trivial | Reversible; no clock read |
+| R3 | `IncludeValues` is allowed only when an `IHostEnvironment` is registered and reports Development; with no environment registered it is denied | Settled | AGENTS.md section 3 (gates fail closed: missing context denies) |
+| R4 | Error codes `audit_sink_failed` (category Unavailable), `audit_policy_invalid` and `audit_infrastructure_table` (category Internal, configuration), each declared through the error category contract of #3419 (the plan cites that contract, not an ADR number), with a `GetCategory` test | Trivial | Convention of the error code classes |
+| R5 | `Encina.Cdc` is already mapped in `AssemblyRanges` of `EncinaEventIdAllocationTests` (`EncinaEventIdAllocationTests.cs:55`), so the 4880-4885 ids need no map change | Trivial | Verified on `main` |
+| R6 | Observers are resolved from the processor's scope (a scope per event or batch passed to the dispatcher), never from the dispatcher's root provider, and the observer call has its own try/catch: the existing catch uses `handlerType.Name`, which is unset before handler lookup | Trivial | `CdcDispatcher` is a singleton (`ServiceCollectionExtensions.cs:80`), `OutboxOrchestrator` is scoped (`MessagingServiceCollectionExtensions.cs:283`) |
 
 ---
 
@@ -170,10 +235,10 @@ An outbox sink that writes to a table that is itself audited never ends; the all
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Cdc/Auditing/CdcAuditEntry.cs`: `EntityType`, `EntityId`, `Operation`, `Before`, `After` (JSON strings after redaction), `TimestampUtc` (`ChangeMetadata.CapturedAtUtc`), `Source` (`SourceDatabase.SourceSchema`), `Position` (`ToString()`, opaque), `ChangedBy`, `DeduplicationKey` (`{ConnectorId}:{Position}`).
+1. `src/Encina.Cdc/Auditing/CdcAuditEntry.cs`: `EntityType`, `EntityId`, `Operation`, `Before`, `After` (JSON strings after redaction), `CapturedAtUtc` (`ChangeMetadata.CapturedAtUtc`), `Source` (`SourceDatabase.SourceSchema`), `Position` (`ToString()`, opaque), `ChangedBy`, `DeduplicationKey` (`{ConnectorId}:{Position}`; the connector id reaches the observer as in Design Choice 7). Sinks may receive duplicates; the key is the deduplication contract.
 2. `ICdcAuditSink`: `WriteAsync(CdcAuditEntry, CancellationToken)` and `WriteBatchAsync(IReadOnlyList<CdcAuditEntry>, CancellationToken)`, both `Task<Either<EncinaError, Unit>>`.
 3. `CdcAuditOptions`: `Tables` (allow list), per-table `AuditFieldPolicy`, `IncludeOperations` / `ExcludeOperations`, `EntityIdField` per table, `ChangedByField` per table; validated by `IValidateOptions`; sink options holding paths or keys are `[JsonIgnore]` with a `ToString()` override.
-4. `CdcAuditErrors` (`encina.cdc.audit_sink_failed`, `encina.cdc.audit_policy_invalid`, `encina.cdc.audit_infrastructure_table`).
+4. `CdcAuditErrors` (`encina.cdc.audit_sink_failed`, `encina.cdc.audit_policy_invalid`, `encina.cdc.audit_infrastructure_table`), each with its category from the error category contract of #3419 (decision R4) and a `GetCategory` test.
 
 </details>
 
@@ -199,7 +264,7 @@ src/Encina.Cdc/Messaging/CdcMessagingOptions.cs.
 <summary><strong>Tasks</strong></summary>
 
 1. `ICdcChangeObserver` (public): `ValueTask<Either<EncinaError, Unit>> ObserveAsync(ChangeEvent, CancellationToken)`.
-2. `CdcDispatcher.DispatchAsync`: resolve the observers (`GetServices<ICdcChangeObserver>()`) and await them in order before the handler lookup, so a table with no handler is still observed; the first `Left` is returned and the handler is not invoked (the event fails as a whole); an exception becomes `CdcErrors.HandlerFailed` through the existing path.
+2. `CdcDispatcher.DispatchAsync`: resolve the observers (`GetServices<ICdcChangeObserver>()`) from the processor's scope, not from the dispatcher's root provider (the dispatcher is a singleton, `ServiceCollectionExtensions.cs:80`; observers such as `OutboxAuditSink` depend on scoped services), and await them in order before the handler lookup, so a table with no handler is still observed; the first `Left` is returned and the handler is not invoked (the event fails as a whole). The observer call sits in its own try/catch and an exception becomes an observer-specific `Left` (the existing catch at `CdcDispatcher.cs:103-107` uses `handlerType.Name`, which is unset before the handler lookup). The connector id is passed in per Design Choice 7. A test dispatches one event through `OutboxAuditSink` with `ValidateScopes = true`.
 3. The sharded processor path calls the same dispatcher, so it is covered; `ICdcEventInterceptor` is left unchanged.
 4. Contract and unit tests prove ordering, short-circuit on `Left`, and that tables without a handler are observed.
 
@@ -229,9 +294,9 @@ src/Encina.Cdc/Processing/CdcProcessor.cs.
 
 1. `AuditRowProjector`: normalizes `object?` to a `JsonElement` (`JsonElement` as is; `string` parsed as JSON, the MongoDB shape; dictionaries serialized); a malformed payload is a `Left`, never an exception.
 2. `AuditFieldPolicy`: allow-list projection (fields not listed become `"[REDACTED]"`), with `RedactFields` as an additional deny list and an explicit `AllowAllFields()` that logs once at startup; case-insensitive field names.
-3. `EntityId` and `ChangedBy` extraction from the configured fields (defaults `Id`, `id`, `_id`; `ModifiedBy`, `DeletedBy`, `CreatedBy`).
+3. `EntityId` and `ChangedBy` extraction from the configured fields (defaults `Id`, `id`, `_id`; `ModifiedBy`, `DeletedBy`, `CreatedBy`), subject to the allow list (Design Choice 8, recommended option A).
 4. `AuditStreamObserver : ICdcChangeObserver`: filters by table allow list and operation, projects, redacts, builds the entry, writes to every sink and returns the first `Left`; an update with no before image produces `Before = null`.
-5. `AuditInfrastructureTables`: the single list of infrastructure table names used by the validator (Design Choice 6).
+5. `AuditInfrastructureTables`: the single list of infrastructure table names used by the validator (Design Choice 6: always the tables an enabled sink writes to; the other infrastructure tables only if the maintainer picks option A).
 
 </details>
 
@@ -256,9 +321,9 @@ REFERENCE FILES: src/Encina.Cdc.MongoDb/MongoCdcConnector.cs (MapChangeEvent), s
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `ConsoleAuditSink`: structured log of metadata only (entity type, id, operation, position, source), never `Before`/`After`; an `IncludeValues` development switch exists and is rejected outside Development by the startup validation.
-2. `FileAuditSink`: JSON Lines, one file per UTC day, opened append-only with write-through; every `WriteAsync` flushes before it returns (Design Choice 5); path and permissions documented; the directory option is `[JsonIgnore]` with `ToString()`.
-3. `OutboxAuditSink`: wraps the entry in `CdcAuditNotification : INotification` and calls `OutboxOrchestrator.AddAsync`; it requires the outbox module and fails startup validation with a registration error when it is missing (ADR-050).
+1. `ConsoleAuditSink`: structured log of metadata only (entity type, id, operation, position, source), never `Before`/`After`; an `IncludeValues` development switch exists and is rejected outside Development, and when no `IHostEnvironment` is registered, by the startup validation (decision R3).
+2. `FileAuditSink`: JSON Lines, one file per UTC day of the entry's `CapturedAtUtc` (decision R2), opened append-only with write-through; every `WriteAsync` flushes before it returns (Design Choice 5); path and permissions documented; the directory option is `[JsonIgnore]` with `ToString()`.
+3. `OutboxAuditSink`: wraps the entry in `CdcAuditNotification : INotification` and calls `OutboxOrchestrator.AddAsync` and then `IOutboxStore.SaveChangesAsync` (the CDC processor has no unit of work; without the save the EF Core outbox store only tracks the row and the entry is lost, Design Choice 5); it requires the outbox module and fails startup validation with a registration error when it is missing (ADR-050).
 4. Contract tests run the same cases against all three sinks.
 
 </details>
@@ -286,7 +351,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.C
 
 1. `CdcConfiguration.WithAuditStreaming(Action<CdcAuditOptions>)` with `AddSink<TSink>()`, `AuditTable(string name, Action<AuditTablePolicy>)` and `AuditEntity<TEntity>(...)` (resolved to the mapped table name through `WithTableMapping`).
 2. `ServiceCollectionExtensions`: private `RegisterAuditStreamingServices` (options, validator, projector, observer, sinks).
-3. Validator: at least one sink; every table is allow-listed and none is an infrastructure table; `IncludeValues` only in Development; the outbox sink needs the outbox module.
+3. Validator: at least one sink; every table is allow-listed and none is a table an enabled sink writes to (or, under Design Choice 6 option A, any infrastructure table); `IncludeValues` only in Development; the outbox sink needs the outbox module.
 4. DI test with `ValidateOnBuild` and `ValidateScopes` for each sink.
 
 </details>
@@ -313,7 +378,27 @@ REFERENCE FILES: src/Encina.Cdc/CdcConfiguration.cs, src/Encina.Cdc/ServiceColle
 
 1. A contract test builds `ChangeEvent`s in each connector's real shape (SQL Server `JsonElement`, PostgreSQL and MySQL dictionaries, MongoDB JSON string, Debezium envelope) and asserts the same `CdcAuditEntry` for the same logical change.
 2. Document, per connector, whether `Before` is available (MySQL yes; PostgreSQL with `REPLICA IDENTITY FULL`; SQL Server only for deletes; MongoDB with pre-images).
-3. The ten database providers are covered through the four connectors; the application's data access provider does not change the stream.
+3. The ten database providers are covered through the four connectors (plus Debezium); the application's data access provider does not change the stream.
+
+#### Provider matrix
+
+The stream depends on the source database's connector, not on the application's data access family, so the 10 providers collapse onto four connectors; the table lists every row of AGENTS.md section 5.
+
+| # | Family | Database | Connector (payload shape) | Before image on update |
+|---|--------|----------|---------------------------|------------------------|
+| 1 | ADO.NET | SQL Server | SQL Server Change Tracking (`JsonElement`) | no (Change Tracking limitation, `SqlServerCdcConnector.cs:266`); deletes carry the row |
+| 2 | ADO.NET | PostgreSQL | PostgreSQL logical decoding (dictionary) | only with `REPLICA IDENTITY FULL` (`PostgresCdcConnector.cs:24`) |
+| 3 | ADO.NET | MySQL | MySQL binlog (dictionary) | yes |
+| 4 | Dapper | SQL Server | as row 1 | as row 1 |
+| 5 | Dapper | PostgreSQL | as row 2 | as row 2 |
+| 6 | Dapper | MySQL | as row 3 | as row 3 |
+| 7 | EF Core | SQL Server | as row 1 | as row 1 |
+| 8 | EF Core | PostgreSQL | as row 2 | as row 2 |
+| 9 | EF Core | MySQL | as row 3 | as row 3 |
+| 10 | MongoDB | MongoDB | change stream (JSON `string`, `MongoCdcConnector.cs:244-245`) | only with pre-images enabled |
+| extra | any | Debezium-captured database | Debezium envelope (`JsonElement`) | per the source connector configuration |
+
+Each connector shape has a contract case in PR 8; the integration tests run PostgreSQL, MySQL, SQL Server and MongoDB (the Debezium shape is a unit case). The other applicability-matrix rows (caches, transports, locks, validation providers) are not applicable.
 
 </details>
 
@@ -339,7 +424,7 @@ src/Encina.Cdc.Debezium/DebeziumCdcConnector.cs.
 
 1. `CdcAuditMetrics` (meter `Encina.Cdc.Audit`): counters `encina.cdc.audit.entries` (tags `sink`, `operation`), `encina.cdc.audit.errors` (tag `sink`), `encina.cdc.audit.redacted_fields`.
 2. `CdcAuditActivitySource` spans per entry with `sink` and `operation`.
-3. `CdcAuditLog` (EventIds 4880-4891): entry written, filtered out, sink failed, malformed row, allow-all opt-out, infrastructure table rejected (error code and ids only, never entry contents).
+3. `CdcAuditLog` (EventIds 4880-4885, six ids packed sequentially: 4880 entry written, 4881 filtered out, 4882 sink failed, 4883 malformed row, 4884 allow-all opt-out, 4885 infrastructure table rejected; 4886-4891 stay unassigned inside the #636 block; error code and ids only, never entry contents).
 4. `Encina.OpenTelemetry` subscription.
 
 </details>
@@ -350,7 +435,7 @@ src/Encina.Cdc.Debezium/DebeziumCdcConnector.cs.
 ```
 CONTEXT: Operators must see that the stream is alive without reading personal data.
 TASK: Add metrics, spans, logs and the OpenTelemetry subscription.
-KEY RULES: EventIds 4880-4891 only (range Cdc, ADR-021); never log Before/After or EncinaError.Message; tags carry sink,
+KEY RULES: EventIds 4880-4885 only (range Cdc, ADR-021); never log Before/After or EncinaError.Message; tags carry sink,
 operation and table names only.
 REFERENCE FILES: src/Encina.Cdc/Caching/Diagnostics/CacheInvalidationMetrics.cs, src/Encina.Cdc/Caching/CdcCacheInvalidationLog.cs.
 ```
@@ -368,7 +453,7 @@ REFERENCE FILES: src/Encina.Cdc/Caching/Diagnostics/CacheInvalidationMetrics.cs,
 2. Guard: all public methods.
 3. Contract: `ICdcAuditSink` across the three sinks; the observer contract in the dispatcher.
 4. Property: a configured field never appears in an entry for any generated row; entry order equals event order.
-5. Integration: real database CDC to the file sink on PostgreSQL, MySQL, SQL Server and MongoDB through shared fixtures (they depend on the connector integration work, #2861, #2862, #2839); outbox sink delivery through the outbox on one SQL provider.
+5. Integration: real database CDC to the file sink on PostgreSQL, MySQL, SQL Server and MongoDB through shared fixtures (they depend on the connector integration work, #2861, #2862, #2839); outbox sink delivery through the outbox for each outbox family (ADO.NET, Dapper, EF Core, MongoDB), because the commit behavior is provider-dependent (Design Choice 5).
 6. Benchmark: throughput of projection plus redaction per event (hot path). Load: justification file.
 
 </details>
@@ -445,16 +530,40 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, doc
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Cdc` (existing range 4800-4899) | 4880-4891 used, 4892-4899 spare | `CdcAuditLog`; 4854-4859 belong to #2393, 4860-4869 to #634, 4870-4879 to #635 |
+| `Encina.Cdc` (existing range 4800-4899) | 4880-4885 used, packed sequentially; 4886-4891 unassigned inside the #636 block; 4892-4899 spare | `CdcAuditLog`: six messages. The CDC family block of the batch registry is 4854-4891: 4854-4859 belong to #2393, 4860-4863 to #634, 4870-4875 to #635. `Encina.Cdc` is already in `AssemblyRanges`, so no map change is needed |
+
+### Per-file coverage targets (AGENTS.md section 9)
+
+Per flag: U unit, G guard, C contract, P property, I integration; entered in `.github/coverage-manifest/Encina.Cdc.json` by the PR that creates each file and never lowered afterwards. Touched files (`CdcDispatcher.cs`, `CdcConfiguration.cs`, `CdcOptions.cs`, `ServiceCollectionExtensions.cs`, the processors) are listed with the targets of their changed lines.
+
+| File | U | G | C | P | I | Justification |
+|------|---|---|---|---|---|---------------|
+| `CdcAuditEntry.cs` | 80 | 0 | 0 | 0 | 0 | Record; computed members only |
+| `CdcAuditOptions` and validator | 90 | 90 | 0 | 0 | 0 | Pure validation, every branch reachable |
+| `CdcAuditErrors.cs` | 90 | 0 | 0 | 0 | 0 | Factories plus the category test |
+| `AuditRowProjector.cs` | 95 | 90 | 85 | 80 | 0 | Pure normalization of four shapes; malformed rows are a `Left` |
+| `AuditFieldPolicy.cs` | 95 | 90 | 0 | 90 | 0 | Property test: a non-listed field never appears |
+| `AuditStreamObserver.cs` | 90 | 90 | 85 | 0 | 70 | Filters, ordering and short-circuit with fake sinks; connector-driven integration |
+| `AuditInfrastructureTables.cs` | 90 | 0 | 0 | 0 | 0 | Static list and lookup |
+| `ConsoleAuditSink.cs`, `FileAuditSink.cs` | 90 | 90 | 85 | 0 | 70 | File I/O against a temp directory; contract shared by the three sinks |
+| `OutboxAuditSink.cs` | 85 | 90 | 85 | 0 | 80 | The commit behavior is provider-dependent, hence integration per outbox family |
+| `CdcDispatcher.cs` (changed lines) | 90 | 0 | 85 | 0 | 0 | Observer ordering, short-circuit and scope resolution are deterministic |
+| `CdcAuditMetrics`, activity source, log | 85 | 0 | 0 | 0 | 0 | Meter listener, generated logger |
+| `WithAuditStreaming`, registration, validator | 90 | 90 | 0 | 0 | 0 | DI proof builds the provider for each sink with `ValidateOnBuild` and `ValidateScopes` |
+
+CRAP stays at or below 10 on every changed method; the dispatcher gets a small private method for the observer loop so `DispatchAsync` does not grow.
 
 ### Estimated File Count
+
+The per-PR counts are in "Split into pull requests" (82 files); this table groups the same files.
 
 | Category | Files | Notes |
 |----------|-------|-------|
 | Production (`Encina.Cdc`) | 17 | entry, sink interface, options, errors, observer interface and implementation, projector, field policy, infrastructure list, three sinks, log, metrics, activity source |
-| Edits to shared files | 4 | `CdcDispatcher`, `CdcConfiguration`, `CdcOptions`, `ServiceCollectionExtensions` |
-| Tests | ~28 | unit, guard, contract, property, integration, benchmark |
-| Docs, changelog, manifests | ~8 | README, feature page, fragment, manifest entries |
+| Edits to shared files | 6 | `CdcDispatcher`, `ICdcDispatcher`, two processors, `CdcConfiguration`, `ServiceCollectionExtensions` |
+| Tests | ~38 | unit, guard, contract, property, integration (connectors and outbox families), benchmark, DI proofs |
+| PublicAPI and manifests | ~8 | per PR |
+| Docs, changelog, justification | ~6 | README, feature page, fragment, inventory, ADR, load `.md` |
 
 ---
 
@@ -470,8 +579,8 @@ issue #636: stream CDC change events as structured audit entries to external sin
 IMPLEMENTATION OVERVIEW: Phase 1 adds CdcAuditEntry, ICdcAuditSink and options. Phase 2 adds ICdcChangeObserver and calls it
 from CdcDispatcher for every event. Phase 3 adds the row projector, the allow-list redaction and AuditStreamObserver.
 Phase 4 adds the console, file and outbox sinks (write-through). Phase 5 adds WithAuditStreaming, registration and
-validation. Phase 6 proves the four connector shapes. Phase 7 adds metrics, spans and logs (EventIds 4880-4891).
-Phase 8 tests; Phase 9 documents. Deliver as three pull requests after the CDC prerequisites land.
+validation. Phase 6 proves the four connector shapes. Phase 7 adds metrics, spans and logs (EventIds 4880-4885).
+Phase 8 tests; Phase 9 documents. Deliver as the nine pull requests of the Summary after the CDC prerequisites land.
 
 KEY PATTERNS: fail closed (allow list; infrastructure tables rejected); a Left from a sink fails the CDC event; no
 buffering past the position save; never log row contents or EncinaError.Message; opt-in; TimeProvider; registration
@@ -492,14 +601,14 @@ src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.DomainModeling/Aud
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: a write-only stream |
 | 2 | OpenTelemetry | ✅ | Phase 7: entry, error and redaction counters, spans |
-| 3 | Structured Logging | ✅ | `CdcAuditLog`, EventIds 4880-4891; never entry contents |
+| 3 | Structured Logging | ✅ | `CdcAuditLog`, EventIds 4880-4885; never entry contents |
 | 4 | Health Checks | ⏭️ | Sink health (file path writable, outbox reachable) joins the processor liveness work of #2396; connector health is the existing `CdcHealthCheck` |
 | 5 | Validation | ✅ | Options and table allow list validated at startup; event schema validation is #730 |
 | 6 | Resilience | ✅ | Failed writes fail the event and follow CDC retry and dead letter (#2343, #2344); sinks add no hidden retry |
-| 7 | Distributed Locks | ⏭️ | Two CDC consumers would write each entry twice; coordination is #1251, and the `DeduplicationKey` lets sinks deduplicate meanwhile |
+| 7 | Distributed Locks | ⏭️ | Defer: two CDC consumers would write each entry twice; #1251 is row claiming in the outbox and scheduler processors, not CDC, so coordination of CDC consumers is a follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/cdc-single-consumer-leader-election.md); the `DeduplicationKey` lets sinks deduplicate meanwhile |
 | 8 | Transactions | ❌ | Not applicable: CDC observes committed transactions |
 | 9 | Idempotency | ✅ | `DeduplicationKey` on every entry (connector id and position) |
-| 10 | Multi-Tenancy | ⏭️ | Per-tenant sinks and a tenant field per table follow #1257 |
+| 10 | Multi-Tenancy | ⏭️ | Defer: per-tenant sinks and a tenant field per table are not in this plan; #1257 does not name CDC audit, so follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/cdc-audit-streaming-per-tenant-sinks.md) |
 | 11 | Module Isolation | ❌ | Not applicable: infrastructure-level |
 | 12 | Audit Trail | ✅ | This feature is the external audit stream; it complements the entity-change audit store of #1778 |
 
@@ -510,7 +619,7 @@ src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.DomainModeling/Aud
 | Item | State | Effect |
 |------|-------|--------|
 | #2343 (a `Left` from the dispatcher is neither retried nor dead-lettered) | open | Required for "a sink failure fails the CDC operation (retry or dead letter)" |
-| Dispatcher issue drafted with this plan (updates without a before image; several handlers per table) | to be opened | The observer needs no handler, but updates on SQL Server must not fail before the observer runs; Phase 2 orders the observer first |
+| Dispatcher issue (updates without a before image; several handlers per table) | follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/cdc-dispatcher-update-without-before-image.md) | The observer needs no handler, but updates on SQL Server must not fail before the observer runs; Phase 2 orders the observer first |
 | #1778 (entity-change audit store, ADR-036) | open | Design Choice 3 revisits the sink abstraction once it lands |
 | #2861, #2862, #2839 (connector integration tests) | open | Fixtures for the connector-driven integration tests |
 | #2393 (persistent position store) | plan | Adds `CdcPositions`, which the infrastructure table list rejects |
@@ -519,7 +628,7 @@ src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.DomainModeling/Aud
 
 ## Next Steps
 
-1. Review and approve this plan; the maintainer answers the four Dilemmas (choices 1, 2, 3 and 4) when work on the issue starts.
+1. Review and approve this plan; the maintainer answers the Dilemmas (choices 1, 2, 3, 4, 5, 6, 7 and 8) when work on the issue starts; none is decided here.
 2. Publish the plan link as a comment on #636.
-3. Begin PR 1 (Phases 1-3) after #2343 lands.
+3. Begin PR 1 (the models and the sink abstraction) after #2343 lands.
 4. Each phase is a self-contained commit; the final commit references `Fixes #636`.
