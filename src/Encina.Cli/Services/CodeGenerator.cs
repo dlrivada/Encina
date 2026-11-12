@@ -242,7 +242,7 @@ public static class CodeGenerator
 
         parts[srcIndex] = "tests";
         var root = Path.GetPathRoot(normalized) ?? string.Empty;
-        var testDir = Path.Combine(root, Path.Combine(parts.ToArray()));
+        var testDir = Path.Combine([root, .. parts]);
         var projectName = Path.GetFileNameWithoutExtension(normalized);
         var testProjPath = Path.Combine(testDir, projectName + ".Tests", projectName + ".Tests.csproj");
         return $"\"{testProjPath.Replace(Path.DirectorySeparatorChar, '/')}\"";

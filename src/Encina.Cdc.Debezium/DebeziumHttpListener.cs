@@ -174,7 +174,7 @@ internal sealed class DebeziumHttpListener : BackgroundService
 
         try
         {
-            var eventJson = JsonDocument.Parse(body).RootElement.Clone();
+            var eventJson = JsonElement.Parse(body);
 
             // Apply backpressure: return 503 when the bounded channel is full
             if (!_channelWriter.TryWrite(eventJson))

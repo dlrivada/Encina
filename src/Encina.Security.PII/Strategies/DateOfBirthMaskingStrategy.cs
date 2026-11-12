@@ -80,7 +80,7 @@ internal sealed class DateOfBirthMaskingStrategy : IMaskingStrategy
             else
             {
                 // Mask month/day
-                result.Append(new string(options.MaskCharacter, parts[i].Length));
+                result.Append(options.MaskCharacter, parts[i].Length);
             }
 
             currentPos += parts[i].Length;
