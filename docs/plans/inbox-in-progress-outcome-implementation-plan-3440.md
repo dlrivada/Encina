@@ -2,7 +2,7 @@
 
 > **Issue**: [#3440](https://github.com/dlrivada/Encina/issues/3440)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, no new per-provider code, tests on all 10 database providers, ~26 files in 3 pull requests)
+> **Complexity**: Medium (8 phases, no new per-provider code, tests on all 10 database providers, ~28 files in 3 pull requests)
 > **Estimated Scope**: ~700-900 lines of production code + ~900-1,100 lines of tests and documentation
 
 ---
@@ -20,7 +20,7 @@ What it implements:
 
 Standards and specifications: SPEC-002 REQ-036 and AC-036; ADR-001 and ADR-006 (Railway Oriented Programming); ADR-048 (inbox record versus business transaction); ADR-062 (error category); ADR-054 D3 and D4 (meter name, tenant tag); the IETF idempotency-key draft (an in-flight request with the same key is answered 409). The issue's option B for the 200 answer is "200 with the previous outcome once available"; while a delivery is in progress no previous outcome exists (the first handler has not produced one) and once it exists the redelivery is `Replayed` and already answers 200 with the cached response, so the 200 option returns a small status body instead.
 
-Estimated scope: 26 files (4 new and 5 modified production files, 5 metadata files, 9 test files, 3 documentation files), about 1,400-1,800 changed lines, shipped as three pull requests (see "Pull request split").
+Estimated scope: 28 files (5 new and 5 modified production files, 5 metadata files, 10 test files, 3 documentation files), about 1,400-1,800 changed lines, shipped as three pull requests (see "Pull request split").
 
 Affected packages: `Encina.Messaging` (outcome type, orchestrator, behavior, diagnostics), `Encina.AspNetCore` (mapping and option), `Encina` (EventId range registry). No provider package changes: the outcome is derived from the claim result of [#2401](https://github.com/dlrivada/Encina/issues/2401) inside the shared orchestrator.
 
@@ -105,12 +105,14 @@ Provider category: Database (10), but only through tests. The feature adds no SQ
 |--------|------|------|
 | **A) The error is created with `ErrorCategory.Conflict` (409 from the ADR-062 table, no code-text mapping); the remaining lease travels as a `TimeSpan` under `EncinaErrorMetadataKeys.RetryAfter`; `ToProblemDetails` (and the table consumed by the three hosts) writes `Retry-After` on this 409, and answers 200 when `InboxInProgressResponse.Ok200` is set. This **extends ADR-062**: its header rule today allows `Retry-After` only with 429 or 503, and it has no 200 option. The 200 branch recognises the in-progress error by a typed details value (`InboxErrorMetadataKeys.Outcome == "in_progress"`), never by the code text. The extension is decided with the owners of #3419/#3420 and written into ADR-062's table by that work** | Follows the contract: the producer sets the category, no host parses a code; `Retry-After` is truthful (the lease remaining); REQ-036's configurable 200 or 409 is met | Needs an ADR-062 amendment (Retry-After on 409; a per-error 200 override) agreed with #3419 |
 | **B) 409 only, strictly per ADR-062: no `Retry-After`, no 200 option** | No ADR change | Does not meet REQ-036 (200 or 409, configurable) and loses the truthful retry hint |
+| **D) The 200 option and `Retry-After` on 409 as an `Encina.AspNetCore`-only setting; `Encina.AzureFunctions` and `Encina.AwsLambda` answer a plain 409** | No coordination with the other two hosts' slices | The three hosts answer the same duplicate differently (a function app returns 409 without a hint where an ASP.NET Core app returns 200), against the host coherence ADR-062 H2 and H3 establish |
 | **C) Keep a branch on the string `inbox.in_progress` in `MapErrorCodeToStatusCode`** | Smallest diff | Adds to the code-text mapping that sub-issues S2 and H1 to H3 of #3419 delete; contradicts ADR-062 ("a host never parses the error code to choose a status") |
 
 ### Chosen Option: **A — category `Conflict` plus an agreed ADR-062 extension** (recommended, pending the maintainer)
 
 ### Rationale
 
+- Under A the `Retry-After` on this 409 and the 200 override are **table data shared by the three hosts** (`Encina.AspNetCore`, `Encina.AzureFunctions`, `Encina.AwsLambda`; H1 to H3 of #3419 each consume the central table). This plan implements the `Encina.AspNetCore` consumer and its option (PR B); the two other hosts follow through the issue file `artifacts/issues/inbox-in-progress-azure-aws-hosts.md`, opened with this plan, so the hosts stay coherent. D is the alternative if the maintainer wants the setting local to ASP.NET Core.
 - C is rejected by ADR-062. A and B both follow it; A is the only one that meets REQ-036, and the extension is a small, additive row, so it is a decision with #3419/#3420, not a local edit.
 - Sequencing: the HTTP part (pull request B) starts after #3419's central status table (S2) and the AspNetCore host slice (H1) are merged; until then the 200 option and `Retry-After` have no table to extend. If B of this plan would land first, the rebase onto #3419 wins and the code-text branch is never written.
 - The error message is still not exposed (AGENTS.md section 3: `EncinaError.Message` never reaches the client unless the Development-only option is on); the body carries the code only.
@@ -170,7 +172,7 @@ Provider category: Database (10), but only through tests. The feature adds no SQ
 1. **`src/Encina.Messaging/Inbox/InboxOutcome.cs`** (new), namespace `Encina.Messaging.Inbox`:
    - `public enum InboxOutcome { Processed, Replayed, InProgress, Failed }` with XML docs: `Processed` = this delivery ran the handler; `Replayed` = the answer is the cached response of an earlier delivery; `InProgress` = another delivery holds the claim and its lease has not expired; `Failed` = a store failure stopped the flow before any other outcome was reached (counted, never reported as success).
    - Under Design Choice 1 option A only: `public readonly record struct InboxProcessResult<TResponse>(InboxOutcome Outcome, Either<EncinaError, TResponse> Result)` with non-nullable outcome (the `Failed` state replaces the earlier nullable), and a named consumer in the plan.
-2. **`src/Encina.Messaging/Inbox/InboxOrchestrator.cs`** (modify, `InboxErrorCodes` is declared in this file): add `public const string InProgress = "inbox.in_progress";` to `InboxErrorCodes`.
+2. **`src/Encina.Messaging/Inbox/InboxOrchestrator.cs`** (modify, `InboxErrorCodes` is declared in this file): add `public const string InProgress = "inbox.in_progress";` to `InboxErrorCodes`, and declare the new public static class `InboxErrorMetadataKeys` (the `Outcome` key, task 3) in the same file next to it, so it adds no file to the count.
 3. The in-progress error is created with `EncinaErrors.Create(InboxErrorCodes.InProgress, ErrorCategory.Conflict, message, details: ...)` (ADR-062: the producer sets the category; `idempotency.in_progress` is already `Conflict`), with the remaining lease (minimum 1 second, computed from `TimeProvider`) as a `TimeSpan` under `EncinaErrorMetadataKeys.RetryAfter` and the typed marker `InboxErrorMetadataKeys.Outcome = "in_progress"` (Design Choice 4); the error message never contains the message id or the payload (AGENTS.md section 3). A unit test asserts `GetCategory` returns `Conflict`.
 4. `src/Encina.Messaging/PublicAPI.Unshipped.txt`: add the new symbols (handed to `mechanical-fixer` at implementation).
 
@@ -208,7 +210,7 @@ src/Encina.Messaging/Inbox/IInboxMessage.cs, docs/architecture/adr/048-inbox-rec
 3. **`InboxPipelineBehavior<TRequest,TResponse>.ProcessIdempotentAsync`**: unchanged under option D (it already returns the orchestrator's `Either`); under option A it returns `.Result`.
 4. Callers and tests of the orchestrator: unchanged under D; listed in Research for option A.
 5. **Classification (ADR-029):** `inbox.in_progress` is non-retryable by Encina's own recoverability (the vendor retries): the default `IErrorClassifier` is extended so an outer retry behaviour does not immediately re-invoke the inbox, stay in progress and exhaust its retries or dead-letter the duplicate; a classifier unit test pins it in the same pull request.
-5. Every outcome decision uses `TimeProvider` (already injected) for the lease comparison; no `DateTime.UtcNow`.
+6. Every outcome decision uses `TimeProvider` (already injected) for the lease comparison; no `DateTime.UtcNow`.
 
 </details>
 
@@ -299,7 +301,7 @@ REFERENCE FILES: src/Encina.AspNetCore/ProblemDetailsExtensions.cs, tests/Encina
 
 1. Tenancy (function 10): the outcome is keyed by whatever key [#3437](https://github.com/dlrivada/Encina/issues/3437) settles. **#3437 (an open bug: tenant B already receives tenant A's cached response) merges before pull request A**, because `InProgress` is a second cross-tenant signal (tenant B reusing tenant A's key would be answered 409 with a `Retry-After`); pull request A therefore includes the two-tenant unit test asserting that the second tenant is never reported `Replayed` or `InProgress` on the first tenant's row, and it is green. If the maintainer decides to merge A before #3437, the pull request records that the signal is exactly as exposed as the existing cache leak and is closed by #3437.
 2. Idempotency (function 9): the contract is the feature itself; the Inbox remains opt-in (`config.UseInbox = true`), and this plan adds nothing when the Inbox is off.
-3. Deferred items are listed in the matrix with their issue file (`inbox-stuck-claims-health-check`, `inbox-outcome-resilience-retry-after`).
+3. Deferred items are listed in the matrix with their issue file (`inbox-stuck-claims-health-check`, `inbox-outcome-resilience-retry-after`, `inbox-in-progress-azure-aws-hosts` for the 200 option and `Retry-After` in `Encina.AzureFunctions` and `Encina.AwsLambda`).
 
 </details>
 
@@ -354,7 +356,7 @@ src/Encina.Messaging/Diagnostics/InboxActivitySource.cs, tests/Encina.UnitTests/
 
 1. **Unit** (`tests/Encina.UnitTests/Messaging/Inbox/InboxOrchestratorTests.cs`, `.../Pipeline/InboxPipelineBehaviorTests.cs`, new `InboxOutcomeMetricsTests.cs`, new `AspNetCore/InboxInProgressProblemDetailsTests.cs`, a classifier test): each outcome; the handler is invoked once when a second delivery arrives while the first is in progress; the in-progress error has category `Conflict` and a `RetryAfter` `TimeSpan`; the default classifier does not retry it; 409 with `Retry-After`; 200 with `InboxInProgressBody`; explicit `statusCode` override; lease expiry makes the next delivery `Processed` again; store `Left` is not reported as success and is recorded as `Failed`; two tenants and one key; `FakeTimeProvider` for every time case.
 2. **Guard** (`tests/Encina.GuardTests/Messaging/Inbox/InboxGuardTests.cs`): the new mapper parameters throw `ArgumentNullException` on null (and `ProcessAsync` if its signature changed).
-3. **Contract** (new `tests/Encina.ContractTests/.../InboxOutcomeContractTests.cs`): `InProgress` always carries `inbox.in_progress` with category `Conflict`, `Replayed` and `Processed` never do; the HTTP answer for the error is the same for every `IInboxStore` implementation used by the harness.
+3. **Contract**: in PR A (new `tests/Encina.ContractTests/.../InboxOutcomeContractTests.cs`) `InProgress` always carries `inbox.in_progress` with category `Conflict`, `Replayed` and `Processed` never do, for every `IInboxStore` implementation used by the harness; the assertion that the HTTP answer for the error is the same for every store needs the mapping of PR B and lives there (new `InboxInProgressHttpContractTests.cs`).
 4. **Property**: not required; the outcome is a three-way decision with no complex invariant beyond the unit and contract cases (AGENTS.md section 9: property tests only if the logic is complex).
 5. **Integration** (new `tests/Encina.IntegrationTests/Messaging/InboxInFlightRedeliveryScenario.cs`, using `InboxPipelineHarnesses.cs`): a slow handler, a second delivery during it, one handler run, the second caller sees `inbox.in_progress`, then a third delivery after completion sees `Replayed`; runs on all 10 providers through the `[Collection("<Family>-<Database>")]` fixtures with `ClearAllDataAsync()` in `InitializeAsync()`. These share the concurrency fixtures of [#2401](https://github.com/dlrivada/Encina/issues/2401).
 6. **Load and Benchmark**: justification files only (the outcome adds one branch to a path whose cost is the database round trip; concurrency correctness is proven by the integration scenario). Written as `.md` under the load and benchmark test projects.
@@ -467,9 +469,9 @@ Callers of `InboxOrchestrator` to update **only under Design Choice 1 option A**
 | Production source, new | 5 | InboxOutcome.cs, InboxOutcomeMetrics.cs, InboxOutcomeLog.cs, InboxInProgressResponse.cs, InboxInProgressBody.cs |
 | Production source, modified | 5 | InboxOrchestrator.cs, InboxActivitySource.cs, EventIdRanges.cs, ProblemDetailsExtensions.cs, EncinaAspNetCoreOptions.cs (the default classifier file is a sixth, in PR A) |
 | Metadata | 5 | PublicAPI.Unshipped.txt (Encina, Encina.Messaging, Encina.AspNetCore) and the two coverage manifests |
-| Tests | 9 | orchestrator unit, metrics unit, classifier unit, mapping unit, guard, contract, integration scenario, EventId allocation test map, load and benchmark justification files (2) |
+| Tests | 10 | orchestrator unit, metrics unit, classifier unit, mapping unit, guard, contract (PR A), HTTP contract (PR B), integration scenario, EventId allocation test map, load and benchmark justification files (2) |
 | Documentation | 3 | changelog fragment, docs/messaging/inbox.md, docs/INVENTORY.md |
-| **Total** | **~27** | Three pull requests, each within 15 files and 1,500 lines (counts below include tests and metadata) |
+| **Total** | **~28** | Three pull requests, each within 15 files and 1,500 lines (counts below include tests and metadata) |
 
 ### Pull request split
 
@@ -478,7 +480,7 @@ Under the recommended Design Choice 1 option D nothing existing changes signatur
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A | Phases 1, 2, 6 and Phase 5 task 1: `InboxOutcome`, `InboxOrchestrator`, `InboxActivitySource`, `InboxOutcomeMetrics`, `InboxOutcomeLog`, `EventIdRanges.cs`, the classifier file (7 production), PublicAPI of `Encina` and `Encina.Messaging`, Messaging manifest (3), orchestrator unit (with the two-tenant case), metrics-and-classifier unit (one file), EventId allocation test map, contract, integration scenario on the 10 providers (5 tests) | 15 |
-| B | Phases 3, 4: 4 production files (`InboxInProgressResponse`, `InboxInProgressBody`, options, `ProblemDetailsExtensions`), PublicAPI and manifest of `Encina.AspNetCore`, mapping unit test, guard test | 8 |
+| B | Phases 3, 4: 4 production files (`InboxInProgressResponse`, `InboxInProgressBody`, options, `ProblemDetailsExtensions`), PublicAPI and manifest of `Encina.AspNetCore`, mapping unit test, guard test, HTTP contract test | 9 |
 | C | Phase 7 load and benchmark justifications; Phase 8 documentation and changelog | 6 |
 
 Order: A requires [#2401](https://github.com/dlrivada/Encina/issues/2401) **and** [#3437](https://github.com/dlrivada/Encina/issues/3437) merged (Phase 5 task 1); B starts after #3419 S2 and H1 (Design Choice 4) and after A (it reads the error's category and details); C follows A and B.
@@ -567,6 +569,6 @@ docs/architecture/adr/048-inbox-record-vs-business-transaction.md, docs/specific
 
 1. Wait for [#2401](https://github.com/dlrivada/Encina/issues/2401) before opening PR A; re-read its claim result type and adapt Phase 2 to it.
 2. At pick-up: re-check the Design Choices against today's code, ask the maintainer the Dilemmas 1, 2 and 4 (outcome carrier, default status and its interaction with the lease, the ADR-062 extension for `Retry-After` and the 200 option; the lease-expiry behavior of Design Choice 3 is asked once, in #2401's register) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
-3. Open the deferred follow-up as an issue: `artifacts/issues/inbox-stuck-claims-health-check.md`.
+3. Open the deferred follow-ups as issues: `artifacts/issues/inbox-stuck-claims-health-check.md` and `artifacts/issues/inbox-in-progress-azure-aws-hosts.md` (the two other hosts of Design Choice 4).
 4. Confirm the `MessagingInboxIdempotency` range (5800-5849) is still free when PR A starts; coordinate the next free numbers with the plans of #3437, #3441 and #2401.
 5. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
