@@ -6074,6 +6074,85 @@ The fluent builder chain described in the documentation is fictional. The parame
     }
     $env:CLAUDE_PROJECT_DIR = $savedProjectDir3115
     # ---- end #3115 block ----
+
+    # ================================================================================================
+    # #3475: Test-MainCheckout and the local-draft ledger search of check-issue-template.ps1 use the definition
+    # of a worktree Get-RepoLocation has had since #3244: every worktree under .claude\worktrees and every
+    # worktree git registers. Against the #3244 fixture, the registered worktree nested in the main checkout
+    # outside .claude\worktrees ($nested3244) is no longer the main checkout, a ledger row recorded in a registered
+    # worktree outside .claude\worktrees is local-draft evidence, and the main checkout itself is still recognised.
+    # Each Test-MainCheckout call runs in a fresh process because the registered list is cached per process.
+    # ================================================================================================
+    function Test-MainCheckout3475([string]$Path, [bool]$Expected, [string]$Label, [bool]$NoGit = $false) {
+        $prefix = if ($NoGit) { "`$env:PATH = ''; " } else { '' }
+        $command = ". '$repoPaths3244'; `$layout = Get-RepoLayout '$main3244'; $prefix(Test-MainCheckout '$Path' `$layout)"
+        $actual = ((& pwsh -NoProfile -Command $command) -join '')
+        $script:total++
+        if ($actual -ieq [string]$Expected) { "PASS Test-MainCheckout (#3475): $Label" }
+        else { $script:failed++; "FAIL Test-MainCheckout (#3475): $Label - expected '$Expected', got '$actual'" }
+    }
+    Test-MainCheckout3475 "$nested3244\src\x.cs" $false 'a path in a registered worktree nested in the main checkout outside .claude\worktrees is not the main checkout'
+    Test-MainCheckout3475 $nested3244 $false 'the root of that nested registered worktree is not the main checkout either'
+    Test-MainCheckout3475 "$main3244\.claude\worktrees\w9\src\x.cs" $false 'a path under .claude\worktrees is still not the main checkout'
+    Test-MainCheckout3475 "$beside3244\src\x.cs" $false 'a registered worktree beside the repository is not the main checkout'
+    Test-MainCheckout3475 "$unreg3244\src\x.cs" $false 'a folder outside the main checkout that git does not register is not the main checkout'
+    Test-MainCheckout3475 "$main3244\src\x.cs" $true 'a path in the main checkout is still the main checkout'
+    Test-MainCheckout3475 $main3244 $true 'the root of the main checkout is still the main checkout'
+    Test-MainCheckout3475 "$main3244\side\x.cs" $true 'the main-checkout folder that holds the nested worktree is still the main checkout'
+    Test-MainCheckout3475 "$main3244\side\w2x\a.cs" $true 'a sibling that only shares the prefix of the nested worktree is still the main checkout'
+    Test-MainCheckout3475 "$nested3244\src\x.cs" $true 'git unavailable: the nested worktree counts as the main checkout, as before #3475' $true
+    Test-MainCheckout3475 "$main3244\src\x.cs" $true 'git unavailable: the main checkout is still recognised' $true
+
+    # block-main-checkout-writes agrees with Get-RepoLocation about the nested registered worktree.
+    $savedProjectDir3475 = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $main3244
+    foreach ($case in @(
+            @($main3244, "Set-Content '$nested3244\notes.log' x", 0, 'an absolute write into the registered worktree nested in the main checkout is allowed'),
+            @($nested3244, 'Set-Content -Path notes.log -Value x', 0, 'a relative write from the cwd of the nested registered worktree is allowed'),
+            @($nested3244, "Set-Content '$main3244\notes.log' x", 2, 'an absolute write into the main checkout from the nested worktree stays denied'),
+            @($main3244, "Set-Content '$main3244\side\notes.log' x", 2, 'a write into the main-checkout folder that holds the nested worktree stays denied'))) {
+        $cwd3475, $command, $expected, $label = $case
+        Invoke-HookCase $mainCheckout (@{ tool_name = 'PowerShell'; cwd = $cwd3475; tool_input = @{ command = $command } } | ConvertTo-Json -Compress) $expected "#3475 $label"
+    }
+    Invoke-HookCase $mainCheckout (@{ tool_name = 'Write'; cwd = $main3244; tool_input = @{ file_path = "$nested3244\src\X.cs" } } | ConvertTo-Json -Compress) 0 '#3475 a Write in the nested registered worktree is allowed'
+    Invoke-HookCase $mainCheckout (@{ tool_name = 'Write'; cwd = $main3244; tool_input = @{ file_path = "$main3244\src\X.cs" } } | ConvertTo-Json -Compress) 2 '#3475 a Write in the main checkout stays denied'
+
+    # check-issue-template: the main checkout of the fixture gets the real issue templates, so Get-RepoRoot of the
+    # cwd $main3244 is $main3244. Each root holds its own draft and a fresh ledger row naming it (relative outFile,
+    # resolved against the root that holds the ledger); the body file is the draft itself (case b) or a pointer to
+    # it (case a). A ledger in a folder git does not register is never searched.
+    Copy-Item -Recurse -Force (Join-Path $repo '.github/ISSUE_TEMPLATE') (Join-Path $main3244 '.github/ISSUE_TEMPLATE')
+    $ledgerNow3475 = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+    $draft3475 = @{}
+    foreach ($root in $main3244, $beside3244, $nested3244, $unreg3244) {
+        $outDir = Join-Path $root 'artifacts\local-ai\out'
+        New-Item -ItemType Directory -Force $outDir | Out-Null
+        $draft3475[$root] = Join-Path $outDir 'case-3475.md'
+        Set-Content -LiteralPath $draft3475[$root] -Value $debtCore
+        Set-Content -LiteralPath (Join-Path $root 'artifacts\local-ai\ledger.csv') -Value "timestampUtc,task,promptTokens,completionTokens,seconds,tokensPerSecond,outFile`n$ledgerNow3475,case-3475,10,20,1.0,20.0,artifacts/local-ai/out/case-3475.md"
+    }
+    $pointer3475 = Join-Path $work 'draft-pointer-3475.md'
+    Set-Content -LiteralPath $pointer3475 -Value "<!-- local-draft: $($draft3475[$beside3244]) -->`n$debtCore"
+    foreach ($case in @(
+            @("`"$($draft3475[$beside3244])`"", 0, 'a body file that is a ledger outFile of a registered worktree beside the repository is accepted'),
+            @("`"$($draft3475[$nested3244])`"", 0, 'a body file that is a ledger outFile of a registered worktree nested outside .claude\worktrees is accepted'),
+            @("`"$pointer3475`"", 0, 'a pointer to a draft recorded in a registered worktree beside the repository is accepted'),
+            @("`"$($draft3475[$main3244])`"", 0, 'a body file that is a ledger outFile of the main checkout is still accepted'),
+            @("`"$($draft3475[$unreg3244])`"", 2, 'a ledger row in a folder git does not register is not evidence'))) {
+        $bodyFile, $expected, $label = $case
+        $json = @{ tool_name = 'PowerShell'; cwd = $main3244; tool_input = @{ command = "gh issue create --title `"[DEBT] x`" --body-file $bodyFile$hm" } } | ConvertTo-Json -Compress
+        $pattern = if ($expected -eq 2) { "gh issue create's --body-file" } else { '' }
+        Invoke-HookCase $issue $json $expected "#3475 local-draft: $label" '' '' 0 $pattern
+    }
+    $env:CLAUDE_PROJECT_DIR = $savedProjectDir3475
+
+    # check-issue-template.ps1 without _repo-paths.ps1: a gh command is denied, other commands pass.
+    $isolated3475 = Join-Path $work 'issue-hook-no-repo-paths'
+    New-Item -ItemType Directory -Force $isolated3475 | Out-Null
+    foreach ($f in 'check-issue-template.ps1', '_command-text.ps1', '_read-payload.ps1', '_issue-templates.ps1') { Copy-Item (Join-Path $hooks $f) $isolated3475 }
+    Invoke-HookCase (Join-Path $isolated3475 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file x.md' } } | ConvertTo-Json -Compress) 2 '#3475 check-issue-template: a missing _repo-paths.ps1 denies a gh command' '' '' 0 '_repo-paths\.ps1'
+    Invoke-HookCase (Join-Path $isolated3475 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'dotnet build' } } | ConvertTo-Json -Compress) 0 '#3475 check-issue-template: a missing _repo-paths.ps1 does not affect commands without gh'
+    # ---- end #3475 block ----
 }
 finally {
     Pop-Location
