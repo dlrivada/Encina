@@ -6153,6 +6153,44 @@ The fluent builder chain described in the documentation is fictional. The parame
     Invoke-HookCase (Join-Path $isolated3475 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'gh issue create --title "[DEBT] x" --body-file x.md' } } | ConvertTo-Json -Compress) 2 '#3475 check-issue-template: a missing _repo-paths.ps1 denies a gh command' '' '' 0 '_repo-paths\.ps1'
     Invoke-HookCase (Join-Path $isolated3475 'check-issue-template.ps1') (@{ tool_name = 'PowerShell'; cwd = $work; tool_input = @{ command = 'dotnet build' } } | ConvertTo-Json -Compress) 0 '#3475 check-issue-template: a missing _repo-paths.ps1 does not affect commands without gh'
     # ---- end #3475 block ----
+
+    # ================================================================================================
+    # #3600: a relative script path whose launching base is unknown (a `Set-Location $var` earlier in the same
+    # command makes the directory unknown) resolves against the checkout root of the payload cwd, so a reviewer's
+    # read-only scan script runs; the resolved script is still judged on its text. A path with an unresolvable
+    # variable stays denied. #3242: a relative write path is resolved against the working directory before it is
+    # judged, so artifacts\src\x.md is allowed and src\file.cs is denied.
+    # ================================================================================================
+    $savedProjectDir3600 = $env:CLAUDE_PROJECT_DIR
+    $env:CLAUDE_PROJECT_DIR = $main
+    $scan3600 = Join-Path $wt 'scan3600.cs'
+    $scanEvil3600 = Join-Path $wt 'scan3600evil.cs'
+    $ps1Artifacts3242 = Join-Path $wt 'writes-artifacts-src.ps1'
+    $ps1Src3242 = Join-Path $wt 'writes-src.ps1'
+    Set-Content -LiteralPath $scan3600 -Value "System.Console.WriteLine(System.IO.File.ReadAllText(`"notes.md`"));`n"
+    Set-Content -LiteralPath $scanEvil3600 -Value "System.IO.File.WriteAllText(`"src/Encina/X.cs`", `"x`");`n"
+    Set-Content -LiteralPath $ps1Artifacts3242 -Value "Set-Content -Path 'artifacts\src\x.md' -Value 'x'`n"
+    Set-Content -LiteralPath $ps1Src3242 -Value "Set-Content -Path 'src\file.cs' -Value 'x'`n"
+    $gateDir3600 = Join-Path $wt '.github\scripts'
+    New-Item -ItemType Directory -Force $gateDir3600 | Out-Null
+    $knowledgeGate3600 = Join-Path $gateDir3600 'knowledge-records.cs'
+    Set-Content -LiteralPath $knowledgeGate3600 -Value $gateText3115
+    foreach ($agent in 'adversarial-reviewer', 'pr-reviewer') {
+        Invoke-Probe1854 $agent 'dotnet run scan3600.cs' 0 "$agent`: a relative read-only scan script is allowed with the payload cwd in the worktree (#3600)" '' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run scan3600.cs' 0 "$agent`: a relative scan script after a Set-Location into an unresolvable variable resolves against the worktree root (#3600)" '' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run scan3600evil.cs' 2 "$agent`: the same relative script that writes src/ stays denied (#3600)" 'references src/ or tests/ and writes files' $wt
+        Invoke-Probe1854 $agent "dotnet run '$knowledgeGate3600' -- --check" 0 "$agent`: dotnet run <literal worktree path>\.github\scripts\knowledge-records.cs -- --check is allowed (#3600)" '' $wt
+        Invoke-Probe1854 $agent 'dotnet run $wt\scan3600.cs' 2 "$agent`: a script path held in a variable set in an earlier tool call stays denied (#3600)" 'cannot resolve \(tried .\$wt' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run $wt\scan3600.cs' 2 "$agent`: an unresolvable variable path after a Set-Location into a variable stays denied (#3600)" 'cannot resolve \(tried .\$wt' $wt
+        Invoke-Probe1854 $agent 'Set-Location $unknownDir; dotnet run missing3600.cs' 2 "$agent`: a relative script that does not exist stays denied against the worktree root (#3600)" 'which does not exist' $wt
+        Invoke-Probe1854 $agent 'Set-Content -Path artifacts\src\x.md -Value x' 0 "$agent`: a write to artifacts\src\x.md with the cwd at the checkout root is allowed (#3242)" '' $wt
+        Invoke-Probe1854 $agent 'Set-Content -Path src\file.cs -Value x' 2 "$agent`: a write to src\file.cs with the cwd at the checkout root stays denied (#3242)" 'Target:' $wt
+        Invoke-Probe1854 $agent 'pwsh -NoProfile -File writes-artifacts-src.ps1' 0 "$agent`: a script that writes artifacts\src\x.md is allowed, the relative path is resolved before it is judged (#3242)" '' $wt
+        Invoke-Probe1854 $agent 'pwsh -NoProfile -File writes-src.ps1' 2 "$agent`: a script that writes src\file.cs from the checkout root stays denied (#3242)" 'which writes to src/ or tests/' $wt
+    }
+    Remove-Item -LiteralPath $scan3600, $scanEvil3600, $ps1Artifacts3242, $ps1Src3242, $knowledgeGate3600 -Force -ErrorAction SilentlyContinue
+    $env:CLAUDE_PROJECT_DIR = $savedProjectDir3600
+    # ---- end #3600 block ----
 }
 finally {
     Pop-Location

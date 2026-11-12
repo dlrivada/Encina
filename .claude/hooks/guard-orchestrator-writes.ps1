@@ -292,6 +292,20 @@ try {
                 $s.Full = $resolved
             }
         }
+        # #3600: a relative script path whose launching base is unknown (an earlier `Set-Location $var`, or a
+        # Pop-Location with an empty stack) resolves against the checkout root the hook knows (the root of the
+        # payload cwd, else the project directory). A path with a variable stays unresolved and denied below, and
+        # the resolved script is still read and judged like any other, so this only adds scripts to the analysis.
+        if ($null -eq $s.Full -and [string]::IsNullOrWhiteSpace([string]$s.Base) -and -not ([string]$s.Raw).Contains('$')) {
+            $rootLocation = Get-RepoLocation $scriptCwd $layout
+            $fallbackBase = if ($null -ne $rootLocation) { $rootLocation.Root } else { $projectDir }
+            $token = New-CommandToken ([string]$s.Raw) $false $false $false
+            $fallbackFull = Resolve-TargetPath $token $fallbackBase $false
+            if (-not [string]::IsNullOrEmpty($fallbackFull)) {
+                $s.Full = $fallbackFull
+                $s.Base = $fallbackBase
+            }
+        }
         # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
         # unresolvable only when the same command also writes a file, which could have created the script (#1854).
         if ($null -eq $s.Full -and $s.Dynamic -and @($scriptScan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }

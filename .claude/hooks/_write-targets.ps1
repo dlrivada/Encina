@@ -875,8 +875,13 @@ function Test-ScriptWritesAreSafe {
                 if ([string]::IsNullOrWhiteSpace($value) -or $value -match '::|^\\\\|^[A-Za-z0-9_.]{2,}:|[*?\[]') { $unresolved = $true; continue }
                 $native = ConvertTo-NativePath $value
                 $rooted = [IO.Path]::IsPathRooted($native) -or $value.StartsWith('~')
-                if (-not $rooted -and $value -match '(^|[\\/])(src|tests)([\\/]|$)') { $guarded.Add("$($site.What) -> $value"); continue }
-                if (-not $rooted -and -not (SwBaseKnown)) { $unresolved = $true; continue }
+                # #3242: a relative value is resolved against the working directory first when it is known, so
+                # `artifacts\src\x.md` is judged by where it lands; only with no known base does a src or tests
+                # segment in the text count as guarded (the fail-closed fallback).
+                if (-not $rooted -and -not (SwBaseKnown)) {
+                    if ($value -match '(^|[\\/])(src|tests)([\\/]|$)') { $guarded.Add("$($site.What) -> $value") } else { $unresolved = $true }
+                    continue
+                }
                 $full = Get-FullPath $value $Base
                 if ($null -eq $full) { $unresolved = $true; continue }
                 if (& $layoutGuarded $full) { $guarded.Add("$($site.What) -> $full") }
