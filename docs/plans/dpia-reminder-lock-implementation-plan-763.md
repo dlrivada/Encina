@@ -29,11 +29,11 @@
 
 **What the code does today** (`origin/main` at `7a0049c07`):
 
-- `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` is `internal sealed class ... : BackgroundService`, registered by `services.AddHostedService<DPIAReviewReminderService>()` (`ServiceCollectionExtensions.cs:184`) and built from `(IServiceScopeFactory, IOptions<DPIAOptions>, ILogger<>)`. Its `ExecuteAsync` returns when monitoring is off, runs the first cycle at once, then loops on `PeriodicTimer(ExpirationCheckInterval)`.
+- `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` is `internal sealed class ... : BackgroundService`, registered by `services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DPIAReviewReminderService>())` (`ServiceCollectionExtensions.cs:136`) and built from `(IServiceScopeFactory, IOptions<DPIAOptions>, ILogger<>)`. Its `ExecuteAsync` always runs (since #3786 there is no switch), runs the first cycle at once, then loops on `PeriodicTimer(ExpirationCheckInterval)`.
 - `ExecuteReminderCycleAsync` creates an async scope, resolves `IDPIAService`, and matches the `Either`: `Right` logs and (when `PublishNotifications`) starts `_ = PublishExpiredNotificationsAsync(...)`; `Left` logs the code. It catches cancellation and any other exception per cycle (the loop never throws). Counter `dpia.review_reminder.cycles.total` already has outcomes `completed`, `failed`, `cancelled` (`DPIADiagnostics.ReviewReminderCyclesTotal`, tag `dpia.outcome`).
 - Log messages are extension methods in `Diagnostics/DPIALogMessages.cs`; the block `8840-8849` (Expiration monitoring) uses 8840-8847 after #3786 (8848-8849 are free), every other group of the registered range `8800-8899` is assigned to its own area (8897-8899, the ids the original issue suggested, sit inside the ASP.NET Core endpoints block `8890-8899`), and the lock lifecycle needs two messages (skipped, and the once-per-service presence log): Design Choice 6 registers a new range from the registry block `6350-6399`. Before #3786 the block had a single free id (8849) and no group could hold both messages; whether the lock messages move into 8848-8849 is to be revisited when #763 is implemented.
 - `Encina.Compliance.DPIA` does not reference `Encina.DistributedLock`; no production code under `src/` consumes `IDistributedLockProvider` yet (ADR-052 context), so this is its first consumer. `Encina.DistributedLock` references `Encina` and `Encina.Messaging`, so the new reference creates no cycle.
-- `DPIAOptionsValidator` (registered as `IValidateOptions<DPIAOptions>`, `ServiceCollectionExtensions.cs:109`) validates `ExpirationCheckInterval` when monitoring is enabled.
+- `DPIAOptionsValidator` (registered as `IValidateOptions<DPIAOptions>`, `ServiceCollectionExtensions.cs:112`) always validates `ExpirationCheckInterval`.
 - The manifest `.github/coverage-manifest/Encina.Compliance.DPIA.json` gives `DPIAReviewReminderService.cs` the targets unit 93 and guard 7.
 - Other services named in the original issue (`RetentionEnforcementService`, `BreachDeadlineMonitorService`) were not verified and are not in scope.
 
@@ -91,7 +91,7 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Resolve `IDistributedLockProvider` optionally; without it the cycle runs as today** | Opt-in; single-instance deployments pay nothing | A multi-instance deployment that forgot the provider keeps duplicating, silently |
-| **B) Require the provider whenever monitoring is on** | No silent duplicates | Forces a lock provider (and a Redis or SQL Server) on single-instance users; ADR-050 lists no such requirement |
+| **B) Require the provider always (monitoring is always on)** | No silent duplicates | Forces a lock provider (and a Redis or SQL Server) on single-instance users; ADR-050 lists no such requirement |
 
 ### Chosen Option: **A — optional provider**
 
@@ -217,7 +217,7 @@ You are implementing Phase 1 of issue #763: the LockTimeout option of the DPIA r
 
 CONTEXT:
 - The review reminder service always runs (#3270/#3786; no EnableExpirationMonitoring switch); DPIAOptions has ExpirationCheckInterval (default 1 hour);
-  DPIAOptionsValidator rejects a non-positive interval when monitoring is on.
+  DPIAOptionsValidator rejects an interval outside 1 millisecond to `uint.MaxValue - 1` milliseconds, always.
 
 TASK:
 Add the project reference, DPIAOptions.LockTimeout (default 30 s), the validator rule and the PublicAPI lines
@@ -511,7 +511,7 @@ PROJECT CONTEXT:
 - DPIAReviewReminderService is an internal BackgroundService on a PeriodicTimer; a cycle never throws out of the loop.
 
 IMPLEMENTATION OVERVIEW:
-1. DPIAOptions.LockTimeout (30 s) with a validator rule when monitoring is on; project reference to
+1. DPIAOptions.LockTimeout (30 s) with an unconditional validator rule; project reference to
    Encina.DistributedLock.
 2. In the service: resolve IDistributedLockProvider optionally per cycle; TryAcquireAsync("encina:dpia:review-reminder",
    LockTimeout, 0, 0, ct); Held runs the cycle under await using and awaits the notification publishing inside it;
@@ -547,7 +547,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ | Phase 4: outcome `skipped` on the existing cycle counter and a `dpia.lock.outcome` activity tag |
 | 3 | Structured Logging | ✅ | Phase 4: two messages, EventIds 6350-6351, in the new range `ComplianceDPIALock` |
 | 4 | Health Checks | ❌ | The existing DPIA health check covers service state; lock providers have their own (#755) |
-| 5 | Validation | ✅ | Phase 1: `LockTimeout` must be positive when monitoring is on |
+| 5 | Validation | ✅ | Phase 1: `LockTimeout` must be positive |
 | 6 | Resilience | ❌ | A failed acquisition fails the cycle and the next tick retries; no policy is added |
 | 7 | Distributed Locks | ✅ | This is the integration (Phase 2) |
 | 8 | Transactions | ❌ | No multi-store atomicity |
