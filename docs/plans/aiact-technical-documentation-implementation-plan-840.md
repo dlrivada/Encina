@@ -2,9 +2,9 @@
 
 > **Issue**: [#840](https://github.com/dlrivada/Encina/issues/840) (child of [#881](https://github.com/dlrivada/Encina/issues/881), milestone v0.16.0 — AI Act)
 > **Type**: Feature
-> **Complexity**: High (9 phases, 7 pull requests, 1 new package, 1 core removal, no persistence, ~79 files)
+> **Complexity**: High (9 phases, 8 pull requests, 1 new package, 1 core removal, no persistence, ~79 files)
 > **Estimated Scope**: ~2,000-2,500 lines of production code + ~2,000-2,400 lines of tests
-> **Prerequisites**: none blocking; [#836](https://github.com/dlrivada/Encina/issues/836), [#837](https://github.com/dlrivada/Encina/issues/837), [#839](https://github.com/dlrivada/Encina/issues/839), [#842](https://github.com/dlrivada/Encina/issues/842) feed it later through one port
+> **Prerequisites**: none blocking, but ordering: the code that resolves a system (the `GeneralDescription` provider in PR 3a and the generator in PR 4) depends on the registry abstraction that exists when its worker is briefed: `IAISystemRegistry` of `main`, or `IAISystemService` if [#847](https://github.com/dlrivada/Encina/issues/847) has replaced it by then (the #847 plan recommends replacing it; Design Choice 3 note), in which case those two PRs are written after #847 lands; [#836](https://github.com/dlrivada/Encina/issues/836), [#837](https://github.com/dlrivada/Encina/issues/837), [#839](https://github.com/dlrivada/Encina/issues/839), [#842](https://github.com/dlrivada/Encina/issues/842) feed it later through one port
 
 ---
 
@@ -36,19 +36,20 @@ Implement the EU AI Act Article 11 technical documentation capability: assemble 
 
 ### Scope per pull request (one worker issue = one PR, `AGENTS.md` §11)
 
-About 79 files and 4,400 lines, five times a worker PR, so seven sequential pull requests, each green on its own.
+About 79 files and 4,400 lines, five times a worker PR, so eight sequential pull requests, each green on its own.
 
 | PR | Phases | Content | Files (est.) | Lines (est.) |
 |---|---|---|---|---|
 | 1 | 1 | Remove the core documentation seam | 10 | ~300 changed |
-| 2 | 2 | Package skeleton, section and package models, generator and provider abstractions | 15 | ~900 |
-| 3 | 3 | Evidence port and the nine default section providers | 15 | ~1,200 |
-| 4 | 4 | Generator, templates, content-hash versioning, options | 10 | ~900 |
-| 5 | 5 | Exporters (JSON, Markdown, HTML), DI, audit notifications | 13 | ~1,100 |
+| 2 | 2 (tasks 1-4, 7 for the models) | Package skeleton (csproj, two PublicAPI files, manifest, slnx entry), enum, section, evidence, package and profile models, with their unit and guard tests (3 test files) | 13 | ~700 |
+| 3a | 2 (tasks 5-6) and 3 (tasks 1-3, providers 1-3) | Generator and provider abstractions, errors, evidence port and `DocumentationEvidence`, provider base class, `GeneralDescription`, `DevelopmentProcess` and `MonitoringFunctioningControl` providers, with tests (4 test files) | 13 | ~1,000 |
+| 3b | 3 (providers 4-9) | `PerformanceMetrics`, `RiskManagement`, `LifecycleChanges`, `HarmonisedStandards`, `DeclarationOfConformity` and `PostMarketMonitoring` providers, with tests (3 test files) | 9 | ~700 |
+| 4 | 4 | Generator, templates, content-hash versioning, options (tests included, 5 test files) | 10 | ~900 |
+| 5 | 5 | Exporters (JSON, Markdown, HTML), DI, audit notifications (tests included, 5 test files) | 13 | ~1,100 |
 | 6 | 6-8 | Observability, remaining tests, justifications | 10 | ~900 |
 | 7 | 9 | Documentation (`docs-writer`), changelog, ADR | 6 | ~600 |
 
-Counts are re-measured when each worker brief is written. **Affected packages**: `Encina.Compliance.AIAct` (types removed), `Encina.Compliance.AIAct.TechnicalDocumentation` (new).
+Test files are counted in every row, so no PR of the split exceeds 15 files or 1,500 lines (the PR count is eight pull requests: 1, 2, 3a, 3b, 4, 5, 6, 7). Counts are re-measured when each worker brief is written. **Affected packages**: `Encina.Compliance.AIAct` (types removed), `Encina.Compliance.AIAct.TechnicalDocumentation` (new).
 
 **Provider category**: none (database, caching, transport, lock and validation matrices do not apply; persistence of versions and evidence is #847's).
 
@@ -116,7 +117,7 @@ Only the default class, the registration and tests use the seam (checked with a 
 
 ### Rationale
 
-We recommend A: it delivers the criterion for `IAISystemRegistry` now and for the other registries as each owner implements the port. B wins if #836 and #837 merge first with a stable shared model; then the port is replaced by their types in a later PR. C is a subset of A (supplied content is the fallback when no source answers). A section whose source answers `Left` or has no content makes generation return a `Left` naming the section.
+We recommend A: it delivers the criterion for `IAISystemRegistry` now and for the other registries as each owner implements the port. B wins if #836 and #837 merge first with a stable shared model; then the port is replaced by their types in a later PR. C is a subset of A (supplied content is the fallback when no source answers). A section whose source answers `Left` or has no content makes generation return a `Left` naming the section. Coordination with #847: the plan of #847 recommends replacing `IAISystemRegistry` with `IAISystemService`; this plan reads the system through whichever of the two exists when the PR 3a and PR 4 workers are briefed, and the system version used in the version string comes from the same abstraction (no `IAISystemRegistry`-only member is added by this plan).
 
 **Class:** Dilemma
 
@@ -243,7 +244,7 @@ The acceptance criteria name JSON, Markdown and HTML. Supplied content is untrus
 3. **Modify `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt`**: remove the symbols (RS0017) from whichever file lists them.
 4. **Delete `tests/Encina.UnitTests/Compliance/AIAct/DefaultAIActDocumentationTests.cs`**; modify `ServiceCollectionExtensionsTests.cs` and `tests/Encina.GuardTests/Compliance/AIAct/AIActGuardExtendedTests.cs`.
 5. **Modify `.github/coverage-manifest/Encina.Compliance.AIAct.json`**: remove the entries of deleted files (their source no longer exists, so the target ratchet allows it); update `totalFiles`.
-6. Search `docs/` and `src/Encina.Compliance.AIAct/README.md` for the removed names and list them for the Phase 9 docs pass.
+6. **Fix the references to the removed names in the same PR** (through `docs-writer`): `docs/features/aiact-compliance.md` and `src/Encina.Compliance.AIAct/README.md` stop naming `IAIActDocumentation`, `DefaultAIActDocumentation` and `TechnicalDocumentation` (a search of `docs/` and the README lists every occurrence), so no published page names a deleted type between PR 1 and PR 7. The PR file count (10) includes these two pages.
 
 </details>
 
@@ -276,7 +277,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Package Skeleton, Models & Abstractions (PR 2)
+### Phase 2: Package Skeleton, Models & Abstractions (PR 2; tasks 5-6 ship in PR 3a)
 
 > **Goal**: A buildable package with the Annex IV vocabulary and the generator contracts.
 
@@ -323,7 +324,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Evidence Port & Default Section Providers (PR 3)
+### Phase 3: Evidence Port & Default Section Providers (PR 3a: tasks 1-2 and providers 1-3; PR 3b: providers 4-9)
 
 > **Goal**: One provider per Annex IV heading.
 
@@ -376,7 +377,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `DefaultTechnicalDocumentationGenerator.cs`** (`ITechnicalDocumentationGenerator`): resolve the system through `IAISystemRegistry` (`Left(aiact.documentation_system_not_found)`), run the selected providers (ordered by `Order`), fail on the first failing section unless `AllowIncomplete`, set `GeneratedAtUtc` from `TimeProvider`.
-2. **Create `Versioning/DocumentationVersion.cs`** (internal static): canonical serialization of sections (ordered, UTF-8), SHA-256, version string `{registration.Version ?? "0"}+{hash12}`; `IsCurrentAsync` regenerates and compares.
+2. **Create `Versioning/DocumentationVersion.cs`** (internal static): canonical serialization of sections (ordered, UTF-8) that contains only `SectionId`, `AnnexReference`, `Content` and, per evidence reference, `EvidenceType`, `Reference` and `Sha256`; it excludes `GeneratedAtUtc` and every `EvidenceReference.CollectedAtUtc`, so regenerating unchanged content gives the same hash and `IsCurrentAsync` can be true; SHA-256, version string `{registration.Version ?? "0"}+{hash12}`; `IsCurrentAsync` regenerates and compares.
 3. **Create `Templates/TokenRenderer.cs`** (internal): `{{token}}` substitution, unknown token is a `Left`.
 4. **Create `TechnicalDocumentationOptions.cs`** and its validator (`IValidateOptions`): default profile, maximum section length, allowed tokens.
 5. **Tests**: ordering, hash stability across runs and machines, version changes when any section changes, `IsCurrentAsync` true/false, unknown token, `AllowIncomplete`, cancellation.
@@ -396,7 +397,7 @@ TASK:
 Implement DefaultTechnicalDocumentationGenerator, DocumentationVersion, TokenRenderer, options and validator.
 
 KEY RULES:
-- Deterministic output: culture-invariant, ordinal comparisons, no timestamps in the hashed content.
+- Deterministic output: culture-invariant, ordinal comparisons, no timestamps in the hashed content (GeneratedAtUtc and EvidenceReference.CollectedAtUtc are excluded from the canonical form).
 - Time only from TimeProvider; cancellation propagates; no exception becomes success.
 - Methods small enough for CRAP <= 10.
 
@@ -587,8 +588,8 @@ REFERENCE FILES:
 
 1. XML docs on all public APIs (`<summary>`, `<remarks>` with the Annex IV point, `<param>`, `<returns>`, `<example>`).
 2. `changelog.d/840-aiact-technical-documentation.added.md` and `changelog.d/840-aiact-documentation-seam.removed.md` (written by `mechanical-fixer`).
-3. Package README; `docs/features/aiact-compliance.md` Art. 11 section with the article table required by SPEC-000 REQ-024 (Annex IV headings covered, evidence), through `docs-writer`; fix the references to the removed core names found in Phase 1.
-4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR (the next number neither used nor reserved in `docs/architecture/adr/index.md`, reserved by PR 1): evidence port, content-hash versions, fail-closed sections.
+3. Package README; `docs/features/aiact-compliance.md` Art. 11 section with the article table required by SPEC-000 REQ-024 (Annex IV headings covered, evidence), through `docs-writer`; the references to the removed core names were already fixed in PR 1 (Phase 1 task 6).
+4. `docs/INVENTORY.md`, `ROADMAP.md`; ADR (number assigned when the ADR pull request opens; `eventid-blocks.md` gives 068 to the AI Act family ADR of the #838 plan, so this ADR either extends that one or takes the next free number then): evidence port, content-hash versions, fail-closed sections.
 5. `PublicAPI.Unshipped.txt` complete; `dotnet build Encina.slnx --configuration Release` (0 warnings); tests; every flag at target.
 
 </details>
@@ -673,7 +674,7 @@ Checked 2026-11-11 on the consolidated text at artificialintelligenceact.eu ("te
 | Diagnostics | 2 | `TechnicalDocumentationDiagnostics`, `TechnicalDocumentationLogMessages` |
 | Tests | ~21 | unit, guard, contract, property, DI, architecture map, three `.md` justifications |
 | Documentation | 6 | changelog fragments, README, feature page, ADR, INVENTORY, ROADMAP |
-| **Total** | **~79** | **Seven pull requests of 6 to 15 files** |
+| **Total** | **~79** | **Eight pull requests of 6 to 15 files** |
 
 ---
 
@@ -761,5 +762,5 @@ No `needs-decision` issue blocks this plan.
 
 1. The maintainer answers Design Choices 3, 4 and 6 when work on #840 starts; the orchestrator records the answers in a `## Maintainer Decisions` section after this one and runs `check-plan` without `-Draft`.
 2. `adversarial-reviewer` tries to break the Settled and Trivial choices (1, 2, 5, 7, 8) before the first worker brief, and `decision-extractor` lists any implicit choice.
-3. Brief the seven pull requests in order, each with its re-measured `Size:` line, per-file coverage targets and the local CRAP command.
+3. Brief the eight pull requests in order, each with its re-measured `Size:` line, per-file coverage targets and the local CRAP command.
 4. Update #840's acceptance criteria to the decided scope (evidence port, content-hash versions, `IsCurrentAsync`, core seam removed).
