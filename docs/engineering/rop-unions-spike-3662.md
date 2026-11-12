@@ -181,7 +181,7 @@ If (b) or (c) is chosen, a Roslyn-based codemod (a C# file-based app) can do the
 
 | Option | Wins when | Costs |
 | --- | --- | --- |
-| (a) Keep Either | No change is wanted now. Zero allocation on every path; mature combinators. | The slowest in async and chains (48 to 56 byte struct), no compiler exhaustiveness, 2568 public signatures stay on a library whose v5 is beta (see [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md)), `[{}]` JSON. |
+| (a) Keep Either | No change is wanted now. Mature combinators; 0 B on single operations, but 24 B on both Bind-Map-Bind rows (section 3). | The slowest in async and chains (48 to 56 byte struct), no compiler exhaustiveness, 2568 public signatures stay on a library whose v5 is beta (see [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md)), `[{}]` JSON. |
 | (b) Standard union | Results are mostly reference types and errors are rare: fastest success for a reference `T` (0.73 ns, 0 B) and 3 to 5 times faster async. | Every value-type success allocates 24 B, every error 56 B, chains 96 to 224 B. Needs .NET 11. |
 | (c) Custom union | Zero allocation on every path is the rule (hot path, error-heavy flows such as validation): 0 B everywhere, fastest failure among the structs, compiler exhaustiveness through `TryGetValue`. | Speed equals Either today because of the struct size. Encina owns the combinators. Needs .NET 11. |
 | (d) Hierarchy | The wire shape matters (tagged JSON with `[JsonDerivedType]`) and chains short-circuit. | Always allocates 24 to 112 B; no language exhaustiveness until closed hierarchies ship. |
@@ -190,5 +190,9 @@ If (b) or (c) is chosen, a Roslyn-based codemod (a C# file-based app) can do the
 ## 10. Recommendation (recommended, pending the maintainer)
 
 Option (c), a custom non-boxing `[Union]` struct, preceded by a follow-up benchmark of the (c') layout before the ADR is written. The reason is the hot-path rule of Encina: (c) is the only measured option with 0 B on every path, it gives compiler exhaustiveness, and it removes LanguageExt from the public surface.
+
+Option (c) is not faster than Either in the measured scenarios: success 7.19 ns versus 6.48 ns, chain 29.6 ns versus 32.0 ns, async 61 ns versus 62 ns (section 3). It saves 24 B only in chains. The case for (c) rests on exhaustiveness and on dropping the LanguageExt dependency, not on speed.
+
+Option (d), closed hierarchies, was measured for completeness although the issue scoped it out.
 
 **D1 is the maintainer's decision.** The migration is large (2568 public signatures, about 5000 type uses, plus the `Option` and `Unit` replacements) and, if D1 goes this way, must be decomposed into per-package issues after the decision. No ADR records D1 yet; the decision would be recorded as one.
