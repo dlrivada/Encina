@@ -37,7 +37,8 @@ public sealed class MessageEncryptionOptions
     /// Gets or sets whether all outbox/inbox messages should be encrypted by default.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, every message is encrypted; no message type can be excluded.
+    /// When <c>true</c> (and <see cref="Enabled"/> is <c>true</c>), every message is encrypted;
+    /// no message type can be excluded per type.
     /// When <c>false</c> (default), only messages decorated with <c>[EncryptedMessage]</c>
     /// (declared or inherited from a base type) are encrypted.
     /// </remarks>

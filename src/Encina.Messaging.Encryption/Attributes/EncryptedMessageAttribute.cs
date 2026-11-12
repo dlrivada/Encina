@@ -19,7 +19,8 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// <strong>No opt-out</strong>: a type marked with this attribute, or a type derived from a
 /// marked type (the attribute is inherited), is always encrypted, whatever the value of
 /// <c>MessageEncryptionOptions.EncryptAllMessages</c>. The attribute has no member that
-/// disables encryption: once a type is marked, it cannot be left unencrypted.
+/// disables encryption for a marked type. (The global <c>MessageEncryptionOptions.Enabled</c>
+/// switch still turns the whole encryption pipeline off; its removal is tracked by #3759.)
 /// </para>
 /// <para>
 /// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key.
