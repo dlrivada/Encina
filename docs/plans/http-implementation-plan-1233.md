@@ -266,12 +266,12 @@ Eight pull requests, each at most 15 files and 1500 changed lines counting tests
 | PR | Content | Own tests |
 |----|---------|-----------|
 | 1 | Phase 1: scaffold, options, validator, builder (adds the resilience handler, removes the framework loggers), README, solution entry | unit, guard, DI test |
-| 2 | Core: `OutboundErrorCodes.AuthFailed` / `TenantRequired`, `OutboundRejectedException`, the `RestApiRequestHandler` mapping with its `ErrorCategory` per code, classifier tests (Phase 2 task 8, Phase 5 tasks 2-3) | unit, guard, contract of the mapping |
+| 2 | Core: `OutboundErrorCodes.AuthFailed` / `TenantRequired`, `OutboundRejectedException`, the `RestApiRequestHandler` mapping with its `ErrorCategory` per code, classifier tests (Phase 2 task 8, Phase 5 tasks 2-3), and the `Http` EventId range registration with its `AssemblyRanges` mapping | unit, guard, contract of the mapping |
 | 3 | Phase 2 tasks 1-6: auth providers, `OutboundCallContext`, `OutboundSecretNames` | unit, guard, contract (every provider), property (name injectivity) |
 | 4 | Phase 2 task 7 and Phase 4 task 4: `AuthHandler`, `TenantGuardHandler`, builder wiring | unit, guard, integration (two-tenant secrets, tenant named `default`) |
 | 5 | Phase 3: `IClientCertificateSource`, `TenantHandlerCache`, dispatching primary handler | unit, guard, integration (Kestrel `RequireCertificate`) |
 | 6 | Phase 4 tasks 1-3 and 5: rate limiter, `RetryAfterGate`, `RateLimitHandler` | unit, guard, property (rate bound), integration (WireMock S9/S10, retried 429) |
-| 7 | Phase 5 tasks 1 and 4 and Phase 6: redacting handler, diagnostics, EventIds, health check | unit, guard, property (redaction), integration (exporter and log capture) |
+| 7 | Phase 5 tasks 1 and 4 and Phase 6: redacting handler, diagnostics, the remaining log message, health check | unit, guard, property (redaction), integration (exporter and log capture) |
 | 8 | Phase 7 justification files and Phase 8: guide, ADR, index, fragment, INVENTORY | docs only |
 
 The counts per PR are in Estimated File Count.
@@ -288,8 +288,8 @@ The counts per PR are in Estimated File Count.
 1. **`Encina.Http.csproj`** — `net10.0`; references `Encina`, `Encina.Security.Secrets`; packages `Microsoft.Extensions.Http`, `Microsoft.Extensions.Http.Resilience`, `Microsoft.Extensions.Options`, `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `InternalsVisibleTo` the test projects; `PublicAPI.Shipped.txt` / `PublicAPI.Unshipped.txt`; add to `Encina.slnx`
 2. **`Options/EncinaHttpClientOptions.cs`** — per client: `double PermitsPerSecond` (0 = no limit), `int Burst`, `TimeSpan MaxQueueWait` (default 0: reject at once), `bool HonourRetryAfter` (default true), `bool AllowMissingTenant` (default false), `ClientCertificateName`, `AuthPurpose`; no secret value property (names only)
 3. **`Options/EncinaHttpClientOptionsValidator.cs`** — `IValidateOptions` per named client (named options): permits and burst consistent, wait non-negative
-4. **`HttpClientBuilderExtensions.cs`** — `AddEncinaHttpClient(this IServiceCollection, string name, Action<EncinaHttpClientBuilder> configure)` returning `IHttpClientBuilder`, and `AddEncinaHttpHandlers(this IHttpClientBuilder, Action<HttpStandardResilienceOptions>? configureResilience = null, ...)` for an existing client (used with Refit's `AddEncinaRefitClient`); both add `AddStandardResilienceHandler` first (Dilemma 9, option A) and then the Encina handlers, so the order of Design Choice 4 holds by construction, and both call `RemoveAllLoggers()` so the redacting handler is the only logger (Design Choice 8); `EncinaHttpClientBuilder` offers `UseApiKey`, `UseBearer`, `UseAccessTokenSource`, `UseClientCertificate`, `RateLimit(permitsPerSecond)`
-5. **Diagnostics and the EventId range** — none in this phase; the range is registered in Phase 6 (PR 7)
+4. **`HttpClientBuilderExtensions.cs`** — `AddEncinaHttpClient(this IServiceCollection, string name, Action<EncinaHttpClientBuilder> configure)` returning `IHttpClientBuilder`, and `AddEncinaHttpHandlers(this IHttpClientBuilder, Action<HttpStandardResilienceOptions>? configureResilience = null, ...)` for an existing client (used with Refit's `AddEncinaRefitClient`); both add `AddStandardResilienceHandler` first (Dilemma 9, option A) and then the Encina handlers, so the order of Design Choice 4 holds by construction, and both call `RemoveAllLoggers()` so the redacting handler is the only logger (Design Choice 8); PR 1 ships only `AddEncinaHttpClient`, `AddEncinaHttpHandlers`, the resilience setup and `RemoveAllLoggers()`; `EncinaHttpClientBuilder` gains one method per later pull request: `UseApiKey`, `UseBearer`, `UseAccessTokenSource` (PR 4, with the auth handler), `UseClientCertificate` (PR 5), `RateLimit(permitsPerSecond)` (PR 6)
+5. **Diagnostics and the EventId range** — none in this phase; the range is registered in PR 2 and each log message ships with the PR that emits it (Phase 6 task 1)
 6. **`README.md`** — package README stating plainly that `Encina.Http` has no AEAT endpoint, Verifactu preset or RRSIF type (ADR-057 D9)
 
 </details>
@@ -481,7 +481,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Diagnostics/RedactingLoggingHandler.cs`** — the handler closest to the transport (the builder removed the framework's URI-logging handlers with `RemoveAllLoggers()` in Phase 1) logging method, `server.address`, status class, elapsed time and the error code; never path, query, headers or bodies
-2. **`src/Encina.Refit/Handlers/RestApiRequestHandler.cs`** (modify) — catch `OutboundRejectedException` and return `Left` created with the `ErrorCategory` of its code (Phase 2 task 8) and its metadata (`http.retry_after` and `EncinaErrorMetadataKeys.RetryAfter` as a `TimeSpan`, `transient` = false for tenant and auth failures, true for rate limited); the message is fixed text
+2. **`src/Encina.Refit/Handlers/RestApiRequestHandler.cs`** (modify) — catch `OutboundRejectedException` and return `Left` created with the `ErrorCategory` of its code (Phase 2 task 8) and its metadata (`http.retry_after` and `EncinaErrorMetadataKeys.RetryAfter` as a `TimeSpan`, `transient` = false for tenant and auth failures, true for rate limited); the message is fixed text. `RestApiRequestHandler.cs` is also the file the ADR-062 producer slice for `Encina.Refit` edits (`tests/Encina.UnitTests/Core/ErrorCategoryPending.txt` lists `src/Encina.Refit/` under `P-Refit`, and `ErrorCategoryCompletenessStaticScanTests` scans it). The new mapping uses the categorized `EncinaErrors.Create(code, ErrorCategory, ...)` overload, so it never adds an uncategorized site; PR 2 leaves the `P-Refit` pending line untouched (the Refit slice owns categorizing the existing `ApiException` and network sites and deleting that line). Merge order is free: whichever pull request lands second rebases on the other's edit of this file, and the PR 2 brief names the check
 3. **`src/Encina/Recoverability/IErrorClassifier` mapping** — verify that `rate_limited` stays transient and `auth_failed` / `tenant_required` are not retried; add classifier tests (no change to the classifier unless a test shows a gap)
 4. Tests: unit and property (no secret string, header value, body, path or query ever appears in any captured log, including the `IHttpClientFactory` categories, exception message, metric tag or activity attribute for generated inputs)
 
@@ -521,7 +521,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Range** — register `Http = (6300, 6349)` in `src/Encina/Diagnostics/EventIdRanges.cs` and map `Encina.Http` in `EncinaEventIdAllocationTests` (6250-6299 is the `DistributedLock` range of the lock plans); messages 6300 rate limited (Debug), 6301 partition paused by Retry-After (Information), 6302 auth failed by code (Warning), 6303 tenant required, denied (Warning), 6304 tenant opt-out in use (Warning, once per client), 6305 certificate unresolved or expired by code (Warning), 6306 tenant handler evicted (Debug), 6307 request completed (Debug, redacted)
+1. **Range and log messages** — the range `Http = (6300, 6349)` is registered in `src/Encina/Diagnostics/EventIdRanges.cs` and `Encina.Http` is mapped in `EncinaEventIdAllocationTests` in **PR 2** (before any message exists; 6250-6299 is the `DistributedLock` range of the lock plans). Each message ships in the pull request whose handler emits it, in `Diagnostics/HttpLogMessages.cs`, with ids packed sequentially in landing order (so the opt-out of PR 4 is logged from the pull request that introduces it): PR 4 6300 auth failed by code (Warning), 6301 tenant required, denied (Warning), 6302 tenant opt-out in use (Warning, once per client); PR 5 6303 certificate unresolved or expired by code (Warning), 6304 tenant handler evicted (Debug); PR 6 6305 rate limited (Debug), 6306 partition paused by Retry-After (Information); PR 7 6307 request completed (Debug, redacted). Any other id waits for the next free slot (6308 upward) and is registered with the pull request that needs it
 2. **`Diagnostics/HttpDiagnostics.cs`** — `ActivitySource` `Encina.Http` (version `1.0`), `Meter` `Encina.Http` (ADR-054 D3), counters `encina.http.requests` (tags client, status class, outcome) and `encina.http.throttled` (tags client, reason), each with the tag `encina.tenant_id` when the `MultiTenancyMarker` is registered and no tenant tag when it is not (ADR-054 D4), and histogram `encina.http.duration`; span `encina.http.send` with `encina.tenant_id` (when tenancy is on), `http.request.method`, `server.address`; tenant id from `IRequestContextAccessor`
 3. **`Health/OutboundClientHealthCheck.cs`** — optional per named client (`IEncinaHealthCheck`), registered only for a client with a configured base address (no base address, no probe): reachability of that address through a dedicated probe `HttpClient` built **without** the Encina handler stack, so the probe sends no credentials, takes no limiter permit, needs no tenant (the tenant guard is not in its pipeline) and counts nothing against any partition; short timeout; reports host only
 4. Tenancy: no tenant is required and no tenant tag is emitted when the `MultiTenancyMarker` is absent (the reserved no-tenant segment of Design Choice 2 applies); with `Encina.Tenancy`, the tenant id comes from `IRequestContextAccessor`, the same trigger and source as `DeadLetterManager`
@@ -694,7 +694,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Http` (new `Http` entry) | 6300-6349 | Registered first in `EventIdRanges.cs` (ADR-021) by PR 7; 6300-6307 allocated by this plan, 6308-6349 left to the family; 6250-6299 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
+| `Encina.Http` (new `Http` entry) | 6300-6349 | Registered first in `EventIdRanges.cs` (ADR-021) by PR 2, before any message; 6300-6307 allocated by this plan, 6308-6349 left to the family; 6250-6299 belongs to the `DistributedLock` range of the lock plans (#741, #717) |
 | `Encina.Refit` | 4650-4699 | Existing; unchanged |
 
 ### Estimated File Count
@@ -714,12 +714,12 @@ REFERENCE FILES:
 | PR | Files (production + PublicAPI + manifests + tests) | Lines (estimate) |
 |----|-----|-----:|
 | 1: scaffold | 13 (csproj, slnx, options, validator, 2 builder files, README, 2 PublicAPI files, `Encina.Http.json`, unit, DI/unit, guard) | ~900 |
-| 2: core codes and Refit mapping | 11 (2 core files modified, `OutboundRejectedException`, `RestApiRequestHandler`, `PublicAPI.Unshipped.txt` in `Encina`, 2 manifests, unit (3 test files), guard) | ~700 |
+| 2: core codes, Refit mapping, EventId range | 13 (2 core files modified, `OutboundRejectedException`, `RestApiRequestHandler`, `EventIdRanges.cs`, EventId map test, `PublicAPI.Unshipped.txt` in `Encina`, 2 manifests, unit (3 test files), guard) | ~800 |
 | 3: auth providers | 13 (7 production, `PublicAPI.Unshipped.txt`, manifest, unit, guard, contract, property) | ~1100 |
-| 4: auth and tenant handlers | 10 (`AuthHandler`, `TenantGuardHandler`, builder mod, manifest, `PublicAPI.Unshipped.txt`, 2 unit, guard, integration, plus the tenant resolver) | ~900 |
-| 5: mTLS | 10 (3 production, builder mod, `PublicAPI.Unshipped.txt`, manifest, unit, guard, integration with the Kestrel fixture) | ~1000 |
-| 6: rate limiting | 10 (3 production, builder mod, manifest, unit, property, guard, WireMock integration) | ~1000 |
-| 7: observability | 14 (4 production, `EventIdRanges.cs`, EventId map test, 2 `PublicAPI.Unshipped.txt`, manifest, 2 unit, guard, property, integration) | ~1300 |
+| 4: auth and tenant handlers | 10 (`AuthHandler`, `TenantGuardHandler`, builder mod, manifest, `PublicAPI.Unshipped.txt`, 2 unit, guard, integration, the tenant resolver, `HttpLogMessages.cs` with 6300-6302) | ~950 |
+| 5: mTLS | 11 (3 production, builder mod, `PublicAPI.Unshipped.txt`, manifest, unit, guard, integration with the Kestrel fixture, log messages edit with 6303-6304) | ~1050 |
+| 6: rate limiting | 11 (3 production, builder mod, manifest, unit, property, guard, WireMock integration, log messages edit with 6305-6306) | ~1050 |
+| 7: observability | 12 (3 production, log messages edit with 6307, 2 `PublicAPI.Unshipped.txt`, manifest, 2 unit, guard, property, integration) | ~1200 |
 | 8: documentation | 7 (guide, ADR, index, fragment, INVENTORY, 2 justification files) | ~500 |
 
 ---
