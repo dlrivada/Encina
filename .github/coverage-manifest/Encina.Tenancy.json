@@ -34,7 +34,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 20 },
+      "justifications": {
+        "unit": "Every member, including both branches of the ToString override that masks the connection string, is executed by TenantInfoTests.",
+        "guard": "The record has no guard clauses; guard tests only execute its constructor while guarding the tenancy APIs that receive a TenantInfo, which covers about a fifth of its lines."
+      }
     },
     "Abstractions/TenantIsolationStrategy.cs": {
       "defaultTests": [
