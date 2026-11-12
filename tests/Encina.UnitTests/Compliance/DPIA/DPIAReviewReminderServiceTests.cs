@@ -121,6 +121,28 @@ public class DPIAReviewReminderServiceTests
         (sut.ExecuteTask?.IsFaulted).ShouldBe(false);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_StoppedDuringCycle_LogsTheCycleAsCancelled()
+    {
+        var cycleStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _service.GetExpiredAssessmentsAsync(Arg.Any<CancellationToken>())
+            .Returns(call => WaitForCancellationAsync(cycleStarted, call.Arg<CancellationToken>()));
+
+        var logger = new ComplianceLogCapture<DPIAReviewReminderService>(e => e.Message.Contains("cancelled"));
+        var sut = new DPIAReviewReminderService(
+            CreateScopeFactory(),
+            Options.Create(new DPIAOptions { PublishNotifications = false }),
+            _time,
+            logger);
+
+        await sut.StartAsync(CancellationToken.None);
+        await cycleStarted.Task.WaitAsync(SignalTimeout);
+        await sut.StopAsync(CancellationToken.None);
+        await logger.Signaled.WaitAsync(SignalTimeout);
+
+        logger.Entries.ShouldContain(e => e.Message.Contains("cancelled") && e.Exception == null);
+    }
+
     #endregion
 
     #region Registration
@@ -242,20 +264,32 @@ public class DPIAReviewReminderServiceTests
     // so a tick fired by Advance once the first call is observed is never lost.
     private static Task WaitForFirstCycleAsync(CallCounter calls) => calls.First.WaitAsync(SignalTimeout);
 
-    private DPIAReviewReminderService CreateSut(DPIAOptions options)
+    private static async ValueTask<Either<EncinaError, IReadOnlyList<DPIAReadModel>>> WaitForCancellationAsync(
+        TaskCompletionSource cycleStarted,
+        CancellationToken cancellationToken)
+    {
+        cycleStarted.TrySetResult();
+
+        // Completes only when the stopping token is cancelled; no real time elapses
+        await Task.Delay(Timeout.Infinite, cancellationToken);
+        return Prelude.Right<EncinaError, IReadOnlyList<DPIAReadModel>>(Array.Empty<DPIAReadModel>());
+    }
+
+    // Use the real scope factory from the built ServiceProvider so CreateAsyncScope() works
+    private IServiceScopeFactory CreateScopeFactory()
     {
         var services = new ServiceCollection();
         services.AddSingleton(_service);
 
-        // Use the real scope factory from the built ServiceProvider so CreateAsyncScope() works
-        var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+        return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+    }
 
-        return new DPIAReviewReminderService(
-            scopeFactory,
+    private DPIAReviewReminderService CreateSut(DPIAOptions options)
+        => new(
+            CreateScopeFactory(),
             Options.Create(options),
             _time,
             new NullLogger<DPIAReviewReminderService>());
-    }
 
     /// <summary>Counts store calls and completes a signal when a given count is reached.</summary>
     private sealed class CallCounter(int target)
