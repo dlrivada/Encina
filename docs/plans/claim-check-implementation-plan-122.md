@@ -284,12 +284,14 @@ The global `ThresholdBytes` of #599 is 256 KiB, the Azure Service Bus Standard l
 
 `IBlobStore` (#1239 choice 2, recommended option) takes the tenant from the ambient context and returns `Left(storage.tenant_required)` when tenancy is on and none resolves; code without an ambient tenant uses `IBlobTenantScope.ForTenant(tenantId)` (#1239 choice 2: the scope is implemented by the outermost tenant layer and registered next to `IBlobStore`). The background paths of this plan have no request context: the outbox processor resolves an envelope and, after the processed mark, deletes its payload (Phase 3 (a)); the sweeper purges expired payloads (choice 6). If `BlobClaimCheckStore` called the ambient store on those paths, every one of them would fail closed: no offloaded outbox message would publish and no payload would ever be deleted, so payloads that may hold personal data would be kept without end (GDPR Art. 5(1)(e), storage limitation).
 
-**The carrier is the claim id.** #599 (choice 10 and Phase 3, `ClaimCheckService`) already prefixes every store id with the tenant segment when tenancy is on: the URL-safe Base64 (no padding) of the UTF-8 tenant id followed by `.`. With #599 choice 10 A (recommended, pending the maintainer) the offload fails closed with `claimcheck.tenant_required` when no tenant resolves, so under tenancy an id without a segment is never written; with #599 choice 10 B the system scope needs its own reserved segment (a value no tenant id can encode to, chosen in #599), which this adapter maps to the default partition of #1239 choice 2. `BlobClaimCheckStore` reads the tenant from that segment for get, delete and put:
+**The carrier is the claim id.** #599 (choice 10 and Phase 3, `ClaimCheckService`) already prefixes every store id with the tenant segment when tenancy is on: the URL-safe Base64 (no padding) of the UTF-8 tenant id followed by `.`. With #599 choice 10 A (recommended, pending the maintainer) the offload fails closed with `claimcheck.tenant_required` when no tenant resolves, so under tenancy an id without a segment is never written; with #599 choice 10 B the system scope needs its own reserved segment (a value no tenant id can encode to). The #599 plan on main does not define that segment: it is a dependency on a follow-up edit of #599 choice 10 B, and until it lands this adapter treats every segment as a tenant segment. This adapter maps the reserved segment to the default partition of #1239 choice 7 through `IBlobTenantScope.ForDefaultPartition()` (#1239 choice 7: under tenancy `default` is refused as a tenant id, so no real tenant shares that partition, and `ForTenant("default")` is refused). `BlobClaimCheckStore` reads the tenant from that segment for get, delete and put:
 
-- It splits the id at the first `.` (the Base64 alphabet has no `.`), decodes the tenant and calls `IBlobTenantScope.ForTenant(tenant)`; the blob name is the rest of the id. The segment is therefore applied once, by `IBlobStore` (`{tenantId}/{name}` in the provider, #1239 choice 2), and never also kept in the name.
+- **The id's tenant never overrides an ambient tenant.** The tenant in the id is data from the message body, so on a request path it could name another tenant (a mis-routed message, or a crafted body on a shared topic, whose SHA-256 still matches because the envelope carries it). When an ambient tenant resolves (`IRequestContextAccessor.RequestContext?.TenantId`, the tenant source of #599 choice 9), the id's tenant must equal it, otherwise the operation returns `Left(claimcheck.tenant_mismatch)` (new code, see below), is logged by code and counted in `encina.claimcheck.failures` (tag: the code), and no store is called. The reserved system segment never equals an ambient tenant, so a request path cannot read system-scope payloads either. Only when no ambient tenant resolves (outbox processor, sweeper, other background code) is the id's tenant used alone. The rule is enforced twice: in `ClaimCheckService` on resolve and delete (Phase 6 task 4), so every store is covered, the Redis store included, and in `BlobClaimCheckStore` before it calls `ForTenant`, because the adapter is the place where the data-driven escape hatch is used and it can be called directly through `IClaimCheckStore`.
+- `claimcheck.tenant_mismatch` is not in the #599 error list on main (`ClaimCheckErrors`, #599 Phase 1 task 3): this plan adds it to `ClaimCheckErrors` in PR 7, and the #599 plan's error list gets it in the same follow-up edit as the reserved segment.
+- It splits the id at the first `.` (the Base64 alphabet has no `.`), decodes the tenant and, after the ambient check above, calls `IBlobTenantScope.ForTenant(tenant)`; the blob name is the rest of the id. The segment is therefore applied once, by `IBlobStore` (`{tenantId}/{name}` in the provider, #1239 choice 2), and never also kept in the name.
 - With tenancy off (no `MultiTenancyMarker`) the id has no segment and the adapter uses the ambient store, which then uses its fixed default tenant (#1239 choice 2).
 - With tenancy on, an id without a segment returns `Left(claimcheck.tenant_required)` and an undecodable segment returns `Left(claimcheck.invalid_envelope)`; the adapter never falls back to the ambient tenant or to the default partition (AGENTS.md §3, fail closed). These are malformed or foreign ids, not the normal background case, so the fail-closed result does not stop the normal paths.
-- Each operation through `ForTenant` is recorded by the audit decorator of #1239 with the tenant and the explicit tenant scope.
+- Each operation through `ForTenant` or `ForDefaultPartition` is recorded by the audit decorator of #1239 with the tenant and the tenant scope (`Explicit` or `DefaultPartition`).
 
 The sweeper has no claim id to read, so it needs a list of tenants.
 
@@ -297,7 +299,7 @@ The sweeper has no claim id to read, so it needs a list of tenants.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `IClaimCheckTenantSource`** (`IAsyncEnumerable<string> GetTenantIdsAsync(CancellationToken)`, implemented by the application, the same shape as `IColumnEncryptionTenantSource` of #1250 and `ICertificateTenantSource` of #1246); the sweeper runs `ListAsync` and deletes per tenant through `ForTenant`; when tenancy is on and the Storage adapter is registered without a tenant source, start-up fails with a message naming the interface | Works on every backend, the file system included; the sweeper can never silently skip a tenant, because a missing source stops start-up rather than leaving payloads behind | One more interface for the application to implement; a tenant missing from the source is not swept (the feature guide states it) |
+| **A) `IClaimCheckTenantSource`** (`IAsyncEnumerable<string> GetTenantIdsAsync(CancellationToken)`, implemented by the application; the same signature as `ICertificateTenantSource` of #1246, and the same role as `IColumnEncryptionTenantSource` of #1250, whose plan gives no signature; the defaults differ: #1250 ships a default implementation, #1246 defaults to no tenants, and this plan fails start-up when the source is missing); the sweeper runs `ListAsync` and deletes per tenant through `ForTenant`; when tenancy is on and the Storage adapter is registered without a tenant source, start-up fails with a message naming the interface | Works on every backend, the file system included; the sweeper can never silently skip a tenant, because a missing source stops start-up rather than leaving payloads behind | One more interface for the application to implement; a tenant missing from the source is not swept (the feature guide states it) |
 | **B) Native lifecycle rules for the blob backends** (Azure Blob lifecycle management, S3 lifecycle on the `claimchecks` container); the adapter does not implement `IExpiringClaimCheckStore` under tenancy | No tenant list; the backend expires every partition | The file system has no lifecycle rules, so file system payloads under tenancy would never expire; rules live outside Encina and can be forgotten (the con of choice 6 B) |
 
 ### Chosen Option: **A — tenant source, start-up failure when it is missing** (recommended, pending the maintainer)
@@ -306,7 +308,7 @@ The sweeper has no claim id to read, so it needs a list of tenants.
 
 **Class:** Dilemma. Option A wins when expiry must hold on every backend under tenancy, the file system included. Option B wins when only cloud backends are used and the operations team already manages lifecycle rules.
 
-- The sweeper also passes the default partition of #1239 choice 2, so payloads written while tenancy was off still expire after tenancy is switched on.
+- The sweeper also passes the default partition of #1239 choice 7 through `IBlobTenantScope.ForDefaultPartition()`, so payloads written while tenancy was off still expire after tenancy is switched on.
 - A failure for one tenant is logged by code and counted, and the pass continues with the next tenant (choice 6, per-iteration rule).
 
 </details>
@@ -325,7 +327,7 @@ The sweeper has no claim id to read, so it needs a list of tenants.
 | 4 | Phase 4: Kafka, NATS (publisher, registration, options file, PublicAPI, unit test, manifest each) | 12 | ~800 |
 | 5 | Phase 4: Azure Service Bus, Amazon SQS (same shape) | 12 | ~850 |
 | 6 | Phase 4: Redis Pub/Sub, MQTT (same shape) + transport contract test across the 7 publishers | 13 | ~900 |
-| 7 | Phase 6 (keyed stores in `Encina.Messaging`): `ClaimCheckService`, `ClaimCheckErrors` (`claimcheck.store_not_found`), `PublicAPI.Unshipped.txt`; unit test, DI test (`ValidateOnBuild`, `ValidateScopes`, two keyed stores); manifest | 6 | ~400 |
+| 7 | Phase 6 (keyed stores and the tenant check of choice 11 in `Encina.Messaging`): `ClaimCheckService`, `ClaimCheckErrors` (`claimcheck.store_not_found`, `claimcheck.tenant_mismatch`), `ClaimCheckLog` (6040), `PublicAPI.Unshipped.txt`; unit tests (keyed stores, tenant check on request and background paths), DI test (`ValidateOnBuild`, `ValidateScopes`, two keyed stores); manifest | 8 | ~550 |
 | 8 | Phase 5 Redis store: csproj, `RedisClaimCheckStore`, `RedisClaimCheckOptions` (with `Validate`), registration, `ClaimCheckProvidersLog` (6150-6159), README, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `EventIdRanges.cs` (`ClaimCheckProviders`), `EncinaEventIdAllocationTests.cs`, `Encina.slnx`; unit and guard tests; manifest (the contract test goes to PR 9 to stay within 15 files) | 15 | ~1,200 |
 | 9 | Phase 7 for Redis: `ResilientClaimCheckStore`, health check, registration and log (6160-6164) modified, PublicAPI; unit tests (decorator, health check); contract test (from PR 8); integration test (`RedisFixture`); manifest | 9 | ~800 |
 | 10 | Phase 5 Storage adapter: csproj, `BlobClaimCheckStore` (tenant carrier of choice 11), `IClaimCheckTenantSource`, registration (with the start-up check of choice 11), log (6165-6174), health check, README, 2 PublicAPI files, `EncinaEventIdAllocationTests.cs`, `Encina.slnx`; unit, guard and contract tests; manifest | 15 | ~1,200 |
@@ -530,7 +532,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.ClaimCheck.Redis/`** (new package): `RedisClaimCheckStore : IClaimCheckStore` using `IConnectionMultiplexer`, `SET key value EX ttl`, payload cap `MaxPayloadBytes` (default 8 MiB: Redis is for small payloads), key prefix `encina:claimcheck:`; `RedisClaimCheckOptions` (connection string `[JsonIgnore]` with `ToString()` override, AGENTS.md §3); `AddEncinaClaimCheckRedis(...)` registering the store as the keyed store with `TryAdd`; log messages in `ClaimCheckProviders` 6150-6164.
-2. **`src/Encina.ClaimCheck.Storage/`** (new package, depends on `Encina.Storage` of #1239): `BlobClaimCheckStore : IClaimCheckStore, IExpiringClaimCheckStore` over `IBlobStore` (container `claimchecks`, TTL kept as blob metadata); tenant per choice 11: get, put and delete decode the #599 tenant segment from the claim id and call `IBlobTenantScope.ForTenant(tenant)` with the rest of the id as the blob name (the tenant is applied once, by `IBlobStore`), an id without a segment under tenancy returns `Left(claimcheck.tenant_required)` and an undecodable one `Left(claimcheck.invalid_envelope)`; `PurgeExpiredAsync` takes each tenant of `IClaimCheckTenantSource` plus the default partition, lists through `ForTenant(tenant).ListAsync` and deletes expired blobs; `IClaimCheckTenantSource`; `AddEncinaClaimCheckStorage(...)` with the start-up failure of choice 11 when tenancy is on and no tenant source is registered; log messages 6165-6174. Tests: an outbox processor run with no request context resolves and deletes a tenant's payload; tenant `a` cannot read a payload whose id carries tenant `b`; the sweeper purges two tenants and the default partition.
+2. **`src/Encina.ClaimCheck.Storage/`** (new package, depends on `Encina.Storage` of #1239): `BlobClaimCheckStore : IClaimCheckStore, IExpiringClaimCheckStore` over `IBlobStore` (container `claimchecks`, TTL kept as blob metadata); tenant per choice 11: get, put and delete decode the #599 tenant segment from the claim id, compare it with the ambient tenant when one resolves (`Left(claimcheck.tenant_mismatch)`, logged by code, when they differ) and call `IBlobTenantScope.ForTenant(tenant)` with the rest of the id as the blob name (the tenant is applied once, by `IBlobStore`), an id without a segment under tenancy returns `Left(claimcheck.tenant_required)` and an undecodable one `Left(claimcheck.invalid_envelope)`; the reserved system segment of #599 choice 10 B (once the #599 follow-up defines it) goes to `IBlobTenantScope.ForDefaultPartition()`; `PurgeExpiredAsync` takes each tenant of `IClaimCheckTenantSource` through `ForTenant(tenant).ListAsync` plus the default partition through `ForDefaultPartition().ListAsync` and deletes expired blobs; `IClaimCheckTenantSource`; `AddEncinaClaimCheckStorage(...)` with the start-up failure of choice 11 when tenancy is on and no tenant source is registered; log messages 6165-6174. Tests: an outbox processor run with no request context (background path) resolves and deletes a tenant's payload through the id's tenant; a get under ambient tenant `a` of an id that carries tenant `b` returns `Left(claimcheck.tenant_mismatch)` and never calls `ForTenant("b")`; a get under ambient tenant `a` of an id that carries `a` succeeds; the sweeper purges two tenants and the default partition.
 3. Both stores subclass `ClaimCheckStoreContract` (#599) in the contract tests; integration tests: Redis (`RedisFixture`), file system (temp directory), Azure Blob (Azurite) and S3 (LocalStack) through the adapter.
 4. `Directory.Packages.props`: no new version for these two packages beyond what #1239 adds.
 
@@ -577,6 +579,7 @@ REFERENCE FILES:
 1. `ClaimCheckService` resolves `IClaimCheckStore` with `GetKeyedService<IClaimCheckStore>(key)`; an unknown key is `Left(claimcheck.store_not_found)` (new error code).
 2. `AddEncinaClaimCheckRedis(key)` and `AddEncinaClaimCheckStorage(key)` accept a key (default `"default"`).
 3. DI tests with `ValidateOnBuild` and `ValidateScopes` for each satellite and for two stores registered under different keys.
+4. Tenant check on resolve and delete (choice 11): `ClaimCheckService` decodes the tenant segment of the claim id and, when an ambient tenant resolves (`IRequestContextAccessor` + `MultiTenancyMarker`, #599 choice 9), returns `Left(claimcheck.tenant_mismatch)` before calling any store if the two differ; the refusal is logged by code (EventId 6040 in `ClaimCheckLog`) and counted in `encina.claimcheck.failures` (#599 metric, tag: the code). With no ambient tenant the id's tenant is used alone. `ClaimCheckErrors` gains `claimcheck.tenant_mismatch`. Tests: request path with a matching tenant resolves; request path with a different tenant returns the `Left` and the store substitute receives no call; background path (no request context) resolves with the id's tenant; tenancy off is unchanged.
 
 </details>
 
@@ -591,7 +594,9 @@ CONTEXT:
 
 TASK:
 Make the satellites register under a key, make ClaimCheckService return Left(claimcheck.store_not_found) for an unknown key,
-and test the DI graph with ValidateOnBuild and ValidateScopes.
+and test the DI graph with ValidateOnBuild and ValidateScopes. On resolve and delete, when an ambient tenant resolves and it
+differs from the tenant segment of the claim id, return Left(claimcheck.tenant_mismatch) before any store call, log it by code
+(EventId 6040) and count it; with no ambient tenant use the id's tenant alone.
 
 KEY RULES:
 - TryAdd semantics; an application's own registration wins in any order.
@@ -615,7 +620,7 @@ REFERENCE FILES:
 
 1. **Resilience**: `ResilientClaimCheckStore` decorator for the Redis store, shaped like `ResilientSecretReaderDecorator` (`src/Encina.Security.Secrets/Resilience/`), registered when `Encina.Resilience` is present (ADR-055); the Storage adapter inherits the resilience of `IBlobStore` (#1239).
 2. **Health checks**: the Redis and Storage packages add a check of their backend through `IEncinaHealthCheck`; the #599 check covers the default store.
-3. **Tenancy**: inherited from `ClaimCheckService` (#599), which writes the tenant segment into the claim id; the Storage adapter carries that segment to `IBlobTenantScope.ForTenant` on every path, the background ones included, and the sweeper walks `IClaimCheckTenantSource` (choice 11).
+3. **Tenancy**: inherited from `ClaimCheckService` (#599), which writes the tenant segment into the claim id; the Storage adapter carries that segment to `IBlobTenantScope.ForTenant` on every path, the background ones included, and the sweeper walks `IClaimCheckTenantSource` plus `ForDefaultPartition()` (choice 11). When an ambient tenant resolves, `ClaimCheckService` and the adapter refuse an id whose tenant differs (`Left(claimcheck.tenant_mismatch)`), so the id's tenant is used alone only on background paths.
 4. **Deferred** (matrix): caching and audit trail (the follow-up issues opened with the #599 plan), idempotency, module isolation.
 
 </details>
@@ -654,7 +659,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **EventIds**: `MessagingClaimCheck` 6025-6049 in `Encina.Messaging` (cleanup, delete failures, attribute skip, transport offload); `ClaimCheckProviders` 6150-6199 registered in `EventIdRanges.cs` with `Encina.ClaimCheck.Redis` (6150-6164) and `Encina.ClaimCheck.Storage` (6165-6174) added to `EncinaEventIdAllocationTests`.
+1. **EventIds**: `MessagingClaimCheck` 6025-6049 in `Encina.Messaging` (cleanup, delete failures, attribute skip: 6025-6034; transport offload: 6035-6039; tenant mismatch refusal: 6040; 6041-6049 free); `ClaimCheckProviders` 6150-6199 registered in `EventIdRanges.cs` with `Encina.ClaimCheck.Redis` (6150-6164) and `Encina.ClaimCheck.Storage` (6165-6174) added to `EncinaEventIdAllocationTests`.
 2. **Metrics** (Meter of #599): `encina.claimcheck.deleted`, `encina.claimcheck.delete_failures`, `encina.claimcheck.purged`, `encina.claimcheck.transport_offloaded` (tag: transport name).
 3. **Spans**: `encina.claimcheck.delete`, `encina.claimcheck.purge` (no payload, bounded tags).
 
@@ -902,7 +907,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | The sweeper is idempotent (delete by expiry), so several hosts need no lock |
 | 8 | Transactions | ⏭️ | Payload and outbox row are two systems; no atomicity is offered. Orphans are reclaimed by TTL; recorded in the ADR. No issue needed |
 | 9 | Idempotency | ❌ | A redelivered message resolves the same stored payload; no deduplication is added by this feature |
-| 10 | Multi-Tenancy | ✅ | Inherited from `ClaimCheckService` (#599); the Storage adapter passes the tenant segment of the claim id to `IBlobTenantScope.ForTenant` and sweeps per tenant of `IClaimCheckTenantSource` (choice 11) |
+| 10 | Multi-Tenancy | ✅ | Inherited from `ClaimCheckService` (#599); the Storage adapter passes the tenant segment of the claim id to `IBlobTenantScope.ForTenant` and sweeps per tenant of `IClaimCheckTenantSource` plus the default partition (choice 11); an id whose tenant differs from the ambient tenant is refused with `claimcheck.tenant_mismatch` (Phase 6 task 4) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ⏭️ | Payload access audit; the follow-up issue is opened by the orchestrator before the first worker brief of #599 (function 12 there) and its number is written here |
 
@@ -916,6 +921,8 @@ REFERENCE FILES:
 - The #1239 plan (`Encina.Storage`): required by Phase 5 for the blob backends only; Phases 1-4 and the Redis store do not wait for it.
 - #1250 (column-level encryption, owner of `ITenantDataKeyService` and `IKeyWrapper`), through #1239. Whether `Encina.Storage` encrypts by default is #1239 choice 8, a Dilemma still pending the maintainer, and its key source is #1239 choice 6 (recommended option B: the per-blob key wrapped under the tenant data key of #1250's `ITenantDataKeyService`, itself wrapped by `IKeyWrapper`). If the maintainer picks #1239 choice 8 A, `Encina.Storage` encrypts by default and its Phase 7 fails start-up when the key source of choice 6 is not registered unless `AllowUnencrypted` is set explicitly (and logged); `Encina.ClaimCheck.Storage` inherits that rule, so every blob backend of this plan then needs the #1250 key source or the explicit opt-out, the feature guide states it and the integration tests of PR 11 register the key source. If the maintainer picks #1239 choice 8 B, encryption is opt-in and the feature guide recommends turning it on for payloads that may hold personal data.
 - #1200 (outbox purge on the 10 database providers): the purge deletion point of choice 5 is delivered there, not here; this plan works without it.
+- A follow-up edit of the #599 plan (merged on main without these items), made by the orchestrator before the first #599 worker brief: add `claimcheck.tenant_mismatch` to its error list (Phase 1 task 3) and the ambient-tenant comparison of choice 11 to `ClaimCheckService` (Phase 3 task 3, which today says resolve needs no ambient tenant), and, if the maintainer picks #599 choice 10 B, define the reserved system segment there. Until then PR 7 of this plan adds the code and the check.
+- The #1239 plan, choice 7: `default` refused as a tenant id under tenancy, and `IBlobTenantScope.ForDefaultPartition()` for the sweeper and the system segment (required by PR 10).
 
 ### Parallel and follow-up work
 
@@ -927,7 +934,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas of this plan (choices 2 to 10) and the four shared with the #599 plan once; the orchestrator adds the Maintainer Decisions section to both plans.
+1. The maintainer answers the Dilemmas of this plan (choices 2 to 11) and the four shared with the #599 plan once; the orchestrator adds the Maintainer Decisions section to both plans.
 2. Link this plan from #122 and the #599 plan from #599.
 3. Start with the #599 pull request 1; then this plan's PR 1 and PR 2; the transport pull requests (PR 3 first, then PR 4-6 in parallel) need PR 1; PR 8-9 need PR 7; PR 10-11 need #1239.
 4. Hand the #1200 plan the requirement of choice 5 (the outbox purge returns the envelopes it deletes on all 10 providers).
