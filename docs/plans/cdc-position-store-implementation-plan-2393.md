@@ -294,7 +294,7 @@ Each is reversible without a public contract change or follows a precedent on `m
 4. `src/Encina.Cdc/Processing/CdcPositionStoreLog.cs`: `[LoggerMessage]` events in the range allocated in Research (Event ID Allocation).
 5. `PublicAPI.Unshipped.txt` of `Encina.Cdc` for the three new public symbols.
 6. Document in the XML remarks which connectors give a total order: SQL Server and PostgreSQL do; MySQL GTID, Debezium and MongoDB compare ordinal strings or BSON (Design Choice 3).
-7. Error-code categories: `PositionRegressed` and `PositionCodecMissing` declare their category through the error category contract of #3419 (that contract, not ADR 062, is the reference; the plan claims no ADR number for it).
+7. Error-code categories: `PositionRegressed` and `PositionCodecMissing` declare their category through the merged error category contract of ADR 062 (`EncinaErrors.Create(code, ErrorCategory.X, ...)`, `GetCategory`; PR #3599).
 
 </details>
 
