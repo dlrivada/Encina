@@ -183,7 +183,7 @@ If (b) or (c) is chosen, a Roslyn-based codemod (a C# file-based app) can do the
 | --- | --- | --- |
 | (a) Keep Either | No change is wanted now. Mature combinators; 0 B on single operations, but 24 B on both Bind-Map-Bind rows (section 3). | The slowest in async and chains (48 to 56 byte struct), no compiler exhaustiveness, 2568 public signatures stay on a library whose v5 is beta (see [ADR-051](../architecture/adr/051-languageext-version-for-1-0.md)), `[{}]` JSON. |
 | (b) Standard union | Results are mostly reference types and errors are rare: fastest success for a reference `T` (0.73 ns, 0 B) and 3 to 5 times faster async. | Every value-type success allocates 24 B, every error 56 B, chains 96 to 224 B. Needs .NET 11. |
-| (c) Custom union | Zero allocation on every path is the rule (hot path, error-heavy flows such as validation): 0 B everywhere, fastest failure among the structs, compiler exhaustiveness through `TryGetValue`. | Speed equals Either today because of the struct size. Encina owns the combinators. Needs .NET 11. |
+| (c) Custom union | Zero allocation on every path is the rule (hot path, error-heavy flows such as validation): 0 B everywhere, fastest failure among the structs, compiler exhaustiveness through `TryGetValue`. | Within about 3 ns of Either per call because of the struct size. Encina owns the combinators. Needs .NET 11. |
 | (d) Hierarchy | The wire shape matters (tagged JSON with `[JsonDerivedType]`) and chains short-circuit. | Always allocates 24 to 112 B; no language exhaustiveness until closed hierarchies ship. |
 | (c') Reference-error custom union | Likely the best of both: a small struct (8 B plus `T` plus a tag), 0 B on success, one allocation on error. | Unmeasured; needs one more benchmark run before any decision. |
 
@@ -191,7 +191,7 @@ If (b) or (c) is chosen, a Roslyn-based codemod (a C# file-based app) can do the
 
 Option (c), a custom non-boxing `[Union]` struct, preceded by a follow-up benchmark of the (c') layout before the ADR is written. The reason is the hot-path rule of Encina: (c) is the only measured option with 0 B on every path, it gives compiler exhaustiveness, and it removes LanguageExt from the public surface.
 
-Option (c) is not faster than Either in the measured scenarios: success 7.19 ns versus 6.48 ns, chain 29.6 ns versus 32.0 ns, async 61 ns versus 62 ns (section 3). It saves 24 B only in chains. The case for (c) rests on exhaustiveness and on dropping the LanguageExt dependency, not on speed.
+Option (c) is not meaningfully faster than Either: it is 1 to 3 ns faster on five of the seven measured rows (failure 6.63 vs 9.49 ns, reference success 6.10 vs 7.26 ns, chain success 29.55 vs 32.05 ns, async success 61.11 vs 62.20 ns, async failure 64.18 vs 66.03 ns) and slower on two (int success 7.19 vs 6.48 ns, chain failure 48.55 vs 45.89 ns). It saves 24 B only in the two chain rows. The case for (c) rests on exhaustiveness and on dropping the LanguageExt dependency, not on speed.
 
 Option (d), closed hierarchies, was measured for completeness although the issue scoped it out.
 
