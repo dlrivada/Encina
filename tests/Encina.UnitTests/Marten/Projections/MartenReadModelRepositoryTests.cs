@@ -177,6 +177,7 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // StoreManyAsync tests
@@ -204,6 +205,7 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // DeleteAsync tests
@@ -239,6 +241,7 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // DeleteAllAsync tests
@@ -257,6 +260,7 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // ExistsAsync tests

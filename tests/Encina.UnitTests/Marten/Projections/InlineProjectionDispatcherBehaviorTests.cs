@@ -108,6 +108,7 @@ public sealed class InlineProjectionDispatcherBehaviorTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: error => error.Message.ShouldContain("CounterCreated"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
