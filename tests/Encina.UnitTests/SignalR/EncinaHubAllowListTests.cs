@@ -194,11 +194,15 @@ public sealed class EncinaHubAllowListTests
 
         var first = EncinaHubTestFactory.Parse(await noUserHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
         var second = EncinaHubTestFactory.Parse(await unauthenticatedHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
+        using var noIdentityHub = EncinaHubTestFactory.CreateHub(options, out var noIdentityEncina, user: new ClaimsPrincipal());
+        var third = EncinaHubTestFactory.Parse(await noIdentityHub.SendCommand(typeof(AllowedCommand).FullName!, Payload));
 
         first.error!.code.ShouldBe("command.type_not_found");
         second.error!.code.ShouldBe("command.type_not_found");
+        third.error!.code.ShouldBe("command.type_not_found");
         noUserEncina.ReceivedCalls().ShouldBeEmpty();
         unauthenticatedEncina.ReceivedCalls().ShouldBeEmpty();
+        noIdentityEncina.ReceivedCalls().ShouldBeEmpty();
     }
 
     [Fact]

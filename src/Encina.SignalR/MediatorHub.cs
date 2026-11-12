@@ -210,10 +210,8 @@ public abstract class EncinaHub : Hub
     /// </summary>
     private HubTypeRegistration? FindCallable(HubMessageKind kind, string? typeName)
     {
-        if (typeName is not null
-            && _allowList.TryGetValue(typeName, out var registration)
-            && registration.Kind == kind
-            && (registration.AllowAnonymous || Context.User?.Identity?.IsAuthenticated == true))
+        var registration = FindRegistration(kind, typeName);
+        if (registration is not null && (registration.AllowAnonymous || IsCallerAuthenticated()))
         {
             return registration;
         }
@@ -221,6 +219,14 @@ public abstract class EncinaHub : Hub
         Log.HubCallDenied(_logger, kind, ClientTypeName.ForLog(typeName));
         return null;
     }
+
+    private HubTypeRegistration? FindRegistration(HubMessageKind kind, string? typeName)
+        => typeName is not null && _allowList.TryGetValue(typeName, out var registration) && registration.Kind == kind
+            ? registration
+            : null;
+
+    // Fail closed: no principal or no identity counts as unauthenticated.
+    private bool IsCallerAuthenticated() => Context.User?.Identity?.IsAuthenticated == true;
 
     // The request's runtime type is only known after deserialization, so the generic helper
     // that calls the typed IEncina.Send overload binds dynamically. A request that does not
