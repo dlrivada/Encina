@@ -4,7 +4,6 @@ using Encina.Diagnostics;
 using Encina.Security.Audit;
 using Encina.Security.PII;
 using Encina.Security.PII.Attributes;
-using Encina.Security.PII.Internal;
 using Encina.Testing.Identity;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,14 +20,10 @@ namespace Encina.UnitTests.Security.PII;
 /// of such roots is #1834. Every test runs the real masker with sentinel values that must never appear
 /// in an exception message or a log entry.
 /// </summary>
-public sealed class PIINonObjectRootFailClosedTests : IDisposable
+public sealed class PIINonObjectRootFailClosedTests
 {
     private const string SentinelEmail = "sentinel.owner@example.com";
     private const int SentinelCode = 731_177;
-
-    public PIINonObjectRootFailClosedTests() => PIIPropertyScanner.ClearCache();
-
-    public void Dispose() => PIIPropertyScanner.ClearCache();
 
     /// <summary>Serializes as a JSON array: the decorated members are not in the payload at all.</summary>
     public sealed class TaggedList : List<string>
