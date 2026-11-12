@@ -21,9 +21,7 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// even when <c>MessageEncryptionOptions.EncryptAllMessages</c> is <c>true</c>.
 /// </para>
 /// <para>
-/// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key,
-/// or <see cref="UseTenantKey"/> to enable multi-tenant key isolation via
-/// <see cref="Abstractions.ITenantKeyResolver"/>.
+/// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key.
 /// </para>
 /// <para>
 /// <strong>Compliance</strong>: Supports GDPR (Article 32), HIPAA (§164.312(a)(2)(iv)),
@@ -39,10 +37,6 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// // Per-type key for PCI-DSS compliance
 /// [EncryptedMessage(KeyId = "payment-key")]
 /// public sealed record PaymentProcessedNotification(Guid PaymentId) : INotification;
-///
-/// // Multi-tenant key isolation
-/// [EncryptedMessage(UseTenantKey = true)]
-/// public sealed record TenantDataChangedNotification(string TenantId) : INotification;
 ///
 /// // Explicitly disable encryption for a type (overrides global config)
 /// [EncryptedMessage(Enabled = false)]
@@ -74,12 +68,11 @@ public sealed class EncryptedMessageAttribute : Attribute
     public string? KeyId { get; set; }
 
     /// <summary>
-    /// Gets or sets whether to use tenant-specific encryption keys for this message type.
+    /// Gets or sets whether tenant-specific encryption keys are requested for this message type.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, the <see cref="Abstractions.ITenantKeyResolver"/> is used to
-    /// resolve a tenant-specific key ID based on the current tenant context.
-    /// This ensures cryptographic isolation between tenants.
+    /// Currently this property has no effect: no key selection depends on it and the pipeline
+    /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// Defaults to <c>false</c>.
     /// </remarks>
     public bool UseTenantKey { get; set; }
