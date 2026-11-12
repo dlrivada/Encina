@@ -32,6 +32,22 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks"
     },
+    "DocumentSessionFlushExtensions.cs": {
+      "defaultTests": [
+        "unit",
+        "integration"
+      ],
+      "defaultRule": "*Extensions.cs",
+      "reason": "Internal flush helper that ejects pending Marten changes when SaveChangesAsync fails (#3787)",
+      "targets": {
+        "unit": 100,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "Unit tests of the aggregate repositories and the read model repository drive both the success and the failing flush through a substituted session; measured 100%.",
+        "integration": "The #3787 regression tests flush against a real Marten session through the aggregate repositories, including a failing flush; measured 100%."
+      }
+    },
     "EncinaMartenOptions.cs": {
       "defaultTests": [
         "unit"
