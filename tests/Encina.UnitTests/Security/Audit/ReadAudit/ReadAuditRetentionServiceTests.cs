@@ -154,11 +154,11 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreReturnsError_ShouldContinueRunning()
     {
         // Arrange
-        var purged = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var purges = new PurgeSignals();
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
-                purged.TrySetResult(true);
+                purges.Signal();
                 return ValueTask.FromResult<Either<EncinaError, int>>(Left(EncinaError.New("purge failed")));
             });
 
@@ -167,11 +167,9 @@ public class ReadAuditRetentionServiceTests
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
-        // Act - should not throw despite error
+        // Act - should not throw despite error, and the run after the failing one still purges
         await service.StartAsync(cts.Token);
-        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
-        fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await purged.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await purges.RunTwoPurgesAsync(fakeTime);
         await cts.CancelAsync();
 
         try
@@ -183,8 +181,8 @@ public class ReadAuditRetentionServiceTests
             // Expected
         }
 
-        // Assert - should still have called purge
-        await _mockStore.Received(1).PurgeEntriesAsync(
+        // Assert - purged again after the error
+        await _mockStore.Received(2).PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
@@ -192,11 +190,11 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreThrows_ShouldContinueRunning()
     {
         // Arrange
-        var purged = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var purges = new PurgeSignals();
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
             .Returns<ValueTask<Either<EncinaError, int>>>(_ =>
             {
-                purged.TrySetResult(true);
+                purges.Signal();
                 throw new InvalidOperationException("database down");
             });
 
@@ -205,11 +203,9 @@ public class ReadAuditRetentionServiceTests
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
-        // Act - should not throw
+        // Act - should not throw, and the run after the failing one still purges
         await service.StartAsync(cts.Token);
-        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
-        fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await purged.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await purges.RunTwoPurgesAsync(fakeTime);
         await cts.CancelAsync();
 
         try
@@ -221,9 +217,43 @@ public class ReadAuditRetentionServiceTests
             // Expected
         }
 
-        // Assert - called despite exception
-        await _mockStore.Received(1).PurgeEntriesAsync(
+        // Assert - purged again after the exception
+        await _mockStore.Received(2).PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// One completion signal per purge run, so a test can wait for the second run, which only happens
+    /// when the service kept running after the first one failed.
+    /// </summary>
+    private sealed class PurgeSignals
+    {
+        private readonly TaskCompletionSource<bool>[] _runs =
+        [
+            new(TaskCreationOptions.RunContinuationsAsynchronously),
+            new(TaskCreationOptions.RunContinuationsAsynchronously)
+        ];
+
+        private int _calls;
+
+        public void Signal()
+        {
+            var run = Interlocked.Increment(ref _calls);
+            if (run <= _runs.Length)
+            {
+                _runs[run - 1].TrySetResult(true);
+            }
+        }
+
+        public async Task RunTwoPurgesAsync(TimerSignallingTimeProvider fakeTime)
+        {
+            foreach (var run in _runs)
+            {
+                await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
+                fakeTime.Advance(TimeSpan.FromHours(1.1));
+                await run.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            }
+        }
     }
 
     [Fact]
