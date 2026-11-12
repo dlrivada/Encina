@@ -1082,6 +1082,7 @@ function Get-ShellWrites {
     $executables = [System.Collections.Generic.List[string]]::new()
     $stack = [System.Collections.Generic.Stack[object]]::new()
     $current = $Cwd
+    $baseUnsure = $false
 
     # Literal: the exact text the statement writes when it is a quoted or here-string literal in the command
     # (no variable, subexpression or other command feeding it), else $null. Append: the write keeps the old text.
@@ -1127,7 +1128,7 @@ function Get-ShellWrites {
                 # variable in it ($env:X, $HOME), and stays unresolved (Full = $null) otherwise (#1854).
                 $scriptFull = Resolve-TargetPath $tokens[$k] $current $Bash
                 if ($null -eq $scriptFull -or $scriptFull -match '\.ps1$') {
-                    $scripts.Add([pscustomobject]@{ Full = $scriptFull; Raw = $tokens[$k].Value; Kind = $opKind; Base = $current; Dynamic = [bool]$tokens[$k].Dynamic })
+                    $scripts.Add([pscustomobject]@{ Full = $scriptFull; Raw = $tokens[$k].Value; Kind = $opKind; Base = $(if ($baseUnsure) { $null } else { $current }); Dynamic = [bool]$tokens[$k].Dynamic })
                 }
             }
         }
@@ -1159,6 +1160,9 @@ function Get-ShellWrites {
             $current = if ($null -eq $target) { if ($Bash -and $name -eq 'cd') { Get-HomeDirectory } else { $current } }
             elseif ($target.Value -eq '-' -or $target.Value -match '[*?\[]') { $null }
             else { Resolve-TargetPath $target $current $Bash }
+            # A directory that does not exist (yet) may leave the shell where it was: the computed base still
+            # judges writes (the stricter reading), but a launched script is analysed with an unknown base.
+            $baseUnsure = $baseUnsure -or ($null -ne $current -and -not (Test-Path -LiteralPath $current -PathType Container -ErrorAction SilentlyContinue))
             continue
         }
         if ($name -in 'pop-location', 'popd') {
@@ -1247,7 +1251,7 @@ function Get-ShellWrites {
                     if ($t.Value -match '\.cs$') { $fileToken = $t; break }
                     break
                 }
-                if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'dotnet run'; Base = $current }) }
+                if ($null -ne $fileToken) { $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'dotnet run'; Base = $(if ($baseUnsure) { $null } else { $current }) }) }
             }
         }
         elseif ($name -in 'pwsh', 'powershell', 'pwsh-preview') {
@@ -1275,7 +1279,7 @@ function Get-ShellWrites {
             }
             if ($null -ne $fileToken) {
                 # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
-                $scriptBase = $current
+                $scriptBase = if ($baseUnsure) { $null } else { $current }
                 $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
                 if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
                 $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase })
