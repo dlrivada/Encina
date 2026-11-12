@@ -1,5 +1,6 @@
 using Encina.SignalR;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace Encina.UnitTests.SignalR;
 
@@ -80,7 +81,7 @@ public sealed class SignalRNotificationBroadcasterTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSignalR();
-        services.AddEncinaSignalR();
+        services.AddEncinaSignalR(o => o.AllowBroadcastToAll<BroadcastableNotification>());
         using var sp = services.BuildServiceProvider();
         var notification = new BroadcastableNotification("Test Message");
 
@@ -243,6 +244,203 @@ public sealed class SignalRNotificationBroadcasterTests
         // Assert - both calls completed
     }
 
+    [Fact]
+    public async Task BroadcastAsync_NoTargetsAndNoRegistration_SendsNothingAndLogsRefusal()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var logger = new FakeLogger<SignalRNotificationBroadcaster>();
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, logger);
+
+        await broadcaster.BroadcastAsync(new BroadcastableNotification("secret"));
+
+        hub.AssertNothingSent();
+        var record = logger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        record.Id.Id.ShouldBe(4614);
+        record.Level.ShouldBe(LogLevel.Error);
+        record.Message.ShouldContain(typeof(BroadcastableNotification).FullName!);
+        record.Message.ShouldNotContain("secret");
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_WhitespaceOnlyTargetsAndNoRegistration_SendsNothingAndLogsRefusal()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var logger = new FakeLogger<SignalRNotificationBroadcaster>();
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, logger);
+
+        await broadcaster.BroadcastAsync(new WhitespaceTargetsNotification("Test"));
+
+        hub.AssertNothingSent();
+        logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(4614);
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_WhitespaceOnlyTargetsWithRegistration_SendsToAllClients()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var options = Options.Create(new SignalROptions().AllowBroadcastToAll<WhitespaceTargetsNotification>());
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, options, _logger);
+
+        await broadcaster.BroadcastAsync(new WhitespaceTargetsNotification("Test"));
+
+        await hub.All.Received(1).SendCoreAsync("WhitespaceTargets", Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" , ,")]
+    public async Task BroadcastAsync_UserTargetsResolvingToEmpty_SendsNothingAndLogsRefusal(string userId)
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var logger = new FakeLogger<SignalRNotificationBroadcaster>();
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, logger);
+
+        await broadcaster.BroadcastAsync(new UserTargetedNotification("Test", userId));
+
+        hub.AssertNothingSent();
+        logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(4614);
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_GroupTargetsResolvingToEmpty_IsRefusedEvenWhenRegisteredForAll()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var logger = new FakeLogger<SignalRNotificationBroadcaster>();
+        var options = Options.Create(new SignalROptions().AllowBroadcastToAll<GroupTargetedNotification>());
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, options, logger);
+
+        await broadcaster.BroadcastAsync(new GroupTargetedNotification("Test", null!));
+
+        hub.AssertNothingSent();
+        logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(4614);
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_NoTargetsWithRegistration_SendsPayloadToAllClients()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var logger = new FakeLogger<SignalRNotificationBroadcaster>();
+        var options = Options.Create(new SignalROptions().AllowBroadcastToAll<BroadcastableNotification>());
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, options, logger);
+
+        await broadcaster.BroadcastAsync(new BroadcastableNotification("hello"));
+
+        await hub.All.Received(1).SendCoreAsync(
+            "Broadcastable",
+            Arg.Is<object?[]>(args => args.Length == 1 && ((string)args[0]!).Contains("hello")),
+            Arg.Any<CancellationToken>());
+        hub.Clients.DidNotReceive().Users(Arg.Any<IReadOnlyList<string>>());
+        hub.Clients.DidNotReceive().Groups(Arg.Any<IReadOnlyList<string>>());
+        logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(4602);
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_RegistrationOfAnotherType_DoesNotOpenBroadcastToAll()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var options = Options.Create(new SignalROptions()
+            .AllowBroadcastToAll<CustomMethodNotification>()
+            .AllowNotification<BroadcastableNotification>());
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, options, _logger);
+
+        await broadcaster.BroadcastAsync(new BroadcastableNotification("Test"));
+
+        hub.AssertNothingSent();
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_UserTargets_SendToResolvedUsersOnly()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, _logger);
+
+        await broadcaster.BroadcastAsync(new UserTargetedNotification("Test", "user-1, user-2"));
+
+        hub.Clients.Received(1).Users(Arg.Is<IReadOnlyList<string>>(u => string.Join('|', u) == "user-1|user-2"));
+        await hub.Users.Received(1).SendCoreAsync("UserTargeted", Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
+        await hub.All.DidNotReceiveWithAnyArgs().SendCoreAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task BroadcastAsync_GroupTargets_SendToResolvedGroupsOnly()
+    {
+        var hub = new FakeHub(_serviceProvider);
+        var broadcaster = new SignalRNotificationBroadcaster(_serviceProvider, _options, _logger);
+
+        await broadcaster.BroadcastAsync(new GroupTargetedNotification("Test", "admins"));
+
+        hub.Clients.Received(1).Groups(Arg.Is<IReadOnlyList<string>>(g => string.Join('|', g) == "admins"));
+        await hub.Groups.Received(1).SendCoreAsync("GroupTargeted", Arg.Any<object?[]>(), Arg.Any<CancellationToken>());
+        await hub.All.DidNotReceiveWithAnyArgs().SendCoreAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public void AllowBroadcastToAll_DuplicateRegistration_Throws()
+    {
+        var options = new SignalROptions().AllowBroadcastToAll<BroadcastableNotification>();
+
+        Should.Throw<InvalidOperationException>(() => options.AllowBroadcastToAll(typeof(BroadcastableNotification)))
+            .Message.ShouldContain(typeof(BroadcastableNotification).FullName!);
+    }
+
+    [Theory]
+    [InlineData(typeof(INotification))]
+    [InlineData(typeof(GenericNotification<>))]
+    [InlineData(typeof(string))]
+    public void AllowBroadcastToAll_InvalidType_ThrowsArgumentException(Type type)
+    {
+        Should.Throw<ArgumentException>(() => new SignalROptions().AllowBroadcastToAll(type))
+            .ParamName.ShouldBe("notificationType");
+    }
+
+    [Fact]
+    public void AllowBroadcastToAll_NullType_ThrowsArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() => new SignalROptions().AllowBroadcastToAll(null!));
+    }
+
+    [Fact]
+    public void AllowBroadcastToAll_AfterFreeze_Throws_AndAllowNotificationToo()
+    {
+        var options = new SignalROptions().AllowBroadcastToAll<BroadcastableNotification>();
+        options.IsBroadcastToAllAllowed(typeof(BroadcastableNotification)).ShouldBeTrue();
+
+        Should.Throw<InvalidOperationException>(() => options.AllowBroadcastToAll<CustomMethodNotification>());
+        Should.Throw<InvalidOperationException>(() => options.AllowNotification<CustomMethodNotification>());
+        options.IsBroadcastToAllAllowed(typeof(CustomMethodNotification)).ShouldBeFalse();
+        options.GetAllowList().ShouldBeEmpty();
+    }
+
+    // A substitute hub context whose All, Users and Groups proxies are distinct, so a test can prove
+    // which audience received the send.
+    private sealed class FakeHub
+    {
+        public FakeHub(IServiceProvider serviceProvider)
+        {
+            var context = Substitute.For<IHubContext<Hub>>();
+            context.Clients.Returns(Clients);
+            Clients.All.Returns(All);
+            Clients.Users(Arg.Any<IReadOnlyList<string>>()).Returns(Users);
+            Clients.Groups(Arg.Any<IReadOnlyList<string>>()).Returns(Groups);
+            serviceProvider.GetService(typeof(IHubContext<Hub>)).Returns(context);
+        }
+
+        public IHubClients Clients { get; } = Substitute.For<IHubClients>();
+
+        public IClientProxy All { get; } = Substitute.For<IClientProxy>();
+
+        public IClientProxy Users { get; } = Substitute.For<IClientProxy>();
+
+        public IClientProxy Groups { get; } = Substitute.For<IClientProxy>();
+
+        public void AssertNothingSent()
+        {
+            All.ReceivedCalls().ShouldBeEmpty();
+            Users.ReceivedCalls().ShouldBeEmpty();
+            Groups.ReceivedCalls().ShouldBeEmpty();
+        }
+    }
+
     // Test notification types
 
     /// <summary>
@@ -271,4 +469,9 @@ public sealed class SignalRNotificationBroadcasterTests
 
     [BroadcastToSignalR(ConditionalProperty = "Value")]
     private sealed record NonBoolConditionalNotification(string Message, int Value) : INotification;
+
+    [BroadcastToSignalR(TargetUsers = "   ", TargetGroups = " ")]
+    private sealed record WhitespaceTargetsNotification(string Message) : INotification;
+
+    private sealed record GenericNotification<T>(T Value) : INotification;
 }
