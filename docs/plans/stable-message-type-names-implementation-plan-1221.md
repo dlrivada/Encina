@@ -2,7 +2,8 @@
 
 > **Issue**: [#1221](https://github.com/dlrivada/Encina/issues/1221)
 > **Type**: Feature
-> **Complexity**: Medium-High (8 phases, no new schema, tests on all 10 database providers, ~45 files in 3 pull requests)
+> **Verified against**: origin/main `c49b987e9` (2026-11-12)
+> **Complexity**: Medium-High (8 phases, no new schema, tests on all 10 database providers, ~70 files in 6 pull requests)
 > **Estimated Scope**: ~900-1,200 lines of production code + ~1,500-1,900 lines of tests
 
 ---
@@ -14,13 +15,13 @@ The assembly-qualified CLR type name is the persisted wire format of outbox, inb
 What it implements:
 
 - `[MessageType("practice.appointment-booked.v1")]`, a registry of stable names built at start-up from the assemblies the application lists (opt-in), with a startup failure on a duplicate or malformed name.
-- One writer (`IMessageTypeNames.GetName(Type)`) used by every write site: a registered type is stored under its registry name, an unregistered one under its assembly-qualified name with a logged warning (the registry stays opt-in).
-- One reader (`IMessagePayloadReader.ReadAsync(storedName, content)`) used by every read site: it resolves the stored name (registry first, `Type.GetType` fallback for rows written before adoption), deserializes into the stored version's type and upcasts through `IMessageUpcaster<TFrom, TTo>` to the current type.
+- One writer (`IMessageTypeNames.GetName(Type)`) used by every write site: a registered type is stored under its registry name, an unregistered one under its assembly-qualified name; the warning and the fallback counter appear only once an application has configured a registry (Design Choice 7, a Dilemma).
+- One reader (`IMessagePayloadReader.Read(storedName, content)`, synchronous: pure CPU) used by every read site: it resolves the stored name (registry first, `Type.GetType` fallback for rows written before adoption), deserializes into the stored version's type and upcasts through `IMessageUpcaster<TFrom, TTo>` to the current type.
 - The version is part of the name (`...v1`, `...v2`); the existing type columns (`NotificationType`, `RequestType`, `NVARCHAR(500)`) hold it, so no schema change is needed (SPEC-002 section 13: "registry names and versions in the type columns").
 
 Standards: SPEC-002 REQ-032, AC-032, P-19; ADR-001 (ROP); ADR-021 (EventIds); #134 (message versioning, minimal slice here, remainder stays open).
 
-Estimated scope: about 45 files (core 16, call-site edits 13, tests 11, docs and metadata 5), shipped as 3 pull requests. Affected packages: `Encina` (the attribute), `Encina.Messaging` (registry, resolver, upcasting, call sites), `Encina.Cdc` (one read site), `Encina.Messaging.Encryption` (reads `AssemblyQualifiedName` at one place, reviewed in Phase 2).
+Estimated scope: about 70 files (core 18, call-site edits 13, tests 28, docs and metadata 11), shipped as 6 pull requests. Affected packages: `Encina` (the attribute), `Encina.Messaging` (registry, resolver, upcasting, call sites), `Encina.Cdc` (one read site). `Encina.Messaging.Encryption` is not affected: its `MessageEncryptionContext.MessageType` (`EncryptingMessageSerializer.cs` line 292) is not a persisted type name (verified: it is read only by `DataProtectionMessageEncryptionProvider` for log text and error construction, never stored in the envelope), so it stays unchanged.
 
 Provider category: Database (10) by test only. The type columns already exist in every provider script and store, so there is no provider-specific code; AGENTS.md section 5 is met by running the round-trip scenario on all 10 providers.
 
@@ -42,9 +43,8 @@ Provider category: Database (10) by test only. The type columns already exist in
 
 ### Rationale
 
-- SPEC-002 section 13 describes REQ-032's store impact as "registry names and versions in the type columns", and the issue's own example is `name.vN`.
-- **Class:** Settled
-- **Settled by:** SPEC-002 REQ-032 (and its section 13 note on type columns) and #1221 (maintainer comment of 2026-10-17: implement as written)
+- SPEC-002 section 13 describes REQ-032's store impact as "registry names and versions in the type columns", and the issue's own example is `name.vN`. Option B (a `PayloadVersion` column) would also satisfy the maintainer's "version stored with the row"; Option A is chosen for a technical reason: no schema change on 10 providers (pay-for-what-you-use) and one field that cannot disagree with the name.
+- **Class:** Trivial
 
 </details>
 
@@ -55,7 +55,7 @@ Provider category: Database (10) by test only. The type columns already exist in
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Attribute scan of the assemblies passed to `AddEncinaMessageTypes(params Assembly[])`; name pattern `<segment>(.<segment>)*.v<N>`; duplicate or malformed names fail at start-up** | Same shape as `AddEncinaFluentValidation(assembly)`; opt-in; bad names fail early | Reflection at start-up (once) |
+| **A) Attribute scan of the assemblies passed to `AddEncinaMessageTypes(params Assembly[])`; name pattern `<segment>(.<segment>)*.v<N>`; duplicate or malformed names fail at start-up** | Opt-in; bad names fail early; the assembly-list registration shape is the convention of the validation packages | Reflection at start-up (once) |
 | **B) Explicit `Register<T>("name")` calls only** | No reflection | Boilerplate; names drift from the type |
 | **C) Source generator** | No reflection | A new generator project for a start-up scan |
 
@@ -63,9 +63,10 @@ Provider category: Database (10) by test only. The type columns already exist in
 
 ### Rationale
 
-- Unregistered types fall back to the assembly-qualified name with a logged warning, which keeps the registry opt-in (pay-for-what-you-use), as the maintainer's comment on the issue states; explicit registration is also exposed for types the scan cannot reach.
+- Unregistered types fall back to the assembly-qualified name, which keeps the registry opt-in (pay-for-what-you-use), as the maintainer's comment on the issue states; explicit registration is also exposed for types the scan cannot reach.
+- Registered decisions (public behavior): the name pattern is `^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*\.v[1-9][0-9]*$` (lower-case dot-separated segments and a `.vN` version suffix, N without leading zeros), at most 200 characters (the type columns are `NVARCHAR(500)` and the assembly-qualified fallback is longer); the name is validated by the options validator (`IValidateOptions<MessageTypeRegistryOptions>` with `ValidateOnStart`, which throws `OptionsValidationException` at host start), not on a rule path; the registry's runtime failures are `Left`.
 - **Class:** Trivial
-- **Settled by:** AGENTS.md section 3 (Validation uses `AddEncinaFluentValidation(assembly)` style registration; every messaging feature is optional) and #1221 (maintainer comment of 2026-10-17)
+- **Settled by:** AGENTS.md section 3 (every messaging feature is optional) and #1221 (maintainer comment of 2026-10-17)
 
 </details>
 
@@ -146,6 +147,44 @@ Provider category: Database (10) by test only. The type columns already exist in
 
 </details>
 
+<details>
+<summary><strong>7. Behavior of an application that does not configure a registry</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) With no registry configured the writer and the reader are pass-through: the same name written and the same `Type.GetType` read as today; no warning, no fallback counter** | An application that never opts in sees no new log line, metric or error path | The fallback warning and counter exist only for applications that adopted the registry |
+| **B) Always warn once per unregistered type and count every fallback write** | Surfaces types that could be registered | A new default log and metric for every user of outbox, inbox and scheduling who did not ask for the feature |
+
+### Chosen Option: **A — Pass-through until a registry is configured (recommended, pending the maintainer)**
+
+### Rationale
+
+- Every messaging feature is opt-in (AGENTS.md section 3); B changes the default observable behavior of every write site. B wins if the maintainer wants the warning as an adoption nudge. Under A the sentence "no behavior change for applications that do not opt in" is true of logs, counters and errors; the only new thing on the default path is one extra service call per write and read.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. A stored name the configured registry does not know</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Fall back to `Type.GetType(storedName)` as today, also when a registry is configured** | Rows written before adoption keep working; no new refusal path | An attacker-controlled stored name still reaches `Type.GetType` (existing behavior; the registry-first lookup does not widen it) |
+| **B) An option `RequireRegisteredNames` (default `false`): when `true` and a registry is configured, an unknown stored name returns `Left(message_type.unknown)` and the fallback is never used** | Fail closed for applications that migrated every row | One more option; old rows must be gone before it is turned on |
+
+### Chosen Option: **A — Fallback always, B available as an option (recommended, pending the maintainer)**
+
+### Rationale
+
+- The assembly-qualified fallback is part of REQ-032 (Design Choice 6). A compliance-minded deployment may want B once its rows are migrated (AGENTS.md section 3, gates fail closed); the choice of whether B is shipped in this issue is the maintainer's.
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -159,7 +198,7 @@ Provider category: Database (10) by test only. The type columns already exist in
 2. `src/Encina.Messaging/TypeNames/IMessageTypeNames.cs` (new): `string GetName(Type type)`.
 3. `src/Encina.Messaging/TypeNames/IMessagePayloadReader.cs` (new): `Either<EncinaError, object> Read(string storedName, string content)` (synchronous, pure CPU).
 4. `src/Encina.Messaging/TypeNames/IMessageUpcaster.cs` (new): `IMessageUpcaster<TFrom, TTo>` with `Either<EncinaError, TTo> Upcast(TFrom message)`.
-5. `src/Encina.Messaging/TypeNames/MessageTypeErrorCodes.cs` (new): `message_type.unknown`, `message_type.deserialization_failed`, `message_type.upcast_failed`, `message_type.duplicate_name`, `message_type.invalid_name`, `message_type.upcast_gap`.
+5. `src/Encina.Messaging/TypeNames/MessageTypeErrorCodes.cs` (new): each code created with an `ErrorCategory` (ADR-062, `EncinaErrors.Create(code, ErrorCategory, message, ...)`): `message_type.unknown` `NotFound`, `message_type.deserialization_failed` `Validation`, `message_type.upcast_failed` `Internal`, `message_type.duplicate_name` `Validation`, `message_type.invalid_name` `Validation`, `message_type.upcast_gap` `Validation`; a unit test asserts `GetCategory()` for each. The call sites map the new codes to their existing codes (Phase 4) and keep the category those codes carry today, pinned by a test per site.
 6. `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Messaging` (via `mechanical-fixer`).
 
 </details>
@@ -186,9 +225,8 @@ src/Encina.Messaging/Outbox/OutboxOrchestrator.cs (OutboxErrorCodes)
 <summary><strong>Tasks</strong></summary>
 
 1. `MessageTypeRegistry` (internal): name to type and type to name maps; construction validates the pattern, duplicates and upcast chains (a chain from every registered old version to the current one, no cycles, `message_type.upcast_gap` otherwise).
-2. `MessageTypeNames`: registry name when registered, otherwise `type.AssemblyQualifiedName` plus a one-time warning per type (`MessageTypeLog`).
-3. `MessagePayloadReader`: resolves the stored name (registry, then `Type.GetType` fallback), deserializes through `IMessageSerializer.Deserialize(content, storedType)`, applies the upcast chain, returns `Left(message_type.unknown | deserialization_failed | upcast_failed)`. Cancellation and exceptions are caught per call and turned into `Left` with the exception type only.
-4. Review `Encina.Messaging.Encryption/Serialization/EncryptingMessageSerializer.cs:292` (an `AssemblyQualifiedName` use) and keep it compatible.
+2. `MessageTypeNames`: registry name when registered, otherwise `type.AssemblyQualifiedName`; with a registry configured, a one-time warning per type and the fallback counter (`MessageTypeLog`, Design Choice 7).
+3. `MessagePayloadReader`: resolves the stored name (registry, then `Type.GetType` fallback; with `RequireRegisteredNames` on, if Design Choice 8 B is shipped, no fallback), deserializes through `IMessageSerializer.Deserialize(content, storedType)`, applies the upcast chain, returns `Left(message_type.unknown | deserialization_failed | upcast_failed)`. The reader is synchronous and takes no `CancellationToken`, so it has no cancellation to handle; a serializer exception becomes a `Left` carrying the exception type only (never its message).
 
 </details>
 
@@ -203,7 +241,7 @@ reader with upcast chaining.
 KEY RULES: a Left is never swallowed; no payload or message text in error codes or logs; reflection only at
 start-up (cache maps); CRAP <= 10 per method (split validation steps).
 REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs (ProcessMessageAsync), src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs,
-src/Encina.Messaging.Encryption/Serialization/EncryptingMessageSerializer.cs
+src/Encina.Messaging/Serialization/IMessageSerializer.cs
 ```
 
 </details>
@@ -214,7 +252,7 @@ src/Encina.Messaging.Encryption/Serialization/EncryptingMessageSerializer.cs
 <summary><strong>Tasks</strong></summary>
 
 1. `AddEncinaMessageTypes(this IServiceCollection, params Assembly[] assemblies)` and a `MessagingConfiguration` helper `config.MessageTypes.AddAssembly(assembly)` that feed one `MessageTypeRegistryOptions`; registers `IMessageTypeNames`, `IMessagePayloadReader`, the registry and every `IMessageUpcaster<,>` found in the assemblies, all with `TryAdd*`.
-2. When the registry is not configured, `IMessageTypeNames` and the reader are still registered with an empty registry so every write and read site works through the fallback (no behavior change for applications that do not opt in).
+2. When the registry is not configured, `IMessageTypeNames` and the reader are still registered with an empty registry in pass-through mode so every write and read site works through the fallback; under Design Choice 7 A that mode logs and counts nothing, so the observable behavior of an application that does not opt in is unchanged.
 3. DI test with `ValidateOnBuild` and `ValidateScopes`, configured and unconfigured, in both registration orders.
 
 </details>
@@ -226,8 +264,9 @@ src/Encina.Messaging.Encryption/Serialization/EncryptingMessageSerializer.cs
 CONTEXT: AGENTS.md section 3, registration completeness; messaging patterns are optional and the registry is opt-in.
 TASK: Add the registration extension, wire it into AddMessagingServices with an empty registry by default, and
 test the container.
-KEY RULES: TryAdd*; startup validation throws a clear InvalidOperationException listing the offending names
-(codes, not payloads); the application's own registration wins.
+KEY RULES: TryAdd*; startup validation is an options validator (IValidateOptions with ValidateOnStart) that
+fails the host start listing the offending names (names and codes, not payloads), not a rule path; the
+application's own registration wins.
 REFERENCE FILES: src/Encina.Messaging/MessagingServiceCollectionExtensions.cs, src/Encina.Messaging/MessagingConfiguration.cs
 ```
 
@@ -266,7 +305,7 @@ src/Encina.Cdc/Messaging/OutboxCdcHandler.cs, src/Encina.Messaging/DeadLetter/De
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Multi-tenancy (function 10): the registry is global and carries no tenant data; the tenant-aware requirement of the issue (REQ-061, AC-043) is met by the existing tenant column of the stores, and a two-tenant test shows tenant A's rows never resolve through tenant B's reads (the reader is stateless).
+1. Multi-tenancy (function 10): the registry is global and carries no tenant data, and the reader has no tenant input; the tenant-aware requirement of the issue (REQ-061, AC-043) is met by the existing tenant column of the stores, which this feature neither reads nor writes. Test: after the outbox and scheduler read paths resolve a stored name through the reader, the row's `TenantId` is unchanged and was not consulted (a store double that records access to the tenant column).
 2. Validation: duplicate or malformed names and upcast gaps fail at start-up (Phase 2).
 3. Deferred rows keep their reason in the matrix.
 
@@ -278,7 +317,7 @@ src/Encina.Cdc/Messaging/OutboxCdcHandler.cs, src/Encina.Messaging/DeadLetter/De
 ```text
 CONTEXT: SPEC-002 REQ-061 and AC-043: every record this issue adds or changes carries the tenant id; the registry
 adds no record.
-TASK: Add the two-tenant read test and confirm the validation paths are covered.
+TASK: Add the tenant-column-untouched test and confirm the validation paths are covered.
 KEY RULES: AGENTS.md section 6; no scope growth.
 REFERENCE FILES: AGENTS.md section 6, docs/specifications (REQ-061, AC-043)
 ```
@@ -290,8 +329,8 @@ REFERENCE FILES: AGENTS.md section 6, docs/specifications (REQ-061, AC-043)
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Counters on the `Encina` meter: `encina.messaging.type_name.fallback_total` (writes that used the assembly-qualified fallback) and `encina.messaging.payload.upcast_total` (tags `message_type`, bounded by registered names), with the tenant as an attribute where a context exists (REQ-062).
-2. `MessageTypeLog` (`[LoggerMessage]`) with EventIds 5820-5825 inside the family block 5800-5849 (`EventIdRanges.MessagingInboxIdempotency`, registered by plan #3440 or by the first plan of the family to land): 5820 fallback warning (once per type), 5821 unknown stored name, 5822 upcast applied (Debug), 5823 upcast failed, 5824 registry built, 5825 registry validation failed.
+1. Counters on the `Encina` meter: `encina.messaging.type_name.fallback_total` (writes that used the assembly-qualified fallback) and `encina.messaging.payload.upcast_total` (tags `message_type`, bounded by registered names), with the `tenant` tag **only when multi-tenancy is enabled and an ambient tenant resolves (ADR-054 D4)**; the read sites (processors) run without a request context, so no tenant tag is emitted there, and none is emitted at all when multi-tenancy is off. Counters are emitted only once a registry is configured (Design Choice 7).
+2. `MessageTypeLog` (`[LoggerMessage]`) with EventIds 5811-5816 inside the family block 5800-5849 (`EventIdRanges.MessagingInboxIdempotency`, registered by plan #3440 or by the first plan of the family to land), packed after #1220's 5805-5810: 5811 fallback warning (once per type), 5812 unknown stored name, 5813 upcast applied (Debug), 5814 upcast failed, 5815 registry built, 5816 registry validation failed.
 3. No payload or message text in tags or logs (AC-044 test with an in-memory exporter).
 
 </details>
@@ -300,9 +339,9 @@ REFERENCE FILES: AGENTS.md section 6, docs/specifications (REQ-061, AC-043)
 <summary><strong>Prompt for AI Agents — Phase 6</strong></summary>
 
 ```text
-CONTEXT: ADR-021; the family block 5800-5849 is registered once. #3440 uses 5800-5804, #1220 uses 5805-5810,
-this plan uses 5820-5825.
-TASK: Add the counters and MessageTypeLog; re-check on the branch that 5820-5825 are free.
+CONTEXT: ADR-021; the family block 5800-5849 is registered once. The family packs ids in the order #3440
+(5800-5804), #1220 (5805-5810), this plan (5811-5816), #2385 (5817-5822), with no gaps.
+TASK: Add the counters and MessageTypeLog; re-check on the branch that 5811-5816 are free.
 KEY RULES: bounded tag dimensions; EncinaError.Message never in logs; exceptions through ForLogging(); packed ids.
 REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, src/Encina.Messaging/Diagnostics/MessagePurgeMetrics.cs
 ```
@@ -320,7 +359,17 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, src/Encina.Messaging/D
 4. Property: for any chain of upcasters, reading a v-k payload yields the current type; names round-trip through the registry.
 5. Integration: all 10 providers through the shared `[Collection]` fixtures: an outbox message and a scheduled message written under a registry name, read after the CLR type was replaced by a renamed one with the same name (AC-032), and a v1 payload upcast to v2.
 6. Load and Benchmark: `.md` justifications (one dictionary lookup per message).
-7. Manifest targets with justifications; CRAP table.
+7. Manifest targets per new or touched `src/` file (floors for the worker, never lowered; `.github/coverage-manifest/{Package}.json`):
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|-----:|------:|---------:|---------:|------------:|---------------|
+| `TypeNames/MessageTypeRegistry.cs` | 95 | 100 | 0 | 90 | 0 | Pure construction and validation logic; every rejection (duplicate, malformed, gap, cycle) is a unit case and the name round trip is a property. |
+| `TypeNames/MessageTypeNames.cs` | 95 | 100 | 100 | 0 | 0 | Small writer; pass-through, registered and fallback paths are all unit-testable, and the contract suite pins the shared behavior. |
+| `TypeNames/MessagePayloadReader.cs` | 95 | 100 | 100 | 90 | 90 | Reader with upcast chains: chain composition is a property, and the integration scenario proves it on a real row. |
+| `Encina/Abstractions/MessageTypeAttribute.cs` | 100 | 100 | 0 | 0 | 0 | One constructor with validation. |
+| Call-site files (13) | 90 | 100 | 0 | 0 | 90 | Each edit is a one-line service call; the failure mapping is unit-tested per site and the round trip is integration-tested on 10 providers. |
+
+CRAP table of every changed method before each pull request.
 
 </details>
 
@@ -345,7 +394,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/InboxPipelineHarnesses.
 
 1. XML docs with examples; `changelog.d/1221-stable-message-type-names.added.md` (via `mechanical-fixer`).
 2. A guide page `docs/messaging/message-types.md` and a link from `docs/messaging/index.md` (by `docs-writer`): naming rules, registration, upcasters, fallback and warning.
-3. ADR for Design Choices 3 to 5 once decided (next free number at implementation time); `docs/INVENTORY.md`; PublicAPI files.
+3. ADR for the decided Dilemmas (3, 4, 5, 7 and 8) once decided (ADR number assigned when the ADR pull request opens); `docs/INVENTORY.md`; PublicAPI files.
 4. Build 0 warnings; tests at manifest targets.
 
 </details>
@@ -372,7 +421,7 @@ REFERENCE FILES: docs/messaging/index.md, .claude/skills/encina-docs/SKILL.md, c
 | Standard | Requirement | How this feature meets it |
 |----------|-------------|---------------------------|
 | SPEC-002 REQ-032 / AC-032 | Stable names with assembly-qualified fallback; versioning and upcasting | Phases 1-4 |
-| SPEC-002 REQ-061 / AC-043 | Tenant-aware records | No new record; two-tenant read test (Phase 5) |
+| SPEC-002 REQ-061 / AC-043 | Tenant-aware records | No new record; tenant-column-untouched test (Phase 5) |
 | SPEC-002 REQ-062 / AC-044 | Instrumented, no payloads | Phase 6 |
 | #134 | Message versioning and upcasting | Minimal slice only; the remainder stays open |
 | ADR-021 | Registered EventId ranges | Family block 5800-5849 |
@@ -396,27 +445,32 @@ REFERENCE FILES: docs/messaging/index.md, .claude/skills/encina-docs/SKILL.md, c
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` | 5820-5825 inside `MessagingInboxIdempotency` (5800-5849) | Family block assigned 2026-11-11; #3440 uses 5800-5804 and #1220 uses 5805-5810; the first plan of the family to land registers the block |
+| `Encina.Messaging` | 5811-5816 inside `MessagingInboxIdempotency` (5800-5849) | Family block assigned 2026-11-11; packed order #3440 (5800-5804), #1220 (5805-5810), this plan (5811-5816), #2385 (5817-5822), no gaps; the first plan of the family to land registers the block |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Core abstractions and implementation | 16 | attribute, 3 contracts, error codes, registry, names, reader, options, registration, metrics, log, config helper, upcast chain, fake and test helper |
+| Core abstractions and implementation | 18 | attribute, 3 contracts, error codes, registry, options and validator, names, reader, registration, metrics, log, config helper, upcast chain, EventIdRanges edit |
 | Call-site edits | 13 | 7 writers and 6 readers |
-| Tests | 11 | unit, guard, contract, property, integration scenario, DI tests, 2 justification files, EventId map |
-| Documentation and metadata | 5 | changelog, guide, ADR, INVENTORY, manifests (PublicAPI per package edited with the code) |
-| **Total** | **45** | Three pull requests |
+| Tests | 28 | unit, guard, contract, property, integration scenario, DI tests, 2 justification files, EventId map, existing tests that construct the changed classes (counted at pick-up) |
+| Documentation and metadata | 11 | changelog, guide, ADR, INVENTORY, manifests (Encina, Messaging, Cdc), PublicAPI (Encina, Messaging, Cdc) |
+| **Total** | **70** | Six pull requests |
 
 ### Pull request split
 
+Counts include tests, coverage manifests, `PublicAPI.Unshipped.txt` and the existing tests that change with each constructor. Each pull request builds alone.
+
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
-| A | Phases 1, 2, 3, 6: attribute, contracts, registry, reader, registration, observability, unit, guard and property tests | 15 |
-| B | Phase 4 call sites with their unit tests and the contract tests | 15 |
-| C | Phase 7 integration on 10 providers, justifications, Phase 8 documentation | 8 |
+| A1 | Contracts and registry: attribute, three contracts, error codes, options and validator, registry; unit, guard and property tests; PublicAPI of Encina and Messaging; 2 manifests | 14 |
+| A2 | Names and reader: `MessageTypeNames`, `MessagePayloadReader`, upcast chain, registration extension, config helper, metrics, `MessageTypeLog`, `EventIdRanges` and `EncinaEventIdAllocationTests` edits; unit and DI tests; PublicAPI; manifest | 14 |
+| B1 | The 7 writers, their DI registration updates and unit tests (existing tests that construct them included), PublicAPI, manifest | 14 |
+| B2 | The 6 readers (5 in Messaging, `OutboxCdcHandler` in Cdc), unit tests, PublicAPI and manifests of both packages | 14 |
+| C | Contract tests and the 10-provider integration scenario (the shared `[Collection]` fixtures), 2 justification files | 8 |
+| D | Documentation: guide page, index link, ADR, INVENTORY, changelog | 6 |
 
-A also needs `Encina` core (attribute) merged first; B depends on A; C depends on B.
+A1 first; A2 depends on A1; B1 and B2 depend on A2 and may land in either order; C depends on B1 and B2; D last.
 
 ---
 
@@ -436,12 +490,12 @@ IMPLEMENTATION OVERVIEW:
 2. Registry with start-up validation, writer with fallback and warning, reader with chained upcasting.
 3. AddEncinaMessageTypes(assemblies) with an empty default registry; DI tests.
 4. 7 writers and 6 readers routed through the two services; failure semantics unchanged.
-5. Counters and MessageTypeLog EventIds 5820-5825 in the family block 5800-5849.
+5. Counters and MessageTypeLog EventIds 5811-5816 in the family block 5800-5849.
 6. Tests on all flags with the 10-provider integration matrix; docs, ADR and changelog.
 
 KEY PATTERNS:
 - ROP; reflection only at start-up; no payloads, message text or personal data in codes, logs or tags.
-- Opt-in registry; the unregistered path behaves exactly as today plus a warning.
+- Opt-in registry; with no registry configured the path behaves exactly as today (Design Choice 7, pending).
 - Registered EventId range first; bounded tag dimensions; CRAP <= 10; targets never go down; PRs of at most 15 files.
 
 REFERENCE FILES:
@@ -460,15 +514,15 @@ src/Encina.Messaging/Serialization/IMessageSerializer.cs, src/Encina/Diagnostics
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The registry is built once at start-up; there is no read path to cache |
-| 2 | OpenTelemetry | ✅ | Fallback and upcast counters with bounded tags (Phase 6) |
-| 3 | Structured Logging | ✅ | `MessageTypeLog` EventIds 5820-5825 in the family block (Phase 6) |
+| 2 | OpenTelemetry | ✅ | Fallback and upcast counters with bounded tags, tenant tag only when multi-tenancy is on and a tenant resolves (ADR-054 D4, Phase 6) |
+| 3 | Structured Logging | ✅ | `MessageTypeLog` EventIds 5811-5816 in the family block (Phase 6) |
 | 4 | Health Checks | ❌ | No new checkable dependency; invalid registry fails at start-up |
 | 5 | Validation | ✅ | Duplicate names, malformed names and upcast gaps fail at start-up (Phase 2) |
 | 6 | Resilience | ❌ | No call to an external system |
 | 7 | Distributed Locks | ❌ | No shared mutable state: the registry is immutable after start-up |
 | 8 | Transactions | ❌ | Single-operation reads and writes of an existing column |
 | 9 | Idempotency | ❌ | Not a message or request entry point |
-| 10 | Multi-Tenancy | ✅ | Tenant-aware per REQ-061 through the existing store columns; two-tenant read test (Phase 5) |
+| 10 | Multi-Tenancy | ✅ | Registry global and tenant-free; the stores' tenant column is untouched by the reader, proven by a test (Phase 5) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ❌ | No compliance-relevant operation beyond those already audited |
 
@@ -479,16 +533,15 @@ src/Encina.Messaging/Serialization/IMessageSerializer.cs, src/Encina/Diagnostics
 | Issue | Relation | Notes |
 |-------|----------|-------|
 | [#134](https://github.com/dlrivada/Encina/issues/134) | Remainder stays open | Full message versioning; this plan is its minimal slice |
-| [#1220](https://github.com/dlrivada/Encina/issues/1220) | Shares call sites | Both edit `OutboxProcessorBase`/`OutboxBatchProcessor` neighbors; the later pull request rebases |
-| [#2385](https://github.com/dlrivada/Encina/issues/2385) | Shares the outbox type name | The transport publisher reads the stored name through the same reader |
-| [#3440](https://github.com/dlrivada/Encina/issues/3440) | Shares the EventId block | Family block 5800-5849 |
+| [#1220](https://github.com/dlrivada/Encina/issues/1220), [#2385](https://github.com/dlrivada/Encina/issues/2385), [#1251](https://github.com/dlrivada/Encina/issues/1251) | Share `OutboxProcessorBase` and `OutboxBatchProcessor` | All edit the outbox processing classes (#1220 passes the idempotency context, #2385 routes integration events to a transport and reads the stored name through the same reader, #1251 changes row claiming); the later pull request rebases |
+| [#3440](https://github.com/dlrivada/Encina/issues/3440) | Shares the EventId block | Family block 5800-5849 (packed order in Event ID Allocation) |
 | [#1186](https://github.com/dlrivada/Encina/issues/1186) | Parent EPIC | SPEC-002 readiness |
 
 ---
 
 ## Next Steps
 
-1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 3, 4 and 5 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
-2. Re-run the search for `AssemblyQualifiedName` and `Type.GetType` to refresh the call-site list before PR B.
-3. Re-check that 5820-5825 are free and the family block is registered before PR A.
+1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 3, 4, 5, 7 and 8 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
+2. Re-run the search for `AssemblyQualifiedName` and `Type.GetType` to refresh the call-site list before PR B1.
+3. Re-check that 5811-5816 are free and the family block is registered before PR A2.
 4. Measure per-flag coverage and the CRAP table for every touched file before each pull request.
