@@ -89,12 +89,16 @@ public sealed class ProcessorAgreementOptions
     // --- Tenant isolation ---
 
     /// <summary>
-    /// Gets or sets whether processor and DPA operations fail closed when no tenant is present in
-    /// the ambient <see cref="IRequestContext"/>.
+    /// Gets or sets whether <c>IProcessorService</c> operations fail closed when no tenant is present
+    /// in the ambient <see cref="IRequestContext"/>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Every query filters the read model's <c>TenantId</c> against the ambient tenant, and a record
+    /// Scope today: the processor service. The DPA service, the expiration handler and the health
+    /// check are not tenant-scoped yet and ignore this option until #3680 and #3681.
+    /// </para>
+    /// <para>
+    /// Every processor query filters the read model's <c>TenantId</c> against the ambient tenant, and a record
     /// of another tenant read or mutated by id is reported as not found, so a request scoped to one
     /// tenant never observes or changes another tenant's processor register (#3517). With no
     /// ambient tenant the operations read and write the null-tenant scope: a record stored with a
