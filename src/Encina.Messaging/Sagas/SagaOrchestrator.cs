@@ -164,6 +164,28 @@ public sealed class SagaOrchestrator
             return stateResult.LeftToArray()[0];
 
         var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
+        var advanced = AdvanceState(sagaId, stateOpt, updateData);
+        if (advanced.IsLeft)
+            return advanced.LeftToArray()[0];
+
+        var (state, data) = advanced.Match(Right: r => r, Left: _ => default);
+
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
+
+        Log.SagaAdvanced(_logger, sagaId, state.CurrentStep);
+
+        return new SagaAdvanceResult<TSagaData>(sagaId, state.CurrentStep, data);
+    }
+
+    // The in-memory part of AdvanceAsync: checks the loaded saga, applies the update and moves it one step on.
+    private Either<EncinaError, (ISagaState State, TSagaData Data)> AdvanceState<TSagaData>(
+        Guid sagaId,
+        Option<ISagaState> stateOpt,
+        Func<TSagaData, TSagaData>? updateData)
+        where TSagaData : class
+    {
         if (stateOpt.IsNone)
         {
             Log.SagaNotFound(_logger, sagaId);
@@ -187,19 +209,14 @@ public sealed class SagaOrchestrator
         if (updateData != null)
         {
             data = updateData(data);
+            // The runtime type, not TSagaData, so updated data of a marked derived type is encrypted (#3780).
             state.Data = _messageSerializer.SerializeAsRuntimeType(data);
         }
 
         state.CurrentStep++;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
-        if (updateResult.IsLeft)
-            return updateResult.LeftToArray()[0];
-
-        Log.SagaAdvanced(_logger, sagaId, state.CurrentStep);
-
-        return new SagaAdvanceResult<TSagaData>(sagaId, state.CurrentStep, data);
+        return (state, data);
     }
 
     /// <summary>
