@@ -54,6 +54,13 @@ public sealed class PIINonObjectRootFailClosedTests : IDisposable
         public string? Note { get; set; } = SentinelEmail;
     }
 
+    /// <summary>A collection-derived type whose only decorated member is a non-string log-only member.</summary>
+    public sealed class UnmaskableLogOnlyList : List<string>
+    {
+        [MaskInLogs]
+        public int Code { get; set; } = SentinelCode;
+    }
+
     /// <summary>A collection-derived type with no decorated member.</summary>
     public sealed class PlainList : List<string>;
 
@@ -211,6 +218,19 @@ public sealed class PIINonObjectRootFailClosedTests : IDisposable
         sut.MaskForAudit((object)dto).ShouldBeSameAs(dto);
         var ex = Should.Throw<InvalidOperationException>(() => sut.MaskForLog(dto));
         AssertSafeFailure(ex, nameof(LogOnlyList), nameof(LogOnlyList.Note));
+    }
+
+    [Fact]
+    public void UnmaskableLogOnlyMember_ResponseAndAuditReturnUnchanged_LogThrows()
+    {
+        var sut = CreateMasker();
+        var dto = new UnmaskableLogOnlyList { "a" };
+
+        sut.MaskObject(dto).ShouldBeSameAs(dto);
+        sut.MaskForAudit(dto).ShouldBeSameAs(dto);
+        sut.MaskForAudit((object)dto).ShouldBeSameAs(dto);
+        var ex = Should.Throw<InvalidOperationException>(() => sut.MaskForLog(dto));
+        AssertSafeFailure(ex, nameof(UnmaskableLogOnlyList), nameof(UnmaskableLogOnlyList.Code));
     }
 
     [Fact]
