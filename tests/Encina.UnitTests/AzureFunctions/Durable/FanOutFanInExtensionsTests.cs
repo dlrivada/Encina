@@ -148,6 +148,22 @@ public class FanOutFanInExtensionsTests
         error.Message.ShouldNotContain("plain value");
     }
 
+    [Fact]
+    public async Task FanOutAsync_OutputIsNull_ReturnsActivityFailedLeft()
+    {
+        // Arrange: a plain activity that returns null deserializes to a null ActivityResult<T>
+        var context = Substitute.For<TaskOrchestrationContext>();
+        context.CallActivityAsync<ActivityResult<string>>(Arg.Any<TaskName>(), Arg.Any<object?>(), Arg.Any<TaskOptions?>())
+            .Returns(Task.FromResult<ActivityResult<string>>(null!));
+
+        // Act
+        var results = await FanOut.FanOutAsync<int, string>(context, Activity, [1]);
+
+        // Assert
+        var error = results.ShouldHaveSingleItem().Match(Right: _ => default!, Left: e => e);
+        CodeOf(error).ShouldBe("durable.activity_failed");
+    }
+
     #endregion
 
     #region FanOutAllAsync

@@ -303,8 +303,10 @@ public static class FanOutFanInExtensions
         {
             return await context.CallEncinaActivityWithResultAsync<TInput, TResult>(activityName, input, options);
         }
-        catch (JsonException ex)
+        catch (Exception ex) when (ex is JsonException or NullReferenceException)
         {
+            // JsonException: the output is a plain value. NullReferenceException: the output is null, which
+            // deserializes to a null ActivityResult that the unwrapping helper cannot read.
             return EncinaErrors.Create(
                 "durable.activity_failed",
                 $"Activity '{activityName}' did not return an ActivityResult.",
