@@ -1,7 +1,7 @@
 # Coverage Measurement Methodology
 
 > **Status**: Living document — updated as the methodology evolves.
-> **ADR**: [023 — Coverage Strategy (Codecov + SonarCloud)](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md)
+> **ADR**: [063 — An In-Repository Coverage Comment Replaces Codecov](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md) (supersedes [023](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md))
 > **Implementation**: `.github/scripts/coverage-report.cs`, `coverage-history.cs`, `coverage-recalculate.cs`, `generate-coverage-manifest.cs`
 
 ## Purpose
@@ -15,14 +15,14 @@ The content of this document is the contract between the coverage infrastructure
 
 ## Why a methodology document exists
 
-Off-the-shelf coverage tools (Codecov, SonarCloud) produce a single percentage per file or per project. Encina needed something different because its reality is different:
+Off-the-shelf coverage tools (SonarCloud, and Codecov until November 2026) produce a single percentage per file or per project. Encina needed something different because its reality is different:
 
 - **108 source packages** with very different testability profiles — core business logic that can realistically reach 85%, database provider stores that run SQL and are only exercised by integration tests, cloud adapters that depend on AWS/Azure/GCP SDKs, cryptographic primitives that need property-based tests, etc.
 - **5 test types** that each carry distinct guarantees (unit, guard, contract, property, integration). A package "covered" only by unit tests is less covered than the same package with all 5 types, even if the line-hit percentage is identical.
 - **Measurement should distinguish "not applicable" from "uncovered"**. An interface file has no implementation to cover; a logging source-generator file has no logic to cover. Tools that count these files drag the project percentage down artificially and push teams toward writing pointless tests.
 - **Per-package targets are not optional**. Holding database provider packages to an 85% bar the way core logic is held is unrealistic; holding core logic to a 50% bar the way providers are held is a failure of rigor. A single project-wide threshold is wrong in both directions simultaneously.
 
-ADR-023 documents *what* we use (Codecov Components + Flags) and *why* (no single-threshold tool fits). This document explains the **particular formulas** Encina applies on top of that tooling, because the public tools do not provide them out of the box. The formulas are implemented in `.github/scripts/coverage-report.cs` and live on the `gh-pages` dashboard at <https://dlrivada.github.io/Encina/coverage/>.
+[ADR-063](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md) documents *what* we use now (per-flag coverage against per-file targets, reported on pull requests by the in-repository `Coverage Comment` workflow, `.github/workflows/coverage-comment.yml`, with `crap-gate` and `target-ratchet` as the blocking gates) and *why* Codecov was dropped; its predecessor ADR-023 recorded the Codecov-based setup. This document explains the **particular formulas** Encina applies, because public tools do not provide them out of the box. The formulas are implemented in `.github/scripts/coverage-report.cs` and live on the `gh-pages` dashboard at <https://dlrivada.github.io/Encina/coverage/>.
 
 ## The obligations model
 
@@ -75,7 +75,7 @@ Both are rounded to two decimal places. This is exactly what `coverage-report.cs
 - An entire package with unit tests but no contract tests, where the manifest declares contract tests applicable, is visibly under-covered. Naive tools give it full marks for the lines that unit tests hit.
 - Files excluded from testing (interfaces, generated code, metadata files) have **zero obligations** and therefore **no effect on the percentage**. Naive tools either count them (dragging the number down) or require manual exclusion config (brittle, error-prone).
 
-This is why the dashboard coverage percentage for Encina is lower than what a default SonarCloud or Codecov report would produce: it is measuring something more demanding and more informative.
+This is why the dashboard coverage percentage for Encina is lower than what a default SonarCloud report would produce: it is measuring something more demanding and more informative.
 
 ## The 5 test types (flags)
 
@@ -732,7 +732,8 @@ The document is living because the methodology is living. Honesty about what we 
 
 ## Related
 
-- [ADR-023 — Coverage Strategy (Codecov + SonarCloud)](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md)
+- [ADR-063 — An In-Repository Coverage Comment Replaces Codecov](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md)
+- [ADR-023 — Coverage Strategy (Codecov + SonarCloud)](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md), superseded
 - [ADR-025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md) (architectural sibling)
 - [`performance-measurement-methodology.md`](performance-measurement-methodology.md) (sibling methodology)
 - [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md) (sibling methodology — mutation testing)
