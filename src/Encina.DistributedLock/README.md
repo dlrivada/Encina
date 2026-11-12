@@ -116,7 +116,7 @@ public interface ILockHandle : IAsyncDisposable
 
 ### Saga Coordination
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"saga:payment:{orderId}",
     TimeSpan.FromMinutes(5),
     TimeSpan.FromSeconds(30),
@@ -126,7 +126,7 @@ await using var lock = await _lockProvider.TryAcquireAsync(
 
 ### Cache Stampede Prevention
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"cache:rebuild:{cacheKey}",
     TimeSpan.FromSeconds(30),
     TimeSpan.FromSeconds(5),
@@ -136,7 +136,7 @@ await using var lock = await _lockProvider.TryAcquireAsync(
 
 ### Scheduled Task Execution
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"task:cleanup",
     TimeSpan.FromMinutes(30),
     TimeSpan.Zero, // No wait - fail immediately if locked
