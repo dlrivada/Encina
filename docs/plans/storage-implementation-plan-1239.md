@@ -81,13 +81,14 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 **Class:** Dilemma. Option A wins in request-scoped services where the tenant is already resolved by the pipeline. Option B wins in tooling that works across tenants (a retention sweeper, an export job) and where reviewers want the tenant visible at each call.
 
 - We recommend A with `ForTenant` because it keeps the common path safe and still gives background code an explicit, auditable way to name a tenant.
-- Physical layout: `{tenantId}/{name}`; the prefixes of two tenants never overlap because tenant ids are validated (letters, digits, `-`, `_`, no separators); a property test generates random tenant ids and names and asserts that a physical key maps back to exactly one tenant (AC-043).
+- Physical layout: `{tenantId}/{name}`; the prefixes of two tenants never overlap because tenant ids are validated (letters, digits, `-`, `_`, no separators); a property test generates random tenant ids and names and asserts that a physical key maps back to exactly one tenant (AC-043). Under tenancy the id `default` is reserved for the default partition (choice 7) and refused as a tenant id; the same property test asserts that no accepted tenant id under tenancy maps to the default partition.
 - Names are validated by `BlobAddress`: no `..`, no backslash, no leading `/`, no control characters, at most 512 characters (choice 7). The file system provider additionally resolves the full path and refuses anything outside the root.
 - `TenantBlobStore` does not rewrite the name: it sets the tenant on the address (`BlobAddress.TenantId`), and the innermost provider composes the physical key `{tenantId}/{name}`. The decorators in between, including the encrypting one, therefore see the tenant and the logical name separately (choice 4, AAD).
-- Callers cannot name a tenant through the address: `BlobAddress.TenantId` and `BlobAddress.TenantScope` (`Ambient` or `Explicit`) have a public getter and an `internal init`, so only `TenantBlobStore` sets them (provider satellites read them). An address that reaches `TenantBlobStore` with a tenant already set (possible only from code inside `Encina.Storage`) and different from the resolved one is refused with `Left(storage.invalid_address)`.
+- Callers cannot name a tenant through the address: `BlobAddress.TenantId` and `BlobAddress.TenantScope` (`Ambient`, `Explicit` or `DefaultPartition`) have a public getter and an `internal init`, so only `TenantBlobStore` sets them (provider satellites read them). An address that reaches `TenantBlobStore` with a tenant already set (possible only from code inside `Encina.Storage`) and different from the resolved one is refused with `Left(storage.invalid_address)`.
 - Where the tenant reaches the chain: `TenantBlobStore` is the outermost layer (Phase 2, decorator order), so the instrumented, audited, guarded and encrypting layers all receive an address with the tenant already set, on the ambient path as on the explicit one.
 - Where `ForTenant` lives: on the public interface `IBlobTenantScope` (`IBlobStore ForTenant(string tenantId)`), implemented by `TenantBlobStore`; `AddEncinaStorage` registers the same instance as `IBlobStore` and `IBlobTenantScope`. The returned store is a `TenantBlobStore` bound to the given tenant over the same inner chain; providers and inner decorators do not implement the interface. The tenant id is validated as in the physical layout rule above.
 - `ForTenant` is auditable: addresses it produces carry `TenantScope = Explicit`, and `AuditedBlobStore` records the scope with the tenant on every operation, so a background job's cross-request access is visible in the audit.
+- The default partition under tenancy (choice 7): `ForTenant("default")` and an ambient tenant `default` are refused with `Left(storage.invalid_address)` while tenancy is on, so no real tenant shares the partition. Background code that must reach it (the #122 claim-check sweeper and its system-scope payloads, data written before tenancy was switched on) calls `IBlobStore ForDefaultPartition()` on `IBlobTenantScope`; its addresses carry `TenantScope = DefaultPartition`, recorded by the audit like `Explicit`. With tenancy off the ambient path already uses the default partition and `ForDefaultPartition()` returns the same partition.
 
 </details>
 
@@ -177,7 +178,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 
 - The primitive is in the `net10.0` reference pack (fact 5), so option B does not wait for the .NET 11 move discussed in spike #3661.
 - Unit tests of the wrap use the two RFC 5649 section 6 vectors (the 20-octet and the 7-octet key data under the same 192-bit key-encryption key) through `Aes.EncryptKeyWrapPadded`/`Aes.DecryptKeyWrapPadded`, a 32-byte key that wraps to 40 bytes (`Aes.GetKeyWrapPaddedLength(32) == 40`), and a tamper test (a flipped bit in the wrapped key fails to unwrap). RFC 3394 vectors are not used: the BCL has no unpadded key wrap (fact 5), and RFC 5649 uses a different initial value (`A65959A6 || MLI`), so the padded calls cannot reproduce them.
-- **Cross-plan dependency (option B): key separation.** `DataKeyPurpose` of #1250 has `Column` and `BlindIndex` only. Option B needs a third member, `Storage`, so that the blob key-encryption key is a separate key per tenant: without it the column key, which #1250 choice 8 uses as HKDF input, would also serve as an AES Key Wrap key, one key for two algorithms. The member is added in the #1250 plan's shared-names table and in its PR 3 (where `DataKeyPurpose` is created) before PR 3 of this plan; if #1250 merges without it, PR 3 of this plan adds the member to `Encina.Security.Encryption` and its PublicAPI file.
+- **Cross-plan dependency (option B): key separation.** `DataKeyPurpose` of #1250 has `Column` and `BlindIndex` only. Option B needs a third member, `Storage`, so that the blob key-encryption key is a separate key per tenant: without it the column key, which #1250 choice 8 uses as HKDF input, would also serve as an AES Key Wrap key, one key for two algorithms. **Explicit dependency on an edit of the merged #1250 plan.** The #1250 plan is already on main, and there its shared-names table (`DataKeyPurpose` (`Column`, `BlindIndex`), line 20) and its PR 3 row (where `DataKeyPurpose` is created, line 305) do not carry `Storage`. The orchestrator adds the member to both places in a docs edit of the #1250 plan before the first #1250 worker brief; PR 3 of this plan waits for #1250 PR 3 with the member. No pull request of this plan changes the public enum of `Encina.Security.Encryption`: if #1250 PR 3 ships without the member, adding it is a #1250 follow-up pull request, and PR 3 of this plan stays blocked until it merges.
 - With option A, the header keeps `wrappedKey length | wrappedKey` from the KMS and the #1250 `WrappedKey` type; with option B, the header carries `keyVersion | wrappedKey` (fixed 40 bytes for a 256-bit key).
 
 </details>
@@ -204,7 +205,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 | `StorageOptions.MaxBlobBytes` | 64 MiB | Same as the encryption cap, so an unencrypted store does not accept blobs the encrypted one would refuse |
 | `StorageOptions.PageSize` | 1000 | The maximum page of S3 `ListObjectsV2`; Azure allows more, the file system has no limit |
 | Blob name | at most 512 characters; letters, digits, `-`, `_`, `.`, `/` as a separator; no `..` segment, no leading `/`, no control characters | Portable across the file system, S3 and Azure Blob without escaping |
-| Tenant id when tenancy is off | `default` | Valid under the tenant id rule of choice 2; when tenancy is off there is no other tenant to collide with |
+| Tenant id when tenancy is off (the default partition) | `default`, reserved: under tenancy (`MultiTenancyMarker` registered) `default` is refused as a tenant id, by `TenantBlobStore` for an ambient tenant and by `ForTenant`, with `Left(storage.invalid_address)`; the default partition is reached under tenancy only through `IBlobTenantScope.ForDefaultPartition()` | The partition outlives the switch to tenancy: data written while tenancy was off stays there, and the #122 claim-check adapter uses it for the sweep and for system-scope payloads. A real tenant named `default` would share that partition with pre-tenancy and system data, so the name is reserved; keeping `default` rather than a name outside the tenant alphabet leaves the tenancy-off layout unchanged |
 | `BlobPutOptions.Overwrite` | `false` | An accidental overwrite of a document is a data loss; overwriting is explicit |
 | `RefuseWhenOwnerUnknown` (Compliance) | `true` | Fail closed: a blob without an owner cannot be checked for holds (AGENTS.md §3) |
 | Log level of `AllowUnencrypted = true` at start-up | Warning, once per start | Visible in every deployment that turns encryption off |
@@ -307,7 +308,7 @@ Nothing of #1239 exists: `src/` has no `Encina.Storage` package and no `IBlobSto
 | PR | Content | Files | Est. lines |
 |----|---------|-------|-----------|
 | 1 | Phase 1: csproj, `IBlobStore`, `BlobAddress`, `BlobInfo`, `BlobMetadata`, `BlobPutOptions`, `BlobContent`, `BlobPage`, `StorageErrors`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `Encina.slnx`; unit and guard tests; manifest `Encina.Storage.json` | 15 | ~900 |
-| 2 | Phase 2 (tenant and guard): `StorageOptions`, `IBlobLifecycleGuard`, `BlobOperation`, `CompositeBlobLifecycleGuard`, `TenantBlobStore`, `IBlobTenantScope`, `BlobTenantScope`, `BlobAddress` (`TenantScope` added), `GuardedBlobStore`, PublicAPI; unit tests (composite, tenant with a caller-set tenant refused, guarded), guard test, property test (addresses never traverse, tenant prefixes never overlap); manifest | 15 | ~1,200 |
+| 2 | Phase 2 (tenant and guard): `StorageOptions`, `IBlobLifecycleGuard`, `BlobOperation`, `CompositeBlobLifecycleGuard`, `TenantBlobStore`, `IBlobTenantScope`, `BlobTenantScope`, `BlobAddress` (`TenantScope` added), `GuardedBlobStore`, PublicAPI; unit tests (composite, tenant with a caller-set tenant refused, reserved `default` refused under tenancy, `ForDefaultPartition`, guarded), guard test, property test (addresses never traverse, tenant prefixes never overlap, no accepted tenant id maps to the default partition); manifest | 15 | ~1,200 |
 | 3 | Phase 2 (encryption): `EncryptingBlobStore`, `BlobEncryptionHeader`, `StorageOptions` (encryption options), PublicAPI; unit test (header, tamper, the two RFC 5649 section 6 vectors), property test (round trip); manifest | 7 | ~800 |
 | 4 | Phase 2 (audit, resilience, telemetry) and Phase 9: `AuditedBlobStore`, `ResilientBlobStore`, `InstrumentedBlobStore`, `StorageActivitySource`, `StorageMetrics`, `StorageLog` (6050-6079), `EventIdRanges.cs` (`StorageCore`, `StorageProviders`), `EncinaEventIdAllocationTests.cs`, PublicAPI; unit tests (audited, resilient, instrumented with the AC-044 exporter test); manifest | 14 | ~1,300 |
 | 5 | Phase 7: `ServiceCollectionExtensions` (`AddEncinaStorage`, chain in the order of Phase 2), `StorageStartupValidator` (choice 8), PublicAPI; DI test (`ValidateOnBuild`, `ValidateScopes`), validator unit test; manifest | 6 | ~600 |
@@ -376,10 +377,10 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`IBlobLifecycleGuard.cs`**, **`BlobOperation.cs`** (`Read`, `Overwrite`, `Delete`), **`CompositeBlobLifecycleGuard.cs`** (ordered, first `Left` wins, a thrown exception becomes `Left(storage.delete_refused|read_refused)`).
-2. **`TenantBlobStore.cs`** (Design Choices 2 and 10), **`IBlobTenantScope.cs`** (`IBlobStore ForTenant(string tenantId)`) and **`BlobTenantScope.cs`** (`Ambient`, `Explicit`): sets `BlobAddress.TenantId` and `TenantScope` from the request context (choice 10) or from `ForTenant`; refuses an address that arrives with a different tenant already set (`storage.invalid_address`); the name stays logical and the provider composes the physical key.
+2. **`TenantBlobStore.cs`** (Design Choices 2 and 10), **`IBlobTenantScope.cs`** (`IBlobStore ForTenant(string tenantId)`, `IBlobStore ForDefaultPartition()`) and **`BlobTenantScope.cs`** (`Ambient`, `Explicit`, `DefaultPartition`): sets `BlobAddress.TenantId` and `TenantScope` from the request context (choice 10), from `ForTenant` or from `ForDefaultPartition`; refuses an address that arrives with a different tenant already set (`storage.invalid_address`); under tenancy refuses the reserved tenant id `default` from the ambient context and from `ForTenant` (`storage.invalid_address`, choice 7); the name stays logical and the provider composes the physical key. Tests: `ForTenant("default")` and an ambient `default` under tenancy return the `Left`; `ForDefaultPartition()` reaches the partition written with tenancy off.
 3. **`GuardedBlobStore.cs`**: `GetInfoAsync` then `AuthorizeAsync` before delete, overwrite and read; the window between the decision and the delete is choice 9.
 4. **`EncryptingBlobStore.cs`**: header format of Design Choice 4, per-blob key wrapped per choice 6 (recommended: `Aes.EncryptKeyWrapPadded` under the tenant data key of #1250's `ITenantDataKeyService`), AAD over the tenant and the logical name; refuses to read an unencrypted blob unless `AllowUnencrypted`.
-5. **`AuditedBlobStore.cs`**: deletes and refusals to `IOperationAuditStore`; disclosure reads to `IReadAuditStore`; the audit carries tenant, tenant scope (`Ambient` or `Explicit`, so `ForTenant` use is recorded), container, a hash of the name and the outcome, never the name or content.
+5. **`AuditedBlobStore.cs`**: deletes and refusals to `IOperationAuditStore`; disclosure reads to `IReadAuditStore`; the audit carries tenant, tenant scope (`Ambient`, `Explicit` or `DefaultPartition`, so `ForTenant` and `ForDefaultPartition` use is recorded), container, a hash of the name and the outcome, never the name or content.
 6. **`ResilientBlobStore.cs`**: retry transient errors (pattern `ResilientSecretReaderDecorator`, ADR-055).
 7. Decorator order, outermost to innermost: tenant, instrumented, audited, guarded, encrypting, resilient, provider. The tenant layer is outermost so that every other layer sees the tenant (choice 2); its own `storage.tenant_required` refusals are logged by code and counted in `StorageMetrics` by `TenantBlobStore` itself.
 
@@ -398,6 +399,8 @@ CONTEXT:
 - The AAD is 0x01 | tenantId | container | logical name (TenantBlobStore sets TenantId; the name is never prefixed before the provider).
 - IRequestContextAccessor.RequestContext?.TenantId and MultiTenancyMarker decide the tenant (choice 10, recommended; do not
   reference Encina.Tenancy); ForTenant lives on IBlobTenantScope, implemented by TenantBlobStore, the outermost layer.
+  Under tenancy the tenant id "default" is reserved (refused from the ambient context and from ForTenant with
+  Left(storage.invalid_address)); background code reaches the default partition through IBlobTenantScope.ForDefaultPartition().
   BlobAddress.TenantId and TenantScope are internal init. IOperationAuditStore and IReadAuditStore are in src/Encina.Security.Audit/Abstractions/.
 - Decorator registration pattern: DecorateService in src/Encina.Security.Secrets/ServiceCollectionExtensions.cs.
 
@@ -728,7 +731,7 @@ REFERENCE FILES:
 | Unit | models, validation, decorators, guards, file system store, options | 90 for the decorators and `BlobAddress`: pure logic with a fake store; 80 for provider glue |
 | Guard | every public method with parameters | 90 |
 | Contract | one `IBlobStore` contract run against the file system, Azurite and LocalStack stores and the fake | 85: real implementations |
-| Property | encrypt-decrypt round trip, tenant prefixes never overlap, addresses never traverse | 75: invariants |
+| Property | encrypt-decrypt round trip, tenant prefixes never overlap, no accepted tenant id under tenancy maps to the default partition, addresses never traverse | 75: invariants |
 | Integration | file system, Azurite, LocalStack S3: round trip, listing, tenant isolation, S11 (held and blocked blob cannot be deleted), encryption at rest (the stored bytes are not the plaintext) | real services, shared `[Collection]` fixtures |
 | Load, Benchmark | `.md` justifications: not a concurrent hot path | |
 
@@ -896,8 +899,8 @@ Encina.ClaimCheck.Storage (#122) builds on this package.
 
 IMPLEMENTATION OVERVIEW:
 1. Contract and models: IBlobStore, BlobAddress (validated), BlobInfo, BlobMetadata, BlobPutOptions, BlobContent, BlobPage, StorageErrors, StorageOptions.
-2. Decorators: tenant partition, outermost (ambient tenant from IRequestContextAccessor + MultiTenancyMarker per choice 10, ForTenant on
-   IBlobTenantScope, TenantId internal init), lifecycle guard (composite), single-shot AES-GCM envelope encryption with a per-blob
+2. Decorators: tenant partition, outermost (ambient tenant from IRequestContextAccessor + MultiTenancyMarker per choice 10, ForTenant and ForDefaultPartition on
+   IBlobTenantScope, "default" reserved under tenancy, TenantId internal init), lifecycle guard (composite), single-shot AES-GCM envelope encryption with a per-blob
    key wrapped by RFC 5649 (Aes.EncryptKeyWrapPadded, .NET 10 BCL; no RFC 3394 API exists) under the tenant data key of #1250
    (DataKeyPurpose.Storage, choice 6), audit (records the tenant scope), resilience, telemetry.
 3. Providers: file system (core), Encina.Storage.S3 (S3-compatible, LocalStack tests), Encina.Storage.AzureBlob (Azurite tests).
@@ -934,7 +937,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | No shared state updated by concurrent hosts; object stores provide atomic puts |
 | 8 | Transactions | ❌ | Single-operation writes; no atomicity with other systems is offered |
 | 9 | Idempotency | ❌ | Not a message or request entry point |
-| 10 | Multi-Tenancy | ✅ | Phase 2: tenant prefix (tenant source of choice 10), fail closed, default tenant when tenancy is off, `ForTenant` for background code recorded in the audit, caller-set tenants refused; two-tenant test on every provider (AC-043) |
+| 10 | Multi-Tenancy | ✅ | Phase 2: tenant prefix (tenant source of choice 10), fail closed, default tenant when tenancy is off and `default` reserved (refused as a tenant id) under tenancy, `ForTenant` and `ForDefaultPartition` for background code recorded in the audit, caller-set tenants refused; two-tenant test on every provider (AC-043) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ✅ | Phase 2: deletes, hold refusals and disclosures through `IOperationAuditStore` and `IReadAuditStore` |
 
@@ -945,7 +948,7 @@ REFERENCE FILES:
 ### Advisable before or with this work
 
 - #1250 plan, by pull request: PR 3 of this plan (the encryption decorator, choice 6 B) needs #1250 PR 1 (`IKeyWrapper`, `WrappedKey`), PR 3 (`ITenantDataKeyService`, `DataKeyPurpose` with the `Storage` member of choice 6, the in-memory key store) and PR 4 (the key cache and `LocalKeyWrapper`, which the unit tests use); PR 5 of this plan (start-up validation of choice 8) needs #1250 PR 5 (its `ServiceCollectionExtensions`, which registers the key service). The KMS wrappers (#1250 PR 6 and PR 7) are needed only by deployments, not by any pull request of this plan. This matches #1250's own note that its PR 1-5 come first. The other pull requests of this plan do not wait for #1250.
-- #1250 shared names: `DataKeyPurpose` gains the `Storage` member (choice 6, cross-plan dependency); the #1250 plan's shared-names table and its PR 3 must carry it.
+- #1250 shared names: `DataKeyPurpose` gains the `Storage` member (choice 6, cross-plan dependency). The merged #1250 plan on main lists `Column` and `BlindIndex` only (shared-names table and PR 3 row), so the orchestrator edits that plan before the first #1250 worker brief; PR 3 of this plan is blocked until #1250 PR 3 (or a #1250 follow-up pull request) ships the member, and no pull request of this plan adds it.
 - #1187 (retention floor) and #1189 (blocked data state): the floor and blocking adapters of Phase 6 wait for them; the legal hold adapter does not.
 - #1257 (multi-tenancy of the SPEC-002 capabilities): REQ-061 for blob storage is implemented here; #1257 tracks the cross-feature verification.
 
