@@ -356,6 +356,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Act & Assert
         await Should.ThrowAsync<ConcurrencyTestException>(() => sut.SaveAsync(aggregate));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -378,6 +379,7 @@ public class SnapshotAwareAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Concurrency conflict"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -397,6 +399,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -498,6 +501,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]

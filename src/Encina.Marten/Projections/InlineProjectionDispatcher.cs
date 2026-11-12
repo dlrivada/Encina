@@ -184,6 +184,8 @@ public sealed class MartenInlineProjectionDispatcher : IInlineProjectionDispatch
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             ProjectionLog.ErrorApplyingEvent(_logger, ex.ForLogging(), eventType.Name, registration.ProjectionName);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function

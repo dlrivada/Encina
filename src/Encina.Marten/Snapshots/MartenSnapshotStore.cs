@@ -137,6 +137,8 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             SnapshotLog.ErrorSavingSnapshot(_logger, ex.ForLogging(), typeof(TAggregate).Name, snapshot.AggregateId);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -188,6 +190,8 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             SnapshotLog.ErrorPruningSnapshots(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -231,6 +235,8 @@ public sealed class MartenSnapshotStore<TAggregate> : ISnapshotStore<TAggregate>
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             SnapshotLog.ErrorDeletingSnapshots(_logger, ex.ForLogging(), typeof(TAggregate).Name, aggregateId);
 
             return Left<EncinaError, int>( // NOSONAR S6966: LanguageExt Left is a pure function

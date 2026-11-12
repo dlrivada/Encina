@@ -154,6 +154,8 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             ProjectionLog.ErrorStoringReadModel(_logger, ex.ForLogging(), typeof(TReadModel).Name, readModel.Id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -185,6 +187,8 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             ProjectionLog.ErrorStoringReadModels(_logger, ex.ForLogging(), typeof(TReadModel).Name);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -213,6 +217,8 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             ProjectionLog.ErrorDeletingReadModel(_logger, ex.ForLogging(), typeof(TReadModel).Name, id);
 
             return Left<EncinaError, Unit>( // NOSONAR S6966: LanguageExt Left is a pure function
@@ -245,6 +251,8 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
         }
         catch (Exception ex)
         {
+            _session.EjectAllPendingChanges();
+
             ProjectionLog.ErrorDeletingAllReadModels(_logger, ex.ForLogging(), typeof(TReadModel).Name);
 
             return Left<EncinaError, long>( // NOSONAR S6966: LanguageExt Left is a pure function
