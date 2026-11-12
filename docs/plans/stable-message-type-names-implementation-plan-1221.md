@@ -3,7 +3,7 @@
 > **Issue**: [#1221](https://github.com/dlrivada/Encina/issues/1221)
 > **Type**: Feature
 > **Verified against**: origin/main `c49b987e9` (2026-11-12)
-> **Complexity**: Medium-High (8 phases, no new schema, tests on all 10 database providers, ~70 files in 6 pull requests)
+> **Complexity**: Medium-High (8 phases, no new schema, tests on all 10 database providers, ~71 files in 7 pull requests)
 > **Estimated Scope**: ~900-1,200 lines of production code + ~1,500-1,900 lines of tests
 
 ---
@@ -21,7 +21,7 @@ What it implements:
 
 Standards: SPEC-002 REQ-032, AC-032, P-19; ADR-001 (ROP); ADR-021 (EventIds); #134 (message versioning, minimal slice here, remainder stays open).
 
-Estimated scope: about 70 files (core 18, call-site edits 13, tests 28, docs and metadata 11), shipped as 6 pull requests. Affected packages: `Encina` (the attribute), `Encina.Messaging` (registry, resolver, upcasting, call sites), `Encina.Cdc` (one read site). `Encina.Messaging.Encryption` is not affected: its `MessageEncryptionContext.MessageType` (`EncryptingMessageSerializer.cs` line 292) is not a persisted type name (verified: it is read only by `DataProtectionMessageEncryptionProvider` for log text and error construction, never stored in the envelope), so it stays unchanged.
+Estimated scope: about 71 files (core 18, call-site edits 14, tests 28, docs and metadata 11), shipped as 7 pull requests. Affected packages: `Encina` (the attribute), `Encina.Messaging` (registry, resolver, upcasting, call sites), `Encina.Cdc` (one read site). `Encina.Messaging.Encryption` is not affected: its `MessageEncryptionContext.MessageType` (`EncryptingMessageSerializer.cs` line 292) is not a persisted type name (verified: it is read only by `DataProtectionMessageEncryptionProvider` for log text and error construction, never stored in the envelope), so it stays unchanged.
 
 Provider category: Database (10) by test only. The type columns already exist in every provider script and store, so there is no provider-specific code; AGENTS.md section 5 is met by running the round-trip scenario on all 10 providers.
 
@@ -185,6 +185,27 @@ Provider category: Database (10) by test only. The type columns already exist in
 
 </details>
 
+<details>
+<summary><strong>9. How the writers and readers receive the new services, and how <code>RecoverabilityContext</code> gets the name</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Each writer and reader constructor gains a trailing optional parameter `IMessageTypeNames? typeNames = null` / `IMessagePayloadReader? reader = null` that defaults to the pass-through implementation; `RecoverabilityContext.CreateFailedMessage(object request, string? requestType = null)` takes the name from its two callers** | Existing `new X(...)` constructions and their tests keep compiling (29 files construct the 7 writers, 20 the readers, verified by `git grep`); only DI wiring changes; a data object never depends on a service | Two parameters per class that DI always fills in production |
+| **B) Required constructor parameters** | No hidden default | About 30 and 20 files of mechanical test edits in the call-site pull requests (verified), far over the 15-file limit |
+
+### Chosen Option: **A — Optional dependencies with a pass-through default**
+
+### Rationale
+
+- Technical reason: B cannot be split into pull requests of 15 files because the constructors are shared by the 49 construction sites; A keeps each call-site pull request to its own class and tests. The pattern already exists in the same classes (`RecoverabilityContext(TimeProvider? timeProvider = null)`).
+- `RecoverabilityContext` is created with `new` in `RecoverabilityPipelineBehavior.cs:105` and `DelayedRetryProcessor.cs:525` and has no DI, so it never holds a service. `CreateFailedMessage(object request, string? requestType = null)` (`RecoverabilityContext.cs:199`; today it writes `request.GetType().AssemblyQualifiedName` at line 207) uses `requestType` when given and the assembly-qualified name otherwise. Its two callers (`RecoverabilityPipelineBehavior.cs:536` and `DelayedRetryProcessor.cs:576`, which already overrides `RequestType` with the stored value) pass the name from `IMessageTypeNames`. The public API change is one `PublicAPI.Unshipped.txt` line replacing `RecoverabilityContext.CreateFailedMessage(object! request)`.
+- The pass-through default is the same object Design Choice 7 registers when no registry is configured, so a direct construction behaves exactly like an unconfigured application.
+- **Class:** Trivial
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -277,11 +298,11 @@ REFERENCE FILES: src/Encina.Messaging/MessagingServiceCollectionExtensions.cs, s
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Writers (replace `typeof(T).AssemblyQualifiedName ?? ...` with `IMessageTypeNames.GetName`): `OutboxOrchestrator.cs:92`, `OutboxWriter.cs:56`, `SchedulerOrchestrator.cs:127` and `:212`, `InboxPipelineBehavior.cs:94`, `DeadLetterOrchestrator.cs:143`, `DelayedRetryScheduler.cs:74`, `RecoverabilityContext.cs:207`.
+Writers (replace `typeof(T).AssemblyQualifiedName ?? ...` with `IMessageTypeNames.GetName`): `OutboxOrchestrator.cs:92`, `OutboxWriter.cs:56`, `SchedulerOrchestrator.cs:127` and `:212`, `InboxPipelineBehavior.cs:94`, `DeadLetterOrchestrator.cs:143`, `DelayedRetryScheduler.cs:74`, `RecoverabilityContext.cs:207`. `RecoverabilityContext` has no DI (created with `new`): per Design Choice 9 it takes the name as the new optional parameter `CreateFailedMessage(object request, string? requestType = null)`, and its callers `RecoverabilityPipelineBehavior.cs:536` and `DelayedRetryProcessor.cs:576` pass `IMessageTypeNames.GetName(...)`.
 
 Readers (replace `Type.GetType` plus `Deserialize` with `IMessagePayloadReader.Read`): `OutboxBatchProcessor.cs:173`, `SchedulerOrchestrator.cs:439`, `DeadLetterManager.cs:354`, `DelayedRetryProcessor.cs:199` and `:482`, `Encina.Cdc/Messaging/OutboxCdcHandler.cs:124`. The unknown-type and deserialization failures keep their current error codes mapped from the new ones, so retry and dead-letter behavior is unchanged.
 
-Constructors gain the new services; the registration of the processors is updated; unit tests for each site.
+Constructors gain the new services as trailing optional parameters with a pass-through default (Design Choice 9), so existing constructions and tests keep compiling and only DI wiring changes; the new constructors are listed in `PublicAPI.Unshipped.txt`. `SchedulerOrchestrator` is both a writer (lines 127, 212) and a reader (line 439): it gains both parameters and both call-site edits in the same pull request (B1a), so no later pull request touches its constructor again. Unit tests for each site.
 
 </details>
 
@@ -293,7 +314,8 @@ CONTEXT: The 7 writers and 6 readers listed in the Tasks block are the complete 
 found with grep on 2026-11-11; re-run the search (AssemblyQualifiedName, Type.GetType) before editing.
 TASK: Route every writer through IMessageTypeNames and every reader through IMessagePayloadReader.
 KEY RULES: the failure paths stay Left and keep their retry/dead-letter semantics; no behavior change when the
-registry is empty; constructor changes updated in DI and tests; one pull request per group.
+registry is empty; new constructor parameters are optional with a pass-through default (Design Choice 9); RecoverabilityContext
+gets the name through CreateFailedMessage(request, requestType), never a service; one pull request per group.
 REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina.Messaging/Recoverability/DelayedRetryProcessor.cs,
 src/Encina.Cdc/Messaging/OutboxCdcHandler.cs, src/Encina.Messaging/DeadLetter/DeadLetterManager.cs
 ```
@@ -329,7 +351,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/specifications (REQ-061, AC-043)
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Counters on the `Encina` meter: `encina.messaging.type_name.fallback_total` (writes that used the assembly-qualified fallback) and `encina.messaging.payload.upcast_total` (tags `message_type`, bounded by registered names), with the `tenant` tag **only when multi-tenancy is enabled and an ambient tenant resolves (ADR-054 D4)**; the read sites (processors) run without a request context, so no tenant tag is emitted there, and none is emitted at all when multi-tenancy is off. Counters are emitted only once a registry is configured (Design Choice 7).
+1. Counters on the `Encina` meter: `encina.messaging.type_name.fallback_total` (writes that used the assembly-qualified fallback) and `encina.messaging.payload.upcast_total`. Tag sets are bounded: `fallback_total` carries only `message_kind` (outbox, inbox, scheduled, dead_letter, delayed_retry, cdc; a closed set), never a type name, because one tag value per unregistered type is unbounded; `upcast_total` carries `message_type`, bounded by the registered names. Without a registry no upcast can happen, so `upcast_total` is off as well (moot). Both counters carry the `tenant` tag **only when multi-tenancy is enabled and an ambient tenant resolves (ADR-054 D4)**; the read sites (processors) run without a request context, so no tenant tag is emitted there, and none is emitted at all when multi-tenancy is off. Counters are emitted only once a registry is configured (Design Choice 7).
 2. `MessageTypeLog` (`[LoggerMessage]`) with EventIds 5811-5816 inside the family block 5800-5849 (`EventIdRanges.MessagingInboxIdempotency`, registered by plan #3440 or by the first plan of the family to land), packed after #1220's 5805-5810: 5811 fallback warning (once per type), 5812 unknown stored name, 5813 upcast applied (Debug), 5814 upcast failed, 5815 registry built, 5816 registry validation failed.
 3. No payload or message text in tags or logs (AC-044 test with an in-memory exporter).
 
@@ -452,25 +474,26 @@ REFERENCE FILES: docs/messaging/index.md, .claude/skills/encina-docs/SKILL.md, c
 | Category | Files | Notes |
 |----------|-------|-------|
 | Core abstractions and implementation | 18 | attribute, 3 contracts, error codes, registry, options and validator, names, reader, registration, metrics, log, config helper, upcast chain, EventIdRanges edit |
-| Call-site edits | 13 | 7 writers and 6 readers |
-| Tests | 28 | unit, guard, contract, property, integration scenario, DI tests, 2 justification files, EventId map, existing tests that construct the changed classes (counted at pick-up) |
+| Call-site edits | 14 | 7 writers, 6 readers and `RecoverabilityPipelineBehavior` (passes the name to `CreateFailedMessage`) |
+| Tests | 28 | unit, guard, contract, property, integration scenario, DI tests, 2 justification files, EventId map; existing tests need no constructor edit (optional parameters, Design Choice 9) |
 | Documentation and metadata | 11 | changelog, guide, ADR, INVENTORY, manifests (Encina, Messaging, Cdc), PublicAPI (Encina, Messaging, Cdc) |
-| **Total** | **70** | Six pull requests |
+| **Total** | **71** | Seven pull requests; the per-PR counts below add up to more because a file touched by two pull requests (the Messaging `PublicAPI.Unshipped.txt` and manifest) is counted in each |
 
 ### Pull request split
 
-Counts include tests, coverage manifests, `PublicAPI.Unshipped.txt` and the existing tests that change with each constructor. Each pull request builds alone.
+Counts include tests, coverage manifests and `PublicAPI.Unshipped.txt`. Each pull request builds alone.
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A1 | Contracts and registry: attribute, three contracts, error codes, options and validator, registry; unit, guard and property tests; PublicAPI of Encina and Messaging; 2 manifests | 14 |
 | A2 | Names and reader: `MessageTypeNames`, `MessagePayloadReader`, upcast chain, registration extension, config helper, metrics, `MessageTypeLog`, `EventIdRanges` and `EncinaEventIdAllocationTests` edits; unit and DI tests; PublicAPI; manifest | 14 |
-| B1 | The 7 writers, their DI registration updates and unit tests (existing tests that construct them included), PublicAPI, manifest | 14 |
-| B2 | The 6 readers (5 in Messaging, `OutboxCdcHandler` in Cdc), unit tests, PublicAPI and manifests of both packages | 14 |
+| B1a | Outbox, inbox and scheduling call sites: `OutboxOrchestrator`, `OutboxWriter`, `InboxPipelineBehavior` (writers) and `SchedulerOrchestrator` (both writer sites and the reader site, one constructor change), 4 unit test files, PublicAPI, manifest | 10 |
+| B1b | Recoverability writers: `DeadLetterOrchestrator`, `DelayedRetryScheduler`, `RecoverabilityContext` (`CreateFailedMessage(object, string?)`), `RecoverabilityPipelineBehavior` (passes the name), 4 unit test files, PublicAPI, manifest | 10 |
+| B2 | The 4 remaining readers: `OutboxBatchProcessor`, `DeadLetterManager`, `DelayedRetryProcessor` (also passes the name at its `CreateFailedMessage` call), `OutboxCdcHandler` (Cdc), 4 unit test files, PublicAPI and manifests of both packages | 12 |
 | C | Contract tests and the 10-provider integration scenario (the shared `[Collection]` fixtures), 2 justification files | 8 |
 | D | Documentation: guide page, index link, ADR, INVENTORY, changelog | 6 |
 
-A1 first; A2 depends on A1; B1 and B2 depend on A2 and may land in either order; C depends on B1 and B2; D last.
+A1 first; A2 depends on A1; B1a, B1b and B2 depend on A2 and may land in any order; C depends on B1a, B1b and B2; D last. No call-site pull request edits existing constructions or tests of the classes it changes (Design Choice 9), which is what keeps each at 12 files or fewer.
 
 ---
 
@@ -542,6 +565,6 @@ src/Encina.Messaging/Serialization/IMessageSerializer.cs, src/Encina/Diagnostics
 ## Next Steps
 
 1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 3, 4, 5, 7 and 8 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
-2. Re-run the search for `AssemblyQualifiedName` and `Type.GetType` to refresh the call-site list before PR B1.
+2. Re-run the search for `AssemblyQualifiedName` and `Type.GetType` to refresh the call-site list before PR B1a.
 3. Re-check that 5811-5816 are free and the family block is registered before PR A2.
 4. Measure per-flag coverage and the CRAP table for every touched file before each pull request.
