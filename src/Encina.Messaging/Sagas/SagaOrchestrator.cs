@@ -160,15 +160,11 @@ public sealed class SagaOrchestrator
         where TSagaData : class
     {
         var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
-        if (stateResult.IsLeft)
-            return stateResult.LeftToArray()[0];
-
-        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
-        var advanced = AdvanceState(sagaId, stateOpt, updateData);
+        var advanced = stateResult.Bind(stateOpt => AdvanceState(sagaId, stateOpt, updateData));
         if (advanced.IsLeft)
             return advanced.LeftToArray()[0];
 
-        var (state, data) = advanced.Match(Right: r => r, Left: _ => default);
+        var (state, data) = advanced.RightToArray()[0];
 
         var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
         if (updateResult.IsLeft)
@@ -186,13 +182,11 @@ public sealed class SagaOrchestrator
         Func<TSagaData, TSagaData>? updateData)
         where TSagaData : class
     {
-        if (stateOpt.IsNone)
+        if (stateOpt.Case is not ISagaState state)
         {
             Log.SagaNotFound(_logger, sagaId);
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
-
-        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Running)
         {
