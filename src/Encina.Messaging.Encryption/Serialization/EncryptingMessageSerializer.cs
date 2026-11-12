@@ -95,7 +95,7 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
     {
         var json = _inner.Serialize(message);
         var opts = _options.Value;
-        var messageType = message?.GetType() ?? typeof(T);
+        var messageType = ResolveMessageType(message);
         var messageTypeName = messageType.Name;
 
         if (!opts.Enabled)
@@ -272,6 +272,10 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
         throw new InvalidOperationException(
             $"Message decryption failed with key '{payload.KeyId}': {error.Message}");
     }
+
+    // The runtime type decides encryption, so a message passed as an interface or a base type
+    // cannot escape the [EncryptedMessage] of its concrete type (#3780); null keeps typeof(T).
+    private static Type ResolveMessageType<T>(T message) => message?.GetType() ?? typeof(T);
 
     private static bool ShouldEncrypt(Type messageType, MessageEncryptionOptions options)
     {
