@@ -81,7 +81,13 @@
     "Diagnostics/DPIALogMessages.cs": {
       "defaultTests": [],
       "defaultRule": "*LogMessages.cs",
-      "reason": "Source-generated [LoggerMessage] delegates"
+      "reason": "Source-generated [LoggerMessage] delegates",
+      "targets": {
+        "unit": 0
+      },
+      "justifications": {
+        "unit": "The file holds source-generated [LoggerMessage] delegates that Cobertura reports without executable lines; the review-reminder messages are asserted through DPIALoggerErrorMessageLeakTests and DPIAReviewReminderServiceTests."
+      }
     },
     "DPIAAutoDetector.cs": {
       "defaultTests": [
@@ -127,7 +133,13 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO — defaults verification"
+      "reason": "Configuration POCO — defaults verification",
+      "targets": {
+        "unit": 100
+      },
+      "justifications": {
+        "unit": "DPIAOptionsTests asserts every default and setter of the options POCO, including ExpirationCheckInterval after EnableExpirationMonitoring was removed (#3786, measured 100%)."
+      }
     },
     "DPIAOptionsValidator.cs": {
       "defaultTests": [
@@ -136,7 +148,17 @@
         "property"
       ],
       "defaultRule": "*Validator.cs",
-      "reason": "Validation logic with invariants"
+      "reason": "Validation logic with invariants",
+      "targets": {
+        "unit": 100,
+        "guard": 2,
+        "property": 90
+      },
+      "justifications": {
+        "unit": "DPIAOptionsValidatorTests drive every rule, including the unconditional ExpirationCheckInterval range check at both PeriodicTimer bounds (#3786, measured 100%).",
+        "guard": "Guard tests reach only the null-options check at the top of Validate (measured 2.94%).",
+        "property": "FsCheck properties exercise the review-period, interval-range and email rules; only the invalid enforcement-mode message line is left to the unit tests (measured 91.18%)."
+      }
     },
     "DPIARequiredPipelineBehavior.cs": {
       "defaultTests": [
@@ -155,12 +177,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 93,
-        "guard": 7
+        "unit": 98,
+        "guard": 9
       },
       "justifications": {
-        "unit": "Unit tests drive the failure paths and assert the activity status carries only the error code (measured 93.00%).",
-        "guard": "Guard tests reach only the constructor argument checks (measured 7.00%)."
+        "unit": "Unit tests run the always-on service on FakeTimeProvider: first cycle, next cycle after the interval, failing and throwing store keep the loop alive, cancelled cycle, notifications and error-code logging; only the unreachable end of the timer loop is uncovered (#3786, measured 98.99%).",
+        "guard": "Guard tests reach only the four constructor argument checks (measured 9.09%)."
       }
     },
     "Events/DPIAEvents.cs": {
@@ -177,7 +199,15 @@
         "guard"
       ],
       "defaultRule": "*HealthCheck.cs",
-      "reason": "Health check with mockeable service dependencies"
+      "reason": "Health check with mockeable service dependencies",
+      "targets": {
+        "unit": 98,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "DPIAHealthCheckTests drive the healthy, degraded and unhealthy results and the data entries after expirationMonitoringEnabled was removed (#3786, measured 98.21%).",
+        "guard": "The constructor has no argument checks today, so a guard test has nothing to assert; the missing null checks are a tracked follow-up of #3786."
+      }
     },
     "Model/DPIAAssessment.cs": {
       "defaultTests": [
@@ -383,7 +413,15 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": {
+        "unit": 89,
+        "guard": 2
+      },
+      "justifications": {
+        "unit": "DPIA unit tests build the container, including a ValidateOnBuild and ValidateScopes graph that proves the review-reminder service is registered without any option (#3786, measured 89.19%).",
+        "guard": "Guard tests reach only the null-services check (measured 2.70%)."
+      }
     },
     "Services/DefaultDPIAService.cs": {
       "defaultTests": [
