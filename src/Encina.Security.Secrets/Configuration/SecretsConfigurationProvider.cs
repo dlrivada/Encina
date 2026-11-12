@@ -29,8 +29,11 @@ namespace Encina.Security.Secrets.Configuration;
 /// <para>
 /// <b>Reload support:</b> When <see cref="SecretsConfigurationOptions.ReloadInterval"/> is set,
 /// a timer created through the injected <see cref="TimeProvider"/> periodically calls <see cref="Load"/>
-/// to refresh secrets. A failed reload never escapes the timer callback: it is logged (exception type
-/// and stack trace, never its message), the previously loaded data is kept and the timer keeps running.
+/// to refresh secrets. An exception during a reload never escapes the timer callback: it is logged
+/// (exception type and stack trace, never its message) and the timer keeps running. When <see cref="Load"/>
+/// throws, the previously loaded data is kept; when a reload listener throws, the data has already been
+/// replaced. A secret the reader returns as an error (<c>Left</c>) is left out of the reloaded data, as on
+/// the first load.
 /// </para>
 /// </remarks>
 internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDisposable
@@ -155,7 +158,7 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
 
     /// <summary>
     /// The reload timer callback. It never throws: an exception escaping a timer callback on the system
-    /// clock terminates the process. A failed <see cref="Load"/> leaves <see cref="ConfigurationProvider.Data"/>
+    /// clock terminates the process. A <see cref="Load"/> that throws leaves <see cref="ConfigurationProvider.Data"/>
     /// unchanged, and the timer keeps running so the next interval retries.
     /// </summary>
     private void ReloadFromTimer()

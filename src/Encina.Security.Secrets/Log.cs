@@ -172,7 +172,7 @@ internal static partial class Log
     public static partial void ResilienceTimeoutExceeded(ILogger logger, double timeoutSeconds);
 
     // Configuration reload: EventId 5151
-    [LoggerMessage(EventId = 5151, Level = LogLevel.Error, Message = "Secrets configuration reload failed; the previously loaded secrets are kept and the next interval retries")]
+    [LoggerMessage(EventId = 5151, Level = LogLevel.Error, Message = "Secrets configuration reload failed with an exception; the reload timer keeps running and the next interval retries")]
     public static partial void ConfigurationReloadFailed(ILogger logger, Exception exception);
 
     // Stale fallback: superseded by CacheStaleFallbackServed (EventId 5112)
