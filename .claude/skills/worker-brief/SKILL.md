@@ -80,6 +80,14 @@ Rules:
   against target), and run
   Set-Location <wt>; dotnet run --file <wt>/.github/scripts/coverage-report.cs -- --check-justifications
   (exit 0). A flag with no data for a file reads "no data" and counts as below any target above 0.
+  Guard tests are part of the obligation (AGENTS.md §9, #3798): every new or changed public method or
+  constructor with reference-type or validated parameters gets its argument tests (null, empty/whitespace
+  where checked, out-of-range) in tests/Encina.GuardTests (GuardClauses.xUnit or explicit Should.Throw on
+  ArgumentNullException/ArgumentException), never only in UnitTests. The file's per-file guard target is set
+  from the measured value and cannot be 0 with "covered by unit tests" as justification (coverage is per
+  flag). A 0 is allowed only with a reason that guard tests cannot reach the code (no parameters, no
+  executable code, internal type without InternalsVisibleTo for Encina.GuardTests, and the justification
+  says so).
 - Self-review before reporting: an issue-worker whose diff touches production code (src/, .github/scripts/,
   .claude/hooks/) spawns adversarial-reviewer on git -C <wt> diff origin/main...HEAD with this brief's
   acceptance criteria; a docs-writer spawns docs-reviewer on its pages. Fix blockers and majors; list the rest.

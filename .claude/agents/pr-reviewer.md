@@ -72,6 +72,9 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    per-flag coverage that meets them (run `dotnet run --file .github/scripts/coverage-report.cs --
    --check-justifications` and read the "Per-file targets" table the PR reports, or regenerate it from the per-flag runs); a missing, unjustified or
    unmet target is a finding in section (b).
+   Guard tests (#3798): public API with parameters added or changed in the diff (`PublicAPI.Unshipped.txt`
+   lines, new public constructors or methods) without argument tests in `tests/Encina.GuardTests` is a
+   `major` finding; argument-check assertions placed in `UnitTests` instead of `GuardTests` are a `minor` finding.
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
    **Decision register (#2470).** Find the register of the linked issue: the Design Choices of its plan

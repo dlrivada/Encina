@@ -59,7 +59,8 @@ Model: you run on Sonnet by default. The orchestrator overrides it to Opus (the 
 
 1. Implement the brief and run the verification it names.
 2. Self-review: when the change touches production code (`src/`, the site's code and data under `docs/`, `.github/scripts/`, `.claude/hooks/`), spawn `adversarial-reviewer` in the foreground on your own diff (`git -C <worktree> diff origin/main...HEAD`, plus the issue number and the brief's acceptance criteria). Fix every blocker and major it reports, re-run the verification, and list the remaining minor findings in the report. Findings fixed before the PR opens save a review, fix, re-push and CI cycle. The orchestrator still runs the PR-level review when CodeRabbit is rate limited.
-3. Commit and report.
+3. Guard tests (AGENTS.md §9, #3798): every new or changed public method or constructor with reference-type or validated parameters gets its argument tests (null, empty/whitespace where checked, out-of-range) in `tests/Encina.GuardTests`, never only in `UnitTests`. The file's guard target comes from the measured value; a 0 with "covered by unit tests" is not a justification (coverage is per flag), only a reason that guard tests cannot reach the code (no parameters, no executable code, internal type without InternalsVisibleTo for `Encina.GuardTests`).
+4. Commit and report. The report lists the guard tests added (file and test names).
 
 ## Delegation (mandatory)
 
