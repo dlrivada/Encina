@@ -18,13 +18,19 @@ namespace Encina.Compliance.DPIA;
 /// <list type="bullet">
 /// <item><description><see cref="DPIAOptions.EnforcementMode"/> is a defined enum value</description></item>
 /// <item><description><see cref="DPIAOptions.DefaultReviewPeriod"/> is positive</description></item>
-/// <item><description><see cref="DPIAOptions.ExpirationCheckInterval"/> is positive when monitoring is enabled</description></item>
+/// <item><description><see cref="DPIAOptions.ExpirationCheckInterval"/> is between 1 millisecond and <c>uint.MaxValue - 1</c> milliseconds (about 49.7 days), the range <see cref="PeriodicTimer"/> accepts</description></item>
 /// <item><description><see cref="DPIAOptions.DPOEmail"/> format is valid when provided</description></item>
 /// </list>
 /// </para>
 /// </remarks>
 internal sealed class DPIAOptionsValidator : IValidateOptions<DPIAOptions>
 {
+    /// <summary>The shortest period <see cref="PeriodicTimer"/> accepts.</summary>
+    internal static readonly TimeSpan MinExpirationCheckInterval = TimeSpan.FromMilliseconds(1);
+
+    /// <summary>The longest period <see cref="PeriodicTimer"/> accepts: <c>uint.MaxValue - 1</c> milliseconds.</summary>
+    internal static readonly TimeSpan MaxExpirationCheckInterval = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
+
     /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, DPIAOptions options)
     {
@@ -48,11 +54,14 @@ internal sealed class DPIAOptionsValidator : IValidateOptions<DPIAOptions>
                 + $"Current value: {options.DefaultReviewPeriod}.");
         }
 
-        // Validate ExpirationCheckInterval is positive when monitoring is enabled
-        if (options.EnableExpirationMonitoring && options.ExpirationCheckInterval <= TimeSpan.Zero)
+        // Validate ExpirationCheckInterval is within the range PeriodicTimer accepts:
+        // the review-reminder service always runs, so the interval is always checked
+        if (options.ExpirationCheckInterval < MinExpirationCheckInterval
+            || options.ExpirationCheckInterval > MaxExpirationCheckInterval)
         {
             failures.Add(
-                $"DPIAOptions.ExpirationCheckInterval must be positive when EnableExpirationMonitoring is true. "
+                $"DPIAOptions.ExpirationCheckInterval must be between {MinExpirationCheckInterval} "
+                + $"and {MaxExpirationCheckInterval} (the range PeriodicTimer supports). "
                 + $"Current value: {options.ExpirationCheckInterval}.");
         }
 
