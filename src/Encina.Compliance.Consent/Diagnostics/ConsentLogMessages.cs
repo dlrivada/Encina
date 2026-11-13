@@ -200,14 +200,16 @@ internal static class ConsentLogMessages
 
     // -- 8260: Consent granted (service) --
 
-    private static readonly Action<ILogger, string, string, Exception?> ConsentGrantedServiceDef =
-        LoggerMessage.Define<string, string>(
+    // The consent id is a hash of the tenant, the data subject and the purpose (#3769), so it is
+    // not logged at Information (#3771).
+    private static readonly Action<ILogger, string, Exception?> ConsentGrantedServiceDef =
+        LoggerMessage.Define<string>(
             LogLevel.Information,
             new EventId(8260, nameof(ConsentGrantedService)),
-            "Consent granted. ConsentId={ConsentId}, Purpose={Purpose}");
+            "Consent granted. Purpose={Purpose}");
 
-    internal static void ConsentGrantedService(this ILogger logger, string consentId, string purpose)
-        => ConsentGrantedServiceDef(logger, consentId, purpose, null);
+    internal static void ConsentGrantedService(this ILogger logger, string purpose)
+        => ConsentGrantedServiceDef(logger, purpose, null);
 
     // -- 8261: Consent withdrawn (service) --
 
@@ -308,6 +310,56 @@ internal static class ConsentLogMessages
     /// </summary>
     internal static void ConsentTenantEnforcementOptedOut(this ILogger logger)
         => ConsentTenantEnforcementOptedOutDef(logger, null);
+
+    // 8269-8274 are reserved by the open consent plans (#811, #810, #1199, #1255).
+
+    // -- 8275: Grant on an existing consent recorded --
+    // The consent id is a hash of the tenant, the data subject and the purpose (#3769), so it is
+    // never logged at Information or above (#3771); correlate via purpose and transition.
+
+    private static readonly Action<ILogger, string, string, bool, Exception?> ConsentGrantOnExistingRecordedDef =
+        LoggerMessage.Define<string, string, bool>(
+            LogLevel.Information,
+            new EventId(8275, nameof(ConsentGrantOnExistingRecorded)),
+            "Grant on an existing consent recorded. Purpose={Purpose}, Transition={Transition}, AppliedToState={AppliedToState}");
+
+    /// <summary>
+    /// Logs that a grant on an existing consent was recorded as a renewal, a regrant or a
+    /// reconsent, and whether it changed the current state or was a late act kept only in the
+    /// history (#3771).
+    /// </summary>
+    internal static void ConsentGrantOnExistingRecorded(this ILogger logger, string purpose, string transition, bool appliedToState)
+        => ConsentGrantOnExistingRecordedDef(logger, purpose, transition, appliedToState, null);
+
+    // -- 8276: Grant rejected — the consent requires reconsent to a newer version --
+
+    private static readonly Action<ILogger, string, Exception?> ConsentGrantReconsentRequiredDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Warning,
+            new EventId(8276, nameof(ConsentGrantReconsentRequired)),
+            "Grant rejected: the consent requires reconsent and the grant carries an older consent version. Purpose={Purpose}");
+
+    /// <summary>
+    /// Logs that a grant on a consent in RequiresReconsent was rejected because it did not carry the
+    /// current consent version (#3771).
+    /// </summary>
+    internal static void ConsentGrantReconsentRequired(this ILogger logger, string purpose)
+        => ConsentGrantReconsentRequiredDef(logger, purpose, null);
+
+    // -- 8277: Grant on an existing consent hit a concurrency conflict; retrying --
+
+    private static readonly Action<ILogger, string, Exception?> ConsentGrantConcurrencyRetryDef =
+        LoggerMessage.Define<string>(
+            LogLevel.Debug,
+            new EventId(8277, nameof(ConsentGrantConcurrencyRetry)),
+            "Grant on an existing consent hit a concurrency conflict; reloading and retrying. Purpose={Purpose}");
+
+    /// <summary>
+    /// Logs that a grant on an existing consent lost an optimistic concurrency race and is retried
+    /// on the reloaded stream (#3771).
+    /// </summary>
+    internal static void ConsentGrantConcurrencyRetry(this ILogger logger, string purpose)
+        => ConsentGrantConcurrencyRetryDef(logger, purpose, null);
 
     // ========================================================================
     // Health check log messages (8250-8259)

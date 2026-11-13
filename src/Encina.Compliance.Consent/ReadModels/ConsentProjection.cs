@@ -1,3 +1,4 @@
+using Encina.Compliance.Consent.Aggregates;
 using Encina.Compliance.Consent.Events;
 using Encina.Marten.Projections;
 
@@ -8,8 +9,16 @@ namespace Encina.Compliance.Consent.ReadModels;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This projection implements the "Query" side of CQRS for consent management. It handles all 6
+/// This projection implements the "Query" side of CQRS for consent management. It handles all 8
 /// consent event types, creating or updating the <see cref="ConsentReadModel"/> as events are applied.
+/// </para>
+/// <para>
+/// <b>Act ordering (#3771)</b>: acts of consent (<see cref="ConsentRenewed"/>,
+/// <see cref="ConsentReconsentProvided"/>, <see cref="ConsentRenewedByGrant"/>,
+/// <see cref="ConsentRegranted"/>) older than <see cref="ConsentReadModel.LastActAtUtc"/> only
+/// advance the version; withdrawals, expiries and version changes always apply and advance the
+/// watermark. The rule is the same as in <see cref="ConsentAggregate"/>, so the read model and the
+/// aggregate derive the same state from the same stream.
 /// </para>
 /// <para>
 /// <b>Event Handling</b>:
@@ -20,6 +29,8 @@ namespace Encina.Compliance.Consent.ReadModels;
 ///   <item><description><see cref="ConsentRenewed"/> — Updates version, expiry, and source</description></item>
 ///   <item><description><see cref="ConsentVersionChanged"/> — Updates version; sets <see cref="ConsentStatus.RequiresReconsent"/> if needed</description></item>
 ///   <item><description><see cref="ConsentReconsentProvided"/> — Reactivates consent under new terms</description></item>
+///   <item><description><see cref="ConsentRenewedByGrant"/> — Records a repeated grant on an active consent with its fresh proof</description></item>
+///   <item><description><see cref="ConsentRegranted"/> — Reactivates a withdrawn or expired consent with fresh proof</description></item>
 /// </list>
 /// </para>
 /// <para>
@@ -34,7 +45,9 @@ public sealed class ConsentProjection :
     IProjectionHandler<ConsentExpired, ConsentReadModel>,
     IProjectionHandler<ConsentRenewed, ConsentReadModel>,
     IProjectionHandler<ConsentVersionChanged, ConsentReadModel>,
-    IProjectionHandler<ConsentReconsentProvided, ConsentReadModel>
+    IProjectionHandler<ConsentReconsentProvided, ConsentReadModel>,
+    IProjectionHandler<ConsentRenewedByGrant, ConsentReadModel>,
+    IProjectionHandler<ConsentRegranted, ConsentReadModel>
 {
     /// <inheritdoc />
     public string ProjectionName => "ConsentProjection";
@@ -67,6 +80,7 @@ public sealed class ConsentProjection :
             TenantId = domainEvent.TenantId,
             ModuleId = domainEvent.ModuleId,
             LastModifiedAtUtc = domainEvent.OccurredAtUtc,
+            LastActAtUtc = domainEvent.OccurredAtUtc,
             Version = 1
         };
     }
@@ -87,6 +101,7 @@ public sealed class ConsentProjection :
         current.Status = ConsentStatus.Withdrawn;
         current.WithdrawnAtUtc = domainEvent.OccurredAtUtc;
         current.LastModifiedAtUtc = domainEvent.OccurredAtUtc;
+        current.LastActAtUtc = ConsentAggregate.AdvanceWatermark(current.LastActAtUtc, domainEvent.OccurredAtUtc);
         current.Version++;
         return current;
     }
@@ -106,6 +121,7 @@ public sealed class ConsentProjection :
     {
         current.Status = ConsentStatus.Expired;
         current.LastModifiedAtUtc = domainEvent.OccurredAtUtc;
+        current.LastActAtUtc = ConsentAggregate.AdvanceWatermark(current.LastActAtUtc, domainEvent.ExpiredAtUtc);
         current.Version++;
         return current;
     }
@@ -123,6 +139,14 @@ public sealed class ConsentProjection :
     /// <returns>The updated read model.</returns>
     public ConsentReadModel Apply(ConsentRenewed domainEvent, ConsentReadModel current, ProjectionContext context)
     {
+        current.Version++;
+
+        // A renewal older than the latest act is recorded without changing the state (#3771).
+        if (ConsentAggregate.IsLateAct(domainEvent.OccurredAtUtc, current.LastActAtUtc))
+        {
+            return current;
+        }
+
         current.ConsentVersionId = domainEvent.ConsentVersionId;
         current.ExpiresAtUtc = domainEvent.NewExpiresAtUtc;
         if (domainEvent.Source is not null)
@@ -131,7 +155,7 @@ public sealed class ConsentProjection :
         }
 
         current.LastModifiedAtUtc = domainEvent.OccurredAtUtc;
-        current.Version++;
+        current.LastActAtUtc = domainEvent.OccurredAtUtc;
         return current;
     }
 
@@ -156,6 +180,7 @@ public sealed class ConsentProjection :
         }
 
         current.LastModifiedAtUtc = domainEvent.OccurredAtUtc;
+        current.LastActAtUtc = ConsentAggregate.AdvanceWatermark(current.LastActAtUtc, domainEvent.OccurredAtUtc);
         current.Version++;
         return current;
     }
@@ -173,16 +198,89 @@ public sealed class ConsentProjection :
     /// <returns>The updated read model.</returns>
     public ConsentReadModel Apply(ConsentReconsentProvided domainEvent, ConsentReadModel current, ProjectionContext context)
     {
-        current.Status = ConsentStatus.Active;
-        current.ConsentVersionId = domainEvent.NewConsentVersionId;
-        current.Source = domainEvent.Source;
-        current.IpAddress = domainEvent.IpAddress;
-        current.ProofOfConsent = domainEvent.ProofOfConsent;
-        current.Metadata = domainEvent.Metadata;
-        current.ExpiresAtUtc = domainEvent.ExpiresAtUtc;
-        current.WithdrawnAtUtc = null;
-        current.LastModifiedAtUtc = domainEvent.OccurredAtUtc;
+        ApplyGrantAct(
+            current, domainEvent.NewConsentVersionId, domainEvent.Source, domainEvent.IpAddress,
+            domainEvent.ProofOfConsent, domainEvent.Metadata, domainEvent.ExpiresAtUtc, domainEvent.OccurredAtUtc);
         current.Version++;
         return current;
+    }
+
+    /// <summary>
+    /// Updates the read model when a repeated grant renews an active consent (#3771).
+    /// </summary>
+    /// <remarks>
+    /// Captures the fresh proof of the grant act. An act older than
+    /// <see cref="ConsentReadModel.LastActAtUtc"/> only advances <see cref="ConsentReadModel.Version"/>.
+    /// </remarks>
+    /// <param name="domainEvent">The consent renewed by grant event.</param>
+    /// <param name="current">The current read model state.</param>
+    /// <param name="context">Projection context with stream metadata.</param>
+    /// <returns>The updated read model.</returns>
+    public ConsentReadModel Apply(ConsentRenewedByGrant domainEvent, ConsentReadModel current, ProjectionContext context)
+    {
+        ApplyGrantAct(
+            current, domainEvent.ConsentVersionId, domainEvent.Source, domainEvent.IpAddress,
+            domainEvent.ProofOfConsent, domainEvent.Metadata, domainEvent.ExpiresAtUtc, domainEvent.OccurredAtUtc);
+        current.Version++;
+        return current;
+    }
+
+    /// <summary>
+    /// Updates the read model when a withdrawn or expired consent is granted again (#3771).
+    /// </summary>
+    /// <remarks>
+    /// Returns the consent to <see cref="ConsentStatus.Active"/> with the fresh proof, version and
+    /// expiry, clears the withdrawal timestamp and starts a new consent period
+    /// (<see cref="ConsentReadModel.GivenAtUtc"/>). An act older than
+    /// <see cref="ConsentReadModel.LastActAtUtc"/> only advances <see cref="ConsentReadModel.Version"/>,
+    /// so a late grant never undoes a later withdrawal.
+    /// </remarks>
+    /// <param name="domainEvent">The consent regranted event.</param>
+    /// <param name="current">The current read model state.</param>
+    /// <param name="context">Projection context with stream metadata.</param>
+    /// <returns>The updated read model.</returns>
+    public ConsentReadModel Apply(ConsentRegranted domainEvent, ConsentReadModel current, ProjectionContext context)
+    {
+        if (ApplyGrantAct(
+            current, domainEvent.ConsentVersionId, domainEvent.Source, domainEvent.IpAddress,
+            domainEvent.ProofOfConsent, domainEvent.Metadata, domainEvent.ExpiresAtUtc, domainEvent.OccurredAtUtc))
+        {
+            current.GivenAtUtc = domainEvent.OccurredAtUtc;
+        }
+
+        current.Version++;
+        return current;
+    }
+
+    /// <summary>
+    /// Applies an act of consent carrying full proof unless it is older than the latest act
+    /// (#3771). Returns whether the state changed.
+    /// </summary>
+    private static bool ApplyGrantAct(
+        ConsentReadModel current,
+        string consentVersionId,
+        string source,
+        string? ipAddress,
+        string? proofOfConsent,
+        IReadOnlyDictionary<string, object?> metadata,
+        DateTimeOffset? expiresAtUtc,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (ConsentAggregate.IsLateAct(occurredAtUtc, current.LastActAtUtc))
+        {
+            return false;
+        }
+
+        current.Status = ConsentStatus.Active;
+        current.ConsentVersionId = consentVersionId;
+        current.Source = source;
+        current.IpAddress = ipAddress;
+        current.ProofOfConsent = proofOfConsent;
+        current.Metadata = metadata;
+        current.ExpiresAtUtc = expiresAtUtc;
+        current.WithdrawnAtUtc = null;
+        current.LastModifiedAtUtc = occurredAtUtc;
+        current.LastActAtUtc = occurredAtUtc;
+        return true;
     }
 }
