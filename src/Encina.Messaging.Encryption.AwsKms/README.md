@@ -37,7 +37,6 @@ services.AddEncinaMessageEncryptionAwsKms(
 |----------|------|-------------|
 | `KeyId` | `string?` | KMS key ARN, alias, or alias ARN |
 | `Region` | `string?` | AWS region (null = default SDK chain) |
-| `EncryptionAlgorithm` | `string` | Algorithm (default: `"SYMMETRIC_DEFAULT"`) |
 | `ClientConfig` | `AmazonKeyManagementServiceConfig?` | Custom client config |
 
 ## Dependencies
