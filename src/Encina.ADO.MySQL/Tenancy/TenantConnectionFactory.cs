@@ -30,6 +30,13 @@ namespace Encina.ADO.MySQL.Tenancy;
 /// </item>
 /// </list>
 /// <para>
+/// Tenant resolution fails closed. A present tenant identifier the <see cref="ITenantStore"/> does not
+/// know returns <see cref="TenancyErrors.TenantNotFound"/> and no connection is created. A missing tenant
+/// identifier (null, empty or whitespace) returns <see cref="TenancyErrors.TenantRequired"/> while
+/// <see cref="TenancyOptions.RequireTenant"/> is <c>true</c> (the default); the default connection string
+/// is used for a missing tenant only when <see cref="TenancyOptions.RequireTenant"/> is <c>false</c>.
+/// </para>
+/// <para>
 /// All methods return <see cref="Either{EncinaError, T}"/> following the Railway Oriented
 /// Programming pattern instead of throwing exceptions for runtime configuration errors.
 /// </para>
@@ -91,17 +98,20 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     }
 
     /// <inheritdoc/>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="tenantId"/> is null, empty or whitespace.
+    /// </exception>
     public async ValueTask<Either<EncinaError, IDbConnection>> CreateConnectionForTenantAsync(
         string tenantId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(tenantId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
 
         var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken).ConfigureAwait(false);
 
         if (tenant is null)
         {
-            return EncinaError.New($"Tenant '{tenantId}' not found.");
+            return TenancyErrors.TenantNotFound();
         }
 
         return await GetConnectionStringForTenant(tenant)
@@ -120,18 +130,18 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     {
         var tenantId = _tenantProvider.GetCurrentTenantId();
 
-        // No tenant context - use default
-        if (string.IsNullOrEmpty(tenantId))
+        // No tenant context: fail closed unless the application opted out with RequireTenant = false
+        if (string.IsNullOrWhiteSpace(tenantId))
         {
-            return GetDefaultConnectionString();
+            return _options.RequireTenant ? TenancyErrors.TenantRequired() : GetDefaultConnectionString();
         }
 
         var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken).ConfigureAwait(false);
 
-        // Tenant not found - use default
+        // A tenant id the store does not know never falls back to the default database
         if (tenant is null)
         {
-            return GetDefaultConnectionString();
+            return TenancyErrors.TenantNotFound();
         }
 
         return GetConnectionStringForTenant(tenant);
