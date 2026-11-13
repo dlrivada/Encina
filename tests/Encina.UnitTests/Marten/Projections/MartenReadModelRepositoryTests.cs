@@ -177,6 +177,23 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.DidNotReceive().EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task StoreAsync_SaveChangesFails_ReturnsLeftAndEjectsPendingChanges()
+    {
+        // Arrange
+        var readModel = new TestReadModel { Id = Guid.NewGuid(), Name = "test" };
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("flush failed"));
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.StoreAsync(readModel);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // StoreManyAsync tests
@@ -204,6 +221,23 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.DidNotReceive().EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task StoreManyAsync_SaveChangesFails_ReturnsLeftAndEjectsPendingChanges()
+    {
+        // Arrange
+        var readModels = new[] { new TestReadModel { Id = Guid.NewGuid(), Name = "test" } };
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("flush failed"));
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.StoreManyAsync(readModels);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // DeleteAsync tests
@@ -239,6 +273,22 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.DidNotReceive().EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task DeleteAsync_SaveChangesFails_ReturnsLeftAndEjectsPendingChanges()
+    {
+        // Arrange
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>()).ThrowsAsync(new InvalidOperationException("flush failed"));
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.DeleteAsync(Guid.NewGuid());
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // DeleteAllAsync tests
@@ -257,6 +307,9 @@ public class MartenReadModelRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+
+        // The preliminary count failed before any delete was queued: nothing to eject
+        _session.DidNotReceive().EjectAllPendingChanges();
     }
 
     // ExistsAsync tests
