@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -334,7 +335,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
             var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
             var node = JsonNode.Parse(json);
 
-            if (node is not JsonObject jsonObj)
+            if (!TryGetObjectRoot(node, type, properties, logContextOnly, out var jsonObj))
             {
                 return obj;
             }
@@ -432,7 +433,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
     // the value (null included). The message names the property and its type, never a value.
     private static bool SkipsContext(PropertyMaskingMetadata prop, bool logContextOnly)
     {
-        if (prop.LogOnly && !logContextOnly)
+        if (!AppliesToContext(prop, logContextOnly))
         {
             return true;
         }
@@ -445,6 +446,51 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         }
 
         return false;
+    }
+
+    // Always-masked members ([PII], [SensitiveData]) apply in every context; log-only ([MaskInLogs])
+    // members apply only in the log context.
+    private static bool AppliesToContext(PropertyMaskingMetadata prop, bool logContextOnly) =>
+        logContextOnly || !prop.LogOnly;
+
+    /// <summary>
+    /// Returns <c>true</c> with the JSON object to mask when the serialized root is an object. A
+    /// non-object root (array, scalar or <c>null</c>, for example a collection-derived type or a type
+    /// with a scalar <c>JsonConverter</c>) cannot be masked member by member: it returns <c>false</c>
+    /// (the caller returns the object unchanged) only when no decorated member applies to the context,
+    /// and fails closed otherwise, whatever the member values (null included).
+    /// </summary>
+    /// <remarks>
+    /// Interim guard (#3332) until #1834 masks non-object roots. The message names the type, the root
+    /// kind and the member names, never a value.
+    /// </remarks>
+    private static bool TryGetObjectRoot(
+        JsonNode? node,
+        Type type,
+        PropertyMaskingMetadata[] properties,
+        bool logContextOnly,
+        [NotNullWhen(true)] out JsonObject? jsonObj)
+    {
+        jsonObj = node as JsonObject;
+        if (jsonObj is not null)
+        {
+            return true;
+        }
+
+        var applicable = properties
+            .Where(p => AppliesToContext(p, logContextOnly))
+            .Select(p => p.Property.Name)
+            .ToArray();
+
+        if (applicable.Length == 0)
+        {
+            return false;
+        }
+
+        var rootKind = node?.GetValueKind() ?? JsonValueKind.Null;
+        throw new InvalidOperationException(
+            $"Type '{type.Name}' serializes to a JSON {rootKind} root, not an object, so its decorated "
+            + $"members ({string.Join(", ", applicable)}) cannot be masked.");
     }
 
     private static string DescribeAttribute(PropertyMaskingMetadata prop)
@@ -512,7 +558,7 @@ public sealed class PIIMasker : IPIIMasker, IPiiMasker
         var json = JsonSerializer.Serialize(obj, type, _jsonOptions);
         var node = JsonNode.Parse(json);
 
-        if (node is not JsonObject jsonObj)
+        if (!TryGetObjectRoot(node, type, properties, logContextOnly, out var jsonObj))
         {
             return obj;
         }

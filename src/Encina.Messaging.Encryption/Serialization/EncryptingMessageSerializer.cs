@@ -39,8 +39,10 @@ namespace Encina.Messaging.Encryption.Serialization;
 /// </list>
 /// </para>
 /// <para>
-/// <strong>Attribute precedence</strong>: <c>[EncryptedMessage(Enabled = false)]</c> overrides
-/// <c>MessageEncryptionOptions.EncryptAllMessages = true</c>.
+/// <strong>Which types are encrypted</strong>: a type is encrypted when it is marked with
+/// <c>[EncryptedMessage]</c> (declared or inherited from a base type) or when
+/// <c>MessageEncryptionOptions.EncryptAllMessages</c> is <c>true</c>. There is no per-type
+/// opt-out: a marked type is encrypted even when <c>EncryptAllMessages</c> is <c>false</c>.
 /// </para>
 /// <para>
 /// This class is thread-safe when the inner serializer and encryption provider are thread-safe.
@@ -266,16 +268,10 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
 
     private static bool ShouldEncrypt(Type messageType, MessageEncryptionOptions options)
     {
-        var info = EncryptedMessageAttributeCache.GetEncryptionInfo(messageType);
-
-        if (info is not null)
-        {
-            // Attribute overrides global config
-            return info.Enabled;
-        }
-
-        // No attribute — fall back to global config
-        return options.EncryptAllMessages;
+        // A marked type (declared or inherited [EncryptedMessage]) is always encrypted;
+        // an unmarked type is encrypted only when EncryptAllMessages is on.
+        return options.EncryptAllMessages
+            || EncryptedMessageAttributeCache.GetEncryptionInfo(messageType) is not null;
     }
 
     private static MessageEncryptionContext BuildEncryptionContext(
