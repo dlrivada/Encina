@@ -3,7 +3,7 @@
 > **Issue**: [#736](https://github.com/dlrivada/Encina/issues/736)
 > **Type**: Feature
 > **Verified against**: origin/main `c49b987e9` (2026-11-12)
-> **Complexity**: High (7 phases, 10 database providers, ~95 files in 9 pull requests)
+> **Complexity**: High (7 phases, 10 database providers, ~96 files in 9 pull requests)
 > **Estimated Scope**: ~1,200-1,600 lines of production code + ~1,800-2,200 lines of tests
 
 ---
@@ -26,7 +26,7 @@ Standards: the Saga pattern requires idempotent compensating actions (comparable
 
 Delivery guarantee against the issue's first acceptance criterion ("compensation steps execute at most once per saga step"): the recommended Option A of Design Choice 3 is at-least-once with a key, so the criterion holds literally only under Option B. The maintainer's answer to Design Choice 3 therefore also settles that criterion.
 
-Estimated scope: about 95 distinct files (core 12, provider 39, tests, test doubles and test schemas 20, documentation and metadata 24), shipped as 9 pull requests (see "Pull request split"). Affected packages: `Encina.Messaging`, `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`, `Encina.OpenTelemetry` (`InstrumentedSagaStore` passes the new state through unchanged), `Encina.Testing.Fakes` (`FakeSagaState`).
+Estimated scope: about 96 distinct files (core 12, provider 39, tests, test doubles and test schemas 21, documentation and metadata 24), shipped as 9 pull requests (see "Pull request split"). Affected packages: `Encina.Messaging`, `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`, `Encina.OpenTelemetry` (`InstrumentedSagaStore` passes the new state through unchanged), `Encina.Testing.Fakes` (`FakeSagaState`).
 
 Provider category: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one implementation, `SagaStoreEF`, verified against three databases) and MongoDB. The original issue text says 13 providers; that is stale (AGENTS.md section 5; Oracle and SQLite are out, ADR-009 and ADR-024).
 
@@ -233,7 +233,7 @@ For each provider add the `CompensatedStepsJson` and `Version` columns/fields, m
 
 1. ADO.NET: `src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/Sagas/SagaState.cs`, `SagaStateFactory.cs`, `SagaStoreADO.cs`, and `Scripts/003_CreateSagaStatesTable.sql` and the consolidated `Scripts/000_CreateAllTables.sql` (which holds a full second copy of `CREATE TABLE SagaStates`; column `CompensatedStepsJson` as `NVARCHAR(MAX)` / `TEXT` / `LONGTEXT`, `Version` as `INT NOT NULL DEFAULT 0`).
 2. Dapper: `src/Encina.Dapper.{SqlServer,PostgreSQL,MySQL}/Sagas/SagaState.cs`, `SagaStateFactory.cs`, `SagaStoreDapper.cs` and the same two scripts per package.
-3. Test schemas that duplicate the table DDL (found with `git grep SagaStates`): `tests/Encina.TestInfrastructure/Schemas/SqlServerSchema.cs` and `MySqlSchema.cs`, and the benchmark builders `AdoSchemaBuilder.cs` and `DapperSchemaBuilder.cs`; without them the integration databases lack the columns and ADO/Dapper integration fails on `Version`. `RespawnOptions.cs` and the schema-script integration tests only name the table and need no change; the SQLite DDL in `DapperStoreEnlistmentTests.cs` is out of the matrix (ADR-024) and is unchanged unless that test reads the saga store.
+3. Test schemas that duplicate the table DDL (found with `git grep SagaStates`): `tests/Encina.TestInfrastructure/Schemas/SqlServerSchema.cs`, `MySqlSchema.cs` and `PostgreSqlSchema.cs` (inline `CREATE TABLE IF NOT EXISTS sagastates`, created by `PostgreSqlFixture` through `PostgreSqlSchema.CreateSagaSchemaAsync` for ADO and Dapper PostgreSQL), and the benchmark builders `AdoSchemaBuilder.cs` and `DapperSchemaBuilder.cs`; without them the integration databases lack the columns and ADO/Dapper integration fails on `Version`. `RespawnOptions.cs` and the schema-script integration tests only name the table and need no change; the SQLite DDL in `DapperStoreEnlistmentTests.cs` is out of the matrix (ADR-024) and is unchanged unless that test reads the saga store.
 4. EF Core (SqlServer, PostgreSQL, MySQL through `SagaStoreEF`): `SagaState.cs`, `SagaStateConfiguration.cs`, `SagaStateFactory.cs`, `SagaStoreEF.cs` (`UpdateAsync` sets `Version = Version + 1` because EF Core does not increment an `int` token itself; `Version` is a concurrency token; `SaveChangesAsync` turns `DbUpdateConcurrencyException` into `Left(saga.compensation_conflict)`).
 5. MongoDB: `Sagas/SagaState.cs`, `SagaStateFactory.cs`, `SagaStoreMongoDB.cs` (filter on `Version`).
 6. `Encina.Testing.Fakes/Stores/FakeSagaStore.cs`: same conditional semantics.
@@ -415,9 +415,9 @@ REFERENCE FILES: docs/messaging/sagas.md, .claude/skills/encina-docs/SKILL.md, c
 |----------|-------|-------|
 | Core (Messaging, Testing.Fakes, Bogus, FsCheck) | 12 | interface, key helper, error code, orchestrator, runner, metrics, activity source, log class, fake state and store, faker, `ArbitrarySagaState` file |
 | Provider implementations | 39 | ADO 9, Dapper 9, EF 5, Mongo 3, 12 SQL scripts (`003_` and `000_` per ADO/Dapper package), 1 EF configuration |
-| Tests, test doubles, test schemas | 20 | 13 test additions (unit, guard, contract, property, integration, 2 justification files); `TestSagaState` file and the 2 `BenchmarkEntityFactory.cs` files; `SqlServerSchema.cs`, `MySqlSchema.cs`, `AdoSchemaBuilder.cs`, `DapperSchemaBuilder.cs` |
+| Tests, test doubles, test schemas | 21 | 13 test additions (unit, guard, contract, property, integration, 2 justification files); `TestSagaState` file and the 2 `BenchmarkEntityFactory.cs` files; `SqlServerSchema.cs`, `MySqlSchema.cs`, `PostgreSqlSchema.cs`, `AdoSchemaBuilder.cs`, `DapperSchemaBuilder.cs` |
 | Documentation and metadata | 24 | changelog, sagas guide, ADR, INVENTORY; 10 `PublicAPI.Unshipped.txt` (Messaging, Fakes, 8 providers); 10 coverage manifests |
-| **Total** | **95** | Nine pull requests; the per-PR counts below add up to more because a file touched by two pull requests (the Messaging `PublicAPI.Unshipped.txt` and manifest) is counted in each |
+| **Total** | **96** | Nine pull requests; the per-PR counts below add up to more because a file touched by two pull requests (the Messaging `PublicAPI.Unshipped.txt` and manifest) is counted in each |
 
 ### Pull request split
 
@@ -426,7 +426,7 @@ Counts include tests, test doubles, coverage manifests and `PublicAPI.Unshipped.
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A (atomic, size exception) | `ISagaState` (+`CompensatedStepsJson`, `Version`) and all 14 implementers: the 8 provider state classes, `FakeSagaState`, `SagaStateFaker`, `ArbitrarySagaState` (`ArbitraryMessages.cs`), the 2 `BenchmarkEntityFactory.cs` files, `SagaOrchestratorTests.cs` (`TestSagaState`); `PublicAPI.Unshipped.txt` of Messaging, Fakes and the 8 provider packages: it builds only as a whole | 26 |
-| S1 | Test and ADO schemas: `003_` and `000_` scripts of the 3 ADO packages (6), `SqlServerSchema.cs`, `MySqlSchema.cs` (shared by ADO and Dapper integration tests), `AdoSchemaBuilder.cs` | 9 |
+| S1 | Test and ADO schemas: `003_` and `000_` scripts of the 3 ADO packages (6), `SqlServerSchema.cs`, `MySqlSchema.cs`, `PostgreSqlSchema.cs` (shared by ADO and Dapper integration tests), `AdoSchemaBuilder.cs` | 10 |
 | S2 | Dapper schemas: `003_` and `000_` scripts of the 3 Dapper packages (6), `DapperSchemaBuilder.cs` | 7 |
 | B1 | Core model: key helper, error code, orchestrator (`RecordCompensatedStepAsync`, `GetCompensatedStepsAsync`, `CommitAsync`), `FakeSagaStore` (version semantics), unit, guard and property tests of those, Messaging and Fakes manifests and `PublicAPI.Unshipped.txt` | 12 |
 | B2 | Runner and observability: `SagaRunner.CompensateAsync`, metrics, activity tag, `SagaStoreLog` and the runner `Log`, runner and metrics tests, manifest and `PublicAPI.Unshipped.txt` | 9 |
@@ -435,7 +435,7 @@ Counts include tests, test doubles, coverage manifests and `PublicAPI.Unshipped.
 | E | EF Core and MongoDB: configuration, state factory, stores, integration tests, contract tests, manifests | 11 |
 | F | Documentation, ADR, load and benchmark justifications, changelog | 6 |
 
-S1 and S2 depend on nothing (nullable and defaulted columns; the stores ignore them until C and D) and may land right after or before A; B1 depends on A; B2 on B1; C, D and E depend on A, B1 and the schema pull request of their family (S1 for C and E's relational tests, S2 for D) and may land in any order; the orchestrator's conflict handling is inert until a provider enforces `Version`. #720 and #2213 change `UpdateAsync` or the same stores too (see Prerequisites): whichever lands second rebases.
+S1 and S2 depend on nothing (nullable and defaulted columns; the stores ignore them until C and D) and may land right after or before A; B1 depends on A; B2 on B1; C, D and E depend on A, B1 and the schema pull requests they use (S1 for C and E's relational tests; S1 and S2 for D, because the Dapper integration tests share the S1 test schemas `SqlServerSchema.cs`, `MySqlSchema.cs` and `PostgreSqlSchema.cs`) and may land in any order; the orchestrator's conflict handling is inert until a provider enforces `Version`. #720 and #2213 change `UpdateAsync` or the same stores too (see Prerequisites): whichever lands second rebases.
 
 ---
 
