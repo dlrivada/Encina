@@ -2,7 +2,7 @@
 
 > **Issue**: [#755](https://github.com/dlrivada/Encina/issues/755)
 > **Type**: Feature
-> **Complexity**: Low (4 phases, about 12 files)
+> **Complexity**: Low (4 phases, 14 files)
 > **Estimated Scope**: about 120 lines of production code, about 250 lines of tests
 > **Milestone**: Encina 1.0 (health checks of the lock category, SPEC-000 DEC-009)
 
@@ -14,14 +14,15 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 
 **Affected packages:**
 
-- `Encina.DistributedLock.InMemory` - the check, registration, option defaults, README, `PublicAPI.Unshipped.txt`.
+- `Encina.DistributedLock.InMemory` - the check, its log class, registration, option defaults, a new package README (none exists today), `PublicAPI.Unshipped.txt`.
+- `tests/Encina.ContractTests` - one `ProjectReference` to `Encina.DistributedLock.InMemory` (the project has no lock reference today).
 - `Encina.DistributedLock` and `Encina.Messaging` - dependencies only. `Encina.DistributedLock` already references `Encina.Messaging` (`DistributedLockOptions.ProviderHealthCheck` is a `ProviderHealthCheckOptions`), so the InMemory project reaches `IEncinaHealthCheck` through it and needs no new `ProjectReference`.
 
 **Provider category**: Distributed locks (AGENTS.md section 5). Exactly 7 providers are in scope for 1.0: InMemory, Redis, SqlServer, PostgreSQL, MySQL, Azure Blob, DynamoDB. Today Redis and SqlServer have a check, InMemory gets it here, and the other four providers do not exist in `src/` yet (#207, #208, #209, #210): their checks ship with those provider issues and this plan leaves the pattern for them (Design Choice 5).
 
 **Out of scope**: `MemoryDistributedLockProvider` in `Encina.Caching.Memory` is a second in-process lock provider registered by `AddEncinaMemoryCache`; it is not one of the 7 providers of the category and is not covered here (Design Choice 6). The cache-side checks are #754; the umbrella is #622.
 
-**Sibling plans (health-checks family)**: #754 owns every change to the shared `ProviderHealthCheckOptions` type; this plan uses it unchanged. #622 owns the transport checks; #454 owns the probe endpoints that select these checks by tag.
+**Sibling plans (health-checks family)**: #754 owns every change to the shared `ProviderHealthCheckOptions` type; this plan uses it unchanged. #622 owns the transport checks; #454 owns the probe endpoints that select these checks by tag. Options wiring follows the same story as #754 and #622 (recommended, pending the maintainer): each check receives the `ProviderHealthCheckOptions` instance of its own registration, and the type itself is never registered as a service (Design Choice 4).
 
 ---
 
@@ -34,15 +35,16 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Acquire and release a probe lock through `IDistributedLockProvider`** | Proves the mechanism; same depth as the Redis check (sets and deletes a test key) and the acceptance criterion "lock mechanism verified (not just connectivity)" | Touches shared in-process lock state for an instant (a unique probe resource name) |
+| **A) Acquire a probe lock through `IDistributedLockProvider`, check `IsLockedAsync` is true while it is held, then release it** | Proves the mechanism; same depth as the Redis check (sets and deletes a test key) and the acceptance criterion "lock mechanism verified (not just connectivity)" | Touches shared in-process lock state for an instant (a unique probe resource name) |
 | **B) Only confirm the singleton resolves from DI** | No side effect on lock state | Proves nothing about locking; a broken lock implementation reports Healthy |
 
-### Chosen Option: **A - acquire and release a probe lock** (recommended, pending the maintainer)
+### Chosen Option: **A - acquire, verify `IsLockedAsync`, release** (recommended, pending the maintainer)
 
 ### Rationale
 
 - A unique probe resource per call (`health:lock:{Guid:N}`, as the Redis check names its key) cannot contend with an application resource.
 - Option B wins only when the check exists to show that the registration worked; the issue asks for the mechanism.
+- `IsLockedAsync` returning false while the handle is held is reported as Unhealthy: that is a new semantic (the Redis check does not read the lock back) and belongs to this Dilemma.
 - Class: Dilemma
 - The issue itself lists this as its Dilemma D1, so the plan records it for the maintainer.
 
@@ -58,13 +60,13 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 | **A) Derive from `EncinaHealthCheck`** | The base class catches every exception and returns only its type name (`Health check failed: <Type>`); the `encina` tag is always present; `RedisHealthCheck` and `NATSHealthCheck` do this | The sibling lock checks implement `IEncinaHealthCheck` directly, so the lock family would not look uniform |
 | **B) Implement `IEncinaHealthCheck` directly** | Uniform with `RedisDistributedLockHealthCheck` and `SqlServerDistributedLockHealthCheck` | Re-implements the try/catch and the no-message rule in every check |
 
-### Chosen Option: **A - derive from `EncinaHealthCheck`**
+### Chosen Option: **A - derive from `EncinaHealthCheck`** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The base class carries the "no exception message in the result" rule (#1259), so a new check cannot forget it.
-- Class: Trivial
-- Settled by: AGENTS.md section 3 (`EncinaError.Message` never reaches health-check results) and the existing `src/Encina.Caching.Redis/Health/RedisHealthCheck.cs`.
+- Option B also satisfies AGENTS.md section 3 (an own try/catch can return the type name only) and matches the two sibling lock checks, so the cited rule does not decide between them; the convention points both ways (`RedisHealthCheck` derives from the base, the lock checks implement the interface).
+- Class: Dilemma
 
 </details>
 
@@ -89,23 +91,26 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 </details>
 
 <details>
-<summary><strong>4. Registration, defaults and options lifetime</strong></summary>
+<summary><strong>4. Registration and options wiring (per-registration options)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Register inside `AddEncinaDistributedLockInMemoryCore` when `options.ProviderHealthCheck.Enabled`, with `AddSingleton(options.ProviderHealthCheck)` and `AddSingleton<IEncinaHealthCheck, ...>`** | Identical to Redis (`ServiceCollectionExtensions.cs` lines 133 and 141-148) and SqlServer (lines 104-110); the check only runs when the application calls `AddEncinaHealthChecks` (the composite resolves `IEnumerable<IEncinaHealthCheck>`) | `Enabled` defaults to true, so the registration is present by default |
-| **B) Register through `IOptions<InMemoryLockOptions>` at resolution time** | Honors configuration applied later | The Redis precedent decides at registration time; two patterns in one family |
+| **A) Register the check with a factory that captures the `ProviderHealthCheckOptions` of this registration** (`services.AddSingleton<IEncinaHealthCheck>(sp => new InMemoryDistributedLockHealthCheck(provider, options.ProviderHealthCheck, ...))`), gated by `options.ProviderHealthCheck.Enabled` at registration time; the shared type is NOT registered as a service | Each check keeps its own options, whatever other providers are registered; the check only runs when the application calls `AddEncinaHealthChecks` (the composite resolves `IEnumerable<IEncinaHealthCheck>`) | Differs from Redis and SqlServer today (`ServiceCollectionExtensions.cs` of each registers `AddSingleton(options.ProviderHealthCheck)`, a type-keyed registration where the last registration wins and every check constructor receives the same instance) |
+| **B) Copy the Redis shape: `AddSingleton(options.ProviderHealthCheck)` plus `AddSingleton<IEncinaHealthCheck, ...>`** | Identical to Redis (line 133 and lines 141-148 of its `ServiceCollectionExtensions.cs`) and SqlServer (lines 104-110) | Cross-wires options: with two providers registered (for example this check and the Redis lock or a cache check) both resolve the last `ProviderHealthCheckOptions`, so one provider's `Name`, `Tags`, `Timeout` or `Enabled` apply to the other |
+| **C) Named options or keyed services** (`AddKeyedSingleton<ProviderHealthCheckOptions>("distributed-lock-inmemory", ...)`) | Container-visible per-provider options; configurable later | More surface for one check; two patterns in one family unless every provider moves together |
 
-### Chosen Option: **A - registration-time gate like Redis and SqlServer**
+### Chosen Option: **A - per-registration options by capture** (recommended, pending the maintainer)
 
 ### Rationale
 
+- A check that takes its options from the registration that created it cannot be cross-wired by registration order, which Option B allows (#754 and #622 use the same story for the cache and transport checks).
 - Nothing runs unless the host opts in with `AddEncinaHealthChecks`, so pay-for-what-you-use holds.
-- The registration is proven by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` (AGENTS.md section 3, registration completeness).
-- Class: Trivial
-- Settled by: AGENTS.md section 3 (registration completeness) and `src/Encina.DistributedLock.Redis/ServiceCollectionExtensions.cs` (`RegisterHealthCheck`).
+- The factory also resolves an optional `TimeProvider` (`sp.GetService<TimeProvider>() ?? TimeProvider.System`) and an optional `ILogger<InMemoryDistributedLockHealthCheck>` (`GetService`, no new registration needed because the provider takes `ILogger<>` from the container the same way); `AddEncinaDistributedLockInMemoryCore` does not register a `TimeProvider` today (the Redis core does with `TryAddSingleton(TimeProvider.System)`), so the plan does not add one: the application's own `TimeProvider` is used when present.
+- Moving Redis and SqlServer to the same wiring is out of scope here: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/lock-healthcheck-options-wiring.md).
+- Proven by a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` (AGENTS.md section 3, registration completeness) and by a test that registers another `ProviderHealthCheckOptions` instance with a different `Name` and asserts the InMemory check still reports its own.
+- Class: Dilemma
 
 </details>
 
@@ -119,14 +124,14 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 | **A) Each check ships with its provider issue** (#207, #208, #209, #210) | The check is written against a provider that exists and can be integration tested | The category stays incomplete until those issues land |
 | **B) Write abstract check scaffolding now** | Gives future providers a base | A base with one user is speculation; the Redis and SqlServer checks already share nothing but the options type |
 
-### Chosen Option: **A - the checks ship with their providers**
+### Chosen Option: **A - the checks ship with their providers** (recommended, pending the maintainer)
 
 ### Rationale
 
 - None of the four providers exists under `src/`; the lock projects are `Encina.DistributedLock`, `.InMemory`, `.Redis` and `.SqlServer`.
 - The "framework ready" acceptance item is met by the reusable pieces already in place: `DistributedLockOptions.ProviderHealthCheck` and the registration shape documented in the README by Phase 4.
-- Class: Settled
-- Settled by: AGENTS.md section 5 (distributed locks: a lock feature is complete when the 7 providers are covered) and #207, #208, #209, #210.
+- Option B (scaffolding now) is not ruled out by AGENTS.md section 5 (it only says a lock feature is complete when the 7 providers are covered); only the issue text and scope choose A, so the maintainer confirms.
+- Class: Dilemma
 
 </details>
 
@@ -140,13 +145,53 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 | **A) Leave `MemoryDistributedLockProvider` out** | Matches the category list; keeps the PR small | An application that uses only `AddEncinaMemoryCache` has a lock provider without a check |
 | **B) Add a second check in `Encina.Caching.Memory`** | Covers every in-process lock | The package is not in the 7-provider list; duplicates this check |
 
-### Chosen Option: **A - leave it out**
+### Chosen Option: **A - leave it out** (recommended, pending the maintainer)
 
 ### Rationale
 
 - It is a convenience registration of the memory cache package, not a lock provider of the category.
-- Class: Settled
-- Settled by: AGENTS.md section 5 (the distributed-lock row lists exactly the 7 providers) and SPEC-000 DEC-009.
+- AGENTS.md section 5 and SPEC-000 DEC-009 list exactly the 7 providers, but they do not forbid a second check for another in-process lock (Option B), so the choice is the maintainer's.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Public name of the check</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `encina-distributed-lock-inmemory`** (`encina-<provider>` convention of the options documentation) | Consistent with the `encina-` prefix of the other Encina checks | The Redis lock check uses `redis-distributed-lock`, so the lock family is not uniform |
+| **B) `inmemory-distributed-lock`** (the Redis lock shape) | Uniform inside the lock family | Differs from the documented `encina-<provider>` convention |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- The name is public (`DefaultName`) and is what probes and dashboards show; a configured `ProviderHealthCheckOptions.Name` overrides it.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Probe parameters, failure status and constructor shape</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Failure status is always `Unhealthy`; probe uses `expiry = options.Timeout`, `wait = TimeSpan.Zero`, `retry = TimeSpan.FromMilliseconds(10)`; constructor `(provider, options, timeProvider = null, logger = null)`** | A leaked probe handle expires on its own after the check's own bound; zero wait never blocks; simple | `ProviderHealthCheckOptions.FailureStatus` is ignored |
+| **B) Report `options.FailureStatus` (Unhealthy or Degraded) on failure** | Honors the documented option; a host can mark a lock problem Degraded | The base class returns `Unhealthy` for every exception, so honoring it needs a mapping in the check |
+
+### Chosen Option: **A for the probe parameters and constructor; B for the failure status is the open question** (recommended, pending the maintainer)
+
+### Rationale
+
+- Probe values are internal and not observable except through the timeout and the expiry of a leaked handle: Trivial (no public surface, no citation needed beyond the unique probe key of Design Choice 1); with `wait = TimeSpan.Zero` the provider still attempts once (`InMemoryDistributedLockProvider.TryAcquireAsync` always tries before it checks the deadline), so `retry` is never used and any positive value is equivalent.
+- The optional `TimeProvider` follows AGENTS.md section 3 (time comes from `TimeProvider`, optional parameter defaulting to `TimeProvider.System`): Trivial. The optional `ILogger` parameter (default `NullLogger`) widens the public constructor and the PublicAPI line: Trivial, as the Redis lock and cache checks take no logger today only because they log nothing.
+- `FailureStatus` is a user-visible semantic (a lock failure is Unhealthy or Degraded in the probe result), so the choice of ignoring it (A) or honoring it (B) is a Dilemma.
+- Class: Dilemma (failure status); Trivial (probe values, constructor shape)
 
 </details>
 
@@ -161,13 +206,13 @@ Add `InMemoryDistributedLockHealthCheck` to `Encina.DistributedLock.InMemory` an
 
 1. **Create** `src/Encina.DistributedLock.InMemory/Health/InMemoryDistributedLockHealthCheck.cs`
    - `public sealed class InMemoryDistributedLockHealthCheck : EncinaHealthCheck` in namespace `Encina.DistributedLock.InMemory.Health`.
-   - `public const string DefaultName = "encina-distributed-lock-inmemory";`
-   - Constructor `(IDistributedLockProvider provider, ProviderHealthCheckOptions options)`: `ArgumentNullException.ThrowIfNull` on both; `base(options.Name ?? DefaultName, options.Tags)`.
-   - `protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken ct)`: link `ct` with a `CancellationTokenSource(options.Timeout)`; `TryAcquireAsync("health:lock:" + Guid.NewGuid().ToString("N"), expiry, wait: TimeSpan.Zero, retry, token)`; a null handle returns `Unhealthy("<Name> could not acquire the probe lock")`; otherwise `await using` the handle, then `IsLockedAsync` must be true while held; Healthy on success; a timeout returns `Unhealthy("<Name> health check timed out after <n>s")`.
+   - `public const string DefaultName = "encina-distributed-lock-inmemory";` (Design Choice 7).
+   - Constructor `(IDistributedLockProvider provider, ProviderHealthCheckOptions options, TimeProvider? timeProvider = null, ILogger<InMemoryDistributedLockHealthCheck>? logger = null)` (Design Choice 8): `ArgumentNullException.ThrowIfNull` on `provider` and `options`; `base(options.Name ?? DefaultName, options.Tags)`; `timeProvider ?? TimeProvider.System`; `logger ?? NullLogger<...>.Instance`.
+   - `protected override async Task<HealthCheckResult> CheckHealthCoreAsync(CancellationToken ct)`: create the timeout source with `timeProvider.CreateCancellationTokenSource(options.Timeout)` (a system timer would not follow a `FakeTimeProvider`; AGENTS.md section 3) and link it with `ct` through `CancellationTokenSource.CreateLinkedTokenSource`, both disposed in a `using`; `TryAcquireAsync("health:lock:" + Guid.NewGuid().ToString("N"), expiry: options.Timeout, wait: TimeSpan.Zero, retry: TimeSpan.FromMilliseconds(10), token)`; a null handle returns `Unhealthy("<Name> could not acquire the probe lock")`; otherwise `await using` the handle, then `IsLockedAsync` must be true while held; Healthy on success; an `OperationCanceledException` raised while `ct` is not cancelled (the timeout fired) returns `Unhealthy("<Name> health check timed out after <n>s")`, and the handler disposes both sources so no timer leaks.
    - No exception message and no `EncinaError` text in any result.
 2. **Modify** `src/Encina.DistributedLock.InMemory/InMemoryLockOptions.cs`: constructor assigns `ProviderHealthCheck.Tags = ["encina", "distributed-lock", "inmemory", "ready"]` (Design Choice 3).
-3. **Modify** `src/Encina.DistributedLock.InMemory/ServiceCollectionExtensions.cs`: add `internal static IServiceCollection RegisterHealthCheck(this IServiceCollection services, InMemoryLockOptions options)` and call it from `AddEncinaDistributedLockInMemoryCore` after the provider registration; body as in the Redis registration.
-4. **Modify** `src/Encina.DistributedLock.InMemory/PublicAPI.Unshipped.txt`: the class, its constructor, `DefaultName`.
+3. **Modify** `src/Encina.DistributedLock.InMemory/ServiceCollectionExtensions.cs`: add `internal static IServiceCollection RegisterHealthCheck(this IServiceCollection services, InMemoryLockOptions options)` and call it from `AddEncinaDistributedLockInMemoryCore` after the provider registration; when `options.ProviderHealthCheck.Enabled`, it adds the `IEncinaHealthCheck` factory of Design Choice 4 (captures `options.ProviderHealthCheck`; no `AddSingleton(ProviderHealthCheckOptions)`).
+4. **Modify** `src/Encina.DistributedLock.InMemory/PublicAPI.Unshipped.txt`: the class, its four-parameter constructor (with `TimeProvider? timeProvider = null` and `ILogger<...>? logger = null`), `DefaultName`.
 
 The public lines for the PublicAPI file and the coverage manifest are written by `mechanical-fixer` (decided by the worker).
 
@@ -192,7 +237,8 @@ TASK:
 KEY RULES:
 - Derive from EncinaHealthCheck; a failure result carries only the exception type name, never a message.
 - A probe resource name is unique per call; release the handle in a finally/await using.
-- Time comes from TimeProvider if any time arithmetic is needed; the timeout comes from ProviderHealthCheckOptions.Timeout.
+- The timeout source comes from TimeProvider.CreateCancellationTokenSource(options.Timeout), never new CancellationTokenSource(timeout); the timeout value comes from ProviderHealthCheckOptions.Timeout.
+- Register the check with a factory that captures this registration's ProviderHealthCheckOptions; never AddSingleton(ProviderHealthCheckOptions).
 - XML docs with an example on the public class; sealed class; nullable enabled; zero warnings.
 - Do not change ProviderHealthCheckOptions (owned by #754).
 
@@ -212,8 +258,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.DistributedLock.InMemory/Health/InMemoryDistributedLockHealthLog.cs`: an `internal static partial class` with `HealthCheckFailed(ILogger, string failureType)` (EventId 3704) and `HealthCheckTimedOut(ILogger, double timeoutSeconds)` (EventId 3705), both inside the registered range `DistributedLockInMemory` (3700-3749; the provider's own `[LoggerMessage]` methods in `InMemoryDistributedLockProvider.cs` use 3700-3703). No new range is registered.
-2. Inject `ILogger<InMemoryDistributedLockHealthCheck>` as an optional constructor parameter (default `NullLogger`), log by exception type only through `ForLogging()`.
+1. **Create** `src/Encina.DistributedLock.InMemory/Health/InMemoryDistributedLockHealthLog.cs`: an `internal static partial class` with `ProbeFailed(ILogger, Exception exception)` (EventId 3704; the caller passes `ex.ForLogging()`, so only the type and stack trace are logged) and `ProbeTimedOut(ILogger, double timeoutSeconds)` (EventId 3705), both inside the registered range `DistributedLockInMemory` (3700-3749; the provider's own `[LoggerMessage]` methods in `InMemoryDistributedLockProvider.cs` use 3700-3703). No new range is registered.
+2. The optional `ILogger<InMemoryDistributedLockHealthCheck>` constructor parameter is part of Phase 1 (Design Choice 8). Logging paths: `EncinaHealthCheck.CheckHealthAsync` already catches every exception and returns the type name without logging, so the check logs in two places only. (a) The timeout path of `CheckHealthCoreAsync` calls `ProbeTimedOut`. (b) A `catch (Exception ex) when (ex is not OperationCanceledException)` inside `CheckHealthCoreAsync` calls `ProbeFailed(logger, ex.ForLogging())` and rethrows with `throw;`, so the base class still produces the type-name result. A null handle (the probe resource was already held) is a result, not an exception, and logs nothing.
 3. No new metric or span: the existing health-check telemetry belongs to the OpenTelemetry package (matrix row 2).
 
 </details>
@@ -228,7 +274,9 @@ Phase 1 created InMemoryDistributedLockHealthCheck.
 
 TASK:
 Create the internal partial log class InMemoryDistributedLockHealthLog with two [LoggerMessage] methods (EventIds
-3704 and 3705) and call them from the check on failure and on timeout.
+3704 ProbeFailed(ILogger, Exception) and 3705 ProbeTimedOut(ILogger, double)) and call them from the check: the
+timeout path logs ProbeTimedOut; a non-cancellation exception logs ProbeFailed(logger, ex.ForLogging()) and is
+rethrown so EncinaHealthCheck returns the type-name result.
 
 KEY RULES:
 - Use the source generator, not LoggerMessage.Define; EventIds packed sequentially after 3703.
@@ -248,12 +296,19 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `tests/Encina.UnitTests/DistributedLock/InMemory/InMemoryDistributedLockHealthCheckTests.cs`: healthy (real `InMemoryDistributedLockProvider` on a `FakeTimeProvider`), unhealthy when acquisition returns null (a resource already held), timeout (cancelled linked token), result text carries no exception message, tags and name from the options, probe lock released after the check.
-2. `tests/Encina.UnitTests/DistributedLock/InMemory/InMemoryRegistrationTests.cs`: builds the provider with `ValidateOnBuild` and `ValidateScopes`, asserts exactly one `IEncinaHealthCheck` when enabled, none when `Enabled = false`.
-3. Guard tests for the constructor (null provider, null options) in `tests/Encina.GuardTests/`.
-4. Contract test: the Redis, SqlServer and InMemory lock checks honor the same `IEncinaHealthCheck` contract (name, non-empty tags, never throws).
-5. Property, integration, load and benchmark: not required (deterministic in-process logic, no external service, single probe); the manifest `reason` for each states this.
-6. `mechanical-fixer` updates `.github/coverage-manifest/Encina.DistributedLock.InMemory.json` with per-file targets and one-sentence justifications for the new file: unit 90, guard 15 (the guard flag reaches only the constructor lines; the measured value replaces this estimate before the PR).
+1. `tests/Encina.UnitTests/DistributedLock/InMemory/InMemoryDistributedLockHealthCheckTests.cs` (new folder `InMemory`; the existing InMemory unit tests sit directly in `DistributedLock/`): healthy (real `InMemoryDistributedLockProvider` on a `FakeTimeProvider`), unhealthy when acquisition returns null (a resource already held), unhealthy when `IsLockedAsync` reports false while held (substitute provider), timeout (the `FakeTimeProvider` is advanced past `Timeout` while a substitute provider blocks; deterministic because the source comes from the `TimeProvider`), a non-cancellation exception is logged through `ForLogging()` and the result carries the type name only, result text carries no exception message, tags and name from the options, probe lock released after the check.
+2. `tests/Encina.UnitTests/DistributedLock/InMemory/InMemoryRegistrationTests.cs`: builds the provider with `ValidateOnBuild` and `ValidateScopes`, asserts exactly one `IEncinaHealthCheck` when enabled, none when `Enabled = false`, and that with another `ProviderHealthCheckOptions` instance (different `Name`) registered in the same collection the InMemory check still reports its own name and tags (no cross-wiring, Design Choice 4).
+3. `tests/Encina.GuardTests/Infrastructure/DistributedLock/InMemoryDistributedLockHealthCheckGuardTests.cs`: the constructor (null provider, null options; `timeProvider` and `logger` null are valid and produce a working check).
+4. `tests/Encina.ContractTests/DistributedLock/InMemoryDistributedLockHealthCheckContractTests.cs` (new file: no lock health-check contract file exists in `Encina.ContractTests`, which has no lock project reference, so the plan adds the `ProjectReference` to `Encina.DistributedLock.InMemory` in `tests/Encina.ContractTests/Encina.ContractTests.csproj`). Scope: InMemory only, with the real provider, asserting the `IEncinaHealthCheck` contract (non-empty name, tags include `encina`, a result and no throw on a cancelled token). The Redis and SqlServer checks need a multiplexer or a SQL connection and are not compared here.
+5. Property, integration, load and benchmark: not required (deterministic in-process logic, no external service, single probe); the manifest `reason` for each states this. No `.md` justification is written for the contract flag; the contract test above exists.
+6. `mechanical-fixer` updates `.github/coverage-manifest/Encina.DistributedLock.InMemory.json` with per-file targets and one-sentence justifications for all four files, in this PR with the tests that meet them (the measured value replaces each estimate before the PR):
+
+   | File | Unit | Guard | Contract | Justification |
+   |------|-----:|------:|---------:|---------------|
+   | `Health/InMemoryDistributedLockHealthCheck.cs` | 90 | 15 | 40 | Unit tests drive success, null handle, not-locked, timeout and exception paths; guard tests reach only the constructor checks; the contract test runs the probe once. |
+   | `Health/InMemoryDistributedLockHealthLog.cs` | 80 | 0 | 0 | Generated `[LoggerMessage]` bodies run only when the check logs (unit); guard and contract tests never reach a logging path, so 0 for both with that reason. |
+   | `InMemoryLockOptions.cs` | 90 | 0 | 0 | The constructor that sets the default tags runs in every unit test that builds the options; guard tests have no parameters to check here. |
+   | `ServiceCollectionExtensions.cs` | 85 | 15 | 0 | The registration tests run the enabled and disabled branches; guard tests reach the existing null checks; no contract test touches registration. |
 
 </details>
 
@@ -286,10 +341,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `docs-writer`: update `src/Encina.DistributedLock.InMemory/README.md` (how to enable the check, tags, the registration shape later providers copy) and the lock section of `docs/guides/health-checks.md`.
+1. `docs-writer`: create `src/Encina.DistributedLock.InMemory/README.md` (the package has none today: what the provider is, how to enable the check, tags, the per-registration options shape later providers copy) and update the lock section of `docs/guides/health-checks.md` (the file exists).
 2. `mechanical-fixer`: changelog fragment `changelog.d/755-inmemory-lock-health-check.added.md`; the `PublicAPI.Unshipped.txt` lines.
 3. Verify: `dotnet build --configuration Release` (0 warnings), `dotnet test`, per-flag coverage against the manifest.
-4. Open the follow-up issue only if the maintainer chooses Design Choice 3 Option B.
+4. Open the follow-up issue only if the maintainer chooses Design Choice 3 Option B (its issue number is assigned when it opens; none exists today).
 
 </details>
 
@@ -354,10 +409,10 @@ REFERENCE FILES:
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 2 | 2 | New check and its log class; `ServiceCollectionExtensions.cs`, `InMemoryLockOptions.cs` |
-| Tests | 3 | 0 | Unit tests, registration test, guard tests (the contract test extends an existing file when one exists) |
-| Documentation | 0 | 2 | Package README, `docs/guides/health-checks.md` |
+| Tests | 4 | 1 | Unit tests, registration test, guard tests, contract test (all new); `Encina.ContractTests.csproj` (project reference) |
+| Documentation | 1 | 1 | New package README, `docs/guides/health-checks.md` |
 | Configuration | 1 | 2 | Changelog fragment; `PublicAPI.Unshipped.txt`, coverage manifest |
-| **Total** | **6** | **6** | One pull request, 12 files, under the 15-file limit |
+| **Total** | **8** | **6** | One pull request, 14 files, under the 15-file limit |
 
 ---
 
@@ -435,6 +490,7 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator briefs a worker for one pull request (12 files) once the maintainer has answered Design Choices 1 and 3.
+1. The orchestrator briefs a worker for one pull request (14 files) once the maintainer has answered the Dilemmas (Design Choices 1 to 8, in particular 1, 3, 4 and 8).
 2. After merge, comment on #755 with the result and note on #207, #208, #209 and #210 that their providers must ship a check following this shape.
-3. Open an issue for the `RedisDistributedLockHealthCheck` timeout: it ignores `ProviderHealthCheckOptions.Timeout` today (found while reading the code).
+3. Follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/redis-lock-healthcheck-timeout.md): `RedisDistributedLockHealthCheck` ignores `ProviderHealthCheckOptions.Timeout` today (found while reading the code).
+4. Follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/lock-healthcheck-options-wiring.md): move the Redis and SqlServer lock checks to per-registration options (Design Choice 4).
