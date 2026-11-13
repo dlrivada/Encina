@@ -2,9 +2,9 @@
 
 > **Issue**: [#1636](https://github.com/dlrivada/Encina/issues/1636)
 > **Type**: Feature
-> **Complexity**: High (9 phases, 10 database providers plus Marten and in-memory, about 85 files, six pull requests)
-> **Estimated Scope**: ~59 production and script files, ~19 test files, ~7 documentation files
-> **Related plans**: `abac-decision-audit-implementation-plan-751.md` (stores the module as metadata today), `audit-marten-implementation-plan-800.md`, `audit-abac-multitenancy-implementation-plan-798.md` (edits the same audit files; sequence them, see Prerequisites)
+> **Complexity**: High (9 phases, 10 database providers plus Marten and in-memory, about 110 files, fourteen pull requests with Design Choice 3 B, eight with A)
+> **Estimated Scope**: ~59 production and script files, ~40 test files, ~10 documentation, manifest and fragment files
+> **Related plans**: #751 (stores the module as metadata today), #800, #798 (edits the same audit files; sequence them, see Prerequisites)
 
 ---
 
@@ -12,11 +12,13 @@
 
 Add a first-class `ModuleId` to the audit rows and the audit queries so a modular monolith can ask an audit store "what did module X do" server-side, on every provider.
 
-**State of the code on `7a0049c07` (corrects the issue text).**
+**State of the code on `c49b987e9` (corrects the issue text).**
 
 - The issue speaks of `AuditEntry`, `AuditQuery` and `IAuditStore` and of an "`IAuditStore` registration bug (ADO/Dapper/MongoDB)". ADR-036 renamed them: the row is `OperationAuditEntry` (`src/Encina.Security.Audit/OperationAuditEntry.cs`, `TenantId` at line 86), the query is `OperationAuditQuery` (`OperationAuditQuery.cs`), the port is `IOperationAuditStore`. The registration bug is fixed: all nine provider registrations now call `TryAddScoped<IOperationAuditStore, ...>` after `OperationAuditStoreRegistration.RemoveInMemoryDefault`.
 - Nothing carries a module on an audit row. The ABAC decision audit writes the module only as the metadata key `abac.module_id` (`ABACDecisionAuditSchema.MetadataModuleId`, filled from `context.GetModuleName()` in `ABACDecisionRecordFactory.cs:57`, read back in `ABACDecisionAuditEntryMapper.cs:131`), which no store can filter. The module name lives in the request context metadata key `Encina.ModuleName` (`src/Encina/Modules/RequestContextModuleExtensions.cs`).
 - Every store already persists and filters `TenantId` the way a module id would be: ADO and Dapper (columns in `028_CreateOperationAuditEntriesTable.sql` x6, filter in `BuildWhere`), EF Core (`OperationAuditEntryEntity`, `OperationAuditEntryEntityConfiguration` with a filtered index, `OperationAuditStoreEF`), MongoDB (`OperationAuditEntryDocument`, `OperationAuditStoreMongoDB`), Marten (plaintext structural field on `OperationAuditEntryRecordedEvent`, `OperationAuditEntryReadModel`, an index in `ConfigureMartenOperationAuditProjections`, `AuditEventEncryptor` copies), and `InMemoryOperationAuditStore`.
+- Bounds today: the ABAC decision audit bounds identifiers through `ABACDecisionAuditEntryMapper.NormalizeIdentifier` (internal), which keeps a value that fits and replaces a longer one by `sha256:<64 hex>`, recording the field as hashed (`EntryBounds.Identifier`, lines 252-261); it never rejects. The other writers (`DefaultOperationAuditEntryFactory`, `AuditedRepository`, `AuditedReadOnlyRepository`) copy `TenantId` raw with no bound.
+- Module names are case-insensitive everywhere in Encina: `ModuleRegistry` uses `StringComparer.OrdinalIgnoreCase`, `ModuleConfiguration` rejects two modules whose names differ only in case, and `RequestContextModuleExtensions` compares with `StringComparison.OrdinalIgnoreCase`. The audit `TenantId` columns use the database default collation (case-insensitive on SQL Server and MySQL, case-sensitive on PostgreSQL and MongoDB).
 - The read audit trail has the same shape (`ReadAuditEntry`, `ReadAuditQuery`, `IReadAuditStore`, table `020_CreateReadAuditEntriesTable.sql` x6, `ReadAuditStoreADO/Dapper/EF/MongoDB`, `MartenReadAuditStore`, `InMemoryReadAuditStore`) and has no module either. #748 was closed as a duplicate of this issue with the note "check #748's `IReadAuditStore` module filter is covered by #1636".
 
 **Scope.** `ModuleId` on `OperationAuditEntry` and `OperationAuditQuery` (and, per Design Choice 3, on `ReadAuditEntry` and `ReadAuditQuery`), filled by the entry factories from the request context, persisted and filtered on 10 providers, Marten and in-memory; the ABAC decision audit moves the module from metadata to the column and gains a `ModuleId` query filter.
@@ -49,7 +51,7 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 
 - Module isolation is cross-cutting function 11, and the audit trail must be filterable by it.
 - `string?` matches `TenantId`, `ABACDecisionAuditRecord.ModuleId` and `BreachAggregate.ModuleId`; the column is `VARCHAR(128) NULL` like `TenantId`, with a filtered index `WHERE ModuleId IS NOT NULL`.
-- Matching is exact (as for `TenantId`), not case-insensitive like `EntityType`.
+- Matching rules (case, blank filter) are Design Choice 7; the length rule is Design Choice 6.
 
 </details>
 
@@ -84,8 +86,8 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `OperationAuditEntry` and `OperationAuditQuery` only (the issue text)** | Smaller (about 31 production files, three pull requests) | The read audit trail still cannot be filtered by module, so #748's closure note ("covered by #1636") is not true; two stores with different capabilities |
-| **B) Both operation and read audit: `ReadAuditEntry`, `ReadAuditQuery`, `ReadAuditEntryEntity`, the mapper, scripts `020` x6, 8 read store classes, `MartenReadAuditStore`, `InMemoryReadAuditStore`** | Coherent across the two purpose-named stores (ADR-036); honours the closure of #748 | About 28 more production files and two more pull requests |
+| **A) `OperationAuditEntry` and `OperationAuditQuery` only (the issue text)** | Smaller (about 31 production files, eight pull requests) | The read audit trail still cannot be filtered by module, so #748's closure note ("covered by #1636") is not true; two stores with different capabilities |
+| **B) Both operation and read audit: `ReadAuditEntry`, `ReadAuditQuery`, `ReadAuditEntryEntity`, the mapper, scripts `020` x6, 8 read store classes, `MartenReadAuditStore`, `InMemoryReadAuditStore`** | Coherent across the two purpose-named stores (ADR-036); honours the closure of #748 | About 28 more production files and six more pull requests |
 | **C) Operation audit now, read audit as a separate issue** | Bounded now | Leaves the same provider matrix to be touched twice; the read audit comment on this issue becomes a promise |
 
 ### Chosen Option: **B — Both stores, the read audit in its own pull requests** (recommended, pending the maintainer)
@@ -93,7 +95,7 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 ### Rationale
 
 - B wins when module-scoped access evidence matters (a module owner asking who read their entities), which is the point of function 11 in a modular monolith; A wins when the read trail is not used by module owners in 1.0 and the budget is tight.
-- Phases are ordered so that the operation audit ships complete before the read audit starts; the maintainer can stop after Phase 6 (the plan's PRs 1-3) and open a follow-up issue for the rest without rework.
+- Pull requests are ordered so that the operation audit ships complete (PRs 1-7) before the read audit starts (PRs 8-13); the maintainer can stop after PR 7 and open a follow-up issue for the rest without rework.
 
 </details>
 
@@ -101,7 +103,7 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 <summary><strong>4. The ABAC decision audit: the column replaces the metadata key, with no compatibility copy</strong></summary>
 
 **Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (no compatibility layers or migration helpers) and section 1 (pre-1.0, breaking changes are done completely); `abac-decision-audit-implementation-plan-751.md` (the metadata key was explicitly a stand-in "until this lands", per the issue's Related Issues).
+**Settled by:** `AGENTS.md` section 3 (no compatibility layers or migration helpers) and section 1 (pre-1.0, breaking changes are done completely); the #751 plan (the metadata key was explicitly a stand-in "until this lands", per the issue's Related Issues).
 
 ### Options Considered
 
@@ -140,6 +142,50 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 
 </details>
 
+<details>
+<summary><strong>6. A module name longer than the column: hashed, or refused</strong></summary>
+
+**Class:** Dilemma (recommended, pending the maintainer)
+
+The column is `VARCHAR(128)`. Today the ABAC writer hashes an over-long identifier and the other writers apply no bound, so a module name over 128 characters would make their `INSERT` fail and lose the audit row. Either option below closes that; they differ in what the caller sees.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Hash in every writer and in the filter: a shared `AuditIdentifierBounds.Normalize(value, maxLength)` in `Encina.Security.Audit` (the rule of `NormalizeIdentifier`, moved there and reused by the ABAC mapper) stores `sha256:<64 hex>` for a longer name; the query filter is normalised the same way, so filtering by the long name still matches** | The audit row is never lost; one rule for every writer; the ABAC behavior is unchanged | The stored value of a long name is a hash, readable only by hashing the candidate name |
+| **B) Refuse at entry creation: the factories return `Left(encina.audit.module_id_too_long, ErrorCategory.Internal)` (ADR-062 R1: the module name is configuration, not caller input)** | Every stored module id is readable | The audited operation fails (or, where the audit write is best effort, the row is lost) because of a configuration value; the ABAC writer would have to change from hashing to refusing |
+
+### Chosen Option: **A — Hash in every writer and in the filter** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins where the audit row must exist whatever the configuration (the audit trail is evidence); B wins where a readable module id matters more than the row, which a configuration check at start-up can achieve without failing operations (module names are known at registration). Under A the hash is computed over the lower-invariant name, so the case rule of Design Choice 7 survives hashing.
+
+</details>
+
+<details>
+<summary><strong>7. Matching: case and blank filter values</strong></summary>
+
+**Class:** Dilemma (recommended, pending the maintainer)
+
+Common to both options: a null, empty or whitespace-only `ModuleId` filter is "no filter" and returns every module (the blank-is-no-value rule of #3147), registered here because it is visible API, and tested on every store. Exact case-sensitive matching is excluded: Encina module names are case-insensitive (`ModuleRegistry`, `ModuleConfiguration`), so `Billing` and `billing` are the same module and must match the same rows.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Store the name as written and match case-insensitively on every provider: SQL Server and MySQL default collations (already case-insensitive), PostgreSQL `lower("ModuleId") = lower(@ModuleId)` with an index on `lower("ModuleId")`, MongoDB an index and query with a case-insensitive collation (strength 2), Marten `ModuleId.ToLower()` on an index of the lowered value, in-memory `StringComparison.OrdinalIgnoreCase`** | The row shows the module name as the application wrote it | Four different mechanisms to keep consistent; the PostgreSQL and Mongo indexes are expression or collation indexes |
+| **B) Normalise to lower-invariant at write and at filter time on every provider; plain equality and plain indexes everywhere** | One rule, plain indexes, identical on every provider | The stored value is lower-cased (`billing`), not the registered spelling |
+
+### Chosen Option: **B — Lower-invariant at write and filter** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins when uniform behavior across 10 providers and Marten matters more than the display form, which is the usual trade in this codebase (provider coherence, `AGENTS.md` section 5); A wins when operators read raw audit rows and expect the registered spelling. Each store's integration test filters `Billing` against rows written as `billing` and the reverse.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -151,11 +197,12 @@ Add a first-class `ModuleId` to the audit rows and the audit queries so a modula
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify `src/Encina.Security.Audit/OperationAuditEntry.cs`**: add `public string? ModuleId { get; init; }` after `TenantId` with XML docs ("name of the module that handled the request; null outside a modular monolith").
-2. **Modify `OperationAuditQuery.cs`**: add `public string? ModuleId { get; init; }`, the builder field `_moduleId`, `ForModule(string moduleId)` and the assignment in `Build()`.
-3. **Modify `ReadAuditEntry.cs`, `ReadAuditEntryEntity.cs`, `ReadAuditEntryMapper.cs`, `ReadAuditQuery.cs`** the same way (Design Choice 3, Phase 6 onwards).
-4. **Modify `src/Encina.Security.ABAC/DecisionAudit/ABACDecisionAuditSchema.cs`**: remove `MetadataModuleId`; add `ModuleIdMaxLength = 128` (the same value as `TenantIdMaxLength`).
-5. **PublicAPI** lines via mechanical-fixer.
+1. **Modify `src/Encina.Security.Audit/OperationAuditEntry.cs`** (PR 1): add `public string? ModuleId { get; init; }` after `TenantId` with XML docs ("name of the module that handled the request, lower-invariant under Design Choice 7 B; null outside a modular monolith").
+2. **Modify `OperationAuditQuery.cs`** (PR 1): add `public string? ModuleId { get; init; }`, the builder field `_moduleId`, `ForModule(string moduleId)` (no null guard, the same shape as `ForTenant`) and the assignment in `Build()`.
+3. **Create `src/Encina.Security.Audit/AuditIdentifierBounds.cs`** (PR 1, `internal static`): `Normalize(string? value, int maxLength)` with the rule of Design Choice 6 and `NormalizeModuleId(string? value)` (blank to null, the Design Choice 7 case rule, then the length rule with 128). `OperationAuditEntry.ModuleId` and `OperationAuditQuery.ModuleId` apply it in their `init` accessor (C# 14 `field` keyword), so every writer, every filter and every provider store sees the same normalised value without calling the helper; a unit test assigns a blank, a mixed-case and a 200-character name to both and asserts the stored value.
+4. **PR 8 only, Design Choice 3 option B**: modify `ReadAuditEntry.cs`, `ReadAuditEntryEntity.cs`, `ReadAuditEntryMapper.cs`, `ReadAuditQuery.cs` the same way.
+5. **Modify `src/Encina.Security.ABAC/DecisionAudit/ABACDecisionAuditSchema.cs`** (PR 7): remove `MetadataModuleId`; add `ModuleIdMaxLength = 128` (the same value as `TenantIdMaxLength`); the ABAC mapper's `NormalizeIdentifier` delegates to `AuditIdentifierBounds.Normalize`.
+6. **PublicAPI** (mechanical-fixer): add the new members in the pull request that adds them; in PR 7 **delete** the line `const Encina.Security.ABAC.DecisionAudit.ABACDecisionAuditSchema.MetadataModuleId = "abac.module_id" -> string!` from `src/Encina.Security.ABAC/PublicAPI.Unshipped.txt` (line 974 on `c49b987e9`; it is unshipped, so the line is removed, not moved to a removed section).
 
 </details>
 
@@ -167,7 +214,7 @@ CONTEXT:
 - Issue #1636. OperationAuditEntry/OperationAuditQuery are sealed records in src/Encina.Security.Audit; TenantId is the model to copy.
 
 TASK:
-Add ModuleId (string?) to the entry and the query (and the read-audit equivalents in the later PR), the builder method ForModule, and the schema length constant.
+PR 1: add ModuleId (string?) to the entry and the query, the builder method ForModule, AuditIdentifierBounds, and the in-memory filter. No writer fills the value yet. The read-audit equivalents are PR 8; the ABAC schema constant is PR 7.
 
 KEY RULES:
 - XML docs on every public member; PublicAPI.Unshipped.txt via mechanical-fixer.
@@ -187,11 +234,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify `DefaultOperationAuditEntryFactory.cs`** (line ~114): `ModuleId = context.GetModuleName()`.
-2. **Modify `AuditedRepository.cs`** (entry at line ~281) and **`AuditedReadOnlyRepository.cs`** (read entry at line ~235, Design Choice 3): set `ModuleId` from `_requestContext.GetModuleName()`.
-3. **Modify `InMemoryOperationAuditStore.cs`** (`WhereIf(... query.TenantId ...)`, line ~176): add the module predicate; **`InMemoryReadAuditStore.cs`** (line ~155) likewise.
-4. **Modify `ABACDecisionAuditEntryMapper.cs`**: write `ModuleId = bounds.Identifier(nameof(OperationAuditEntry.ModuleId), record.ModuleId, ABACDecisionAuditSchema.ModuleIdMaxLength)` and read `record.ModuleId = entry.ModuleId` (replace the metadata read at line 131 and write at line 187).
-5. **Modify `ABACDecisionAuditQuery.cs`** (add `ModuleId`) and **`ABACDecisionAuditReader.ToStoreQuery`**: normalise with `NormalizeIdentifier(query.ModuleId, ModuleIdMaxLength)`.
+1. **Modify `DefaultOperationAuditEntryFactory.cs`** (line ~114, PR 6): `ModuleId = context.GetModuleName()` (normalised by the property, Phase 1 task 3).
+2. **Modify `AuditedRepository.cs`** (entry at line ~281, PR 6) and **`AuditedReadOnlyRepository.cs`** (read entry at line ~235, PR 13, Design Choice 3 B): the same from `_requestContext.GetModuleName()`.
+3. **Modify `InMemoryOperationAuditStore.cs`** (`WhereIf(... query.TenantId ...)`, line ~176, PR 1): add the module predicate on the normalised filter value (a blank filter is ignored); **`InMemoryReadAuditStore.cs`** (line ~155, PR 8) likewise.
+4. **Modify `ABACDecisionAuditEntryMapper.cs`** (PR 7): write `ModuleId = bounds.Identifier(nameof(OperationAuditEntry.ModuleId), record.ModuleId, ABACDecisionAuditSchema.ModuleIdMaxLength)` (the hashed field is recorded as today) and read `record.ModuleId = entry.ModuleId` (replace the metadata read at line 131 and write at line 187).
+5. **Modify `ABACDecisionAuditQuery.cs`** (add `ModuleId`) and **`ABACDecisionAuditReader.ToStoreQuery`** (PR 7): pass `query.ModuleId` to `OperationAuditQuery.ModuleId`, whose `init` applies the same rule as the writers, so the filter value matches what was stored; the ABAC mapper's own `NormalizeIdentifier` delegates to `AuditIdentifierBounds.Normalize` (`Encina.Security.Audit` grants `InternalsVisibleTo` to `Encina.Security.ABAC`, or the helper is made public with XML docs if that grant does not exist).
 
 </details>
 
@@ -203,11 +250,11 @@ CONTEXT:
 - Phase 1 merged. Writers: DefaultOperationAuditEntryFactory, AuditedRepository, AuditedReadOnlyRepository, ABACDecisionAuditEntryMapper. Readers/filters: InMemory stores, ABACDecisionAuditReader.
 
 TASK:
-Fill ModuleId from context.GetModuleName() everywhere an entry is created and filter it in the in-memory stores and the ABAC reader/query. Remove the abac.module_id metadata path.
+PR 6: fill ModuleId from context.GetModuleName() in the factory and AuditedRepository (the property normalises it). PR 7: move the ABAC decision audit from the abac.module_id metadata key to the column and add the ABAC query filter. Both only after every operation-audit store persists and filters the column (PRs 2-5).
 
 KEY RULES:
 - Unit tests execute the real factory/mapper/store (no reflection-only tests).
-- A module name over the length limit is rejected by the same bounds rule as the other identifiers (no truncation of a filter value).
+- A module name over 128 characters follows Design Choice 6 (A: hashed by AuditIdentifierBounds in every writer and in every filter, never truncated; B: refused with a Left); a blank filter is ignored; the case rule is Design Choice 7.
 
 REFERENCE FILES:
 - src/Encina.Security.Audit/DefaultOperationAuditEntryFactory.cs
@@ -227,7 +274,8 @@ REFERENCE FILES:
 1. **SQL scripts** `028_CreateOperationAuditEntriesTable.sql` in `Encina.ADO.{SqlServer,PostgreSQL,MySQL}` and `Encina.Dapper.{SqlServer,PostgreSQL,MySQL}`: add `ModuleId VARCHAR(128) NULL` after `TenantId` and a filtered/partial index `IX_OperationAuditEntries_ModuleId` (`WHERE ModuleId IS NOT NULL`; MySQL has no partial index, use a plain index as `IX_OperationAuditEntries_TenantId` does there).
 2. **EF Core**: `OperationAuditEntryEntity.cs` (property), `OperationAuditEntryEntityConfiguration.cs` (max length 128, filtered index via `IndexFilters.IsNotNull`), `OperationAuditStoreEF.cs` mapping at lines ~309 and ~334.
 3. **MongoDB**: `OperationAuditEntryDocument.cs` (field, `FromEntry`/`ToEntry` at lines ~155 and ~182) and an index where the collection indexes are created.
-4. The read audit counterparts (`020_CreateReadAuditEntriesTable.sql` x6, `ReadAuditEntryEntityConfiguration.cs`, `ReadAuditEntryDocument.cs`) belong to PR 4-5 (Design Choice 3).
+4. The read audit counterparts (`020_CreateReadAuditEntriesTable.sql` x6, `ReadAuditEntryEntityConfiguration.cs`, `ReadAuditEntryDocument.cs`) belong to PRs 9 to 11 (Design Choice 3 B).
+5. Index shape follows Design Choice 7: under B (recommended) a plain or filtered index on `ModuleId` as for `TenantId`; under A an expression index on `lower("ModuleId")` on PostgreSQL and a case-insensitive collation index on MongoDB.
 
 </details>
 
@@ -269,7 +317,7 @@ REFERENCE FILES:
 | EFCore-SqlServer / PostgreSQL / MySQL | `src/Encina.EntityFrameworkCore/Auditing/OperationAuditStoreEF.cs` (one class) | `WhereIf(filtered, !string.IsNullOrWhiteSpace(query.ModuleId), e => e.ModuleId == query.ModuleId)` (line ~209) |
 | MongoDB | `src/Encina.MongoDB/Auditing/OperationAuditStoreMongoDB.cs` | `AddIf(filters, ..., () => builder.Eq(d => d.ModuleId, query.ModuleId))` (line ~280) |
 
-Every provider changes in the same pull request group (`AGENTS.md` section 5, provider coherence).
+Every provider changes in the same pull request group (`AGENTS.md` section 5, provider coherence): PR 2 ADO.NET, PR 3 Dapper, PR 4 EF Core and MongoDB, PR 5 Marten, before any writer fills the column (Next Steps, Order). Every store treats a null filter as "no filter"; the value reaching the store is already normalised by `OperationAuditQuery.ModuleId` (blank to null, Design Choices 6 and 7), and each provider's integration test covers the module filter, a blank filter, and `Billing` against `billing`.
 
 </details>
 
@@ -307,7 +355,7 @@ REFERENCE FILES:
 3. **`Projections/ConfigureMartenOperationAuditProjections.cs`** (line ~105): `.Index(x => x.ModuleId)`.
 4. **`AuditEventEncryptor.cs`** (lines ~112 and ~184): copy `ModuleId` in both directions.
 5. **`MartenOperationAuditStore.cs`**: filter in `ApplyUserTenantAndTypeFilters` (line ~420) and map back (line ~560).
-6. Read audit counterparts in PR 4 (`ReadAuditEntryRecordedEvent`, `ReadAuditEntryReadModel`, `ReadAuditEntryProjection`, `MartenReadAuditStore`).
+6. Read audit counterparts in PR 12 (`ReadAuditEntryRecordedEvent`, `ReadAuditEntryReadModel`, `ReadAuditEntryProjection`, `MartenReadAuditStore`).
 7. Update the `AuditEncryptionScope` documentation: `ModuleId` is a structural field.
 
 </details>
@@ -358,7 +406,7 @@ TASK:
 Repeat Phases 1-5 for the read audit trail.
 
 KEY RULES:
-- Same provider coherence rule; all providers in the group of pull requests 4 and 5.
+- Same provider coherence rule and order: stores first (PRs 8-12), the AuditedReadOnlyRepository writer last (PR 13).
 - Contract tests extend ReadAuditContractTests to include the module filter.
 
 REFERENCE FILES:
@@ -410,24 +458,55 @@ REFERENCE FILES:
 
 | Test type | Scope | Location |
 |-----------|-------|----------|
-| Unit | factory fill, in-memory filter, ABAC mapper/reader/query, builder `ForModule`, Marten encryptor copy | `tests/Encina.UnitTests/Security/Audit/`, `.../Security/ABAC/` |
-| Guard | `ForModule(null)`, new public members | `tests/Encina.GuardTests/Security/` |
+| Unit | factory fill, in-memory filter (module, blank, case), the normalisation of `ModuleId` on entry and query (blank, mixed case, 200 characters), ABAC mapper/reader/query, builder `ForModule`, Marten encryptor copy | `tests/Encina.UnitTests/Security/Audit/`, `.../Security/ABAC/` |
+| Guard | new public members that take reference parameters; `ForModule` has no null guard (same shape as `ForTenant`, a null argument means "no filter"), so it is not a guard case | `tests/Encina.GuardTests/Security/` |
 | Contract | module filter returns exactly the entries of the module, for every store; extends `OperationAuditStoreContractTests.cs` and `ReadAuditContractTests.cs` | `tests/Encina.ContractTests/Security/Audit/` |
 | Property | for any entries and any module, `QueryAsync(ModuleId = m)` equals the in-memory filter; no entry of another module | `tests/Encina.PropertyTests/Security/Audit/OperationAuditStorePropertyTests.cs` (extend) |
 | Integration | write entries of modules A and B (and none), filter by A; 10 providers plus Marten (shared `[Collection]` fixtures) | `tests/Encina.IntegrationTests/Security/Audit/` (extend each existing `OperationAuditStore*IntegrationTests`) |
 | Load | justification `.md`: append-only, one extra predicate | `tests/Encina.LoadTests/Security/Audit/ModuleId.md` |
 | Benchmark | justification `.md` | `tests/Encina.BenchmarkTests/Security/Audit/ModuleId.md` |
 
-**Per-file targets** (proposed; the pull request measures and never lowers):
+**Per-file targets** (proposed; the pull request measures and never lowers). "Baseline" is the per-file target in `.github/coverage-manifest/` on `c49b987e9`; "default" means the file has none and the package default applies (Security.Audit unit 70, guard 20; Audit.Marten unit 40, guard 15; EntityFrameworkCore unit 40, guard 10; MongoDB unit 30, guard 10).
 
-| File | Flags | Justification |
-|------|-------|---------------|
-| `OperationAuditEntry.cs` (existing unit 95, guard 90) | unit 95, guard 90 | one more init property |
-| `OperationAuditQuery.cs` (existing unit 95, guard 0) | unit 97, guard 0 | the builder method is pure and covered by unit; no guard parameter |
-| `DefaultOperationAuditEntryFactory.cs` (existing unit 100, guard 90) | unit 100, guard 90 | one line in a fully covered method |
-| `InMemoryOperationAuditStore.cs` (existing unit 97) | unit 97 | one predicate |
-| the 8 provider store classes | integration 80 | only integration reaches the SQL and the Mongo filter |
-| `MartenOperationAuditStore.cs` | integration 70 | Marten filter proven on PostgreSQL |
+| File | Baseline | Flags | Justification |
+|------|----------|-------|---------------|
+| `Security.Audit/OperationAuditEntry.cs` (PR 1) | unit 95, guard 90 | unit 95, guard 90 | one more init property with a normalising accessor, asserted by unit tests. |
+| `Security.Audit/OperationAuditQuery.cs` (PR 1) | unit 95, guard 0 | unit 97, guard 0 | `ForModule` and the normalising accessor are pure and covered by unit; `ForModule` has no null guard by design (same as `ForTenant`), so guard stays 0. |
+| `Security.Audit/AuditIdentifierBounds.cs` (new, PR 1) | new | unit 100, property 90 | pure functions; FsCheck proves idempotence and the 128-character bound. |
+| `Security.Audit/InMemoryOperationAuditStore.cs` (PR 1) | unit 97 | unit 97 | one predicate, covered by the module, blank and case tests. |
+| `Security.Audit/DefaultOperationAuditEntryFactory.cs` (PR 6) | unit 100, guard 90 | unit 100, guard 90 | one line in a fully covered method. |
+| `Security.Audit/AuditedRepository.cs` (PR 6) | unit 100, guard 10, contract 25 | unit 100, guard 10, contract 25 | one assignment in a fully covered entry builder; targets kept. |
+| `Security.Audit/AuditedReadOnlyRepository.cs` (PR 13) | unit 100, guard 20, contract 30, property 0 | unchanged | one assignment in a fully covered entry builder. |
+| `Security.Audit/ReadAuditEntry.cs`, `ReadAuditQuery.cs`, `ReadAuditEntryEntity.cs`, `ReadAuditEntryMapper.cs` (PR 8) | default | unit 95, guard 80 | records, entity and mapper with one new member each, built and mapped in unit tests; guard covers the mapper's arguments. |
+| `Security.Audit/InMemoryReadAuditStore.cs` (PR 8) | unit 99 | unit 99 | one predicate. |
+| `Security.ABAC/DecisionAudit/ABACDecisionAuditSchema.cs` (PR 7) | unit 0 | unit 0 | constants only, no executable line. |
+| `Security.ABAC/DecisionAudit/ABACDecisionAuditEntryMapper.cs` (PR 7) | unit 95, guard 45, contract 80, property 85, integration 90 | unchanged | the column write and read replace the metadata path in already covered methods. |
+| `Security.ABAC/DecisionAudit/ABACDecisionAuditReader.cs` (PR 7) | unit 95, guard 75, contract 55, integration 75 | unchanged | one filter assignment in a covered method. |
+| `Security.ABAC/DecisionAudit/ABACDecisionAuditQuery.cs` (PR 7) | unit 95, guard 66 | unchanged | one init property. |
+| `ADO.*/Auditing/OperationAuditStoreADO.cs` (3, PR 2) | integration 80 | integration 80 | only integration reaches the SQL; one column and one predicate in covered statements. |
+| `Dapper.*/Auditing/OperationAuditStoreDapper.cs` (3, PR 3) | integration 85 | integration 85 | same. |
+| `ADO.*/Auditing/ReadAuditStoreADO.cs` (3, PR 9) | integration 87 | integration 87 | same. |
+| `Dapper.*/Auditing/ReadAuditStoreDapper.cs` (3, PR 10) | integration 88 | integration 88 | same. |
+| `EntityFrameworkCore/Auditing/OperationAuditEntryEntity.cs` (PR 4) | unit 95, guard 0 | unit 95, guard 0 | one property; no guardable parameter. |
+| `EntityFrameworkCore/Auditing/OperationAuditEntryEntityConfiguration.cs` (PR 4) | unit 95 | unit 95 | the column and index are asserted on the model. |
+| `EntityFrameworkCore/Auditing/OperationAuditStoreEF.cs` (PR 4) | integration 80 | integration 80 | LINQ predicate reaches SQL only in integration. |
+| `EntityFrameworkCore/Auditing/ReadAuditEntryEntityConfiguration.cs` (PR 11) | default | unit 95 | the column and index are asserted on the model. |
+| `EntityFrameworkCore/Auditing/ReadAuditStoreEF.cs` (PR 11) | integration 75 | integration 75 | same as the operation store. |
+| `MongoDB/Auditing/OperationAuditEntryDocument.cs` (PR 4) | unit 80, guard 0 | unit 80, guard 0 | `FromEntry`/`ToEntry` map one more field. |
+| `MongoDB/Auditing/OperationAuditStoreMongoDB.cs` (PR 4) | integration 80 | integration 80 | the filter reaches the server only in integration. |
+| `MongoDB/Auditing/ReadAuditEntryDocument.cs` (PR 11) | default | unit 90 | mapping both ways in unit tests. |
+| `MongoDB/Auditing/ReadAuditStoreMongoDB.cs` (PR 11) | integration 85 | integration 85 | same. |
+| `Audit.Marten/Events/OperationAuditEntryRecordedEvent.cs` (PR 5) | unit 95, guard 45 | unit 95, guard 45 | one init property. |
+| `Audit.Marten/Projections/OperationAuditEntryReadModel.cs` (PR 5) | unit 95, guard 95 | unit 95, guard 95 | one property. |
+| `Audit.Marten/Projections/OperationAuditEntryProjection.cs` (PR 5) | unit 75, guard 10, integration 96 | unchanged | one copy line in a covered method. |
+| `Audit.Marten/Projections/ConfigureMartenOperationAuditProjections.cs` (PRs 5, 12) | unit 95, guard 0, integration 100 | unchanged | one index line each. |
+| `Audit.Marten/AuditEventEncryptor.cs` (PR 5) | default | unit 90, guard 80 | the copy in both directions is asserted by the encryptor test. |
+| `Audit.Marten/AuditEncryptionScope.cs` (PR 5) | default | unit 0 | documentation only in this change; no executable line is touched. |
+| `Audit.Marten/MartenOperationAuditStore.cs` (PR 5) | integration 72, unit 50, guard 8 | integration 72, unit 50, guard 8 | the Marten filter is proven on PostgreSQL; targets kept. |
+| `Audit.Marten/Events/ReadAuditEntryRecordedEvent.cs` (PR 12) | default | unit 90, guard 40 | one init property, built in unit tests. |
+| `Audit.Marten/Projections/ReadAuditEntryReadModel.cs`, `ReadAuditEntryProjection.cs` (PR 12) | unit 100 / guard 93 / integration 100; unit 87 / guard 27 / integration 82 | unchanged | one property and one copy line. |
+| `Audit.Marten/MartenReadAuditStore.cs` (PR 12) | integration 66, unit 43, guard 10 | unchanged | one filter in a covered query. |
+| the 12 SQL scripts (PRs 2, 3, 9, 10) | not measured | not measured | executed by the integration tests; scripts carry no coverage flag. |
 
 CRAP gate: the SQL builders gain one branch each; keep each changed method at or below 10 by extracting the predicate into the existing helper.
 
@@ -526,14 +605,14 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Core (Security.Audit models, factory, repositories, in-memory stores) | 8 | operation audit: entry, query, factory, `AuditedRepository`, in-memory store; read audit adds 5 more |
+| Core (Security.Audit models, bounds helper, factory, repositories, in-memory stores) | 6 | operation audit: entry, query, `AuditIdentifierBounds`, factory, `AuditedRepository`, in-memory store; read audit adds 6 more |
 | ABAC (schema, mapper, query, reader) | 4 | the metadata key becomes the column |
 | ADO and Dapper (6 stores plus 6 operation scripts) | 12 | read audit adds 12 more |
-| EF Core (entity, configuration, store) and MongoDB (document, store) | 5 | read audit adds 5 more |
-| Marten (event, read model, projection, projection configuration, encryptor, store) | 6 | read audit adds 5 more |
-| Tests (unit, guard, contract, property, integration, justification .md) | 19 | new and extended |
-| Documentation (READMEs, feature page, changelog fragments, PublicAPI) | 7 | docs-writer and mechanical-fixer |
-| Total (operation audit about 55, read audit about 28 more) | 85 | six pull requests |
+| EF Core (entity, configuration, store) and MongoDB (document, store) | 5 | read audit adds 4 more |
+| Marten (event, read model, projection, projection configuration, encryptor, scope, store) | 7 | read audit adds 4 more |
+| Tests (unit, guard, contract, property, integration extensions, justification .md) | 40 | new and extended, each in the pull request of its code |
+| Manifests, PublicAPI, changelog fragments, READMEs, feature page | 12 | docs-writer and mechanical-fixer |
+| Total (operation audit about 67, read audit about 43 more) | about 110 | fourteen pull requests with Design Choice 3 B, eight with A |
 
 ---
 
@@ -556,7 +635,8 @@ IMPLEMENTATION OVERVIEW:
 6. Docs, changelog fragments, PublicAPI, manifests via specialists.
 
 KEY PATTERNS:
-- Copy every TenantId touch point; exact-match filter; null means "no module".
+- Copy every TenantId touch point; the value is normalised by the ModuleId init accessor (blank to null, case per Design Choice 7, length per Design Choice 6); null or blank filter means "no filter"; null on a row means "no module".
+- Order: stores persist and filter first (PRs 1-5), writers and the ABAC move last (PRs 6-7); read audit the same way (PRs 8-13).
 - Scripts edited in place; no ALTER scripts, migration helpers or [Obsolete].
 - Provider coherence: all 10 providers and Marten move together.
 - Shared [Collection] fixtures; Shouldly through Encina.Testing.Shouldly.
@@ -580,12 +660,12 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ❌ | No new operation; `InstrumentedOperationAuditStore` only forwards the new filter (Phase 7). |
 | 3 | Structured Logging | ❌ | No new operation and no new EventId. |
 | 4 | Health Checks | ❌ | No new checkable dependency. |
-| 5 | Validation | ✅ | Module id length bounded like the other identifiers (`ModuleIdMaxLength`). |
+| 5 | Validation | ✅ | Module id bounded and normalised by `AuditIdentifierBounds` (Design Choices 6 and 7); blank filter is "no filter". |
 | 6 | Resilience | ❌ | No external call. |
 | 7 | Distributed Locks | ❌ | Append-only rows. |
 | 8 | Transactions | ❌ | Writes are single rows as today. |
 | 9 | Idempotency | ❌ | No new write path. |
-| 10 | Multi-Tenancy | ⏭️ | Orthogonal to `TenantId`; the tenant gate on the same stores is #798 (plan `audit-abac-multitenancy-implementation-plan-798.md`). |
+| 10 | Multi-Tenancy | ⏭️ | Orthogonal to `TenantId`; the tenant gate on the same stores is #798. |
 | 11 | Module Isolation | ✅ | This feature (function 11 for the audit trail). |
 | 12 | Audit Trail | ✅ | This feature changes the audit entries and queries. |
 
@@ -594,18 +674,29 @@ REFERENCE FILES:
 ## Prerequisites & Dependencies
 
 - **No hard prerequisite.** The registration defect named in the issue is fixed on `main`; ADR-036 renames are merged.
-- **Sequencing**: this plan and `audit-abac-multitenancy-implementation-plan-798.md` both edit `OperationAuditQuery.cs`, the audit stores' registrations and tests. Land the PRs of one plan at a time on those files.
+- **Sequencing**: this plan and #798 both edit `OperationAuditQuery.cs`, the audit stores and their tests (#798 PRs 1-2 add the tenant gate and touch the nine audit registrations). Land the pull requests of one plan at a time on those files.
 - **Soft**: #2184 (pipeline stage order, so the module is set before the audit behavior), #753 and #747 (other module features), #1778 (entity-change audit, out of scope).
 
 ---
 
 ## Next Steps
 
-1. Maintainer answers Design Choice 3 when work on the issue starts (recorded in `## Maintainer Decisions`).
-2. Worker pull requests (each at most 15 files and 1500 lines):
-   - **PR 1**: Phases 1-2 for the operation audit (core, factory, repository, in-memory, ABAC mapper/reader/query) plus unit, guard and contract tests: about 14 files.
-   - **PR 2**: Phases 3-4 for ADO and Dapper (6 stores, 6 scripts) plus their integration test extensions: 12 files if the six integration extensions go to PR 3.
-   - **PR 3**: Phases 3-5 for EF Core, MongoDB and Marten, plus the six ADO/Dapper integration test extensions and the property tests: about 15 files.
-   - **PR 4-5** (only with option B): read audit core, EF, Mongo, Marten (PR 4); read audit ADO and Dapper (PR 5).
-   - **PR 6**: documentation, ADR note, justification `.md` files.
-3. Link this plan from #1636.
+1. Maintainer answers Design Choices 3, 6 and 7 when work on the issue starts (recorded in `## Maintainer Decisions`).
+2. **Order** (finding of the review): the stores learn to persist and filter the column first, while no writer fills it; the writers and the ABAC move come last, after every store. Between PR 1 and PR 5 a `ModuleId` filter sent to a store whose pull request has not merged yet is ignored by that store; because no writer sets a module before PR 6, no row has one, no audit data is lost, the ABAC decision rows keep the metadata key until PR 7, and the changelog fragment and the documentation that announce the filter land only with PR 6 (operation audit) and PR 13 (read audit). No pull request ships a writer whose column a store drops.
+3. Worker pull requests. Counts include tests, manifest entries, PublicAPI lines and changelog fragments; every one builds alone, carries the tests of its own files and stays within 15 files and 1500 lines. Files whose manifest already has targets that do not change (every store, script owner and entity listed in Phase 8) need no manifest edit.
+   - **PR 1** (core): `OperationAuditEntry`, `OperationAuditQuery`, `AuditIdentifierBounds`, `InMemoryOperationAuditStore` (4); unit tests for the properties and builder, the bounds helper and the in-memory filter, the bounds property test, and the guard test (5); manifest, PublicAPI (2): 11 files.
+   - **PR 2** (ADO.NET): three `028` scripts, three `OperationAuditStoreADO` (6); the three existing integration classes extended with the module filter, blank filter and case tests (3): 9 files.
+   - **PR 3** (Dapper): same shape as PR 2: 9 files.
+   - **PR 4** (EF Core and MongoDB): `OperationAuditEntryEntity`, `OperationAuditEntryEntityConfiguration`, `OperationAuditStoreEF`, `OperationAuditEntryDocument`, `OperationAuditStoreMongoDB` (5); the three EF Core integration classes and the MongoDB one (4); the entity unit test (1): 10 files.
+   - **PR 5** (Marten): event, read model, projection, projection configuration, `AuditEventEncryptor`, `MartenOperationAuditStore`, `AuditEncryptionScope` docs (7); encryptor unit test, Marten integration test (2); manifest (the encryptor and scope have no targets yet) (1): 10 files.
+   - **PR 6** (operation-audit writers): `DefaultOperationAuditEntryFactory`, `AuditedRepository` (2); their unit tests, the `OperationAuditStoreContractTests` and `OperationAuditStorePropertyTests` extensions, the `InstrumentedOperationAuditStore` pass-through test (5); changelog fragment `1636-audit-module-id.added.md` (1): 8 files.
+   - **PR 7** (ABAC decision audit): `ABACDecisionAuditSchema`, `ABACDecisionAuditEntryMapper`, `ABACDecisionAuditReader`, `ABACDecisionAuditQuery` (4); mapper and reader unit tests (2); PublicAPI (the `MetadataModuleId` deletion and the new members), changelog fragment `1636-abac-audit-module-column.changed.md` (2): 8 files.
+   - **PR 8** (read audit core, Design Choice 3 B only): `ReadAuditEntry`, `ReadAuditEntryEntity`, `ReadAuditEntryMapper`, `ReadAuditQuery`, `InMemoryReadAuditStore` (5); unit and guard tests (3); manifest, PublicAPI (2): 10 files.
+   - **PR 9** (read audit ADO.NET): three `020` scripts, three `ReadAuditStoreADO`, three integration extensions: 9 files.
+   - **PR 10** (read audit Dapper): same shape: 9 files.
+   - **PR 11** (read audit EF Core and MongoDB): `ReadAuditEntryEntityConfiguration`, `ReadAuditStoreEF`, `ReadAuditEntryDocument`, `ReadAuditStoreMongoDB` (4); three EF Core and one MongoDB integration extensions (4); EF Core and MongoDB manifests (the configuration and the document have no targets yet) (2): 10 files.
+   - **PR 12** (read audit Marten): `ReadAuditEntryRecordedEvent`, `ReadAuditEntryReadModel`, `ReadAuditEntryProjection`, `MartenReadAuditStore` (4); Marten integration extension (1); manifest (the event has no targets yet) (1): 6 files.
+   - **PR 13** (read audit writer): `AuditedReadOnlyRepository`, its unit test, the `ReadAuditContractTests` extension, changelog fragment: 4 files.
+   - **PR 14** (documentation): `docs/features/audit-tracking.md`, the READMEs of `Encina.Security.Audit`, `Encina.Security.ABAC` and `Encina.Audit.Marten` (docs-writer), the load and benchmark justification `.md` files: 6 files. No ADR (no design choice here needs one).
+   - With Design Choice 3 A, PRs 8 to 13 are dropped and a follow-up issue covers the read audit trail.
+4. Link this plan from #1636.
