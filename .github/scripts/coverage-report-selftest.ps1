@@ -102,10 +102,10 @@ try {
     Assert-Run '2. --check-justifications on manifest-unjustified' @('--check-justifications', '--manifest', $unjustified) 1 "target 'unit' has no justification"
     Assert-Run '3a. --check-stale-manifest on manifest-ok' @('--check-stale-manifest', '--manifest', $ok) 0 'No stale manifest keys'
     Assert-Run '3b. --check-stale-manifest on manifest-stale' @('--check-stale-manifest', '--manifest', $stale) 1 'Pkg: Gone\.cs'
-    Assert-Run '4a. --check-missing-manifest on manifest-ok' @('--check-missing-manifest', '--manifest', $ok) 0
+    Assert-Run '4a. --check-missing-manifest on manifest-ok' @('--check-missing-manifest', '--manifest', $ok) 0 'No missing manifest entries'
     Assert-Run '4b. --check-missing-manifest with an unlisted src file' @('--check-missing-manifest', '--manifest', $missing) 1 'Pkg: Extra\.cs'
     Assert-Run '5. empty --manifest directory (all check modes)' @('--check-justifications', '--check-stale-manifest', '--check-missing-manifest', '--manifest', $empty) 1 'no coverage manifest was loaded'
-    Assert-Run '6. nonexistent --manifest directory' @('--check-stale-manifest', '--manifest', $nonexistent) 1 'does not exist'
+    Assert-Run '6. nonexistent --manifest directory' @('--check-stale-manifest', '--manifest', $nonexistent) 1 "--manifest directory '.*' does not exist"
 }
 finally {
     Remove-Item -Recurse -Force $stagingRoot -ErrorAction SilentlyContinue
