@@ -3,7 +3,7 @@
 > **Issue**: [#2385](https://github.com/dlrivada/Encina/issues/2385)
 > **Type**: Feature
 > **Verified against**: origin/main `c49b987e9` (2026-11-12)
-> **Complexity**: High (8 phases, 10 transports, ~118 files in 14 pull requests)
+> **Complexity**: High (8 phases, 10 transports, ~126 files in 16 pull requests)
 > **Estimated Scope**: ~1,300-1,700 lines of production code + ~1,800-2,300 lines of tests
 
 ---
@@ -21,7 +21,7 @@ What it implements:
 
 Standards: ADR-028 and ADR-050 (modules may require modules, enforced by startup validation); AGENTS.md section 3 (Outbox: reliable at-least-once; a `Left` is never reported as success); AGENTS.md section 5 (transport category: every transport supports send/publish, error handling and DLQ, metadata propagation).
 
-Estimated scope: about 118 files (production 40, tests 58, documentation and metadata 20), shipped as 14 pull requests (see "Pull request split"). Affected packages: `Encina` (the marker, Design Choice 3), `Encina.Messaging`, `Encina.DomainModeling`, `Encina.OpenTelemetry`, `Encina.RabbitMQ`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Kafka`, `Encina.NATS`, `Encina.Redis.PubSub`, `Encina.MQTT`, `Encina.InMemory`, `Encina.gRPC`, `Encina.GraphQL`.
+Estimated scope: about 126 files (production 40, tests 66, documentation and metadata 20), shipped as 16 pull requests (see "Pull request split"). Affected packages: `Encina` (the marker, Design Choice 3), `Encina.Messaging`, `Encina.DomainModeling`, `Encina.OpenTelemetry`, `Encina.RabbitMQ`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Kafka`, `Encina.NATS`, `Encina.Redis.PubSub`, `Encina.MQTT`, `Encina.InMemory`, `Encina.gRPC`, `Encina.GraphQL`.
 
 Provider category: Messaging transports (10). The Outbox processor is shared by the 10 database stores and is unchanged per database provider; the ten transports are the provider axis here (AGENTS.md section 5); eight of them have an outbound publish operation to wrap and the other two are server bridges (Design Choice 8).
 
@@ -242,7 +242,7 @@ Provider category: Messaging transports (10). The Outbox processor is shared by 
 1. `src/Encina.Messaging/Outbox/IOutboxTransportPublisher.cs` (new): `string TransportName { get; }` and `ValueTask<Either<EncinaError, Unit>> PublishAsync(IOutboxMessage message, object payload, OutboxRoute route, CancellationToken cancellationToken)`.
 2. `src/Encina.Messaging/Outbox/OutboxRoute.cs` (new): `readonly record struct OutboxRoute(string Transport, string Destination, string? TenantId, string? CorrelationId)`; `OutboxRouteAttribute` (new): `[OutboxRoute("transport", "destination")]`.
 3. `OutboxErrorCodes`: `NoTransportPublisher = "outbox.no_transport_publisher"` (`ErrorCategory.FailedPrecondition`), `TransportPublishFailed = "outbox.transport_publish_failed"` (`ErrorCategory.UpstreamFailure`), both created with `EncinaErrors.Create(code, ErrorCategory, ...)` (ADR-062); the contract suite asserts `GetCategory()` for every adapter, and that a `Left` or exception from an adapter carries the transport error code only, never broker response bodies, in `details`.
-4. The marker (Design Choice 3 A): `IIntegrationEvent` moves from `src/Encina.DomainModeling/IIntegrationEvent.cs` to `src/Encina/Abstractions/` (namespace kept) and extends `INotification` (Design Choice 7 A); `IntegrationEvent` and the mapper stay in `Encina.DomainModeling` (so `IIntegrationEvent.cs` in DomainModeling is split, not deleted). The XML doc of the moved interface has a `cref` to `IDomainEventToIntegrationEventMapper{TDomain,TIntegration}`, a DomainModeling type that the core cannot reference (CS1574, and the build has zero warnings): in the moved file it becomes plain text (`<c>IDomainEventToIntegrationEventMapper</c>`). New core `IIntegrationEventTypeSource` (Design Choice 3), implemented by `Encina.DomainModeling` for registered mappers, is created in PR V together with the validator that reads it.
+4. The marker (Design Choice 3 A): `IIntegrationEvent` moves from `src/Encina.DomainModeling/IIntegrationEvent.cs` to `src/Encina/Abstractions/` (namespace kept) and extends `INotification` (Design Choice 7 A); `IntegrationEvent` and the mapper stay in `Encina.DomainModeling` (so `IIntegrationEvent.cs` in DomainModeling is split, not deleted). The XML doc of the moved interface has a `cref` to `IDomainEventToIntegrationEventMapper{TDomain,TIntegration}`, a DomainModeling type that the core cannot reference (CS1574, and the build has zero warnings): in the moved file it becomes plain text (`<c>IDomainEventToIntegrationEventMapper</c>`). New core `IIntegrationEventTypeSource` (Design Choice 3), implemented by `Encina.DomainModeling` for registered mappers, is created in PR V1 together with the validator that reads it.
 5. `PublicAPI.Unshipped.txt` of `Encina`, `Encina.Messaging` and `Encina.DomainModeling` (via `mechanical-fixer`; the moved type is removed from DomainModeling's file and added to the core's).
 
 </details>
@@ -256,7 +256,7 @@ ADR-028. IOutboxMessage is the provider-agnostic row abstraction; each database 
 OutboxMessage class, so no abstraction may name one.
 TASK: Create IOutboxTransportPublisher, OutboxRoute, OutboxRouteAttribute and the two error codes (with
 ErrorCategory); move IIntegrationEvent to the core and make it an INotification (Dilemmas 3 and 7, pending the
-maintainer). IIntegrationEventTypeSource is created later, in PR V.
+maintainer). IIntegrationEventTypeSource is created later, in PR V1.
 KEY RULES: Either<EncinaError,T> returns; XML docs with examples; PublicAPI.Unshipped.txt; no provider-specific
 code in Encina.Messaging.
 REFERENCE FILES: src/Encina.Messaging/Outbox/IOutboxMessage.cs, src/Encina.DomainModeling/IIntegrationEvent.cs,
@@ -502,9 +502,9 @@ REFERENCE FILES: docs/messaging/transports.md, docs/features/transactional-outbo
 |----------|-------|-------|
 | Core abstractions, resolver, validator, options, observability | 18 | contract, route, attribute, error codes, resolver, validator, options, processor edits, metrics, log, moved marker, type source and its DomainModeling implementation, instrumented source |
 | Transport adapters and registrations | 16 | 8 adapters, 8 registration edits (10 and 20 under Design Choice 8 B) |
-| Tests | 58 | unit, guard, contract suite and one derived class per transport (8), adapter unit tests (8), property, integration scenarios per transport, DI tests, emulator fixtures (2), health test, tenant-header test, 2 justification files, existing tests touched by the moved marker |
+| Tests | 66 | unit, guard, contract suite and one derived class per transport (8), adapter unit tests (8), adapter guard tests (8), property, integration scenarios per transport, DI tests, emulator fixtures (2), health test, tenant-header test, 2 justification files, existing tests touched by the moved marker |
 | Documentation and metadata | 26 | changelog, transports and outbox pages, ADR, INVENTORY, one manifest and one `PublicAPI.Unshipped.txt` per touched package |
-| **Total** | **118** | Fourteen pull requests (twelve without gRPC and GraphQL); the per-PR counts below add up to more because a file touched by two pull requests (a manifest or `PublicAPI.Unshipped.txt`) is counted in each |
+| **Total** | **126** | Sixteen pull requests (fourteen without gRPC and GraphQL); the per-PR counts below add up to more because a file touched by two pull requests (a manifest or `PublicAPI.Unshipped.txt`) is counted in each |
 
 ### Pull request split
 
@@ -512,24 +512,26 @@ Counts include tests, coverage manifests and `PublicAPI.Unshipped.txt`. Each pul
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
-| A1 | Contracts and marker: `IOutboxTransportPublisher`, `OutboxRoute` and `OutboxRouteAttribute` (2 files), `OutboxErrorCodes` edit, the moved `IIntegrationEvent` (a new file in `src/Encina/Abstractions/` plus the edit of `src/Encina.DomainModeling/IIntegrationEvent.cs`, which also holds the base record `IntegrationEvent` and is therefore split, not deleted); PublicAPI of Encina, Messaging and DomainModeling; 3 manifests; 2 unit and guard test files. `IIntegrationEventTypeSource` is not in A1: it is only needed by the validator and lands in V | 14 |
-| A2 | Processor: `ResolveDispatch`, route resolver, options, transport dispatch, metrics, `OutboxTransportLog`, `EventIdRanges` and `EncinaEventIdAllocationTests` edits (8 source and edit files); `PublicAPI.Unshipped.txt` and manifest of `Encina.Messaging` (new public resolver, options and log); `PublicAPI.Unshipped.txt` and manifest of `Encina` (the `EventIdRanges` field, AGENTS.md section 7); one unit test file, one guard test file (#3798) and the existing processor tests that change. The property test and the tenant-header test land in V | 15 |
-| B1 | RabbitMQ: adapter, registration edit, integration test, DI test, adapter unit test with a mocked publisher, derived contract class, manifest, `PublicAPI.Unshipped.txt` (8), plus the abstract contract suite (1), so the first adapter merges with the suite that pins `GetCategory()`, the no-response-body assertion and identical behavior | 9 |
-| B2 | Kafka: the same 8 files (derived class of the suite from B1) | 8 |
-| B3 | NATS: the same 8 files | 8 |
-| B4 | MQTT: the same 8 files | 8 |
-| B5 | Redis.PubSub: the same 8 files | 8 |
-| B6 | InMemory: the same 8 files | 8 |
-| C1 | AzureServiceBus: the same 8 files plus the emulator fixture | 9 |
-| C2 | AmazonSQS: the same 8 files plus the emulator fixture | 9 |
-| E1 | gRPC adapter (the same 8 files), only if Design Choice 8 B is picked | 8 |
-| E2 | GraphQL adapter (the same 8 files), only if Design Choice 8 B is picked | 8 |
-| V | `OutboxTransportStartupValidator`, options validation, `IIntegrationEventTypeSource` (core) and its `Encina.DomainModeling` implementation, their tests, PublicAPI and manifests of Encina and DomainModeling, the Phase 5 task 2 health-check test (the outbox with a transport registered reports the transport check), the tenant-header test (Phase 5 task 3), the dispatch property test (Phase 7), DI tests | 15 |
+| A1 | Contracts and marker: `IOutboxTransportPublisher`, `OutboxRoute` and `OutboxRouteAttribute` (2 files), `OutboxErrorCodes` edit, the moved `IIntegrationEvent` (a new file in `src/Encina/Abstractions/` plus the edit of `src/Encina.DomainModeling/IIntegrationEvent.cs`, which also holds the base record `IntegrationEvent` and is therefore split, not deleted); PublicAPI of Encina, Messaging and DomainModeling; 3 manifests; 2 unit and guard test files. `IIntegrationEventTypeSource` is not in A1: it is only needed by the validator and lands in V1 | 14 |
+| A2a | Route resolution and diagnostics: route resolver, options, `OutboxTransportLog`, `EventIdRanges` and `EncinaEventIdAllocationTests` edits (5 source and edit files); `PublicAPI.Unshipped.txt` and manifest of `Encina.Messaging` (new public resolver, options and log); `PublicAPI.Unshipped.txt` and manifest of `Encina` (the `EventIdRanges` field, AGENTS.md section 7); one unit test file of the resolver, one guard test file (#3798) | 11 |
+| A2b | Processor dispatch: `ResolveDispatch` and the transport dispatch (the edits of `OutboxProcessorBase` and the batch processor, 2 files), metrics (1), the registration edit (1); `PublicAPI.Unshipped.txt` and manifest of `Encina.Messaging`; one unit test of the dispatch, one unit test of the metrics, up to 3 existing processor test files that change, one DI test for the registration (registration completeness) | 12 |
+| B1 | RabbitMQ: adapter, registration edit, integration test, DI test, adapter unit test with a mocked publisher, guard test of the adapter's public constructor (#3798), derived contract class, manifest, `PublicAPI.Unshipped.txt` (9), plus the abstract contract suite (1), so the first adapter merges with the suite that pins `GetCategory()`, the no-response-body assertion and identical behavior | 10 |
+| B2 | Kafka: the same 9 files (derived class of the suite from B1) | 9 |
+| B3 | NATS: the same 9 files | 9 |
+| B4 | MQTT: the same 9 files | 9 |
+| B5 | Redis.PubSub: the same 9 files | 9 |
+| B6 | InMemory: the same 9 files | 9 |
+| C1 | AzureServiceBus: the same 9 files plus the emulator fixture | 10 |
+| C2 | AmazonSQS: the same 9 files plus the emulator fixture | 10 |
+| E1 | gRPC adapter (the same 9 files), only if Design Choice 8 B is picked | 9 |
+| E2 | GraphQL adapter (the same 9 files), only if Design Choice 8 B is picked | 9 |
+| V1 | Startup validation: `OutboxTransportStartupValidator`, options validation (2 files in `Encina.Messaging`), `IIntegrationEventTypeSource` (core) and its `Encina.DomainModeling` implementation (2 files); one unit test of the validator and options, one unit test of the type source, one guard test (#3798); `PublicAPI.Unshipped.txt` and manifest of `Encina.Messaging`, `Encina` and `Encina.DomainModeling` (6); one DI test | 14 |
+| V2 | Cross-cutting tests: the Phase 5 task 2 health-check test (the outbox with a transport registered reports the transport check), the tenant-header test (Phase 5 task 3), the dispatch property test (Phase 7) | 3 |
 | F | Documentation, ADR, justifications, changelog | 6 |
 
-One transport per adapter pull request, so each stays at or under 9 files with margin; the 8 files of a transport are counted from the plan's own test obligations (unit test of the adapter, DI test, integration test, derived contract class) and not only the table. The tenant-header test (Phase 5 task 3, ADR-054 D4: the header is written only when multi-tenancy is on and the route carries a tenant) is assigned to V, as its own test class, together with the dispatch property test; A2 counts its section 7 and PublicAPI companions and the guard tests and has 15 files, the limit. If the recount at pick-up is higher, the unit test of the metrics moves to V as well.
+One transport per adapter pull request, so each stays at or under 10 files with margin; the 9 files of a transport are counted from the plan's own test obligations (unit test of the adapter, guard test of its public constructor, DI test, integration test, derived contract class) and not only the table. The tenant-header test (Phase 5 task 3, ADR-054 D4: the header is written only when multi-tenancy is on and the route carries a tenant) is assigned to V2, as its own test class, together with the health-check test and the dispatch property test. A2 and V were each recounted with the package metadata of every public type they add (a validator, options, resolver or log in `Encina.Messaging` needs that package's `PublicAPI.Unshipped.txt` and manifest) and split into A2a and A2b and V1 and V2, so none is at the limit; if a recount at pick-up is higher, the unit test of the metrics moves from A2b to V2.
 
-A1 first; A2 depends on A1; B1 depends on A2 (it brings the abstract contract suite); B2 to B6, C1, C2 (and E1, E2) depend on A2 and B1 (their derived classes extend the suite) and may land in any order after that; V depends on all adapters; F last. The Marten override of #2383 depends on A2.
+A1 first; A2a depends on A1; A2b depends on A2a; B1 depends on A2b (it brings the abstract contract suite); B2 to B6, C1, C2 (and E1, E2) depend on A2b and B1 (their derived classes extend the suite) and may land in any order after that; V1 depends on all adapters; V2 depends on V1; F last. The Marten override of #2383 depends on A2b.
 
 ---
 
@@ -612,5 +614,5 @@ docs/architecture/adr/028-domain-events-versus-integration-events.md, src/Encina
 1. At pick-up, re-check the Design Choices against today's code, ask the maintainer Dilemmas 3, 4, 5, 7, 8 and 10 and record the answers in `## Maintainer Decisions`; run `check-plan.ps1` without `-Draft`.
 2. Design Choice 8: the absence of an outbound client in `Encina.gRPC` and `Encina.GraphQL` was verified on 2026-11-12; re-check it at pick-up.
 3. `Encina.Messaging.csproj` references only `Encina.csproj` (checked 2026-11-12); Design Choice 3 decides how the marker becomes visible to it.
-4. Re-check that 5817-5822 are free and that the family block is registered before PR A2; coordinate the `OutboxProcessorBase` edit with the plans of #1220 and #1251.
+4. Re-check that 5817-5822 are free and that the family block is registered before PR A2a; coordinate the `OutboxProcessorBase` edit with the plans of #1220 and #1251.
 5. Measure per-flag coverage and the CRAP table for every touched file before each pull request.
