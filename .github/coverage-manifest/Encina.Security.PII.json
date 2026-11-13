@@ -58,9 +58,9 @@
       "reason": "Core masker with ThrowIfNull guards and masking invariants. Property tests verify round-trip and format invariants.",
       "targets": { "unit": 90, "guard": 20, "property": 50 },
       "justifications": {
-        "unit": "MaskForLog, the fail-closed SkipsContext branch for non-string [PII]/[SensitiveData]/[MaskInLogs] members in every context, and the log failure paths are executed by the unit tests with the real masker (measured 92%).",
-        "guard": "Guard tests execute the ThrowIfNull lines of every public method and the empty-input, pattern-masking and invalid-pattern fail-closed paths of Mask with the real masker (measured 21%); the rest of the masking engine is behaviour covered by unit tests.",
-        "property": "Property tests run the object-masking engine through MaskObject, MaskForAudit and MaskForLog with generated strings and with generated values of non-string decorated members that must fail closed (measured 54%); the remaining lines are option and failure branches covered by unit tests."
+        "unit": "MaskForLog, the fail-closed SkipsContext branch for non-string [PII]/[SensitiveData]/[MaskInLogs] members in every context, the non-object-root guard (TryGetObjectRoot: array, scalar and null roots, log-only and undecorated cases) and the log failure paths are executed by the unit tests with the real masker (measured 93.21%).",
+        "guard": "Guard tests execute the ThrowIfNull lines of every public method and the empty-input, pattern-masking and invalid-pattern fail-closed paths of Mask with the real masker (measured 20.78%); the rest of the masking engine, including the non-object-root guard, is behaviour covered by unit tests.",
+        "property": "Property tests run the object-masking engine through MaskObject, MaskForAudit and MaskForLog with generated strings and with generated values of non-string decorated members that must fail closed (measured 53.91%); the remaining lines, including the non-object-root guard, are option and failure branches covered by unit tests."
       }
     },
     "PIIMaskingPipelineBehavior.cs": { "defaultTests": ["unit", "guard"], "reason": "Pipeline behavior with ThrowIfNull guards on constructor" },
