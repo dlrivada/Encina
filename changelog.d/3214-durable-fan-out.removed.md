@@ -1,0 +1,1 @@
+- `FanOutWithResultAsync` is removed from `Encina.AzureFunctions`; `FanOutAsync` now has its behaviour (#3214).
