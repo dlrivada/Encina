@@ -73,7 +73,7 @@ public class IConsentServiceContractTests
         var method = InterfaceType.GetMethod(nameof(IConsentService.GrantConsentAsync));
         method.ShouldNotBeNull();
         var parameters = method.GetParameters();
-        parameters.Length.ShouldBe(12);
+        parameters.Length.ShouldBe(13);
     }
 
     [Fact]
@@ -94,7 +94,9 @@ public class IConsentServiceContractTests
         parameters[8].ParameterType.ShouldBe(typeof(DateTimeOffset?)); // expiresAtUtc
         parameters[9].ParameterType.ShouldBe(typeof(string)); // tenantId (nullable)
         parameters[10].ParameterType.ShouldBe(typeof(string)); // moduleId (nullable)
-        parameters[11].ParameterType.ShouldBe(typeof(CancellationToken));
+        parameters[11].ParameterType.ShouldBe(typeof(DateTimeOffset?)); // occurredAtUtc, the act timestamp (#3771)
+        parameters[11].IsOptional.ShouldBeTrue();
+        parameters[12].ParameterType.ShouldBe(typeof(CancellationToken));
     }
 
     #endregion
