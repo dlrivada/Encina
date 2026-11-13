@@ -5,6 +5,9 @@ name: Issue hygiene
 # (the project part is done locally, see below).
 #
 # On every issue event this workflow
+#   - first fills the milestone, the area-* labels and the priority label a sub-issue lacks from its direct parent (#3328;
+#     only what is missing, never an overwrite; pull requests are ignored). inherit-metadata.yml repairs the ones whose
+#     parent was attached later and does the same for pull requests.
 #   - labels it needs-triage (and, for an issue by the owner, a member or a collaborator, comments once) when the milestone or the priority label is missing, and removes
 #     the label again when both are present.
 # The weekly run (and workflow_dispatch) lists every open issue missing a milestone or a priority label in the job
@@ -68,12 +71,56 @@ jobs:
               }
             }
 
+            const AREA_PREFIX = 'area-';
+            // Sub-issue inheritance (#3328): a sub-issue gets the milestone, the area labels and the priority label it lacks
+            // from its DIRECT parent. It only fills what is missing and never overwrites. This mirrors the same function in
+            // inherit-metadata.yml (the daily repair); keep the two in step.
+            async function inheritFromParent(issue) {
+              let parent;
+              try {
+                ({ data: parent } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/parent', { owner, repo, issue_number: issue.number }));
+              } catch (e) {
+                if (e.status === 404) return issue; // no parent
+                // Inheritance must not stop the completeness check: the daily repair retries it.
+                core.warning('Parent of #' + issue.number + ' could not be read: ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+                return issue;
+              }
+              // A parent in another repository has its own milestones and labels: nothing is copied from it.
+              if (!String(parent.repository_url).toLowerCase().endsWith('/repos/' + (owner + '/' + repo).toLowerCase())) return issue;
+              const own = labelNames(issue);
+              const fromParent = labelNames(parent);
+              const add = [];
+              if (!own.some(n => n.startsWith(AREA_PREFIX))) add.push(...fromParent.filter(n => n.startsWith(AREA_PREFIX)));
+              if (!isEpic(issue) && !own.some(n => PRIORITY.includes(n))) {
+                const priority = fromParent.find(n => PRIORITY.includes(n));
+                if (priority) add.push(priority);
+              }
+              const milestone = !issue.milestone && parent.milestone ? parent.milestone.number : null;
+              if (milestone === null && add.length === 0) return issue;
+              if (milestone !== null) await github.rest.issues.update({ owner, repo, issue_number: issue.number, milestone });
+              if (add.length > 0) await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: add });
+              const { data: updated } = await github.rest.issues.get({ owner, repo, issue_number: issue.number });
+              return updated;
+            }
+
             async function handleIssue(eventIssue) {
               // The event payload is a snapshot: a queued run for a later event would otherwise judge stale labels.
-              const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number: eventIssue.number });
+              const { data: fetched } = await github.rest.issues.get({ owner, repo, issue_number: eventIssue.number });
               // The issues event also fires for a pull request that gets a milestone or a label; labelling a pull request
-              // needs pull-requests: write and the completeness rule is for issues only (#3268).
-              if (issue.state !== 'open' || issue.pull_request) return;
+              // needs pull-requests: write and the completeness rule is for issues only (#3268). The inheritance below sits
+              // after this guard, so a pull request never reaches it.
+              if (fetched.state !== 'open' || fetched.pull_request) return;
+
+              // Inherit before the completeness check: an issue that is complete after inheriting is not labelled needs-triage.
+              // A failed write must not skip the check: the issue is read again and judged as it stands; inherit-metadata.yml
+              // retries the inheritance daily.
+              let issue;
+              try {
+                issue = await inheritFromParent(fetched);
+              } catch (e) {
+                core.warning('Inheritance for #' + fetched.number + ' failed: ' + (e.status ? 'HTTP ' + e.status + ' ' : '') + e.message);
+                ({ data: issue } = await github.rest.issues.get({ owner, repo, issue_number: fetched.number }));
+              }
 
               const missing = missingOf(issue);
               const hasTriage = labelNames(issue).includes(TRIAGE);

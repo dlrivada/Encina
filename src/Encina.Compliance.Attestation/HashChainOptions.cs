@@ -9,12 +9,13 @@ namespace Encina.Compliance.Attestation;
 public sealed class HashChainOptions
 {
     /// <summary>
-    /// Gets or sets the storage path for persisting the hash chain (optional).
-    /// When null (default), the chain is kept in-memory only and lost on process restart.
+    /// Gets or sets a reserved storage path for a future persistent hash chain (optional).
+    /// Persistence is not implemented: the provider ignores this value, and the chain is
+    /// kept in memory only and lost on process restart, whether or not a path is set.
     /// </summary>
     /// <remarks>
-    /// Persistence is not yet implemented. This property is reserved for a future
-    /// file-backed provider that will rehydrate the chain on startup.
+    /// This property is reserved for the persistent hash-chained storage tracked in
+    /// issue #1240, which will rehydrate the chain on startup. Setting it has no effect today.
     /// </remarks>
     public string? StoragePath { get; set; }
 
