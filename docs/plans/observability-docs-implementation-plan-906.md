@@ -14,7 +14,9 @@ Write `docs/features/observability.md`, the first feature page about Encina's Op
 The page covers, from the code at writing time:
 
 - **Setup**: `AddEncinaOpenTelemetry` (line 47), `WithEncina` (line 166), `AddEncinaInstrumentation` for `TracerProviderBuilder` and `MeterProviderBuilder` (lines 284 and 297), and `EncinaOpenTelemetryOptions` (`ServiceName` "Encina", `ServiceVersion` "1.0.0", `EnableMessagingEnrichers` true).
-- **Traces and metrics**: `ActivitySource` names, span naming, the tags of `ActivityTagNames.cs` and the enrichers in `Enrichers/`; `Meter` instruments and the naming rules of [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) (accepted 2026-10-22; its implementation, for example #1787 and #1790, is open, so where code and ADR differ the page documents the code and flags the pending rename).
+- **Traces and metrics**: `ActivitySource` names, span naming, the tags of `ActivityTagNames.cs` and the enrichers in `Enrichers/`; `Meter` instruments and the naming rules of [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) (accepted 2026-10-22; its implementation, for example #1787, #1790 and #2677 (rename of the 27 plain `Encina` meters to package names with wildcard subscription, ADR-054 D3), is open, so where code and ADR differ the page documents the code and flags the pending rename).
+- **Tenant tag and metric cardinality** (obligation of ADR-054 D4, whose consequences say the cardinality risk of the tenant metric tag is documented in the observability guide, #906; ADR-054 lines 51 and 95): a subsection on what the tenant tag does to the number of time series (it grows with the number of tenants), which instruments carry it (read from the catalog), and how to drop it with a view (`MeterProviderBuilder.AddView`) or equivalent `MeterProvider` configuration; the tag is present only when multi-tenancy is on.
+- **Dead sources**: `WithEncina()` subscribes `Encina.Cdc.Sharded` (line 183) and `Encina.Messaging.Outbox`, `.Inbox`, `.Saga` (lines 204-206); ADR-054 names these as phantom or dead sources (#1790) and no `new ActivitySource(...)` for them exists in `src/`. The catalog cross-checks every subscribed name against a real `ActivitySource` or `Meter` definition; the page marks the unmatched ones "subscribed but emits nothing today (#1790)" and does not list them in the per-subsystem table.
 - **Structured logging**: `[LoggerMessage]` with EventId ranges registered in `src/Encina/Diagnostics/EventIdRanges.cs` (`GetAllRanges()` at line 401, 91 ranges today), the `Log.cs` pattern and the architecture rule `EventIdUniquenessRule` (`src/Encina.Testing.Architecture/EventIdUniquenessRule.cs`), with [ADR-021](../architecture/adr/021-eventid-uniqueness-enforcement.md).
 - **Per-subsystem instrumentation table** generated from the code, one row per package that emits. `src/Encina.OpenTelemetry/` has instrumentation folders for Messaging stores, Query cache, Repository, Unit of Work, Tenancy, Modules, Audit, Sharding, Migrations, Resharding, Soft delete, ID generation, Bulk operations, Reference tables and CDC; the issue also lists Security and Compliance, which the writer includes only if a package emits (`rg` for `ActivitySource` and `Meter` in `src/`).
 - **Exporters**: OTLP, Console and Prometheus, each shown with a configuration that was run; Jaeger and Azure Monitor from the package README; Zipkin and AWS X-Ray are listed only if a verified configuration exists. No exporter is wired into `WithEncina()` (ADR-054 settled point 1; OTLP wiring is #1043). No telemetry is sent to the project or the maintainer.
@@ -36,7 +38,8 @@ No open design choices. Every choice follows a cited convention:
 | 3 | Samples record the error code or exception type, never `EncinaError.Message` | Settled | `AGENTS.md` section 3; ADR-054 settled point 2 | pending adversarial review |
 | 4 | The page states that no telemetry is sent to the project or the maintainer | Settled | ADR-054 settled point 1, SPEC-000, SPEC-002 DEC-010 | pending adversarial review |
 | 5 | Exporter scope: show configurations of exporters that exist in the OpenTelemetry SDK and were run; do not promise Encina exporter packages; at least 3 are run (OTLP, Console, Prometheus) | Settled | ADR-054 settled point 1; the acceptance criteria of #906 | pending adversarial review |
-| 6 | The tenant tag is documented as present only when multi-tenancy is on | Settled | ADR-054 settled points (tenant tag rule) | pending adversarial review |
+| 6 | The tenant tag is documented as present only when multi-tenancy is on, with its metric cardinality risk and how to drop it | Settled | ADR-054 D4 (maintainer chose option 4b) and SPEC-002 AC-044 | pending adversarial review |
+| 7 | Custom-instrumentation section and samples carry the telemetry privacy rule: never `db.query.text`, data-bearing cache keys or values, or `EncinaError.Message` in tags or events | Settled | ADR-054 privacy rule (#1788) and `AGENTS.md` section 3 | pending adversarial review |
 | 7 | The local stack is referenced by its real path `.github/observability/` and the command that starts it; dashboards that do not exist (#187) are not described | Settled | `.claude/skills/encina-docs/SKILL.md` section 3 rule 3 (every statement names real things) and the files read for this plan | pending adversarial review |
 | 8 | No hand-typed counts: the number of sources, meters or ranges goes in a sentence with the date and the command that produced it, or is left out | Settled | `.claude/skills/encina-docs/SKILL.md` section 3 rule 2; `AGENTS.md` section 9 | pending adversarial review |
 
@@ -50,7 +53,7 @@ No open design choices. Every choice follows a cited convention:
 <summary>Tasks</summary>
 
 1. Produce the catalog from `src/` at writing time (a throwaway PowerShell script under `artifacts/`, not committed): every `ActivitySource` name and `Meter` name, every instrument name with unit and tags, and the `ActivityTagNames` constants.
-2. Produce the per-subsystem table (package, source, meter, main instruments, where registered in `WithEncina`) from that catalog; the first draft can come from the local model, and every row is checked against the code.
+2. Cross-check every name subscribed in `WithEncina()` against a real `ActivitySource` or `Meter` definition in `src/`; names with no definition (`Encina.Cdc.Sharded`, `Encina.Messaging.Outbox`, `.Inbox`, `.Saga` today) are marked "subscribed but emits nothing today (#1790)". Produce the per-subsystem table (package, source, meter, main instruments, where registered in `WithEncina`) from the matched entries of that catalog; the first draft can come from the local model, and every row is checked against the code.
 3. Read `EventIdRanges.GetAllRanges()` and the area comments of the registry to describe the range system (how to pick a range, the architecture test `EncinaEventIdAllocationTests`, `EventIdUniquenessRule`).
 
 </details>
@@ -60,7 +63,7 @@ No open design choices. Every choice follows a cited convention:
 
 ```text
 CONTEXT:
-Encina is a pre-1.0 .NET 10 library. Issue #906 asks for an OpenTelemetry page. Names of sources, meters and instruments are being renamed under ADR-054 (implementation issues #1787 and #1790 are open), so the catalog must come from the code at the time you write. Documentation only; write no production code.
+Encina is a pre-1.0 .NET 10 library. Issue #906 asks for an OpenTelemetry page. Names of sources, meters and instruments are being renamed under ADR-054 (implementation issues #1787 and #1790 are open), so the catalog must come from the code at the time you write. Documentation only; write no production code. ADR-054 D4 makes this page the owner of the tenant tag cardinality documentation.
 
 TASK:
 1. Search src/ for ActivitySource and Meter definitions and for AddSource/AddMeter calls in src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs; build a catalog (name, package, instruments with unit and tags).
@@ -87,7 +90,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. Create `docs/features/observability.md` with front matter `title: "Observability"`, `layout: default`, `parent: "Features"`; the opening sentence names the reader (a developer who runs an Encina application in production) and what they get.
-2. Sections: overview (traces, metrics, logs; the library depends on the OpenTelemetry API, the application chooses SDK and exporters); setup; traces; metrics; structured logging and EventId ranges; per-subsystem table; exporters; the local stack; custom instrumentation under Encina's conventions; sampling and overhead notes (no cost without a listener, ADR-054).
+2. Sections: overview (traces, metrics, logs; the library depends on the OpenTelemetry API, the application chooses SDK and exporters); setup; traces; metrics; structured logging and EventId ranges; per-subsystem table; exporters; the local stack; tenant tag and metric cardinality (ADR-054 D4: what the tag does to the time-series count, which instruments carry it, how to drop it with a view); custom instrumentation under Encina's conventions, stating the ADR-054 privacy rule (no `db.query.text`, no data-bearing cache keys or values, no `EncinaError.Message`; #1788); sampling and overhead notes (no cost without a listener, ADR-054).
 3. A Mermaid diagram of the pipeline from handler to exporter.
 
 </details>
@@ -125,7 +128,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Write and run three exporter configurations in a scratch project outside the repository: OTLP to the collector of `.github/observability/`, Console, and Prometheus; paste what you actually saw into the page where it says what to expect.
+1. Write and run three exporter configurations in a scratch project outside the repository: OTLP to the collector of `.github/observability/`, Console, and Prometheus; paste what you actually saw into the page where it says what to expect, using synthetic tenant ids and request data only (no real values in pasted Console or OTLP output). The scratch project references `OpenTelemetry.Exporter.OpenTelemetryProtocol`, `OpenTelemetry.Exporter.Console` and a Prometheus exporter package (`OpenTelemetry.Exporter.Prometheus.AspNetCore` or the HttpListener variant); record the package and version used and whether it is stable or pre-release (verify at writing time) in the page next to each configuration.
 2. Add Jaeger and Azure Monitor from the package README only if their snippets compile against the packages named; Zipkin and AWS X-Ray only with a verified configuration.
 3. Compile every sample; run `lychee --offline --config .github/lychee.toml 'docs/**/*.md' 'README.md'`, `npx --yes markdownlint-cli2 "docs/**/*.md" "#docs/INVENTORY.md"` and the `cov-docs-render.cs --check-dangling` command of the encina-docs skill; name any missing tool and check links with `Test-Path`.
 4. `docs-reviewer` reviews the page; fix blockers and majors.
@@ -289,7 +292,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | No runtime code. |
 | 8 | Transactions | ❌ | No runtime code. |
 | 9 | Idempotency | ❌ | No runtime code. |
-| 10 | Multi-Tenancy | ✅ | The tenant tag rule (only when multi-tenancy is on, ADR-054) is documented as page content. |
+| 10 | Multi-Tenancy | ✅ | The tenant tag rule (only when multi-tenancy is on, ADR-054 D4) and its metric cardinality risk, the instruments that carry it and how to drop it with a view are documented as page content. |
 | 11 | Module Isolation | ❌ | No runtime code; the modules source is a row of the per-subsystem table. |
 | 12 | Audit Trail | ❌ | No runtime code; the audit source is a row of the per-subsystem table. |
 
