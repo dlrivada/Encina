@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-11, main `942c0f124`)
+### What exists today (re-verified on 2026-11-13, main `41792c8f8`)
 
 - The contract is `IDeadLetterStore` in `src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`: every member returns `Either<EncinaError, T>`. `AddAsync(IDeadLetterMessage)` is `Right(true)` when stored and `Right(false)` when `(SourcePattern, SourceMessageId)` already exists; the others are `GetAsync(Guid)`, `GetMessagesAsync(filter, skip, take, newestFirst)`, `GetCountAsync(filter)`, `TryClaimForReplayAsync(id, claimExpiredBeforeUtc)`, `MarkAsReplayedAsync(id, replayResult)`, `DeleteAsync`, `DeleteManyAsync(filter)`, `DeleteExpiredAsync` and `SaveChangesAsync`. The issue's original snippet (`Task AddAsync(DeadLetterMessage ...)`) is stale.
 - The ten database providers of `AGENTS.md` section 5 implement it (`DeadLetterStoreADO`, `DeadLetterStoreDapper`, `DeadLetterStoreEF`, `DeadLetterStoreMongoDB`, each with a `DeadLetterMessageFactory`). All of them enforce a **global** unique index on `(SourcePattern, SourceMessageId)` (`029_CreateDeadLetterMessagesTable.sql`, `UX_DeadLetterMessages_Source`), order by `(DeadLetteredAtUtc, Id)` and honour `DeadLetterStoreLimits` (`MaxPageSize = 1000`, field length caps).
@@ -67,9 +67,11 @@ The contract needs four access paths: by `Id`, by the unique pair `(SourcePatter
 
 ### Rationale
 
-- Only A keeps the **global** unique rule of the database stores without a cross-partition write, in both services. `SourcePattern` is a closed set (`DeadLetterSourcePatterns`: Outbox, Inbox, Saga, Scheduling, Recoverability, and so on), so the partition count is small by design and dead letters are low-volume by definition (a message is dead-lettered after its retries are exhausted).
+- Only A keeps the **global** unique rule of the database stores without a cross-partition write, in both services. `SourcePattern` is **small in practice** (`DeadLetterSourcePatterns` constants: Outbox, Inbox, Saga, Scheduling, Recoverability, and so on) but it is not a closed set in the type system: the column accepts any string (`DeadLetterStoreLimits.SourcePatternMaxLength = 64`, `SourceMessageIdMaxLength = 256`; `DeadLetterInputs` only rejects leading and trailing whitespace). The layout therefore must not assume a closed set: keys are escaped (below) and the partition count is only small by convention.
 - The hot-partition risk is real only at the per-partition throughput and size limits of the two services (published in their scalability targets), far above dead letter rates; Phase 2 states the limits it relies on in the package README. B wins in a multi-tenant deployment whose tenants reuse source message ids and want tenant-scoped uniqueness; C wins only at extreme volume.
-- Time order inside a partition: the Table `RowKey` of a message is `M|{DeadLetteredAtUtc ticks, 19 digits, inverted for newest-first}|{Id}` plus an `I|{Id}` pointer in a small index table for `GetAsync(Guid)`; Cosmos orders with a composite index on `(/deadLetteredAtUtc, /id)`. Phase 2 validates this layout with a spike against Azurite before the rest is written.
+- **Key encoding (injective, valid)**: Table Storage forbids `/ \ # ?` and control characters in `PartitionKey` and `RowKey` and caps each key at 1 KiB (512 UTF-16 characters). One function `TableKeys.Encode(string)` percent-encodes every forbidden character, the separator `|` and `%` itself, so two different inputs never produce one output (`a|b`/`c` versus `a`/`b|c` stay distinct because `|` is escaped inside each part and the two parts live in different keys: `PartitionKey = Encode(SourcePattern)`, marker `RowKey = "S|" + Encode(SourceMessageId)`). An encoded key longer than 512 characters is rejected before any I/O with the coded `Left` `dlq.key_too_long` (Validation, see "Error categories"). In Cosmos the item `id` is the `Guid` and the partition and unique-key values accept any string (a partition key value up to 2 KB), so no escaping is needed there.
+- **Order of writes (no cross-table atomicity)**: Table Storage has no transaction across tables. The add writes the `I|{Id}` pointer (in the pointer table) **first**, then one entity-group transaction with the message row, its index rows (Design Choice 5) and the `S|` marker (one partition, atomic). A crash between the two leaves an orphan pointer, which is harmless: a read that finds a pointer without a row treats the message as absent, and the next add of the same `Id` or pair repairs or removes it (`GetAsync` deletes an orphan pointer it meets). Every delete path (`DeleteAsync`, `DeleteManyAsync`, `DeleteExpiredAsync`) deletes in the reverse order: the partition transaction (row, index rows **and marker**, so the unique pair is freed exactly as the database stores free it) first, then the pointer. A crash after the transaction leaves an orphan pointer again, never a row without a pointer. Phase 5 adds fault-injection tests (a `TableClient` test double that throws between the steps) for both orders.
+- Time order inside a partition and the read algorithm are Design Choice 5; Cosmos orders with a composite index on `(/deadLetteredAtUtc, /id)`. Phase 2 validates the Table layout with a spike against Azurite before the rest is written.
 
 **Class:** Dilemma
 
@@ -111,15 +113,76 @@ The contract needs four access paths: by `Id`, by the unique pair `(SourcePatter
 ### Rationale
 
 - Errors: `AGENTS.md` section 3 (ROP, errors never swallowed; ADR-001, ADR-006). Time: `TimeProvider` by injection (`AGENTS.md` section 3). Arguments are validated against `DeadLetterStoreLimits` before any I/O, as the database stores do.
-- Claim: `TryClaimForReplayAsync` is one conditional update, `Right(true)` only to the winner: Table Storage `UpdateEntityAsync` with `ETag` (`If-Match`), Cosmos `ReplaceItemAsync` with `IfMatchEtag`; a 412 is `Right(false)`.
+- Claim: the contract condition is `ReplayedAtUtc IS NULL AND (ReplayClaimedAtUtc IS NULL OR ReplayClaimedAtUtc <= claimExpiredBeforeUtc)`. Neither service evaluates a predicate on update, so `TryClaimForReplayAsync` is a **read, a client-side evaluation of that condition, then one ETag-conditional write**: Table Storage `UpdateEntityAsync` with `ETag` (`If-Match`), Cosmos `ReplaceItemAsync` with `IfMatchEtag`. A condition that is false on the read is `Right(false)`; a 412 on the write means a concurrent claimer won and is also `Right(false)`; `Right(true)` goes only to the writer whose ETag matched. `MarkAsReplayedAsync` is likewise ETag-conditional on `ReplayedAtUtc` being unset (a 412 re-reads once and answers per the contract). The concurrent-claim integration test (Phase 5) proves exactly one winner.
 - Expiry: a read filters `ExpiresAtUtc` against `TimeProvider`; Cosmos TTL may be enabled as an extra, never as the contract.
-- Telemetry: `InstrumentedDeadLetterStore` decorates every `IDeadLetterStore` (`Encina.OpenTelemetry/ServiceCollectionExtensions.cs:152`), so the new packages add no store-level `Meter`; the issue's proposed `ActivitySource` is replaced by that decorator.
+- Telemetry: `InstrumentedDeadLetterStore` decorates every `IDeadLetterStore` (`Encina.OpenTelemetry/ServiceCollectionExtensions.cs:152`), so the new packages add no store-level `Meter`; the issue's proposed `ActivitySource` is replaced by that decorator. ADR-054 D4 (tenant tags on telemetry): that decorator never carries the tenant (its XML says so) and these packages emit no telemetry of their own, so they add no tenant tag.
+- Error categories (ADR-062, `EncinaErrors.Create(code, ErrorCategory.X, ...)`, read back with `GetCategory`): see "Error categories" below; only the code, never the SDK exception message, is stored, logged or tagged.
 - Secrets: the options hold a connection string or account key, so those properties are `[JsonIgnore]` and `ToString()` is overridden (`AGENTS.md` section 3, #851).
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 3 (ROP, TimeProvider, secrets in options), ADR-001, ADR-006, the `IDeadLetterStore` XML contract, and `Encina.OpenTelemetry/ServiceCollectionExtensions.cs:152`
 
 </details>
+
+<details>
+<summary><strong>5. Read algorithm and order on Azure Table Storage</strong></summary>
+
+### Options Considered
+
+The contract orders by `(DeadLetteredAtUtc, Id)` globally, ascending or descending (`newestFirst`), with `skip` and `take`. Table Storage returns rows in `(PartitionKey, RowKey)` order only and only ascending; the partition is `SourcePattern`, so an unfiltered listing is ordered by source first, not by time.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Per-source ascending queries merged client side, plus key-only index rows for newest-first** | Correct global order in both directions; reads only what a page needs | Index rows `N|{inverted ticks}|{Id}` (key-only, same partition, same atomic batch) add write cost; `skip` costs `skip + take` rows per source (a k-way merge bounded by the source count); more code |
+| **B) Read whole partitions and sort client side** | One row family, simplest code | Cost grows with the stored dead letters, not with the page; unbounded memory on a big backlog |
+
+### Chosen Option: **A — merge per source, index rows for the opposite direction** (recommended, pending the maintainer)
+
+### Rationale
+
+- A serves the contract for both directions at a cost bounded by the page; the price is the documented cost of `skip` (it must read `skip + take` rows) and a larger layout. `GetCountAsync` is a count over the same filtered per-source queries. B is the choice when the backlog is known to stay small (hundreds of rows) and simplicity matters more than a bounded read.
+- A property test (Phase 5) with several sources and both directions compares the Table result with a reference ordering.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>6. Oversized payloads on the two services</strong></summary>
+
+### Options Considered
+
+`DeadLetterStoreLimits` caps no payload field (`RequestContent`, the stack trace, context), while a Table string property holds at most 64 KiB (32K characters) and an entity 1 MiB, and a Cosmos item 2 MiB. The ten database stores accept what these stores would refuse.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Reject before I/O with a coded `Left` (`dlq.payload_too_large`, Validation)** | Predictable, no partial write; the limit is documented per service | A dead letter that other stores accept is refused here; the caller must handle the code |
+| **B) Split large values into chunk properties (Table) and rely on the 2 MiB item (Cosmos)** | Accepts larger payloads on Table | Chunking code, a second failure mode for payloads over 1 MiB anyway; behaviour still diverges above the entity limit |
+| **C) Truncate with a marker** | Never refuses | Loses the data a dead letter exists to preserve; the replay would send a corrupt request |
+
+### Chosen Option: **A — Reject before I/O with a coded `Left`** (recommended, pending the maintainer)
+
+### Rationale
+
+- A dead letter that cannot be replayed faithfully must not be stored half; A is the only option that keeps the data intact without new machinery. B wins if large payloads are expected on Table Storage. A contract test with an oversized payload proves the behaviour; the limit is stated in the README.
+
+**Class:** Dilemma
+
+</details>
+
+### Error categories (ADR-062)
+
+Every `Left` is created with `EncinaErrors.Create(code, category, ...)` and a `GetCategory` test asserts each row. The existing `dlq.*` store codes keep one category each; the transient SDK outcomes get **their own codes** so one code never carries two categories (the completeness scan of ADR-062 fails otherwise). The new codes are added to `DeadLetterErrorCodes` by a small shared prerequisite PR (S0 below) that the DynamoDB plan (#589) reuses.
+
+| Code | Category | Used for |
+|------|----------|----------|
+| `dlq.store_failed`, `dlq.get_failed`, `dlq.query_failed`, `dlq.claim_failed`, `dlq.mark_replayed_failed`, `dlq.delete_failed` | `Internal` | Non-transient SDK faults on the matching operation |
+| `dlq.store_throttled` (new) | `RateLimited` | Cosmos 429, Table Storage 503 `ServerBusy` and 429-style throttling after the SDK's own retries |
+| `dlq.store_unavailable` (new) | `Unavailable` | Connection failure, DNS, 5xx other than throttling |
+| `dlq.store_timeout` (new) | `Timeout` | `TaskCanceledException`/`RequestFailedException` timeout that is not the caller's token |
+| `dlq.payload_too_large`, `dlq.key_too_long` (new) | `Validation` | Rejected before any I/O (Design Choices 6 and 2) |
+
+An `OperationCanceledException` from the caller's own token still propagates as cancellation, never as a `Left`. The code, never the SDK message, is the only thing stored, logged or tagged.
 
 ---
 
@@ -135,8 +198,21 @@ The contract needs four access paths: by `Id`, by the unique pair `(SourcePatter
 1. **Create** `src/Encina.Messaging.AzureTable/Encina.Messaging.AzureTable.csproj` and `src/Encina.Messaging.CosmosDB/Encina.Messaging.CosmosDB.csproj` (names per D1; copy the layout of `src/Encina.Messaging.Encryption.AzureKeyVault`), each with `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `GlobalSuppressions.cs` if needed, a README and a row in `Encina.slnx`.
 2. **Modify** `Directory.Packages.props`: add `Microsoft.Azure.Cosmos` and the Cosmos DB Testcontainers module (`Testcontainers.CosmosDb`).
 3. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs`: add `MessagingDeadLetterAzureTable = (6800, 6809)` and `MessagingDeadLetterCosmosDB = (6810, 6819)` (block 6800-6849 assigned to this family; this plan uses 6800-6819) and the two entries of the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
-4. **Create** `.github/coverage-manifest/Encina.Messaging.AzureTable.json` and `Encina.Messaging.CosmosDB.json` with per-file targets and one-sentence justifications.
-5. **Split** into pull requests of at most 15 files and 1,500 lines: S1 Azure Table package (production), S2 Azure Table tests, S3 Cosmos package (production), S4 Cosmos tests, S5 documentation. Foundations (items 1-4 for one service) travel with S1 and S3.
+4. **Create** `.github/coverage-manifest/Encina.Messaging.AzureTable.json` and `Encina.Messaging.CosmosDB.json` with the per-file, per-flag targets of the table "Per-file coverage targets" (Phase 5), each with its one-sentence justification.
+5. **Split** into eight pull requests, each with its own tests and manifest rows so the blocking `crap-gate` can pass (a production-only PR cannot reach any per-flag target), each at most 15 files and 1,500 lines **counting tests, manifests, PublicAPI, `ProjectReference` lines and DI/contract tests**:
+
+   | PR | Content | Files (approx.) |
+   |----|---------|-----------------|
+   | S0 | Shared error codes (`dlq.store_throttled`, `dlq.store_unavailable`, `dlq.store_timeout`, `dlq.payload_too_large`, `dlq.key_too_long`) in `DeadLetterErrorCodes`, the `EncinaErrors.Create` factory with ADR-062 categories, `PublicAPI.Unshipped.txt` of `Encina.Messaging`, `GetCategory` unit test, manifest row (shared with #589: whichever plan lands first adds it, the other reuses it) | 5 |
+   | T1 | Table package foundations: csproj, two PublicAPI files, entity, factory, `TableKeys` (injective encoding), options, `Encina.slnx`, `EventIdRanges.cs`, the allocation-test map, manifest; unit tests (entity, factory, keys, options) and guard tests | 14 |
+   | T2 | Table store and registration: store, `ServiceCollectionExtensions`, `Log.cs`, health check, PublicAPI update; unit tests with a fault-injecting `TableClient` double (including the crash-between-steps tests), DI test (`ValidateOnBuild`, `ValidateScopes`, pre-registered client, both registration orders), guard tests | 10 |
+   | T3 | Table contract, property (ordering, key injectivity), integration tests with the Azurite collection fixture, two load/benchmark justification `.md` files, manifest update | 8 |
+   | C1 | Cosmos foundations: `Directory.Packages.props` (`Microsoft.Azure.Cosmos`, `Testcontainers.CosmosDb`; restore with no NU190x warning, central pinning per ADR-060 if needed), csproj, PublicAPI, document entity, factory, options, `Encina.slnx`, `EventIdRanges.cs`, allocation-test map, manifest; unit and guard tests | 14 |
+   | C2 | Cosmos store and registration (as T2) | 10 |
+   | C3 | Cosmos contract, property, integration tests with the emulator fixture, justification files, manifest update | 8 |
+   | D | Documentation: two READMEs, the feature page, `docs/INVENTORY.md`, changelog fragment; this PR carries `Fixes #588` | 5 |
+
+   The PRs T and C are independent after S0; line counts are re-measured when each PR is briefed.
 
 </details>
 
@@ -181,8 +257,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `DeadLetter/DeadLetterMessage.cs` (the `ITableEntity` implementing `IDeadLetterMessage`, UTC `DateTime` properties named as the interface) and `DeadLetter/DeadLetterMessageFactory.cs` (`Create(DeadLetterData)`; copies values, never serializes).
-2. **Create** `DeadLetter/DeadLetterStoreAzureTable.cs` implementing `IDeadLetterStore` with the key layout of Design Choice 2: add as an entity-group transaction of the message row and the `S|{sourceMessageId}` marker (a conflict is `Right(false)`), the `I|{Id}` pointer, ETag-guarded claim and replay marking, filtered queries with server-side `Filter` strings and `MaxPageSize` paging, `DeleteManyAsync` in batches of 100.
-3. **Create** `AzureTableDeadLetterOptions.cs` (account/connection data `[JsonIgnore]` with a redacting `ToString()`, table names, SDK retry options) and `ServiceCollectionExtensions.cs` (`AddEncinaDeadLetterAzureTable(...)` registers the `TableServiceClient`, creates tables on first use, and calls `AddEncinaDeadLetterQueue<DeadLetterStoreAzureTable, DeadLetterMessageFactory>`).
+2. **Create** `DeadLetter/TableKeys.cs` (the injective `Encode` of Design Choice 2 and the 512-character check) and `DeadLetter/DeadLetterStoreAzureTable.cs` implementing `IDeadLetterStore` with the key layout and write order of Design Choice 2: pointer first, then one entity-group transaction of the message row, its index rows and the `S|{Encode(sourceMessageId)}` marker (a conflict on the marker is `Right(false)`; any other cancellation is `Left`); reads per Design Choice 5; claim and replay marking as read, client-side evaluation, ETag-conditional write (Design Choice 4); filtered queries with server-side `Filter` strings and `MaxPageSize` paging; every delete path removes row, index rows and marker, then the pointer; `DeleteManyAsync` in batches of 100 operations (a message is 2 or more operations, so fewer than 50 messages per batch, computed from the rows read); payload size check before I/O (Design Choice 6).
+3. **Create** `AzureTableDeadLetterOptions.cs` (account/connection data `[JsonIgnore]` with a redacting `ToString()`, table names, SDK retry options) and `ServiceCollectionExtensions.cs` (`AddEncinaDeadLetterAzureTable(...)` registers `TableServiceClient` as a singleton with `TryAddSingleton`, so a client the application registered first or later wins in any order, and calls `AddEncinaDeadLetterQueue<DeadLetterStoreAzureTable, DeadLetterMessageFactory>`, whose store registration is `TryAdd`). Table creation is idempotent (`CreateIfNotExistsAsync`, a 409 is success) and race-safe across instances on first use; the tables may be provisioned externally, and then creation is skipped by an option (the caller needs no create permission).
 4. **Create** `Diagnostics/Log.cs` with `[LoggerMessage]` ids 6800-6809 (grouped: store operations, claim outcome, table creation, failures by error code).
 5. **Create** `Health/AzureTableDeadLetterHealthCheck.cs` (`DefaultName` const, static `Tags`, connectivity probe through a scoped `IServiceProvider`).
 6. **Update** `PublicAPI.Unshipped.txt`.
@@ -202,10 +278,12 @@ claim = one conditional update, Right(false) for "not found / already replayed /
 TASK:
 1. Implement DeadLetterMessage (ITableEntity + IDeadLetterMessage), DeadLetterMessageFactory and
    DeadLetterStoreAzureTable with the key layout of the plan's Design Choice 2 (PartitionKey =
-   SourcePattern; RowKey M|{inverted ticks}|{Id}; marker S|{SourceMessageId}; pointer I|{Id} in an
-   index table). Validate arguments with DeadLetterStoreLimits before any I/O (throw).
+   Encode(SourcePattern); RowKey M|{ticks}|{Id}; marker S|{Encode(SourceMessageId)}; pointer I|{Id}
+   in an index table written FIRST; deletes in reverse order incl. the marker) and the read
+   algorithm of Design Choice 5. Validate arguments with DeadLetterStoreLimits before any I/O (throw).
 2. Every infrastructure failure (RequestFailedException other than 404/409/412) becomes
-   Left(EncinaError) with a DeadLetterErrorCodes code; never put exception messages in the error.
+   Left(EncinaError) created with EncinaErrors.Create and the ADR-062 category of the plan's
+   "Error categories" table; never put exception messages in the error.
 3. Options with [JsonIgnore] on secrets and a redacting ToString(); registration extension using
    TryAdd so a store registered by the application wins in any order.
 4. Log.cs with [LoggerMessage] in 6800-6809; health check class.
@@ -234,9 +312,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `DeadLetter/DeadLetterMessage.cs` (JSON document with `id`, `sourcePattern` as partition key, camelCase names via `[JsonPropertyName]`) and `DeadLetterMessageFactory.cs`.
-2. **Create** `DeadLetter/DeadLetterStoreCosmosDB.cs`: container with partition key `/sourcePattern`, unique key `/sourceMessageId`, composite index `(/deadLetteredAtUtc, /id)`; add via `CreateItemAsync` (409 is `Right(false)`); claim and replay with `IfMatchEtag` (412 is `Right(false)`); queries with parameterized SQL (never string concatenation) and `OFFSET/LIMIT`; `DeleteManyAsync` by transactional batch per partition.
-3. **Create** options (connection string/key `[JsonIgnore]`, database and container names, `CosmosClientOptions` retry), `ServiceCollectionExtensions.cs` (`AddEncinaDeadLetterCosmosDB`), `Diagnostics/Log.cs` with ids 6810-6819 and `Health/CosmosDBDeadLetterHealthCheck.cs`.
+1. **Create** `DeadLetter/DeadLetterMessage.cs` (JSON document with `id` = the `Guid`, `sourcePattern` as partition key, camelCase names via `[JsonPropertyName]`) and `DeadLetterMessageFactory.cs`.
+2. **Create** `DeadLetter/DeadLetterStoreCosmosDB.cs`: container with partition key `/sourcePattern`, unique key `/sourceMessageId` (partition and unique-key values accept any string, no escaping), composite index `(/deadLetteredAtUtc, /id)`; add via `CreateItemAsync` (409 is `Right(false)`); claim as read, client-side evaluation of the contract condition, then `ReplaceItemAsync` with `IfMatchEtag` (412 is `Right(false)`), replay marking ETag-conditional likewise (Design Choice 4); queries with parameterized SQL (never string concatenation) and `OFFSET/LIMIT`; `DeleteManyAsync` by transactional batch per partition (a delete frees the unique key with the item); payload size check against the 2 MiB item before I/O (Design Choice 6); 429 maps to `dlq.store_throttled`, 5xx and transport faults to `dlq.store_unavailable`, timeouts to `dlq.store_timeout`.
+3. **Create** options (connection string/key `[JsonIgnore]`, database and container names, `CosmosClientOptions` retry), `ServiceCollectionExtensions.cs` (`AddEncinaDeadLetterCosmosDB` registers `CosmosClient` with `TryAddSingleton` so the application's client wins in any order; database and container creation is idempotent via `CreateIfNotExistsAsync` and race-safe on first use), `Diagnostics/Log.cs` with ids 6810-6819 and `Health/CosmosDBDeadLetterHealthCheck.cs`.
 4. **Optional TTL**: `defaultTtl` on the container as a supplement to `DeleteExpiredAsync` (documented, off by default).
 5. **Update** `PublicAPI.Unshipped.txt`.
 
@@ -281,9 +359,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** DI tests building the provider with `ValidateOnBuild` and `ValidateScopes` for both registrations, in both registration orders, with an application-registered store winning (`AGENTS.md` section 3, registration completeness).
+1. **Create** DI tests building the provider with `ValidateOnBuild` and `ValidateScopes` for both registrations, in both registration orders, with an application-registered store winning and with a pre-registered `TableServiceClient`/`CosmosClient` winning (`AGENTS.md` section 3, registration completeness). They travel in the T2 and C2 pull requests.
 2. **Verify** that `AddEncinaOpenTelemetry` decorates the new stores through the `IDeadLetterStore` descriptor with a test (no new `Meter`).
-3. **Map** `TenantId` through `DeadLetterFilter.TenantId`/`AllTenants` exactly as the database stores do (a query returns every tenant unless the filter names one).
+3. **Map** `TenantId` through `DeadLetterFilter.TenantId`/`AllTenants` exactly as the database stores do (a query returns every tenant unless the filter names one). The reserved `default` tenant segment and injective tenant-qualified ids do not arise: the tenant is a column filtered server side, never part of a key (the keys are `Encode(SourcePattern)`/`Encode(SourceMessageId)`, and the pair is globally unique as in the database stores). Missing tenant context is the caller's concern (the gate that returns `DeadLetterErrorCodes.TenantRequired` above the store), not the store's.
 4. **Expose** the SDK retry policies through the options (no second retry layer).
 
 </details>
@@ -327,9 +405,26 @@ REFERENCE FILES:
 1. **Unit tests** (`tests/Encina.UnitTests/Messaging/AzureTable/`, `.../CosmosDB/`): mapping, key building, `Left` on SDK failure, fake `TimeProvider`.
 2. **Guard tests** (`tests/Encina.GuardTests/...`): every public method with parameters; `DeadLetterStoreLimits` argument rules.
 3. **Contract tests** (`tests/Encina.ContractTests/...`): the same `IDeadLetterStore` contract the ten database stores pass, instantiating both real stores.
-4. **Property tests** (`tests/Encina.PropertyTests/...`): result ordering `(DeadLetteredAtUtc, Id)` and filter semantics on Table Storage (inverted-tick keys).
-5. **Integration tests** (`tests/Encina.IntegrationTests/...`): `[Collection("Azurite")]` and `[Collection("CosmosDb")]` fixtures with `Testcontainers.Azurite`/`Testcontainers.CosmosDb`, concurrent `TryClaimForReplayAsync` (exactly one winner), read-time expiry, `ClearAllDataAsync` in `InitializeAsync`; never a `.md` justification.
+4. **Property tests** (`tests/Encina.PropertyTests/...`): result ordering `(DeadLetteredAtUtc, Id)` in both directions with several sources and filter semantics on Table Storage (Design Choice 5); key injectivity (`TableKeys.Encode`) including the forbidden characters, `%`, and `a|b`/`c` versus `a`/`b|c`.
+5. **Integration tests** (`tests/Encina.IntegrationTests/...`): `[Collection("Azurite")]` and `[Collection("CosmosDb")]` fixtures with `Testcontainers.Azurite`/`Testcontainers.CosmosDb`, concurrent `TryClaimForReplayAsync` (exactly one winner), read-time expiry, an oversized payload (`dlq.payload_too_large`), delete freeing the unique pair (re-add succeeds), `ClearAllDataAsync` in `InitializeAsync`; never a `.md` justification. Unit tests add the crash-between-steps cases with a fault-injecting `TableClient` double.
 6. **Justification files**: `.md` for load and benchmark tests (append-mostly store, no hot path).
+7. **Cosmos in CI**: `Microsoft.Azure.Cosmos` brings a transitive tree, so the C1 PR must restore with no NU190x audit warning (central pinning per ADR-060 if needed). The Linux emulator needs a large memory budget (several GB) and a trusted certificate, so the fixture runs the emulator in gateway mode with a certificate-validation handler in tests only, and the CI cost (start-up of about a minute and the memory) is stated in the PR; the Azurite container is light.
+
+#### Per-file coverage targets (percent, per flag; the same file name in both packages carries the same targets unless noted)
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|------|-------|----------|----------|-------------|---------------|
+| `DeadLetter/DeadLetterMessage.cs` | 90 | 0 | 70 | 0 | 85 | Property bag with no validated parameters, so no guard flag; no logic worth a property |
+| `DeadLetter/DeadLetterMessageFactory.cs` | 95 | 90 | 80 | 0 | 80 | Copies values; the null guard of `Create` is the only branch |
+| `DeadLetter/TableKeys.cs` (Table only) | 95 | 90 | 60 | 95 | 70 | Pure encoding; injectivity is exactly a property |
+| `DeadLetter/DeadLetterStoreAzureTable.cs` | 85 | 90 | 85 | 60 | 85 | Fault paths through a `TableClient` double; the contract and Azurite cover the happy paths; ordering is the property |
+| `DeadLetter/DeadLetterStoreCosmosDB.cs` | 85 | 90 | 85 | 40 | 85 | Same split; Cosmos orders server side, so the property flag only checks filters |
+| `Azure*DeadLetterOptions.cs`, `CosmosDB*DeadLetterOptions.cs` | 90 | 90 | 0 | 0 | 50 | Validation is unit and guard work; contract tests do not drive options; only fixtures build them |
+| `ServiceCollectionExtensions.cs` | 90 | 95 | 0 | 0 | 70 | DI tests are unit; contract tests do not register services |
+| `Diagnostics/Log.cs` | 60 | 0 | 0 | 0 | 40 | Source-generated logging, no validated parameters |
+| `Health/*DeadLetterHealthCheck.cs` | 90 | 90 | 0 | 0 | 80 | Connectivity probe; no contract surface and no property |
+
+Modified existing files (`EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs` map, `DeadLetterErrorCodes.cs`) keep their baseline from the manifest; each PR reports the measured per-flag value of every touched file against its target, from the `coverage-report.cs` "Per-file targets" table.
 
 </details>
 
@@ -420,6 +515,8 @@ REFERENCE FILES:
 | ADR-001, ADR-006 | Railway Oriented Programming | `Either<EncinaError, T>`, no exceptions for outcomes |
 | ADR-018 | Cross-cutting integration | The 12-function matrix below |
 | ADR-021 | EventId allocation | Ranges 6800-6819 |
+| ADR-062 | Error category contract | `EncinaErrors.Create(code, ErrorCategory.X, ...)`, `GetCategory` tests (table in Design Choices) |
+| ADR-054 D4 | Tenant tags on telemetry | None added by these packages |
 | Azure Table Storage limits | Entity group transactions only inside one partition, 100 operations | Key layout (Design Choice 2) |
 | Azure Cosmos DB | Unique keys scoped to a logical partition; ETag preconditions | Key layout and claim |
 
@@ -453,7 +550,8 @@ REFERENCE FILES:
 | Coverage manifests | 2 | One per package |
 | Tests | ~20 | Unit, guard, contract, property, integration per store, fixtures, 2 justification files |
 | Documentation | ~6 | READMEs, feature page, INVENTORY, changelog fragment |
-| **Total** | **~53** | Six pull requests (Phase 1 item 5) |
+| Shared error codes (S0) | 5 | `DeadLetterErrorCodes`, factory, PublicAPI, test, manifest |
+| **Total** | **~58** | Eight pull requests S0, T1-T3, C1-C3, D (Phase 1 item 5), each at most 15 files and 1,500 lines counting tests, manifests, PublicAPI and fragments |
 
 ---
 
@@ -473,9 +571,11 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. Foundations: two packages, Microsoft.Azure.Cosmos + Testcontainers.CosmosDb in
-   Directory.Packages.props, EventId ranges 6800-6819, manifests, the six-PR split.
-2. Azure Table store: PartitionKey = SourcePattern, RowKey M|{inverted ticks}|{Id}, marker row for
-   the unique rule in the same entity-group transaction, pointer table for GetAsync(Guid).
+   Directory.Packages.props, EventId ranges 6800-6819, manifests, the eight-PR split (each PR with
+   its own tests), shared error codes with ADR-062 categories.
+2. Azure Table store: PartitionKey = Encode(SourcePattern), injective key encoding, marker row for
+   the unique rule in the same entity-group transaction, pointer table written first for
+   GetAsync(Guid), deletes remove row, marker and pointer, per-source merge for the global order.
 3. Cosmos store: partition key /sourcePattern, unique key /sourceMessageId, composite index.
 4. Cross-cutting: DI tests with ValidateOnBuild/ValidateScopes, decorator-based telemetry, health
    checks, SDK retry options, tenant filter semantics of the contract.
@@ -505,7 +605,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Write-mostly store; a cached read would break the replay-claim contract |
-| 2 | OpenTelemetry | ✅ Phase 4 | `InstrumentedDeadLetterStore` already decorates every `IDeadLetterStore`; a test proves the new stores are wrapped; no new `Meter` |
+| 2 | OpenTelemetry | ✅ Phase 4 | `InstrumentedDeadLetterStore` already decorates every `IDeadLetterStore`; a test proves the new stores are wrapped; no new `Meter`; no tenant tag of their own (ADR-054 D4: the decorator carries none) |
 | 3 | Structured Logging | ✅ Phases 2-3 | `[LoggerMessage]` ids 6800-6819, registered first (ADR-021) |
 | 4 | Health Checks | ✅ Phases 2-3 | One connectivity check per package; the pending-count `DeadLetterHealthCheck` is store-agnostic |
 | 5 | Validation | ✅ Phase 2 | `DeadLetterStoreLimits` argument rules before any I/O |
@@ -540,6 +640,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #588 and ask the maintainer to answer Design Choices 1 (package layout), 2 (key layout) and 3 (change feed) when work starts.
+1. Link this plan from #588 and ask the maintainer to answer Design Choices 1 (package layout), 2 (key layout), 3 (change feed), 5 (Table read algorithm) and 6 (oversized payloads) when work starts.
 2. Open the follow-up issue `artifacts/issues/plan-588-deadletter-change-notification.md` (change notification across providers).
-3. Implement Phases 1-6 as the six pull requests of Phase 1 item 5, each referencing `Fixes #588` only on the last.
+3. Implement Phases 1-6 as the eight pull requests of Phase 1 item 5 (S0 is shared with #589), referencing `Fixes #588` only on the last (D).
