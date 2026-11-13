@@ -1,5 +1,6 @@
 #pragma warning disable CA1822 // Member can be static
 
+using System.Collections.Frozen;
 using System.Text.Json;
 using Encina.Diagnostics;
 using LanguageExt;
@@ -16,6 +17,12 @@ namespace Encina.SignalR;
 /// <para>
 /// Inherit from this class to create hubs that can send commands and queries
 /// through the Encina from SignalR clients.
+/// </para>
+/// <para>
+/// The hub runs only the types the host registered with <see cref="SignalROptions.AllowRequest{TRequest}(bool)"/>
+/// and <see cref="SignalROptions.AllowNotification{TNotification}(bool)"/> (deny-all by default), named
+/// by their exact <see cref="Type.FullName"/>, and only for authenticated callers unless the type was
+/// registered with <c>allowAnonymous: true</c>.
 /// </para>
 /// <para>
 /// Clients can invoke:
@@ -43,21 +50,32 @@ namespace Encina.SignalR;
 ///     }
 /// }
 ///
-/// // Client-side (JavaScript):
-/// // const result = await connection.invoke("SendCommand", "CreateOrderCommand", { items: [...] });
-/// // const data = await connection.invoke("SendQuery", "GetOrderQuery", { orderId: "123" });
+/// // Registration: expose each callable type explicitly
+/// services.AddEncinaSignalR(options =>
+/// {
+///     options.AllowRequest&lt;CreateOrderCommand&gt;();
+///     options.AllowRequest&lt;GetOrderQuery&gt;();
+/// });
+///
+/// // Client-side (JavaScript), naming the type by its full name:
+/// // const result = await connection.invoke("SendCommand", "MyApp.Orders.CreateOrderCommand", { items: [...] });
+/// // const data = await connection.invoke("SendQuery", "MyApp.Orders.GetOrderQuery", { orderId: "123" });
 /// </code>
 /// </example>
 public abstract class EncinaHub : Hub
 {
     private readonly SignalROptions _options;
+    private readonly FrozenDictionary<string, HubTypeRegistration> _allowList;
     private readonly ILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EncinaHub"/> class.
     /// </summary>
     /// <param name="encina">The Encina instance.</param>
-    /// <param name="options">The SignalR options.</param>
+    /// <param name="options">
+    /// The SignalR options; pass the <see cref="IOptions{TOptions}"/> singleton so every hub shares the
+    /// allow-list the startup check freezes and logs.
+    /// </param>
     /// <param name="logger">The logger instance.</param>
     protected EncinaHub(
         IEncina encina,
@@ -66,6 +84,7 @@ public abstract class EncinaHub : Hub
     {
         Encina = encina;
         _options = options.Value;
+        _allowList = _options.GetAllowList();
         _logger = logger;
     }
 
@@ -77,46 +96,62 @@ public abstract class EncinaHub : Hub
     /// <summary>
     /// Sends a command through the Encina and returns the result.
     /// </summary>
-    /// <param name="commandTypeName">The fully qualified name or simple name of the command type.</param>
+    /// <param name="commandTypeName">
+    /// The exact, case-sensitive <see cref="Type.FullName"/> of a command type registered with
+    /// <see cref="SignalROptions.AllowRequest{TRequest}(bool)"/>.
+    /// </param>
     /// <param name="commandJson">The command data as a JSON object.</param>
     /// <returns>The result of the command execution.</returns>
     /// <remarks>
-    /// The command type must be registered in the application's assembly.
-    /// The result is returned as a JSON object containing either the success value or error details.
+    /// A name that is not registered, is registered as a query, or is not callable by an
+    /// unauthenticated caller gets the same <c>command.type_not_found</c> response, and the payload
+    /// is not deserialized. The result is returned as a JSON object containing either the success
+    /// value or error details.
     /// </remarks>
     public Task<object> SendCommand(string commandTypeName, JsonElement commandJson)
-        => SendRequestAsync("command", commandTypeName, commandJson, Log.ErrorExecutingCommand);
+        => SendRequestAsync(HubMessageKind.Command, "command", commandTypeName, commandJson, Log.ErrorExecutingCommand);
 
     /// <summary>
     /// Sends a query through the Encina and returns the result.
     /// </summary>
-    /// <param name="queryTypeName">The fully qualified name or simple name of the query type.</param>
+    /// <param name="queryTypeName">
+    /// The exact, case-sensitive <see cref="Type.FullName"/> of a query type registered with
+    /// <see cref="SignalROptions.AllowRequest{TRequest}(bool)"/>.
+    /// </param>
     /// <param name="queryJson">The query data as a JSON object.</param>
     /// <returns>The result of the query execution.</returns>
+    /// <remarks>Denials behave as in <see cref="SendCommand"/>, with <c>query.type_not_found</c>.</remarks>
     public Task<object> SendQuery(string queryTypeName, JsonElement queryJson)
-        => SendRequestAsync("query", queryTypeName, queryJson, Log.ErrorExecutingQuery);
+        => SendRequestAsync(HubMessageKind.Query, "query", queryTypeName, queryJson, Log.ErrorExecutingQuery);
 
     /// <summary>
     /// Publishes a notification through the Encina.
     /// </summary>
-    /// <param name="notificationTypeName">The fully qualified name or simple name of the notification type.</param>
+    /// <param name="notificationTypeName">
+    /// The exact, case-sensitive <see cref="Type.FullName"/> of a notification type registered with
+    /// <see cref="SignalROptions.AllowNotification{TNotification}(bool)"/>.
+    /// </param>
     /// <param name="notificationJson">The notification data as a JSON object.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// A name that is not registered as a notification, or is not callable by an unauthenticated
+    /// caller, does nothing: no deserialization, no handler runs.
+    /// </remarks>
     public async Task PublishNotification(string notificationTypeName, JsonElement notificationJson)
     {
+        var registration = FindCallable(HubMessageKind.Notification, notificationTypeName);
+        if (registration is null)
+        {
+            return;
+        }
+
+        var typeName = registration.Type.FullName!;
         try
         {
-            var notificationType = ResolveType(notificationTypeName);
-            if (notificationType == null)
-            {
-                Log.NotificationTypeNotFound(_logger, notificationTypeName);
-                return;
-            }
-
-            var notification = JsonSerializer.Deserialize(notificationJson.GetRawText(), notificationType, _options.JsonSerializerOptions);
+            var notification = JsonSerializer.Deserialize(notificationJson.GetRawText(), registration.Type, _options.JsonSerializerOptions);
             if (notification == null)
             {
-                Log.FailedToDeserializeNotification(_logger, notificationTypeName);
+                Log.FailedToDeserializeNotification(_logger, typeName);
                 return;
             }
 
@@ -124,42 +159,73 @@ public abstract class EncinaHub : Hub
         }
         catch (Exception ex)
         {
-            Log.ErrorPublishingNotification(_logger, ex.ForLogging(), notificationTypeName);
+            Log.ErrorPublishingNotification(_logger, ex.ForLogging(), typeName);
         }
     }
 
     /// <summary>
-    /// Resolves, deserializes and sends one request; <paramref name="kind"/> ("command" or
-    /// "query") names the error codes, messages and the failure log of that request kind.
+    /// Looks up, deserializes and sends one request; <paramref name="kind"/> selects the hub
+    /// method's message kind and <paramref name="code"/> ("command" or "query") names its error
+    /// codes and messages.
     /// </summary>
     private async Task<object> SendRequestAsync(
-        string kind,
+        HubMessageKind kind,
+        string code,
         string requestTypeName,
         JsonElement requestJson,
         Action<ILogger, Exception, string> logFailure)
     {
+        // The lookup runs before any deserialization: a type that is unknown, not exposed, of the
+        // wrong kind or not callable by this caller is never instantiated. Every such case gets
+        // the same response, which never echoes the client string (no type-existence oracle).
+        var registration = FindCallable(kind, requestTypeName);
+        if (registration is null)
+        {
+            return CreateErrorResponse($"{code}.type_not_found", $"{char.ToUpperInvariant(code[0])}{code[1..]} type not found.");
+        }
+
         try
         {
-            var requestType = ResolveType(requestTypeName);
-            if (requestType == null)
-            {
-                return CreateErrorResponse($"{kind}.type_not_found", $"{char.ToUpperInvariant(kind[0])}{kind[1..]} type '{requestTypeName}' not found.");
-            }
-
-            var request = JsonSerializer.Deserialize(requestJson.GetRawText(), requestType, _options.JsonSerializerOptions);
+            var request = JsonSerializer.Deserialize(requestJson.GetRawText(), registration.Type, _options.JsonSerializerOptions);
             if (request == null)
             {
-                return CreateErrorResponse($"{kind}.deserialization_failed", $"Failed to deserialize {kind}.");
+                return CreateErrorResponse($"{code}.deserialization_failed", $"Failed to deserialize {code}.");
             }
 
             return await SendDynamicAsync(request);
         }
         catch (Exception ex)
         {
-            logFailure(_logger, ex.ForLogging(), requestTypeName);
-            return CreateErrorResponse($"{kind}.execution_failed", GetErrorMessage(ex));
+            logFailure(_logger, ex.ForLogging(), registration.Type.FullName!);
+            return CreateErrorResponse($"{code}.execution_failed", GetErrorMessage(ex));
         }
     }
+
+    /// <summary>
+    /// Returns the allow-list entry for <paramref name="typeName"/> when it exists, has the
+    /// <paramref name="kind"/> of the invoked hub method and the caller may invoke it: authenticated,
+    /// or the entry was registered with <c>allowAnonymous: true</c>. Otherwise logs the denial at
+    /// Debug with a sanitized, truncated name and returns <see langword="null"/>.
+    /// </summary>
+    private HubTypeRegistration? FindCallable(HubMessageKind kind, string? typeName)
+    {
+        var registration = FindRegistration(kind, typeName);
+        if (registration is not null && (registration.AllowAnonymous || IsCallerAuthenticated()))
+        {
+            return registration;
+        }
+
+        Log.HubCallDenied(_logger, kind, ClientTypeName.ForLog(typeName));
+        return null;
+    }
+
+    private HubTypeRegistration? FindRegistration(HubMessageKind kind, string? typeName)
+        => typeName is not null && _allowList.TryGetValue(typeName, out var registration) && registration.Kind == kind
+            ? registration
+            : null;
+
+    // Fail closed: no principal or no identity counts as unauthenticated.
+    private bool IsCallerAuthenticated() => Context.User?.Identity?.IsAuthenticated == true;
 
     // The request's runtime type is only known after deserialization, so the generic helper
     // that calls the typed IEncina.Send overload binds dynamically. A request that does not
@@ -181,50 +247,6 @@ public abstract class EncinaHub : Hub
         where TNotification : INotification
     {
         await Encina.Publish(notification, Context.ConnectionAborted);
-    }
-
-    /// <summary>
-    /// Resolves a type by its name from loaded assemblies.
-    /// </summary>
-    /// <param name="typeName">The type name to resolve.</param>
-    /// <returns>The resolved type, or null if not found.</returns>
-    protected virtual Type? ResolveType(string typeName)
-    {
-        // Try exact match first
-        var type = Type.GetType(typeName);
-        if (type != null)
-        {
-            return type;
-        }
-
-        // Search in all loaded assemblies
-        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            try
-            {
-                type = assembly.GetType(typeName);
-                if (type != null)
-                {
-                    return type;
-                }
-
-                // Try simple name match
-                type = assembly.GetTypes().FirstOrDefault(t =>
-                    t.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase) ||
-                    t.FullName?.Equals(typeName, StringComparison.OrdinalIgnoreCase) is true);
-
-                if (type != null)
-                {
-                    return type;
-                }
-            }
-            catch
-            {
-                // Ignore assemblies that can't be searched
-            }
-        }
-
-        return null;
     }
 
     /// <summary>

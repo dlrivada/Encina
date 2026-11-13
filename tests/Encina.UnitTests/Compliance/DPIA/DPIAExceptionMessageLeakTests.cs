@@ -47,7 +47,6 @@ public sealed class DPIAExceptionMessageLeakTests
     {
         var options = new DPIAOptions
         {
-            EnableExpirationMonitoring = true,
             ExpirationCheckInterval = TimeSpan.FromHours(1),
             PublishNotifications = false
         };
@@ -61,6 +60,7 @@ public sealed class DPIAExceptionMessageLeakTests
         var sut = new DPIAReviewReminderService(
             scopeFactory,
             Options.Create(options),
+            new FakeTimeProvider(),
             NullLogger<DPIAReviewReminderService>.Instance);
 
         using var capture = new BackgroundCapture(DPIADiagnostics.ActivitySource, DPIADiagnostics.Meter);
