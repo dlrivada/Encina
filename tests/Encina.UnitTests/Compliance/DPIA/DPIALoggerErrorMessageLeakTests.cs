@@ -137,7 +137,6 @@ public sealed class DPIALoggerErrorMessageLeakTests
     {
         var options = new DPIAOptions
         {
-            EnableExpirationMonitoring = true,
             ExpirationCheckInterval = TimeSpan.FromHours(1),
             PublishNotifications = false
         };
@@ -148,7 +147,7 @@ public sealed class DPIALoggerErrorMessageLeakTests
 
         var scopeFactory = CreateScopeFactory(service);
         var logger = new FakeLogger<DPIAReviewReminderService>();
-        var sut = new DPIAReviewReminderService(scopeFactory, Options.Create(options), logger);
+        var sut = new DPIAReviewReminderService(scopeFactory, Options.Create(options), new FakeTimeProvider(), logger);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 

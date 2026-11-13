@@ -226,7 +226,6 @@ public class ServiceCollectionExtensionsTests
             options.DefaultConnectionString = "Server=configured;";
             options.AutoOpenConnections = false;
             options.ConnectionTimeoutSeconds = 60;
-            options.ThrowOnMissingConnectionString = false;
         });
 
         var provider = services.BuildServiceProvider();
@@ -236,7 +235,6 @@ public class ServiceCollectionExtensionsTests
         options.DefaultConnectionString.ShouldBe("Server=configured;");
         options.AutoOpenConnections.ShouldBeFalse();
         options.ConnectionTimeoutSeconds.ShouldBe(60);
-        options.ThrowOnMissingConnectionString.ShouldBeFalse();
     }
 
     [Fact]
