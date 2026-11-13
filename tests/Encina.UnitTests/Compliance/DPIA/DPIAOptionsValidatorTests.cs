@@ -98,14 +98,30 @@ public class DPIAOptionsValidatorTests
 
     #region ExpirationCheckInterval Validation
 
-    [Fact]
-    public void Validate_MonitoringEnabled_ZeroInterval_ReturnsFail()
+    public static TheoryData<TimeSpan> OutOfRangeIntervals => new()
     {
-        var options = new DPIAOptions
-        {
-            EnableExpirationMonitoring = true,
-            ExpirationCheckInterval = TimeSpan.Zero
-        };
+        TimeSpan.Zero,
+        TimeSpan.FromMinutes(-5),
+        TimeSpan.FromTicks(TimeSpan.TicksPerMillisecond - 1),
+        TimeSpan.FromMilliseconds(uint.MaxValue - 1) + TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromDays(50),
+        TimeSpan.MaxValue
+    };
+
+    public static TheoryData<TimeSpan> InRangeIntervals => new()
+    {
+        TimeSpan.FromMilliseconds(1),
+        TimeSpan.FromMinutes(30),
+        TimeSpan.FromHours(1),
+        TimeSpan.FromDays(49),
+        TimeSpan.FromMilliseconds(uint.MaxValue - 1)
+    };
+
+    [Theory]
+    [MemberData(nameof(OutOfRangeIntervals))]
+    public void Validate_IntervalOutsidePeriodicTimerRange_ReturnsFail(TimeSpan interval)
+    {
+        var options = new DPIAOptions { ExpirationCheckInterval = interval };
 
         var result = _sut.Validate(null, options);
 
@@ -114,48 +130,28 @@ public class DPIAOptionsValidatorTests
         result.FailureMessage.ShouldContain("ExpirationCheckInterval");
     }
 
-    [Fact]
-    public void Validate_MonitoringEnabled_NegativeInterval_ReturnsFail()
+    [Theory]
+    [MemberData(nameof(InRangeIntervals))]
+    public void Validate_IntervalInsidePeriodicTimerRange_ReturnsSuccess(TimeSpan interval)
     {
-        var options = new DPIAOptions
-        {
-            EnableExpirationMonitoring = true,
-            ExpirationCheckInterval = TimeSpan.FromMinutes(-5)
-        };
-
-        var result = _sut.Validate(null, options);
-
-        result.Failed.ShouldBeTrue();
-        result.FailureMessage.ShouldNotBeNull();
-        result.FailureMessage.ShouldContain("ExpirationCheckInterval");
-    }
-
-    [Fact]
-    public void Validate_MonitoringDisabled_ZeroInterval_ReturnsSuccess()
-    {
-        var options = new DPIAOptions
-        {
-            EnableExpirationMonitoring = false,
-            ExpirationCheckInterval = TimeSpan.Zero
-        };
+        var options = new DPIAOptions { ExpirationCheckInterval = interval };
 
         var result = _sut.Validate(null, options);
 
         result.Succeeded.ShouldBeTrue();
     }
 
-    [Fact]
-    public void Validate_MonitoringEnabled_PositiveInterval_ReturnsSuccess()
+    [Theory]
+    [MemberData(nameof(InRangeIntervals))]
+    public void Validate_AcceptedInterval_IsAcceptedByPeriodicTimer(TimeSpan interval)
     {
-        var options = new DPIAOptions
+        // Every interval the validator accepts must also be accepted by the timer the service creates
+        _sut.Validate(null, new DPIAOptions { ExpirationCheckInterval = interval }).Succeeded.ShouldBeTrue();
+
+        Should.NotThrow(() =>
         {
-            EnableExpirationMonitoring = true,
-            ExpirationCheckInterval = TimeSpan.FromMinutes(30)
-        };
-
-        var result = _sut.Validate(null, options);
-
-        result.Succeeded.ShouldBeTrue();
+            using var timer = new PeriodicTimer(interval);
+        });
     }
 
     #endregion
@@ -216,7 +212,6 @@ public class DPIAOptionsValidatorTests
         {
             EnforcementMode = (DPIAEnforcementMode)99,
             DefaultReviewPeriod = TimeSpan.FromDays(-1),
-            EnableExpirationMonitoring = true,
             ExpirationCheckInterval = TimeSpan.Zero,
             DPOEmail = "bad-email"
         };
