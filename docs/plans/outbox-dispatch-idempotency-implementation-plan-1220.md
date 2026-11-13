@@ -3,7 +3,7 @@
 > **Issue**: [#1220](https://github.com/dlrivada/Encina/issues/1220)
 > **Type**: Feature
 > **Verified against**: origin/main `c49b987e9` (2026-11-12)
-> **Complexity**: High (8 phases, 10 database providers, ~101 files in 13 pull requests)
+> **Complexity**: High (8 phases, 10 database providers, ~102 files in 13 pull requests)
 > **Estimated Scope**: ~1,400-1,800 lines of production code + ~2,000-2,400 lines of tests
 
 ---
@@ -21,7 +21,7 @@ What it implements:
 
 Standards: SPEC-002 REQ-031, AC-031, S1, REQ-061 (AC-043), REQ-062 (AC-044); ADR-001 (ROP); ADR-048 (record versus business transaction); AGENTS.md section 3 (a `Left` is never reported as success).
 
-Estimated scope: about 101 files (production 45, tests 34, documentation and metadata 22), shipped as 13 pull requests (see "Pull request split"). Affected packages: `Encina` (dispatcher, aggregation), `Encina.Messaging` (store abstraction, processor), the ADO.NET, Dapper and EF Core providers for SqlServer, PostgreSQL and MySQL, `Encina.MongoDB`, `Encina.OpenTelemetry` (instrumented store decorator), `Encina.Testing.Fakes`.
+Estimated scope: about 102 files (production 45, tests 35, documentation and metadata 22), shipped as 13 pull requests (see "Pull request split"). Affected packages: `Encina` (dispatcher, aggregation), `Encina.Messaging` (store abstraction, processor), the ADO.NET, Dapper and EF Core providers for SqlServer, PostgreSQL and MySQL, `Encina.MongoDB`, `Encina.OpenTelemetry` (instrumented store decorator), `Encina.Testing.Fakes`.
 
 Provider category: Database (10), with one EF Core implementation verified on three databases.
 
@@ -225,7 +225,7 @@ src/Encina/Abstractions/IRequestContext.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `OutboxProcessorBase.PublishAsync` (today `private static`, receiving only the callback; it becomes an instance method so it can resolve the optional gate; the constructor change of every provider's `OutboxProcessor` is listed in `PublicAPI.Unshipped.txt`, and the order with #2385, #1221 and #1251, which edit the same method, is: whichever lands first, the others rebase): when an `IHandlerCompletionGate` is registered (the presence is checked with `GetService<IHandlerCompletionGate>()` on the batch scope the processor already creates, `OutboxProcessorBase.cs:123`; the gate is scoped and the processor is a singleton hosted service, so the check never uses the root provider; the dispatcher creates its own scope per publish, `Encina.NotificationDispatcher.cs:48`, and resolves its own gate from it, so the marker is set only when the dispatcher's scope can resolve the same registration: both scopes come from the same root provider, and a registration that exists in one exists in the other), build the context (correlation id from the message, `WithIdempotencyKey(message.Id.ToString("D"))`, `WithMetadata(OutboxDispatchMarker.Key, true)`; the tenant id from the persisted context once #1164 lands, the ambient tenant or the fixed `default` before, Design Choice 8) and call `encina.Publish(notification, context, ct)`; when no gate is registered the processor dispatches as today (this keeps the first pull requests inert).
+1. `OutboxProcessorBase.PublishAsync` (today `private static`, receiving only the callback; it becomes an instance method so it can resolve the optional gate; no provider processor constructor changes, because the gate is resolved with `GetService` on the batch scope and the provider processors subclass `OutboxProcessorBase`; and the order with #2385, #1221 and #1251, which edit the same method, is: whichever lands first, the others rebase): when an `IHandlerCompletionGate` is registered (the presence is checked with `GetService<IHandlerCompletionGate>()` on the batch scope the processor already creates, `OutboxProcessorBase.cs:123`; the gate is scoped and the processor is a singleton hosted service, so the check never uses the root provider; the dispatcher creates its own scope per publish, `Encina.NotificationDispatcher.cs:48`, and resolves its own gate from it, so the marker is set only when the dispatcher's scope can resolve the same registration: both scopes come from the same root provider, and a registration that exists in one exists in the other), build the context (correlation id from the message, `WithIdempotencyKey(message.Id.ToString("D"))`, `WithMetadata(OutboxDispatchMarker.Key, true)`; the tenant id from the persisted context once #1164 lands, the ambient tenant or the fixed `default` before, Design Choice 8) and call `encina.Publish(notification, context, ct)`; when no gate is registered the processor dispatches as today (this keeps the first pull requests inert).
 2. `Encina.NotificationDispatcher.ExecuteAsync`: when `context.Metadata` has the marker: resolve the gate; **no gate resolved is `Left(outbox.handler_completion_failed)`, never a skip** (fail closed; the processor only sets the marker when a gate exists, so this is reachable only through a caller that sets the marker by hand). Before each handler `ShouldRunAsync`; after a `Right` `RecordCompletionAsync` (a failed record write is a handler failure, not success); handlers run sequentially and every one is attempted (Design Choice 7), the errors aggregated by the shared helper of Design Choice 4; zero handlers stays `Right` (and see #2385 for the integration-event route).
 3. The marked path lives in its own method (a new internal class `MarkedNotificationDispatch`).
 4. Keep CRAP at 10 or less: the marked path is its own method.
@@ -465,9 +465,9 @@ REFERENCE FILES: docs/features/transactional-outbox.md, .claude/skills/encina-do
 |----------|-------|-------|
 | Core abstractions and dispatcher | 14 | store interface, gate, marker, error codes, dispatcher, marked-dispatch class, processor, registration helper, gate implementation, metrics, log, fake store, instrumented store, validator |
 | Provider implementations | 33 | ADO 6, Dapper 6, EF 3, Mongo 2, 12 SQL scripts (6 new scripts and 6 aggregate-script edits), registrations 4 |
-| Tests | 34 | unit, guard, contract, property, 10-provider integration, DI tests, health tests, 2 justification files, EventId map, existing tests that construct the processor; the shared test DDL `tests/Encina.TestInfrastructure/Schemas/SqlServerSchema.cs` and `MySqlSchema.cs`; the test `DbContext`s that must map the new entity (`TestEFDbContext.cs`, `TestPostgreSqlDbContext.cs`, `ContractTestDbContext.cs`, `tests/Encina.UnitTests/EntityFrameworkCore/TestDbContext.cs`) |
+| Tests | 35 | unit, guard, contract, property, 10-provider integration, DI tests, health tests, 2 justification files, EventId map, existing tests that construct the processor; the shared test DDL `tests/Encina.TestInfrastructure/Schemas/SqlServerSchema.cs`, `MySqlSchema.cs` and `PostgreSqlSchema.cs` (inline DDL used by `PostgreSqlFixture` for ADO and Dapper PostgreSQL); the test `DbContext`s that must map the new entity (`TestEFDbContext.cs`, `TestPostgreSqlDbContext.cs`, `ContractTestDbContext.cs`, `tests/Encina.UnitTests/EntityFrameworkCore/TestDbContext.cs`) |
 | Documentation and metadata | 20 | changelog, outbox guide, ADR, INVENTORY, one coverage manifest per touched package, PublicAPI files |
-| **Total** | **101** | Thirteen pull requests |
+| **Total** | **102** | Thirteen pull requests |
 
 ### Pull request split
 
@@ -478,18 +478,18 @@ Counts include tests, coverage manifests and `PublicAPI.Unshipped.txt`. Each pul
 | A1 | Abstractions: store interface, gate interface, marker, error codes, gate implementation, registration helper, unit and guard tests, PublicAPI of Encina and Messaging, 2 manifests | 13 |
 | A2 | Dispatcher marked path, processor context, `INotificationHandler` remarks, fake store, unit and property tests, existing processor tests that change, the contract suite for `IOutboxHandlerCompletionStore` (run against the fake), manifests, PublicAPI of Fakes | 14 |
 | B1 | SQL Server, ADO: store, `031` script, `000_CreateAllTables.sql` edit, registration, integration test, manifest, PublicAPI, plus the shared test DDL `SqlServerSchema.cs` | 8 |
-| B2 | SQL Server, Dapper: same content without the shared DDL | 7 |
-| B3 | PostgreSQL, ADO: same content (the PostgreSQL integration fixtures use the `031` script, no inline DDL file) | 7 |
-| B4 | PostgreSQL, Dapper: same content | 7 |
+| B2 | SQL Server, Dapper: same content without the shared DDL (it uses `SqlServerSchema.cs` from B1) | 7 |
+| B3 | PostgreSQL, ADO: same content plus the shared test DDL `PostgreSqlSchema.cs` (inline `CREATE TABLE`, created by `PostgreSqlFixture` for ADO and Dapper) | 8 |
+| B4 | PostgreSQL, Dapper: same content without the shared DDL (it uses `PostgreSqlSchema.cs` from B3) | 7 |
 | B5 | MySQL, ADO: same content plus the shared test DDL `MySqlSchema.cs` | 8 |
-| B6 | MySQL, Dapper: same content without the shared DDL | 7 |
+| B6 | MySQL, Dapper: same content without the shared DDL (it uses `MySqlSchema.cs` from B5) | 7 |
 | C1 | EF Core: entity, configuration, store, registration, integration test, manifest, PublicAPI, and the four test `DbContext`s that map the new entity (`TestEFDbContext.cs`, `TestPostgreSqlDbContext.cs`, `ContractTestDbContext.cs`, `tests/Encina.UnitTests/EntityFrameworkCore/TestDbContext.cs`) | 11 |
 | C2 | MongoDB (document, store, registration, integration test, manifest, PublicAPI) and `InstrumentedOutboxHandlerCompletionStore` in `Encina.OpenTelemetry` (class, test, manifest, PublicAPI) | 10 |
 | D1 | Observability: metrics, `OutboxDispatchLog`, EventId range registration and `EncinaEventIdAllocationTests` map, metrics and log tests, manifest, PublicAPI | 9 |
 | D2 | Startup validation and its tests, DI tests with `ValidateOnBuild` and `ValidateScopes` per provider family (ADO, Dapper, EF Core, MongoDB: 4 files), health tests per family (4 files), manifest, PublicAPI | 12 |
 | E | Documentation, ADR, justification files, changelog | 6 |
 
-A1 first; A2, B1 to B6, C1 and C2 depend on A1 and may land in any order after it; D1 depends on A2; D2 depends on every B and C pull request; E last. The 10-provider contract suite is written once in A2 against the fake; each provider pull request adds its integration test class that runs the same scenarios through its real store. Every pull request stays at 15 files or fewer.
+A1 first; A2, B1, B3, B5, C1 and C2 depend on A1 and may land in any order after it; the Dapper pull requests depend on the shared test DDL of their ADO sibling, so B2 lands after B1, B4 after B3 and B6 after B5 (otherwise their Dapper integration tests fail on a missing table); D1 depends on A2; D2 depends on every B and C pull request; E last. Each pull request still builds alone (B2, B4 and B6 compile without their sibling; only their integration tests need it). The 10-provider contract suite is written once in A2 against the fake; each provider pull request adds its integration test class that runs the same scenarios through its real store. Every pull request stays at 15 files or fewer.
 
 ---
 
