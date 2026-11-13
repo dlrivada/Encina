@@ -23,7 +23,7 @@ Off-the-shelf benchmark tooling (BenchmarkDotNet, NBomber) produces raw numbers.
 - When we change the way we compute confidence intervals, does the history become inconsistent — or can we rerun the new formula against the old data?
 - When the documentation says "X is 3× faster than Y", what is the statistical weight behind that claim and can the reader inspect it?
 
-These questions have answers, and the answers are not always the same across the industry. Encina picks a specific set, documents them here, versions them in git alongside the scripts that implement them, and retroactively applies them to history via `perf-recalculate.cs`. This is the same approach Encina used for code coverage (see ADR-023): the "obligations model" for coverage is a particular formula not offered by SonarCloud or Codecov out of the box, but it is the one that matches Encina's reality of 108 packages with very different testability profiles. Performance measurement faces analogous tradeoffs and needs the same kind of explicit, versioned treatment.
+These questions have answers, and the answers are not always the same across the industry. Encina picks a specific set, documents them here, versions them in git alongside the scripts that implement them, and retroactively applies them to history via `perf-recalculate.cs`. This is the same approach Encina used for code coverage (see [ADR-063](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md)): the "obligations model" for coverage is a particular formula not offered by SonarCloud or Codecov (used until November 2026) out of the box, but it is the one that matches Encina's reality of 108 packages with very different testability profiles. Performance measurement faces analogous tradeoffs and needs the same kind of explicit, versioned treatment.
 
 ## Measurement environment
 
@@ -332,7 +332,7 @@ When you add a new section, a new metric, or a new rule, include a rationale. Th
 
 - [ADR-025 — Performance Measurement Infrastructure](../architecture/adr/025-performance-measurement-infrastructure.md)
 - [Performance Infrastructure Plan](../plans/performance-infrastructure-plan.md)
-- [ADR-023 — Coverage Strategy](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md) (architectural parent)
+- [ADR-063 — In-Repository Coverage Comment](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md) (current coverage decision; supersedes [ADR-023](../architecture/adr/023-coverage-strategy-codecov-sonarcloud.md))
 - [`coverage-measurement-methodology.md`](coverage-measurement-methodology.md) (sibling methodology — same architectural pattern)
 - [`mutation-measurement-methodology.md`](mutation-measurement-methodology.md) (sibling methodology — adopts the DocRef/cited-by infrastructure documented here)
 - Coverage dashboard: <https://dlrivada.github.io/Encina/coverage/>
