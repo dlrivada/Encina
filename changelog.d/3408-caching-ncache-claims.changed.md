@@ -1,0 +1,1 @@
+- Encina.Caching and Encina.Caching.Memory no longer name NCache in their package description and XML docs, and Encina.Caching no longer grants InternalsVisibleTo to the non-existent Encina.Caching.NCache assembly (#3703, #3408).
