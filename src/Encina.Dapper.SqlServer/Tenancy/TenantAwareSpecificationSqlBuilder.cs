@@ -2,6 +2,7 @@ using Encina.Dapper.SqlServer.Repository;
 using Encina.DomainModeling;
 using Encina.Messaging;
 using Encina.Tenancy;
+using LanguageExt;
 
 namespace Encina.Dapper.SqlServer.Tenancy;
 
@@ -29,9 +30,10 @@ namespace Encina.Dapper.SqlServer.Tenancy;
 /// <code>
 /// var spec = new ActiveOrdersSpec(); // o => o.Status == "Active"
 /// var builder = new TenantAwareSpecificationSqlBuilder&lt;Order&gt;(mapping, tenantProvider, options);
-/// var (whereClause, parameters) = builder.BuildWhereClause(spec);
-/// // whereClause: "WHERE [TenantId] = @tenantId AND ([Status] = @p0)"
-/// // parameters: { tenantId = "tenant-1", p0 = "Active" }
+/// var built = builder.BuildWhereClause(spec, "List");
+/// // Right: whereClause "WHERE [TenantId] = @tenantId AND ([Status] = @p0)",
+/// //        parameters { tenantId = "tenant-1", p0 = "Active" }
+/// // Left (Repository.TenantRequired) when there is no tenant context
 /// </code>
 /// </example>
 public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
@@ -67,31 +69,42 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
     /// Builds a WHERE clause from a specification with tenant filtering.
     /// </summary>
     /// <param name="specification">The specification to translate.</param>
-    /// <returns>A tuple containing the WHERE clause and parameters dictionary.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// Thrown when no tenant context is available and <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
-    /// </exception>
-    public (string WhereClause, IDictionary<string, object?> Parameters) BuildWhereClause(
-        Specification<TEntity> specification)
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the WHERE clause and parameters dictionary, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when no tenant context is available and
+    /// <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (string WhereClause, IDictionary<string, object?> Parameters)> BuildWhereClause(
+        Specification<TEntity> specification,
+        string operation)
     {
         ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(operation);
 
         var (innerWhere, parameters) = _innerBuilder.BuildWhereClause(specification);
-        return ApplyTenantFilter(innerWhere, parameters);
+        return ApplyTenantFilter(innerWhere, parameters, operation);
     }
 
     /// <summary>
     /// Builds a WHERE clause from a query specification with tenant filtering.
     /// </summary>
     /// <param name="specification">The query specification to translate.</param>
-    /// <returns>A tuple containing the WHERE clause and parameters dictionary.</returns>
-    public (string WhereClause, IDictionary<string, object?> Parameters) BuildWhereClause(
-        QuerySpecification<TEntity> specification)
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the WHERE clause and parameters dictionary, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when no tenant context is available and
+    /// <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (string WhereClause, IDictionary<string, object?> Parameters)> BuildWhereClause(
+        QuerySpecification<TEntity> specification,
+        string operation)
     {
         ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(operation);
 
         var (innerWhere, parameters) = _innerBuilder.BuildWhereClause(specification);
-        return ApplyTenantFilter(innerWhere, parameters);
+        return ApplyTenantFilter(innerWhere, parameters, operation);
     }
 
     /// <summary>
@@ -121,20 +134,31 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
     /// Builds a complete SELECT statement with tenant filtering.
     /// </summary>
     /// <param name="tableName">The validated table name.</param>
-    /// <returns>A tuple containing the SQL statement and parameters dictionary.</returns>
-    public (string Sql, IDictionary<string, object?> Parameters) BuildSelectStatement(string tableName)
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the SQL statement and parameters dictionary, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when no tenant context is available and
+    /// <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (string Sql, IDictionary<string, object?> Parameters)> BuildSelectStatement(
+        string tableName,
+        string operation)
     {
+        ArgumentNullException.ThrowIfNull(operation);
+
         var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
 
         var parameters = new Dictionary<string, object?>();
-        var (whereClause, _) = ApplyTenantFilter(string.Empty, parameters);
 
-        var sql = string.IsNullOrWhiteSpace(whereClause)
-            ? $"SELECT {columns} FROM {validatedTableName}"
-            : $"SELECT {columns} FROM {validatedTableName} {whereClause}";
+        return ApplyTenantFilter(string.Empty, parameters, operation).Map(filtered =>
+        {
+            var sql = string.IsNullOrWhiteSpace(filtered.WhereClause)
+                ? $"SELECT {columns} FROM {validatedTableName}"
+                : $"SELECT {columns} FROM {validatedTableName} {filtered.WhereClause}";
 
-        return (sql, parameters);
+            return (Sql: sql, filtered.Parameters);
+        });
     }
 
     /// <summary>
@@ -142,20 +166,28 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
     /// </summary>
     /// <param name="tableName">The validated table name.</param>
     /// <param name="specification">The specification for filtering.</param>
-    /// <returns>A tuple containing the SQL statement and parameters dictionary.</returns>
-    public (string Sql, IDictionary<string, object?> Parameters) BuildSelectStatement(
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the SQL statement and parameters dictionary, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when no tenant context is available and
+    /// <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (string Sql, IDictionary<string, object?> Parameters)> BuildSelectStatement(
         string tableName,
-        Specification<TEntity> specification)
+        Specification<TEntity> specification,
+        string operation)
     {
         ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(operation);
 
         var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
 
-        var (whereClause, parameters) = BuildWhereClause(specification);
-        var sql = $"SELECT {columns} FROM {validatedTableName} {whereClause}".Trim();
-
-        return (sql, parameters);
+        return BuildWhereClause(specification, operation).Map(built =>
+        {
+            var sql = $"SELECT {columns} FROM {validatedTableName} {built.WhereClause}".Trim();
+            return (Sql: sql, built.Parameters);
+        });
     }
 
     /// <summary>
@@ -163,60 +195,67 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
     /// </summary>
     /// <param name="tableName">The validated table name.</param>
     /// <param name="specification">The query specification for filtering, ordering, and pagination.</param>
-    /// <returns>A tuple containing the SQL statement and parameters dictionary.</returns>
-    public (string Sql, IDictionary<string, object?> Parameters) BuildSelectStatement(
+    /// <param name="operation">The repository operation name, used in the error when the tenant context is missing.</param>
+    /// <returns>
+    /// A tuple containing the SQL statement and parameters dictionary, or a
+    /// <see cref="RepositoryErrors.TenantRequiredErrorCode"/> error when no tenant context is available and
+    /// <see cref="DapperTenancyOptions.ThrowOnMissingTenantContext"/> is <c>true</c>.
+    /// </returns>
+    public Either<EncinaError, (string Sql, IDictionary<string, object?> Parameters)> BuildSelectStatement(
         string tableName,
-        QuerySpecification<TEntity> specification)
+        QuerySpecification<TEntity> specification,
+        string operation)
     {
         ArgumentNullException.ThrowIfNull(specification);
+        ArgumentNullException.ThrowIfNull(operation);
 
         var validatedTableName = SqlIdentifierValidator.ValidateTableName(tableName);
         var columns = string.Join(", ", _mapping.ColumnMappings.Values.Select(c => $"[{c}]"));
 
-        var (whereClause, parameters) = BuildWhereClause(specification);
+        return BuildWhereClause(specification, operation).Map(built =>
+            (Sql: ComposeSelectSql($"SELECT {columns} FROM {validatedTableName}", built.WhereClause, specification),
+             built.Parameters));
+    }
+
+    private string ComposeSelectSql(string selectFrom, string whereClause, QuerySpecification<TEntity> specification)
+    {
         var orderByClause = BuildOrderByClause(specification);
         var paginationClause = BuildPaginationClause(specification);
 
-        var needsOffsetZero = specification.KeysetPaginationEnabled &&
-                              specification.Take.HasValue &&
-                              !string.IsNullOrEmpty(orderByClause);
+        var sqlParts = new List<string> { selectFrom };
+        AddIfNotBlank(sqlParts, whereClause);
+        AddIfNotBlank(sqlParts, orderByClause);
 
-        var sqlParts = new List<string>
-        {
-            $"SELECT {columns} FROM {validatedTableName}"
-        };
-
-        if (!string.IsNullOrWhiteSpace(whereClause))
-        {
-            sqlParts.Add(whereClause);
-        }
-
-        if (!string.IsNullOrWhiteSpace(orderByClause))
-        {
-            sqlParts.Add(orderByClause);
-        }
-
-        if (needsOffsetZero)
+        if (NeedsOffsetZero(specification, orderByClause))
         {
             sqlParts.Add("OFFSET 0 ROWS");
         }
 
-        if (!string.IsNullOrWhiteSpace(paginationClause))
+        AddIfNotBlank(sqlParts, paginationClause);
+
+        return string.Join(" ", sqlParts);
+    }
+
+    private static bool NeedsOffsetZero(QuerySpecification<TEntity> specification, string orderByClause)
+        => specification.KeysetPaginationEnabled &&
+           specification.Take.HasValue &&
+           !string.IsNullOrEmpty(orderByClause);
+
+    private static void AddIfNotBlank(List<string> sqlParts, string clause)
+    {
+        if (!string.IsNullOrWhiteSpace(clause))
         {
-            sqlParts.Add(paginationClause);
+            sqlParts.Add(clause);
         }
-
-        var sql = string.Join(" ", sqlParts);
-
-        return (sql, parameters);
     }
 
     /// <summary>
     /// Applies tenant filter to the WHERE clause if the entity is tenant-scoped.
     /// </summary>
-    private (string WhereClause, IDictionary<string, object?> Parameters) ApplyTenantFilter(
+    private Either<EncinaError, (string WhereClause, IDictionary<string, object?> Parameters)> ApplyTenantFilter(
         string existingWhere,
-        IDictionary<string, object?> parameters)
+        IDictionary<string, object?> parameters,
+        string operation)
     {
         // If not a tenant entity or auto-filter is disabled, return as-is
         if (!_mapping.IsTenantEntity || !_options.AutoFilterTenantQueries)
@@ -231,12 +270,10 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
         {
             if (_options.ThrowOnMissingTenantContext)
             {
-                throw new InvalidOperationException(
-                    $"Cannot execute query on tenant entity {typeof(TEntity).Name} without tenant context. " +
-                    $"Either set a current tenant or disable {nameof(DapperTenancyOptions.ThrowOnMissingTenantContext)}.");
+                return RepositoryErrors.TenantRequired<TEntity>(operation);
             }
 
-            // No tenant context and not throwing - return without filter
+            // No tenant context and not refusing - return without filter
             return (existingWhere, parameters);
         }
 
@@ -245,10 +282,17 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
 
         var tenantFilter = $"[{_mapping.TenantColumnName}] = @tenantId";
 
-        // Combine with existing WHERE clause
+        return (CombineWhere(existingWhere, tenantFilter), parameters);
+    }
+
+    /// <summary>
+    /// Combines the tenant filter with an existing WHERE clause.
+    /// </summary>
+    private static string CombineWhere(string existingWhere, string tenantFilter)
+    {
         if (string.IsNullOrWhiteSpace(existingWhere))
         {
-            return ($"WHERE {tenantFilter}", parameters);
+            return $"WHERE {tenantFilter}";
         }
 
         // existingWhere already contains "WHERE", so we need to extract the condition
@@ -256,6 +300,6 @@ public sealed class TenantAwareSpecificationSqlBuilder<TEntity>
             ? existingWhere[6..] // Remove "WHERE "
             : existingWhere;
 
-        return ($"WHERE {tenantFilter} AND ({existingCondition})", parameters);
+        return $"WHERE {tenantFilter} AND ({existingCondition})";
     }
 }

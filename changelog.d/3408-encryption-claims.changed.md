@@ -1,0 +1,1 @@
+- Message encryption packages no longer advertise per-tenant key derivation, tenant key-compromise isolation, asymmetric keys, AES-256-GCM through AWS KMS or an `EncryptionAlgorithm` option; package descriptions, READMEs, XML documentation and the message encryption feature page now describe only what the code does (#3714, parent #3408).
