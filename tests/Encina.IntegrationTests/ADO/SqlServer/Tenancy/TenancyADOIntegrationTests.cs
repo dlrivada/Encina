@@ -6,6 +6,7 @@ using Encina.TestInfrastructure.Entities;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Schemas;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
 
@@ -387,6 +388,113 @@ public class TenancyADOIntegrationTests : IAsyncLifetime
             list[0].Name.ShouldBe("Tenant2-Data");
         });
     }
+
+    #endregion
+
+    #region Tenant Connection Factory Tests (#3674)
+
+    private const string KnownTenant = "acme";
+
+    [Fact]
+    public async Task TenantConnectionFactory_UnknownTenant_ReturnsTenantNotFoundInsteadOfDefaultConnection()
+    {
+        // Arrange: the default connection string reaches a live database, so a fallback would succeed
+        var factory = CreateConnectionFactory("unknown-tenant", requireTenant: true, _fixture.ConnectionString);
+
+        // Act
+        var result = await factory.CreateConnectionAsync();
+
+        // Assert
+        DescribeResult(result).ShouldBe(TenancyErrors.TenantNotFoundCode);
+    }
+
+    [Fact]
+    public async Task TenantConnectionFactory_UnknownExplicitTenant_ReturnsTenantNotFound()
+    {
+        // Arrange
+        var factory = CreateConnectionFactory(KnownTenant, requireTenant: true, _fixture.ConnectionString);
+
+        // Act
+        var result = await factory.CreateConnectionForTenantAsync("unknown-tenant");
+
+        // Assert
+        DescribeResult(result).ShouldBe(TenancyErrors.TenantNotFoundCode);
+    }
+
+    [Fact]
+    public async Task TenantConnectionFactory_NoTenantAndRequireTenant_ReturnsTenantRequired()
+    {
+        // Arrange
+        var factory = CreateConnectionFactory(null, requireTenant: true, _fixture.ConnectionString);
+
+        // Act
+        var result = await factory.CreateConnectionAsync();
+
+        // Assert
+        DescribeResult(result).ShouldBe(TenancyErrors.TenantRequiredCode);
+    }
+
+    [Fact]
+    public async Task TenantConnectionFactory_NoTenantAndTenantNotRequired_OpensDefaultConnection()
+    {
+        // Arrange
+        var factory = CreateConnectionFactory(null, requireTenant: false, _fixture.ConnectionString);
+
+        // Act
+        var result = await factory.CreateConnectionAsync();
+
+        // Assert
+        DescribeResult(result).ShouldBe(nameof(ConnectionState.Open));
+    }
+
+    [Fact]
+    public async Task TenantConnectionFactory_KnownDatabasePerTenantTenant_OpensTenantConnection()
+    {
+        // Arrange: no default connection string, so only the tenant's own connection string can succeed
+        var factory = CreateConnectionFactory(KnownTenant, requireTenant: true, defaultConnectionString: null);
+
+        // Act
+        var result = await factory.CreateConnectionAsync();
+
+        // Assert
+        DescribeResult(result).ShouldBe(nameof(ConnectionState.Open));
+    }
+
+    private TenantConnectionFactory CreateConnectionFactory(
+        string? currentTenantId,
+        bool requireTenant,
+        string? defaultConnectionString)
+    {
+        var tenantStore = new InMemoryTenantStore();
+        tenantStore.RegisterTenant(new TenantInfo(
+            TenantId: KnownTenant,
+            Name: "Acme",
+            Strategy: TenantIsolationStrategy.DatabasePerTenant,
+            ConnectionString: _fixture.ConnectionString));
+
+        return new TenantConnectionFactory(
+            new TestTenantProvider(currentTenantId),
+            tenantStore,
+            Options.Create(new TenancyOptions
+            {
+                DefaultConnectionString = defaultConnectionString,
+                RequireTenant = requireTenant
+            }));
+    }
+
+    /// <summary>
+    /// Returns the error code of a <c>Left</c>, or the state of the connection of a <c>Right</c> (disposing it).
+    /// </summary>
+    private static string DescribeResult(LanguageExt.Either<EncinaError, IDbConnection> result) =>
+        result.Match(
+            Right: connection =>
+            {
+                using (connection)
+                {
+                    return connection.State.ToString();
+                }
+            },
+            Left: error => error.GetCode().IfNone("<no code>"));
 
     #endregion
 
