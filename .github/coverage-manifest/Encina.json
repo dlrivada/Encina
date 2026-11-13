@@ -1603,15 +1603,18 @@
     },
     "Results/EncinaErrors.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods",
       "targets": {
-        "unit": 90
+        "unit": 90,
+        "guard": 40
       },
       "justifications": {
-        "unit": "The factories, the categorized Create/FromException overloads and GetCategory are unit-tested on every branch (measured 95.7% on 2026-11-11, #3545); the uncovered lines are internal helpers exercised from other packages."
+        "unit": "The factories, the categorized Create/FromException overloads and GetCategory are unit-tested on every branch (measured 95.7% on 2026-11-11, #3545); the uncovered lines are internal helpers exercised from other packages.",
+        "guard": "The guard tests exercise the argument checks of the categorized Create and FromException overloads (measured 43% on 2026-11-13, #3800); the remaining lines are the category-less overloads, the authorization factories and the extension methods, which the unit tests cover."
       }
     },
     "Results/NullFunctionalFailureDetector.cs": {
