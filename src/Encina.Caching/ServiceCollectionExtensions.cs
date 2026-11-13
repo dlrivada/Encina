@@ -26,7 +26,6 @@ public static class ServiceCollectionExtensions
     /// <item><description><c>AddEncinaValkeyCache()</c> - Valkey caching</description></item>
     /// <item><description><c>AddEncinaDragonflyCache()</c> - Dragonfly caching</description></item>
     /// <item><description><c>AddEncinaKeyDBCache()</c> - KeyDB caching</description></item>
-    /// <item><description><c>AddEncinaNCacheCache()</c> - NCache caching</description></item>
     /// </list>
     /// </remarks>
     /// <example>
