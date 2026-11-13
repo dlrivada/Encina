@@ -2929,7 +2929,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 100 },
+      "justifications": {
+        "unit": "Every member, including the masking ToString and the replica validation, is driven by ShardRecordsSecretMaskingTests and ShardInfoTests (measured 24/24 lines on 2026-11-13, #3685).",
+        "guard": "ShardInfoGuardTests drive every constructor argument check (shard id, connection string, replica entries) and the null-replica path (measured 24/24 lines on 2026-11-13, #3685)."
+      }
     },
     "Sharding/ShardingErrorCodes.cs": {
       "defaultTests": [
@@ -3067,7 +3072,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 80 },
+      "justifications": {
+        "unit": "ShardRecordsSecretMaskingTests and the time-based sharding unit tests run every member, including the masking ToString (measured 21/21 lines on 2026-11-13, #3685).",
+        "guard": "TimeBasedShardingGuardTests drive the shard id, connection string and period checks; ToString and a synthesized accessor have no argument to guard (measured 17/21 lines on 2026-11-13, #3685)."
+      }
     },
     "Sharding/TimeBased/TierTransition.cs": {
       "defaultTests": [
