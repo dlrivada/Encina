@@ -3,7 +3,7 @@
 > **Issue**: [#703](https://github.com/dlrivada/Encina/issues/703)
 > **Type**: Feature
 > **Complexity**: Low (7 phases, 1 package touched, 2 pull requests)
-> **Estimated Scope**: ~150-250 lines of production code + ~700 lines of tests
+> **Estimated Scope**: ~150-250 lines of production code + ~700 lines of tests (13 files in the larger pull request)
 
 ---
 
@@ -13,12 +13,12 @@
 
 Code facts that scope the work:
 
-- **Callers**: `ModuleSchemaRegistry.ValidateSqlAccess` and `SqlSchemaExtractor.ValidateSchemaAccess` call `ExtractSchemas`; the runtime caller is `SchemaValidatingCommand` in `Encina.ADO.SqlServer|PostgreSQL|MySQL` (the private `ValidateSchemaAccess()` method of each; whether the Dapper, EF Core and MongoDB packages have an equivalent wrapper is checked when the work starts), which validates **only** when `ModuleIsolationOptions.Strategy == DevelopmentValidationOnly` (the default) and a module is executing. Under `SchemaWithPermissions` and `ConnectionPerModule` the extraction never runs. The hot path is therefore every command of a default-strategy application, in development and, if left on, in production.
+- **Callers**: `ModuleSchemaRegistry.ValidateSqlAccess` and `SqlSchemaExtractor.ValidateSchemaAccess` call `ExtractSchemas`; the runtime callers (verified on main) are `SchemaValidatingCommand` in `Encina.ADO.SqlServer|PostgreSQL|MySQL` and in `Encina.Dapper.SqlServer|PostgreSQL|MySQL` (six packages, each with a private `ValidateSchemaAccess()` that calls `ValidateSqlAccess`) and `ModuleSchemaValidationInterceptor` in `Encina.EntityFrameworkCore`; `Encina.MongoDB` only registers `IModuleSchemaRegistry` and has no SQL wrapper. Each caller validates **only** when `ModuleIsolationOptions.Strategy == DevelopmentValidationOnly` (the default) and a module is executing. Under `SchemaWithPermissions` and `ConnectionPerModule` the extraction never runs. The hot path is therefore every command of a default-strategy application, in development and, if left on, in production.
 - **Fail-open on timeout**: when a regex times out (1,000 ms), `ExtractSchemas` catches `RegexMatchTimeoutException` and returns the schemas found so far. A cache that stored that partial result would make an incomplete answer permanent for that SQL. The cache must not store a result produced after a timeout.
-- **Immutable result**: `ExtractSchemas` returns an `ImmutableHashSet<string>`, which can be shared between callers without copying.
+- **Immutable result**: `ExtractSchemas` returns `IReadOnlySet<string>` backed by an `ImmutableHashSet<string>` (case-insensitive), which can be shared between callers without copying; the cache stores that same instance.
 - **Not hash-keyed**: the issue's original sketch keyed by `sql.GetHashCode()`; a 32-bit collision in a module isolation gate would return another statement's schemas. The key is the SQL string.
 
-Provider category: none (the extraction works on text and is shared by every database provider that validates). Affected package: `Encina` (`Modules/Isolation`). Estimated size: about 12 files, one pull request after the benchmark pull request.
+Provider category: none (the extraction works on text and is shared by every database provider that validates). Affected package: `Encina` (`Modules/Isolation`). Estimated size: two pull requests, 1 file (the benchmark) and 13 files (cache, tests, manifest, docs), each far below 1,500 lines (see Estimated File Count).
 
 ---
 
@@ -39,7 +39,7 @@ Provider category: none (the extraction works on text and is shared by every dat
 
 ### Rationale
 
-C wins when the statement set is mostly parameterized SQL (small and stable), which is what the module isolation use case produces, and when core should stay free of new dependencies. A wins for applications with a large steady-state statement set, where a reset would recompute the hot set repeatedly; B wins if the maintainer is willing to add `Microsoft.Extensions.Caching.Memory` to core. Two guards apply to every option: SQL text longer than a fixed limit (proposed 8,192 characters) is extracted without caching, so one huge statement cannot pin memory, and the entry count is capped (proposed 4,096 entries).
+C wins when the statement set is mostly parameterized SQL (small and stable), which is what the module isolation use case produces, and when core should stay free of new dependencies. A wins for applications with a large steady-state statement set, where a reset would recompute the hot set repeatedly; B wins if the maintainer is willing to add `Microsoft.Extensions.Caching.Memory` to core. Two guards apply to every option, with their values registered as D6: SQL text longer than a fixed limit is extracted without caching, so one huge statement cannot pin memory, and the entry count is capped.
 
 **Class:** Dilemma
 
@@ -87,25 +87,84 @@ B wins when the maintainer wants proof in end-to-end terms; C wins only if the m
 </details>
 
 <details>
-<summary><strong>4. Key, scope, timeouts and thread safety</strong></summary>
+<summary><strong>4. Key and what is never cached</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Key = the SQL string (ordinal); process-wide `internal static` cache inside `Encina`; results produced after a regex timeout, null and whitespace SQL are never cached; `ConcurrentDictionary`, duplicate computation under a race is harmless** | No collision is possible; identical results across instances so no distributed cache is needed; behavior of every caller is unchanged | Static state in tests (needs an internal reset hook) |
-| **B) Key = `GetHashCode()` or a 64-bit hash** | Smaller keys | A collision returns another statement's schemas in a security gate |
-| **C) Distributed cache through `ICacheProvider`** | Shared across instances | Recomputing costs less than a network fetch; makes core depend on `Encina.Caching` (the reverse of the layering) |
+| **A) Key = the SQL string (ordinal); a result produced after a regex timeout, null SQL and whitespace SQL are never cached** | No collision is possible; the cached value always equals what a full uncached extraction returns | Keys hold the full SQL text (bounded by D6) |
+| **B) Key = `GetHashCode()` or a 64-bit hash** | Smaller keys | A collision returns another statement's schemas in a security gate (fails open); caching a post-timeout partial set freezes the fail-open fallback |
 
-### Chosen Option: **A — SQL text as key, in-process, no partial results**
+### Chosen Option: **A — SQL text as key, no partial results**
 
 ### Rationale
 
-Equal SQL gives equal schemas on every instance, so a local cache loses nothing. A partial result after a timeout is the fail-open fallback of an extraction that did not finish; caching it would freeze that fallback.
+Only A keeps the isolation gate from answering with another statement's schemas or with an incomplete set. B violates the cited rule, so no other option satisfies it. Distributed caching through `ICacheProvider` was rejected as not applicable: recomputing the extraction costs less than a network fetch and would make core depend on `Encina.Caching` (the reverse of the layering).
 
 **Class:** Settled
 
-**Settled by:** `AGENTS.md` §3 (compliance and security gates fail closed), §1 (pay for what you use; layering of core), and the pure-function property of `SqlSchemaExtractor` documented in its own remarks.
+**Settled by:** `AGENTS.md` §3 (compliance and security gates fail closed: a hash collision or a cached partial result would let a gate allow what a full extraction would deny).
+
+</details>
+
+<details>
+<summary><strong>5. Scope of the cache: process-wide static or per instance (Dilemma D5)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Process-wide `internal static` cache inside `SchemaExtractionCache`, used by the public static `ExtractSchemas`** | `ExtractSchemas` is a public static method, so every caller (the registry, `SqlSchemaExtractor.ValidateSchemaAccess`, the six ADO and Dapper wrappers through the registry) benefits with no signature change; equal SQL gives equal schemas on every instance, so sharing loses nothing | Static state: the test-only `Clear()` hook and cross-test coupling (tests clear before and after) |
+| **B) A cache instance owned by `ModuleSchemaRegistry` (injected or created in its constructor), with `ExtractSchemas` left uncached** | No static state, no `Clear()` hook; tests isolate by construction | The static `ExtractSchemas` and `SqlSchemaExtractor.ValidateSchemaAccess` stay uncached unless their signatures change (a breaking change, acceptable pre-1.0); each registry has its own cache and duplicates entries; more wiring (DI and a constructor parameter) |
+
+### Chosen Option: **A — process-wide static cache** (recommended, pending the maintainer)
+
+### Rationale
+
+A is smallest and keeps the public signature, which is why it is recommended; B wins if the maintainer prefers no mutable static state or wants the cache lifetime tied to the registry. Both satisfy `AGENTS.md` §3 and §1 equally, so this is not Settled.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>6. Bound values and worst-case memory (Dilemma D6)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) 4,096 entries and 8,192 characters per key** | Covers the 5,000-character benchmark sample and large generated statements; entry count far above the statement set of a typical parameterized application | Worst case about 4,096 x 8,192 chars x 2 bytes = 67,108,864 bytes (64 MiB) of key text, plus a small immutable set per entry (a handful of short schema names) |
+| **B) 1,024 entries and 4,096 characters per key** | Worst case about 8 MiB of key text | The 5,000-character sample and large statements are never cached; more resets on applications with many distinct statements |
+
+### Chosen Option: **A — 4,096 entries, 8,192 characters** (recommended, pending the maintainer)
+
+### Rationale
+
+The 64 MiB figure is the theoretical ceiling that needs 4,096 distinct statements all near the limit; typical parameterized applications hold a few hundred short statements. B wins if the maintainer wants a hard memory ceiling an order of magnitude lower. SQL longer than the key limit is extracted without caching. The constants are the same for both options; only their values differ.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Expiry, concurrent reset and duplicate computation</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) No TTL; the generational reset is the only eviction; a reset while readers hold the old dictionary is harmless (they finish on immutable, correct values; the reference swap is atomic); two threads that miss on the same SQL both compute and the second add is ignored; entries are counted with an `Interlocked` counter instead of `ConcurrentDictionary.Count` (which takes every lock), so the bound may overshoot by a few entries under a race** | An entry is a pure function of its key and never goes stale; no timer or timestamp on a hot path; no locks | The bound is approximate |
+| **B) A time-to-live per entry** | Frees memory of statements that stopped being used | Timestamps and a sweeper for no correctness gain |
+
+### Chosen Option: **A — no TTL, lock-free, approximate bound**
+
+### Rationale
+
+None of these choices can change a returned value: readers only ever see a hit or a miss, and duplicate computation yields equal sets. They are implementation details of the cache with no observable effect on the isolation decision.
+
+**Class:** Trivial
 
 </details>
 
@@ -140,8 +199,8 @@ REFERENCE FILES: tests/Encina.BenchmarkTests/Encina.Benchmarks/MediatorBenchmark
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Modules/Isolation/SchemaExtractionCache.cs` (`internal static` or `internal sealed`): fields `ConcurrentDictionary<string, IReadOnlySet<string>>` held in a volatile reference, `MaxEntries` (4,096) and `MaxSqlLength` (8,192) constants; `bool TryGet(string sql, out IReadOnlySet<string> schemas)`, `void Add(string sql, IReadOnlySet<string> schemas)` (skips when too long; when the count reaches `MaxEntries` replaces the dictionary with a new one, D1 option C), `internal static void Clear()` for tests.
-2. Keep `Encina.UnitTests` access through the existing `InternalsVisibleTo`.
+1. `src/Encina/Modules/Isolation/SchemaExtractionCache.cs` (`internal static` or `internal sealed`): fields `ConcurrentDictionary<string, IReadOnlySet<string>>` held in a volatile reference, `MaxEntries` and `MaxSqlLength` constants (values per D6, recommended 4,096 and 8,192), an `Interlocked` entry counter (D7); `bool TryGet(string? sql, out IReadOnlySet<string> schemas)` (returns false for null or whitespace), `void Add(string? sql, IReadOnlySet<string> schemas)` (no-op for null, whitespace or SQL longer than `MaxSqlLength`; throws `ArgumentNullException` for a null `schemas`; when the count reaches `MaxEntries` replaces the dictionary with a new one, D1 option C), `internal static void Clear()` for tests (D5 option A).
+2. Keep `Encina.UnitTests`, `Encina.GuardTests` and `Encina.PropertyTests` access through the existing `InternalsVisibleTo` entries of `Encina.csproj` (`Encina.LoadTests` has none, so the load test uses only the public `ExtractSchemas`).
 
 </details>
 
@@ -150,7 +209,7 @@ REFERENCE FILES: tests/Encina.BenchmarkTests/Encina.Benchmarks/MediatorBenchmark
 
 ```text
 CONTEXT: Phase 1's gate passed. D1 is implemented as the maintainer answered, the generational reset until then.
-TASK: Create SchemaExtractionCache with TryGet, Add and Clear as described; keep every method at cyclomatic complexity of 3 or less.
+TASK: Create SchemaExtractionCache with TryGet, Add and Clear as described (bound values per D6 as the maintainer answered); keep every method at cyclomatic complexity of 3 or less.
 KEY RULES: The key is the SQL string, compared ordinally; never store null, whitespace, over-long SQL or a result flagged as incomplete; no GetHashCode keys; thread safe without locks on the read path.
 REFERENCE FILES: src/Encina/Modules/Isolation/SqlSchemaExtractor.cs, src/Encina/Modules/Isolation/ModuleSchemaRegistry.cs.
 ```
@@ -162,7 +221,7 @@ REFERENCE FILES: src/Encina/Modules/Isolation/SqlSchemaExtractor.cs, src/Encina/
 <details>
 <summary>Tasks</summary>
 
-1. Split `ExtractSchemas` into a public wrapper (null/whitespace check, cache lookup, store) and a private `ExtractCore(string sql, out bool completed)` that holds the current regex logic and sets `completed = false` in the `RegexMatchTimeoutException` handler; only `completed == true` results are stored.
+1. Split `ExtractSchemas` into a public wrapper (null/whitespace check, then `ExtractCached(sql, ExtractCore)`) and a private `ExtractCore(string sql)` returning `(IReadOnlySet<string> Schemas, bool Completed)` that holds the current regex logic and returns `Completed = false` from the `RegexMatchTimeoutException` handler. The testing seam is `internal static IReadOnlySet<string> ExtractCached(string sql, Func<string, (IReadOnlySet<string> Schemas, bool Completed)> extractor)`: it looks up the cache, calls `extractor` on a miss and stores only a `Completed` result. The regex timeout (1,000 ms) is a constant in each generated-regex attribute and cannot be triggered cheaply, so the timeout test passes a stub extractor that returns `Completed = false`; the production wrapper passes the static method group (no delegate allocation).
 2. `ValidateSqlAccess`, `ValidateSchemaAccess` and every caller stay unchanged (D2 option A). `ExtractTableReferences` is not cached (violation reporting only).
 3. Update the XML remarks of `SqlSchemaExtractor` to describe the cache and the timeout rule.
 
@@ -173,7 +232,7 @@ REFERENCE FILES: src/Encina/Modules/Isolation/SqlSchemaExtractor.cs, src/Encina/
 
 ```text
 CONTEXT: SqlSchemaExtractor catches RegexMatchTimeoutException and returns the partial set; that result must never be cached.
-TASK: Refactor ExtractSchemas into wrapper plus ExtractCore, wire the cache, keep the public signature and every observable result identical.
+TASK: Refactor ExtractSchemas into the wrapper, the internal ExtractCached seam and ExtractCore returning (Schemas, Completed); wire the cache, keep the public signature and every observable result identical.
 KEY RULES: No behavior change for any input; no [Obsolete]; update XML docs; the property test (Phase 6) proves cached equals uncached.
 REFERENCE FILES: src/Encina/Modules/Isolation/SqlSchemaExtractor.cs, src/Encina.ADO.SqlServer/Modules/SchemaValidatingCommand.cs, tests/Encina.UnitTests/Core/Modules/Isolation/SqlSchemaExtractorTests.cs.
 ```
@@ -230,20 +289,33 @@ REFERENCE FILES: src/Encina/Modules/Diagnostics/ModuleMetrics.cs, src/Encina/Mod
 <details>
 <summary>Tasks</summary>
 
-Proposed per-flag targets for the new code (manifest `.github/coverage-manifest/Encina.json`; entries for `SchemaExtractionCache.cs` and the changed `SqlSchemaExtractor.cs`; measured values replace these):
+Per-flag targets for the files this work adds or changes, entered in `.github/coverage-manifest/Encina.json` **in pull request 2, the same pull request as the tests that meet them** (a manifest entry never precedes its tests). Each target has a one-sentence justification in the manifest's `justifications`; targets never go down, and the baseline of `SqlSchemaExtractor.cs` is measured at work start (`dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` per flag, then `coverage-report.cs`) and the target is set to the measured value or higher, never below it.
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
-| `Modules/Isolation/SchemaExtractionCache.cs` | 100 | 20 | 0 | 80 | 0 |
+| `Modules/Isolation/SchemaExtractionCache.cs` | 100 | 80 | 0 | 80 | 0 |
 | `Modules/Isolation/SqlSchemaExtractor.cs` | 95 | 25 | 0 | 40 | 0 |
 
-1. **Unit** (`tests/Encina.UnitTests/Core/Modules/Isolation/`): hit on equal SQL; two SQL strings with equal `GetHashCode()` (constructed with a test double or a known collision pair) return their own schemas; entry bound and generational reset; over-long SQL not cached; null and whitespace not cached; a timeout result not cached (a pattern forced to time out through a very long adversarial input or a seam on `ExtractCore`).
-2. **Guard**: null and empty SQL handling in `SqlSchemaExtractorGuardTests`.
-3. **Contract**: `.md` justification: `IModuleSchemaRegistry` is unchanged and its existing contract tests keep running.
-4. **Property**: for any generated SQL, cached equals uncached (`tests/Encina.PropertyTests/...`); a second call returns the same instance.
-5. **Integration**: `.md` justification (pure in-memory); the ADO wrappers' existing integration tests keep covering the wiring.
-6. **Load**: concurrent `ExtractSchemas` from many tasks over a mix of repeated and distinct SQL, asserting the results equal the uncached ones and memory stays bounded (`tests/Encina.LoadTests/Core/...`; run locally with `DOTNET_JitObjectStackAllocationConditionalEscape=0`).
-7. **Benchmark**: Phase 1 class extended with the cached variants; cached versus uncached comparison documented.
+| File and flag | Justification |
+|---------------|---------------|
+| `SchemaExtractionCache.cs` unit 100 | The file has a handful of branches (hit, miss, too long, null, whitespace, reset at the bound), every one reachable from a unit test through the `InternalsVisibleTo` of `Encina.UnitTests`. |
+| `SchemaExtractionCache.cs` guard 80 | Guard tests reach the null, whitespace and null-`schemas` branches of `TryGet` and `Add` (the type is internal and `Encina.GuardTests` has `InternalsVisibleTo`); the reset and eviction lines are unit-only. |
+| `SchemaExtractionCache.cs` contract 0 | An internal type has no public contract; `ExtractSchemas` keeps its signature and `IModuleSchemaRegistry` stays covered by the existing contract tests. |
+| `SchemaExtractionCache.cs` property 80 | The cached-equals-uncached property drives hit, miss and store for generated SQL; the over-long and reset branches are unit-only. |
+| `SchemaExtractionCache.cs` integration 0 | Pure in-memory code with no external dependency; the ADO and Dapper wrappers' existing integration tests keep exercising the wiring (justification file below). |
+| `SqlSchemaExtractor.cs` unit 95 | Every regex branch and the new wrapper, `ExtractCached` and `ExtractCore` are reachable from unit tests; the remaining 5 percent is generated-regex plumbing. |
+| `SqlSchemaExtractor.cs` guard 25 | Guard tests reach only the null and whitespace early returns of the three public methods; extraction lines belong to the unit flag. |
+| `SqlSchemaExtractor.cs` contract 0 | The public signatures are unchanged and no interface lives in the file, so there is no new contract; the existing contract tests of `IModuleSchemaRegistry` keep running. |
+| `SqlSchemaExtractor.cs` property 40 | The property test reaches the extraction through the generated-SQL equivalence of cached and uncached results, covering the main patterns but not every keyword branch. |
+| `SqlSchemaExtractor.cs` integration 0 | Pure text processing; same justification as the cache file. |
+
+1. **Unit** (`tests/Encina.UnitTests/Core/Modules/Isolation/`; the existing `SqlSchemaExtractorTests.cs` is extended and `SchemaExtractionCacheTests.cs` is new): hit on equal SQL; two different SQL texts never share an entry (pairs of strings that differ only in case, in whitespace or in a trailing character each return their own schemas, because the key is compared ordinally, never by a hash); entry bound and generational reset; over-long SQL not cached; null and whitespace not cached; a timeout result not cached (`ExtractCached` with a stub extractor returning `Completed = false`, asserted to miss again on the second call).
+2. **Guard** (`tests/Encina.GuardTests/Core/Modules/`; `SqlSchemaExtractorGuardTests.cs` extended and `SchemaExtractionCacheGuardTests.cs` new): null, empty and whitespace SQL for `TryGet` and `Add`, a null `schemas` throwing `ArgumentNullException`, and the existing null and whitespace handling of the three `SqlSchemaExtractor` methods.
+3. **Contract**: not applicable (target 0 above). No public API is added, so AGENTS.md section 9 asks for no contract test, and no `.md` justification is written for contract (never allowed); the existing contract tests of `IModuleSchemaRegistry` keep running unchanged.
+4. **Property** (`tests/Encina.PropertyTests/Core/`, new file): for any generated SQL, cached equals uncached; a second call returns the same instance.
+5. **Integration**: `.md` justification (pure in-memory, non-database feature): `tests/Encina.IntegrationTests/Core/Modules/Isolation/SchemaExtractionCache.md`; the ADO, Dapper and EF wrappers' existing integration tests keep covering the wiring.
+6. **Load** (`tests/Encina.LoadTests/Modules/SchemaExtractionLoadTests.cs`, new; public `ExtractSchemas` only): concurrent calls from many tasks over a mix of repeated and distinct SQL, asserting the results equal the uncached ones and the retained memory stays bounded; run locally with `DOTNET_JitObjectStackAllocationConditionalEscape=0`.
+7. **Benchmark**: the Phase 1 class (created in pull request 1) is extended in pull request 2 with the cached variants; cached versus uncached comparison documented.
 
 </details>
 
@@ -252,8 +324,8 @@ Proposed per-flag targets for the new code (manifest `.github/coverage-manifest/
 
 ```text
 CONTEXT: Per-flag coverage targets live in .github/coverage-manifest/Encina.json; targets never go down; tests execute real code; the cache is static, so tests call SchemaExtractionCache.Clear() for isolation.
-TASK: Write the unit, guard, property, load and benchmark tests and the two justification files; measure every flag and the CRAP table for the changed methods.
-KEY RULES: Shouldly; no Thread.Sleep; justification files only for contract and integration of a non-database feature; the collision test must prove two different SQL texts never share an entry.
+TASK: Write the unit, guard, property, load and benchmark tests, the integration justification file and the manifest entries with their one-sentence justifications; measure every flag and the CRAP table for the changed methods.
+KEY RULES: Shouldly; no Thread.Sleep; a justification file only for integration of a non-database feature, never for contract; the key test must prove two different SQL texts never share an entry; manifest entries land in the same pull request as the tests.
 REFERENCE FILES: tests/Encina.UnitTests/Core/Modules/Isolation/SqlSchemaExtractorTests.cs, tests/Encina.GuardTests/Core/Modules/SqlSchemaExtractorGuardTests.cs, tests/Encina.PropertyTests/Core, tests/Encina.LoadTests/Messaging (shape of an existing load test).
 ```
 
@@ -318,13 +390,17 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, doc
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 2 | `SchemaExtractionCache.cs` (new), `SqlSchemaExtractor.cs` (edit) |
-| Coverage manifest | 1 | `Encina.json` entries |
-| Tests | 5 | unit (extend and new), guard (extend), property, load |
-| Benchmark | 1 | `SqlSchemaExtractorBenchmarks.cs` (pull request 1) |
-| Justifications | 2 | contract, integration |
-| Documentation | 2 | guide note, changelog |
-| **Total** | **~13** | Two pull requests: (1) benchmark and gate, (2) cache, tests, docs |
+| Production code | 2 | `SchemaExtractionCache.cs` (new), `SqlSchemaExtractor.cs` (edit); no public API change, so no `PublicAPI` file |
+| Coverage manifest | 1 | `Encina.json` entries, in pull request 2 |
+| Tests | 6 | unit (extend and new), guard (extend and new), property (new), load (new) |
+| Benchmark | 1 | `SqlSchemaExtractorBenchmarks.cs`: created in pull request 1, extended in pull request 2 |
+| Justifications | 1 | integration only (contract is not applicable, never a `.md`) |
+| Documentation | 2 | guide note, changelog fragment |
+| **Pull request 1** | **1** | the benchmark |
+| **Pull request 2** | **13** | 2 production, 1 manifest, 6 tests, 1 benchmark extension, 1 justification, 2 documentation (about 250 production lines plus about 700 test lines plus docs, under 1,500) |
+| **Distinct files** | **13** | 14 file touches; the benchmark is counted in both pull requests |
+
+No existing test calls a changed signature (the public `ExtractSchemas` signature is unchanged and `ExtractCore` is new), so no caller edits are added. Neither pull request uses a type created by a later one: pull request 2 extends the benchmark that pull request 1 created.
 
 ---
 
@@ -336,7 +412,7 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, doc
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library. Module isolation validates SQL against allowed schemas in DevelopmentValidationOnly mode; SqlSchemaExtractor.ExtractSchemas runs regexes on every command. The module isolation check is a gate and must fail closed. Zero warnings, no backward compatibility.
 
-IMPLEMENTATION OVERVIEW: Phase 1 benchmark and go/no-go gate (D3); Phase 2 bounded SchemaExtractionCache (D1); Phase 3 ExtractSchemas wrapper plus ExtractCore with a completed flag; Phase 4 and 5 no instrumentation unless the data demands it; Phase 6 tests by flag including a collision test, a property test of cached versus uncached and a concurrent load test; Phase 7 docs. D2 stays at extraction-only caching. Dilemmas are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: Phase 1 benchmark and go/no-go gate (D3); Phase 2 bounded SchemaExtractionCache (D1); Phase 3 ExtractSchemas wrapper plus ExtractCore with a completed flag; Phase 4 and 5 no instrumentation unless the data demands it; Phase 6 tests by flag including a collision test, a property test of cached versus uncached and a concurrent load test; Phase 7 docs. D2 stays at extraction-only caching; D5 (static scope) and D6 (4,096 entries, 8,192 characters) are recommended values. Dilemmas are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Key is the SQL string compared ordinally, never GetHashCode; never cache null, whitespace, over-long SQL or a result produced after a regex timeout; immutable shared results; no allocation on a hit; ConcurrentDictionary with a generational reset; BenchmarkSwitcher only; CRAP at or below 10; targets never go down.
 
@@ -370,12 +446,12 @@ REFERENCE FILES: src/Encina/Modules/Isolation/SqlSchemaExtractor.cs, src/Encina/
 
 - **Benchmark first**: Phase 1 is its own pull request; Phases 2 to 7 start only if the D3 gate passes.
 - **Related, not blocking**: the module producer finding recorded for #746 (only the EF package sets `IModuleExecutionContext`), because without a module the ADO and Dapper wrappers skip validation and the extraction never runs there.
-- **Behavior note**: on a regex timeout the extractor returns a partial set (documented as acceptable for development-time validation); this plan does not change that and does not cache it.
+- **Behavior note**: on a regex timeout the extractor returns a partial set (documented as acceptable for development-time validation); this plan does not change that and does not cache it. That fail-open behavior of a validation gate sits against AGENTS.md section 3; follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/module-schema-extractor-timeout-fail-open.md).
 
 ---
 
 ## Next Steps
 
-1. Ask the maintainer D1, D2 and D3 when work on #703 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: the benchmark (Phase 1) with its numbers; stop if the gate fails.
-3. Pull request 2: Phases 2 to 7 (about 12 files).
+1. Ask the maintainer D1, D2, D3, D5 and D6 when work on #703 starts; record the answers in `## Maintainer Decisions`.
+2. Pull request 1: the benchmark (Phase 1, 1 file) with its numbers; stop if the gate fails.
+3. Pull request 2: Phases 2 to 7 (13 files).
