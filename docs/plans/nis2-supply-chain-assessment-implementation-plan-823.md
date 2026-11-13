@@ -145,7 +145,7 @@ This choice is the same for #823, #824 and #826 (each has a boolean or snapshot 
 <summary><strong>5. Overdue and certification monitoring — hosted service with idempotent escalation</strong></summary>
 
 - **Class**: Settled
-- **Settled by**: issue #823 Alternatives Considered 8; `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` (opt-in through `DPIAOptions.EnableExpirationMonitoring`, `PeriodicTimer`); AGENTS.md section 3 (a `PeriodicTimer` loop catches per iteration; `OperationCanceledException` from the stopping token ends the loop; errors are not swallowed); ADR-050 (multi-instance coordination for event-sourced modules).
+- **Settled by**: issue #823 Alternatives Considered 8; `src/Encina.Compliance.DPIA/DPIAReviewReminderService.cs` (always on, no opt-in flag since #3786; `PeriodicTimer`); AGENTS.md section 3 (a `PeriodicTimer` loop catches per iteration; `OperationCanceledException` from the stopping token ends the loop; errors are not swallowed); ADR-050 (multi-instance coordination for event-sourced modules).
 
 ### Options Considered
 
