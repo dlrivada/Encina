@@ -102,10 +102,12 @@ public class ReadAuditRetentionServiceTests
 
         // Act
         await service.StartAsync(cts.Token);
-        await Task.Delay(100);
+        var executeTask = service.ExecuteTask.ShouldNotBeNull();
+        await executeTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await service.StopAsync(CancellationToken.None);
 
-        // Assert
+        // Assert: ExecuteAsync ended on its own, before any stop request, without purging
+        executeTask.IsCompletedSuccessfully.ShouldBeTrue();
         await _mockStore.DidNotReceive().PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
@@ -114,8 +116,13 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenAutoPurgeEnabled_ShouldCallPurge()
     {
         // Arrange
+        var purged = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, int>>(Right(5)));
+            .Returns(_ =>
+            {
+                purged.TrySetResult(true);
+                return ValueTask.FromResult<Either<EncinaError, int>>(Right(5));
+            });
 
         var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
@@ -126,7 +133,7 @@ public class ReadAuditRetentionServiceTests
         await service.StartAsync(cts.Token);
         await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
         fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await Task.Delay(200); // Allow purge to complete
+        await purged.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         await cts.CancelAsync();
 
         try
@@ -147,20 +154,22 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreReturnsError_ShouldContinueRunning()
     {
         // Arrange
+        var purges = new PurgeSignals();
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Returns(ValueTask.FromResult<Either<EncinaError, int>>(
-                Left(EncinaError.New("purge failed"))));
+            .Returns(_ =>
+            {
+                purges.Signal();
+                return ValueTask.FromResult<Either<EncinaError, int>>(Left(EncinaError.New("purge failed")));
+            });
 
         var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
-        // Act - should not throw despite error
+        // Act - should not throw despite error, and the run after the failing one still purges
         await service.StartAsync(cts.Token);
-        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
-        fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await Task.Delay(200);
+        await purges.RunTwoPurgesAsync(fakeTime);
         await cts.CancelAsync();
 
         try
@@ -172,8 +181,8 @@ public class ReadAuditRetentionServiceTests
             // Expected
         }
 
-        // Assert - should still have called purge
-        await _mockStore.Received(1).PurgeEntriesAsync(
+        // Assert - purged again after the error
+        await _mockStore.Received(2).PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
     }
 
@@ -181,19 +190,22 @@ public class ReadAuditRetentionServiceTests
     public async Task ExecuteAsync_WhenStoreThrows_ShouldContinueRunning()
     {
         // Arrange
+        var purges = new PurgeSignals();
         _mockStore.PurgeEntriesAsync(Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>())
-            .Throws(new InvalidOperationException("database down"));
+            .Returns<ValueTask<Either<EncinaError, int>>>(_ =>
+            {
+                purges.Signal();
+                throw new InvalidOperationException("database down");
+            });
 
         var fakeTime = new TimerSignallingTimeProvider(DateTimeOffset.UtcNow);
         var options = CreateOptions(enableAutoPurge: true, purgeIntervalHours: 1);
         var service = new ReadAuditRetentionService(_scopeFactory, options, _logger, fakeTime);
         using var cts = new CancellationTokenSource();
 
-        // Act - should not throw
+        // Act - should not throw, and the run after the failing one still purges
         await service.StartAsync(cts.Token);
-        await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
-        fakeTime.Advance(TimeSpan.FromHours(1.1));
-        await Task.Delay(200);
+        await purges.RunTwoPurgesAsync(fakeTime);
         await cts.CancelAsync();
 
         try
@@ -205,9 +217,43 @@ public class ReadAuditRetentionServiceTests
             // Expected
         }
 
-        // Assert - called despite exception
-        await _mockStore.Received(1).PurgeEntriesAsync(
+        // Assert - purged again after the exception
+        await _mockStore.Received(2).PurgeEntriesAsync(
             Arg.Any<DateTimeOffset>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// One completion signal per purge run, so a test can wait for the second run, which only happens
+    /// when the service kept running after the first one failed.
+    /// </summary>
+    private sealed class PurgeSignals
+    {
+        private readonly TaskCompletionSource<bool>[] _runs =
+        [
+            new(TaskCreationOptions.RunContinuationsAsynchronously),
+            new(TaskCreationOptions.RunContinuationsAsynchronously)
+        ];
+
+        private int _calls;
+
+        public void Signal()
+        {
+            var run = Interlocked.Increment(ref _calls);
+            if (run <= _runs.Length)
+            {
+                _runs[run - 1].TrySetResult(true);
+            }
+        }
+
+        public async Task RunTwoPurgesAsync(TimerSignallingTimeProvider fakeTime)
+        {
+            foreach (var run in _runs)
+            {
+                await fakeTime.WaitForTimersAsync(1, TestContext.Current.CancellationToken);
+                fakeTime.Advance(TimeSpan.FromHours(1.1));
+                await run.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            }
+        }
     }
 
     [Fact]
