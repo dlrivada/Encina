@@ -482,6 +482,11 @@ static List<TargetFinding> FindTargetProblems(
         .Select(f => new TargetFinding("parse-error", f, "the Cobertura report could not be parsed, so its flag cannot be vouched for"))
         .ToList();
 
+    // No flag has a Cobertura report at all (an empty download, only unclassified directories): nothing can be
+    // judged, which must never read as a pass.
+    if (flagsInRun.Count == 0 && rows.Any(r => r.Target > 0))
+        findings.Add(new TargetFinding("no-coverage", "input", "no Cobertura report of a known flag was found, so no target could be checked"));
+
     findings.AddRange(rows.Select(r => CheckTargetRow(r, flagsInRun, requireAllFlags)).OfType<TargetFinding>()
         .OrderBy(f => f.Subject, StringComparer.Ordinal));
 
@@ -1018,6 +1023,8 @@ int RunSelfTest()
     Check(Find([new FileTargetRow("Pkg", "A.cs", "guard", 0, null)], unitRan, all: true).Count == 0, "a target of 0 never needs data");
     Check(Kinds(Find([Pair("A.cs", "guard", 50, 100, 10)], unitRan)) == "below-target", "a pair below its target counts even when its flag is not in the run list");
     Check(Kinds(Find([], unitRan, parseFailures: ["UnitTests/coverage.cobertura.xml"])) == "parse-error", "a Cobertura parse failure is a finding");
+    Check(Kinds(Find([new FileTargetRow("Pkg", "A.cs", "unit", 80, null)], [])) == "no-coverage", "a run with no flag at all is a finding, not a pass");
+    Check(Find([new FileTargetRow("Pkg", "A.cs", "unit", 0, null)], []).Count == 0, "no flag in the run is fine when no target needs data");
 
     var touchedSet = new HashSet<string> { "src/Pkg/A.cs", "src/Pkg/New.cs", "src/Pkg/Gone.cs" };
     var targetedRows = new List<FileTargetRow> { Pair("A.cs", "unit", 80, 100, 90) };
@@ -1835,8 +1842,8 @@ Console.WriteLine("\nDone.");
 // console, and only --enforce turns them into an exit code.
 if (checkTargets)
 {
-    var manifestDirFullForTargets = Path.GetFullPath(manifestDir);
-    var repoRootForTargets = Directory.GetParent(manifestDirFullForTargets)?.Parent?.FullName ?? Directory.GetCurrentDirectory();
+    // <repo>/.github/coverage-manifest -> <repo>; Combine + GetFullPath is safe with a trailing separator.
+    var repoRootForTargets = Path.GetFullPath(Path.Combine(manifestDir, "..", ".."));
     var touchedForTargets = filesFrom is not null ? ParseTouchedFiles(File.ReadAllLines(filesFrom)) : null;
     var flagsInRunForTargets = coverageByFlag.Keys.Where(f => f != TestType.None).ToList();
     var targetFindings = FindTargetProblems(fileTargetRows, flagsInRunForTargets, requireAllFlags, coverageParseFailureFiles,
@@ -2313,7 +2320,7 @@ sealed class MethodCrapInfo(string relFile, string className, string name, strin
 record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured,
     int? TotalLines = null, int? CoveredLines = null);
 
-// One finding of --check-targets (#1651): Kind is below-target, no-data, parse-error, no-targets or no-manifest.
+// One finding of --check-targets (#1651): Kind is below-target, no-data, parse-error, no-targets, no-coverage or no-manifest.
 record TargetFinding(string Kind, string Subject, string Message);
 
 // Target attainment aggregates (#2542); the field names are the contract of latest.json overall.attainment.

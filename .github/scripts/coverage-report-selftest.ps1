@@ -225,6 +225,11 @@ try {
     Assert-Run '11b. --check-targets --enforce without --files-from ignores the touched list' (Get-TargetsArgs $untargeted -Enforce) 0 'No findings'
     Assert-Run '11c. --check-targets report-only, a touched src file has no per-file target' (Get-TargetsArgs $untargeted -WithTouched) 0 'report-only'
 
+    $noFlags = New-TargetsScenario -Name 'targets-no-flags' -Flags @()
+    New-Item -ItemType Directory -Path $noFlags.Input -Force | Out-Null
+    Assert-Run '9d. --check-targets --enforce with no Cobertura report at all (never a vacuous pass)' (Get-TargetsArgs $noFlags -Enforce) 1 'NO-COVERAGE'
+    Assert-Findings '9d. no coverage' $noFlags 'no-coverage'
+
     Assert-Run '12a. --enforce without --check-targets is rejected' @('--enforce', '--manifest', $good.Manifest, '--input', $good.Input, '--output', $good.Output) 1 'only apply to --check-targets'
     Assert-Run '12b. --check-targets cannot be combined with --check-justifications' @('--check-targets', '--check-justifications', '--manifest', $good.Manifest) 1 'cannot be combined'
 }
