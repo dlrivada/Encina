@@ -412,7 +412,7 @@ public async Task<IActionResult> Create(CreateOrderCommand cmd)
 }
 ```
 
-`detail` is omitted by default: `EncinaError.Message` does not reach the response by default (only the Development-only option described under [EncinaAspNetCoreOptions](#encinaaspnetcoreoptions) adds it), so a 400 validation response does not list field messages. The response carries the status, a generic title, `errorCode`, `traceId` and `correlationId` (when the request carries the correlation header).
+`detail` is omitted by default: `EncinaError.Message` does not reach the response by default (only the Development-only option described under [EncinaAspNetCoreOptions](#encinaaspnetcoreoptions) adds it), so a 400 validation response does not list field messages. The response carries the status, a generic title, `errorCode`, `traceId` and `correlationId` (whenever the Encina context middleware ran: it is the normalized id of the ambient request context, identical to the `Correlation-Id` response header, so a client id that is too long or has control characters is replaced, never echoed; without a request context the field is omitted).
 
 **Optional Request Path:**
 

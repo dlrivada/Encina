@@ -1,5 +1,9 @@
 using System.Collections.Concurrent;
+using Encina.Diagnostics;
 using Encina.Security.AntiTampering.Abstractions;
+using Encina.Security.AntiTampering.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Encina.Security.AntiTampering.Nonce;
 
@@ -10,7 +14,9 @@ namespace Encina.Security.AntiTampering.Nonce;
 /// <para>
 /// Uses a <see cref="ConcurrentDictionary{TKey, TValue}"/> to store nonces with their
 /// expiration timestamps. Expired entries are cleaned up lazily during access operations
-/// and periodically via a background timer.
+/// and periodically by a cleanup timer created through the injected <see cref="TimeProvider"/>.
+/// A failed cleanup sweep is logged (exception type and stack trace, never its message) and the
+/// timer keeps running; the next sweep retries.
 /// </para>
 /// <para>
 /// <b>Not suitable for multi-instance deployments</b>: Each instance maintains its own
@@ -35,7 +41,8 @@ public sealed class InMemoryNonceStore : INonceStore, IDisposable
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _nonces = new(StringComparer.Ordinal);
     private readonly TimeProvider _timeProvider;
-    private readonly Timer _cleanupTimer;
+    private readonly ILogger _logger;
+    private readonly ITimer _cleanupTimer;
 
     /// <summary>
     /// Interval between periodic cleanup sweeps of expired nonces.
@@ -47,13 +54,17 @@ public sealed class InMemoryNonceStore : INonceStore, IDisposable
     /// </summary>
     /// <param name="timeProvider">
     /// The time provider for obtaining current UTC time.
-    /// Pass <c>null</c> to use <see cref="TimeProvider.System"/>.
+    /// Pass <c>null</c> to use <see cref="TimeProvider.System"/>. It also drives the cleanup timer.
     /// </param>
-    public InMemoryNonceStore(TimeProvider? timeProvider = null)
+    /// <param name="logger">
+    /// The logger for failed cleanup sweeps. Pass <c>null</c> to discard them.
+    /// </param>
+    public InMemoryNonceStore(TimeProvider? timeProvider = null, ILogger<InMemoryNonceStore>? logger = null)
     {
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _cleanupTimer = new Timer(
-            _ => CleanupExpiredEntries(),
+        _logger = logger ?? (ILogger)NullLogger<InMemoryNonceStore>.Instance;
+        _cleanupTimer = _timeProvider.CreateTimer(
+            _ => RunCleanupSweep(),
             state: null,
             dueTime: CleanupInterval,
             period: CleanupInterval);
@@ -117,6 +128,22 @@ public sealed class InMemoryNonceStore : INonceStore, IDisposable
     /// Intended for testing and diagnostics only.
     /// </remarks>
     internal int Count => _nonces.Count;
+
+    /// <summary>
+    /// The cleanup timer callback. It never throws: an exception escaping a timer callback on the
+    /// system clock terminates the process, so a failed sweep is logged and the next one retries.
+    /// </summary>
+    private void RunCleanupSweep()
+    {
+        try
+        {
+            CleanupExpiredEntries();
+        }
+        catch (Exception ex)
+        {
+            AntiTamperingLogMessages.NonceCleanupFailed(_logger, ex.ForLogging());
+        }
+    }
 
     /// <summary>
     /// Removes all expired nonce entries.
