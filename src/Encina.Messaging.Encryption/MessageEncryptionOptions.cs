@@ -16,10 +16,10 @@ namespace Encina.Messaging.Encryption;
 /// });
 /// </code>
 /// <para>
-/// <strong>Precedence</strong>: The <see cref="Attributes.EncryptedMessageAttribute"/> on individual
-/// message types overrides these global settings. For example,
-/// <c>[EncryptedMessage(Enabled = false)]</c> disables encryption for that type even when
-/// <see cref="EncryptAllMessages"/> is <c>true</c>.
+/// <strong>Which types are encrypted</strong>: a type marked with
+/// <see cref="Attributes.EncryptedMessageAttribute"/> (declared or inherited) is always encrypted,
+/// and <see cref="EncryptAllMessages"/> extends encryption to every other type. Neither the
+/// attribute nor these options can exclude a single type from encryption.
 /// </para>
 /// </remarks>
 public sealed class MessageEncryptionOptions
@@ -37,10 +37,10 @@ public sealed class MessageEncryptionOptions
     /// Gets or sets whether all outbox/inbox messages should be encrypted by default.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, every message is encrypted unless explicitly excluded via
-    /// <c>[EncryptedMessage(Enabled = false)]</c>.
+    /// When <c>true</c> (and <see cref="Enabled"/> is <c>true</c>), every message is encrypted;
+    /// no message type can be excluded per type.
     /// When <c>false</c> (default), only messages decorated with <c>[EncryptedMessage]</c>
-    /// are encrypted.
+    /// (declared or inherited from a base type) are encrypted.
     /// </remarks>
     public bool EncryptAllMessages { get; set; }
 
