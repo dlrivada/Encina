@@ -109,7 +109,7 @@ This plan adds an event-sourced **management accountability lifecycle** in the s
 
 ### Rationale
 
-- The due dates are stored on the events (`TrainingValidUntilUtc`, `NextAcknowledgmentDueAtUtc`), so a later option change does not rewrite history. A measure change can require an earlier re-acknowledgment: `RecordAcknowledgmentAsync` may be called any time, and the overdue monitor uses the stored date.
+- The due dates are stored on the events (`TrainingValidUntilUtc`, `NextAcknowledgmentDueAtUtc`), so a later option change does not rewrite history. A measure change can require an earlier re-acknowledgment: the command `RequireEarlierAcknowledgmentAsync` (aggregate `RequireEarlierAcknowledgment`) raises the event `AcknowledgmentRequirementChanged` with the new, earlier `NextAcknowledgmentDueAtUtc` and a reason code. The aggregate returns a `Left` (`ManagementAccountabilityInvalidTransition`) before raising when the stream is `Revoked` or when the new date is not earlier than the stored one; `Apply` replaces the stored due date (so replay keeps it), moves the status to `AcknowledgmentOverdue` (or `TrainingOverdue` by the precedence of Design Choice 2) when the new date is already past, and the escalation guard (`LastEscalatedDueDate`) compares the new date, so the monitor escalates it once. The projection copies the date to the read model, and the evaluator and the monitor read the date from the read model, so they see the earlier requirement without a code path of their own; a lookup failure denies (fail closed, Design Choice 5).
 
 </details>
 
@@ -276,8 +276,8 @@ Prerequisite: the PR 1 of the #822 plan is merged.
 1. `Model/ManagementAccountabilityStatus.cs` (Design Choice 2), `Model/OversightActivityType.cs` (`Meeting`, `Review`, `Audit`).
 2. `Model/ComplianceDelegation.cs` and `Model/TrainingRecord.cs` records.
 3. `Model/AccountabilityScheduler.cs` (internal static): `TrainingValidUntil(completedAtUtc, validity)`, `NextAcknowledgmentDue(acknowledgedAtUtc, renewalPeriod)`, both taking a `TimeSpan` so PR 1 does not depend on the options added in PR 2; the service passes the option values.
-4. `Events/ManagementAccountabilityEvents.cs`: nine records implementing `INotification` (`ManagementPersonAppointed`, `ComplianceAreaDelegated`, `ComplianceDelegationRevoked`, `TrainingCompleted`, `AcknowledgmentRecorded`, `OversightActivityRecorded`, `TrainingOverdueEscalated`, `AcknowledgmentOverdueEscalated`, `ManagementPersonRevoked`) with timestamps, tenant and module ids; person ids separate nullable properties.
-5. `Aggregates/ManagementAccountabilityAggregate.cs`: `AggregateBase`; static `Appoint(...)` returning `Either<EncinaError, ManagementAccountabilityAggregate>`; `Delegate`, `RevokeDelegation`, `CompleteTraining`, `Acknowledge`, `RecordOversight`, `EscalateTrainingOverdue`, `EscalateAcknowledgmentOverdue`, `Revoke` returning `Either<EncinaError, Unit>` (ADR-053): the rule is decided and the `Left` returned before `RaiseEvent`, so an illegal transition or a repeated escalation never throws and never raises an event; `ArgumentNullException.ThrowIfNull` and similar argument guards stay as exceptions. `Apply` switch; properties of the issue plus the two due dates and `LastEscalatedDueDate` (an event field, so replay keeps the escalation guard).
+4. `Events/ManagementAccountabilityEvents.cs`: ten records implementing `INotification` (`ManagementPersonAppointed`, `ComplianceAreaDelegated`, `ComplianceDelegationRevoked`, `TrainingCompleted`, `AcknowledgmentRecorded`, `AcknowledgmentRequirementChanged`, `OversightActivityRecorded`, `TrainingOverdueEscalated`, `AcknowledgmentOverdueEscalated`, `ManagementPersonRevoked`) with timestamps, tenant and module ids; person ids separate nullable properties.
+5. `Aggregates/ManagementAccountabilityAggregate.cs`: `AggregateBase`; static `Appoint(...)` returning `Either<EncinaError, ManagementAccountabilityAggregate>`; `Delegate`, `RevokeDelegation`, `CompleteTraining`, `Acknowledge`, `RequireEarlierAcknowledgment` (Design Choice 3), `RecordOversight`, `EscalateTrainingOverdue`, `EscalateAcknowledgmentOverdue`, `Revoke` returning `Either<EncinaError, Unit>` (ADR-053): the rule is decided and the `Left` returned before `RaiseEvent`, so an illegal transition or a repeated escalation never throws and never raises an event; `ArgumentNullException.ThrowIfNull` and similar argument guards stay as exceptions. `Apply` switch; properties of the issue plus the two due dates and `LastEscalatedDueDate` (an event field, so replay keeps the escalation guard).
 6. `NIS2Errors.cs`: the aggregate rule codes `ManagementAccountabilityInvalidTransition` (including any command on a `Revoked` stream), `ManagementAccountabilityEscalationAlreadyRecorded`, `ManagementAccountabilityDelegationDuplicate` and `ManagementAccountabilityDelegationNotFound`, as `nis2.management_accountability_*` codes in the existing style.
 7. Tests: unit (status rules, both overdue conditions, renewal restores, revoked is final, every rule path returns the expected `Left` code and raises no event), guard, property (Active implies both dates in the future; revoked accepts nothing).
 
@@ -295,7 +295,7 @@ CONTEXT:
 - Pattern: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs; existing snapshot: src/Encina.Compliance.NIS2/Model/ManagementAccountabilityRecord.cs.
 
 TASK:
-1. Create the enums, records, scheduler, the 9 events and ManagementAccountabilityAggregate (Design Choices 1, 2, 3, 7), and the aggregate rule codes in NIS2Errors.
+1. Create the enums, records, scheduler, the 10 events and ManagementAccountabilityAggregate (Design Choices 1, 2, 3, 7), and the aggregate rule codes in NIS2Errors.
 2. Add PublicAPI.Unshipped.txt lines and XML docs.
 3. Write unit, guard and property tests that instantiate the real aggregate.
 
@@ -317,7 +317,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `Abstractions/INIS2ManagementAccountabilityService.cs`: `AppointResponsiblePersonAsync`, `RecordTrainingAsync`, `RecordAcknowledgmentAsync`, `DelegateComplianceAreaAsync`, `RevokeDelegationAsync`, `RecordOversightActivityAsync`, `RevokeResponsiblePersonAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`. The two query methods `GetOverdueTrainingAsync` and `GetOverviewAsync` are added in PR 3 with the read model they read.
+1. `Abstractions/INIS2ManagementAccountabilityService.cs`: `AppointResponsiblePersonAsync`, `RecordTrainingAsync`, `RecordAcknowledgmentAsync`, `RequireEarlierAcknowledgmentAsync`, `DelegateComplianceAreaAsync`, `RevokeDelegationAsync`, `RecordOversightActivityAsync`, `RevokeResponsiblePersonAsync`; each `ValueTask<Either<EncinaError, ...>>`. Commands in `Model/`. The two query methods `GetOverdueTrainingAsync` and `GetOverviewAsync` are added in PR 3 with the read model they read.
 1a. `NIS2Options`: `ManagementAccountabilityOptions` (`TrainingValidity`, `AcknowledgmentRenewalPeriod`, `EnableAccountabilityMonitoring`, `AccountabilityCheckInterval` default 1 hour) and the `NIS2OptionsValidator` extension (moved here from Phase 4 so the service has its options).
 1b. `NIS2LogMessages`: ids 9885-9892 for the service (one per transition group, invalid transition, store failure).
 2. `Services/DefaultNIS2ManagementAccountabilityService.cs` (internal): repository, read-model query, `TimeProvider`, `IOptions<NIS2Options>`, `ILogger`; validates commands and returns the aggregate's `Left` as is (the aggregate already decided the transition, Phase 1).
@@ -358,7 +358,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `ReadModels/ManagementAccountabilityReadModel.cs`: person id and role, status, delegations, `TrainingValidUntilUtc`, `NextAcknowledgmentDueAtUtc`, tenant and module ids, oversight count and last date.
-2. `ReadModels/ManagementAccountabilityProjection.cs`: inline projection for the nine events, idempotent, constructor-injected dependencies only.
+2. `ReadModels/ManagementAccountabilityProjection.cs`: inline projection for the ten events, idempotent (replaying an event over its own result leaves the same read model), constructor-injected dependencies only.
+2a. Recovery when dispatch fails after the commit: `SaveAsync` commits the stream, so the stream is the truth and the read model is derived. When the projection or the notification dispatch fails after the commit, the command returns a `Left` (`...StoreFailed`, logged by error code), the events stay in the stream, and the read model is rebuilt from the stream with the Marten projection daemon (`IProjectionDaemon.RebuildProjectionAsync<ManagementAccountabilityProjection>`; the operator procedure goes in the feature page). No new public API and no new file: the idempotent projection of task 2 is what makes the replay safe. Until the rebuild the read model can be stale; the evaluator fails closed on a `Left` from the query, and the rebuild is the documented repair.
 3. `ReadModels/ManagementAccountabilityQueries.cs`: overdue training and acknowledgment, and the overview grouped by person id; `GetOverdueTrainingAsync` and `GetOverviewAsync` are added to the service interface and the default service (two edits).
 
 </details>
@@ -373,9 +374,9 @@ CONTEXT:
 - Mirror src/Encina.Compliance.DPIA/ReadModels/DPIAProjection.cs.
 
 TASK:
-1. Create the read model and the projection handling the 9 events.
+1. Create the read model and the projection handling the 10 events.
 2. Add the overdue and overview queries.
-3. Unit-test every handler; keep one integration test that registers the projection with a real Marten store.
+3. Unit-test every handler; keep one integration test class that registers the projection with a real Marten store (PostgreSQL through the shared Testcontainers fixture) and adds a recovery test: force the dispatch to fail after SaveAsync (a throwing decorator on the publisher), assert the events are in the stream and the command returned a Left, rebuild the projection with the daemon and assert the read model equals the one built by a normal run.
 
 KEY RULES:
 - Idempotent projection; AtUtc timestamps; dependencies by constructor, never IServiceProvider.
@@ -432,7 +433,7 @@ REFERENCE FILES:
 
 1. `NIS2AccountabilityMonitorService.cs` (`BackgroundService`, `PeriodicTimer`, scope per iteration): escalates each overdue training and acknowledgment once per due date; per-iteration `try/catch`; failures logged by error code. An `EscalationAlreadyRecorded` rule code and a Marten concurrency conflict are the EXPECTED result of a repeated sweep or of a race between instances: the monitor counts them as skipped, logs nothing at error level and does not fail the iteration; only a store failure other than these two is logged as an iteration failure. Test row: two monitor instances sweep the same due date, one escalation event is appended, the second instance counts a skip and no error is logged.
 1a. `NIS2LogMessages`: ids 9893-9897 for the monitor (started/stopped, iteration failed, overdue found, escalation skipped).
-2. `Health/NIS2ComplianceHealthCheck.cs`: add the accountability check (any overdue, or no `Active` person, gives `Degraded`) behind `AddHealthCheck`.
+2. `Health/NIS2ComplianceHealthCheck.cs`: add the accountability check (any overdue, or no `Active` person, gives `Degraded`) behind `AddHealthCheck`, only when `INIS2ManagementAccountabilityService` is registered (resolved optionally, as the evaluator does in Design Choice 5); without the workflow the check is not added and the health result is unchanged. Test rows: registered and overdue gives `Degraded`; not registered gives no accountability entry.
 3. Tenant and module scoping on queries; the event stream is the audit record.
 
 </details>
@@ -448,7 +449,7 @@ CONTEXT:
 
 TASK:
 1. Create the monitor and register it only when EnableAccountabilityMonitoring is true.
-2. Extend the health check.
+2. Extend the health check with the accountability check only when INIS2ManagementAccountabilityService is registered (optional resolution; unchanged otherwise).
 3. Tests with FakeTimeProvider and a throwing store: the loop survives and the failure is logged.
 
 KEY RULES:
@@ -662,7 +663,7 @@ Encina is a .NET 10 / C# 14 library (pre-1.0, no backward compatibility). You ex
 
 IMPLEMENTATION OVERVIEW:
 1. Model: status, oversight type, ComplianceDelegation, TrainingRecord, AccountabilityScheduler, commands.
-2. Nine events (INotification) and ManagementAccountabilityAggregate (AggregateBase, one stream per appointment).
+2. Ten events (INotification) and ManagementAccountabilityAggregate (AggregateBase, one stream per appointment).
 3. INIS2ManagementAccountabilityService + internal default over IAggregateRepository; NIS2Errors factories.
 4. ManagementAccountabilityProjection with ReadModel (overdue dashboard, overview by person).
 5. Registration lines in AddNIS2EventSourcing, options, CyberHygieneEvaluator reads the register when registered.
@@ -697,7 +698,7 @@ REFERENCE FILES:
 | 1 | Caching | ❌ | Accountability state must be fresh when a gate or a health check reads it |
 | 2 | OpenTelemetry | ✅ | Phase 6: activity per operation, `nis2.management_accountability.*` instruments on the package meter |
 | 3 | Structured Logging | ✅ | Phase 6: `[LoggerMessage]` ids 9885-9899 of the range registered by the #822 plan |
-| 4 | Health Checks | ✅ | Phase 5: overdue training or acknowledgment, or no Active person, gives Degraded |
+| 4 | Health Checks | ✅ | Phase 5: only when the workflow is registered (conditional, as the evaluator): overdue training or acknowledgment, or no Active person, gives Degraded |
 | 5 | Validation | ✅ | Commands validated in the service (blank ids and areas, dates in the future, duplicate delegation) before any event |
 | 6 | Resilience | ❌ | No external call; store calls are not wrapped in `NIS2ResilienceHelper`, which swallows failures |
 | 7 | Distributed Locks | ⏭️ | Escalation is idempotent per due date and Marten optimistic concurrency protects duplicates (Design Choice 4); multi-instance coordination follows ADR-050; no new issue |
