@@ -2,7 +2,7 @@
 
 > **Issue**: [#2903](https://github.com/dlrivada/Encina/issues/2903)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 1 provider: Marten, 52 files, split in 4 PRs)
+> **Complexity**: High (7 phases, 1 provider: Marten, 53 files, split in 4 PRs)
 > **Estimated Scope**: ~1,200 lines of production code + ~1,900 lines of tests
 
 ---
@@ -18,7 +18,7 @@ Audit PII fields are encrypted with per-period temporal keys (`AuditEventEncrypt
 - **Standards**: GDPR Art. 17 (exceptional erasure order), Art. 5(2) (accountability: the shred is justified and audited).
 - **Affected packages**: `Encina.Audit.Marten` (the change), `Encina.Marten.GDPR` (reuses `ISubjectKeyProvider`, no change), `Encina` core (`EventIdRanges` registration).
 - **Provider category**: event sourcing, Marten on PostgreSQL only; no database-provider matrix.
-- **Scope and split**: counted with tests, manifests, PublicAPI files and changelog fragments the work is 52 files, so it ships as four pull requests that each build and pass their own tests (the table under Estimated File Count lists the files of each): PR 1 = option, namespace, documents, EventId range and log class (15 files); PR 2 = index store, two-layer write, projection classification (14 files); PR 3 = erasure service and its observability (15 files); PR 4 = end-to-end tests, ADR and documentation (8 files).
+- **Scope and split**: counted with tests, manifests, PublicAPI files and changelog fragments the work is 53 files, so it ships as four pull requests that each build every test project and pass their own tests (the table under Estimated File Count lists the files of each): PR 1 = option, namespace, documents, EventId range and log class (15 files); PR 2 = index store, two-layer write, projection classification (15 files); PR 3 = erasure service and its observability (15 files); PR 4 = end-to-end tests, ADR and documentation (8 files).
 - **Prerequisites**: the recorder and legal-basis types of the #2847 plan are independent of this plan; `ErasureReference`/`RetentionReference` and the marker already exist (PR 2a of #2770). Shared pieces: the marker semantics (`[SHREDDED]` only with a recorded reference) are owned by #2770. This plan uses its own EventId range (see Event ID Allocation); the `AuditMarten` ids 2593-2598 belong to the #3049 plan and the #2847 plan has its own range.
 
 ---
@@ -195,9 +195,9 @@ REFERENCE FILES: src/Encina.Audit.Marten/MartenOperationAuditOptions.cs, src/Enc
 
 1. `SubjectErasure/AuditSubjectKeyIndexStore.cs` (internal, Scoped): `GetOrCreateRefAsync(tenantKey, subjectId, ct)`: load the index by namespaced id; absent, generate a cryptographically random 128-bit ref, insert once (own lightweight session, committed before use); on a conflict reload the winner's ref.
 2. `Events/EncryptedField.cs`: nullable `SubjectKeyRef`; `Encrypt` overload that wraps an already encrypted inner field.
-3. `AuditEventEncryptor.EncryptAuditEntryAsync(entry, ct)` (line 79) and `EncryptReadAuditEntryAsync` (line 155): the encryptor gains the options and the index store by constructor injection, so the signatures and the two callers (`MartenOperationAuditStore` line 125 and `MartenReadAuditStore` line 103) are unchanged; when the option is on and `entry.UserId` is present, get the ref from the index store, get/create the subject key through `ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(namespaced id)`, encrypt each PII field with it, then with the period key, and set `SubjectKeyRef`. A `Left` from the index store or the key provider fails the recording (never writes a plaintext or single-layer field when the option is on). The encryptor relies on the per-subject locked session of `PostgreSqlSubjectKeyProvider` for key creation and on the insert-once index for the ref.
+3. `AuditEventEncryptor.EncryptAuditEntryAsync(entry, ct)` (line 79) and `EncryptReadAuditEntryAsync` (line 155): the signatures and the two callers (`MartenOperationAuditStore` line 125 and `MartenReadAuditStore` line 103) are unchanged. The public constructor `AuditEventEncryptor(ITemporalKeyProvider, IOptions<MartenOperationAuditOptions>, ILogger<AuditEventEncryptor>)` is also unchanged (its `PublicAPI.Unshipped.txt` line 6 stays) because it is built directly with `new` in 14 test files (`git grep -l "new AuditEventEncryptor(" -- src tests` on origin/main: the benchmark, `AuditEncryptionLoadTests`, `AuditEncryptionLoadTest`, `AuditEventEncryptorTests`, two `AuditEventEncryptorGuardTests`, `MartenOperationAuditStoreGuardTests`, `MartenReadAuditStoreGuardTests`, `AuditStoreQueryGuardTests`, the two store query tests, the purge and UTC-filter integration tests and the ABAC round-trip test) and a trailing optional parameter is impossible: the index store is `internal` and a public constructor cannot expose an internal type. The subject layer therefore enters through a new `internal` constructor that takes the three existing arguments plus `AuditSubjectKeyIndexStore?` and `ISubjectKeyProvider?` (the public one chains to it with `null, null`, which is the option-off path), and `AddEncinaAuditMarten` registers the encryptor with a factory (`services.AddScoped(sp => new AuditEventEncryptor(..., sp.GetService<AuditSubjectKeyIndexStore>(), sp.GetService<ISubjectKeyProvider>()))`, replacing `services.AddScoped<AuditEventEncryptor>()` at line 122) so DI always uses the internal constructor. When the option is on and either dependency is null (no `ISubjectKeyProvider` registered by `Encina.Marten.GDPR`), recording returns `Left` (fail closed) instead of writing a single-layer field. When the option is on and `entry.UserId` is present, get the ref from the index store, get/create the subject key through `ISubjectKeyProvider.GetOrCreateSubjectKeyAsync(namespaced id)`, encrypt each PII field with it, then with the period key, and set `SubjectKeyRef`. A `Left` from the index store or the key provider fails the recording (never writes a plaintext or single-layer field when the option is on). The encryptor relies on the per-subject locked session of `PostgreSqlSubjectKeyProvider` for key creation and on the insert-once index for the ref.
 4. `Projections/OperationAuditEntryProjection.cs` and `ReadAuditEntryProjection.cs`: classification of Design Choice 4 (key found, decrypt; key missing plus shred record, `ShreddedPlaceholder`; neither, throw the typed `EncryptedFieldDecryptionException`); the period classification (`ClassifyTemporalKeyLookup`) stays unchanged and is evaluated first, so an expired period still reads `[EXPIRED]`; shred records cached per batch only.
-5. Registration of the index store in `AddEncinaAuditMarten` (`TryAdd`); DI test with `ValidateOnBuild` and `ValidateScopes`.
+5. Registration of the index store in `AddEncinaAuditMarten` (`TryAdd`) and the factory registration of the encryptor (task 3); DI test with `ValidateOnBuild` and `ValidateScopes` in `tests/Encina.UnitTests/AuditMarten/ServiceCollectionExtensionsTests.cs` (modified; resolves the encryptor with the option on and off and with and without an `ISubjectKeyProvider`).
 
 </details>
 
@@ -207,7 +207,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/MartenOperationAuditOptions.cs, src/Enc
 ```text
 CONTEXT: AuditEventEncryptor encrypts six operation fields and three read fields with the period key (AuditEventEncryptor.cs lines 79 and 155). OperationAuditEntryProjection classifies the period key via ClassifyTemporalKeyLookup (line 228) and decrypts fields (line 301). Phase 1 types exist. Marten's async daemon pauses a shard on a thrown typed exception.
 TASK: Implement the index store, the inner subject layer with SubjectKeyRef when EnableSubjectScopedErasure is true, and the projection classification; keep the option-off path identical.
-KEY RULES: fail closed; key material never logged; async with CancellationToken; ROP; the subject id only travels to ISubjectKeyProvider and the namespace factory; the ref is random, never derived; a missing key with no shred record is never silently shown as shredded; per-batch cache only; tests: two concurrent first writes give one ref, two entries of one subject share it, the colliding (tenant, subject) pairs read each other's keys never.
+KEY RULES: the public AuditEventEncryptor constructor is unchanged (14 test files build it with new); the subject layer enters through an internal constructor and a factory registration; fail closed; key material never logged; async with CancellationToken; ROP; the subject id only travels to ISubjectKeyProvider and the namespace factory; the ref is random, never derived; a missing key with no shred record is never silently shown as shredded; per-batch cache only; tests: two concurrent first writes give one ref, two entries of one subject share it, the colliding (tenant, subject) pairs read each other's keys never.
 REFERENCE FILES: src/Encina.Audit.Marten/AuditEventEncryptor.cs, src/Encina.Audit.Marten/Events/EncryptedField.cs, src/Encina.Audit.Marten/Projections/OperationAuditEntryProjection.cs, src/Encina.Audit.Marten/Projections/ReadAuditEntryProjection.cs, src/Encina.Marten.GDPR/Abstractions/ISubjectKeyProvider.cs
 ```
 
@@ -364,11 +364,11 @@ REFERENCE FILES: src/Encina.Audit.Marten/README.md, docs/architecture/adr/index.
 | 1 | Production | 8 | `MartenOperationAuditOptions.cs`, its validator, `AuditSubjectKeyNamespace.cs`, `AuditSubjectKeyIndex.cs`, `AuditSubjectShredRecord.cs`, `ConfigureMartenOperationAuditProjections.cs`, `EventIdRanges.cs`, `MartenAuditSubjectErasureLog.cs` |
 | 1 | Tests | 4 | Namespace unit, namespace property, options/validator unit (modified), `EncinaEventIdAllocationTests.cs` map |
 | 1 | Metadata | 3 | `PublicAPI.Unshipped.txt` of `Audit.Marten` and of `Encina`, manifest |
-| 1 | **Total** | **15** | Builds alone: the types are registered and unused until PR 2 |
+| 1 | **Total** | **15** | Builds alone: the types are registered and unused until PR 2, and the log ids 7200-7207 stay registered and unused until PRs 2 and 3 |
 | 2 | Production | 6 | `AuditSubjectKeyIndexStore.cs` (new), `EncryptedField.cs`, `AuditEventEncryptor.cs`, the two projections, `ServiceCollectionExtensions.cs` |
-| 2 | Tests | 5 | Index store integration, encryptor unit, projection unit, concurrent-first-write integration, guard |
-| 2 | Metadata | 3 | `PublicAPI.Unshipped.txt`, manifest, fragment `2903-audit-subject-scoped-keys.added.md` |
-| 2 | **Total** | **14** | Needs PR 1 |
+| 2 | Tests | 6 | Index store integration, encryptor unit, projection unit, concurrent-first-write integration, guard, DI test (`ServiceCollectionExtensionsTests.cs`, modified); the 14 test files that build `AuditEventEncryptor` with `new` are unchanged because its public constructor is unchanged |
+| 2 | Metadata | 3 | `PublicAPI.Unshipped.txt` (`EncryptedField.SubjectKeyRef`; the internal constructor needs no line), manifest, fragment `2903-audit-subject-scoped-keys.added.md` |
+| 2 | **Total** | **15** | Needs PR 1; no `ProjectReference` change (`Encina.Audit.Marten` already references `Encina.Marten.GDPR`, which holds `ISubjectKeyProvider`) |
 | 3 | Production | 7 | `IAuditSubjectErasureService.cs`, `SubjectErasureJustification.cs`, `MartenAuditSubjectErasureService.cs`, `ServiceCollectionExtensions.cs`, `MartenAuditMeter.cs`, `MartenAuditActivitySource.cs`, `MartenAuditErrors.cs` |
 | 3 | Tests | 6 | Service unit with failure injection, failure-injection integration, contract, guard, DI test (modified), observability unit |
 | 3 | Metadata | 2 | `PublicAPI.Unshipped.txt`, manifest |
@@ -376,7 +376,7 @@ REFERENCE FILES: src/Encina.Audit.Marten/README.md, docs/architecture/adr/index.
 | 4 | Tests | 4 | Property (isolation), end-to-end integration, load and benchmark `.md` justifications |
 | 4 | Docs and metadata | 4 | ADR, README, configuration guide, manifest |
 | 4 | **Total** | **8** | Needs PR 3 |
-| | **Grand total** | **52** | Every PR is at most 15 files and under 1,500 lines |
+| | **Grand total** | **53** | 15 + 15 + 15 + 8; every PR is at most 15 files and under 1,500 lines |
 
 ---
 
