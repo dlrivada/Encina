@@ -20,7 +20,6 @@ namespace Encina.Caching;
 /// <item><description>Redis Pub/Sub - Native Redis messaging</description></item>
 /// <item><description>Garnet - Compatible with Redis Pub/Sub</description></item>
 /// <item><description>Memory - In-process messaging (single instance only)</description></item>
-/// <item><description>NCache - Native .NET messaging</description></item>
 /// </list>
 /// </remarks>
 /// <example>
