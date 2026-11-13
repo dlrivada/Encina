@@ -4,9 +4,9 @@
 > **Type**: Feature (documentation and examples; no change under `src/`)
 > **Research**: `src/Encina.AspNetCore/ProblemDetailsExtensions.cs`, `src/Encina.FluentValidation/ServiceCollectionExtensions.cs`, `src/Encina/Validation/ValidationOrchestrator.cs`, `docs/guides/how-to-write-a-pipeline-behavior.md`, `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`
 > **ADR**: none (ADR number assigned when the ADR pull request opens, if one is needed)
-> **Related**: #87 (owns the `examples/` scaffold and Dilemma D1), #89 (database and cache examples), #188 (dashboard guide), #344 (adoption guide), and the validation defect described in Prerequisites (issue file written, number assigned when it is opened)
+> **Related**: #87 (owns the `examples/` scaffold and Dilemma D1), #89 (database and cache examples), #188 (dashboard guide), #344 (adoption guide), and #3415 (`[BUG]` code-less validation error: `ToProblemDetails` throws, a rejected request never becomes a 400)
 > **Complexity**: Medium (an ASP.NET Core project, 5 handlers, a behavior, validators, a smoke test)
-> **Estimated Scope**: about 15 files, about 700 lines
+> **Estimated Scope**: two pull requests: PR 1 the example (15 files, about 600 lines), PR 2 the smoke test (2 files, about 100 lines); see Estimated File Count
 
 ---
 
@@ -19,15 +19,15 @@ This plan adds `examples/02-cqrs-complete`, an ASP.NET Core API that shows the p
 - Commands `CreateOrder`, `UpdateOrder`, `CancelOrder` (`ICommand<TResponse>`), queries `GetOrderById`, `GetOrders` (`IQuery<TResponse>`) and one handler each (`src/Encina/Abstractions/CqrsContracts.cs`).
 - A hand-written `LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>`, written on purpose to teach the extension point (`docs/guides/how-to-write-a-pipeline-behavior.md`). The core has no logging behavior (only activity and metrics behaviors), so nothing is duplicated. It logs the request type and the error code on a `Left`, never `EncinaError.Message`.
 - Validation through the library, not by hand: `services.AddEncinaFluentValidation(typeof(Program).Assembly)` (`src/Encina.FluentValidation/ServiceCollectionExtensions.cs:50`) registers the provider, the `ValidationOrchestrator` and `ValidationPipelineBehavior<,>` (AGENTS.md section 3, validation orchestrator pattern). The example adds only the `AbstractValidator<T>` classes. The original issue text proposed a hand-written `ValidationBehavior`; that would duplicate the library.
-- HTTP error mapping with `Encina.AspNetCore`: `EncinaError.ToProblemDetails(HttpContext, int?)` returns `IResult` and `ToActionResult(HttpContext, int?)` returns `IActionResult` (`src/Encina.AspNetCore/ProblemDetailsExtensions.cs:67`, `:161`), registered by `AddEncinaAspNetCore()`. The status comes from the error code: `validation.*` gives 400, `*.not_found` 404, `*.conflict` 409, anything else 500 (`:172-215`). The response carries the code and, only when `EncinaAspNetCoreOptions.IncludeErrorMessageInProblemDetails` is enabled in Development, the message; the example leaves that option off.
+- HTTP error mapping with `Encina.AspNetCore`: `EncinaError.ToProblemDetails(HttpContext, int?)` returns `IResult` and `ToActionResult(HttpContext, int?)` returns `IActionResult` (`src/Encina.AspNetCore/ProblemDetailsExtensions.cs:67`, `:162`), registered by `AddEncinaAspNetCore()`. The status comes from the error code: `validation.*` gives 400, `*.not_found` 404, `*.conflict` 409, anything else 500 (`:172-215`). The response carries the code and, only when `EncinaAspNetCoreOptions.IncludeErrorMessageInProblemDetails` is enabled in Development, the message; the example leaves that option off.
 
-**Finding that blocks the 400 case.** `ValidationOrchestrator.ValidateAsync` returns `EncinaError.New(errorMessage)` for an invalid request (`src/Encina/Validation/ValidationOrchestrator.cs:71`): an error with no code. `MapErrorCodeToStatusCode` reads the code with `GetCode().IfNone(string.Empty)` and falls through to 500 (`ProblemDetailsExtensions.cs:174-207`). So with today's `main`, an invalid `CreateOrder` produces a 500, not the 400 the issue's acceptance criteria require. This is a library defect, not an example problem; see Prerequisites. The example must not hide it with a status override that cannot tell a validation failure from any other error.
+**Finding that blocks the 400 case.** `ValidationOrchestrator.ValidateAsync` returns `EncinaError.New(errorMessage)` for an invalid request (`src/Encina/Validation/ValidationOrchestrator.cs:71`): an error with no code. `MapErrorCodeToStatusCode` reads the code with `GetCode().IfNone(string.Empty)` (`ProblemDetailsExtensions.cs:173-176`). This is the open bug #3415 ("`ToProblemDetails` throws `ResultIsNullException` for every `EncinaError` that has no code, so a rejected validation request never becomes a 400"): on today's `main` an invalid `CreateOrder` makes the endpoint fault with an exception, it does not return 500 and it does not return the 400 the issue's acceptance criteria require. #3415 also asks for structured field errors on the 400. This is a library defect, not an example problem; see Prerequisites. The example must not hide it with a status override that cannot tell a validation failure from any other error, and the 400 case of the smoke test follows whatever fix #3415 ships (a code on the orchestrator error, or a different mapping).
 
 **Provider category**: none. The example keeps orders in an in-memory store; the real stores are #89.
 
 **Affected packages**: `Encina` (consumed), `Encina.AspNetCore` (consumed), `Encina.FluentValidation` (consumed), the new example project `examples/02-cqrs-complete`.
 
-**Size**: 1 plan file; the implementation is one worker pull request of about 15 files and 700 lines, within the 15-file and 1500-line limit (the smoke test and its project reference are counted).
+**Size**: 1 plan file; the implementation is two worker pull requests, each within the 15-file and 1500-line limit and each building alone: PR 1 is the example project and its README (15 files, no test), PR 2 is the smoke test plus the `Encina.IntegrationTests.csproj` edit (2 files), started after #3415 merges so that its 400 case passes alone.
 
 ---
 
@@ -109,7 +109,7 @@ The hand-written behavior in this example is the logging one (choice 4); validat
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — `LoggingBehavior<,>` in the example, registered with `AddEncina(cfg => cfg.AddPipelineBehavior(typeof(LoggingBehavior<,>)))` or the equivalent verified API, logging type and error code through `[LoggerMessage]`** | Teaches the extension point and structured logging; no library duplication | The exact registration call must be verified when written |
+| **A — `LoggingBehavior<,>` in the example, registered with `AddEncina(cfg => cfg.AddPipelineBehavior(typeof(LoggingBehavior<,>), PipelineStage.Observability, 0))` (the staged overload `AddPipelineBehavior(Type, PipelineStage, int)` of `src/Encina/Core/EncinaConfiguration.cs`; `Observability` = 100 is the outermost stage), logging type and error code through `[LoggerMessage]`** | Teaches the extension point and structured logging; no library duplication | The worker re-checks the overload signature when writing it |
 | **B — No custom behavior** | Smaller | The issue's "pipeline behaviors work correctly" criterion is then only validation |
 
 ### Chosen Option: **A — Hand-written `LoggingBehavior<,>`**
@@ -123,8 +123,8 @@ Its logs follow the repository rule (code or exception type, never the message).
 <details>
 <summary><strong>5. Where orders are kept</strong></summary>
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 5 (providers: a database feature is for the 10 providers, an example is not a store feature), #89 (the database and cache examples)
+**Class:** Trivial
+**Settled by:** #89 (the database and cache examples own persistence, so this example keeps the subject on the request path); AGENTS.md section 5 does not decide it (an example is not a store feature, so option B is not excluded by the provider rule, only by the scope split with #89)
 
 ### Options Considered
 
@@ -151,14 +151,14 @@ Its logs follow the repository rule (code or exception type, never the message).
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — `tests/Encina.IntegrationTests/Examples/CqrsCompleteSmokeTests.cs` with `WebApplicationFactory<Program>`** | Follows the consolidated layout; runs in the existing integration job; the project already references `Encina.AspNetCore`, `Encina.FluentValidation` and `Microsoft.AspNetCore.TestHost`; `Microsoft.AspNetCore.Mvc.Testing` is already in `Directory.Packages.props` | Adds a `ProjectReference` to the example and a package reference to `Mvc.Testing`; needs `public partial class Program` in the example |
+| **A — `tests/Encina.IntegrationTests/Examples/CqrsCompleteSmokeTests.cs` with `WebApplicationFactory<Program>`** | Follows the consolidated layout; runs in the existing integration job; the project already references `Encina.AspNetCore`, `Encina.FluentValidation` and `Microsoft.AspNetCore.TestHost`; `Microsoft.AspNetCore.Mvc.Testing` is already in `Directory.Packages.props` | Adds a `ProjectReference` to the example and a package reference to `Mvc.Testing`; needs a public type in the example's assembly to host (see rationale) |
 | **B — A test project inside `examples/`** | Self-contained | A new test project outside the consolidated layout |
 
 ### Chosen Option: **A — A class in `Encina.IntegrationTests`**
 
 ### Rationale
 
-One test class (no database, so no collection fixture applies) with `[Trait("Category", "Integration")]` checks the 200, 400, 404 and 409 responses in process.
+One test class (no database, so no collection fixture applies) with `[Trait("Category", "Integration")]` checks the 200, 400, 404 and 409 responses in process. The example does not expose `public partial class Program`: a global `Program` type in an example assembly clashes (CS0433) the day a second example (#89, #188) is referenced by the same test project. It exposes a public marker type named for the example (`CqrsCompleteExampleMarker`, declared in `Program.cs`) and the test uses `WebApplicationFactory<CqrsCompleteExampleMarker>`; the factory only needs a type from the example assembly.
 
 </details>
 
@@ -176,8 +176,8 @@ One test class (no database, so no collection fixture applies) with `[Trait("Cat
 1. `examples/02-cqrs-complete/02-cqrs-complete.csproj`: `Microsoft.NET.Sdk.Web`, `net10.0`, `ProjectReference` to `Encina`, `Encina.AspNetCore` and `Encina.FluentValidation`.
 2. `Domain/Order.cs`: a record with `Id`, `Customer`, `Total`, `Status` (`Open`, `Cancelled`).
 3. `Domain/IOrderStore.cs` and `Domain/InMemoryOrderStore.cs`: add, get, list with a status filter, replace.
-4. `Commands/CreateOrder.cs` (`ICommand<Guid>`), `UpdateOrder.cs`, `CancelOrder.cs`; `Queries/GetOrderById.cs` (`IQuery<Order>`), `GetOrders.cs` (`IQuery<IReadOnlyList<Order>>`, optional status filter).
-5. `Handlers/`: five handlers. Failures use codes the Problem Details mapping understands: `order.not_found` (404), `order.conflict` for cancelling a cancelled order (409). No exception for a business failure.
+4. `Commands.cs` (one file holding `CreateOrder : ICommand<Guid>`, `UpdateOrder`, `CancelOrder`) and `Queries.cs` (one file holding `GetOrderById : IQuery<Order>` and `GetOrders : IQuery<IReadOnlyList<Order>>`, optional status filter). The packing is deliberate and counted in Estimated File Count.
+5. `Handlers/OrderCommandHandlers.cs` (three handlers) and `Handlers/OrderQueryHandlers.cs` (two handlers). Failures use codes the Problem Details mapping understands and an explicit category (`EncinaErrors.Create(code, ErrorCategory.X, message)`, ADR-062; note the HTTP mapping today reads the code text, not the category): `order.not_found` is `ErrorCategory.NotFound` (404), `order.conflict` for cancelling a cancelled order is `ErrorCategory.Conflict` (409). No exception for a business failure.
 
 </details>
 
@@ -185,7 +185,7 @@ One test class (no database, so no collection fixture applies) with `[Trait("Cat
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: The #87 plan created examples/ (Directory.Build.props, solution folder). Encina handlers implement ICommandHandler<,> / IQueryHandler<,> (src/Encina/Abstractions/CqrsContracts.cs) and return Either<EncinaError, T>; business failures are EncinaErrors.Create(code, message) (src/Encina/Results/EncinaErrors.cs).
+CONTEXT: The #87 plan created examples/ (Directory.Build.props, solution folder). Encina handlers implement ICommandHandler<,> / IQueryHandler<,> (src/Encina/Abstractions/CqrsContracts.cs) and return Either<EncinaError, T>; business failures are EncinaErrors.Create(code, ErrorCategory.X, message) (explicit category, ADR-062; src/Encina/Results/EncinaErrors.cs).
 TASK: Create examples/02-cqrs-complete with the csproj, the Order domain, the in-memory store, the three commands, two queries and five handlers listed in the plan (Phase 1 tasks 1-5). Use codes order.not_found and order.conflict so ToProblemDetails maps them to 404 and 409.
 KEY RULES: Verify every type in src/ before use; no exceptions for business failures; nullable enabled; zero warnings (TreatWarningsAsErrors); comments teach the concept; English only.
 REFERENCE FILES: src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Results/EncinaErrors.cs, src/Encina.AspNetCore/ProblemDetailsExtensions.cs, docs/plans/example-basic-encina-implementation-plan-87.md (#87 plan, if merged).
@@ -201,7 +201,7 @@ REFERENCE FILES: src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Results/En
 <summary>Tasks</summary>
 
 1. `Behaviors/LoggingBehavior.cs`: `IPipelineBehavior<TRequest, TResponse>`; logs the request type name before, and the outcome after (success, or the code from `error.GetCode()`); uses `[LoggerMessage]` through a `partial` logger class with local EventIds; never logs `EncinaError.Message` or the request body.
-2. `Validators/CreateOrderValidator.cs`, `UpdateOrderValidator.cs`: `AbstractValidator<T>` rules (customer not empty, total above zero).
+2. `Validators.cs` (one file holding `CreateOrderValidator` and `UpdateOrderValidator`): `AbstractValidator<T>` rules (customer not empty, total above zero). Their failures reach the caller as the orchestrator's error, whose category and code are the subject of #3415 (the example adds no code of its own for them).
 3. `Program.cs` registration: `AddEncina(...)` with the logging behavior registered through the verified configuration call (confirm the exact name in `src/Encina/Core/EncinaConfiguration.cs` before writing it), `AddEncinaFluentValidation(typeof(Program).Assembly)`, `AddEncinaAspNetCore()`, `AddSingleton<IOrderStore, InMemoryOrderStore>()`.
 4. Order: the stage contract is already on `main` (`PipelineStage`, `PipelineStageAttribute`, `AddPipelineBehavior<TBehavior>(PipelineStage stage, int order = 0)` in `src/Encina/Core/EncinaConfiguration.cs`). Declare the logging behavior in `PipelineStage.Observability` (outermost, value 100) so a request rejected by validation (`PipelineStage.Validation`, 900) is still logged; confirm the attribute or the registration overload when writing it.
 
@@ -227,7 +227,7 @@ REFERENCE FILES: docs/guides/how-to-write-a-pipeline-behavior.md, src/Encina/Abs
 <summary>Tasks</summary>
 
 1. `Api/OrderEndpoints.cs` (recommended option (b)): `MapGroup("/orders")` with `POST /`, `PUT /{id}`, `POST /{id}/cancel`, `GET /{id}`, `GET /` (query string `status`). Each endpoint calls `encina.Send(...)` and ends with `result.Match(Right: ..., Left: error => error.ToProblemDetails(httpContext))`. If the maintainer chooses controllers, the same file becomes `Api/OrdersController.cs` with `ToActionResult`.
-2. `Program.cs`: `public partial class Program;` so the smoke test can host it.
+2. `Program.cs`: also declares `public sealed class CqrsCompleteExampleMarker;` so the smoke test can host the example without a global `Program` type.
 3. Leave `IncludeErrorMessageInProblemDetails` at its default (off) in the example configuration, so responses carry the code and not the message.
 
 </details>
@@ -237,7 +237,7 @@ REFERENCE FILES: docs/guides/how-to-write-a-pipeline-behavior.md, src/Encina/Abs
 
 ```text
 CONTEXT: Phases 1-2 exist. Encina.AspNetCore maps error codes to statuses in ProblemDetailsExtensions.MapErrorCodeToStatusCode (validation.* 400, *.not_found 404, *.conflict 409, else 500).
-TASK: Add the HTTP layer exactly as the maintainer's D2 answer says (minimal API group by default) and make Program a public partial class. Every Left goes through ToProblemDetails(httpContext) (or ToActionResult for controllers).
+TASK: Add the HTTP layer exactly as the maintainer's D2 answer says (minimal API group by default) and declare the public marker type CqrsCompleteExampleMarker in Program.cs. Every Left goes through ToProblemDetails(httpContext) (or ToActionResult for controllers).
 KEY RULES: Never return EncinaError.Message to the client; do not set a status override to hide a missing validation code (see the plan's Prerequisites); verify every method name in src/Encina.AspNetCore before use; English only.
 REFERENCE FILES: src/Encina.AspNetCore/ProblemDetailsExtensions.cs, src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs, src/Encina.AspNetCore/ServiceCollectionExtensions.cs.
 ```
@@ -251,8 +251,8 @@ REFERENCE FILES: src/Encina.AspNetCore/ProblemDetailsExtensions.cs, src/Encina.A
 <details>
 <summary>Tasks</summary>
 
-1. `tests/Encina.IntegrationTests/Examples/CqrsCompleteSmokeTests.cs`: `[Trait("Category", "Integration")]`, `IClassFixture<WebApplicationFactory<Program>>` (no database fixture applies); cases: create returns 201 or 200 with an id, get returns the order, an invalid create returns 400, a missing id returns 404, cancelling twice returns 409.
-2. `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`: a `ProjectReference` to the example and a `PackageReference` to `Microsoft.AspNetCore.Mvc.Testing` (already in `Directory.Packages.props`). If the 400 case is not green because of the Prerequisite defect, the test stays but is merged only after the defect is fixed; it is never skipped.
+1. `tests/Encina.IntegrationTests/Examples/CqrsCompleteSmokeTests.cs`: `[Trait("Category", "Integration")]`, `IClassFixture<WebApplicationFactory<CqrsCompleteExampleMarker>>` (no database fixture applies); cases: create returns 201 or 200 with an id, get returns the order, an invalid create returns 400, a missing id returns 404, cancelling twice returns 409.
+2. `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`: a `ProjectReference` to the example and a `PackageReference` to `Microsoft.AspNetCore.Mvc.Testing` (already in `Directory.Packages.props`). This is PR 2 of the plan: it starts after #3415 merges (see Prerequisites), so the 400 case is written against the fix that ships and the PR passes alone; no test is skipped and none is merged red.
 3. Assertions use Shouldly through `Encina.Testing.Shouldly`.
 4. Check that the architecture tests (`EncinaEventIdAllocationTests`) still pass with the example assembly loaded in the integration test process (they read `src/**`, so none expected).
 5. Zero-warnings build of the solution and `dotnet format --verify-no-changes`.
@@ -318,7 +318,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/guides/how-to-write-a
 | `ValidationPipelineBehavior<,>`, `ValidationOrchestrator` | `src/Encina/Validation/` | Validation through the library |
 | `AddEncinaFluentValidation(params Assembly[])` | `src/Encina.FluentValidation/ServiceCollectionExtensions.cs:50` | Provider, orchestrator and behavior registration |
 | `ToProblemDetails`, `ToActionResult`, `EncinaAspNetCoreOptions` | `src/Encina.AspNetCore/` | Error mapping to HTTP |
-| `GetCode()` | `src/Encina/Results/EncinaErrors.cs:109` | Error code for logs and mapping |
+| `GetCode()` | `src/Encina/Results/EncinaErrors.cs:176` | Error code for logs and mapping |
 | Integration test project | `tests/Encina.IntegrationTests/` | The smoke test |
 
 ### Event ID Allocation
@@ -331,10 +331,10 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/guides/how-to-write-a
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Example source | 11 | csproj, `Program.cs`, `Domain/Order.cs` with the store interface and implementation in two files, the 5 messages in 2 files (`Commands.cs`, `Queries.cs`), the 5 handlers in 2 files, `LoggingBehavior.cs`, `Validators.cs`, `OrderEndpoints.cs` (the worker may split them; the 15-file limit is the check) |
-| Test | 2 | smoke test class and the `Encina.IntegrationTests.csproj` edit |
-| Documentation | 2 | example README and the row in `examples/README.md` |
-| **Total** | **15** | About 700 lines; if the worker needs more than 15 files it splits the smoke test into its own pull request |
+| PR 1, example source | 12 | csproj, `Program.cs` (with the marker type), `Domain/Order.cs`, `Domain/IOrderStore.cs`, `Domain/InMemoryOrderStore.cs`, `Commands.cs` (3 commands), `Queries.cs` (2 queries), `Handlers/OrderCommandHandlers.cs` (3 handlers), `Handlers/OrderQueryHandlers.cs` (2 handlers), `Behaviors/LoggingBehavior.cs` (with its `[LoggerMessage]` partial), `Validators.cs` (2 validators), `Api/OrderEndpoints.cs` |
+| PR 1, wiring and docs | 3 | `examples/02-cqrs-complete/README.md`, the row in `examples/README.md`, the `Encina.slnx` entry (shared with #87, #89, #188: see Prerequisites for the order) |
+| PR 1 total | **15** | About 600 lines; no test, so it builds and passes alone; at the limit, so the worker must not add files (a file over 15 moves the endpoints to a PR 1b) |
+| PR 2, test | 2 | `tests/Encina.IntegrationTests/Examples/CqrsCompleteSmokeTests.cs`, the `Encina.IntegrationTests.csproj` edit (`ProjectReference` and `Mvc.Testing`); about 100 lines; starts after #3415 merges |
 
 ---
 
@@ -349,10 +349,10 @@ PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 mediator library with Railw
 IMPLEMENTATION OVERVIEW:
 1. Domain and messages: Order, IOrderStore, in-memory store, 3 commands, 2 queries, 5 handlers returning Either with codes order.not_found and order.conflict.
 2. Pipeline: hand-written LoggingBehavior (type and error code only); validation through AddEncinaFluentValidation(assembly) and AbstractValidator<T> classes.
-3. HTTP: minimal API group (or controllers per D2); every Left through ToProblemDetails(httpContext); public partial class Program.
-4. Tests: WebApplicationFactory smoke test in tests/Encina.IntegrationTests/Examples covering 200, 400, 404, 409.
+3. HTTP: minimal API group (or controllers per D2); every Left through ToProblemDetails(httpContext); a public marker type CqrsCompleteExampleMarker in Program.cs (no global Program).
+4. Tests (PR 2, after #3415 merges): WebApplicationFactory smoke test in tests/Encina.IntegrationTests/Examples covering 200, 400, 404, 409.
 5. Docs: README via docs-writer and a row in examples/README.md.
-6. Prerequisite: the validation orchestrator returns a code-less error (ValidationOrchestrator.cs:71), so ToProblemDetails answers 500 instead of 400; the 400 case needs the library fix first.
+6. Prerequisite: open bug #3415 (the validation orchestrator returns a code-less error, ValidationOrchestrator.cs:71, and ToProblemDetails throws ResultIsNullException); the 400 case and the smoke-test PR need its fix first.
 
 KEY PATTERNS: verify every identifier in src/ before use; business failures are Left, not exceptions; never log or return EncinaError.Message; do not duplicate the library validation behavior; no status override to hide a missing code; zero warnings; English only; no AI attribution; no private client application names.
 
@@ -371,7 +371,7 @@ REFERENCE FILES: src/Encina.AspNetCore/ProblemDetailsExtensions.cs, src/Encina.A
 | 2 | OpenTelemetry | ❌ | Example code only; the dashboard guide and its sample are #188 |
 | 3 | Structured Logging | ✅ | The hand-written logging behavior uses `[LoggerMessage]`; no library EventIds are added |
 | 4 | Health Checks | ❌ | No checkable dependency (in-memory store) |
-| 5 | Validation | ✅ | FluentValidation through the library orchestrator (Phase 2); blocked on the code-less validation error for the 400 case |
+| 5 | Validation | ✅ | FluentValidation through the library orchestrator (Phase 2); the 400 case depends on #3415 (code-less validation error) |
 | 6 | Resilience | ❌ | No external call |
 | 7 | Distributed Locks | ❌ | Single-instance demo |
 | 8 | Transactions | ❌ | In-memory store; atomic multi-operation work is shown by #89 (example 03) |
@@ -380,7 +380,7 @@ REFERENCE FILES: src/Encina.AspNetCore/ProblemDetailsExtensions.cs, src/Encina.A
 | 11 | Module Isolation | ❌ | Single module |
 | 12 | Audit Trail | ❌ | Demo data with no compliance implication |
 
-No function is deferred, so no follow-up issue is needed for the matrix; the validation defect has its own issue file.
+No function is deferred, so no follow-up issue is needed for the matrix; the validation defect is the open bug #3415.
 
 ---
 
@@ -389,7 +389,8 @@ No function is deferred, so no follow-up issue is needed for the matrix; the val
 | Item | State | Relation |
 |------|-------|----------|
 | #87 plan: `examples/` scaffold and D1 | open (plan in this family) | Phase 1 starts after the scaffold merges |
-| Validation errors carry no error code, so `ToProblemDetails` answers 500 instead of 400 (`ValidationOrchestrator.cs:71`, `ProblemDetailsExtensions.cs:174-207`) | defect found by this plan; issue file written (`[BUG]`), number assigned when the orchestrator opens it | Prerequisite of the Phase 4 400 case and of the acceptance criterion "400 on invalid input" |
+| #3415: validation errors carry no error code and `ToProblemDetails` throws `ResultIsNullException` instead of answering 400 (`ValidationOrchestrator.cs:71`, `ProblemDetailsExtensions.cs:173-176`) | open `[BUG]` | PR 2 (the smoke test) starts after it merges; the acceptance criterion "400 on invalid input" is verified by PR 2 |
+| Shared files of the family: `Encina.slnx` and `examples/README.md` | each example PR adds an entry and a row | Land in order #87 (creates both), then #88, #89, #188 rebased on it, or let the #87 scaffold PR pre-create the rows and entries; parallel PRs would conflict |
 | #2184 pipeline execution-order contract | open; its core types (`PipelineStage`, `PipelineStageAttribute`, stage-aware `AddPipelineBehavior`) are already on `main` | Phase 2 task 4 declares the logging behavior's stage; re-check at pick-up whether the issue's remaining phases changed the declaration API |
 | #89, #188 | open (plans in this family) | Siblings; no dependency in either direction |
 
@@ -400,7 +401,7 @@ No function is deferred, so no follow-up issue is needed for the matrix; the val
 ## Next Steps
 
 1. Merge this plan.
-2. The orchestrator opens the validation defect issue from the issue file and sequences it before this implementation.
+2. Sequence #3415 (open bug) before PR 2 of this implementation.
 3. When the issue is picked up, re-check D1 (recorded in the #87 plan) and ask D2; record the answer in `## Maintainer Decisions`.
-4. One worker brief for Phases 1 to 5 once the #87 scaffold and the validation fix are merged; delegate the README to `docs-writer` and the review to `adversarial-reviewer`.
+4. Two worker briefs: PR 1 (Phases 1 to 3 and 5) once the #87 scaffold is merged, PR 2 (Phase 4) once #3415 is fixed; delegate the README to `docs-writer` and the review to `adversarial-reviewer`.
 5. Close #88 with the implementation pull request.
