@@ -1,0 +1,1 @@
+- Encina.GraphQL: the README and the `EncinaGraphQLOptions` XML docs now mark the options that no code reads as having no effect yet (including `MaxExecutionDepth`, no longer presented as DoS protection) and state the real `EnableSubscriptions` default (`true`; subscriptions are not implemented).
