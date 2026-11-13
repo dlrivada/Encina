@@ -346,17 +346,16 @@ public sealed class MessageEncryptionContractTests
     }
 
     [Fact]
-    public void EncryptedMessageAttribute_ShouldHave_ThreeProperties()
+    public void EncryptedMessageAttribute_ShouldHave_ExactlyKeyIdAndUseTenantKey()
     {
         // Arrange
         var type = typeof(EncryptedMessageAttribute);
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-        // Assert
-        var names = properties.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
-        names.ShouldContain("Enabled", "EncryptedMessageAttribute must have Enabled property");
-        names.ShouldContain("KeyId", "EncryptedMessageAttribute must have KeyId property");
-        names.ShouldContain("UseTenantKey", "EncryptedMessageAttribute must have UseTenantKey property");
+        // Assert — no member can switch encryption off for a marked type (#3273)
+        var names = properties.Select(p => p.Name).Order(StringComparer.Ordinal).ToArray();
+        names.ShouldBe(["KeyId", "UseTenantKey"]);
+        names.ShouldNotContain("Enabled", "EncryptedMessageAttribute must expose no per-type encryption opt-out");
     }
 
     [Fact]
@@ -366,7 +365,6 @@ public sealed class MessageEncryptionContractTests
         var attr = new EncryptedMessageAttribute();
 
         // Assert
-        attr.Enabled.ShouldBeTrue("Enabled must default to true");
         attr.KeyId.ShouldBeNull("KeyId must default to null");
         attr.UseTenantKey.ShouldBeFalse("UseTenantKey must default to false");
     }
