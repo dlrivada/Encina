@@ -1,0 +1,17 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.63GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host] : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+
+```
+| Method                    | Mean | Error | Ratio | RatioSD | Alloc Ratio |
+|-------------------------- |-----:|------:|------:|--------:|------------:|
+| &#39;AddAsync single message&#39; |   NA |    NA |     ? |       ? |           ? |
+
+Benchmarks with issues:
+  OutboxStoreEFBenchmarks.'AddAsync single message': ShortRun(InvocationCount=1, IterationCount=3, LaunchCount=1, UnrollFactor=1, WarmupCount=3)
