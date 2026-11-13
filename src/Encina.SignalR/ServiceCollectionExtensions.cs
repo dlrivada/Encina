@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.SignalR;
 
@@ -19,10 +20,15 @@ public static class ServiceCollectionExtensions
     /// <list type="bullet">
     /// <item><description><see cref="ISignalRNotificationBroadcaster"/> for broadcasting notifications</description></item>
     /// <item><description>Default <see cref="SignalROptions"/> configuration</description></item>
+    /// <item><description>A startup check that freezes the hub allow-list and warns when an <see cref="EncinaHub"/> is mapped with it empty</description></item>
     /// </list>
     /// </para>
     /// <para>
     /// After calling this method, inherit from <see cref="EncinaHub"/> to create your application hub.
+    /// This overload registers no callable type, so every hub call is denied; use
+    /// <see cref="AddEncinaSignalR(IServiceCollection, Action{SignalROptions})"/> with
+    /// <see cref="SignalROptions.AllowRequest{TRequest}(bool)"/> and
+    /// <see cref="SignalROptions.AllowNotification{TNotification}(bool)"/> to expose types.
     /// </para>
     /// </remarks>
     /// <example>
@@ -55,8 +61,9 @@ public static class ServiceCollectionExtensions
     /// builder.Services.AddEncinaSignalR(options =>
     /// {
     ///     options.EnableNotificationBroadcast = true;
-    ///     options.AuthorizationPolicy = "RequireAuth";
     ///     options.IncludeDetailedErrors = builder.Environment.IsDevelopment();
+    ///     options.AllowRequest&lt;GetOrderQuery&gt;();
+    ///     options.AllowNotification&lt;OrderViewed&gt;();
     /// });
     /// </code>
     /// </example>
@@ -64,11 +71,19 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         Action<SignalROptions> configureOptions)
     {
-        // Register options
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureOptions);
+
+        // Register options and the logging the registered services resolve
+        services.AddOptions();
+        services.AddLogging();
         services.Configure(configureOptions);
 
         // Register broadcaster
         services.TryAddSingleton<ISignalRNotificationBroadcaster, SignalRNotificationBroadcaster>();
+
+        // Freeze the hub allow-list at startup, log anonymous entries, warn on an empty list
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, SignalRAllowListStartupCheck>());
 
         return services;
     }
