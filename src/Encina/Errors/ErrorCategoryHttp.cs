@@ -121,17 +121,26 @@ public static class ErrorCategoryHttp
             return [new(AuthenticateHeader, GetChallenge(error))];
         }
 
-        if (effectiveStatusCode is 429 or 503
-            && error.GetDetails().TryGetValue(EncinaErrorMetadataKeys.RetryAfter, out var value)
-            && value is TimeSpan retryAfter
-            && retryAfter >= TimeSpan.Zero)
+        if (effectiveStatusCode is 429 or 503)
         {
-            var seconds = (long)Math.Ceiling(retryAfter.TotalSeconds);
-
-            return [new(RetryAfterHeader, seconds.ToString(CultureInfo.InvariantCulture))];
+            return GetRetryAfterHeaders(error);
         }
 
         return NoHeaders;
+    }
+
+    private static KeyValuePair<string, string>[] GetRetryAfterHeaders(EncinaError error)
+    {
+        if (!error.GetDetails().TryGetValue(EncinaErrorMetadataKeys.RetryAfter, out var value)
+            || value is not TimeSpan retryAfter
+            || retryAfter < TimeSpan.Zero)
+        {
+            return NoHeaders;
+        }
+
+        var seconds = (long)Math.Ceiling(retryAfter.TotalSeconds);
+
+        return [new(RetryAfterHeader, seconds.ToString(CultureInfo.InvariantCulture))];
     }
 
     private static string GetChallenge(EncinaError error)
