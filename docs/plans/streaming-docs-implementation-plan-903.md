@@ -2,8 +2,8 @@
 
 > **Issue**: [#903](https://github.com/dlrivada/Encina/issues/903)
 > **Type**: Feature (documentation only, no production code)
-> **Complexity**: Low (3 phases, 4 files)
-> **Estimated Scope**: one page of about 300 lines of Markdown, two small edits, one changelog fragment
+> **Complexity**: Low (3 phases, 5 files)
+> **Estimated Scope**: one page of about 300 lines of Markdown, three small edits, one changelog fragment
 
 ---
 
@@ -35,7 +35,8 @@ No open design choices. Every choice follows a cited convention:
 | 3 | Samples log the error code or exception type, never `EncinaError.Message` | Settled | `AGENTS.md` section 3 (`EncinaError.Message` NEVER reaches logs) | pending adversarial review |
 | 4 | No hand-typed figures; benchmark and coverage data are cited by marker or link | Settled | `AGENTS.md` section 9 and SPEC-001 | pending adversarial review |
 | 5 | Stream behaviors: state that `src/` ships none and show a user-written behavior; do not repeat the unsupported claim of the original outline | Settled | `.claude/skills/encina-docs/SKILL.md` section 3 rule 3 (every statement names real API) and the code read for this plan | pending adversarial review |
-| 6 | Fix the non-compiling README streaming sample in the same pull request | Settled | `AGENTS.md` section 11 (an identified problem is fixed now when it is in scope of the work) | pending adversarial review |
+| 6 | Fix the non-compiling README streaming sample in the same pull request | Trivial | One-line edit in the file Phase 3 already edits, same PR; no maintainer choice is involved | pending adversarial review |
+| 7 | Compass verdict recorded for the docs-reviewer: quadrant "how-to plus reference of the streaming API" (mixed today), reader a developer returning many items from a handler, outcome a working stream handler and consumer | Trivial | `.claude/skills/encina-docs/SKILL.md` section 1 (same verdict as choice 2) | pending adversarial review |
 
 ---
 
@@ -47,9 +48,9 @@ No open design choices. Every choice follows a cited convention:
 <summary>Tasks</summary>
 
 1. `docs/features/streaming.md` with front matter `title: "Streaming"`, `layout: default`, `parent: "Features"`; opening sentence names the reader (a developer who returns many items from a handler) and what they get.
-2. Sections: overview (when to stream instead of returning a list); defining a request and a handler (`IStreamRequest<out TItem>`, `IStreamRequestHandler<in TRequest, TItem>.Handle` with `[EnumeratorCancellation]`); consuming (`Stream` overloads, `Match` per item); error handling and cancellation (Left cases, `StreamCancelled`, the log events 100-105 of `Encina.Stream.cs`, the stream activity of `EncinaDiagnostics.StartStreamActivity`); stream pipeline behaviors (`IStreamPipelineBehavior`, `StreamHandlerCallback<TItem>`, `AddStreamPipelineBehavior` four overloads, `PipelineStage`); performance (backpressure, buffering).
+2. Sections: overview (when to stream instead of returning a list); defining a request and a handler (`IStreamRequest<out TItem>`, `IStreamRequestHandler<in TRequest, TItem>.Handle` with `[EnumeratorCancellation]`); consuming (`Stream` overloads, `Match` per item); error handling and cancellation (Left cases, `StreamCancelled`, the log events 100-105 of `Encina.Stream.cs`, the stream activity and its item-count tag, cited by activity name and tag, not by `EncinaDiagnostics.StartStreamActivity`, which is `internal static` and not API); stream pipeline behaviors (`IStreamPipelineBehavior`, `StreamHandlerCallback<TItem>`, `AddStreamPipelineBehavior` four overloads, `PipelineStage`); performance (backpressure, buffering).
 3. A Mermaid diagram of the stream path: caller, `Encina.Stream`, `StreamDispatcher`, stream behaviors, handler, items flowing back.
-4. At least two complete samples: define plus consume with `Either` matching, and a user-written stream behavior; then data-source illustrations for EF Core, Dapper and MongoDB.
+4. At least two complete samples: define plus consume with `Either` matching, and a user-written stream behavior; both are compiled. The EF Core, Dapper and MongoDB data-source illustrations are fragments marked as such on the page and are not compiled (they would need `Microsoft.EntityFrameworkCore`, `Dapper` and `MongoDB.Driver`, and the README sample uses an undefined `_repository`); `.claude/skills/encina-docs/SKILL.md` section 3 rule 3 applies to the two complete samples.
 
 </details>
 
@@ -64,7 +65,7 @@ TASK:
 1. Read .claude/skills/encina-docs/SKILL.md and diataxis.md; write the compass verdict (quadrant, reader, outcome) before writing.
 2. Read src/Encina/Abstractions/IStreamRequest.cs, IStreamRequestHandler.cs, IStreamPipelineBehavior.cs, IEncina.cs (Stream overloads), src/Encina/Core/Encina.Stream.cs, StreamDispatcher.cs, EncinaConfiguration.cs (AddStreamPipelineBehavior) and src/Encina/Pipeline/StreamPipelineBuilder.cs.
 3. Write docs/features/streaming.md as described in the plan, with the Mermaid diagram.
-4. Every sample must compile: copy member names from the sources; run a scratch project outside the repository for the samples.
+4. The two complete samples must compile: copy member names from the sources; run a scratch project (referencing `Encina` only) outside the repository. Mark the EF Core, Dapper and MongoDB illustrations as fragments.
 
 KEY RULES:
 - English only; junior-readable; link ADR-001 and ADR-006 instead of restating the reasoning.
@@ -87,7 +88,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Compile every sample in a scratch project outside the repository that references `Encina`; run the define-and-consume sample against an in-memory handler to confirm the output the page shows.
+1. Compile the two complete samples (define-and-consume, user-written behavior) in a scratch project outside the repository that references `Encina` only; the data-source fragments are marked as fragments and not compiled; run the define-and-consume sample against an in-memory handler to confirm the output the page shows.
 2. Run `lychee --offline --config .github/lychee.toml 'docs/**/*.md' 'README.md'`, `npx --yes markdownlint-cli2 "docs/**/*.md" "#docs/INVENTORY.md"` and `dotnet run .github/scripts/cov-docs-render.cs -- --check-dangling --docs-root docs --scan-roots src --manifest-dir .github/coverage-manifest --src-root src`; when a tool is missing, check relative links with `Test-Path` and say so.
 3. `docs-reviewer` reviews the page; fix every blocker and major finding.
 
@@ -101,7 +102,7 @@ CONTEXT:
 The page docs/features/streaming.md exists (Phase 1). Verify it; do not add content.
 
 TASK:
-1. Build a scratch project outside the repository and compile every C# block of the page.
+1. Build a scratch project outside the repository and compile the two complete C# samples of the page (the data-source fragments are marked and excluded).
 2. Run the define-and-consume sample and compare its output with the page.
 3. Run the link, lint and citation checks of .claude/skills/encina-docs/SKILL.md section 5.
 4. Run docs-reviewer on the page and fix blockers and majors.
@@ -125,8 +126,9 @@ REFERENCE FILES:
 
 1. `docs/features/index.md`: add `- [Streaming](streaming.md)` in the Core section.
 2. `README.md`: in the Streaming section, link the new page and fix the handler sample so `Handle` returns `IAsyncEnumerable<Either<EncinaError, Product>>` (verify against `IStreamRequestHandler.cs`).
-3. `changelog.d/903-streaming-docs.added.md` (written by `mechanical-fixer`).
-4. Check `docs/INVENTORY.md` for a features list and update it only if it lists feature pages.
+3. `docs/features/pipeline-behaviors.md`: add one cross-link line to the streaming page (the page mentions streams nowhere today).
+4. `changelog.d/903-streaming-docs.added.md` (written by `mechanical-fixer`).
+5. Check `docs/INVENTORY.md` for a features list and update it only if it lists feature pages.
 
 </details>
 
@@ -145,7 +147,7 @@ TASK:
 
 KEY RULES:
 - Never edit CHANGELOG.md.
-- The README sample must compile; check it in a scratch project.
+- The corrected README handler sample must compile; check it in a scratch project.
 - No AI attribution in commits.
 
 REFERENCE FILES:
@@ -182,7 +184,7 @@ REFERENCE FILES:
 | `StreamDispatcher` | `src/Encina/Core/StreamDispatcher.cs` | Handler resolution, missing-handler error, item count |
 | `StreamPipelineBuilder<,>` | `src/Encina/Pipeline/StreamPipelineBuilder.cs` | Ordering of stream behaviors |
 | `EncinaConfiguration.AddStreamPipelineBehavior` | `src/Encina/Core/EncinaConfiguration.cs` | Registration, four overloads |
-| `EncinaDiagnostics.StartStreamActivity` | `src/Encina/Diagnostics/EncinaDiagnostics.cs` | The stream activity and item count the page mentions |
+| `EncinaDiagnostics.StartStreamActivity` (`internal static`, EncinaDiagnostics.cs:67) | `src/Encina/Diagnostics/EncinaDiagnostics.cs` | Source of the stream activity name and item-count tag; the page cites the activity and tags, never the method as API |
 | `StreamRequestBenchmarks` | `tests/Encina.BenchmarkTests/Encina.Benchmarks/StreamRequestBenchmarks.cs` | Performance citation (link, no typed figures) |
 
 ### Event ID Allocation
@@ -200,6 +202,7 @@ No new range is needed: this plan adds no logging.
 | Feature page | 1 | `docs/features/streaming.md` |
 | Navigation entry (`docs/features/index.md`) | 1 | Core section |
 | README cross-reference and sample fix | 1 | `README.md` |
+| Cross-link line (`docs/features/pipeline-behaviors.md`) | 1 | One line |
 | Changelog fragment | 1 | `changelog.d/903-streaming-docs.added.md` |
 
 ---
@@ -214,7 +217,7 @@ PROJECT CONTEXT:
 Encina is a pre-1.0 .NET 10 library (C# 14, nullable enabled) with Railway Oriented Programming (Either<EncinaError, T>). Issue #903 asks for a streaming page. IEncina.Stream returns IAsyncEnumerable<Either<EncinaError, TItem>>; src/ ships no built-in stream pipeline behavior. Documentation only; write no production code. Follow AGENTS.md and .claude/skills/encina-docs/SKILL.md.
 
 IMPLEMENTATION OVERVIEW:
-One pull request of 4 files: docs/features/streaming.md (API, error handling and cancellation, stream behaviors, performance, two or more compiling samples, a Mermaid diagram), a line in docs/features/index.md, a README link plus the fix of the non-compiling handler sample, and changelog.d/903-streaming-docs.added.md (mechanical-fixer). Verify with the commands of the encina-docs skill, section 5, and review with docs-reviewer.
+One pull request of 5 files: docs/features/streaming.md (API, error handling and cancellation, stream behaviors, performance, two or more compiling samples, a Mermaid diagram), a line in docs/features/index.md, a cross-link line in docs/features/pipeline-behaviors.md, a README link plus the fix of the non-compiling handler sample, and changelog.d/903-streaming-docs.added.md (mechanical-fixer). Verify with the commands of the encina-docs skill, section 5, and review with docs-reviewer.
 
 KEY PATTERNS:
 - just-the-docs front matter (layout: default, parent: "Features").
@@ -258,5 +261,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Brief a `docs-writer` with Phase 1 to Phase 3 (one pull request, 4 files).
+1. Brief a `docs-writer` with Phase 1 to Phase 3 (one pull request, 5 files).
 2. Link this plan from #903.
