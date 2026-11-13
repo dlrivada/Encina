@@ -2,7 +2,7 @@
 
 > **Issue**: [#1240](https://github.com/dlrivada/Encina/issues/1240) (SPEC-002 tracking id **P-38**, priority **P0**)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 10 database providers, new package, ~60 files, 5 pull requests)
+> **Complexity**: High (10 phases, 10 database providers, new package, ~160 files, 16 pull requests)
 > **Estimated Scope**: ~2,200-2,900 lines of production code + ~3,000-3,800 lines of tests
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
@@ -28,7 +28,24 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 
 **Provider category**: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one package, three databases), MongoDB (AGENTS.md section 5).
 
-**Size**: about 60 files, so five worker pull requests: PR 1 (`Encina.ChainedLog` core: abstractions, in-memory log, hashers, verifier, options, DI, diagnostics, unit and guard tests); PR 2 (ADO.NET x3); PR 3 (Dapper x3); PR 4 (EF Core and MongoDB); PR 5 (Attestation on the log, cross-provider contract, property, integration and load tests, documentation). Each stays within 15 files and 1,500 lines.
+**Size**: about 160 files including tests, scripts, manifests, PublicAPI files, `ProjectReference` edits and fragments, so sixteen worker pull requests. Every PR builds and passes alone with its own tests, manifest rows and PublicAPI lines, and stays within 15 files and 1,500 lines (`pr-size`):
+
+| PR | Content | Files |
+|----|---------|-------|
+| 1 | Package skeleton: csproj, `Encina.slnx`, `PublicAPI.Shipped/Unshipped.txt`, README, manifest, models `ChainedLogEntry`, `ChainedLogAppend`, `ChainHead`, `ChainVerification`, `ChainedLogErrors`; unit and guard tests | 13 |
+| 2 | Hashing: `IChainHasher`, `ChainLink`, `CanonicalForm`, `Sha256ChainHasher`, `HmacChainHasher`, `ChainedLogOptions` and validator, PublicAPI, manifest; unit (fixed vectors) and guard tests | 12 |
+| 3 | Log core: `IChainedLog`, `IChainedLogStore`, `ChainVerifier`, `InMemoryChainedLogStore`, `DefaultChainedLog`, PublicAPI, manifest; unit tests, guard tests and the store contract suite run against the in-memory store | 13 |
+| 4 | `AddEncinaChainedLog`, `ChainedLogDiagnostics`, `ChainedLogLogMessages`, `EventIdRanges.cs`, `EncinaEventIdAllocationTests`, PublicAPI (`Encina` and `Encina.ChainedLog`), manifest; DI, telemetry and guard tests | 11 |
+| 5 | `ChainedLogHealthCheck`, periodic verification service, `ChainVerificationFailedNotification`, PublicAPI, manifest; health, service and notification unit tests | 9 |
+| 6, 7, 8 | ADO.NET on SQL Server, PostgreSQL, MySQL (one PR each): `ChainedLogStoreADO`, registration (modify), script and `000_CreateAllTables.sql` (modify), PublicAPI, manifest, integration test, store contract class, DI test | 9 each |
+| 9, 10, 11 | Dapper on SQL Server, PostgreSQL, MySQL (one PR each): same set as the ADO.NET PRs | 9 each |
+| 12 | EF Core: `ChainedLogStoreEF`, two entities, configuration, `ApplyEncinaChainedLog`, registration, PublicAPI, manifest, three integration test classes (SQL Server, PostgreSQL, MySQL), store contract class, DI test | 13 |
+| 13 | MongoDB: `ChainedLogStoreMongoDB`, two documents, index initializer, registration, PublicAPI, manifest, integration test, store contract class, DI test | 10 |
+| 14 | Attestation on the log: `HashChainAttestationProvider`, `ServiceCollectionExtensions`, validator, options (modify), PublicAPI, manifest, unit tests, the S8 integration test, `changed` fragment | 10 |
+| 15 | Property tests, load tests (NBomber), benchmark justification `.md` | 5 |
+| 16 | Documentation: `Encina.ChainedLog` and `Encina.Compliance.Attestation` READMEs, seven provider READMEs, the feature page, `docs/INVENTORY.md`, `added` fragment | 12 |
+
+PRs 6 to 13 need PR 4; PR 5 needs PR 4; PR 14 needs PR 4 and PR 7 (its S8 integration test runs on PostgreSQL); the rest follow in order. No PR references a package that is not on main.
 
 ---
 
@@ -74,6 +91,10 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 - `Attributes` (at most a few ordinal-sorted key/value strings, for example a correlation id) are part of the canonical form, so an edit to them breaks the chain.
 - `Reference` makes append idempotent: appending the same `Reference` to the same chain returns the existing entry (Attestation's "same `RecordId` returns the existing receipt"), enforced by a unique index on `(TenantId, PartitionKey, Reference)` where `Reference` is not null.
 - `VerifyPayloadAsync(entry, payloadHash)` lets a caller prove that a document still matches its entry.
+- Key lengths: `TenantId`, `PartitionKey` and `Reference` are at most 128 characters each (validated on append, `Validation` errors), so the composite unique index stays under the MySQL InnoDB index byte limit with `utf8mb4` (3 x 128 x 4 bytes).
+- Timestamp precision: `AppendedAtUtc` is truncated to whole milliseconds by `DefaultChainedLog` before it is hashed and stored, and the canonical form carries it as Unix milliseconds (`long`), not ticks. PostgreSQL `TIMESTAMPTZ` and MySQL `DATETIME(6)` keep microseconds and MongoDB milliseconds, so a 100 ns tick value read back would differ from the hashed one and break verification on three of the four families (SQL Server `DATETIME2` would hide it). The columns are declared with millisecond precision (`DATETIME2(3)`, `TIMESTAMPTZ(3)`, `DATETIME(3)`), a fixed-vector unit test covers the truncation, and the store contract test "append, read back, verify" runs on every provider.
+- Chain identity: `TenantId` and `PartitionKey` are compared case-sensitively and byte-wise on every provider, so partition `A` and `a` are two chains everywhere. The key columns use a binary collation (SQL Server `Latin1_General_100_BIN2`, MySQL `utf8mb4_bin`; PostgreSQL and MongoDB are case-sensitive by default), and the contract suite appends to both spellings and asserts two independent chains.
+- Tenancy off: the tenant key is the empty string `""`. A real tenant id must be non-empty (an empty ambient tenant is `Left(chainedlog.tenant_required)`), so no real tenant, including one literally called `default`, can share the tenancy-off chain, and turning tenancy on later never merges chains: the `""` chain stays reachable only while tenancy is off. Main has no default-tenant constant (`DefaultConsentService` uses a null tenant); the sentinel is documented in the XML docs and README.
 
 **Class:** Settled
 **Settled by:** Existing convention: `src/Encina.Compliance.Attestation/Model/AttestationReceipt.cs` (content hash only, ADR-022); GDPR Art. 5(1)(c) (data minimisation) and Art. 17; AGENTS.md section 3 (no personal data where it is not needed)
@@ -96,7 +117,7 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 ### Rationale
 
 - ADR-057 D11: a primitive is neutral when it has no regulation field names, formats or endpoints, "ships no default, preset or hasher that reproduces the RRSIF concatenation", and has no regulation-named option. The canonical form above is generic (length-prefixed, tenant and partition based) and is not the concatenation of any regulation's field list; no type, option, constant, sample or test fixture names Verifactu, RRSIF, AEAT, invoice or tax.
-- The issue says "SHA-256 default": SHA-256 is the algorithm of the default hasher. The comment on the issue repeats D11 ("no default, preset or hasher reproducing the RRSIF concatenation"), which is satisfied: the default is generic, and an application that needs a regulation-specific concatenation writes its own `IChainHasher` and carries that responsibility (ADR-057, D20).
+- Option C (no shipped hasher) also satisfies D11; the exclusion is the issue's own line "SHA-256 default" (issue body and comment of 2026-10-17), which requires a hasher out of the box. SHA-256 is the algorithm of the default hasher. The comment on the issue repeats D11 ("no default, preset or hasher reproducing the RRSIF concatenation"), which is satisfied: the default is generic, and an application that needs a regulation-specific concatenation writes its own `IChainHasher` and carries that responsibility (ADR-057, D20).
 - Neutrality is checked mechanically by the architecture test of #2925 and by the review checklist of #2926; this plan adds both packages (`Encina.ChainedLog`, the provider `ChainedLog/` folders) to the allow-list scope those issues define and its own tests assert the canonical form with fixed vectors.
 
 **Class:** Settled
@@ -111,7 +132,7 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A head row per chain (`ChainedLogHeads`: tenant, partition, last sequence, last hash), locked for update inside the caller's transaction (`UPDLOCK, HOLDLOCK` on SQL Server; `SELECT ... FOR UPDATE` on PostgreSQL and MySQL; a transactional `findOneAndUpdate` on MongoDB), then the entry insert and head update; the first append creates the head with an upsert that ignores conflicts** | Gapless by construction; a rollback of the caller's transaction rolls back the entry and the head; the lock lives exactly as long as the transaction | Appenders on the same chain wait for each other; a long caller transaction holds the chain |
+| **A) A head row per chain (`ChainedLogHeads`: tenant, partition, last sequence, last hash), locked for update inside the caller's transaction (`UPDLOCK, HOLDLOCK` on SQL Server; `SELECT ... FOR UPDATE` on PostgreSQL and MySQL; a transactional `findOneAndUpdate` on MongoDB), then the entry insert and head update; the first append creates the head with an insert that ignores only the duplicate key** | Gapless by construction; a rollback of the caller's transaction rolls back the entry and the head; the lock lives exactly as long as the transaction | Appenders on the same chain wait for each other; a long caller transaction holds the chain |
 | **B) `IDistributedLockProvider` around the append** | Provider-independent | The lock is released before the caller's transaction commits, so a rollback leaves a gap or a later append sees a stale head |
 | **C) Optimistic: unique `(chain, sequence)` and retry on conflict** | No waiting | The caller's work is already done in its transaction; a retry means re-running the caller; a PostgreSQL unique violation aborts the whole transaction |
 
@@ -121,7 +142,8 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 
 - The issue says it: "Append is serialised per chain inside the caller's transaction; verification detects any gap or edit."
 - Connection and transaction handling follow the existing stores: ADO.NET and Dapper enlist through `IDbTransactionAccessor` (the outbox pattern), EF Core uses the scoped `DbContext` and its transaction, MongoDB uses `IMongoSessionAccessor`.
-- MongoDB needs a replica set for transactions; on a standalone server the store returns `Left(chainedlog.transaction_required)` instead of appending without a guarantee.
+- MongoDB needs a replica set for transactions; on a standalone server the store returns `Left(chainedlog.transactions_unsupported)` (`Internal`, a deployment problem) instead of appending without a guarantee.
+- Idempotency never relies on catching a unique violation: on PostgreSQL a unique violation aborts the whole transaction, which is the caller's (option C is rejected for the same reason). Because the head row is locked first, the store first selects by `(tenant, partition, reference)` under the lock and returns the existing entry when found; a unique violation afterwards is only a fault (`Left(chainedlog.append_failed)`).
 - Retention: the log is append-only; there is no delete or update method in the abstraction.
 
 **Class:** Settled
@@ -170,6 +192,8 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 - The issue: "Attestation uses it as its persistent backend; the in-memory provider stays for tests." `InMemoryAttestationProvider` is unchanged; the in-memory `IChainedLog` of `Encina.ChainedLog` backs unit tests of the hash-chain provider.
 - An ephemeral key makes every receipt of a previous run unverifiable. With a persistent log, a missing key is a start-up error (fail closed, AGENTS.md section 3), not a warning.
 - ADR-057 records `HashChainAttestationProvider` as already shipped and "stays as it is" as a position; this plan changes its storage, not its neutrality (it already holds no regulation concepts).
+- Lifetime: today `AddHashChainProvider` registers `HashChainAttestationProvider`, `IAuditAttestationProvider` and `IAttestationReceiptStore` as singletons (`ServiceCollectionExtensions.cs`). The provider now needs `IChainedLog`, whose stores depend on the scoped `DbContext`, `IDbTransactionAccessor` and `IMongoSessionAccessor`, so a singleton would be a captive dependency that `ValidateScopes` rejects. The three registrations become scoped (the in-memory and HTTP providers stay as they are), which also lets an attestation join the request's transaction: `AttestationPipelineBehavior` is a transient behavior resolved in the request scope, so it appends in the scope's ambient transaction when one exists and in an own short transaction otherwise (Design Choice 5). `AttestationHealthCheck` and other consumers of `IAuditAttestationProvider` resolve it from a scope (health checks run in a scope per execution); the DI test with `ValidateOnBuild` and `ValidateScopes` proves no singleton holds it. The lifetime change goes in the `changed` changelog fragment.
+- Keys: after the change `ChainedLogOptions.HmacKey` and `HashChainOptions.HmacKey` both exist. `AddHashChainProvider` copies the Attestation key into the log's options (post-configure; one source of truth for the application), both properties keep `[JsonIgnore]` and a redacting `ToString()` (AGENTS.md section 3), and the `chainedlog.key_missing` check runs at start-up (`ValidateOnStart`) for the Attestation path as well.
 
 **Class:** Settled
 **Settled by:** The issue comment of 2026-10-17 ("Attestation uses it as its persistent backend, the in-memory provider stays for tests"); SPEC-002 REQ-021 and REQ-047; AGENTS.md section 3 ("Compliance and security gates fail closed"); ADR-057 (position of `HashChainAttestationProvider`)
@@ -193,7 +217,7 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 
 - `GetHeadAsync` returns `(sequence, entryHash)` so an application can anchor the head outside the database (a signed file, another store); the documentation states that without an anchor, the strongest guarantee is against edits and middle deletions, and, with the keyed hasher, against an administrator who does not hold the key.
 - A broken chain returns `Right(ChainVerification { IsValid = false, FirstBrokenSequence, Code })`, not `Left`: the verification ran; the evidence is bad. The failure is metered, logged at critical level, published as a notification, and reported by the health check as `Unhealthy`.
-- The periodic service (`ChainedLogOptions.VerifyEvery`, null by default) runs inside a `PeriodicTimer` loop that catches per iteration and lets cancellation end the loop (AGENTS.md section 3, background loops).
+- The periodic service (`ChainedLogOptions.VerifyEvery`, null by default) runs inside a `PeriodicTimer` loop that catches per iteration and lets cancellation end the loop (AGENTS.md section 3, background loops). A `Left` from `Publish` of `ChainVerificationFailedNotification`, from the periodic service or from `VerifyAsync`, is never swallowed: it is logged by error code (`VerificationFailed`, 6585), counted in `chainedlog.verify_failures.total`, and the loop keeps running; a unit test covers it.
 
 **Class:** Trivial
 **Settled by:** Existing convention: `IAuditAttestationProvider.VerifyAsync` returns `AttestationVerification` (valid or not) rather than `Left` for a bad receipt; AGENTS.md section 3 (background loops and timers)
@@ -218,7 +242,19 @@ This plan delivers a **regulation-neutral persistent hash-chained log**:
 5. **`Abstractions/IChainedLog.cs`** — `AppendAsync(ChainedLogAppend, ct)`, `GetHeadAsync(partition, ct)`, `GetEntriesAsync(partition, fromSequence, take, ct)`, `VerifyAsync(partition, range?, ct)`, `VerifyPayloadAsync(entry, payloadHash, ct)`; all `Either<EncinaError, T>`
 6. **`Abstractions/IChainedLogStore.cs`** — the provider-facing storage contract (lock head, insert entry, update head, read range); `IChainedLog`'s default implementation `DefaultChainedLog` composes store + hasher + verifier
 7. **`Abstractions/IChainHasher.cs`, `Model/ChainLink.cs`** — hashing contract
-8. **`ChainedLogErrors.cs`** — `chainedlog.append_failed`, `chainedlog.transaction_required`, `chainedlog.chain_broken`, `chainedlog.key_missing`, `chainedlog.invalid_partition`, `chainedlog.attributes_too_large`, `chainedlog.not_found` (codes and non-identifying details only)
+8. **`ChainedLogErrors.cs`** (PR 1) — every code is created with `EncinaErrors.Create(code, category, ...)` (ADR-062; the completeness scan fails an uncategorized call), codes and non-identifying details only, each category asserted by a `GetCategory` test:
+
+   | Code | `ErrorCategory` | Rule |
+   |------|-----------------|------|
+   | `chainedlog.append_failed` | `Internal` | R4: store failure, including a unique violation treated as a fault |
+   | `chainedlog.transaction_required` | `InvalidRequest` | R3: `RequireAmbientTransaction` is set and the caller has no transaction (`FailedPrecondition` is not used before #3420) |
+   | `chainedlog.transactions_unsupported` | `Internal` | R1/R4: the MongoDB deployment cannot run transactions (wiring) |
+   | `chainedlog.key_missing` | `Internal` | R1: the keyed hasher has no key (wiring, found at start-up) |
+   | `chainedlog.invalid_partition`, `chainedlog.reference_invalid`, `chainedlog.attributes_too_large` | `Validation` | R3: field rules |
+   | `chainedlog.tenant_required` | `InvalidRequest` | R3: a required (or empty) tenant is missing; used by `DefaultChainedLog` (Phase 3) |
+   | `chainedlog.not_found` | `NotFound` | R1, only when the request names an entry or chain that does not exist |
+
+   A broken chain is not an error: `chainedlog.chain_broken` is the `Code` of a `Right(ChainVerification { IsValid = false })` (Design Choice 7)
 
 </details>
 
@@ -255,7 +291,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Hashing/CanonicalForm.cs`** (internal) — length-prefixed UTF-8 fields in the fixed order of Design Choice 3; attributes sorted ordinally; appended time as UTC ticks; documented in XML and in the README
+1. **`Hashing/CanonicalForm.cs`** (internal) — length-prefixed UTF-8 fields in the fixed order of Design Choice 3; attributes sorted ordinally; appended time as Unix milliseconds (`long`, already truncated to the millisecond by `DefaultChainedLog`, Design Choice 2); documented in XML and in the README
 2. **`Hashing/Sha256ChainHasher.cs`** (public sealed) — SHA-256 over the canonical form
 3. **`Hashing/HmacChainHasher.cs`** (public sealed) — HMAC-SHA-256 (algorithm configurable to SHA-384/512) with a key from `ChainedLogOptions.HmacKey` (`[JsonIgnore]`, `ToString()` redacts; null key is a start-up error when this hasher is selected)
 4. **`Verification/ChainVerifier.cs`** (internal) — walks entries in sequence order: first sequence is 1, no gaps, `PreviousHash` equals the previous `EntryHash` (genesis for the first), recomputed `EntryHash` equals the stored one, last entry equals the head; returns the first broken sequence
@@ -294,9 +330,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`DefaultChainedLog.cs`** — `AppendAsync`: validate partition and attributes, resolve the tenant (`IRequestContext`, fixed default tenant when tenancy is off, `Left(chainedlog.tenant_required)` when a tenant is required and none exists), delegate to the store inside its transaction handling, compute the entry hash with `IChainHasher`, idempotent by `Reference`
+1. **`DefaultChainedLog.cs`** — `AppendAsync`: validate partition, reference length and attributes, resolve the tenant (`IRequestContextAccessor`; the empty-string tenant key when tenancy is off (Design Choice 2); `Left(chainedlog.tenant_required)` when a tenant is required and none exists or the ambient tenant is empty), truncate `AppendedAtUtc` (from `TimeProvider`) to milliseconds, delegate to the store inside its transaction handling, compute the entry hash with `IChainHasher`, idempotent by `Reference`
 2. **`ChainedLogOptions.cs`** — `Hasher` (Sha256 | Hmac), `HmacKey`, `HmacAlgorithm`, `RequireAmbientTransaction` (default false), `MaxAttributeBytes`, `VerifyEvery` (null), `VerifiedPartitions`, `AddHealthCheck`; `ChainedLogOptionsValidator`
-3. **`ServiceCollectionExtensions.AddEncinaChainedLog(Action<ChainedLogOptions>?)`** — options, validator, hasher selection, `IChainedLog`, in-memory store as a `TryAdd` default that **fails at start-up outside `Development` when no database store is registered** and a hasher requires evidence (so the chain is never silently kept in memory), optional verification service and health check; a database store wins over the in-memory default in any registration order without overriding the application's own registration (the `Replace`-style rule of AGENTS.md section 3)
+3. **`ServiceCollectionExtensions.AddEncinaChainedLog(Action<ChainedLogOptions>?)`** — options, validator, hasher selection, `IChainedLog`, in-memory store as a `TryAdd` default that **fails at start-up when `IHostEnvironment.IsDevelopment()` is false and no database store is registered** (a start-up validator resolves `IHostEnvironment`; the in-memory chain is never silently kept outside development; both environments are unit-tested), optional verification service and health check; a database store wins over the in-memory default in any registration order without overriding the application's own registration (the `Replace`-style rule of AGENTS.md section 3)
 4. **DI test** — built with `ValidateOnBuild` and `ValidateScopes` for the in-memory default and for each provider registration
 
 </details>
@@ -309,7 +345,7 @@ CONTEXT:
 - Registration completeness rule: an AddEncina* method that adds a service must register every option type and
   dependency it resolves, proven by a DI test with ValidateOnBuild and ValidateScopes; a database store must win over an
   in-memory default in any registration order (see the read-audit store fix #1269 and Encina.Audit.Marten's Replace).
-- Tenant resolution decision table: DefaultConsentService (RequireTenantContext, ambient tenant, fixed default tenant).
+- Tenant resolution decision table: DefaultConsentService (RequireTenantContext, ambient tenant through IRequestContextAccessor; tenancy off is a null tenant there and the empty-string key here).
 
 TASK:
 Implement DefaultChainedLog, the options with validator, the registration and the DI tests.
@@ -334,7 +370,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Tables** (per relational provider; script numbers are the next free ones at implementation time, never reused from another plan): `ChainedLogEntries` (`TenantId`, `PartitionKey`, `Sequence`, `PayloadHash`, `Reference` null, `AttributesJson`, `PreviousHash`, `EntryHash`, `AppendedAtUtc`; primary key `(TenantId, PartitionKey, Sequence)`; unique index `(TenantId, PartitionKey, Reference)` filtered on `Reference IS NOT NULL` where the provider supports filters, otherwise a nullable-unique column) and `ChainedLogHeads` (`TenantId`, `PartitionKey`, `LastSequence`, `LastHash`; primary key `(TenantId, PartitionKey)`)
-2. **Types** — SQL Server `NVARCHAR(128)` keys, `BIGINT` sequence, `NVARCHAR(128)` hashes (hex), `DATETIME2`; PostgreSQL `TEXT`, `BIGINT`, `TIMESTAMPTZ`; MySQL `VARCHAR(128)` (utf8mb4 index length checked), `BIGINT`, `DATETIME(6)`
+2. **Types** — SQL Server `NVARCHAR(128)` keys with `COLLATE Latin1_General_100_BIN2`, `BIGINT` sequence, `NVARCHAR(128)` hashes (hex), `DATETIME2(3)`; PostgreSQL `VARCHAR(128)` keys (case-sensitive by default), `BIGINT`, `TIMESTAMPTZ(3)`; MySQL `VARCHAR(128)` keys with `utf8mb4_bin` (index length checked: three 128-character columns), `BIGINT`, `DATETIME(3)`; MongoDB ordinal string comparison and millisecond dates (Design Choice 2)
 3. **EF Core** — `ChainedLogEntryEntity`, `ChainedLogHeadEntity`, `ChainedLogEntityConfiguration`, `ModelBuilder.ApplyEncinaChainedLog()`
 4. **MongoDB** — documents `ChainedLogEntryDocument` and `ChainedLogHeadDocument`, indexes created at start-up (unique `{tenant_id, partition_key, sequence}`, unique partial `{tenant_id, partition_key, reference}`)
 5. Append-only is enforced by the stores (no update or delete SQL for entries) and documented; database-level `REVOKE UPDATE, DELETE` guidance goes in the documentation, not in code
@@ -375,18 +411,20 @@ REFERENCE FILES:
 #### 5a. ADO.NET x3 and 5b. Dapper x3 (`ChainedLog/ChainedLogStoreADO.cs`, `ChainedLog/ChainedLogStoreDapper.cs`)
 
 1. Enlist in the scope's transaction through `IDbTransactionAccessor`; with none, begin an own transaction (or return `Left(chainedlog.transaction_required)` when `RequireAmbientTransaction`)
-2. Lock sequence: ensure the head row exists (SQL Server `IF NOT EXISTS ... INSERT` under `UPDLOCK, HOLDLOCK`; PostgreSQL `INSERT ... ON CONFLICT DO NOTHING`; MySQL `INSERT IGNORE`), then select it for update (`WITH (UPDLOCK, HOLDLOCK)` / `FOR UPDATE`), read `LastSequence` and `LastHash`, insert the entry, update the head
-3. Reads: `GetEntriesAsync` with provider pagination (`OFFSET/FETCH`, `LIMIT`), `GetHeadAsync`
-4. `OpenAsync(ct)`, `ExecuteReaderAsync(ct)`, `BeginTransactionAsync(ct)` only; provider exceptions become `Left(chainedlog.append_failed)` with the exception type; unique violation on `Reference` returns the existing entry (idempotent)
+2. Lock sequence: ensure the head row exists with an insert that ignores only the duplicate key (SQL Server `IF NOT EXISTS ... INSERT` under `UPDLOCK, HOLDLOCK`; PostgreSQL `INSERT ... ON CONFLICT DO NOTHING`, which does not abort the transaction; MySQL `INSERT ... ON DUPLICATE KEY UPDATE LastSequence = LastSequence`, a no-op, never `INSERT IGNORE`, which would also swallow truncation and constraint errors), then select it for update (`WITH (UPDLOCK, HOLDLOCK)` / `FOR UPDATE`), read `LastSequence` and `LastHash`
+3. Idempotency under the lock: when `Reference` is set, select the entry by `(tenant, partition, reference)` and return it if found; otherwise insert the entry and update the head. A unique violation on the insert is a fault (`Left(chainedlog.append_failed)`), never a "return the existing entry" signal
+4. Reads: `GetEntriesAsync` with provider pagination (`OFFSET/FETCH`, `LIMIT`), `GetHeadAsync`
+5. `OpenAsync(ct)`, `ExecuteReaderAsync(ct)`, `BeginTransactionAsync(ct)` only; provider exceptions become `Left(chainedlog.append_failed)` with the exception type
 
 #### 5c. EF Core (`ChainedLogStoreEF.cs`)
 
-1. Uses the scoped `DbContext` and its current transaction (or a short own one); the head lock uses provider-specific raw SQL selected from `Database.ProviderName` (SqlServer `UPDLOCK`, PostgreSQL and MySQL `FOR UPDATE`); entry and head changes saved with one `SaveChangesAsync(ct)`
-2. Integration tests run on SqlServer, PostgreSQL and MySQL
+1. Uses the scoped `DbContext` and its current transaction; the head lock and the entry and head writes are raw SQL executed on that context's connection and transaction (`Database.ExecuteSqlAsync` / `SqlQueryRaw`, provider-specific text selected from `Database.ProviderName`: SqlServer `UPDLOCK`, PostgreSQL and MySQL `FOR UPDATE`), never `SaveChangesAsync`: the lock-read-modify-write must run immediately, and a `SaveChangesAsync` would flush every other pending change of the caller's tracked context at a moment the caller did not choose. The EF entities exist for the model and schema, not for tracking the chain rows
+2. With no ambient transaction, the store begins its own short transaction through `Database.BeginTransactionAsync(ct)` only when `Database.CurrentTransaction` is null and commits it before returning, so it never interferes with a transaction the caller opens afterwards on the same scoped context; a unit test and an integration test cover both cases
+3. Integration tests run on SqlServer, PostgreSQL and MySQL
 
 #### 5d. MongoDB (`ChainedLogStoreMongoDB.cs`)
 
-1. Requires a session from `IMongoSessionAccessor`; the head is taken with `FindOneAndUpdateAsync` (`$inc`, upsert) inside the transaction; entry insert and head hash update in the same session; without a transaction-capable deployment returns `Left(chainedlog.transaction_required)`
+1. Requires a session from `IMongoSessionAccessor`; the head is taken with `FindOneAndUpdateAsync` (`$inc`, upsert) inside the transaction, and a duplicate-key error from two upserts racing on a first append is retried once; entry insert and head hash update in the same session; without a transaction-capable deployment returns `Left(chainedlog.transactions_unsupported)`
 
 </details>
 
@@ -408,6 +446,7 @@ KEY RULES:
 - The lock lives in the caller's transaction; never release it early; never swallow a provider exception.
 - Provider exceptions become Left with the exception type only; OperationCanceledException propagates.
 - Entry rows are never updated or deleted.
+- Idempotency by Reference is a select under the head lock, never a caught unique violation (PostgreSQL aborts the caller's transaction); MySQL head creation uses ON DUPLICATE KEY UPDATE no-op, never INSERT IGNORE; EF never calls SaveChangesAsync.
 - Names follow {Pattern}Store{Provider}: ChainedLogStoreADO, ChainedLogStoreDapper, ChainedLogStoreEF, ChainedLogStoreMongoDB,
   in a ChainedLog/ folder named after the feature.
 
@@ -428,7 +467,7 @@ REFERENCE FILES:
 
 1. **`HashChainAttestationProvider.cs`** (modify) — constructor takes `IChainedLog`; `AttestAsync` appends (`Reference = RecordId`, `PayloadHash = ContentHash`, attributes: correlation id) and maps the entry to `AttestationReceipt`; `VerifyAsync` recomputes through `IChainedLog.VerifyAsync` for the receipt's chain range; the in-memory list, the lock, `_previousSignature` and `HashChainOptions.StoragePath` are removed
 2. **`AttestationReceipt` mapping** — `Signature` = `EntryHash`, `ProofMetadata["chain_index"]` = sequence, `ProofMetadata["hash_algorithm"]` = the hasher's name
-3. **`ServiceCollectionExtensions.AddHashChainProvider`** (modify) — registers `HmacChainHasher` with the configured key and requires `AddEncinaChainedLog`; start-up fails without a key (`chainedlog.key_missing`); the `EphemeralHmacKeyWarning` path is removed
+3. **`ServiceCollectionExtensions.AddHashChainProvider`** (modify) — registers `HmacChainHasher` with the configured key (copied into `ChainedLogOptions`, Design Choice 6) and requires `AddEncinaChainedLog`; start-up fails without a key (`chainedlog.key_missing`, `ValidateOnStart`); the `EphemeralHmacKeyWarning` path is removed; `HashChainAttestationProvider`, `IAuditAttestationProvider` and `IAttestationReceiptStore` change from singleton to scoped (Design Choice 6), and the DI test with `ValidateOnBuild` and `ValidateScopes` proves it
 4. **`HashChainOptionsValidator`** (modify) — key required when the log is persistent; the algorithm check stays
 5. `IAttestationReceiptStore` for the hash-chain provider reads receipts back from the log by `Reference`
 6. The tenant of an `AuditRecord` (`TenantId`) selects the chain; the partition key is the constant `attestation` unless an option sets another
@@ -468,7 +507,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Multi-tenancy** — one chain per `(tenant, partition)`; `IRequestContext.TenantId` or the fixed default tenant; `Left(chainedlog.tenant_required)` when required; two-tenant test: tenant A never reads, verifies or extends tenant B's chain (REQ-061, ADR-057 "keyed per tenant")
+1. **Multi-tenancy** — one chain per `(tenant, partition)`; the ambient tenant through `IRequestContextAccessor`, or the empty-string tenant key when tenancy is off (Design Choice 2); `Left(chainedlog.tenant_required)` when required or empty; two-tenant test: tenant A never reads, verifies or extends tenant B's chain (REQ-061, ADR-057 "keyed per tenant")
 2. **Transactions** — Design Choices 4 and 5
 3. **Locks** — the head-row lock is the serialisation; `IDistributedLockProvider` is not used (Design Choice 4)
 4. **Audit trail** — a failed verification publishes `ChainVerificationFailedNotification` (an `INotification`) with the chain's tenant and the first broken sequence, never a partition key value
@@ -490,7 +529,7 @@ TASK:
 Wire tenant resolution, the verification-failed notification, the health check and the two-tenant tests.
 
 KEY RULES:
-- Tenant is never taken from the payload; it comes from IRequestContext.
+- Tenant is never taken from the payload; it comes from IRequestContextAccessor; tenancy off is the empty-string key.
 - Health check: DefaultName const, Tags static array, scoped resolution via IServiceProvider.CreateScope().
 - No partition key value, payload hash or entry hash in tags or log messages.
 
@@ -510,7 +549,7 @@ REFERENCE FILES:
 
 The names in the issue (`encina.chain.appends`, `encina.chain.verify_failures`, `encina.chain.append`) were proposals; the plan names them after the package: source and meter `Encina.ChainedLog`.
 
-1. **`Diagnostics/ChainedLogDiagnostics.cs`** — `ActivitySource` and `Meter` `Encina.ChainedLog`; counters `chainedlog.appends.total` (tag `chainedlog.outcome`), `chainedlog.verifications.total` (tag `chainedlog.outcome`), `chainedlog.verify_failures.total`; histogram `chainedlog.append.duration.ms`; activities `ChainedLog.Append` and `ChainedLog.Verify` with `chainedlog.tenant_id`; no partition key value, hashes or attributes
+1. **`Diagnostics/ChainedLogDiagnostics.cs`** — `ActivitySource` and `Meter` `Encina.ChainedLog`; counters `chainedlog.appends.total` (tag `chainedlog.outcome`), `chainedlog.verifications.total` (tag `chainedlog.outcome`), `chainedlog.verify_failures.total`; histogram `chainedlog.append.duration.ms`; activities `ChainedLog.Append` and `ChainedLog.Verify` with `chainedlog.tenant_id` (emitted only when multi-tenancy is on and absent when it is off, ADR-054 D4; a test covers both); no partition key value, hashes or attributes
 2. **`EventIdRanges.cs`** — register `ChainedLog = (6580, 6589)` (from the batch block 6550-6599) and map `Encina.ChainedLog` in `EncinaEventIdAllocationTests`
 3. **`Diagnostics/ChainedLogLogMessages.cs`** — `[LoggerMessage]` 6580 onward, packed: `AppendCompleted` (6580, Debug), `AppendFailed` (6581, Error), `IdempotentReturned` (6582, Debug), `ChainVerified` (6583, Information), `ChainBroken` (6584, Critical; sequence and code only), `VerificationFailed` (6585, Error), `TransactionRequired` (6586, Warning), `KeyMissing` (6587, Critical, start-up), `InMemoryStoreInUse` (6588, Warning)
 4. Provider stores do not log (the log composes and logs); Attestation keeps its own range `ComplianceAttestation` (9600-9699) for its messages
@@ -531,7 +570,7 @@ Add the diagnostics, the range registration, the allocation-test mapping and the
 KEY RULES:
 - Pack EventIds sequentially from 6580; XML docs name the range ("Event IDs: 6580-6588 (see EventIdRanges.ChainedLog)").
 - No hashes, partition values, attributes or Error.Message in tags, metrics or logs; exceptions via ForLogging().
-- Tenant as "chainedlog.tenant_id".
+- Tenant as "chainedlog.tenant_id", only when multi-tenancy is on (ADR-054 D4), absent when off.
 
 REFERENCE FILES:
 - src/Encina.Compliance.Attestation/Diagnostics/AttestationDiagnostics.cs and AttestationLogMessages.cs
@@ -547,16 +586,40 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Manifest first: per-file targets with one-sentence justifications for every new file in `.github/coverage-manifest/Encina.ChainedLog.json`, the Attestation manifest and the seven provider manifests (written by `mechanical-fixer`).
+Manifest first: each pull request adds the manifest rows of its own files in the same PR (`.github/coverage-manifest/Encina.ChainedLog.json`, the Attestation manifest and the provider manifests, written by `mechanical-fixer`). Numeric per-file targets (percent of coverable lines per flag) with one-sentence justifications:
 
-1. **UnitTests** — canonical form (fixed vectors), both hashers, verifier (edit, middle deletion, reorder, gap, head mismatch each reported at the right sequence), `DefaultChainedLog` (idempotent by `Reference`, tenant required, attributes too large, invalid partition), options validator, DI tests, telemetry with an in-memory exporter (tenant tag present; no partition, hash or attribute value anywhere), health check, Attestation provider on the in-memory log (restart simulated by a new provider over the same store: old receipts still verify)
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|-----:|------:|---------:|---------:|------------:|---------------|
+| `Model/*.cs` (entry, append, head, verification, link) | 90 | 0 | 0 | 0 | 0 | Records and constructors exercised by every log test; no validated parameters |
+| `ChainedLogErrors.cs` | 100 | 0 | 0 | 0 | 0 | Every factory asserted for code and `ErrorCategory` |
+| `Hashing/CanonicalForm.cs` | 100 | 40 | 0 | 80 | 0 | Fixed vectors pin the form; the property test varies every field |
+| `Hashing/Sha256ChainHasher.cs`, `HmacChainHasher.cs` | 100 | 80 | 0 | 80 | 0 | Pure functions; fixed vectors, key redaction and wrong-key cases; the property test checks that any change alters the hash |
+| `Verification/ChainVerifier.cs` | 100 | 60 | 80 | 100 | 40 | The file where mutation matters most: four small checks (link, hash, sequence, head), each with a unit case per failure kind; the property test edits, deletes and swaps entries of valid chains; the contract suite runs it on real stores |
+| `InMemory/InMemoryChainedLogStore.cs` | 95 | 60 | 90 | 60 | 0 | Test backend; the store contract suite runs against it |
+| `DefaultChainedLog.cs` | 95 | 80 | 70 | 60 | 60 | Idempotency, tenant, validation and millisecond truncation are unit cases; contract and integration run it over real stores |
+| `ChainedLogOptions.cs`, `ChainedLogOptionsValidator.cs` | 100 | 100 | 0 | 0 | 0 | Option validation and key redaction are pure |
+| `ServiceCollectionExtensions.cs` (new package) | 100 | 100 | 0 | 0 | 0 | DI tests with `ValidateOnBuild`, `ValidateScopes` and both environments |
+| `Diagnostics/ChainedLogDiagnostics.cs` | 100 | 0 | 0 | 0 | 0 | Listener-based telemetry tests, tenancy on and off |
+| `Diagnostics/ChainedLogLogMessages.cs` | 0 | 0 | 0 | 0 | 0 | Source-generated delegates without executable lines |
+| Health check, periodic verification service, notification | 95 | 60 | 0 | 0 | 40 | Unit cases for healthy, broken and `Left` from `Publish`; integration builds a real host |
+| `ChainedLogStoreADO.cs` and `ChainedLogStoreDapper.cs` (6 packages) | 20 | 0 | 80 | 0 | 85 | Needs a real server: the store contract suite and the integration tests reach the SQL paths |
+| `ChainedLogStoreEF.cs`, entities, configuration | 20 | 0 | 80 | 0 | 85 | Same reasoning on SQL Server, PostgreSQL and MySQL |
+| `ChainedLogStoreMongoDB.cs`, documents | 20 | 0 | 80 | 0 | 85 | Needs a MongoDB replica set |
+| `HashChainAttestationProvider.cs` (modify) | 92 | 60 | 0 | 0 | 50 | Baseline unit 92, guard 60 kept (targets never go down); S8 integration added |
+| Attestation `ServiceCollectionExtensions.cs` (modify) | 91 | 68 | 0 | 0 | 0 | Baseline unit 91, guard 68 kept; scoped-lifetime DI test |
+| `Validation/HashChainOptionsValidator.cs`, `HashChainOptions.cs` (modify) | 98 | 98 | 0 | 98 | 0 | Baselines kept (validator unit, guard and property 98; options unit 98) |
+| Provider `ServiceCollectionExtensions.cs` (7 packages, modify) | baseline | baseline | baseline | baseline | baseline | Baselines kept (for example ADO.NET SQL Server unit 55, guard 55, integration 40; EF Core unit 64, guard 60, integration 40; MongoDB unit 55, guard 2, integration 20); the provider DI test covers the new registration |
+
+The load-test flag is outside the manifest: the load tests of PR 15 assert gapless, valid chains after concurrent appends on the store files.
+
+1. **UnitTests** — canonical form (fixed vectors, millisecond truncation), both hashers, verifier (edit, middle deletion, reorder, gap, head mismatch each reported at the right sequence), `DefaultChainedLog` (idempotent by `Reference`, tenant required, empty tenant, attributes too large, invalid partition, over-long reference), options validator, DI tests (in-memory default in and outside development), a `GetCategory` test per error code (ADR-062), telemetry with an in-memory exporter (`chainedlog.tenant_id` present when tenancy is on and absent when off; no partition, hash or attribute value anywhere), health check, a `Left` from `Publish` logged and counted with the loop kept running, Attestation provider on the in-memory log (restart simulated by a new provider over the same store: old receipts still verify)
 2. **GuardTests** — all public constructors and methods
-3. **ContractTests** — one store contract run against the in-memory store and every provider store with real instances: same ordering, same `Left` codes, idempotent `Reference`, no gaps
+3. **ContractTests** — one store contract suite introduced in PR 3 against the in-memory store and reused by each provider PR (6 to 13) as a derived class over that provider's real instance: same ordering, same `Left` codes, idempotent `Reference` (no aborted transaction on PostgreSQL), no gaps, "append, read back, verify" after the storage round trip (millisecond precision), and partitions `A` and `a` as two independent chains
 4. **PropertyTests** — FsCheck: any single edit, deletion or swap in a valid chain is detected by `VerifyAsync`; appends in any order of interleaved chains keep each chain gapless
 5. **IntegrationTests** — shared `[Collection]` fixtures on the 10 providers: restart survives (new service provider over the same database verifies the old chain), rollback of the caller's transaction leaves no entry and no head change, two concurrent appenders on one chain produce a gapless chain, two tenants, `RequireAmbientTransaction`, MongoDB on a replica set; S8-style test through Attestation
 6. **LoadTests** — required: concurrent appends on one chain and on many chains (NBomber), asserting gapless and valid chains afterwards; run locally with `DOTNET_JitObjectStackAllocationConditionalEscape=0` as the repository documents
 7. **BenchmarkTests** — `.md` justification: append latency is dominated by the database round trips and the lock, not by hashing; hashing is measured inside the load test report
-8. **PR split** — PR 1 Phases 1-3 with unit and guard tests; PR 2 ADO.NET; PR 3 Dapper; PR 4 EF Core and MongoDB; PR 5 Phase 6 and the cross-provider tests, load test, documentation
+8. **PR split** — the sixteen pull requests of the split table in the Summary; each provider PR carries its own integration tests and store contract class, so no PR relies on tests of a later one
 
 </details>
 
@@ -656,7 +719,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.ChainedLog` | 6580-6589 (`ChainedLog`, new, from the batch block 6550-6599) | Uses 6580-6588; to be registered in `EventIdRanges.cs` by PR 1 |
+| `Encina.ChainedLog` | 6580-6589 (`ChainedLog`, new, from the batch block 6550-6599) | Uses 6580-6588; to be registered in `EventIdRanges.cs` by PR 4, the first PR that logs |
 | `Encina.Compliance.Attestation` | 9600-9699 (`ComplianceAttestation`, registered) | Existing messages unchanged; no new range |
 
 ### Estimated File Count
@@ -669,7 +732,7 @@ REFERENCE FILES:
 | Attestation | ~5 | provider, DI, validator, options, README |
 | Tests | ~30 | across 6 test types and provider families |
 | Manifests, changelog, documentation | ~12 | |
-| **Total** | **~95** | five pull requests |
+| **Total** | **~160** | sixteen pull requests (see the split table in the Summary; the per-category counts above are approximate and exclude scripts, `000_CreateAllTables.sql` edits, contract classes and DI tests) |
 
 ---
 
@@ -732,7 +795,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | The head-row lock inside the caller's transaction is the serialisation (Design Choice 4); an `IDistributedLockProvider` lock would be released before the commit |
 | 8 | Transactions | ✅ | Entry and head are written in the caller's transaction (`IDbTransactionAccessor`, `DbContext`, `IMongoSessionAccessor`); an own short transaction otherwise (Design Choice 5) |
 | 9 | Idempotency | ✅ | `Reference` is unique per chain: appending it again returns the existing entry |
-| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043 and ADR-057 ("chains are keyed per tenant"): one chain per tenant and partition; two-tenant test; a fixed default tenant when tenancy is off |
+| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043 and ADR-057 ("chains are keyed per tenant"): one chain per tenant and partition; two-tenant test; the empty-string tenant key when tenancy is off, which no real tenant can equal |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ✅ | The log is the tamper-evident trail; a failed verification is published as `ChainVerificationFailedNotification` and counted |
 
@@ -744,7 +807,7 @@ REFERENCE FILES:
 |------|-----|-------|
 | ADR-057 (P-24) | The neutrality boundary this plan implements | Accepted and merged |
 | Architecture test #2925 and checklist #2926 | Mechanical and review checks of neutrality | Open; this plan's package must pass them when they land |
-| EventId range 6580-6589 | New logging | Registered by PR 1 |
+| EventId range 6580-6589 | New logging | Registered by PR 4, the first PR that logs |
 | `IDbTransactionAccessor` and `IMongoSessionAccessor` | Joining the caller's transaction | Exist |
 | P-36 gapless sequence (sibling) | Not required; the chain's own sequence is per chain | Independent |
 
@@ -753,6 +816,6 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #1240; ask the maintainer the Dilemma of Design Choice 5 when work on the issue starts
-2. PR 1 (core package), PR 2 (ADO.NET), PR 3 (Dapper), PR 4 (EF Core and MongoDB), PR 5 (Attestation, cross-provider tests, load test, documentation)
+2. The sixteen pull requests of the split table, in order (1 to 5 core, 6 to 11 ADO.NET and Dapper, 12 EF Core, 13 MongoDB, 14 Attestation, 15 property and load tests, 16 documentation)
 3. Run the neutrality checks of #2925 and #2926 against the new package before the first merge
 4. The final commit references `Fixes #1240`
