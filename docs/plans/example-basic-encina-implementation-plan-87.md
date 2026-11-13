@@ -6,7 +6,7 @@
 > **ADR**: none (ADR number assigned when the ADR pull request opens, if the maintainer's answer to D1 asks for one)
 > **Related**: #88 (`02-cqrs-complete`), #89 (`03-entity-framework`, `04-dapper-integration`, `05-redis-caching`), #188 (Aspire Dashboard guide, sample application), #344 (adoption guide, links here)
 > **Complexity**: Low (one small console project) plus the shared scaffold every other example in the family needs
-> **Estimated Scope**: about 11 files, about 330 lines (project, 5 source files, 2 READMEs, one scaffold props file, the solution entry)
+> **Estimated Scope**: 13 files, about 330 lines (project, 6 source files, 2 READMEs, one scaffold props file, the solution entry, the quickstart link; plus the orchestrator's `ci.yml` edit)
 
 ---
 
@@ -18,7 +18,7 @@ Encina has no runnable example today. `examples/` does not exist, `samples/` doe
 
 - `IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)` returns `ValueTask<Either<EncinaError, TResponse>>` (`src/Encina/Abstractions/IEncina.cs`). The original issue text said `mediator.SendAsync`; no such method exists. The call is `encina.Send(...)`.
 - `ICommand<TResponse>`, `IQuery<TResponse>`, `ICommandHandler<,>` and `IQueryHandler<,>` come from `src/Encina/Abstractions/CqrsContracts.cs`. A handler returns `Either<EncinaError, TResponse>` and signals a business failure with `EncinaErrors.Create("greeting.name_required", "...")`, never an exception (ADR-001, AGENTS.md section 3).
-- The error branch prints the error code with `error.GetCode()` (`Option<string>`, `src/Encina/Results/EncinaErrors.cs:109`), never `EncinaError.Message`. The issue marked this accessor as "confirmed when the example is written"; it is confirmed here.
+- The error branch prints the error code with `error.GetCode()` (`Option<string>`, `src/Encina/Results/EncinaErrors.cs:176`), never `EncinaError.Message`. The issue marked this accessor as "confirmed when the example is written"; it is confirmed here.
 - Registration is `services.AddEncina(typeof(Program).Assembly)` (`src/Encina/Core/ServiceCollectionExtensions.cs`), the same call as the quickstart.
 
 **What this plan owns for the whole family.** The folder `examples/`, its `Directory.Build.props` (the `IsPackable=false` rule), its index `README.md`, the `/examples/` folder entry in `Encina.slnx` and the CI wiring, all depending on the maintainer's answer to Dilemma D1. #88, #89 and #188 reference this plan for those pieces and add only their own project.
@@ -27,7 +27,7 @@ Encina has no runnable example today. `examples/` does not exist, `samples/` doe
 
 **Affected packages**: `Encina` (consumed, not changed); the new example project `examples/01-basic-encina` (folder per D1).
 
-**Size**: 1 plan file; the implementation is one worker pull request of about 11 files and 330 lines, within the 15-file and 1500-line limit.
+**Size**: 1 plan file; the implementation is one worker pull request of 13 files and about 330 lines, within the 15-file and 1500-line limit.
 
 ---
 
@@ -40,7 +40,7 @@ Five choices follow. D1 is a Dilemma shared by #87, #88, #89 and #188; this plan
 
 **Class:** Dilemma
 
-Encina is pre-1.0 and is not published to nuget.org (`docs/tutorials/quickstart.md` builds a local feed). `examples/` does not exist. Today's build facts that the options depend on: `Directory.Build.props` applies `TreatWarningsAsErrors` and the recommended analyzer set to every project under the repository; `Directory.Packages.props` turns on central package version management, so any package an example uses must have a `PackageVersion` entry; `IsPackable` defaults to true only under `src/` and to false only under `tests/`, so a console project elsewhere must set it explicitly; `.github/workflows/ci.yml` builds `Encina.slnx` with `-warnaserror` and runs `dotnet format --verify-no-changes`, and its path filter lists `src/**`.
+Encina is pre-1.0 and is not published to nuget.org (`docs/tutorials/quickstart.md` builds a local feed). `examples/` does not exist. Today's build facts that the options depend on: `Directory.Build.props` applies `TreatWarningsAsErrors` and the recommended analyzer set to every project under the repository; `Directory.Packages.props` turns on central package version management, so any package an example uses must have a `PackageVersion` entry; the root `Directory.Build.props` sets `IsPackable` to true under `/src/` and to false under `/tests/` (lines 48-60) and the SDK default is true everywhere else, so a console project outside `tests/` must set it to false explicitly; `.github/workflows/ci.yml` builds `Encina.slnx` with `-warnaserror` and runs `dotnet format --verify-no-changes`, and its path filter lists `src/**`.
 
 ### Options Considered
 
@@ -125,22 +125,22 @@ The first example removes distractions (issue motivation: "fundamentals without 
 <details>
 <summary><strong>5. Where the query reads its data and how the scaffold keeps examples out of the packages</strong></summary>
 
-**Class:** Trivial
-**Settled by:** AGENTS.md section 1 (pay-for-what-you-use; every feature opt-in), `Directory.Build.props` (`IsPackable` defaults to true only under `src/`)
+**Class:** Trivial (the store only; the scaffold props file is not decided here, it is part of Dilemma D1 option (a) and exists only if the maintainer picks (a))
+**Settled by:** AGENTS.md section 1 (pay-for-what-you-use; every feature opt-in); the choice does not depend on D1
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — A tiny in-memory `GreetingStore` (a `ConcurrentDictionary`) registered as a singleton; `examples/Directory.Build.props` sets `IsPackable` to false** | The query has something to read; no database, no Docker; the examples never ship as packages | One file more than the issue's list |
+| **A — A tiny in-memory `GreetingStore` (a `ConcurrentDictionary`) registered as a singleton** | The query has something to read; no database, no Docker | One file more than the issue's list |
 | **B — The query returns a constant** | One file fewer | A query that reads nothing teaches nothing about the read side |
 | **C — Reuse an Encina store (`Encina.Testing.Fakes`)** | No new class | Pulls a testing package into the first example |
 
-### Chosen Option: **A — In-memory store and a scaffold props file**
+### Chosen Option: **A — In-memory store**
 
 ### Rationale
 
-The example needs state to make the command and the query meaningful, and the smallest state is a dictionary in the project itself. The props file is the single place that records "examples are not packages", so no example repeats it.
+The example needs state to make the command and the query meaningful, and the smallest state is a dictionary in the project itself. The `IsPackable=false` rule (`examples/Directory.Build.props`) is a consequence of D1 option (a), described in Phase 1: it is the single place that records "examples are not packages", so no example repeats it.
 
 </details>
 
@@ -158,7 +158,7 @@ The example needs state to make the command and the query meaningful, and the sm
 1. `examples/Directory.Build.props`: imports the repository `Directory.Build.props` (`<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />`), then sets `<IsPackable>false</IsPackable>` and `<IsPublishable>false</IsPublishable>`. No other property: the zero-warnings and analyzer rules come from the root file.
 2. `examples/README.md`: index of the examples (a table: folder, what it shows, needs Docker yes/no), the statement that the `ProjectReference` lines are the pre-1.0 stand-in for `PackageReference`, and the way to run one (`dotnet run --project examples/01-basic-encina`). Added by `docs-writer`.
 3. `Encina.slnx`: a new `<Folder Name="/examples/">` with the project entries, next to the existing `/src/`, `/tests/` and `/tools/` folders.
-4. CI wiring (orchestrator task, shared hot spot `.github/workflows/*`): add `examples/**` to the path filters that list `src/**` in `ci.yml`, so a change under `examples/` builds the solution; no new job.
+4. CI wiring (orchestrator task, shared hot spot `.github/workflows/*`): `ci.yml` has one `dorny/paths-filter` step with the filters `src`, `tests-*`, `infra` and `shared`; the `build` job runs when any of `shared`, `src`, `tests-*` or `infra` is true (line 102), and `crap-gate` (line 480) also reads `src`. `Encina.slnx` already matches the `src` filter (`*.slnx`), so the PR that adds the scaffold builds, but a later PR that edits only `examples/**/*.cs` would not. Add a new filter `examples` (`examples/**`), expose it in the `changes` job outputs and add `needs.changes.outputs.examples == 'true'` to the `build` job `if:`. Do not add `examples/**` to `src` (it would start `crap-gate`, which assumes `src/` changed) or to any `tests-*` filter (it would run the six test jobs for an example edit). No new job.
 5. `Directory.Packages.props`: no change for this example (it uses only `Encina`). #88 and #89 add their own `PackageVersion` entries only for packages not yet listed (checked: `FluentValidation`, `Microsoft.EntityFrameworkCore.SqlServer`, `Dapper`, `Microsoft.Data.SqlClient` and `StackExchange.Redis` are already listed).
 
 </details>
@@ -186,10 +186,10 @@ REFERENCE FILES: Directory.Build.props, Directory.Packages.props, Encina.slnx, d
 2. `Commands/CreateGreeting.cs`: `public sealed record CreateGreeting(string Name) : ICommand<Guid>;` the command returns the new id.
 3. `Queries/GetGreeting.cs`: `public sealed record GetGreeting(Guid Id) : IQuery<string>;`.
 4. `GreetingStore.cs`: `internal sealed class GreetingStore` wrapping a `ConcurrentDictionary<Guid, string>`; registered with `services.AddSingleton<GreetingStore>()`.
-5. `Handlers/CreateGreetingHandler.cs`: `ICommandHandler<CreateGreeting, Guid>`; an empty name returns `EncinaErrors.Create("greeting.name_required", "Name must not be empty.")`; otherwise stores `Hello, {Name}!` and returns the id as `Right`.
-6. `Handlers/GetGreetingHandler.cs`: `IQueryHandler<GetGreeting, string>`; a missing id returns `EncinaErrors.Create("greeting.not_found", "...")`.
+5. `Handlers/CreateGreetingHandler.cs`: `ICommandHandler<CreateGreeting, Guid>`; an empty name returns `EncinaErrors.Create("greeting.name_required", ErrorCategory.Validation, "Name must not be empty.")` (the explicit-category overload, ADR-062; the example is copied, so it must not teach the code-text inference that `EncinaErrors.cs` marks as transitional); otherwise stores `Hello, {Name}!` and returns the id as `Right`.
+6. `Handlers/GetGreetingHandler.cs`: `IQueryHandler<GetGreeting, string>`; a missing id returns `EncinaErrors.Create("greeting.not_found", ErrorCategory.NotFound, "...")`. ADR-062 categories of the new codes: `greeting.name_required` is `Validation`, `greeting.not_found` is `NotFound`.
 7. `Program.cs`: builds the `ServiceCollection`, calls `AddEncina(typeof(Program).Assembly)`, sends `CreateGreeting("World")`, `GetGreeting(id)` and `CreateGreeting("")`, and uses `Match` on each; the error branch prints `error.GetCode().IfNone("unknown")`. Comments explain `Either`, `Match` and the two tracks.
-8. `README.md` (by `docs-writer`): purpose, the file tree, one paragraph per file, the expected output (pasted from a real run), the link to `docs/tutorials/quickstart.md`, and the pre-1.0 note.
+8. `README.md` (by `docs-writer`): purpose, the file tree, one paragraph per file, the expected output (pasted from a real run), the link to `docs/tutorials/quickstart.md`, the pre-1.0 note, and a "five minutes" reader path (clone, `dotnet run --project examples/01-basic-encina`, compare with the pasted output; the worker times it once and states the result in the PR, which is how the issue's "under 5 minutes" criterion is checked).
 
 </details>
 
@@ -197,7 +197,7 @@ REFERENCE FILES: Directory.Build.props, Directory.Packages.props, Encina.slnx, d
 <summary>Prompt for AI Agents — Phase 2</summary>
 
 ```text
-CONTEXT: examples/ scaffold exists (Phase 1). Encina sends requests with IEncina.Send, which returns ValueTask<Either<EncinaError, TResponse>>. Handlers implement ICommandHandler<,> / IQueryHandler<,> from src/Encina/Abstractions/CqrsContracts.cs and return business failures as EncinaErrors.Create(code, message), never exceptions.
+CONTEXT: examples/ scaffold exists (Phase 1). Encina sends requests with IEncina.Send, which returns ValueTask<Either<EncinaError, TResponse>>. Handlers implement ICommandHandler<,> / IQueryHandler<,> from src/Encina/Abstractions/CqrsContracts.cs and return business failures as EncinaErrors.Create(code, ErrorCategory.X, message) (explicit category, ADR-062), never exceptions.
 TASK: Create examples/01-basic-encina with the csproj, CreateGreeting, GetGreeting, GreetingStore, two handlers and Program.cs as listed in the plan (Phase 2 tasks 1-7). Print success on the Right branch and only the error code on the Left branch (error.GetCode()), never EncinaError.Message.
 KEY RULES: Verify every type and member against src/ before using it (Grep); the call is encina.Send, there is no SendAsync; comments explain the concepts for a reader new to Encina; zero warnings (TreatWarningsAsErrors is on); no [Obsolete]; English only.
 REFERENCE FILES: docs/tutorials/quickstart.md, src/Encina/Abstractions/IEncina.cs, src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Results/EncinaErrors.cs, src/Encina/Core/ServiceCollectionExtensions.cs.
@@ -293,10 +293,10 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/tutorials/quickstart.
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Example project | 7 | csproj, `Program.cs`, 2 messages, 2 handlers, `GreetingStore.cs` |
+| Example project | 7 | csproj, `Program.cs`, 2 messages, 2 handlers, `GreetingStore.cs` (one file per message and per handler, as the tasks list them) |
 | Scaffold | 3 | `examples/Directory.Build.props`, `examples/README.md`, `Encina.slnx` entry |
 | Documentation | 2 | the example `README.md`, one link in `docs/tutorials/quickstart.md` |
-| **Total** | **12** | About 330 lines; within one worker pull request |
+| **Total** | **12** | About 330 lines; within one worker pull request; the orchestrator's `ci.yml` edit is a 13th file (shared hot spot) |
 
 ---
 
@@ -362,6 +362,6 @@ No function is deferred, so no follow-up issue is needed for the matrix.
 
 1. Merge this plan.
 2. When the issue is picked up, re-check D1 against today's repository and ask the maintainer (the orchestrator asks the Dilemma; the answer goes into `## Maintainer Decisions`).
-3. The orchestrator writes one worker brief for Phases 1 to 4 (about 12 files, 330 lines); Phase 1 task 4 (workflow file) stays with the orchestrator.
+3. The orchestrator writes one worker brief for Phases 1 to 4 (12 files and about 330 lines, 13 files with the workflow edit); Phase 1 task 4 (workflow file) stays with the orchestrator.
 4. Delegate the READMEs and the quickstart link to `docs-writer`, the review to `adversarial-reviewer`.
 5. Close #87 with the implementation pull request.
