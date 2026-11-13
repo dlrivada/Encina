@@ -11,12 +11,6 @@ namespace Encina.UnitTests.Dapper.SqlServer.Tenancy;
 /// <summary>
 /// Unit tests for <see cref="TenantConnectionFactory"/>.
 /// </summary>
-/// <remarks>
-/// The factory fails closed (#3675): a present tenant id the store does not know returns
-/// <see cref="TenancyErrors.TenantNotFoundCode"/>, a missing tenant id returns <see cref="TenancyErrors.TenantRequiredCode"/>
-/// while <see cref="TenancyOptions.RequireTenant"/> is true, and the default connection string serves a missing tenant only
-/// when <see cref="TenancyOptions.RequireTenant"/> is false.
-/// </remarks>
 [Trait("Category", "Unit")]
 public sealed class TenantConnectionFactoryTests
 {

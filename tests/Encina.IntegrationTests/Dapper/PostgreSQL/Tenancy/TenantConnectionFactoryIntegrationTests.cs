@@ -11,12 +11,8 @@ namespace Encina.IntegrationTests.Dapper.PostgreSQL.Tenancy;
 
 /// <summary>
 /// Integration tests for the fail-closed tenant resolution of the Dapper PostgreSQL
-/// <see cref="TenantConnectionFactory"/> against a real database (#3675).
+/// <see cref="TenantConnectionFactory"/> against a real database (#3675), resolved through <c>AddEncinaTenancy</c>.
 /// </summary>
-/// <remarks>
-/// The factory is resolved from the container built by <c>AddEncinaTenancy</c>, so the tenant id flows through the real
-/// <see cref="IRequestContextAccessor"/>, <c>DefaultTenantProvider</c> and <see cref="InMemoryTenantStore"/>.
-/// </remarks>
 [Collection("Dapper-PostgreSQL")]
 [Trait("Category", "Integration")]
 [Trait("Database", "PostgreSQL")]
