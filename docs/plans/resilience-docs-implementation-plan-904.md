@@ -11,16 +11,16 @@
 
 Write `docs/features/resilience.md`, the first page about Encina's two resilience packages. The root `README.md` ("Resilience", from line 345) shows `AddEncinaStandardResilience` with no link to a detailed page, and the only resilience page under `docs/features/` is `docs/features/database-resilience.md` (provider resilience). The page, verified against `src/` on origin/main (942c0f124):
 
-- **Package comparison**. `Encina.Polly` is attribute driven (`[Retry]`, `[CircuitBreaker]`, `[Bulkhead]`, `[RateLimit]`, registered by `AddEncinaPolly()` at `src/Encina.Polly/ServiceCollectionExtensions.cs:46`; `AddDatabaseCircuitBreaker` at lines 97 and 134). `Encina.Extensions.Resilience` is options driven (`AddEncinaStandardResilience`, `AddEncinaStandardResilienceFor<TRequest, TResponse>`, `StandardResilienceOptions` with `RateLimiter`, `TotalRequestTimeout`, `Retry`, `CircuitBreaker`, `AttemptTimeout`). Registering both stacks two retries and two circuit breakers on one request ([ADR-055](../architecture/adr/055-resilience-family.md) Context); the page says so and states the ADR direction (one `Encina.Resilience` package, which does not exist in `src/` yet).
-- **Per strategy**, defaults read from the attribute sources: retry (`MaxAttempts` 3, `BackoffType` Exponential, `BaseDelayMs` 1000, `MaxDelayMs` 30000, `RetryOnAllExceptions`, `RetryNonIdempotent`), circuit breaker, timeout (only `Encina.Extensions.Resilience` has one; `Encina.Polly` has no timeout attribute, so the original "per-handler timeout" is not documented as a feature), rate limiting (property table of `[RateLimit]`, state diagram of `AdaptiveRateLimiter` over `RateLimitState` `Normal`, `Throttled`, `Recovering`, the denial result of `RateLimitingPipelineBehavior`, which returns `EncinaError.New(errorMessage)` without an error code today, and the relation to the `RateLimiter` of `StandardResilienceOptions`) and bulkhead (`MaxConcurrency` 10, `MaxQueuedActions` 20, `QueueTimeoutMs` 30000).
+- **Package comparison**. `Encina.Polly` is attribute driven (`[Retry]`, `[CircuitBreaker]`, `[Bulkhead]`, `[RateLimit]`, registered by `AddEncinaPolly()` at `src/Encina.Polly/ServiceCollectionExtensions.cs:46`, which has a second overload at line 166 (the page's registration section documents both and says when to use which); `AddDatabaseCircuitBreaker` at lines 97 and 134). `Encina.Extensions.Resilience` is options driven (`AddEncinaStandardResilience`, `AddEncinaStandardResilienceFor<TRequest, TResponse>`, `StandardResilienceOptions` with `RateLimiter`, `TotalRequestTimeout`, `Retry`, `CircuitBreaker`, `AttemptTimeout`). Registering both stacks two retries and two circuit breakers on one request ([ADR-055](../architecture/adr/055-resilience-family.md) Context); the page says so and states the ADR direction (one `Encina.Resilience` package, which does not exist in `src/` yet).
+- **Per strategy**, defaults read from the attribute sources: retry (`MaxAttempts` 3, `BackoffType` Exponential, `BaseDelayMs` 1000, `MaxDelayMs` 30000, `RetryOnAllExceptions`, `RetryNonIdempotent`), circuit breaker, timeout (only `Encina.Extensions.Resilience` has one; `Encina.Polly` has no timeout attribute, so the original "per-handler timeout" is not documented as a feature), rate limiting (property table of `[RateLimit]`, state diagram of `AdaptiveRateLimiter` over `RateLimitState` `Normal`, `Throttled`, `Recovering`, the denial result of `RateLimitingPipelineBehavior`, which returns `EncinaError.New(errorMessage)` without an error code today; under ADR-062 (`GetCategory`) an error without a code is `Internal`, so the denial maps to a 500 until the work of #3424 and #2272 lands, and the page must not imply a 429; and the relation to the `RateLimiter` of `StandardResilienceOptions`) and bulkhead (`MaxConcurrency` 10, `MaxQueuedActions` 20, `QueueTimeoutMs` 30000).
 - **Known limits** stated and linked: the bulkhead queue bound is not atomic (#2628), the queue timeout ignores the injected `TimeProvider` (#2629), `BulkheadAttribute` has no validation so `QueueTimeoutMs = 0` rejects every request (#2630), and the bulkhead key is `typeof(TRequest).Name` (#2275); the rate limiter behaviors #2272 and #2276. All are open today.
 - **Hedging** is not implemented (no `Hedging` symbol in `src/`); it is dropped from the page and named as part of the planned `Encina.Resilience` package.
-- Pipeline integration (`PipelineStage` ordering), a link to `docs/features/database-resilience.md`, and observability (`encina.retry.attempts_total`, `encina.retry.skipped_total`, `Encina.Retry` from `src/Encina.Polly/Diagnostics/RetryTelemetry.cs`, with the note that instrument names change under [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md)).
+- Pipeline integration (`PipelineStage` ordering), a link to `docs/features/database-resilience.md`, and observability (the counters `encina.retry.attempts_total` and `encina.retry.skipped_total` are defined in `src/Encina/Recoverability/RetryMetrics.cs:32,37` on the `Encina` meter of core and listed in `src/Encina.Polly/README.md:52-53`; `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` defines only the `Encina.Retry` activity, its `encina.tenant_id` tag (set only when non-null) and `Encina.failure_code`; with the note that the meter is the core one and instrument names change under [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md)).
 
 The Polly README classification table and decision flowchart are linked, not copied. The audit comments on the issue (audits of #40 and #53) are acceptance criteria.
 
 **Which provider category applies**: Resilience (Polly, Extensions.Resilience, Extensions.Http.Resilience; `AGENTS.md` section 5). `Encina.Extensions.Http.Resilience` is not part of the issue.
-**Affected packages**: `Encina.Polly` and `Encina.Extensions.Resilience`, documented only.
+**Affected packages**: `Encina.Polly`, `Encina.Extensions.Resilience` and `Encina` (core, for the retry counters in `RetryMetrics.cs`), documented only.
 
 ---
 
@@ -56,7 +56,7 @@ The Polly README classification table and decision flowchart are linked, not cop
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Features index only** | `docs/tutorials/index.md` stays what it says ("Guided, hands-on lessons"); one quadrant per index; matches the acceptance criteria, which name only the README and `docs/features/index.md` | The audit comment of #40 asked for a tutorials entry, so that request is answered by a later tutorial instead |
+| **A) Features index only** | `docs/tutorials/index.md` stays what it says ("Guided, hands-on lessons"); one quadrant per index; matches the acceptance criteria, which name only the README and `docs/features/index.md` | Leaves unfulfilled the Documentation task of #904 ("add entries to `docs/features/index.md` and the tutorials index") and the audit comment of #40 ("entries in the tutorials and the features index") until a tutorial exists; the issue itself declares its design choices closed, so this question is raised by the plan, not by the issue. A follow-up issue for a resilience tutorial (not yet opened, no number) records the open task |
 | **B) Add a "Related" line in `docs/tutorials/index.md` pointing to the feature page** | A reader who finishes the quickstart finds the next topic from the tutorials list; answers the audit comment now | Puts a feature page (reference and explanation) in the index of lessons, against the Diataxis rule that an index holds its own quadrant |
 
 ### Chosen Option: **A — features index only** (recommended, pending the maintainer)
@@ -71,7 +71,7 @@ The Polly README classification table and decision flowchart are linked, not cop
 <summary><strong>3. Document the packages as they are, with the ADR-055 direction stated</strong></summary>
 
 **Class:** Settled
-**Settled by:** ADR-055 (accepted 2026-10-24, spike #2691): one `Encina.Resilience` package replaces both; nothing of either package has shipped (both `PublicAPI.Shipped.txt` are empty).
+**Settled by:** ADR-055 (accepted 2026-10-24, spike #2691): one `Encina.Resilience` package replaces both; nothing of either package has shipped (both `PublicAPI.Shipped.txt` declare no symbols).
 
 ### Options Considered
 
@@ -181,7 +181,7 @@ REFERENCE FILES:
 1. Rate limiting section: `[RateLimit]` property table (`MaxRequestsPerWindow`, `WindowSizeSeconds`, `ErrorThresholdPercent`, `CooldownSeconds`, `RampUpFactor`, `EnableAdaptiveThrottling`, `MinimumThroughputForThrottling`), a Mermaid state diagram of `AdaptiveRateLimiter` (`Normal`, `Throttled`, `Recovering`; the XML summary and the audit comment say "Throttling", the enum member is `Throttled`, so the page uses the code name), the denial result, and the relation to the `RateLimiter` of `StandardResilienceOptions`.
 2. Bulkhead section: `[Bulkhead]` property table (`MaxConcurrency`, `MaxQueuedActions`, `QueueTimeoutMs`) and the known limits #2628, #2629, #2630, #2275.
 3. Pipeline integration: how the behaviors compose with the others (`PipelineStage` ordering); link `docs/features/database-resilience.md`.
-4. Observability: the counters and activity of `RetryTelemetry`, with the ADR-054 rename note.
+4. Observability: the counters of `src/Encina/Recoverability/RetryMetrics.cs` (core `Encina` meter) and the activity of `RetryTelemetry`, with the ADR-054 rename note.
 5. A "Hedging and the planned package" paragraph: not implemented, part of ADR-055.
 
 </details>
@@ -195,7 +195,7 @@ Phase 1 wrote the first half of docs/features/resilience.md. The audit comments 
 
 TASK:
 1. Read src/Encina.Polly/Attributes/RateLimitAttribute.cs, BulkheadAttribute.cs, RateLimiting/ (AdaptiveRateLimiter.cs, RateLimitState.cs, RateLimitResult.cs), Behaviors/RateLimitingPipelineBehavior.cs, BulkheadPipelineBehavior.cs and Bulkhead/BulkheadManager.cs.
-2. Write the rate limiting section with the property table, the Mermaid state diagram using the enum names Normal, Throttled and Recovering, the denial result as it is today (EncinaError.New with a plain message, no error code) and the relation to StandardResilienceOptions.RateLimiter.
+2. Write the rate limiting section with the property table, the Mermaid state diagram using the enum names Normal, Throttled and Recovering, the denial result as it is today (EncinaError.New with a plain message, no error code; ADR-062 category Internal, so a 500 until #3424 and #2272 land, never implying a 429) and the relation to StandardResilienceOptions.RateLimiter.
 3. Write the bulkhead section with the property table and the known limits linked to #2628, #2629, #2630 and #2275.
 4. Write pipeline integration, observability and the hedging paragraph.
 5. Re-check that each linked issue is still open; remove the line of any issue that has been fixed.
@@ -309,7 +309,8 @@ REFERENCE FILES:
 | `RetryAttribute`, `CircuitBreakerAttribute`, `RateLimitAttribute`, `BulkheadAttribute` | `src/Encina.Polly/Attributes/` | Property tables and defaults |
 | `RateLimitingPipelineBehavior`, `AdaptiveRateLimiter`, `RateLimitState`, `RateLimitResult` | `src/Encina.Polly/Behaviors/`, `src/Encina.Polly/RateLimiting/` | Rate limiting section and state diagram |
 | `BulkheadPipelineBehavior`, `BulkheadManager` | `src/Encina.Polly/Behaviors/`, `src/Encina.Polly/Bulkhead/` | Bulkhead section and known limits |
-| `RetryTelemetry` | `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` | Observability section |
+| `RetryTelemetry` | `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` | Observability section: the `Encina.Retry` activity only |
+| `RetryMetrics` | `src/Encina/Recoverability/RetryMetrics.cs` (lines 32, 37) | Observability section: the `encina.retry.attempts_total` and `encina.retry.skipped_total` counters on the core `Encina` meter |
 | `AddEncinaStandardResilience`, `AddEncinaStandardResilienceFor<,>`, `StandardResilienceOptions`, `StandardResiliencePipelineBehavior` | `src/Encina.Extensions.Resilience/` | Options-driven package and its timeout and rate limiter |
 | Polly README (classification table, flowchart) | `src/Encina.Polly/README.md` | Linked from the retry section |
 | Database resilience page | `docs/features/database-resilience.md` | Cross-link |
@@ -371,7 +372,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | No runtime code. |
-| 2 | OpenTelemetry | ✅ | The retry counters and activity of `RetryTelemetry` are documented as page content, with the ADR-054 rename note. |
+| 2 | OpenTelemetry | ✅ | The retry counters (`RetryMetrics`, core meter) and the activity of `RetryTelemetry` are documented as page content, with the ADR-054 rename note. |
 | 3 | Structured Logging | ❌ | No runtime code. |
 | 4 | Health Checks | ❌ | No runtime code. |
 | 5 | Validation | ❌ | No runtime code; the missing attribute validation (#2276, #2630) is stated as a known limit. |
