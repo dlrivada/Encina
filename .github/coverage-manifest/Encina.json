@@ -605,6 +605,23 @@
         "unit": "An enum declaration has no coverable lines; ErrorCategoryTests asserts its stable values."
       }
     },
+    "Errors/ErrorCategoryHttp.cs": {
+      "defaultTests": [
+        "unit",
+        "guard",
+        "property",
+        "contract"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "HTTP column of the error category contract (ADR-062)",
+      "targets": { "unit": 100, "property": 90, "guard": 0, "contract": 0 },
+      "justifications": {
+        "unit": "Every category, every reason phrase, the Retry-After rounding, zero, negative and non-TimeSpan cases and the challenge fallbacks are unit-tested (measured 100% on 2026-11-13, #3683).",
+        "property": "Properties cover the 400-599 range for every category, the Retry-After gate and rounding, and the challenge fallback (measured 96.1% on 2026-11-13, #3683).",
+        "guard": "The only parameters are an enum, an int and the EncinaError struct, which have no null or range checks to guard; an undefined enum value is covered by unit tests.",
+        "contract": "A static class with no interface or abstract type to keep; its statuses are pinned by the unit and property tests."
+      }
+    },
     "Errors/LegacyErrorCategoryInference.cs": {
       "defaultTests": [
         "unit"
@@ -1611,7 +1628,7 @@
         "unit": 90
       },
       "justifications": {
-        "unit": "The factories, the categorized Create/FromException overloads and GetCategory are unit-tested on every branch (measured 95.7% on 2026-11-11, #3545); the uncovered lines are internal helpers exercised from other packages."
+        "unit": "The static error factories, the categorized Create/FromException overloads and GetCategory are exercised by the ErrorCategory unit tests and by the many suites that build errors; the target is kept at 90."
       }
     },
     "Results/NullFunctionalFailureDetector.cs": {

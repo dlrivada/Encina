@@ -53,6 +53,72 @@ public sealed class ErrorCategoryHttpProperties
     }
 
     [Fact]
+    public void RetryAfter_IsTheMillisecondsRoundedUpToWholeSeconds()
+    {
+        Prop.ForAll(Arb.From(Gen.Choose(0, 100_000)), millis =>
+        {
+            var details = new Dictionary<string, object?>
+            {
+                [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromMilliseconds(millis),
+            };
+            var error = EncinaErrors.Create("test.error", ErrorCategory.RateLimited, "message", details: details);
+
+            var value = ErrorCategoryHttp.GetResponseHeaders(error, 429).Single().Value;
+
+            return long.Parse(value, System.Globalization.CultureInfo.InvariantCulture) == (millis + 999) / 1000;
+        }).QuickCheckThrowOnFailure();
+    }
+
+    [Fact]
+    public void ANegativeRetryAfter_IsNeverWritten()
+    {
+        Prop.ForAll(Arb.From(Gen.Choose(1, 100_000)), millis =>
+        {
+            var details = new Dictionary<string, object?>
+            {
+                [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromMilliseconds(-millis),
+            };
+            var error = EncinaErrors.Create("test.error", ErrorCategory.Unavailable, "message", details: details);
+
+            return ErrorCategoryHttp.GetResponseHeaders(error, 503).Count == 0;
+        }).QuickCheckThrowOnFailure();
+    }
+
+    [Fact]
+    public void AChallengeWithAControlCharacter_FallsBackToBearer()
+    {
+        Prop.ForAll(Arb.From(Gen.Elements("\r", "\n", "\t", "\0")), Arb.From(Gen.Elements("", "Basic", "HMAC")), (control, prefix) =>
+        {
+            var details = new Dictionary<string, object?>
+            {
+                [EncinaErrorMetadataKeys.AuthenticateChallenge] = prefix + control + "x",
+            };
+            var error = EncinaErrors.Create("test.error", ErrorCategory.Unauthenticated, "message", details: details);
+
+            return ErrorCategoryHttp.GetResponseHeaders(error, 401).Single().Value == "Bearer";
+        }).QuickCheckThrowOnFailure();
+    }
+
+    [Fact]
+    public void AUsableChallenge_IsWrittenAsIs()
+    {
+        Prop.ForAll(Arb.From(Gen.Elements("Bearer", "Basic realm=\"a\"", "HMAC", "Negotiate")), challenge =>
+        {
+            var details = new Dictionary<string, object?> { [EncinaErrorMetadataKeys.AuthenticateChallenge] = challenge };
+            var error = EncinaErrors.Create("test.error", ErrorCategory.Unauthenticated, "message", details: details);
+
+            return ErrorCategoryHttp.GetResponseHeaders(error, 401).Single().Value == challenge;
+        }).QuickCheckThrowOnFailure();
+    }
+
+    [Fact]
+    public void AnyStatus_HasANonEmptyReasonPhrase()
+    {
+        Prop.ForAll(StatusArb(), status => !string.IsNullOrEmpty(ErrorCategoryHttp.GetReasonPhrase(status)))
+            .QuickCheckThrowOnFailure();
+    }
+
+    [Fact]
     public void Every401_CarriesExactlyOneNonBlankChallenge()
     {
         Prop.ForAll(CategoryArb(), category =>
