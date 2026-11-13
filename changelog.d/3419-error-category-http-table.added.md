@@ -1,0 +1,1 @@
+- Core `Encina` now defines the HTTP column of the error category contract in one place, `ErrorCategoryHttp`: the status of each `ErrorCategory` (ADR-062), the reason phrase of a status and the `Retry-After` and `WWW-Authenticate` response headers, so the REST hosts can share it (#3683, #3419).

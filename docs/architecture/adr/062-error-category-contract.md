@@ -53,7 +53,7 @@ The maintainer decided on 2026-11-11 for option (a): the producer sets a protoco
 | `UpstreamFailure` | 502 | `UNAVAILABLE` | `BAD_GATEWAY` |
 | `Cancelled` | 499 | `CANCELLED` | `CANCELLED` |
 
-Each protocol owns its column. HTTP is written once in core as data and consumed by the three hosts (sub-issue S2, then H1-H3). gRPC lives in `Encina.gRPC` and GraphQL in `Encina.GraphQL` ([#3429](https://github.com/dlrivada/Encina/issues/3429)). Each table is an array or a lookup indexed by category, never a large `switch` (the CRAP gate, [AGENTS.md](../../../AGENTS.md) section 9).
+Each protocol owns its column. HTTP is written once in core as data and consumed by the three hosts (sub-issue S2, then H1-H3). gRPC lives in `Encina.gRPC` and GraphQL in `Encina.GraphQL` ([#3429](https://github.com/dlrivada/Encina/issues/3429)). Each table is an array or a lookup indexed by category, never a large `switch` (the CRAP gate, [AGENTS.md](../../../AGENTS.md) section 9). The table, the status-to-reason-phrase lookup for the problem `title` and the header rules below live in one file, `src/Encina/Errors/ErrorCategoryHttp.cs`.
 
 ### Header rules
 
@@ -76,7 +76,7 @@ Also decided: `idempotency.in_progress` is `Conflict` (409), and the two `encina
 ### Staged migration
 
 - **S1** ([#3545](https://github.com/dlrivada/Encina/issues/3545), this ADR) adds the contract, the transitional inference and the completeness scan.
-- **Producer slices**, one package each: `P-<package>`, core `C1`-`C5`, Messaging `M1`-`M2`, EntityFrameworkCore `EF1`-`EF2`, hosts `H1`-`H4`. Each adds the category to its calls and deletes its line in `tests/Encina.UnitTests/Core/ErrorCategoryPending.txt`. Slices that only add a category argument may be bundled by family with the `size-exception-approved` label.
+- **Producer slices**, one package each: `P-<package>`, core `C1`-`C5`, Messaging `M1`-`M2`, EntityFrameworkCore `EF1`-`EF2`, hosts `H1`-`H3`. Each adds the category to its calls and deletes its line in `tests/Encina.UnitTests/Core/ErrorCategoryPending.txt`. Slices that only add a category argument may be bundled by family with the `size-exception-approved` label.
 - **Completeness scan** (`ErrorCategoryCompletenessStaticScanTests`) fails on an uncategorized `EncinaErrors.Create` or `FromException` call in `src/` outside the pending list, on a stale pending entry, and on one code created with two categories. A category passed through a variable must use the named `category:` argument to be recognised.
 - **`LegacyErrorCategoryInference`** (`src/Encina/Errors/LegacyErrorCategoryInference.cs`) holds the hosts' former suffix rules verbatim and returns a category instead of a status: `.already_exists` and `.duplicate` give `AlreadyExists`, `.conflict` gives `Conflict`, both 409 as before, so unmigrated producers keep their status. It is a staged migration step approved by the maintainer on 2026-11-11, not a compatibility layer.
 - **F2 end state**: the inference is deleted, the category-less overloads become internal, a category-less call means `Internal`, the pending file is deleted and the scan stays as a permanent guard.
