@@ -18,11 +18,11 @@ The plan produces, under `docs/features/caching/`:
 - One page per provider: `memory.md`, `hybrid.md`, `redis.md`, `valkey.md`, `keydb.md`, `dragonfly.md`, `garnet.md`. Memcached is named as planned only (`AGENTS.md` section 5, SPEC-000 REQ-027, #277).
 - A README for each of the 8 caching packages, plus an entry in `docs/features/index.md` and the changelog fragment `changelog.d/84-caching-docs.added.md`.
 
-Facts that shape the pages, read from `src/` on origin/main (942c0f124): `Encina.Caching.Valkey`, `.KeyDB`, `.Dragonfly` and `.Garnet` contain only a `ServiceCollectionExtensions.cs` whose four overloads delegate to `AddEncinaRedisCache`; the cache, lock and pub/sub implementations (`RedisCacheProvider`, `RedisDistributedLockProvider`, `RedisPubSubProvider`) live in `Encina.Caching.Redis`, and `Encina.Caching.Memory` holds `MemoryCacheProvider`, `MemoryDistributedLockProvider` and `MemoryPubSubProvider`. `Encina.Caching.Hybrid` holds `HybridCacheProvider` and two registrations (`AddEncinaHybridCache`, `AddEncinaHybridCacheWithOptions`). The default `KeyPrefix` is `"sm"` and the three sibling defaults start with `sm:`, an older product prefix; the pages document the value as it is and a debt issue is written for it (see Prerequisites & Dependencies).
+Facts that shape the pages, read from `src/` on origin/main (d1793713d; re-verify the identifiers when PR 1 starts): `Encina.Caching.Valkey`, `.KeyDB`, `.Dragonfly` and `.Garnet` contain only a `ServiceCollectionExtensions.cs` whose four overloads delegate to `AddEncinaRedisCache`; the cache, lock and pub/sub implementations (`RedisCacheProvider`, `RedisDistributedLockProvider`, `RedisPubSubProvider`) live in `Encina.Caching.Redis`, and `Encina.Caching.Memory` holds `MemoryCacheProvider`, `MemoryDistributedLockProvider` and `MemoryPubSubProvider`. `Encina.Caching.Hybrid` holds `HybridCacheProvider` and two registrations (`AddEncinaHybridCache`, `AddEncinaHybridCacheWithOptions`). The default `KeyPrefix` is `"sm"` and the three sibling defaults start with `sm:`, an older product prefix; the pages document the value as it is and a debt issue is written for it (see Prerequisites & Dependencies).
 
 **Which provider category applies**: Caching (8 providers, `AGENTS.md` section 5). The pages must state per provider what it supports (Get/Set/Remove, TTL, serialization abstraction, pub/sub backplane where applicable).
 **Affected packages**: none changed; documented only.
-**Size**: the work exceeds one worker pull request (19 files), so Phase 1 to Phase 3 each ship as their own pull request (6, 5 and 8 files).
+**Size**: the work exceeds one worker pull request (19 files), so Phase 1 to Phase 3 each ship as their own pull request (5, 5 and 9 files; the changelog fragment ships with the last one).
 
 ---
 
@@ -102,7 +102,7 @@ Facts that shape the pages, read from `src/` on origin/main (942c0f124): `Encina
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Three pull requests: overview, options and the two own-implementation providers (6 files); the Redis family (5 files); the READMEs (8 files)** | Every pull request within the limits; the first one already gives the reader the strategy and the option table | The Redis-family pages land after the overview that links to them, so the overview links them only in PR 2 |
+| **A) Three pull requests: overview, options and the two own-implementation providers (5 files); the Redis family (5 files); the READMEs and the changelog fragment (9 files)** | Every pull request within the limits; the first one already gives the reader the strategy and the option table | The Redis-family pages land after the overview that links to them, so the overview links them only in PR 2 |
 | **B) One pull request with all 19 files** | One review | Over the 15-file limit; the `pr-size` job fails it |
 
 ### Chosen Option: **A — three pull requests**
@@ -143,12 +143,12 @@ Facts that shape the pages, read from `src/` on origin/main (942c0f124): `Encina
 <details>
 <summary>Tasks</summary>
 
-1. `docs/features/caching/overview.md` (Explanation plus how-to): strategy guide (when to cache, L1 versus L2, invalidation), provider comparison table (type, persistence, cluster, pub/sub, lock provider, taken from each provider's source), handler-level caching (`AddEncinaCaching` at `src/Encina.Caching/ServiceCollectionExtensions.cs:45` registers `ICacheKeyGenerator`, `QueryCachingPipelineBehavior<,>`, `CacheInvalidationPipelineBehavior<,>` and `DistributedIdempotencyPipelineBehavior<,>`; `[Cache]` with `DurationSeconds`, `KeyTemplate`, `VaryByUser`, `VaryByTenant`, `Priority`, `SlidingExpiration`, `MaxAbsoluteExpirationSeconds`; `[InvalidatesCache]`; `AddCacheKeyGenerator<T>`; `AddCacheConfiguration<TRequest>`), the Mermaid sequence diagram, invalidation patterns, the sharding caches, Memcached as planned, known limits linked to #2436, #1954, #2452 and #3438, and links to `docs/features/query-caching.md` and `docs/features/cdc-cache-invalidation.md`.
-2. `docs/features/caching/options.md` (Reference): `CachingOptions` (5 `Enable*` switches, `DefaultDuration`, `DefaultPriority`, `KeyPrefix`, `InvalidationChannel`, `IdempotencyKeyPrefix`, `IdempotencyTtl`, `LockKeyPrefix`, `DefaultLockExpiry`, `DefaultLockWait`, `DefaultLockRetry`, `ThrowOnCacheErrors`, `SerializerOptions`) and `CacheSerializerOptions` (`SerializerType`, `EnableCompression`, `CompressionThreshold`), each with type, default and meaning, copied from the XML documentation.
-3. `docs/features/caching/memory.md` (`AddEncinaMemoryCache`; `MemoryCacheProvider`, `MemoryDistributedLockProvider`, `MemoryPubSubProvider`; single-process scope).
-4. `docs/features/caching/hybrid.md` (`AddEncinaHybridCache`, `AddEncinaHybridCacheWithOptions`; `HybridCacheProvider`, L1 plus L2 behavior).
+1. `docs/features/caching/overview.md` (Explanation plus how-to): strategy guide (when to cache, L1 versus L2, invalidation), provider comparison table (type, persistence, cluster, pub/sub, lock provider, taken from each provider's source), handler-level caching (`AddEncinaCaching` at `src/Encina.Caching/ServiceCollectionExtensions.cs:45` registers `ICacheKeyGenerator`, `QueryCachingPipelineBehavior<,>`, `CacheInvalidationPipelineBehavior<,>` and `DistributedIdempotencyPipelineBehavior<,>`; `[Cache]` with `DurationSeconds`, `KeyTemplate`, `VaryByUser`, `VaryByTenant`, `Priority`, `SlidingExpiration`, `MaxAbsoluteExpirationSeconds`; `[InvalidatesCache]`; `AddCacheKeyGenerator<T>`; `AddCacheConfiguration<TRequest>`), the Mermaid sequence diagram, invalidation patterns, the sharding caches, Memcached as planned, known limits linked to #2436, #1954, #2452 and #3438, and links to `docs/features/query-caching.md` and `docs/features/cdc-cache-invalidation.md`. The overview also has a "Performance" section (which provider fits which load, linking the `docs/benchmarks/caching-*.md` pages, no hand-typed figures) and an "Idempotency" subsection: `EnableDistributedIdempotency` defaults to `true`, and #3438 (keyed by tenant and key only, so two users or payloads sharing a key can receive each other's cached result) and #2452 (key shared across tenants when no tenant is resolved) are open; the subsection states the risk and the mitigations the code allows (set the option to `false`, or give every request an unambiguous idempotency key). The `[Cache]` section carries the same kind of warning for #2436 and #1954 (`VaryByUser` invalidation).
+2. `docs/features/caching/options.md` (Reference): the `EnableDistributedIdempotency` row carries the same warning (risk, #3438, #2452, mitigation) next to the default, not only a link to the overview; `CachingOptions` (5 `Enable*` switches, `DefaultDuration`, `DefaultPriority`, `KeyPrefix`, `InvalidationChannel`, `IdempotencyKeyPrefix`, `IdempotencyTtl`, `LockKeyPrefix`, `DefaultLockExpiry`, `DefaultLockWait`, `DefaultLockRetry`, `ThrowOnCacheErrors`, `SerializerOptions`) and `CacheSerializerOptions` (`SerializerType`, `EnableCompression`, `CompressionThreshold`), each with type, default and meaning, copied from the XML documentation.
+3. `docs/features/caching/memory.md` (`AddEncinaMemoryCache`; `MemoryCacheProvider`, `MemoryDistributedLockProvider`, `MemoryPubSubProvider`; single-process scope; a "Performance" line linking the benchmark page).
+4. `docs/features/caching/hybrid.md` (`AddEncinaHybridCache`, `AddEncinaHybridCacheWithOptions`; `HybridCacheProvider`, L1 plus L2 behavior; a "Performance" line linking the benchmark page).
 5. `docs/features/index.md`: add the caching entries to the Messaging & Caching section.
-6. `changelog.d/84-caching-docs.added.md` (written by `mechanical-fixer`).
+6. No changelog fragment in this pull request: the single fragment `changelog.d/84-caching-docs.added.md` (written by `mechanical-fixer`) ships with pull request 3, the last one, so it never announces pages that are not merged yet.
 
 </details>
 
@@ -164,7 +164,7 @@ TASK:
 2. Write docs/features/caching/overview.md, options.md, memory.md and hybrid.md with just-the-docs front matter (layout: default, parent: "Features").
 3. Read every identifier from src/Encina.Caching, src/Encina.Caching.Memory and src/Encina.Caching.Hybrid before using it. Copy defaults from CachingOptions.cs and the attribute classes.
 4. Add the Mermaid sequence diagram of a cached query and the provider comparison table (facts from source only).
-5. Add the caching entries to docs/features/index.md; ask mechanical-fixer for the changelog fragment changelog.d/84-caching-docs.added.md.
+5. Add the caching entries to docs/features/index.md. No changelog fragment in this pull request (it ships with pull request 3).
 6. Run the verification of the skill (lychee offline, markdownlint, cov-docs-render --check-dangling); when a tool is missing, check every relative link with Test-Path and say so.
 
 KEY RULES:
@@ -190,10 +190,10 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `docs/features/caching/redis.md`: `AddEncinaRedisCache` (4 overloads: connection string, with options, `IConnectionMultiplexer`, multiplexer with options), `RedisCacheProvider`, `RedisDistributedLockProvider`, `RedisPubSubProvider`, `RedisHealthCheck`; this is the page the four wrappers link for shared behavior.
-2. `docs/features/caching/valkey.md`, `keydb.md`, `dragonfly.md`, `garnet.md`: short pages, each with its `AddEncina<Name>Cache` overloads (four each, delegating to `AddEncinaRedisCache`), the server's default port and one note on protocol compatibility taken from the server's own documentation, and a link to `redis.md`.
+1. `docs/features/caching/redis.md`: `AddEncinaRedisCache` (4 overloads: connection string, with options, `IConnectionMultiplexer`, multiplexer with options), `RedisCacheProvider`, `RedisDistributedLockProvider`, `RedisPubSubProvider`, `RedisHealthCheck`, a "Performance" line linking `docs/benchmarks/caching-redis-benchmark-results.md`; this is the page the four wrappers link for shared behavior.
+2. `docs/features/caching/valkey.md`, `keydb.md`, `dragonfly.md`, `garnet.md`: short pages, each with its `AddEncina<Name>Cache` overloads (four each, delegating to `AddEncinaRedisCache`), the server's default port and one note on protocol compatibility, each external fact with a link to the server's own documentation and no version numbers on the pages (container versions follow the vendor-LTS rule, a hand-typed version goes stale), and a link to `redis.md` (the wrapper pages do not repeat the performance line).
 3. Edit `docs/features/caching/overview.md`: link the five new pages from the comparison table.
-4. Run the provider samples against the local containers: `docker compose --profile caching up -d` (check which of the five servers the profile starts; a server without a container is documented from the registration code and the page says so).
+4. Run the provider samples against the local containers: `docker compose --profile caching up -d`. The `caching` profile of `docker-compose.yml` starts redis, garnet, valkey, dragonfly and keydb, so every sample of this pull request runs against a real server.
 
 </details>
 
@@ -208,7 +208,7 @@ TASK:
 1. Write redis.md (full) and valkey.md, keydb.md, dragonfly.md, garnet.md (short) under docs/features/caching/, front matter parent: "Features".
 2. Verify every overload signature in src/Encina.Caching.Redis/ServiceCollectionExtensions.cs and the four wrapper ServiceCollectionExtensions.cs files before writing a sample.
 3. Edit overview.md to link the five pages from the comparison table.
-4. Run the samples against docker compose --profile caching where a container exists; otherwise note it on the page.
+4. Run the samples against docker compose --profile caching (it starts redis, garnet, valkey, dragonfly and keydb).
 5. Run the verification of the skill and report any tool you could not run.
 
 KEY RULES:
@@ -232,7 +232,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. Create `src/Encina.Caching/README.md`, `src/Encina.Caching.Memory/README.md`, `.Hybrid/README.md`, `.Redis/README.md`, `.Valkey/README.md`, `.KeyDB/README.md`, `.Dragonfly/README.md`, `.Garnet/README.md`: install command, the registration, one short how-to, the options and a link to the matching page under `docs/features/caching/` (reference plus one short how-to; philosophy stays on the site).
-2. Check each `.csproj` for `PackageReadmeFile`: when a package does not pack its README, report it (a build change would be a separate issue).
+2. Check each `.csproj` for `PackageReadmeFile`: on current main neither `Directory.Build.props` nor the caching `.csproj` files set it, so a README is not packed and is invisible on NuGet. The packing change is the follow-up debt issue named in Prerequisites & Dependencies (opened with this plan), not part of this documentation PR; this pull request reports the result per package.
+3. `changelog.d/84-caching-docs.added.md` (written by `mechanical-fixer`): the one fragment of the whole feature, shipped here because pull requests 1 and 2 are merged by then.
 
 </details>
 
@@ -362,7 +363,7 @@ PROJECT CONTEXT:
 Encina is a pre-1.0 .NET 10 library (C# 14, nullable enabled) with Railway Oriented Programming (Either<EncinaError, T>). Issue #84 asks for caching documentation. The 8 caching packages (Encina.Caching and Memory, Hybrid, Redis, Valkey, KeyDB, Dragonfly, Garnet) have no README and handler-level caching has no page. Valkey, KeyDB, Dragonfly and Garnet delegate to AddEncinaRedisCache. Documentation only; write no production code. Follow AGENTS.md and .claude/skills/encina-docs/SKILL.md.
 
 IMPLEMENTATION OVERVIEW:
-Three pull requests, each at most 15 files and 1500 lines. PR 1: docs/features/caching/overview.md, options.md, memory.md, hybrid.md, the docs/features/index.md entry and the changelog fragment. PR 2: redis.md, valkey.md, keydb.md, dragonfly.md, garnet.md and links from overview.md. PR 3: the 8 package READMEs. Each PR is verified with the commands of the encina-docs skill, section 5, and reviewed by docs-reviewer.
+Three pull requests, each at most 15 files and 1500 lines. PR 1: docs/features/caching/overview.md, options.md, memory.md, hybrid.md, and the docs/features/index.md entry (no fragment). PR 2: redis.md, valkey.md, keydb.md, dragonfly.md, garnet.md and links from overview.md. PR 3: the 8 package READMEs and the changelog fragment changelog.d/84-caching-docs.added.md (ask mechanical-fixer). Each PR is verified with the commands of the encina-docs skill, section 5, and reviewed by docs-reviewer.
 
 KEY PATTERNS:
 - just-the-docs front matter (layout: default, parent: "Features"); lower-case kebab-case file names.
@@ -399,7 +400,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ✅ | The lock options of `CachingOptions` and the lock providers of Memory and Redis are documented as page content. |
 | 8 | Transactions | ❌ | No runtime code. |
 | 9 | Idempotency | ✅ | `DistributedIdempotencyPipelineBehavior` and its options are documented as page content. |
-| 10 | Multi-Tenancy | ✅ | `VaryByTenant` (default true) is documented as page content; the tenant-key bugs #2452 and #3438 are stated as known limits. |
+| 10 | Multi-Tenancy | ✅ | `VaryByTenant` (default true) is documented as page content; the idempotency bugs #2452 and #3438 (tenant-sharing and cross-user key reuse of `DistributedIdempotencyPipelineBehavior`, not the cache key) are warned about at the `EnableDistributedIdempotency` option and in the overview. |
 | 11 | Module Isolation | ❌ | No runtime code; per-module cache keys are #746. |
 | 12 | Audit Trail | ❌ | No runtime code. |
 
@@ -409,6 +410,7 @@ REFERENCE FILES:
 
 - No code prerequisite. The pages describe the packages as they are on origin/main; when the open bugs #2436, #1954, #2452 or #3438 are fixed, the "Known limits" lines are removed in the fixing pull request's documentation phase.
 - Tools: `lychee` and `markdownlint-cli2` may be missing on the machine; the verification phase says so and checks links with `Test-Path`.
+- Follow-up debt issue (opened with this plan, recorded per AGENTS.md section 11): none of the eight caching `.csproj` files nor `Directory.Build.props` sets `PackageReadmeFile`, so the READMEs written in pull request 3 are not packed and do not show on NuGet; the fix is a build change in those projects, outside this documentation plan.
 - Follow-up written as an issue file: the default key prefix `"sm"` (and `sm:cache:invalidate`, `sm:idempotency`, `sm:lock`) in `CachingOptions` is an older product prefix; the pages document the current value.
 
 ---
