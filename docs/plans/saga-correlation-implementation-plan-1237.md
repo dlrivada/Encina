@@ -2,8 +2,8 @@
 
 > **Issue**: [#1237](https://github.com/dlrivada/Encina/issues/1237)
 > **Type**: Feature (SPEC-002 P-35, REQ-044, AC-039; part of #1186)
-> **Complexity**: Very high (10 phases, 10 database providers, about 185 files in 16 pull requests)
-> **Estimated Scope**: ~2,200 lines of production code + ~4,500 lines of tests
+> **Complexity**: Very high (10 phases, 10 database providers, about 177 files in 16 pull requests)
+> **Estimated Scope**: about 13,800 lines across the 16 pull requests of the split (production, SQL scripts, tests and documentation); roughly one third is production code
 
 ---
 
@@ -310,7 +310,7 @@ REFERENCE FILES:
 
 1. `SagaStepBuilder<TData>.WaitForEvent<TEvent>(string keyName, Func<TData, string> keySelector, TimeSpan timeout)` and `.OnEvent(Func<TData, TEvent, IRequestContext, CancellationToken, ValueTask<Either<EncinaError, TData>>>)`; the step keeps `Compensate`.
 2. `SagaStepDefinition<TData>`: a nullable `SagaWaitDefinition` (event type name, key name, key selector, timeout, handler).
-3. `SagaRunner`: at a wait step it follows the runner protocol of Design Choice 9: persist the cursor and `SaveChangesAsync`, `AddCorrelationKeyAsync`, schedule the timeout (the `SagaWaitTimeout` message record is declared in PR 2, its handler and the scheduling check arrive in PR 3b, so PR 2 is not enabled for timed waits on its own), `ClaimMatchingAsync`; a claimed event is applied at once, otherwise the runner returns `SagaResult` with `IsWaiting = true`. The runner takes `ISagaCorrelationStore` and `ISagaEventBufferStore` as constructor dependencies only for sagas that contain a wait step (a wait definition without them is a registration error at startup, ADR-050 rule 3).
+3. `SagaRunner`: at a wait step it follows the runner protocol of Design Choice 9: persist the cursor and `SaveChangesAsync`, `AddCorrelationKeyAsync`, schedule the timeout (the `SagaWaitTimeout` message record and its handler are one file, `SagaWaitTimeout.cs`, that ships in PR 3b together with the scheduling check, so PR 2 is not enabled for timed waits on its own), `ClaimMatchingAsync`; a claimed event is applied at once, otherwise the runner returns `SagaResult` with `IsWaiting = true`. The runner takes `ISagaCorrelationStore` and `ISagaEventBufferStore` as constructor dependencies only for sagas that contain a wait step (a wait definition without them is a registration error at startup, ADR-050 rule 3).
 4. `ISagaRunner.ResumeAsync<TData, TEvent>(BuiltSagaDefinition<TData> definition, Guid sagaId, TEvent @event, CancellationToken)`: loads the saga, checks it waits for `TEvent` (else `saga.event_type_mismatch`), runs the handler, `TryAdvanceAsync` (a `Right(false)` loses the race and is a no-op, Design Choice 9) and continues with the remaining steps; a failure compensates in reverse order as today. The handler may run twice after a crash (at-least-once); the cursor advances once.
 5. Honour every `Left` of the orchestrator calls on this path (same defect as #1581).
 6. `[LoggerMessage]` entries for the runner in `Diagnostics/SagaCorrelationLogMessages.cs` (created here, ids 2275 upward, sequential; later pull requests append to the same file, each with the messages its own code emits), and `Diagnostics/SagaCorrelationDiagnostics.cs` with the span `encina.saga.correlate` and the counters of Phase 8, so the runner can emit them in this pull request (Phase 8 only adds the tenant tag wiring and the exporter test).
@@ -566,15 +566,15 @@ REFERENCE FILES:
 1. **Unit**: builder, runner suspend and resume, router (delivered, buffered, not found), expiry, timeout handler, options validator, fakes.
 2. **Guard**: every public member with parameters.
 3. **Contract**: `ISagaCorrelationStore` and `ISagaEventBufferStore` identical across all stores and fakes (claim atomicity, `TryAdvanceAsync` `Right(false)` on a moved cursor). The abstract base classes ship in PR 1; each store and fakes pull request adds its thin subclass, so each pull request carries its own contract coverage.
-4. **Property (FsCheck)**: any arrival order of the event relative to the wait step ends in the same saga state; and every interleaving of the router's two steps (`AddAsync`, `FindByCorrelationAsync`) with the runner's two steps (`AddCorrelationKeyAsync`, `ClaimMatchingAsync`), and of a resume with the timeout, ends with exactly one resume and no lost event.
+4. **Property (FsCheck)**: any arrival order of the event relative to the wait step ends in the same saga state (PR 2, over the runner with test doubles); and every interleaving of the router's two steps (`AddAsync`, `FindByCorrelationAsync`) with the runner's two steps (`AddCorrelationKeyAsync`, `ClaimMatchingAsync`), and of a resume with the timeout, ends with exactly one resume and no lost event (this interleaving property needs the router of PR 3a and real store behavior, so it ships in PR 12 with the fakes).
 5. **Integration**: all 10 providers through the shared collections, including S6 and S7 end to end and the two-tenant test; `ClearAllDataAsync` in `InitializeAsync`; never `IClassFixture`. Each provider's tests ship in that provider's pull request.
 6. **Load / Benchmark**: justification files `tests/Encina.LoadTests/Sagas/SagaCorrelation.md` and `tests/Encina.BenchmarkTests/Sagas/SagaCorrelation.md` (not a concurrent hot path).
 7. **Per-file targets** with one-sentence justifications in the manifest of every touched package (`mechanical-fixer`, in the PR that adds the file; targets never go down). Proposed:
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
    |------|-----:|------:|---------:|---------:|------------:|---------------|
-   | `SagaRunner.cs` (wait paths), `SagaStepBuilder.cs` | 95 | 100 | 0 | 90 | 80 | Suspend, resume, timeout and compensation are pure over fakes; the interleaving property and S6/S7 integration cover the rest |
-   | `SagaEventRouter.cs`, `SagaDefinitionRegistry.cs` | 95 | 100 | 0 | 90 | 80 | Delivered, buffered, not found, lost race; the property proves no lost event |
+   | `SagaRunner.cs` (wait paths), `SagaStepBuilder.cs` | 95 | 100 | 0 | 90 | 80 | Suspend, resume, timeout and compensation are pure over fakes; the arrival-order property (PR 2), the interleaving property (PR 12) and S6/S7 integration cover the rest; the `Property` target is met once PR 12 lands |
+   | `SagaEventRouter.cs`, `SagaDefinitionRegistry.cs` | 95 | 100 | 0 | 90 | 80 | Delivered, buffered, not found, lost race; the interleaving property of PR 12 proves no lost event; the `Property` target is met by PR 12 |
    | `SagaEventBufferExpiryProcessor.cs`, timeout handler | 95 | 100 | 0 | 0 | 0 | Loop catches per iteration on `FakeTimeProvider`; a dispatcher `Left` keeps the row |
    | Options and validator | 100 | 100 | 0 | 0 | 0 | Four rules, no I/O |
    | `SagaCorrelationStore*`, `SagaEventBufferStore*` (10 providers) | 70 | 100 | 90 | 0 | 85 | SQL and driver code is proven by the contract suite and real databases, not by mocks; guard on parameters |
@@ -642,19 +642,19 @@ Counts include tests, `PublicAPI.*.txt` and `.github/coverage-manifest/*.json`. 
 | PR | Content | Files (production + PublicAPI + manifest + tests) | Approx. lines |
 |----|---------|---------------|---------------|
 | 1 | Phase 1: contract (interfaces, records, `SagaErrorCodes` with categories) and the abstract contract base classes | 13 (6 production, `PublicAPI.Unshipped.txt`, manifest, unit, guard, category test, 2 contract base classes) | 800 |
-| 2 | Phase 2: wait step and runner, with its log messages, span and counters | 13 (builder, step definition, definition, runner, `ISagaRunner`, `SagaCorrelationLogMessages.cs`, `SagaCorrelationDiagnostics.cs`, `PublicAPI.Unshipped.txt`, manifest, unit (2), guard, property: interleavings) | 1,400 |
+| 2 | Phase 2: wait step and runner, with its log messages, span and counters | 13 (builder, step definition, definition, runner, `ISagaRunner`, `SagaCorrelationLogMessages.cs`, `SagaCorrelationDiagnostics.cs`, `PublicAPI.Unshipped.txt`, manifest, unit (2), guard, property: arrival order over the runner) | 1,400 (if it exceeds 1,500, split a PR 2b with the span, counters and their tests) |
 | 3a | Phase 3: registry, router, options and validator, DI, router log messages | 12 (5 production, log messages edit, `PublicAPI.Unshipped.txt`, manifest, unit (2), DI and validator test, guard) | 1,000 |
-| 3b | Phase 3: expiry processor, scheduled timeout (message and handler in one file), scheduling startup check, ADR-050 amendment, their log messages | 11 (processor, timeout message and handler, DI edit, log messages edit, `PublicAPI.Unshipped.txt`, manifest, ADR-050 edit, unit (2), guard edit) | 800 |
-| 4 | Phase 4: ADO.NET SqlServer | 14 (4 scripts, 2 stores, registration, manifest, `PublicAPI.Unshipped.txt`, unit, guard, contract subclass, 1 integration) | 900 |
-| 5 | Phase 4: ADO.NET PostgreSQL | 14 | 900 |
-| 6 | Phase 4: ADO.NET MySQL | 14 | 950 |
-| 7 | Phase 5: Dapper SqlServer | 14 | 900 |
-| 8 | Phase 5: Dapper PostgreSQL | 14 | 900 |
-| 9 | Phase 5: Dapper MySQL | 14 | 950 |
+| 3b | Phase 3: expiry processor, scheduled timeout (message and handler in one file), scheduling startup check, ADR-050 amendment, their log messages | 10 (processor, `SagaWaitTimeout.cs` (message and handler), DI edit, log messages edit, `PublicAPI.Unshipped.txt`, manifest, ADR-050 edit, unit (2), guard edit) | 800 |
+| 4 | Phase 4: ADO.NET SqlServer | 13 (4 scripts, 2 stores, registration, manifest, `PublicAPI.Unshipped.txt`, unit, guard, contract subclass, 1 integration) | 900 |
+| 5 | Phase 4: ADO.NET PostgreSQL | 13 | 900 |
+| 6 | Phase 4: ADO.NET MySQL | 13 | 950 |
+| 7 | Phase 5: Dapper SqlServer | 13 | 900 |
+| 8 | Phase 5: Dapper PostgreSQL | 13 | 900 |
+| 9 | Phase 5: Dapper MySQL | 13 | 950 |
 | 10a | Phase 6a: EF Core production | 12 (2 entities, 2 configurations, 2 stores, registration, `SagaState` mod, manifest, `PublicAPI.Unshipped.txt`, unit, guard) | 900 |
-| 10b | Phase 6a: EF Core tests on the three databases | 6 (3 contract subclasses, 3 integration classes, one per `EFCore-<Db>` collection) | 600 |
-| 11 | Phase 6b: MongoDB | 14 (2 documents, 2 stores, index creator, options, registration, manifest, `PublicAPI.Unshipped.txt`, unit, guard, contract subclass, 1 integration) | 1,000 |
-| 12 | Phase 6c: fakes, contract subclasses, property suite | 9 (2 fakes, 2 contract subclasses, property, unit, guard, manifest, `PublicAPI.Unshipped.txt` of the fakes package) | 900 |
+| 10b | Phase 6a: EF Core tests on the three databases (merged right after 10a; the contract 90 and integration 85 targets of the EF stores are measured on 10a plus 10b together) | 6 (3 contract subclasses, 3 integration classes, one per `EFCore-<Db>` collection) | 600 |
+| 11 | Phase 6b: MongoDB | 12 (2 documents, 2 stores, index creator, options, registration, manifest, `PublicAPI.Unshipped.txt`, unit, guard, contract subclass, 1 integration) | 1,000 |
+| 12 | Phase 6c: fakes, contract subclasses, property suite including the interleaving property of Phase 9 task 4 | 9 (2 fakes, 2 contract subclasses, property, unit, guard, manifest, `PublicAPI.Unshipped.txt` of the fakes package) | 900 |
 | 13 | Phases 7-8: tenant tag wiring, two-tenant tests, exporter test | 5 (diagnostics edit, exporter test, two-tenant test, manifest, `PublicAPI.Unshipped.txt`) | 400 |
 | 14 | Phase 10: documentation, ADR, fragment, justification files | 7 | 500 |
 
@@ -714,7 +714,7 @@ No new range; `Encina.Messaging` already maps to `MessagingSaga`.
 | EF Core, MongoDB, fakes | ~30 | Entities, configurations, stores, indexes, fakes, manifests, PublicAPI |
 | Tests | ~64 | Unit, guard, contract bases and subclasses, property, integration per provider, DI, two justifications |
 | Documentation | ~6 | Fragment, guide, ADR, README note, ADR-050 amendment (in PR 3b) |
-| **Total** | **~185 across 16 pull requests** (the sum of the split table, which includes manifests and PublicAPI files) | |
+| **Total** | **~177 across 16 pull requests** (the sum of the split table, which includes manifests and PublicAPI files) | |
 
 ---
 
