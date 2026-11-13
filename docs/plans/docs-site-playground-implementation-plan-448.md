@@ -24,9 +24,9 @@ State of the site (checked on `origin/main`, 2026-11-11):
 | Dark mode | Missing: `color_scheme: light`; note `mermaid_config.js` already forces `theme: "dark"` for diagrams, so diagrams and page disagree today |
 | Versioning | Missing: one version, `main` |
 | Copy buttons | Missing: `docs/_config.yml` has no `enable_copy_code_button` |
-| Migration guides (MediatR, MassTransit) | Missing: `docs/migrations/` holds only `compound-shard-keys.md`; MediatR appears only in `introduction.md` and architecture notes. They are not in the acceptance criteria of the rewritten issue: the MediatR guide is tracked by #85, and a follow-up issue file records the MassTransit guide, which has no issue |
+| Migration guides (MediatR, MassTransit) | Missing: `docs/migrations/` holds only `compound-shard-keys.md`; MediatR appears only in `introduction.md` and architecture notes. They are not in the acceptance criteria of the rewritten issue: the MediatR guide is tracked by #85 and the MassTransit guide by #3626 (open, "[FEATURE] Documentation: MassTransit migration guide", checked with `gh api`) |
 
-- **Estimated scope**: 14 files, about 460 lines (see Research); one worker pull request.
+- **Estimated scope**: 14 files (15 if the conditional `ROADMAP.md` edit is needed), about 460 lines (see Research, Estimated File Count); one worker pull request, with a fallback split if the count passes 15.
 - **Affected packages**: none of `src/`; `docs/`, `.github/workflows/docs.yml`, `tools/ai/sites.json`. A playground host project is needed only if D1 is option B.
 - **Provider category**: none. Static documentation.
 - **Prerequisites**: #447 provides the Codespace that option C of D1 links to (the dev container is owned by plan #447); #1381 (single Pages deploy workflow) is already merged.
@@ -89,14 +89,16 @@ State of the site (checked on `origin/main`, 2026-11-11):
 | **B) `color_scheme: dark` fixed** | One line | Takes the choice away from readers; light readers lose their setting |
 | **C) A third-party theme-switch plugin** | Less own code | A new dependency for a few lines |
 
-### Chosen Option: **A — toggle with system default**
+### Chosen Option: **A — toggle with system default** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The only option that serves both kinds of reader without a dependency; the Mermaid mismatch found above (diagrams are always dark) is fixed by reading the active scheme when Mermaid initializes.
+- A wins for readers who want both schemes without a dependency; B wins for the simplest change (one line, one scheme to test); C wins when the maintainer prefers a maintained plugin over own script. The evidence that `jtd.setTheme` exists in v0.10.1 is the theme documentation, which the implementer has to re-read against that version; until then the mechanism is unverified, which is why this is a Dilemma and not Trivial.
+- Unregistered sub-choices, proposals under A: the default scheme is `prefers-color-scheme` and falls back to light; the local-storage key is `encina-docs-color-scheme`; the toggle sits in `aux_links` of the header (a header button is the alternative).
+- Mermaid reads the active scheme at initialization only. A runtime switch therefore reloads the page (the simple proposal); re-rendering every diagram in place is the alternative and needs the diagram source kept in the page.
+- The Mermaid mismatch found above (diagrams are always dark) is fixed by the same reading of the scheme.
 
-**Class:** Trivial
-**Settled by:** `docs/_config.yml` (just-the-docs `color_scheme` and `docs/_sass/custom/custom.scss`); `docs/_includes/mermaid_config.js`; the theme documentation for `jtd.setTheme` (to be re-read by the implementer against v0.10.1)
+**Class:** Dilemma
 
 </details>
 
@@ -111,15 +113,38 @@ State of the site (checked on `origin/main`, 2026-11-11):
 | **B) Examples are only code fences in Markdown** | Nothing to build | They rot silently |
 | **C) A separate test project that includes the examples** | Standard test tooling | Needs a project and a place in `Encina.slnx` for what are scripts |
 
-### Chosen Option: **A — compile every example in `docs.yml`**
+### Chosen Option: **A — compile every example in `docs.yml`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Documentation figures and examples must be evidenced (SPEC-001 spirit, the `encina-docs` skill rule that every identifier exists in `src/`); compiling is the cheapest proof.
+- A wins when examples must not rot and the cost is one build step; B wins for the least machinery (no build step, no scripts to maintain); C wins when the examples should run under the standard test tooling and count as tests. None of `AGENTS.md` section 2 (scripting form) or section 10 (per-job `permissions:`) mandates compiling documentation examples in `docs.yml`, so they do not make A the only option.
+- The `encina-docs` skill rule that every identifier exists in `src/` is satisfied cheaply by compiling.
 - The step declares `permissions:` per job, never at workflow level.
 
-**Class:** Trivial
-**Settled by:** `AGENTS.md` section 2 (C# 14 file-based apps) and section 10 (per-job `permissions:`); `.claude/skills/encina-docs/SKILL.md`
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>5. How the examples reference Encina and how CI compiles them</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `#:project ../../../src/Encina/Encina.csproj` (a relative path into the repository) and `dotnet build <file>.cs` in the job** | Restores with no feed and no network access to a package source; always compiles against the code of the commit | A copied snippet needs its directive changed to a package reference |
+| **B) `#:package Encina@<dev version>` and a local feed packed in the job (`dotnet pack src/Encina/Encina.csproj -c Release -o feed`, as the quickstart does) with the feed as the restore source** | The snippet is what the reader runs after following the quickstart | A pack step and a feed configuration in the job; the version changes per commit |
+
+Encina is not on nuget.org (plan Summary, quickstart), so a plain `#:package Encina` cannot restore; this is why the choice exists.
+
+### Chosen Option: **A — `#:project` into `src/` in CI** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins for the cheapest and most reliable CI step; B wins for fidelity with the quickstart reader. The implementer confirms the command form `dotnet build <file>.cs` against the SDK pinned in `global.json` before writing the step.
+- Under A the playground page states the one-line change a reader makes to run an example outside a clone.
+
+**Class:** Dilemma
 
 </details>
 
@@ -136,7 +161,7 @@ State of the site (checked on `origin/main`, 2026-11-11):
 
 1. Re-run the checks of the Summary table (search, DocFX, copy button, migration folder) and record any change in the pull request.
 2. Create `docs/playground/index.md` (how-to quadrant, `parent` and `nav_order` front matter) listing the examples and how to run them (per D1).
-3. The migration guides are not written here: the MediatR guide is #85 and the MassTransit guide is a separate follow-up issue.
+3. The migration guides are not written here: the MediatR guide is #85 and the MassTransit guide is #3626.
 
 </details>
 
@@ -162,7 +187,7 @@ REFERENCE FILES: docs/_config.yml, docs/tutorials/quickstart.md, docs/index.md.
 1. `docs/_config.yml`: add `enable_copy_code_button: true`; keep `color_scheme: light` as the server default.
 2. `docs/_includes/head_custom.html`: a small script that sets the scheme from local storage or `prefers-color-scheme` and adds a toggle link (`aux_links` or a header button), using `jtd.setTheme`.
 3. `docs/_sass/custom/custom.scss`: overrides for the elements the stock dark scheme leaves unreadable (to be found by viewing the built site).
-4. `docs/_includes/mermaid_config.js`: read the active scheme (`light` selects the Mermaid `default` theme, `dark` the `dark` theme) instead of the fixed `theme: "dark"`.
+4. `docs/_includes/mermaid_config.js`: read the active scheme (`light` selects the Mermaid `default` theme, `dark` the `dark` theme) instead of the fixed `theme: "dark"`; the scheme is read at initialization, so a toggle reloads the page (decision 3).
 
 </details>
 
@@ -185,7 +210,7 @@ REFERENCE FILES: docs/_config.yml, docs/_includes/head_custom.html, docs/_includ
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `docs/playground/examples/hello-command.cs`, `docs/playground/examples/error-track.cs`, `docs/playground/examples/pipeline-behavior.cs`: three file-based apps taken from the quickstart (send a command, read the error track, add a pipeline behavior), each starting with the `#:` directives it needs.
+1. `docs/playground/examples/hello-command.cs`, `docs/playground/examples/error-track.cs`, `docs/playground/examples/pipeline-behavior.cs`: three file-based apps taken from the quickstart (send a command, read the error track, add a pipeline behavior), each starting with the `#:` directives it needs (`#:project` into `src/` under the recommended decision 5).
 2. `docs/playground/index.md` shows each example in a code fence with the copy button and the command `dotnet run <file>.cs`, plus a link that opens the repository in a Codespace (the dev container of #447).
 3. `docs/tutorials/quickstart.md` links to the playground page.
 4. If the maintainer picks A or B, replace this phase as described in the choice 1 rationale.
@@ -212,7 +237,7 @@ REFERENCE FILES: docs/tutorials/quickstart.md, docs/guides/how-to-write-a-pipeli
 <summary><strong>Tasks</strong></summary>
 
 1. A short reference page `docs/` section "Documentation versions" stating: until 1.0 the site is `main`; at 1.0 each released minor gets `/v<major>.<minor>/` built by `docs.yml`.
-2. A deferred issue file for the post-1.0 folder layout and workflow change.
+2. The post-1.0 folder layout and workflow change is a follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/docs-versioned-layout-post-1-0.md); it is not a file of this pull request.
 
 </details>
 
@@ -235,7 +260,7 @@ REFERENCE FILES: .github/workflows/docs.yml, docs/releases/, .github/ISSUE_TEMPL
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `.github/workflows/docs.yml` (orchestrator-owned file): a step in the build job that runs `dotnet build` on every `docs/playground/examples/*.cs` (file-based apps), with `permissions:` unchanged at job level. The orchestrator applies this edit.
+1. `.github/workflows/docs.yml` (orchestrator-owned file): a step in the build job that runs `dotnet build <file>.cs` on every `docs/playground/examples/*.cs` (file-based apps; each file references `src/` through `#:project`, decision 5), with `permissions:` unchanged at job level. The orchestrator applies this edit.
 2. `tools/ai/sites.json`: an entry `playground` with `path: playground/`, `kind: docs`, `expectHtml: true`, `publisher: docs.yml`.
 3. The link check of `.github/workflows/link-check.yml` covers the new pages without change; verify on the pull request.
 
@@ -261,9 +286,9 @@ REFERENCE FILES: .github/workflows/docs.yml, tools/ai/sites.json, .claude/skills
 <summary><strong>Tasks</strong></summary>
 
 1. Verification: the Jekyll and DocFX build is green; the link check passes; the three examples compile; both schemes render the main page types.
-2. Test types: unit, guard, contract and property tests do not apply (no `src/` code); load and benchmark justification is not needed for a static site (no test project folder is touched); integration is the site build plus link check plus example compile.
-3. `changelog.d/448-docs-site-playground.added.md`, `ROADMAP.md` entry if the milestone text changes.
-4. A configuration guide section for the theme options (through the docs-writer).
+2. Test types, answering the issue criterion "all applicable test types implemented or justified with `.md`": unit, guard, contract and property tests do not apply (no `src/` code); no `.md` justification file is written because no test project folder is touched (a static site has no test project); the equivalent of the integration test is the site build plus the link check plus the example compile (decision 4).
+3. `changelog.d/448-docs-site-playground.added.md`, `ROADMAP.md` entry only if the milestone text changes (conditional file).
+4. A configuration guide section for the theme options, in the how-to page for contributors named in the file count (through the docs-writer).
 
 </details>
 
@@ -289,7 +314,7 @@ REFERENCE FILES: changelog.d/README.md, .github/workflows/link-check.yml, .claud
 |----------|-----------|---------------------|
 | just-the-docs theme (v0.10.1) | Color schemes, `jtd.setTheme`, `enable_copy_code_button`, search | Dark mode and copy buttons |
 | Mermaid | Diagram themes (`default`, `dark`) | Follow the selected scheme |
-| ADR-058 and `AGENTS.md` section 2 | File-based apps as the scripting form | Runnable examples |
+| `AGENTS.md` section 2 | C# 14 file-based apps as the scripting form (ADR-058 is the `Encina.Cli` command architecture and is not cited for this) | Runnable examples |
 | #91 and #1381 | Hybrid Jekyll plus DocFX site; single Pages deploy workflow | Framework and deployment stay |
 
 ### Existing Encina Infrastructure to Leverage
@@ -317,12 +342,15 @@ REFERENCE FILES: changelog.d/README.md, .github/workflows/link-check.yml, .claud
 
 | Category | Files | Notes |
 | :--- | :--- | :--- |
-| Theme configuration | 3 | `_config.yml`, `head_custom.html`, `mermaid_config.js` |
+| Theme configuration | 4 | `docs/_config.yml`, `docs/_includes/head_custom.html`, `docs/_includes/mermaid_config.js`, `docs/_sass/custom/custom.scss` (Phase 2 tasks 1 to 4) |
 | Playground content | 4 | `docs/playground/index.md` and three example files (file-based apps) |
-| Workflow and monitor | 2 | `docs.yml` compile step, `sites.json` entry |
-| Documentation | 3 | Versioning policy page, how-to page for contributors, link from the quickstart |
-| Metadata | 2 | Changelog fragment, ROADMAP.md |
+| Workflow and monitor | 2 | `.github/workflows/docs.yml` compile step, `tools/ai/sites.json` entry |
+| Documentation | 3 | Versioning policy page (new), the how-to page for contributors that receives the theme-options section of Phase 6 task 4 (Phase 6 "configuration guide section"; an edit of an existing page), the link in `docs/tutorials/quickstart.md` (edit) |
+| Metadata | 1 | `changelog.d/448-docs-site-playground.added.md` |
 | **Total** | 14 | One worker pull request (limit 15 files, 1500 lines) |
+| Conditional | +1 | `ROADMAP.md`, only if the milestone text changes (Phase 6 task 3); the total is then 15, the limit |
+
+If the count passes 15 (for example the implementer finds one more page to edit), the pull request is split in two: pull request 1 is the theme configuration (4), the contributor how-to section (1) and the changelog fragment (1); pull request 2 is the playground content (4), the versioning page (1), the quickstart link (1), the workflow and monitor (2) and the ROADMAP edit if needed. Pull request 2 uses the toggle of pull request 1 only through the site, so no file of one uses a file created by the other.
 
 ---
 
@@ -374,13 +402,13 @@ REFERENCE FILES:
 | 9 | Idempotency | ❌ | Static content |
 | 10 | Multi-Tenancy | ❌ | Public documentation |
 | 11 | Module Isolation | ❌ | Documentation organization |
-| 12 | Audit Trail | ❌ | Public documentation; no audit-relevant data. Deferred items outside this matrix: the MassTransit migration guide (the MediatR guide is #85) and the post-1.0 versioned layout, each recorded as an issue file for the orchestrator to open |
+| 12 | Audit Trail | ❌ | Public documentation; no audit-relevant data. Deferred items outside this matrix: the migration guides (MediatR is #85, MassTransit is #3626) and the post-1.0 versioned layout, a follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/docs-versioned-layout-post-1-0.md) |
 
 ---
 
 ## Next Steps
 
 1. Review and approve this plan.
-2. The maintainer answers D1 and D2 when work on the issue starts; the answers go into the Maintainer Decisions section.
-3. Implement Phases 1 to 6 as one worker pull request (14 files, about 460 lines); the `docs.yml` edit is applied by the orchestrator.
+2. The maintainer answers the Dilemmas (decisions 1, 2, 3, 4 and 5) when work on the issue starts; the answers go into a new `## Maintainer Decisions` section added as the last section of this plan at that time (it does not exist yet).
+3. Implement Phases 1 to 6 as one worker pull request (14 files, 15 with the conditional ROADMAP edit, about 460 lines); the `docs.yml` edit is applied by the orchestrator.
 4. The final commit references `Fixes #448`.
