@@ -1,26 +1,17 @@
 namespace Encina.Messaging.Encryption.Abstractions;
 
 /// <summary>
-/// Resolves encryption key identifiers based on tenant context for multi-tenant key isolation.
+/// Maps a tenant identifier to an encryption key identifier.
 /// </summary>
 /// <remarks>
 /// <para>
-/// In multi-tenant applications, each tenant's messages should be encrypted with isolated
-/// keys to ensure that a key compromise affects only a single tenant. This interface maps
-/// tenant identifiers to their corresponding encryption key IDs.
+/// The message encryption pipeline does not call this interface yet; it is registered
+/// so that applications can resolve it themselves.
 /// </para>
 /// <para>
 /// The default implementation (<c>DefaultTenantKeyResolver</c>) uses the naming convention
 /// <c>tenant-{tenantId}-key</c>. Custom implementations can map tenants to cloud KMS key
 /// ARNs, Azure Key Vault key names, or any other key identification scheme.
-/// </para>
-/// <para>
-/// Activated per message type via <c>[EncryptedMessage(UseTenantKey = true)]</c> or globally
-/// via <c>MessageEncryptionOptions.UseTenantKeys = true</c>.
-/// </para>
-/// <para>
-/// <strong>Compliance</strong>: Per-tenant key isolation supports GDPR data isolation
-/// requirements and SOC 2 access control principles.
 /// </para>
 /// </remarks>
 /// <example>

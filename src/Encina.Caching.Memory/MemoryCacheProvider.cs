@@ -16,7 +16,7 @@ namespace Encina.Caching.Memory;
 /// <item><description>Caching data that doesn't need to be shared across instances</description></item>
 /// </list>
 /// <para>
-/// For distributed caching across multiple application instances, use Redis, Garnet, or NCache providers.
+/// For distributed caching across multiple application instances, use the Redis, Garnet, Valkey, Dragonfly or KeyDB providers.
 /// </para>
 /// </remarks>
 public sealed partial class MemoryCacheProvider : ICacheProvider

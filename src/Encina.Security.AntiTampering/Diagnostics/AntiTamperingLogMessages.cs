@@ -71,4 +71,11 @@ internal static partial class AntiTamperingLogMessages
                   "RequireSignatureAttribute.WhenNoHttpContext to opt out explicitly.")]
     internal static partial void RejectedNoHttpContext(
         ILogger logger, string requestType);
+
+    [LoggerMessage(
+        EventId = 9108,
+        Level = LogLevel.Error,
+        Message = "In-memory nonce store cleanup sweep failed; expired nonces stay until the next sweep")]
+    internal static partial void NonceCleanupFailed(
+        ILogger logger, Exception exception);
 }

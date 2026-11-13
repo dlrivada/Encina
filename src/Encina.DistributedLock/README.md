@@ -116,32 +116,50 @@ public interface ILockHandle : IAsyncDisposable
 
 ### Saga Coordination
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"saga:payment:{orderId}",
     TimeSpan.FromMinutes(5),
     TimeSpan.FromSeconds(30),
     TimeSpan.FromMilliseconds(500),
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance holds the saga lock: fail this step so it is retried later.
+    throw new LockAcquisitionException($"saga:payment:{orderId}");
+}
 ```
 
 ### Cache Stampede Prevention
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"cache:rebuild:{cacheKey}",
     TimeSpan.FromSeconds(30),
     TimeSpan.FromSeconds(5),
     TimeSpan.FromMilliseconds(100),
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance is rebuilding this entry: skip the rebuild.
+    return;
+}
 ```
 
 ### Scheduled Task Execution
 ```csharp
-await using var lock = await _lockProvider.TryAcquireAsync(
+await using var lockHandle = await _lockProvider.TryAcquireAsync(
     $"task:cleanup",
     TimeSpan.FromMinutes(30),
     TimeSpan.Zero, // No wait - fail immediately if locked
     TimeSpan.Zero,
     ct);
+
+if (lockHandle is null)
+{
+    // Another instance is running the task: skip this run.
+    return;
+}
 ```
 
 ## Provider Comparison
