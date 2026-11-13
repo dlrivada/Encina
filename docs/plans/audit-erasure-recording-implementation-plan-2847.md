@@ -2,7 +2,7 @@
 
 > **Issue**: [#2847](https://github.com/dlrivada/Encina/issues/2847)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 2 packages plus DSR, 51 files, split in 4 PRs)
+> **Complexity**: Medium (6 phases, 2 packages plus DSR, 72 files, split in 6 PRs)
 > **Estimated Scope**: ~700 lines of production code + ~1,300 lines of tests
 
 ---
@@ -18,7 +18,7 @@ What already exists (PR 2a of #2770): `ErasureReference`, `KeyDestructionReferen
 
 - **Affected packages**: `Encina.Compliance.DataSubjectRights`, `Encina.Audit.Marten` (the issue also names `Encina.Marten.GDPR`; it needs no change because the audit recorder is registered by `Encina.Audit.Marten`, which already references it), core `Encina` (`EventIdRanges.cs`, one new range).
 - **Provider category**: event sourcing, Marten on PostgreSQL only; the 10-database matrix does not apply.
-- **Scope and split**: counted with tests, manifests, PublicAPI files and changelog fragments the work is 51 files, so it ships as four pull requests that each build and pass their own tests (the table under Estimated File Count lists the files of each): PR 1 = DSR (15 files), PR 2 = audit document, key and options (13 files), PR 3 = recorder and registration (9 files), PR 4 = observability and documentation (14 files).
+- **Scope and split**: counted with tests, manifests, PublicAPI files and changelog fragments the work is 72 files, so it ships as six pull requests that each build every test project and pass their own tests (the table under Estimated File Count lists the files of each; the DSR work is three PRs because the executor signature has 9 test callers): PR 1a = `ErasureRequest` identity and service validation (11 files), PR 1b = `ErasureRequestContext` and the new executor signature with every caller (15 files), PR 1c = recorder abstraction and the recorder loop (11 files), PR 2 = audit document, key and options (13 files), PR 3 = recorder and registration (9 files), PR 4 = observability and documentation (13 files). Callers were counted with `git grep -n "EraseAsync(" -- src tests` and `git grep -c "new DefaultDataErasureExecutor(" -- src tests` on origin/main.
 - **Prerequisites**: PR 2a of #2770 is merged (the types above exist). #2903 builds on the same marker and recorder and is planned in its own file; the two plans share no EventId range (see Event ID Allocation).
 
 ---
@@ -67,7 +67,7 @@ What already exists (PR 2a of #2770): `ErasureReference`, `KeyDestructionReferen
 - Option A wins when erasure is driven from several entry points (service, background job); option B wins only if the maintainer wants no interface change at all.
 - `ErasureReference` lives in `Encina.Audit.Marten.Crypto` and DSR cannot reference it (dependency direction is Audit.Marten to Marten.GDPR to DSR), hence a DSR-level context that the audit recorder maps to an `ErasureReference`.
 - **Who fills the fields (the contract).** `RequestId` and `Actor` are required, non-blank parameters of the `ErasureRequest` record, with no default and no generation inside the service: the caller owns the identity of its request (a retry must repeat the same `RequestId` to be idempotent) and names the operator. `HandleErasureAsync` validates them first and returns `Left(dsr.erasure_request_incomplete)` (category `InvalidRequest`, ADR-062 R3: a missing id or operator) before anything runs; the check does not depend on which recorders are registered, so adding `Encina.Audit.Marten` later never turns working callers into failing ones. `TenantId` is read by `DefaultDSRService` from the request's tenant source (the core `IRequestContext.TenantId` today; the resolver of #1257 when that plan lands) and is null when there is none; the audit recorder is the fail-closed gate (Design Choice 4).
-- **Callers to change** (all compile-time visible): `src/Encina.Compliance.DataSubjectRights/README.md` (the example `new ErasureRequest("user-123", reason, scope: null)`), `tests/Encina.UnitTests/Compliance/DataSubjectRights/Services/DefaultDSRServiceTests.cs` (2 constructions), `ModelRecordTests.cs` (1), `DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs` (2), `DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` (1), and the executor tests. `PublicAPI.Unshipped.txt` lines to change: `ErasureRequest..ctor` (line 94), `IDataErasureExecutor.EraseAsync` (line 137), `DefaultDataErasureExecutor.EraseAsync` (line 314), plus the new members.
+- **Callers to change** (all compile-time visible, from `git grep` over `src` and `tests` on origin/main). `new ErasureRequest(` (PR 1a): `src/Encina.Compliance.DataSubjectRights/README.md` (the example `new ErasureRequest("user-123", reason, scope: null)`), `tests/Encina.UnitTests/Compliance/DataSubjectRights/Services/DefaultDSRServiceTests.cs` (2 constructions), `ModelRecordTests.cs` (1), `DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs` (2), `DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` (1). `IDataErasureExecutor.EraseAsync(` callers and mocks (PR 1b), 9 test files: `tests/Encina.UnitTests/Compliance/DataSubjectRights/DefaultDataErasureExecutorTests.cs` (10 calls), `tests/Encina.GuardTests/Compliance/DataSubjectRights/DefaultDataErasureExecutorGuardTests.cs` (2), `.../DefaultDataErasureExecutorMethodGuardTests.cs` (2), `tests/Encina.UnitTests/Compliance/DataSubjectRights/DSRLoggerErrorMessageLeakTests.cs` (2), `DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs` (2 mock setups, 1 call), `DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` (1 mock setup, 3 calls), `Services/DefaultDSRServiceTests.cs` (2 mock setups), `tests/Encina.IntegrationTests/Infrastructure/Marten/GDPR/DSRIntegrationTests.cs` (1) and `CryptoShreddingNestedIntegrationTests.cs` (1); the example `await executor.EraseAsync("user-123", scope, cancellationToken)` in `src/Encina.Marten.GDPR/README.md:179` (PR 1c). `DefaultDataErasureExecutor` is also built directly with `new` in 7 test files (`DefaultDataErasureExecutorGuardTests`, `DefaultDataErasureExecutorMethodGuardTests`, `DSRIntegrationTests`, `DSRLoggerErrorMessageLeakTests`, both diagnostics leak tests, `DefaultDataErasureExecutorTests`), so the recorders enter its constructor as a **trailing optional parameter** `IEnumerable<IErasureRequestRecorder>? recorders = null` (null or empty = no recorders, the pay-for-what-you-use default; DI supplies the registered ones), and none of those constructions changes. `IRetentionDataEraser.EraseAsync` is a different interface and is not affected. `PublicAPI.Unshipped.txt` lines to change: `ErasureRequest..ctor` (line 94) in PR 1a; `IDataErasureExecutor.EraseAsync` (line 137) and `DefaultDataErasureExecutor.EraseAsync` (line 314) in PR 1b; `DefaultDataErasureExecutor..ctor` (line 313) in PR 1c; plus the new members of each PR.
 
 - **Class:** Dilemma
 
@@ -210,16 +210,16 @@ What already exists (PR 2a of #2770): `ErasureReference`, `KeyDestructionReferen
 
 ## Implementation Phases
 
-### Phase 1: DSR context and recorder abstraction (PR 1)
+### Phase 1: DSR context and recorder abstraction (PRs 1a, 1b, 1c)
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Compliance.DataSubjectRights/Model/ErasureRequestContext.cs`: `sealed record ErasureRequestContext(string RequestId, DateTimeOffset RequestedAtUtc, string Actor, string? TenantId)`.
-2. `src/Encina.Compliance.DataSubjectRights/Abstractions/IErasureRequestRecorder.cs`: `ValueTask<Either<EncinaError, Unit>> RecordAsync(ErasureRequestContext context, CancellationToken ct)` (Design Choice 6 option A; if the maintainer picks B the interface gains `CompleteAsync`).
-3. `Abstractions/IDataErasureExecutor.cs`: `EraseAsync(string subjectId, ErasureScope scope, ErasureRequestContext context, CancellationToken ct)` (changed completely, no overload kept).
-4. `Requests/ErasureRequest.cs`: add required `RequestId` and `Actor` (Design Choice 2 contract).
-5. `PublicAPI.Unshipped.txt` lines (via `mechanical-fixer`): change lines 94, 137 and 314 and add the new members.
+1. PR 1b, `src/Encina.Compliance.DataSubjectRights/Model/ErasureRequestContext.cs`: `sealed record ErasureRequestContext(string RequestId, DateTimeOffset RequestedAtUtc, string Actor, string? TenantId)`.
+2. PR 1c, `src/Encina.Compliance.DataSubjectRights/Abstractions/IErasureRequestRecorder.cs`: `ValueTask<Either<EncinaError, Unit>> RecordAsync(ErasureRequestContext context, CancellationToken ct)` (Design Choice 6 option A; if the maintainer picks B the interface gains `CompleteAsync`).
+3. PR 1b, `Abstractions/IDataErasureExecutor.cs`: `EraseAsync(string subjectId, ErasureScope scope, ErasureRequestContext context, CancellationToken ct)` (changed completely, no overload kept), with `DefaultDataErasureExecutor.EraseAsync` and every caller of the Callers list of Design Choice 2.
+4. PR 1a, `Requests/ErasureRequest.cs`: add required `RequestId` and `Actor` (Design Choice 2 contract), with its five `new ErasureRequest(` callers and the DSR README example.
+5. `PublicAPI.Unshipped.txt` lines (via `mechanical-fixer`), per PR: 1a changes line 94 and adds the new members; 1b changes lines 137 and 314 and adds the context members; 1c changes line 313 (the executor constructor) and adds the recorder interface.
 
 </details>
 
@@ -228,21 +228,21 @@ What already exists (PR 2a of #2770): `ErasureReference`, `KeyDestructionReferen
 
 ```text
 CONTEXT: Encina.Compliance.DataSubjectRights. IDataErasureExecutor.EraseAsync(subjectId, scope, ct) has no request id, actor or tenant. Issue #2847, Design Choices 2, 3 and 6.
-TASK: Add ErasureRequestContext and IErasureRequestRecorder; change IDataErasureExecutor.EraseAsync to take the context; add required RequestId and Actor to ErasureRequest. Do not keep the old overload.
-KEY RULES: no [Obsolete], no compatibility layer (pre-1.0); Either<EncinaError, T>; XML docs with examples; the context never carries the subject id; PublicAPI.Unshipped.txt lines 94, 137, 314 changed.
+TASK: For the PR you were briefed on (1a: required RequestId and Actor on ErasureRequest; 1b: ErasureRequestContext and the changed IDataErasureExecutor.EraseAsync with every caller; 1c: IErasureRequestRecorder), do only that PR's part. Do not keep the old overload.
+KEY RULES: no [Obsolete], no compatibility layer (pre-1.0); Either<EncinaError, T>; XML docs with examples; the context never carries the subject id; PublicAPI.Unshipped.txt lines 94 (1a), 137 and 314 (1b), 313 (1c) changed; the PR builds every test project (git grep the callers first).
 REFERENCE FILES: src/Encina.Compliance.DataSubjectRights/Abstractions/IDataErasureExecutor.cs, src/Encina.Compliance.DataSubjectRights/Requests/ErasureRequest.cs, src/Encina.Compliance.DataSubjectRights/Model/ErasureResult.cs
 ```
 
 </details>
 
-### Phase 2: Executor and service wiring (PR 1)
+### Phase 2: Executor and service wiring (PRs 1a, 1b, 1c)
 
 <details>
 <summary>Tasks</summary>
 
-1. `Erasure/DefaultDataErasureExecutor.cs`: inject `IEnumerable<IErasureRequestRecorder>`; call each recorder FIRST in `EraseAsync`, before the location lookup result is processed and before any strategy; a `Left` stops and is returned (logged with `ErasureFailed(code)`), recorders never hidden behind a `try/catch`. Recorders run also when `locations.Count == 0` (the audit trail is retained regardless).
-2. `Services/DefaultDSRService.cs` (`HandleErasureAsync`, line 622): validate `RequestId` and `Actor` (non-blank) and return `Left(dsr.erasure_request_incomplete)` (`InvalidRequest`) before logging the start; build the context from `request.RequestId`, `request.Actor`, `_timeProvider.GetUtcNow()` and the tenant source; pass it to the executor; wrap executor errors with the inner code only (Design Choice 3).
-3. Update the existing tests of the executor and the service for the new signature (`DefaultDataErasureExecutorTests.cs`, `DefaultDataErasureExecutorGuardTests.cs`, `DefaultDSRServiceTests.cs`, `ModelRecordTests.cs`, the two diagnostics leak tests). Add: recorder `Left` leaves every strategy uncalled; recorder runs on the empty-locations path; blank request id or actor returns the `InvalidRequest` error and calls nothing; a recorder error message never appears in the returned error or logs.
+1. PR 1c, `Erasure/DefaultDataErasureExecutor.cs`: add the trailing optional constructor parameter `IEnumerable<IErasureRequestRecorder>? recorders = null` (the seven direct `new` constructions in tests stay unchanged); call each recorder FIRST in `EraseAsync`, before the location lookup result is processed and before any strategy; a `Left` stops and is returned (logged with `ErasureFailed(code)`), recorders never hidden behind a `try/catch`. Recorders run also when `locations.Count == 0` (the audit trail is retained regardless).
+2. `Services/DefaultDSRService.cs` (`HandleErasureAsync`, line 622), in three steps: PR 1a validates `RequestId` and `Actor` (non-blank) and returns `Left(dsr.erasure_request_incomplete)` (`InvalidRequest`, new in `DSRErrors.cs`) before logging the start; PR 1b builds the context from `request.RequestId`, `request.Actor`, `_timeProvider.GetUtcNow()` and the tenant source and passes it to the executor; PR 1c wraps executor errors with the inner code only (Design Choice 3).
+3. Tests per PR. PR 1a: update the five `new ErasureRequest(` constructions (`DefaultDSRServiceTests.cs`, `ModelRecordTests.cs`, the two diagnostics leak tests) and add the blank request id or actor test (the `InvalidRequest` error, nothing called). PR 1b: update the 9 caller files of Design Choice 2 for the new signature and add a test that the service passes the built context to the executor. PR 1c: recorder `Left` leaves every strategy uncalled (`DefaultDataErasureExecutorTests.cs`); recorder runs on the empty-locations path; a recorder error message never appears in the returned error or logs (`DefaultDSRServiceTests.cs`); a null `recorders` argument builds a working executor (`DefaultDataErasureExecutorGuardTests.cs`, the valid-result test of a nullable parameter); the registration test that the executor resolves with `ValidateOnBuild` and `ValidateScopes` with zero and with one `IErasureRequestRecorder` registered (`ServiceCollectionExtensionsTests.cs`).
 
 </details>
 
@@ -250,9 +250,9 @@ REFERENCE FILES: src/Encina.Compliance.DataSubjectRights/Abstractions/IDataErasu
 <summary>Prompt for AI Agents — Phase 2</summary>
 
 ```text
-CONTEXT: Phase 1 added ErasureRequestContext and IErasureRequestRecorder. DefaultDataErasureExecutor currently returns early with an empty result when no locations exist.
-TASK: Call every registered IErasureRequestRecorder FIRST in DefaultDataErasureExecutor.EraseAsync (before any strategy, also on the empty-locations path), validate and thread the context from DefaultDSRService.HandleErasureAsync.
-KEY RULES: a recorder Left fails the erasure and no strategy runs (AGENTS.md section 3, ADR-058 write-ahead); log only error codes via the existing ErasureFailed message; never log the subject id or EncinaError.Message; the service wraps an executor error with its code only; constructor guards ArgumentNullException; no new EventId (ComplianceDSR 8300-8349 is full); the new DSR error code dsr.erasure_request_incomplete is created with ErrorCategory.InvalidRequest.
+CONTEXT: Phase 1 added ErasureRequestContext and IErasureRequestRecorder (PRs 1a-1c in order). DefaultDataErasureExecutor currently returns early with an empty result when no locations exist.
+TASK: Call every registered IErasureRequestRecorder FIRST in DefaultDataErasureExecutor.EraseAsync (before any strategy, also on the empty-locations path), validate and thread the context from DefaultDSRService.HandleErasureAsync, each step in its own PR (1a validate, 1b context, 1c recorder loop and code-only wrapping).
+KEY RULES: a recorder Left fails the erasure and no strategy runs (AGENTS.md section 3, ADR-058 write-ahead); log only error codes via the existing ErasureFailed message; never log the subject id or EncinaError.Message; the service wraps an executor error with its code only; the recorders are a trailing optional constructor parameter so the seven direct constructions in tests stay unchanged; constructor guards ArgumentNullException for the required parameters; no new EventId (ComplianceDSR 8300-8349 is full); the new DSR error code dsr.erasure_request_incomplete is created with ErrorCategory.InvalidRequest.
 REFERENCE FILES: src/Encina.Compliance.DataSubjectRights/Erasure/DefaultDataErasureExecutor.cs, src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs, src/Encina.Compliance.DataSubjectRights/DSRErrors.cs
 ```
 
@@ -333,20 +333,20 @@ REFERENCE FILES: src/Encina.Audit.Marten/Diagnostics/MartenAuditLog.cs, src/Enci
 <details>
 <summary>Tasks</summary>
 
-1. Unit: executor calls recorders first (also on empty locations) and no strategy runs after a recorder `Left` (PR 1); recorder maps context, rejects invalid references, is idempotent, skips the entry when one exists, fails closed under tenancy without a tenant (PR 3); options validator (PR 2). NSubstitute for `IDocumentSession`/store.
+1. Unit: executor calls recorders first (also on empty locations) and no strategy runs after a recorder `Left` (PR 1c); recorder maps context, rejects invalid references, is idempotent, skips the entry when one exists, fails closed under tenancy without a tenant (PR 3); options validator (PR 2). NSubstitute for `IDocumentSession`/store.
 2. Guard: new constructors and public methods throw `ArgumentNullException` (`tests/Encina.GuardTests/AuditMarten/`, `.../Compliance/DataSubjectRights/`).
 3. Contract: `IErasureRequestRecorder` implementations honour the contract (success on repeat, `Left` on invalid context) with the real recorder (PR 3).
 4. Property: the key factory never collides across (tenant, request id) pairs (PR 2).
 5. Integration (Marten on PostgreSQL via Testcontainers, `MartenCollection`; no in-memory store for a compliance module; PR 3): a request through `DefaultDSRService.HandleErasureAsync` creates one record; repeating it creates none and fails nothing; two tenants with the same `RequestId` get two records; tenancy on without a tenant denies and deletes nothing; failure injection (entry written, insert fails, retry converges to one entry and one record); audit data and keys of other periods are untouched; the audit entry of the recording exists.
 6. Load and benchmark: `.md` justifications (rare write path, no concurrency beyond the insert-once race tested above) (PR 4).
-7. Docs via `docs-writer` (PR 4): `Encina.Audit.Marten` README (erasure recording, legal basis, `[EXPIRED]` after retention, the stored `Actor` is the operator's personal data kept for the retention period) and the operator runbook; the DSR README example for the new `ErasureRequest` (PR 4, because PR 1 is at the 15-file limit; the example is stale for one PR); changelog fragments via `mechanical-fixer`: `changelog.d/2847-erasure-request-context.changed.md` (PR 1) and `changelog.d/2847-audit-erasure-recording.added.md` (PR 3).
+7. Docs via `docs-writer` (PR 4): `Encina.Audit.Marten` README (erasure recording, legal basis, `[EXPIRED]` after retention, the stored `Actor` is the operator's personal data kept for the retention period) and the operator runbook; the DSR README example for the new `ErasureRequest` (PR 1a) and the `src/Encina.Marten.GDPR/README.md:179` example for the new `EraseAsync` signature (PR 1c, because PR 1b is at the 15-file limit; that example is stale for one PR); changelog fragments via `mechanical-fixer`: `changelog.d/2847-erasure-request-identity.changed.md` (PR 1a), `changelog.d/2847-erasure-request-context.changed.md` (PR 1c, naming the new executor signature and the recorder abstraction; PR 1b is at the limit and adds none) and `changelog.d/2847-audit-erasure-recording.added.md` (PR 3).
 8. Per-file coverage targets, written to `Encina.Compliance.DataSubjectRights.json` and `Encina.Audit.Marten.json` via `mechanical-fixer` (the worker measures the baseline with the AGENTS.md section 9 commands; these numbers are the floor):
 
 | File (PR) | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |-----------|------|-------|----------|----------|-------------|----------------------------|
-| `DataSubjectRights/Erasure/DefaultDataErasureExecutor.cs` (1) | 90 | 40 | 0 | 0 | 0 | The new first-step recorder loop, the empty-locations path and the failure return are unit-tested with substituted recorders and strategies. |
-| `DataSubjectRights/Services/DefaultDSRService.cs` (1) | 85 | 30 | 0 | 0 | 0 | The new validation, context build and code-only wrapping run in unit tests; the rest of the service keeps its existing coverage. |
-| `DataSubjectRights/Model/ErasureRequestContext.cs`, `Requests/ErasureRequest.cs` (1) | 100 | 0 | 0 | 0 | 0 | Records with no logic, constructed by the service tests. |
+| `DataSubjectRights/Erasure/DefaultDataErasureExecutor.cs` (1b, 1c) | 90 | 40 | 0 | 0 | 0 | The new first-step recorder loop, the empty-locations path and the failure return are unit-tested with substituted recorders and strategies. |
+| `DataSubjectRights/Services/DefaultDSRService.cs` (1a, 1b, 1c) | 85 | 30 | 0 | 0 | 0 | The new validation, context build and code-only wrapping run in unit tests; the rest of the service keeps its existing coverage. |
+| `DataSubjectRights/Model/ErasureRequestContext.cs` (1b), `Requests/ErasureRequest.cs` (1a) | 100 | 0 | 0 | 0 | 0 | Records with no logic, constructed by the service tests. |
 | `Audit.Marten/Erasure/AuditErasureRequestKey.cs` (2) | 100 | 100 | 0 | 95 | 0 | One pure function: unit cases for the reserved `default` and empty parts, a property test for non-collision, guard tests for null arguments. |
 | `Audit.Marten/MartenOperationAuditOptions.cs` and its validator (2) | 95 | 0 | 0 | 0 | 0 | One new property and one range check, unit-tested for defined and undefined values. |
 | `Audit.Marten/Erasure/MartenAuditErasureRequestRecorder.cs` (3) | 90 | 70 | 90 | 0 | 85 | Every branch (present, absent, entry exists, invalid reference, tenancy denied, insert fails) has a unit case; PostgreSQL tests prove the end-to-end behavior and the failure injection. |
@@ -407,23 +407,31 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance/DataSubjectRights/DefaultData
 
 | PR | Category | Files | Notes |
 |----|----------|-------|-------|
-| 1 (DSR) | Production | 6 | `ErasureRequestContext.cs` (new), `IErasureRequestRecorder.cs` (new), `IDataErasureExecutor.cs`, `ErasureRequest.cs`, `DefaultDataErasureExecutor.cs`, `DefaultDSRService.cs` |
-| 1 | Tests | 6 | Executor unit, executor guard, `DefaultDSRServiceTests.cs`, `ModelRecordTests.cs`, the two diagnostics leak tests (all modified) |
-| 1 | Metadata | 3 | `PublicAPI.Unshipped.txt`, `Encina.Compliance.DataSubjectRights.json`, fragment `2847-erasure-request-context.changed.md` |
-| 1 | **Total** | **15** | Builds alone: no recorder is registered, so the loop is a no-op |
+| 1a (DSR, request identity) | Production | 3 | `ErasureRequest.cs`, `DefaultDSRService.cs` (validation), `DSRErrors.cs` (`dsr.erasure_request_incomplete`) |
+| 1a | Tests | 4 | `DefaultDSRServiceTests.cs`, `ModelRecordTests.cs`, the two diagnostics leak tests (all modified: the five `new ErasureRequest(` constructions) |
+| 1a | Docs and metadata | 4 | DSR README (`new ErasureRequest` example), `PublicAPI.Unshipped.txt`, `Encina.Compliance.DataSubjectRights.json`, fragment `2847-erasure-request-identity.changed.md` |
+| 1a | **Total** | **11** | Builds alone |
+| 1b (DSR, context and executor signature) | Production | 4 | `ErasureRequestContext.cs` (new), `IDataErasureExecutor.cs`, `DefaultDataErasureExecutor.cs`, `DefaultDSRService.cs` (builds and passes the context) |
+| 1b | Tests | 9 | `DefaultDataErasureExecutorTests.cs`, `DefaultDataErasureExecutorGuardTests.cs`, `DefaultDataErasureExecutorMethodGuardTests.cs`, `DSRLoggerErrorMessageLeakTests.cs`, the two diagnostics leak tests, `DefaultDSRServiceTests.cs`, `DSRIntegrationTests.cs`, `CryptoShreddingNestedIntegrationTests.cs` (all modified: the 9 callers of the new signature) |
+| 1b | Metadata | 2 | `PublicAPI.Unshipped.txt`, `Encina.Compliance.DataSubjectRights.json` |
+| 1b | **Total** | **15** | Needs 1a; builds alone (the executor receives the context and no recorder exists yet) |
+| 1c (DSR, recorder abstraction) | Production | 3 | `IErasureRequestRecorder.cs` (new), `DefaultDataErasureExecutor.cs` (trailing optional `recorders` parameter and loop), `DefaultDSRService.cs` (code-only wrapping) |
+| 1c | Tests | 4 | `DefaultDataErasureExecutorTests.cs` (loop), `DefaultDSRServiceTests.cs` (wrapping), `DefaultDataErasureExecutorGuardTests.cs` (null recorders), `ServiceCollectionExtensionsTests.cs` (DI test, `ValidateOnBuild` and `ValidateScopes`) (all modified) |
+| 1c | Docs and metadata | 4 | `src/Encina.Marten.GDPR/README.md` (`EraseAsync` example), `PublicAPI.Unshipped.txt`, `Encina.Compliance.DataSubjectRights.json`, fragment `2847-erasure-request-context.changed.md` |
+| 1c | **Total** | **11** | Needs 1b; builds alone: no recorder is registered, so the loop is a no-op; no `ProjectReference` changes |
 | 2 (document, key, options) | Production | 7 | Enum, document, key factory, options, validator, configure, errors |
 | 2 | Tests | 4 | Key unit, key property, options/validator unit (modified), guard (new) |
 | 2 | Metadata | 2 | `PublicAPI.Unshipped.txt`, manifest |
-| 2 | **Total** | **13** | Needs nothing from PR 1 |
+| 2 | **Total** | **13** | Needs nothing from PRs 1a-1c; the options class gains one property with a default, so no `new MartenOperationAuditOptions` caller changes |
 | 3 (recorder) | Production | 2 | Recorder (new), `ServiceCollectionExtensions.cs` |
 | 3 | Tests | 4 | Recorder unit, contract, DI test (modified), PostgreSQL integration (new) |
 | 3 | Metadata | 3 | `PublicAPI.Unshipped.txt`, manifest, fragment `2847-audit-erasure-recording.added.md` |
-| 3 | **Total** | **9** | Needs PRs 1 and 2 |
+| 3 | **Total** | **9** | Needs PRs 1c and 2; no `ProjectReference` change (`Encina.Audit.Marten` reaches `Encina.Compliance.DataSubjectRights` through `Encina.Marten.GDPR`); the recorder writes no log, counter or activity until PR 4 |
 | 4 (observability, docs) | Production | 6 | `EventIdRanges.cs`, `MartenAuditErasureLog.cs` (new), `MartenAuditMeter.cs`, `MartenAuditActivitySource.cs`, recorder (log/meter calls), `PublicAPI.Unshipped.txt` of `Encina` |
 | 4 | Tests | 4 | `EncinaEventIdAllocationTests.cs` map, observability unit test (new), load and benchmark `.md` justifications |
-| 4 | Docs and metadata | 4 | Audit.Marten README, runbook, DSR README, manifest |
-| 4 | **Total** | **14** | Needs PR 3 |
-| | **Grand total** | **51** | Every PR is under 15 files and under 1,500 lines |
+| 4 | Docs and metadata | 3 | Audit.Marten README, runbook, manifest |
+| 4 | **Total** | **13** | Needs PR 3 |
+| | **Grand total** | **72** | 11 + 15 + 11 + 13 + 9 + 13; every PR is at most 15 files and under 1,500 lines |
 
 ---
 
@@ -435,7 +443,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance/DataSubjectRights/DefaultData
 ```text
 PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #2847: an erasure request reaches the audit trail and is recorded with its erasure reference and legal basis (maintainer decision: path C, record and keep until retention; no key is destroyed). AGENTS.md rules apply (ROP, fail closed, TimeProvider, no subject id in logs, per-flag coverage, CRAP <= 10). Subject-scoped destruction is issue #2903, not this plan.
 
-IMPLEMENTATION OVERVIEW: PR 1 (DSR): ErasureRequestContext, IErasureRequestRecorder, recorders called FIRST in the executor, required RequestId and Actor. PR 2 (Audit.Marten): AuditErasureRequestRecord, tenant-qualified key factory, legal-basis option. PR 3: MartenAuditErasureRequestRecorder and registration. PR 4: EventId range AuditMartenErasure 6360-6369, observability, docs.
+IMPLEMENTATION OVERVIEW: PR 1a (DSR): required RequestId and Actor on ErasureRequest, validated by the service. PR 1b: ErasureRequestContext and the new IDataErasureExecutor.EraseAsync signature with all 9 test callers. PR 1c: IErasureRequestRecorder, recorders called FIRST in the executor (trailing optional constructor parameter). PR 2 (Audit.Marten): AuditErasureRequestRecord, tenant-qualified key factory, legal-basis option. PR 3: MartenAuditErasureRequestRecorder and registration. PR 4: EventId range AuditMartenErasure 6360-6369, observability, docs.
 
 KEY PATTERNS: TryAddEnumerable for the recorder; keyed Marten document with a length-prefixed tenant-qualified id, insert once; two commits (audit entry then document) ordered so every interruption converges on retry; Marten on PostgreSQL through Testcontainers, never an in-memory store; error categories per ADR-062; specialists for PublicAPI, changelog, manifest and docs.
 
@@ -469,4 +477,4 @@ REFERENCE FILES: src/Encina.Compliance.DataSubjectRights/Erasure/DefaultDataEras
 
 1. Commit this plan, open its PR and link it from #2847.
 2. When the issue is picked up, re-check the choices (notably the executor signature change against any newer callers) and ask the maintainer about the Dilemmas (2, 4, 6, 7, 8).
-3. Brief PR 1 (DSR) first, then PR 2, PR 3 and PR 4 in order; #2903 follows once the recorder exists.
+3. Brief PR 1a, 1b and 1c (DSR) first, in order, then PR 2, PR 3 and PR 4 (before briefing each, re-run the `git grep` of the callers on the then-current main); #2903 follows once the recorder exists.
