@@ -2,7 +2,7 @@
 
 > **Issue**: [#3440](https://github.com/dlrivada/Encina/issues/3440)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, no new per-provider code, tests on all 10 database providers, ~28 files in 3 pull requests)
+> **Complexity**: Medium (8 phases, no new per-provider code, tests on all 10 database providers, ~35 files in 4 pull requests)
 > **Estimated Scope**: ~700-900 lines of production code + ~900-1,100 lines of tests and documentation
 
 ---
@@ -20,7 +20,7 @@ What it implements:
 
 Standards and specifications: SPEC-002 REQ-036 and AC-036; ADR-001 and ADR-006 (Railway Oriented Programming); ADR-048 (inbox record versus business transaction); ADR-062 (error category); ADR-054 D3 and D4 (meter name, tenant tag); the IETF idempotency-key draft (an in-flight request with the same key is answered 409). The issue's option B for the 200 answer is "200 with the previous outcome once available"; while a delivery is in progress no previous outcome exists (the first handler has not produced one) and once it exists the redelivery is `Replayed` and already answers 200 with the cached response, so the 200 option returns a small status body instead.
 
-Estimated scope: 28 files (5 new and 5 modified production files, 5 metadata files, 10 test files, 3 documentation files), about 1,400-1,800 changed lines, shipped as three pull requests (see "Pull request split").
+Estimated scope: 35 distinct files (5 new and 7 modified production files, 7 metadata files, 13 test files, 3 documentation files), about 1,600-2,000 changed lines (700-900 production plus 900-1,100 tests), shipped as four pull requests (A, A2, B, C) (see "Pull request split").
 
 Affected packages: `Encina.Messaging` (outcome type, orchestrator, behavior, diagnostics), `Encina.AspNetCore` (mapping and option), `Encina` (EventId range registry). No provider package changes: the outcome is derived from the claim result of [#2401](https://github.com/dlrivada/Encina/issues/2401) inside the shared orchestrator.
 
@@ -467,11 +467,11 @@ Callers of `InboxOrchestrator` to update **only under Design Choice 1 option A**
 | Category | Files | Notes |
 |----------|-------|-------|
 | Production source, new | 5 | InboxOutcome.cs, InboxOutcomeMetrics.cs, InboxOutcomeLog.cs, InboxInProgressResponse.cs, InboxInProgressBody.cs |
-| Production source, modified | 5 | InboxOrchestrator.cs, InboxActivitySource.cs, EventIdRanges.cs, ProblemDetailsExtensions.cs, EncinaAspNetCoreOptions.cs (the default classifier file is a sixth, in PR A) |
-| Metadata | 5 | PublicAPI.Unshipped.txt (Encina, Encina.Messaging, Encina.AspNetCore) and the two coverage manifests |
-| Tests | 10 | orchestrator unit, metrics unit, classifier unit, mapping unit, guard, contract (PR A), HTTP contract (PR B), integration scenario, EventId allocation test map, load and benchmark justification files (2) |
+| Production source, modified | 7 | InboxOrchestrator.cs, InboxActivitySource.cs, EventIdRanges.cs, ProblemDetailsExtensions.cs, EncinaAspNetCoreOptions.cs, `src/Encina/Recoverability/IErrorClassifier.cs` (`DefaultErrorClassifier`, PR A2), `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` (the `Encina.Messaging` meter registration, PR A2) |
+| Metadata | 7 | PublicAPI.Unshipped.txt (Encina, Encina.Messaging, Encina.AspNetCore) and the four coverage manifests (`Encina.json` because `EventIdRanges.cs` and `IErrorClassifier.cs` are files of package `Encina`, `Encina.Messaging.json`, `Encina.AspNetCore.json`, `Encina.OpenTelemetry.json`) |
+| Tests | 13 | orchestrator unit, metrics unit, classifier unit, OpenTelemetry meter registration unit, mapping unit, guard, contract (PR A), HTTP contract (PR B), integration scenario, EventId allocation test map, the existing DI test extended (PR B), load and benchmark justification files (2) |
 | Documentation | 3 | changelog fragment, docs/messaging/inbox.md, docs/INVENTORY.md |
-| **Total** | **~28** | Three pull requests, each within 15 files and 1,500 lines (counts below include tests and metadata) |
+| **Total** | **~35 distinct** | Four pull requests, each within 15 files and 1,500 lines (counts below include tests and metadata; the PR rows sum to 37 because `Encina.json` is touched in A and A2) |
 
 ### Pull request split
 
@@ -479,11 +479,12 @@ Under the recommended Design Choice 1 option D nothing existing changes signatur
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
-| A | Phases 1, 2, 6 and Phase 5 task 1: `InboxOutcome`, `InboxOrchestrator`, `InboxActivitySource`, `InboxOutcomeMetrics`, `InboxOutcomeLog`, `EventIdRanges.cs`, the classifier file (7 production), PublicAPI of `Encina` and `Encina.Messaging`, Messaging manifest (3), orchestrator unit (with the two-tenant case), metrics-and-classifier unit (one file), EventId allocation test map, contract, integration scenario on the 10 providers (5 tests) | 15 |
-| B | Phases 3, 4: 4 production files (`InboxInProgressResponse`, `InboxInProgressBody`, options, `ProblemDetailsExtensions`), PublicAPI and manifest of `Encina.AspNetCore`, mapping unit test, guard test, HTTP contract test | 9 |
+| A | Phases 1, 2 (except task 5, the classifier) and 6 (except the meter registration) and Phase 5 task 1: `InboxOutcome`, `InboxOrchestrator`, `InboxActivitySource`, `InboxOutcomeMetrics`, `InboxOutcomeLog`, `EventIdRanges.cs` (6 production), PublicAPI of `Encina` and `Encina.Messaging` (2), manifests `Encina.Messaging.json` and `Encina.json` (2), orchestrator unit (with the two-tenant case), metrics unit, EventId allocation test map, contract, integration scenario on the 10 providers (5 tests) | 15 (the limit) |
+| A2 | Phase 2 task 5 and the meter registration of Phase 6: the `DefaultErrorClassifier` change in `IErrorClassifier.cs`, the `Encina.Messaging` meter registration in `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs`, manifests `Encina.json` and `Encina.OpenTelemetry.json`, classifier unit test, meter registration unit test; starts after A | 6 |
+| B | Phases 3, 4: 4 production files (`InboxInProgressResponse`, `InboxInProgressBody`, options, `ProblemDetailsExtensions`), PublicAPI and manifest of `Encina.AspNetCore`, mapping unit test, guard test, HTTP contract test, the existing DI test extended (Phase 3 task 3) | 10 |
 | C | Phase 7 load and benchmark justifications; Phase 8 documentation and changelog | 6 |
 
-Order: A requires [#2401](https://github.com/dlrivada/Encina/issues/2401) **and** [#3437](https://github.com/dlrivada/Encina/issues/3437) merged (Phase 5 task 1); B starts after #3419 S2 and H1 (Design Choice 4) and after A (it reads the error's category and details); C follows A and B.
+Order: A requires [#2401](https://github.com/dlrivada/Encina/issues/2401) **and** [#3437](https://github.com/dlrivada/Encina/issues/3437) merged (Phase 5 task 1); A2 follows A; B starts after #3419 S2 and H1 (Design Choice 4) and after A (it reads the error's category and details); C follows A, A2 and B.
 
 ---
 
