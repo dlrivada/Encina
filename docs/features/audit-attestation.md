@@ -84,12 +84,13 @@ services.AddEncinaAttestation(options =>
 {
     options.UseHashChain(hc =>
     {
-        hc.StoragePath = "/var/data/attestation";
         hc.HashAlgorithm = HashAlgorithmName.SHA256;
     });
     options.AddHealthCheck = true;
 });
 ```
+
+The chain is kept in memory and is lost on restart. `HashChainOptions.StoragePath` is reserved and not implemented; persistent hash-chained storage is tracked in #1240.
 
 ### HTTP (External)
 
