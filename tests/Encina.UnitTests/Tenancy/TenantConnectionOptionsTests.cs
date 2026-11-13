@@ -17,7 +17,6 @@ public class TenantConnectionOptionsTests
         options.DefaultConnectionString.ShouldBeNull();
         options.AutoOpenConnections.ShouldBeTrue();
         options.ConnectionTimeoutSeconds.ShouldBe(30);
-        options.ThrowOnMissingConnectionString.ShouldBeTrue();
     }
 
     [Fact]
@@ -28,14 +27,12 @@ public class TenantConnectionOptionsTests
         {
             DefaultConnectionString = "Server=test;Database=TestDb;",
             AutoOpenConnections = false,
-            ConnectionTimeoutSeconds = 60,
-            ThrowOnMissingConnectionString = false
+            ConnectionTimeoutSeconds = 60
         };
 
         // Assert
         options.DefaultConnectionString.ShouldBe("Server=test;Database=TestDb;");
         options.AutoOpenConnections.ShouldBeFalse();
         options.ConnectionTimeoutSeconds.ShouldBe(60);
-        options.ThrowOnMissingConnectionString.ShouldBeFalse();
     }
 }

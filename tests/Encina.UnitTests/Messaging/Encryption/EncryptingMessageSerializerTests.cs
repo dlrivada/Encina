@@ -122,6 +122,79 @@ public class EncryptingMessageSerializerTests : IDisposable
     }
 
     [Fact]
+    public void Serialize_DerivedTypeOfMarkedBase_IsEncrypted()
+    {
+        // Arrange — the derived type declares no attribute; [EncryptedMessage] is inherited
+        // from its base, so it cannot escape encryption (#3273).
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<DerivedEncryptedTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("base-key")));
+
+        // Act
+        var result = serializer.Serialize(new DerivedEncryptedTestMessage { Data = "secret", Extra = "x" });
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:base-key:");
+        result.ShouldNotContain("secret");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c => c.KeyId == "base-key"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_MarkedTypeWithEncryptAllMessages_IsEncrypted()
+    {
+        // Arrange — both the attribute and EncryptAllMessages require encryption
+        var options = CreateOptions(enabled: true, encryptAll: true);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<EncryptedTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("attr-key")));
+
+        // Act
+        var result = serializer.Serialize(new EncryptedTestMessage { Data = "secret" });
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:attr-key:");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_UnmarkedTypeWithoutEncryptAllMessages_DoesNotCallProvider()
+    {
+        // Arrange — decision (2) of #3273: no attribute and EncryptAllMessages=false stays plaintext
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<TestMessage>()).Returns("{\"Name\":\"test\"}");
+
+        // Act
+        var result = serializer.Serialize(new TestMessage { Name = "test" });
+
+        // Assert
+        result.ShouldBe("{\"Name\":\"test\"}");
+        _ = _provider.DidNotReceive().EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void AttributeCache_DerivedTypeOfMarkedBase_ReturnsInheritedInfo()
+    {
+        // Act
+        var info = EncryptedMessageAttributeCache.GetEncryptionInfo(typeof(DerivedEncryptedTestMessage));
+
+        // Assert — the inherited attribute is found, with the base's key
+        info.ShouldNotBeNull();
+        info.KeyId.ShouldBe("base-key");
+        EncryptedMessageAttributeCache.GetEncryptionInfo(typeof(TestMessage)).ShouldBeNull();
+    }
+
+    [Fact]
     public void Serialize_EncryptionFails_ThrowsInvalidOperationException()
     {
         // Arrange
@@ -259,6 +332,16 @@ public class EncryptingMessageSerializerTests : IDisposable
         });
     }
 
+    private static EncryptedPayload CreatePayload(string keyId) => new()
+    {
+        Ciphertext = ImmutableArray.Create<byte>(1, 2, 3),
+        KeyId = keyId,
+        Algorithm = "AES-256-GCM",
+        Nonce = ImmutableArray.Create<byte>(10, 20, 30),
+        Tag = ImmutableArray.Create<byte>(40, 50, 60),
+        Version = 1
+    };
+
     public class TestMessage
     {
         public string? Name { get; set; }
@@ -268,5 +351,16 @@ public class EncryptingMessageSerializerTests : IDisposable
     public class EncryptedTestMessage
     {
         public string? Data { get; set; }
+    }
+
+    [EncryptedMessage(KeyId = "base-key")]
+    public class EncryptedBaseTestMessage
+    {
+        public string? Data { get; set; }
+    }
+
+    public sealed class DerivedEncryptedTestMessage : EncryptedBaseTestMessage
+    {
+        public string? Extra { get; set; }
     }
 }

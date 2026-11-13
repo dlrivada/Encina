@@ -8,6 +8,8 @@ parent: "Messaging"
 
 This guide explains the messaging transport options available in Encina and helps you choose the right one for your use case.
 
+> **Publish-only today.** The RabbitMQ, Kafka, NATS, Azure Service Bus and Amazon SQS packages only send messages (RabbitMQ and NATS also expose `RequestAsync`): they have no inbound consume and no dead letter. Redis.PubSub and MQTT also have `SubscribeAsync`, and InMemory has `Subscribe`; no transport package has dead-letter handling. The sections about queues, offsets and replay describe the brokers, not what Encina does with them. Tracking issue: [#1609](https://github.com/dlrivada/Encina/issues/1609).
+
 ## Table of Contents
 
 1. [Overview](#overview)
@@ -22,10 +24,10 @@ This guide explains the messaging transport options available in Encina and help
 
 ## Overview
 
-Encina provides **10 messaging transport packages**, each exposing the full API of its underlying technology. Unlike a unified abstraction, each transport is purpose-built to leverage its unique characteristics.
+Encina provides **10 messaging transport packages**, each exposing its own publisher or bridge interface and options class. Unlike a unified abstraction, each transport is purpose-built to leverage its unique characteristics.
 
 | Category | Transports | Primary Use Case |
-|----------|-----------|------------------|
+| --- | --- | --- |
 | **Message Broker** | RabbitMQ, AzureServiceBus, AmazonSQS | Task distribution, work queues |
 | **Event Streaming** | Kafka, NATS JetStream | Event sourcing, audit logs, replay |
 | **Pub/Sub** | Redis.PubSub, NATS Core, MQTT | Real-time notifications, IoT |
@@ -38,7 +40,7 @@ Encina provides **10 messaging transport packages**, each exposing the full API 
 
 ## Decision Flowchart
 
-Use this flowchart to choose the right transport:
+Use this flowchart to choose the broker by its own properties. It does not say what Encina can do with that broker today; the [Transport Comparison](#transport-comparison) has an "Encina today" column for that.
 
 ```mermaid
 flowchart TD
@@ -49,23 +51,23 @@ flowchart TD
     B -->|YES| D{High throughput<br/>required?}
     B -->|NO| E{Cloud-native<br/>solution?}
 
-    D -->|YES| F[📊 KAFKA]
-    D -->|NO| G[🌊 NATS JetStream]
+    D -->|YES| F[KAFKA]
+    D -->|NO| G[NATS JetStream]
 
-    E -->|Azure| H[☁️ Azure Service Bus]
-    E -->|AWS| I[☁️ Amazon SQS/SNS]
-    E -->|Self-hosted| J[🐰 RabbitMQ]
+    E -->|Azure| H[Azure Service Bus]
+    E -->|AWS| I[Amazon SQS/SNS]
+    E -->|Self-hosted| J[RabbitMQ]
 
     C -->|YES| K{IoT/Constrained<br/>devices?}
     C -->|NO| L{Testing or<br/>local dev?}
 
-    K -->|YES| M[📡 MQTT]
+    K -->|YES| M[MQTT]
     K -->|NO| N{Need patterns<br/>& queues?}
 
-    N -->|YES| O[⚡ NATS Core]
-    N -->|NO| P[🔴 Redis Pub/Sub]
+    N -->|YES| O[NATS Core]
+    N -->|NO| P[Redis Pub/Sub]
 
-    L -->|YES| Q[💾 InMemory]
+    L -->|YES| Q[InMemory]
     L -->|NO| R[Consider gRPC<br/>for RPC patterns]
 
     style F fill:#FF6B35,stroke:#E55A2B,color:#fff
@@ -81,11 +83,13 @@ flowchart TD
 
 ### Quick Selection Guide
 
+The recommendations name the broker that fits the scenario. For the five publish-only packages, Encina publishes to it today and does not consume from it.
+
 | Scenario | Recommended Transport |
-|----------|----------------------|
+| --- | --- |
 | **Microservices task distribution** | RabbitMQ |
 | **Event sourcing / Event streaming** | Kafka |
-| **Real-time notifications** | NATS Core or Redis.PubSub |
+| **Real-time notifications** | NATS Core (publish side) or Redis.PubSub |
 | **IoT device messaging** | MQTT |
 | **Cloud-native (Azure)** | Azure Service Bus |
 | **Cloud-native (AWS)** | Amazon SQS/SNS |
@@ -97,6 +101,8 @@ flowchart TD
 ---
 
 ## Transport Categories
+
+Each category below first describes how the brokers of that kind behave, then states what the Encina packages of the category do today.
 
 ### Message Broker (Queue-based)
 
@@ -112,13 +118,16 @@ flowchart LR
     style Q fill:#E8F5E9,stroke:#4CAF50
 ```
 
-**Characteristics:**
+**Broker characteristics:**
+
 - Messages removed after consumption
 - Load balancing across consumers
 - At-least-once delivery
 - No replay capability
 
 **Transports:** RabbitMQ, AzureServiceBus, AmazonSQS
+
+**Encina today:** the producer side only. The three packages send to queues and topics; the consumer side in the diagram is application code outside Encina.
 
 ### Event Streaming (Log-based)
 
@@ -134,13 +143,16 @@ flowchart LR
     style T fill:#FFF3E0,stroke:#FF9800
 ```
 
-**Characteristics:**
+**Broker characteristics:**
+
 - Messages retained (time/size based)
 - Multiple consumers read independently
 - Offset-based consumption
 - Full replay capability
 
 **Transports:** Kafka, NATS JetStream
+
+**Encina today:** the producer side only. `ProduceAsync` returns the partition and offset of the delivered message; reading from an offset or replaying is not part of the package.
 
 ### Pub/Sub (Broadcast)
 
@@ -156,7 +168,8 @@ flowchart LR
     style C fill:#E3F2FD,stroke:#2196F3
 ```
 
-**Characteristics:**
+**Broker characteristics:**
+
 - Fire-and-forget broadcast
 - No persistence (ephemeral)
 - Subscribers must be online
@@ -164,15 +177,18 @@ flowchart LR
 
 **Transports:** Redis.PubSub, NATS Core, MQTT
 
+**Encina today:** Redis.PubSub and MQTT publish and subscribe. NATS Core publishes (and sends requests with `RequestAsync`) but has no subscribe.
+
 ### In-Memory (Testing)
 
 Best for **unit and integration testing** without external dependencies.
 
 **Characteristics:**
+
 - No external infrastructure needed
 - Fast execution
 - Perfect for CI/CD pipelines
-- Drop-in replacement for any transport
+- Its own API (`IInMemoryMessageBus`), not a stand-in for the interfaces of the other transports
 
 **Transports:** Encina.InMemory
 
@@ -181,8 +197,9 @@ Best for **unit and integration testing** without external dependencies.
 Best for **request/response patterns** and frontend integration.
 
 **Characteristics:**
+
 - Synchronous communication
-- Strong typing (gRPC)
+- Server-side bridges that run requests through `IEncina` (gRPC streaming and GraphQL subscriptions are not implemented)
 - Frontend-friendly (GraphQL)
 - Not true messaging (no queuing)
 
@@ -192,53 +209,52 @@ Best for **request/response patterns** and frontend integration.
 
 ## Transport Comparison
 
-| Transport | Model | Ordering | Persistence | Replay | Consumer Model | Use Case |
-|-----------|-------|----------|-------------|--------|----------------|----------|
-| **RabbitMQ** | Broker | Per-queue FIFO | Until consumed | No | Push | Task distribution |
-| **Kafka** | Stream | Per-partition | Time/size | Yes | Pull | Event streaming |
-| **NATS Core** | Pub/Sub | Subject-based | No | No | Push | Real-time |
-| **NATS JetStream** | Stream | Per-stream | Yes | Yes | Pull/Push | Event streaming |
-| **Azure Service Bus** | Broker | Per-queue FIFO | Until consumed | No | Push | Enterprise |
-| **Amazon SQS** | Queue | Best-effort | 14 days max | No | Pull | Serverless |
-| **Redis Pub/Sub** | Pub/Sub | None | No | No | Push | Cache invalidation |
-| **MQTT** | Pub/Sub | Per-topic | QoS-based | No | Push | IoT |
-| **InMemory** | Channel | FIFO | No | No | Pull | Testing |
-| **gRPC** | RPC | Per-stream | No | No | Streaming | API calls |
-| **GraphQL** | RPC | Per-request | No | No | Request | Frontend |
+The Model, Ordering, Persistence, Replay and Consumer Model columns describe the broker or protocol. The last-but-one column says what the Encina package does today.
+
+| Transport | Model | Ordering | Persistence | Replay | Consumer Model | Encina today (publish / subscribe / dead letter) | Use Case |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **RabbitMQ** | Broker | Per-queue FIFO | Until consumed | No | Push | publish, request / no / no | Task distribution |
+| **Kafka** | Stream | Per-partition | Time/size | Yes | Pull | publish / no / no | Event streaming |
+| **NATS Core** | Pub/Sub | Subject-based | No | No | Push | publish, request / no / no | Real-time |
+| **NATS JetStream** | Stream | Per-stream | Yes | Yes | Pull/Push | publish with acknowledgment / no / no | Event streaming |
+| **Azure Service Bus** | Broker | Per-queue FIFO | Until consumed | No | Push | publish, schedule / no / no | Enterprise |
+| **Amazon SQS** | Queue | Best-effort | 14 days max | No | Pull | publish / no / no | Serverless |
+| **Redis Pub/Sub** | Pub/Sub | None | No | No | Push | publish / yes / no | Cache invalidation |
+| **MQTT** | Pub/Sub | Per-topic | QoS-based | No | Push | publish / yes / no | IoT |
+| **InMemory** | In-process bus | Inline on publish | No | No | Push (subscribers) | publish, enqueue / yes / no | Testing |
+| **gRPC** | RPC | Per-request | No | No | Request | server-side bridge / no / no | API calls |
+| **GraphQL** | RPC | Per-request | No | No | Request | server-side bridge / no / no | Frontend |
 
 ---
 
 ## Detailed Transport Guides
+
+Every publisher is registered as a scoped service (the InMemory bus is a singleton), and its publish and send methods return `Either<EncinaError, T>`: a failure is a `Left`, not an exception ([ADR-001](../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../architecture/adr/006-pure-rop-exception-handling.md)). The samples show the options the publisher code reads; the option classes have more properties.
 
 ### RabbitMQ
 
 **Package:** `Encina.RabbitMQ`
 
 **When to use:**
+
 - Classic message broker patterns (work queues, pub/sub, routing)
-- You need exchange-based routing logic
-- Dead letter handling is important
-- You're comfortable with AMQP concepts
+- You publish to a named exchange with a routing key
+- You are comfortable with AMQP concepts
+
+**Encina today:** `IRabbitMQMessagePublisher` has `PublishAsync` (exchange and routing key), `SendToQueueAsync` (default exchange, queue name as routing key) and `RequestAsync`. The package does not declare exchanges or queues, so create them in the broker first. It has no consume and no dead-letter handling.
 
 ```csharp
 services.AddEncinaRabbitMQ(options =>
 {
-    options.ConnectionString = "amqp://localhost";
-    options.Exchange = "my-exchange";
-    options.ExchangeType = ExchangeType.Topic;
+    options.HostName = "localhost";
+    options.ExchangeName = "my-exchange";
 });
 
-// Publishing
-await publisher.PublishAsync(new OrderCreated(orderId), routingKey: "orders.created");
-
-// Consuming
-public class OrderCreatedHandler : IMessageHandler<OrderCreated>
-{
-    public async Task HandleAsync(OrderCreated message, CancellationToken ct)
-    {
-        // Process message
-    }
-}
+// Publishing (IRabbitMQMessagePublisher publisher)
+var result = await publisher.PublishAsync(
+    new OrderCreated(orderId),
+    routingKey: "orders.created",
+    cancellationToken: ct);
 ```
 
 ---
@@ -248,29 +264,29 @@ public class OrderCreatedHandler : IMessageHandler<OrderCreated>
 **Package:** `Encina.Kafka`
 
 **When to use:**
-- Event sourcing and event streaming
-- You need to replay events
-- High throughput is critical (millions of messages/sec)
-- You need consumer groups for scaling
+
+- You publish events to topics, optionally keyed by a partition key
+- You want the partition and offset of each delivered message
+
+**Encina today:** `IKafkaMessagePublisher` has `ProduceAsync`, `ProduceBatchAsync` and `ProduceWithHeadersAsync`. It has no consumer, so reading from an offset or replaying is done with the Kafka client directly.
 
 ```csharp
 services.AddEncinaKafka(options =>
 {
     options.BootstrapServers = "localhost:9092";
-    options.ConsumerGroup = "my-service";
-    options.DefaultTopic = "events";
+    options.DefaultEventTopic = "events";
 });
 
-// Publishing with partition key
-await publisher.ProduceAsync(
+// Publishing with partition key (IKafkaMessagePublisher publisher)
+var result = await publisher.ProduceAsync(
     new OrderCreated(orderId),
-    key: orderId.ToString()); // Same order always goes to same partition
+    key: orderId.ToString(), // Same order always goes to same partition
+    cancellationToken: ct);
 
-// Consuming from specific offset
-await consumer.ConsumeFromAsync(
-    topic: "events",
-    offset: 12345, // Replay from this point
-    ct);
+result.Match(
+    Right: delivery => logger.LogInformation(
+        "Delivered to partition {Partition} at offset {Offset}", delivery.Partition, delivery.Offset),
+    Left: error => logger.LogWarning("Publish failed: {Code}", error.GetCode().IfNone("Encina.unknown")));
 ```
 
 ---
@@ -280,10 +296,13 @@ await consumer.ConsumeFromAsync(
 **Package:** `Encina.NATS`
 
 **When to use:**
+
 - High-performance pub/sub with optional persistence
 - You want both modes in one package
 - Microservices communication
 - Edge computing scenarios
+
+**Encina today:** `INATSMessagePublisher` has `PublishAsync` (core), `RequestAsync` and `JetStreamPublishAsync`. There is no subscribe or consume. The package does not create streams; the JetStream stream for your subjects must already exist.
 
 NATS offers two modes:
 
@@ -295,8 +314,8 @@ services.AddEncinaNATS(options =>
     options.Url = "nats://nats.internal.example.com:4222";
 });
 
-// Fire-and-forget publish
-await publisher.PublishAsync(new OrderCreated(orderId), subject: "orders.created");
+// Fire-and-forget publish (INATSMessagePublisher publisher)
+await publisher.PublishAsync(new OrderCreated(orderId), subject: "orders.created", cancellationToken: ct);
 ```
 
 #### NATS JetStream (Streaming)
@@ -306,13 +325,13 @@ services.AddEncinaNATS(options =>
 {
     options.Url = "nats://nats.internal.example.com:4222";
     options.UseJetStream = true;
-    options.StreamName = "ORDERS";
-    options.ConsumerName = "order-processor";
 });
 
-// Publish with acknowledgment
-await publisher.PublishAsync(new OrderCreated(orderId));
+// Publish with acknowledgment: the Right value carries the stream and sequence
+var ack = await publisher.JetStreamPublishAsync(new OrderCreated(orderId), cancellationToken: ct);
 ```
+
+`JetStreamPublishAsync` returns a `NATS_JETSTREAM_NOT_ENABLED` error when `UseJetStream` is not set.
 
 #### Endpoint validation
 
@@ -337,21 +356,25 @@ services.AddEncinaNATS(options =>
 **Package:** `Encina.AzureServiceBus`
 
 **When to use:**
+
 - Azure-native applications
-- Enterprise features (sessions, transactions, scheduled delivery)
+- You send to queues, publish to topics or schedule delivery
 - Hybrid cloud scenarios
+
+**Encina today:** `IAzureServiceBusMessagePublisher` has `SendToQueueAsync`, `PublishToTopicAsync`, `ScheduleAsync` (returns the sequence number) and `CancelScheduledAsync`. It has no receiver, session processing or dead-letter handling.
 
 ```csharp
 services.AddEncinaAzureServiceBus(options =>
 {
     options.ConnectionString = "Endpoint=sb://...";
-    options.QueueName = "orders";
+    options.DefaultQueueName = "orders";
 });
 
-// Scheduled delivery
-await publisher.ScheduleAsync(
+// Scheduled delivery (IAzureServiceBusMessagePublisher publisher, TimeProvider timeProvider)
+var scheduled = await publisher.ScheduleAsync(
     new SendReminder(orderId),
-    scheduledEnqueueTime: DateTimeOffset.UtcNow.AddHours(24));
+    scheduledEnqueueTime: timeProvider.GetUtcNow().AddHours(24),
+    cancellationToken: ct);
 ```
 
 ---
@@ -361,22 +384,26 @@ await publisher.ScheduleAsync(
 **Package:** `Encina.AmazonSQS`
 
 **When to use:**
+
 - AWS-native applications
 - Serverless architectures (Lambda integration)
-- You need both queue (SQS) and pub/sub (SNS)
+- You send to SQS queues and publish to SNS topics
+
+**Encina today:** `IAmazonSQSMessagePublisher` has `SendToQueueAsync`, `PublishToTopicAsync`, `SendBatchAsync` and `SendToFifoQueueAsync`. It has no receive or poll loop and no dead-letter handling.
 
 ```csharp
 services.AddEncinaAmazonSQS(options =>
 {
     options.Region = "us-east-1";
     options.DefaultQueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/my-queue";
+    options.DefaultTopicArn = "arn:aws:sns:us-east-1:123456789:my-topic";
 });
 
-// Publishing to SNS topic
-await publisher.PublishToTopicAsync(new OrderCreated(orderId), topicArn);
+// Publishing to the SNS topic (IAmazonSQSMessagePublisher publisher); the Right value is the message id
+var published = await publisher.PublishToTopicAsync(new OrderCreated(orderId), cancellationToken: ct);
 
-// Consuming from SQS queue
-await consumer.StartAsync(ct);
+// Sending to the SQS queue
+var sent = await publisher.SendToQueueAsync(new OrderCreated(orderId), cancellationToken: ct);
 ```
 
 #### Endpoint validation
@@ -399,9 +426,12 @@ services.AddEncinaAmazonSQS(options =>
 **Package:** `Encina.Redis.PubSub`
 
 **When to use:**
+
 - Cache invalidation across instances
 - Real-time notifications where persistence isn't needed
 - You already have Redis in your stack
+
+**Encina today:** `IRedisPubSubMessagePublisher` has `PublishAsync` (the Right value is the number of receiving clients), `SubscribeAsync` and `SubscribePatternAsync`. The channel passed to `PublishAsync` is used as given, while `SubscribePatternAsync` prepends `ChannelPrefix` (default `encina`) to the pattern. There is no dead-letter handling.
 
 ```csharp
 services.AddEncinaRedisPubSub(options =>
@@ -409,14 +439,17 @@ services.AddEncinaRedisPubSub(options =>
     options.ConnectionString = "localhost:6379";
 });
 
-// Publish
-await publisher.PublishAsync(new CacheInvalidated("user:123"), channel: "cache-events");
+// Publish (IRedisPubSubMessagePublisher publisher)
+await publisher.PublishAsync(new CacheInvalidated("user:123"), channel: "encina:cache-events", cancellationToken: ct);
 
-// Subscribe to pattern
-await subscriber.SubscribeAsync("cache-*", async (channel, message) =>
-{
-    await InvalidateCacheAsync(message);
-});
+// Subscribe to pattern: "cache-*" matches the channel "encina:cache-events"
+await using var subscription = await publisher.SubscribePatternAsync<CacheInvalidated>(
+    "cache-*",
+    async (channel, message) =>
+    {
+        await InvalidateCacheAsync(message);
+    },
+    ct);
 ```
 
 ---
@@ -426,30 +459,37 @@ await subscriber.SubscribeAsync("cache-*", async (channel, message) =>
 **Package:** `Encina.MQTT`
 
 **When to use:**
+
 - IoT devices with limited bandwidth
 - Unreliable networks (QoS levels handle this)
 - Sensor data collection
 - Mobile applications
 
+**Encina today:** `IMQTTMessagePublisher` has `PublishAsync`, `SubscribeAsync` (one topic) and `SubscribePatternAsync` (a topic filter). There is no dead-letter handling.
+
 ```csharp
 services.AddEncinaMQTT(options =>
 {
-    options.BrokerAddress = "localhost";
+    options.Host = "localhost";
     options.Port = 1883;
     options.ClientId = "sensor-collector";
 });
 
-// Publish with QoS
+// Publish with QoS (IMQTTMessagePublisher publisher)
 await publisher.PublishAsync(
-    new SensorReading(temperature: 22.5),
-    topic: "sensors/temperature",
-    qos: MqttQualityOfService.AtLeastOnce);
+    new SensorReading(22.5),
+    topic: "sensors/kitchen/temperature",
+    qos: MqttQualityOfService.AtLeastOnce,
+    cancellationToken: ct);
 
 // Subscribe with wildcard
-await subscriber.SubscribeAsync("sensors/+/temperature", async (topic, message) =>
-{
-    await ProcessReadingAsync(message);
-});
+await using var subscription = await publisher.SubscribePatternAsync<SensorReading>(
+    async (topic, reading) =>
+    {
+        await ProcessReadingAsync(reading);
+    },
+    "sensors/+/temperature",
+    cancellationToken: ct);
 ```
 
 ---
@@ -459,19 +499,30 @@ await subscriber.SubscribeAsync("sensors/+/temperature", async (topic, message) 
 **Package:** `Encina.gRPC`
 
 **When to use:**
+
+- You expose `IEncina` requests and notifications to gRPC clients from your own server
 - Synchronous service-to-service communication
-- Strong typing is important
-- Bidirectional streaming needed
-- Performance-critical APIs
+
+**Encina today:** `IGrpcEncinaService` is a server-side bridge. `SendAsync` and `PublishAsync` take the assembly-qualified type name and the JSON-serialized message, and run it through `IEncina`. The package has no outbound client and no server address option. `StreamAsync` returns a `GRPC_STREAMING_NOT_IMPLEMENTED` error. The options class `EncinaGrpcOptions` exists, but the bridge does not read it yet ([#3409](https://github.com/dlrivada/Encina/issues/3409)).
 
 ```csharp
-services.AddEncinaGrpc(options =>
-{
-    options.ServerAddress = "https://localhost:5001";
-});
+services.AddEncinaGrpc();
 
-// Encina command over gRPC
-var result = await grpcClient.SendAsync(new CreateOrder(items));
+// Inside your own gRPC service implementation
+public sealed class OrdersGrpcService(IGrpcEncinaService encinaService)
+{
+    public async ValueTask<byte[]> CreateOrderAsync(byte[] requestJson, CancellationToken ct)
+    {
+        var result = await encinaService.SendAsync(
+            typeof(CreateOrder).AssemblyQualifiedName!,
+            requestJson,
+            ct);
+
+        return result.Match(
+            Right: responseJson => responseJson,
+            Left: error => throw new InvalidOperationException(error.GetCode().IfNone("Encina.unknown")));
+    }
+}
 ```
 
 ---
@@ -481,26 +532,33 @@ var result = await grpcClient.SendAsync(new CreateOrder(items));
 **Package:** `Encina.GraphQL`
 
 **When to use:**
+
 - Frontend API needs
 - Clients need flexible queries
 - You're using HotChocolate
 
+**Encina today:** `IGraphQLEncinaBridge` has `QueryAsync` and `MutateAsync`, which run an `IRequest<TResult>` through `IEncina` with `EncinaGraphQLOptions.ExecutionTimeout` as the deadline. `SubscribeAsync` returns a `GRAPHQL_SUBSCRIPTIONS_NOT_IMPLEMENTED` error (`GRAPHQL_SUBSCRIPTIONS_DISABLED` when `EnableSubscriptions` is false). Of the options, only `ExecutionTimeout` and `EnableSubscriptions` are read ([#3409](https://github.com/dlrivada/Encina/issues/3409)). The HotChocolate server is configured by your application, not by `AddEncinaGraphQL`.
+
 ```csharp
-services.AddEncinaGraphQL()
+services.AddEncinaGraphQL();
+services.AddGraphQLServer()
     .AddQueryType<QueryRoot>()
     .AddMutationType<MutationRoot>();
 
 // Bridge Encina commands to mutations
-public class MutationRoot
+public sealed class MutationRoot
 {
-    public async Task<Order> CreateOrder(
-        [Service] IEncina encina,
-        CreateOrderInput input)
+    public async Task<OrderDto> CreateOrder(
+        [Service] IGraphQLEncinaBridge bridge,
+        CreateOrder mutation,
+        CancellationToken ct)
     {
-        var result = await encina.Send(new CreateOrderCommand(input));
+        var result = await bridge.MutateAsync<CreateOrder, OrderDto>(mutation, ct);
+
+        // Only the error code reaches the client, never EncinaError.Message
         return result.Match(
-            order => order,
-            error => throw new GraphQLException(error.Message));
+            Right: order => order,
+            Left: error => throw new GraphQLException(error.GetCode().IfNone("Encina.unknown")));
     }
 }
 ```
@@ -511,7 +569,7 @@ public class MutationRoot
 
 **Package:** `Encina.InMemory`
 
-Use `Encina.InMemory` as a drop-in replacement for any transport during testing:
+`Encina.InMemory` is a separate in-process bus with its own interface, `IInMemoryMessageBus`. It has `PublishAsync` (runs the subscribers of that message type before it returns), `EnqueueAsync` (queues the message for background workers), `Subscribe<T>` (returns an `IDisposable`), `PendingCount` and `SubscriberCount`. It does not replace the interfaces of the other transports: code that publishes through `IKafkaMessagePublisher` is tested by substituting that interface.
 
 ```csharp
 // In your test setup
@@ -519,26 +577,33 @@ services.AddEncinaInMemory();
 
 // Your test
 [Fact]
-public async Task Order_WhenCreated_ShouldPublishEvent()
+public async Task Bus_WhenPublished_DeliversToSubscriber()
 {
     // Arrange
     var bus = _serviceProvider.GetRequiredService<IInMemoryMessageBus>();
+    var received = new List<OrderCreated>();
+    using var subscription = bus.Subscribe<OrderCreated>(message =>
+    {
+        received.Add(message);
+        return ValueTask.CompletedTask;
+    });
 
     // Act
-    await _encina.Send(new CreateOrderCommand(items));
+    var result = await bus.PublishAsync(new OrderCreated(orderId));
 
     // Assert
-    var publishedEvents = bus.GetPublishedMessages<OrderCreatedEvent>();
-    Assert.Single(publishedEvents);
-    Assert.Equal(orderId, publishedEvents[0].OrderId);
+    Assert.True(result.IsRight);
+    Assert.Equal(1, bus.SubscriberCount);
+    Assert.Single(received);
+    Assert.Equal(orderId, received[0].OrderId);
 }
 ```
 
 **Benefits:**
+
 - No Docker containers needed
 - Fast test execution
 - Full control over message timing
-- Inspect all published messages
 
 ---
 
@@ -559,37 +624,39 @@ If you need transport abstraction, consider MassTransit or NServiceBus (differen
 **Yes.** Each transport is independent:
 
 ```csharp
-services.AddEncinaKafka(kafkaOptions);      // For event streaming
-services.AddEncinaRabbitMQ(rabbitOptions);  // For task distribution
-services.AddEncinaRedisPubSub(redisOptions); // For cache invalidation
+services.AddEncinaKafka(options => options.BootstrapServers = "localhost:9092");   // For event streaming
+services.AddEncinaRabbitMQ(options => options.HostName = "localhost");            // For task distribution
+services.AddEncinaRedisPubSub(options => options.ConnectionString = "localhost:6379"); // For cache invalidation
 ```
 
 ### How do I handle transport failures?
 
-Each transport has its own retry and error handling. Use `Encina.Polly` for resilience:
+Every publish and send method returns `Either<EncinaError, T>`, so a failed send is a `Left` you handle at the call site. `Encina.Polly` adds retry, circuit breaker, rate limit and bulkhead behaviors to requests sent through `IEncina`, configured with attributes on the request type:
 
 ```csharp
-services.AddEncinaPolly(options =>
-{
-    options.RetryCount = 3;
-    options.CircuitBreakerThreshold = 5;
-});
+services.AddEncinaPolly();
+
+[Retry(MaxAttempts = 3)]
+[CircuitBreaker(FailureThreshold = 5, DurationOfBreakSeconds = 60)]
+public sealed record PublishOrderCreated(Guid OrderId) : ICommand<Unit>;
 ```
+
+Resilience for the message transports and for the gRPC and GraphQL bridges is in 1.0 scope ([SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-030, [ADR-055](../architecture/adr/055-resilience-family.md)).
 
 ### When should I use gRPC vs a message broker?
 
 | Pattern | Use |
-|---------|-----|
+| --- | --- |
 | **Request/Response** | gRPC |
 | **Fire-and-forget** | Message Broker |
 | **Event notification** | Pub/Sub |
-| **Event sourcing** | Kafka/NATS JetStream |
+| **Event streaming (publish side)** | Kafka/NATS JetStream |
 
 gRPC is synchronous; message brokers are asynchronous.
 
 ### How do I switch transports?
 
-Since each transport has its own API, switching requires code changes. However, if your handlers use Encina's core abstractions (`ICommandHandler`, `INotificationHandler`), only the transport registration and publishing code needs to change.
+Since each transport has its own API, switching requires code changes. However, if your handlers use Encina's core abstractions (`ICommandHandler<,>`, `INotificationHandler<>`), only the transport registration and publishing code needs to change.
 
 ---
 
