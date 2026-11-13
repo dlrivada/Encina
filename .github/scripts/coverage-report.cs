@@ -10,7 +10,16 @@
 //        dotnet run .github/scripts/coverage-report.cs -- --check-unmeasured [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-flag-assignment [--min-lines <n>] [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --files-from <list> [--input <dir>] [--output <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-targets [--files-from <list>] [--enforce] [--require-all-flags] [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// --check-targets (#1651) judges the per-file targets of the manifest against the measured Cobertura data and
+// writes <output>/check-targets.json. It is report-only (prints the findings, exit 0) unless --enforce is given,
+// which exits 1 when there is any finding: (a) a file is below the target of a flag; (b) a target has no data
+// where it is required (the flag ran but has no data for the file; with --require-all-flags, every flag
+// is required, as in the nightly run, otherwise only flags that have a Cobertura file in the run are); (c) a
+// Cobertura file could not be parsed (recorded in every mode); (d) with --files-from, a touched src/ file that
+// still exists has no per-file target in its package manifest. --enforce and --require-all-flags need --check-targets.
 //
 // --files-from (#3289) reads a list of repository paths, one per line (the files a pull request touches, from
 // the GitHub API), and also writes <output>/pr-coverage-comment.md: the "Per-file targets" rows of those files
@@ -53,6 +62,9 @@ var checkUnmeasured = false;
 var checkFlagAssignment = false;
 var minLines = 5;
 var selfTest = false;
+var checkTargets = false;
+var enforce = false;
+var requireAllFlags = false;
 string? filesFrom = null;
 
 for (int i = 0; i < args.Length; i++)
@@ -72,6 +84,9 @@ for (int i = 0; i < args.Length; i++)
     if (args[i] == "--check-stale-manifest") checkStaleManifest = true;
     if (args[i] == "--check-missing-manifest") checkMissingManifest = true;
     if (args[i] == "--check-unmeasured") checkUnmeasured = true;
+    if (args[i] == "--check-targets") checkTargets = true;
+    if (args[i] == "--enforce") enforce = true;
+    if (args[i] == "--require-all-flags") requireAllFlags = true;
 }
 
 if (selfTest)
@@ -205,6 +220,20 @@ if (checkUnmeasured && (checkStaleManifest || checkMissingManifest || checkJusti
 if (checkFlagAssignment && (checkUnmeasured || checkStaleManifest || checkMissingManifest || checkJustifications))
 {
     Console.WriteLine("\nERROR: --check-flag-assignment cannot be combined with another --check-* mode; run it as its own step.");
+    Environment.Exit(1);
+}
+
+// --check-targets (#1651) also needs coverage data and has its own exit code, so it runs alone; its two
+// modifiers mean nothing without it, and a silent no-op --enforce would read as a passing gate.
+if (checkTargets && (checkUnmeasured || checkFlagAssignment || checkStaleManifest || checkMissingManifest || checkJustifications))
+{
+    Console.WriteLine("\nERROR: --check-targets cannot be combined with another --check-* mode; run it as its own step.");
+    Environment.Exit(1);
+}
+
+if ((enforce || requireAllFlags) && !checkTargets)
+{
+    Console.WriteLine("\nERROR: --enforce and --require-all-flags only apply to --check-targets.");
     Environment.Exit(1);
 }
 
@@ -427,6 +456,80 @@ static FileTargetRow BuildFileTargetRow(
 // compared unrounded, so 89.96% does not pass a target of 90.
 static bool IsBelowTarget(FileTargetRow row)
     => row.Target > 0 && (row.Measured is null || row.Measured < row.Target);
+
+// ─── Target check (#1651): --check-targets ───────────────────────────────────────────────────────────
+
+// The finding of one (file, flag) pair with a target, or null when it is met. A pair below its target is
+// always a finding. A pair with no data is one only where the flag is required: it ran in this run, or
+// requireAllFlags says every flag is required (the nightly); otherwise the flag simply did not run here.
+static TargetFinding? CheckTargetRow(FileTargetRow row, IReadOnlyCollection<TestType> flagsInRun, bool requireAllFlags)
+{
+    if (!IsBelowTarget(row)) return null;
+    var subject = $"{row.Package}/{row.File} {row.Flag}";
+    if (row.Measured is { } measured)
+        return new TargetFinding("below-target", subject, $"{FormatMeasured(measured)} is below the target of {row.Target:0}%");
+    if (!requireAllFlags && !flagsInRun.Contains(ParseFlag(row.Flag))) return null;
+    return new TargetFinding("no-data", subject, $"no coverage data for a target of {row.Target:0}%");
+}
+
+// All findings of the check, in a stable order. A touched file counts only while it still exists (a deleted
+// file has nothing to cover); touched is null without --files-from.
+static List<TargetFinding> FindTargetProblems(
+    IReadOnlyList<FileTargetRow> rows, IReadOnlyCollection<TestType> flagsInRun, bool requireAllFlags,
+    IReadOnlyList<string> coverageParseFailures, IReadOnlySet<string>? touched, Func<string, bool> sourceExists)
+{
+    var findings = coverageParseFailures.Order(StringComparer.Ordinal)
+        .Select(f => new TargetFinding("parse-error", f, "the Cobertura report could not be parsed, so its flag cannot be vouched for"))
+        .ToList();
+
+    findings.AddRange(rows.Select(r => CheckTargetRow(r, flagsInRun, requireAllFlags)).OfType<TargetFinding>()
+        .OrderBy(f => f.Subject, StringComparer.Ordinal));
+
+    if (touched is not null)
+    {
+        var targeted = rows.Select(SourcePathOf).ToHashSet(StringComparer.Ordinal);
+        findings.AddRange(touched.Order(StringComparer.Ordinal)
+            .Where(t => !targeted.Contains(t) && sourceExists(t))
+            .Select(t => new TargetFinding("no-targets", t, "a touched src/ file has no per-file target in its package manifest")));
+    }
+
+    return findings;
+}
+
+// Prints the findings, writes <outputDir>/check-targets.json and returns true (failed) only when enforcing
+// with at least one finding.
+static bool RunCheckTargets(
+    IReadOnlyList<TargetFinding> findings, IReadOnlyList<FileTargetRow> rows, IReadOnlyCollection<TestType> flagsInRun,
+    bool enforce, bool requireAllFlags, string outputDir)
+{
+    var flagNames = flagsInRun.Select(f => f.ToString().ToLowerInvariant()).Order(StringComparer.Ordinal).ToList();
+    Console.WriteLine($"\n--check-targets: {rows.Count(r => r.Target > 0)} target(s) checked; flags with a Cobertura report: {(flagNames.Count > 0 ? string.Join(", ", flagNames) : "none")}{(requireAllFlags ? " (every flag required)" : "")}");
+    foreach (var finding in findings)
+        Console.WriteLine($"  {finding.Kind.ToUpperInvariant()}: {finding.Subject}: {finding.Message}");
+
+    var payload = new
+    {
+        enforce,
+        requireAllFlags,
+        flagsInRun = flagNames,
+        checkedTargets = rows.Count(r => r.Target > 0),
+        passed = findings.Count == 0,
+        findings
+    };
+    Directory.CreateDirectory(outputDir);
+    File.WriteAllText(Path.Combine(outputDir, "check-targets.json"), JsonSerializer.Serialize(payload, SummaryJsonOptions()));
+
+    if (findings.Count == 0)
+    {
+        Console.WriteLine("  No findings.");
+        return false;
+    }
+
+    Console.WriteLine(enforce
+        ? $"  FAIL: {findings.Count} finding(s)."
+        : $"  {findings.Count} finding(s); report-only, pass --enforce to fail the run.");
+    return enforce;
+}
 
 // ─── Target attainment (#2542): how close a (file, flag) pair is to its own target ───────────────────
 
@@ -900,6 +1003,45 @@ int RunSelfTest()
     Check(SeedPackages([], seedFiles, seedTargets).Count == 1 && SeedPackages(["Encina.A"], [], seedTargets).Single().Measured == false,
         "no manifest keys give only the measured packages; no data gives only not-measured rows");
 
+    // --- target check (#1651) ---
+    TestType[] unitRan = [TestType.Unit];
+    static string Kinds(List<TargetFinding> found) => string.Join(",", found.Select(f => f.Kind));
+    static List<TargetFinding> Find(IReadOnlyList<FileTargetRow> rows, TestType[] ran, bool all = false, string[]? parseFailures = null,
+        HashSet<string>? touched = null, Func<string, bool>? exists = null)
+        => FindTargetProblems(rows, ran, all, parseFailures ?? [], touched, exists ?? (_ => true));
+
+    Check(Kinds(Find([Pair("A.cs", "unit", 80, 100, 79)], unitRan)) == "below-target", "a pair below its target is a finding");
+    Check(Find([Pair("A.cs", "unit", 80, 100, 80)], unitRan).Count == 0, "a pair exactly on its target is not a finding");
+    Check(Kinds(Find([new FileTargetRow("Pkg", "A.cs", "unit", 80, null)], unitRan)) == "no-data", "a flag that ran with no data for the file is a finding");
+    Check(Find([new FileTargetRow("Pkg", "A.cs", "guard", 50, null)], unitRan).Count == 0, "a flag that did not run is not required on a pull request");
+    Check(Kinds(Find([new FileTargetRow("Pkg", "A.cs", "guard", 50, null)], unitRan, all: true)) == "no-data", "--require-all-flags requires a flag that did not run");
+    Check(Find([new FileTargetRow("Pkg", "A.cs", "guard", 0, null)], unitRan, all: true).Count == 0, "a target of 0 never needs data");
+    Check(Kinds(Find([Pair("A.cs", "guard", 50, 100, 10)], unitRan)) == "below-target", "a pair below its target counts even when its flag is not in the run list");
+    Check(Kinds(Find([], unitRan, parseFailures: ["UnitTests/coverage.cobertura.xml"])) == "parse-error", "a Cobertura parse failure is a finding");
+
+    var touchedSet = new HashSet<string> { "src/Pkg/A.cs", "src/Pkg/New.cs", "src/Pkg/Gone.cs" };
+    var targetedRows = new List<FileTargetRow> { Pair("A.cs", "unit", 80, 100, 90) };
+    var touchedFindings = Find(targetedRows, unitRan, touched: touchedSet, exists: p => p != "src/Pkg/Gone.cs");
+    Check(Kinds(touchedFindings) == "no-targets" && touchedFindings[0].Subject == "src/Pkg/New.cs",
+        "a touched file with no per-file target is a finding; a targeted or deleted file is not");
+    Check(Find(targetedRows, unitRan, touched: null).Count == 0, "without --files-from no touched file is checked");
+
+    var reported = new List<TargetFinding> { new("below-target", "Pkg/A.cs unit", "x") };
+    var reportDir = Path.Combine(Path.GetTempPath(), "coverage-report-selftest-targets-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        Check(!RunCheckTargets(reported, targetedRows, unitRan, enforce: false, requireAllFlags: false, reportDir), "report-only mode never fails the run");
+        Check(RunCheckTargets(reported, targetedRows, unitRan, enforce: true, requireAllFlags: false, reportDir), "enforce mode fails the run on a finding");
+        Check(!RunCheckTargets([], targetedRows, unitRan, enforce: true, requireAllFlags: false, reportDir), "enforce mode passes with no finding");
+        var written = JsonNode.Parse(File.ReadAllText(Path.Combine(reportDir, "check-targets.json")))!.AsObject();
+        Check(string.Join(",", written.Select(kv => kv.Key).Order(StringComparer.Ordinal)) == "checkedTargets,enforce,findings,flagsInRun,passed,requireAllFlags",
+            "check-targets.json has exactly the documented fields");
+    }
+    finally
+    {
+        if (Directory.Exists(reportDir)) Directory.Delete(reportDir, true);
+    }
+
     // --- flag assignment (#2932) ---
     static Dictionary<int, int> Executed(int executed, int unexecuted)
     {
@@ -1196,10 +1338,17 @@ if (!Directory.Exists(inputDir))
         "# Encina Coverage Report\n\nNo coverage data available. Run tests with `--collect \"XPlat Code Coverage\"` first.\n");
     // A missing input directory means every manifested package is unmeasured: the check must not pass vacuously.
     if (checkUnmeasured || checkFlagAssignment) Environment.Exit(1);
+    if (checkTargets)
+    {
+        Console.WriteLine($"\n--check-targets: input directory '{inputDir}' not found; nothing was checked.");
+        if (enforce) Environment.Exit(1);
+    }
     return;
 }
 
 var coverageParseFailures = 0;
+// Relative paths of the Cobertura files that failed to parse (#1651), for --check-targets.
+var coverageParseFailureFiles = new List<string>();
 var xmlFiles = Directory.GetFiles(inputDir, "coverage.cobertura.xml", SearchOption.AllDirectories);
 Console.WriteLine($"Found {xmlFiles.Length} coverage report(s)");
 
@@ -1303,6 +1452,7 @@ foreach (var xmlFile in xmlFiles)
     {
         Console.WriteLine($"  ERROR parsing {relPath}: {ex.Message}");
         coverageParseFailures++;
+        coverageParseFailureFiles.Add(relPath.Replace('\\', '/'));
     }
 }
 
@@ -1419,7 +1569,7 @@ foreach (var file in allFiles)
     // Also count obligations for applicable flags that have NO coverage data (0 covered of N lines)
     // These flags are required by manifest but have no XML data at all — they contribute 0 met.
     // We don't add them here because we don't know how many lines they'd have.
-    // The per-flag columns show "?" for these, and they penalize via the flag target check.
+    // The per-flag columns show "?" for these; --check-targets reports a missing flag against a per-file target.
 
     if (totalObligations == 0) continue;
 
@@ -1680,6 +1830,26 @@ File.WriteAllText(Path.Combine(outputDir, "index.html"), htmlDashboard);
 Console.WriteLine($"  HTML:     {Path.Combine(outputDir, "index.html")}");
 
 Console.WriteLine("\nDone.");
+
+// --check-targets (#1651): the outputs above are written first; the findings go to check-targets.json and the
+// console, and only --enforce turns them into an exit code.
+if (checkTargets)
+{
+    var manifestDirFullForTargets = Path.GetFullPath(manifestDir);
+    var repoRootForTargets = Directory.GetParent(manifestDirFullForTargets)?.Parent?.FullName ?? Directory.GetCurrentDirectory();
+    var touchedForTargets = filesFrom is not null ? ParseTouchedFiles(File.ReadAllLines(filesFrom)) : null;
+    var flagsInRunForTargets = coverageByFlag.Keys.Where(f => f != TestType.None).ToList();
+    var targetFindings = FindTargetProblems(fileTargetRows, flagsInRunForTargets, requireAllFlags, coverageParseFailureFiles,
+        touchedForTargets, path => File.Exists(Path.Combine(repoRootForTargets, path)));
+    // A manifest that is missing or did not parse cannot vouch for anything: never a vacuous pass.
+    if (manifest.Count == 0 || manifestParseFailures.Count > 0)
+        targetFindings.Add(new TargetFinding("no-manifest", manifestDir,
+            manifestParseFailures.Count > 0
+                ? $"{manifestParseFailures.Count} coverage manifest(s) could not be parsed: {string.Join(", ", manifestParseFailures)}"
+                : "no coverage manifest was loaded; nothing was checked"));
+    if (RunCheckTargets(targetFindings, fileTargetRows, flagsInRunForTargets, enforce, requireAllFlags, outputDir))
+        Environment.Exit(1);
+}
 
 // --check-unmeasured (#2827): the outputs above are written first, then the run fails when a
 // manifested package has no measured lines. Not wired into CI yet (#2896).
@@ -2142,6 +2312,9 @@ sealed class MethodCrapInfo(string relFile, string className, string name, strin
 // borrowed from the file's other flags (CoveredLines 0), or null when no flag has the file (#2542).
 record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured,
     int? TotalLines = null, int? CoveredLines = null);
+
+// One finding of --check-targets (#1651): Kind is below-target, no-data, parse-error, no-targets or no-manifest.
+record TargetFinding(string Kind, string Subject, string Message);
 
 // Target attainment aggregates (#2542); the field names are the contract of latest.json overall.attainment.
 record AttainmentSummary(int Pairs, int Met, double? Ratio, double? LineWeighted, double? MeanGap,
