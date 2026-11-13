@@ -3,7 +3,7 @@
 > **Issue**: [#1252](https://github.com/dlrivada/Encina/issues/1252)
 > **Type**: Feature (documentation only)
 > **Complexity**: Low (5 phases, 2 pages, no code)
-> **Estimated Scope**: ~450 lines of documentation in 5 files; no production code, no tests
+> **Estimated Scope**: ~500 lines of documentation in 9 files; no production code, no tests
 
 ---
 
@@ -13,7 +13,7 @@ Write two reference pages under `docs/` that map ISO/IEC 27001:2022 Annex A cont
 
 - **Standards**: ISO/IEC 27001:2022 Annex A; ISO/IEC 27701:2025 (edition 2, now a standalone PIMS standard; the 2019 edition is superseded, per the SPEC-002 fact check `E-factcheck.md`).
 - **Controls named by SPEC-002 section 3.4**: A.8.10 information deletion, A.8.11 data masking, A.8.15 logging, A.8.24 use of cryptography, A.8.25 secure development life cycle, A.8.28 secure coding.
-- **Estimated scope**: 5 files, about 450 lines (see Research).
+- **Estimated scope**: 9 files, about 500 lines (see Research, Estimated File Count).
 - **Affected packages**: none; documentation only (`docs/`).
 - **Provider category**: none.
 - **Prerequisites**: none open. The evidence cited exists today (the modules below, their feature pages and the SPEC-001 `coverage-citations` gate). Related: #689 (compliance documentation hub) and P-17 (article-coverage specifications) share the same evidence; this plan links to them by number and does not wait for them. INV-002 binds the wording: Encina never claims coverage it does not cover, and no certification is claimed.
@@ -62,7 +62,7 @@ Write two reference pages under `docs/` that map ISO/IEC 27001:2022 Annex A cont
 - Follows the existing structure and the one-Diataxis-quadrant rule of the documentation skill; the compliance hub of #689 can link to both pages later.
 
 **Class:** Trivial
-**Settled by:** `.claude/skills/encina-docs/SKILL.md` (one quadrant per page, just-the-docs front matter); `docs/features/index.md` (`has_children: true`)
+**Settled by:** the Features-placement convention: `docs/features/index.md` (`has_children: true`) already holds the module guides and per-topic references that the mappings link to; `.claude/skills/encina-docs/SKILL.md` (one quadrant per page, just-the-docs front matter). Options B and C also satisfy the skill, so the citation that decides is the placement convention, not the skill.
 
 </details>
 
@@ -128,6 +128,49 @@ Write two reference pages under `docs/` that map ISO/IEC 27001:2022 Annex A cont
 
 </details>
 
+<details>
+<summary><strong>6. Status of A.8.25 (secure development life cycle) and A.8.28 (secure coding)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Status Organisational; the build, coverage, mutation and CRAP gates are named as Encina's own supplier-side evidence, not as something an adopter gets by using Encina** | Honest under INV-002: an adopter's SDLC is theirs | The two rows carry less evidence than the other four |
+| **B) Status Partial; the parts an adopter can reuse (the `Encina.Testing.*` packages, `Encina.Testing.Architecture`, the analyzers) are the evidence, the repository gates are supplier evidence** | Shows what an adopter can reuse | The reuse claim must be verified per package, and the line between reuse and Encina's own SDLC is a judgment |
+| **C) Status Covered** | Simple | Overclaims: the gates run on the Encina repository, not on the adopter's code |
+
+### Chosen Option: **A — Organisational, with supplier-side evidence** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins for INV-002 (no coverage claim Encina does not provide); B wins if the maintainer wants the mapping to show the reusable testing and architecture tooling as partial support.
+- The classification is consequential because INV-002 treats an overclaim as a defect.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Which modules back which ISO/IEC 27701 controls, and the scope of the processor controls</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The module list of Phase 3 (controller: `Consent`, `LawfulBasis`, `DataSubjectRights`, `PrivacyByDesign`, `DPIA`, `Retention`, `CrossBorderTransfer`; processor: `ProcessorAgreements` and `BreachNotification` only); the control-to-module assignment of each row is decided by the Phase 1 evidence inventory, with the module's feature page as the evidence** | Each row rests on code that was read; small processor section | A processor's assistance duties (data subject requests, retention) are not shown as processor rows |
+| **B) Processor controls also map to `DataSubjectRights` and `Retention` (a processor assists the controller with them)** | Closer to how a processor reads the standard | More rows to evidence; the assistance is organisational in part |
+
+### Chosen Option: **A — the Phase 3 module list, assignment from the Phase 1 inventory** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins for the smallest claim that each row can evidence; B wins if the readers are processors who need their assistance duties mapped.
+- Which 27701 theme goes to which module is content that Phase 1 settles from the code, and each row records the evidence; a row without evidence is Organisational.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -139,7 +182,7 @@ Write two reference pages under `docs/` that map ISO/IEC 27001:2022 Annex A cont
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Build the evidence list per control from the modules named in Research: A.8.11 `Encina.Security.PII` (`IPIIMasker`, `PIIMaskingPipelineBehavior`); A.8.10 `Encina.Compliance.Retention` (`IRetentionDataEraser`, `IRetentionPolicyService`, ADR-031) and crypto-shredding (ADR-034); A.8.15 `Encina.Security.Audit` (`IOperationAuditStore`, `AuditPipelineBehavior`, ADR-036), `Encina.Security.AntiTampering` and `EventIdRanges.cs`; A.8.24 `Encina.Security.Encryption` (`IFieldEncryptor`, `IKeyProvider`, ADR-030) and `Encina.Security.Secrets`; A.8.25 and A.8.28 the zero-warnings build, the architecture tests, and the coverage, mutation and CRAP gates.
+1. Build the evidence list per control from the modules named in Research: A.8.11 `Encina.Security.PII` (`IPIIMasker`, `PIIMaskingPipelineBehavior`); A.8.10 `Encina.Compliance.Retention` (`IRetentionDataEraser`, `IRetentionPolicyService`, ADR-031) and crypto-shredding (ADR-034); A.8.15 `Encina.Security.Audit` (`IOperationAuditStore`, `AuditPipelineBehavior`, ADR-036), `Encina.Security.AntiTampering` and `EventIdRanges.cs`; A.8.24 `Encina.Security.Encryption` (`IFieldEncryptor`, `IKeyProvider`, ADR-030) and `Encina.Security.Secrets`; A.8.25 and A.8.28 the zero-warnings build, the architecture tests, and the coverage, mutation and CRAP gates, classified per decision 6 (supplier-side evidence, status Organisational in the recommended option).
 2. For each type, read the source and confirm that it exists and does what the row will say; note where the behaviour is partial (an in-memory key provider is not key management).
 3. For each cited file, find its covref id in the package manifest (`.github/coverage-manifest/<Package>.json`) so the page can cite it.
 
@@ -213,7 +256,7 @@ REFERENCE FILES: docs/features/data-subject-rights.md, docs/features/consent-man
 <summary><strong>Tasks</strong></summary>
 
 1. Link both pages from `docs/features/index.md`.
-2. Link from the module feature pages the mapping names (for example `pii-masking.md`, `data-retention.md`, `audit-tracking.md`, `field-level-encryption.md`) with one sentence each ("Implements evidence for ISO/IEC 27001 A.8.11"), as the research note of SPEC-002 recommends.
+2. Link from exactly five module feature pages (the evidence pages of the 27001 table): `pii-masking.md` (A.8.11), `data-retention.md` and `crypto-shredding.md` (A.8.10), `audit-tracking.md` (A.8.15) and `field-level-encryption.md` (A.8.24), with one sentence each ("Implements evidence for ISO/IEC 27001 A.8.11"), as the research note of SPEC-002 recommends. The 27701 module pages are linked from the 27701 page only, with no back-link in this pull request.
 3. If the compliance hub of #689 exists when this is implemented, link from it; otherwise leave a reference in the pull request.
 
 </details>
@@ -298,9 +341,12 @@ REFERENCE FILES: .github/scripts/cov-docs-render.cs, changelog.d/README.md, .cla
 | Category | Files | Notes |
 | :--- | :--- | :--- |
 | Mapping documents | 2 | ISO/IEC 27001 page and ISO/IEC 27701 page under `docs/features/` |
-| Cross-links | 2 | `docs/features/index.md` and the back-links in the module pages counted as one edit set |
-| Metadata | 1 | Changelog fragment |
-| **Total** | 5 | One worker pull request (limit 15 files, 1500 lines) |
+| Cross-links: index | 1 | `docs/features/index.md` |
+| Cross-links: module pages | 5 | One file each: `docs/features/pii-masking.md`, `data-retention.md`, `crypto-shredding.md`, `audit-tracking.md`, `field-level-encryption.md` (one-sentence back-links, Phase 4 task 2) |
+| Metadata | 1 | `changelog.d/1252-iso-control-mapping.added.md` |
+| **Total** | 9 | 2 + 1 + 5 + 1; one worker pull request (limit 15 files, 1500 lines; about 500 lines) |
+
+If the implementer also links the compliance hub of #689 (Phase 4 task 3) the count is 10, still within the limit.
 
 ---
 
@@ -361,6 +407,6 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Review and approve this plan.
-2. The maintainer answers D1 and D2 when work on the issue starts; the answers go into the Maintainer Decisions section.
-3. Implement Phases 1 to 5 as one worker pull request (5 files, about 450 lines) through the `docs-writer` agent.
+2. The maintainer answers the Dilemmas (decisions 4, 5, 6 and 7; D1 and D2 are decisions 4 and 5) when work on the issue starts; the answers go into a new `## Maintainer Decisions` section added as the last section of this plan at that time (it does not exist yet).
+3. Implement Phases 1 to 5 as one worker pull request (9 files, about 500 lines) through the `docs-writer` agent.
 4. The final commit references `Fixes #1252`.
