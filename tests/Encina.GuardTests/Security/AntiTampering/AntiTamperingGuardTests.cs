@@ -2,6 +2,7 @@ using Encina.Security.AntiTampering;
 using Encina.Security.AntiTampering.Abstractions;
 using Encina.Security.AntiTampering.HMAC;
 using Encina.Security.AntiTampering.Http;
+using Encina.Security.AntiTampering.Nonce;
 using Encina.Security.AntiTampering.Pipeline;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -132,6 +133,36 @@ public class AntiTamperingGuardTests
         var act = () => sut.AddKey(keyId!, new byte[32]);
 
         Should.Throw<ArgumentException>(act);
+    }
+
+    #endregion
+
+    #region InMemoryNonceStore Guard Tests
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task InMemoryNonceStore_TryAddAsync_NullOrWhitespaceNonce_ThrowsArgumentException(string? nonce)
+    {
+        using var sut = new InMemoryNonceStore();
+
+        var act = async () => await sut.TryAddAsync(nonce!, TimeSpan.FromMinutes(5));
+
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("nonce");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task InMemoryNonceStore_ExistsAsync_NullOrWhitespaceNonce_ThrowsArgumentException(string? nonce)
+    {
+        using var sut = new InMemoryNonceStore();
+
+        var act = async () => await sut.ExistsAsync(nonce!);
+
+        (await Should.ThrowAsync<ArgumentException>(act)).ParamName.ShouldBe("nonce");
     }
 
     #endregion
