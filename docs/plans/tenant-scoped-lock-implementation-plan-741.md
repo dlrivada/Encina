@@ -23,7 +23,7 @@ Lock keys are global today: `process-payments` is one lock for the whole deploym
 
 **Standards**: ADR-052; SPEC-002 REQ-061 (tenant id on every record and fail-closed tenant resolution) and REQ-062 (tenant as span attribute and, with ADR-054 D4, as a metric tag when tenancy is on); ADR-062 (error category); `AGENTS.md` sections 3 and 6.
 
-**Estimated scope**: 6 new production files, 4 modified, about 9 test files, 3 documentation files, split in 3 pull requests (see Estimated File Count).
+**Estimated scope**: 6 new production files, 4 modified, 11 test files, 4 PublicAPI and manifest files, 3 documentation files, split in 3 pull requests (see Estimated File Count).
 
 **Affected packages**: `Encina.DistributedLock` (decorator, options, registration, a new project reference to `Encina.Tenancy`); `Encina.Tenancy` is read only. No change in `Encina.DistributedLock.InMemory`, `.Redis` or `.SqlServer`.
 
@@ -226,8 +226,8 @@ Three pull requests, each within 15 files and 1500 lines counting tests, `Public
 
 | PR | Content | Own tests (each flag travels with the files it covers) |
 |----|---------|-----------------------------------------------------|
-| 1 | Phase 1 key, options and validator (`TenantLockKey`, `TenantLockScopingOptions`, validator, csproj reference, `LockErrorCodes.TenantRequired`) | unit (key, validator), guard (options), property (key injectivity), manifest, `PublicAPI.Unshipped.txt` |
-| 2 | Phase 1 decorator, Phase 2 registration, Phase 4 diagnostics (`EventIdRanges.DistributedLock`, the `AssemblyRanges` mapping, `DistributedLockDiagnostics`, log messages 6250-6252) | unit (decorator, DI, diagnostics), guard (decorator, registration), contract through the decorator (InMemory, Redis, SqlServer), integration (Redis, SqlServer) |
+| 1 | Phase 1 key, options and validator (`TenantLockKey`, `TenantLockScopingOptions`, validator, csproj reference, `LockErrorCodes.TenantRequired`) | unit (key, validator, `lock.tenant_required` category), guard (options), property (key injectivity), manifest, `PublicAPI.Unshipped.txt` |
+| 2 | Phase 1 decorator, Phase 2 registration, Phase 4 diagnostics (`EventIdRanges.DistributedLock`, the `AssemblyRanges` mapping, `DistributedLockDiagnostics`, log messages 6250-6252) | unit (decorator, DI, diagnostics), guard (decorator, registration), contract through the decorator (InMemory, Redis, SqlServer), integration (Redis, SqlServer); manifests `Encina.DistributedLock.json` and `Encina.json` (for `EventIdRanges.cs`), 15 files, the limit |
 | 3 | Phase 6 README, changelog fragment, guide page and any ADR | docs only |
 
 If Dilemma 3 picks a separate package, PR 1 becomes the package scaffold and the same content moves to the new assembly.
@@ -556,16 +556,18 @@ REFERENCE FILES:
 |----------|------:|-------|
 | Production (new) | 6 | `TenantLockScopingOptions.cs`, `TenantLockKey.cs`, `TenantScopedLockProvider.cs`, `TenantLockScopingOptionsValidator.cs`, `Diagnostics/DistributedLockDiagnostics.cs`, `Diagnostics/TenantLockLogMessages.cs` |
 | Production (modified) | 4 | `Encina.DistributedLock.csproj`, `ServiceCollectionExtensions.cs`, `EventIdRanges.cs`, `LockErrorCodes` (from #2667) |
-| PublicAPI and manifest | 3 | `PublicAPI.Unshipped.txt` in `Encina.DistributedLock` and in `Encina`, `Encina.DistributedLock.json` |
-| Unit and guard tests | 6 | Key and validator, decorator, DI, diagnostics (with the `AssemblyRanges` map change in `EncinaEventIdAllocationTests`), options guard (PR 1), decorator and registration guard (PR 2) |
-| Contract, property, integration tests | 3 | |
+| PublicAPI and manifest | 4 | `PublicAPI.Unshipped.txt` in `Encina.DistributedLock` and in `Encina`, `Encina.DistributedLock.json` and `Encina.json` (`EventIdRanges.cs` is a file of package `Encina`, so its per-file target lives in that manifest) |
+| Unit and guard tests | 8 | Key, validator, `lock.tenant_required` category (`LockErrorCodesTenantRequiredTests.cs`), decorator, DI, diagnostics (with the `AssemblyRanges` map change in `EncinaEventIdAllocationTests`), options guard (PR 1), decorator and registration guard (PR 2) |
+| Contract, property, integration tests | 3 | Contract through the decorator (PR 2), key property (PR 1), integration (PR 2) |
 | Documentation and changelog | 3 | README, guide page, fragment |
-| **Total** | **~25** | Split in three PRs, each counted with tests, PublicAPI, manifest and fragment |
+| **Total** | **~28 distinct files** | Split in three PRs, each counted with tests, PublicAPI, manifest and fragment (the PR rows sum to 30 because `PublicAPI.Unshipped.txt` and `Encina.DistributedLock.json` of the lock package are touched in PR 1 and again in PR 2) |
+
+Test projects: `Encina.UnitTests` and `Encina.PropertyTests` already reference both `Encina.Tenancy` and `Encina.DistributedLock`, and `Encina.GuardTests` and `Encina.IntegrationTests` reference `Encina.DistributedLock`, which now references `Encina.Tenancy`, so the transitive reference is enough and no test `.csproj` edit is needed for the tenancy types. `Encina.ContractTests` references neither `Encina.DistributedLock` nor a lock provider today; the lock contract suite of [#2667](https://github.com/dlrivada/Encina/issues/2667) (the prerequisite of every PR here) adds that reference, and PR 2 only subclasses the suite.
 
 | PR | Files | Lines (estimate) |
 |----|------:|-----------------:|
-| 1: key, options, validator, `LockErrorCodes`, csproj | 11 (5 production, 1 PublicAPI, 1 manifest, 4 tests: key unit, validator unit, options guard, key property) | ~600 |
-| 2: decorator, registration, diagnostics, EventIds | 14 (`TenantScopedLockProvider.cs`, `ServiceCollectionExtensions.cs`, 2 diagnostics files, `EventIdRanges.cs`, 2 `PublicAPI.Unshipped.txt`, manifest, 6 tests: decorator unit, DI, diagnostics with map change, guard, contract, integration) | ~1100 |
+| 1: key, options, validator, `LockErrorCodes`, csproj | 12 (5 production, 1 PublicAPI, 1 manifest, 5 tests: key unit, validator unit, category unit, options guard, key property) | ~600 |
+| 2: decorator, registration, diagnostics, EventIds | 15, the limit (`TenantScopedLockProvider.cs`, `ServiceCollectionExtensions.cs`, 2 diagnostics files, `EventIdRanges.cs`, 2 `PublicAPI.Unshipped.txt`, 2 manifests (`Encina.DistributedLock.json`, `Encina.json`), 6 tests: decorator unit, DI, diagnostics with map change, guard, contract, integration) | ~1100 |
 | 3: README, changelog fragment, guide page (and ADR if the answers warrant one) | 3-4 | ~400 |
 
 ---
