@@ -148,7 +148,6 @@ services.AddEncinaDPIA(options =>
     options.DPOEmail = "dpo@company.com";
     options.DPOName = "Jane Doe";
     options.AddHealthCheck = true;
-    options.EnableExpirationMonitoring = true;
     options.AssembliesToScan.Add(typeof(Program).Assembly);
 });
 ```
@@ -394,12 +393,11 @@ Templates are optional. When no matching template exists, the assessment engine 
 
 ## Expiration Monitoring
 
-The `DPIAReviewReminderService` runs periodic checks for expired assessments and publishes `DPIAAssessmentExpired` notifications:
+The `DPIAReviewReminderService` is always registered by `AddEncinaDPIA` and cannot be disabled (Article 35(11)). It runs a first check at start, then one every `ExpirationCheckInterval`, and publishes `DPIAAssessmentExpired` notifications:
 
 ```csharp
 services.AddEncinaDPIA(options =>
 {
-    options.EnableExpirationMonitoring = true;
     options.ExpirationCheckInterval = TimeSpan.FromHours(1);
     options.DefaultReviewPeriod = TimeSpan.FromDays(365);
 });
@@ -510,8 +508,7 @@ services.AddEncinaDPIA(options =>
     options.PublishNotifications = true;
     options.TrackAuditTrail = true;
 
-    // Expiration monitoring
-    options.EnableExpirationMonitoring = true;
+    // Expiration monitoring (always on)
     options.ExpirationCheckInterval = TimeSpan.FromHours(1);
 
     // Auto-registration
@@ -666,7 +663,7 @@ result.Match(
 
 2. **Configure `DPOEmail` and `DPOName` for production** -- set the DPO details before going live; the options validator warns if missing when DPO consultation features are used.
 
-3. **Enable expiration monitoring** -- set `EnableExpirationMonitoring = true` and subscribe to `DPIAAssessmentExpired` notifications to ensure periodic reviews are not missed per Article 35(11).
+3. **Subscribe to expiration notifications** -- the expiration monitor is always on (Article 35(11) makes the periodic review a legal obligation); subscribe to `DPIAAssessmentExpired` notifications to ensure periodic reviews are not missed.
 
 4. **Use auto-registration for discovery** -- enable `AutoRegisterFromAttributes` during development to discover which request types require assessments. Combine with `AutoDetectHighRisk` for heuristic detection of high-risk processing that may lack `[RequiresDPIA]` attributes.
 
@@ -717,7 +714,6 @@ services.AddEncina(c => c.RegisterServicesFromAssemblyContaining<TestCommand>())
 services.AddEncinaDPIA(o =>
 {
     o.EnforcementMode = DPIAEnforcementMode.Block;
-    o.EnableExpirationMonitoring = false;
 });
 
 var provider = services.BuildServiceProvider();
@@ -774,7 +770,7 @@ When the overall risk is `VeryHigh` or residual risk after mitigations remains `
 When an assessment is approved, `NextReviewAtUtc` is set to the current time plus `DPIAOptions.DefaultReviewPeriod` (default 365 days). The `DPIAReviewReminderService` periodically checks for assessments past their review date and publishes `DPIAAssessmentExpired` notifications.
 
 **Q: Can I use the module without the expiration monitoring service?**
-Yes. Set `EnableExpirationMonitoring = false` (default). The pipeline behavior still checks `NextReviewAtUtc` on each request, but no background service actively scans for expired assessments.
+No. `AddEncinaDPIA` always registers `DPIAReviewReminderService` and there is no option to switch it off, because the periodic review of Article 35(11) is a legal obligation. The only setting is `ExpirationCheckInterval`; the pipeline behavior additionally checks `NextReviewAtUtc` on each request.
 
 **Q: What is the difference between `RequiresDPIAAsync` and the pipeline behavior?**
 `RequiresDPIAAsync` is a programmatic check that evaluates whether a request type needs a DPIA based on attributes and configuration. The pipeline behavior uses the `IDPIAStore` to verify that a current, approved assessment exists. The former is for discovery; the latter is for enforcement.
