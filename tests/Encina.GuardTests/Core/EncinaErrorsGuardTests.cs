@@ -10,7 +10,7 @@ public class EncinaErrorsGuardTests
     [Fact]
     public void Create_NullCode_ThrowsArgumentNullException()
     {
-        var act = () => EncinaErrors.Create(null!, ErrorCategory.NotFound, "message");
+        Action act = () => _ = EncinaErrors.Create(null!, ErrorCategory.NotFound, "message");
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("code");
     }
@@ -20,7 +20,7 @@ public class EncinaErrorsGuardTests
     [InlineData("   ")]
     public void Create_EmptyOrWhitespaceCode_ThrowsArgumentException(string code)
     {
-        var act = () => EncinaErrors.Create(code, ErrorCategory.NotFound, "message");
+        Action act = () => _ = EncinaErrors.Create(code, ErrorCategory.NotFound, "message");
 
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe("code");
     }
@@ -28,7 +28,7 @@ public class EncinaErrorsGuardTests
     [Fact]
     public void Create_NullMessage_ThrowsArgumentNullException()
     {
-        var act = () => EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, null!);
+        Action act = () => _ = EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("message");
     }
@@ -49,7 +49,7 @@ public class EncinaErrorsGuardTests
     [Fact]
     public void FromException_NullCode_ThrowsArgumentNullException()
     {
-        var act = () => EncinaErrors.FromException(null!, ErrorCategory.Internal, new InvalidOperationException("boom"));
+        Action act = () => _ = EncinaErrors.FromException(null!, ErrorCategory.Internal, new InvalidOperationException("boom"));
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("code");
     }
@@ -59,7 +59,7 @@ public class EncinaErrorsGuardTests
     [InlineData("   ")]
     public void FromException_EmptyOrWhitespaceCode_ThrowsArgumentException(string code)
     {
-        var act = () => EncinaErrors.FromException(code, ErrorCategory.Internal, new InvalidOperationException("boom"));
+        Action act = () => _ = EncinaErrors.FromException(code, ErrorCategory.Internal, new InvalidOperationException("boom"));
 
         Should.Throw<ArgumentException>(act).ParamName.ShouldBe("code");
     }
@@ -67,7 +67,7 @@ public class EncinaErrorsGuardTests
     [Fact]
     public void FromException_NullException_ThrowsArgumentNullException()
     {
-        var act = () => EncinaErrors.FromException("orders.failed", ErrorCategory.Internal, null!);
+        Action act = () => _ = EncinaErrors.FromException("orders.failed", ErrorCategory.Internal, null!);
 
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("exception");
     }
