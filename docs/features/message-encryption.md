@@ -15,7 +15,6 @@ Encina.Messaging.Encryption provides transparent, payload-level encryption for o
 | **`IMessageEncryptionProvider`** | Encrypt/decrypt facade returning `Either<EncinaError, T>` |
 | **`EncryptingMessageSerializer`** | Decorator wrapping `IMessageSerializer` with transparent encryption |
 | **`EncryptedPayloadFormatter`** | Compact serialization format for encrypted payloads |
-| **`ITenantKeyResolver`** | Per-tenant key ID resolution for multi-tenant isolation |
 | **`MessageEncryptionHealthCheck`** | Roundtrip verification of the encryption pipeline |
 
 **Key characteristics**:
@@ -112,19 +111,6 @@ public sealed record OrderPlacedEvent(Guid OrderId, decimal Total, string Custom
 public sealed record OrderShippedEvent(Guid OrderId, DateTime ShippedAtUtc);
 ```
 
-### 3. Multi-tenant encryption
-
-```csharp
-services.AddEncinaMessageEncryption(options =>
-{
-    options.UseTenantKeys = true;
-    options.TenantKeyPattern = "tenant-{0}-msg-key";
-});
-
-// Each tenant gets a unique encryption key:
-// tenant-acme-msg-key, tenant-contoso-msg-key, etc.
-```
-
 ## Encrypted Payload Format
 
 Messages are stored in the outbox/inbox with the following format:
@@ -187,7 +173,6 @@ services.AddEncinaMessageEncryptionDataProtection(dp =>
 |---------|-------------------|----------------|---------|----------------|
 | Key storage | Application-managed | HSM-backed | HSM-backed | DPAPI/file/blob |
 | Key rotation | Manual | Automatic | Automatic | Automatic (90d) |
-| Multi-tenant | Via `ITenantKeyResolver` | Per-vault keys | Per-region keys | Per-purpose keys |
 | Cloud dependency | None | Azure | AWS | None |
 | Best for | Development, testing | Azure production | AWS production | On-premises |
 
@@ -234,7 +219,6 @@ All errors use the `msg_encryption.*` prefix:
 | `msg_encryption.key_not_found` | Encryption key not found |
 | `msg_encryption.invalid_payload` | Malformed encrypted payload |
 | `msg_encryption.unsupported_version` | Unknown payload format version |
-| `msg_encryption.tenant_key_resolution_failed` | Tenant key resolution failed |
 | `msg_encryption.serialization_failed` | JSON serialization failed |
 | `msg_encryption.deserialization_failed` | JSON deserialization failed |
 | `msg_encryption.provider_unavailable` | Encryption provider unavailable |
@@ -254,8 +238,6 @@ All errors use the `msg_encryption.*` prefix:
 | `Enabled` | `bool` | `true` | Global encryption toggle |
 | `EncryptAllMessages` | `bool` | `false` | Encrypt all messages by default |
 | `DefaultKeyId` | `string?` | `null` | Default key (null = resolve from `IKeyProvider`) |
-| `UseTenantKeys` | `bool` | `false` | Per-tenant key isolation |
-| `TenantKeyPattern` | `string` | `"tenant-{0}-key"` | Tenant key naming pattern |
 | `AuditDecryption` | `bool` | `false` | Log decryption for compliance |
 | `AddHealthCheck` | `bool` | `false` | Register health check |
 | `EnableTracing` | `bool` | `false` | OpenTelemetry tracing |
