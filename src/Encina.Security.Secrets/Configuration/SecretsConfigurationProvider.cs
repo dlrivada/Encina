@@ -29,11 +29,12 @@ namespace Encina.Security.Secrets.Configuration;
 /// <para>
 /// <b>Reload support:</b> When <see cref="SecretsConfigurationOptions.ReloadInterval"/> is set,
 /// a timer created through the injected <see cref="TimeProvider"/> periodically calls <see cref="Load"/>
-/// to refresh secrets. An exception during a reload never escapes the timer callback: it is logged
-/// (exception type and stack trace, never its message) and the timer keeps running. When <see cref="Load"/>
-/// throws, the previously loaded data is kept; when a reload listener throws, the data has already been
-/// replaced. A secret the reader returns as an error (<c>Left</c>) is left out of the reloaded data, as on
-/// the first load.
+/// to refresh secrets. A reload publishes new data only when every secret was read: if the reader returns
+/// an error (<c>Left</c>) for any of them, the previously loaded data is kept, no reload is signalled, and
+/// the next interval retries. An exception during a reload never escapes the timer callback: it is logged
+/// (exception type and stack trace, never its message) and the timer keeps running. When reading the
+/// secrets throws, the previously loaded data is kept; when a reload listener throws, the data has already
+/// been replaced.
 /// </para>
 /// </remarks>
 internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDisposable
@@ -77,16 +78,31 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
     /// </remarks>
     public override void Load()
     {
+        if (ReadSecrets() is not { } secrets)
+        {
+            return;
+        }
+
+        Data = secrets.Data;
+        SetupReloadTimer();
+    }
+
+    /// <summary>
+    /// Reads the configured secrets. Returns <c>null</c> when no <see cref="ISecretReader"/> is registered;
+    /// otherwise the secrets that were read, and whether every secret was read (no <c>Left</c>).
+    /// </summary>
+    private (Dictionary<string, string?> Data, bool Complete)? ReadSecrets()
+    {
         var secretReader = _serviceProvider.GetService<ISecretReader>();
 
         if (secretReader is null)
         {
             LogWarning("ISecretReader is not registered. No secrets will be loaded into configuration.");
-            return;
+            return null;
         }
 
         var data = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        var count = 0;
+        var complete = true;
 
         foreach (var secretName in _options.SecretNames)
         {
@@ -102,16 +118,15 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
                 {
                     var key = MapSecretNameToConfigurationKey(resolvedName);
                     data[key] = value;
-                    count++;
                 },
                 Left: error =>
                 {
+                    complete = false;
                     LogWarning($"Failed to load secret '{secretName}': {error.GetCode().IfNone("encina.unknown")}");
                 });
         }
 
-        Data = data;
-        SetupReloadTimer();
+        return (data, complete);
     }
 
     /// <summary>
@@ -158,19 +173,32 @@ internal sealed class SecretsConfigurationProvider : ConfigurationProvider, IDis
 
     /// <summary>
     /// The reload timer callback. It never throws: an exception escaping a timer callback on the system
-    /// clock terminates the process. A <see cref="Load"/> that throws leaves <see cref="ConfigurationProvider.Data"/>
-    /// unchanged, and the timer keeps running so the next interval retries.
+    /// clock terminates the process. A reload that could not read every secret, or whose read throws,
+    /// leaves <see cref="ConfigurationProvider.Data"/> unchanged and signals nothing, so readers never see
+    /// a configuration with secrets missing; the timer keeps running so the next interval retries.
     /// </summary>
     private void ReloadFromTimer()
     {
         try
         {
-            Load();
+            if (ReadSecrets() is not { Complete: true } secrets)
+            {
+                return;
+            }
+
+            Data = secrets.Data;
             OnReload();
         }
         catch (Exception ex)
         {
-            Log.ConfigurationReloadFailed(_reloadLogger, ex.ForLogging());
+            try
+            {
+                Log.ConfigurationReloadFailed(_reloadLogger, ex.ForLogging());
+            }
+            catch (Exception)
+            {
+                // A throwing logging provider must not escape a system-clock timer callback either.
+            }
         }
     }
 

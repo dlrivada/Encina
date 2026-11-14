@@ -393,6 +393,80 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
     }
 
     [Fact]
+    public void ReloadTimer_ReaderReturnsLeft_KeepsThePreviousDataWithoutSignallingAndTheNextCompleteReloadApplies()
+    {
+        // Arrange: the first load succeeds, the first reload returns Left, the second reload succeeds
+        var call = 0;
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => ++call switch
+            {
+                1 => new ValueTask<Either<EncinaError, string>>("v1"),
+                2 => new ValueTask<Either<EncinaError, string>>(SecretsErrors.NotFound("api-key")),
+                _ => new ValueTask<Either<EncinaError, string>>("v3")
+            });
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var provider = CreateReloadingProvider(clock, new FakeLoggerProvider());
+        provider.Load();
+        var reloads = 0;
+        provider.GetReloadToken().RegisterChangeCallback(_ => reloads++, null);
+
+        // Act: a reload that could not read every secret
+        clock.Advance(ReloadInterval);
+
+        // Assert: the previous data is kept and no reload is signalled
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+        reloads.ShouldBe(0);
+
+        // Act: the next interval reads every secret
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+        reloads.ShouldBe(1);
+    }
+
+    [Fact]
+    public void ReloadTimer_LoggingTheFailureThrows_DoesNotEscapeTheTimerAndKeepsRunning()
+    {
+        // Arrange: the reload throws, and so does the logging provider that would record it
+        var call = 0;
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => ++call switch
+            {
+                1 => new ValueTask<Either<EncinaError, string>>("v1"),
+                2 => throw new InvalidOperationException("reload failed"),
+                _ => new ValueTask<Either<EncinaError, string>>("v3")
+            });
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddProvider(new ThrowingLoggerProvider()));
+        services.AddSingleton(_mockReader);
+        var options = new SecretsConfigurationOptions
+        {
+            SecretNames = ["api-key"],
+            ReloadInterval = ReloadInterval
+        };
+        using var provider = new SecretsConfigurationProvider(services.BuildServiceProvider(), options, clock);
+        provider.Load();
+
+        // Act
+        Should.NotThrow(() => clock.Advance(ReloadInterval));
+
+        // Assert: the previous data is kept
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+
+        // Act: the timer keeps running, so the next interval reloads
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+    }
+
+    [Fact]
     public void ReloadTimer_ReloadCallbackThrows_IsLoggedAndDoesNotEscapeTheTimer()
     {
         // Arrange
@@ -453,6 +527,31 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
             ReloadInterval = ReloadInterval
         };
         return new SecretsConfigurationProvider(services.BuildServiceProvider(), options, clock);
+    }
+
+    private sealed class ThrowingLoggerProvider : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new ThrowingLogger();
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class ThrowingLogger : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter) =>
+                throw new InvalidOperationException("logging provider failed");
+        }
     }
 
     #endregion
