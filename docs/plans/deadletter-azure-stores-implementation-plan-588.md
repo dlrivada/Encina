@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (re-verified on 2026-11-13, main `41792c8f8`)
+### What exists today (re-verified on 2026-11-14, main `c871956bf`)
 
 - The contract is `IDeadLetterStore` in `src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`: every member returns `Either<EncinaError, T>`. `AddAsync(IDeadLetterMessage)` is `Right(true)` when stored and `Right(false)` when `(SourcePattern, SourceMessageId)` already exists; the others are `GetAsync(Guid)`, `GetMessagesAsync(filter, skip, take, newestFirst)`, `GetCountAsync(filter)`, `TryClaimForReplayAsync(id, claimExpiredBeforeUtc)`, `MarkAsReplayedAsync(id, replayResult)`, `DeleteAsync`, `DeleteManyAsync(filter)`, `DeleteExpiredAsync` and `SaveChangesAsync`. The issue's original snippet (`Task AddAsync(DeadLetterMessage ...)`) is stale.
 - The ten database providers of `AGENTS.md` section 5 implement it (`DeadLetterStoreADO`, `DeadLetterStoreDapper`, `DeadLetterStoreEF`, `DeadLetterStoreMongoDB`, each with a `DeadLetterMessageFactory`). All of them enforce a **global** unique index on `(SourcePattern, SourceMessageId)` (`029_CreateDeadLetterMessagesTable.sql`, `UX_DeadLetterMessages_Source`), order by `(DeadLetteredAtUtc, Id)` and honour `DeadLetterStoreLimits` (`MaxPageSize = 1000`, field length caps).
