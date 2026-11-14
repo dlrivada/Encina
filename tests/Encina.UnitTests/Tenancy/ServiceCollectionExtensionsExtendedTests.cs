@@ -106,7 +106,6 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         {
             opt.AutoOpenConnections = false;
             opt.ConnectionTimeoutSeconds = 60;
-            opt.ThrowOnMissingConnectionString = false;
         });
 
         // Assert
@@ -114,7 +113,6 @@ public sealed class ServiceCollectionExtensionsExtendedTests
         var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<TenantConnectionOptions>>();
         options.Value.AutoOpenConnections.ShouldBeFalse();
         options.Value.ConnectionTimeoutSeconds.ShouldBe(60);
-        options.Value.ThrowOnMissingConnectionString.ShouldBeFalse();
     }
 
     #endregion

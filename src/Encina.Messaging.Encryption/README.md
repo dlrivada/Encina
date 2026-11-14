@@ -5,7 +5,7 @@
 
 **Transparent payload-level encryption for Encina Outbox/Inbox messaging patterns using AES-256-GCM.**
 
-Encina.Messaging.Encryption decorates the existing `IMessageSerializer` with `EncryptingMessageSerializer` to encrypt serialized message content before database persistence and decrypt upon retrieval. Supports key rotation, multi-tenant key isolation, and pluggable KMS providers.
+Encina.Messaging.Encryption decorates the existing `IMessageSerializer` with `EncryptingMessageSerializer` to encrypt serialized message content before database persistence and decrypt upon retrieval. Supports key rotation and pluggable KMS providers.
 
 ## Key Features
 
@@ -13,7 +13,6 @@ Encina.Messaging.Encryption decorates the existing `IMessageSerializer` with `En
 - **Serializer decorator** — wraps `IMessageSerializer` transparently, zero changes to existing code
 - **Attribute-based** — `[EncryptedMessage]` for per-type opt-in, `EncryptAllMessages` for global mode
 - **Key rotation** — key ID embedded in payload enables seamless rotation
-- **Multi-tenant isolation** — per-tenant key derivation via `ITenantKeyResolver`
 - **Railway Oriented Programming** — all operations return `Either<EncinaError, T>`
 - **Compact payload format** — `ENC:v{Version}:{KeyId}:{Algorithm}:{Nonce}:{Tag}:{Ciphertext}`
 - **OpenTelemetry** tracing and metrics (opt-in)
@@ -53,15 +52,11 @@ services.AddEncinaMessageEncryption(options =>
     // Global encryption toggle
     options.Enabled = true;
 
-    // Encrypt all messages by default (opt-out via [EncryptedMessage(Enabled = false)])
+    // Encrypt every message type (when false, only [EncryptedMessage] types; there is no per-type opt-out)
     options.EncryptAllMessages = false;
 
     // Default key (null = resolve from IKeyProvider.GetCurrentKeyIdAsync())
     options.DefaultKeyId = "msg-key-2024";
-
-    // Multi-tenant key isolation
-    options.UseTenantKeys = true;
-    options.TenantKeyPattern = "tenant-{0}-key";
 
     // Compliance auditing
     options.AuditDecryption = true;
