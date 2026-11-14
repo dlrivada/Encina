@@ -120,18 +120,18 @@ public sealed class DPIAOptions
     // --- Expiration monitoring ---
 
     /// <summary>
-    /// Gets or sets whether the background expiration monitoring service is enabled.
+    /// Gets or sets the interval between the review-reminder cycles that look for DPIAs
+    /// past their review date.
     /// </summary>
     /// <remarks>
-    /// Default is <c>false</c>.
-    /// </remarks>
-    public bool EnableExpirationMonitoring { get; set; }
-
-    /// <summary>
-    /// Gets or sets the interval between expiration monitoring checks.
-    /// </summary>
-    /// <remarks>
-    /// Default is <c>1 hour</c>.
+    /// <para>
+    /// Default is <c>1 hour</c>. The review-reminder service always runs (Article 35(11)
+    /// requires the review), so this interval is the only setting it takes.
+    /// </para>
+    /// <para>
+    /// The validator accepts a value from 1 millisecond up to <c>uint.MaxValue - 1</c>
+    /// milliseconds (about 49.7 days), the range <see cref="PeriodicTimer"/> supports.
+    /// </para>
     /// </remarks>
     public TimeSpan ExpirationCheckInterval { get; set; } = TimeSpan.FromHours(1);
 
