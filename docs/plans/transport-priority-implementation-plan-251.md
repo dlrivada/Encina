@@ -2,9 +2,9 @@
 
 > **Issue**: [#251](https://github.com/dlrivada/Encina/issues/251)
 > **Type**: Feature
-> **Complexity**: High (9 phases, 8 existing transports plus the reference InMemory bus, about 70 files, delivered in 7 pull requests)
+> **Complexity**: High (9 phases, 7 existing transports plus the reference InMemory bus, 107 file changes, delivered in 10 pull requests of at most 15 files each, see "Delivery order and size")
 > **Estimated Scope**: about 1,100 lines of production code + about 1,800 lines of tests
-> **Family**: message priority and partitioning (#123, #251, #301, #469, #1254). The shared priority design (type, attribute, interface, resolver) is OWNED by #123; this plan applies it to the transport category and decides only what is specific to transports. It starts after #123 merges and is independent of #301, #469 and #1254.
+> **Family**: message priority and partitioning (#123, #251, #301, #469, #1254). The shared priority design (type, attribute, interface, resolver) is OWNED by #123, and the type `MessagePriority` is created by PR-A of #123; this plan applies it to the transport category and decides only what is specific to transports. It starts after PR-A of #123 has merged (it never creates the type) and is independent of #301, #469 and #1254.
 
 ---
 
@@ -17,7 +17,8 @@ Facts verified in today's code that reshape the issue:
 - **There is no shared transport abstraction.** `IMessageTransport` (named in AGENTS.md) does not exist in `src/`. Each transport has its own publisher interface: `IRabbitMQMessagePublisher`, `IKafkaMessagePublisher`, `IAmazonSQSMessagePublisher`, `IAzureServiceBusMessagePublisher`, `INATSMessagePublisher`, `IRedisPubSubMessagePublisher`, `IMQTTMessagePublisher`, and `IInMemoryMessageBus`. `IPriorityQueueManager` as drawn in the issue would be a second queueing abstraction beside all of them (choice 3).
 - **The transports only publish.** The packages have 6 to 10 source files each, with publishers, options, a `Log.cs` and DI registration, and no consumer or subscription loop (only `InMemoryMessageBus.Subscribe`). "Consumed in priority order" is therefore the application's consumer unless Encina adds one (choice 4).
 - Publishers already take an optional destination: `RabbitMQMessagePublisher` a `routingKey` and `CreateProperties(messageId)` building `BasicProperties`; `KafkaMessagePublisher.ProduceAsync` a `topic`; `AmazonSQSMessagePublisher` a `queueUrl`; `AzureServiceBusMessagePublisher` builds a `ServiceBusMessage` with `Subject`. This is where priority routing and metadata attach.
-- The transports reference `Encina` and `Encina.Messaging`, except `Encina.InMemory`, which references only `Encina` (a new project reference is needed there, or the shared type moves to core; see #123 choice 1).
+- RabbitMQ, Kafka, AmazonSQS, AzureServiceBus, NATS and MQTT reference `Encina` and `Encina.Messaging`; `Encina.InMemory` and `Encina.Redis.PubSub` reference only `Encina` (verified in their `.csproj` files). Both need a new project reference to `Encina.Messaging`, or the shared types would have to move to core; this is register entry T1.
+- `InMemoryMessageBus` already has a queued path: `PublishAsync` delivers inline to subscribers, while `EnqueueAsync` writes to a bounded or unbounded `Channel` drained by `WorkerCount` background workers started in the constructor (`BoundedCapacity`, `FullMode`, `UseUnboundedChannel` in `EncinaInMemoryOptions`); a handler failure on that path is logged by `Log.ErrorProcessingQueuedMessage`, there is no publisher to return a `Left` to.
 - `PriorityLevels` and `StarvationTimeout` from the issue's configuration are not needed: the levels come from the shared enum, and no Encina code consumes from a broker.
 - The "Native" cells of the issue's table were unverified. This plan marks each broker claim as "to confirm against vendor documentation at implementation".
 
@@ -111,7 +112,7 @@ Facts verified in today's code that reshape the issue:
 
 - Option A wins while transports are publisher-only (verified above).
 - Option B wins when Encina adds consumption to the transport category; it is then a separate feature with its own plan.
-- The InMemory reference bus does have delivery inside Encina; it applies the same aged-first rule there (Phase 2), which gives the tested reference policy.
+- The InMemory reference bus does have delivery inside Encina, on its queued path (`EnqueueAsync`); the starvation rule of #123 applies there only if register entry T2 is answered A (Phase 2), which would give the tested reference policy.
 
 **Class:** Dilemma
 
@@ -131,8 +132,9 @@ Facts verified in today's code that reshape the issue:
 
 ### Rationale
 
-- A feature touching transports must be consistent across the category; every messaging capability is optional and disabled by default.
-- The shared `TransportPriorityRouter` (in `Encina.Messaging`) takes the resolved priority, the transport's capability (`Native`, `Destination`, `MetadataOnly`) and the mapping, and returns the destination and metadata or a `Left`. Transports differ only in how they attach them.
+- A feature touching transports must be consistent across the category, and every messaging capability is optional and disabled by default; this excludes option B (two transports only).
+- The shared `TransportPriorityRouter` (in `Encina.Messaging`) takes the resolved priority, the transport's capability (`Native` or `Destination`) and the mapping, and returns the destination and metadata or a `Left`. Transports differ only in how they attach them.
+- What is NOT settled by that rule is kept out of this entry: the `Left` for an unmapped priority is choice 2 option A, the wire contract is entry T3, and the capability set is entry T6.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 5 (Transports row: a feature touching them must be consistent across every provider of the category; Send/Publish, metadata propagation) and section 3 (every messaging pattern optional and disabled by default; ADR-050).
@@ -161,11 +163,47 @@ Facts verified in today's code that reshape the issue:
 
 </details>
 
+### Decision register (decisions not covered by choices 1 to 6)
+
+Class is Trivial, Settled (verifiable citation excludes every other option), Dilemma (the maintainer decides; recommendation only) or Defer.
+
+| Id | Decision | Class | Text |
+| --- | --- | --- | --- |
+| T1 | `Encina.InMemory` and `Encina.Redis.PubSub` get a project reference to `Encina.Messaging` | Dilemma (recommended: A, pending the maintainer) | A) add the references (keeps the shared types where #123 puts them); B) move `MessagePriority`, the resolver and the router to core `Encina` (no new references, but it changes the placement decided in #123 choice 1 and every transport then depends on a larger core). Transports that never use priority pay one extra assembly reference under A |
+| T2 | InMemory ordering applies to the queued path (`EnqueueAsync`) only, with `InMemoryPriorityOptions` (`Enabled` false, `StarvationThreshold` default 5 minutes as #123 choice 3); queue bound, `FullMode`, shutdown (cancellation of the existing token) and the logging of a handler failure on the queued path stay as today; `PublishAsync` (inline delivery) is unchanged | Dilemma (recommended: A, pending the maintainer) | B) InMemory only carries the metadata and does not order, so no reference policy exists for the category. A wins when the contract tests need an in-process reference of the aged-first rule; B wins when the smallest change is wanted |
+| T3 | Wire contract: one metadata name `encina-priority` on every carrier (RabbitMQ header, Kafka record header, SQS message attribute, Service Bus application property, NATS header, MQTT 5 user property), value is the enum name | Dilemma (recommended: A, pending the maintainer) | B) per-carrier conventions (for example `Encina-Priority` on NATS) or the numeric value. A wins on one documented name; B wins where a carrier has its own naming convention. The name is public once released |
+| T4 | RabbitMQ `BasicProperties.Priority` is the numeric value of the #123 enum (`Background` 0 to `Critical` 4) and the queue argument is `x-max-priority = 4` | Trivial | Derived from the enum values of #123 choice 1; if the maintainer changes the levels there, this changes with them |
+| T5 | A message with no resolvable priority is not an error: `MessagePriorityResolver` returns `Normal` (#123 choice 2), so every message has a priority when the feature is enabled; the `Destination` capability requires a mapping for all five levels, validated at start-up | Trivial | Consequence of the resolver contract; an undefined enum value is a `Left` (`messaging.invalid_priority`, #123 R4) |
+| T6 | Capabilities are `Native` and `Destination` only; the `MetadataOnly` capability of the first draft is dropped | Trivial | No transport of the table needs it; a transport added later brings it in its own plan |
+| T7 | Telemetry carries the transport name and the priority only: no destination name in metric tags (unbounded cardinality) and none in logs; the per-publish "route resolved" log is dropped (hot path); logs record an error code, the transport and the priority | Trivial | AGENTS.md section 3 (no message content or error message in logs); bounded tag cardinality |
+| T8 | The priority carried in a header is unauthenticated metadata: consumers must not use it for authorization; the guide says so | Trivial | A documentation obligation of Phase 9 |
+| T9 | Tenant-aware destinations (a mapping per tenant) | Defer | Follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/transport-priority-tenant-destinations.md`) |
+
 ---
 
 ## Implementation Phases
 
-Seven pull requests of at most 15 files and 1500 lines: PR-A phase 1, PR-B phase 2 (InMemory), PR-C RabbitMQ, PR-D Kafka and NATS, PR-E SQS and Azure Service Bus, PR-F Redis.PubSub and MQTT, PR-G observability follow-ups, docs and ADR. Integration tests ship with each transport PR.
+### Delivery order and size
+
+Nothing here changes an existing interface: each transport gains an options property and publisher logic behind `Enabled = false`, so every pull request leaves main building. No pull request uses a type created by a later one: the router, options and log class come first (A), then InMemory (B), then one transport per pull request. All pull requests have at most 15 files and 1500 lines; counts include tests, coverage manifests, PublicAPI files and READMEs. Prerequisite: PR-A of #123 has merged.
+
+| PR | Content (phases) | src | Tests | PublicAPI | Manifests | Docs | Total |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| A | `TransportPriorityOptions`, `TransportPriorityCapability`, `TransportPriorityRouter`, `TransportPriorityMetrics`, `TransportPriorityLogMessages`, `EventIdRanges.cs`; router and options unit tests, one guard file, the EventId allocation test (Phase 1, Phase 7) | 6 | 4 | 2 | 2 | 0 | 14 |
+| B | InMemory: csproj reference, options, `InMemoryMessageBus` queued path, `Log.cs`; unit, options and guard tests, a property test (no starvation beyond the threshold); README (Phase 2) | 4 | 4 | 1 | 1 | 1 | 11 |
+| C | RabbitMQ: options, publisher, `Log.cs`, the `x-max-priority` helper; unit, guard, new publisher integration class, its fixture, the contract test file (created here) (Phase 3) | 4 | 5 | 1 | 1 | 1 | 12 |
+| D | Kafka: options, publisher, `Log.cs`; unit, guard, new integration class and fixture, contract test (Phase 4) | 3 | 5 | 1 | 1 | 1 | 11 |
+| E | NATS: options, validator, publisher, `Log.cs`; unit, guard, new integration class and fixture, contract test (Phase 4) | 4 | 5 | 1 | 1 | 1 | 12 |
+| F | Amazon SQS: options, validator, publisher, `Log.cs`; unit, guard, the existing publisher integration class on LocalStack, contract test (Phase 5) | 4 | 4 | 1 | 1 | 1 | 11 |
+| G | Azure Service Bus: options, publisher, `Log.cs`; unit, guard, the existing publisher integration class on the emulator, contract test (Phase 5) | 3 | 4 | 1 | 1 | 1 | 10 |
+| H | Redis.PubSub: csproj reference, options, publisher, `Log.cs`; unit, guard, the existing publisher integration class, contract test (Phase 6) | 4 | 4 | 1 | 1 | 1 | 11 |
+| I | MQTT: options, publisher, `Log.cs`; unit, guard, new integration class and fixture, contract test (Phase 6) | 3 | 5 | 1 | 1 | 1 | 11 |
+| J | Guide with the verified capability table, INVENTORY, ADR section, changelog fragment (Phase 9; `docs-writer`, `mechanical-fixer`) | 0 | 0 | 0 | 0 | 4 | 4 |
+| **Total** | 10 pull requests | **35** | **40** | **10** | **10** | **12** | **107** |
+
+Sum: 14 + 11 + 12 + 11 + 12 + 11 + 10 + 11 + 11 + 4 = 107; by column 35 + 40 + 10 + 10 + 12 = 107. Where a broker has only a health-check integration test today (RabbitMQ, Kafka, NATS, MQTT), the publisher integration class is new in that pull request, with the collection fixture of its health-check test where one is shared and a new fixture file (counted) otherwise. SQS (LocalStack collection), Service Bus (emulator collection) and Redis.PubSub already have publisher integration classes.
+
+**Tests and coverage targets ship with each pull request.** Each enters per-file targets (with a one-sentence justification, written by `mechanical-fixer`) in its package manifest and reports measured per-flag coverage. New files: `TransportPriorityRouter.cs` (unit 95, guard 85: unit tests per capability, unmapped and unsupported priorities; guard tests for null arguments), `TransportPriorityOptions.cs` (unit 95, guard 60), `TransportPriorityCapability.cs` (0, 0: an enum has no executable lines), `TransportPriorityMetrics.cs` (unit 80, guard 0: instruments created once, no parameter checks), `TransportPriorityLogMessages.cs` (unit 70, guard 0: source-generated, asserted through a fake logger). Existing targets of every touched publisher never go down.
 
 ### Phase 1: Shared Routing Core in `Encina.Messaging`
 
@@ -174,11 +212,14 @@ Seven pull requests of at most 15 files and 1500 lines: PR-A phase 1, PR-B phase
 
 New folder `src/Encina.Messaging/Transport/`:
 
-1. `TransportPriorityOptions.cs`: `Enabled` (false), `Destinations` (`IDictionary<MessagePriority, string>`), validation (every level mapped when the transport has `Destination` capability).
-2. `TransportPriorityCapability.cs`: `Native`, `Destination`, `MetadataOnly`.
-3. `TransportPriorityRouter.cs`: `Either<EncinaError, TransportPriorityRoute> Route(object message, TransportPriorityCapability capability, TransportPriorityOptions options, string defaultDestination)`; uses `MessagePriorityResolver` (#123); error codes `transport.priority_unmapped` and `transport.priority_unsupported`.
+Pull request A.
+
+1. `TransportPriorityOptions.cs`: `Enabled` (false), `Destinations` (`IDictionary<MessagePriority, string>`), validation (all five levels mapped when the transport has `Destination` capability, register entry T5).
+2. `TransportPriorityCapability.cs`: `Native`, `Destination` (register entry T6).
+3. `TransportPriorityRouter.cs`: `Either<EncinaError, TransportPriorityRoute> Route(object message, TransportPriorityCapability capability, TransportPriorityOptions options, string defaultDestination)` (the `TransportPriorityRoute` record lives in the same file); uses `MessagePriorityResolver` (#123, created by its PR-A); error codes `transport.priority_unmapped` and `transport.priority_unsupported`, both built with the category overload of `EncinaErrors.Create` (ADR 062, merged): `ErrorCategory.Internal` for unmapped (a configuration fault caught at start-up validation, so reaching it at run time is a wiring bug) and `ErrorCategory.FailedPrecondition` for unsupported. The metadata name is a constant (register entry T3).
 4. `TransportPriorityMetrics.cs`: `encina.transport.priority.published` (counter, tags `transport`, `priority`) on the shared `"Encina"` meter.
-5. `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
+5. `TransportPriorityLogMessages.cs` and the range in `EventIdRanges.cs` (Phase 7), created here because the router is the first code that logs.
+6. `PublicAPI.Unshipped.txt` and manifest entries through `mechanical-fixer`.
 
 </details>
 
@@ -186,8 +227,8 @@ New folder `src/Encina.Messaging/Transport/`:
 <summary><strong>Prompt for AI Agents — Phase 1</strong></summary>
 
 ```text
-CONTEXT: Plan docs/plans/transport-priority-implementation-plan-251.md. #123 merged MessagePriority and MessagePriorityResolver in src/Encina.Messaging/Priority. There is no IMessageTransport in the code: every transport has its own publisher interface and options class.
-TASK: Implement Phase 1 Tasks 1 to 4 as a transport-agnostic helper that returns the destination and metadata for a message, or a Left.
+CONTEXT: Plan docs/plans/transport-priority-implementation-plan-251.md. PR-A of #123 merged MessagePriority and MessagePriorityResolver in src/Encina.Messaging/Priority; never create them here. There is no IMessageTransport in the code: every transport has its own publisher interface and options class.
+TASK: Implement Phase 1 Tasks 1 to 5 as a transport-agnostic helper that returns the destination and metadata for a message, or a Left.
 KEY RULES: Either<EncinaError, T> (ADR-001, ADR-006); never silently ignore a priority; no provider-specific code in Encina.Messaging (AGENTS.md section 3, provider coherence); XML docs; metric tags carry the transport name and priority only, never message content.
 REFERENCE FILES: src/Encina.Messaging/Priority/MessagePriorityResolver.cs (from #123), src/Encina.AmazonSQS/EncinaAmazonSQSOptionsValidator.cs, src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs.
 ```
@@ -199,9 +240,11 @@ REFERENCE FILES: src/Encina.Messaging/Priority/MessagePriorityResolver.cs (from 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.InMemory/Encina.InMemory.csproj`: project reference to `Encina.Messaging` (or core placement of the enum, per #123 choice 1).
-2. `src/Encina.InMemory/EncinaInMemoryOptions.cs`: `Priority` options; `InMemoryMessageBus`: when enabled, `PublishAsync` places the message on a priority queue drained by a background pump in aged-first order, `TimeProvider` for the age; when disabled, delivery is exactly as today.
-3. `Log.cs` events inside the existing `InMemory` range 4450-4499.
+Pull request B; the whole phase is conditional on register entries T1 and T2.
+
+1. `src/Encina.InMemory/Encina.InMemory.csproj`: project reference to `Encina.Messaging` (T1, option A).
+2. `src/Encina.InMemory/EncinaInMemoryOptions.cs`: `Priority` options (`Enabled` false, `StarvationThreshold` 5 minutes); `InMemoryMessageBus`: when enabled, `EnqueueAsync` stores messages in a priority-ordered structure drained by the existing `WorkerCount` workers in the order of #123 choice 3 (aged first, then `Priority` descending, then arrival), `TimeProvider` for the age and the existing `BoundedCapacity`/`FullMode`/cancellation semantics unchanged; `PublishAsync` and the disabled mode behave exactly as today (T2). A handler failure on the queued path is logged as today; no `Left` is returned because no publisher waits for it.
+3. `Log.cs` events inside the existing `InMemory` range 4450-4499, packed after the last used id, written by this pull request only if it logs something new.
 
 </details>
 
@@ -210,8 +253,8 @@ REFERENCE FILES: src/Encina.Messaging/Priority/MessagePriorityResolver.cs (from 
 
 ```text
 CONTEXT: InMemoryMessageBus dispatches to subscribers directly (PublishAsync, Subscribe). It is the reference implementation the contract tests of the category compare against.
-TASK: Implement Phase 2 Tasks 1 to 3. The priority-ordered pump is opt-in.
-KEY RULES: time from TimeProvider; the pump catches per iteration and never lets an exception escape; a Left from a handler is not swallowed; EventIds inside the existing InMemory range 4450-4499, packed.
+TASK: Implement Phase 2 Tasks 1 to 3. The priority-ordered queued path is opt-in (register entry T2).
+KEY RULES: time from TimeProvider; the existing workers keep catching per iteration and never let an exception escape (cancellation is not an error); EventIds inside the existing InMemory range 4450-4499, packed; only the queued path (EnqueueAsync) is ordered.
 REFERENCE FILES: src/Encina.InMemory/InMemoryMessageBus.cs, EncinaInMemoryOptions.cs, Log.cs, src/Encina/Diagnostics/EventIdRanges.cs.
 ```
 
@@ -247,7 +290,7 @@ REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs, EncinaRabbitMQ
 <summary><strong>Tasks</strong></summary>
 
 1. `EncinaKafkaOptions.Priority` and `KafkaMessagePublisher.ProduceAsync`: topic from the mapping, record header `encina-priority`.
-2. `EncinaNATSOptions.Priority` and `NATSMessagePublisher`: subject from the mapping, header `Encina-Priority`.
+2. `EncinaNATSOptions.Priority` and `NATSMessagePublisher`: subject from the mapping, header `encina-priority` (one name on every carrier, register entry T3).
 3. Log events in the existing `Kafka` (4150-4199) and `NATS` (4200-4249) ranges.
 
 </details>
@@ -304,7 +347,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, EncinaAmazon
 ```text
 CONTEXT: Redis Pub/Sub and MQTT publishers publish to a channel or topic given by options or an argument.
 TASK: Implement Phase 6 Tasks 1 to 3.
-KEY RULES: same contract as Phases 3 to 5; on MQTT fall back to MetadataOnly only if the maintainer-approved capability table says so, never silently; no message content in logs.
+KEY RULES: same contract as Phases 3 to 5; on MQTT, if the client or broker has no MQTT 5 user property, the publisher returns a Left (no silent fallback; register entry T6 has no MetadataOnly capability); Redis.PubSub gets its project reference to Encina.Messaging in this pull request (T1); no message content in logs.
 REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Encina.MQTT/MQTTMessagePublisher.cs, the Log.cs of each.
 ```
 
@@ -315,9 +358,11 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `MessagingTransportPriority = (6725, 6734)` for the shared helper and add it to the `Encina.Messaging` entry in `EncinaEventIdAllocationTests`; per-transport events stay in each transport's own range.
-2. `src/Encina.Messaging/Diagnostics/TransportPriorityLogMessages.cs` (`[LoggerMessage]`, 6725 to 6728): route resolved (transport, priority and destination name only), unmapped priority rejected (code), unsupported capability rejected (code), options validated at start-up.
-3. Span attribute `encina.transport.priority` on each publisher's existing publish activity where one exists.
+Registered in pull request A (the first that logs, so the range and the log class exist before any publisher uses them).
+
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `MessagingTransportPriority = (6712, 6714)`, exactly the 3 ids used, packed after the 6708-6711 of #301 (itself after the 6700-6707 of #123); add it to the `Encina.Messaging` entry in `EncinaEventIdAllocationTests`; per-transport events stay in each transport's own range.
+2. `src/Encina.Messaging/Diagnostics/TransportPriorityLogMessages.cs` (`[LoggerMessage]`, 6712 to 6714): unmapped priority rejected (code, transport, priority), unsupported capability rejected (code, transport), priority routing enabled at start-up (transport name). No per-publish "route resolved" event (hot path, register entry T7).
+3. Span attribute `encina.transport.priority` on each publisher's existing publish activity where one exists, added in that transport's pull request.
 
 </details>
 
@@ -325,8 +370,8 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 <summary><strong>Prompt for AI Agents — Phase 7</strong></summary>
 
 ```text
-CONTEXT: ADR-021: register the range first (6725-6734 is assigned to this plan by the batch registry). Per-transport LoggerMessage events live in each transport's Log.cs inside its registered range.
-TASK: Implement Phase 7 Tasks 1 to 3, packing EventIds 6725-6728 sequentially.
+CONTEXT: ADR-021: register the range first (the family block is 6700-6749 in the batch registry; this plan registers 6712-6714). Per-transport LoggerMessage events live in each transport's Log.cs inside its registered range.
+TASK: Implement Phase 7 Tasks 1 to 3, packing EventIds 6712-6714 sequentially.
 KEY RULES: [LoggerMessage] source generator; no message content, no EncinaError.Message in logs or tags; run the EventId architecture tests.
 REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs, src/Encina.RabbitMQ/Log.cs.
 ```
@@ -338,13 +383,15 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Unit: router per capability (native, destination, metadata only), unmapped and unsupported priorities, options validation, InMemory pump order with `FakeTimeProvider`.
-2. Guard: all new public members.
-3. Contract: one publisher contract run against every transport publisher (or its test double at the client boundary): same priority in gives the same destination and metadata out, `Left` for unmapped, unchanged behavior when disabled.
-4. Property (FsCheck): router output is a function of (priority, mapping) only; InMemory delivery has no starvation beyond the threshold.
-5. Integration against real brokers or local emulators through the shared fixtures (RabbitMQ, Kafka, NATS, Redis, MQTT broker, LocalStack SQS, Service Bus emulator); native RabbitMQ priority delivery order is observed.
-6. Load and benchmark: `.md` justifications (routing is an in-memory lookup); the InMemory pump is the only concurrent code and is covered by a property test.
-7. Coverage: per-file targets in each transport manifest under `.github/coverage-manifest/` (`mechanical-fixer`); CRAP at most 10.
+Tests ship with the pull request that owns the code (see the delivery table); this phase lists the kinds.
+
+1. Unit: router per capability (native, destination), unmapped and unsupported priorities, options validation (A); InMemory queued-path order with `FakeTimeProvider` (B).
+2. Guard (AGENTS.md section 9, #3798): every new public constructor or method with a validated parameter gets its argument tests in the pull request that adds it (router and options in A, each transport's options and publisher in its own pull request).
+3. Contract: one publisher contract file, created in C and extended by D to I, instantiates the REAL publisher of each transport with a test double only at the broker client boundary (never a double of the publisher): same priority in gives the same destination and metadata out, `Left` for unmapped, unchanged behavior when disabled. It compares routing output only; ordering parity between InMemory and a broker is not claimed.
+4. Property (FsCheck): InMemory delivery has no starvation beyond the threshold (B); router output as a function of (priority, mapping) only is a unit-level property in A.
+5. Integration against real brokers or local emulators through shared collection fixtures; per transport: SQS (LocalStack collection), Service Bus (emulator collection) and Redis.PubSub already have publisher integration classes, RabbitMQ, Kafka, NATS and MQTT get a new class (and a fixture file when their health-check test does not share one); native RabbitMQ priority delivery order is observed.
+6. Load and benchmark: `.md` justifications (routing is an in-memory lookup); the InMemory queued path is the only concurrent code and is covered by the property test.
+7. Coverage: per-file targets in each transport manifest under `.github/coverage-manifest/` entered in the same pull request as the tests (`mechanical-fixer`); CRAP at most 10 on changed methods.
 
 </details>
 
@@ -366,7 +413,7 @@ REFERENCE FILES: tests/Encina.UnitTests (existing transport tests), tests/Encina
 <summary><strong>Tasks</strong></summary>
 
 1. XML docs; `PublicAPI.Unshipped.txt` per package; `changelog.d/251-transport-priority.added.md` (`mechanical-fixer`).
-2. `docs-writer`: transport priority guide with the capability table (the verified one), consumer guidance against starvation (choice 4), package READMEs; the ADR of the shared priority design (#123) gets a transport section; ADR number assigned when the ADR pull request opens.
+2. `docs-writer`: transport priority guide with the capability table (the verified one), consumer guidance against starvation (choice 4), a security note that the priority header is unauthenticated metadata and consumers must never use it for authorization (register entry T8), package READMEs (written in each transport pull request); the ADR of the shared priority design (#123) gets a transport section; if #123 does not open that ADR before pull request J, the transport section becomes its own ADR; the ADR number is assigned when the ADR pull request opens.
 3. Update #251 to the corrected scope (no `IPriorityQueueManager`, no `PriorityLevels`, no `StarvationTimeout`).
 4. `dotnet build --configuration Release` with zero warnings; `dotnet test`; every flag at its target.
 
@@ -410,7 +457,7 @@ Capability table (draft, every "to confirm" cell is checked against vendor docum
 | NATS | Destination | subject per priority, header |
 | Redis.PubSub | Destination | channel per priority (no headers) |
 | MQTT | Destination | topic per priority, MQTT 5 user property (to confirm) |
-| InMemory | Reference ordering | priority queue and pump |
+| InMemory | Reference ordering (entry T2) | priority order on the `EnqueueAsync` queued path |
 | gRPC, GraphQL | Not planned here | see #3400 |
 
 ### Existing Encina Infrastructure to Leverage
@@ -428,17 +475,21 @@ Capability table (draft, every "to confirm" cell is checked against vendor docum
 
 | Package | Range | Notes |
 | --- | --- | --- |
-| `Encina.Messaging` (`EventIdRanges.MessagingTransportPriority`, new) | 6725-6734 | From the family block 6700-6749; this plan uses 6725-6728. Siblings: #123 6700-6714, #301 6715-6724, #469 6735-6747, #1254 6748-6749 |
+| `Encina.Messaging` (`EventIdRanges.MessagingTransportPriority`, new) | 6712-6714 | From the family block 6700-6749; exactly the 3 ids used, packed after #123 (6700-6707) and #301 (6708-6711), which register their own ranges; #469 and #1254 use the rest of the block |
 | Each transport package | existing ranges 4100-4499 | Ids chosen at implementation from the free slots of each transport's `Log.cs` |
 
 ### Estimated File Count
 
-| Category | Files | Notes |
-| --- | --- | --- |
-| Shared core in `Encina.Messaging` | 8 | Options, capability, router, metrics, logs, `EventIdRanges.cs`, PublicAPI |
-| Transports (8 packages) | 32 | Options, publisher, `Log.cs`, validator or DI per package |
-| Tests | 24 | Unit, guard, contract, property, integration per transport |
-| Docs, changelog, PublicAPI | 14 | Guide, READMEs, fragment, PublicAPI per package |
+The authoritative count is the "Delivery order and size" table (107 file changes in 10 pull requests).
+
+| Category | File changes | Notes |
+| --- | ---: | --- |
+| Source | 35 | Router core 6, InMemory 4, seven transports 25 (options, validator where it exists, publisher, `Log.cs`, csproj reference for Redis.PubSub) |
+| Tests | 40 | Unit, guard, contract, property, integration and new fixtures |
+| PublicAPI | 10 | Two in A, one per package after |
+| Manifests | 10 | Same |
+| Documentation | 12 | Eight package READMEs, guide, INVENTORY, ADR section, changelog fragment |
+| Total | 107 | Equals the delivery table |
 
 ---
 
@@ -450,7 +501,7 @@ Capability table (draft, every "to confirm" cell is checked against vendor docum
 ```text
 PROJECT CONTEXT: Encina, pre-1.0, .NET 10 / C# 14. Issue #251, plan docs/plans/transport-priority-implementation-plan-251.md. It applies the shared priority design of #123 to the transport category; #123 must be merged first. There is no IMessageTransport in the code: each transport has its own publisher interface, and transports only publish. Read AGENTS.md first.
 
-IMPLEMENTATION OVERVIEW: (1) TransportPriorityOptions, capability, router and metrics in Encina.Messaging. (2) InMemory reference ordering. (3) RabbitMQ native. (4) Kafka and NATS destinations. (5) SQS and Azure Service Bus. (6) Redis.PubSub and MQTT. (7) EventIds 6725-6728 and spans. (8) Tests against real brokers and emulators. (9) Docs. Seven pull requests of at most 15 files and 1500 lines.
+IMPLEMENTATION OVERVIEW: (1) TransportPriorityOptions, capability, router and metrics in Encina.Messaging. (2) InMemory reference ordering. (3) RabbitMQ native. (4) Kafka and NATS destinations. (5) SQS and Azure Service Bus. (6) Redis.PubSub and MQTT. (7) EventIds 6712-6714 and spans. (8) Tests against real brokers and emulators. (9) Docs. Ten pull requests of at most 15 files and 1500 lines (A router, B InMemory, C to I one transport each, J docs), each with its own tests and manifest targets. PR-A of #123 (the type) merges first.
 
 KEY PATTERNS: Either<EncinaError, T>; an unmapped or unsupported priority is a Left, never ignored; off by default on every transport; priority resolved from the message by MessagePriorityResolver; destinations only from validated configuration; metadata header encina-priority; consistent behavior across the category; [LoggerMessage] with registered ranges; shared meter; secrets stay [JsonIgnore] with ToString overrides.
 
@@ -467,14 +518,14 @@ REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs, src/Encina.Kaf
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Priority routing does not read cacheable data |
 | 2 | OpenTelemetry | ✅ | `encina.transport.priority.published` counter and the `encina.transport.priority` span attribute (Phase 7) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` 6725-6728 plus per-transport events in their registered ranges (Phase 7) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` 6712-6714 plus per-transport events in their registered ranges (Phase 7) |
 | 4 | Health Checks | ❌ | Each transport already has a connectivity health check; per-priority queue depth is broker-side monitoring and needs no Encina dependency |
 | 5 | Validation | ✅ | `TransportPriorityOptions` validated at start-up (every level mapped for the Destination capability); priority value validated by the resolver (Phases 1 to 6) |
 | 6 | Resilience | ❌ | No new external call: a publish to a per-priority destination fails with the same `Left` as today and follows the application's existing policy |
 | 7 | Distributed Locks | ❌ | Brokers distribute messages to consumers; no shared state is updated by Encina |
 | 8 | Transactions | ❌ | Publishing to a broker is not transactional with the database; atomic publish is the outbox, #123 |
 | 9 | Idempotency | ❌ | Duplicates are handled by the outbox and inbox, issues #735, #148 and #1220 |
-| 10 | Multi-Tenancy | ❌ | Priority carries no tenant data; tenant-aware destinations are a separate concern of the tenancy plans |
+| 10 | Multi-Tenancy | ❌ | Priority carries no tenant data; follow-up issue to be opened for tenant-aware destinations (draft: `artifacts/decisions/plan-batch/followups/transport-priority-tenant-destinations.md`, register entry T9) |
 | 11 | Module Isolation | ❌ | No module scoping is introduced; `ModuleId` on messaging entities is #747 |
 | 12 | Audit Trail | ❌ | No compliance-relevant data is created |
 
@@ -482,13 +533,17 @@ REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs, src/Encina.Kaf
 
 ## Prerequisites & Dependencies
 
-- #123 merged: `MessagePriority`, `IPrioritizedMessage`, `MessagePriorityResolver`, and the answer to the shared-type question (this plan's choice 1 is the same question).
-- #3400 (what `Encina.gRPC` and `Encina.GraphQL` are for 1.0) decides whether those two adapters need this capability; they are not planned here, and the plan must be amended once the spike is decided.
+- PR-A of #123 merged: `MessagePriority`, `IPrioritizedMessage`, `MessagePriorityResolver`, the shared error code, and the answer to the shared-type question (this plan's choice 1 is the same question). No pull request of this plan starts before it, and none creates those types.
+- #3400 (what `Encina.gRPC` and `Encina.GraphQL` are for 1.0) decides whether those two adapters need this capability; they are not planned here, so the issue's acceptance criterion "every transport of the category behaves consistently" is NOT met until the plan is amended once the spike is decided; the issue update (Next Steps 2) records this explicitly.
 - The six planned 1.0 transports add a row to the capability table in their own plans.
 - Local emulators for the cloud transports (LocalStack, Service Bus emulator) as in SPEC-000 DEC-009.
 
 ## Next Steps
 
-1. Maintainer answers choices 1 to 4 when work starts (choice 1 repeats #123 choice 1); answers go to `## Maintainer Decisions`.
-2. Orchestrator updates #251 to the corrected scope after the answers.
-3. Worker briefs per pull request (PR-A to PR-G) once #123 merges; the capability table is verified by the implementing worker per transport.
+1. Maintainer answers choices 1 to 4 and entries T1, T2, T3 when work starts (choice 1 repeats #123 choice 1); answers go to `## Maintainer Decisions`.
+2. Orchestrator updates #251 to the corrected scope after the answers: no `IPriorityQueueManager`, `PriorityLevels` or `StarvationTimeout`; RabbitMQ queue declaration with `x-max-priority` stays with the application (Encina publishes the property and offers the argument as a helper); Azure Service Bus is `Destination`, not `Native`; gRPC and GraphQL are outside (see Prerequisites); cross-cutting rows 4 and 6 are Not applicable with one sentence each.
+3. Worker briefs per pull request (PR-A to PR-J) once PR-A of #123 merges; the capability table is verified by the implementing worker per transport.
+
+## Maintainer Decisions
+
+None yet. Pending: choices 1 to 4 and entries T1, T2, T3.
