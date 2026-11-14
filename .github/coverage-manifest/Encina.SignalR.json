@@ -11,7 +11,13 @@
         "unit"
       ],
       "defaultRule": "*Attribute.cs",
-      "reason": "Attribute marker class — no guard clauses in the codebase (zero ThrowIfNull/ThrowIfNullOrWhiteSpace in the entire package)"
+      "reason": "Attribute marker class — no guard clauses in the codebase (zero ThrowIfNull/ThrowIfNullOrWhiteSpace in the entire package)",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Plain properties and two comma-split parsers fully exercised by the attribute and broadcaster unit tests; measured 100% (#3678)."
+      }
     },
     "GlobalSuppressions.cs": {
       "defaultTests": [],
@@ -106,7 +112,13 @@
         "unit"
       ],
       "defaultRule": "*Broadcaster.cs",
-      "reason": "Broadcaster service — constructor has no null guards, depends on DI injection"
+      "reason": "Broadcaster service — constructor has no null guards, depends on DI injection",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests drive every audience path (users, groups, registered broadcast to all, refusal for no or empty targets, disabled, missing hub, exceptions) against substitute hub proxies; measured 97% (#3678)."
+      }
     },
     "SignalROptions.cs": {
       "defaultTests": [
