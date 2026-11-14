@@ -318,4 +318,51 @@ public class ConsentAggregatePropertyTests
     }
 
     #endregion
+
+    #region Act ordering invariants (#3771)
+
+    private static readonly DateTimeOffset OrderingT0 = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// Invariant: after a withdrawal at W, a regrant at any act time not later than W leaves the
+    /// consent Withdrawn, and a regrant strictly later than W reactivates it.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool Regrant_ReactivatesOnlyWhenLaterThanTheWithdrawal(int withdrawOffsetMinutes, int regrantOffsetMinutes)
+    {
+        var withdrawnAt = OrderingT0.AddMinutes(Math.Abs(withdrawOffsetMinutes % 10_000) + 1);
+        var regrantAt = OrderingT0.AddMinutes(regrantOffsetMinutes % 20_000);
+        var aggregate = ConsentAggregate.Grant(
+            Guid.NewGuid(), "subject-1", "marketing", "v1", "web", null, null, EmptyMetadata, null, "admin", OrderingT0);
+        aggregate.Withdraw("subject", null, withdrawnAt);
+
+        aggregate.Regrant("v2", "web", null, "proof", EmptyMetadata, null, "admin", regrantAt);
+
+        var expected = regrantAt > withdrawnAt ? ConsentStatus.Active : ConsentStatus.Withdrawn;
+        return aggregate.Status == expected
+            && aggregate.UncommittedEvents[^1] is Encina.Compliance.Consent.Events.ConsentRegranted;
+    }
+
+    /// <summary>
+    /// Invariant: a renewal by grant never lowers the watermark, and it changes the version only
+    /// when its act is not older than the watermark.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool RenewByGrant_NeverLowersTheWatermark(int firstOffsetMinutes, int secondOffsetMinutes)
+    {
+        var aggregate = ConsentAggregate.Grant(
+            Guid.NewGuid(), "subject-1", "marketing", "v1", "web", null, null, EmptyMetadata, null, "admin", OrderingT0);
+        var first = OrderingT0.AddMinutes(firstOffsetMinutes % 20_000);
+        var second = OrderingT0.AddMinutes(secondOffsetMinutes % 20_000);
+
+        aggregate.RenewByGrant("v2", "web", null, null, EmptyMetadata, null, "admin", first);
+        var watermark = aggregate.LastActAtUtc;
+        aggregate.RenewByGrant("v3", "web", null, null, EmptyMetadata, null, "admin", second);
+
+        var appliedSecond = second >= watermark;
+        return aggregate.LastActAtUtc >= watermark
+            && (aggregate.ConsentVersionId == "v3") == appliedSecond;
+    }
+
+    #endregion
 }
