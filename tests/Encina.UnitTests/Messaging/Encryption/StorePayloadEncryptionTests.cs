@@ -1,8 +1,16 @@
+using System.Security.Cryptography;
 using Encina.Messaging.DeadLetter;
+using Encina.Messaging.Encryption;
+using Encina.Messaging.Encryption.Attributes;
+using Encina.Messaging.Encryption.Serialization;
+using Encina.Messaging.Outbox;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Sagas;
 using Encina.Messaging.Scheduling;
 using Encina.Messaging.Serialization;
+using Encina.Security.Encryption;
+using Encina.Security.Encryption.Algorithms;
+using Encina.Testing.Fakes.Factories;
 using Encina.Testing.Fakes.Models;
 using Encina.Testing.Fakes.Stores;
 using LanguageExt;
@@ -243,7 +251,558 @@ public sealed class StorePayloadEncryptionTests
 
     #endregion
 
+    #region Runtime type at the persistence call sites (#3780)
+
+    // These tests use a serializer that encrypts only [EncryptedMessage] types, so the stored payload is
+    // encrypted only when the orchestrator serializes the concrete runtime type: the static type the
+    // caller uses (an interface or an unmarked base) carries no attribute.
+
+    [Fact]
+    public async Task Outbox_AddAsync_MarkedNotificationTypedAsInterface_StoresCiphertextAndRuntimeTypeName()
+    {
+        // Arrange
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeOutboxStore();
+        var orchestrator = CreateOutboxOrchestrator(store, serializer);
+        INotification notification = new MarkedDiagnosisNotification(Diagnosis);
+
+        // Act
+        (await orchestrator.AddAsync(notification)).IsRight.ShouldBeTrue();
+
+        // Assert
+        var stored = store.GetAddedMessages().ShouldHaveSingleItem();
+        stored.Content.ShouldStartWith("ENC:v1:");
+        stored.Content.ShouldNotContain("F41.1");
+        stored.NotificationType.ShouldBe(typeof(MarkedDiagnosisNotification).AssemblyQualifiedName);
+
+        // Act: the batch processor rebuilds the notification from the stored type name
+        Type? publishedType = null;
+        object? published = null;
+        var processed = await orchestrator.ProcessPendingMessagesAsync((_, type, value) =>
+        {
+            publishedType = type;
+            published = value;
+            return ValueTask.FromResult(Right<EncinaError, Unit>(unit));
+        });
+
+        // Assert
+        processed.Match(Right: count => count, Left: e => throw new InvalidOperationException(e.Message)).ShouldBe(1);
+        publishedType.ShouldBe(typeof(MarkedDiagnosisNotification));
+        published.ShouldBeOfType<MarkedDiagnosisNotification>().Diagnosis.ShouldBe(Diagnosis);
+    }
+
+    [Fact]
+    public async Task Outbox_AddAsync_UnmarkedNotificationTypedAsInterface_StaysPlain()
+    {
+        // Arrange
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeOutboxStore();
+        var orchestrator = CreateOutboxOrchestrator(store, serializer);
+        INotification notification = new PlainNoteNotification("public note");
+
+        // Act
+        (await orchestrator.AddAsync(notification)).IsRight.ShouldBeTrue();
+
+        // Assert
+        var stored = store.GetAddedMessages().ShouldHaveSingleItem();
+        stored.Content.ShouldNotStartWith("ENC:");
+        stored.Content.ShouldContain("public note");
+        stored.NotificationType.ShouldBe(typeof(PlainNoteNotification).AssemblyQualifiedName);
+    }
+
+    [Fact]
+    public async Task Outbox_AddAsync_EncryptionFails_ThrowsAndStoresNothing()
+    {
+        // Arrange
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeOutboxStore();
+        var orchestrator = CreateOutboxOrchestrator(store, serializer);
+        INotification notification = new UnknownKeyNotification(Diagnosis);
+
+        // Act
+        var act = () => orchestrator.AddAsync(notification);
+
+        // Assert: the encryption failure propagates; nothing reaches the store, in plaintext or otherwise
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        store.GetAddedMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleAsync_MarkedRequestTypedAsInterface_StoresCiphertextAndRuntimeTypeName()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, serializer, time);
+        IRequest<string> request = new MarkedReminderRequest(Diagnosis);
+
+        // Act
+        var messageId = (await orchestrator.ScheduleAsync(request, TimeSpan.FromMinutes(5)))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert
+        var stored = store.GetMessage(messageId)!;
+        stored.Content.ShouldStartWith("ENC:v1:");
+        stored.Content.ShouldNotContain("F41.1");
+        stored.RequestType.ShouldBe(typeof(MarkedReminderRequest).AssemblyQualifiedName);
+
+        // Act: once due, the processor rebuilds the request from the stored type name
+        time.Advance(TimeSpan.FromMinutes(10));
+        object? dispatched = null;
+        var processed = await orchestrator.ProcessDueMessagesAsync((_, _, value, _) =>
+        {
+            dispatched = value;
+            return ValueTask.FromResult(Right<EncinaError, Unit>(unit));
+        });
+
+        // Assert
+        processed.Match(Right: count => count, Left: e => throw new InvalidOperationException(e.Message)).ShouldBe(1);
+        dispatched.ShouldBeOfType<MarkedReminderRequest>().Diagnosis.ShouldBe(Diagnosis);
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleAsync_UnmarkedRequestTypedAsInterface_StaysPlain()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, CreateAttributeOnlySerializer(), time);
+        IRequest<string> request = new PlainReminderRequest("public note");
+
+        // Act
+        var messageId = (await orchestrator.ScheduleAsync(request, TimeSpan.FromMinutes(5)))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert
+        var stored = store.GetMessage(messageId)!;
+        stored.Content.ShouldNotStartWith("ENC:");
+        stored.Content.ShouldContain("public note");
+        stored.RequestType.ShouldBe(typeof(PlainReminderRequest).AssemblyQualifiedName);
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleAsync_EncryptionFails_ThrowsAndStoresNothing()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, CreateAttributeOnlySerializer(), time);
+        IRequest<string> request = new UnknownKeyRequest(Diagnosis);
+
+        // Act
+        var act = () => orchestrator.ScheduleAsync(request, TimeSpan.FromMinutes(5));
+
+        // Assert
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        store.GetAddedMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleRecurringAsync_MarkedRequestTypedAsBaseClass_StoresCiphertextAndRuntimeTypeName()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, CreateAttributeOnlySerializer(), time, EveryFiveMinutes(time));
+        ReminderRequestBase request = new MarkedDerivedReminderRequest(Diagnosis);
+
+        // Act
+        var messageId = (await orchestrator.ScheduleRecurringAsync(request, "*/5 * * * *"))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert
+        var stored = store.GetMessage(messageId)!;
+        stored.IsRecurring.ShouldBeTrue();
+        stored.Content.ShouldStartWith("ENC:v1:");
+        stored.Content.ShouldNotContain("F41.1");
+        stored.RequestType.ShouldBe(typeof(MarkedDerivedReminderRequest).AssemblyQualifiedName);
+
+        // Act: once due, the processor rebuilds the derived request from the stored type name
+        time.Advance(TimeSpan.FromMinutes(10));
+        object? dispatched = null;
+        await orchestrator.ProcessDueMessagesAsync((_, _, value, _) =>
+        {
+            dispatched = value;
+            return ValueTask.FromResult(Right<EncinaError, Unit>(unit));
+        });
+
+        // Assert
+        dispatched.ShouldBeOfType<MarkedDerivedReminderRequest>().Diagnosis.ShouldBe(Diagnosis);
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleRecurringAsync_UnmarkedRequestTypedAsInterface_StaysPlain()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, CreateAttributeOnlySerializer(), time, EveryFiveMinutes(time));
+        IRequest<string> request = new PlainReminderRequest("public note");
+
+        // Act
+        var messageId = (await orchestrator.ScheduleRecurringAsync(request, "*/5 * * * *"))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert
+        var stored = store.GetMessage(messageId)!;
+        stored.Content.ShouldNotStartWith("ENC:");
+        stored.RequestType.ShouldBe(typeof(PlainReminderRequest).AssemblyQualifiedName);
+    }
+
+    [Fact]
+    public async Task Scheduler_ScheduleRecurringAsync_EncryptionFails_ThrowsAndStoresNothing()
+    {
+        // Arrange
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 11, 12, 10, 0, 0, TimeSpan.Zero));
+        var store = new FakeScheduledMessageStore(time);
+        var orchestrator = CreateSchedulerOrchestrator(store, CreateAttributeOnlySerializer(), time, EveryFiveMinutes(time));
+        IRequest<string> request = new UnknownKeyRequest(Diagnosis);
+
+        // Act
+        var act = () => orchestrator.ScheduleRecurringAsync(request, "*/5 * * * *");
+
+        // Assert
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        store.GetAddedMessages().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DelayedRetry_ScheduleRetryAsync_MarkedRequestTypedAsInterface_StoresCiphertextAndRuntimeTypeNameAtEveryHop()
+    {
+        // Arrange
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new InMemoryDelayedRetryStore();
+        var scheduler = new DelayedRetryScheduler(
+            store,
+            new PassThroughDelayedRetryMessageFactory(),
+            NullLogger<DelayedRetryScheduler>.Instance,
+            serializer);
+        IRequest<string> request = new MarkedReminderRequest(Diagnosis);
+
+        // Act
+        (await scheduler.ScheduleRetryAsync(
+            request,
+            new RecoverabilityContext { CorrelationId = "corr-3780" },
+            TimeSpan.Zero,
+            delayedRetryAttempt: 0)).IsRight.ShouldBeTrue();
+
+        // Assert
+        var first = store.Messages.ShouldHaveSingleItem();
+        first.RequestContent.ShouldStartWith("ENC:v1:");
+        first.RequestContent.ShouldNotContain("F41.1");
+        first.RequestType.ShouldBe(typeof(MarkedReminderRequest).AssemblyQualifiedName);
+
+        // Arrange: the processor rebuilds the request from the stored type name; the failing dispatch
+        // makes it schedule the next retry through the same scheduler.
+        var encina = Substitute.For<IEncina>();
+        encina.Send(Arg.Any<MarkedReminderRequest>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, string>(EncinaErrors.Create("reminder.failed", "still failing")));
+        var services = new ServiceCollection();
+        services.AddSingleton<IDelayedRetryStore>(store);
+        services.AddSingleton(encina);
+        services.AddSingleton<IMessageSerializer>(serializer);
+        services.AddSingleton<IDelayedRetryScheduler>(scheduler);
+        await using var provider = services.BuildServiceProvider();
+
+        var processor = new DelayedRetryProcessor(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new RecoverabilityOptions { EnableDelayedRetries = true, DelayedRetries = [TimeSpan.Zero, TimeSpan.Zero] }),
+            NullLogger<DelayedRetryProcessor>.Instance)
+        {
+            ProcessingInterval = TimeSpan.FromMinutes(5)
+        };
+
+        // Act
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await processor.StartAsync(cts.Token);
+        await store.WaitForMessageCountAsync(2, cts.Token);
+        await processor.StopAsync(CancellationToken.None);
+
+        // Assert: the decrypted concrete request reached IEncina, and the next hop is stored the same way
+        await encina.Received().Send(
+            Arg.Is<MarkedReminderRequest>(r => r.Diagnosis == Diagnosis),
+            Arg.Any<CancellationToken>());
+        var second = store.Messages[1];
+        second.RequestContent.ShouldStartWith("ENC:v1:");
+        second.RequestType.ShouldBe(typeof(MarkedReminderRequest).AssemblyQualifiedName);
+        serializer.Deserialize<MarkedReminderRequest>(second.RequestContent)!.Diagnosis.ShouldBe(Diagnosis);
+    }
+
+    [Fact]
+    public async Task DelayedRetry_ScheduleRetryAsync_UnmarkedRequestTypedAsInterface_StaysPlain()
+    {
+        // Arrange
+        var store = new InMemoryDelayedRetryStore();
+        var scheduler = new DelayedRetryScheduler(
+            store,
+            new PassThroughDelayedRetryMessageFactory(),
+            NullLogger<DelayedRetryScheduler>.Instance,
+            CreateAttributeOnlySerializer());
+        IRequest<string> request = new PlainReminderRequest("public note");
+
+        // Act
+        (await scheduler.ScheduleRetryAsync(request, new RecoverabilityContext(), TimeSpan.Zero, delayedRetryAttempt: 0))
+            .IsRight.ShouldBeTrue();
+
+        // Assert
+        var stored = store.Messages.ShouldHaveSingleItem();
+        stored.RequestContent.ShouldNotStartWith("ENC:");
+        stored.RequestContent.ShouldContain("public note");
+        stored.RequestType.ShouldBe(typeof(PlainReminderRequest).AssemblyQualifiedName);
+    }
+
+    [Fact]
+    public async Task DelayedRetry_ScheduleRetryAsync_EncryptionFails_ThrowsAndStoresNothing()
+    {
+        // Arrange
+        var store = new InMemoryDelayedRetryStore();
+        var scheduler = new DelayedRetryScheduler(
+            store,
+            new PassThroughDelayedRetryMessageFactory(),
+            NullLogger<DelayedRetryScheduler>.Instance,
+            CreateAttributeOnlySerializer());
+        IRequest<string> request = new UnknownKeyRequest(Diagnosis);
+
+        // Act
+        var act = () => scheduler.ScheduleRetryAsync(request, new RecoverabilityContext(), TimeSpan.Zero, delayedRetryAttempt: 0);
+
+        // Assert
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        store.Messages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Saga_StartAsync_MarkedDataTypedAsBaseClass_StoresCiphertext()
+    {
+        // Arrange
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, serializer);
+        SagaDataBase data = new MarkedSagaData { Diagnosis = Diagnosis };
+
+        // Act
+        var sagaId = (await orchestrator.StartAsync("TherapySaga", data))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert: encrypted, and the ciphertext holds the complete concrete payload
+        var stored = store.GetSaga(sagaId)!;
+        stored.Data.ShouldStartWith("ENC:v1:");
+        stored.Data.ShouldNotContain("F41.1");
+        serializer.Deserialize<MarkedSagaData>(stored.Data)!.Diagnosis.ShouldBe(Diagnosis);
+
+        // Act: the saga reads back through the unchanged read side (as the base type, #3789)
+        var snapshot = await orchestrator.GetAsync<SagaDataBase>(sagaId);
+
+        // Assert
+        snapshot.IsSome.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Saga_StartAsync_UnmarkedDataTypedAsBaseClass_StaysPlain()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, CreateAttributeOnlySerializer());
+        SagaDataBase data = new PlainSagaData { Note = "public note" };
+
+        // Act
+        var sagaId = (await orchestrator.StartAsync("TherapySaga", data))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Assert: the derived property is stored too, the payload is complete
+        var stored = store.GetSaga(sagaId)!;
+        stored.Data.ShouldNotStartWith("ENC:");
+        stored.Data.ShouldContain("public note");
+    }
+
+    [Fact]
+    public async Task Saga_StartAsync_EncryptionFails_ThrowsAndStoresNothing()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, CreateAttributeOnlySerializer());
+        SagaDataBase data = new UnknownKeySagaData { Diagnosis = Diagnosis };
+
+        // Act
+        var act = () => orchestrator.StartAsync("TherapySaga", data);
+
+        // Assert
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        store.GetAddedSagas().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task Saga_AdvanceAsync_UpdateReturnsMarkedDataTypedAsBaseClass_StoresCiphertext()
+    {
+        // Arrange: the saga starts with unmarked data, stored plain
+        var serializer = CreateAttributeOnlySerializer();
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, serializer);
+        var sagaId = (await orchestrator.StartAsync<SagaDataBase>("TherapySaga", new SagaDataBase()))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+        store.GetSaga(sagaId)!.Data.ShouldNotStartWith("ENC:");
+
+        // Act: the update returns marked data typed as the base class
+        var advance = await orchestrator.AdvanceAsync<SagaDataBase>(
+            sagaId,
+            current => new MarkedSagaData { Diagnosis = Diagnosis, Sessions = current.Sessions + 1 });
+
+        // Assert
+        advance.IsRight.ShouldBeTrue();
+        var stored = store.GetSaga(sagaId)!;
+        stored.Data.ShouldStartWith("ENC:v1:");
+        stored.Data.ShouldNotContain("F41.1");
+        var decrypted = serializer.Deserialize<MarkedSagaData>(stored.Data)!;
+        decrypted.Diagnosis.ShouldBe(Diagnosis);
+        decrypted.Sessions.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Saga_AdvanceAsync_UpdateReturnsUnmarkedData_StaysPlain()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, CreateAttributeOnlySerializer());
+        var sagaId = (await orchestrator.StartAsync<SagaDataBase>("TherapySaga", new SagaDataBase()))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+
+        // Act
+        var advance = await orchestrator.AdvanceAsync<SagaDataBase>(
+            sagaId,
+            current => new PlainSagaData { Note = "public note", Sessions = current.Sessions + 1 });
+
+        // Assert
+        advance.IsRight.ShouldBeTrue();
+        var stored = store.GetSaga(sagaId)!;
+        stored.Data.ShouldNotStartWith("ENC:");
+        stored.Data.ShouldContain("public note");
+    }
+
+    [Fact]
+    public async Task Saga_AdvanceAsync_EncryptionFails_ThrowsAndLeavesTheStoredDataUnchanged()
+    {
+        // Arrange
+        var store = new FakeSagaStore();
+        var orchestrator = CreateSagaOrchestrator(store, CreateAttributeOnlySerializer());
+        var sagaId = (await orchestrator.StartAsync<SagaDataBase>("TherapySaga", new SagaDataBase()))
+            .Match(Right: id => id, Left: e => throw new InvalidOperationException(e.Message));
+        var before = store.GetSaga(sagaId)!.Data;
+
+        // Act
+        var act = () => orchestrator.AdvanceAsync<SagaDataBase>(
+            sagaId,
+            _ => new UnknownKeySagaData { Diagnosis = Diagnosis });
+
+        // Assert: no plaintext fallback, no update
+        await act.ShouldThrowAsync<InvalidOperationException>();
+        var after = store.GetSaga(sagaId)!;
+        after.Data.ShouldBe(before);
+        after.CurrentStep.ShouldBe(0);
+    }
+
+    private static EncryptingMessageSerializer CreateAttributeOnlySerializer()
+    {
+        var key = new byte[32];
+        RandomNumberGenerator.Fill(key);
+
+        var keyProvider = new InMemoryKeyProvider();
+        keyProvider.AddKey(RealMessageEncryption.KeyId, key);
+        keyProvider.SetCurrentKey(RealMessageEncryption.KeyId);
+
+        return new EncryptingMessageSerializer(
+            new JsonMessageSerializer(),
+            new DefaultMessageEncryptionProvider(new AesGcmFieldEncryptor(keyProvider), keyProvider),
+            Options.Create(new MessageEncryptionOptions { Enabled = true, EncryptAllMessages = false }),
+            NullLogger<EncryptingMessageSerializer>.Instance);
+    }
+
+    private static OutboxOrchestrator CreateOutboxOrchestrator(FakeOutboxStore store, IMessageSerializer serializer) => new(
+        store,
+        new OutboxOptions(),
+        NullLogger<OutboxOrchestrator>.Instance,
+        new FakeOutboxMessageFactory(),
+        serializer);
+
+    private static SchedulerOrchestrator CreateSchedulerOrchestrator(
+        FakeScheduledMessageStore store,
+        IMessageSerializer serializer,
+        TimeProvider time,
+        ICronParser? cronParser = null)
+    {
+        var options = new SchedulingOptions();
+        return new SchedulerOrchestrator(
+            store,
+            options,
+            NullLogger<SchedulerOrchestrator>.Instance,
+            new EfScheduledMessageFactory(),
+            new ExponentialBackoffRetryPolicy(options),
+            serializer,
+            cronParser,
+            time);
+    }
+
+    private static SagaOrchestrator CreateSagaOrchestrator(FakeSagaStore store, IMessageSerializer serializer) => new(
+        store,
+        new SagaOptions(),
+        NullLogger<SagaOrchestrator>.Instance,
+        new EfSagaStateFactory(),
+        serializer);
+
+    private static ICronParser EveryFiveMinutes(TimeProvider time)
+    {
+        var cronParser = Substitute.For<ICronParser>();
+        cronParser.GetNextOccurrence(Arg.Any<string>(), Arg.Any<DateTime>())
+            .Returns(Right<EncinaError, DateTime>(time.GetUtcNow().UtcDateTime.AddMinutes(5)));
+        return cronParser;
+    }
+
+    #endregion
+
     #region Test types
+
+    [EncryptedMessage]
+    public sealed record MarkedDiagnosisNotification(string Diagnosis) : INotification;
+
+    public sealed record PlainNoteNotification(string Note) : INotification;
+
+    [EncryptedMessage(KeyId = "missing-key")]
+    public sealed record UnknownKeyNotification(string Diagnosis) : INotification;
+
+    [EncryptedMessage]
+    public sealed record MarkedReminderRequest(string Diagnosis) : IRequest<string>;
+
+    public sealed record PlainReminderRequest(string Note) : IRequest<string>;
+
+    [EncryptedMessage(KeyId = "missing-key")]
+    public sealed record UnknownKeyRequest(string Diagnosis) : IRequest<string>;
+
+    public abstract record ReminderRequestBase : IRequest<string>;
+
+    [EncryptedMessage]
+    public sealed record MarkedDerivedReminderRequest(string Diagnosis) : ReminderRequestBase;
+
+    public record SagaDataBase
+    {
+        public int Sessions { get; init; }
+    }
+
+    [EncryptedMessage]
+    public sealed record MarkedSagaData : SagaDataBase
+    {
+        public string Diagnosis { get; init; } = string.Empty;
+    }
+
+    public sealed record PlainSagaData : SagaDataBase
+    {
+        public string Note { get; init; } = string.Empty;
+    }
+
+    [EncryptedMessage(KeyId = "missing-key")]
+    public sealed record UnknownKeySagaData : SagaDataBase
+    {
+        public string Diagnosis { get; init; } = string.Empty;
+    }
 
     public sealed record TherapySagaData
     {

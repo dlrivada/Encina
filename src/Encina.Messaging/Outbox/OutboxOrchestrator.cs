@@ -89,11 +89,16 @@ public sealed class OutboxOrchestrator
     {
         ArgumentNullException.ThrowIfNull(notification);
 
-        var notificationType = typeof(TNotification).AssemblyQualifiedName
-            ?? typeof(TNotification).FullName
-            ?? typeof(TNotification).Name;
+        // Store and serialize the notification's runtime type, not TNotification: a caller may pass a
+        // concrete notification typed as an interface or base class. The runtime type captures every
+        // property, lets EncryptingMessageSerializer see the concrete [EncryptedMessage] attribute, and
+        // is the type the batch processor rebuilds from the stored name (#3780).
+        var runtimeType = notification.GetType();
+        var notificationType = runtimeType.AssemblyQualifiedName
+            ?? runtimeType.FullName
+            ?? runtimeType.Name;
 
-        var content = _messageSerializer.Serialize(notification);
+        var content = _messageSerializer.SerializeAsRuntimeType(notification);
 
         var message = _messageFactory.Create(
             Guid.NewGuid(),
