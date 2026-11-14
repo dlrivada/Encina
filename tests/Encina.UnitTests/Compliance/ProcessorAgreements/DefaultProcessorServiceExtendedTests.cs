@@ -1,4 +1,5 @@
 using Encina.Caching;
+using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.Model;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
@@ -8,6 +9,7 @@ using Encina.Marten.Projections;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -42,7 +44,9 @@ public sealed class DefaultProcessorServiceExtendedTests
             _repository,
             _readModelRepository,
             _cache,
+            Options.Create(new ProcessorAgreementOptions()),
             _timeProvider,
+            Substitute.For<IRequestContextAccessor>(),
             _logger);
     }
 
