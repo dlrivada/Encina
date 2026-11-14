@@ -15,7 +15,7 @@
 - `IDeadLetterManager` (`src/Encina.Messaging/DeadLetter/IDeadLetterManager.cs`) offers `ReplayAsync`, `ReplayAllAsync(filter, maxMessages = 100)`, `GetMessageAsync`, `GetMessagesAsync(filter, skip, take)`, `GetCountAsync`, `GetStatisticsAsync`, `DeleteAsync`, `DeleteAllAsync(filter)` and `CleanupExpiredAsync`, all returning `Either<EncinaError, T>`. `ReplayResult`, `BatchReplayResult` and `DeadLetterStatistics` are the result records.
 - The manager is tenant-aware: it defaults to the ambient tenant, denies `DeadLetterFilter.AllTenants` without an explicit opt-out and returns `encina.authorization.dlq_tenant_required` (`DeadLetterErrorCodes.TenantRequired`); `DeadLetterFilter.All` deletes the whole queue without confirmation at manager level (`DeadLetterFilter.cs:104`). The result of a replay is a code (`ReplayResult.ErrorMessage` holds a code, not exception text, #2012).
 - The one endpoint group in `Encina.AspNetCore` is `MapDPIAEndpoints(string authorizationPolicy, string prefix)` (`src/Encina.AspNetCore/DPIAEndpointExtensions.cs:144`): it checks at mapping time that authorization is registered and the policy exists (`EnsurePolicyRegistered` `:523`, throws `InvalidOperationException`), groups the routes, calls `RequireAuthorization` and maps `Left` to RFC 9457 problem details with `ToProblemDetails` (`ProblemDetailsExtensions.cs:67`, status inferred today by the string-suffix `MapErrorCodeToStatusCode` at `:173`; #3419 replaces it with the error category of ADR-062). `ToProblemDetails` can expose `detail` and the exception message when `IncludeErrorMessageInProblemDetails` is on in Development (`ProblemDetailsExtensions.cs:77-98`).
-- The manager gate on tenancy accepts any `DeadLetterFilter.TenantId` the caller names without comparing it with the ambient tenant (`DeadLetterManager.cs:136-138`, `TryResolveTenant`): a named tenant is the caller's responsibility, so the HTTP layer must never let a client set it (Design Choice 6).
+- The manager gate on tenancy accepts any `DeadLetterFilter.TenantId` the caller names without comparing it with the ambient tenant (`DeadLetterManager.cs:133-151`, `TryResolveTenant`; the named tenant is accepted at `:135-138`): a named tenant is the caller's responsibility, so the HTTP layer must never let a client set it (Design Choice 6).
 - Result shapes: `ReplayAsync` returns `Left(dlq.already_replayed)` for a row already replayed (`DeadLetterManager.cs:251-253`), `Right(ReplayResult.Failed(id, ReplayInProgress))` when another replay holds the claim (`:236-239`) and `Right(Failed(AlreadyReplayed))` after a lost race (`:305-306`); `CleanupExpiredAsync` delegates to the orchestrator with no tenant check (`:630-633`).
 - `Encina.AspNetCore` already references `Encina.Messaging`. It owns no `Meter` or `ActivitySource` today and uses EventIds 200-207 of `AspNetCore = (200, 249)`.
 - Replay and delete are not audited today; #2013 adds the audit port that the manager calls.
@@ -144,7 +144,7 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `DeadLetterFilterRequest` has no tenant field; the tenant is always the ambient one, and the cross-tenant mode of Design Choice 2 is the flag `allTenants=true` after `allTenantsPolicy` succeeds** | A client can never name another tenant; one rule to test | A platform operator cannot target one other tenant, only all of them |
-| **B) A `tenantId` query field accepted only after `allTenantsPolicy` succeeds, mapped to `DeadLetterFilter.TenantId`** | A platform operator can target one tenant | The manager accepts any named tenant (`DeadLetterManager.cs:136-138`), so a missed authorization check is a cross-tenant read, replay or purge; one more branch to test |
+| **B) A `tenantId` query field accepted only after `allTenantsPolicy` succeeds, mapped to `DeadLetterFilter.TenantId`** | A platform operator can target one tenant | The manager accepts any named tenant (`DeadLetterManager.cs:133-151`), so a missed authorization check is a cross-tenant read, replay or purge; one more branch to test |
 
 ### Chosen Option: **A — No tenant field** (recommended, pending the maintainer)
 
@@ -269,7 +269,7 @@ KEY RULES:
 - Whole-queue purge (empty filter) is never executed without the confirmation of Design Choice 4.
 
 REFERENCE FILES:
-- src/Encina.Messaging/DeadLetter/DeadLetterStoreLimits.cs, DeadLetterManager.cs (tenant handling at :100-132)
+- src/Encina.Messaging/DeadLetter/DeadLetterStoreLimits.cs, DeadLetterManager.cs (tenant handling: `AmbientTenantId` at :100, `TryResolveTenant` at :133-151)
 ```
 
 </details>
@@ -330,7 +330,7 @@ Per-file targets, entered in `.github/coverage-manifest/Encina.AspNetCore.json` 
 | `DeadLetterEndpointExtensions.cs` | A1, A2: unit 85, guard 40, contract 40, property 0 | 70 | Thin handlers over the manager, exercised end to end by `TestServer`; the property tests target the validator, not the routes |
 | `DeadLetter/DeadLetterRequestValidator.cs` | A2: unit 95, guard 80, contract 0, property 90 | 40 | Pure rules with every branch unit tested and the paging bounds under FsCheck; no public type contract to pin |
 | `DeadLetter/DeadLetterMessageResponse.cs`, `DeadLetterFilterRequest.cs`, `DeadLetterPageResponse.cs`, `PurgeResponse.cs` | A1: unit 90, guard 0, contract 50, property 0 | 60 | Records with no logic, covered by mapping and shape tests; guard has no parameters to check |
-| DTO mapper | A1: unit 95, guard 80, contract 0, property 70 | 60 | One mapping per field, every field asserted, the filter round trip under FsCheck |
+| DTO mapper | A1: unit 95, guard 80, contract 0; A2: property 70 (entered with the property tests of A2) | 60 | One mapping per field, every field asserted, the filter round trip under FsCheck once A2 adds it |
 | `Diagnostics/DeadLetterApiMetrics.cs` | A3: unit 90, guard 80, contract 0, property 0 | 0 | Counters asserted with an in-memory listener; not an integration concern |
 | `Diagnostics/DeadLetterApiLog.cs` | A3: unit 80, guard 0, contract 0, property 0 | 0 | Source-generated; asserted through the allocation test and a logger test, no parameters to guard |
 | `DPIAEndpointExtensions.cs` (shared helper) | A1: unit 85 (was 80), guard 20 (was 4), contract 0, property 0 | 0 | The extracted helper gains its own tests, so the targets rise and never go down |
