@@ -216,9 +216,10 @@ By category: production 55, tests and test support 61, PublicAPI 16, manifests 1
 
 ### Rationale
 
-- No observable default for a caller that does not use recurring options; the defaults can change before 1.0. The failure rule is the background-infrastructure rule.
+- The two thresholds only matter when a run is late, and the defaults can change before 1.0 (pre-1.0, AGENTS.md section 1); R11 includes a test that pins them. The failure rule (a `Left` is never reported as success, the failing run follows the normal retry path) is the background-infrastructure rule of AGENTS.md section 3. No wrong answer exists for 5 minutes versus another value, which is why this is Trivial and not a Dilemma.
 
 **Class:** Trivial
+**Settled by:** AGENTS.md section 3 (errors are never swallowed in background infrastructure) for the failure rule; the two numeric values are unobserved tunable defaults
 
 </details>
 
@@ -243,23 +244,22 @@ By category: production 55, tests and test support 61, PublicAPI 16, manifests 1
 </details>
 
 <details>
-<summary><strong>10. Names of the new properties</strong></summary>
+<summary><strong>10. Names of the new public properties (Dilemma)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `OccurrenceCount`, `RecurrenceEndsAtUtc` and the other names of choice 3** | Follow the naming rules (`AtUtc` suffix, `...Count`) | Differ from the issue text (`CurrentOccurrence`, `EndsAtUtc`) |
-| **B) The issue's names** | Match the sketch | Break the rules |
+| **A) `OccurrenceCount` and `RecurrenceEndsAtUtc` on the message (`MaxOccurrences`, `PausedAtUtc`, `RecurrenceEndMode`, `MissedOccurrenceHandling` as in choice 3), and `EndsAtUtc` on `RecurringOptions`** | `OccurrenceCount` follows the `...Count` style of `RetryCount`; `RecurrenceEndsAtUtc` is unambiguous next to `ScheduledAtUtc` on a wide row | Differs from the issue text for the message properties (`CurrentOccurrence`, `EndsAtUtc`) |
+| **B) The issue's names (`CurrentOccurrence`, `EndsAtUtc`) on the message** | Match the sketch; `EndsAtUtc` already carries the `AtUtc` suffix of AGENTS.md section 4 | `CurrentOccurrence` is not a count-style name; `EndsAtUtc` alone is vague on a row that also has `ScheduledAtUtc` and `PausedAtUtc` |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- UTC timestamps carry the `AtUtc` suffix and counters end in `Count`; option B violates the cited rule.
+- AGENTS.md section 4 (UTC timestamps with the `AtUtc` suffix, `RetryCount`-style counters) does not exclude the issue's names, so both options comply and the public names are the maintainer's choice. Option A wins for consistency with the neighbouring properties; option B for matching the issue text.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 4 (UTC timestamps with the `AtUtc` suffix, `RetryCount` style counters)
+**Class:** Dilemma
 
 </details>
 
@@ -575,6 +575,12 @@ REFERENCE FILES:
 | `Diagnostics/SchedulingRecurrenceLog.cs` | R11 | unit 0 | `[LoggerMessage]` declarations; the generated bodies are not in the file. |
 | `Scheduling/RecurringScheduleRegistrar.cs` | R13 | unit 85, guard 60 | The scan, the idempotent upsert and every startup failure are unit-tested with a fake orchestrator; guard covers the constructor arguments. |
 | `Scheduling/RecurringScheduleAttribute.cs` | R13 | unit 80 | The scanning tests read real attributes; the rest are property getters. |
+| `Models/FakeScheduledMessage.cs` (Fakes) | R9 | unit: current target | The six new properties are plain assignments exercised by every fake-store test; no new branches. |
+| `ScheduledMessageFaker.cs` (Bogus), nested `FakeScheduledMessage` | R9 | unit: current target, guard 40 | The faker sets the properties in its generation rules, covered by the existing faker tests; guard covers the nullable arguments of any new `With...` method (valid-result test for null). |
+| `ArbitraryMessages.cs` (FsCheck) | R9 | unit: current target | The arbitrary generates the new properties, driven by the existing property tests. |
+| `tests/Encina.TestInfrastructure/Builders/ScheduledMessageBuilder.cs` | R9 | not measured (test support, outside `src/`) | The builder lives under `tests/`; it has no coverage target and is exercised by the pull request's own tests. |
+| `MessagingStores/InstrumentedScheduledMessageStore.cs` | R10 | unit: current target, guard: current target | The two wrapped members follow the existing decorator pattern, covered by `InstrumentedScheduledMessageStoreTests` and the two guard classes of the same pull request. |
+| `Stores/FakeScheduledMessageStore.cs` (R10 members) | R10 | covered by the row above for this file | Same file, same targets. |
 
 Guard tests for the new public API (#3798): the builder methods, `PauseRecurringAsync` and `ResumeRecurringAsync` (orchestrator and each store), `AddEncinaRecurringSchedules` (null assemblies) get guard tests in the pull request that adds them. Test flags: unit and guard in every pull request that changes `src/`; contract on the fake (R9, R10); property in R11; integration on the 10 providers in R0 to R8 and R12; load and benchmark by `.md` (R14) only.
 
@@ -699,6 +705,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Review this plan; the Dilemmas (choices 1 to 7, 9, 11 and 12) are answered by the maintainer when work starts and recorded in `## Maintainer Decisions`.
+1. Review this plan; the Dilemmas (choices 1 to 7, 9 to 12) are answered by the maintainer when work starts and recorded in `## Maintainer Decisions`.
 2. Open the bug issue for the six-store due predicate and ship R0a and R0b first; decompose R1 to R14 after #1222 and #146 merge.
 3. Link the plan from #133.
