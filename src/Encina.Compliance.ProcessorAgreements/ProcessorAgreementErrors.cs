@@ -64,6 +64,12 @@ public static class ProcessorAgreementErrors
     /// <summary>Error code for general validation failures.</summary>
     public const string ValidationFailedCode = "processor.validation_failed";
 
+    /// <summary>
+    /// Error code when an operation is refused because tenant isolation is required and the ambient
+    /// request context carries no tenant, or contradicts the tenant the caller requested.
+    /// </summary>
+    public const string TenantRequiredCode = "processor.tenant_required";
+
     // --- Processor lifecycle errors ---
 
     /// <summary>
@@ -337,6 +343,30 @@ public static class ProcessorAgreementErrors
             code: StoreErrorCode,
             message: $"Processor agreement store operation '{operation}' failed: {message}",
             exception: exception,
+            details: new Dictionary<string, object?>
+            {
+                ["operation"] = operation,
+                [MetadataKeyStage] = MetadataKeyStage
+            });
+
+    // --- Tenant isolation errors ---
+
+    /// <summary>
+    /// Creates an error when an operation is refused because tenant isolation is required and the
+    /// ambient request context carries no tenant, or contradicts the tenant the caller requested.
+    /// </summary>
+    /// <param name="operation">The refused operation (e.g., "GetAllProcessors", "RegisterProcessor").</param>
+    /// <returns>An <see cref="ErrorCategory.InvalidRequest"/> error carrying no tenant or record identifier.</returns>
+    /// <remarks>
+    /// Raised when <see cref="ProcessorAgreementOptions.RequireTenantContext"/> is in effect
+    /// (SPEC-002 DEC-006, fail closed). A missing tenant is an invalid request (ADR-062, rule R3).
+    /// </remarks>
+    public static EncinaError TenantRequired(string operation) =>
+        EncinaErrors.Create(
+            code: TenantRequiredCode,
+            category: ErrorCategory.InvalidRequest,
+            message: $"Processor agreement operation '{operation}' was refused: tenant isolation is required and the "
+                + "ambient request context carries no tenant or contradicts the requested tenant.",
             details: new Dictionary<string, object?>
             {
                 ["operation"] = operation,
