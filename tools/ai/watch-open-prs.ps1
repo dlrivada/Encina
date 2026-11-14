@@ -5,9 +5,9 @@ param(
 )
 
 # Polls every open PR of $Repo; emits one line per NEW event:
-#   PR #n CHECK-FAIL <name> <url>            (a check in the fail bucket; codecov/* excluded, check-links is
-#                                              NOT excluded: ignoring it hid a real failure from 2026-09-23 to
-#                                              2026-09-26. Emitted on the FIRST poll too -- a check already
+#   PR #n CHECK-FAIL <name> <url>            (a check in the fail bucket; no check is
+#                                              excluded: ignoring check-links hid a real failure from
+#                                              2026-09-23 to 2026-09-26. Emitted on the FIRST poll too -- a check already
 #                                              failing when the monitor starts is actionable immediately; only
 #                                              the review-thread baseline stays silent on the first poll.)
 #   PR #n NEW-THREAD <author> <path>          (a new unresolved review thread)
@@ -76,7 +76,7 @@ while ($true) {
                 try {
                     $buckets = @(Get-GhCheckBuckets -Repo $Repo -Sha $p.sha)
                     foreach ($c in $buckets) {
-                        if ($c.Bucket -eq 'fail' -and $c.Name -notmatch '^codecov/') {
+                        if ($c.Bucket -eq 'fail') {
                             if ($seen.Add("$n|fail|$($c.Name)|$($c.Url)")) { Write-Output "PR #$n CHECK-FAIL $($c.Name) $($c.Url)" }
                         }
                     }
