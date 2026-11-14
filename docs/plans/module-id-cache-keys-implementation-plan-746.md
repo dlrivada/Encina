@@ -3,7 +3,7 @@
 > **Issue**: [#746](https://github.com/dlrivada/Encina/issues/746)
 > **Type**: Feature
 > **Complexity**: Medium (7 phases, 6 packages touched, 3 pull requests plus a fourth that waits for the #277 contract suite)
-> **Estimated Scope**: ~250-350 lines of production code + ~900 lines of tests, split into pull requests of 9, 12, 14 and 1 files (see Estimated File Count)
+> **Estimated Scope**: ~250-350 lines of production code + ~900 lines of tests, split into pull requests of 9, 13, 15 and 1 files (see Estimated File Count)
 
 ---
 
@@ -458,12 +458,12 @@ Per-flag targets for the files the pull requests add or change, entered in the p
 
 | Pull request | File | unit | guard | contract | property | Justification |
 |:---:|------|:---:|:---:|:---:|:---:|---------------|
-| 1 | The four `ServiceCollectionExtensions.cs` registration files (ADO.SqlServer, Dapper.SqlServer, EF Core, MongoDB) | measured baseline or higher | unchanged | unchanged | unchanged | The new DI test runs the changed registration line in each package; the rest of each file keeps the target of its existing registration tests. |
+| 1 | The four `ServiceCollectionExtensions.cs` registration files (ADO.SqlServer, Dapper.SqlServer, EF Core, MongoDB) | existing target kept (origin/main: unit 55, 52, 64, 55 and guard 55, 5, 60, 2 respectively) or higher | kept | kept | kept | The new DI test runs the changed registration line in each package; the rest of each file keeps the target of its existing registration tests. |
 | 2 | `Encina.Caching/KeyGeneration/CacheKeyModule.cs` (new, internal) | 100 | 0 | 0 | 80 | A single small function with null, whitespace and value branches that unit tests reach fully and the key property test drives for generated modules; guard 0 because the type is internal and `Encina.Caching.csproj` grants `InternalsVisibleTo` to the unit, integration, contract and property projects but not to `Encina.GuardTests`; contract 0 because an internal helper has no contract. |
-| 2 | `Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs` | 95 (kept) | 11 (kept) | 0 | 60 | The new module branches in key, template and pattern generation are unit-tested with and without module, tenant and user; the guard flag reaches only the argument checks and the valid-null constructor case; the property tests drive key and pattern generation for generated inputs. |
+| 2 | `Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs` | 95 (kept) | 11 (kept) | 0 | 60 (new) | The new module branches in key, template and pattern generation are unit-tested with and without module, tenant and user; the guard flag reaches only the argument checks and the valid-null constructor case; the property tests drive key and pattern generation for generated inputs. |
 | 2 | `Encina.Caching/Attributes/CacheAttribute.cs` | 100 | 0 | 0 | 0 | One new `init` property read by the generator tests; no parameters or branches for guard, contract or property tests to reach. |
-| 2 | `Encina.Caching/Attributes/CacheableQueryAttribute.cs` | 90 | 25 | 0 | 0 | `ScopeParts` and `GenerateKey` gain the module branch covered by the `CacheConfigurationTests` cases; guard reaches the valid-null `module` case of the new parameter. |
-| 3 | `Encina.EntityFrameworkCore/Caching/DefaultQueryCacheKeyGenerator.cs` | 90 | 25 | 0 | 50 | Both `Generate` overloads gain the module and escaping branches reached by unit tests; guard covers the argument checks and the valid-null module context; the property test covers key stability and distinct modules. |
+| 2 | `Encina.Caching/Attributes/CacheableQueryAttribute.cs` | 100 (kept; origin/main has unit 100, guard 0) | 25 (raised from 0) | 0 | 0 | `ScopeParts` and `GenerateKey` gain the module branch covered by the `CacheConfigurationTests` cases, so the unit target stays at 100; guard reaches the valid-null `module` case of the new parameter. |
+| 3 | `Encina.EntityFrameworkCore/Caching/DefaultQueryCacheKeyGenerator.cs` (no target on origin/main today) | 90 (new) | 25 (new) | 0 | 50 (new) | Both `Generate` overloads gain the module and escaping branches reached by unit tests; guard covers the argument checks and the valid-null module context; the property test covers key stability and distinct modules. |
 
 Contract is 0 for every file: no public interface or abstract class is added, and AGENTS.md section 9 never accepts a `.md` justification for contract tests; the real contract proof is pull request 4 (D14).
 
@@ -473,7 +473,7 @@ Contract is 0 for every file: no public interface or abstract class is added, an
 4. **Property**: two distinct modules never produce the same key for equal requests; a generated pattern matches every module-scoped key the same request type can produce (D3); the key is stable for the same inputs (`CacheKeyGeneratorPropertyTests.cs`, `QueryCacheKeyPropertyTests.cs`).
 5. **Integration**: justification `.md` (keys are strings; the contract suite of pull request 4 covers providers; non-database feature).
 6. **Load**: justification `.md` (pure computation).
-7. **Benchmark**: justification `.md` (key generation is not a measured hot path today; one `--job dry` run in pull request 2 confirms no regression of `DefaultCacheKeyGenerator`). The three justification files (integration, load, benchmark) land in pull request 1.
+7. **Benchmark**: justification `.md` (key generation is not a measured hot path today; one `--job dry` run in pull request 2 confirms no regression of `DefaultCacheKeyGenerator`). The three justification files (integration, load, benchmark) land in pull request 3, the last pull request that changes code.
 
 </details>
 
@@ -552,9 +552,9 @@ REFERENCE FILES: src/Encina.Caching/README.md, changelog.d/README.md, .claude/sk
 
 | Pull request | Production | PublicAPI | Manifests | Tests | Justifications | Docs | Total |
 |--------------|-----------:|----------:|----------:|------:|---------------:|-----:|------:|
-| 1: lifetime of `IModuleExecutionContext` | 4 (the four `ServiceCollectionExtensions.cs`) | 0 | 4 (`Encina.ADO.SqlServer.json`, `Encina.Dapper.SqlServer.json`, `Encina.EntityFrameworkCore.json`, `Encina.MongoDB.json`) | 1 (DI test, four cases) | 3 (integration, load, benchmark) | 0 | **12** |
+| 1: lifetime of `IModuleExecutionContext` | 4 (the four `ServiceCollectionExtensions.cs`) | 0 | 4 (`Encina.ADO.SqlServer.json`, `Encina.Dapper.SqlServer.json`, `Encina.EntityFrameworkCore.json`, `Encina.MongoDB.json`) | 1 (DI test, four cases) | 0 | 0 | **9** |
 | 2: `Encina.Caching` key generation | 4 (`CacheKeyModule.cs` new, `DefaultCacheKeyGenerator.cs`, `CacheAttribute.cs`, `CacheableQueryAttribute.cs`) | 1 (`Encina.Caching`) | 1 (`Encina.Caching.json`) | 7 (unit x3 extended and 1 new, guard, property, pipeline-order and DI) | 0 | 0 | **13** |
-| 3: EF generator and docs | 2 (`DefaultQueryCacheKeyGenerator.cs`, `Encina.Caching.csproj` for D7 option A) | 1 (`Encina.EntityFrameworkCore`) | 1 (`Encina.EntityFrameworkCore.json`, touched again) | 5 (unit x2, redaction behavior, guard, property) | 0 | 3 (README, guide section, changelog fragment) | **12** |
+| 3: EF generator and docs | 2 (`DefaultQueryCacheKeyGenerator.cs`, `Encina.Caching.csproj` for D7 option A) | 1 (`Encina.EntityFrameworkCore`) | 1 (`Encina.EntityFrameworkCore.json`, touched again) | 5 (unit x2, redaction behavior, guard, property) | 3 (integration, load, benchmark) | 3 (README, guide section, changelog fragment) | **15** |
 | 4: contract cases (waits for the #277 suite) | 0 | 0 | 0 | 1 (cases added to `CacheProviderContractTests`) | 0 | 0 | **1** |
 | **Total** | 10 | 2 | 6 | 14 | 3 | 3 | **38 file touches, 37 distinct files** (`Encina.EntityFrameworkCore.json` is touched in pull requests 1 and 3) |
 
@@ -570,7 +570,7 @@ Every pull request is at most 15 files and about 1,500 lines or fewer (about 300
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library. Caching has eight providers (AGENTS.md §5) that treat keys as opaque strings; keys are produced by DefaultCacheKeyGenerator, CacheConfiguration<TRequest> and the EF DefaultQueryCacheKeyGenerator. No backward compatibility, zero warnings.
 
-IMPLEMENTATION OVERVIEW: Four pull requests. 1: singleton registration of IModuleExecutionContext in four packages with its DI test, manifests and the three justification files; 2: segment helper, optional IModuleExecutionContext injection, module segment and VaryByModule in Encina.Caching generators and patterns (D3, D5, D9), DI and pipeline-order tests; 3: EF generator, EscapeSegment access (D7), redaction-behavior test (D8), docs; 4: module-scoped contract cases in the #277 suite once it is on main (D14). Phase 5 tenant plus module combination tests, no observability. Dilemmas D1 (module source), D2 (no module), D3 (invalidation across modules), D5, D7, D8, D9, D11, D12 and D14 are implemented as the maintainer answered them, the recommended options until then.
+IMPLEMENTATION OVERVIEW: Four pull requests. 1: singleton registration of IModuleExecutionContext in four packages with its DI test and manifests; 2: segment helper, optional IModuleExecutionContext injection, module segment and VaryByModule in Encina.Caching generators and patterns (D3, D5, D9), DI and pipeline-order tests; 3: EF generator, EscapeSegment access (D7), redaction-behavior test (D8), docs; 4: module-scoped contract cases in the #277 suite once it is on main (D14). Phase 5 tenant plus module combination tests, no observability. Dilemmas D1 (module source), D2 (no module), D3 (invalidation across modules), D5, D7, D8, D9, D11, D12 and D14 are implemented as the maintainer answered them, the recommended options until then.
 
 KEY PATTERNS: m:{module} after t: and before u:, escaped with the shared rule; omitted when no module; patterns match every key a request can produce; ValidateOnBuild and ValidateScopes for the lifetime change; Shouldly; targets in the coverage manifests never go down; CRAP at or below 10 on changed methods.
 
@@ -615,7 +615,7 @@ REFERENCE FILES: src/Encina.Caching/KeyGeneration/DefaultCacheKeyGenerator.cs, s
 ## Next Steps
 
 1. Ask the maintainer D1, D2, D3, D5, D7, D8, D9, D11, D12 and D14 when work on #746 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1 (12 files): Phase 1, the lifetime change in the four packages with its DI test, manifests and the three justification files.
+2. Pull request 1 (9 files): Phase 1, the lifetime change in the four packages with its DI test and manifests.
 3. Pull request 2 (13 files): Phase 2 and the pipeline-order test of Phase 4 for `Encina.Caching`, with unit, guard and property tests, PublicAPI and the manifest.
-4. Pull request 3 (12 files): Phase 3 (EF generator and escape access), the README, guide section and changelog fragment of Phase 7.
+4. Pull request 3 (15 files, at the cap): Phase 3 (EF generator and escape access), the three justification files, the README, guide section and changelog fragment of Phase 7.
 5. Pull request 4 (1 file): the module-scoped cases in the #277 contract suite, opened only after that suite is on main.
