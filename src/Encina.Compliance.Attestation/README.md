@@ -9,7 +9,7 @@ Provider-agnostic tamper-evident audit attestation for Encina. Creates cryptogra
 
 - **`IAuditAttestationProvider`** -- Single interface for all attestation backends: `AttestAsync` and `VerifyAsync` returning `Either<EncinaError, T>`
 - **InMemory Provider** -- Thread-safe `ConcurrentDictionary`-based provider for testing and development, with idempotent attestation
-- **HashChain Provider** -- Self-hosted, zero-dependency append-only chain. Each entry's HMAC-SHA256 signature incorporates the previous entry's signature, detecting retroactive tampering. Ephemeral or persistent HMAC key supported
+- **HashChain Provider** -- Self-hosted, zero-dependency append-only chain. Each entry's HMAC-SHA256 signature incorporates the previous entry's signature, detecting retroactive tampering. Ephemeral or persistent HMAC key supported; the chain itself is kept in memory
 - **Http Provider** -- Delegates to external endpoints (Sigstore/Rekor, custom APIs) with configurable authentication and payload mapping
 - **`[AttestDecision]` Attribute** -- Declarative marker for commands requiring attestation of their outcome
 - **Immutable Domain Model** -- `AuditRecord`, `AttestationReceipt`, `AttestationVerification` as sealed records with `required` properties
@@ -42,7 +42,6 @@ services.AddEncinaAttestation(options =>
 {
     options.UseHashChain(hc =>
     {
-        hc.StoragePath = "/var/data/attestation-chain";
         hc.HashAlgorithm = HashAlgorithmName.SHA256;
     });
 });
@@ -149,7 +148,7 @@ On a negative verdict, a `failure_reason` of the wrong type is ignored and the d
 | Class | Property | Type | Description |
 |-------|----------|------|-------------|
 | `AttestationOptions` | `AddHealthCheck` | `bool` | Register health check (default: `false`) |
-| `HashChainOptions` | `StoragePath` | `string?` | Persistence path (null = in-memory only) |
+| `HashChainOptions` | `StoragePath` | `string?` | Reserved, not implemented: the chain is in memory and this value is ignored |
 | `HashChainOptions` | `HashAlgorithm` | `HashAlgorithmName` | Hash algorithm (default: SHA-256). Only SHA-256, SHA-384 and SHA-512 are supported; any other value is rejected. With `AddEncinaAttestation`, `OptionsValidationException` is thrown at host start (`ValidateOnStart`) or on the first resolution of `IOptions<HashChainOptions>.Value`. A provider built by hand (`new HashChainAttestationProvider(...)`) throws `ArgumentException` at construction, also when `HmacKey` is supplied |
 | `HashChainOptions` | `HmacKey` | `byte[]?` | HMAC signing key (null = ephemeral, warning logged). Excluded from JSON serialization; `ToString()` prints `HmacKey = [REDACTED]`, never its content or length |
 | `HttpAttestationOptions` | `AttestEndpointUrl` | `Uri` | POST endpoint for attestation (required) |

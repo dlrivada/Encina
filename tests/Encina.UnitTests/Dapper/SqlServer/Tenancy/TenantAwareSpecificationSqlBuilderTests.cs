@@ -3,6 +3,7 @@ using Encina.Dapper.SqlServer.Tenancy;
 using Encina.DomainModeling;
 using Encina.Tenancy;
 using Encina.Testing.Shouldly;
+using LanguageExt;
 using NSubstitute;
 using Shouldly;
 using Xunit;
@@ -87,7 +88,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var spec = new TenantActiveOrdersSpec();
 
         // Act
-        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+        var (whereClause, parameters) = builder.BuildWhereClause(spec, "List").ShouldBeSuccess();
 
         // Assert
         whereClause.ShouldContain("[TenantId] = @tenantId");
@@ -96,18 +97,51 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         parameters["tenantId"].ShouldBe("tenant-123");
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void BuildWhereClause_WithoutTenantContext_ReturnsTenantRequiredLeft_WhenConfigured(string? tenantId)
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns(tenantId);
+        var options = new DapperTenancyOptions { ThrowOnMissingTenantContext = true };
+        var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, options);
+
+        // Act
+        var specResult = builder.BuildWhereClause(new TenantActiveOrdersSpec(), "FirstOrDefault");
+        var querySpecResult = builder.BuildWhereClause(new TenantOrderedSpec(), "Count");
+
+        // Assert
+        var specError = specResult.ShouldBeError();
+        specError.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+        specError.GetDetails()["Operation"].ShouldBe("FirstOrDefault");
+        var querySpecError = querySpecResult.ShouldBeError();
+        querySpecError.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+        querySpecError.GetDetails()["Operation"].ShouldBe("Count");
+    }
+
     [Fact]
-    public void BuildWhereClause_WithoutTenantContext_ThrowsException_WhenConfigured()
+    public void BuildWhereClause_WithoutTenantContext_ReturnsLeft_WithoutThrowing()
     {
         // Arrange
         _tenantProvider.GetCurrentTenantId().Returns((string?)null);
         var options = new DapperTenancyOptions { ThrowOnMissingTenantContext = true };
         var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, options);
-        var spec = new TenantActiveOrdersSpec();
 
         // Act & Assert
-        Should.Throw<InvalidOperationException>(() => builder.BuildWhereClause(spec))
-            .Message.ShouldContain("without tenant context");
+        Should.NotThrow(() => builder.BuildWhereClause(new TenantActiveOrdersSpec(), "List"))
+            .IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void BuildWhereClause_NullOperation_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => builder.BuildWhereClause(new TenantActiveOrdersSpec(), null!));
+        Should.Throw<ArgumentNullException>(() => builder.BuildWhereClause(new TenantOrderedSpec(), null!));
     }
 
     [Fact]
@@ -120,7 +154,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var spec = new TenantActiveOrdersSpec();
 
         // Act
-        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+        var (whereClause, parameters) = builder.BuildWhereClause(spec, "List").ShouldBeSuccess();
 
         // Assert
         whereClause.ShouldNotContain("TenantId");
@@ -136,7 +170,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var spec = new TenantActiveOrdersSpec();
 
         // Act
-        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+        var (whereClause, parameters) = builder.BuildWhereClause(spec, "List").ShouldBeSuccess();
 
         // Assert
         whereClause.ShouldNotContain("TenantId");
@@ -153,7 +187,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var spec = new TenantActiveOrdersSpec();
 
         // Act
-        var (whereClause, parameters) = builder.BuildWhereClause(spec);
+        var (whereClause, parameters) = builder.BuildWhereClause(spec, "List").ShouldBeSuccess();
 
         // Assert
         whereClause.ShouldNotContain("TenantId");
@@ -172,13 +206,65 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, _options);
 
         // Act
-        var (sql, parameters) = builder.BuildSelectStatement("Orders");
+        var (sql, parameters) = builder.BuildSelectStatement("Orders", "List").ShouldBeSuccess();
 
         // Assert
         sql.ShouldContain("SELECT");
         sql.ShouldContain("FROM Orders");
         sql.ShouldContain("[TenantId] = @tenantId");
         parameters["tenantId"].ShouldBe("tenant-abc");
+    }
+
+    [Fact]
+    public void BuildSelectStatement_WithoutTenantContext_AndOptOut_HasNoTenantFilter()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var options = new DapperTenancyOptions { ThrowOnMissingTenantContext = false };
+        var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, options);
+
+        // Act
+        var (sql, parameters) = builder.BuildSelectStatement("Orders", "List").ShouldBeSuccess();
+
+        // Assert
+        sql.ShouldNotContain("WHERE");
+        parameters.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void BuildSelectStatement_WithoutTenantContext_ReturnsTenantRequiredLeftForEveryOverload()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns((string?)null);
+        var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act
+        var all = builder.BuildSelectStatement("Orders", "List");
+        var bySpec = builder.BuildSelectStatement("Orders", new TenantActiveOrdersSpec(), "List");
+        var byQuerySpec = builder.BuildSelectStatement("Orders", new TenantOrderedSpec(), "List");
+
+        // Assert
+        foreach (var error in new[] { all.ShouldBeError(), bySpec.ShouldBeError(), byQuerySpec.ShouldBeError() })
+        {
+            error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+            error.GetDetails()["Operation"].ShouldBe("List");
+        }
+    }
+
+    [Fact]
+    public void BuildSelectStatement_WithQuerySpecification_AppliesTenantFilterAndOrdering()
+    {
+        // Arrange
+        _tenantProvider.GetCurrentTenantId().Returns("tenant-q");
+        var builder = new TenantAwareSpecificationSqlBuilder<TenantTestOrder>(_tenantMapping, _tenantProvider, _options);
+
+        // Act
+        var (sql, parameters) = builder.BuildSelectStatement("Orders", new TenantOrderedSpec(), "List").ShouldBeSuccess();
+
+        // Assert
+        sql.ShouldContain("[TenantId] = @tenantId");
+        sql.ShouldContain("ORDER BY");
+        parameters["tenantId"].ShouldBe("tenant-q");
     }
 
     [Fact]
@@ -190,7 +276,7 @@ public sealed class TenantAwareSpecificationSqlBuilderTests
         var spec = new TenantMinTotalSpec(100m);
 
         // Act
-        var (sql, parameters) = builder.BuildSelectStatement("Orders", spec);
+        var (sql, parameters) = builder.BuildSelectStatement("Orders", spec, "List").ShouldBeSuccess();
 
         // Assert
         sql.ShouldContain("[TenantId] = @tenantId");
@@ -238,6 +324,18 @@ internal sealed class TenantActiveOrdersSpec : Specification<TenantTestOrder>
 {
     public override Expression<Func<TenantTestOrder, bool>> ToExpression()
         => o => o.IsActive;
+}
+
+/// <summary>
+/// Query specification that filters for active tenant orders sorted by total.
+/// </summary>
+internal sealed class TenantOrderedSpec : QuerySpecification<TenantTestOrder>
+{
+    public TenantOrderedSpec()
+    {
+        AddCriteria(o => o.IsActive);
+        ApplyOrderBy(o => o.Total);
+    }
 }
 
 /// <summary>
