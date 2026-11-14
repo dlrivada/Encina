@@ -112,7 +112,7 @@ public static class ErrorCategoryHttp
     /// <c>Retry-After</c> (delta-seconds, rounded up) for 429 and 503 when the details hold a non-negative
     /// <see cref="TimeSpan"/> under <see cref="EncinaErrorMetadataKeys.RetryAfter"/>; <c>WWW-Authenticate</c> for 401
     /// (the details value of <see cref="EncinaErrorMetadataKeys.AuthenticateChallenge"/> when it is a non-blank
-    /// string without control characters, otherwise <c>Bearer</c>); an empty list otherwise.
+    /// string of printable ASCII (0x20-0x7E), otherwise <c>Bearer</c>); an empty list otherwise.
     /// </returns>
     public static IReadOnlyList<KeyValuePair<string, string>> GetResponseHeaders(EncinaError error, int effectiveStatusCode)
     {
@@ -164,7 +164,7 @@ public static class ErrorCategoryHttp
 
         foreach (var character in value)
         {
-            if (char.IsControl(character))
+            if (character is < ' ' or > '~')
             {
                 return false;
             }

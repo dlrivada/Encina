@@ -189,6 +189,9 @@ public sealed class ErrorCategoryHttpTests
     [InlineData("Bearer\r\nX-Injected: 1")]
     [InlineData("Bea\trer")]
     [InlineData("Bearer\0")]
+    [InlineData("Bearer realm=\"中\"")]
+    [InlineData("Beareré")]
+    [InlineData("Bearer\u007f")]
     public void GetResponseHeaders_401WithUnusableChallenge_FallsBackToBearer(string challenge)
     {
         var error = WithDetails(ErrorCategory.Unauthenticated, EncinaErrorMetadataKeys.AuthenticateChallenge, challenge);
