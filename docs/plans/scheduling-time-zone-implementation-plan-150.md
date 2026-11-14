@@ -3,7 +3,7 @@
 > **Issue**: [#150](https://github.com/dlrivada/Encina/issues/150)
 > **Type**: Feature (the part of the issue after the 1.0 slice taken by #1222)
 > **Complexity**: Medium (5 phases, no schema change, provider-independent logic)
-> **Estimated Scope**: ~250 lines of production code + ~700 lines of tests, ~14 files in 1 pull request
+> **Estimated Scope**: ~250 lines of production code + ~700 lines of tests, documentation and manifests; 21 file edits in 2 pull requests
 > **Family**: scheduling-1 (builds on #1222; shares the recurring path with #133)
 
 ---
@@ -24,6 +24,18 @@ What this plan delivers is the rest of the issue, checked against today's code (
 
 **Affected packages**: `Encina.Messaging` only (plus tests and docs).
 
+**Split**: the honest count is 21 file edits (production 6, tests 8, manifests 2, justification files 2, documentation 3), over the 15-file limit of AGENTS.md section 11, so the plan is two pull requests. Public API is unchanged: `SchedulingTimeZones`, the log class and the metrics class are internal, so no `PublicAPI.Unshipped.txt` edit is needed.
+
+| PR | Content | Files | Lines (est.) |
+| --- | --- | ---: | ---: |
+| Z1 | Normalization in `SchedulingTimeZones`, orchestrator use, DST conformance, property, contract and guard tests | 9 | 400 |
+| Z2 | Counter, log events, span attribute, scenario, documentation, justifications | 12 | 350 |
+| **Total** | | **21** | **about 750** |
+
+Z1: 2 src (`SchedulingTimeZones.cs`, `SchedulerOrchestrator.cs`) + 6 tests + 1 manifest = 9. Z2: 4 src (`SchedulingScheduleMetrics.cs`, `SchedulingScheduleLog.cs`, `SchedulingActivitySource.cs`, `SchedulerOrchestrator.cs`) + 2 tests + 1 manifest + 2 justification files + 3 documentation files = 12. The header, this table and the Estimated File Count table all state 21. Z1 merges after #1222 P12; Z2 after Z1.
+
+**Story shared with the sibling plans**: #1222 creates `SchedulingErrorCodes.InvalidTimeZone`, `SchedulingTimeZones`, `CronosCronParser`, `SchedulingScheduleLog` (ids 2326-2331) and `SchedulingScheduleMetrics`. This plan adds members to them and takes ids 2350-2351 for the two events in the same class `SchedulingScheduleLog`; the batch registry holds 2326-2389 for #1222, #146, #150, #133 and #147, so each plan's sub-range is its own to state. ADR 062 is merged (PR #3599); this plan adds no error code.
+
 ---
 
 ## Design Choices
@@ -35,16 +47,17 @@ What this plan delivers is the rest of the issue, checked against today's code (
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A nonexistent local time runs at the next valid instant; an ambiguous one runs once, at the first occurrence** | Never skipped, never doubled; matches the documented behavior of Cronos, the default parser of #1222, so no own logic | A run in the gap is shifted (02:30 on the spring-forward day runs at 03:00) |
+| **A) A nonexistent local time runs at the next valid instant; an ambiguous one runs once, at the first occurrence** | Never skipped, never doubled; intended to match the documented behavior of Cronos, the default parser of #1222, so no own logic | A run in the gap is shifted (02:30 on the spring-forward day runs at 03:00) |
 | **B) A nonexistent time is skipped; an ambiguous one runs at both occurrences** | Literal cron semantics | Missed runs and duplicate runs; needs a wrapper around the parser |
-| **C) Whatever the cron library does, undocumented** | No own logic | The behavior silently depends on the library chosen in #1222 (Dilemma 2) and is hard to document or test |
+| **C) Whatever the cron library does, undocumented** | No own logic | The behavior silently depends on the library chosen in #1222 (its choice 2) and is hard to document or test |
 
 ### Chosen Option: **A — next valid instant, first occurrence** (recommended, pending the maintainer)
 
 ### Rationale
 
 - Option A wins for reminders and reports, where a missing or duplicated run is worse than a run an hour late. Option B wins for strictly literal schedules; option C only if the library is trusted completely.
-- Under A this plan adds tests, not logic: the conformance tests (gap day, overlap day, a southern-hemisphere zone, a half-hour zone, a zone without DST) assert the policy against the shipped parser, so they fail if a library upgrade changes it. If the maintainer picks B, a wrapper `ICronParser` decorator is added and this plan grows by about 3 files.
+- Under A this plan adds tests, not logic: the conformance tests (gap day, overlap day, a southern-hemisphere zone, a half-hour zone, a zone without DST) assert the policy against the shipped parser, so they fail if a library upgrade changes it. The tests are also the verification of the Cronos behavior: this plan states the policy it wants and the tests prove whether Cronos delivers it; if Cronos differs, the maintainer decides between B (a wrapper `ICronParser` decorator, about 3 more files) and changing the policy.
+- The retention-floor plan (#1187) resolves ambiguous local times to the later occurrence (and invalid ones to the later valid instant) because a retention floor must not expire early. The scheduling policy differs on purpose for the ambiguous case (first occurrence: a run is not postponed by an hour) and agrees on the gap. The two plans are recorded here as different by design; the maintainer confirms it with this choice.
 - The semantics are documented in the ADR of #1222 (ADR number assigned when the ADR pull request opens).
 
 **Class:** Dilemma
@@ -73,14 +86,14 @@ What this plan delivers is the rest of the issue, checked against today's code (
 </details>
 
 <details>
-<summary><strong>3. Which form of the zone id is persisted</strong></summary>
+<summary><strong>3. Which form of the zone id is persisted (Dilemma)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Store the id as given, once `TimeZoneInfo.FindSystemTimeZoneById` accepts it** | No conversion code | A Windows id ("W. Europe Standard Time") stored on one host may not resolve on another; two ids for one zone |
-| **B) Normalize to the IANA id (`TimeZoneInfo.TryConvertWindowsIdToIanaId`) before validating and storing** | One portable form in the column; AC-033 uses the IANA id | A small conversion step; an unmappable id returns `scheduling.invalid_time_zone` |
+| **B) Normalize to the IANA id (`TimeZoneInfo.TryConvertWindowsIdToIanaId`) before validating and storing; when the conversion is not available on the host (no ICU data) a Windows id is rejected with `scheduling.invalid_time_zone` instead of being stored non-portably** | One portable form in the column; AC-033 uses the IANA id; fails closed | A small conversion step; a Windows host without ICU cannot schedule with a Windows id |
 
 ### Chosen Option: **B — normalize to IANA** (recommended, pending the maintainer)
 
@@ -107,7 +120,7 @@ What this plan delivers is the rest of the issue, checked against today's code (
 
 ### Rationale
 
-- This is Dilemma 3 of #1222 and one answer covers both plans; this plan assumes A because the DST conformance tests of choice 1 run against the parser.
+- This is choice 3 of #1222 and one answer covers both plans; this plan assumes A because the DST conformance tests of choice 1 run against the parser.
 
 **Class:** Dilemma
 
@@ -120,38 +133,78 @@ What this plan delivers is the rest of the issue, checked against today's code (
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Null means UTC** | Today's behavior (cron evaluated in UTC); no migration of existing rows | A caller must pass a zone to get local time |
-| **B) Null is rejected for recurring schedules** | Forces an explicit zone | Breaks every existing recurring caller for no gain |
+| **A) Null means UTC** | Today's behavior (cron evaluated in UTC); the issue's own contract | A caller must pass a zone to get local time |
+| **B) Null is rejected for recurring schedules** | Forces an explicit zone | Contradicts the issue text and the `timeZoneId` contract of #1222 |
 
 ### Chosen Option: **A — null means UTC**
 
 ### Rationale
 
-- Existing rows have no zone and keep their meaning; the original issue states the same contract ("If null, UTC is used").
+- The issue states the contract ("If null, UTC is used") and #1222 implements it (its choice 3: null `timeZoneId` means UTC). Option B contradicts the cited text, so it does not satisfy it.
 
-**Class:** Trivial
-**Settled by:** AGENTS.md section 1 (there are no existing users to protect, so the choice follows the simplest contract of the issue), #150 issue text
+**Class:** Settled
+**Settled by:** issue #150 text ("If null, UTC is used"), the `timeZoneId` contract of #1222 (its choice 3)
 
 </details>
 
 <details>
-<summary><strong>6. Time zone data comes from the runtime</strong></summary>
+<summary><strong>6. Time zone data comes from the runtime (Dilemma)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `TimeZoneInfo` of .NET 10** | No extra package; pay-for-what-you-use | Minimal container images may lack tz data |
-| **B) Add TimeZoneConverter or NodaTime** | Independent of host data | A new dependency for a conversion .NET 10 already offers |
+| **A) `TimeZoneInfo` of .NET 10** | No extra package; pay-for-what-you-use | Minimal container images may lack tz data; behavior depends on the host's data |
+| **B) Add TimeZoneConverter or NodaTime** | Independent of host data (answers the minimal-image risk the plan itself flags) | A new dependency for a conversion .NET 10 already offers |
 
-### Chosen Option: **A — `TimeZoneInfo`**
+### Chosen Option: **A — `TimeZoneInfo`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- `TimeZoneInfo.FindSystemTimeZoneById` resolves IANA ids and `TryConvertWindowsIdToIanaId` converts Windows ids; the retention-floor plan (#1187) relies on the same behavior. The documentation states the tz-data requirement for minimal images.
+- Option A wins for the smallest footprint; option B wins when hosts cannot be trusted to carry tz data. Pay-for-what-you-use does not forbid a dependency, so both options comply.
+- `TimeZoneInfo.FindSystemTimeZoneById` resolves IANA ids and `TimeZoneInfo.TryConvertWindowsIdToIanaId` converts Windows ids. The documentation states the tz-data requirement for minimal images. (The retention-floor plan #1187 uses `TimeZoneInfo` as well, but only `FindSystemTimeZoneById`, so it is not a precedent for the conversion.)
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 1 (pay-for-what-you-use), #1187 (precedent in the retention-floor plan)
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Canonical spelling of an IANA id (Dilemma)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Store the id as supplied once it resolves ("Asia/Calcutta" and "Asia/Kolkata" stay different strings)** | No rewriting; what the caller sent is what is read back | Two spellings of one zone; nothing compares them (the unique index is on the schedule key, not the zone) |
+| **B) Store `TimeZoneInfo.Id` of the resolved zone** | One spelling per host | The spelling depends on the host's data and can differ between hosts, which defeats portability |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins for predictability; option B would reintroduce host dependence in the column.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Observability details</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The counter `encina.scheduling.invalid_time_zone` has no tags (the rejected id is user input: unbounded cardinality); the zone is a span attribute, not a metric tag; event 2350 `TimeZoneNormalized` at Debug (message id only), event 2351 `TimeZoneRejected` at Warning (error code only)** | Bounded metric cardinality; no user input in logs | The rejected id is not visible in telemetry |
+| **B) Tag the counter with the id** | Shows which ids fail | Unbounded cardinality and user input in telemetry |
+
+### Chosen Option: **A**
+
+### Rationale
+
+- A rejected id can be anything a caller typed; keeping it out of tags and logs follows the logging rule that user-controlled values do not reach telemetry (AGENTS.md section 3, error messages never reach logs).
+
+**Class:** Trivial
 
 </details>
 
@@ -159,16 +212,18 @@ What this plan delivers is the rest of the issue, checked against today's code (
 
 ## Implementation Phases
 
-### Phase 1: Zone resolution and normalization
+### Phase 1: Zone resolution and normalization (Z1)
 
 > **Goal**: One internal place that turns a user-supplied id into a validated, portable IANA id.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Messaging/Scheduling/SchedulingTimeZones.cs` (created by #1222): add `TryNormalize(string? id, out string ianaId, out TimeZoneInfo zone)`: null or empty returns UTC semantics; an id that resolves and is IANA-shaped is kept; a Windows id that `TimeZoneInfo.TryConvertWindowsIdToIanaId` maps is replaced by the IANA id; anything else fails.
-2. The orchestrator (changed by #1222) stores the normalized id in the draft's `TimeZoneId` and returns `Left(scheduling.invalid_time_zone)` on failure.
-3. `SchedulingErrorCodes`: no new code (`InvalidTimeZone` is created by #1222).
+1. `src/Encina.Messaging/Scheduling/SchedulingTimeZones.cs` (created by #1222): add `TryNormalize(string? id, out string ianaId, out TimeZoneInfo zone)`: null or empty returns UTC semantics; an id that resolves and is IANA-shaped is kept; a Windows id that `TimeZoneInfo.TryConvertWindowsIdToIanaId` maps is replaced by the IANA id; anything else, including a Windows id on a host where the conversion is unavailable, fails (choices 3 and 7).
+2. `SchedulerOrchestrator.cs` (changed by #1222) stores the normalized id in the message's `TimeZoneId` and returns `Left(scheduling.invalid_time_zone)` on failure (the code exists from #1222).
+3. Tests in the same PR: `SchedulingTimeZonesTests` (IANA kept, Windows id converted, unknown id rejected, null is UTC, conversion unavailable is rejected), the orchestrator rejection path in `SchedulerOrchestratorScheduleRecurringTests`, `CronosCronParserDstTests` (Phase 2), the property test (Phase 2), the DST cases added to the `ICronParser` contract test of #1222 (any implementation), and the guard test below.
+4. Guard test: `ScheduleRecurringAsync` with a null `timeZoneId` is valid and returns the UTC result (a nullable parameter that accepts null gets a valid-result test, not an exception test); the null cron expression guard belongs to `CronosCronParser` and is #1222's.
+5. Manifest entries of `Encina.Messaging` through `mechanical-fixer`.
 
 </details>
 
@@ -183,23 +238,23 @@ TASK:
 Add normalization to SchedulingTimeZones and use it where the orchestrator validates a zone.
 
 KEY RULES:
-- Business input errors are Left values (scheduling.invalid_time_zone), never exceptions.
+- Business input errors are Left values (scheduling.invalid_time_zone), never exceptions; an unavailable conversion is a Left, never a non-portable stored id.
 - A null zone stays UTC.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Scheduling/SchedulingTimeZones.cs
 - src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs
-- docs/plans/retention-floor-implementation-plan-1187.md
+- tests/Encina.UnitTests/Messaging/Scheduling/SchedulerOrchestratorScheduleRecurringTests.cs
 ```
 
 </details>
 
-### Phase 2: DST conformance of the shipped parser
+### Phase 2: DST conformance of the shipped parser (Z1)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `tests/Encina.UnitTests/Messaging/Scheduling/CronosCronParserDstTests.cs`: Europe/Madrid 09:00 daily on both sides of the October and March changes (AC-033); America/New_York 09:00 across 2024-03-10/11 (the example of the issue); a 02:30 job on the spring-forward day (runs at the next valid instant) and on the fall-back day (runs once); Australia/Sydney (southern hemisphere); Asia/Kolkata (half-hour offset, no DST); UTC and a null zone.
+1. `tests/Encina.UnitTests/Messaging/Scheduling/CronosCronParserDstTests.cs`: Europe/Madrid 09:00 daily on both sides of the October and March changes (AC-033); America/New_York 09:00 across 2024-03-10/11 (the example of the issue); a 02:30 job on the spring-forward day (runs at the next valid instant) and on the fall-back day (runs once); Australia/Sydney (southern hemisphere); Asia/Kolkata (half-hour offset, no DST); UTC and a null zone. These tests are the verification of the Cronos gap and overlap behavior stated in choice 1.
 2. If the maintainer answers choice 1 with B or C, replace the conformance assertions accordingly and add a `DstPolicyCronParser` decorator (B only).
 3. `tests/Encina.PropertyTests/Messaging/Scheduling/`: extend the parser property tests of #1222 with generated zones and dates around transitions: the result is after the input and a fixed-time job never runs twice within one local day.
 
@@ -210,14 +265,14 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- The DST policy is choice 1 of the plan; implement the answer recorded in Maintainer Decisions (A by default: Cronos behavior pinned by tests).
+- The DST policy is choice 1 of the plan; implement the answer recorded when the maintainer decides (A by default: Cronos behavior pinned by tests).
 
 TASK:
 Write the DST conformance unit tests and the property tests listed in the plan.
 
 KEY RULES:
 - Use FakeTimeProvider-independent inputs: the parser takes afterUtc explicitly.
-- Tests execute the real CronosCronParser; no reflection-only tests.
+- Tests execute the real CronosCronParser; no reflection-only tests; assert instants computed from TimeZoneInfo of the same host and skip nothing silently.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Scheduling/CronosCronParser.cs
@@ -226,15 +281,17 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Observability and cross-cutting integration
+### Phase 3: Observability and cross-cutting integration (Z2)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `SchedulingScheduleMetrics` (created by #1222): counter `encina.scheduling.invalid_time_zone` (no tags; the rejected id is user input and is not recorded).
-2. `SchedulingScheduleLog`: events 2350 `TimeZoneNormalized` (Debug; message id only) and 2351 `TimeZoneRejected` (Warning; error code only), inside `EventIdRanges.MessagingScheduling` (2300-2399; #150 reserves 2350-2359).
-3. Span attribute `encina.scheduling.time_zone` on the recurring schedule and run spans (a span attribute, not a metric tag, to keep metric cardinality bounded).
-4. A test that no log, tag or metric carries the schedule key or the request content.
+1. `SchedulingScheduleMetrics` (created by #1222): counter `encina.scheduling.invalid_time_zone` (no tags, choice 8), incremented by the orchestrator rejection path.
+2. `SchedulingScheduleLog` (created by #1222, ids 2326-2331): events 2350 `TimeZoneNormalized` (Debug; message id only) and 2351 `TimeZoneRejected` (Warning; error code only), inside `EventIdRanges.MessagingScheduling` (2300-2399, already mapped to `Encina.Messaging`).
+3. Span attribute `encina.scheduling.time_zone` on the recurring schedule and run spans in `SchedulingActivitySource`.
+4. Tests in the same PR: an exporter test of the counter and the span attribute, and a test that no log, tag or metric carries the rejected id, the schedule key or the request content; the scenario `SchedulerCycleScenarios` (existing, shared EF base) gains the DST case: a recurring schedule with a zone is created, the clock is advanced over a DST change and the next run is persisted at the expected UTC instant (the zone round trip on the 10 providers is #1222).
+5. Load and benchmark `.md` justifications (not a concurrent hot path): `tests/Encina.LoadTests/Messaging/Scheduling/TimeZones.md` and `tests/Encina.BenchmarkTests/Encina.Benchmarks/Messaging/Scheduling/TimeZones.md`. Unit, guard, contract, property and integration are real tests, never a `.md`.
+6. Manifest entry through `mechanical-fixer`.
 
 </details>
 
@@ -243,34 +300,38 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- EventIds 2350-2359 are reserved for #150 inside MessagingScheduling; #1222 owns 2326-2339, #146 2340-2349, #133 2360-2379, #147 2380-2389.
+- EventIds 2350-2351 are used by #150 inside MessagingScheduling; the batch registry holds 2326-2389 for #1222, #146, #150, #133 and #147.
 
 TASK:
 Add the counter, the two log events and the span attribute.
 
 KEY RULES:
 - EncinaError.Message never reaches logs, tags or health results.
-- Pack ids sequentially from 2350.
+- Pack ids sequentially; the rejected id is never recorded.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Diagnostics/SchedulingProcessorMetrics.cs
 - src/Encina.Messaging/Diagnostics/SchedulingActivitySource.cs
+- tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Scheduling/SchedulerCycleScenarios.cs
 ```
 
 </details>
 
-### Phase 4: Testing
+### Phase 4: Per-file coverage targets (entered in the PR that carries the tests)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit**: normalization (IANA kept, Windows id converted, unknown id rejected, null is UTC) in `SchedulingTimeZonesTests`; orchestrator rejection path with the counter.
-2. **Guard**: `SchedulingTimeZones` and the parser reject null cron expressions with `ArgumentNullException`.
-3. **Contract**: the `ICronParser` contract test of #1222 gains the DST cases for any implementation.
-4. **Property**: phase 2.
-5. **Integration**: a recurring schedule with a zone is created, the clock is advanced over a DST change and the next run is persisted at the expected UTC instant, run through the shared EF scenario base `SchedulerCycleScenarios` (the logic is provider-independent; the zone round trip on the 10 providers is #1222).
-6. **Load and benchmark**: `.md` justifications (not a concurrent hot path).
-7. **Obligations**: `Scheduling/SchedulingTimeZones.cs` unit 95, guard 60, property 70; `Scheduling/CronosCronParser.cs` keeps the targets set by #1222 (targets never go down). Measure with `dotnet test tests\Encina.UnitTests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\UnitTests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`.
+| File | PR | Flag and target | Justification |
+| --- | --- | --- | --- |
+| `Scheduling/SchedulingTimeZones.cs` | Z1 | unit 95, guard 0, property 70 | Every normalization branch is a unit test; the property test covers generated zones; the type is internal without `InternalsVisibleTo` for `Encina.GuardTests` (its nullable id accepts null and is covered by the valid-result test in unit). |
+| `Scheduling/CronosCronParser.cs` | Z1 | the targets set by #1222, never lowered; contract: the DST cases are added | The DST conformance and contract cases run the real parser. |
+| `Scheduling/SchedulerOrchestrator.cs` | Z1, Z2 | unit and guard: the current manifest targets (the worker confirms them); integration: current target | The rejection path and counter are unit-tested; the DST scenario adds integration coverage. |
+| `Diagnostics/SchedulingScheduleMetrics.cs` | Z2 | unit: current target | The exporter test drives the new counter. |
+| `Diagnostics/SchedulingScheduleLog.cs` | Z2 | unit 0 | `[LoggerMessage]` declarations; the generated bodies are not in the file. |
+| `Diagnostics/SchedulingActivitySource.cs` | Z2 | unit: current target | The exporter test reads the new attribute. |
+
+Measure with `dotnet test tests\Encina.UnitTests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\UnitTests` (and the other flag projects) and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`.
 
 </details>
 
@@ -279,29 +340,28 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Tests execute real code; Shouldly via Encina.Testing.Shouldly; deterministic dates.
+- Tests execute real code; Shouldly via Encina.Testing.Shouldly; deterministic dates; targets never go down.
 
 TASK:
-Write the tests listed in the plan.
+Enter the targets above in the manifest of the pull request that carries the tests, with the one-sentence justification.
 
 KEY RULES:
-- No Thread.Sleep.
-- Time zone data differs per host: assert instants computed from TimeZoneInfo of the same host, and skip nothing silently.
+- No Thread.Sleep; a test never swallows an exception thrown by the code it drives; a 0 only with the stated reason.
 
 REFERENCE FILES:
-- tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/Scheduling/SchedulerCycleScenarios.cs
+- .github/coverage-manifest/Encina.Messaging.json
 - tests/Encina.UnitTests/Messaging/Scheduling/SchedulerOrchestratorScheduleRecurringTests.cs
 ```
 
 </details>
 
-### Phase 5: Documentation and finalization
+### Phase 5: Documentation and finalization (Z2)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. XML docs on `SchedulingTimeZones` members that are public, if any, and on the `timeZoneId` parameters (the IANA form, null means UTC).
-2. The DST semantics and zone normalization sections of the cron and time-zone ADR (ADR number assigned when the ADR pull request opens) and of `docs/features/scheduling.md`, through the `docs-writer`, including the tz-data note for minimal container images.
+1. XML docs on the `timeZoneId` parameters (the IANA form, null means UTC) and on `SchedulingTimeZones` members that are public, if any.
+2. The DST semantics and zone normalization sections of the cron and time-zone ADR (ADR number assigned when the ADR pull request opens) and of `docs/features/scheduling.md`, through the `docs-writer`, including the tz-data note for minimal container images and the ICU note for Windows ids.
 3. `changelog.d/150-scheduling-time-zone.added.md` (a `mechanical-fixer` writes it).
 4. `dotnet build --configuration Release` with 0 warnings; all flags at target.
 
@@ -338,7 +398,7 @@ REFERENCE FILES:
 | SPEC-002 REQ-033, AC-033, S4 | Time-zone-aware recurring cron | 09:00 Europe/Madrid fires at 09:00 local on both sides of a DST change |
 | IANA time zone database | Zone ids | Portable form persisted in the column |
 | ADR-018 | Cross-cutting integration | Matrix below |
-| ADR-021 | EventIds | Ids 2350-2359 inside `MessagingScheduling` |
+| ADR-021 | EventIds | Ids 2350-2351 inside `MessagingScheduling` |
 
 ### Existing Encina Infrastructure to Leverage
 
@@ -353,17 +413,19 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` (`MessagingScheduling`, existing 2300-2399) | **2350-2359** for #150 (uses 2350-2351) | Used: 2300-2306, 2320-2325; reserved: #1222 2326-2339, #146 2340-2349, #133 2360-2379, #147 2380-2389 |
+| `Encina.Messaging` (`MessagingScheduling`, existing 2300-2399) | **2350-2351** used by #150 (2352-2359 held) | Used on main: 2300-2306, 2320-2325. The batch registry (`eventid-blocks.md`) holds 2326-2389 for #1222, #146, #150, #133 and #147 together; each plan states its own sub-range |
 | New range | none | The block 6750-6799 is not needed |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Core `Encina.Messaging` | ~4 | time zones, orchestrator, metrics, log |
-| Tests | ~7 | unit, guard, contract, property, integration |
-| Documentation and changelog | ~3 | ADR section, feature page, fragment |
-| **Total** | **~14** | one pull request |
+| Production | 6 | Z1 2 (`SchedulingTimeZones.cs`, `SchedulerOrchestrator.cs`), Z2 4 (metrics, log, activity source, `SchedulerOrchestrator.cs`) |
+| Tests | 8 | Z1 6 (normalization, orchestrator rejection, DST, property, contract, guard), Z2 2 (exporter and no-leak, scenario) |
+| Coverage manifests | 2 | Z1 1, Z2 1 |
+| Justification files | 2 | Z2: load and benchmark |
+| Documentation and changelog | 3 | Z2: ADR section, feature page, fragment |
+| **Total** | **21** | 6 + 8 + 2 + 2 + 3 file edits (two pull requests of 9 and 12) |
 
 ---
 
@@ -378,10 +440,8 @@ PROJECT CONTEXT:
 - Issue #150 after #1222: the column, the zone-aware parser and the orchestrator zone handling already exist.
 
 IMPLEMENTATION OVERVIEW:
-Phase 1: normalize zone ids to IANA in SchedulingTimeZones.
-Phase 2: DST conformance tests of the shipped parser (policy of Maintainer Decisions, A by default).
-Phase 3: counter encina.scheduling.invalid_time_zone, events 2350-2351, span attribute.
-Phase 4: tests. Phase 5: docs, ADR section, changelog.
+Z1: normalize zone ids to IANA in SchedulingTimeZones; DST conformance tests of the shipped parser (policy decided by the maintainer, A by default); property, contract and guard tests.
+Z2: counter encina.scheduling.invalid_time_zone, events 2350-2351, span attribute, DST scenario, docs, ADR section, changelog.
 
 KEY PATTERNS:
 - No schema or provider code; the zone round trip on 10 providers is #1222.
@@ -421,7 +481,7 @@ REFERENCE FILES:
 
 | Item | Relation | Note |
 |------|----------|------|
-| #1222 | Must merge first | Column, `SchedulingTimeZones`, `CronosCronParser`, zone handling in the orchestrator, ADR, log and metrics classes |
+| #1222 | Must merge first (at least P12) | Column, `SchedulingTimeZones`, `CronosCronParser`, zone handling in the orchestrator, ADR, log and metrics classes |
 | #133 | Sibling | Recurring end modes and missed-occurrence handling use the same stored zone |
 | #739 | Later | Tenant-level default zone, if wanted |
 
@@ -429,6 +489,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Review this plan; the Dilemmas (DST policy, `DefaultTimeZone`, zone id form, parser contract shared with #1222) are answered by the maintainer when work starts and recorded in `## Maintainer Decisions`.
-2. Implement after #1222 S4 merges; one pull request.
+1. Review this plan; the Dilemmas (choices 1, 2, 3, 4, 6 and 7: DST policy, `DefaultTimeZone`, zone id form, parser contract shared with #1222, tz data source, id spelling) are answered by the maintainer when work starts; the answers are then recorded in a `## Maintainer Decisions` section added at that time.
+2. Implement after #1222 P12 merges; two pull requests (Z1, Z2).
 3. Link the plan from #150.
