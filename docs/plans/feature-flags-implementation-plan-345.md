@@ -237,24 +237,23 @@ The maintainer fixed the foundation on 2026-03-18 (comment on #345): `Microsoft.
 </details>
 
 <details>
-<summary><strong>10. Missing context and predicate failures in the filters</strong></summary>
+<summary><strong>10. Missing context in the filters</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A missing tenant, a missing context or a failing predicate denies the feature; `IFeatureFlagPredicate` returns `ValueTask<Either<EncinaError, bool>>` and a `Left` denies and is logged by error code** | The only behavior that complies with "gates fail closed" and "errors are never swallowed" | A predicate author returns an `Either` |
-| **B) Missing tenant allows the feature; a predicate returns `bool` and exceptions are caught** | Fewer surprises for single-tenant applications | Fails open on missing context; swallows failures |
+| **A) A missing tenant, a missing context or a failing predicate denies the feature, and the denial is logged by error code** | The only behavior that complies with "gates fail closed" | A single-tenant application without a tenant id must list no tenant filter |
+| **B) A missing tenant allows the feature** | Fewer surprises for single-tenant applications | Fails open on missing context |
 
-### Chosen Option: **A — Deny on missing context; predicates return `Either`**
+### Chosen Option: **A — Deny on missing context**
 
 ### Rationale
 
-- Compliance and security gates fail closed: when context is missing or a lookup fails, the gate denies; the opt-out is explicit and logged (AGENTS.md section 3). Operations return `Either` (ADR-001).
-- `IFeatureFlagPredicate` is a new public contract: a `Name` and `EvaluateAsync(FeatureFlagContext, CancellationToken)`.
+- Compliance and security gates fail closed: when context is missing or a lookup fails, the gate denies; the opt-out is explicit and logged (AGENTS.md section 3). The signature of the predicate contract is Design Choice 12.
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 3 (gates fail closed; Railway Oriented Programming); SPEC-002 DEC-006
+**Settled by:** AGENTS.md section 3 (gates fail closed); SPEC-002 DEC-006
 
 </details>
 
@@ -275,6 +274,27 @@ The maintainer fixed the foundation on 2026-03-18 (comment on #345): `Microsoft.
 
 - A wins when telemetry must stay bounded and free of identifiers; B wins when per-tenant diagnosis matters and the telemetry store is treated as tenant data.
 - Logs and activity tags never carry `EncinaError.Message` or personal data (AGENTS.md section 3).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>12. Signature of the <code>IFeatureFlagPredicate</code> contract</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `ValueTask<Either<EncinaError, bool>> EvaluateAsync(FeatureFlagContext, CancellationToken)`; a `Left` denies and is logged by error code** | Failure is explicit and never swallowed; matches the operations of the family | A predicate author returns an `Either` |
+| **B) `ValueTask<bool>`; the filter catches an exception, denies and logs the exception type** | Simpler for authors; wins for trivial predicates | Failure is signalled by an exception; business failures cannot carry a code |
+
+### Chosen Option: **A — `Either` result (recommended, pending the maintainer)**
+
+### Rationale
+
+- A wins when predicates call stores or services that can fail; B wins when predicates are pure and trivial. Both deny on failure, so the gate stays closed either way (AGENTS.md section 3).
+- The contract has a `Name` and `EvaluateAsync`; it is a new public interface (Phase 3).
 
 **Class:** Dilemma
 
@@ -371,7 +391,7 @@ REFERENCE FILES:
 
 1. `Filters/TenantFilter.cs`: contextual filter over `FeatureFlagContext`; parameters from configuration (`Tenants`: list of allowed tenant ids); a missing tenant denies and is logged (Design Choice 10).
 2. `Abstractions/IFeatureFlagPredicate.cs` (new public contract of Design Choice 10) and `Filters/ContextualFilter.cs`: runs registered predicates by name over `FeatureFlagContext`; an unknown predicate name or a `Left` denies and is logged by error code.
-3. `FeatureFlagsBuilder.cs` with `AddFilter<T>()` and `UseCustomProvider<T>()` (registers `T : IFeatureFlagProvider` with `TryAdd*`); `AddEncinaFeatureFlags` returns it and registers both filters.
+3. `FeatureFlagsBuilder.cs` with `AddFilter<T>()` and `UseCustomProvider<T>()` (replaces the default `Microsoft.FeatureManagement` provider that `AddEncinaFeatureFlags` adds with `TryAdd*`, in any registration order: the default is added only when no provider is registered, and the custom registration removes a default added earlier; a provider the application registered itself is never replaced); `AddEncinaFeatureFlags` returns it and registers both filters.
 4. Diagnostics of this phase: EventIds 7314 contextual predicate failed, 7315 tenant filter denied (no tenant) in the gate log class; no tenant or user id in the message arguments.
 5. Registration rule: a provider registered through `UseCustomProvider<T>()` wins over the `Microsoft.FeatureManagement` provider that `AddEncinaFeatureFlags` registers by default, in any registration order, and a provider the application registered itself is never overridden. The caching decorator of #604 stays opt-in through `FeatureFlagsOptions.CacheEnabled` (default `false`); this plan does not enable it.
 6. Tests: `TenantFilterTests`, `ContextualFilterTests`, `FeatureFlagsBuilderRegistrationTests` (DI with `ValidateOnBuild` and `ValidateScopes`, both registration orders), guard tests, property tests of `TenantFilter` (never enables an unlisted tenant); manifest entries and PublicAPI.
@@ -408,6 +428,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
+0. Manifest: the contract-flag targets (with one-sentence justifications) of the Phase 1-3 files are entered in this phase's edit of `.github/coverage-manifest/Encina.FeatureFlags.json`, the pull request that carries the contract tests that meet them.
 1. Contract: extend `FeatureFlagGateContractTests` (created by #300 Phase 3) with the multi-flag and redirection scenarios, run over every `IFeatureFlagProvider` reachable without Docker (the library provider of #300 and the in-memory-store provider of #604).
 2. Benchmark: add the redirection and variant scenarios to the gate benchmark class of #300, through `BenchmarkSwitcher` (cached provider, hot path).
 3. Justification files: edit the load and integration files created by #300 Phase 4 (`tests/Encina.LoadTests/FeatureFlags/FeatureFlagGate.md`, `tests/Encina.IntegrationTests/FeatureFlags/FeatureFlagGate.md`) so their reasons also cover redirection and the filters (stateless decision, no concurrent shared state; configuration-backed, no external service; the stores and providers have their integration tests in #604). Property tests exist here (Phase 3), so the property file of #300 is edited to point to them.
@@ -476,8 +497,8 @@ REFERENCE FILES:
 | Multi-flag (Phase 1) | 9 | Attribute, metadata, behavior, tests, manifest, PublicAPI |
 | Redirection (Phase 2) | 15 | Attributes, redirector, validator, diagnostics, tests |
 | Filters and builder (Phase 3) | 13 | Filters, predicate contract, builder, diagnostics, tests |
-| Contract tests, benchmark, ADR and docs (Phase 4) | 11 | Contract test edit, benchmark edit, 3 justification file edits, ADR, guide, README, fragment, INVENTORY, ROADMAP |
-| **Total** | **48** | Four pull requests |
+| Contract tests, benchmark, ADR and docs (Phase 4) | 12 | Manifest edit (contract targets of Phases 1-3), contract test edit, benchmark edit, 3 justification file edits, ADR, guide, README, fragment, INVENTORY, ROADMAP |
+| **Total** | **49** | Four pull requests |
 
 #### Pull Request Split
 
@@ -488,8 +509,8 @@ Files include tests, manifests, `PublicAPI` files, existing tests edited for a c
 | 1 | `FeatureFlagsAttribute`, metadata and behavior edits, manifest, PublicAPI, unit and guard tests, one existing #300 test file edited | 9 | 450 |
 | 2 | `FeatureVariantAttribute`, `Fallback`, redirector, validator, metadata, behavior, service registration, gate metrics and log edits (7310-7313), manifest, PublicAPI, 4 test files | 15 | 1,000 |
 | 3 | `TenantFilter`, `ContextualFilter`, `IFeatureFlagPredicate`, `FeatureFlagsBuilder`, registration and log edits (7314-7315), manifest, PublicAPI, unit, DI, guard and property tests | 13 | 800 |
-| 4 | Contract test edit, benchmark edit, 3 justification file edits, ADR, guide, README, fragment, INVENTORY, ROADMAP | 11 | 600 |
-| **Total** | 4 pull requests | **48** | **2,850** |
+| 4 | Manifest edit (contract targets), contract test edit, benchmark edit, 3 justification file edits, ADR, guide, README, fragment, INVENTORY, ROADMAP | 12 | 600 |
+| **Total** | 4 pull requests | **49** | **2,850** |
 
 ---
 
@@ -568,7 +589,7 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Review this plan; the Dilemmas (4, 5, 6, 8, 9 and 11) are asked when work on the issue starts.
+1. Review this plan; the Dilemmas (4, 5, 6, 8, 9, 11 and 12) are asked when work on the issue starts.
 2. Post the plan link on #345 and cross-reference #300, #451 and #604.
 3. Start after #604 Phases 1-3 and #300 are merged.
 4. Each phase is one pull request of at most 15 files and 1500 lines; the last carries `Fixes #345`.
