@@ -22,7 +22,12 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
     // Distinctive, so a negative assertion on the printed form cannot match by accident.
     private const string RecordedMarker = "HR-department-marker";
 
-    private static readonly DateTimeOffset Start = new(2026, 10, 9, 8, 0, 0, TimeSpan.Zero);
+    // Derived from the current time (one hour back, whole seconds) so the stamped rows never age past a
+    // retention cutoff that another test class of the collection purges with; a fixed date would (#3463).
+    protected static readonly DateTimeOffset Start = TruncateToSeconds(TimeProvider.System.GetUtcNow().AddHours(-1));
+
+    private static DateTimeOffset TruncateToSeconds(DateTimeOffset value) =>
+        new(value.Ticks - (value.Ticks % TimeSpan.TicksPerSecond), TimeSpan.Zero);
 
     /// <summary>Creates the provider's store for one DI scope (the recorder and the reader each open their own).</summary>
     protected abstract IOperationAuditStore CreateStore();
@@ -176,6 +181,16 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         var reader = scope.ServiceProvider.GetRequiredService<IABACDecisionAuditReader>();
         var stored = await QueryAsync(reader, new ABACDecisionAuditQuery { CorrelationId = decision.CorrelationId });
         stored.ShouldHaveSingleItem().DecisionId.ShouldBe(decision.DecisionId);
+    }
+
+    /// <summary>Records one granted decision through the registered recorder.</summary>
+    protected async Task RecordOneGrantedDecisionAsync()
+    {
+        var run = Guid.NewGuid().ToString("N")[..12];
+        await using var provider = BuildProvider();
+        var recorder = provider.GetRequiredService<IABACDecisionRecorder>();
+        ShouldBeWritten(await recorder.RecordAsync(
+            Record($"PurgeProbeQuery_{run}", $"corr-purge-{run}", $"user-{run}", ABACEnforcedOutcome.Granted, ABACDecisionAuditSchema.PermitReasonCode, 3)));
     }
 
     private static void ShouldBeWritten(LanguageExt.Either<EncinaError, LanguageExt.Unit> result) =>
