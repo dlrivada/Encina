@@ -2,7 +2,7 @@
 
 > **Issue**: [#1242](https://github.com/dlrivada/Encina/issues/1242) (SPEC-002 tracking id **P-40**, priority **P0**)
 > **Type**: Feature
-> **Complexity**: High (9 phases, event-sourced on Marten, one new satellite package, ~50 files, 8 pull requests)
+> **Complexity**: High (9 phases, event-sourced on Marten, one new satellite package, ~50 distinct files, 10 pull requests)
 > **Estimated Scope**: ~1,400-1,900 lines of production code + ~2,000-2,600 lines of tests
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
@@ -35,17 +35,19 @@ This plan delivers:
 
 **Provider category**: none of the database matrix. The module is event-sourced on Marten (PostgreSQL), which SPEC-002 DEC-008 (a) and ADR-019 keep Marten-only in 1.0; there are no InMemory stores, unit tests mock `IAggregateRepository` and integration tests run against Marten on PostgreSQL through Testcontainers (AGENTS.md section 3).
 
-**Size**: about 50 files including tests, manifests and PublicAPI, so eight worker pull requests (1, 2, 3, 4a, 4b, 5, 6, 7), each building alone with its own tests, manifest entries and PublicAPI lines and each within 15 files and 1,500 lines counting tests, manifests, PublicAPI and `ProjectReference` edits. Nothing in a PR may depend on a package that is not on main when it opens, so the order below is binding and the two external dependencies are hard prerequisites of the PRs that name them:
+**Size**: about 50 distinct files including tests, manifests and PublicAPI (shared files such as `PublicAPI.Unshipped.txt` and the manifest are touched by several pull requests, so the per-PR counts below add up to more), so ten worker pull requests (1, 2, 3, 4a, 4b, 4c, 4d, 5, 6, 7), each building alone with its own tests, manifest entries and PublicAPI lines and each within 15 files and 1,500 lines counting tests, manifests, PublicAPI and `ProjectReference` edits. Nothing in a PR may depend on a package that is not on main when it opens, so the order below is binding and the two external dependencies are hard prerequisites of the PRs that name them:
 
 | PR | Content | Hard prerequisite |
 |----|---------|-------------------|
 | 1 | Art. 33(3) content on the stream: `Art33Content`, `BreachArt33ContentRecorded`, aggregate method, read-model/projection fields, `breach.delay_reason_required` and `breach.article33_content_incomplete`; unit and guard tests (about 12 files) | none |
 | 2 | `RecordArticle33ContentAsync` on `IBreachNotificationService`, `IBreachPackageDocumentWriter` and `MarkdownBreachPackageWriter` (a pure renderer over the read model), range `ComplianceBreachChannels`, log class, diagnostics, test-map entry; unit tests (about 13 files) | PR 1 |
 | 3 | Art. 34 on the stream: `BreachSubjectCommunication` (with a required `CommunicationId`), `SubjectRecipient`, `SubjectCommunicationResult`, `BreachSubjectCommunicationDispatched`, aggregate method with idempotent duplicate handling, read model/projection, errors; unit and guard tests (about 13 files) | PR 1 |
-| 4a | `IBreachNotifier` reshaped (and `NotifyAuthorityAsync` removed), removal of `DefaultBreachNotifier`, `NotificationResult` and `NotificationOutcome`, DI (default registration removed), health check (`Degraded`), options cleanup, `PublicAPI.Unshipped.txt`, manifest; unit and DI tests, the existing tests of the removed types deleted or rewritten (14 files counting those deletions) | PR 2, PR 3 |
-| 4b | `CommunicateToSubjectsAsync` / `GetCommunicationsAsync` on `IBreachNotificationService` and `DefaultBreachNotificationService`, `ISubjectDeliveryStatusReader`, removal of the then-unreferenced `BreachRecord` and the two `Notifications/*` published types, `PublicAPI.Unshipped.txt`, manifest; unit, failure-injection and guard tests (11 files) | PR 4a |
+| 4a | Reshape and removal of the notifier chain: `IBreachNotifier` reshaped (and `NotifyAuthorityAsync` removed), `DefaultBreachNotifier`, `NotificationResult` and `NotificationOutcome` removed, default registration removed from `ServiceCollectionExtensions`, `PublicAPI.Unshipped.txt`, manifest. Count from origin/main (`git grep` of the removed symbols): 7 source files (3 deleted, `IBreachNotifier.cs`, `ServiceCollectionExtensions.cs`, PublicAPI, manifest) plus 5 deleted tests (`DefaultBreachNotifierContractTests`, `DefaultBreachNotifierGuardTests`, `DefaultBreachNotifierMethodGuardTests`, `DefaultBreachNotifierTests`, `NotificationResultPropertyTests`) plus 3 edited tests (`IBreachNotifierContractTests`, `ServiceCollectionExtensionsTests` with the new DI tests, `BreachModelFactoryGuardTests`, which also drops its `BreachRecord` references): 15 files | PR 2, PR 3 |
+| 4b | Health check and options cleanup: `BreachNotificationHealthCheck` (`Degraded` without a subject channel), removal of the dead `SupervisoryAuthority` and `AutoNotifyOnHighSeverity` from `BreachNotificationOptions`, README, `PublicAPI.Unshipped.txt`, manifest; 3 edited tests (`BreachNotificationHealthCheckTests`, `BreachNotificationOptionsTests`, `BreachNotificationAdvancedIntegrationTests`) and the health check guard test: about 10 files. The options do not depend on the removed notifier (no source reference), so this PR builds on PR 4a alone | PR 4a |
+| 4c | Removal of the dead types: `Model/BreachRecord.cs`, `Notifications/AuthorityNotifiedNotification.cs`, `Notifications/SubjectsNotifiedNotification.cs`, the two `cref` mentions in `PotentialBreach.cs` and `BreachDetectedNotification.cs`, README, `PublicAPI.Unshipped.txt`, manifest, and the deleted `BreachRecordTests` and `BreachRecordPropertyTests`: 11 files. Every reference left after PR 4a is verified by `git grep` before the deletion | PR 4a |
+| 4d | `CommunicateToSubjectsAsync` / `GetCommunicationsAsync` on `IBreachNotificationService` and `DefaultBreachNotificationService`, `ISubjectDeliveryStatusReader`, `PublicAPI.Unshipped.txt`, manifest; unit, failure-injection and guard tests (11 files) | PR 4a |
 | 5 | Package service, `BreachAuthorityPackageGenerated`, `Art33IncidentReportContributor` over #812's model, JSON through #812's serializer; unit tests (about 12 files) | PR 2 and #812's reporting-layer pull requests merged |
-| 6 | Satellite `Encina.Compliance.BreachNotification.Notifications` over `INotificationSender`, `ISubjectDeliveryStatusReader` implementation over the delivery-store query, DI; unit, guard and contract tests, manifest, README (about 14 files) | PR 4b and #1235's pull requests merged, including the query by correlation key (to be added to the #1235 plan first) |
+| 6 | Satellite `Encina.Compliance.BreachNotification.Notifications` over `INotificationSender`, `ISubjectDeliveryStatusReader` implementation over the delivery-store query, DI; unit, guard and contract tests, manifest, README (about 14 files) | PR 4d and #1235's pull requests merged, including the query by correlation key (to be added to the #1235 plan first) |
 | 7 | Marten integration tests (S18, two tenants, restart), contract snapshots of the package, load/benchmark justifications, documentation, changelog (about 10 files) | PR 5, PR 6 |
 
 ---
@@ -254,7 +256,7 @@ listed in the Phase 1 tasks, with XML docs and PublicAPI entries.
 KEY RULES:
 - Events are immutable records carrying TenantId and ModuleId like the existing ones.
 - No recipient address, message body or personal data of affected subjects in events or errors.
-- Time comes from the caller (TimeProvider in the service), never DateTime.UtcNow in the aggregate.
+- The aggregate methods take the timestamp as a parameter; the service supplies it from `TimeProvider`; never DateTime.UtcNow in the aggregate.
 
 REFERENCE FILES:
 - src/Encina.Compliance.BreachNotification/Aggregates/BreachAggregate.cs
@@ -317,8 +319,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **`Abstractions/IBreachNotifier.cs`** (modify) — only `ValueTask<Either<EncinaError, SubjectCommunicationResult>> NotifyDataSubjectsAsync(BreachSubjectCommunication communication, CancellationToken ct)`; `NotifyAuthorityAsync` is removed in the same PR (PR 4a), which is why that PR builds whether or not #812 has merged
-2. **`DefaultBreachNotifier.cs`, `Model/NotificationResult.cs`, `Model/NotificationOutcome.cs`** — removed in PR 4a (Design Choice 6); `BreachRecord`, `Notifications/AuthorityNotifiedNotification.cs`, `Notifications/SubjectsNotifiedNotification.cs` removed in PR 4b once unreferenced (checked at implementation, no leftovers)
-3. **`Abstractions/IBreachNotificationService.cs`** (modify) — `CommunicateToSubjectsAsync(Guid breachId, BreachSubjectCommunication communication, string communicatedByUserId, CancellationToken)` and `GetCommunicationsAsync(Guid breachId, CancellationToken)`; the live delivery counts come from an optional core abstraction `Abstractions/ISubjectDeliveryStatusReader.cs` (new, PR 4b) that the satellite implements in PR 6; with no reader registered the dispatch records are returned with the event counts only, so PR 4b builds without `Encina.Notifications`
+2. **`DefaultBreachNotifier.cs`, `Model/NotificationResult.cs`, `Model/NotificationOutcome.cs`** — removed in PR 4a (Design Choice 6); `BreachRecord`, `Notifications/AuthorityNotifiedNotification.cs`, `Notifications/SubjectsNotifiedNotification.cs` removed in PR 4c (`BreachRecord` is no longer referenced once PR 4a has reshaped `IBreachNotifier`; verified by `git grep` before the deletion, no leftovers)
+3. **`Abstractions/IBreachNotificationService.cs`** (modify) — `CommunicateToSubjectsAsync(Guid breachId, BreachSubjectCommunication communication, string communicatedByUserId, CancellationToken)` and `GetCommunicationsAsync(Guid breachId, CancellationToken)`; the live delivery counts come from an optional core abstraction `Abstractions/ISubjectDeliveryStatusReader.cs` (new, PR 4d) that the satellite implements in PR 6; with no reader registered the dispatch records are returned with the event counts only, so PR 4d builds without `Encina.Notifications`
 4. **`Services/DefaultBreachNotificationService.cs`** (modify) — flow: load breach (must be assessed, not closed) -> validate (recipients present, template id, channel known) -> `IBreachNotifier` (resolved optionally: `Left(breach.subject_channel_not_configured)`) with the caller's `CommunicationId` -> a `Left` from the notifier, or a result with zero queued recipients, appends nothing and returns `Left(breach.communication_failed)` (the failure counter records it) -> a partial or full success appends `BreachSubjectCommunicationDispatched` with its counts and returns `Right` (partially failed batches show their counts); the tenant is taken from the breach read model, and a breach id of another tenant returns not found. Failure-injection tests cover a crash between send and record and one after record (the retry sends nothing new and the stream holds one event)
 5. **Exemptions** — `exemption != None` (Art. 34(3)) is recorded through the existing `NotifySubjectsAsync` path and sends nothing
 
@@ -397,8 +399,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`ServiceCollectionExtensions.AddEncinaBreachNotification`** (modify) — register `IBreachPackageDocumentWriter` (PR 2), remove the `IBreachNotifier` default registration (PR 4a), register `IBreachPackageService` and `Art33IncidentReportContributor` (PR 5, after #812)
-2. **`BreachNotificationOptions`** (modify, PR 4a) — remove the dead `SupervisoryAuthority` and `AutoNotifyOnHighSeverity`. Owner: this plan's PR 4a (the first pull request that touches them in this batch); the #812 plan drops its line that removes them, to be agreed through the sibling-plan link, so both PRs never edit the same lines. `SubjectNotificationSeverityThreshold` stays and is documented as advisory (the decision to communicate is the organisation's)
+1. **`ServiceCollectionExtensions.AddEncinaBreachNotification`** (modify) — register `IBreachPackageDocumentWriter` (PR 2), remove the `IBreachNotifier` default registration (PR 4a; the health check follows in PR 4b), register `IBreachPackageService` and `Art33IncidentReportContributor` (PR 5, after #812)
+2. **`BreachNotificationOptions`** (modify, PR 4b) — remove the dead `SupervisoryAuthority` and `AutoNotifyOnHighSeverity`. Owner: this plan's PR 4b (the first pull request that touches them in this batch); the #812 plan drops its line that removes them, to be agreed through the sibling-plan link, so both PRs never edit the same lines. `SubjectNotificationSeverityThreshold` stays and is documented as advisory (the decision to communicate is the organisation's)
 3. **`Health/BreachNotificationHealthCheck.cs`** (modify) — no registered subject channel is `Degraded`, not `Unhealthy`
 4. **DI test** — builds the provider with `ValidateOnBuild` and `ValidateScopes` with and without the satellite
 
@@ -522,7 +524,7 @@ Manifest first: per-file targets with one-sentence justifications for every new 
 4. **PropertyTests** — justified: document assembly is deterministic and covered by contract and unit tests (matches the issue's own test matrix). The determinism of the deduplication key (same inputs, same key; different recipient or communication, different key) is covered by the unit flag on `NotificationsBreachNotifier` and by the contract snapshot, not by a property test
 5. **IntegrationTests** — Marten on PostgreSQL through Testcontainers (`BreachNotificationAggregateIntegrationTests` pattern): record content, build package, dispatch a communication, read it back with its counts; S18 (a breach is recorded, the package is produced inside the deadline, subjects are communicated and tracked); two tenants; restart (aggregate rebuilt from events)
 6. **Load/Benchmark** — `.md` justifications: not a concurrent hot path
-7. **PR split** — the eight pull requests of the Summary table, each with its own unit tests, manifest entries and PublicAPI lines (the Marten integration tests of each new aggregate behavior run in PR 7; each PR before it reaches its integration target for the files it touches through the existing `BreachNotificationAggregateIntegrationTests` extended in PR 1 and PR 3)
+7. **PR split** — the ten pull requests of the Summary table, each with its own unit tests, manifest entries and PublicAPI lines (the Marten integration tests of each new aggregate behavior run in PR 7; each PR before it reaches its integration target for the files it touches through the existing `BreachNotificationAggregateIntegrationTests` extended in PR 1 and PR 3)
 
 **Per-file targets** (percent of coverable lines per flag; `-` not applicable; the PR reports the measured value). Modified files have no per-file target on main today, so they inherit the package defaults (unit 70, guard 20, contract 15, property 15); the numbers below are per-file targets added by this plan and are higher than that baseline:
 
@@ -658,7 +660,7 @@ REFERENCE FILES:
 | Satellite package | ~5 | csproj, notifier, DI, README, PublicAPI |
 | Tests | ~14 | unit, guard, contract, Marten integration, DI |
 | Manifests, changelog, documentation | ~8 | |
-| **Total** | **~50** | eight pull requests, none above 15 files |
+| **Total** | **~50** | distinct files; ten pull requests, none above 15 files (PR 4a is exactly 15) |
 
 ---
 
@@ -733,7 +735,7 @@ REFERENCE FILES:
 | #812 reporting layer (`IncidentReport`, `IIncidentReportContributor`, `IIncidentReportBuilder`, serializers, file-export adapter) | Authority path (Design Choice 2) | Open, plan in review; hard prerequisite of PR 5 only (PRs 1-4 do not need it) |
 | #1235 `Encina.Notifications` (`INotificationSender`, delivery store) | Subject delivery | Open, plan in review; hard prerequisite of PR 6 only, its pull requests merged first |
 | A delivery-store query by correlation key (`breach:{breachId}:{communicationId}`) | The satellite's `ISubjectDeliveryStatusReader` | Not in the #1235 plan today; it must be added to that plan and merged before PR 6 opens (the heavier fallback, delivery ids on the dispatch event, is not planned) |
-| Removal of the dead options `SupervisoryAuthority` and `AutoNotifyOnHighSeverity`, and of `NotifyAuthorityAsync` | Same interface and options edited by #812's plan | Owner: PR 4a of this plan; the #812 plan drops those lines (agreement through the sibling-plan link) |
+| Removal of the dead options `SupervisoryAuthority` and `AutoNotifyOnHighSeverity`, and of `NotifyAuthorityAsync` | Same interface and options edited by #812's plan | Owner: PR 4a (`NotifyAuthorityAsync`) and PR 4b (the options) of this plan; the #812 plan drops those lines (agreement through the sibling-plan link) |
 | EventId range 6565-6579 | New logging | Registered by PR 2 (the first PR that logs) |
 
 ---
@@ -741,6 +743,6 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #1242; ask the maintainer the Dilemmas of Design Choices 2 and 5 when work on the issue starts
-2. Implement PR 1 to PR 7 (with 4a and 4b) in the order of the Summary table (PR 5 after #812's pull requests, PR 6 after #1235's)
+2. Implement PR 1 to PR 7 (with 4a, 4b, 4c and 4d) in the order of the Summary table (PR 5 after #812's pull requests, PR 6 after #1235's)
 3. Agree with the plan of #1235 the delivery-store query by correlation key, and with the plan of #812 that it drops the removal of `NotifyAuthorityAsync` and of the dead options
 4. The final commit references `Fixes #1242`
