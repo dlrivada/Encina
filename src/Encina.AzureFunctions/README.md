@@ -414,16 +414,25 @@ public async Task<Either<DurableSagaError, FulfillmentResult>> RunSaga(
 
 ### Fan-Out/Fan-In Pattern
 
-Execute activities in parallel with result aggregation:
+Execute activities in parallel with result aggregation. A fan-out activity returns `ActivityResult<T>` (call `ToActivityResult()` on its `Either`), and `FanOutAsync`, `FanOutAllAsync`, `FanOutFirstSuccessAsync` and both `FanOutMultipleAsync` overloads unwrap it. A failure the activity reports keeps its error code. An activity that throws, or that returns a plain value instead of an `ActivityResult<T>`, becomes a `Left` with the code `durable.activity_failed`.
 
 ```csharp
+[Function("ProcessItemActivity")]
+public async Task<ActivityResult<ProcessedItem>> ProcessItem(
+    [ActivityTrigger] ItemToProcess item,
+    IEncina encina)
+{
+    var result = await encina.Send(new ProcessItemCommand(item));
+    return result.ToActivityResult();
+}
+
 [Function("BatchProcessingOrchestrator")]
 public async Task<IReadOnlyList<Either<EncinaError, ProcessedItem>>> RunBatchProcessing(
     [OrchestrationTrigger] TaskOrchestrationContext context)
 {
     var items = context.GetInput<List<ItemToProcess>>();
 
-    // Process all items in parallel
+    // Process all items in parallel; one Either per input, in input order
     var results = await context.FanOutAsync<ItemToProcess, ProcessedItem>(
         "ProcessItemActivity",
         items);
@@ -436,10 +445,64 @@ var allSuccessResult = await context.FanOutAllAsync<ItemToProcess, ProcessedItem
     "ProcessItemActivity",
     items);
 
-// Or get first success
+// Or get the first success to complete
 var firstSuccess = await context.FanOutFirstSuccessAsync<ItemToProcess, ProcessedItem>(
     "ProcessItemActivity",
     items);
+```
+
+#### Activities that return plain values
+
+To fan out an activity that returns a plain value, run it yourself: call `CallEncinaActivityAsync` once per input, wait with `Task.WhenAll`, and split the results with `Partition`.
+
+#### All-or-nothing: `FanOutAllAsync`
+
+`FanOutAllAsync` returns `Right` with the values in input order, or one aggregate error even when a single activity failed. The error has the code `durable.fanout_failed`, a fixed message, and these details (read them with `GetDetails()`):
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `total` | `int` | Number of activities started |
+| `failedCount` | `int` | Number of activities that failed |
+| `failures` | list of entries | One entry per failure, ordered by input position; each has `index` (`int`, the input position) and `code` (`string`, the failure's error code) |
+
+Messages are never included.
+
+```csharp
+var result = await context.FanOutAllAsync<ItemToProcess, ProcessedItem>(
+    "ProcessItemActivity",
+    items);
+
+result.IfLeft(error =>
+{
+    var details = error.GetDetails();
+    var total = (int)details["total"]!;
+    var failedCount = (int)details["failedCount"]!;
+    var failures = (IReadOnlyList<IReadOnlyDictionary<string, object?>>)details["failures"]!;
+
+    foreach (var failure in failures)
+    {
+        var index = (int)failure["index"]!;
+        var code = (string)failure["code"]!;
+        // e.g. retry or report the input at position `index`
+    }
+});
+```
+
+#### First success: `FanOutFirstSuccessAsync`
+
+`FanOutFirstSuccessAsync` waits with `Task.WhenAny` and returns the first `Right` to complete, which is the first by completion and not by input order. It ignores `Left` results until none remain; when every activity fails it returns the same `durable.fanout_failed` aggregate error described above. The activities still running when a success returns are not cancelled, so the orchestration completes only when they finish too. There is no first-success variant that cancels or waits out the remaining activities differently.
+
+For an ordered choice, fan out and take the first `Right` in input order:
+
+```csharp
+var results = await context.FanOutAsync<ItemToProcess, ProcessedItem>(
+    "ProcessItemActivity",
+    items);
+
+var first = results
+    .Where(r => r.IsRight)
+    .Select(r => r.Match(Right: value => value, Left: _ => default!))
+    .FirstOrDefault();
 ```
 
 ### Durable Functions Configuration
@@ -479,7 +542,7 @@ The package is tested in process. The tests in `tests/Encina.IntegrationTests/Cl
 
 The Durable Functions types that need no host (`ActivityResult`, `DurableFunctionsOptions`, `DurableServiceCollectionExtensions` and `DurableFunctionsHealthCheck`) are covered by in-process integration tests in `DurableFunctionsInProcessIntegrationTests.cs`.
 
-The Durable engine, `DurableSagaBuilder` and `OrchestrationContextExtensions` are tested locally with the Durable Task in-process test host (`Microsoft.DurableTask.InProcessTestHost`, a preview package) in `Encina.IntegrationTests`. `FanOutFanInExtensions` is deferred to [#3214](https://github.com/dlrivada/Encina/issues/3214) and [#3216](https://github.com/dlrivada/Encina/issues/3216). The Azure Functions host, its bindings and Azure Storage are not tested; a smoke test on a real local host is tracked in [#3252](https://github.com/dlrivada/Encina/issues/3252). Nothing is tested against the real cloud. The [justification](../../tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md) gives the details; [#523](https://github.com/dlrivada/Encina/issues/523) is related.
+The Durable engine, `DurableSagaBuilder`, `OrchestrationContextExtensions` and `FanOutFanInExtensions` are tested locally with the Durable Task in-process test host (`Microsoft.DurableTask.InProcessTestHost`, a preview package) in `Encina.IntegrationTests`. The Azure Functions host, its bindings and Azure Storage are not tested; a smoke test on a real local host is tracked in [#3252](https://github.com/dlrivada/Encina/issues/3252). Nothing is tested against the real cloud. The [justification](../../tests/Encina.IntegrationTests/Cloud/AzureFunctions/DurableFunctionsHost.md) gives the details; [#523](https://github.com/dlrivada/Encina/issues/523) is related.
 
 ## Best Practices
 
