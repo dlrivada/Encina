@@ -135,7 +135,6 @@ public sealed class DPIAHealthCheck : IHealthCheck
         }
 
         data["enforcementMode"] = options.EnforcementMode.ToString();
-        data["expirationMonitoringEnabled"] = options.EnableExpirationMonitoring;
         data["defaultReviewPeriodDays"] = options.DefaultReviewPeriod.TotalDays;
 
         service = scopedProvider.GetService<IDPIAService>();
