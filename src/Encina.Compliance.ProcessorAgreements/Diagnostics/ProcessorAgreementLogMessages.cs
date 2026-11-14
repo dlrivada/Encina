@@ -22,7 +22,8 @@ namespace Encina.Compliance.ProcessorAgreements.Diagnostics;
 /// <item><term>9140-9149</term><description>CheckDPAExpirationHandler (DC 6)</description></item>
 /// <item><term>9150-9159</term><description>Sub-processor operations and depth tracking (DC 5)</description></item>
 /// <item><term>9460-9469</term><description>DPA validation</description></item>
-/// <item><term>9470-9489</term><description>Service-level operations (DefaultProcessorService, DefaultDPAService)</description></item>
+/// <item><term>9470-9485</term><description>Service-level operations (DefaultProcessorService, DefaultDPAService)</description></item>
+/// <item><term>9486-9487</term><description>Tenant isolation (missing or contradicting tenant, enforcement opt-out)</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -409,4 +410,25 @@ internal static partial class ProcessorAgreementLogMessages
         Level = LogLevel.Warning,
         Message = "DPA terminated. DPAId={DPAId}, Reason={Reason}")]
     internal static partial void DPATerminated(this ILogger logger, string dpaId, string reason);
+
+    // ========================================================================
+    // Tenant isolation (9486-9487, #3679)
+    // ========================================================================
+
+    /// <summary>
+    /// A Processor Agreements operation was refused because the ambient request context carries no
+    /// tenant or contradicts the requested tenant. Only the operation name is logged.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 9486,
+        Level = LogLevel.Warning,
+        Message = "Processor agreement operation rejected: the ambient request context carries no tenant or contradicts the requested tenant. Operation={Operation}")]
+    internal static partial void ProcessorAgreementTenantContextMissing(this ILogger logger, string operation);
+
+    /// <summary>A multi-tenant application explicitly opted out of Processor Agreements tenant-context enforcement.</summary>
+    [LoggerMessage(
+        EventId = 9487,
+        Level = LogLevel.Warning,
+        Message = "Processor agreement tenant context enforcement explicitly disabled (RequireTenantContext=false) while Encina.Tenancy is registered. A missing ambient tenant will read and write the null-tenant scope instead of failing closed.")]
+    internal static partial void ProcessorAgreementTenantEnforcementOptedOut(this ILogger logger);
 }
