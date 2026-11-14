@@ -415,9 +415,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `ServiceDiscoveryOptions.cs` (`CacheEnabled`, `CacheDuration`; defaults of Design Choice 9; validated on start) and `ServiceCollectionExtensions.AddEncinaServiceDiscovery` (registers the options, `TimeProvider` and `IMemoryCache` with `TryAdd`).
+1. `ServiceDiscoveryOptions.cs` (`CacheEnabled`, `CacheDuration`; defaults of Design Choice 9; validated on start) and `ServiceCollectionExtensions.AddEncinaServiceDiscovery` (registers the options and `TimeProvider` with `TryAdd`, and `IMemoryCache` with `TryAdd` only when `CacheEnabled` is true, so an application that does not enable the cache gets no cache registration).
 2. `Selection/IEndpointSelector.cs`, `Selection/RoundRobinEndpointSelector.cs` (one counter per service per process).
-3. `src/Encina/Diagnostics/EventIdRanges.cs`: `ServiceDiscovery = (7340, 7343)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests.cs`; the `Encina` `PublicAPI.Unshipped.txt` line.
+3. `src/Encina/Diagnostics/EventIdRanges.cs`: `ServiceDiscovery = (7340, 7343)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests.cs`; the `Encina` `PublicAPI.Unshipped.txt` line; the per-file entry for `src/Encina/Diagnostics/EventIdRanges.cs` in `.github/coverage-manifest/Encina.json` (unit flag at its target through the allocation tests; guard flag 0 because the file has no executable code with parameters), entered unconditionally here and reused by Phases 5b, 6b and 7b.
 4. `Diagnostics/ServiceDiscoveryDiagnostics.cs`: `ActivitySource` and `Meter` `Encina.ServiceDiscovery`; counter `encina.servicediscovery.resolutions` (tags `provider`, `outcome`), span `encina.servicediscovery.resolve` (tags `service.name`, `provider`). `Diagnostics/ServiceDiscoveryLogMessages.cs`: `[LoggerMessage]` EventIds 7340 resolve failed, 7341 cache entry evicted, 7342 watch failed, 7343 no healthy endpoint. No endpoint addresses or metadata values in tags or logs.
 5. Tests: selector, options and DI (`ValidateOnBuild`, `ValidateScopes`), diagnostics, guard tests; manifest entries and PublicAPI.
 
@@ -587,7 +587,7 @@ REFERENCE FILES:
 
 1. `ConsulServiceDiscoveryProvider.cs` (healthy instances only; `WatchAsync` by blocking query with the index, `Either` elements, Design Choice 12; Polly pipeline of Design Choice 10), `AddEncinaServiceDiscoveryConsul`.
 2. `EventIdRanges.cs`: `ServiceDiscoveryConsul = (7344, 7345)`, the `AssemblyRanges` entry and the `Encina` PublicAPI line; `Diagnostics/ConsulLogMessages.cs` (7344 watch failed, 7345 request failed after the pipeline).
-3. `ConsulFixture` (Testcontainers) in `tests/Encina.TestInfrastructure/Fixtures/` and its collection definition; the image tag is the vendor's published tag, defined once.
+3. Phase 5a adds `ConsulFixture` (Testcontainers) in `tests/Encina.TestInfrastructure/Fixtures/` and its collection definition, so the fixture is in place before the integration tests of this phase use it; the image tag is the vendor's published tag, defined once.
 4. Tests: provider unit tests, DI test (`ValidateOnBuild`, `ValidateScopes`), guard tests, the `IServiceDiscoveryProvider` contract suite, an integration test (`[Collection]`); manifest entries.
 
 </details>
@@ -687,7 +687,7 @@ REFERENCE FILES:
 
 1. `EurekaServiceDiscoveryProvider.cs` (instances with status `UP` only; registry delta polling with `Either` elements; Polly pipeline), `AddEncinaServiceDiscoveryEureka`.
 2. `EventIdRanges.cs`: `ServiceDiscoveryEureka = (7346, 7347)`, the `AssemblyRanges` entry and the `Encina` PublicAPI line; `Diagnostics/EurekaLogMessages.cs` (7346 delta poll failed, 7347 request failed after the pipeline).
-3. `EurekaFixture` (Testcontainers; the image tag is the vendor's published tag, defined once) and its collection definition.
+3. Phase 6a adds `EurekaFixture` (Testcontainers; the image tag is the vendor's published tag, defined once) and its collection definition, before the integration tests of this phase use it.
 4. Tests: provider unit tests, DI test, guard tests, the provider contract suite, an integration test; manifest entries.
 
 </details>
@@ -832,7 +832,7 @@ TASK:
 KEY RULES:
 - Never put EncinaError.Message or endpoint addresses in the health result; use the error code.
 REFERENCE FILES:
-- src/Encina.Compliance.Consent/ConsentHealthCheck.cs
+- src/Encina.Compliance.Consent/Health/ConsentHealthCheck.cs
 - src/Encina.Messaging/Health/IEncinaHealthCheck.cs
 ```
 
@@ -895,7 +895,7 @@ REFERENCE FILES:
 | `EncinaErrors.Create` (with `ErrorCategory`), `Either` | `src/Encina/Results/EncinaErrors.cs` | Errors |
 | `EventIdRanges` | `src/Encina/Diagnostics/EventIdRanges.cs` | Ranges 7340-7349 |
 | Satellite registration pattern | `src/Encina.Compliance.Consent/ServiceCollectionExtensions.cs` | `AddEncinaServiceDiscovery*` |
-| Health check pattern | `src/Encina.Compliance.Consent/ConsentHealthCheck.cs` | `ServiceDiscoveryHealthCheck` |
+| Health check pattern | `src/Encina.Compliance.Consent/Health/ConsentHealthCheck.cs` | `ServiceDiscoveryHealthCheck` |
 | Diagnostics pattern | `src/Encina.Compliance.Consent/Diagnostics/ConsentDiagnostics.cs` | `ServiceDiscoveryDiagnostics` |
 | Testcontainers fixtures | `tests/Encina.TestInfrastructure/Fixtures/` | Consul and Eureka fixtures |
 | `Encina.Aspire.Testing` | `src/Encina.Aspire.Testing/` | Not changed; a testing helper only |
@@ -915,12 +915,12 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Core (Phases 1a-4, 8) | 67 | Contract, models, options, selector, diagnostics, cache, Kubernetes DNS, handler, health check, with their tests |
+| Core (Phases 1a-4, 8) | 70 | Contract, models, options, selector, diagnostics, cache, Kubernetes DNS, handler, health check, with their tests |
 | Consul (Phases 5a-5c) | 36 | Package, provider, registry, fixture, tests |
 | Eureka (Phases 6a-6c) | 36 | Package, provider, registry, fixture, tests |
 | Aspire (Phases 7a-7b) | 22 | Package, adapter, tests |
 | Documentation (Phase 9) | 12 | ADR, 4 READMEs, guide, fragment, INVENTORY, ROADMAP, 3 justification files |
-| **Total** | **173** | 16 pull requests of at most 15 files and 1500 lines (next table) |
+| **Total** | **176** | 16 pull requests of at most 15 files and 1500 lines (next table) |
 
 #### Pull Request Split
 
@@ -929,22 +929,22 @@ Files include tests, manifests, `PublicAPI` files, `Directory.Packages.props`, t
 | Phase | Content | Files | Lines |
 |-------|---------|------:|------:|
 | 1a | Project, PublicAPI (2), solution entry, discovery contract, endpoint models (3), errors, manifest, 2 test project references, unit and guard tests | 14 | 600 |
-| 1b | Registry contract, registration models (4), errors edit, PublicAPI, manifest, unit and guard tests | 9 | 450 |
-| 2a | Options, registration, selector (2), EventId range and allocation test, diagnostics, log messages, PublicAPI (2), manifest, selector, options and DI, guard tests | 14 | 800 |
+| 1b | Registry contract, registration models (4), errors edit, PublicAPI, manifest, unit and guard tests | 10 | 450 |
+| 2a | Options, registration, selector (2), EventId range and allocation test, diagnostics, log messages, PublicAPI (2), manifest, `Encina` manifest entry for `EventIdRanges.cs`, selector tests, options-DI-and-diagnostics tests, guard tests | 15 | 800 |
 | 2b | Cache decorator, registration edit, PublicAPI, manifest, cache, DI edit, guard tests | 7 | 500 |
-| 3 | Resolver seam, Kubernetes provider, options, registration edit, PublicAPI, manifest, provider and DI tests, guard tests, integration justification file | 9 | 600 |
+| 3 | Resolver seam, Kubernetes provider, options, registration edit, PublicAPI, manifest, provider tests, DI tests, guard tests, integration justification file | 10 | 600 |
 | 4 | Handler options, handler, builder extension, PublicAPI, manifest, handler, DI and guard tests | 8 | 500 |
-| 5a | Consul pin, project, PublicAPI (2), solution entry, options, manifest, 4 test project references, options and guard tests | 13 | 450 |
-| 5b | Consul provider, registration, log messages, EventId range and allocation test, PublicAPI (3), manifest, fixture and collection, unit, DI, guard, contract and integration tests | 15 | 1,000 |
+| 5a | Consul pin, project, PublicAPI (2), solution entry, options, manifest, 4 test project references, options and guard tests, `ConsulFixture` and collection (2) | 15 | 450 |
+| 5b | Consul provider, registration, log messages, EventId range and allocation test (2), PublicAPI (2), manifest, unit, DI, guard, contract and integration tests | 13 | 1,000 |
 | 5c | Consul registry, registration edit, PublicAPI, manifest, unit, guard, contract and integration tests | 8 | 600 |
-| 6a | Eureka pin, project, PublicAPI (2), solution entry, options, manifest, 4 test project references, options and guard tests | 13 | 450 |
-| 6b | Eureka provider, registration, log messages, EventId range and allocation test, PublicAPI (3), manifest, fixture and collection, unit, DI, guard, contract and integration tests | 15 | 1,000 |
+| 6a | Eureka pin, project, PublicAPI (2), solution entry, options, manifest, 4 test project references, options and guard tests, `EurekaFixture` and collection (2) | 15 | 450 |
+| 6b | Eureka provider, registration, log messages, EventId range and allocation test (2), PublicAPI (2), manifest, unit, DI, guard, contract and integration tests | 13 | 1,000 |
 | 6c | Eureka registry, registration edit, PublicAPI, manifest, unit, guard, contract and integration tests | 8 | 600 |
 | 7a | Aspire pin, project, PublicAPI (2), solution entry, manifest, 4 test project references | 10 | 300 |
-| 7b | Aspire provider, registration, log messages, EventId range and allocation test, PublicAPI (3), manifest, unit, DI, guard and contract tests | 12 | 700 |
+| 7b | Aspire provider, registration, log messages, EventId range and allocation test (2), PublicAPI (2), manifest, unit, DI, guard and contract tests | 12 | 700 |
 | 8 | Health check, registration edit, PublicAPI, manifest, unit and guard tests | 6 | 350 |
 | 9 | ADR, 4 READMEs, guide, fragment, INVENTORY, ROADMAP, 3 justification files | 12 | 500 |
-| **Total** | 16 pull requests | **173** | **9,400** |
+| **Total** | 16 pull requests | **176** | **9,400** |
 
 ---
 
@@ -975,7 +975,7 @@ KEY PATTERNS:
 REFERENCE FILES:
 - docs/plans/service-discovery-implementation-plan-607.md (this plan)
 - src/Encina.Compliance.Consent/ServiceCollectionExtensions.cs
-- src/Encina.Compliance.Consent/ConsentHealthCheck.cs
+- src/Encina.Compliance.Consent/Health/ConsentHealthCheck.cs
 ```
 
 </details>
