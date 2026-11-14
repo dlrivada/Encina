@@ -19,7 +19,7 @@
 - `DelayedRetryProcessor` (a hosted service) reads `GetPendingMessagesAsync(BatchSize)` from a scoped store (`DelayedRetryProcessor.cs:131-138`), then calls `MarkAsProcessedAsync`/`MarkAsFailedAsync`. The error argument is already a code: `ex.GetType().FullName` (line 176) or a `FailureInfo` text built from a code (lines 236-251, 596); Phase 1 verifies the last one.
 - Dead letter stores of #583 are the structural reference: per provider a `DeadLetter/` folder with `DeadLetterMessage`, `DeadLetterMessageFactory` and `DeadLetterStore{ADO|Dapper|EF|MongoDB}`, a `029_CreateDeadLetterMessagesTable.sql` script, and `AddDeadLetterQueueServices<TStore, TFactory>(config.UseDeadLetterQueue, ...)` in each provider's `ServiceCollectionExtensions` (e.g. `Encina.ADO.SqlServer/ServiceCollectionExtensions.cs:82`).
 - Maintainer decision on #594 (2026-10-16): in scope for 1.0, priority `p0-mandatory`, the 10 providers (not 13; SQLite is out, ADR-024). Contract note from #2254: the store exposes the pending count and the oldest pending entry, implemented by every persistent store.
-- The only implementers and mocks of the interface today are test classes: nine files under `tests/Encina.UnitTests/Messaging` name `IDelayedRetryStore` (for example `DelayedRetryProcessorTests`, `DelayedRetrySchedulerTests`, `StorePayloadEncryptionTests.cs:351`, `ErrorMessageLeakTests`). The private test store in `StorePayloadEncryptionTests.cs:351-356` sets only `ErrorMessage` on failure and leaves `ProcessedAtUtc` null, so on its semantics a "failed" row stays pending: the processor relies on the opposite (`DelayedRetryProcessor.cs:240-241`, "so a row that keeps throwing cannot loop"). No `IDelayedRetryStore` fake exists in `src/Encina.Testing*`.
+- The only implementers and mocks of the interface today are test classes: twelve files under `tests/Encina.UnitTests/Messaging` name `IDelayedRetryStore` and ten of them implement or mock it (for example `DelayedRetryProcessorTests`, `DelayedRetrySchedulerTests`, `StorePayloadEncryptionTests.cs:351`, `ErrorMessageLeakTests`; `git grep -l IDelayedRetryStore origin/main -- tests`). The private test store in `StorePayloadEncryptionTests.cs:351-356` sets only `ErrorMessage` on failure and leaves `ProcessedAtUtc` null, so on its semantics a "failed" row stays pending: the processor relies on the opposite (`DelayedRetryProcessor.cs:240-241`, "so a row that keeps throwing cannot loop"). No `IDelayedRetryStore` fake exists in `src/Encina.Testing*`.
 - The processor dispatches with `tenantId: null` in a background scope (`DelayedRetryProcessor.cs:384`), and the scheduler's "cancel" is `DeleteByContextIdAsync` (`DelayedRetryScheduler.cs:114`).
 
 ### What this plan delivers
@@ -245,6 +245,7 @@ The contract note of 2026-10-16 on #2254 says the store exposes the pending coun
 ### Rationale
 
 - Only A satisfies the fail-closed rule: B runs tenant data without its tenant. `GetPendingMessagesAsync` reads every tenant (stated for all ten stores and asserted by the contract test); the new decorator adds a tenant tag only when multi-tenancy is on (ADR-054 D4).
+- Dependency on Design Choice 4: the restore step needs the tenant and module stored on the row, which is Design Choice 4 A (typed columns, pending the maintainer). If the maintainer picks another option for Design Choice 4, the tenant must still be persisted somewhere readable by the processor (for example inside the serialized payload); a store that cannot give the processor the tenant keeps the row undispatched with `delayed_retry.tenant_missing`, never a send without tenant context.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 3 (compliance and security gates fail closed), SPEC-000 section 2 (tenancy in 1.0), ADR-054 D4
@@ -290,14 +291,15 @@ A new `DelayedRetryErrorCodes` class in `Encina.Messaging.Recoverability` owns t
    - `Task<Either<EncinaError, bool>> DeleteByContextIdAsync(Guid recoverabilityContextId, ...)`: deletes pending, unclaimed-or-expired rows only; `Right(true)` only then.
    - `Task<Either<EncinaError, DelayedRetryBacklog>> GetBacklogAsync(...)` (Design Choice 9 A; `DelayedRetryBacklog(long PendingCount, DateTime? OldestPendingExecuteAtUtc)`).
    `IDelayedRetryMessage`/`DelayedRetryMessageData` gain `TenantId` and `ModuleId` (Design Choice 10).
-2. **Modify** `DelayedRetryScheduler.cs` and `DelayedRetryProcessor.cs` to the new contract: an infrastructure `Left` fails the operation visibly; the three `MarkAsFailedAsync` call sites keep passing a code (Phase 1 verifies the `failure.Text` at line 596 is a code, and keeps this check); the scheduler fills `TenantId`/`ModuleId` from the ambient context. **Restore step** (Design Choice 10 A): before `Send` the processor sets tenant and module context from the row (no `tenantId: null`); with multi-tenancy on and no tenant on the row it does not dispatch, calls `MarkAsFailedAsync` with `delayed_retry.tenant_missing` and logs the code; processor tests cover both. Add `DelayedRetryCleanupProcessor` and the retention options if Design Choice 1 is A, and `DelayedRetryErrorCodes` with the table above.
-3. **Add** `FakeDelayedRetryStore` to `src/Encina.Testing.Fakes` (none exists) implementing the full contract in memory, and **update** the nine existing test files under `tests/Encina.UnitTests/Messaging` that name `IDelayedRetryStore` (mocks and the private test stores), including `StorePayloadEncryptionTests` whose store must set `ProcessedAtUtc` on failure.
+2. **Modify** `DelayedRetryScheduler.cs` and `DelayedRetryProcessor.cs` to the new contract: an infrastructure `Left` fails the operation visibly; the three `MarkAsFailedAsync` call sites keep passing a code (Phase 1 verifies the `failure.Text` at line 596 is a code, and keeps this check); the scheduler fills `TenantId`/`ModuleId` from the ambient context. **Restore step** (Design Choice 10 A): before `Send` the processor sets tenant and module context from the row (no `tenantId: null`); with multi-tenancy on and no tenant on the row it does not dispatch, calls `MarkAsFailedAsync` with `delayed_retry.tenant_missing` and logs the code; processor tests cover both. Add `DelayedRetryCleanupProcessor` and the retention options if Design Choice 1 is A, and `DelayedRetryErrorCodes` with the table above (P0).
+3. **Add** `FakeDelayedRetryStore` to `src/Encina.Testing.Fakes` (none exists) implementing the full contract in memory, and **update** the ten existing test files under `tests/Encina.UnitTests/Messaging` that implement or mock `IDelayedRetryStore` (mocks and the private test stores; the two other files that only name the type, `DelayedRetryRegistrationTests` and `RecoverabilityOptionsCompositionTests`, need no change), including `StorePayloadEncryptionTests` whose store must set `ProcessedAtUtc` on failure.
 4. **Add** `[LoggerMessage]` ids 5459-5464 in `MessagingRecoverability` (5450-5499, 5450-5458 used) for the cleanup processor and the backlog report; update `PublicAPI.Unshipped.txt` of `Encina.Messaging` and `Encina.Testing.Fakes`.
-5. **Split** into thirteen pull requests, each carrying its own tests and manifest rows (a production-only PR cannot reach its per-flag targets and fails the blocking `crap-gate`), each at most 15 files and 1,500 lines **counting tests, scripts, `PublicAPI`, manifests and fragments**; the existing test files that must change with the interface travel in P1:
+5. **Split** into fourteen pull requests (P0-P13), each carrying its own tests and manifest rows (a production-only PR cannot reach its per-flag targets and fails the blocking `crap-gate`), each at most 15 files and 1,500 lines **counting tests, scripts, `PublicAPI`, manifests and fragments**; the existing test files that must change with the interface travel in P1 (the interface change breaks all ten at compile time, so they cannot be split across PRs; the error codes therefore go to P0, which builds alone):
 
    | PR | Content | Files (approx.) |
    |----|---------|-----------------|
-   | P1 | Interface to `Either`, `AddAsync` bool, `DelayedRetryErrorCodes`, scheduler and processor adapted, the nine existing test files adapted, `PublicAPI` | 15 |
+   | P0 | `DelayedRetryErrorCodes` (constants and categories, no dependency on the new interface), its `GetCategory` unit test, `PublicAPI`, manifest row | 4 |
+   | P1 | Interface to `Either`, `AddAsync` bool, scheduler and processor adapted (they propagate the store's `Left` and create no new code), the ten existing test files adapted (4 production files, 10 tests, 1 manifest), `PublicAPI` counted in the production files | 15 |
    | P2 | Claim-aware pending, `GetBacklogAsync`/`DelayedRetryBacklog`, `TenantId`/`ModuleId`, the processor restore step, `FakeDelayedRetryStore`, the abstract `DelayedRetryStoreContractTests` run against the fake, processor tests, manifests, `PublicAPI` | 14 |
    | P3 | `DelayedRetryCleanupProcessor`, retention options, EventIds 5459-5464, tests, manifest (if Design Choice 1 is A) | 8 |
    | P4 | `InstrumentedDelayedRetryStore` and its decoration line in `Encina.OpenTelemetry`, tests, manifest | 5 |
@@ -306,6 +308,8 @@ A new `DelayedRetryErrorCodes` class in `Encina.Messaging.Recoverability` owns t
    | P11 | EF Core (one package, three providers): entity, configuration, factory, store, registration, `Log.cs`, `PublicAPI`, manifest; unit, guard, DI, three integration classes, derived contract classes | 15 |
    | P12 | MongoDB: document, factory, store, options, index creator, registration, `Log.cs`, `PublicAPI`, manifest; tests | 14 |
    | P13 | Documentation: READMEs, configuration guide, `docs/INVENTORY.md`, two changelog fragments; carries `Fixes #594` | 12 |
+
+   P5-P12 have no spare file: some packages also need an embedded-script or `Directory` registration entry, so re-measure each against the 15-file limit when it is briefed and move its integration or contract test class to a follow-up PR of the same package if it overflows.
 
    The contract suite is introduced in P2 against the fake and reused by each provider PR through one derived class; line counts are re-measured when each PR is briefed.
 
@@ -320,7 +324,7 @@ Encina (.NET 10, C# 14, pre-1.0, no backward compatibility) has IDelayedRetrySto
 src/Encina.Messaging/Recoverability/IDelayedRetryScheduler.cs with no implementation outside tests.
 Issue #594 adds persistent stores for the 10 database providers. The maintainer answered Design
 Choices 1-4 and 6-9 of docs/plans/delayed-retry-stores-implementation-plan-594.md (apply the recorded
-answers; build the pull requests P1-P13 of Phase 1 item 5 one at a time, each with its tests).
+answers; build the pull requests P0-P13 of Phase 1 item 5 one at a time, each with its tests).
 
 TASK:
 1. Change IDelayedRetryStore to Either<EncinaError, T> returns with the exact signatures of Phase 1
@@ -704,7 +708,7 @@ REFERENCE FILES:
 | Coverage manifests | ~10 | One edit per package |
 | Tests | ~40 | Unit, guard, contract, property, integration, DI, load or justification |
 | Documentation | ~12 | READMEs, guide, INVENTORY, 2 changelog fragments |
-| **Total** | **~127** | Thirteen pull requests P1-P13 (Phase 1 item 5), each at most 15 files and 1,500 lines counting tests, scripts, manifests, `PublicAPI` and fragments |
+| **Total** | **~127** | Fourteen pull requests P0-P13 (Phase 1 item 5), each at most 15 files and 1,500 lines counting tests, scripts, manifests, `PublicAPI` and fragments |
 
 ---
 
@@ -791,4 +795,4 @@ REFERENCE FILES:
 
 1. Link this plan from #594 and ask the maintainer to answer Design Choices 1 to 4 and 6 to 9 when work starts (3 together with #590). #595 (Redis) is blocked until the answers to D1 to D4 and the merge of P1, P2 and P4 (the contract PRs and the decorator PR).
 2. Coordinate the `GetBacklogAsync` shape with #2254 before P2.
-3. Implement Phases 1 to 8 as the pull requests P1-P13 of Phase 1 item 5, `Fixes #594` on the last (P13).
+3. Implement Phases 1 to 8 as the pull requests P0-P13 of Phase 1 item 5, `Fixes #594` on the last (P13).
