@@ -26,20 +26,23 @@ namespace Encina.Compliance.DPIA;
 /// <para>
 /// The service runs review cycles at a configurable interval
 /// (<see cref="DPIAOptions.ExpirationCheckInterval"/>, default: 1 hour),
-/// using <see cref="PeriodicTimer"/> for efficient scheduling.
+/// using a <see cref="PeriodicTimer"/> driven by the injected <see cref="TimeProvider"/>.
+/// The first cycle runs as soon as the service starts.
 /// </para>
 /// <para>
 /// Graceful error handling: individual cycle failures are logged but never crash
 /// the host. The service continues running and attempts the check again on the next cycle.
 /// </para>
 /// <para>
-/// Controlled by <see cref="DPIAOptions.EnableExpirationMonitoring"/> (default: <c>false</c>).
+/// The service is always registered by <c>AddEncinaDPIA</c> and has no switch: the review
+/// of a DPIA is a legal obligation (Article 35(11)), so its monitor cannot be turned off.
 /// </para>
 /// </remarks>
 internal sealed class DPIAReviewReminderService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly DPIAOptions _options;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<DPIAReviewReminderService> _logger;
 
     /// <summary>
@@ -47,33 +50,31 @@ internal sealed class DPIAReviewReminderService : BackgroundService
     /// </summary>
     /// <param name="scopeFactory">Factory for creating service scopes to resolve scoped dependencies.</param>
     /// <param name="options">DPIA configuration options controlling monitoring behavior.</param>
+    /// <param name="timeProvider">Clock that drives the cycle timer and stamps the expiry notifications.</param>
     /// <param name="logger">Logger for diagnostic messages.</param>
     public DPIAReviewReminderService(
         IServiceScopeFactory scopeFactory,
         IOptions<DPIAOptions> options,
+        TimeProvider timeProvider,
         ILogger<DPIAReviewReminderService> logger)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(logger);
 
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.EnableExpirationMonitoring)
-        {
-            _logger.ReviewReminderDisabled();
-            return;
-        }
-
         _logger.ReviewReminderStarted(_options.ExpirationCheckInterval);
 
-        using var timer = new PeriodicTimer(_options.ExpirationCheckInterval);
+        using var timer = new PeriodicTimer(_options.ExpirationCheckInterval, _timeProvider);
 
         // Execute first cycle immediately, then wait for timer ticks
         await ExecuteReminderCycleAsync(stoppingToken).ConfigureAwait(false);
@@ -94,8 +95,7 @@ internal sealed class DPIAReviewReminderService : BackgroundService
             await using var scope = _scopeFactory.CreateAsyncScope();
 
             var service = scope.ServiceProvider.GetRequiredService<IDPIAService>();
-            var timeProvider = scope.ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
-            var nowUtc = timeProvider.GetUtcNow();
+            var nowUtc = _timeProvider.GetUtcNow();
 
             _logger.ReviewReminderCycleStarting();
 
