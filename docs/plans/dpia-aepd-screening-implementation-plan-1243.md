@@ -2,8 +2,8 @@
 
 > **Issue**: [#1243](https://github.com/dlrivada/Encina/issues/1243)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, event-sourced module, no database provider matrix, 71 file changes in 6 pull requests; see Estimated File Count)
-> **Estimated Scope**: about 5,100 changed lines in total (production code, two data files, tests, manifest and documentation), per pull request in Estimated File Count
+> **Complexity**: Medium (7 phases, event-sourced module, no database provider matrix, 83 file changes in 7 pull requests; see Estimated File Count)
+> **Estimated Scope**: about 5,750 changed lines in total (production code, two data files, tests, manifest and documentation), per pull request in Estimated File Count
 > **Specification**: SPEC-002 REQ-050, AC-039 (tracking id P-41, priority P0); part of #1186
 > **Depends on**: #816 (introduces `IDPIACriteriaProvider`, the criteria catalog and `LoadedCriteriaRiskCriterion`; its plan is merged in `docs/plans/`)
 
@@ -36,7 +36,7 @@
 
 ## Design Choices
 
-Nine Dilemmas are open (1, 2, 4, 7, 8, 9, 10, 11 and 13); the maintainer answers them when work on the issue starts. Choices 3, 5, 6, 12 and 14 are Settled or Trivial. The phases below are written for the recommended options; where another option changes a phase, the phase says how.
+Nine Dilemmas are open (1, 2, 4, 7, 8, 9, 10, 11 and 13); the maintainer answers them when work on the issue starts. Choices 3, 5, 6, 12, 14 and 15 are Settled or Trivial. The phases below are written for the recommended options; where another option changes a phase, the phase says how.
 
 <details>
 <summary><strong>1. How a list entry matches a processing activity</strong></summary>
@@ -244,7 +244,7 @@ Nine Dilemmas are open (1, 2, 4, 7, 8, 9, 10, 11 and 13); the maintainer answers
 
 ### Rationale
 
-- The pipeline knows only the request type, not the processing context the rules need. I recommend A and a clear statement in the feature page (Phase 6). B wins when the maintainer wants the national lists to protect requests the developer forgot to mark; it would then be a follow-up feature issue opened when B is chosen.
+- The pipeline knows only the request type, not the processing context the rules need. I recommend A and a clear statement in the feature page (Phase 7). B wins when the maintainer wants the national lists to protect requests the developer forgot to mark; it would then be a follow-up feature issue opened when B is chosen.
 
 **Class:** Dilemma
 
@@ -259,15 +259,16 @@ Nine Dilemmas are open (1, 2, 4, 7, 8, 9, 10, 11 and 13); the maintainer answers
 |--------|------|------|
 | **A) No switch.** The AEPD lists always apply once `AddEncinaDPIA` is called | Nothing can disable the control | A controller outside the AEPD's jurisdiction is screened against a list that does not apply to it |
 | **B) `DPIAOptions.UseNationalLists` (bool, default `true`)**; `false` logs a Warning at start (8897) | Simple | A plain switch disables a compliance control for any reason, which the project's compliance rule does not allow |
-| **C) Territorial non-applicability only.** `DPIAOptions.DeclareNationalListsNotApplicable(string justification)` (non-blank justification, guard-tested; the option validator rejects a blank one); the AEPD sources are not registered; a Warning is logged once at start (8897, with the justification as a structured parameter, never personal data); every assessment records `NationalListsApplied = false` on `DPIAResult` and `DPIAEvaluated`; the generic WP 248 criteria and any `NationalList` source the application adds through #816 still apply | Explicit, justified, logged and audited on every assessment; no gap without an alternative | One more option and a start-up reporter |
+| **C) A free-text declaration** `DeclareNationalListsNotApplicable(string justification)` | Justified and logged | Any non-blank text passes ("we do not want it" as well as a territorial reason), so it is a justified version of B, not a territorial one; a controller under another lead authority is left without any Art. 35(4) list |
+| **D) A structured territorial declaration.** The bindable option `DPIAOptions.NationalListsNotApplicable` (type `NationalListsNonApplicability`, `null` by default) carries `Basis` (enum `NationalListsTerritorialBasis`: `GdprNotApplicable`, the controller has no EU establishment and processes no data of data subjects in the EU, GDPR Art. 3; or `OtherLeadAuthority`, the controller's lead supervisory authority is not the AEPD, GDPR Art. 56), `LeadAuthorityCountryCode` (ISO 3166-1 alpha-2, required for `OtherLeadAuthority`, not `ES`, absent for `GdprNotApplicable`), `Justification` (non-blank, never personal data) and `DeclarationVersion` (non-blank reference to the controller's documented decision). `DPIAOptionsValidator` fails the start when a field is missing or inconsistent, and, for `OtherLeadAuthority`, unless at least one other criteria source with origin `NationalList` is registered through #816 (the other authority's list replaces the AEPD's, so no gap). The AEPD sources are then not registered; Warning 8897 is logged once at start as an operational signal; and the audit record is the event: every `DPIAEvaluated` carries the whole declaration (`NationalListsNotApplied`, `null` when the lists apply), so an auditor reading the stream sees the basis, the authority, the justification and the version | Only a territorial reason passes, by construction; the alternative list is enforced; the reason is on every audit record, not only in a log | Two more public types, a validator rule that reads the #816 sources, and the event grows |
 
-### Chosen Option: **C — Territorial non-applicability, justified, logged and recorded** (recommended, pending the maintainer)
+### Chosen Option: **D — Structured territorial declaration, recorded on every `DPIAEvaluated`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A compliance control is never optional: the only reason to disable one is that it does not apply in the controller's territory, and then only with a justification, a log and an audit record, and without leaving a gap (the maintainer's compliance rule; AGENTS.md section 3: "the only opt-out is explicit and logged").
-- I recommend C because the AEPD lists are territorial by nature; when #686 (applicability resolver by jurisdiction) lands, the declaration can be derived from it instead of configured by hand. A wins when the maintainer prefers no opt-out at all for 1.0; B is listed only because the issue's draft used it and it does not meet the compliance rule.
-- With A, Phase 5 is dropped, `NationalListsApplied` is not added in Phase 3 and the EventIds move as Design Choice 5 says; with B, Phase 5 adds the bool instead of the method and the reporter logs without a justification.
+- A compliance control is never optional: the only reason to disable one is that it does not apply in the controller's territory, and then only justified, audited, and without leaving a gap with no alternative (the maintainer's compliance rule of 2026-10-30; AGENTS.md section 3: "the only opt-out is explicit and logged"). B and C do not meet it and are listed only to record why.
+- I recommend D because the AEPD lists are territorial by nature and D makes the territory the only accepted reason. A wins when the maintainer prefers no opt-out at all for 1.0. When #686 (applicability resolver by jurisdiction, open) lands, the declaration can be derived from the resolver instead of configured by hand; that is a later change, not part of this plan.
+- With A, Phases 5 and 6 are dropped and the EventIds move as Design Choice 5 says.
 
 **Class:** Dilemma
 
@@ -328,10 +329,31 @@ Nine Dilemmas are open (1, 2, 4, 7, 8, 9, 10, 11 and 13); the maintainer answers
 
 ### Rationale
 
-- Tag values are bounded and carry no data (ADR-054 D6); the name of a 35.5 match must say it is informational. `not_applied` exists only when Design Choice 11 is B or C.
+- Tag values are bounded and carry no data (ADR-054 D6); the name of a 35.5 match must say it is informational. `not_applied` exists only when Design Choice 11 is D, and is emitted by the engine (Phase 6).
 
 **Class:** Trivial
 **Settled by:** ADR-054 (settled point 4 and D6: bounded instrument tags without data); AGENTS.md section 3 (fail closed: no automatic "not required")
+
+</details>
+
+<details>
+<summary><strong>15. Where the tenant tag of the screening telemetry comes from</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `DPIAScreening` takes `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`) and tags the span and the counter with `encina.tenant_id` from `IRequestContext.TenantId` when multi-tenancy is on; with tenancy off no tenant tag is emitted** | The tenant comes from the same place every Encina store reads it; the screening owns its own instruments | One more constructor dependency, registered in Phase 3 |
+| **B) Emit the tag in `DefaultDPIAService`**, which has the aggregate's tenant | No new dependency for the screening | The span is the screening's; a second file in Phase 2 and the screening's own counter untagged |
+
+### Chosen Option: **A — Request context in `DPIAScreening`**
+
+### Rationale
+
+- REQ-061 takes the tenant from the request context (REQ-015) and ADR-054 D4 puts the tenant on spans and metrics only when multi-tenancy is on; A does exactly that in the class that owns the instruments, and B would split one instrument's tags across two classes.
+
+**Class:** Trivial
+**Settled by:** SPEC-002 REQ-061 (tenant from the request context); ADR-054 D4 (tenant as attribute and tag only when multi-tenancy is on)
 
 </details>
 
@@ -400,9 +422,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `NationalLists/AepdEntryMatcher.cs` (internal static): evaluates an `AepdEntryRule` against a `DPIAContext` (Design Choice 12: ordinal ignore case, deterministic, no I/O).
-2. `Abstractions/IDPIAScreening.cs` and `NationalLists/DPIAScreening.cs` (public sealed): `ValueTask<Either<EncinaError, DPIAScreeningResult>> ScreenAsync(DPIAContext, CancellationToken)`; `NationalLists/DPIAScreeningResult.cs` (public sealed record: matches ordered per Design Choice 12, list versions, `bool Conflict` when a requirement and a 35.5 entry both match, `bool Applied`, always `true` until Phase 5); `Model/NationalListMatch.cs` (public sealed record: entry id, list kind, list version). A `Left` (`dpia.national_list_unavailable`) when the provider's data is not loaded; never "not required".
+2. `Abstractions/IDPIAScreening.cs` and `NationalLists/DPIAScreening.cs` (public sealed): `ValueTask<Either<EncinaError, DPIAScreeningResult>> ScreenAsync(DPIAContext, CancellationToken)`; `NationalLists/DPIAScreeningResult.cs` (public sealed record: matches ordered per Design Choice 12, list versions, `bool Conflict` when a requirement and a 35.5 entry both match); the constructor takes `AepdCriteriaProvider`, `IRequestContextAccessor` (Design Choice 15), `TimeProvider` and `ILogger<DPIAScreening>`, and no later phase changes it; `Model/NationalListMatch.cs` (public sealed record: entry id, list kind, list version). A `Left` (`dpia.national_list_unavailable`) when the provider's data is not loaded; never "not required".
 3. `Diagnostics/DPIALogMessages.cs`: 8898 `NationalListMatched` (Debug, entry ids only) and 8899 `NationalListConflict` (Information); the XML docs name the range.
-4. `Diagnostics/DPIADiagnostics.cs`: counter `encina.dpia.screenings` (tag `outcome` per Design Choice 14) and span `encina.dpia.screen`, both on the existing `Encina.Compliance.DPIA` source and meter; `encina.tenant_id` as span attribute and metric tag only when multi-tenancy is on (ADR-054 D4). The engine has no tenant today, so the worker checks where the assessment's tenant is available (the engine or `DefaultDPIAService`, which has the aggregate's tenant) and emits the tag there, or omits it when tenancy is off.
+4. `Diagnostics/DPIADiagnostics.cs`: counter `encina.dpia.screenings` (tag `outcome` per Design Choice 14) and span `encina.dpia.screen`, both on the existing `Encina.Compliance.DPIA` source and meter; `encina.tenant_id` as span attribute and metric tag, emitted by `DPIAScreening` from `IRequestContext.TenantId` only when multi-tenancy is on (Design Choice 15, ADR-054 D4).
 5. Tests: `tests/Encina.UnitTests/Compliance/DPIA/NationalLists/AepdEntryMatcherTests.cs` (one case per entry of both lists, AC-039), `.../DPIAScreeningTests.cs` (conflict, order, `Left` on unavailable data, in-memory exporter test of the counter and span including that no tag or log carries a payload or direct identifier, AC-044), `tests/Encina.GuardTests/Compliance/DPIA/NationalLists/DPIAScreeningGuardTests.cs`, `tests/Encina.PropertyTests/Compliance/DPIA/DPIAScreeningPropertyTests.cs` (FsCheck: the same context gives the same matches; the only property test of this plan), `tests/Encina.ContractTests/Compliance/DPIA/IDPIAScreeningContractTests.cs`, `tests/Encina.ContractTests/Compliance/DPIA/AepdCriteriaProviderContractTests.cs` (the #816 `IDPIACriteriaProvider` contract base run against `AepdCriteriaProvider`).
 6. `PublicAPI.Unshipped.txt`; manifest: unit, guard, property and contract targets for the files of tasks 1-4 and the contract target of `AepdCriteriaProvider.cs`, each with a one-sentence justification.
 
@@ -445,10 +467,10 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `DefaultDPIAAssessmentEngine.cs`: the constructor gains `IDPIAScreening screening` (null-checked); `BuildAssessmentAsync` calls an extracted `ScreenNationalListsAsync` helper (precedent `ResolveTemplateAsync`, #1488, keeps the method within CRAP 10): a 35.4 match adds a `RiskItem` at the level of Design Choice 9, a 35.5 match is recorded only (Design Choice 2), a `Left` adds a `RiskItem` at `RiskLevel.VeryHigh` (Design Choice 8).
-2. `Model/DPIAResult.cs`: `NationalListMatches` (`IReadOnlyList<NationalListMatch>`, default empty, not `required`, so no existing caller changes) and `NationalListsApplied` (`bool`, default `true`; only when Design Choice 11 is B or C).
-3. `Events/DPIAEvents.cs`: the positional `DPIAEvaluated` gains `NationalListMatches` and `NationalListsApplied` (Design Choice 4 A); `Aggregates/DPIAAggregate.cs`: `Evaluate` passes them and `Apply` keeps them.
+2. `Model/DPIAResult.cs`: `NationalListMatches` (`IReadOnlyList<NationalListMatch>`, default empty, not `required`, so no existing caller changes).
+3. `Events/DPIAEvents.cs`: the positional `DPIAEvaluated` gains `NationalListMatches` (Design Choice 4 A); `Aggregates/DPIAAggregate.cs`: `Evaluate` passes them and `Apply` keeps them.
 4. `RiskCriteria/LoadedCriteriaRiskCriterion.cs` (#816): skips the criteria of the two built-in AEPD sources (Design Choice 7 B).
-5. `ServiceCollectionExtensions.cs` (`AddEncinaDPIA`): `TryAddSingleton<AepdCriteriaProvider>`; the two AEPD sources (`aepd-art-35-4`, `aepd-art-35-5`, origin `NationalList`, `IsRequired = true`) registered as #816 `ConfiguredCriteriaSource` entries by default; `TryAddScoped<IDPIAScreening, DPIAScreening>`; the start-up load check of Design Choice 8 A (`ValidateOnStart`).
+5. `ServiceCollectionExtensions.cs` (`AddEncinaDPIA`): `TryAddSingleton<AepdCriteriaProvider>`; the two AEPD sources (`aepd-art-35-4`, `aepd-art-35-5`, origin `NationalList`, `IsRequired = true`) registered as #816 `ConfiguredCriteriaSource` entries by default; `TryAddScoped<IDPIAScreening, DPIAScreening>`; `IRequestContextAccessor` is resolved from the Encina core registration and the DI test proves it; the start-up load check of Design Choice 8 A (`ValidateOnStart`).
 6. Existing test callers of the changed signatures: `tests/Encina.GuardTests/Compliance/DPIA/DefaultDPIAAssessmentEngineGuardTests.cs` (new constructor argument plus its null test), `tests/Encina.UnitTests/Compliance/DPIA/DefaultDPIAAssessmentEngineTests.cs` (constructor plus the national-list step with the screening mocked: 35.4 raises the item, 35.5 does not, a `Left` gives `VeryHigh`), `tests/Encina.UnitTests/Compliance/DPIA/DPIAExceptionMessageLeakTests.cs` (constructor), `tests/Encina.UnitTests/Compliance/DPIA/ReadModels/DPIAProjectionTests.cs` (`new DPIAEvaluated(` with the new arguments only).
 7. New and extended tests: `tests/Encina.UnitTests/Compliance/DPIA/Aggregates/DPIAAggregateTests.cs` (the event carries the matches), the #816 unit test file of `LoadedCriteriaRiskCriterion` (AEPD criteria are skipped, other `NationalList` sources are not), `tests/Encina.UnitTests/Compliance/DPIA/NationalLists/DPIANationalListsRegistrationTests.cs` (DI test building the provider with `ValidateOnBuild` and `ValidateScopes`; an application's own `IDPIAScreening` registered before or after `AddEncinaDPIA` is kept; and the AC-024 test `AddEncinaDPIA_DefaultOptions_LoadsBothAepdListsAndNoEdpbOrigin`: with default options the catalog holds both AEPD sources with origin `NationalList` and no `EdpbHarmonisedList` origin, completing the half of AC-024 that #816 leaves to this plan).
 8. `PublicAPI.Unshipped.txt`; manifest: unit and guard targets of the changed source files of tasks 1-5, each with a one-sentence justification.
@@ -462,7 +484,7 @@ Exact file list (15): `DefaultDPIAAssessmentEngine.cs`, `DPIAResult.cs`, `DPIAEv
 
 ```text
 CONTEXT:
-- Phases 1-2 merged. Plan Design Choices 2, 4, 7, 8, 9 and 11 (Maintainer Decisions override the recommendations).
+- Phases 1-2 merged. Plan Design Choices 2, 4, 7, 8, 9 and 15 (Maintainer Decisions override the recommendations).
 - Engine: src/Encina.Compliance.DPIA/DefaultDPIAAssessmentEngine.cs; event: Events/DPIAEvents.cs (DPIAEvaluated, positional).
 - Existing callers: `git grep -n "new DefaultDPIAAssessmentEngine(\|new DPIAEvaluated(" -- tests src` before editing.
 
@@ -493,7 +515,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `ReadModels/DPIAReadModel.cs` and `ReadModels/DPIAProjection.cs`: carry `NationalListMatches` (and `NationalListsApplied` when Design Choice 11 is B or C).
+1. `ReadModels/DPIAReadModel.cs` and `ReadModels/DPIAProjection.cs`: carry `NationalListMatches`.
 2. Tests: `tests/Encina.UnitTests/Compliance/DPIA/ReadModels/DPIAProjectionTests.cs` (the projection applies the matches); `tests/Encina.IntegrationTests/Compliance/DPIA/DPIANationalListsIntegrationTests.cs` (Marten on PostgreSQL through Testcontainers, the shared collection fixture: an assessment stores `DPIAEvaluated` with the matches and the tenant; a two-tenant test shows tenant A never reads tenant B's DPIA records; with tenancy off the fixed default tenant applies).
 3. `PublicAPI.Unshipped.txt`; manifest: unit targets of the two read-model files and integration targets of the engine, screening, aggregate and projection files, each with a one-sentence justification.
 
@@ -525,21 +547,21 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Territorial Non-Applicability
+### Phase 5: Territorial Declaration, Validation and Registration
 
-> **Goal**: The explicit, justified, logged and recorded opt-out of Design Choice 11 C. **Size**: 14 files, about 800 lines. Dropped when Design Choice 11 is A.
+> **Goal**: The structured declaration of Design Choice 11 D is bindable, validated at start and switches the AEPD sources off. **Size**: 14 files, about 700 lines. Dropped when Design Choice 11 is A.
 
 <details>
 <summary>Tasks</summary>
 
-1. `DPIAOptions.cs`: `DeclareNationalListsNotApplicable(string justification)` (throws `ArgumentException` on null, empty or whitespace) and the read-only `NationalListsNotApplicableJustification`; `DPIAOptionsValidator.cs`: rejects a blank justification set by configuration binding.
-2. `ServiceCollectionExtensions.cs`: the AEPD sources are not registered when the lists are declared not applicable; `NationalLists/NationalListsApplicabilityReporter.cs` (internal hosted service): logs 8897 `NationalListsNotApplied` (Warning) once at start, with the justification as a structured parameter.
-3. `NationalLists/DPIAScreening.cs`: returns `Applied = false` and the counter outcome `not_applied` when the lists are declared not applicable; the engine already maps `Applied` to `NationalListsApplied` (Phase 3).
+1. `Model/NationalListsTerritorialBasis.cs` (public enum `GdprNotApplicable`, `OtherLeadAuthority`) and `Model/NationalListsNonApplicability.cs` (public sealed class with settable properties so configuration binding fills it: `Basis`, `LeadAuthorityCountryCode`, `Justification`, `DeclarationVersion`; XML docs say the justification must never hold personal data).
+2. `DPIAOptions.cs`: `NationalListsNonApplicability? NationalListsNotApplicable` (default `null`). `DPIAOptionsValidator.cs`: when the property is set, fails the start for an undefined `Basis`, a blank `Justification` or `DeclarationVersion`, a missing or malformed `LeadAuthorityCountryCode` (or `ES`) for `OtherLeadAuthority`, a country code given for `GdprNotApplicable`, and, for `OtherLeadAuthority`, the absence of any #816 criteria source with origin `NationalList` in the options. Every rule fires on a bound value, so each is testable.
+3. `ServiceCollectionExtensions.cs`: the AEPD sources are not registered when the declaration is set; `NationalLists/NationalListsApplicabilityReporter.cs` (internal hosted service) logs 8897 `NationalListsNotApplied` (Warning) once at start with the basis, the country code and the declaration version (operational signal only; the audit record is the event of Phase 6). Until Phase 6 merges the engine still screens, which is the protective side.
 4. `Diagnostics/DPIALogMessages.cs`: 8897.
-5. Tests: `tests/Encina.UnitTests/Compliance/DPIA/DPIAOptionsTests.cs` and `DPIAOptionsValidatorTests.cs` (extended), `.../NationalLists/DPIAScreeningTests.cs` (not applied), `.../NationalLists/NationalListsApplicabilityReporterTests.cs` (the Warning with EventId 8897, nothing logged when the lists apply), `.../NationalLists/DPIANationalListsRegistrationTests.cs` (no AEPD source when declared not applicable; `ValidateOnBuild` and `ValidateScopes`), `tests/Encina.GuardTests/Compliance/DPIA/NationalLists/NationalListsApplicabilityGuardTests.cs` (null, empty and whitespace justification; null constructor arguments of the reporter).
+5. Tests: `tests/Encina.UnitTests/Compliance/DPIA/DPIAOptionsTests.cs` (extended: the declaration binds from configuration), `tests/Encina.UnitTests/Compliance/DPIA/DPIAOptionsValidatorTests.cs` (extended: one test per rule of task 2, including `OtherLeadAuthority` with and without another `NationalList` source), `tests/Encina.UnitTests/Compliance/DPIA/NationalLists/NationalListsApplicabilityReporterTests.cs` (the Warning with EventId 8897; nothing logged when the lists apply), `tests/Encina.UnitTests/Compliance/DPIA/NationalLists/DPIANationalListsRegistrationTests.cs` (extended: no AEPD source when declared; `ValidateOnBuild` and `ValidateScopes`), `tests/Encina.GuardTests/Compliance/DPIA/NationalLists/NationalListsApplicabilityReporterGuardTests.cs` (null constructor arguments of the reporter).
 6. `PublicAPI.Unshipped.txt`; manifest: unit and guard targets of the files of tasks 1-4, each with a one-sentence justification.
 
-Exact file list (14): `DPIAOptions.cs`, `DPIAOptionsValidator.cs`, `ServiceCollectionExtensions.cs`, `NationalListsApplicabilityReporter.cs`, `DPIAScreening.cs`, `DPIALogMessages.cs`, `PublicAPI.Unshipped.txt`, the manifest, and the 6 test files of task 5.
+Exact file list (14): `NationalListsTerritorialBasis.cs`, `NationalListsNonApplicability.cs`, `DPIAOptions.cs`, `DPIAOptionsValidator.cs`, `ServiceCollectionExtensions.cs`, `NationalListsApplicabilityReporter.cs`, `DPIALogMessages.cs`, `PublicAPI.Unshipped.txt`, the manifest, and the 5 test files of task 5. `DPIAScreening` does not change, so its test callers do not either.
 
 </details>
 
@@ -548,16 +570,16 @@ Exact file list (14): `DPIAOptions.cs`, `DPIAOptionsValidator.cs`, `ServiceColle
 
 ```text
 CONTEXT:
-- Phases 1-4 merged. Plan Design Choice 11 as decided by the maintainer (skip this phase if it is A).
+- Phases 1-4 merged. Plan Design Choice 11 as decided by the maintainer (skip Phases 5 and 6 if it is A).
 
 TASK:
-Add the territorial non-applicability declaration, its validation, the start-up Warning 8897, the screening outcome
-not_applied and the tests. Exactly the 14 files of the Phase 5 file list.
+Add the structured territorial declaration, its start-up validation, the registration change, the start-up Warning 8897 and
+the tests. Exactly the 14 files of the Phase 5 file list.
 
 KEY RULES:
-- Compliance gates fail closed; the only opt-out is explicit, justified, logged and recorded on every assessment.
-- The justification is configuration text, never personal data; the log carries it as a structured parameter.
-- A Timer or hosted-service failure never escapes (AGENTS.md section 3).
+- Only a territorial basis passes; OtherLeadAuthority requires another NationalList source (no gap without an alternative).
+- The justification is configuration text, never personal data; the log is an operational signal, not the audit record.
+- A hosted-service failure never escapes (AGENTS.md section 3).
 
 REFERENCE FILES:
 - src/Encina.Compliance.DPIA/DPIAOptions.cs
@@ -569,7 +591,47 @@ REFERENCE FILES:
 
 ---
 
-### Phase 6: Justifications, Documentation and Finalization
+### Phase 6: The Declaration on the Audit Record
+
+> **Goal**: Every assessment made while the lists are declared not applicable records the whole declaration on `DPIAEvaluated`. **Size**: 12 files, about 700 lines. Dropped when Design Choice 11 is A.
+
+<details>
+<summary>Tasks</summary>
+
+1. `DefaultDPIAAssessmentEngine.cs` (it already takes `IOptions<DPIAOptions>`): when the declaration is set, the national-list step does not call the screening, emits the counter outcome `not_applied` and copies the declaration into the result; the constructor does not change.
+2. `Model/DPIAResult.cs`: `NationalListsNotApplied` (`NationalListsNonApplicability?`, default `null`, not `required`). `Events/DPIAEvents.cs`: the positional `DPIAEvaluated` gains `NationalListsNotApplied`; `Aggregates/DPIAAggregate.cs` passes and keeps it; `ReadModels/DPIAReadModel.cs` and `ReadModels/DPIAProjection.cs` carry it.
+3. Tests: `tests/Encina.UnitTests/Compliance/DPIA/DefaultDPIAAssessmentEngineTests.cs` (declared: no screening call, the declaration on the result, outcome `not_applied`), `tests/Encina.UnitTests/Compliance/DPIA/ReadModels/DPIAProjectionTests.cs` (`new DPIAEvaluated(` caller plus the projected declaration), `tests/Encina.UnitTests/Compliance/DPIA/Aggregates/DPIAAggregateTests.cs` (the event carries the declaration), `tests/Encina.IntegrationTests/Compliance/DPIA/DPIANationalListsIntegrationTests.cs` (extended: Marten stores `DPIAEvaluated` with basis, country code, justification and version, read back from the stream).
+4. `PublicAPI.Unshipped.txt`; manifest: unit and integration targets of the changed files, each with a one-sentence justification.
+
+Exact file list (12): `DefaultDPIAAssessmentEngine.cs`, `DPIAResult.cs`, `DPIAEvents.cs`, `DPIAAggregate.cs`, `DPIAReadModel.cs`, `DPIAProjection.cs`, `PublicAPI.Unshipped.txt`, the manifest, and the 4 test files of task 3 (the only callers of the changed signatures are `DPIAAggregate.cs` and `DPIAProjectionTests.cs`, verified with `git grep -n "new DPIAEvaluated("`).
+
+</details>
+
+<details>
+<summary>Prompt for AI Agents — Phase 6</summary>
+
+```text
+CONTEXT:
+- Phases 1-5 merged. Plan Design Choice 11 D; the event stream is the audit record (ADR-019).
+
+TASK:
+Record the declaration on every DPIAEvaluated, skip the screening while it is set, and write the tests. Exactly the 12 files of
+the Phase 6 file list.
+
+KEY RULES:
+- The audit record holds basis, country code, justification and declaration version; no personal data.
+- CRAP <= 10 on every changed method; extract helpers instead of growing BuildAssessmentAsync.
+
+REFERENCE FILES:
+- src/Encina.Compliance.DPIA/DefaultDPIAAssessmentEngine.cs
+- src/Encina.Compliance.DPIA/Events/DPIAEvents.cs
+```
+
+</details>
+
+---
+
+### Phase 7: Justifications, Documentation and Finalization
 
 > **Goal**: The feature is documented and recorded. **Size**: 6 files, about 350 lines.
 
@@ -586,11 +648,11 @@ Exact file list (6): the 2 justification files, `README.md`, `docs/features/dpia
 </details>
 
 <details>
-<summary>Prompt for AI Agents — Phase 6</summary>
+<summary>Prompt for AI Agents — Phase 7</summary>
 
 ```text
 CONTEXT:
-- Phases 1-5 merged. Documentation goes through docs-writer; the changelog fragment through mechanical-fixer.
+- Phases 1-6 merged. Documentation goes through docs-writer; the changelog fragment through mechanical-fixer.
 
 TASK:
 Write the two justification files, the README and feature-page sections and the changelog fragment.
@@ -647,9 +709,10 @@ REFERENCE FILES:
 | PR 2 | 2 | 15 | 1,250 | matcher, screening interface, screening, result, match; log messages; diagnostics; PublicAPI; manifest; 6 test files |
 | PR 3 | 3 | 15 | 1,100 | engine, result, events, aggregate, `LoadedCriteriaRiskCriterion`, registration; PublicAPI; manifest; 4 existing caller test files; 3 test files |
 | PR 4 | 4 | 6 | 500 | read model, projection; PublicAPI; manifest; 2 test files |
-| PR 5 | 5 | 14 | 800 | options, validator, registration, reporter, screening, log messages; PublicAPI; manifest; 6 test files |
-| PR 6 | 6 | 6 | 350 | 2 justification files, README, feature page, changelog fragment, inventory |
-| **Total** | | **71** | **5,150** | 71 file changes in 6 pull requests; `PublicAPI.Unshipped.txt` and the manifest change in five of them, so fewer distinct files are touched |
+| PR 5 | 5 | 14 | 700 | basis enum, declaration, options, validator, registration, reporter, log messages; PublicAPI; manifest; 5 test files |
+| PR 6 | 6 | 12 | 700 | engine, result, event, aggregate, read model, projection; PublicAPI; manifest; 4 test files |
+| PR 7 | 7 | 6 | 350 | 2 justification files, README, feature page, changelog fragment, inventory |
+| **Total** | | **83** | **5,750** | 83 file changes in 7 pull requests; `PublicAPI.Unshipped.txt` and the manifest change in six of them, so fewer distinct files are touched |
 
 ---
 
@@ -670,8 +733,9 @@ IMPLEMENTATION OVERVIEW:
 3. Engine integration, DPIAResult/DPIAEvaluated/aggregate carry the matches, AEPD sources registered by default and skipped
    by LoadedCriteriaRiskCriterion, AC-024 default test.
 4. Read model and Marten integration with tenants.
-5. Territorial non-applicability declaration, Warning 8897 (only if Design Choice 11 is C).
-6. Justifications and documentation.
+5. Structured territorial declaration, start-up validation, Warning 8897 (only if Design Choice 11 is D).
+6. The declaration recorded on every DPIAEvaluated (only if Design Choice 11 is D).
+7. Justifications and documentation.
 
 KEY PATTERNS:
 - Data not code; a failure to screen is a Left and a VeryHigh risk item, never "not required"; a 35.5 match never lowers a
@@ -706,7 +770,7 @@ REFERENCE FILES:
 | 9 | Idempotency | ❌ | Not a message or request entry point |
 | 10 | Multi-Tenancy | ✅ | Phases 3 and 4: matches recorded with the aggregate's tenant; two-tenant test; fixed default tenant when tenancy is off (REQ-061) |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; the aggregate's existing `ModuleId` is untouched |
-| 12 | Audit Trail | ✅ | Phases 3 and 5: screening matches and `NationalListsApplied` recorded in `DPIAEvaluated` on the DPIA aggregate |
+| 12 | Audit Trail | ✅ | Phases 3 and 6: screening matches and, while the lists are declared not applicable, the whole territorial declaration recorded in `DPIAEvaluated` on the DPIA aggregate |
 
 ---
 
@@ -727,4 +791,4 @@ REFERENCE FILES:
 
 1. Link this plan from #1243 and #816.
 2. When #1243 is picked up, re-check each Design Choice against the merged #816 code; present the Dilemmas to the maintainer and record the answers in `## Maintainer Decisions`; re-count the file lists of the phases a decision changes (Design Choices 4, 7 and 11).
-3. Ship Phases 1 to 6 as separate pull requests referencing #1243; the last one carries `Fixes #1243`.
+3. Ship Phases 1 to 7 as separate pull requests referencing #1243; the last one carries `Fixes #1243`.
