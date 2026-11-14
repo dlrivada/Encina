@@ -572,7 +572,17 @@
       "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
       "override": [
         "integration"
-      ]
+      ],
+      "targets": {
+        "unit": 95,
+        "guard": 40,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "Unit tests drive every resolution path (unknown tenant, missing tenant with and without RequireTenant, dedicated and shared tenants, missing default, store failure, explicit id) through mocked providers (measured 100%).",
+        "guard": "Guard tests cover the constructor null checks and the explicit-id argument checks, plus the whitespace id result (measured 44.4%).",
+        "integration": "Integration tests in the shared Dapper collection resolve the factory through AddEncinaTenancy against a real database for every fail-closed path and a database-per-tenant tenant (measured 83.3%)."
+      }
     },
     "Tenancy/TenantEntityMappingBuilder.cs": {
       "defaultTests": [
