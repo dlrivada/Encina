@@ -9,6 +9,7 @@ public class DPIAReviewReminderServiceGuardTests
 {
     private readonly IServiceScopeFactory _scopeFactory = Substitute.For<IServiceScopeFactory>();
     private readonly IOptions<DPIAOptions> _options = Options.Create(new DPIAOptions());
+    private readonly TimeProvider _timeProvider = TimeProvider.System;
     private readonly ILogger<DPIAReviewReminderService> _logger =
         NullLogger<DPIAReviewReminderService>.Instance;
 
@@ -20,7 +21,7 @@ public class DPIAReviewReminderServiceGuardTests
     [Fact]
     public void Constructor_NullScopeFactory_ThrowsArgumentNullException()
     {
-        var act = () => new DPIAReviewReminderService(null!, _options, _logger);
+        var act = () => new DPIAReviewReminderService(null!, _options, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("scopeFactory");
@@ -32,10 +33,22 @@ public class DPIAReviewReminderServiceGuardTests
     [Fact]
     public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var act = () => new DPIAReviewReminderService(_scopeFactory, null!, _logger);
+        var act = () => new DPIAReviewReminderService(_scopeFactory, null!, _timeProvider, _logger);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("options");
+    }
+
+    /// <summary>
+    /// Verifies that the constructor throws ArgumentNullException when timeProvider is null.
+    /// </summary>
+    [Fact]
+    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => new DPIAReviewReminderService(_scopeFactory, _options, null!, _logger);
+
+        var ex = Should.Throw<ArgumentNullException>(act);
+        ex.ParamName.ShouldBe("timeProvider");
     }
 
     /// <summary>
@@ -44,7 +57,7 @@ public class DPIAReviewReminderServiceGuardTests
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        var act = () => new DPIAReviewReminderService(_scopeFactory, _options, null!);
+        var act = () => new DPIAReviewReminderService(_scopeFactory, _options, _timeProvider, null!);
 
         var ex = Should.Throw<ArgumentNullException>(act);
         ex.ParamName.ShouldBe("logger");

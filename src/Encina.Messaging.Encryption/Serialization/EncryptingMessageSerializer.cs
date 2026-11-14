@@ -39,8 +39,10 @@ namespace Encina.Messaging.Encryption.Serialization;
 /// </list>
 /// </para>
 /// <para>
-/// <strong>Attribute precedence</strong>: <c>[EncryptedMessage(Enabled = false)]</c> overrides
-/// <c>MessageEncryptionOptions.EncryptAllMessages = true</c>.
+/// <strong>Which types are encrypted</strong>: a type is encrypted when it is marked with
+/// <c>[EncryptedMessage]</c> (declared or inherited from a base type) or when
+/// <c>MessageEncryptionOptions.EncryptAllMessages</c> is <c>true</c>. There is no per-type
+/// opt-out: a marked type is encrypted even when <c>EncryptAllMessages</c> is <c>false</c>.
 /// </para>
 /// <para>
 /// This class is thread-safe when the inner serializer and encryption provider are thread-safe.
@@ -81,12 +83,20 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
     /// <remarks>
     /// Serializes the message to JSON via the inner serializer, then encrypts the payload
     /// if encryption is required for the message type (via attribute or global configuration).
+    /// <para>
+    /// The decision, the key and the type name in logs and traces come from the message's
+    /// runtime type, so a message passed as an interface or a base type is encrypted when its
+    /// concrete type carries <c>[EncryptedMessage]</c>. A <see langword="null"/> message falls
+    /// back to <typeparamref name="T"/>. The inner serializer is called with the same generic
+    /// argument, so the JSON it produces does not depend on this decorator.
+    /// </para>
     /// </remarks>
     public string Serialize<T>(T message)
     {
         var json = _inner.Serialize(message);
         var opts = _options.Value;
-        var messageTypeName = typeof(T).Name;
+        var messageType = ResolveMessageType(message);
+        var messageTypeName = messageType.Name;
 
         if (!opts.Enabled)
         {
@@ -94,7 +104,6 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
             return json;
         }
 
-        var messageType = typeof(T);
         if (!ShouldEncrypt(messageType, opts))
         {
             _logger.EncryptionSkippedNotRequired(messageTypeName);
@@ -264,18 +273,16 @@ public sealed class EncryptingMessageSerializer : IMessageSerializer
             $"Message decryption failed with key '{payload.KeyId}': {error.Message}");
     }
 
+    // The runtime type decides encryption, so a message passed as an interface or a base type
+    // cannot escape the [EncryptedMessage] of its concrete type (#3780); null keeps typeof(T).
+    private static Type ResolveMessageType<T>(T message) => message?.GetType() ?? typeof(T);
+
     private static bool ShouldEncrypt(Type messageType, MessageEncryptionOptions options)
     {
-        var info = EncryptedMessageAttributeCache.GetEncryptionInfo(messageType);
-
-        if (info is not null)
-        {
-            // Attribute overrides global config
-            return info.Enabled;
-        }
-
-        // No attribute — fall back to global config
-        return options.EncryptAllMessages;
+        // A marked type (declared or inherited [EncryptedMessage]) is always encrypted;
+        // an unmarked type is encrypted only when EncryptAllMessages is on.
+        return options.EncryptAllMessages
+            || EncryptedMessageAttributeCache.GetEncryptionInfo(messageType) is not null;
     }
 
     private static MessageEncryptionContext BuildEncryptionContext(
