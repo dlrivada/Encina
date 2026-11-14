@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDPAService"/> → <see cref="DefaultDPAService"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="ProcessorValidationPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
     /// <item><see cref="CheckDPAExpirationHandler"/> (Transient, using TryAdd)</item>
+    /// <item><see cref="IRequestContextAccessor"/> → <see cref="RequestContextAccessor"/> (Singleton, using TryAdd), the source of the ambient tenant</item>
     /// </list>
     /// </para>
     /// <para>
@@ -92,6 +93,10 @@ public static class ServiceCollectionExtensions
 
         // Ensure TimeProvider is available (generic host registers it, but standalone DI may not)
         services.TryAddSingleton(TimeProvider.System);
+
+        // The services read the ambient tenant from the request context (#3679); the accessor is
+        // a core service, registered here so the module resolves on its own.
+        services.TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>();
 
         // Register CQRS service implementations (TryAdd allows override by custom implementations)
         services.TryAddScoped<IProcessorService, DefaultProcessorService>();
