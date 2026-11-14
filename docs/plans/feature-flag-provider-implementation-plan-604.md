@@ -3,7 +3,7 @@
 > **Issue**: [#604](https://github.com/dlrivada/Encina/issues/604)
 > **Type**: Feature
 > **Complexity**: High (provider abstraction, 10 database providers, 2 new provider packages)
-> **Estimated Scope**: about 11,600 changed lines in 15 pull requests, tests, manifests and PublicAPI files included (table "Pull request split" under Research; each pull request is at most 15 files and 1,500 lines)
+> **Estimated Scope**: about 11,750 changed lines in 15 pull requests, tests, manifests and PublicAPI files included (table "Pull request split" under Research; each pull request is at most 15 files and 1,500 lines)
 
 ---
 
@@ -494,7 +494,7 @@ REFERENCE FILES:
 3. `Diagnostics/FeatureFlagsLogMessages.cs` with `[LoggerMessage]` EventIds: 7300 cache entry evicted on change, 7301 evaluation failed (error code of the inner `Left`), 7302 cache hit rate sampled; 7303-7305 are added by Phase 4b (store read failed, stored flag invalid, tenant lookup fell back to the global flag), so the ids stay packed without gaps. No user id, no context attribute, no cache key, no `EncinaError.Message` in tags or logs.
 4. `Caching/CachedFeatureFlagProvider.cs` (decorator; `IMemoryCache`; key and negative entries of Design Choice 14; TTL from `FeatureFlagsOptions.CacheDuration`), `Abstractions/IFeatureFlagChangeSource.cs` (a provider that can report changes exposes a change token; the decorator evicts on it).
 5. Registration in `AddEncinaFeatureFlags` when `CacheEnabled`: the decorator wraps the provider the application or a provider package registered, in any registration order, and never replaces an application's own provider registration.
-6. Tests with `FakeTimeProvider`: hit, miss, expiry, negative entry, eviction on change, a `Left` is not cached, two tenants never share an entry, no user id in a log; the DI test (`ValidateOnBuild`, `ValidateScopes`) for cache on and off; guard tests; the manifest entries for the new files and, if `EventIdRanges.cs` has none, a target in `.github/coverage-manifest/Encina.json`.
+6. Tests with `FakeTimeProvider`: hit, miss, expiry, negative entry, eviction on change, a `Left` is not cached, two tenants never share an entry, no user id in a log; the DI test (`ValidateOnBuild`, `ValidateScopes`) for cache on and off; guard tests; the manifest entries for the new files and, unconditionally, an entry for `src/Encina/Diagnostics/EventIdRanges.cs` in `.github/coverage-manifest/Encina.json`: unit flag at its target (the architecture and allocation tests read every range), guard flag 0 because the file has no executable code with parameters; later phases that add a range reuse that entry and only edit it if the file has none when they start.
 
 </details>
 
@@ -532,7 +532,7 @@ REFERENCE FILES:
 1. `Abstractions/IFeatureFlagStore.cs`: `GetAsync(name, tenantId)`, `ListAsync(tenantId)`, `UpsertAsync(FeatureFlag, tenantId)`, `DeleteAsync(name, tenantId)`, all `Task<Either<EncinaError, ...>>`; a `null` tenant means the global flag (mapped as Design Choice 8 decides); names validated (Design Choice 13).
 2. `Model/FeatureFlagRecord.cs` and `Model/FeatureFlagRecordMapper.cs` (entity/JSON mapping and the tenant mapping shared by the stores).
 3. `Stores/InMemoryFeatureFlagStore.cs` (for tests and local use; the provider packages never register it as a store the application did not ask for: Phase 4b has the registration rule).
-4. Tests: `InMemoryFeatureFlagStoreTests`, `FeatureFlagRecordMapperTests`, guard tests of the store, the contract suite `FeatureFlagStoreContractTests` (abstract, run against the in-memory store here and against every real store by Phases 5a-5e), the `ContractTests` project reference, manifest entries.
+4. Tests: `InMemoryFeatureFlagStoreTests`, `FeatureFlagRecordMapperTests`, guard tests of the store, the contract suite `FeatureFlagStoreContractSuite` (abstract; it is hosted in the shared test-support project `tests/Encina.TestInfrastructure/FeatureFlags/`, which `Encina.ContractTests` and `Encina.IntegrationTests` already reference, so the in-memory subclass in `ContractTests` here and every real-store subclass in `IntegrationTests` in Phases 5a-5e derive from the same class; this needs the `Encina.FeatureFlags` reference in `Encina.TestInfrastructure.csproj`), the in-memory subclass `InMemoryFeatureFlagStoreContractTests`, the `ContractTests` project reference, manifest entries.
 
 </details>
 
@@ -568,7 +568,7 @@ REFERENCE FILES:
 1. `Providers/DatabaseFeatureFlagProvider.cs` (reads the store, tenant row then global row per Design Choice 11, evaluates with `FeatureFlagRuleEvaluator`, missing-flag behavior of Design Choice 12).
 2. `Diagnostics/FeatureFlagsLogMessages.cs`: EventIds 7303 store read failed, 7304 stored flag invalid, 7305 tenant lookup fell back to the global flag.
 3. Registration: `AddEncinaFeatureFlags` registers `DatabaseFeatureFlagProvider` and an `InMemoryFeatureFlagStore` default with `TryAdd`; a database store registered by a provider package replaces the in-memory default in any registration order, and a store or provider the application registered itself is never overridden (AGENTS.md section 3, registration completeness).
-4. Tests: `DatabaseFeatureFlagProviderTests`, a registration precedence test in `FeatureFlagsRegistrationTests` (database store before and after `AddEncinaFeatureFlags`, application registration kept, `ValidateOnBuild`, `ValidateScopes`), guard tests, `FeatureFlagProviderContractTests` (abstract, run against this provider and later against Redis and Unleash), manifest entries and `PublicAPI.Unshipped.txt`.
+4. Tests: `DatabaseFeatureFlagProviderTests`, a registration precedence test in `FeatureFlagsRegistrationTests` (database store before and after `AddEncinaFeatureFlags`, application registration kept, `ValidateOnBuild`, `ValidateScopes`), guard tests, `FeatureFlagProviderContractSuite` (abstract, in `tests/Encina.TestInfrastructure/FeatureFlags/` like the store suite) with its subclass `DatabaseFeatureFlagProviderContractTests` in `ContractTests` (the suite is later run against Redis, Unleash and the providers of #300 and #451), manifest entries and `PublicAPI.Unshipped.txt`.
 
 </details>
 
@@ -614,12 +614,12 @@ Inventory of every provider store of Phases 5a-5e:
 | EFCore-SqlServer / -PostgreSQL / -MySQL | `Encina.EntityFrameworkCore` | `FeatureFlags/FeatureFlagStoreEF.cs`, `FeatureFlagEntityConfiguration.cs` | `AddEncinaFeatureFlagsEFCore` | `EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL` |
 | MongoDB | `Encina.MongoDB` | `FeatureFlags/FeatureFlagStoreMongoDB.cs`, `FeatureFlagDocument.cs` | `AddEncinaFeatureFlagsMongoDB` | `MongoDB` |
 
-Per provider of this phase (7 files, 14 for the two):
+Per provider of this phase (7 files: store, script, registration edit, `PublicAPI.Unshipped.txt`, manifest, the provider package `.csproj` with its new `ProjectReference` to `Encina.FeatureFlags`, integration test) plus one guard-test file per pull request that covers both providers of the pull request (15 files for two providers):
 
 1. `FeatureFlags/FeatureFlagStoreADO.cs` (async API with `CancellationToken`, `OpenAsync`, `ExecuteNonQueryAsync`; SQL differences per AGENTS.md section 5: `TOP (@n)` vs `LIMIT @n`, `bit` vs `true/false` vs `0/1`, backtick identifiers in MySQL; the global row and its unique index per Design Choice 8).
-2. `Scripts/<nnn>_CreateFeatureFlagsTable.sql` and the registration method in `ServiceCollectionExtensions.cs` (`TryAdd*`; the store wins over the in-memory default in any order; public API line in `PublicAPI.Unshipped.txt`).
+2. `Scripts/<nnn>_CreateFeatureFlagsTable.sql` and the registration method in `ServiceCollectionExtensions.cs` (the store replaces the in-memory default in any registration order and never overrides the application's own store; public API line in `PublicAPI.Unshipped.txt`).
 3. Manifest entry of the package (per-file targets with justification: guard flag from the registration and constructor tests; unit flag 0 with the reason that the store runs only against a live database; integration flag at its target).
-4. `FeatureFlagStoreADO{Provider}IntegrationTests` (`[Collection("ADO-<Database>")]`, `ClearAllDataAsync` in `InitializeAsync`, runs the contract suite of Phase 4a and the duplicate-global-row test) and `FeatureFlagStoreADO{Provider}GuardTests`.
+4. `FeatureFlagStoreADO{Provider}IntegrationTests` (`[Collection("ADO-<Database>")]`, `ClearAllDataAsync` in `InitializeAsync`, derives from `FeatureFlagStoreContractSuite` of Phase 4a and adds the duplicate-global-row test) and, once per pull request, `FeatureFlagStoreADOGuardTests` (both providers of the pull request).
 
 </details>
 
@@ -653,7 +653,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. ADO MySQL: the 7 files of Phase 5a (MySQL uses `LIMIT @n`, `0/1` and backtick identifiers).
+1. ADO MySQL: the 7 files of Phase 5a (MySQL uses `LIMIT @n`, `0/1` and backtick identifiers), plus the pull request's guard-test file for both providers (15 files with Dapper SQL Server).
 2. Dapper SQL Server: `FeatureFlags/FeatureFlagStoreDapper.cs` with a row type private to the store (as in `OperationAuditStoreDapper`), the script, `AddEncinaFeatureFlagsDapperSqlServer`, the manifest entry, `PublicAPI.Unshipped.txt`, the integration test (`[Collection("Dapper-SqlServer")]`) and the guard test.
 
 </details>
@@ -686,7 +686,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Per Dapper package: the 7 files of Phase 5a with `FeatureFlagStoreDapper` (inventory table in Phase 5a), integration collections `Dapper-PostgreSQL` and `Dapper-MySQL`.
+1. Per Dapper package: the 7 files of Phase 5a with `FeatureFlagStoreDapper` (inventory table in Phase 5a), integration collections `Dapper-PostgreSQL` and `Dapper-MySQL`, plus one shared guard-test file (15 files).
 
 </details>
 
@@ -718,7 +718,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.EntityFrameworkCore/FeatureFlags/FeatureFlagStoreEF.cs`, `FeatureFlagEntityConfiguration.cs` (the unique index of Design Choice 8 expressed once for SQL Server, PostgreSQL and MySQL), `AddEncinaFeatureFlagsEFCore`, `PublicAPI.Unshipped.txt`, the manifest entry.
+1. `src/Encina.EntityFrameworkCore/FeatureFlags/FeatureFlagStoreEF.cs`, `FeatureFlagEntityConfiguration.cs` (the unique index of Design Choice 8 expressed once for SQL Server, PostgreSQL and MySQL), `AddEncinaFeatureFlagsEFCore`, `PublicAPI.Unshipped.txt`, the manifest entry, and `Encina.EntityFrameworkCore.csproj` (new `ProjectReference` to `Encina.FeatureFlags`).
 2. Tests: integration classes on `EFCore-SqlServer`, `EFCore-PostgreSQL` and `EFCore-MySQL` (each runs the contract suite and the duplicate-global-row test) and a guard test class.
 
 </details>
@@ -749,7 +749,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.MongoDB/FeatureFlags/FeatureFlagStoreMongoDB.cs`, `FeatureFlagDocument.cs`, `AddEncinaFeatureFlagsMongoDB` (unique index on `(TenantId, Name)` with the same global marker semantics as the SQL table), `PublicAPI.Unshipped.txt`, the manifest entry.
+1. `src/Encina.MongoDB/FeatureFlags/FeatureFlagStoreMongoDB.cs`, `FeatureFlagDocument.cs`, `AddEncinaFeatureFlagsMongoDB` (unique index on `(TenantId, Name)` with the same global marker semantics as the SQL table), `PublicAPI.Unshipped.txt`, the manifest entry, and `Encina.MongoDB.csproj` (new `ProjectReference` to `Encina.FeatureFlags`).
 2. Tests: the integration class (`[Collection("MongoDB")]`, contract suite and duplicate-global-row test) and a guard test class.
 
 </details>
@@ -984,12 +984,12 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Core, Phases 1-4b | 63 | Contract, errors, evaluator, diagnostics, cache, store contract, database provider, with their tests |
-| Database stores, Phases 5a-5e | 58 | 10 providers (EF Core is one class for 3 databases), scripts, registrations, integration and guard tests |
+| Core, Phases 1-4b | 66 | Contract, errors, evaluator, diagnostics, cache, store contract and shared contract suites, database provider, with their tests |
+| Database stores, Phases 5a-5e | 63 | 10 providers (EF Core is one class for 3 databases), scripts, registrations, provider csproj references, integration and guard tests |
 | Redis, Phases 6a-6b | 25 | Package, options, provider, tests |
 | Unleash, Phases 7a-7b | 28 | Package, options, provider, fixture, tests |
 | Documentation, Phase 8 | 8 | README x3, guide, INVENTORY, fragment, 2 justification files |
-| **Total** | **182** | 15 pull requests of at most 15 files and 1500 lines (next table) |
+| **Total** | **190** | 15 pull requests of at most 15 files and 1500 lines (next table) |
 
 #### Pull Request Split
 
@@ -1000,19 +1000,19 @@ Files include tests, manifests, `PublicAPI` files, solution and project referenc
 | 1 | Project, contract, model, errors, manifest, solution entry, 2 test project references, unit and guard tests | 15 | 650 |
 | 2 | Options, `AddEncinaFeatureFlags`, bucketing, evaluator, manifest, PublicAPI, property project reference, unit, guard, DI and property tests | 13 | 700 |
 | 3 | EventId range, diagnostics, log messages (7300-7302), cache decorator, change source, registration, manifest and PublicAPI (2), allocation test, unit, DI and guard tests | 15 | 900 |
-| 4a | Store contract, record, mapper, in-memory store, contract project reference, manifest, PublicAPI, unit, guard and contract tests | 11 | 700 |
-| 4b | `DatabaseFeatureFlagProvider`, log messages 7303-7305, registration, manifest, PublicAPI, unit, DI, guard and provider contract tests | 9 | 650 |
-| 5a | ADO SqlServer and PostgreSQL: store, script, registration, PublicAPI, manifest, integration and guard tests (7 files each) | 14 | 1,200 |
-| 5b | ADO MySQL and Dapper SqlServer (7 files each) | 14 | 1,200 |
-| 5c | Dapper PostgreSQL and MySQL (7 files each) | 14 | 1,200 |
-| 5d | EF Core: store, entity configuration, registration, PublicAPI, manifest, 3 integration classes, guard tests | 9 | 800 |
-| 5e | MongoDB: store, document, registration, PublicAPI, manifest, integration and guard tests | 7 | 600 |
+| 4a | Store contract, record, mapper, in-memory store, shared contract suite in `TestInfrastructure` and its project reference, `ContractTests` project reference, manifest, PublicAPI, unit, guard and in-memory contract tests | 13 | 750 |
+| 4b | `DatabaseFeatureFlagProvider`, log messages 7303-7305, registration, manifest, PublicAPI, unit, DI, guard tests, shared provider contract suite and its subclass | 10 | 700 |
+| 5a | ADO SqlServer and PostgreSQL: store, script, registration, PublicAPI, manifest, package csproj, integration test (7 files each) and one shared guard-test file | 15 | 1,200 |
+| 5b | ADO MySQL and Dapper SqlServer (7 files each) and one shared guard-test file | 15 | 1,200 |
+| 5c | Dapper PostgreSQL and MySQL (7 files each) and one shared guard-test file | 15 | 1,200 |
+| 5d | EF Core: store, entity configuration, registration, PublicAPI, manifest, package csproj, 3 integration classes, guard tests | 10 | 800 |
+| 5e | MongoDB: store, document, registration, PublicAPI, manifest, package csproj, integration and guard tests | 8 | 600 |
 | 6a | Redis package skeleton, options, solution entry, manifest, PublicAPI (2), 4 test project references, options and guard tests | 12 | 450 |
 | 6b | Redis provider, registration, log messages, EventId range and allocation test, PublicAPI (2), manifest, unit, DI, guard, contract and integration tests | 13 | 800 |
 | 7a | Unleash package skeleton, options, `Directory.Packages.props`, solution entry, manifest, PublicAPI (2), 4 test project references, options and guard tests | 13 | 450 |
 | 7b | Unleash provider, registration, log messages, EventId range and allocation test, PublicAPI (2), manifest, `UnleashFixture` and collection, unit, DI, guard, contract and integration tests | 15 | 900 |
 | 8 | 3 READMEs, guide, `INVENTORY.md`, changelog fragment, load and benchmark justification files | 8 | 450 |
-| **Total** | 15 pull requests | **182** | **11,650** |
+| **Total** | 15 pull requests | **190** | **11,750** |
 
 ---
 
