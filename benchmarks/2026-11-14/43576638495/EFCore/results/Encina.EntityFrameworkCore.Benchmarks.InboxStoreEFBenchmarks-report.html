@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.EntityFrameworkCore.Benchmarks.InboxStoreEFBenchmarks-20261114-132734</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V45 4.53GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>MarkAsProcessedAsync</td><td>185.9 &mu;s</td><td>216.54 &mu;s</td><td>11.87 &mu;s</td><td>1.13</td><td>0.10</td><td>34.19 KB</td><td>1.07</td>
+</tr><tr><td>GetExpiredMessagesAsync</td><td>2,314.3 &mu;s</td><td>502.46 &mu;s</td><td>27.54 &mu;s</td><td>14.06</td><td>1.03</td><td>2197.78 KB</td><td>68.80</td>
+</tr><tr><td>AddAsync</td><td>101.8 &mu;s</td><td>83.91 &mu;s</td><td>4.60 &mu;s</td><td>0.62</td><td>0.05</td><td>23.56 KB</td><td>0.74</td>
+</tr><tr><td>GetMessageAsync</td><td>165.4 &mu;s</td><td>242.31 &mu;s</td><td>13.28 &mu;s</td><td>1.00</td><td>0.10</td><td>31.95 KB</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
