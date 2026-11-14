@@ -1,0 +1,56 @@
+- The pre-draft linked PR #1300 as the delivering PR and listed Rules and Candidate destinations (spec-invariant) from it; PR #1300 closes #1090 and says #67 is reviewed separately, so it is only a linked PR. Check the PR body and closingIssuesReferences.
+Applied: role:issue-archivist Check the PR body and closingIssuesReferences before treating a linked PR as the delivering PR (#67: #1300 closes #1090 only).
+- The pre-draft was in the main checkout only (artifacts/ is gitignored); the worktree had none.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- For an issue closed as "rejected by policy" with an empty diff, the code stage still has work: apply the policy to the tooling that implements the rejected model (templates, dashboard thresholds, helper scripts). Searching `threshold|target` over `.github/` and the dashboard front end found two of the five findings.
+Applied: role:issue-auditor For an issue rejected by policy with an empty diff, apply the policy to the tooling that implements the rejected model; search threshold|target over .github/ and the dashboard front end (#67).
+- A shard or matrix partition is checkable mechanically: translate the globs to regexes, list the files of the project that match none, and cross-check the result against the live dashboard's file list. That turned a documented "every file lands in some shard" into a measured 220-file gap in one script, and the same check belongs in the workflow.
+Applied: role:issue-auditor A shard/matrix partition is checkable mechanically: translate globs to regexes, list project files matching none, cross-check with the dashboard file list (#67).
+- Compare every helper that recomputes a score with the documented formula and with a real report; the status name `Timeout` versus `TimedOut` was visible only against a real Stryker JSON (the main checkout keeps old ones under `artifacts\mutation\StrykerOutput`).
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- A bash gate claim ("passes", "fails open") must account for the step's `shell:` (GitHub's bash adds `-eo pipefail`, so a grep with no match ends the step with exit 1) and for whether a `**` in a `for` glob can match without `globstar`; state which branch applies and label the other as derived (verifier correction 7 of #67).
+Applied: role:issue-auditor A bash gate claim must account for the step shell: (-eo pipefail) and whether ** in a for glob works without globstar; state the applicable branch and label the other derived (#67).
+- Quote a line number from a fresh Grep of the exact text (the Spanish messages of `list_survivors.cs` are at `:15`, `:47`, `:136`, `:140`), and check how often a helper such as `statusLabel` is called before saying a label appears on every row.
+Applied: role:issue-auditor Quote line numbers from a fresh Grep and check how often a helper (statusLabel) is called before claiming it appears on every row (#67).
+- When a template or script reads a key from a third-party report (`mutationScore`), open a real report and count the key before accepting the gate; a missing key plus `bc` and `(( ))` makes a bash gate fail open.
+Applied: role:issue-auditor When a script reads a key from a third-party report, open a real report and count the key before accepting the gate (#67).
+- For a tooling-only scope the useful test-stage output is a table of script, self-test, CI wiring and trigger; here only one of eight mutation scripts has a self-test, and the workflow that hosts the partition check has no PR trigger, so nothing guards it.
+Applied: role:test-auditor For tooling-only scopes output a table of script, self-test, CI wiring and trigger (#67).
+- Every code-stage finding of "a helper recomputes a score with another formula" implies a missing fixture test; ask for one fixture report with one mutant per status as the standard regression test.
+Applied: role:test-auditor A finding that a helper recomputes a score with another formula implies a missing fixture test: one fixture report with one mutant per status (#67).
+- For an issue whose decision rejects a single-percentage model, search the whole of `docs/` for the rejected figure's literal (`93.74`) and for the sibling single-percentage gates on the same table (`≥90% line coverage`): the page that lists the quality gates carried both, and a search for the issue's own number (95 %) found neither.
+Applied: role:docs-reviewer For a rejected single-percentage decision, search all of docs/ for the rejected literal and sibling single-percentage gates, not only the issue number (#67).
+- Check a "CI enforces X" sentence against the tool's own break/fail setting (`"break": 0`) before classifying it; here one config line decides whether the page is true.
+Applied: role:docs-reviewer Check a CI enforces X sentence against the tool break/fail setting before classifying it (#67).
+- An earlier audit's blocker on the same line (#32) did not produce an open issue that covers the 93.74 sentence; before marking a docs finding new, search open issue bodies for the literal and read what each hit actually asks to change (#2072 names the line for a different clause).
+Applied: role:docs-reviewer Before marking a docs finding new, search open issue bodies for the literal and read what each hit asks to change (#67).
+- Before writing a rule (a) finding on a page, search open issues for the page name: #1900 (job-graph diagram), #1901 (navigation) and #3323/#3324 already covered the diagram, navigation and figure parts, so each finding must say what is new beyond them. Also check `docs/_config.yml` `exclude:` before proposing a link from a published page to a page under an excluded folder.
+Applied: role:docs-reviewer Before a rule (a) finding search open issues for the page name and say what is new beyond them; check docs/_config.yml exclude: before proposing links (#67).
+- docs 6: recorded as duplicate of #1900 by manual override
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- code 1: recorded as not a duplicate and kept out of location merges by manual override
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- tests 1: recorded as not a duplicate and kept out of location merges by manual override
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (tests 1) The manifest's partially related line for tests 1 is #2059, which the verifier called unrelated (a docs issue about the paused schedule); the draft cites the manifest line verbatim. The verifier asked for #2064 (static checks of the mutation, load and benchmark workflows) instead; the rule does not let this draft cite it, so the orchestrator should replace the line or add #2064 as a comment when opening.
+Applied: role:audit-verifier A manifest partiallyRelated line cannot be fixed by a stage re-run; the verdict should give the replacement line for the orchestrator (#67 tests 1: #2059 to #2064).
+- (code 1) The manifest has no partially related lines for code 1; the draft cites #2829, #2897, #2830 and #2914 because the finding names them, each as a package-level issue.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (docs 6) Two additions to #1900 for the orchestrator's comment: a flowchart of the accumulation model (`## The accumulation model`) and a diagram in `docs/en/guides/MUTATION_TESTING.md`. The methodology table lists four jobs; publish is the separate workflow `publish-mutations.yml`.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (docs 5) The README "17-shard" comment (#1711) and the "~6,181 mutants" item (#3324) are excluded; only the six 76-shard occurrences are drafted.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (docs 7) The draft is restricted to the tutorial gap; the docs-index navigation entry belongs to #1901 (named in Description as the finding states it, not as a Related Issues line, since the manifest has no partially related line for it).
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (code 2, code 4, docs 3) These three drafts hold a Dilemma; the header carries only the route's labels, so the orchestrator adds `needs-decision` when opening them (maintainer decides the option).
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- (code 2, tests 3, docs 3) The step text follows the re-run stage: bash `-eo pipefail`, the loop without `globstar` (other steps of the file set `shopt -s globstar nullglob`, for example `:247`), both branches derived and not run.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- A manifest `partiallyRelated` line written by the evidence search cannot be removed or replaced by any stage re-run (`-Finalize` re-inserts it); when the verifier judges it wrong, the fix is an orchestrator edit at opening, and the verdict should give the replacement line (here #2059 to #2064 for tests 1).
+Applied: role:audit-verifier A wrong manifest partiallyRelated line is an orchestrator edit at opening; give the replacement line in the verdict (#67).
+- After a FAIL whose corrections were all duplicate rulings, Dilemma shape and stage-text lines, the pass-2 check that held was: empty `src tests docs .github CHANGELOG.md ROADMAP.md` diff against the previous verification commit, a printed line for every citation including unchanged text, the per-finding table (finding, remediation line, draft file) built by command, and a header, tick, milestone and seam command over all 14 drafts; about 25 calls.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- A claim about how a bash step behaves ("passes", "fails") is only as strong as the layout evidence next to it; here the real Stryker report path (`...\<timestamp>\reports\mutation-report.json`) settles the glob branch without running bash, and the stage text is right to label the other branch as derived.
+Applied: not applied: audit-specific note for #67 (recorded in the stage files and handed to the orchestrator at opening); no pipeline change needed.
+- Verifier helper trap (again): the sanitizer seam scan has to look for both the "of: 3" and the "in )" forms; a regex for `open issues` alone misses them.
+Applied: role:audit-verifier The sanitizer seam scan must look for both the of: 3 and the in ) forms (#67).

@@ -1,0 +1,43 @@
+Remediation for #64:
+- code 1 (Major): draft 64-code-1-a-route-condition-that-throws-is-swallowed-and.md
+- code 2 (Minor): draft 64-code-2-cancellation-is-handled-three-different-ways-and-any.md
+- code 3 (Minor): draft 64-code-3-with-allowmultiplematches-and-evaluateinparallel-the-result.md
+- code 4 (Minor): draft 64-code-4-contentrouteroptions-maxdegreeofparallelism-is-not-validated.md
+- code 5 (Minor): draft 64-code-5-three-public-error-codes-are-produced-nowhere-contentroutere.md
+- code 6 (Minor): draft 64-code-6-the-content-router-emits-no-trace-span-and.md
+- code 7 (Minor): draft 64-code-7-a-handler-exception-is-logged-without-its-stack.md
+- code 8 (Minor): draft 64-code-8-the-builder-drops-a-route-silently-contentrouterbuilder-when.md
+- code 9 (Minor): merged into docs 2 (manual override)
+- tests 1 (Major): draft 64-tests-1-github-coverage-manifest-encina-messaging-json-entries-conte.md
+- tests 2 (Minor): draft 64-tests-2-github-coverage-manifest-encina-messaging-json-classificatio.md
+- tests 3 (Major): draft 64-tests-3-tests-encina-unittests-messaging-contentrouter-contentrouter.md
+- tests 4 (Minor): draft 64-tests-4-parallel-execution-of-allowmultiplematches-with-evaluateinpa.md
+- tests 5 (Minor): draft 64-tests-5-cancellation-code-stage-finding-2-has-one-test.md
+- tests 6 (Minor): draft 64-tests-6-contentrouterbuilder-cs-code-stage-finding-8-has-no.md
+- tests 7 (Minor): draft 64-tests-7-missing-test-types-for-encina-messaging-contentrouter-with.md
+- tests 8 (Minor): draft 64-tests-8-code-stage-finding-7-a-handler-exception-is.md
+- docs 1 (Blocker): draft 64-docs-1-the-readme-sample-s-option-block-does-not.md
+- docs 2 (Major): draft 64-docs-2-the-icontentrouter-xml-example-does-not-compile-code.md
+- docs 3 (Major): draft 64-docs-3-no-concept-or-guide-page-and-no-reference.md
+- docs 4 (Major): draft 64-docs-4-the-feature-appears-in-no-tutorial-or-learning.md
+- docs 5 (Major): duplicate of #1299 (manual override)
+- docs 6 (Minor): merged into docs 1 (same location)
+- docs 7 (Minor): draft 64-docs-7-the-readme-sample-leaves-its-imports-and-its.md
+- docs 8 (Minor): draft 64-docs-8-changelog-and-release-details-carry-wrong-codes-and.md
+
+## Lessons for the pipeline
+- code 1: recorded as not a duplicate and kept out of location merges by manual override
+- (docs 2, code 9) The two findings describe one defect (the `IContentRouter` XML example, `IContentRouter.cs:23-26`); the manifest did not merge them (code and docs stages, different locations of the same lines), so two drafts exist and the verifier should merge one into the other before opening.
+- (docs 3) The docs stage says `docs/features/transactional-outbox.md:241` uses "content-based" for deduplication; in the audit worktree that line says "EF Core does not register the Recoverability, routing slip, content router, scatter-gather or soft-delete behaviors", which contradicts `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:209` (`RegisterContentRouter`). The docs 3 draft states the code and adds the correction of that line.
+- (docs 1) The docs stage cites the shared helper `AddMessagingServices<...>` at `MessagingServiceCollectionExtensions.cs:44`; the declaration is at `:53`. The docs 3 draft cites `docs/index.md:58` for the Messaging row (the docs stage says `:59`).
+- (tests 8) The test cited by the tests stage (`ErrorMessageLeakTests.cs:457`) drives a handler that returns `Left`, not one that throws, so it never reaches the catch lines at issue; the draft says so and points to the `FakeLogger` technique in the same class.
+- (docs 3, docs 8) A Grep with a brace `glob` (`{features,messaging,guides,tutorials}/**/*.md`) returned no match for a file that exists; plain per-directory Grep found it. Absent-path claims were checked per directory in count mode with positive controls (`PublicAPI*.txt` 934 lines, `docs/messaging/index.md` 6 hits).
+- (code 1 to code 8) The `Related Issues` of the bug drafts sit under a `Related Issues:` label inside Additional Context; issue numbers other than the finding's own and the manifest's partially related line are not cited.
+- docs 5: recorded as duplicate of #1299 by manual override
+- docs 2: merged into code 9 by manual override (the merged group's primary is docs 2)
+- (docs 1) Re-run after the verifier: the `AddEncinaMessaging` wrapper belongs to #1886 and the missing diagram to #3314, so the draft keeps only the get-only `ContentRouterOptions` assignment (CS0200), the two misleading option comments and the options table; #1850 is not cited. Titles of #1886 and #3314 come from the verifier's text and the manifest; this agent has no shell and could not re-read the live issues with `gh api`.
+- (docs 3) Re-run: the draft lists `docs/architecture/adr/037-transactional-outbox.md:142` and `docs/features/transactional-outbox.md:241` as wrong statements to correct (EF Core does register the content router, `ServiceCollectionExtensions.cs:209`); `037:141` (MongoDB) is true and stays. #2826 is cited without a title because neither the manifest nor the stages give one.
+- (code 6) Re-run: the earlier recipe (a per-feature `ActivitySource` modelled on `SagaActivitySource`) contradicts ADR-054 D3 (`054-observability-conventions-and-trace-propagation.md:43`: one `ActivitySource` and one `Meter` per package); the draft now says to instrument through the package-level source and meter like #3311 and #3693, and does not name `SagaActivitySource`.
+- (code 4) Re-run: the `IValidateOptions` plus `ValidateOnStart` recipe does not fit the registration (`MessagingServiceCollectionExtensions.cs:154` registers a built singleton, `ContentRouter.cs:45` takes `ContentRouterOptions`, not `IOptions<>`); the draft states that constraint and leaves the mechanism to the implementer.
+- (tests 7) Re-run: the clause about this agent having no shell is gone; the deletion of the contract, integration, load and property tests by `658263027` is stated as the verifier confirmed it. The registration test is `ServiceCollectionExtensionsRecoverabilityRoutersTests.cs:76` under `tests/Encina.UnitTests/EntityFrameworkCore/` (the tests stage cited it without the folder).
+- (all re-run drafts) The six drafts regenerated here (docs 1, docs 2 with code 9, docs 3, code 4, code 6, tests 7) were not on disk when this run started and were written again from the inputs and re-verified in the audit worktree (`ContentRouter.cs`, `ContentRouterOptions.cs`, `IContentRouter.cs`, `ContentRouterBuilder.cs`, `MessagingServiceCollectionExtensions.cs:154,168`, `MessagingConfiguration.cs:780`, `README.md:373-428`). The Glob tool timed out on a directory-wide pattern; the existing drafts were listed with a narrower Glob. The zero-hit claims for `tests/Encina.ContractTests`, `PropertyTests`, `IntegrationTests` and `LoadTests` were checked with count-mode Grep (0 hits) with the guard and benchmark folders as positive controls.
