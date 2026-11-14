@@ -135,6 +135,29 @@ public class ConsentActOrderingTests
     }
 
     [Fact]
+    public void Regrant_SameInstantAsTheWithdrawal_WithdrawalWinsTheTie()
+    {
+        var aggregate = Granted();
+        aggregate.Withdraw("subject", null, T0.AddDays(10));
+
+        aggregate.Regrant("v1", "web-form", null, null, NoMetadata, null, "admin", T0.AddDays(10));
+
+        aggregate.Status.ShouldBe(ConsentStatus.Withdrawn);
+    }
+
+    [Fact]
+    public void Projection_RegrantedAtTheWithdrawalInstant_StaysWithdrawn()
+    {
+        var projection = new ConsentProjection();
+        var model = projection.Create(GrantedEvent(), _context);
+        model = projection.Apply(new ConsentWithdrawn(ConsentId, "subject-1", "marketing", "subject", null, T0.AddDays(2)), model, _context);
+
+        model = projection.Apply(RegrantedEvent(T0.AddDays(2)), model, _context);
+
+        model.Status.ShouldBe(ConsentStatus.Withdrawn);
+    }
+
+    [Fact]
     public void LateActs_AfterANewerAct_DoNotOverwriteIt()
     {
         var aggregate = Granted();
@@ -305,6 +328,9 @@ public class ConsentActOrderingTests
             model.ConsentVersionId.ShouldBe(aggregate.ConsentVersionId, $"seed {seed}");
             model.ExpiresAtUtc.ShouldBe(aggregate.ExpiresAtUtc, $"seed {seed}");
             model.ProofOfConsent.ShouldBe(aggregate.ProofOfConsent, $"seed {seed}");
+            model.Source.ShouldBe(aggregate.Source, $"seed {seed}");
+            model.IpAddress.ShouldBe(aggregate.IpAddress, $"seed {seed}");
+            model.Metadata.ShouldBeSameAs(aggregate.Metadata, $"seed {seed}");
             model.WithdrawnAtUtc.ShouldBe(aggregate.WithdrawnAtUtc, $"seed {seed}");
             model.GivenAtUtc.ShouldBe(aggregate.GivenAtUtc, $"seed {seed}");
             model.LastActAtUtc.ShouldBe(aggregate.LastActAtUtc, $"seed {seed}");

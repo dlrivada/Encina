@@ -89,7 +89,14 @@ public interface IConsentService
     /// withdrawal. <b>Warning:</b> this timestamp comes from the client application. An
     /// unsynchronised client clock can order acts inconsistently (a grant may be kept only in the
     /// history, or may supersede a later act), and Encina cannot detect or correct it. Withdrawals,
-    /// expiries and version changes are timed by Encina and always apply.
+    /// expiries and version changes are timed by Encina and always apply, and a withdrawal or expiry
+    /// wins a tie with a grant at the same instant. A timestamp more than five minutes ahead of the
+    /// injected clock is refused with <see cref="ConsentErrors.ActInFutureCode"/>, because as the
+    /// ordering watermark it would make every later act look older and lock the consent. A late act
+    /// still returns the consent id (it is recorded); read the state with
+    /// <see cref="HasValidConsentAsync"/> when the outcome matters. With
+    /// <c>EncinaMartenOptions.ThrowOnConcurrencyConflict</c> enabled the conflict is not retried
+    /// and the grant returns <see cref="ConsentErrors.ServiceErrorCode"/>.
     /// </para>
     /// </remarks>
     /// <param name="dataSubjectId">Identifier of the data subject giving consent.</param>
@@ -156,6 +163,12 @@ public interface IConsentService
     /// <param name="source">Optional updated consent collection source.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
     /// <returns>Either an error or Unit on success.</returns>
+    /// <remarks>
+    /// The renewal is an act of consent timed by the injected <see cref="TimeProvider"/> and follows
+    /// the act-ordering rule of <see cref="GrantConsentAsync"/> (#3771): if the consent's latest act
+    /// is later (for example a grant dated ahead by a client clock), the renewal is recorded without
+    /// changing the state.
+    /// </remarks>
     ValueTask<Either<EncinaError, Unit>> RenewConsentAsync(
         Guid consentId,
         string consentVersionId,
@@ -180,6 +193,10 @@ public interface IConsentService
     /// <remarks>
     /// This operation is only valid when the consent status is <see cref="ConsentStatus.RequiresReconsent"/>.
     /// It reactivates the consent under the new terms with fresh GDPR Article 7(1) proof data.
+    /// The reconsent is timed by the injected <see cref="TimeProvider"/> and follows the act-ordering
+    /// rule of <see cref="GrantConsentAsync"/> (#3771): if the consent's latest act is later, it is
+    /// recorded without changing the state. <see cref="GrantConsentAsync"/> with the current version
+    /// is also accepted as the reconsent.
     /// </remarks>
     ValueTask<Either<EncinaError, Unit>> ProvideReconsentAsync(
         Guid consentId,

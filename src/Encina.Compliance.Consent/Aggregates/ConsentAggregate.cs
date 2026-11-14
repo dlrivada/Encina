@@ -477,8 +477,16 @@ public sealed class ConsentAggregate : AggregateBase
     /// </summary>
     /// <param name="actAtUtc">The act's own timestamp.</param>
     /// <param name="lastActAtUtc">The ordering watermark (<see cref="LastActAtUtc"/>).</param>
-    /// <returns><c>true</c> when the act is strictly older than the watermark; an act at the same instant applies.</returns>
-    internal static bool IsLateAct(DateTimeOffset actAtUtc, DateTimeOffset lastActAtUtc) => actAtUtc < lastActAtUtc;
+    /// <param name="status">The current status.</param>
+    /// <returns>
+    /// <c>true</c> when the act is strictly older than the watermark, or at the same instant while
+    /// the consent is Withdrawn or Expired: a withdrawal or expiry wins a tie, so a client that
+    /// truncates timestamps can never reactivate a consent withdrawn at the same instant. On an
+    /// active consent an act at the same instant applies, so identical repeats stay identical.
+    /// </returns>
+    internal static bool IsLateAct(DateTimeOffset actAtUtc, DateTimeOffset lastActAtUtc, ConsentStatus status) =>
+        actAtUtc < lastActAtUtc
+        || (actAtUtc == lastActAtUtc && status is ConsentStatus.Withdrawn or ConsentStatus.Expired);
 
     /// <summary>
     /// Returns the later of the current watermark and a transition timestamp.
@@ -559,7 +567,7 @@ public sealed class ConsentAggregate : AggregateBase
 
     private void ApplyRenewed(ConsentRenewed e)
     {
-        if (IsLateAct(e.OccurredAtUtc, LastActAtUtc))
+        if (IsLateAct(e.OccurredAtUtc, LastActAtUtc, Status))
         {
             return;
         }
@@ -607,7 +615,7 @@ public sealed class ConsentAggregate : AggregateBase
         DateTimeOffset? expiresAtUtc,
         DateTimeOffset occurredAtUtc)
     {
-        if (IsLateAct(occurredAtUtc, LastActAtUtc))
+        if (IsLateAct(occurredAtUtc, LastActAtUtc, Status))
         {
             return false;
         }

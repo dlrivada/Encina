@@ -8,7 +8,9 @@ using Encina.Marten;
 using Encina.Marten.Projections;
 using Encina.Tenancy;
 using LanguageExt;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -545,6 +547,66 @@ public class DefaultConsentServiceTests
         await _repository.Received(5).LoadAsync(id, Arg.Any<CancellationToken>());
         await _repository.Received(5).SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
         await _cache.DidNotReceive().RemoveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_ActBeyondTheAllowedClockDrift_IsRejectedBeforeTouchingTheStream()
+    {
+        // Act — a timestamp ten years ahead would lock the consent as the ordering watermark.
+        var result = await _sut.GrantConsentAsync(
+            "subject-1", "marketing", "v1", "web-form", "admin", occurredAtUtc: FixedNow.AddYears(10));
+
+        // Assert
+        var error = result.Match(Right: _ => throw new InvalidOperationException("Expected Left"), Left: e => e);
+        error.GetCode().ShouldBe(Some(ConsentErrors.ActInFutureCode));
+        error.GetCategory().ShouldBe(ErrorCategory.InvalidRequest);
+        error.Message.ShouldNotContain("subject-1");
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_ActWithinTheAllowedClockDrift_IsAcceptedAndNormalizedToUtc()
+    {
+        // Arrange — four minutes ahead, expressed with a +02:00 offset.
+        var actedAt = FixedNow.AddMinutes(4).ToOffset(TimeSpan.FromHours(2));
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", occurredAtUtc: actedAt);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        await _repository.Received(1).CreateAsync(
+            Arg.Is<ConsentAggregate>(a => a.GivenAtUtc == actedAt && a.GivenAtUtc.Offset == TimeSpan.Zero),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ConsentCommands_NeverLogTheConsentIdAtInformationOrAbove()
+    {
+        // Arrange — the consent id is a hash of tenant, subject and purpose (#3769, #3771).
+        var logger = new FakeLogger<DefaultConsentService>();
+        var sut = new DefaultConsentService(
+            _repository, _readModelRepository, _cache, _timeProvider, _requestContextAccessor,
+            Options.Create(new ConsentOptions()), logger);
+        var (id, existing) = ArrangeExisting(CreateActiveAggregate);
+
+        // Act — a renewal by grant, a withdrawal, a regrant, a version change and a reconsent.
+        await sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin");
+        await sut.WithdrawConsentAsync(id, "admin");
+        await sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", occurredAtUtc: FixedNow.AddMinutes(1));
+        existing.ChangeVersion("v2", "terms", requiresReconsent: true, "legal", FixedNow.AddMinutes(2));
+        await sut.ProvideReconsentAsync(id, "v2", "web-form", "admin");
+        await sut.WithdrawConsentAsync(id, "admin");
+        await sut.RenewConsentAsync(id, "v3", "admin");
+
+        // Assert
+        var records = logger.Collector.GetSnapshot();
+        records.ShouldNotBeEmpty();
+        records.Where(r => r.Level >= LogLevel.Information)
+            .ShouldAllBe(r => !r.Message.Contains(id.ToString(), StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

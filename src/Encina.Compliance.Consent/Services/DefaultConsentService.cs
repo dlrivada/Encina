@@ -165,11 +165,20 @@ internal sealed class DefaultConsentService : IConsentService
             var id = ConsentStreamId.For(effectiveTenantId, dataSubjectId, purpose);
 
             // The act's own timestamp (when the data subject acted) orders acts on the same key;
-            // it defaults to the injected clock (#3771).
+            // it defaults to the injected clock (#3771). An act dated beyond the tolerance in the
+            // future is refused: as the ordering watermark it would turn every later act on the
+            // key into a late one and lock the consent in its current state.
+            var now = _timeProvider.GetUtcNow();
+            var actAtUtc = (occurredAtUtc ?? now).ToUniversalTime();
+            if (actAtUtc > now + MaxActClockAhead)
+            {
+                _logger.ConsentGrantActInFuture(purpose);
+                return ConsentErrors.ActInFuture(purpose, MaxActClockAhead);
+            }
+
             var act = new GrantAct(
                 consentVersionId, source, grantedBy, ipAddress, proofOfConsent,
-                metadata ?? new Dictionary<string, object?>(), expiresAtUtc,
-                occurredAtUtc ?? _timeProvider.GetUtcNow());
+                metadata ?? new Dictionary<string, object?>(), expiresAtUtc, actAtUtc);
 
             // Grant validates every argument of the act, so the existing-stream path below
             // receives an act that is already valid.
@@ -264,6 +273,12 @@ internal sealed class DefaultConsentService : IConsentService
     /// </summary>
     private const int MaxGrantAttempts = 5;
 
+    /// <summary>
+    /// How far ahead of the injected clock a grant act's own timestamp may be before the grant is
+    /// refused (#3771): enough for ordinary client clock drift, never enough to lock a consent.
+    /// </summary>
+    internal static readonly TimeSpan MaxActClockAhead = TimeSpan.FromMinutes(5);
+
     private static bool IsConcurrencyConflict(Either<EncinaError, Guid> result) =>
         result.Match(Right: _ => false, Left: error => HasCode(error, MartenErrorCodes.ConcurrencyConflict));
 
@@ -295,7 +310,7 @@ internal sealed class DefaultConsentService : IConsentService
 
                 // An act older than the latest act is recorded in the history without changing
                 // the current state (the aggregate and the projection apply the same rule).
-                var appliedToState = !ConsentAggregate.IsLateAct(act.OccurredAtUtc, aggregate.LastActAtUtc);
+                var appliedToState = !ConsentAggregate.IsLateAct(act.OccurredAtUtc, aggregate.LastActAtUtc, aggregate.Status);
                 var transition = RecordTransition(aggregate, act);
                 var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
 
@@ -303,7 +318,7 @@ internal sealed class DefaultConsentService : IConsentService
                     Right: _ =>
                     {
                         _logger.ConsentGrantOnExistingRecorded(purpose, transition.ToString(), appliedToState);
-                        RecordGrantMetric(transition);
+                        RecordGrantMetric(transition, appliedToState);
                         InvalidateCache(consentId, aggregate);
                         return consentId;
                     },
@@ -342,18 +357,27 @@ internal sealed class DefaultConsentService : IConsentService
         }
     }
 
-    // crap-exempt: single-question switch — which counter measures this transition.
-    private static void RecordGrantMetric(GrantTransition transition)
+    /// <summary>
+    /// Counts a transition that changed the state; a late act kept only in the history is not
+    /// counted as a renewal, regrant or reconsent.
+    /// </summary>
+    private static void RecordGrantMetric(GrantTransition transition, bool appliedToState)
     {
-        var counter = transition switch
+        if (appliedToState)
+        {
+            CounterFor(transition).Add(1);
+        }
+    }
+
+    // crap-exempt: single-question switch — which counter measures this transition.
+    private static System.Diagnostics.Metrics.Counter<long> CounterFor(GrantTransition transition) =>
+        transition switch
         {
             GrantTransition.Renewal => ConsentDiagnostics.ConsentRenewedTotal,
             GrantTransition.Reconsent => ConsentDiagnostics.ConsentReconsentTotal,
             _ => ConsentDiagnostics.ConsentGrantedTotal
         };
 
-        counter.Add(1);
-    }
 
     /// <summary>
     /// Whether a repository error carries the given error code.
@@ -400,7 +424,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ConsentWithdrawnService(consentId.ToString());
+                            _logger.ConsentWithdrawnService();
                             ConsentDiagnostics.ConsentWithdrawnTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -411,7 +435,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "WithdrawConsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("WithdrawConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Withdrawn");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -458,7 +482,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ConsentRenewedService(consentId.ToString(), consentVersionId);
+                            _logger.ConsentRenewedService(consentVersionId);
                             ConsentDiagnostics.ConsentRenewedTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -469,7 +493,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "RenewConsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("RenewConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -524,7 +548,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ReconsentProvidedService(consentId.ToString(), newConsentVersionId);
+                            _logger.ReconsentProvidedService(newConsentVersionId);
                             ConsentDiagnostics.ConsentReconsentTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -535,7 +559,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "ProvideReconsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("ProvideReconsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

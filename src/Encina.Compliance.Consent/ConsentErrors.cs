@@ -57,6 +57,39 @@ public static class ConsentErrors
     public const string ReconsentRequiredCode = "consent.reconsent_required";
 
     /// <summary>
+    /// Error code when a grant's act timestamp is further in the future than the allowed clock
+    /// drift (#3771). Category <see cref="ErrorCategory.InvalidRequest"/> (ADR-062).
+    /// </summary>
+    public const string ActInFutureCode = "consent.act_in_future";
+
+    /// <summary>
+    /// Creates the error returned when the <c>occurredAtUtc</c> of
+    /// <c>IConsentService.GrantConsentAsync</c> is later than the current time plus the allowed
+    /// clock drift (#3771).
+    /// </summary>
+    /// <remarks>
+    /// The act timestamp orders the acts on a consent; an act dated in the future would make every
+    /// later act look older and lock the consent in its current state, so it is refused before any
+    /// stream is touched. Neither the message nor the details carry the data subject's identifier.
+    /// </remarks>
+    /// <param name="purpose">The processing purpose of the consent.</param>
+    /// <param name="allowedClockAhead">How far in the future an act timestamp may be.</param>
+    /// <returns>An <see cref="ErrorCategory.InvalidRequest"/> error with code <see cref="ActInFutureCode"/>.</returns>
+    public static EncinaError ActInFuture(string purpose, TimeSpan allowedClockAhead) =>
+        EncinaErrors.Create(
+            code: ActInFutureCode,
+            category: ErrorCategory.InvalidRequest,
+            message: $"The grant act for {SubjectDescription} and purpose '{purpose}' is dated more than "
+                + $"{allowedClockAhead.TotalMinutes:0} minutes in the future. Check the client clock.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyPurpose] = purpose,
+                [MetadataKeyStage] = MetadataStageConsent,
+                ["allowedClockAheadSeconds"] = allowedClockAhead.TotalSeconds,
+                ["requirement"] = "consent_act_ordering"
+            });
+
+    /// <summary>
     /// Creates the error returned when <c>IConsentService.GrantConsentAsync</c> targets a consent in
     /// <see cref="ConsentStatus.RequiresReconsent"/> with a consent version other than the current
     /// one (#3771).

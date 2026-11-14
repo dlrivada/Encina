@@ -142,7 +142,7 @@ public sealed class ConsentProjection :
         current.Version++;
 
         // A renewal older than the latest act is recorded without changing the state (#3771).
-        if (ConsentAggregate.IsLateAct(domainEvent.OccurredAtUtc, current.LastActAtUtc))
+        if (ConsentAggregate.IsLateAct(domainEvent.OccurredAtUtc, current.LastActAtUtc, current.Status))
         {
             return current;
         }
@@ -266,7 +266,7 @@ public sealed class ConsentProjection :
         DateTimeOffset? expiresAtUtc,
         DateTimeOffset occurredAtUtc)
     {
-        if (ConsentAggregate.IsLateAct(occurredAtUtc, current.LastActAtUtc))
+        if (ConsentAggregate.IsLateAct(occurredAtUtc, current.LastActAtUtc, current.Status))
         {
             return false;
         }
