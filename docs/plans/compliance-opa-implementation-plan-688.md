@@ -209,10 +209,6 @@ No stale-cache answer and no configurable fallback exist in either A or B.
 <details>
 <summary><strong>9. Option and resilience defaults</strong></summary>
 
-### Options Considered
-
-| Option | Pros | Cons |
-|--------|------|------|
 All options take the defaults of the #688 issue body: `PolicyPath = "encina/compliance/applicability"`, `CacheDuration = 5 min`, `EnableCaching = true`, `RequestTimeout = 2 s` (the total timeout of one resolution, retries included), `CircuitBreakerThreshold = 5`, `CircuitBreakerDuration = 30 s` (the break duration). The issue leaves open the retry values and how the threshold maps onto the ratio-based breaker of Microsoft.Extensions.Http.Resilience; those are the options below. Retries apply to transport errors, timeouts of one attempt and 5xx (OPA queries are idempotent reads).
 
 ### Options Considered
