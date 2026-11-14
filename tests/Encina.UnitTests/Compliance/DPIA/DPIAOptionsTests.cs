@@ -39,14 +39,6 @@ public class DPIAOptionsTests
     }
 
     [Fact]
-    public void Defaults_EnableExpirationMonitoring_IsFalse()
-    {
-        var options = new DPIAOptions();
-
-        options.EnableExpirationMonitoring.ShouldBeFalse();
-    }
-
-    [Fact]
     public void Defaults_ExpirationCheckInterval_Is1Hour()
     {
         var options = new DPIAOptions();

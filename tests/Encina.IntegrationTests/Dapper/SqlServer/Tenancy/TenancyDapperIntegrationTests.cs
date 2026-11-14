@@ -5,6 +5,7 @@ using Encina.Tenancy;
 using Encina.TestInfrastructure.Entities;
 using Encina.TestInfrastructure.Fixtures;
 using Encina.TestInfrastructure.Schemas;
+using LanguageExt;
 using Microsoft.Data.SqlClient;
 using Shouldly;
 
@@ -441,6 +442,58 @@ public class TenancyDapperIntegrationTests : IAsyncLifetime
         var tenant2Result = await _repository.ListAsync();
         tenant2Result.IsRight.ShouldBeTrue();
         tenant2Result.IfRight(list => list.Count.ShouldBe(1));
+    }
+
+    #endregion
+
+    #region Missing Tenant Context Tests
+
+    [Fact]
+    public async Task Operations_WithoutTenantContext_ReturnTenantRequiredLeft_AndLeaveDataUntouched()
+    {
+        // Arrange
+        await ClearDataAsync();
+
+        SwitchTenant(Tenant1);
+        var existing = CreateEntity("Tenant1-Entity");
+        await _repository.AddAsync(existing);
+
+        _tenantProvider.SetCurrentTenant(null);
+        var noTenantRepository = new TenantAwareFunctionalRepositoryDapper<TenantTestEntity, Guid>(
+            _connection, _mapping, _tenantProvider, _tenancyOptions);
+
+        // Act
+        var list = await noTenantRepository.ListAsync();
+        var getById = await noTenantRepository.GetByIdAsync(existing.Id);
+        var add = await noTenantRepository.AddAsync(CreateEntity("No-Tenant-Entity"));
+        var delete = await noTenantRepository.DeleteAsync(existing.Id);
+        var deleteRange = await noTenantRepository.DeleteRangeAsync(new IsActiveTenantSpec());
+
+        // Assert
+        AssertTenantRequired(list, "List");
+        AssertTenantRequired(getById, "GetById");
+        AssertTenantRequired(add, "Add");
+        AssertTenantRequired(delete, "Delete");
+        AssertTenantRequired(deleteRange, "DeleteRange");
+
+        SwitchTenant(Tenant1);
+        var remaining = await _repository.ListAsync();
+        remaining.IsRight.ShouldBeTrue();
+        remaining.IfRight(rows =>
+        {
+            rows.Count.ShouldBe(1);
+            rows[0].Id.ShouldBe(existing.Id);
+        });
+    }
+
+    private static void AssertTenantRequired<T>(Either<EncinaError, T> result, string operation)
+    {
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfNone(string.Empty).ShouldBe(RepositoryErrors.TenantRequiredErrorCode);
+            error.GetDetails()["Operation"].ShouldBe(operation);
+        });
     }
 
     #endregion

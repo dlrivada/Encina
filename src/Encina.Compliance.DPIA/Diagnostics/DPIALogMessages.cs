@@ -226,58 +226,51 @@ internal static partial class DPIALogMessages
         Message = "DPIA review reminder service started. CheckInterval={CheckInterval}")]
     internal static partial void ReviewReminderStarted(this ILogger logger, TimeSpan checkInterval);
 
-    /// <summary>Review reminder service is disabled.</summary>
-    [LoggerMessage(
-        EventId = 8841,
-        Level = LogLevel.Information,
-        Message = "DPIA review reminder service is disabled (EnableExpirationMonitoring=false).")]
-    internal static partial void ReviewReminderDisabled(this ILogger logger);
-
     /// <summary>Review reminder cycle started.</summary>
     [LoggerMessage(
-        EventId = 8842,
+        EventId = 8841,
         Level = LogLevel.Debug,
         Message = "DPIA review reminder cycle starting.")]
     internal static partial void ReviewReminderCycleStarting(this ILogger logger);
 
     /// <summary>Review reminder cycle completed with expired assessments found.</summary>
     [LoggerMessage(
-        EventId = 8843,
+        EventId = 8842,
         Level = LogLevel.Warning,
         Message = "DPIA review reminder: {ExpiredCount} expired assessment(s) require review.")]
     internal static partial void ReviewReminderExpiredFound(this ILogger logger, int expiredCount);
 
     /// <summary>Review reminder cycle completed with no expired assessments.</summary>
     [LoggerMessage(
-        EventId = 8844,
+        EventId = 8843,
         Level = LogLevel.Debug,
         Message = "DPIA review reminder cycle completed. No expired assessments found.")]
     internal static partial void ReviewReminderCycleEmpty(this ILogger logger);
 
     /// <summary>Review reminder cycle was cancelled.</summary>
     [LoggerMessage(
-        EventId = 8845,
+        EventId = 8844,
         Level = LogLevel.Information,
         Message = "DPIA review reminder cycle was cancelled.")]
     internal static partial void ReviewReminderCycleCancelled(this ILogger logger);
 
     /// <summary>Review reminder cycle failed with an unhandled exception.</summary>
     [LoggerMessage(
-        EventId = 8846,
+        EventId = 8845,
         Level = LogLevel.Error,
         Message = "DPIA review reminder cycle failed.")]
     internal static partial void ReviewReminderCycleFailed(this ILogger logger, Exception exception);
 
     /// <summary>Individual expired assessment detected during review reminder cycle.</summary>
     [LoggerMessage(
-        EventId = 8847,
+        EventId = 8846,
         Level = LogLevel.Warning,
         Message = "DPIA assessment expired: RequestType={RequestType}, AssessmentId={AssessmentId}, NextReviewAtUtc={NextReviewAtUtc}")]
     internal static partial void ReviewReminderAssessmentExpired(this ILogger logger, string requestType, Guid assessmentId, DateTimeOffset? nextReviewAtUtc);
 
     /// <summary>Review reminder cycle failed because the store returned an error.</summary>
     [LoggerMessage(
-        EventId = 8848,
+        EventId = 8847,
         Level = LogLevel.Error,
         Message = "DPIA review reminder cycle failed. ErrorCode={ErrorCode}")]
     internal static partial void ReviewReminderCycleFailed(this ILogger logger, string errorCode);
