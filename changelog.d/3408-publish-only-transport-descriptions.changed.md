@@ -1,0 +1,1 @@
+- **Publish-only transport descriptions** (#3408, #3707). The NuGet descriptions of `Encina.Kafka`, `Encina.AzureServiceBus` and `Encina.NATS` now say that each package is publish-only and describe what its publisher does; they no longer promise consumers, subscriptions, dead-letter handling or exactly-once delivery.
