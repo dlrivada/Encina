@@ -4,13 +4,13 @@
 > **Type**: Feature
 > **Related**: #2383 (Outbox route, 1.0; owns the shared dispatch, the inbox hook and the `Encina.Marten` meter), #2239 (decision 2 of 2026-10-16: subscription route post-1.0; decision 5: coordination always on), #2381 and #2382 (module requirements), #207 (PostgreSQL lock provider), #1220 (per-handler completion), ADR-019, ADR-028, ADR-048, ADR-050, ADR-054
 > **Complexity**: Medium (one package, one specialized provider: Marten on PostgreSQL)
-> **Estimated Scope**: ~700-1,000 lines of production code + ~1,500 lines of tests. Post-1.0; starts only after the #2383 pull requests are merged
+> **Estimated Scope**: 42 files and about 3,400 changed lines (about 700-1,000 lines of production code, the rest tests, justification and documentation) over 5 pull requests of at most 15 files and 1,500 lines each, listed in "Estimated File Count". Post-1.0; starts only after the #2383 pull requests are merged
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-11, main `68d08ddae`)
+### What exists today (read on 2026-11-11; every fact is re-read on the current `main` when work starts, because this plan starts only after #2383 merges)
 
 - `AddEncinaMarten` (`src/Encina.Marten/ServiceCollectionExtensions.cs:35`) registers the aggregate repository and, while `AutoPublishDomainEvents` is true (default, `EncinaMartenOptions.cs:17`), `EventPublishingPipelineBehavior`, which publishes after the command and stops at the first failure (`EventPublishingPipelineBehavior.cs:139-145`). The #2383 plan removes that behavior and adds the Outbox route (`OutboxStoreMarten`, `MartenOutboxProcessor`, `InboxStoreMarten`, EventIds 2701-2720, `Encina.Marten` meter and `ActivitySource`); none of it is on `main` yet.
 - Encina does not use the Marten async daemon: no `AddAsyncDaemon`, `ISubscription` or `SubscriptionBase` in `src/`. Encina applies its store configuration through the bridge `EncinaStoreOptionsConfigurator : IConfigureMarten` (`EncinaStoreOptionsConfigurator.cs`, `AddEncinaMartenStoreOptionsBridge` `:123`).
@@ -21,7 +21,8 @@
 
 `services.AddEncinaMartenSubscription(...)`: a `MartenDomainEventSubscription` registered with the Marten async daemon that translates each committed event into its domain notification, publishes it through the dispatch core of #2383, returns failure to the daemon so the position is not advanced, and marks consumers processed through the same Inbox mark as the Outbox route, written in the page's `IDocumentOperations` so the mark commits with the progress update. The route is exclusive with the Outbox route (registration error).
 
-- Affected packages: `Encina.Marten` (subscription, options, registration, health, logs), `Encina.Messaging` (only the startup requirement row, through #2382). No other package or provider.
+- Affected packages: `Encina.Marten` (subscription, options, registration, health, logs, coverage manifest; it has no `PublicAPI.Unshipped.txt` on main, so no PublicAPI lines unless #2383 creates one), `Encina.Messaging` (only the startup requirement row, through #2382). No other package or provider.
+- Size and split (AGENTS.md section 11): five pull requests in compile order, each with its own tests and manifest entries (per file, per flag, one-sentence justification), and no PR uses a type, log class or project created by a later one (the log class and EventIds are created in PR 2, the first PR that logs). PR 1: options, route switch and the Marten API proof (7 files, about 400 lines). PR 2: subscription, configurator, registration, startup checks, exclusion, log class (14 files, about 1,200 lines). PR 3: inbox mark, tenant flow, failure semantics, justification files (10 files, about 900 lines). PR 4: meter instruments and health check (8 files, about 600 lines). PR 5: documentation (3 files, about 300 lines).
 - Provider category: Event sourcing (Marten). EventStoreDB: not applicable.
 
 ---
@@ -57,7 +58,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A store-wide route: `EncinaMartenOptions.DomainEventDelivery` is `Outbox` (default) or `Subscription`; with `Subscription` the commit listener and the outbox processor of #2383 are not registered, the module-requirement row "reliable delivery" is met by the subscription, and `AddEncinaMartenSubscription` with the Outbox route on is a startup error naming both** | One route per store; the requirement rows stay simple; no event is delivered twice by two routes | An application cannot mix routes |
+| **A) A store-wide route: `EncinaMartenOptions.DomainEventDelivery` is `Outbox` (default) or `Subscription`; with `Subscription` the commit listener and the outbox processor of #2383 are not registered, the module-requirement row "reliable delivery" is met by the subscription, and `AddEncinaMartenSubscription` combined with an explicit `DomainEventDelivery = Outbox` is a startup error naming both (decision 5 says who sets the property)** | One route per store; the requirement rows stay simple; no event is delivered twice by two routes | An application cannot mix routes |
 | **B) A partition per notification type or assembly (each handler set picks one route)** | Lets one application use both | The listener must know the partition; an event with handlers in both partitions needs two deliveries; harder to prove no loss |
 
 ### Chosen Option: **A — One store-wide route** (recommended, pending the maintainer)
@@ -93,23 +94,144 @@
 </details>
 
 <details>
-<summary><strong>4. Coordination, idempotency, tenant and start position</strong></summary>
+<summary><strong>4. Coordination and idempotency: Marten owns election and position, the Inbox mark joins the page</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The daemon runs in `HotCold` mode (one active runner per subscription by Marten's own PostgreSQL advisory lock); the missing daemon call is a startup error naming the piece; consumers use the Inbox mark `{eventId}:{handler}` written through the page's `IDocumentOperations`; the tenant comes from the event metadata; the start position defaults to `Current`** | The runner election and the progress row belong to one owner (Marten), so no external lock can fence a stale runner; the mark commits with the position; no replay of history to a new subscription | `FromBeginning` must be asked for explicitly |
-| **B) An `IDistributedLockProvider` around the subscription, marks in a separate transaction, history replayed from the start** | One lock abstraction across Encina | A second lock cannot protect Marten's progress row; marks and position can diverge; republishes old events to new consumers |
+| **A) The daemon runs in `HotCold` mode (one active runner per subscription by Marten's own PostgreSQL advisory lock); the missing daemon call is a startup error naming the piece; consumers use the Inbox mark `{eventId}:{handler}` written through the page's `IDocumentOperations`** | The runner election and the progress row belong to one owner (Marten), so no external lock can fence a stale runner; the mark commits with the position | Tied to Marten's daemon |
+| **B) An `IDistributedLockProvider` around the subscription, marks in a separate transaction** | One lock abstraction across Encina | A second lock cannot protect Marten's progress row; marks and position can diverge, so a failure after the mark and before the position republishes an event whose mark says it is done, or the reverse |
 
 ### Chosen Option: **A — Marten owns election and position; the Inbox mark joins the page**
 
 ### Rationale
 
-- Multi-instance coordination is always on (decision 5 of #2239); the startup-error-naming-the-piece rule is Design Choice 6 of #2383 (no self-registration). Idempotency follows ADR-048's enlisted split and the per-handler hook of #2383 (choices 3 and 9). `Solo` mode is rejected at startup outside tests.
+- Multi-instance coordination is always on (decision 5 of #2239); the startup-error-naming-the-piece rule is Design Choice 6 of #2383 (no self-registration). Idempotency follows ADR-048's enlisted split (the mark is written in the business transaction, here the page) and the per-handler hook of #2383 (choices 3 and 9); B cannot make the mark and the position atomic, so only A meets ADR-048.
 
 **Class:** Settled
-**Settled by:** decision 5 of 2026-10-16 on #2239, ADR-048, ADR-050, Design Choices 3, 6 and 9 of #2383, Marten async daemon `HotCold` mode (comparable product)
+**Settled by:** decision 5 of 2026-10-16 on #2239, ADR-048, ADR-050, Design Choices 3, 6 and 9 of #2383
+
+</details>
+
+<details>
+<summary><strong>5. Who sets the route, and the edits to the Outbox route files</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `AddEncinaMartenSubscription` sets `DomainEventDelivery = Subscription` itself, so one call is enough; an explicit `DomainEventDelivery = Outbox` configured by the application next to it is a startup error naming both; the registrations of #2383 (commit listener, outbox processor) and its requirement rows read the property, which is an edit of those files in PR 2 (counted in the file table)** | The common call works; no flag to remember | The property can be set from two places |
+| **B) Two steps: the application sets `DomainEventDelivery = Subscription` and calls `AddEncinaMartenSubscription`; either one alone is a startup error** | One explicit setting | The first call the user writes fails at startup |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+A startup error whose text says "with the Outbox route on" would fail the default call (`DomainEventDelivery` defaults to `Outbox`); the maintainer chooses between convenience (A) and explicitness (B).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>6. Start position of a new subscription</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Default `Current`: a new subscription delivers events committed after it starts; `FromBeginning` and `FromSequence` are explicit** | No replay of history to a new consumer | An application that expects history must ask for it |
+| **B) Default `FromBeginning`** | Nothing is missed | A new subscription republishes old events to consumers that may not be idempotent for them |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+Neither option follows from a rule; the default has a consequence for every new consumer, so it is the maintainer's choice.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. <code>Solo</code> daemon mode</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Solo` is always a startup error; tests and development use `HotCold` (which also works with one node)** | No environment detection; one rule | A developer cannot use `Solo` |
+| **B) `Solo` is allowed in the Development environment and rejected elsewhere** | Matches Marten's usual development setup | Needs the Development check of #2382, which does not exist yet |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+"Outside tests" has no mechanism in the code today; A needs none and keeps coordination always on (decision 5 of #2239).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Tenant source, mapping and ordering: the same as the dispatch core</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The tenant comes from the event metadata header `TenantId` that `EventMetadataEnrichmentService` writes when `CaptureTenantId` is on; an event type with no notification mapping, an unknown version and the order of handlers within an event behave exactly as the shared dispatch core of #2383 defines, so both routes act the same** | One behavior to document; provider coherence | The behavior is whatever #2383 decides |
+| **B) Route-specific rules in the subscription** | Could differ per route | Two behaviors for the same event |
+
+### Chosen Option: **A**
+
+### Rationale
+
+The header name and the capture option are in `src/Encina.Marten/EventMetadataEnrichmentService.cs` and `EventMetadataOptions.cs`; the dispatch core is reused, not copied (Phase 1 task 2).
+
+**Class:** Trivial
+**Settled by:** `src/Encina.Marten/EventMetadataEnrichmentService.cs` (tenant header) and the dispatch core of #2383
+
+</details>
+
+<details>
+<summary><strong>9. An event without a tenant in a multi-tenant store</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The page fails (fail closed) and, with decision 3 option A, the position is held, so that event blocks every later one until it is fixed** | Nothing is delivered without a tenant | One tenant-less event blocks the subscription |
+| **B) That one event is recorded in `DeadLetterStoreMarten` and the position advances** | The subscription keeps going | An event is skipped; with decision 3 option A it would be the only skipped class |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+AGENTS.md section 3 makes gates fail closed when context is missing; how a missing tenant interacts with the hold of decision 3 is the maintainer's choice, because the block is long lived.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Defaults, retries, health threshold and the number of subscriptions</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Name` = `domain-events`, `BatchSize` = 100, retry and backoff are the Marten daemon's own (no Encina option), the health check is Degraded above `LagThreshold` = 1000 events, and one subscription per store (the name only labels the progress row)** | Few new options; starting points | The numbers have no measurement behind them |
+| **B) Several named subscriptions per store, each with its own options** | Separate consumers | Several progress rows, several routes to exclude against the Outbox route |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+The defaults are starting points to be confirmed by the maintainer or replaced after the integration tests measure a page; B grows the exclusion rule of decision 2.
+
+**Class:** Dilemma
 
 </details>
 
@@ -117,17 +239,17 @@
 
 ## Implementation Phases
 
-### Phase 1: Contract, Options and API Proof
+### Phase 1: Contract, Options and API Proof (PR 1, 7 files)
 
 > **Goal**: Options, the dispatch seam and a test that proves the Marten 9.38.0 API facts the plan relies on.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.Marten/Subscriptions/MartenSubscriptionOptions.cs` (`Name` default `domain-events`, `StartFromPosition` of enum `SubscriptionStart` `Current`, `FromBeginning`, `FromSequence`; `BatchSize`; `MaxAttempts` only if Design Choice 3 is B) and `DomainEventDelivery` (Design Choice 2) on `EncinaMartenOptions`.
+1. **Create** `src/Encina.Marten/Subscriptions/MartenSubscriptionOptions.cs` (`Name` default `domain-events`, `StartFromPosition` of enum `SubscriptionStart` `Current`, `FromBeginning`, `FromSequence`, in `SubscriptionStart.cs`; `BatchSize`; `LagThreshold`; defaults per decisions 6 and 10; `MaxAttempts` only if Design Choice 3 is B) and `DomainEventDelivery` (Design Choice 2, edit of `EncinaMartenOptions.cs`).
 2. **Reuse, do not copy**: the event-to-notification dispatch core extracted by #2383 Phase 3 (publish through `IEncina.Publish`, per-handler invocation hook with the idempotency key). If it is not on `main`, this plan waits (prerequisite).
-3. **Create** an integration proof on Marten and PostgreSQL (Testcontainers) of: the exact `ISubscriptionController` members for skip and stop, the `DaemonMode` values, the `ISubscriptionOptions` start-position members and that writes in `IDocumentOperations` commit with the progress update. Names in this plan marked "verified in Phase 1" are corrected there.
-4. **Modify** `PublicAPI.Unshipped.txt` of `Encina.Marten` (through `mechanical-fixer`).
+3. **Create** an integration proof on Marten and PostgreSQL (Testcontainers) of: the exact `ISubscriptionController` members for skip and stop, the `DaemonMode` values, how the configured daemon mode is read back from Marten (needed by the startup check of PR 2), the `ISubscriptionOptions` start-position members and that writes in `IDocumentOperations` commit with the progress update. Names in this plan marked "verified in Phase 1" are corrected there.
+4. Tests in the same PR: options unit and guard tests (validated `BatchSize`, `LagThreshold`, `Name`), the API proof; manifest entries for the new files in `.github/coverage-manifest/Encina.Marten.json` with one-sentence justifications (`mechanical-fixer`). No PublicAPI lines unless #2383 creates a file for `Encina.Marten`.
 
 </details>
 
@@ -158,7 +280,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Subscription, Registration and Exclusion
+### Phase 2: Subscription, Registration, Exclusion and Log Class (PR 2, 14 files)
 
 > **Goal**: The route works and cannot be combined with the Outbox route.
 
@@ -167,8 +289,10 @@ REFERENCE FILES:
 
 1. **Create** `Subscriptions/MartenDomainEventSubscription.cs` (`SubscriptionBase`): per page, open a DI scope, rebuild the request context (tenant from the event metadata, correlation and cause), dispatch each event in order and return a failure to the daemon on the first `Left` (Design Choice 3).
 2. **Create** `Subscriptions/MartenSubscriptionConfigurator.cs : IConfigureMarten` that calls `Events.Subscribe(subscription, options => ...)`, registered with `TryAddEnumerable` next to the existing bridge.
-3. **Modify** `ServiceCollectionExtensions.cs`: `AddEncinaMartenSubscription(this IServiceCollection, Action<MartenSubscriptionOptions>)`; validate at startup (in `Encina.Marten`, as an `IHostedService` check like `DelayedRetryStartupCheck`): the daemon is running in `HotCold`, the Outbox route is off, an `IEncina` is registered. Each failure names the module, the missing or forbidden piece and ADR-050; when #2382 lands the rows move into its validator.
-4. **Modify** the #2383 requirement rows so "reliable commit-bound delivery" is met by the Outbox or the subscription according to `DomainEventDelivery`.
+3. **Modify** `ServiceCollectionExtensions.cs`: `AddEncinaMartenSubscription(this IServiceCollection, Action<MartenSubscriptionOptions>)` (decision 5); validate at startup (in `Encina.Marten`, as an `IHostedService` check `MartenSubscriptionStartupCheck` like `DelayedRetryStartupCheck`): the daemon is running in `HotCold` (decision 7, read back as proved in PR 1), the Outbox route is off, an `IEncina` is registered. Each failure names the module, the missing or forbidden piece and ADR-050; when #2382 lands the rows move into its validator.
+4. **Modify** the files #2383 creates for the commit listener and outbox processor registration (the `AddEncinaMarten` registration edit is the same `ServiceCollectionExtensions.cs`) and its requirement-row file, so they read `DomainEventDelivery` and "reliable commit-bound delivery" is met by the Outbox or the subscription accordingly; both edits are counted in the file table.
+5. **Create** `Diagnostics/MartenSubscriptionLogMessages.cs` with `[LoggerMessage]` EventIds 2721-2730 inside the registered `Marten` range (2600-2799; 2701-2720 belong to #2383; the claim is recorded in the batch registry `artifacts/decisions/plan-batch/eventid-blocks.md`), packed sequentially from 2721 (page failed by code, daemon mode wrong, route conflict, start position, page delivered), and update the range comment in `EventIdRanges.cs`. No new range, so no `AssemblyRanges` edit.
+6. Tests in the same PR: unit (subscription page dispatch with a substituted `IEncina` and a fake `TimeProvider`, startup check messages), DI test with `ValidateOnBuild` and `ValidateScopes`, guard (`AddEncinaMartenSubscription`, subscription constructor), contract (the subscription and the Outbox route share the dispatch seam), integration on Marten and PostgreSQL (two daemons in `HotCold` run one active subscription; exclusion with the Outbox route); manifest entries for every new file.
 
 </details>
 
@@ -198,17 +322,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Idempotency, Tenant Flow and Failure Semantics
+### Phase 3: Idempotency, Tenant Flow and Failure Semantics (PR 3, 10 files)
 
 > **Goal**: At-least-once delivery with effectively-once consumers.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Implement** the per-handler Inbox mark through `InboxStoreMarten` of #2383 with the page's `IDocumentOperations` as the enlisted session; the key is `{eventId}:{handler}`.
-2. **Implement** the tenant flow: `TenantId` from the event metadata (`EventMetadataOptions`) into the restored request context; an event without a tenant in a multi-tenant store fails the page (fail closed).
-3. **Implement** Design Choice 3 (hold, or bounded retries and dead letter into `DeadLetterStoreMarten`).
-4. **Create** a property test: the stored position never skips a failed event.
+1. **Implement** the per-handler Inbox mark through `InboxStoreMarten` of #2383 with the page's `IDocumentOperations` as the enlisted session; the key is `{eventId}:{handler}` (an edit of `MartenDomainEventSubscription` and a small `SubscriptionInboxMark` helper).
+2. **Implement** the tenant flow: `TenantId` from the event metadata (`EventMetadataOptions`) into the restored request context; an event without a tenant in a multi-tenant store fails the page (decision 9; fail closed).
+3. **Implement** Design Choice 3 (hold, or bounded retries and dead letter into `DeadLetterStoreMarten`); new log entries in `MartenSubscriptionLogMessages` (edit).
+4. Tests in the same PR: unit (marks, handlers already marked are skipped), property test (FsCheck: the stored position never skips a failed event; a retried page marks each handler at most once; this is the only place the property test is written), integration on Marten and PostgreSQL (a failure holds the position and a later run delivers; tenant flow), guard for the helper; the load and benchmark justification files (`.md`, the daemon owns concurrency; allowed for load tests and benchmarks, never for unit, guard, contract or integration tests); manifest entries.
 
 </details>
 
@@ -236,16 +360,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: Cross-Cutting Integration and Observability
+### Phase 4: Cross-Cutting Integration and Observability (PR 4, 8 files)
 
 > **Goal**: Lag, liveness and logs.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** instruments on the `Encina.Marten` meter and `ActivitySource` created by #2383 (not a second meter): `encina.marten.subscription.lag` (observable gauge, events behind the high-water mark), `encina.marten.subscription.events_total` (tags outcome code, tenant only with multi-tenancy on) and a publish span per page.
-2. **Create** `Subscriptions/MartenSubscriptionHealthCheck : IEncinaHealthCheck` (daemon liveness and lag above a threshold; reports the stuck event id, never its content).
-3. **Create** `Diagnostics/MartenSubscriptionLogMessages.cs` with `[LoggerMessage]` EventIds 2721-2730 inside the registered `Marten` range (2600-2799; 2701-2720 belong to #2383); update the range comment in `EventIdRanges.cs`. No new range.
+1. **Create** `Subscriptions/MartenSubscriptionMetrics.cs` with the instruments on the `Encina.Marten` meter and `ActivitySource` created by #2383 (not a second meter): `encina.marten.subscription.lag` (observable gauge, events behind the high-water mark), `encina.marten.subscription.events_total` (tags outcome code, tenant only with multi-tenancy on) and a publish span per page.
+2. **Create** `Subscriptions/MartenSubscriptionHealthCheck : IEncinaHealthCheck` (daemon liveness and lag above `LagThreshold`, decision 10; reports the stuck event id, never its content); register it (edit of `ServiceCollectionExtensions.cs`) and use the metrics from the subscription (edit).
+3. The log class and EventIds 2721-2730 were created in PR 2; PR 4 adds no new range.
+4. Tests in the same PR: metrics unit, health check unit, guard (health check constructor, validated arguments); manifest entries.
 
 </details>
 
@@ -257,32 +382,33 @@ CONTEXT:
 #2383 creates the Encina.Marten Meter and ActivitySource and EventIds 2701-2720. This phase only adds instruments.
 
 TASK:
-1. Add the lag gauge, the events counter, the page span and the health check; add logs 2721-2730 packed sequentially.
+1. Add the lag gauge, the events counter, the page span and the health check (PR 4); the logs 2721-2730 packed sequentially already exist from PR 2.
 
 KEY RULES:
 - Codes and exception types only in logs and tags; tenant tag only when multi-tenancy is on (ADR-054 D4).
 - Health check: DefaultName const, static Tags array, scoped resolution through CreateScope().
 
 REFERENCE FILES:
-- src/Encina/Diagnostics/EventIdRanges.cs, src/Encina.Marten/MartenHealthCheck.cs
+- src/Encina/Diagnostics/EventIdRanges.cs, src/Encina.Marten/Health/MartenHealthCheck.cs
 ```
 
 </details>
 
 ---
 
-### Phase 5: Testing
+### Phase 5: Testing (not a separate PR: each PR carries its own tests)
 
-> **Goal**: Every applicable flag reaches its manifest target for `Encina.Marten`.
+> **Goal**: Every applicable flag reaches its manifest target for `Encina.Marten`, per file, in the PR that adds the file.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit tests**: options validation, startup checks (each failure message), page dispatch with a substituted `IEncina` and a fake `TimeProvider`.
-2. **Guard tests** for new public members; **contract tests** that the subscription and the Outbox route share the dispatch seam.
-3. **Property tests** (FsCheck): the position never skips a failed event; a retried page marks each handler at most once.
-4. **Integration tests** on Marten and PostgreSQL via Testcontainers: failure holds the position and a later run delivers; two daemons in `HotCold` run one active subscription; tenant flow; the exclusion with the Outbox route.
-5. Load and benchmark: justification files (the daemon owns concurrency).
+1. **Unit tests**: options validation (PR 1), startup checks (each failure message) and page dispatch with a substituted `IEncina` and a fake `TimeProvider` (PR 2), marks (PR 3), metrics and health (PR 4).
+2. **Guard tests** for new public members in every PR (null and range checks of options, `AddEncinaMartenSubscription`, constructors); **contract tests** that the subscription and the Outbox route share the dispatch seam (PR 2).
+3. **Property tests** (FsCheck), written once in PR 3: the position never skips a failed event; a retried page marks each handler at most once.
+4. **Integration tests** on Marten and PostgreSQL via Testcontainers: API proof (PR 1); two daemons in `HotCold` run one active subscription and the exclusion with the Outbox route (PR 2); failure holds the position and a later run delivers, tenant flow (PR 3).
+5. Load and benchmark: justification files (the daemon owns concurrency), in PR 3.
+6. Per-file targets with one-sentence justifications in `.github/coverage-manifest/Encina.Marten.json`, entered in the PR that adds the file and its tests (`mechanical-fixer`).
 
 </details>
 
@@ -308,17 +434,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 6: Documentation and Finalization
+### Phase 6: Documentation and Finalization (PR 5, 3 files)
 
 > **Goal**: Users can choose and operate the route.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. XML docs with an example; `PublicAPI.Unshipped.txt`.
-2. `changelog.d/2384-marten-subscription-delivery.added.md`; `Encina.Marten` README section comparing the two routes; event-sourcing delivery guide; `docs/INVENTORY.md`.
-3. ADR only if the maintainer's answer to Design Choice 2 or 3 changes the delivery model of the #2383 ADR (number assigned when the ADR pull request opens).
-4. `dotnet build --configuration Release` with zero warnings; `dotnet test` with every flag at target.
+1. XML docs with an example ship with each PR (no PublicAPI file exists for `Encina.Marten` on main).
+2. PR 5: `changelog.d/2384-marten-subscription-delivery.added.md`; the event-sourcing delivery guide with a section comparing the two routes (`Encina.Marten` has no package README on main); `docs/INVENTORY.md`.
+3. The design record: #2383 (decision 16 of its plan) already creates the ADR for the event-sourcing delivery route and an ADR-048 amendment; this plan amends that ADR with a section for the subscription route and, if the maintainer's answers to decisions 2, 3 or 5 change the model, the amendment is part of PR 5 (a fourth file). This plan names no ADR number; the number is the one #2383 assigns.
+4. `dotnet build --configuration Release` with zero warnings; `dotnet test` with every flag at target, in every PR.
 
 </details>
 
@@ -330,7 +456,7 @@ CONTEXT:
 The route is implemented and tested. Documentation is written by the docs-writer agent following the encina-docs skill.
 
 TASK:
-1. Complete XML docs and PublicAPI; write the changelog fragment, README section and the delivery guide.
+1. Complete XML docs; write the changelog fragment, the delivery guide section and the INVENTORY entry.
 
 KEY RULES:
 - English only; never edit CHANGELOG.md; no hand-typed coverage numbers.
@@ -360,7 +486,7 @@ REFERENCE FILES:
 | Component | Location | Usage in this feature |
 |-----------|----------|-----------------------|
 | `AddEncinaMarten`, `EncinaStoreOptionsConfigurator` | `src/Encina.Marten/` | Registration bridge |
-| `EventMetadataOptions`, `MartenHealthCheck` | `src/Encina.Marten/` | Tenant flow; health pattern |
+| `EventMetadataOptions`, `MartenHealthCheck` | `src/Encina.Marten/EventMetadataOptions.cs`, `src/Encina.Marten/Health/MartenHealthCheck.cs` | Tenant flow; health pattern |
 | Outbox route of #2383 (dispatch core, `InboxStoreMarten`, `DeadLetterStoreMarten`, meter) | `src/Encina.Marten/` after #2383 | Shared dispatch and marks |
 | `DelayedRetryStartupCheck` | `src/Encina.Messaging/Recoverability/` | Startup check pattern |
 
@@ -368,17 +494,35 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Marten` subscription | 2721-2730 inside `Marten` (2600-2799) | After 2701-2720 of #2383; no new range |
+| `Encina.Marten` subscription | 2721-2730 inside `Marten` (2600-2799); ids 2721-2725 used | After 2701-2720 of #2383; no new range; recorded in `artifacts/decisions/plan-batch/eventid-blocks.md` |
 
 ### Estimated File Count
 
-| Category | Files | Notes |
-|----------|-------|-------|
-| New production files | ~7 | Options, subscription, configurator, startup check, health check, log messages |
-| Changed production files | ~5 | Registration, options, requirement rows, `EventIdRanges.cs` comment, PublicAPI |
-| Tests | ~10 | Unit, guard, contract, property, integration, justification files |
-| Documentation | ~5 | README, guide, INVENTORY, changelog |
-| **Total** | **~27** | Two pull requests: code and tests, then documentation |
+Every added or edited file is counted, including manifests, the registry comment edit and the edits of the files #2383 creates; no existing signature changes, so no existing test caller changes.
+
+| PR | Category | Files | Notes |
+|----|----------|-------|-------|
+| 1 | Source | 3 | `MartenSubscriptionOptions`, `SubscriptionStart`, `EncinaMartenOptions` edit |
+| 1 | Tests | 3 | Options unit, options guard, API proof (integration) |
+| 1 | Manifest | 1 | `Encina.Marten.json` |
+| 1 | **Subtotal** | **7** | |
+| 2 | Source | 7 | `MartenDomainEventSubscription`, `MartenSubscriptionConfigurator`, `MartenSubscriptionStartupCheck`, `ServiceCollectionExtensions` edit, requirement-row file edit (#2383), `MartenSubscriptionLogMessages`, `EventIdRanges.cs` comment edit |
+| 2 | Tests | 6 | Subscription unit, startup check unit, DI, guard, contract, integration |
+| 2 | Manifest | 1 | `Encina.Marten.json` |
+| 2 | **Subtotal** | **14** | |
+| 3 | Source | 3 | `SubscriptionInboxMark`, subscription edit, log messages edit |
+| 3 | Tests | 4 | Unit, property, integration, guard |
+| 3 | Justification | 2 | Load and benchmark `.md` |
+| 3 | Manifest | 1 | `Encina.Marten.json` |
+| 3 | **Subtotal** | **10** | |
+| 4 | Source | 4 | `MartenSubscriptionMetrics`, `MartenSubscriptionHealthCheck`, `ServiceCollectionExtensions` edit, subscription edit |
+| 4 | Tests | 3 | Metrics unit, health unit, guard |
+| 4 | Manifest | 1 | `Encina.Marten.json` |
+| 4 | **Subtotal** | **8** | |
+| 5 | Docs | 2 | Delivery guide section, `docs/INVENTORY.md` |
+| 5 | Changelog | 1 | `changelog.d/2384-marten-subscription-delivery.added.md` |
+| 5 | **Subtotal** | **3** | A fourth file, the ADR amendment, only if the answers change the model |
+| | **Total** | **42** | 7 + 14 + 10 + 8 + 3; each PR at most 15 files and 1,500 lines |
 
 ---
 
@@ -396,9 +540,10 @@ PROJECT CONTEXT:
 - Prerequisite: the Outbox route of #2383 is merged (shared dispatch, inbox hook, meter, dead letter store).
 
 IMPLEMENTATION OVERVIEW:
-1. Options, route switch and Marten API proof; 2. MartenDomainEventSubscription, IConfigureMarten registration,
-start-up checks and exclusion with the Outbox route; 3. inbox mark in the page operations, tenant flow, failure
-semantics; 4. lag gauge, health check, EventIds 2721-2730; 5. tests; 6. docs.
+1. Options, route switch and Marten API proof (PR 1); 2. MartenDomainEventSubscription, IConfigureMarten registration,
+start-up checks, exclusion with the Outbox route and EventIds 2721-2730 (PR 2); 3. inbox mark in the page operations,
+tenant flow, failure semantics (PR 3); 4. lag gauge, health check (PR 4); 5. docs (PR 5). Each PR carries its own tests
+and manifest entries.
 
 KEY PATTERNS:
 - HotCold daemon; position never advances past a failed event; marks commit with the progress update.
@@ -428,7 +573,7 @@ REFERENCE FILES:
 | 8 | Transactions | ✅ Phase 3 | The inbox mark commits with the progress update in the page operations |
 | 9 | Idempotency | ✅ Phase 3 | Inbox mark per event id and handler, shared with the Outbox route |
 | 10 | Multi-Tenancy | ✅ Phase 3 | Tenant from the event metadata; a multi-tenant event without a tenant fails the page |
-| 11 | Module Isolation | ⏭️ #747 | Module-scoped subscriptions follow the module isolation issue |
+| 11 | Module Isolation | ❌ N/A | Marten has no module-scoped streams or subscriptions today, so there is nothing to scope (#747 is about `ModuleId` on messaging entities, not subscriptions) |
 | 12 | Audit Trail | ❌ N/A | Delivery is not an auditable operator action; the events are the audit source |
 
 ---
@@ -453,6 +598,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #2384 and ask the maintainer to answer Design Choices 2 and 3 when work starts (after #2383 merges).
+1. Link this plan from #2384 and ask the maintainer to answer the Dilemmas (Design Choices 2, 3, 5, 6, 7, 9 and 10) when work starts (after #2383 merges).
 2. Run the Phase 1 API proof first and correct any Marten member name in this plan.
-3. Implement Phases 1 to 6 as two pull requests, `Fixes #2384` on the last.
+3. Implement Phases 1 to 6 as five pull requests in the order of the table, `Fixes #2384` on the last.
