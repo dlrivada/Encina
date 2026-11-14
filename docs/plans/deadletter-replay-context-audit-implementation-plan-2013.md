@@ -2,9 +2,9 @@
 
 > **Issue**: [#2013](https://github.com/dlrivada/Encina/issues/2013)
 > **Type**: Feature
-> **Related**: #583 (persistent dead letter stores, closed), #1705 (one request identity model), #1164 (persisted request context, SPEC-002 REQ-015), #2012 (replay claim, closed), #3442 (inbox dead letter replay), #2229 (admin API, consumer of the audited actions), #135 (security violations call the audit port), #2239 and #2382 (module requirements), ADR-036, ADR-046, ADR-050, ADR-054
+> **Related**: #583 (persistent dead letter stores, closed), #1705 (one request identity model), #1164 (persisted request context, SPEC-002 REQ-015), #2012 (replay claim, closed), #3442 (inbox dead letter replay), #2229 (admin API, consumer of the audited actions), #135 (security violations call the audit port: this plan defines the member `RecordQuarantineAsync` that #135 needs), #2239 and #2382 (module requirements; #2382 also closes the in-memory audit store gap), ADR-036, ADR-046, ADR-050, ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: High (core contract, audit port and adapter, 10 provider schemas)
-> **Estimated Scope**: ~1,300-1,800 lines of production code + ~3,500 lines of tests; above one worker pull request, split proposed in Phase 1
+> **Estimated Scope**: ~1,300-1,800 lines of production code + ~3,500 lines of tests; fifteen pull requests of at most 15 files and 1,500 lines each (table in Research, compile order in Phase 1)
 
 ---
 
@@ -145,19 +145,112 @@ Choices 1 and 2 were decided by the maintainer (comments of 2026-10-09 and 2026-
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No tenant tag or span attribute on the dead letter metrics (the issue's rewritten text)** | No tenant cardinality; no tenant in telemetry | Differs from ADR-054 D4 and SPEC-002 AC-044 |
+| **A) No tenant tag or span attribute on the dead letter metrics (the issue's rewritten text)** | No tenant cardinality; no tenant in telemetry | Contradicts ADR-054 D4, which rejects option 4a, and SPEC-002 AC-044 |
 | **B) Tenant tag and span attribute only when multi-tenancy is on (ADR-054 D4)** | One rule across packages; per-tenant replay failure rates | Cardinality risk (documented in the observability guide, #906) |
 
-### Chosen Option: **B — Tenant tag only when multi-tenancy is on** (recommended, pending the maintainer)
+### Chosen Option: **B — Tenant tag only when multi-tenancy is on**
 
 ### Rationale
 
-- ADR-054 D4 applies the tag "in every package"; the actor is never a dimension in either option.
-- A wins when tenant ids themselves are sensitive in the deployment or the tenant count makes the tag costly.
+- ADR-054 D4 (accepted 2026-10-22): "when multi-tenancy is enabled, the tenant id is a span attribute and a metric tag in every package", the rule of SPEC-002 AC-044; the ADR rejects option 4a. Option A therefore does not comply. The actor is never a dimension.
+
+**Class:** Settled
+**Settled by:** ADR-054 D4 and SPEC-002 AC-044
+
+</details>
+
+<details>
+<summary><strong>7. How a queue without the audit adapter is detected</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `DeadLetterManager` takes `IDeadLetterAuditSink` as a constructor dependency (a provider built with `ValidateOnBuild` fails), and a start-up check resolves it at host start so a host without `ValidateOnBuild` also fails before the first replay** | The failure is early and names the missing piece; no default sink exists to satisfy it by accident | Every existing test that enables the queue registers a sink first (the test waves T1 and T2 of the split) |
+| **B) The dead letter registration adds a fail-closed default sink that denies every call, and the start-up check fails when that default is the one resolved** | No test wave; the container always builds | A resolved service that only denies; a second place that must stay in step with the check |
+
+### Chosen Option: **A — Constructor dependency plus start-up check** (recommended, pending the maintainer)
+
+### Rationale
+
+- Decision 1 of 2026-10-16 says registering without the adapter fails at start-up (rule decided on #2239); both options end in a start-up failure, so the choice is where the failure comes from. A keeps the failure in the container.
+- B wins when the test wave of A is judged too costly for the same outcome.
 
 **Class:** Dilemma
 
 </details>
+
+<details>
+<summary><strong>8. Audit order of a delete</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) One entry (`RecordDeleteAsync`) written before the hard delete; a `Left` stops the delete; the same for the batch entry of `DeleteAllAsync` under Design Choice 4 option C** | Fail closed (SPEC-002 REQ-019): a failed audit write deletes nothing | The entry records the attempt; a delete that then fails leaves an entry without a deletion, visible in the result and in `status` of the metric |
+| **B) Intent before and outcome after, as replay does (two entries)** | Same shape as replay; the trail says whether the delete happened | `RecordDeleteAsync` becomes two members; a delete whose outcome write fails has an unmatched intent |
+
+### Chosen Option: **A — One entry written before the delete** (recommended, pending the maintainer)
+
+### Rationale
+
+- Both options write before the destructive step, so both fail closed; the difference is whether the outcome is also recorded. The issue and decision 1 ask only for a payload-free entry.
+- B wins when auditors must tell attempted deletes from completed ones.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Result when the outcome audit fails after a successful dispatch</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Right(ReplayResult)` that carries the code `dlq.audit_failed`; a log by code, the metric `status=fail_audit` and an `Outcome` the caller can read** | The message was dispatched and is marked replayed, and the result says so; an operator retry cannot replay twice | A caller that only checks `IsRight` misses the audit failure |
+| **B) `Left(dlq.audit_failed)`** | The operator sees a failure and the audit gap cannot be missed | Reports failure for a message that was in fact replayed and marked replayed; a retry returns `dlq.already_replayed` |
+
+### Chosen Option: **A — Success result carrying the audit failure code** (recommended, pending the maintainer)
+
+### Rationale
+
+- `ReplayResult` already exists (`IDeadLetterManager.cs:127`); the code (category per ADR-062: `ErrorCategory.Internal`) is data on it. The intent entry was written (fail closed), so only the outcome is missing.
+- B wins when an unaudited outcome must be treated as a failed operation.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Capture when ActorId or CausationId exceeds 256 characters</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Store `null` for the over-long value, keep the dead letter and log the code `dlq.identity_too_long`; replay restores what is stored (an absent actor restores as `Anonymous`)** | The failed message is never lost; no truncated identifier that points at someone else | A replay of that row runs without the original actor |
+| **B) Truncate to 256** | The row keeps an identifier | A truncated actor id can match another actor |
+| **C) Reject the capture** | No wrong identity stored | The failed message is lost (a capture failure leaves it un-terminated, ADR-046 decision 13) |
+
+### Chosen Option: **A — Null plus a log by code** (recommended, pending the maintainer)
+
+### Rationale
+
+- C loses data and B stores a misleading value; A is the only option that keeps the message without a wrong identity. B or C win only if an identity must always be present.
+
+**Class:** Dilemma
+
+</details>
+
+### Register of audit semantics
+
+| Id | Choice | Class | Basis |
+|----|--------|-------|-------|
+| A1 | Audit entry mapping: `TenantId` is the stored tenant of the message (the data owner), `CorrelationId` is the operator's current correlation id (the entry is required to have one) and the stored correlation id goes in `Metadata`; `Outcome` is the call's `AuditOutcome`; `ErrorMessage` stays null | Dilemma (recommended, pending the maintainer) | the operator-versus-message choice for `TenantId` and `CorrelationId`; `ErrorMessage` null is Settled by AGENTS.md section 3 |
+| A2 | `DeadLetterAuditStartupCheck` and the constructor dependency: where the failure comes from | Dilemma | Design Choice 7 |
+| A3 | Port members: `RecordReplayIntentAsync`, `RecordReplayOutcomeAsync`, `RecordDeleteAsync`, `RecordQuarantineAsync` (the last one for #135) | Trivial | one member per audited operation, as ADR-036 audits operations |
+| A4 | The audit entries carry ids and outcome codes only, never payload or message text | Settled | AGENTS.md section 3; SPEC-002 REQ-062 |
 
 ---
 
@@ -170,10 +263,10 @@ Choices 1 and 2 were decided by the maintainer (comments of 2026-10-09 and 2026-
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `IDeadLetterMessage.cs`, `DeadLetterData` (`IDeadLetterMessageFactory.cs`) and `DeadLetterContext` (`DeadLetterOrchestrator.cs:31`): add `ActorId`, `CausationId` and, per Design Choice 3, `ActorKind`. The capture (`DeadLetterOrchestrator` and `DeadLetterSourceCapture`) fills them from `IRequestContextAccessor.RequestContext` (`Identity.ToPersisted(tenantId, correlationId, causationId)`); lengths validated in `DeadLetterInputs.cs`.
-2. **Create** `DeadLetter/IDeadLetterAuditSink.cs` (`RecordReplayIntentAsync`, `RecordReplayOutcomeAsync`, `RecordDeleteAsync`, each `ValueTask<Either<EncinaError, Unit>>`) with input records carrying message id, source pattern, operator id, tenant, outcome code (never payload or message text).
-3. **Modify** `DeadLetterErrorCodes.cs`: `dlq.tenant_unresolved`, `dlq.audit_failed`.
-4. **Split**: S1 phases 1 to 3 (core, manager, port, start-up check); S2 adapter and fakes; S3-S5 ADO.NET, Dapper, EF Core plus MongoDB schema and mapping; S6 cross-provider tests; S7 observability and documentation. Each within 15 files and 1,500 lines.
+1. **Modify** `IDeadLetterMessage.cs`, `DeadLetterData` (`IDeadLetterMessageFactory.cs`) and `DeadLetterContext` (`DeadLetterOrchestrator.cs:31`): add `ActorId`, `CausationId` and, per Design Choice 3, `ActorKind`. The capture (`DeadLetterOrchestrator` and `DeadLetterSourceCapture`) fills them from `IRequestContextAccessor.RequestContext` (`Identity.ToPersisted(tenantId, correlationId, causationId)`); an `ActorId` or `CausationId` above 256 characters is stored as `null` and logged by code (Design Choice 10), never rejected. In the compile order this task is split: the capture side and `DeadLetterData` in P1, the interface members in P6 (Phase 1 task 4).
+2. **Create** `DeadLetter/IDeadLetterAuditSink.cs` with four members, each `ValueTask<Either<EncinaError, Unit>>`: `RecordReplayIntentAsync`, `RecordReplayOutcomeAsync`, `RecordDeleteAsync` and `RecordQuarantineAsync` (the member the plan for #135 calls for a security violation; input record `DeadLetterQuarantineAuditInput`: message id, source pattern, tenant, poison class, error code). Input records carry message id, source pattern, operator id (replay and delete), tenant, outcome code, never payload or message text. The member list of this plan and of the plan for #135 is the same.
+3. **Modify** `DeadLetterErrorCodes.cs`: `dlq.tenant_unresolved` (`ErrorCategory.Forbidden`), `dlq.audit_failed` (`Internal`), `dlq.identity_too_long` (`InvalidRequest`, Design Choice 10); created with the ADR-062 category overload of `EncinaErrors.Create`.
+4. **Split and compile order**: the table in Research lists every pull request with its files and lines. Because `IDeadLetterMessage` has eight provider implementers (ADO x3, Dapper x3, EF Core, MongoDB) plus `FakeDeadLetterMessage`, the order is: P1 capture side (`DeadLetterData` gains trailing optional members, so existing factories compile); P2-P5 each provider adds the properties, columns and mapping to its entity, factory, store and script (plain properties, not yet on the interface); P6 adds the members to `IDeadLetterMessage` and the fake, which every implementer already satisfies; then the port (P7a), the adapter (P7b), the test waves that register a sink (T1, T2), the manager (P8), the start-up check (P9), observability (P10), integration tests (P11) and documentation (P12). No pull request uses a type created by a later one.
 
 </details>
 
@@ -212,8 +305,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `DeadLetterManager.cs`: inject `IRequestContextScopeFactory` and `IDeadLetterAuditSink`; `ReplayStoredMessageAsync` (`:312`) builds `PersistedRequestIdentity` from the row (source `External` when `SourcePattern == Inbox`, else `Internal`; related defect #3442), records the intent (a `Left` stops the replay), runs `ReplayRequestAsync` inside `RunRestoredAsync`, records the outcome; `ReplayAllAsync` and `DeleteAsync`/`DeleteAllAsync` audit per Design Choice 4; a refusal returns `dlq.tenant_unresolved` and dispatches nothing.
-2. **Create** `DeadLetter/DeadLetterAuditStartupCheck.cs` (`IHostedService`, like `DelayedRetryStartupCheck`): host start fails naming module, missing piece and ADR-050 when the queue is registered without an `IDeadLetterAuditSink`. When #2382 lands, the row moves into its validator.
+1. **Modify** `DeadLetterManager.cs`: inject `IRequestContextScopeFactory` and `IDeadLetterAuditSink`; `ReplayStoredMessageAsync` (`:312`) builds `PersistedRequestIdentity` from the row (source `External` when `SourcePattern == Inbox`, else `Internal`; related defect #3442), records the intent (a `Left` stops the replay), runs `ReplayRequestAsync` inside `RunRestoredAsync`, records the outcome; `ReplayAllAsync` and `DeleteAsync`/`DeleteAllAsync` audit per Design Choices 4 and 8 (the delete entry, and the batch entry of `DeleteAllAsync`, are written before the hard delete; a `Left` deletes nothing); an outcome-write failure after dispatch follows Design Choice 9; a refusal returns `dlq.tenant_unresolved` and dispatches nothing. The audit entry mapping is in the register below.
+2. **Create** `DeadLetter/DeadLetterAuditStartupCheck.cs` (`IHostedService`, like `DelayedRetryStartupCheck`): it resolves `IDeadLetterAuditSink` at host start and fails naming module, missing piece and ADR-050 when the queue is registered without one (Design Choice 7). The DI proof has two tests: a provider built with `ValidateOnBuild` and `ValidateScopes` fails to build because of the `IDeadLetterAuditSink` constructor dependency of `DeadLetterManager`, and, separately, the host start fails from the check when the provider was built without validation. When #2382 lands, the row moves into its validator.
 3. **Modify** `MessagingServiceCollectionExtensions.AddDeadLetterQueueServices` to register the check and the options it needs.
 
 </details>
@@ -253,8 +346,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.Security.Audit/DeadLetter/OperationAuditDeadLetterSink.cs`: maps each call to an `OperationAuditEntry` (`Action` `deadletter.replay.intent`, `deadletter.replay.outcome`, `deadletter.delete`; `EntityType` `DeadLetterMessage`; `EntityId` the message id; `UserId` the operator; `Metadata` of strings only; timestamps from `TimeProvider`).
-2. **Modify** `AddEncinaAudit` to `TryAddScoped<IDeadLetterAuditSink, OperationAuditDeadLetterSink>()`; add a fake sink to `Encina.Testing.Fakes`.
+1. **Create** `src/Encina.Security.Audit/DeadLetter/OperationAuditDeadLetterSink.cs`: maps each call to an `OperationAuditEntry` (`Action` `deadletter.replay.intent`, `deadletter.replay.outcome`, `deadletter.delete`, `deadletter.quarantine`; `EntityType` `DeadLetterMessage`; `EntityId` the message id; `UserId` the operator (absent for a quarantine); `Outcome` the `AuditOutcome` of the call; `ErrorMessage` always null, because `EncinaError.Message` never reaches plaintext storage (AGENTS.md section 3); `Metadata` of strings only; timestamps from `TimeProvider`). `TenantId` and `CorrelationId` follow the register row A1.
+2. **Modify** `AddEncinaAudit` to `TryAddScoped<IDeadLetterAuditSink, OperationAuditDeadLetterSink>()`; add a fake sink to `Encina.Testing.Fakes` (P7a).
+3. Durability gap, stated: `AddEncinaAudit` registers `TryAddSingleton<IOperationAuditStore, InMemoryOperationAuditStore>()` (`src/Encina.Security.Audit/ServiceCollectionExtensions.cs:96`), so the adapter and the start-up check are satisfied in production by a non-durable store and the fail-closed audit is not durable. This plan does not close the gap: #2382 (open, verified with `gh api`) rejects test-only implementations outside Development and is the follow-up that closes it.
 
 </details>
 
@@ -327,7 +421,7 @@ REFERENCE FILES:
 
 1. **Modify** `Diagnostics/DeadLetterMetrics.cs`: `encina.dlq.replay_duration` (histogram) and tag `status` values on the existing replay counter (`fail_tenant_unresolved`, `fail_audit`); the tenant tag follows Design Choice 6. Names follow the existing `encina.dlq.*` family and ADR-054; the issue's `encina.deadletter.*` proposals are renamed.
 2. **Create** the span `encina.dlq.replay` (context restoration is an event inside it) and `encina.dlq.audit`.
-3. **Modify** `DeadLetterLog.cs`/new log class: `[LoggerMessage]` EventIds 6670-6679 (register `MessagingDeadLetterReplay = (6670, 6689)` in `EventIdRanges.cs` first and map it to `Encina.Messaging` in `EncinaEventIdAllocationTests`). Error codes only.
+3. **Create** a new log class `DeadLetterReplayLog.cs` (P10, the first pull request that logs): ten `[LoggerMessage]` EventIds 6660-6669 packed sequentially (replay started, succeeded, failed, tenant unresolved, intent audit failed, outcome audit failed, delete audited, delete failed, identity too long, start-up check failed); register `MessagingDeadLetterReplay = (6660, 6669)` in `EventIdRanges.cs` first, adjacent to #135's `(6650, 6659)` inside the block 6650-6689 that the registry assigns to #135 and #2013, and map it to `Encina.Messaging` in `EncinaEventIdAllocationTests`. Error codes only.
 
 </details>
 
@@ -339,7 +433,7 @@ CONTEXT:
 DeadLetterMetrics uses meter "Encina" and encina.dlq.*_total names. EventIds must be registered first (ADR-021).
 
 TASK:
-1. Register MessagingDeadLetterReplay (6670-6689), then add the logs, the metric tags and the two spans.
+1. Register MessagingDeadLetterReplay (6660-6669), then add the logs, the metric tags and the two spans.
 
 KEY RULES:
 - Never ActorId, EncinaError.Message or payload in tags, spans or logs; exceptions via ForLogging().
@@ -359,11 +453,13 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit tests**: restore path, fail-closed branches (intent write fails, tenant unresolved), audit order, inbox as external, adapter mapping.
-2. **Guard tests** for new public members; **contract tests** for `IDeadLetterAuditSink` and the new `IDeadLetterMessage` members over all 10 stores.
-3. **Property tests** (FsCheck): capture-to-restore identity round trip.
-4. **Integration tests** on the shared collection fixtures for all 10 providers: capture, restore, cross-tenant isolation, audit in the real `IOperationAuditStore`; DI test for the start-up requirement.
-5. Load and benchmark: justification files (operator-initiated).
+Tests and per-file manifest targets (one sentence of justification each) ship in the pull request of the code they cover; the table in Research lists them per pull request. Only the cross-provider integration tests are their own pull request (P11).
+
+1. **Unit tests**: restore path, fail-closed branches (intent write fails, tenant unresolved, delete audit fails deletes nothing), audit order, inbox as external, adapter mapping, outcome-audit failure result.
+2. **Guard tests** for new public members; **contract tests** for `IDeadLetterAuditSink` (P7a) and the new `IDeadLetterMessage` members over all 10 stores (P6).
+3. **Property tests** (FsCheck): capture-to-restore identity round trip (P1).
+4. **Integration tests** (P11) on the shared collection fixtures for all 10 providers: capture, restore, cross-tenant isolation, audit in the real `IOperationAuditStore`; the DI tests of the start-up requirement are in P9.
+5. Load and benchmark: justification files (operator-initiated); a contract-test justification is never allowed.
 
 </details>
 
@@ -448,17 +544,32 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` replay and audit | 6670-6689 (new `MessagingDeadLetterReplay`, block assigned to this family) | 6670-6679 used; the adapter logs nothing (errors are returned as `Left`) |
+| `Encina.Messaging` replay and audit | 6660-6669 (new `MessagingDeadLetterReplay`, inside the block 6650-6689 of #135 and #2013, adjacent to #135's 6650-6659) | 6660-6669 all used (ten messages, Phase 5); the adapter logs nothing (errors are returned as `Left`) |
 
 ### Estimated File Count
 
-| Category | Files | Notes |
-|----------|-------|-------|
-| New production files | ~6 | Port, input records, start-up check, adapter, log, fake |
-| Changed production files | ~45 | Contract, capture, manager, 10 provider stores, entities, factories, 6 scripts, registrations |
-| Tests | ~35 | Unit, guard, contract, property, integration x 10, DI |
-| Documentation | ~10 | READMEs, guide, ADR, INVENTORY, changelog |
-| **Total** | **~96** | Seven pull requests (Phase 1 item 4) |
+Every count includes tests, coverage manifest edits, PublicAPI files and changelog. Provider pull requests carry no PublicAPI line (the provider `DeadLetterMessage` classes are not listed in their PublicAPI files, verified with `git grep`). The existing test callers of the changed signatures are in the Edited tests column: the seven files that call `new DeadLetterManager(` (P8) and the up to 23 other test files that enable the queue and must register the sink (waves T1 and T2, from `git grep -l "AddDeadLetterQueueServices\|UseDeadLetterQueue" -- tests`).
+
+| PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
+|----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
+| P1 | Capture side: `DeadLetterData` trailing members, orchestrator and capture fill them, length rule | 0 | 5 | 2 (capture unit, property round trip) | 1 | 1 | 0 | 9 | ~700 |
+| P2 | ADO.SqlServer, ADO.PostgreSQL: entity, factory, store, script | 0 | 8 | 0 | 2 (store integration tests) | 2 | 0 | 12 | ~700 |
+| P3 | ADO.MySQL, Dapper.SqlServer | 0 | 8 | 0 | 2 | 2 | 0 | 12 | ~700 |
+| P4 | Dapper.PostgreSQL, Dapper.MySQL | 0 | 8 | 0 | 2 | 2 | 0 | 12 | ~700 |
+| P5 | EF Core (entity, factory, store, configuration), MongoDB (entity, factory, store) | 0 | 7 | 0 | 4 (3 EF, 1 Mongo) | 2 | 0 | 13 | ~800 |
+| P6 | `IDeadLetterMessage` members, `FakeDeadLetterMessage`, `FakeDeadLetterStore`, contract cases over the 10 stores | 0 | 5 (interface, two fakes, 2 PublicAPI) | 0 | 3 (`DeadLetterOrchestratorTests` double, two contract files) | 2 | 0 | 10 | ~500 |
+| P7a | Port `IDeadLetterAuditSink` and input records, error codes, `FakeDeadLetterAuditSink` | 3 | 3 (`DeadLetterErrorCodes.cs`, 2 PublicAPI) | 2 (contract, guard) | 0 | 2 | 0 | 10 | ~600 |
+| P7b | Adapter `OperationAuditDeadLetterSink`, `AddEncinaAudit` registration | 1 | 2 | 3 (mapping, DI, guard) | 0 | 1 | 0 | 7 | ~500 |
+| T1 | Unit tests that enable the queue register `FakeDeadLetterAuditSink` | 0 | 0 | 0 | 15 | 0 | 0 | 15 | ~300 |
+| T2 | Integration tests that enable the queue register it | 0 | 0 | 0 | 8 | 0 | 0 | 8 | ~200 |
+| P8 | `DeadLetterManager`: restore, audit, tenant refusal; constructor change | 0 | 2 | 2 (restore and audit unit tests) | 7 (the `new DeadLetterManager(` callers) | 1 | 0 | 12 | ~1,000 |
+| P9 | `DeadLetterAuditStartupCheck`, registration, DI tests | 1 | 2 | 2 (check, DI) | 0 | 1 | 0 | 6 | ~400 |
+| P10 | Metrics, spans, log class and EventIds | 1 | 5 | 1 | 2 | 2 | 0 | 11 | ~700 |
+| P11 | Integration tests on the 10 providers; load and benchmark justifications | 0 | 0 | 12 (10 integration, 2 `.md`) | 0 | 0 | 0 | 12 | ~1,200 |
+| P12 | Documentation | 0 | 0 | 0 | 0 | 0 | 7 (READMEs of `Encina.Messaging` and `Encina.Security.Audit`, configuration guide, `docs/INVENTORY.md`, ADR, ADR index, `changelog.d/2013-deadletter-replay-context.changed.md`) | 7 | ~400 |
+| **Total** | | **6** | **55** | **24** | **46** | **18** | **7** | **156** | **~9,400** |
+
+The columns sum to the total (6 + 55 + 24 + 46 + 18 + 7 = 156) and every statement of the total in this plan is 156 files in fifteen pull requests. The largest is 15 files and none exceeds 1,500 lines. The earlier "~96 files, seven pull requests" is superseded. The edited-test counts of T1 and T2 are upper bounds from the grep; a file that needs no change drops out of the wave.
 
 ---
 
@@ -478,7 +589,7 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. Stored identity (ActorId, CausationId, kind) at capture; 2. manager restores via RunRestoredAsync, audits intent
 then outcome, rejects an unresolvable tenant; 3. audit port in Messaging, adapter in Security.Audit, start-up check;
-4. 10 provider schemas; 5. metrics, spans, EventIds 6670-6689; 6. tests; 7. docs, ADR.
+4. 10 provider schemas; 5. metrics, spans, EventIds 6660-6669; 6. tests in the pull request of the code; 7. docs, ADR. Fifteen pull requests, see the table.
 
 KEY PATTERNS:
 - Intent audited before dispatch (fail closed); delete is a hard delete with a payload-free entry.
@@ -500,16 +611,16 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Replay is an operator action on one row |
 | 2 | OpenTelemetry | ✅ Phase 5 | Replay and audit spans, counters; the actor is never a dimension; tenant per Design Choice 6 |
-| 3 | Structured Logging | ✅ Phase 5 | EventIds 6670-6679; codes only, `ForLogging()` for exceptions |
+| 3 | Structured Logging | ✅ Phase 5 | EventIds 6660-6669; codes only, `ForLogging()` for exceptions |
 | 4 | Health Checks | ❌ N/A | Operator-initiated action; the existing dead letter health check is unchanged |
 | 5 | Validation | ✅ Phases 1-2 | Stored identity lengths validated at capture and restore |
 | 6 | Resilience | ❌ N/A | The replay keeps its timeout; no external call is added |
 | 7 | Distributed Locks | ❌ N/A | The replay claim is already atomic (`TryClaimForReplayAsync`, #2012) |
-| 8 | Transactions | ✅ Phase 2 | Intent before and outcome after; the audit store may be in another database, so no shared transaction is assumed; the outcome write failing after dispatch is logged and surfaced as `dlq.audit_failed` on the result |
+| 8 | Transactions | ✅ Phase 2 | Intent before and outcome after; the audit store may be in another database, so no shared transaction is assumed; an outcome write failing after dispatch follows Design Choice 9 (recommended: a `Right` result carrying `dlq.audit_failed`, pending the maintainer) |
 | 9 | Idempotency | ✅ Phase 2 | Restored correlation and cause keep the idempotency key stable; inbox rows restore as external (#3442 related) |
 | 10 | Multi-Tenancy | ✅ Phase 2 | The stored tenant is restored or the replay is rejected |
 | 11 | Module Isolation | ⏭️ #747 | A stored `ModuleId`, if present, is restored under the module isolation issue |
-| 12 | Audit Trail | ✅ Phases 2-3 | Operator replay and delete audited through the port and adapter |
+| 12 | Audit Trail | ✅ Phases 2-3 | Operator replay and delete audited through the port and adapter; the default in-memory `IOperationAuditStore` makes the audit non-durable until #2382 lands (stated gap, Phase 3) |
 
 ---
 
@@ -535,8 +646,8 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #2013 and ask the maintainer to answer Design Choices 3 to 6 when work starts.
-2. Implement Phases 1 to 7 as the pull requests of Phase 1 item 4, `Fixes #2013` on the last.
+1. Link this plan from #2013 and ask the maintainer to answer Design Choices 3, 4, 5 and 7 to 10 and register row A1 when work starts (Design Choice 6 is Settled by ADR-054 D4).
+2. Implement P1 to P12 as the pull requests of the Estimated File Count table, `Fixes #2013` on P12. The plan for #135 depends on P7a and P7b (the port and adapter).
 
 ---
 
