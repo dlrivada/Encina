@@ -2,7 +2,7 @@
 
 > **Issue**: [#687](https://github.com/dlrivada/Encina/issues/687)
 > **Type**: Feature
-> **Complexity**: Medium (5 phases, no database, 5 pull requests, 49 file changes; see Estimated File Count)
+> **Complexity**: Medium (5 phases, no database, 5 pull requests, 51 file changes; see Estimated File Count)
 > **Estimated Scope**: ~1,100-1,400 lines of production code + ~1,700-2,100 lines of tests
 > **Milestone**: v0.17.0 — Compliance Lifecycle (order set on 2026-10-23: #686, #687, #2700, #688)
 > **Depends on**: #686 (the contract; its plan is merged on main)
@@ -258,7 +258,7 @@ Seven Dilemmas are open (1, 2, 3, 4, 6, 9 and 11); the maintainer answers them w
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No predicate is run by the probe: the check is `Healthy` once the rule set is built (start-up validation guarantees its shape) and `Degraded` when `RuleEvaluationFailed` passed `FailureDegradedThreshold` (#686 option) in the window; the data lists the failing rule names** | No I/O per probe; a broken predicate is attributed to its rule | A predicate that never ran is not checked until real traffic reaches it |
+| **A) No predicate is run by the probe: the check is `Healthy` once the rule set is built (start-up validation guarantees its shape) and `Degraded` when the predicate failures recorded in a `TimeProvider`-based window of 5 minutes (option `RuleFailureWindow`) reach `FailureDegradedThreshold` (#686 option); the data lists the failing rule names and log 6604 `HealthProbeFailed` is written** | No I/O per probe; a broken predicate is attributed to its rule | A predicate that never ran is not checked until real traffic reaches it |
 | **B) Dry run of the synchronous predicates only, against `ComplianceContext.Empty`** | Catches a throwing synchronous predicate before traffic; no I/O | Asynchronous predicates stay unchecked; an empty context may not exercise the predicate's failing branch |
 | **C) Dry run of every predicate, against `ComplianceContext.Empty`, on every probe** | Checks everything | Runs the user's asynchronous I/O (the issue's `subjectPrefsStore` example) at probe frequency |
 | **D) No own health check: the #686 check already degrades on repeated resolution failures** | Nothing to build | No per-rule attribution |
@@ -279,7 +279,7 @@ Seven Dilemmas are open (1, 2, 3, 4, 6, 9 and 11); the maintainer answers them w
 
 ## Implementation Phases
 
-Each phase is one pull request of at most 15 files and 1500 changed lines; every count below includes source, tests, guard tests, PublicAPI files, manifest edits and the EventId registration. Phase 0 is the gate: #686 Phases 1a-2d are merged first, and with Design Choice 4 B or 9 B the #686 amendment of the follow-up draft is merged before Phase 2 here. Each phase enters the per-file, per-flag targets of the files it adds or touches, with a one-sentence justification, in the same pull request as the tests that meet them (AGENTS.md section 9, #1762).
+Each phase is one pull request of at most 15 files and 1500 changed lines; every count below includes source, tests, guard tests, PublicAPI files, manifest edits and the EventId registration. Gate before Phase 1: #686 Phases 1a-2d are merged first, and with Design Choice 4 B or 9 B the #686 amendment of the follow-up draft is merged before Phase 2 here. Each phase enters the per-file, per-flag targets of the files it adds or touches, with a one-sentence justification, in the same pull request as the tests that meet them (AGENTS.md section 9, #1762).
 
 ### Phase 1: Rule Model, Builders and Validation
 
@@ -386,19 +386,20 @@ REFERENCE FILES:
 
 ### Phase 3: Observability, Health Check and Tenant Tags
 
-> **Goal**: Rule evaluation is traceable, counted, tagged by tenant and checked. **Size**: 10 files, about 650 lines. Gate: #686 Phase 8 (its diagnostics class) is merged.
+> **Goal**: Rule evaluation is traceable, counted, tagged by tenant and checked. **Size**: 12 files, about 750 lines. Gate: #686 Phase 8 (its diagnostics class) is merged.
 
 <details>
 <summary>Tasks</summary>
 
 1. `Diagnostics/ComplianceApplicabilityDiagnostics.cs` (#686 Phase 8, edit): instruments on the existing `Encina.Compliance.Applicability` source and meter (ADR-054): `encina.compliance.rule.evaluations` (Counter, tag `rule_name`), `encina.compliance.rule.matches` (Counter, tag `rule_name`), `encina.compliance.rule.evaluation.duration` (Histogram, unit `s`); span `encina.compliance.rule_engine.evaluate` with `rules.count` and `matches.count`; the tenant id as a tag and span attribute only when multi-tenancy is on (ADR-054 D4); no subject id. The issue's `conflict_resolution_count` is dropped with the conflict strategies.
-2. `Rules/RuleBasedComplianceResolver.cs` (edit): the span, the counters and the tenant tag.
-3. `Diagnostics/ComplianceRulesLogMessages.cs` (edit): 6604 `HealthProbeFailed` (Warning).
-4. `Health/RuleSetHealthCheck.cs`: per Design Choice 11 (A: `Degraded` when `RuleEvaluationFailed` passed `FailureDegradedThreshold` in the window, data lists the failing rule names; no predicate dry run).
-5. `ServiceCollectionExtensions.cs` (edit): the health check is registered when `AddHealthCheck` is true.
-6. `src/Encina.Compliance.Applicability/PublicAPI.Unshipped.txt`.
-7. Tests: `tests/Encina.UnitTests/Compliance/Applicability/Rules/RuleBasedComplianceResolverDiagnosticsTests.cs` (in-memory exporter test for the span and counters; tenant tag present only with tenancy; no subject id); `RuleSetHealthCheckTests.cs`; `tests/Encina.GuardTests/Compliance/Applicability/Rules/RuleSetHealthCheckGuardTests.cs`; EventId architecture tests (run, not new).
-8. `.github/coverage-manifest/Encina.Compliance.Applicability.json`: targets for the health check and the edited files.
+2. `Rules/RuleBasedComplianceResolver.cs` (edit): the span, the counters and the tenant tag; every predicate failure (the one logged 6603) is also recorded in the failure window of task 3.
+3. `Rules/RuleFailureWindow.cs` (internal sealed, singleton): per rule name, the timestamps of predicate failures taken from the injected `TimeProvider`; entries older than the window (Design Choice 11 A: 5 minutes, the `RuleFailureWindow` option on `ComplianceApplicabilityOptions`) are dropped on each read; bounded by the number of rules (names are fixed configuration); no static state.
+4. `Diagnostics/ComplianceRulesLogMessages.cs` (edit): 6604 `HealthProbeFailed` (Warning; rule names and failure count only), logged by the health check when it reports `Degraded`.
+5. `Health/RuleSetHealthCheck.cs`: per Design Choice 11 (A: reads `RuleFailureWindow`; `Degraded` when the failures of the window reach `FailureDegradedThreshold` (#686 option), data lists the failing rule names, and 6604 is logged; otherwise `Healthy`; no predicate dry run).
+6. `ServiceCollectionExtensions.cs` (edit): the failure window (singleton) and the health check, registered when `AddHealthCheck` is true. The `RuleFailureWindow` option is added to `ComplianceApplicabilityOptions.cs` in this phase only with Design Choice 11 A (counted in the file total below).
+7. `src/Encina.Compliance.Applicability/PublicAPI.Unshipped.txt`.
+8. Tests: `tests/Encina.UnitTests/Compliance/Applicability/Rules/RuleBasedComplianceResolverDiagnosticsTests.cs` (in-memory exporter test for the span and counters; tenant tag present only with tenancy; no subject id); `RuleSetHealthCheckTests.cs` (window expiry with `FakeTimeProvider`, `Degraded` at the threshold with 6604 logged, `Healthy` after the window passes); `tests/Encina.GuardTests/Compliance/Applicability/Rules/RuleSetHealthCheckGuardTests.cs`; EventId architecture tests (run, not new).
+9. `.github/coverage-manifest/Encina.Compliance.Applicability.json`: targets for the health check, the failure window and the edited files.
 
 </details>
 
@@ -411,8 +412,9 @@ CONTEXT:
   6600-6619 and 6600-6603 are used.
 
 TASK:
-Add the rule instruments and span to the Applicability diagnostics, the tenant tag, log message 6604, the health check
-of Design Choice 11 and their tests. 10 files; at most 15 files and 1500 lines.
+Add the rule instruments and span to the Applicability diagnostics, the tenant tag, the TimeProvider-based
+RuleFailureWindow, log message 6604 (logged by the health check when it degrades), the health check of Design
+Choice 11 and their tests. 12 files; at most 15 files and 1500 lines.
 
 KEY RULES:
 - Ids packed: the next id is 6604.
@@ -432,7 +434,7 @@ REFERENCE FILES:
 
 ### Phase 4: Contract, Property, Integration, Load and Benchmark Tests
 
-> **Goal**: The test types no earlier phase covers, and the targets they raise. **Size**: 6 files, about 700 lines. Gate: #686 Phases 3a (service) and 9a (resolver contract suite) are merged.
+> **Goal**: The test types no earlier phase covers, and the targets they raise. **Size**: 6 files, about 700 lines. Gate: #686 Phases 3a (service), 7 (`OperationAuditComplianceDecisionRecorder`, the skip recorder the integration test reads) and 9a (resolver contract suite) are merged.
 
 <details>
 <summary>Tasks</summary>
@@ -451,7 +453,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Phases 1-3 merged; #686 Phases 3a and 9a merged. Coverage is per flag (AGENTS.md section 9); tests execute real code.
+- Phases 1-3 merged; #686 Phases 3a, 7 and 9a merged. Coverage is per flag (AGENTS.md section 9); tests execute real code.
 
 TASK:
 Write the contract, property and integration tests, the benchmark and the load justification; raise the contract,
@@ -549,10 +551,10 @@ REFERENCE FILES:
 |--------------|-------|---------|
 | Phase 1 | 13 | 6 source, package PublicAPI, 4 unit test files, 1 guard test file, 1 manifest |
 | Phase 2 | 13 | resolver, log messages, `EventIdRanges.cs`, options and validator and registration edits (3), core and package PublicAPI (2), architecture-test map, 2 unit test files, 1 guard test file, 1 manifest |
-| Phase 3 | 10 | diagnostics, resolver, log messages and registration edits (4), health check, package PublicAPI, 2 unit test files, 1 guard test file, 1 manifest |
+| Phase 3 | 12 | diagnostics, resolver, log messages, options and registration edits (5), failure window, health check, package PublicAPI, 2 unit test files, 1 guard test file, 1 manifest |
 | Phase 4 | 6 | contract, property and integration tests, load `.md`, benchmark, 1 manifest |
 | Phase 5 | 7 | feature page, README, changelog fragment, ADR, ADR index, `INVENTORY.md`, `ROADMAP.md` |
-| **Total** | **49** | 49 file changes in 5 pull requests (a file edited in several pull requests counts in each); each pull request at most 15 files and 1500 lines |
+| **Total** | **51** | 51 file changes in 5 pull requests (a file edited in several pull requests counts in each); each pull request at most 15 files and 1500 lines |
 
 ---
 
@@ -616,7 +618,7 @@ REFERENCE FILES:
 
 ### Required Prerequisites
 
-- #686 Phases 1a-2d merged (contract, package, composite resolver); Phase 3 here also needs #686 Phase 8, Phase 4 needs #686 Phases 3a and 9a.
+- #686 Phases 1a-2d merged (contract, package, composite resolver); Phase 3 here also needs #686 Phase 8, Phase 4 needs #686 Phases 3a, 7 (the skip recorder) and 9a.
 - With Design Choice 4 B or 9 B: an amendment of the #686 contract, which the #686 plan does not contain today (no no-contribution member, the composite unions every child, the contract suite and the health check expect the full profile for an empty context, and the validator applies the `Reads` check to every built-in resolver). Follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/686-contract-amendments-for-687.md); it is merged before Phase 2 here.
 
 ### Recommended (Not Blocking)
