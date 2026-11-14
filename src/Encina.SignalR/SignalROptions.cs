@@ -13,15 +13,21 @@ namespace Encina.SignalR;
 /// case-sensitive <see cref="Type.FullName"/>.
 /// </para>
 /// <para>
-/// The allow-list is frozen the first time a hub or the startup check reads it; register every
-/// type inside the <c>AddEncinaSignalR</c> configuration delegate.
+/// A <see cref="BroadcastToSignalRAttribute"/> notification with no targets reaches every connected
+/// client only when its type is registered with <see cref="AllowBroadcastToAll{TNotification}"/>;
+/// otherwise the broadcast is refused.
+/// </para>
+/// <para>
+/// The registrations are frozen the first time a hub, the broadcaster or the startup check reads
+/// them; register every type inside the <c>AddEncinaSignalR</c> configuration delegate.
 /// </para>
 /// </remarks>
 public sealed class SignalROptions
 {
     private readonly Dictionary<string, HubTypeRegistration> _allowList = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Type> _broadcastToAll = new(StringComparer.Ordinal);
     private readonly Lock _allowListLock = new();
-    private FrozenDictionary<string, HubTypeRegistration>? _frozenAllowList;
+    private FrozenRegistrations? _frozen;
 
     /// <summary>
     /// Gets or sets a value indicating whether to automatically broadcast notifications
@@ -145,13 +151,75 @@ public sealed class SignalROptions
         return Add(notificationType, HubMessageKind.Notification, allowAnonymous);
     }
 
+    /// <inheritdoc cref="AllowBroadcastToAll(Type)"/>
+    /// <typeparam name="TNotification">A concrete notification type.</typeparam>
+    public SignalROptions AllowBroadcastToAll<TNotification>()
+        where TNotification : INotification
+        => AllowBroadcastToAll(typeof(TNotification));
+
     /// <summary>
-    /// Returns the allow-list keyed by exact, case-sensitive <see cref="Type.FullName"/>, freezing it
-    /// on the first call; later registrations throw.
+    /// Lets a <see cref="BroadcastToSignalRAttribute"/> notification that declares no
+    /// <see cref="BroadcastToSignalRAttribute.TargetUsers"/> or <see cref="BroadcastToSignalRAttribute.TargetGroups"/>
+    /// reach every connected client.
     /// </summary>
-    internal FrozenDictionary<string, HubTypeRegistration> GetAllowList()
+    /// <remarks>
+    /// Without this registration such a notification is refused and an error is logged. A notification
+    /// whose declared targets resolve to no user or group is refused even when registered.
+    /// </remarks>
+    /// <param name="notificationType">A concrete type implementing <see cref="INotification"/>.</param>
+    /// <returns>These options, for chaining.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="notificationType"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="notificationType"/> is abstract, open generic, has no full name, or does not
+    /// implement <see cref="INotification"/>.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// A type with the same full name is already registered for broadcast to all clients, or the
+    /// registrations are already frozen.
+    /// </exception>
+    public SignalROptions AllowBroadcastToAll(Type notificationType)
     {
-        var frozen = Volatile.Read(ref _frozenAllowList);
+        ArgumentNullException.ThrowIfNull(notificationType);
+        EnsureInstantiable(notificationType, nameof(notificationType), "broadcast to all clients");
+
+        if (!typeof(INotification).IsAssignableFrom(notificationType))
+        {
+            throw new ArgumentException(
+                $"Type '{notificationType.FullName}' must implement INotification to be broadcast to all clients.",
+                nameof(notificationType));
+        }
+
+        var key = notificationType.FullName!;
+        lock (_allowListLock)
+        {
+            ThrowIfFrozen();
+            if (!_broadcastToAll.TryAdd(key, notificationType))
+            {
+                throw new InvalidOperationException(
+                    $"A type with the full name '{key}' is already registered for broadcast to all clients.");
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Returns the allow-list keyed by exact, case-sensitive <see cref="Type.FullName"/>, freezing every
+    /// registration on the first call; later registrations throw.
+    /// </summary>
+    internal FrozenDictionary<string, HubTypeRegistration> GetAllowList() => Freeze().AllowList;
+
+    /// <summary>
+    /// Returns whether <paramref name="notificationType"/> itself was registered with
+    /// <see cref="AllowBroadcastToAll(Type)"/>, freezing every registration on the first call.
+    /// </summary>
+    internal bool IsBroadcastToAllAllowed(Type notificationType)
+        => Freeze().BroadcastToAll.TryGetValue(notificationType.FullName!, out var registered)
+            && registered == notificationType;
+
+    private FrozenRegistrations Freeze()
+    {
+        var frozen = Volatile.Read(ref _frozen);
         if (frozen is not null)
         {
             return frozen;
@@ -159,8 +227,10 @@ public sealed class SignalROptions
 
         lock (_allowListLock)
         {
-            _frozenAllowList ??= _allowList.ToFrozenDictionary(StringComparer.Ordinal);
-            return _frozenAllowList;
+            _frozen ??= new FrozenRegistrations(
+                _allowList.ToFrozenDictionary(StringComparer.Ordinal),
+                _broadcastToAll.ToFrozenDictionary(StringComparer.Ordinal));
+            return _frozen;
         }
     }
 
@@ -169,12 +239,7 @@ public sealed class SignalROptions
         var key = type.FullName!;
         lock (_allowListLock)
         {
-            if (_frozenAllowList is not null)
-            {
-                throw new InvalidOperationException(
-                    "The EncinaHub allow-list is frozen once a hub or the startup check has read it; register types inside the AddEncinaSignalR configuration delegate.");
-            }
-
+            ThrowIfFrozen();
             if (!_allowList.TryAdd(key, new HubTypeRegistration(type, kind, allowAnonymous)))
             {
                 throw new InvalidOperationException(
@@ -185,13 +250,23 @@ public sealed class SignalROptions
         return this;
     }
 
-    private static void EnsureInstantiable(Type type, string parameterName)
+    // Callers hold _allowListLock.
+    private void ThrowIfFrozen()
+    {
+        if (_frozen is not null)
+        {
+            throw new InvalidOperationException(
+                "The SignalR registrations are frozen once a hub, the broadcaster or the startup check has read them; register types inside the AddEncinaSignalR configuration delegate.");
+        }
+    }
+
+    private static void EnsureInstantiable(Type type, string parameterName, string usage = "exposed through EncinaHub")
     {
         // Interfaces are abstract too; none of these can be the target of deserialization.
         if (type.IsAbstract || type.ContainsGenericParameters || type.FullName is null)
         {
             throw new ArgumentException(
-                $"Type '{type}' must be a concrete, closed type to be exposed through EncinaHub.",
+                $"Type '{type}' must be a concrete, closed type to be {usage}.",
                 parameterName);
         }
     }
@@ -200,4 +275,8 @@ public sealed class SignalROptions
         => Array.Exists(
             type.GetInterfaces(),
             candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == openGenericInterface);
+
+    private sealed record FrozenRegistrations(
+        FrozenDictionary<string, HubTypeRegistration> AllowList,
+        FrozenDictionary<string, Type> BroadcastToAll);
 }
