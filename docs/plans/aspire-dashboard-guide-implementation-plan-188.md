@@ -4,9 +4,9 @@
 > **Type**: Feature (documentation and a sample; no change under `src/`)
 > **Research**: `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`, `src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`, `src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj`, `docs/architecture/adr/054-observability-conventions-and-trace-propagation.md`, `docs/guides/health-checks.md`, `docs/testing/aspire-migration-guide.md`, `Directory.Packages.props`
 > **ADR**: none (ADR-054 is cited, not changed)
-> **Related**: #87 (owns the `examples/` scaffold and Dilemma D1), #1043 (OTLP exporter as an opt-in option of `Encina.OpenTelemetry`, open), #1787, #1790 and #1791 (ADR-054 and its follow-ups), #3491 (the Aspire 13.6.5 pin)
+> **Related**: #87 (owns the `examples/` scaffold and Dilemma D1), #1043 (OTLP exporter as an opt-in option of `Encina.OpenTelemetry`, open), #1791 (the spike that produced ADR-054, still open), #1787 (architecture test: every source and meter is subscribed) and #1790 (dead sources removal), the follow-ups ADR-054 names next to #1043: #187 (Grafana dashboard templates), #1048 (wire logging in `WithEncina`, prerequisite for OTLP logs) and #1049 (OTLP collector reachability health check); ADR-054 lists the meter renaming and wildcard follow-ups as "proposed, to be confirmed". #3491 (the Aspire 13.6.5 pin). The service-name defect below is recorded as an issue file written with this plan (number cited here when the orchestrator opens it)
 > **Complexity**: Low to medium (one how-to page, a small sample, screenshots)
-> **Estimated Scope**: about 10 files, about 650 lines plus images
+> **Estimated Scope**: two pull requests, 8 to 9 and 7 files, about 650 lines plus images
 
 ---
 
@@ -17,9 +17,9 @@ The .NET Aspire Dashboard is becoming a common way to look at .NET telemetry, an
 **Corrections to the issue text, verified in `src/`:**
 
 - `EncinaOpenTelemetryOptions` has only `ServiceName`, `ServiceVersion` and `EnableMessagingEnrichers` (`src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`). `OtlpEndpoint`, `EnableTracing`, `EnableMetrics` and `RecordExceptions` do not exist; the OTLP endpoint is configured through the OTLP exporter or the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable.
-- **The service name set through `AddEncinaOpenTelemetry` does not reach the resource.** `AddEncinaOpenTelemetry(Action<EncinaOpenTelemetryOptions>?)` stores its own options instance as a singleton and reads only `EnableMessagingEnrichers` from it (`ServiceCollectionExtensions.cs:49-59`; `ServiceName` is read nowhere else in that file), while `WithEncina(EncinaOpenTelemetryOptions? options = null)` builds the resource from the options passed to it, defaulting to `new EncinaOpenTelemetryOptions()` whose `ServiceName` is `"Encina"` (`:166-177`). The issue's snippet (`AddEncinaOpenTelemetry(o => o.ServiceName = "my-service")` then `.WithEncina()`) would therefore show the application as `Encina` in the dashboard. The guide passes the options to `WithEncina(new EncinaOpenTelemetryOptions { ServiceName = "my-service" })`; the worker confirms this by running the sample and reading the resource name in the dashboard. If the behavior is a defect rather than a design, the worker reports it for an issue file; this plan does not decide it.
+- **The service name set through `AddEncinaOpenTelemetry` does not reach the resource.** `AddEncinaOpenTelemetry(Action<EncinaOpenTelemetryOptions>?)` stores its own options instance as a singleton and reads only `EnableMessagingEnrichers` from it (`ServiceCollectionExtensions.cs:49-59`; `ServiceName` is read nowhere else in that file), while `WithEncina(EncinaOpenTelemetryOptions? options = null)` builds the resource from the options passed to it, defaulting to `new EncinaOpenTelemetryOptions()` whose `ServiceName` is `"Encina"` (`:166-177`). The issue's snippet (`AddEncinaOpenTelemetry(o => o.ServiceName = "my-service")` then `.WithEncina()`) would therefore show the application as `Encina` in the dashboard. The guide passes the options to `WithEncina(new EncinaOpenTelemetryOptions { ServiceName = "my-service" })`; the worker confirms it once more by running the sample and reading the resource name in the dashboard. The behavior is a defect proven from the code (a configured option that no code reads), so it is recorded now as a `[BUG]` issue file, `artifacts/issues/otel-service-name-not-applied-to-resource.md`, which the orchestrator opens when this plan merges; the guide's pitfall text links the issue by number. The fix (resolve the registered options in `WithEncina()` or drop the option) is the maintainer's and is not part of this plan.
 - **The OTLP exporter is not a transitive dependency of the application.** `Encina.OpenTelemetry` references `OpenTelemetry.Exporter.OpenTelemetryProtocol` with `PrivateAssets="all"` (`src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj`), and ADR-054 decision 1 keeps exporters out of `WithEncina()`. The sample therefore references the exporter package itself, and the guide says so; #1043 (open) would wire it as an opt-in option and is linked, not promised.
-- **What the dashboard receives today.** `WithEncina()` adds an explicit list of `ActivitySource` names (`Encina`, `Encina.Sharding`, `Encina.Repository`, `Encina.UnitOfWork`, `Encina.Messaging.Outbox`, and others, `:181-208`) and one meter, `Encina` (`:213`), plus runtime instrumentation. ADR-054 (accepted 2026-10-22) decides renamed per-package meters and a wildcard subscription, but that is follow-up work (#1787, #1790, #1791); the guide describes the names that exist on `main` on the day it is written and cites ADR-054 for the direction. `AddServiceDefaults()` belongs to the Aspire project template, not to Encina.
+- **What the dashboard receives today.** `WithEncina()` adds an explicit list of `ActivitySource` names (`Encina`, `Encina.Sharding`, `Encina.Repository`, `Encina.UnitOfWork`, `Encina.Messaging.Outbox`, and others, `:181-208`) and one meter, `Encina` (`:213`), plus runtime instrumentation. ADR-054 (accepted 2026-10-22) decides renamed per-package meters and a wildcard subscription, but that is follow-up work listed there as "proposed, to be confirmed" (#1787 is the architecture test, #1790 the dead-sources removal, #1791 the spike that produced the ADR); the logs view needs #1048 (logging wiring in `WithEncina`), so the guide's logs section states what works today and links it; the guide describes the names that exist on `main` on the day it is written and cites ADR-054 for the direction. `AddServiceDefaults()` belongs to the Aspire project template, not to Encina.
 - The repository pins `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` at 13.6.5 (`Directory.Packages.props`, after the advisory fix of #3491); the issue's 13.5.4 is out of date.
 
 **Sections of the guide** (how-to): 1 run the standalone dashboard with Docker; 2 connect an Encina application; 3 find and filter traces; 4 read Encina metrics; 5 read structured logs and correlate them with traces; 6 use the Aspire host (resources and health); 7 troubleshooting; 8 the sample application and screenshots.
@@ -28,7 +28,7 @@ The .NET Aspire Dashboard is becoming a common way to look at .NET telemetry, an
 
 **Affected packages**: `Encina.OpenTelemetry` (consumed, not changed); documentation under `docs/guides/`; a sample project (location per D1).
 
-**Size**: 1 plan file; the implementation is one worker pull request of about 10 files and 650 lines, within the 15-file and 1500-line limit.
+**Size**: 1 plan file; the implementation is two worker pull requests, each within the 15-file and 1500-line limit and each building alone: PR 1 the sample (8 to 9 files), PR 2 the guide, its index bullet, the package README link and the images (7 files at most; see Estimated File Count).
 
 ---
 
@@ -164,6 +164,28 @@ Only A complies. Known remaining leaks are tracked by the issues ADR-054 lists; 
 
 </details>
 
+<details>
+<summary><strong>7. Whether the sample shows the HTTP server span (D3)</strong></summary>
+
+**Class:** Dilemma
+
+`Directory.Packages.props` has `OpenTelemetry.Instrumentation.Runtime` but no `OpenTelemetry.Instrumentation.AspNetCore`, so the sample's traces show Encina spans without the surrounding HTTP server span unless the package is added.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **(a) Add a `PackageVersion` for `OpenTelemetry.Instrumentation.AspNetCore` and call `AddAspNetCoreInstrumentation()` in the sample** | The trace detail shows the request as the root span with Encina spans beneath it, which is what a reader sees in a real service | A one-line edit to the shared `Directory.Packages.props` (one more file in PR 1); a new package in every dependency audit |
+| **(b) No HTTP instrumentation; the guide says the HTTP span is out of scope and shows Encina spans only** | No shared file touched; the guide stays about Encina | The trace detail is flatter than a real application's |
+
+### Chosen Option: **(b) — Encina spans only** (recommended, pending the maintainer)
+
+### Rationale
+
+We recommend (b): the guide is about Encina telemetry and ASP.NET Core instrumentation is documented by Microsoft; it avoids a shared-file edit. (a) wins if the maintainer wants the screenshots to look like a production trace.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -175,10 +197,10 @@ Only A complies. Known remaining leaks are tracked by the issues ADR-054 lists; 
 <details>
 <summary>Tasks</summary>
 
-1. `examples/06-observability-dashboard/06-observability-dashboard.csproj`: `Microsoft.NET.Sdk.Web`, references `Encina`, `Encina.OpenTelemetry`, `Encina.AspNetCore` and the OTLP exporter package (version from `Directory.Packages.props`; add an entry only if missing).
+1. `examples/06-observability-dashboard/06-observability-dashboard.csproj`: `Microsoft.NET.Sdk.Web`, references `Encina`, `Encina.OpenTelemetry`, `Encina.AspNetCore` and the OTLP exporter package (version from `Directory.Packages.props`; add an entry only if missing). `OpenTelemetry.Instrumentation.AspNetCore` is not listed: it is added only if the maintainer picks Design Choice 7 option (a).
 2. `Program.cs`: `AddEncina(typeof(Program).Assembly)`, `AddEncinaOpenTelemetry(...)`, `AddOpenTelemetry().WithEncina(new EncinaOpenTelemetryOptions { ServiceName = "encina-dashboard-sample" })` plus the OTLP exporter for the three signals, an endpoint that sends a command that succeeds and one that fails with a coded `Left`, and a request that publishes a notification.
-3. One command, one failing command, one notification and their handlers; the failing one returns `EncinaErrors.Create("sample.rejected", "...")`.
-4. A `launchSettings` or README step that sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` for the standalone dashboard.
+3. `Messages.cs` (one file: the succeeding command, the failing command and the notification) and `Handlers.cs` (one file: their three handlers); the failing one returns `EncinaErrors.Create("sample.rejected", ErrorCategory.Validation, "...")` (ADR-062 category `Validation`, explicit-category overload, so the screenshots show a category-correct error).
+4. `Properties/launchSettings.json` (counted) that sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` for the standalone dashboard; the README repeats the variable for readers who do not use launch profiles.
 5. Design Choice 2 decides whether an `AppHost` folder exists; the recommended option keeps it out of the repository.
 
 </details>
@@ -206,7 +228,7 @@ REFERENCE FILES: src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs, src/En
 2. Record: the resource name shown (it must be the configured service name), the list of Encina `ActivitySource` names that appear, the Encina meter and instrument names on the metrics page, the structured log fields, and the span status of the failing request (code only).
 3. Capture screenshots of the traces list, one trace detail, the metrics page and the structured logs page. If no tool is available to the worker for screenshots, the worker says so; the guide then ships with the Mermaid diagrams and the text of the real output, and the missing screenshots are reported for the maintainer (acceptance criterion "Screenshots and diagrams" is then only partly met).
 4. Run the AppHost snippet once in a scratch folder outside the repository (Design Choice 2) and record what the resource and health view shows.
-5. If the service-name behavior of `WithEncina` versus `AddEncinaOpenTelemetry` is a defect, write an issue file; do not change `src/` in this pull request.
+5. Confirm the service-name defect by the run (the resource shows `Encina` when the name is set only through `AddEncinaOpenTelemetry`) and add the observed result to the issue opened from the plan's issue file; do not change `src/` in this pull request.
 
 </details>
 
@@ -261,7 +283,8 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/guides/health-checks.
 2. `lychee --offline --config .github/lychee.toml 'docs/**/*.md' 'README.md'` (or `Test-Path` on every relative link if lychee is unavailable), `npx --yes markdownlint-cli2 "docs/**/*.md" "#docs/INVENTORY.md"`, and the `cov-docs-render.cs --check-dangling` command of the skill.
 3. A row for the sample in `examples/README.md` (created by the #87 plan).
 4. No changelog fragment (documentation only), no ADR, no `PublicAPI` change; no test project: no file under `src/` changes, so no per-flag coverage target applies.
-5. The guide is cited from the OpenTelemetry package README by a single link line, if the README has a documentation section (checked at write time).
+5. `src/Encina.OpenTelemetry/README.md`: one link line to the guide, placed under its existing section "Integration with Observability Platforms" (the README has it; counted as a file of PR 2).
+6. Acceptance by manual evidence: the issue's criteria "Aspire Host integration walkthrough" and "Resource view for service dependencies" are, under Design Choice 2 option (b), met by a snippet run once outside the repository and pasted, which CI never rebuilds; the PR description says so explicitly so the reviewer does not read them as CI-proven. Under option (a) they are built in CI.
 
 </details>
 
@@ -313,11 +336,13 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md sections 5 and 6, Directory
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Guide | 2 | the page (about 400 lines) and the bullet in `docs/guides/index.md` |
-| Sample | 4 | csproj, `Program.cs`, messages and handlers (2 files), counted with the README below |
-| Sample README and index row | 2 | example `README.md` and one row in `examples/README.md` |
-| Images | 3 to 4 | screenshots of traces, a trace, metrics and logs (only if a capture tool is available) |
-| **Total** | **about 11 to 12** | About 650 lines plus images; within one worker pull request |
+| PR 1, sample | 5 | csproj, `Program.cs`, `Messages.cs` (3 messages), `Handlers.cs` (3 handlers), `Properties/launchSettings.json` |
+| PR 1, wiring | 3 | example `README.md`, one row in `examples/README.md`, the `Encina.slnx` entry (shared files of the family; see the #88 and #89 plans for the landing order) |
+| PR 1, shared package file | 0 or 1 | `Directory.Packages.props` only if the HTTP server instrumentation is chosen (Design Choice 7) |
+| **PR 1 total** | **8 to 9** | About 250 lines; builds and passes alone |
+| PR 2, guide | 3 | the page (about 400 lines), the bullet in `docs/guides/index.md`, the link line in `src/Encina.OpenTelemetry/README.md` |
+| PR 2, images | 0 to 4 | screenshots of traces, a trace, metrics and logs (only if a capture tool is available) |
+| **PR 2 total** | **3 to 7** | About 420 lines plus images; links the sample of PR 1, so it starts after PR 1 merges |
 
 ---
 
@@ -370,10 +395,10 @@ No function is deferred, so no follow-up issue is needed for the matrix.
 | Item | State | Relation |
 |------|-------|----------|
 | #87 plan: `examples/` scaffold and D1 | open (plan in this family) | The sample starts after the scaffold merges |
-| #1043 OTLP exporter as an opt-in option | open | Linked as the future shape; the guide documents the application-side reference that is needed today |
-| #1787, #1790, #1791 (ADR-054 follow-ups) | open | The names in the guide are today's and are labelled; revisit the page when they land |
+| #1043 OTLP exporter as an opt-in option, #1048 (wire logging in `WithEncina`), #1049 (OTLP reachability check), #187 (Grafana templates) | open | Linked as the future shape in the guide; the guide documents the application-side reference that is needed today and what the logs view shows until #1048 lands |
+| #1787, #1790, #1791 (ADR-054 architecture test, dead-sources removal and the spike) | open | The names in the guide are today's and are labelled; ADR-054 lists the renaming as proposed; revisit the page when they land |
 | Docker and a screenshot tool for the worker | environment | Needed for Phase 2; if absent the worker reports it and the guide ships with diagrams and real text output |
-| Service-name behavior of `WithEncina` versus `AddEncinaOpenTelemetry` | to be confirmed by the Phase 2 run | If it is a defect, an issue file is written; this plan does not change `src/` |
+| Service-name defect of `AddEncinaOpenTelemetry` versus `WithEncina` (proven from the code) | issue file `artifacts/issues/otel-service-name-not-applied-to-resource.md`, opened by the orchestrator with this plan | The guide's pitfall text links it by number; this plan does not change `src/` |
 
 **Risks**: the standalone dashboard's environment variable names and image tags change between Aspire releases (the worker checks the Microsoft documentation and the pinned version on the day); screenshots can show error text from a library path that still leaks a message (ADR-054 lists the tracking issues), in which case they are cropped or omitted and reported.
 
@@ -383,5 +408,5 @@ No function is deferred, so no follow-up issue is needed for the matrix.
 
 1. Merge this plan.
 2. When the issue is picked up, re-check D1 (recorded in the #87 plan), ask D2 and re-check the telemetry names against `main`; record the answers in `## Maintainer Decisions`.
-3. One worker brief for Phases 1 to 4 after the #87 scaffold merges; the guide goes to `docs-writer` and the review to `adversarial-reviewer`.
+3. Two worker briefs: PR 1 (Phase 1, Phase 4 tasks 1 and 3) after the #87 scaffold merges; PR 2 (Phases 2 and 3, Phase 4 tasks 2, 5 and 6) after PR 1 merges; the guide goes to `docs-writer` and the review to `adversarial-reviewer`.
 4. Close #188 with the implementation pull request.
