@@ -27,7 +27,7 @@ Three options were evaluated against what `ci.yml` (the required, per-PR workflo
 - `test-guard` (`test-results-GuardTests`)
 - `test-ef-providers` (per-database matrix, `test-results-EFCore-<Database>`)
 
-Each of these jobs also uploads to Codecov (`codecov/codecov-action@v7`, `fail_ci_if_error: false`), but that upload is for Codecov's own dashboard, not something `crap-gate.cs` can read back from — the artifact the job attaches to the workflow run (`actions/upload-artifact@v7`) is the reusable input, and it contains the same `coverage.cobertura.xml` files under `artifacts/test-results/<name>/`.
+Each of these jobs attaches its coverage to the workflow run as an artifact (`actions/upload-artifact@v7`), and that artifact is the reusable input: it contains the `coverage.cobertura.xml` files under `artifacts/test-results/<name>/`. The `Coverage Comment` workflow ([ADR-063](../architecture/adr/063-in-repo-coverage-comment-replaces-codecov.md)) reads the same artifacts. Before ADR-063 the jobs also uploaded to Codecov, a destination `crap-gate.cs` could not read back from.
 
 Critically, `test-unit`, `test-integration`, `test-guard` and `test-contract` are all gated on the *same* `changes` job output (each of their `paths-filter` entries lists `src/**` alongside its own test folder — see the `changes` job in `ci.yml`), so **any PR that touches `src/` runs all of them**, not just the ones for the area it touched. `test-ef-providers` is the one exception, gated only on `src/Encina.EntityFrameworkCore/**` plus its own integration folder — a PR outside EF Core will not have EF-flavoured coverage data, which only matters for methods in that package.
 

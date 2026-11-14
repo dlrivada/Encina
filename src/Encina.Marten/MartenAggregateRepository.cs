@@ -205,7 +205,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // MartenAggregateRepositoryIntegrationTests.SaveAsync_StreamModifiedByAnotherSession_ReturnsConcurrencyConflict.
             _session.Events.Append(aggregate.Id, aggregate.Version, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
@@ -295,7 +295,7 @@ public sealed class MartenAggregateRepository<TAggregate> : IAggregateRepository
             // Start a new stream
             _session.Events.StartStream<TAggregate>(aggregate.Id, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
