@@ -28,6 +28,11 @@ public interface ISignalRNotificationBroadcaster
     /// <param name="notification">The notification to broadcast.</param>
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>A task representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// A notification that declares no targets is sent to every client only when its type is
+    /// registered with <see cref="SignalROptions.AllowBroadcastToAll{TNotification}"/>; otherwise, or
+    /// when its declared targets resolve to no user or group, nothing is sent and an error is logged.
+    /// </remarks>
     Task BroadcastAsync<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : notnull;
 }
@@ -62,42 +67,23 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
     public async Task BroadcastAsync<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
         where TNotification : notnull
     {
-        if (!_options.EnableNotificationBroadcast)
+        var attribute = GetAttributeToBroadcast(notification);
+        if (attribute is null)
         {
             return;
         }
 
         var notificationType = typeof(TNotification);
-        var attribute = GetBroadcastAttribute(notificationType);
-
-        if (attribute == null)
-        {
-            return;
-        }
-
-        // Check conditional property
-        if (!ShouldBroadcast(notification, attribute))
-        {
-            Log.NotificationSkippedConditional(_logger, notificationType.Name);
-            return;
-        }
-
         var methodName = attribute.Method ?? GetDefaultMethodName(notificationType);
 
         try
         {
-            // Get the hub context - we use a generic approach to support any hub type
-            var hubContextType = typeof(IHubContext<>).MakeGenericType(typeof(Hub));
-
-            if (_serviceProvider.GetService(hubContextType) is not IHubContext<Hub> hubContext)
+            if (ResolveClients(attribute, notification) is not { } clients)
             {
-                Log.NoHubContextAvailable(_logger, notificationType.Name);
                 return;
             }
 
             var payload = JsonSerializer.Serialize(notification, _options.JsonSerializerOptions);
-
-            var clients = SelectClients(hubContext, attribute, notification);
 
             await clients.SendAsync(methodName, payload, cancellationToken);
 
@@ -109,8 +95,48 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
         }
     }
 
-    // Determine target clients: users win over groups; neither means everyone.
-    private IClientProxy SelectClients<TNotification>(
+    // The attribute when broadcasting is enabled and the conditional property allows it; otherwise null.
+    private BroadcastToSignalRAttribute? GetAttributeToBroadcast<TNotification>(TNotification notification)
+        where TNotification : notnull
+    {
+        if (!_options.EnableNotificationBroadcast
+            || GetBroadcastAttribute(typeof(TNotification)) is not { } attribute)
+        {
+            return null;
+        }
+
+        if (!ShouldBroadcast(notification, attribute))
+        {
+            Log.NotificationSkippedConditional(_logger, typeof(TNotification).Name);
+            return null;
+        }
+
+        return attribute;
+    }
+
+    // The audience to send to, or null (logged) when there is no hub context or the broadcast is refused.
+    private IClientProxy? ResolveClients<TNotification>(BroadcastToSignalRAttribute attribute, TNotification notification)
+        where TNotification : notnull
+    {
+        if (_serviceProvider.GetService(typeof(IHubContext<Hub>)) is not IHubContext<Hub> hubContext)
+        {
+            Log.NoHubContextAvailable(_logger, typeof(TNotification).Name);
+            return null;
+        }
+
+        var clients = SelectClients(hubContext, attribute, notification);
+        if (clients is null)
+        {
+            // Refused, never widened to every client: nothing is sent and success is not logged.
+            Log.BroadcastRefusedNoTargets(_logger, typeof(TNotification).FullName!);
+        }
+
+        return clients;
+    }
+
+    // Users win over groups. Declared targets that resolve to none are refused (null); no declared
+    // targets reach everyone only when the host registered the type with AllowBroadcastToAll.
+    private IClientProxy? SelectClients<TNotification>(
         IHubContext<Hub> hubContext,
         BroadcastToSignalRAttribute attribute,
         TNotification notification)
@@ -118,15 +144,17 @@ public sealed class SignalRNotificationBroadcaster : ISignalRNotificationBroadca
     {
         if (!string.IsNullOrWhiteSpace(attribute.TargetUsers))
         {
-            return hubContext.Clients.Users(ResolveTargets(attribute.TargetUsers, notification));
+            var users = ResolveTargets(attribute.TargetUsers, notification);
+            return users.Length == 0 ? null : hubContext.Clients.Users(users);
         }
 
         if (!string.IsNullOrWhiteSpace(attribute.TargetGroups))
         {
-            return hubContext.Clients.Groups(ResolveTargets(attribute.TargetGroups, notification));
+            var groups = ResolveTargets(attribute.TargetGroups, notification);
+            return groups.Length == 0 ? null : hubContext.Clients.Groups(groups);
         }
 
-        return hubContext.Clients.All;
+        return _options.IsBroadcastToAllAllowed(typeof(TNotification)) ? hubContext.Clients.All : null;
     }
 
     private string[] ResolveTargets<TNotification>(string template, TNotification notification)
