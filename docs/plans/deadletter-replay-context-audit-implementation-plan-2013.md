@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Related**: #583 (persistent dead letter stores, closed), #1705 (one request identity model), #1164 (persisted request context, SPEC-002 REQ-015), #2012 (replay claim, closed), #3442 (inbox dead letter replay), #2229 (admin API, consumer of the audited actions), #135 (security violations call the audit port: this plan defines the member `RecordQuarantineAsync` that #135 needs), #2239 and #2382 (module requirements; #2382 also closes the in-memory audit store gap), ADR-036, ADR-046, ADR-050, ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: High (core contract, audit port and adapter, 10 provider schemas)
-> **Estimated Scope**: ~1,300-1,800 lines of production code + ~3,500 lines of tests; fifteen pull requests of at most 15 files and 1,500 lines each (table in Research, compile order in Phase 1)
+> **Estimated Scope**: ~9,400 lines in all (~1,800 of production code, ~7,200 of tests and manifests, ~400 of documentation); fifteen pull requests of at most 15 files and 1,500 lines each (table in Research, compile order in Phase 1)
 
 ---
 
@@ -265,8 +265,8 @@ Choices 1 and 2 were decided by the maintainer (comments of 2026-10-09 and 2026-
 
 1. **Modify** `IDeadLetterMessage.cs`, `DeadLetterData` (`IDeadLetterMessageFactory.cs`) and `DeadLetterContext` (`DeadLetterOrchestrator.cs:31`): add `ActorId`, `CausationId` and, per Design Choice 3, `ActorKind`. The capture (`DeadLetterOrchestrator` and `DeadLetterSourceCapture`) fills them from `IRequestContextAccessor.RequestContext` (`Identity.ToPersisted(tenantId, correlationId, causationId)`); an `ActorId` or `CausationId` above 256 characters is stored as `null` and logged by code (Design Choice 10), never rejected. In the compile order this task is split: the capture side and `DeadLetterData` in P1, the interface members in P6 (Phase 1 task 4).
 2. **Create** `DeadLetter/IDeadLetterAuditSink.cs` with four members, each `ValueTask<Either<EncinaError, Unit>>`: `RecordReplayIntentAsync`, `RecordReplayOutcomeAsync`, `RecordDeleteAsync` and `RecordQuarantineAsync` (the member the plan for #135 calls for a security violation; input record `DeadLetterQuarantineAuditInput`: message id, source pattern, tenant, poison class, error code). Input records carry message id, source pattern, operator id (replay and delete), tenant, outcome code, never payload or message text. The member list of this plan and of the plan for #135 is the same.
-3. **Modify** `DeadLetterErrorCodes.cs`: `dlq.tenant_unresolved` (`ErrorCategory.Forbidden`), `dlq.audit_failed` (`Internal`), `dlq.identity_too_long` (`InvalidRequest`, Design Choice 10); created with the ADR-062 category overload of `EncinaErrors.Create`.
-4. **Split and compile order**: the table in Research lists every pull request with its files and lines. Because `IDeadLetterMessage` has eight provider implementers (ADO x3, Dapper x3, EF Core, MongoDB) plus `FakeDeadLetterMessage`, the order is: P1 capture side (`DeadLetterData` gains trailing optional members, so existing factories compile); P2-P5 each provider adds the properties, columns and mapping to its entity, factory, store and script (plain properties, not yet on the interface); P6 adds the members to `IDeadLetterMessage` and the fake, which every implementer already satisfies; then the port (P7a), the adapter (P7b), the test waves that register a sink (T1, T2), the manager (P8), the start-up check (P9), observability (P10), integration tests (P11) and documentation (P12). No pull request uses a type created by a later one.
+3. **Modify** `DeadLetterErrorCodes.cs`, each code in the first pull request that uses it: `dlq.identity_too_long` (`InvalidRequest`, Design Choice 10) in P1; `dlq.tenant_unresolved` (`ErrorCategory.Forbidden`) and `dlq.audit_failed` (`Internal`) in P8; created with the ADR-062 category overload of `EncinaErrors.Create`.
+4. **Split and compile order**: the table in Research lists every pull request with its files and lines. Because `IDeadLetterMessage` has eight provider implementers (ADO x3, Dapper x3, EF Core, MongoDB) plus `FakeDeadLetterMessage`, the order is: P1 capture side (`DeadLetterData` gains trailing optional members, so existing factories compile; P1 also registers `MessagingDeadLetterReplay` and creates `DeadLetterReplayLog`, because it is the first pull request that logs, `dlq.identity_too_long`); P2-P5 each provider adds the properties, columns and mapping to its entity, factory, store and script (plain properties, not yet on the interface); P6 adds the members to `IDeadLetterMessage` and the fake, which every implementer already satisfies; then the port (P7a), the adapter (P7b), the test waves that register a sink (T1, T2), the manager (P8), the start-up check (P9), metrics, spans and the log calls of the manager (P10), integration tests with their manifest targets (P11) and documentation (P12). No pull request uses a type created by a later one.
 
 </details>
 
@@ -280,10 +280,13 @@ and operator actions must be audited. Apply the recorded answers in
 docs/plans/deadletter-replay-context-audit-implementation-plan-2013.md.
 
 TASK:
-1. Add ActorId, CausationId (and ActorKind if Design Choice 3 is A) to IDeadLetterMessage, DeadLetterData and
-   DeadLetterContext; fill them at capture from IRequestContextAccessor; validate lengths (256).
-2. Create IDeadLetterAuditSink and its input records in src/Encina.Messaging/DeadLetter/.
-3. Add the two error codes.
+1. P1: add ActorId, CausationId (and ActorKind if Design Choice 3 is A) to DeadLetterData (trailing optional members)
+   and DeadLetterContext; fill them at capture from IRequestContextAccessor; an over-long value is stored as null and
+   logged by code; register MessagingDeadLetterReplay (6660-6669) and create DeadLetterReplayLog. The interface members
+   come in P6, after every provider entity has the properties.
+2. P7a: create IDeadLetterAuditSink (four members: replay intent, replay outcome, delete, quarantine) and its input
+   records in src/Encina.Messaging/DeadLetter/.
+3. Error codes: dlq.identity_too_long in P1; dlq.tenant_unresolved and dlq.audit_failed in P8.
 
 KEY RULES:
 - ActorId never in logs, tags, errors or ToString(); EncinaError.Message never stored or logged.
@@ -360,7 +363,7 @@ CONTEXT:
 Encina.Security.Audit references Encina.Messaging. IOperationAuditStore is implemented on the 10 providers.
 
 TASK:
-1. Create OperationAuditDeadLetterSink and map the three calls to OperationAuditEntry.
+1. Create OperationAuditDeadLetterSink and map the four calls (replay intent, replay outcome, delete, quarantine) to OperationAuditEntry.
 2. Register it with TryAdd in AddEncinaAudit; add a fake sink for tests.
 
 KEY RULES:
@@ -421,7 +424,7 @@ REFERENCE FILES:
 
 1. **Modify** `Diagnostics/DeadLetterMetrics.cs`: `encina.dlq.replay_duration` (histogram) and tag `status` values on the existing replay counter (`fail_tenant_unresolved`, `fail_audit`); the tenant tag follows Design Choice 6. Names follow the existing `encina.dlq.*` family and ADR-054; the issue's `encina.deadletter.*` proposals are renamed.
 2. **Create** the span `encina.dlq.replay` (context restoration is an event inside it) and `encina.dlq.audit`.
-3. **Create** a new log class `DeadLetterReplayLog.cs` (P10, the first pull request that logs): ten `[LoggerMessage]` EventIds 6660-6669 packed sequentially (replay started, succeeded, failed, tenant unresolved, intent audit failed, outcome audit failed, delete audited, delete failed, identity too long, start-up check failed); register `MessagingDeadLetterReplay = (6660, 6669)` in `EventIdRanges.cs` first, adjacent to #135's `(6650, 6659)` inside the block 6650-6689 that the registry assigns to #135 and #2013, and map it to `Encina.Messaging` in `EncinaEventIdAllocationTests`. Error codes only.
+3. **Create** a new log class `DeadLetterReplayLog.cs` (P1, the first pull request that logs; P8, P9 and P10 add the calls): ten `[LoggerMessage]` EventIds 6660-6669 packed sequentially (replay started, succeeded, failed, tenant unresolved, intent audit failed, outcome audit failed, delete audited, delete failed, identity too long, start-up check failed); register `MessagingDeadLetterReplay = (6660, 6669)` in `EventIdRanges.cs` first, adjacent to #135's `(6650, 6659)` inside the block 6650-6689 that the registry assigns to #135 and #2013, and map it to `Encina.Messaging` in `EncinaEventIdAllocationTests`. Error codes only.
 
 </details>
 
@@ -433,7 +436,8 @@ CONTEXT:
 DeadLetterMetrics uses meter "Encina" and encina.dlq.*_total names. EventIds must be registered first (ADR-021).
 
 TASK:
-1. Register MessagingDeadLetterReplay (6660-6669), then add the logs, the metric tags and the two spans.
+1. P1 already registered MessagingDeadLetterReplay (6660-6669) and created DeadLetterReplayLog; add the log calls of the
+   manager, the metric tags and the two spans (P10).
 
 KEY RULES:
 - Never ActorId, EncinaError.Message or payload in tags, spans or logs; exceptions via ForLogging().
@@ -458,7 +462,7 @@ Tests and per-file manifest targets (one sentence of justification each) ship in
 1. **Unit tests**: restore path, fail-closed branches (intent write fails, tenant unresolved, delete audit fails deletes nothing), audit order, inbox as external, adapter mapping, outcome-audit failure result.
 2. **Guard tests** for new public members; **contract tests** for `IDeadLetterAuditSink` (P7a) and the new `IDeadLetterMessage` members over all 10 stores (P6).
 3. **Property tests** (FsCheck): capture-to-restore identity round trip (P1).
-4. **Integration tests** (P11) on the shared collection fixtures for all 10 providers: capture, restore, cross-tenant isolation, audit in the real `IOperationAuditStore`; the DI tests of the start-up requirement are in P9.
+4. **Integration tests** (P11) on the shared collection fixtures for all 10 providers: capture, restore, cross-tenant isolation, audit in the real `IOperationAuditStore`; P11 enters the integration targets in `.github/coverage-manifest/Encina.Messaging.json` and `Encina.Security.Audit.json` (`DeadLetterManager.cs` 70, `DeadLetterOrchestrator.cs` 70, `DeadLetterSourceCapture.cs` 60: the capture-to-restore path runs on each provider; `OperationAuditDeadLetterSink.cs` 80: every call is written to the real store); the DI tests of the start-up requirement are in P9.
 5. Load and benchmark: justification files (operator-initiated); a contract-test justification is never allowed.
 
 </details>
@@ -552,24 +556,24 @@ Every count includes tests, coverage manifest edits, PublicAPI files and changel
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| P1 | Capture side: `DeadLetterData` trailing members, orchestrator and capture fill them, length rule | 0 | 5 | 2 (capture unit, property round trip) | 1 | 1 | 0 | 9 | ~700 |
+| P1 | Capture side: `DeadLetterData` trailing members, orchestrator and capture fill them, length rule and `dlq.identity_too_long`; `MessagingDeadLetterReplay` range and `DeadLetterReplayLog` | 1 (log class) | 8 (`IDeadLetterMessageFactory.cs`, orchestrator, capture, `DeadLetterInputs.cs`, `DeadLetterErrorCodes.cs`, `EventIdRanges.cs`, PublicAPI of `Encina.Messaging` and of `Encina`) | 2 (capture unit, property round trip) | 2 (input rules test, `EncinaEventIdAllocationTests`) | 2 (`Encina.Messaging`, `Encina`) | 0 | 15 | ~950 |
 | P2 | ADO.SqlServer, ADO.PostgreSQL: entity, factory, store, script | 0 | 8 | 0 | 2 (store integration tests) | 2 | 0 | 12 | ~700 |
 | P3 | ADO.MySQL, Dapper.SqlServer | 0 | 8 | 0 | 2 | 2 | 0 | 12 | ~700 |
 | P4 | Dapper.PostgreSQL, Dapper.MySQL | 0 | 8 | 0 | 2 | 2 | 0 | 12 | ~700 |
 | P5 | EF Core (entity, factory, store, configuration), MongoDB (entity, factory, store) | 0 | 7 | 0 | 4 (3 EF, 1 Mongo) | 2 | 0 | 13 | ~800 |
 | P6 | `IDeadLetterMessage` members, `FakeDeadLetterMessage`, `FakeDeadLetterStore`, contract cases over the 10 stores | 0 | 5 (interface, two fakes, 2 PublicAPI) | 0 | 3 (`DeadLetterOrchestratorTests` double, two contract files) | 2 | 0 | 10 | ~500 |
-| P7a | Port `IDeadLetterAuditSink` and input records, error codes, `FakeDeadLetterAuditSink` | 3 | 3 (`DeadLetterErrorCodes.cs`, 2 PublicAPI) | 2 (contract, guard) | 0 | 2 | 0 | 10 | ~600 |
+| P7a | Port `IDeadLetterAuditSink` and input records, `FakeDeadLetterAuditSink` | 3 | 2 (PublicAPI of `Encina.Messaging` and `Encina.Testing.Fakes`) | 2 (contract, guard) | 0 | 2 | 0 | 9 | ~550 |
 | P7b | Adapter `OperationAuditDeadLetterSink`, `AddEncinaAudit` registration | 1 | 2 | 3 (mapping, DI, guard) | 0 | 1 | 0 | 7 | ~500 |
 | T1 | Unit tests that enable the queue register `FakeDeadLetterAuditSink` | 0 | 0 | 0 | 15 | 0 | 0 | 15 | ~300 |
 | T2 | Integration tests that enable the queue register it | 0 | 0 | 0 | 8 | 0 | 0 | 8 | ~200 |
-| P8 | `DeadLetterManager`: restore, audit, tenant refusal; constructor change | 0 | 2 | 2 (restore and audit unit tests) | 7 (the `new DeadLetterManager(` callers) | 1 | 0 | 12 | ~1,000 |
+| P8 | `DeadLetterManager`: restore, audit, tenant refusal; constructor change; `dlq.tenant_unresolved` and `dlq.audit_failed` | 0 | 3 (manager, `DeadLetterErrorCodes.cs`, PublicAPI) | 2 (restore and audit unit tests) | 7 (the `new DeadLetterManager(` callers) | 1 | 0 | 13 | ~1,050 |
 | P9 | `DeadLetterAuditStartupCheck`, registration, DI tests | 1 | 2 | 2 (check, DI) | 0 | 1 | 0 | 6 | ~400 |
-| P10 | Metrics, spans, log class and EventIds | 1 | 5 | 1 | 2 | 2 | 0 | 11 | ~700 |
-| P11 | Integration tests on the 10 providers; load and benchmark justifications | 0 | 0 | 12 (10 integration, 2 `.md`) | 0 | 0 | 0 | 12 | ~1,200 |
+| P10 | Metrics, spans, log calls of the manager | 0 | 2 (`DeadLetterMetrics.cs`, manager) | 1 | 1 (`DeadLetterMetricsTests`) | 1 | 0 | 5 | ~350 |
+| P11 | Integration tests on the 10 providers; load and benchmark justifications; integration targets | 0 | 0 | 12 (10 integration, 2 `.md`) | 0 | 2 (`Encina.Messaging`, `Encina.Security.Audit`) | 0 | 14 | ~1,300 |
 | P12 | Documentation | 0 | 0 | 0 | 0 | 0 | 7 (READMEs of `Encina.Messaging` and `Encina.Security.Audit`, configuration guide, `docs/INVENTORY.md`, ADR, ADR index, `changelog.d/2013-deadletter-replay-context.changed.md`) | 7 | ~400 |
-| **Total** | | **6** | **55** | **24** | **46** | **18** | **7** | **156** | **~9,400** |
+| **Total** | | **6** | **55** | **24** | **46** | **20** | **7** | **158** | **~9,400** |
 
-The columns sum to the total (6 + 55 + 24 + 46 + 18 + 7 = 156) and every statement of the total in this plan is 156 files in fifteen pull requests. The largest is 15 files and none exceeds 1,500 lines. The earlier "~96 files, seven pull requests" is superseded. The edited-test counts of T1 and T2 are upper bounds from the grep; a file that needs no change drops out of the wave.
+The columns sum to the total (6 + 55 + 24 + 46 + 20 + 7 = 158) and every statement of the total in this plan is 158 files in fifteen pull requests and about 9,400 lines. The largest is 15 files and none exceeds 1,500 lines. The earlier "~96 files, seven pull requests" is superseded. The edited-test counts of T1 and T2 are upper bounds from the grep; a file that needs no change drops out of the wave.
 
 ---
 
