@@ -2,8 +2,8 @@
 
 > **Issue**: [#798](https://github.com/dlrivada/Encina/issues/798)
 > **Type**: Feature
-> **Complexity**: High (11 phases, 10 database providers, Marten, 11 worker pull requests)
-> **Estimated Scope**: ~108 files (about 55 production and script files, 42 test files, 11 documentation and tracking files); split into eleven pull requests (see Next Steps)
+> **Complexity**: High (11 phases, 10 database providers, Marten, 12 worker pull requests)
+> **Estimated Scope**: ~108 files (about 55 production and script files, 42 test files, 11 documentation and tracking files); split into twelve pull requests (see Next Steps)
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-061, INV-008, AC-043, DEC-006, DEC-009; Related plans (by issue number): #751, #800, #1257 (owns the shared tenant-scope primitive used here), #1636, #752, #847
 
 ---
@@ -59,7 +59,7 @@ Make the two Security stores tenant-safe without a manual `WHERE` at every call 
 | Audit write with no ambient tenant in a multi-tenant application | no-tenant row (operator or background; Design Choice 6) | the same no-tenant row |
 | Policy seeding (`ABACPolicySeedingHostedService`) | single-tenant application: global rows (no tenant exists); multi-tenant: global rows | single-tenant application: `default` rows (`scope.TenantId`); multi-tenant: global rows. The gate decides "global write" from `scope.IsMultiTenant`, the absence of an ambient tenant and the caller's declared service identity, never from `scope.TenantId == null` |
 | Cache key segment | `TenantCacheKey.Segment(null)` = `g` | `TenantCacheKey.Segment("default")` = `t.default`; global policies keep the explicit `g` namespace |
-| Key of the policy tables | `(TenantId, Id)` with `TenantId` empty for a global row (Design Choice 8) | the same; `default` is an ordinary non-empty tenant value |
+| Key of the policy tables | `(TenantId, Id)` with `TenantId` empty for a global row (Design Choice 7) | the same; `default` is an ordinary non-empty tenant value |
 
 </details>
 
@@ -182,7 +182,7 @@ Common to both options: reads fail closed (ambient tenant wins; a different requ
 </details>
 
 <details>
-<summary><strong>8. The key of the policy tables: how `(tenant, id)` is unique with a global scope, and what the upserts target</strong></summary>
+<summary><strong>7. The key of the policy tables: how `(tenant, id)` is unique with a global scope, and what the upserts target</strong></summary>
 
 **Class:** Dilemma (recommended, pending the maintainer)
 
@@ -207,7 +207,7 @@ Today `Id` alone is the primary key and every upsert names it (State of the code
 </details>
 
 <details>
-<summary><strong>9. Marten audit store: manual `TenantId` filtering, not Marten's native tenancy</strong></summary>
+<summary><strong>8. Marten audit store: manual `TenantId` filtering, not Marten's native tenancy</strong></summary>
 
 **Class:** Trivial
 **Settled by:** the shipped design of `Encina.Audit.Marten`: `OperationAuditEntryRecordedEvent.TenantId` is stored in plaintext and indexed (`src/Encina.Audit.Marten/Projections/ConfigureMartenOperationAuditProjections.cs:105`), and `MartenOperationAuditStore.ApplyUserTenantAndTypeFilters` filters it.
@@ -240,8 +240,8 @@ Today `Id` alone is the primary key and every upsert names it (State of the code
 
 1. **Modify `src/Encina.Security.ABAC/Model/Policy.cs`** and **`PolicySet.cs`**: add `public string? TenantId { get; init; }` with XML docs ("null means a global policy shared by every tenant").
 2. **Modify `src/Encina.Security.ABAC/Persistence/PolicyEntity.cs`** and **`PolicySetEntity.cs`**: add `public string? TenantId { get; set; }`.
-3. **Modify `src/Encina.Security.ABAC/Persistence/PolicyEntityMapper.cs`**: write the model tenant to the column (null mapped to the empty string, Design Choice 8); on read set the model `TenantId` from the column (empty mapped to null; the column wins over any value inside `PolicyJson`).
-4. **Modify `src/Encina.Security.ABAC/ABACErrors.cs`**: add four codes created with `EncinaErrors.Create(code, category, message)` (ADR-062), fixed messages, no tenant value (same shape as `DecisionAuditTenantRequired`): `encina.authorization.abac_policy_tenant_required` (`ErrorCategory.InvalidRequest`, R3: the request lacks a tenant), `encina.authorization.abac_policy_tenant_mismatch` (`Forbidden`), `encina.authorization.abac_policy_id_conflict` (`Conflict`, R2: Design Choice 8), `encina.authorization.abac_policy_tenant_unsupported` (`Internal`, R1: the staged refusal of Phase 2, removed with the last family). A `GetCategory` unit test per code.
+3. **Modify `src/Encina.Security.ABAC/Persistence/PolicyEntityMapper.cs`**: write the model tenant to the column (null mapped to the empty string, Design Choice 7); on read set the model `TenantId` from the column (empty mapped to null; the column wins over any value inside `PolicyJson`).
+4. **Modify `src/Encina.Security.ABAC/ABACErrors.cs`**: add four codes created with `EncinaErrors.Create(code, category, message)` (ADR-062), fixed messages, no tenant value (same shape as `DecisionAuditTenantRequired`): `encina.authorization.abac_policy_tenant_required` (`ErrorCategory.InvalidRequest`, R3: the request lacks a tenant), `encina.authorization.abac_policy_tenant_mismatch` (`Forbidden`), `encina.authorization.abac_policy_id_conflict` (`Conflict`, R2: Design Choice 7), `encina.authorization.abac_policy_tenant_unsupported` (`Internal`, R1: the staged refusal of Phase 2, removed with the last family). A `GetCategory` unit test per code.
 5. **Modify `src/Encina.Security.Audit/OperationAuditErrors.cs`** and **`ReadAuditErrors.cs`**: add `TenantRequired` (`encina.audit.tenant_required`, `InvalidRequest`) and `TenantMismatch` (`encina.audit.tenant_mismatch`, `Forbidden`) factories, and in `OperationAuditErrors` `HistoryLimitExceeded` (`encina.audit.history_limit_exceeded`, `InvalidRequest`: the caller asked for more history than the cap, Phase 3); a `GetCategory` unit test per code.
 6. **PublicAPI**: `PublicAPI.Unshipped.txt` lines for every new public member (mechanical-fixer).
 
@@ -278,8 +278,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify `src/Encina.Security.ABAC/Persistence/IPolicyStore.cs`** (staged so every pull request builds, see Next Steps): add `string? tenantId = null` to `GetAllPolicySetsAsync`, `GetPolicySetAsync`, `DeletePolicySetAsync`, `ExistsPolicySetAsync`, `GetPolicySetCountAsync`, `GetAllStandalonePoliciesAsync`, `GetPolicyAsync`, `DeletePolicyAsync`, `ExistsPolicyAsync`, `GetPolicyCountAsync`. `SavePolicySetAsync` and `SavePolicyAsync` take the tenant from the model. XML docs state: `tenantId == null` returns rows with no tenant (global); a non-null tenant returns its own rows plus the global ones (Design Choice 3, recommended); `Id` is unique per `(tenant, id)` and an id never names a tenant row and a global row at once (Design Choice 8). **Staging (PR 3a):** the eight store classes and `CachingPolicyStoreDecorator` take the parameter in the same pull request as the interface; until their family pull request (PRs 4 to 6) implements the tenant, a store **refuses (fail closed, never ignores)** a non-null `tenantId` and a save of a `Policy`/`PolicySet` whose `TenantId` is not null with `Left(encina.authorization.abac_policy_tenant_unsupported)` (`ErrorCategory.Internal`, a server-side limit, R1), so no row can be silently written without its tenant; the last family pull request removes the refusal. The default `= null` lets the existing callers and tests compile unchanged; the persistent PAP is changed in PR 7.
-2. **Modify `src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs`** (PR 7): pass the tenant of the `PolicyActor` (already captured, line ~98 and ~651) to the store calls and stamp it on added policies; reject an add whose `TenantId` differs from the actor's tenant, and a global add (`TenantId` null) when the actor has a tenant.
+1. **Modify `src/Encina.Security.ABAC/Persistence/IPolicyStore.cs`** (staged so every pull request builds, see Next Steps): add `string? tenantId = null` to `GetAllPolicySetsAsync`, `GetPolicySetAsync`, `DeletePolicySetAsync`, `ExistsPolicySetAsync`, `GetPolicySetCountAsync`, `GetAllStandalonePoliciesAsync`, `GetPolicyAsync`, `DeletePolicyAsync`, `ExistsPolicyAsync`, `GetPolicyCountAsync`. `SavePolicySetAsync` and `SavePolicyAsync` take the tenant from the model. XML docs state: `tenantId == null` returns rows with no tenant (global); a non-null tenant returns its own rows plus the global ones (Design Choice 3, recommended); `Id` is unique per `(tenant, id)` and an id never names a tenant row and a global row at once (Design Choice 7). **Staging (PR 3a):** the eight store classes and `CachingPolicyStoreDecorator` take the parameter in the same pull request as the interface; until their family pull request (PRs 4 to 6) implements the tenant, a store **refuses (fail closed, never ignores)** a non-null `tenantId` and a save of a `Policy`/`PolicySet` whose `TenantId` is not null with `Left(encina.authorization.abac_policy_tenant_unsupported)` (`ErrorCategory.Internal`, a server-side limit, R1), so no row can be silently written without its tenant; the last family pull request removes the refusal. The new parameter is the **last** one, after `cancellationToken`, and defaults to `null`, so a caller that passes the token positionally still compiles and the existing callers and tests compile unchanged: the implementers are the 8 store classes and `CachingPolicyStoreDecorator`; the callers verified on `origin/main` are `PersistentPolicyAdministrationPoint` (store calls, changed in PR 7b) and `ABACHealthCheck` (`GetPolicySetCountAsync` and `GetPolicyCountAsync`, which keep counting the global scope until PR 7b); the existing tests that call the old signatures (8 store guard tests, 9 store integration tests, the decorator unit, time, guard and contract tests, 4 PAP unit tests, `PersistentPAPContractTests`, `ABACHealthCheckTests`, `ABACRegistrationTests`) stay unchanged in PR 3a and are counted in no PR. Until PR 7b every store call from these callers carries no tenant, so no tenant-bearing policy can be created or read before PR 7b and the window between PRs 2 and 7b leaks nothing (Design Choice 7: a non-null tenant is refused until its family merges, and the cache keys of PR 3b are never reached with a tenant).
+2. **Modify `src/Encina.Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs`** (PR 7b): pass the tenant of the `PolicyActor` (already captured, line ~98 and ~651) to the store calls as the named argument `tenantId:` and stamp it on added policies (PR 7b also changes `src/Encina.Security.ABAC/Health/ABACHealthCheck.cs` so its counts name the scope they count); reject an add whose `TenantId` differs from the actor's tenant, and a global add (`TenantId` null) when the actor has a tenant.
 3. **Modify `src/Encina.Security.ABAC/Administration/InMemoryPolicyAdministrationPoint.cs`** (PR 2): replace the three `ConcurrentDictionary` fields with dictionaries keyed by the value tuple `(tenant, id)` (a tuple, not a joined string, so the key is injective), same visibility and same id-conflict rule as the store.
 
 </details>
@@ -396,9 +396,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Each family changes its schema **together with its store's upsert** (PRs 4 to 6), because changing the key while an upsert still names `Id` breaks the statement. The design is Design Choice 8 A (recommended).
+Each family changes its schema **together with its store's upsert** (PRs 4 to 6), because changing the key while an upsert still names `Id` breaks the statement. The design is Design Choice 7 A (recommended).
 
-1. **The six `021_CreateAbacPolicySetsTable.sql` and six `022_CreateAbacPoliciesTable.sql`** (ADO and Dapper, SqlServer, PostgreSQL, MySQL): add `TenantId VARCHAR(128) NOT NULL DEFAULT ''` with a binary collation on SQL Server (`Latin1_General_100_BIN2`) and MySQL (`utf8mb4_bin`); the primary key becomes `(TenantId, Id)`; add `IX_*_TenantId`. The upsert, `MERGE`, delete and exists statements name the new key: PostgreSQL `ON CONFLICT ("TenantId","Id")`, SQL Server `MERGE ... ON t.TenantId = s.TenantId AND t.Id = s.Id`, MySQL `ON DUPLICATE KEY UPDATE` (on the composite primary key), and the id-conflict check of Design Choice 8 runs in the same transaction or statement. Edited in place: pre-1.0, no migration helpers (`AGENTS.md` sections 1 and 3).
+1. **The six `021_CreateAbacPolicySetsTable.sql` and six `022_CreateAbacPoliciesTable.sql`** (ADO and Dapper, SqlServer, PostgreSQL, MySQL): add `TenantId VARCHAR(128) NOT NULL DEFAULT ''` with a binary collation on SQL Server (`Latin1_General_100_BIN2`) and MySQL (`utf8mb4_bin`); the primary key becomes `(TenantId, Id)`; add `IX_*_TenantId`. The upsert, `MERGE`, delete and exists statements name the new key: PostgreSQL `ON CONFLICT ("TenantId","Id")`, SQL Server `MERGE ... ON t.TenantId = s.TenantId AND t.Id = s.Id`, MySQL `ON DUPLICATE KEY UPDATE` (on the composite primary key), and the id-conflict check of Design Choice 7 runs in the same transaction or statement. Edited in place: pre-1.0, no migration helpers (`AGENTS.md` sections 1 and 3).
 2. **EF Core**: `PolicyEntityConfiguration` and `PolicySetEntityConfiguration` (`src/Encina.EntityFrameworkCore/ABAC`, today `HasKey(x => x.Id)`): `HasKey(e => new { e.TenantId, e.Id })`, `TenantId` required with max length 128 and a case-sensitive column collation per provider (binary on SQL Server and MySQL), the mapper turning the model's null tenant into the empty string.
 3. **MongoDB**: `PolicyDocument`/`PolicySetDocument` (`src/Encina.MongoDB/ABAC`; `Id` is `[BsonId] [BsonElement("_id")]` today, so a compound index on `(TenantId, Id)` would **not** make ids unique per tenant: `_id` stays globally unique and the save filter `Eq(d.Id, ...)` upserts across tenants): `_id` becomes a composite sub-document `{ TenantId, Id }`, the save filter and the delete filter use the whole `_id`, `TenantId` is also stored as a field for the read filter. A test saves the same policy id under tenants A and B and proves two documents exist and that B's save never modifies A's.
 4. **Tenant id normalisation**: trim is rejected, not applied; a whitespace-only tenant is "no tenant" (decision of #3147); the empty string is therefore never a tenant id and can be the global scope.
@@ -410,7 +410,7 @@ Each family changes its schema **together with its store's upsert** (PRs 4 to 6)
 
 ```text
 CONTEXT:
-- abac_policy_sets / abac_policies: Id is the primary key in six SQL scripts, the EF configuration and the Mongo documents, and every upsert names it. Policy ids must become unique per (tenant, id), with the empty string as the global scope (Design Choice 8 A).
+- abac_policy_sets / abac_policies: Id is the primary key in six SQL scripts, the EF configuration and the Mongo documents, and every upsert names it. Policy ids must become unique per (tenant, id), with the empty string as the global scope (Design Choice 7 A).
 
 TASK:
 One family per pull request: change its scripts, entity or document, mapper and the store's upsert, merge, delete and exists statements to the composite key in the same pull request. Keep the SQL dialect rules (SqlServer TOP/bit, PostgreSQL quoted identifiers, MySQL backticks).
@@ -438,7 +438,7 @@ REFERENCE FILES:
 
 | Provider | File | Change |
 |----------|------|--------|
-| ADO-SqlServer | `src/Encina.ADO.SqlServer/ABAC/PolicyStoreADO.cs` | `@TenantId` parameter. Reads: `WHERE (TenantId = @TenantId OR TenantId = '')` for a tenant and `TenantId = ''` for none. Delete, exists-for-update and save: exact ownership only (`TenantId = @TenantId`, or `= ''` for the global writer), never the combined predicate; the `MERGE` and the delete name `(TenantId, Id)`; insert/update stamp the column; the id-conflict check of Design Choice 8 |
+| ADO-SqlServer | `src/Encina.ADO.SqlServer/ABAC/PolicyStoreADO.cs` | `@TenantId` parameter. Reads: `WHERE (TenantId = @TenantId OR TenantId = '')` for a tenant and `TenantId = ''` for none. Delete, exists-for-update and save: exact ownership only (`TenantId = @TenantId`, or `= ''` for the global writer), never the combined predicate; the `MERGE` and the delete name `(TenantId, Id)`; insert/update stamp the column; the id-conflict check of Design Choice 7 |
 | ADO-PostgreSQL | `src/Encina.ADO.PostgreSQL/ABAC/PolicyStoreADO.cs` | same, quoted identifiers; `ON CONFLICT ("TenantId","Id") DO UPDATE` (today `ON CONFLICT ("Id")`, line 133) |
 | ADO-MySQL | `src/Encina.ADO.MySQL/ABAC/PolicyStoreADO.cs` | same, backticks; `ON DUPLICATE KEY UPDATE` now fires on the composite primary key |
 | Dapper-SqlServer | `src/Encina.Dapper.SqlServer/ABAC/PolicyStoreDapper.cs` | same with anonymous parameters |
@@ -447,7 +447,7 @@ REFERENCE FILES:
 | EFCore-SqlServer / PostgreSQL / MySQL | `src/Encina.EntityFrameworkCore/ABAC/PolicyStoreEF.cs` (one class for the three) | reads: `Where(e => e.TenantId == tenantId \|\| e.TenantId == "")` and the global-only variant; delete and save: exact ownership `e.TenantId == tenantId` and the whole key `(TenantId, Id)`; stamp on save |
 | MongoDB | `src/Encina.MongoDB/ABAC/PolicyStoreMongo.cs` | `Filter.Or(Eq(TenantId, t), Eq(TenantId, ""))`; upsert and delete filter on the whole composite `_id`; stamp on upsert |
 
-Every method: a `Left` is returned, never swallowed; asynchronous calls with `CancellationToken` only (`AGENTS.md` section 3). A tenant-scoped save of an id that a global row holds is `abac_policy_id_conflict`, not a second row and not an overwrite (Design Choice 8).
+Every method: a `Left` is returned, never swallowed; asynchronous calls with `CancellationToken` only (`AGENTS.md` section 3). A tenant-scoped save of an id that a global row holds is `abac_policy_id_conflict`, not a second row and not an overwrite (Design Choice 7).
 
 </details>
 
@@ -462,7 +462,7 @@ TASK:
 Implement the tenant filter and stamp in the 8 store classes. One provider per commit; run that provider's unit and guard tests before the next.
 
 KEY RULES:
-- All 10 database providers, one family per pull request (PR 4 ADO.NET, PR 5 Dapper, PR 6 EF Core and MongoDB); the tenant gate of PR 7 is registered only after the last family merged, and until then each store refuses a non-null tenant (provider coherence, AGENTS.md section 5).
+- All 10 database providers, one family per pull request (PR 4 ADO.NET, PR 5 Dapper, PR 6 EF Core and MongoDB); the tenant gate of PR 7a is registered only after the last family merged, and until then each store refuses a non-null tenant (provider coherence, AGENTS.md section 5).
 - Parameterised SQL only; no string concatenation of the tenant.
 - Shared collection fixtures for integration tests; ClearAllDataAsync in InitializeAsync.
 
@@ -552,7 +552,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Metric**: `encina.audit.tenant_gate.denied` (`Counter<long>`, tag `reason` = `tenant_required` or `tenant_mismatch`) and, under Design Choice 6 A, `encina.audit.tenant_gate.untenanted_writes` in `OperationAuditMeter` (`src/Encina.Security.Audit/Diagnostics/OperationAuditMeter.cs`; PR 1a); the counter `encina.abac.policy_store.tenant_denied` in the ABAC meter (PR 7). Instrument names follow ADR-054 settled point 4 (lowercase, dot separated, no `_total`).
+1. **Metric**: `encina.audit.tenant_gate.denied` (`Counter<long>`, tag `reason` = `tenant_required` or `tenant_mismatch`) and, under Design Choice 6 A, `encina.audit.tenant_gate.untenanted_writes` in `OperationAuditMeter` (`src/Encina.Security.Audit/Diagnostics/OperationAuditMeter.cs`; PR 1a); the counter `encina.abac.policy_store.tenant_denied` in the ABAC meter (PR 7a). Instrument names follow ADR-054 settled point 4 (lowercase, dot separated, no `_total`).
 2. **Tenant tag**: use the shared helper of #2676 (`SetTenantTag`/`WithTenantTag`) when it exists; until then no tag is emitted (ADR-054 D4: tag only when multi-tenancy is on). The tenant id is never a log or exception value. The linked issue's `TenantId` in logging scopes is **not delivered** (this plan logs codes only, so a tenant id never reaches a log), and its metric `encina.audit.tenant_isolation.enabled` is replaced by the denial counters: with an always-on gate an "enabled" gauge carries no information.
 3. **Logging**: Security.Audit ids **5013-5015 only** (three messages, the existing range `SecurityAudit = (5000, 5099)`, used up to 5012; 5016-5020 stay unallocated); ABAC ids **7400-7402** (three messages in the new range `SecurityABACTenancy = (7400, 7419)`, assigned in `artifacts/decisions/plan-batch/eventid-blocks.md`; `SecurityABAC = (9000, 9099)` has 74 ids in use). Register the new range in `src/Encina/Diagnostics/EventIdRanges.cs` first (PR 7) and add it to the `AssemblyRanges` entry of `Encina.Security.ABAC` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`. Packed sequentially from the start of each block, no gaps.
 
@@ -616,10 +616,11 @@ REFERENCE FILES:
 | `Security.ABAC/Persistence/IPolicyStore.cs` (3a) | none | unit 0 | an interface, no executable line. |
 | `Security.ABAC/Persistence/CachingPolicyStoreDecorator.cs` (3a, 3b) | none | unit 90, guard 80, contract 85 | key building, the bypass and invalidation are deterministic. |
 | `Security.ABAC/Persistence/PolicyCacheInvalidationMessage.cs`, `PolicyCachePubSubHostedService.cs` (3b) | none | unit 85 | the tenant round-trip and the generation re-read are unit-tested. |
-| `Security.ABAC/Persistence/TenantScopedPolicyStore.cs` (new, 7) | new | unit 98, guard 90 | pure delegation with tenant resolution. |
-| `Security.ABAC/Diagnostics/TenantScopedPolicyStoreLog.cs` (new, 7) | new | unit 90 | generated logging methods. |
-| `Security.ABAC/ServiceCollectionExtensions.cs` (7) | unit 75, guard 60 | unit 75, guard 60 | `ResolvePolicyStore` wrapping is proven by the DI tests; targets kept. |
-| `Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs` (7) | unit 90, guard 5, integration 45 | unit 90, guard 5, integration 50 | integration rises with the two-tenant tests. |
+| `Security.ABAC/Persistence/TenantScopedPolicyStore.cs` (new, 7a) | new | unit 98, guard 90 | pure delegation with tenant resolution. |
+| `Security.ABAC/Diagnostics/TenantScopedPolicyStoreLog.cs` (new, 7a) | new | unit 90 | generated logging methods. |
+| `Security.ABAC/ServiceCollectionExtensions.cs` (7a) | unit 75, guard 60 | unit 75, guard 60 | `ResolvePolicyStore` wrapping is proven by the DI tests; targets kept. |
+| `Security.ABAC/Health/ABACHealthCheck.cs` (7b) | unit 94, guard 5 | unit 94, guard 5 | targets kept; the changed count calls are driven by the existing health check tests. |
+| `Security.ABAC/Administration/PersistentPolicyAdministrationPoint.cs` (7b) | unit 90, guard 5, integration 45 | unit 90, guard 5, integration 50 | integration rises with the two-tenant tests. |
 | the 8 provider stores `PolicyStoreADO/Dapper/EF/Mongo` (4, 5, 6) | none | integration 80 | the integration flag is the only flag that reaches SQL and MongoDB; the stage-refusal and the key are asserted per provider. |
 | `EntityFrameworkCore/ABAC/PolicyEntityConfiguration.cs`, `PolicySetEntityConfiguration.cs` (6), `MongoDB/ABAC/PolicyDocument.cs`, `PolicySetDocument.cs` (6) | none | unit 85 | the composite key and the collation are asserted on the model and the document mapping. |
 | the 12 SQL scripts (4, 5) | not measured | not measured | executed by the integration tests; scripts carry no coverage flag. |
@@ -747,7 +748,7 @@ REFERENCE FILES:
 | SQL scripts (021 and 022, ADO x3 and Dapper x3) | 12 | modified in place (pre-1.0, no migration) |
 | Tests (unit, guard, contract, property, integration, justification .md) | 42 | new and modified, each in the pull request of its code |
 | Documentation, manifests, PublicAPI, changelog fragments, ADR | 11 | docs-writer and mechanical-fixer |
-| Total | about 108 | eleven pull requests |
+| Total | about 108 | twelve pull requests |
 
 ---
 
@@ -822,17 +823,18 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Maintainer answers Design Choices 2, 3, 6 and 8 when work on the issue starts (recorded in `## Maintainer Decisions`).
-2. Split into eleven worker pull requests. Counts include tests, manifest entries, PublicAPI lines, ProjectReference edits and fragments; each is at most 15 files and 1500 lines, builds alone, carries the tests of its own files and leaves `main` buildable (recount by grep when the worker starts; the numbers are estimates). Before PR 1a there is no gate anywhere, so the interval between the audit pull requests is "not yet gated", not a new leak:
+1. Maintainer answers Design Choices 2, 3, 6 and 7 when work on the issue starts (recorded in `## Maintainer Decisions`).
+2. Split into twelve worker pull requests. Counts include tests, manifest entries, PublicAPI lines, ProjectReference edits and fragments; each is at most 15 files and 1500 lines, builds alone, carries the tests of its own files and leaves `main` buildable (recount by grep when the worker starts; the numbers are estimates). Before PR 1a there is no gate anywhere, so the interval between the audit pull requests is "not yet gated", not a new leak:
    - **PR 1a** (audit gate core): `TenantScopedOperationAuditStore`, `TenantScopedReadAuditStore`, `OperationAuditErrors`, `ReadAuditErrors`, `OperationAuditStoreRegistration`, `ServiceCollectionExtensions`, `OperationAuditMeter`, `TenantScopedAuditLog` (8); unit tests of both gates, DI order test, guard test (4); `Encina.Security.Audit.json` manifest, `PublicAPI.Unshipped.txt` (2): 14 files.
    - **PR 1b** (audit registrations): the 9 provider registration files (8 packages plus Marten) and the existing per-provider registration test files extended for both orders (about 3 test files updated in groups): about 12 files.
    - **PR 2** (ABAC models, no port change): `Policy`, `PolicySet`, `PolicyEntity`, `PolicySetEntity`, `PolicyEntityMapper`, `ABACErrors`, `InMemoryPolicyAdministrationPoint` (7); unit tests for the mapper, errors and in-memory PAP (3); `Encina.Security.ABAC.json`, `PublicAPI.Unshipped.txt` (2): 12 files. The column is not persisted until PRs 4 to 6; a model with a tenant is refused by the stores until then (PR 3a).
-   - **PR 3a** (policy port and the staged refusal): `IPolicyStore`, the 8 store classes, `CachingPolicyStoreDecorator` (bypassing the cache for a non-null tenant) (10); refusal unit tests in 3 files; `PublicAPI.Unshipped.txt` and the manifest (2): 15 files.
+   - **PR 3a** (policy port and the staged refusal, builds alone): `IPolicyStore` with the optional trailing `string? tenantId = null`, the 8 store classes, `CachingPolicyStoreDecorator` (bypassing the cache for a non-null tenant) (10); refusal unit tests in 3 files; `PublicAPI.Unshipped.txt` and the manifest (2): 15 files. The callers (`PersistentPolicyAdministrationPoint`, `ABACHealthCheck`) and the ~30 existing test files compile unchanged because the parameter is optional and last; their changes are in PR 7b.
    - **PR 3b** (cache): `CachingPolicyStoreDecorator` tenant keys and generation counter, `PolicyCacheInvalidationMessage`, `PolicyCachePubSubHostedService` (3); decorator unit, decorator contract and hosted service unit tests (3); `PublicAPI.Unshipped.txt`, manifest (2): 8 files.
    - **PR 4** (ADO.NET family): six scripts (`021`, `022` x3), three `PolicyStoreADO`, the three existing store integration test classes extended (two-tenant, ACME against acme, id conflict, duplicate id), three package manifests: 15 files.
    - **PR 5** (Dapper family): the same shape: 15 files.
    - **PR 6** (EF Core and MongoDB family, removing the staged refusal): `PolicyStoreEF`, two EF entity configurations, `PolicyStoreMongo`, `PolicyDocument`, `PolicySetDocument` (6); three EF Core and one MongoDB integration classes (4); two manifests: 12 files.
-   - **PR 7** (ABAC gate and administration): `TenantScopedPolicyStore`, `TenantScopedPolicyStoreLog`, `PersistentPolicyAdministrationPoint`, `ServiceCollectionExtensions` (`ResolvePolicyStore`), `EventIdRanges.cs`, the ABAC meter (6); `EncinaEventIdAllocationTests`, gate unit and guard tests, DI test with a warm-cache case, PAP unit test (5); `PolicyStoreTenantContractTests` and the FsCheck property test (2); manifest, `PublicAPI.Unshipped.txt` (2): 15 files.
+   - **PR 7a** (ABAC gate): `TenantScopedPolicyStore`, `TenantScopedPolicyStoreLog`, `ServiceCollectionExtensions` (`ResolvePolicyStore`), `EventIdRanges.cs`, the ABAC meter (5); `EncinaEventIdAllocationTests`, gate unit and guard tests (two files), DI test with a warm-cache case (4); `PolicyStoreTenantContractTests` (1); manifest, `PublicAPI.Unshipped.txt` (2): 12 files.
+   - **PR 7b** (ABAC administration): `PersistentPolicyAdministrationPoint`, `ABACHealthCheck` (2); tenant cases added to the existing PAP unit test class, `PersistentPolicyAdministrationPointScopeTests`, `ABACHealthCheckTests` and `PersistentPAPContractTests` (4); the FsCheck property test (1); manifest (1): 8 files.
    - **PR 8** (audit two-tenant suite): the eight existing `OperationAuditStore*IntegrationTests` classes and the Marten one extended (9); the `OperationAuditStoreContractTests` and `OperationAuditStorePropertyTests` extensions (2): 11 files.
    - **PR 9** (documentation): ADR, `docs/features/audit-tracking.md`, the ABAC guide, the READMEs of `Encina.Security.Audit` and `Encina.Security.ABAC`, two changelog fragments, the load and benchmark justification `.md` files: 10 files.
 3. Follow-up issue file: `artifacts/issues/audit-per-tenant-retention.md` (per-tenant purge of audit entries, Design Choice 6).
