@@ -3,7 +3,7 @@
 > **Issue**: [#710](https://github.com/dlrivada/Encina/issues/710)
 > **Type**: Feature
 > **Complexity**: Medium (7 phases, 2 packages touched, 4 pull requests)
-> **Estimated Scope**: ~600-800 lines of production code + ~1,500 lines of tests, in four pull requests of 6 to 13 files (see Estimated File Count)
+> **Estimated Scope**: ~600-800 lines of production code + ~2,550 lines of tests, fixtures, manifests and docs (about 3,350 in total), in four pull requests of 6 to 12 files (see Estimated File Count)
 
 ---
 
@@ -204,7 +204,7 @@ Correctness first: anything less can conflate principals that a policy tells apa
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `Ttl` default 5 minutes (the issue's criterion); `KeyPrefix` default follows `CachingOptions.KeyPrefix` (`"sm"` on main); the failure of `InvalidateUserAsync`/`InvalidateAllAsync` is a `Left` created with `EncinaErrors.Create` (ADR 062, merged in PR #3599) under the new public code `EncinaErrorCodes.AuthorizationCacheInvalidationFailed` (`encina.authorization.cache_invalidation_failed`, next to `AuthorizationResourceDenied`) in category `UpstreamFailure`; the check that an `ICacheProvider` is registered is an `IValidateOptions<AuthorizationCacheOptions>` that takes `IServiceProviderIsService` and runs with `ValidateOnStart`** | Follows the issue, the existing option conventions, the error-category contract and one mechanism with no hosted service | The new code is a public name in core `Encina` (`EncinaErrorCodes.cs`, PublicAPI) |
+| **A) `Ttl` default 5 minutes (the issue's criterion); `KeyPrefix` default follows `CachingOptions.KeyPrefix` (`"sm"` on main); the failure of `InvalidateUserAsync`/`InvalidateAllAsync` is a `Left` created with `EncinaErrors.Create` (ADR 062, merged in PR #3599) under the new public code `EncinaErrorCodes.AuthorizationCacheInvalidationFailed` (`encina.authorization.cache_invalidation_failed`, next to `AuthorizationResourceDenied`) in category `Internal` (ADR 062 rule R4: store, serialization, crypto and provider failures are `Internal`; `UpstreamFailure` is only for outbound HTTP responses, rule R7); the check that an `ICacheProvider` is registered is an `IValidateOptions<AuthorizationCacheOptions>` that takes `IServiceProviderIsService` and runs with `ValidateOnStart`** | Follows the issue, the existing option conventions, the error-category contract and one mechanism with no hosted service | The new code is a public name in core `Encina` (`EncinaErrorCodes.cs`, PublicAPI) |
 | **B) Other defaults, an ad hoc error code outside `EncinaErrorCodes`, or a hosted check** | None | Diverges from the issue and from the conventions of the existing codes; a hosted service for one startup check |
 
 ### Chosen Option: **A — the defaults, code and mechanism above**
@@ -509,9 +509,9 @@ REFERENCE FILES: src/Encina.AspNetCore/Authorization/ResourceAuthorizer.cs, src/
 |---|----------|--------|-------|
 | 1 | Caching | ✅ | The feature: an `ICacheProvider` decorator over `IResourceAuthorizer`. |
 | 2 | OpenTelemetry | ✅ | One counter with an `outcome` tag on the shared meter; no policy names or claims in tags. |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 212-217 in the registered AspNetCore range; failures by exception type only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` ids 212-216 (217 only under D8 option A) in the registered AspNetCore range; failures by exception type only. |
 | 4 | Health Checks | ❌ | The backing cache has its own health check. |
-| 5 | Validation | ✅ | Options validated at startup (TTL greater than zero, an `ICacheProvider` is present). |
+| 5 | Validation | ✅ | Options validated at startup (TTL greater than zero, `CacheablePolicies` not empty under D8 option B, the pseudonymisation key present under D5 option A', an `ICacheProvider` is present). |
 | 6 | Resilience | ❌ | A cache failure falls through to the inner authorizer; no retry is wanted on an authorization path. |
 | 7 | Distributed Locks | ❌ | Concurrent misses may evaluate twice, which is harmless. |
 | 8 | Transactions | ❌ | No atomic multi-operation guarantee is needed. |
@@ -537,3 +537,18 @@ REFERENCE FILES: src/Encina.AspNetCore/Authorization/ResourceAuthorizer.cs, src/
 3. Pull request 2 (10 files): Phases 2 and 5 with unit, guard and contract tests and manifest rows.
 4. Pull request 3 (6 files): Phase 3 registration with DI, guard and integration tests and manifest rows.
 5. Pull request 4 (6 files): benchmark, load justification, README section, guide page, changelog fragment.
+
+---
+
+## Maintainer Decisions
+
+Open Dilemmas, to be answered when work on #710 starts (nothing is decided yet; the recommended option is only a working default):
+
+| Dilemma | Question | Recommended (pending the maintainer) | Answer |
+|---------|----------|--------------------------------------|--------|
+| D1 | Which cache backs the decisions | A, `ICacheProvider` | |
+| D2 | What identifies a cacheable decision | C, explicit list of principal-only policies | |
+| D3b | When the cache itself fails | A, fall through to the inner authorizer | |
+| D4 | Decorator shape and registration order | A, decorate the registered descriptor | |
+| D5 | The user segment of the key | A', keyed pseudonymised user segment | |
+| D8 | An empty `CacheablePolicies` | B, fail validation | |
