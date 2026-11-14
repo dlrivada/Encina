@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Related**: #583 (persistent dead letter stores, closed), #2013 (replay under the stored context and audited operator actions; this plan consumes its audit), #135 (quarantined rows), #1991 (closed: what reaches the queue), #2203 (saga not found identity), #419 and #445 (alternative surfaces), #3419 (HTTP status from the error category; open), ADR-046, ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Medium (one package plus the error categories of the dead letter codes in `Encina.Messaging`, no provider code)
-> **Estimated Scope**: ~700-1,000 lines of production code + ~1,600 lines of tests, in six pull requests of at most 15 files and 1,000 lines each (table in Research)
+> **Estimated Scope**: ~1,000 lines of production code + ~1,900 lines of tests + ~250 lines of documentation (~3,150 in all), in five pull requests of at most 15 files and 1,000 lines each (table in Research)
 
 ---
 
@@ -165,14 +165,13 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) A failed `ReplayResult` or a batch with failures is HTTP 200 with the outcome code in the body** | The call completed and the outcome is data; one rule for batches | A client must read the body to see `dlq.already_replayed` or `dlq.replay_in_progress` |
-| **B) A single failed `ReplayResult` whose code is a state conflict (`AlreadyReplayed`, `ReplayInProgress`) is HTTP 409 derived from the outcome; any other failed single result and every batch is 200 with the body** | Idiomatic retry semantics for a single replay | Two rules; the outcome-to-status table is a new mapping |
+| **B) A single failed `ReplayResult` whose code is a state conflict (`AlreadyReplayed`, `ReplayInProgress`) is HTTP 409 derived from the outcome; any other failed single result and every batch is 200 with the body** | Idiomatic retry semantics for a single replay | Two rules; the outcome-to-status table is a new mapping that picks a status from the outcome code text (`dlq.already_replayed`, `dlq.replay_in_progress`), the parsing ADR 062 forbids for `Left` errors (there it is a `Right` result, so ADR 062 does not cover it, but the same objection applies) |
 
 ### Chosen Option: **B — 409 for a state-conflict outcome of a single replay, 200 for the rest** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Under ADR 062 a host never parses an error code to choose a status, so the `Left` codes get an `ErrorCategory` where `DeadLetterManager` creates them (with `EncinaErrors.Create(code, category, message)`): `NotFound` to `NotFound`, `AlreadyReplayed` to `Conflict`, `TenantRequired` to `Forbidden`, store and query failures to `Internal`; this plan does not edit `ProblemDetailsExtensions.cs`. The HTTP status of a `Right` outcome is not an error category, so this choice is its own mapping.
-- `dlq.expired` is not given a status here: the ADR 062 table has no 410 row, so the category of `dlq.expired` is register row F7 (`Conflict` or `FailedPrecondition`).
+- Under ADR 062 a host never parses an error code to choose a status, so the `Left` codes carry an `ErrorCategory` assigned where `DeadLetterManager` creates them. That work is owned by open sub-issue #3724 (#3419 M2, which lists `src/Encina.Messaging/DeadLetter/ => M2` in `ErrorCategoryPending.txt`); this plan does not duplicate it. The categories it must yield for this API: `NotFound` to `NotFound`, `AlreadyReplayed` to `Conflict`, `dlq.expired` to `Conflict` (register row F7), `encina.authorization.dlq_tenant_required` to `InvalidRequest` (ADR 062: "the two `encina.authorization.*_tenant_required` codes are `InvalidRequest` (400)"), store and query failures to `Internal`. This plan does not edit `ProblemDetailsExtensions.cs`: the status table is #3683 (S2) and its consumption by `ToProblemDetails` is #3688 (H1). The HTTP status of a `Right` outcome is not an error category, so this choice is its own mapping.
 - An HTTP retry after a successful replay gets 409 (`Left(AlreadyReplayed)` converted by the category), not the recorded outcome, and nothing is dispatched twice (the claim guarantees it, `TryClaimForReplayAsync`, #2012).
 - A wins when clients are scripts that only read bodies.
 
@@ -190,7 +189,7 @@
 | F4 | Boundary limits: default `take` 50 and maximum `DeadLetterStoreLimits.MaxPageSize` (1000, verified); `maxMessages` of `POST /replay` capped at the manager default of 100 (`ReplayAllAsync(maxMessages = 100)`) | Dilemma (recommended, pending the maintainer) | numeric defaults |
 | F5 | `GetMessageAsync` returning `Right(None)` is 404 | Trivial | the `NotFound` category (ADR-062) and the `DPIAEndpointExtensions.cs` read routes |
 | F6 | Metric names `encina.dlq.api.requests` and `encina.dlq.api.purged` (no `_total`) | Settled | ADR-054 point 4 (no `_total` suffix on counters, `054-...md:22`); the existing `encina.dlq.*_total` names predate it |
-| F7 | `dlq.expired` category: `Conflict` or `FailedPrecondition` | Dilemma (recommended `FailedPrecondition`, pending the maintainer) | ADR-062 has no 410 row; `FailedPrecondition` is provisional until #3420 owns its row |
+| F7 | `dlq.expired` is `Conflict` (409); `encina.authorization.dlq_tenant_required` is `InvalidRequest` (400) | Settled | ADR-062 R2 ("an invalid transition is `Conflict`; do not use `FailedPrecondition` before #3420", which also leaves no 410 row) and ADR-062 ("the two `encina.authorization.*_tenant_required` codes are `InvalidRequest` (400)"); assigned by #3724 |
 | F8 | The Development-only `IncludeErrorMessageInProblemDetails` opt-in of `ToProblemDetails` applies to this group unchanged (it is the application's own switch, off by default); the group adds no other message exposure | Dilemma (recommended, pending the maintainer) | `ProblemDetailsExtensions.cs:77-98`; the alternative is to force the message off for this group, which also complies with AGENTS.md section 3 |
 | F9 | Logs and telemetry carry the operation and error code only; no payload, no actor, tenant tag only with multi-tenancy | Settled | AGENTS.md section 3; ADR-054 D4 |
 
@@ -205,10 +204,10 @@
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.AspNetCore/DeadLetterEndpointExtensions.cs` (pull request A2): `MapEncinaDeadLetterEndpoints(this IEndpointRouteBuilder endpoints, string authorizationPolicy, string? allTenantsPolicy = null, string prefix = "/api/dead-letters")` returning `RouteGroupBuilder`; reuse the policy check of `EnsurePolicyRegistered` (extract it to a shared internal helper rather than copy it, which changes `DPIAEndpointExtensions.cs`).
-2. **Routes**: read routes in A2: `GET /` (filter, `skip`, `take`), `GET /{id:guid}`, `GET /count`, `GET /statistics`; write routes in A3: `POST /{id:guid}/replay`, `POST /replay` (filter, `maxMessages`), `DELETE /{id:guid}`, `DELETE /` (filter, `expectedCount`). No cleanup route (register row F2).
+1. **Create** `src/Encina.AspNetCore/DeadLetterEndpointExtensions.cs` (pull request A1): `MapEncinaDeadLetterEndpoints(this IEndpointRouteBuilder endpoints, string authorizationPolicy, string? allTenantsPolicy = null, string prefix = "/api/dead-letters")` returning `RouteGroupBuilder`; reuse the policy check of `EnsurePolicyRegistered` (extract it to a shared internal helper rather than copy it, which changes `DPIAEndpointExtensions.cs`).
+2. **Routes**: read routes in A1: `GET /` (filter, `skip`, `take`), `GET /{id:guid}`, `GET /count`, `GET /statistics`; write routes in A2: `POST /{id:guid}/replay`, `POST /replay` (filter, `maxMessages`), `DELETE /{id:guid}`, `DELETE /` (filter, `expectedCount`). No cleanup route (register row F2).
 3. **Create** `DeadLetter/DeadLetterMessageResponse.cs`, `DeadLetterFilterRequest.cs` (fields: source pattern, request type, error code, correlation id, replayed flag, the two dead-lettered instants, source message id; no tenant field, Design Choice 6), `DeadLetterPageResponse.cs`, `PurgeResponse.cs` (records; Design Choice 3) and the mapper from `IDeadLetterMessage`. The actor is not in the response (once #2013 adds `ActorId`, it is still excluded).
-4. **Modify** `Encina.Messaging` in its own first pull request (A1): `DeadLetterManager.cs` and, where it creates codes, `DeadLetterOrchestrator.cs` create every `dlq.*` `Left` with the category overload (Design Choice 7). `ProblemDetailsExtensions.cs` is not edited: the status comes from the category once #3419 lands.
+4. **Prerequisites, not tasks**: the `dlq.*` categories (#3724), the core HTTP status table (#3683) and `ToProblemDetails` reading the category (#3688) are separate open issues, verified with `gh api repos/dlrivada/Encina/issues/<n>`; until they land `ToProblemDetails` answers 500 for `dlq.already_replayed` and `encina.authorization.dlq_tenant_required` (suffix rules), so every pull request of this plan is sequenced after them. `ProblemDetailsExtensions.cs` is not edited.
 
 </details>
 
@@ -247,7 +246,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `DeadLetter/DeadLetterRequestValidator.cs` (A3): `take` within `DeadLetterStoreLimits.MaxPageSize`, string lengths from `DeadLetterStoreLimits`, `maxMessages` cap (register row F4), date order; failures are `400` problem details with a code.
+1. **Create** `DeadLetter/DeadLetterRequestValidator.cs` (A2): `take` within `DeadLetterStoreLimits.MaxPageSize`, string lengths from `DeadLetterStoreLimits`, `maxMessages` cap (register row F4), date order; failures are `400` problem details with a code.
 2. **Implement** the purge confirmation (Design Choice 4): count first, compare with `expectedCount`, then `DeleteAllAsync` with `DeadLetteredBeforeUtc` set to the instant of the list; a mismatch is `409`.
 3. **Implement** the cross-tenant mode (Design Choice 2): authorize `allTenantsPolicy` through `IAuthorizationService` before setting `AllTenants`; null policy returns `403`.
 4. **Verify** with a unit test and an integration test that a request with `?tenantId=<other>` under the ambient tenant never reaches `DeadLetterFilter.TenantId` (Design Choice 6 option A), and that a request without a tenant cannot read or delete another tenant's rows (the manager returns `dlq_tenant_required`).
@@ -286,7 +285,7 @@ REFERENCE FILES:
 
 1. **Create** `Diagnostics/DeadLetterApiMetrics.cs` on a meter named `Encina.AspNetCore` (ADR-054 D3): `encina.dlq.api.requests` (tags operation, outcome code; tenant only with multi-tenancy on, ADR-054 D4) and `encina.dlq.api.purged` (no `_total` suffix, ADR-054 point 4; register row F6). The issue's `encina.deadletter.api.*` proposals are renamed to the `encina.dlq.*` family.
 2. **Create** an `ActivitySource` `Encina.AspNetCore` with spans `encina.dlq.api.replay` and `encina.dlq.api.purge`; no tenant or actor attributes beyond the ADR-054 rule.
-3. **Create** `Diagnostics/DeadLetterApiLog.cs` with eight `[LoggerMessage]` EventIds 218-225 inside the registered `AspNetCore` range (200-249); codes only, `ForLogging()` for exceptions. The assembly is already mapped in `EncinaEventIdAllocationTests`, so no edit of it. This is pull request A4, the first that logs, so no earlier pull request logs or emits a metric.
+3. **Create** `Diagnostics/DeadLetterApiLog.cs` with eight `[LoggerMessage]` EventIds 218-225 inside the registered `AspNetCore` range (200-249); codes only, `ForLogging()` for exceptions. The assembly is already mapped in `EncinaEventIdAllocationTests`, so no edit of it. This is pull request A3, the first that logs, so no earlier pull request logs or emits a metric.
 
 </details>
 
@@ -324,20 +323,19 @@ REFERENCE FILES:
 4. **Integration tests** through `TestServer` (`Microsoft.AspNetCore.TestHost`, which `Encina.IntegrationTests` already references; `WebApplicationFactory` would need `Microsoft.AspNetCore.Mvc.Testing`, which it does not, so it is not used and no package is added) against real stores on the shared collection fixtures, one provider per family (ADO, Dapper, EF Core, MongoDB), including a cross-tenant denial (`?tenantId=<other>` under the ambient tenant) and a purge with a stale `expectedCount`.
 5. Load and benchmark: justification files (a contract-test justification is never allowed).
 
-Per-file targets, entered in `.github/coverage-manifest/Encina.AspNetCore.json` by the pull request that adds the file and its tests (one-sentence justification each; measured with `coverage-report.cs`, reported in the pull request):
+Per-file targets, entered in `.github/coverage-manifest/Encina.AspNetCore.json` by the pull request that adds the tests that meet them (one-sentence justification each; measured with `coverage-report.cs`, reported in the pull request). The unit, guard, contract and property targets are entered by the pull request that adds the file (A1 to A3); the integration targets are entered only by A4, the pull request that adds the integration tests, so no pull request enters a target it cannot meet:
 
-| File | PR | Unit | Guard | Contract | Integration | Justification |
-|------|----|------|-------|----------|-------------|---------------|
-| `DeadLetterEndpointExtensions.cs` | A2, A3 | 85 | 80 | 40 | 70 | Thin handlers over the manager; the routes are exercised end to end |
-| `DeadLetter/DeadLetterRequestValidator.cs` | A3 | 95 | 80 | 0 | 40 | Pure rules, every branch has a unit test; contract has no public type contract to pin (internal) |
-| `DeadLetter/DeadLetterMessageResponse.cs`, `DeadLetterFilterRequest.cs`, `DeadLetterPageResponse.cs`, `PurgeResponse.cs` | A2 | 90 | 0 | 50 | 60 | Records with no logic, covered by mapping tests; guard has no parameters to check |
-| DTO mapper | A2 | 95 | 80 | 0 | 60 | One mapping per field, every field asserted; internal type |
-| `Diagnostics/DeadLetterApiMetrics.cs` | A4 | 90 | 80 | 0 | 0 | Counters asserted with an in-memory listener; not an integration concern |
-| `Diagnostics/DeadLetterApiLog.cs` | A4 | 80 | 0 | 0 | 0 | Source-generated; asserted through the allocation test and a logger test, no parameters to guard |
-| `DPIAEndpointExtensions.cs` (shared helper) | A2 | existing + 5 | existing | existing | existing | The extracted helper keeps its tests; the target does not go down |
-| `Encina.Messaging` `DeadLetterManager.cs`, `DeadLetterOrchestrator.cs` (categories) | A1 | existing + 3 | existing | existing | existing | One category per created code, asserted by a unit test; existing targets do not go down |
+| File | Unit, guard, contract, property: PR and targets | Integration (A4) | Justification |
+|------|-------------------------------------------------|------------------|---------------|
+| `DeadLetterEndpointExtensions.cs` | A1, A2: unit 85, guard 40, contract 40, property 0 | 70 | Thin handlers over the manager, exercised end to end by `TestServer`; the property tests target the validator, not the routes |
+| `DeadLetter/DeadLetterRequestValidator.cs` | A2: unit 95, guard 80, contract 0, property 90 | 40 | Pure rules with every branch unit tested and the paging bounds under FsCheck; no public type contract to pin |
+| `DeadLetter/DeadLetterMessageResponse.cs`, `DeadLetterFilterRequest.cs`, `DeadLetterPageResponse.cs`, `PurgeResponse.cs` | A1: unit 90, guard 0, contract 50, property 0 | 60 | Records with no logic, covered by mapping and shape tests; guard has no parameters to check |
+| DTO mapper | A1: unit 95, guard 80, contract 0, property 70 | 60 | One mapping per field, every field asserted, the filter round trip under FsCheck |
+| `Diagnostics/DeadLetterApiMetrics.cs` | A3: unit 90, guard 80, contract 0, property 0 | 0 | Counters asserted with an in-memory listener; not an integration concern |
+| `Diagnostics/DeadLetterApiLog.cs` | A3: unit 80, guard 0, contract 0, property 0 | 0 | Source-generated; asserted through the allocation test and a logger test, no parameters to guard |
+| `DPIAEndpointExtensions.cs` (shared helper) | A1: unit 85 (was 80), guard 20 (was 4), contract 0, property 0 | 0 | The extracted helper gains its own tests, so the targets rise and never go down |
 
-A 0 appears only where the reason is in the row (no parameters, or an internal type without `InternalsVisibleTo` for `Encina.GuardTests`); no contract-test justification file is written.
+A 0 appears only where the reason is in the row (no parameters, no executable logic, or a flag that does not apply to the file); every public type of `Encina.AspNetCore` is reachable by `Encina.GuardTests` (`InternalsVisibleTo` is granted in `Properties/AssemblyInfo.cs`), so no 0 rests on that. No contract-test justification file is written.
 
 </details>
 
@@ -426,19 +424,18 @@ REFERENCE FILES:
 
 ### Estimated File Count
 
-Every count includes tests, coverage manifest edits, PublicAPI and changelog. No pull request uses a type created by a later one (A2 needs the categories of A1 only at run time through `ToProblemDetails`, not at compile time).
+Every count includes tests, coverage manifest edits, PublicAPI and changelog. The `dlq.*` categories are not a pull request of this plan: they belong to #3724 (a prerequisite), so the earlier first pull request that edited `DeadLetterManager.cs`, `DeadLetterOrchestrator.cs` and `ErrorCategoryPending.txt` is removed and no edit of `ErrorCategoryPending.txt` is counted here. No pull request uses a type created by a later one.
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| A1 | `ErrorCategory` for the `dlq.*` codes in `Encina.Messaging` | 0 | 2 (`DeadLetterManager.cs`, `DeadLetterOrchestrator.cs`) | 1 | 0 | 1 | 0 | 4 | ~250 |
-| A2 | Group, read routes, DTOs, mapper, shared policy helper | 6 (extension, 4 DTO files, mapper) | 2 (`DPIAEndpointExtensions.cs`, PublicAPI) | 3 (unit, guard, contract) | 1 (`DPIAEndpointExtensionsTests.cs`) | 1 | 0 | 13 | ~900 |
-| A3 | Write routes, validator, purge confirmation, cross-tenant mode | 1 (validator) | 1 (extension) | 3 (validator, routes, property) | 1 (the guard test of A2) | 1 | 0 | 7 | ~700 |
-| A4 | Metrics, spans, log class and EventIds 218-225 | 2 | 1 (extension) | 2 | 0 | 1 | 0 | 6 | ~450 |
-| A5 | Integration tests (4 families) and justification files | 0 | 0 | 6 (4 integration, 2 `.md`) | 0 | 0 | 0 | 6 | ~800 |
-| A6 | Documentation | 0 | 0 | 0 | 0 | 0 | 4 (README of `Encina.AspNetCore`, operations guide, `docs/INVENTORY.md`, `changelog.d/2229-deadletter-admin-api.added.md`) | 4 | ~300 |
-| **Total** | | **9** | **6** | **15** | **2** | **4** | **4** | **40** | **~3,400** |
+| A1 | Group, read routes, DTOs, mapper, shared policy helper | 6 (extension, 4 DTO files, mapper) | 2 (`DPIAEndpointExtensions.cs`, PublicAPI) | 3 (unit, guard, contract) | 1 (`DPIAEndpointExtensionsTests.cs`) | 1 | 0 | 13 | ~900 |
+| A2 | Write routes, validator, purge confirmation, cross-tenant mode | 1 (validator) | 1 (extension) | 3 (validator, routes, property) | 1 (the guard test of A1) | 1 | 0 | 7 | ~700 |
+| A3 | Metrics, spans, log class and EventIds 218-225 | 2 | 1 (extension) | 2 | 0 | 1 | 0 | 6 | ~450 |
+| A4 | Integration tests (4 families), justification files, the integration targets | 0 | 0 | 6 (4 integration, 2 `.md`) | 0 | 1 | 0 | 7 | ~800 |
+| A5 | Documentation | 0 | 0 | 0 | 0 | 0 | 4 (README of `Encina.AspNetCore`, operations guide, `docs/INVENTORY.md`, `changelog.d/2229-deadletter-admin-api.added.md`) | 4 | ~300 |
+| **Total** | | **9** | **4** | **14** | **2** | **4** | **4** | **37** | **~3,150** |
 
-The columns sum to the total (9 + 6 + 15 + 2 + 4 + 4 = 40) and every statement of the total in this plan is 40 files in six pull requests; the largest is 13 files and none exceeds 1,000 lines. A2 to A5 follow #2013 for the audit criterion (Prerequisites).
+The columns sum to the total (9 + 4 + 14 + 2 + 4 + 4 = 37) and every statement of the total in this plan is 37 files in five pull requests and about 3,150 lines; the largest is 13 files and none exceeds 1,000 lines. A1 to A4 follow #3724, #3683, #3688 and #2013 (Prerequisites).
 
 ---
 
@@ -458,7 +455,7 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. MapEncinaDeadLetterEndpoints with required policy and optional all-tenants policy; DTOs without payload;
 2. validator, purge confirmation by expected count; 3. metrics, spans, EventIds 218-225; 4. tests with each pull request;
-5. docs. Six pull requests (A1 to A6), see the Estimated File Count table.
+5. docs. Five pull requests (A1 to A5), see the Estimated File Count table.
 
 KEY PATTERNS:
 - Fail closed at mapping time; ambient tenant by default; audit stays in the manager (#2013).
@@ -501,7 +498,9 @@ REFERENCE FILES:
 |-------------|--------|-------|
 | Persistent dead letter stores (#583) | ✅ Closed | The data |
 | Audit of operator actions (#2013) | Open | Needed for the audit acceptance criterion; land it first or in the same series |
-| HTTP status from the error category (#3419) | Open | The statuses of Design Choice 7 come from the category once the host mapping lands; A1 (the categories) does not need it |
+| `dlq.*` error categories (#3724, #3419 M2) | Open | Gives the `Left` codes their category (including `ErrorCategoryPending.txt`); without it `GetCategory` is the legacy inference |
+| Core HTTP status table (#3683, #3419 S2) | Open | The category-to-status table the host reads |
+| `ToProblemDetails` reads the category (#3688, #3419 H1) | Open | Until it lands `ToProblemDetails` answers 500 for `dlq.already_replayed` and `encina.authorization.dlq_tenant_required`, so the 409 and 400 status tests of A1 to A4 would fail; A1 to A4 are sequenced after it |
 
 ### Recommended (Not Blocking)
 
@@ -514,5 +513,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #2229 and ask the maintainer to answer Design Choices 2, 3, 4, 6 and 7 and the Dilemma rows F3, F4, F7 and F8 when work starts.
-2. Implement A1 to A6 as the pull requests of the Estimated File Count table, `Fixes #2229` on A6; sequence after #2013.
+1. Link this plan from #2229 and ask the maintainer to answer Design Choices 2, 3, 4, 6 and 7 and the Dilemma rows F3, F4 and F8 when work starts.
+2. Implement A1 to A5 as the pull requests of the Estimated File Count table, `Fixes #2229` on A5; sequence after #3724, #3683, #3688 and #2013.
