@@ -196,7 +196,7 @@ Each table has one row per kind of finding. References are named with the source
 | Encina has, they lack | Polly-based pipeline behaviors for retry, circuit breaker, database circuit breaker, bulkhead and rate limiting that return `Either`; message-level recoverability (immediate and delayed retries) in the same package as the outbox |
 | They have, Encina lacks | Polly strategies without a dedicated Encina behavior: hedging and fallback (no `Hedg*` or fallback behavior found in `src/Encina.Polly`); Wolverine's rule language with jitter, requeue and listener pause; MassTransit's kill switch |
 | Common | Built on Polly in the .NET case; retry, breaker, bulkhead, rate limiter concepts |
-| Notes | Resilience for the message transports and the gRPC and GraphQL providers is post-1.0 ([#742](https://github.com/dlrivada/Encina/issues/742), [#745](https://github.com/dlrivada/Encina/issues/745)); outbound HTTP client: [#1233](https://github.com/dlrivada/Encina/issues/1233) |
+| Notes | Resilience for the message transports and the gRPC and GraphQL bridges is in 1.0 scope ([SPEC-000](../../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-030, [ADR-055](../../architecture/adr/055-resilience-family.md); [#742](https://github.com/dlrivada/Encina/issues/742), [#745](https://github.com/dlrivada/Encina/issues/745)); outbound HTTP client: [#1233](https://github.com/dlrivada/Encina/issues/1233) |
 
 ### Multi-tenancy
 
