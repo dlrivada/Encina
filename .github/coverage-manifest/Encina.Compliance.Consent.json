@@ -1,7 +1,7 @@
 {
   "package": "Encina.Compliance.Consent",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 25,
+  "totalFiles": 26,
   "targets": {
     "contract": 15,
     "guard": 20,
@@ -29,15 +29,20 @@
       "override": [
         "unit",
         "guard",
-        "property"
+        "property",
+        "integration"
       ],
       "targets": {
         "guard": 55,
-        "property": 75
+        "property": 75,
+        "unit": 95,
+        "integration": 45
       },
       "justifications": {
         "guard": "Guard tests cover the null, empty and whitespace argument checks of the aggregate factory and commands.",
-        "property": "FsCheck properties run the real aggregate over generated inputs and single state transitions."
+        "property": "FsCheck properties run the real aggregate over generated inputs and single state transitions.",
+        "unit": "ConsentAggregateTests and the service tests run every command, transition guard and Apply branch of the real aggregate (measured 100%).",
+        "integration": "The Consent integration tests create, reload and withdraw real aggregates through Marten on PostgreSQL (measured 50.4%); renew, version change and reconsent transitions are unit-tested."
       }
     },
     "Attributes/RequireConsentAttribute.cs": {
@@ -148,6 +153,24 @@
       "justifications": {
         "contract": "Contract tests run the real behavior against a substituted validator and cover skip, Block, Warn, validator-failure and missing-subject fail-closed outcomes.",
         "guard": "Guard tests check the constructor and Handle null guards only; the pipeline branches are covered by the contract flag."
+      }
+    },
+    "ConsentStreamId.cs": {
+      "defaultTests": [
+        "unit",
+        "guard"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "integration": 100
+      },
+      "justifications": {
+        "unit": "ConsentStreamIdTests run the real derivation over pinned vectors, tenant normalization, separator-collision, UTF-8 and version 8 bit cases (measured 100%).",
+        "guard": "Internal helper with no public entry point; its only argument check (a null key part) is asserted by a unit test, and the public GrantConsentAsync guard tests stop at the tenant gate before the id is derived.",
+        "integration": "ConsentGrantStreamIdIntegrationTests derive the stream id on every grant against Marten on PostgreSQL (measured 100%)."
       }
     },
     "DefaultConsentValidator.cs": {
@@ -263,10 +286,14 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "guard": 25
+        "guard": 25,
+        "unit": 80,
+        "integration": 40
       },
       "justifications": {
-        "guard": "Guard tests check the constructor null guards and drive every tenant-gated operation into the fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests."
+        "guard": "Guard tests check the constructor null guards and drive every tenant-gated operation into the fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests.",
+        "unit": "DefaultConsentServiceTests drive every command and query against a substituted repository, including the deterministic-id create path and the StreamAlreadyExists re-read (measured 83.4%); the remaining lines are catch blocks for infrastructure exceptions.",
+        "integration": "The Consent integration tests run grants, a withdrawal and the tenant-scoped queries against Marten on PostgreSQL (measured 44.5%); renew, reconsent and cache paths are unit-tested."
       }
     },
     "SubjectIdConversion.cs": {

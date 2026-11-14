@@ -201,6 +201,160 @@ public class DefaultConsentServiceTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        await _repository.DidNotReceive().LoadAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_FirstGrant_CreatesStreamWithDeterministicId()
+    {
+        // Arrange
+        var expectedId = ConsentStreamId.For(null, "subject-1", "marketing");
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin");
+
+        // Assert — the returned id and the created stream id are the key-derived id (#3769).
+        result.ShouldBe(Right<EncinaError, Guid>(expectedId));
+        await _repository.Received(1).CreateAsync(
+            Arg.Is<ConsentAggregate>(a => a.Id == expectedId),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_SameKeyTwice_ReturnsSameId()
+    {
+        // Arrange
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var first = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin");
+        var second = await _sut.GrantConsentAsync("subject-1", "marketing", "v2", "api", "other-actor");
+
+        // Assert — only the key decides the id, not the version, source or actor.
+        second.ShouldBe(first);
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_NullAndEmptyTenant_DeriveSameId()
+    {
+        // Arrange
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var withNull = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", tenantId: null);
+        var withEmpty = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", tenantId: string.Empty);
+
+        // Assert
+        withEmpty.ShouldBe(withNull);
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_DifferentTenantSubjectOrPurpose_DeriveDifferentIds()
+    {
+        // Arrange
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var baseline = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", tenantId: "tenant-a");
+        var otherTenant = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin", tenantId: "tenant-b");
+        var otherSubject = await _sut.GrantConsentAsync("subject-2", "marketing", "v1", "web-form", "admin", tenantId: "tenant-a");
+        var otherPurpose = await _sut.GrantConsentAsync("subject-1", "analytics", "v1", "web-form", "admin", tenantId: "tenant-a");
+
+        // Assert
+        var ids = new[] { baseline, otherTenant, otherSubject, otherPurpose }
+            .Select(r => r.Match(Right: id => id, Left: _ => Guid.Empty))
+            .ToList();
+        ids.ShouldNotContain(Guid.Empty);
+        ids.Distinct().Count().ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_AmbientTenant_IsPartOfTheKey()
+    {
+        // Arrange — no explicit tenant: the effective tenant is the ambient one.
+        _requestContextAccessor.RequestContext.Returns(RequestContext.CreateForTest(tenantId: "tenant-a"));
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, Unit>(Unit.Default));
+
+        // Act
+        var result = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin");
+
+        // Assert
+        result.ShouldBe(Right<EncinaError, Guid>(ConsentStreamId.For("tenant-a", "subject-1", "marketing")));
+        await _repository.Received(1).CreateAsync(
+            Arg.Is<ConsentAggregate>(a => a.TenantId == "tenant-a"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(ConsentStatus.Active)]
+    [InlineData(ConsentStatus.Withdrawn)]
+    [InlineData(ConsentStatus.RequiresReconsent)]
+    [InlineData(ConsentStatus.Expired)]
+    public async Task GrantConsentAsync_StreamAlreadyExists_ReturnsExistingIdWithoutMutation(ConsentStatus existingStatus)
+    {
+        // Arrange — the key already has a stream (sequential repeat or concurrent loser).
+        var existingId = ConsentStreamId.For(null, "subject-1", "marketing");
+        var existing = existingStatus switch
+        {
+            ConsentStatus.Withdrawn => CreateWithdrawnAggregate(existingId),
+            ConsentStatus.RequiresReconsent => CreateRequiresReconsentAggregate(existingId),
+            ConsentStatus.Expired => CreateExpiredAggregate(existingId),
+            _ => CreateActiveAggregate(existingId)
+        };
+        existing.Status.ShouldBe(existingStatus);
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create(MartenErrorCodes.StreamAlreadyExists, "Stream already exists")));
+        _repository.LoadAsync(existingId, Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, ConsentAggregate>(existing));
+
+        // Act
+        var result = await _sut.GrantConsentAsync("subject-1", "marketing", "v2", "api", "admin");
+
+        // Assert — interim behavior until #3771: the existing id, nothing appended, for any state.
+        result.ShouldBe(Right<EncinaError, Guid>(existingId));
+        await _repository.Received(1).LoadAsync(existingId, Arg.Any<CancellationToken>());
+        await _repository.DidNotReceive().SaveAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_StreamAlreadyExists_ReloadFails_ReturnsReloadError()
+    {
+        // Arrange
+        var existingId = ConsentStreamId.For(null, "subject-1", "marketing");
+        var loadError = EncinaErrors.Create(MartenErrorCodes.LoadFailed, "Load failed");
+        _repository.CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, Unit>(EncinaErrors.Create(MartenErrorCodes.StreamAlreadyExists, "Stream already exists")));
+        _repository.LoadAsync(existingId, Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, ConsentAggregate>(loadError));
+
+        // Act
+        var result = await _sut.GrantConsentAsync("subject-1", "marketing", "v1", "web-form", "admin");
+
+        // Assert — the failure is reported, never turned into a success.
+        result.IsLeft.ShouldBeTrue();
+        _ = result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.GetCode().IfSome(code => code.ShouldBe(MartenErrorCodes.LoadFailed)));
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_NullSubject_ReturnsServiceError()
+    {
+        // Act
+        var result = await _sut.GrantConsentAsync(null!, "marketing", "v1", "web-form", "admin");
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        _ = result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: error => error.GetCode().IfSome(code => code.ShouldBe(ConsentErrors.ServiceErrorCode)));
+        await _repository.DidNotReceive().CreateAsync(Arg.Any<ConsentAggregate>(), Arg.Any<CancellationToken>());
     }
 
     #endregion
@@ -820,6 +974,15 @@ public class DefaultConsentServiceTests
     {
         var aggregate = CreateActiveAggregate(id);
         aggregate.Withdraw("admin", "User requested", FixedNow.AddDays(-5));
+        return aggregate;
+    }
+
+    private static ConsentAggregate CreateExpiredAggregate(Guid id)
+    {
+        var aggregate = ConsentAggregate.Grant(
+            id, "subject-1", "marketing", "v1", "web-form", null, null,
+            new Dictionary<string, object?>(), FixedNow.AddDays(-1), "admin", FixedNow.AddDays(-10));
+        aggregate.Expire(FixedNow);
         return aggregate;
     }
 

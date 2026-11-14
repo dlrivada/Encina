@@ -46,6 +46,28 @@ public interface IConsentService
     /// <summary>
     /// Grants consent for a data subject and specific processing purpose.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>One record per key (#3769).</b> At most one consent record exists per (tenant, data
+    /// subject, purpose). The tenant is the effective tenant: <paramref name="tenantId"/> when given,
+    /// otherwise the ambient tenant; a missing tenant where tenant isolation is required, or an
+    /// explicit tenant that differs from the ambient one, is refused with
+    /// <see cref="ConsentErrors.TenantRequiredCode"/>. A <c>null</c> and an empty tenant are the same
+    /// "no tenant" key; the data subject and the purpose are compared ordinally (case-sensitive,
+    /// not trimmed). The consent id is derived deterministically from the key, so the event store
+    /// rejects a second record atomically, even when two grants for the same key run at once.
+    /// </para>
+    /// <para>
+    /// <b>Interim behavior, tracked by #3771.</b> When a record already exists for the key, this
+    /// method returns its consent id unchanged, whatever its status (Active, Withdrawn, Expired or
+    /// RequiresReconsent), and records nothing: the arguments of the repeated grant are not stored.
+    /// A withdrawn or expired key is therefore not re-granted by this method today; #3771 adds the
+    /// renewal and re-grant rules for an existing record. With the Marten store, a repeated grant
+    /// currently leaves the rejected stream creation queued in the scoped session, so a later
+    /// write in the same scope fails; run it in a new scope until the store clears its session
+    /// after a failed save.
+    /// </para>
+    /// </remarks>
     /// <param name="dataSubjectId">Identifier of the data subject giving consent.</param>
     /// <param name="purpose">The specific processing purpose.</param>
     /// <param name="consentVersionId">Identifier of the consent terms version.</param>
@@ -58,7 +80,10 @@ public interface IConsentService
     /// <param name="tenantId">Optional tenant identifier for multi-tenancy.</param>
     /// <param name="moduleId">Optional module identifier for modular monolith.</param>
     /// <param name="cancellationToken">Optional cancellation token.</param>
-    /// <returns>Either an error or the identifier of the newly created consent aggregate.</returns>
+    /// <returns>
+    /// Either an error or the consent identifier of the key: the identifier of the newly created
+    /// consent aggregate, or of the existing one when the key already has a record.
+    /// </returns>
     ValueTask<Either<EncinaError, Guid>> GrantConsentAsync(
         string dataSubjectId,
         string purpose,
