@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
     /// </list>
     /// <para>
     /// Use this for single-instance applications or development/testing scenarios.
-    /// For distributed caching, use Redis, Garnet, or NCache providers.
+    /// For distributed caching, use the Redis, Garnet, Valkey, Dragonfly or KeyDB providers.
     /// </para>
     /// </remarks>
     /// <example>

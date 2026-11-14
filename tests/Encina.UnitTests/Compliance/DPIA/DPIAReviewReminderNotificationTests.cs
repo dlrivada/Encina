@@ -51,7 +51,6 @@ public sealed class DPIAReviewReminderNotificationTests
     {
         var services = new ServiceCollection();
         services.AddSingleton(_service);
-        services.AddSingleton<TimeProvider>(_time);
 
         if (registerEncina)
         {
@@ -64,10 +63,10 @@ public sealed class DPIAReviewReminderNotificationTests
             scopeFactory,
             Options.Create(new DPIAOptions
             {
-                EnableExpirationMonitoring = true,
                 ExpirationCheckInterval = TimeSpan.FromHours(1),
                 PublishNotifications = true
             }),
+            _time,
             logger);
     }
 
