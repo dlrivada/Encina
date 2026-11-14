@@ -6,7 +6,7 @@
 > **ADR**: none (ADR number assigned when the ADR pull request opens, if one is needed)
 > **Related**: #87 (owns the `examples/` scaffold and Dilemma D1), #88 (CQRS example), #188 (dashboard guide), #344 (adoption guide)
 > **Complexity**: Medium (three small applications, each with a Docker Compose file); too large for one pull request, so the plan proposes a split
-> **Estimated Scope**: about 27 files, about 1,100 lines in three pull requests of about 9 files and 370 lines each
+> **Estimated Scope**: about 30 files, about 1,300 lines in three pull requests of 10 to 12 files and about 430 lines each
 
 ---
 
@@ -18,21 +18,21 @@ This plan adds three runnable examples that show Encina with a real dependency: 
 
 | Example | Shows | Registration and API |
 |---------|-------|----------------------|
-| `03-entity-framework` | EF Core, outbox, transaction, `DbContext` configuration | `AddEncinaEntityFrameworkCore<TDbContext>(Action<MessagingConfiguration>)` (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:138`) with `config.UseOutbox = true` and `config.UseTransactions = true` (`MessagingConfiguration.UseOutbox`, `UseTransactions`); the `DbContext` applies `OutboxMessageConfiguration` in `OnModelCreating` as the package README shows |
-| `04-dapper-integration` | Dapper on SQL Server, direct SQL beside Encina messaging, connection management | `AddEncinaDapper(...)` in `Encina.Dapper.SqlServer` (three overloads; one takes a connection factory, the README shows `new SqlConnection(connectionString)`) with `config.UseOutbox = true` |
+| `03-entity-framework` | EF Core, outbox, transaction, `DbContext` configuration | `AddEncinaEntityFrameworkCore<TDbContext>(Action<MessagingConfiguration>)` (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:136`) with `config.UseOutbox = true` and `config.UseTransactions = true` (`MessagingConfiguration.UseOutbox`, `UseTransactions`); the `DbContext` applies `OutboxMessageConfiguration` in `OnModelCreating` as the package README shows. The outbox is fed by `TransactionalOutboxPipelineBehavior<,>` (`src/Encina.Messaging/Outbox/TransactionalOutboxPipelineBehavior.cs:30`), which writes the notifications of a request that implements `IHasNotifications`; `IEncina.Publish` dispatches in process and never touches the outbox, and the transaction behavior only commits, so the handler calls `SaveChangesAsync` itself |
+| `04-dapper-integration` | Dapper on SQL Server, direct SQL beside Encina messaging, connection management | `AddEncinaDapper(...)` in `Encina.Dapper.SqlServer` (three overloads; one takes a connection factory, the README shows `new SqlConnection(connectionString)`) with the outbox switch per Design Choice 7 (Dilemma) |
 | `05-redis-caching` | Redis cache setup, query caching, invalidation, TTL | `AddEncinaCaching(...)` **and** `AddEncinaRedisCache(connectionString)` (`src/Encina.Caching.Redis/ServiceCollectionExtensions.cs`), `[Cache(DurationSeconds = ...)]` and `[InvalidatesCache]` (`src/Encina.Caching/Attributes/`) |
 
-**A correction to the issue's table.** The issue lists only `AddEncinaRedisCache(...)` for example 05. `AddEncinaRedisCache` registers the Redis `ICacheProvider` and its options (`AddEncinaRedisCacheCore`, `ServiceCollectionExtensions.cs:124-154`) but not the pipeline behaviors; `AddEncinaCaching` registers `QueryCachingPipelineBehavior<,>` and `CacheInvalidationPipelineBehavior<,>` (`src/Encina.Caching/ServiceCollectionExtensions.cs:81-86`). `[Cache]` has no effect without it, so the example calls both. The worker confirms the call order and options when writing.
+**A correction to the issue's table.** The issue lists only `AddEncinaRedisCache(...)` for example 05. `AddEncinaRedisCache` registers the Redis `ICacheProvider` and its options (`AddEncinaRedisCacheCore`, `ServiceCollectionExtensions.cs:124-154`) but not the pipeline behaviors; `AddEncinaCaching` registers `QueryCachingPipelineBehavior<,>` and `CacheInvalidationPipelineBehavior<,>` (`src/Encina.Caching/ServiceCollectionExtensions.cs:80-85`; the method is at :44). `[Cache]` has no effect without it, so the example calls both. The worker confirms the call order and options when writing.
 
 **Provider coverage is stated, not implied.** The examples demonstrate Dapper-SqlServer, one EF Core provider (Design Choice 2) and Redis. They are not provider features, so AGENTS.md section 5 does not require the other 8 database providers or the other 7 caches; each README names the sibling packages (ADO.NET, the other Dapper and EF Core providers, MongoDB; Valkey, Dragonfly, Garnet, KeyDB, Memory, Hybrid) and says they are not demonstrated.
 
-**Size and split.** Three examples of about 9 files each exceed one worker pull request only when taken together (about 27 files). AGENTS.md section 11 gives one pull request per issue (15 files, 1500 lines), so before any worker brief the orchestrator splits #89 into three sub-issues, one per example (Next Steps). The three can run in parallel after the #87 scaffold merges; they share no file.
+**Size and split.** Three examples of about 9 files each exceed one worker pull request only when taken together (about 27 files). AGENTS.md section 11 gives one pull request per issue (15 files, 1500 lines), so before any worker brief the orchestrator splits #89 into three sub-issues, one per example (Next Steps). The three can run in parallel after the #87 scaffold merges, but they are not file-independent: each adds an `Encina.slnx` entry and a row in `examples/README.md`, so parallel pull requests conflict on both. Either the #87 scaffold pull request pre-creates the three rows and the three solution entries (recommended: the later pull requests then only add their folder), or the three land in order 03, 04, 05 each rebased on the previous; both files are counted in every pull request below.
 
 **Provider category**: Database (one provider per example, as a demonstration) and Caching (Redis); no new provider-dependent library code.
 
 **Affected packages**: `Encina.EntityFrameworkCore`, `Encina.Dapper.SqlServer`, `Encina.Caching`, `Encina.Caching.Redis`, `Encina.Messaging` (all consumed, not changed); the three new example projects.
 
-**Size**: 1 plan file; the implementation is three pull requests of about 9 files and 370 lines each.
+**Size**: 1 plan file; the implementation is three pull requests of 10 to 12 files and about 430 lines each (see Estimated File Count).
 
 ---
 
@@ -87,7 +87,7 @@ We recommend (a) because the three examples then use two services, not three, an
 <summary><strong>3. Three focused examples, not one</strong></summary>
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 11 (a worker's issue is one pull request of at most 15 files and 1500 lines), #89 (original reasoning: one mega-example is too complex to learn a feature from)
+**Settled by:** AGENTS.md section 11 (a worker's issue is one pull request of at most 15 files and 1500 lines), which excludes B (about 30 files in one pull request); option C (documentation only) is excluded by the issue, which asks for runnable examples; #89 (original reasoning: one mega-example is too complex to learn a feature from)
 
 ### Options Considered
 
@@ -109,7 +109,7 @@ Only A satisfies the size rule and the issue's own reasoning. An external sample
 <summary><strong>4. Redis as the cache, and the registration pair</strong></summary>
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 5 (Caching category: Redis is one of the 8 providers behind `ICacheProvider`), #89 (the issue asks for Redis)
+**Settled by:** #89 (the issue asks for Redis, which excludes B and C) and AGENTS.md section 5 (Caching category: Redis is one of the 8 providers behind `ICacheProvider`)
 
 ### Options Considered
 
@@ -131,20 +131,20 @@ The README explains why two calls are needed (provider versus behaviors) and lin
 <summary><strong>5. One Docker Compose file per example, with the repository's image tags</strong></summary>
 
 **Class:** Trivial
-**Settled by:** `docs/infrastructure/docker-infrastructure.md` and the root `docker-compose.yml` (SQL Server `mcr.microsoft.com/mssql/server:2022-latest`, Redis `redis:7-alpine`)
+**Settled by:** #89 (the issue asks for a compose file per example, which excludes B) and `docs/infrastructure/docker-infrastructure.md`, whose service table (lines 49 and 69) is the one place that names the repository's SQL Server and Redis images (`mcr.microsoft.com/mssql/server:2022-latest`, `redis:7-alpine`)
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A — A small `docker-compose.yml` inside each example, with the same image tags as the root file** | The example can be copied out; one service each | Tags must be kept in step with the root file |
+| **A — A small `docker-compose.yml` inside each example, with the image of the Docker guide's table** | The example can be copied out; one service each | The tag is repeated; it is a moving tag (`2022-latest`) that already appears in `ci.yml`, `ci-full.yml`, `load-tests.yml` and two templates, so no single source exists in the repository today |
 | **B — Use the root file with `--profile`** | One source of tags | The example no longer stands alone |
 
 ### Chosen Option: **A — A compose file per example**
 
 ### Rationale
 
-The issue says so, and the repository root keeps its profiles for development of Encina itself. A comment in each file names the root file as the source of the tag.
+The issue says so, and the repository root keeps its profiles for development of Encina itself. The compose files take the images from the Docker guide's table, and each README links that guide as the place where the maintained value lives, instead of claiming "the same as the root file". If the maintainer later pins the tags repository-wide (LTS default images rule), the three compose files follow that one source.
 
 </details>
 
@@ -169,6 +169,28 @@ Only A complies. If the performance dashboard does not cover EF Core versus Dapp
 
 </details>
 
+<details>
+<summary><strong>7. Whether example 04 enables the outbox (D3)</strong></summary>
+
+**Class:** Dilemma
+
+`UseOutbox = true` registers the outbox store and processor, but rows are written only for a request that implements `IHasNotifications` (`TransactionalOutboxPipelineBehavior.cs:30`). Example 04 as originally written has no such request, so the switch would be on and do nothing.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **(a) Drop `UseOutbox` from 04; the README says the outbox is shown in example 03 only** | Example 04 stays about Dapper and direct SQL; no unused switch (pay-for-what-you-use) | The Dapper outbox store is not demonstrated |
+| **(b) Give 04 one `IHasNotifications` command and a notification handler, with the `OutboxProcessor` note** | Shows the Dapper outbox store | Duplicates the pattern of 03; adds files to a 10-file pull request |
+
+### Chosen Option: **(a) — Drop `UseOutbox` from 04** (recommended, pending the maintainer)
+
+### Rationale
+
+We recommend (a) because the subject of 04 is the Dapper data path, and a switch that writes nothing misleads a reader who copies it. (b) wins if the maintainer wants each data-access example to show its own outbox store.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -186,6 +208,7 @@ Phases 2, 3 and 4 are independent and become three pull requests after the split
 2. Each connection string comes from configuration (`ConnectionStrings:Default`), set in `appsettings.json` for the compose service; the README states the compose credentials are for local development only. No connection string or password is logged.
 3. Database calls are asynchronous with a `CancellationToken` (AGENTS.md section 3).
 4. Time comes from `TimeProvider` where a timestamp is needed (AGENTS.md section 3).
+4a. Error codes use the explicit category overload `EncinaErrors.Create(code, ErrorCategory.X, message)` (ADR-062): `orders.rejected` (03) is `Validation`, `orders.not_found` (04) is `NotFound`, `products.not_found` (05) is `NotFound`.
 5. Each `docker-compose.yml` starts only its service, with a health check, and the README says how to stop and remove it (`docker compose down -v`).
 
 </details>
@@ -210,11 +233,12 @@ REFERENCE FILES: docker-compose.yml, docs/infrastructure/docker-infrastructure.m
 <summary>Tasks</summary>
 
 1. `examples/03-entity-framework/03-entity-framework.csproj`: references `Encina`, `Encina.EntityFrameworkCore`, `Microsoft.EntityFrameworkCore.SqlServer` (version from `Directory.Packages.props`).
-2. `Data/AppDbContext.cs`: `DbSet<Order>` and `DbSet<OutboxMessage>`; `OnModelCreating` applies `OutboxMessageConfiguration`.
-3. `Orders/CreateOrder.cs`, `Orders/CreateOrderHandler.cs`: the handler adds the order through the `DbContext`; with `UseTransactions` the pipeline commits or rolls back from the `Either` result; a notification (`OrderCreated`) is published through `IEncina.Publish` and lands in the outbox.
-4. `Orders/OrderCreatedHandler.cs`: a notification handler that prints the code path proving the outbox processor delivered it.
-5. `Program.cs`: `AddEncinaEntityFrameworkCore<AppDbContext>(config => { config.UseTransactions = true; config.UseOutbox = true; })`, `EnsureCreatedAsync` for the demo schema, one successful command and one failing command whose rollback leaves no row.
-6. `docker-compose.yml` (SQL Server, per Design Choice 2) and `README.md` (by `docs-writer`).
+2. `Data/AppDbContext.cs`: `DbSet<Order>` and `DbSet<OutboxMessage>`; `OnModelCreating` applies `OutboxMessageConfiguration`. `Orders/Order.cs`: the entity.
+3. `Orders/CreateOrder.cs`: `CreateOrder : ICommand<Guid>, IHasNotifications` (the interface the outbox behavior reads); `GetNotifications()` returns an `OrderCreated` notification (`Orders/OrderCreated.cs`). `Orders/CreateOrderHandler.cs`: adds the order to the `DbContext` and calls `await dbContext.SaveChangesAsync(cancellationToken)` itself, because the transaction behavior only commits (`lease.CommitAsync`, `TransactionPipelineBehavior.cs:184`) and nothing else saves. With `UseTransactions` the pipeline commits on `Right` and rolls back on `Left`; `TransactionalOutboxPipelineBehavior<,>` writes the notification to the outbox in the same transaction (package README, "joins the request's transaction").
+4. `Orders/FailingCreateOrder.cs` (command and handler in one file): the handler stages an order change, calls `SaveChangesAsync` and then returns a `Left` (`ErrorCategory.Validation`, code `orders.rejected`); the pipeline rolls back, so the row and the outbox message are absent, which the program proves by counting rows.
+5. `Orders/OrderCreatedHandler.cs`: a notification handler; the `OutboxProcessor` hosted service (registered when `UseOutbox` is set) reads the stored message and delivers it to this handler, so the console shows the delivery after a short poll. The README states that delivery is asynchronous and at-least-once.
+6. `Program.cs`: `AddEncinaEntityFrameworkCore<AppDbContext>(config => { config.UseTransactions = true; config.UseOutbox = true; })`, `EnsureCreatedAsync` for the demo schema, one successful command, one failing command, and the row counts.
+7. `docker-compose.yml` (SQL Server, per Design Choice 2), `appsettings.json` and `README.md` (by `docs-writer`). Error categories (ADR-062): `orders.rejected` is `Validation`; the example uses `EncinaErrors.Create(code, ErrorCategory.X, message)`.
 
 </details>
 
@@ -223,8 +247,8 @@ REFERENCE FILES: docker-compose.yml, docs/infrastructure/docker-infrastructure.m
 
 ```text
 CONTEXT: Encina.EntityFrameworkCore registers stores and behaviors with AddEncinaEntityFrameworkCore<TDbContext>(Action<MessagingConfiguration>); MessagingConfiguration has UseOutbox and UseTransactions. Read src/Encina.EntityFrameworkCore/README.md for the DbContext configuration.
-TASK: Build examples/03-entity-framework as in the plan's Phase 2 tasks 1-6: order command, transaction commit and rollback shown through the Either result, outbox message published to an in-process notification handler.
-KEY RULES: verify every type in src/ before use; the outbox is opt-in (config.UseOutbox = true); business failure is a Left, not an exception; no synchronous database calls; connection string from configuration, never logged; zero warnings; English only.
+TASK: Build examples/03-entity-framework as in the plan's Phase 2 tasks 1-7: a command that implements IHasNotifications and whose handler calls SaveChangesAsync, commit and rollback shown through the Either result, the outbox message delivered by the OutboxProcessor to a notification handler.
+KEY RULES: verify every type in src/ before use; the outbox is fed only by requests implementing IHasNotifications (IEncina.Publish does not write it) and the transaction behavior never calls SaveChangesAsync; the outbox is opt-in (config.UseOutbox = true); use the explicit-category EncinaErrors.Create overload; business failure is a Left, not an exception; no synchronous database calls; connection string from configuration, never logged; zero warnings; English only.
 REFERENCE FILES: src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs, src/Encina.EntityFrameworkCore/README.md, src/Encina.Messaging/MessagingConfiguration.cs, docker-compose.yml.
 ```
 
@@ -239,7 +263,7 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs, 
 
 1. `examples/04-dapper-integration/04-dapper-integration.csproj`: references `Encina`, `Encina.Dapper.SqlServer`, `Dapper`, `Microsoft.Data.SqlClient` (versions from `Directory.Packages.props`).
 2. `Orders/CreateOrderHandler.cs` and a query handler using `connection.ExecuteAsync` and `QueryAsync` with parameters; connections come from the registered factory and are opened with `OpenAsync(cancellationToken)`.
-3. `Program.cs`: `AddEncinaDapper(...)` with the connection factory overload and `config.UseOutbox = true` (exact overload confirmed in `src/Encina.Dapper.SqlServer/ServiceCollectionExtensions.cs`), schema script executed at start.
+3. `Program.cs`: `AddEncinaDapper(...)` with the connection factory overload (exact overload confirmed in `src/Encina.Dapper.SqlServer/ServiceCollectionExtensions.cs`) and the outbox switch per Design Choice 7 (Dilemma), schema script executed at start. `UseOutbox = true` writes nothing unless a request implements `IHasNotifications`, so it is set only under Design Choice 7 option (b). Error categories (ADR-062): the query's `orders.not_found` is `NotFound`, created with the explicit-category overload.
 4. `docker-compose.yml` (SQL Server) and `README.md` with the qualitative "when Dapper, when EF Core" notes (Design Choice 6; link to example 03).
 
 </details>
@@ -265,8 +289,8 @@ REFERENCE FILES: src/Encina.Dapper.SqlServer/ServiceCollectionExtensions.cs, src
 
 1. `examples/05-redis-caching/05-redis-caching.csproj`: references `Encina`, `Encina.Caching`, `Encina.Caching.Redis`.
 2. `Products/GetProduct.cs` decorated with `[Cache(DurationSeconds = 60)]` (`CacheAttribute`, default 300; `VaryByTenant` defaults to true, explained in the README); `Products/UpdateProduct.cs` decorated with `[InvalidatesCache]` (`KeyPattern`, `BroadcastInvalidation`).
-3. Handlers over an in-memory product list with a counter, so the output shows the handler ran once for two identical queries, then again after the update.
-4. `Program.cs`: `AddEncinaCaching(...)` and `AddEncinaRedisCache("localhost:6379")` (confirm options in `src/Encina.Caching/ServiceCollectionExtensions.cs:45`).
+3. Handlers (a not-found returns `EncinaErrors.Create("products.not_found", ErrorCategory.NotFound, ...)`) over an in-memory product list with a counter, so the output shows the handler ran once for two identical queries, then again after the update.
+4. `Program.cs`: `AddEncinaCaching(...)` and `AddEncinaRedisCache("localhost:6379")` (confirm options in `src/Encina.Caching/ServiceCollectionExtensions.cs:44`).
 5. `docker-compose.yml` (Redis) and `README.md` including the list of the other caching packages that implement the same `ICacheProvider`.
 
 </details>
@@ -346,11 +370,11 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, examples/README.md, each e
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Example 03 | 9 | csproj, `Program.cs`, `AppDbContext.cs`, order command and handler, notification handler, compose file, README, `appsettings.json` |
-| Example 04 | 8 | csproj, `Program.cs`, handlers (2), schema script, compose file, README, `appsettings.json` |
-| Example 05 | 8 | csproj, `Program.cs`, query, command, handlers, compose file, README |
-| Shared | 1 | three rows in `examples/README.md` (one edit per pull request) |
-| **Total** | **about 27** | Three pull requests of 8 to 9 files each, about 370 lines each; none exceeds 15 files or 1500 lines |
+| Example 03 | 12 | csproj, `Program.cs`, `AppDbContext.cs`, `Order.cs`, `OrderCreated.cs`, `CreateOrder.cs` (command and handler), `FailingCreateOrder.cs` (command and handler), `OrderCreatedHandler.cs`, compose file, README, `appsettings.json`, plus the two shared files below |
+| Example 04 | 10 | csproj, `Program.cs`, handlers (2), schema script, compose file, README, `appsettings.json`, plus the two shared files below |
+| Example 05 | 10 | csproj, `Program.cs`, query, command, handlers (2), compose file, README, plus the two shared files below |
+| Shared, per pull request | 2 | an `Encina.slnx` entry and a row in `examples/README.md` (counted in each total above as 2 of the files; pre-created by the #87 scaffold pull request if the maintainer's order allows) |
+| **Total** | **about 30** | Three pull requests of 10 to 12 files each (shared files included), about 430 lines each; none exceeds 15 files or 1500 lines; no test files (none is added) |
 
 ---
 
@@ -364,8 +388,8 @@ PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 mediator library with Railw
 
 IMPLEMENTATION OVERVIEW:
 1. Conventions: inherit examples/Directory.Build.props; connection string from configuration and never logged; async database calls with CancellationToken; one compose file per example with a health check.
-2. 03-entity-framework: AddEncinaEntityFrameworkCore<AppDbContext>(config => UseTransactions and UseOutbox), order command, commit and rollback shown through the Either result, outbox message delivered to a notification handler.
-3. 04-dapper-integration: AddEncinaDapper with a connection factory and UseOutbox, parameterized SQL with OpenAsync, qualitative notes without figures.
+2. 03-entity-framework: AddEncinaEntityFrameworkCore<AppDbContext>(config => UseTransactions and UseOutbox), a command implementing IHasNotifications whose handler calls SaveChangesAsync (the transaction behavior only commits), commit and rollback shown through the Either result, outbox message delivered by the OutboxProcessor to a notification handler (IEncina.Publish does not write the outbox).
+3. 04-dapper-integration: AddEncinaDapper with a connection factory (UseOutbox only if D3 option (b) is chosen), parameterized SQL with OpenAsync, qualitative notes without figures.
 4. 05-redis-caching: AddEncinaCaching plus AddEncinaRedisCache, [Cache(DurationSeconds)] on a query, [InvalidatesCache] on a command, counter proving hit and invalidation.
 5. Verification: run each against its compose service, paste real output into the README, zero-warnings build, format check.
 
@@ -405,6 +429,7 @@ No function is deferred, so no follow-up issue is needed for the matrix.
 |------|-------|----------|
 | #87 plan: `examples/` scaffold and D1 | open (plan in this family) | The three pull requests start after the scaffold merges |
 | Split of #89 into three sub-issues (one per example) | to do (orchestrator, before any brief) | Required by AGENTS.md section 11 |
+| `Encina.slnx` and `examples/README.md` shared by #87, #88, #89 (three PRs) and #188 | each pull request edits both | Land in order after #87, or let #87 pre-create the rows and entries; parallel pull requests conflict |
 | Docker available to the worker | environment | Needed for the Phase 5 run; without it the report says so |
 | `Directory.Packages.props` entries | present | `Microsoft.EntityFrameworkCore.SqlServer`, `Dapper`, `Microsoft.Data.SqlClient`, `StackExchange.Redis` are already listed; if D2 picks PostgreSQL the worker adds the provider entry |
 
