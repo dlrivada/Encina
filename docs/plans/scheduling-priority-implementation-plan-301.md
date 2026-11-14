@@ -2,9 +2,9 @@
 
 > **Issue**: [#301](https://github.com/dlrivada/Encina/issues/301)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 10 database providers, about 65 files, delivered in 5 pull requests)
+> **Complexity**: Medium (8 phases, 10 database providers, 163 file changes, delivered in 15 pull requests of at most 15 files each, see "Delivery order and size")
 > **Estimated Scope**: about 800 lines of production code + about 1,000 lines of tests
-> **Family**: message priority and partitioning (#123, #251, #301, #469, #1254). The shared priority design is OWNED by #123; this plan applies it to the scheduled-message store and decides only what is specific to scheduling and to per-priority batching. #147 (priority for scheduled messages) is duplicate scope of this issue and is closed against it.
+> **Family**: message priority and partitioning (#123, #251, #301, #469, #1254). The shared priority design (and the type `MessagePriority`, created by PR-A of #123) is OWNED by #123; this plan applies it to the scheduled-message store and decides only what is specific to scheduling and to per-priority batching. #147 (priority for scheduled messages) plans the same store work; which of the two issues delivers it is Dilemma D6 below, and only one of the two plans is ever implemented.
 
 ---
 
@@ -20,7 +20,8 @@ Facts verified in today's code:
 
 - `IScheduledMessageStore.GetDueMessagesAsync(int batchSize, int maxRetries, CancellationToken)` returns `Either<EncinaError, IEnumerable<IScheduledMessage>>`; stores order by `ScheduledAtUtc` (for example `src/Encina.Dapper.SqlServer/Scheduling/ScheduledMessageStoreDapper.cs`: `SELECT TOP (@BatchSize) * ... ORDER BY ScheduledAtUtc`).
 - `SchedulerOrchestrator` calls it in `ProcessDueMessagesAsync` with `_options.BatchSize` and again in `GetPendingCountAsync` with `int.MaxValue` (it loads every due row only to count them; that path must keep working unchanged and is noted for the health-check follow-up).
-- `IScheduledMessageFactory.Create(id, requestType, content, scheduledAtUtc, createdAtUtc, isRecurring, cronExpression)` is implemented by one factory per provider package.
+- `IScheduledMessageFactory.Create(id, requestType, content, scheduledAtUtc, createdAtUtc, isRecurring, cronExpression)` is implemented by one factory per provider package; this plan does not change its signature (register entry S4, same answer as #123 R10).
+- `SchedulingErrorCodes` exists today inside `src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs` (not in a file of its own); the invalid-priority error is not added there: the resolver of #123 returns the shared code `messaging.invalid_priority` with `ErrorCategory.Validation` (ADR 062, merged).
 - `SchedulingOptions` has `ProcessingInterval`, `BatchSize`, `MaxRetries`, `BaseRetryDelay`, `EnableProcessor`, `EnableRecurringMessages`. `GetPendingByPriorityAsync`, `PriorityBatchingOptions` and `IOutboxMessageFactory` as drawn in the issue do not exist; the issue's "13 providers" is stale (10 database providers, SQLite is out of the matrix).
 
 - **Affected packages**: `Encina.Messaging`, `Encina.ADO.*` (3), `Encina.Dapper.*` (3), `Encina.EntityFrameworkCore`, `Encina.MongoDB`, `Encina.OpenTelemetry` (instrumented store), `Encina.Testing.Fakes`, `Encina.Testing.Bogus`, `Encina.Testing`.
@@ -48,7 +49,8 @@ This issue's own enum is `Critical = 0` ascending to `Background = 4`; #123 reco
 ### Rationale
 
 - Option B wins only if scheduling needs levels the outbox does not; nothing in #301 or #147 says so.
-- The aged-first rule is applied to the overdue time: a due message whose `ScheduledAtUtc` is older than the starvation cutoff sorts first (oldest first), then `Priority DESC`, then `ScheduledAtUtc`. A message that is not yet due is never returned, so priority cannot make a future message run early.
+- The aged-first rule is applied to the overdue time and uses exactly the ordering of #123 (its register entry R7): a due message whose `ScheduledAtUtc <= StarvationCutoffUtc` is aged and sorts before the others; inside each of the two groups the order is `Priority DESC`, then `ScheduledAtUtc` ascending. A message that is not yet due is never returned, so priority cannot make a future message run early.
+- The type is created by PR-A of #123 and this plan starts after it has merged; this plan never creates `MessagePriority`.
 - Stores keep their old ordering (`ScheduledAtUtc`) when `SchedulingOptions.Priority.Enabled` is false.
 
 **Class:** Dilemma
@@ -79,25 +81,41 @@ This issue's own enum is `Critical = 0` ascending to `Background = 4`; #123 reco
 </details>
 
 <details>
-<summary><strong>3. Scheduling-specific semantics: priority never changes when a message is due, and recurring messages keep it</strong></summary>
+<summary><strong>3. Scheduling-specific semantics: priority never changes when a message is due (Settled), and recurring messages keep it (Dilemma)</strong></summary>
 
 ### Options Considered
 
+**3a. Does priority change when a message is due**
+
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **A) Priority only orders messages that are already due; recurring occurrences inherit the priority of the series** | Matches the meaning of "priority queue" and of `IScheduledMessage.IsDue()`; `RescheduleRecurringMessageAsync` keeps the row, so the column persists with no extra code | A high-priority message is still late if the processor is late |
+| **A) Priority only orders messages that are already due** | Matches the meaning of "priority queue" and of `IScheduledMessage.IsDue()` | A high-priority message is still late if the processor is late |
 | **B) Priority shifts the due time (high priority runs earlier than scheduled)** | Appears to speed critical work | Changes the contract of `ScheduledAtUtc`; surprising and unsafe for time-bound jobs |
-| **C) A different priority per occurrence of a recurring series** | Flexible | Needs a priority source per occurrence; no use case in the issues |
 
-### Chosen Option: **A — order only the due set; the series keeps one priority**
+### Chosen Option: **A — order only the due set**
 
 ### Rationale
 
 - `IsDue()` and the `ScheduledAtUtc <= now` filter stay exactly as they are; the new `ORDER BY` only changes the order of rows that pass the existing filter.
-- A scheduled message is a request, not a notification: the priority is resolved from the request type or instance by `MessagePriorityResolver` (#123 choice 2) in `SchedulerOrchestrator.ScheduleAsync` and `ScheduleRecurringAsync` before `IScheduledMessageFactory.Create`.
 
 **Class:** Settled
-**Settled by:** `IScheduledMessage.IsDue()` and the existing due filter in `src/Encina.Messaging/Scheduling/IScheduledMessage.cs` and the provider stores (the contract this plan must not change); issue #301 Alternatives, item 3 (time-based prioritization is not priority).
+**Settled by:** `IScheduledMessage.IsDue()` and the existing due filter in `src/Encina.Messaging/Scheduling/IScheduledMessage.cs` and the provider stores (the contract this plan must not change; option B contradicts it); issue #301 Alternatives, item 3 (time-based prioritization is not priority).
+
+**3b. Priority of a recurring series**
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| **A) Occurrences inherit the priority of the series** | `RescheduleRecurringMessageAsync` keeps the row, so the column persists with no extra code | Cannot raise one occurrence |
+| **C) A different priority per occurrence** | Flexible | Needs a priority source per occurrence; no use case in the issues |
+
+### Chosen Option: **A — the series keeps one priority** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins for the use case the issues describe (a priority is a property of the request type). Option C wins if an occurrence must be escalated, for example after repeated failures.
+- A scheduled message is a request, not a notification: the priority is resolved from the request type or instance by `MessagePriorityResolver` (#123 choice 2) in `SchedulerOrchestrator.ScheduleAsync` and `ScheduleRecurringAsync` and set on the message after `IScheduledMessageFactory.Create` (register entry S4).
+
+**Class:** Dilemma
 
 </details>
 
@@ -111,15 +129,15 @@ This issue's own enum is `Critical = 0` ascending to `Background = 4`; #123 reco
 | **A) `SchedulingOptions.Priority` (`SchedulingPriorityOptions`): `Enabled = false`, `StarvationThreshold = 5 minutes`; column always present** | Disabled by default; one schema; switching it on later orders rows already stored | Unused column when disabled |
 | **B) Reuse the outbox's `OutboxPriorityOptions` instance** | One setting | Outbox and scheduler are separate patterns that users enable separately |
 
-### Chosen Option: **A — separate options object per pattern, same shape**
+### Chosen Option: **A — separate options object per pattern, same shape** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Every messaging pattern is optional and disabled by default (AGENTS.md section 3, ADR-050); the issue's `EnablePriorityProcessing` flag becomes `SchedulingOptions.Priority.Enabled`.
+- Both options keep the feature off by default (AGENTS.md section 3, ADR-050), so the rule does not decide the shape. Option A wins when outbox and scheduler are enabled independently (they are separate patterns); option B wins when one switch for both is wanted.
+- The issue's `EnablePriorityProcessing` flag becomes `SchedulingOptions.Priority.Enabled`; the default threshold is 5 minutes, the same answer as #123 choice 3.
 - Validation lives with the other cross-property rules of `SchedulingOptions`; the threshold must be positive.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 3 (every messaging pattern optional and disabled by default; ADR-050).
+**Class:** Dilemma
 
 </details>
 
@@ -133,34 +151,94 @@ This issue's own enum is `Critical = 0` ascending to `Background = 4`; #123 reco
 | **A) `GetDueMessagesAsync(ScheduledFetchCriteria criteria, ct)` (`BatchSize`, `MaxRetries`, `OrderByPriority`, `StarvationCutoffUtc`)** | Mirrors the outbox change of #123; the next feature extends the record (row claiming, #1251) instead of the signature | One signature change on the interface, 10 stores, the fake and tests |
 | **B) Add `GetDueByPriorityAsync`** | Existing callers untouched | Two fetch paths with duplicated SQL on 10 providers; pre-1.0 has no compatibility to protect |
 
-### Chosen Option: **A — one criteria record** (this follows #123 choice 4; the answer is recorded there)
+### Chosen Option: **A — one criteria record** (recommended, pending the maintainer; the same question as #123 choice 4, answered once there)
 
 ### Rationale
 
-- Pre-1.0 the existing method is changed completely rather than duplicated (AGENTS.md section 1).
+- Option A wins pre-1.0 where the existing method is changed completely rather than duplicated (AGENTS.md section 1); option B wins if the maintainer picks B for the outbox.
 - `SchedulerOrchestrator.GetPendingCountAsync` passes `BatchSize = int.MaxValue` and `OrderByPriority = false`.
+- The compile-safe delivery (transitional default members, removed last) is the one of #123 register entry R9 and the answer is shared.
 
-**Class:** Trivial
-**Settled by:** AGENTS.md section 1 (pre-1.0: no compatibility layer, change completely) and the same choice recorded as choice 4 of the #123 plan.
+**Class:** Dilemma
 
 </details>
+
+<details>
+<summary><strong>6. Which issue delivers the scheduled-store priority: #301 or #147 (Dilemma D6)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| **A) #301 delivers it with this plan; #147 is closed as duplicate after the merge** | One design with the family (aged-first, resolver, criteria record); the analysis of #123 and #301 treats #147 as duplicate scope | #147's own plan (options records of #1222, no starvation rule) is withdrawn |
+| **B) #147 delivers it with its plan; #301 is narrowed to the per-priority batching question (choice 2)** | #147 builds on the draft and options records of #1222 | The scheduled side would carry no starvation rule unless #147's choice 3 answers B; two plans must be reconciled |
+
+### Chosen Option: **A — #301 delivers it** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option A wins when one fetch contract and one ordering rule must serve outbox and scheduler. Option B wins when #1222 merges first and the maintainer wants priority set through its options records.
+- Only one of the two plans is ever implemented. Whatever the answer, both use the type from PR-A of #123, the shared error code, the column types and default of #123 register entry R2, and never create `MessagePriority` themselves.
+
+**Class:** Dilemma
+
+</details>
+
+### Decision register (decisions not covered by choices 1 to 6)
+
+Class is Trivial, Settled (verifiable citation excludes every other option) or Dilemma (the maintainer decides; recommendation only).
+
+| Id | Decision | Class | Text |
+| --- | --- | --- | --- |
+| S1 | `StarvationThreshold` default 5 minutes | Dilemma (answered with #123 choice 3) | Same default as the outbox; a different default would split one rule in two |
+| S2 | Column `Priority`: `TINYINT NOT NULL DEFAULT 2` on SQL Server and MySQL, `SMALLINT NOT NULL DEFAULT 2` on PostgreSQL, EF Core `HasConversion<byte>()`, MongoDB `int32` | Trivial | Same as #123 R2; the enum has five members |
+| S3 | Index `(ProcessedAtUtc, ScheduledAtUtc, Priority)` | Trivial | The leading columns serve the existing due predicate and the sort is applied on the filtered set; any index serving the predicate is equivalent in behavior; the existing EF benchmark class (migrated in K) can compare it |
+| S4 | The priority reaches the row through the mutable `IScheduledMessage.Priority` set by the orchestrator after `IScheduledMessageFactory.Create`; the factory signature does not change | Dilemma (recommended: A, pending the maintainer; answered with #123 R10) | B is a new `priority` parameter on `Create` (10 factories and their test callers change) |
+| S5 | MongoDB runs two ordered find queries (aged group, then the rest up to the remaining batch size) with the sort of #123 R7 and concatenates; the aggregation `$addFields` with `$cond` then `$sort` could express the aged expression in one query, but it cannot use the compound index for both groups | Trivial | Both return the same order; performance only |
+| S6 | `GetPendingCountAsync` stays unordered (`OrderByPriority = false`, `BatchSize = int.MaxValue`) | Trivial | It only counts; the health-check follow-up replaces the load-all-rows implementation |
+| S7 | Metric names `encina.scheduling.priority.processed`, `encina.scheduling.priority.wait_time`, `encina.scheduling.priority.aged`, tag `priority` with five bounded values | Trivial | Follow the `encina.scheduling.*` names of `SchedulingProcessorMetrics` |
+| S8 | Undefined priority: `Left` `messaging.invalid_priority` (`ErrorCategory.Validation`) fails `ScheduleAsync` and `ScheduleRecurringAsync` | Dilemma (answered with #123 R4) | Defaulting to `Normal` is the other option |
+| S9 | Backlog per priority for health checks | Defer | Follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/outbox-priority-pending-depth.md`, which covers scheduling too) |
 
 ---
 
 ## Implementation Phases
 
-Five pull requests of at most 15 files and 1500 lines: PR-A phases 1 and 2 (core and fakes), PR-B phase 3 (ADO.NET), PR-C phase 4 (Dapper), PR-D phase 5 (EF Core and MongoDB), PR-E phases 6 to 8. All of it starts after #123 merges, because it reuses `MessagePriority`, the resolver and the options pattern.
+### Delivery order and size
+
+All of it starts after PR-A of #123 has merged (it creates `MessagePriority`, the resolver and the shared error code) and uses the answers of #123 to choices 1 to 4 and entries R9 and R10. The contract change (`IScheduledMessageStore.GetDueMessagesAsync(ScheduledFetchCriteria, ct)`, `IScheduledMessage.Priority`) is delivered with the same compile-safe chain as #123 (transitional default members first, one provider per pull request, callers migrated, old members removed last). Counts include tests, coverage manifests and PublicAPI files; every pull request has at most 15 files and 1500 lines. Existing callers measured on origin/main: 16 `src/` files and 40 files under `tests/` mention `GetDueMessagesAsync` (a few are `.md` docs).
+
+| PR | Content (phases) | src and builders | Tests | PublicAPI | Manifests | Total |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| A | `ScheduledFetchCriteria`, `SchedulingPriorityOptions`, `SchedulingOptions`, `IScheduledMessage.Priority` and the criteria fetch as default members (Phase 1 tasks 1, 2, 4) | 5 | 3 | 1 | 1 | 10 |
+| B | Fake message and store, `InstrumentedScheduledMessageStore`, faker, builder (Phase 2, without the helper and arbitrary) | 5 | 4 | 2 | 3 | 14 |
+| C | `SchedulerOrchestrator` resolves the priority, sets it, builds the criteria only when enabled (old fetch otherwise); log class, EventIds 6708-6711, metrics, activity tag (Phase 1 task 3, Phase 6) | 5 | 3 | 2 | 2 | 12 |
+| D, E, F | ADO.NET SQL Server, PostgreSQL, MySQL, one per database: message, factory, store, two scripts; guard, integration and factory tests (Phase 3) | 5 each | 3 each | 1 each | 1 each | 10 each |
+| G, H, I | Dapper SQL Server, PostgreSQL, MySQL, one per database (Phase 4) | 5 each | 4, 4, 3 | 1 each | 1 each | 11, 11, 10 |
+| J | EF Core (one implementation for three providers): message, factory, configuration, store; three unit files, four integration files, `ScheduledMessageStoreEFTestsBase` (Phase 5 task 1) | 4 | 8 | 1 | 1 | 14 |
+| K | MongoDB (message, factory, store, `MongoDbIndexCreator`) with integration and session tests, plus the EF guard, contract and benchmark callers (Phase 5 task 2) | 4 | 5 | 1 | 1 | 11 |
+| L | `SchedulerOrchestrator`, `SchedulingHealthCheck` and `SchedulingTestHelper` always use the criteria fetch; 7 mock-based test files migrate (`SchedulerOrchestratorTests`, `SchedulerOrchestratorGuardTests`, `SchedulingHealthCheckTests`, `HealthChecksTests`, `HealthCheckBuilderExtensionsTests`, `SchedulingTestHelperTests`, `ErrorMessageLeakTests`) | 3 | 7 | 0 | 2 | 12 |
+| M | Remove the `IScheduledMessage.Priority` default; `ArbitraryMessages` generator; the two instrumented-store test files; property test; load-test justification `.md` update | 2 | 4 | 2 | 1 | 9 |
+| N | Remove the old fetch from `IScheduledMessageStore`, the 10 stores, the fake and the decorator | 13 | 0 | 2 | 0 | 15 |
+| O | Documentation and changelog fragment (`docs-writer`, `mechanical-fixer`) | - | - | - | - | 4 |
+| **Total** | 15 pull requests | | | | | **163** |
+
+Sum: A 10 + B 14 + C 12 = 36; D to F 30; G to I 32; J 14; K 11; L 12; M 9; N 15; O 4; 36 + 30 + 32 + 14 + 11 + 12 + 9 + 15 + 4 = 163. By category: 71 source files, 54 test files, 17 PublicAPI files, 17 manifests, 4 documentation files (the sum of the table columns).
+
+**Tests and targets ship with the code.** Each pull request carries its unit, guard and integration tests (priority ordering and the recurring-series case in the existing integration classes, shared collections), enters per-file targets with a one-sentence justification in the package manifests (`mechanical-fixer`), and reports measured per-flag coverage. New files: `ScheduledFetchCriteria.cs` (unit 90, guard 0: positional record, no parameter checks), `SchedulingPriorityOptions.cs` (unit 95, guard 60: unit tests assert defaults and rejected values, guard tests reject a non-positive threshold), `SchedulingPriorityLogMessages.cs` (unit 70, guard 0: source-generated, asserted through orchestrator tests with a fake logger). Existing targets never go down; `Encina.Testing` changes (`SchedulingTestHelper`) enter their targets in L.
 
 ### Phase 1: Core Contracts, Options and Orchestrator
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Messaging/Scheduling/IScheduledMessage.cs`: `MessagePriority Priority { get; set; }`.
-2. `src/Encina.Messaging/Scheduling/IScheduledMessageStore.cs`: `GetDueMessagesAsync(ScheduledFetchCriteria criteria, CancellationToken)`; new record `ScheduledFetchCriteria`.
-3. `src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs`: `IScheduledMessageFactory.Create(..., MessagePriority priority)`; resolve the priority in `ScheduleAsync` and `ScheduleRecurringAsync` (a `Left` for an undefined value, code `scheduling.invalid_priority` in `SchedulingErrorCodes`); build the criteria with `TimeProvider` (cutoff = now minus threshold, only when enabled); `GetPendingCountAsync` uses the unordered criteria.
+Pull request A (tasks 1, 2, 4) and C (task 3). The transitional members are default interface members, removed by pull requests M and N.
+
+1. `src/Encina.Messaging/Scheduling/IScheduledMessage.cs`: `MessagePriority Priority { get; set; }` with a default implementation (getter `Normal`, setter ignored) until M.
+2. `src/Encina.Messaging/Scheduling/IScheduledMessageStore.cs`: add `GetDueMessagesAsync(ScheduledFetchCriteria criteria, CancellationToken)` as a default member that calls the old `GetDueMessagesAsync(batchSize, maxRetries, ct)`; new record `ScheduledFetchCriteria`. N removes the old method and the default.
+3. `src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs` (pull request C): resolve the priority in `ScheduleAsync` and `ScheduleRecurringAsync` through `MessagePriorityResolver` (a `Left` with `messaging.invalid_priority`, `ErrorCategory.Validation`, for an undefined value, register entry S8) and set it on the message after `IScheduledMessageFactory.Create` (the factory signature does not change, S4); when `Priority.Enabled`, build the criteria with `TimeProvider` (cutoff = now minus threshold) and call the criteria fetch, otherwise keep the old fetch so existing mock-based tests pass (L makes it unconditional); `GetPendingCountAsync` keeps the unordered path (S6).
 4. `src/Encina.Messaging/Scheduling/SchedulingOptions.cs`: `SchedulingPriorityOptions Priority { get; }` and validation.
-5. `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
+5. `PublicAPI.Unshipped.txt` and manifest entries through `mechanical-fixer`, in each pull request.
 
 </details>
 
@@ -168,9 +246,9 @@ Five pull requests of at most 15 files and 1500 lines: PR-A phases 1 and 2 (core
 <summary><strong>Prompt for AI Agents — Phase 1</strong></summary>
 
 ```text
-CONTEXT: Plan docs/plans/scheduling-priority-implementation-plan-301.md. #123 already merged MessagePriority, MessagePriorityResolver and OutboxPriorityOptions in src/Encina.Messaging/Priority and Outbox. The scheduler fetches due rows through IScheduledMessageStore.GetDueMessagesAsync(batchSize, maxRetries, ct).
-TASK: Implement Phase 1 Tasks 1 to 4. Do not alter IsDue() or the due filter.
-KEY RULES: Either<EncinaError, T>, Left for an invalid priority; time from TimeProvider, stores never read the clock (AGENTS.md section 3); no compatibility overload of the old fetch; options validated in SchedulingOptions; XML docs.
+CONTEXT: Plan docs/plans/scheduling-priority-implementation-plan-301.md. PR-A of #123 already merged MessagePriority, MessagePriorityResolver and MessagePriorityErrorCodes in src/Encina.Messaging/Priority; never create them here. The scheduler fetches due rows through IScheduledMessageStore.GetDueMessagesAsync(batchSize, maxRetries, ct).
+TASK: Implement Phase 1 Tasks 1 to 4 in the pull request the brief names (A or C). Do not alter IsDue() or the due filter.
+KEY RULES: Either<EncinaError, T>, Left for an invalid priority (ErrorCategory.Validation, ADR 062); time from TimeProvider, stores never read the clock (AGENTS.md section 3); the default members exist only until pull requests M and N; options validated in SchedulingOptions; XML docs.
 REFERENCE FILES: src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs, IScheduledMessageStore.cs, SchedulingOptions.cs, src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs (the #123 pattern).
 ```
 
@@ -181,8 +259,10 @@ REFERENCE FILES: src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs, ISche
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.Testing.Fakes/Models/FakeScheduledMessage.cs` and `Stores/FakeScheduledMessageStore.cs`: priority and the criteria fetch with the same ordering as the SQL.
-2. `src/Encina.Testing.Bogus/ScheduledMessageFaker.cs`, `src/Encina.Testing/Messaging/SchedulingTestHelper.cs`, `src/Encina.Testing.FsCheck/ArbitraryMessages.cs`: `WithPriority` and a generator.
+Pull request B (tasks 1 and 2a), L (`SchedulingTestHelper`) and M (`ArbitraryMessages`).
+
+1. `src/Encina.Testing.Fakes/Models/FakeScheduledMessage.cs` and `Stores/FakeScheduledMessageStore.cs`: priority and an override of the criteria fetch with the same ordering as the SQL; `src/Encina.OpenTelemetry/MessagingStores/InstrumentedScheduledMessageStore.cs` forwards the criteria fetch (a decorator that inherited the default member would drop the priority).
+2. `src/Encina.Testing.Bogus/ScheduledMessageFaker.cs` and the `ScheduledMessageBuilder` of `tests/Encina.TestInfrastructure`: `WithPriority`. `SchedulingTestHelper` (calls the due fetch) moves in L, `ArbitraryMessages` generator in M.
 
 </details>
 
@@ -192,7 +272,7 @@ REFERENCE FILES: src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs, ISche
 ```text
 CONTEXT: IScheduledMessage now has Priority; the due fetch takes ScheduledFetchCriteria.
 TASK: Update the fake store, fake message, faker, helper and arbitrary so existing tests compile and new tests can set priority.
-KEY RULES: the fake orders exactly like the SQL (aged first, Priority DESC, ScheduledAtUtc) so the contract test compares them; FakeTimeProvider; no reflection-only tests.
+KEY RULES: the fake orders exactly like the SQL (aged rows first, then Priority DESC, then ScheduledAtUtc ascending) so the ordering contract test and the integration cases compare like with like; FakeTimeProvider; no reflection-only tests.
 REFERENCE FILES: src/Encina.Testing.Fakes/Stores/FakeScheduledMessageStore.cs, src/Encina.Testing.Bogus/ScheduledMessageFaker.cs.
 ```
 
@@ -203,7 +283,7 @@ REFERENCE FILES: src/Encina.Testing.Fakes/Stores/FakeScheduledMessageStore.cs, s
 <details>
 <summary><strong>Tasks</strong></summary>
 
-For each ADO.NET package: `Scheduling/ScheduledMessage.cs` (property), `Scheduling/ScheduledMessageFactory.cs` (signature), `Scheduling/ScheduledMessageStoreADO.cs` (insert, reader, due fetch with the criteria: `TOP (@BatchSize)` or `LIMIT @BatchSize`, ordering of choice 1 when `OrderByPriority`), `Scripts/004_CreateScheduledMessagesTable.sql` and `Scripts/000_CreateAllTables.sql` (`Priority TINYINT NOT NULL DEFAULT 2` on SQL Server and MySQL, `SMALLINT NOT NULL DEFAULT 2` on PostgreSQL, index `(ProcessedAtUtc, ScheduledAtUtc, Priority)`).
+One pull request per database (D SQL Server, E PostgreSQL, F MySQL). Each: `Scheduling/ScheduledMessage.cs` (property), `Scheduling/ScheduledMessageFactory.cs` (default priority `Normal`, signature unchanged), `Scheduling/ScheduledMessageStoreADO.cs` (insert, reader, override of the criteria fetch: `TOP (@BatchSize)` or `LIMIT @BatchSize`, ordering of choice 1 when `OrderByPriority`), `Scripts/004_CreateScheduledMessagesTable.sql` and `Scripts/000_CreateAllTables.sql` (register entries S2 and S3), plus that database's guard and integration tests (the integration class gains the ordering and recurring-series cases) and a factory test.
 
 </details>
 
@@ -224,7 +304,7 @@ REFERENCE FILES: src/Encina.ADO.SqlServer/Scheduling/ScheduledMessageStoreADO.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-For each Dapper package: the same five files as Phase 3 with `ScheduledMessageStoreDapper.cs` (`SELECT TOP (@BatchSize) * ... ORDER BY ScheduledAtUtc` becomes the criteria-driven query).
+One pull request per database (G SQL Server, H PostgreSQL, I MySQL): the same five source files as Phase 3 with `ScheduledMessageStoreDapper.cs` (`SELECT TOP (@BatchSize) * ... ORDER BY ScheduledAtUtc` becomes the criteria-driven query) and the existing unit, guard and integration test files of that database that call the due fetch.
 
 </details>
 
@@ -245,8 +325,8 @@ REFERENCE FILES: src/Encina.Dapper.SqlServer/Scheduling/ScheduledMessageStoreDap
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessage.cs`, `ScheduledMessageFactory.cs`, `ScheduledMessageConfiguration.cs` (default 2 and the index), `ScheduledMessageStoreEF.cs` (aged expression, `Priority`, `ScheduledAtUtc`).
-2. `src/Encina.MongoDB/Scheduling/ScheduledMessage.cs` (`[BsonElement("priority")]`), `ScheduledMessageFactory.cs`, `ScheduledMessageStoreMongoDB.cs` (aged query, then the priority-sorted remainder), and the compound index in `MongoDbIndexCreator.cs`.
+1. Pull request J: `src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessage.cs`, `ScheduledMessageFactory.cs`, `ScheduledMessageConfiguration.cs` (default 2 and the index), `ScheduledMessageStoreEF.cs` (aged expression, `Priority`, `ScheduledAtUtc`); the 3 unit, 4 integration and base test files are migrated and the three EF providers each run the ordering cases (the translation of the aged expression is tested on SqlServer, PostgreSQL and MySQL).
+2. Pull request K: `src/Encina.MongoDB/Scheduling/ScheduledMessage.cs` (`[BsonElement("priority")]`), `ScheduledMessageFactory.cs`, `ScheduledMessageStoreMongoDB.cs` (register entry S5), and the compound index in `MongoDbIndexCreator.cs`; also the EF guard, contract and benchmark callers.
 
 </details>
 
@@ -254,7 +334,7 @@ REFERENCE FILES: src/Encina.Dapper.SqlServer/Scheduling/ScheduledMessageStoreDap
 <summary><strong>Prompt for AI Agents — Phase 5</strong></summary>
 
 ```text
-CONTEXT: One EF Core store serves SqlServer, PostgreSQL and MySQL; MongoDB runs two ordered queries and concatenates (no single-sort equivalent of the aged CASE).
+CONTEXT: One EF Core store serves SqlServer, PostgreSQL and MySQL; MongoDB runs two ordered find queries and concatenates so each uses the compound index (register entry S5; an aggregation with $cond could express the aged expression in one query but not use the index for both groups).
 TASK: Implement Phase 5 Tasks 1 and 2.
 KEY RULES: the EF query must translate on all three providers (test all three); indexes in MongoDbIndexCreator only; async with CancellationToken.
 REFERENCE FILES: src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessageStoreEF.cs, ScheduledMessageConfiguration.cs, src/Encina.MongoDB/Scheduling/ScheduledMessageStoreMongoDB.cs.
@@ -267,10 +347,12 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessageStore
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `MessagingPriorityScheduling = (6715, 6724)` from the family block; add it to the `Encina.Messaging` entry in `EncinaEventIdAllocationTests`.
-2. `src/Encina.Messaging/Diagnostics/SchedulingPriorityLogMessages.cs` (`[LoggerMessage]`, 6715 to 6718): priority resolved (type name only), invalid priority rejected (code only), priority fetch enabled at start-up, aged promotion applied (count only).
-3. `SchedulingProcessorMetrics.cs` on the shared `"Encina"` meter: `encina.scheduling.priority.processed` (counter, tag `priority`), `encina.scheduling.priority.wait_time` (histogram, seconds from due time to execution, tag `priority`), `encina.scheduling.priority.promoted` (counter); `SchedulingActivitySource` schedule activity gains the tag `encina.scheduling.priority`.
-4. `src/Encina.OpenTelemetry/MessagingStores/InstrumentedScheduledMessageStore.cs`: new fetch signature.
+All in pull request C (the first that logs, so it creates the log class and registers the range).
+
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `MessagingPriorityScheduling = (6708, 6711)`, the 4 ids used, the first free ids of the family block 6700-6749 after the 6700-6707 of #123; add it to the `Encina.Messaging` entry in `EncinaEventIdAllocationTests`.
+2. `src/Encina.Messaging/Diagnostics/SchedulingPriorityLogMessages.cs` (`[LoggerMessage]`, 6708 to 6711): priority resolved (type name only), invalid priority rejected (code only), priority fetch enabled at start-up, aged messages fetched (count only; the orchestrator counts the returned messages with `ScheduledAtUtc <= cutoff`).
+3. `SchedulingProcessorMetrics.cs` on the shared `"Encina"` meter: the three instruments of register entry S7; `SchedulingActivitySource` schedule activity gains the tag `encina.scheduling.priority`.
+4. `InstrumentedScheduledMessageStore` forwards the criteria fetch in pull request B, not here.
 
 </details>
 
@@ -278,8 +360,8 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessageStore
 <summary><strong>Prompt for AI Agents — Phase 6</strong></summary>
 
 ```text
-CONTEXT: ADR-021: register the range first (6715-6724 is assigned to this plan by the batch registry). Metric names follow the encina.scheduling.* prefix of SchedulingProcessorMetrics.
-TASK: Implement Phase 6 Tasks 1 to 4, packing EventIds 6715-6718 sequentially.
+CONTEXT: ADR-021: register the range first (the family block is 6700-6749 in the batch registry; #123 registers 6700-6707 and this plan 6708-6711). Metric names follow the encina.scheduling.* prefix of SchedulingProcessorMetrics.
+TASK: Implement Phase 6 Tasks 1 to 3, packing EventIds 6708-6711 sequentially.
 KEY RULES: [LoggerMessage] source generator; no payload, no EncinaError.Message in logs, tags or metrics; run the EventId architecture tests.
 REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs, src/Encina.Messaging/Diagnostics/SchedulingProcessorMetrics.cs, SchedulingActivitySource.cs.
 ```
@@ -291,13 +373,15 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Unit: priority resolution at `ScheduleAsync` and `ScheduleRecurringAsync` (attribute, interface wins, default, invalid), criteria with `FakeTimeProvider`, `GetPendingCountAsync` unordered path, options validation.
-2. Guard: new public members.
-3. Contract: `IScheduledMessageStore` ordering contract on the fake and the 10 real stores (future messages never returned, aged first, priority, due time; disabled mode equals `ScheduledAtUtc`).
-4. Property: the due set returned is independent of priority (priority only reorders); no starvation beyond the threshold plus one batch.
-5. Integration: both ordering modes on all 10 providers in the shared collections; a recurring message keeps its priority after `RescheduleRecurringMessageAsync`; never a `.md` for database integration tests.
-6. Load and benchmark: `.md` justifications (single ordered query); a benchmark of the due fetch is optional and shares the outbox harness of #123.
-7. Coverage: per-file targets in `Encina.Messaging.json` and provider manifests (`mechanical-fixer`); CRAP at most 10 on changed methods (`SchedulerOrchestrator.ProcessDueMessagesAsync`).
+Tests ship with the pull request that owns the code (see the delivery table).
+
+1. Unit: priority resolution at `ScheduleAsync` and `ScheduleRecurringAsync` (attribute, interface wins, default, invalid), criteria with `FakeTimeProvider`, `GetPendingCountAsync` unordered path, options validation (pull requests A and C); factory output per provider (D to K).
+2. Guard (AGENTS.md section 9, #3798): every new public constructor or method with a validated parameter gets its argument tests in the pull request that adds it (options threshold in A; existing store guard classes migrate in their provider pull request, L for the orchestrator).
+3. Contract: the `IScheduledMessageStore` ordering contract (future messages never returned, aged first, priority, due time; disabled mode equals `ScheduledAtUtc`) runs against the fake in B; the real stores are covered by item 5.
+4. Property (pull request M): the due set returned is independent of priority (priority only reorders); no starvation beyond the threshold plus one batch.
+5. Integration: both ordering modes on all 10 providers in the shared collections, each in its provider pull request (D to K); a recurring message keeps its priority after `RescheduleRecurringMessageAsync`; never a `.md` for database integration tests.
+6. Load and benchmark: the load-test `.md` justification (existing `ScheduledMessageProcessorLoadTests.md`) is updated in M (single ordered query); the EF benchmark class migrates in K; no new benchmark class is added (the load and benchmark obligations are justified: one ordered query).
+7. Coverage: per-file targets in `Encina.Messaging.json` and provider manifests (`mechanical-fixer`) in the same pull request as the tests that meet them; CRAP at most 10 on changed methods (`SchedulerOrchestrator.ProcessDueMessagesAsync`, pull requests C and L).
 
 </details>
 
@@ -318,9 +402,11 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCor
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. XML docs; `PublicAPI.Unshipped.txt` per package; `changelog.d/301-scheduling-priority.added.md` (`mechanical-fixer`).
+Pull request O. XML docs and PublicAPI lines ship with each code pull request.
+
+1. `changelog.d/301-scheduling-priority.added.md` (`mechanical-fixer`).
 2. `docs-writer`: add the scheduling section to the priority guide created by #123; package README; `docs/INVENTORY.md` if needed. The ADR is the one of #123.
-3. Close #147 as duplicate (orchestrator).
+3. Orchestrator: act on the answer to Dilemma D6 (close #147 as duplicate if option A).
 4. `dotnet build --configuration Release` with zero warnings; `dotnet test`; every flag at its target.
 
 </details>
@@ -366,19 +452,20 @@ REFERENCE FILES: changelog.d/README.md, docs/architecture/adr/index.md, docs/pla
 
 | Package | Range | Notes |
 | --- | --- | --- |
-| `Encina.Messaging` (`EventIdRanges.MessagingPriorityScheduling`, new) | 6715-6724 | From the family block 6700-6749; this plan uses 6715-6718. Siblings: #123 6700-6714, #251 6725-6734, #469 6735-6747, #1254 6748-6749 |
+| `Encina.Messaging` (`EventIdRanges.MessagingPriorityScheduling`, new) | 6708-6711 | From the family block 6700-6749; exactly the 4 ids used, packed after the 6700-6707 of #123 (registered by that plan). #251 takes the ids after these (see its plan); #469 and #1254 use the rest of the block |
 
 ### Estimated File Count
 
-| Category | Files | Notes |
-| --- | --- | --- |
-| Core new and modified | 8 | Interface, store contract and criteria record, orchestrator, options, error code, diagnostics, `EventIdRanges.cs` |
-| ADO.NET (3 providers) | 15 | Message, factory, store, 2 scripts each |
-| Dapper (3 providers) | 15 | Same |
-| EF Core and MongoDB | 9 | EF 4 files; Mongo 4 files plus index creator |
-| Testing packages and OpenTelemetry | 6 | Fakes, faker, helper, arbitrary, instrumented store |
-| Tests | 22 | Unit, guard, contract, property, 10 integration, justification files |
-| Docs, changelog, PublicAPI | 12 | Per package |
+The authoritative count is the "Delivery order and size" table (163 file changes in 15 pull requests).
+
+| Category | File changes | Notes |
+| --- | ---: | --- |
+| Source and builders | 71 | Core contracts, orchestrator, 9 SQL providers, EF Core, MongoDB, fakes, decorator, removals (N 13) |
+| Tests | 54 | Unit, guard, integration, contract, property, load justification |
+| PublicAPI | 17 | One per package per pull request that adds or removes a public member |
+| Manifests | 17 | Per package per pull request |
+| Documentation and changelog | 4 | Pull request O |
+| Total | 163 | Equals the delivery table |
 
 ---
 
@@ -388,11 +475,11 @@ REFERENCE FILES: changelog.d/README.md, docs/architecture/adr/index.md, docs/pla
 <summary><strong>Combined Prompt — All Phases</strong></summary>
 
 ```text
-PROJECT CONTEXT: Encina, pre-1.0, .NET 10 / C# 14. Issue #301, plan docs/plans/scheduling-priority-implementation-plan-301.md. It applies the shared priority design of #123 to scheduled messages; #123 must be merged first (order: #1254, #123, #301, #469). Read AGENTS.md first.
+PROJECT CONTEXT: Encina, pre-1.0, .NET 10 / C# 14. Issue #301, plan docs/plans/scheduling-priority-implementation-plan-301.md. It applies the shared priority design of #123 to scheduled messages; PR-A of #123 (the type) must be merged first (order: #1254, #123, #301, #469). Read AGENTS.md first.
 
-IMPLEMENTATION OVERVIEW: (1) IScheduledMessage.Priority, ScheduledFetchCriteria, SchedulingPriorityOptions, orchestrator resolution. (2) Fakes. (3) ADO.NET x3. (4) Dapper x3. (5) EF Core and MongoDB. (6) EventIds 6715-6718, metrics, activity tag. (7) Tests on 10 providers. (8) Docs; #147 closed as duplicate. Five pull requests of at most 15 files and 1500 lines.
+IMPLEMENTATION OVERVIEW: (1) Contracts as transitional default members, options (A). (2) Fakes, decorator, builders (B). (3) Orchestrator resolution, EventIds 6708-6711, metrics (C). (4) ADO.NET x3 (D-F), Dapper x3 (G-I), EF Core (J), MongoDB (K), one pull request each. (5) Orchestrator unconditional and caller migration (L), default removal and property test (M), old fetch removal (N). (6) Docs (O). Fifteen pull requests of at most 15 files and 1500 lines, each leaving main building with its own tests and manifest targets. Only one of this plan and the #147 plan is implemented (Dilemma D6).
 
-KEY PATTERNS: Either<EncinaError, T>; time from TimeProvider and the cutoff computed in the orchestrator; priority orders only rows that are already due; recurring series keep their priority; ORDER BY aged-first, Priority DESC, ScheduledAtUtc when enabled and ScheduledAtUtc otherwise; opt-in via SchedulingOptions.Priority.Enabled = false; [LoggerMessage] with a registered range; shared "Encina" meter; async database calls; shared [Collection] fixtures.
+KEY PATTERNS: Either<EncinaError, T> (ErrorCategory per ADR 062); time from TimeProvider and the cutoff computed in the orchestrator; priority orders only rows that are already due; recurring series keep their priority; ORDER BY aged rows first, then Priority DESC, then ScheduledAtUtc when enabled and ScheduledAtUtc otherwise; opt-in via SchedulingOptions.Priority.Enabled = false; [LoggerMessage] with a registered range; shared "Encina" meter; async database calls; shared [Collection] fixtures.
 
 REFERENCE FILES: src/Encina.Messaging/Scheduling/*.cs, src/Encina.Dapper.SqlServer/Scheduling/ScheduledMessageStoreDapper.cs, src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessageStoreEF.cs, src/Encina.MongoDB/Scheduling/ScheduledMessageStoreMongoDB.cs, src/Encina/Diagnostics/EventIdRanges.cs, docs/plans/dsr-implementation-plan-404.md.
 ```
@@ -407,8 +494,8 @@ REFERENCE FILES: src/Encina.Messaging/Scheduling/*.cs, src/Encina.Dapper.SqlServ
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Ordered fetch of pending work; nothing to cache |
 | 2 | OpenTelemetry | ✅ | `encina.scheduling.priority.*` counters and histogram, activity tag (Phase 6) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` 6715-6718 in `EventIdRanges.MessagingPriorityScheduling` (Phase 6) |
-| 4 | Health Checks | ⏭️ | Backlog per priority shares the follow-up issue file of #123 (`artifacts/issues/outbox-priority-pending-depth.md`, extended to scheduling); `GetPendingCountAsync` loading every due row is noted there |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` 6708-6711 in `EventIdRanges.MessagingPriorityScheduling` (Phase 6) |
+| 4 | Health Checks | ⏭️ | Backlog per priority shares the follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/outbox-priority-pending-depth.md`, which covers scheduling); `GetPendingCountAsync` loading every due row is noted there |
 | 5 | Validation | ✅ | `SchedulingPriorityOptions` validated; undefined priority returns `Left` (Phase 1) |
 | 6 | Resilience | ❌ | No external call is added; retry policy (`ExponentialBackoffRetryPolicy`) is unchanged |
 | 7 | Distributed Locks | ⏭️ | Row claiming for several instances is #1251; it is also the prerequisite of per-priority loops (choice 2, option B) |
@@ -422,11 +509,15 @@ REFERENCE FILES: src/Encina.Messaging/Scheduling/*.cs, src/Encina.Dapper.SqlServ
 
 ## Prerequisites & Dependencies
 
-- #123 merged (shared type, resolver, options pattern, fetch-record pattern). Which merges first among #123 and the scheduling slices (#146, #148, #150) is for the orchestrator to order, because both change `IScheduledMessageFactory.Create` and the scheduled tables.
+- PR-A of #123 merged (shared type, resolver, error code). The options pattern and fetch-record pattern are those of #123. Which merges first among #123 and the scheduling slices (#146, #148, #150) is for the orchestrator to order, because they change the scheduled tables (this plan does not change `IScheduledMessageFactory.Create`, entry S4).
 - #1251 only for per-priority loops, which this plan does not build (choice 2).
 
 ## Next Steps
 
-1. Maintainer answers choices 1 and 2 when work starts (choice 1 repeats the answer of #123); answers go to `## Maintainer Decisions`.
-2. Orchestrator closes #147 as duplicate of this issue and narrows #301 to the scheduled side plus the answer on loops.
-3. Worker briefs per pull request (PR-A to PR-E).
+1. Maintainer answers choices 1 to 6 and entries S1, S4, S8 when work starts (choices 1, 4 and 5 and entries S1, S4, S8 repeat the answers of #123); answers go to `## Maintainer Decisions`.
+2. Orchestrator acts on D6 (close #147 as duplicate of this issue if A).
+3. Worker briefs per pull request (PR-A to PR-O) with a recount of existing callers.
+
+## Maintainer Decisions
+
+None yet. Pending: every Dilemma above (choices 1 to 6, entries S1, S4, S8).
