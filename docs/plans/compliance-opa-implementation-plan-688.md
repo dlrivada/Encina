@@ -27,7 +27,7 @@ A satellite package `Encina.Compliance.OPA` with `OPAComplianceResolver`, an `IC
 
 ## Design Choices
 
-Nine Dilemmas are open (1, 2, 3, 4, 6 for the shape of the custom mapper, 10, 11, 12 and 13); the maintainer answers them when work on the issue starts. Choices 5, 7, 8 and 9 are Settled or Trivial.
+Ten Dilemmas are open (1, 2, 3, 4, 6 for the shape of the custom mapper, 9 for the retry and breaker values, 10, 11, 12 and 13); the maintainer answers them when work on the issue starts. Choices 5, 7 and 8 are Settled or Trivial.
 
 <details>
 <summary><strong>1. OPA deployment mode in 1.0</strong></summary>
@@ -213,17 +213,25 @@ No stale-cache answer and no configurable fallback exist in either A or B.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The defaults of the #688 issue body for the options (`PolicyPath = "encina/compliance/applicability"`, `CacheDuration = 5 min`, `EnableCaching = true`, `RequestTimeout = 2 s` as the total timeout, `CircuitBreakerThreshold = 5` as the minimum throughput with failure ratio 1.0, `CircuitBreakerDuration = 30 s` as the break duration), and the repository's standard resilience values for what the issue leaves open (retry 3 attempts, exponential backoff from 1 s with jitter, for transport errors and 5xx; per-attempt timeout = `RequestTimeout` / 3 so a retry fits in the total)** | Every value is either specified by the issue or the repository's existing default | The per-attempt split is derived, not configured |
-| **B) Microsoft's standard handler defaults (total 30 s, attempt 10 s, ratio-based breaker)** | No derived value | Ignores the issue's 2 s budget for a call on the request path |
+All options take the defaults of the #688 issue body: `PolicyPath = "encina/compliance/applicability"`, `CacheDuration = 5 min`, `EnableCaching = true`, `RequestTimeout = 2 s` (the total timeout of one resolution, retries included), `CircuitBreakerThreshold = 5`, `CircuitBreakerDuration = 30 s` (the break duration). The issue leaves open the retry values and how the threshold maps onto the ratio-based breaker of Microsoft.Extensions.Http.Resilience; those are the options below. Retries apply to transport errors, timeouts of one attempt and 5xx (OPA queries are idempotent reads).
 
-### Chosen Option: **A — Issue defaults plus the repository's standard retry**
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) 2 retries (3 attempts), exponential backoff from 100 ms with jitter (ADR-055: Polly's own `UseJitter`), per-attempt timeout 500 ms. Nominal budget: 0.5 + 0.1 + 0.5 + 0.2 + 0.5 = 1.8 s, inside the 2 s total. Breaker: `FailureRatio = 1.0`, `MinimumThroughput = CircuitBreakerThreshold` (5), `SamplingDuration = 30 s` (the repository's standard sampling, `StandardResilienceOptions.cs:43`), `BreakDuration = CircuitBreakerDuration` (30 s): the circuit opens after 5 calls in 30 s all fail** | Every retry can run inside the issue's 2 s budget; the breaker reads the issue's two options literally | A slow OPA (over 500 ms per query) fails every attempt; jitter can stretch a delay past its nominal value, and then the total timeout cuts the last attempt short (the outcome is still the full profile) |
+| **B) 1 retry (2 attempts), 100 ms delay with jitter, per-attempt timeout 900 ms (0.9 + 0.1 + 0.9 = 1.9 s); same breaker as A** | More time per attempt for a slow OPA | One retry only covers a single transient fault |
+| **C) The repository's standard values (`StandardResilienceOptions.cs:26-50`: 3 retries from 1 s, attempt 10 s, total 30 s, ratio 0.1 over a minimum throughput of 10)** | No new numbers | Ignores the issue's 2 s budget for a call on the request path; with a 2 s total, retries 2 and 3 can never run |
+
+### Chosen Option: **A — 2 retries from 100 ms, 500 ms per attempt, breaker on 5 failures in 30 s** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The retry values copy `StandardResilienceOptions` (`src/Encina.Extensions.Resilience/Configuration/StandardResilienceOptions.cs:31-37`: 3 attempts, 1 s, exponential, jitter; ADR-055 jitter rule).
+- A and B both fit the 2 s budget and follow ADR-055 (Polly's jitter, no Encina-owned formula); A tolerates two transient faults, B a slower server. C does not fit the issue's budget.
+- The Phase 3 retry-count test uses a fake handler that fails immediately, so all three attempts run in a few milliseconds of `FakeTimeProvider` time (0.1 + 0.2 s of delays), well inside the total timeout; a second test proves that a hanging handler is cut at 500 ms per attempt and at 2 s in total.
+- B wins when the OPA server is remote and its latency often exceeds 500 ms; C wins only if the maintainer raises `RequestTimeout` to the standard 30 s.
 
-**Class:** Trivial
-**Settled by:** #688 issue body (options sketch); `src/Encina.Extensions.Resilience/Configuration/StandardResilienceOptions.cs:31-37`; ADR-055
+**Class:** Dilemma
 
 </details>
 
@@ -299,7 +307,7 @@ No stale-cache answer and no configurable fallback exist in either A or B.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `tests/Encina.TestInfrastructure/Fixtures/OPA/OPAFixture.cs` with its `[CollectionDefinition("OPA")]`** | The precedent for non-database services (`KafkaFixture`, `AzuriteFixture`, `LocalStackFixture`, `MqttFixture` live there); no public API, PublicAPI file or coverage manifest | Applications cannot reuse the fixture to test their own Rego with Encina |
+| **A) `tests/Encina.TestInfrastructure/Fixtures/OPAFixture.cs` (flat, like `Fixtures/KafkaFixture.cs`) with its `[CollectionDefinition("OPA")]`** | The precedent for non-database services (`KafkaFixture`, `AzuriteFixture`, `LocalStackFixture`, `MqttFixture` live there); no public API, PublicAPI file or coverage manifest | Applications cannot reuse the fixture to test their own Rego with Encina |
 | **B) `src/Encina.Testing.Testcontainers/OPAContainerFixture.cs` with `ContainerDefaultImages.Opa` and `EncinaContainers.Opa()`** | Reusable by applications | Public surface kept to 1.0; Phase 5 grows by the PublicAPI file, `ContainerDefaultImages.cs`, `EncinaContainers.cs`, a fixture test file and the `Encina.Testing.Testcontainers.json` manifest edit (5 files) |
 
 ### Chosen Option: **A — `tests/Encina.TestInfrastructure`** (recommended, pending the maintainer)
@@ -536,7 +544,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `docker-compose.yml`: service `opa` (pinned stable image, port 8181, the example policy directory mounted read-only, `run --server`), in the profiles of Design Choice 12; `docs/infrastructure/docker-infrastructure.md` lists it (docs-writer).
-2. `tests/Encina.TestInfrastructure/Fixtures/OPA/OPAFixture.cs` (Design Choice 13 A; generic `ContainerBuilder`, the pinned image, wait for `/health`, loads the example policies; `[CollectionDefinition("OPA")]`). With 13 B: `src/Encina.Testing.Testcontainers/OPAContainerFixture.cs`, `ContainerDefaultImages.cs` and `EncinaContainers.cs` edits, its `PublicAPI.Unshipped.txt`, a fixture unit test file and the `.github/coverage-manifest/Encina.Testing.Testcontainers.json` entries (14 files).
+2. `tests/Encina.TestInfrastructure/Fixtures/OPAFixture.cs` (Design Choice 13 A; generic `ContainerBuilder`, the pinned image, wait for `/health`, loads the example policies; `[CollectionDefinition("OPA")]`). With 13 B: `src/Encina.Testing.Testcontainers/OPAContainerFixture.cs`, `ContainerDefaultImages.cs` and `EncinaContainers.cs` edits, its `PublicAPI.Unshipped.txt`, a fixture unit test file and the `.github/coverage-manifest/Encina.Testing.Testcontainers.json` entries (14 files).
 3. `docs/examples/opa/`: `gdpr_applicability.rego`, `health_data.rego`, `territorial_removal.rego` (each `package encina.compliance.applicability`, `import rego.v1`, a removal always carries its evidence, no `default` that lowers the profile) and the matching `_test.rego` files (`opa test` is run by the integration job).
 4. Request to the orchestrator: add the OPA service and the `opa test` step to the integration job in `.github/workflows/*` (hot spot, not edited by the worker).
 
@@ -616,7 +624,7 @@ REFERENCE FILES:
 1. XML docs are written with the code in Phases 1-4; this phase checks them. `src/Encina.Compliance.OPA/README.md` completed.
 2. `docs/features/compliance-opa-integration.md` and `docs/guides/opa-rego-compliance-policies.md` (standalone, composite and hybrid examples; the Rego writing guide; how a removal needs a `MapCountry` cover), by the docs-writer agent.
 3. `changelog.d/688-compliance-opa.added.md`; `docs/INVENTORY.md`, `ROADMAP.md`.
-4. ADR for the OPA compliance integration (ADR number assigned when the ADR pull request opens) and its row in `docs/architecture/adr/index.md`: records Design Choices 1 to 4, 6 and 10 to 13.
+4. ADR for the OPA compliance integration (ADR number assigned when the ADR pull request opens) and its row in `docs/architecture/adr/index.md`: records Design Choices 1 to 4, 6 and 9 to 13.
 5. `dotnet build --configuration Release` with 0 warnings; `dotnet test` green. The last pull request carries `Fixes #688`.
 
 </details>
@@ -662,7 +670,7 @@ REFERENCE FILES:
 |-----------|----------|-----------------------|
 | Contract (to be added by #686) | `src/Encina/Compliance/` | Resolver interface, `ComplianceContext`, `ComplianceProfile`, evidence, `ComplianceCoveringRegulationRegistry` |
 | Resolver package (to be added by #686) | `src/Encina.Compliance.Applicability/` | `UseResolver<T>()`, `CompositeResolverBuilder`, options validator |
-| Standard resilience values | `src/Encina.Extensions.Resilience/Configuration/StandardResilienceOptions.cs` | Retry defaults (Design Choice 9) |
+| Standard resilience values | `src/Encina.Extensions.Resilience/Configuration/StandardResilienceOptions.cs` | Sampling duration and the rejected option C of Design Choice 9 |
 | Named client with resilience | `src/Encina.Refit/ServiceCollectionExtensions.cs` | Registration precedent |
 | Non-database test fixtures | `tests/Encina.TestInfrastructure` (`KafkaFixture`) | Pattern for `OPAFixture` |
 | Health check precedent | `src/Encina.Compliance.DPIA/Health/DPIAHealthCheck.cs` | `DefaultName`, tags |
