@@ -4,7 +4,7 @@
 > **Type**: Feature (documentation only; no change under `src/`)
 > **Research**: `.claude/skills/encina-docs/SKILL.md`, `src/Encina/Abstractions/CqrsContracts.cs`, `src/Encina.DomainModeling/AggregateBase.cs`, `src/Encina.Marten/IAggregateRepository.cs`, `docs/features/read-write-separation.md`, `docs/architecture/request-pipeline.md`, `docs/tutorials/quickstart.md`
 > **ADR**: none (the guide links existing ADRs and records no new decision)
-> **Related**: #365 (Vertical Slice Architecture Support, open), #352 (Modular Monolith Support, open), #87 and #88 (examples the tutorial links), `docs/tutorials/quickstart.md` (#81)
+> **Related**: #365 (Vertical Slice Architecture Support, open), #352 (Modular Monolith Support, open), #87, #88, #89 and #188 (sibling examples; the tutorial links them, and #89's persistence examples are its natural next step), `docs/tutorials/quickstart.md` (#81)
 > **Complexity**: Low to medium (three pages, three index edits, one README section)
 > **Estimated Scope**: 7 files, about 900 lines of documentation
 
@@ -25,7 +25,7 @@ Encina offers explicit `ICommand<T>` and `IQuery<T>` contracts, and the communit
 
 **What the code samples use, checked in `src/`:** level 1 `ICommand<TResponse>` with `ICommandHandler<,>`; level 2 `IQuery<TResponse>` with `IQueryHandler<,>` and a separate read model (`src/Encina/Abstractions/CqrsContracts.cs`); level 3 an aggregate deriving from `AggregateBase<TId>` (`src/Encina.DomainModeling/AggregateBase.cs`) saved through `IAggregateRepository<T>` (`src/Encina.Marten/IAggregateRepository.cs`); level 4 read/write separation (`MessagingConfiguration.UseReadWriteSeparation`, `docs/features/read-write-separation.md`). **A correction to the original sample:** the aggregate raises events with `protected void RaiseEvent<TEvent>(TEvent @event)` and updates its state in `protected abstract void Apply(object domainEvent)`; there is no `Apply(new OrderPlaced(...))` call that raises an event. The `RaiseEvent` method itself calls `Apply` (`AggregateBase.cs`).
 
-**Scope of the tutorial.** The tutorial runs from a clean checkout without Docker, so it covers levels 0 to 2 (CRUD, commands, queries) and ends by pointing to the how-to for levels 3 and 4. Event sourcing needs Marten on PostgreSQL, which would make the tutorial unreliable to reproduce (the skill requires every "you should see" output to be reproduced from a clean state).
+**Scope of the tutorial (Dilemma D1, recommended option (a), pending the maintainer).** The recommended tutorial runs from a clean checkout without Docker, so it covers levels 0 to 2 (CRUD, commands, queries) and ends by pointing to the how-to for levels 3 and 4. Event sourcing needs Marten on PostgreSQL, which would make the tutorial unreliable to reproduce (the skill requires every "you should see" output to be reproduced from a clean state).
 
 **Provider category**: none. The pages describe database providers only in passing and link to `docs/architecture/data-access-providers.md`; they promise nothing about a provider (skill house rule 5).
 
@@ -37,17 +37,163 @@ Encina offers explicit `ICommand<T>` and `IQuery<T>` contracts, and the communit
 
 ## Design Choices
 
-No open design choices. Every choice below is settled by a repository rule; the table lists them for the register.
+Seven choices follow. Choice 4 is a Dilemma; the rest are Settled or Trivial, each with the citation that was read and what it excludes.
 
-| Id | Choice | Class | Settled by | Verified |
-|----|--------|-------|------------|----------|
-| 1 | Pages are placed by Diátaxis quadrant (how-to in `docs/guides/`, explanation in `docs/architecture/`, tutorial in `docs/tutorials/`), not under a new `docs/patterns/` | Settled | `.claude/skills/encina-docs/SKILL.md` section 1 (where things live) | pending |
-| 2 | CQRS is presented as optional, with level 0 (no CQRS) as a valid end state | Settled | AGENTS.md section 1 (pay-for-what-you-use; every feature opt-in) | pending |
-| 3 | No separate `Encina.Simple` and `Encina.CQRS` packages; one core package serves every level | Settled | AGENTS.md section 1 (pay-for-what-you-use) and the single core package (`src/Encina`) | pending |
-| 4 | The tutorial covers levels 0 to 2 and runs without Docker; levels 3 and 4 live in the how-to | Settled | `.claude/skills/encina-docs/SKILL.md` section 5 (every tutorial step's output is reproduced from a clean state) | pending |
-| 5 | The cost-benefit table is qualitative (low, medium, high) and the "5+ handlers" threshold is worded as the author's rule of thumb, not a measured figure | Settled | `.claude/skills/encina-docs/SKILL.md` house rule 2 (no hand-typed figures), SPEC-001 | pending |
-| 6 | The vertical slice section describes what Encina does today (handlers grouped by feature are ordinary classes) and links #365 as future work; it promises no API | Settled | `.claude/skills/encina-docs/SKILL.md` house rule 7 (nothing pre-1.0 is promised as stable) | pending |
-| 7 | Event sourcing guidance links [ADR-019](../architecture/adr/019-compliance-event-sourcing-marten.md) and [ADR-027](../architecture/adr/027-marten-as-the-event-sourcing-provider.md) instead of restating why Marten | Settled | `.claude/skills/encina-docs/SKILL.md` house rule 4 (decisions are linked, not restated) | pending |
+<details>
+<summary><strong>1. Where the pages live</strong></summary>
+
+**Class:** Settled
+**Settled by:** `.claude/skills/encina-docs/SKILL.md` section 1 (a page is placed by its Diátaxis quadrant; the skill has no `docs/patterns/` location)
+**Verified:** pending the adversarial review of the plan (citation read 2026-11-14: section 1 lists `docs/guides/`, `docs/architecture/` and `docs/tutorials/` and no `docs/patterns/`)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — One page per quadrant in `docs/guides/`, `docs/architecture/`, `docs/tutorials/`** | Follows the skill; each page has one job | Three files to link |
+| **B — The issue's original `docs/patterns/` and `progressive-cqrs-adoption.md`** | Matches the issue text | The folder does not exist and the skill places pages by quadrant |
+
+### Chosen Option: **A — By quadrant**
+
+### Rationale
+
+Only A satisfies the skill; the issue's own revised table already lists the three quadrant paths.
+
+</details>
+
+<details>
+<summary><strong>2. CQRS is presented as optional</strong></summary>
+
+**Class:** Settled
+**Settled by:** AGENTS.md section 1 (pay-for-what-you-use; every feature opt-in)
+**Verified:** pending the adversarial review of the plan (rule read 2026-11-14)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Level 0 (no CQRS) is a valid end state** | Complies; answers the "CQRS everywhere" criticism | None found |
+| **B — Present CQRS as the target of every project** | Simpler narrative | Contradicts opt-in and the point of the guide |
+
+### Chosen Option: **A — Level 0 is valid**
+
+### Rationale
+
+Only A is consistent with the cited rule.
+
+</details>
+
+<details>
+<summary><strong>3. One core package serves every level</strong></summary>
+
+**Class:** Trivial
+**Settled by:** describes today's packaging (`src/Encina` holds `ICommand<T>` and `IQuery<T>`; no `Encina.Simple` or `Encina.CQRS` project exists in `Encina.slnx`); not a decision of this guide
+**Verified:** pending the adversarial review of the plan (read 2026-11-14)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — The guide states the current packaging and says nothing about new packages** | True today; promises nothing | None found |
+| **B — The guide proposes separate packages per level** | Would make level 1 lighter | Invents a package decision outside this issue |
+
+### Chosen Option: **A — Describe today's packaging**
+
+### Rationale
+
+The guide documents what exists; a packaging change would be its own issue.
+
+</details>
+
+<details>
+<summary><strong>4. How far the tutorial goes (D1)</strong></summary>
+
+**Class:** Dilemma
+
+The issue's walkthrough lists orders with full CQRS plus event sourcing, products with commands and queries, and settings with no CQRS. Event sourcing needs Marten on PostgreSQL, and `.claude/skills/encina-docs/SKILL.md` section 5 requires every "you should see" output to be reproduced from a clean clone; a Docker-based tutorial also satisfies that, so the skill does not exclude either option.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **(a) Levels 0 to 2 in memory, no Docker; levels 3 and 4 only in the how-to** | Reproducible without setup; short; works offline | The tutorial does not show event sourcing, which the issue's walkthrough names for orders |
+| **(b) Levels 0 to 3 with Marten on PostgreSQL through a compose file** | Matches the issue's orders example | Needs Docker; longer; more to keep green when Marten or the image changes; a reader without Docker cannot finish |
+
+### Chosen Option: **(a) — Levels 0 to 2, no Docker** (recommended, pending the maintainer)
+
+### Rationale
+
+We recommend (a) because the tutorial's job is the first step away from CRUD, and a reader should finish it in minutes on any machine; level 3 is explained in the how-to with real types. (b) wins if the maintainer wants the e-commerce orders example to include event sourcing, at the cost of a Docker prerequisite.
+
+</details>
+
+<details>
+<summary><strong>5. The cost-benefit table is qualitative</strong></summary>
+
+**Class:** Settled
+**Settled by:** `.claude/skills/encina-docs/SKILL.md` house rule 2 (no hand-typed figures) and SPEC-001
+**Verified:** pending the adversarial review of the plan (rule read 2026-11-14)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Low, medium, high, and the "5+ handlers" threshold worded as the author's rule of thumb** | Complies; cannot go stale | Less concrete |
+| **B — Typed numbers (lines of code, latency) from a local run** | Concrete | Violates the rule |
+
+### Chosen Option: **A — Qualitative**
+
+### Rationale
+
+Only A complies with the cited rule.
+
+</details>
+
+<details>
+<summary><strong>6. Vertical slice integration describes today</strong></summary>
+
+**Class:** Settled
+**Settled by:** `.claude/skills/encina-docs/SKILL.md` house rule 7 (nothing pre-1.0 is promised as stable); #365 is open
+**Verified:** pending the adversarial review of the plan (rule read 2026-11-14; #365 open)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Say handlers grouped by feature are ordinary classes and link #365 as future work** | True today; promises no API | Less ambitious |
+| **B — Describe the planned vertical slice API** | More complete story | Promises an unreleased API |
+
+### Chosen Option: **A — Today's behavior, #365 linked**
+
+### Rationale
+
+Only A respects the cited rule.
+
+</details>
+
+<details>
+<summary><strong>7. Event sourcing guidance links the ADRs</strong></summary>
+
+**Class:** Settled
+**Settled by:** `.claude/skills/encina-docs/SKILL.md` house rule 4 (decisions are linked, not restated); the files [ADR-019](../architecture/adr/019-compliance-event-sourcing-marten.md) and [ADR-027](../architecture/adr/027-marten-as-the-event-sourcing-provider.md) exist
+**Verified:** pending the adversarial review of the plan (paths checked 2026-11-14)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A — Link ADR-019 and ADR-027** | One source; cannot drift | The reader follows a link |
+| **B — Restate why Marten** | Self-contained | Drifts from the ADRs; breaks the rule |
+
+### Chosen Option: **A — Link**
+
+### Rationale
+
+Only A follows the cited rule.
+
+</details>
+
+The "Verified" lines are filled by the adversarial review of the plan pull request, as the register requires; they do not say "pending" without saying what was already read.
 
 ---
 
@@ -64,7 +210,7 @@ All pages are written by `docs-writer`, which runs `docs-reviewer` itself (skill
 
 1. `docs/guides/how-to-adopt-cqrs-progressively.md`, front matter `title: "How to adopt CQRS progressively"`, `layout: default`, `parent: "Guides"`. The opening sentence names the reader (a developer deciding how much CQRS to use) and the result (a chosen level and the code to reach it).
 2. A Mermaid decision tree: different read and write scaling, then command complexity, then audit needs (event sourcing plus CQRS), else plain CRUD.
-3. The adoption-level table (0 no CQRS, 1 commands only, 2 commands and queries, 3 plus event sourcing, 4 plus separate databases) with the use case of each.
+3. The adoption-level table (0 no CQRS, 1 commands only, 2 commands and queries, 3 plus event sourcing, 4 plus read/write separation to read replicas) with the use case of each. The page says level 4 follows `docs/features/read-write-separation.md` ("CQRS physical split": queries go to read replicas of the same database, commands to the primary) and states that replication lag makes reads eventually consistent; it does not promise a separate read-model store.
 4. One code sample per level with real types: level 1 `ICommand<Guid>` and `ICommandHandler<,>` returning `Either<EncinaError, Guid>`; level 2 `IQuery<OrderSummary>` and a read model; level 3 `AggregateBase<Guid>` with `RaiseEvent` and `Apply(object)` and the `IAggregateRepository<T>` call (names verified in `src/Encina.Marten`); level 4 `config.UseReadWriteSeparation = true` with a link to `docs/features/read-write-separation.md`.
 5. "Move up one level" steps and a short "when to stop" per level, linking the explanation page and the tutorial.
 
@@ -117,10 +263,10 @@ REFERENCE FILES: docs/architecture/request-pipeline.md, docs/architecture/patter
 <details>
 <summary>Tasks</summary>
 
-1. `docs/tutorials/from-crud-to-cqrs.md`, front matter `title: "From CRUD to CQRS"`, `layout: default`, `parent: "Tutorials"`. It continues from the quickstart project (`docs/tutorials/quickstart.md`) and states that prerequisite in the opening.
+1. `docs/tutorials/from-crud-to-cqrs.md`, front matter `title: "From CRUD to CQRS"`, `layout: default`, `parent: "Tutorials"`. It continues from the quickstart project (`docs/tutorials/quickstart.md`) and states that prerequisite in the opening, including the quickstart's local package feed and "version suffix" caveat (Encina is not on nuget.org), since the tutorial's project depends on that feed.
 2. A linear path for the e-commerce example in memory (no Docker): start with a CRUD `ProductService`; move the write to a command and handler; move the read to a query and a read model; keep the settings page as plain CRUD to show where not to apply CQRS.
 3. Each step ends with the real output of `dotnet run`, pasted from a run on a clean checkout (skill section 5); the error track is shown with `error.GetCode()`, not `EncinaError.Message`.
-4. "Rolling back a step": keep the old service class beside the handler and switch the endpoint back, with no compatibility layer left in the final code.
+4. "Reverting a step": the reader marks a git checkpoint (a tag) before each step and returns to it with `git` if the step did not suit the project; the page documents no code that keeps the old and the new path side by side (AGENTS.md section 3 forbids compatibility layers, skill house rule 7 forbids migration paths).
 5. The closing section points to the how-to for levels 3 and 4 and to the explanation page.
 
 </details>
