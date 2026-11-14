@@ -11,7 +11,7 @@
 
 Implement `Encina.Messaging.DeadLetter.IDeadLetterStore` on Apache Kafka as `DeadLetterStoreKafka`, in the existing `Encina.Kafka` package, using dedicated dead letter topics per source pattern (the standard dead letter topic pattern of Kafka ecosystems, so external consumers can read them). A Kafka topic is an append-only log; the ADR-046 contract also needs reads by id and filter with paging, exact counts, an atomic replay claim, a unique `(SourcePattern, SourceMessageId)` key (`AddAsync` returns `Right(false)` for a repeat) and deletes. The plan resolves that gap with a **log-backed index**: the topics stay the single source of truth, each instance folds them into an in-process index, and the order of the log arbitrates uniqueness and claims (Design Choices 1 and 2).
 
-What the code looks like today (main `7a0049c07`):
+What the code looks like today (main `18ec8dd19`):
 
 - `src/Encina.Kafka` has `KafkaMessagePublisher`, `KafkaHealthCheck`, `EncinaKafkaOptions`, `AddEncinaKafka`, and EventId range `Kafka` (4150-4199, ids used 4150-4155). It registers one singleton `IProducer<string, byte[]>` (idempotence on by default, acks `all`). It has no dead letter code. `Confluent.Kafka` 2.14.0 and `Testcontainers.Kafka` 4.15.0 are pinned; `docker-compose.yml` has a Kafka service (`apache/kafka:3.7.0`, KRaft); `tests/Encina.TestInfrastructure/Fixtures/KafkaFixture.cs` exists.
 - The contract is `IDeadLetterStore` (`src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`). The issue's sample used `IProducer<string, string>`, `message.Source`, `message.RetryCount` and a `DeadLetterMessage` type; the real producer is `IProducer<string, byte[]>`, the fields are `SourcePattern` and `TotalRetryAttempts`, and the record is `IDeadLetterMessage`. The topic list of the issue (`dlq-inbox`, `dlq-outbox`, `dlq-saga`, `dlq-scheduled`) misses Recoverability and Choreography and misnames Scheduling; the real values are in `DeadLetterSourcePatterns`.
@@ -40,9 +40,10 @@ What the code looks like today (main `7a0049c07`):
 
 ### Rationale
 
-- The queue is an exception path, so it is small enough to hold in memory (a configurable cap makes the store fail closed with a `Left` and an unhealthy health check when exceeded, instead of silently degrading).
+- The queue is an exception path, so it is small enough to hold in memory (a configurable cap makes the store fail closed with a `Left` and an unhealthy health check when exceeded, instead of silently degrading). The cap counts messages and bytes (Design Choice 8).
 - A wins if the maintainer decides Kafka dead letters are consumed only by Kafka tooling and the manager is not used with this backend; it needs a core abstraction, which is why it is not recommended for a backend issue.
 - Multi-instance use: every instance consumes all partitions of all dead letter topics (manual assignment from the beginning, no committed group offsets), so each instance holds the same index.
+- **Startup cost**: every instance reads the retained history of every dead letter topic from the beginning, including records of messages that were deleted since, so readiness time grows with the retained history, not with the live queue. With a finite `RetentionMs` (Design Choice 3) the history is bounded by the retention window; with infinite retention it is unbounded, which is one more reason infinite retention is opt-in. Periodic snapshots or compaction of the index would bound it further: deferred, issue to open at implementation time; the catch-up duration is logged and the health check is `Unhealthy` until the end offsets observed at start are reached.
 
 </details>
 
@@ -56,14 +57,14 @@ What the code looks like today (main `7a0049c07`):
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Key the record by the source key and rely on log compaction** | Simplest; duplicates collapse eventually | `AddAsync` always returns `Right(true)`: the contract's `Right(false)` does not hold; compaction keeps the last record, not the first, so the surviving `Id` can be the loser's |
-| **B) Arbitration by log order: produce, wait until the local index has seen the record's offset, and decide from the folded state** | The contract holds across instances: the first capture of a source key in its partition wins; a claim event is effective only if, at its position in the key's order, the message is unreplayed and holds no live claim | A write waits for the local consumer to catch up (bounded timeout, then `Left`); needs deterministic folding (events carry the instants they were decided with) |
+| **B) Arbitration by log order: produce, wait until the local index has seen the record's offset, and decide from the folded state, with every record that changes a source key's state in that key's one partition** (the ordering domain is the source key, Design Choice 6) | The contract holds across instances: the first capture of a source key in its partition wins; a claim record is effective only if, at its position in the key's order, the message is unreplayed and holds no live claim; every instance folds the same sequence per key, including after a delete and a re-capture of the same key | A write waits for the local consumer to catch up (bounded timeout, then `Left`); needs deterministic folding (records carry the instants they were decided with) |
 
-### Chosen Option: **B — arbitration by log order** (recommended, pending the maintainer)
+### Chosen Option: **B — arbitration by log order inside the source key's partition** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Capture records are keyed by `SourceMessageId` within the topic of their `SourcePattern`, so all captures of one source key land in one partition and have one total order; lifecycle events (claim, replay, delete) are keyed by the message `Id` in the lifecycle topic, again one partition per message. The first capture wins; a repeat is detected by the fast path (the index already holds the key) or by arbitration when two instances race.
-- A claim event carries a claim id, the claim instant and `ClaimExpiredBeforeUtc` as given by the caller, so every instance folds it to the same result without reading a clock. `TryClaimForReplayAsync` returns `Right(true)` only when the folded current claim id equals its own.
+- Every record that can change the state of a source key (capture, claim, replayed, deleted) is keyed by `SourceMessageId` in the topic of its `SourcePattern`, so they share one partition and one total order; the fold is per key over that sequence. The first capture wins; a repeat is detected by the fast path (the index already holds the key) or by arbitration when two instances race; after a `Deleted` record in the same sequence a re-capture of the key is accepted by every instance alike. Two topics would be two orders: instance A could read `Deleted(Id1)` before `Capture(Id2)` and accept it while instance B reads the capture first and treats it as a duplicate, which is why no second topic carries state-changing records.
+- A claim record carries a claim id, the claim instant and `ClaimExpiredBeforeUtc` as given by the caller, so every instance folds it to the same result without reading a clock. `TryClaimForReplayAsync` returns `Right(true)` only when the folded current claim id equals its own.
 - A wins only where `Right(false)` is not needed and a stale duplicate is tolerable, which ADR-046 Choice 6 rejects (a duplicate dead letter makes a replay dispatch twice).
 
 </details>
@@ -77,14 +78,14 @@ What the code looks like today (main `7a0049c07`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Logical delete by a `Deleted` lifecycle event; bytes leave the broker when topic retention expires** (`cleanup.policy=delete`, `retention.ms` configurable) | Keeps history; no compaction subtleties; uniqueness arbitration stays correct | Erasure on demand is not possible: personal data in the payload stays readable until retention ends |
+| **A) Logical delete by a `Deleted` record; bytes leave the broker when topic retention expires** (`cleanup.policy=delete`, `retention.ms` configurable) | Keeps history; no compaction subtleties; uniqueness arbitration stays correct | Erasure on demand is not possible: personal data in the payload stays readable until retention ends |
 | **B) Compacted capture topics with a tombstone on delete** (`cleanup.policy=compact,delete`) | Physical removal of the payload after compaction | Compaction keeps the last record per key, which interacts with the arbitration of Design Choice 2 (duplicates of a source key are never produced when the fast path hits, but a race can leave a loser as the survivor); more operational tuning |
 
 ### Chosen Option: **A — logical delete, retention for physical removal** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The default topic retention is infinite (`retention.ms=-1`): a dead letter must not vanish before an operator replays it. An application with an erasure obligation sets a finite retention that matches its policy, and encrypts dead-lettered content through `IMessageSerializer` (message encryption), which already applies to `RequestContent`.
+- With a logical delete, `DeleteAsync` and `DeleteExpiredAsync` remove a message from every read at once but not its bytes: `RequestContent` (which may hold personal data) stays on the broker until retention expires. Retention is therefore the erasure mechanism, and its default is Design Choice 7 (it is not decided here). Message encryption (`IMessageSerializer`) may be added by the application and is not a substitute for retention.
 - B wins when physical erasure on demand is a legal requirement for this backend; it can be added later as a topic configuration plus a tombstone producer without changing the contract.
 
 </details>
@@ -114,7 +115,7 @@ What the code looks like today (main `7a0049c07`):
 <summary><strong>5. Client reuse, naming, registration and tests</strong></summary>
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 5 (transport category: same client configuration so switching transports stays a registration change), AGENTS.md section 4 (`{Pattern}Store{Provider}`), AGENTS.md section 3 (registration completeness), AGENTS.md section 9 (shared `[Collection]` fixtures), #587
+**Settled by:** AGENTS.md section 3 "Provider coherence" ("providers share the same interfaces and configuration and differ only in implementation, so switching provider means changing the DI registration"), which excludes a store-owned second client configuration (option B); AGENTS.md section 4 (`{Pattern}Store{Provider}`), AGENTS.md section 3 (registration completeness), AGENTS.md section 9 (shared `[Collection]` fixtures), #587
 
 ### Options Considered
 
@@ -127,8 +128,69 @@ What the code looks like today (main `7a0049c07`):
 
 ### Rationale
 
-- The topic names are `{TopicPrefix}{pattern}` with the prefix `dlq-` and the pattern in lower invariant case (`dlq-recoverability`, `dlq-outbox`, `dlq-inbox`, `dlq-scheduling`, `dlq-saga`, `dlq-choreography`); characters Kafka does not allow in topic names are escaped as `_xx`; the name `lifecycle` is reserved for the events topic `dlq-lifecycle`. Topic creation is opt-in (`CreateTopicsIfMissing`, default `false`).
+- The topic names are `{TopicPrefix}{pattern}` with the prefix `dlq-` and the pattern in lower invariant case (`dlq-recoverability`, `dlq-outbox`, `dlq-inbox`, `dlq-scheduling`, `dlq-saga`, `dlq-choreography`); characters Kafka does not allow in topic names are escaped as `_xx`. There is no separate events topic under the recommended option of Design Choice 6 (the name `lifecycle` is reserved only if option B of that choice is picked). Topic creation is opt-in (`CreateTopicsIfMissing`, default `false`).
 - Integration tests use the shared Kafka container fixture and a unique topic prefix per test run, since topics cannot be truncated cheaply.
+
+</details>
+
+<details>
+<summary><strong>6. Ordering domain of the state-changing records (Dilemma D4)</strong></summary>
+
+**Class:** Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Every record (capture, claim, replayed, deleted) goes to the pattern topic, keyed by the source key `SourceMessageId`** | One ordering domain per key: every instance folds the same sequence, including delete followed by re-capture; a claim can never be read before its capture; no second topic to create, discover or reserve; external consumers see the whole history of a message in one topic | Lifecycle records are produced to a topic whose name says "pattern"; `TryClaimForReplayAsync(messageId, ...)` first resolves the source key from the index by `Id` (a message absent from the index is `Right(false)`) |
+| **B) A separate `dlq-lifecycle` topic keyed by the source key plus a capture sequence number** | Capture topics stay capture-only | Two topics are two orders: the fold must order a lifecycle record against the capture it belongs to through the sequence number, and a lifecycle record can arrive before its capture on another instance; more code and a harder property to test |
+
+### Chosen Option: **A — everything in the pattern topic, keyed by the source key** (recommended, pending the maintainer)
+
+### Rationale
+
+- A removes the cross-topic ordering problem instead of compensating for it, and is the smallest correct design. B wins only if the maintainer wants capture topics to stay capture-only for external consumers.
+
+</details>
+
+<details>
+<summary><strong>7. Default retention and the infinite-retention opt-in (Dilemma D5)</strong></summary>
+
+**Class:** Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) No default: `RetentionMs` is required; startup validation fails when it is infinite (`-1`) unless `AllowInfiniteRetention = true`, which is logged at startup** | Fail closed: a compliance control (physical removal of payload data) is never off by accident; the operator chooses a value that matches the policy | The first run needs one more setting |
+| **B) A finite default (a number chosen by the maintainer, for example 30 or 90 days) with the same explicit opt-in for infinite retention** | Works out of the box and still erases | The number is a policy choice with legal weight; a default shorter than the replay window loses unreplayed dead letters silently |
+| **C) Infinite default (`-1`)** | A dead letter never vanishes before an operator replays it | Personal data in `RequestContent` is never physically removed unless the operator remembers to set a retention: a compliance default that is off |
+
+### Chosen Option: **A — no default, startup validation, explicit logged opt-in for infinite** (recommended, pending the maintainer)
+
+### Rationale
+
+- Compliance and security controls fail closed (`AGENTS.md` section 3): C is rejected; the choice between A and B is the maintainer's because B embeds a legal number. B wins when out-of-the-box operation matters more than a first-run setting. The opt-in is `AllowInfiniteRetention` (an options property, default `false`), and startup logs it once when it is on.
+
+</details>
+
+<details>
+<summary><strong>8. Memory model of the index (Dilemma D6)</strong></summary>
+
+**Class:** Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The index keeps every indexed message in memory, capped by count (`MaxIndexedMessages`, default 100,000) and by bytes (`MaxIndexedBytes`, default 256 MiB, counting `RequestContent` and `ExceptionStackTrace`)** | Reads never touch the broker; simple | `DeadLetterStoreLimits` sets no maximum length for the payload fields, so the count cap alone does not bound memory; the byte cap makes the failure mode explicit |
+| **B) The index keeps metadata and the record position (topic, partition, offset) only and re-reads the payload from the broker on demand** | Memory proportional to the number of messages, not their size | A broker read per `GetAsync`; a consumer pool for point reads; more code |
+
+### Chosen Option: **A — in memory, capped by count and bytes** (recommended, pending the maintainer)
+
+### Rationale
+
+- Exceeding either cap makes the index refuse new captures with a `Left` (`dlq.index_over_cap`) and turns the health check `Unhealthy` (fail closed). B wins when payloads are routinely large; it can replace the in-memory payload later without changing the contract.
 
 </details>
 
@@ -144,9 +206,9 @@ What the code looks like today (main `7a0049c07`):
 <summary>Tasks</summary>
 
 1. `src/Encina.Kafka/DeadLetter/DeadLetterKafkaMessage.cs`: public sealed class implementing `IDeadLetterMessage` and `DeadLetterKafkaMessageFactory.cs`.
-2. `DeadLetterKafkaRecords.cs` (internal): `CaptureRecord` (the full message), and lifecycle records `ClaimRecord(Id, ClaimId, ClaimedAtUtc, ClaimExpiredBeforeUtc)`, `ReplayedRecord(Id, ReplayedAtUtc, ReplayResult)`, `DeletedRecord(Id, DeletedAtUtc)`; System.Text.Json source generation.
-3. `DeadLetterTopicNames.cs`: topic per pattern with the escaping and the reserved `lifecycle` name; headers: `encina-dlq-id`, `encina-dlq-source-pattern`, `encina-dlq-exception-type`, `encina-dlq-retry-attempts`, `encina-dlq-tenant-id`; never exception text.
-4. `PublicAPI.Unshipped.txt` lines.
+2. `DeadLetterKafkaRecords.cs` (internal): `CaptureRecord` (the full message), and lifecycle records `ClaimRecord(Id, ClaimId, ClaimedAtUtc, ClaimExpiredBeforeUtc)`, `ReplayedRecord(Id, ReplayedAtUtc, ReplayResult)`, `DeletedRecord(Id, DeletedAtUtc)`; every record is produced to the pattern topic keyed by the source key (Design Choice 6); System.Text.Json source generation.
+3. `DeadLetterTopicNames.cs`: topic per pattern with the escaping (and the reserved `lifecycle` name only under option B of Design Choice 6); headers: `encina-dlq-id`, `encina-dlq-source-pattern`, `encina-dlq-exception-type`, `encina-dlq-retry-attempts`, `encina-dlq-tenant-id`; never exception text. The tenant header is plaintext and readable by any consumer of the topic: the README and the feature page say so, and an application that must not expose the tenant to topic consumers uses topic ACLs (the tenant is also inside the record value).
+4. Public API tracking: `src/Encina.Kafka` has no `PublicAPI.Shipped.txt` or `PublicAPI.Unshipped.txt` and its csproj has no `PublicApiAnalyzers` (verified on main), so there are no PublicAPI lines to write; adding the tracking to the package is a separate decision outside this plan.
 
 </details>
 
@@ -182,9 +244,9 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `DeadLetterIndex.cs` (internal, thread-safe): by `Id`, by `(SourcePattern, SourceMessageId)`, and a sorted view by `DeadLetteredAtUtc` then `Id`; `Apply(CaptureRecord, position)`, `Apply(ClaimRecord, position)`, `Apply(ReplayedRecord, position)`, `Apply(DeletedRecord, position)` folding with the rules of Design Choice 2 (first capture of a key wins; a claim is effective only while unreplayed and without a live claim; replay only while unreplayed; delete removes); `WaitUntilAsync(topic, partition, offset, timeout, ct)` for read-your-writes.
-2. `DeadLetterIndexService.cs` (`BackgroundService`): one consumer with manual partition assignment from the beginning for every dead letter topic and the lifecycle topic (no group, no committed offsets); a per-iteration `try`/`catch` that logs and keeps running (an `OperationCanceledException` from the stopping token ends the loop, per `AGENTS.md` section 3); topic discovery refreshed on an interval so a pattern topic created later is picked up; a readiness flag set when the end offsets observed at start are reached.
-3. A cap `MaxIndexedMessages` (default 100,000): when exceeded the index refuses new captures with `Left` and the health check turns unhealthy (fail closed).
+1. `DeadLetterIndex.cs` (internal, thread-safe): by `Id`, by `(SourcePattern, SourceMessageId)`, and a sorted view by `DeadLetteredAtUtc` then `Id`; `Apply(CaptureRecord, position)`, `Apply(ClaimRecord, position)`, `Apply(ReplayedRecord, position)`, `Apply(DeletedRecord, position)` folding per source key, in the order of the key's partition, with the rules of Design Choice 2 (first capture of a key wins; a capture after a delete of the same key is accepted; a claim is effective only while unreplayed and without a live claim; replay only while unreplayed; delete removes); `WaitUntilAsync(topic, partition, offset, timeout, ct)` for read-your-writes.
+2. `DeadLetterIndexService.cs` (`BackgroundService`): one consumer built by a singleton factory (`DeadLetterConsumerFactory`, registered by `AddEncinaDeadLetterKafka`) from the same `EncinaKafkaOptions` as the producer: `BootstrapServers` is reused, `EnableAutoCommit = false`, `AutoOffsetReset = earliest`, and `GroupId` is `{GroupId}-dlq-index` (Confluent.Kafka requires a `group.id` to build a consumer, but the service uses manual `Assign` and never commits, so the group has no members and no offsets). `EncinaKafkaOptions` has no security fields today (verified), so there is nothing else to reuse; a security setting added to the options later must reach both the producer and the consumer factory (a DI test with `ValidateOnBuild` covers the graph). The consumer reads every dead letter topic from the beginning; a per-iteration `try`/`catch` that logs and keeps running (an `OperationCanceledException` from the stopping token ends the loop, per `AGENTS.md` section 3); topic discovery refreshed on an interval so a pattern topic created later is picked up; a readiness flag set when the end offsets observed at start are reached.
+3. The caps of Design Choice 8: `MaxIndexedMessages` (default 100,000) and `MaxIndexedBytes` (default 256 MiB, summing the UTF-8 length of `RequestContent` and `ExceptionStackTrace` and a fixed overhead per message): when either is exceeded the index refuses new captures with `Left` (`dlq.index_over_cap`) and the health check turns unhealthy (fail closed).
 4. The index applies the store's `TimeProvider` only for expiry views, never inside folding.
 
 </details>
@@ -217,15 +279,16 @@ REFERENCE FILES:
 
 ### Phase 3: `DeadLetterStoreKafka`
 
-> **Goal**: the 11 contract methods.
+> **Goal**: the 10 contract methods (`AddAsync`, `GetAsync`, `GetMessagesAsync`, `GetCountAsync`, `TryClaimForReplayAsync`, `MarkAsReplayedAsync`, `DeleteAsync`, `DeleteManyAsync`, `DeleteExpiredAsync`, `SaveChangesAsync`).
 
 <details>
 <summary>Tasks</summary>
 
 1. `DeadLetterStoreKafka : IDeadLetterStore`; constructor `(IProducer<string, byte[]> producer, DeadLetterIndex index, TimeProvider timeProvider, ILogger<DeadLetterStoreKafka> logger, IOptions<DeadLetterKafkaOptions>? options = null)`.
-2. `AddAsync`: fast path (the index holds the key: `Right(false)`); else produce the capture record (key `SourceMessageId`, value JSON, headers), await the delivery report, `WaitUntilAsync` its offset, then `Right(true)` iff the index's winner for the key has this `Id`, else `Right(false)`; timeout or produce failure is `Left` (`dlq.store_failed`, error type only).
+2. `AddAsync`: fast path (the index holds the key: `Right(false)`); else produce the capture record (key `SourceMessageId`, value JSON, headers), await the delivery report, `WaitUntilAsync` its offset, then `Right(true)` iff the index's winner for the key has this `Id`, else `Right(false)`; a produce failure or an index wait timeout is a `Left` (error type only). When the wait times out the record is already on the broker, so the capture is effective although the caller got a `Left`: a retry of the same capture finds the key in the index and returns `Right(false)` (idempotent); this is documented and tested.
+   - **ErrorCategory (ADR-062)**: `src/Encina.Kafka/` is under the pending prefix `P-Kafka` of `ErrorCategoryPending.txt`, so the completeness scan does not fail today, but the plan states every category so the prefix can be removed without a new decision: `dlq.store_failed` `Internal` (R4: store and serialization failures), `dlq.store_unavailable` `Unavailable` (the broker is unreachable or the delivery report times out), `dlq.index_not_ready` `Unavailable` (catch-up not finished, fail closed), `dlq.index_over_cap` `Unavailable` (fail closed, clears when the queue shrinks), `dlq.index_wait_timeout` `Timeout`. A lost claim and a repeated capture are `Right(false)`, not errors.
 3. `GetAsync`, `GetMessagesAsync`, `GetCountAsync` read the index (filter predicates as small methods; order `DeadLetteredAtUtc`, `Id`; `newestFirst` reverses).
-4. `TryClaimForReplayAsync`, `MarkAsReplayedAsync`: produce the lifecycle record keyed by `Id`, wait for its offset, decide from the folded state (Design Choice 2).
+4. `TryClaimForReplayAsync`, `MarkAsReplayedAsync`: resolve the source key from the index by `Id` (absent: `Right(false)`), produce the lifecycle record keyed by the source key, wait for its offset, decide from the folded state (Design Choice 2). If the wait times out the record is on the broker and may be effective: for a claim the live claim blocks any other replay until `ReplayClaimTimeout` passes (the claiming caller got a `Left` and does not replay), which is documented and tested; a replayed record is idempotent.
 5. `DeleteAsync`, `DeleteManyAsync`, `DeleteExpiredAsync` (`ExpiresAtUtc <= timeProvider.GetUtcNow()`): produce a `DeletedRecord` per match and count those whose fold removed a message; a produce failure stops and returns `Left` (ADR-046 decision 7). `SaveChangesAsync` returns `Right(Unit)`.
 6. Not-ready index (startup catch-up, or the cap exceeded) returns `Left` with a distinct code; it never answers from a partial index.
 
@@ -262,11 +325,12 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `DeadLetterKafkaOptions`: `TopicPrefix` (default `dlq-`), `CreateTopicsIfMissing` (false), `Partitions` (default 3), `ReplicationFactor` (default 1), `RetentionMs` (default -1), `MaxIndexedMessages` (100,000), `IndexWaitTimeout` (default 10 s), `AddHealthCheck`.
-2. `AddEncinaDeadLetterKafka(this IServiceCollection, Action<DeadLetterKafkaOptions>? = null, Action<EncinaKafkaOptions>? = null, Action<DeadLetterOptions>? = null)`: shared producer registration helper (`TryAdd`), the index and its hosted service, `TryAddSingleton(TimeProvider.System)`, `AddDeadLetterQueueServices<DeadLetterStoreKafka, DeadLetterKafkaMessageFactory>(true, options)`.
+1. `DeadLetterKafkaOptions`: `TopicPrefix` (default `dlq-`), `CreateTopicsIfMissing` (false), `Partitions` (default 3), `ReplicationFactor` (default 1), `RetentionMs` (no default, Design Choice 7: startup validation fails when it is unset or `-1` unless `AllowInfiniteRetention` is `true`, which is logged once at startup), `AllowInfiniteRetention` (default `false`), `MaxIndexedMessages` (100,000), `MaxIndexedBytes` (256 MiB), `IndexWaitTimeout` (default 10 s), `AddHealthCheck`.
+2. `AddEncinaDeadLetterKafka(this IServiceCollection, Action<DeadLetterKafkaOptions>? = null, Action<EncinaKafkaOptions>? = null, Action<DeadLetterOptions>? = null)`: shared producer registration helper (`TryAdd`), `TryAddSingleton` for the index, the consumer factory and the options, `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DeadLetterIndexService>())` so a second call never starts a second consumer, `TryAddSingleton(TimeProvider.System)`, `AddDeadLetterQueueServices<DeadLetterStoreKafka, DeadLetterKafkaMessageFactory>(true, options)` (the store is `TryAddScoped` and takes the singleton index and producer, which is a valid scoped-to-singleton dependency).
 3. Health: `DeadLetterKafkaHealthCheck : IEncinaHealthCheck`: unhealthy while the index is not ready or over its cap; otherwise delegates to the existing `KafkaHealthCheck`.
 4. DI test with `ValidateOnBuild` and `ValidateScopes`, both registration orders (with and without `AddEncinaKafka`).
-5. EventIds 4156-4175 inside the existing `Kafka` range (4150-4199): `Log.cs` additions for index catch-up, capture duplicate, claim lost, produce failure, index over cap; update the range comment in `EventIdRanges.cs`. `InstrumentedDeadLetterStore` decorates the store; add a test. No tenant id in logs or tags.
+5. EventIds 4156-4175 inside the existing `Kafka` range (4150-4199), `Log.cs` additions packed from 4156: 4156 index catch-up complete, 4157 capture duplicate, 4158 claim lost, 4159 produce failure, 4160 index over cap, 4161 index wait timeout, 4162 infinite retention opted in, 4163 index consumer loop error; 4164-4175 stay reserved and unused. Update the range comment in `EventIdRanges.cs`. The log additions land with the index service (PR 2 of the split), because it logs. `InstrumentedDeadLetterStore` decorates the store; add a test.
+6. Tenant (ADR-054 D4): the tenant is a span attribute and a metric tag when multi-tenancy is on; `InstrumentedDeadLetterStore` on main never carries it, so this plan **defers** the tenant tag on the decorator (a decorator-wide change for every store; issue to open at implementation time), and the store writes no tenant id to logs. The tenant stays a record field and the plaintext header of Phase 1 task 3.
 
 </details>
 
@@ -275,15 +339,17 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Registration of the queue is shared (AddDeadLetterQueueServices, first wins). AddEncinaKafka registers the producer today; the dead letter registration must not require it to be called first.
+- Registration of the queue is shared (AddDeadLetterQueueServices in src/Encina.Messaging/MessagingServiceCollectionExtensions.cs:495, first wins; the store is TryAddScoped and takes the singleton index and producer). AddEncinaKafka registers the producer today; the dead letter registration must not require it to be called first.
 
 TASK:
 Create the options, the registration, the health check, the log additions and the DI test of Phase 4.
 
 KEY RULES:
 - Registration completeness proven with ValidateOnBuild and ValidateScopes.
-- EventIds packed sequentially inside 4156-4175, in the already registered Kafka range.
-- Never log EncinaError.Message, exception messages or tenant ids.
+- EventIds packed sequentially from 4156 inside 4156-4175, in the already registered Kafka range.
+- Never log EncinaError.Message or exception messages (the tenant tag on telemetry is deferred, Phase 4 task 6).
+- RetentionMs has no default; infinite retention needs AllowInfiniteRetention and is logged.
+- The hosted service is registered with TryAddEnumerable; the index and consumer factory with TryAddSingleton.
 
 REFERENCE FILES:
 - src/Encina.Kafka/ServiceCollectionExtensions.cs
@@ -297,15 +363,32 @@ REFERENCE FILES:
 
 ### Phase 5: Testing
 
-> **Goal**: every applicable flag reaches its target in `.github/coverage-manifest/Encina.Kafka.json` (new entries per new file with justifications; the package has `unit` and `guard` targets today).
+> **Goal**: every applicable flag reaches its target in `.github/coverage-manifest/Encina.Kafka.json` (the package tracks `unit` and `guard` today; the new entries add the integration and property flags for the new files; each pull request adds the rows of the files it contains, targets never go down).
+
+Per-file targets (percent of coverable lines per flag; contract is 0 for every file because the derived `DeadLetterStoreContract` class needs a real broker and runs in `Encina.IntegrationTests`, where it counts for the integration flag):
+
+| File | Unit | Guard | Integration | Property | Justification |
+|------|-----:|------:|------------:|---------:|---------------|
+| `DeadLetterStoreKafka.cs` | 80 | 90 | 85 | 0 | Fake-producer unit tests reach the branches and the broker suite reaches produce, wait and race paths; the property suite targets the index. |
+| `DeadLetterIndex.cs` | 95 | 0 | 80 | 90 | Internal type (no `InternalsVisibleTo` for the guard project); the fold is pure and branch-heavy, so unit and property tests carry it. |
+| `DeadLetterIndexService.cs` | 75 | 0 | 80 | 0 | Internal `BackgroundService`; the loop is driven with a fake clock and a fake consumer, the real consumer is reached by the broker suite. |
+| `DeadLetterConsumerFactory.cs` | 85 | 90 | 70 | 0 | Builds a consumer config from options with null checks; the broker suite proves the config works. |
+| `DeadLetterKafkaRecords.cs` | 90 | 0 | 80 | 90 | Internal records with source-generated serialization; the property suite round-trips them. |
+| `DeadLetterTopicNames.cs` | 95 | 90 | 60 | 90 | Pure mapping with a null/blank guard; the property suite proves injectivity. |
+| `DeadLetterKafkaMessage.cs` | 90 | 0 | 80 | 0 | Data class with `IsReplayed`/`IsExpiredAt` logic and no validated parameters. |
+| `DeadLetterKafkaMessageFactory.cs` | 95 | 90 | 70 | 0 | One `Create` method with a null check. |
+| `DeadLetterKafkaOptions.cs` | 90 | 0 | 0 | 0 | Properties and the startup validation of retention; no I/O. |
+| `DeadLetterKafkaHealthCheck.cs` | 85 | 90 | 70 | 0 | Unit tests cover ready, not ready and over-cap; the broker suite covers the real delegate to `KafkaHealthCheck`. |
+| `ServiceCollectionExtensions.cs` (the Kafka file, touched) | 95 (unchanged) | 40 (from 38) | 0 | 0 | The shared producer helper and the new method are reached by the DI test and by the null guards of the new method; the existing targets never go down. |
+| `Log.cs` (Kafka, touched) | 0 | 0 | 0 | 0 | Source-generated `[LoggerMessage]` delegates with no logic: the manifest rule of this file has no test flag (guard tests cannot reach generated partials). |
 
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: topic names (escaping, reserved name), index folding (first capture wins, effective and ineffective claims, replay only once, delete), filter predicates, error mapping, with a fake producer and a `FakeTimeProvider`.
+1. **Unit**: topic names (escaping, reserved name), index folding (first capture wins, a capture after a delete is accepted, effective and ineffective claims, replay only once, delete), filter predicates, error mapping and its categories, retention startup validation, with a fake producer and a `FakeTimeProvider`.
 2. **Guard**: every public method and the registration.
-3. **Contract/integration**: `DeadLetterStoreContract` against the Kafka container (`KafkaFixture`, shared `[Collection]`, unique prefix per run), plus: two stores racing on one source key (exactly one `Right(true)`), two stores racing on one claim, restart of the index (a new store over the same topics sees the same state), the cap and not-ready paths.
-4. **Property**: folding is independent of the interleaving of partitions; topic-name mapping is injective.
+3. **Contract/integration**: `DeadLetterStoreContract` against the Kafka container (`KafkaFixture`, shared `[Collection]`, unique prefix per run), plus: two stores racing on one source key (exactly one `Right(true)`), two stores racing on one claim, delete followed by re-capture of the same key seen identically by two stores, restart of the index (a new store over the same topics sees the same state), the cap and not-ready paths, the wait-timeout paths of Phase 3 (a retried capture returns `Right(false)`; a timed-out claim blocks replay until `ReplayClaimTimeout`).
+4. **Property**: folding the records of one source key gives the same state for every interleaving of the records of different keys (different partitions); a delete followed by a re-capture folds to the same state whatever instance reads first; topic-name mapping is injective.
 5. **Load**: capture throughput as a load test only if the maintainer wants it; otherwise `.md` justification; **Benchmark**: `.md` justification, per `AGENTS.md` section 9.
 6. Report per-flag coverage of the new files and the CRAP table.
 
@@ -390,7 +473,7 @@ REFERENCE FILES:
 | `IDeadLetterStore` | `src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs` | The contract |
 | `IDeadLetterMessage`, `DeadLetterData`, `IDeadLetterMessageFactory` | `src/Encina.Messaging/DeadLetter/` | The record and its factory |
 | `DeadLetterFilter`, `DeadLetterErrorCodes`, `DeadLetterStoreLimits`, `DeadLetterSourcePatterns` | `src/Encina.Messaging/DeadLetter/` | Filter translation, error codes, limits, the six topic suffixes |
-| `AddDeadLetterQueueServices` | `src/Encina.Messaging/DeadLetter/DeadLetterServiceCollectionExtensions.cs` | First-wins registration |
+| `AddDeadLetterQueueServices` | `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs:495` (wrappers in `src/Encina.Messaging/DeadLetter/DeadLetterServiceCollectionExtensions.cs`) | First-wins registration; the store is `TryAddScoped` |
 | `AddEncinaKafka`, `EncinaKafkaOptions`, `IProducer<string, byte[]>` | `src/Encina.Kafka/ServiceCollectionExtensions.cs`, `EncinaKafkaOptions.cs` | The shared client configuration |
 | `KafkaHealthCheck` | `src/Encina.Kafka/Health/KafkaHealthCheck.cs` | Delegated connectivity probe |
 | `InstrumentedDeadLetterStore` | `src/Encina.OpenTelemetry/MessagingStores/InstrumentedDeadLetterStore.cs` | Tracing and metrics |
@@ -407,10 +490,21 @@ REFERENCE FILES:
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Production code (Phases 1-4) | ~12 | Message, factory, records, topic names, index, index service, store, options, registration, health check, log additions, `PublicAPI` |
-| Tests (Phase 5) | ~8 | Unit, guard, contract/integration, property |
-| Manifest, README, feature page, changelog, ADR | ~5 | Documentation phase |
-| **Total** | **~25** | Exceeds 15 files. Proposed split: PR 1 = Phases 1-2 (records, names, index, index service, their tests); PR 2 = Phases 3-4 (store, registration, health, logging, tests); PR 3 = integration tests, documentation, ADR |
+| Production code (Phases 1-4) | ~13 | Message, factory, records, topic names, index, index service, consumer factory, store, options, registration, health check, `Log.cs` additions, `EventIdRanges.cs` (no `PublicAPI` files: the package has none) |
+| Tests (Phases 1-5) | ~14 | Unit, guard, DI test, decorator test, contract/integration, property |
+| Manifest rows, README, feature page, changelog, ADR, load/benchmark justification files | ~8 | Documentation phase and per-PR manifest rows |
+| **Total** | **~35** | Exceeds 15 files. Tests and log additions travel with the code that needs them; each pull request builds and passes alone |
+
+Proposed split (each at most 15 files and 1500 lines, counting tests, manifest rows, `EventIdRanges.cs` and test `ProjectReference` edits):
+
+| PR | Content | Files | Estimated lines | Verifiable alone because |
+|----|---------|-------|-----------------|--------------------------|
+| 1 | Message, factory, records, topic names, `DeadLetterKafkaOptions`, their unit and guard tests, manifest rows | ~10 | ~900 | Pure types and options with their own tests |
+| 2 | Index, index service, consumer factory, `Log.cs` additions, `EventIdRanges.cs` range comment, unit and guard tests (fold, loop with a fake clock), manifest rows | ~10 | ~1,300 | The index builds with its log and is tested with a fake consumer |
+| 3 | Store (10 contract methods) with its error codes and categories, unit and guard tests, manifest rows | ~6 | ~1,000 | The store is tested against a fake producer and the index of PR 2 |
+| 4 | `AddEncinaDeadLetterKafka`, shared producer helper, health check, DI test (`ValidateOnBuild`, `ValidateScopes`), health and guard tests, decorator test, manifest rows | ~8 | ~700 | DI test against the store of PR 3 |
+| 5 | Derived contract class and integration cases on the Kafka container, property tests, load and benchmark justification files, manifest rows, test-project `ProjectReference` edits if needed | ~8 | ~1,100 | Integration and property flags reach their targets on a real broker |
+| 6 | Package README section, `docs/features/dead-letter-queue.md`, changelog fragment, ADR | ~4 | ~400 | Documentation only |
 
 ---
 
@@ -428,15 +522,17 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 Phase 1: message, factory, capture and lifecycle records, topic names and headers.
 Phase 2: DeadLetterIndex (deterministic folding, first capture wins, effective claims) and DeadLetterIndexService (manual assignment, per-iteration catch).
-Phase 3: DeadLetterStoreKafka, 11 methods, produce then wait for the local index to reach the offset.
+Phase 3: DeadLetterStoreKafka, 10 methods, produce then wait for the local index to reach the offset.
 Phase 4: options, AddEncinaDeadLetterKafka reusing the transport producer, health check, EventIds 4156-4175.
 Phase 5: unit, guard, contract/integration (Kafka container), property tests; manifest.
 Phase 6: docs, changelog fragment, ADR.
 
 KEY PATTERNS:
 - Same Kafka client configuration as the publisher (AGENTS.md section 5); store naming DeadLetterStoreKafka.
-- Dilemmas D1-D3 are recommended, pending the maintainer: do not start Phase 2 before they are answered.
-- Erasure on demand is not possible with logical delete; document retention and message encryption.
+- Dilemmas D1-D6 are recommended, pending the maintainer: do not start Phase 2 before they are answered.
+- Every state-changing record of a source key goes to that key's partition (one ordering domain); folding is per key.
+- Erasure on demand is not possible with logical delete; retention is the erasure mechanism and has no default (infinite is an explicit, logged opt-in); message encryption is an application choice.
+- Every new error code carries its ADR-062 ErrorCategory; Encina.Kafka has no PublicAPI files.
 
 REFERENCE FILES:
 - src/Encina.Messaging/DeadLetter/ (contract, registration)
@@ -464,7 +560,7 @@ REFERENCE FILES:
 | 9 | Idempotency | ✅ | Idempotent producer for broker duplicates plus log-order arbitration for the source key. |
 | 10 | Multi-tenancy | ✅ | `TenantId` in the record and as a header, filtered only when the filter names it (ADR-046 Choice 7); tenant-partitioned topics are not planned. |
 | 11 | Module isolation | ❌ | `IDeadLetterMessage` has no `ModuleId` today. |
-| 12 | Audit trail | ⏭️ | The lifecycle topic is the store's own history; operator replay and delete audit is #2013 (issue exists). |
+| 12 | Audit trail | ⏭️ | The pattern topics (capture plus lifecycle records) are the store's own history; operator replay and delete audit is #2013 (issue exists). |
 
 ---
 
@@ -472,13 +568,13 @@ REFERENCE FILES:
 
 - #583 (closed) fixed the contract; #580 (Kafka audit store, open) is independent. #2013 (open) later adds `ActorId` and `CausationId` to the record.
 - No new package versions are needed (`Confluent.Kafka`, `Testcontainers.Kafka` are pinned).
-- No decision of another issue blocks this plan; D1-D3 block Phase 2.
+- No decision of another issue blocks this plan; D1-D6 block Phase 2.
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers D1, D2 and D3 when work on #587 starts; the answers go into `## Maintainer Decisions`.
+1. The maintainer answers D1 to D6 when work on #587 starts; the answers go into `## Maintainer Decisions`.
 2. Re-check the Design Choices against main; `adversarial-reviewer` verifies the Settled ones.
-3. Brief a worker per proposed pull request (3 pull requests).
+3. Brief a worker per proposed pull request (6 pull requests, see the file count).
 4. Final commit references `Fixes #587`.
