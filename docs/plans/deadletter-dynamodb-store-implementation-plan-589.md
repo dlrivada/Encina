@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (re-verified on 2026-11-13, main `41792c8f8`)
+### What exists today (re-verified on 2026-11-14, main `c871956bf`)
 
 - The contract is `IDeadLetterStore` (`src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`): every member returns `Either<EncinaError, T>`. `AddAsync(IDeadLetterMessage)` is `Right(true)` when stored and `Right(false)` when `(SourcePattern, SourceMessageId)` already exists; the others are `GetAsync`, `GetMessagesAsync(filter, skip, take, newestFirst)`, `GetCountAsync`, `TryClaimForReplayAsync(id, claimExpiredBeforeUtc)`, `MarkAsReplayedAsync`, `DeleteAsync`, `DeleteManyAsync`, `DeleteExpiredAsync` and `SaveChangesAsync`. The issue's original snippet (`DynamoDBContext.SaveAsync`) is stale.
 - The ten database providers implement it with a **global** unique index on `(SourcePattern, SourceMessageId)`, the order `(DeadLetteredAtUtc, Id)` and `DeadLetterStoreLimits` (`MaxPageSize = 1000`).
