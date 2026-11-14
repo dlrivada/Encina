@@ -2,9 +2,9 @@
 
 > **Issue**: [#752](https://github.com/dlrivada/Encina/issues/752)
 > **Type**: Feature
-> **Complexity**: Medium-High (8 phases, no new store column, three pull requests; the tenant events need a prerequisite larger than the audit feature)
-> **Estimated Scope**: ~16 production files and ~20 test files, plus the prerequisite
-> **Related plans**: `abac-decision-audit-implementation-plan-751.md` (fail-closed administrative audit precedent), `multitenancy-spec002-implementation-plan-1257.md` (the SPEC-002 tenant work that consumes the tenant lifecycle), `audit-abac-multitenancy-implementation-plan-798.md` (Security.Audit EventIds 5013-5020)
+> **Complexity**: Medium-High (8 phases, no new store column, six pull requests; the tenant events need a prerequisite larger than the audit feature)
+> **Estimated Scope**: ~18 production files and ~22 test files, plus the prerequisite
+> **Related plans** (by issue number): #751 (fail-closed administrative audit precedent), #1257 (the SPEC-002 tenant work that consumes the tenant lifecycle), #798 (Security.Audit EventIds 5013-5015), #711 (owns `Tenancy` EventIds 1805-1810)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Record who changed the sharding topology or a tenant's configuration, when, and what the previous value was, in the existing audit trail, so that after an incident the change can be reconstructed. The five events of the issue are `ShardingConfigChanged`, `TenantCreated`, `TenantUpdated`, `TenantDeactivated` and `TenantShardMigrated`.
 
-**State of the code on `7a0049c07` (confirms the issue's "State today" and adds what the issue did not find).**
+**State of the code on `d1793713d` (current `origin/main`; confirms the issue's "State today" and adds what the issue did not find).**
 
 - **Sharding.** `ShardTopology` and `IShardTopologyProvider.GetTopology()` are read-only; `DefaultShardTopologyProvider` holds one immutable instance. The only runtime topology change is the resharding workflow: `ReshardingOrchestrator.ExecuteAsync` calls `IReshardingServices.SwapTopologyAsync` at the cutover phase and `RollbackAsync` calls it again to restore the old topology (`src/Encina/Sharding/Resharding/ReshardingOrchestrator.cs:201-213`). Startup configuration (`ShardingOptions`) is code or configuration, not a runtime change. `ShardInfo` carries `ConnectionString`, `ReplicaConnectionStrings` and `IsActive`.
 - **Tenancy.** `ITenantStore` has `GetTenantAsync`, `GetAllTenantsAsync`, `ExistsAsync` only (`InMemoryTenantStore` adds `RegisterTenant`, `RemoveTenant`, `Clear` as concrete methods, not on the port). `TenantInfo` is `(TenantId, Name, Strategy, ConnectionString, SchemaName)`: it has no active flag and no shard assignment. Therefore **`TenantDeactivated` and `TenantShardMigrated` have neither an operation nor a data model today**, `TenantCreated` and `TenantUpdated` have no operation, and #596 (persistent `ITenantStore`, open) does not add a write side either.
@@ -61,7 +61,7 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A change set API that cannot take a secret value: `Changed(name)` for secrets, `Value(name, before, after)` for non-secrets; shard ids, counts, strategy names and flags are values** | Misuse is a compile-time shape; audit shows that it changed | The old value of a connection string cannot be recovered from the trail (by design) |
+| **A) A change set API with `Changed(name)` for secrets and `Value(name, value)` for non-secrets; shard ids, counts, strategy names and flags are values; the guards are a contract test that scans every entry written by a full resharding run for a connection string, an architecture test that fails when a `Value(...)` argument is derived from a member named `*ConnectionString*`, `*Secret*`, `*Password*` or `*Key*`, and review (`Value(string, string)` accepts any string, so the shape alone is not a compile-time guarantee)** | Audit shows that it changed; two automated guards | The old value of a connection string cannot be recovered from the trail (by design) |
 | **B) Record values and mask with a regex** | Looks complete | Masking by pattern leaks (#1173, #1259 class) |
 | **C) Hash the secret** | Detects equality | A hash of a connection string is still derived from a secret |
 
@@ -70,6 +70,7 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 ### Rationale
 
 - `ShardInfo.ConnectionString`, `ReplicaConnectionStrings` and `TenantInfo.ConnectionString` are always recorded through `Changed`.
+- `TenantInfo.Name` and `SchemaName` are not secrets but can identify a natural person (a sole practitioner's tenant): their handling is Design Choice 7.
 
 </details>
 
@@ -83,7 +84,7 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Record the intent first; a `Left` from the sink returns a `Left` and the change is not applied; a failure after the change is retried by the caller's own semantics and never reported as success** | No change without a trail | A recorded intent may exist for a change that then fails (the failure is recorded as a second entry) |
+| **A) Record the intent first; a `Left` from the sink on the forward (execute) path returns a `Left` and the change is not applied** | No forward change without a trail | A recorded intent may exist for a change that then fails (the failure is recorded as a second entry) |
 | **B) Record after the change** | Trail equals reality | A change that cannot be audited has already happened |
 | **C) Log the failure and continue** | Never blocks | Swallows an error in infrastructure |
 
@@ -92,6 +93,8 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 ### Rationale
 
 - For resharding the intent is recorded before `SwapTopologyAsync`, and the outcome (`Success` or `Failure`) is recorded after, as two entries with the same correlation id.
+- This entry covers only the **forward path before the swap**. What happens on the compensating path (rollback) and after an irreversible swap is not settled: Design Choice 9.
+- A sink `Left` becomes the resharding failure `encina.sharding.audit_unavailable` (`ErrorCategory.Unavailable`, ADR-062: a dependency is unavailable), created with `EncinaErrors.Create`, never carrying the store's `EncinaError.Message`; the adapter's pass-through of the store's own `Left` keeps the store's category; a `GetCategory` test asserts both.
 
 </details>
 
@@ -113,7 +116,8 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 ### Rationale
 
 - A wins when audit is only an optional add-on and a missed record is acceptable; B wins when the change must not succeed without its audit record, which is what the issue's constraint says.
-- Names (proposals): `IConfigurationChangeAuditSink`, `ConfigurationChangeRecord`, `ConfigurationChangeSet` in `src/Encina/Auditing/`; the default is `NullConfigurationChangeAuditSink`, registered with `TryAddSingleton`; `AddEncinaAudit` registers `OperationAuditConfigurationChangeSink` with `TryAdd` ahead of the null sink.
+- Names (proposals): `IConfigurationChangeAuditSink`, `ConfigurationChangeRecord`, `ConfigurationChangeSet` in `src/Encina/Auditing/`; the default is `NullConfigurationChangeAuditSink`, registered with `TryAddSingleton`; `AddEncinaAudit` registers `OperationAuditConfigurationChangeSink` ahead of the null sink.
+- **Lifetime (no captive dependency).** `ReshardingOrchestrator` is registered `TryAddSingleton<IReshardingOrchestrator, ReshardingOrchestrator>()` (`ReshardingServiceCollectionExtensions.cs:46`) while the database `IOperationAuditStore` is scoped. The adapter is therefore a **singleton that opens a scope per call** (`IServiceScopeFactory`) and resolves the store (and the optional `IPiiMasker`) inside it, so the orchestrator never captures a scoped service; the DI test builds the "audit + resharding" combination with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
 
@@ -157,6 +161,77 @@ Record who changed the sharding topology or a tenant's configuration, when, and 
 ### Rationale
 
 - The `PolicyActor` rule is reused: an anonymous caller is refused for a change that requires an actor; background workflows run under a declared service identity.
+- **One time source:** `ConfigurationChangeRecord.OccurredAtUtc` is read by the caller from its own `TimeProvider` (the orchestrator already takes one); the adapter reads no time and takes no `TimeProvider`.
+
+</details>
+
+<details>
+<summary><strong>7. Tenant `Name` and `SchemaName` in the recorded values</strong></summary>
+
+**Class:** Dilemma (recommended, pending the maintainer)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Record them as plaintext values in `Metadata`** | Full before/after for reconstruction | A tenant name can identify a natural person (a sole practitioner); the metadata is stored in plaintext on every provider |
+| **B) Record them as `Changed(name)` only, like secrets** | No personal data in the trail | The trail shows that a name changed, not from what to what |
+| **C) Record them through `IPiiMasker` (the masked value), and as `Changed(name)` when no masker is registered** | Reconstruction without the direct identifier; uses the existing masking port of `Encina.Security.Audit` | The masked value may not distinguish two names; the adapter takes the masker, so masking happens in the adapter, not in the core |
+
+### Chosen Option: **C — Masked values, `Changed` without a masker** (recommended, pending the maintainer)
+
+### Rationale
+
+- C wins when the trail must stay reconstructible without holding a direct identifier; A wins if tenant names are known to be organisation names only; B wins when no tenant text may reach the trail. `IPiiMasker? masker` in the adapter is this and only this: masking `Value(...)` entries marked as personal by the emitter.
+
+</details>
+
+<details>
+<summary><strong>8. Resharding enabled with no audit package: the null sink</strong></summary>
+
+**Class:** Dilemma (recommended, pending the maintainer)
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The host fails to start when resharding is registered and the sink is the null sink, unless an explicit, logged opt-out is set (`ReshardingOptions.AllowUnauditedTopologyChanges`, logged once by code at start)** | "The change must not succeed without its audit record" holds by default; consistent with compliance-never-optional (2026-10-30) | A host without `Encina.Security.Audit` must set the opt-out to reshard |
+| **B) A one-time start-up warning only** | Pay-for-what-you-use; no friction | A resharding succeeds with no audit record, contradicting Design Choice 3 |
+
+### Chosen Option: **A — Fail the host unless explicitly opted out** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when a topology change is a control-relevant event (the compliance reading); B wins for hosts that run without any audit package and accept it. The start-up check of Phase 5 implements the choice.
+
+</details>
+
+<details>
+<summary><strong>9. Failure points of a resharding cutover and its rollback</strong></summary>
+
+**Class:** Dilemma (recommended, pending the maintainer)
+
+`RollbackAsync` restores the previous topology after a failed cutover; if its write-ahead record fails, a rule "a `Left` from the sink stops the change" would leave the system in the broken topology because the audit store is down (a safety action blocked by an audit outage). After a successful swap the change has happened, so a `Left` from the outcome entry cannot "not apply" it.
+
+| Failure point | State machine rule under the recommendation |
+|---------------|---------------------------------------------|
+| Before the swap (write-ahead of execute fails) | no swap; result `Left(encina.sharding.audit_unavailable)`; phase `Failed` (Design Choice 3, settled) |
+| After the swap, outcome entry of execute fails | the swap stands (no automatic rollback); the resharding returns `Left(encina.sharding.audit_unavailable)` and the phase stays `CuttingOver` completed in the state store with an `AuditPending` marker; the next orchestrator cycle retries the outcome entry until it succeeds or an operator intervenes; never reported as success while the entry is missing |
+| Rollback, write-ahead fails | the rollback proceeds (a safety action is never blocked by an audit outage); the failed write-ahead is logged by code and the missing record is retried with the same `AuditPending` marker |
+| Rollback, outcome entry fails | same as the execute outcome: the topology stands, `Left` returned, `AuditPending` retried |
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The table above: fail closed before an irreversible forward change, never block the compensating action, retry the missing outcome** | A broken topology is never left in place because of an audit outage; the trail converges | An unaudited rollback can occur for a period; a retry marker in the state store |
+| **B) Rollback is also blocked by a failed write-ahead (strict fail closed)** | No unaudited topology change at all | A broken topology stays until the audit store recovers |
+
+### Chosen Option: **A — Block the forward change, never the rollback** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when availability of the safety action matters more than the completeness of the trail during an outage; B wins when an unaudited change is never acceptable even to repair the system.
 
 </details>
 
@@ -208,9 +283,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create `src/Encina.Security.Audit/OperationAuditConfigurationChangeSink.cs`** (`internal sealed`, scoped): constructor `(IOperationAuditStore store, IPiiMasker? masker, TimeProvider timeProvider, ILogger<...>)`; maps the record per Design Choice 6 (`Metadata["before"]`, `Metadata["after"]` as the change sets' name/value dictionaries, `Metadata["event"]`); returns the store's `Left` unchanged.
-2. **Modify `ServiceCollectionExtensions.cs`** (`AddEncinaAudit`): `services.TryAddScoped<IConfigurationChangeAuditSink, OperationAuditConfigurationChangeSink>()`. Registration order: a `TryAdd` of the null sink in core is replaced because `AddEncinaAudit` removes a null-sink descriptor first (small helper next to `OperationAuditStoreRegistration`), so the adapter wins in any registration order (`AGENTS.md` section 3).
-3. **DI test** with `ValidateOnBuild` and `ValidateScopes`, both orders.
+1. **Create `src/Encina.Security.Audit/OperationAuditConfigurationChangeSink.cs`** (`internal sealed`, **singleton**, Design Choice 4): constructor `(IServiceScopeFactory scopes, ILogger<...>)`; per call it opens a scope and resolves `IOperationAuditStore` and `IPiiMasker?` in it (the masker masks the values the emitter marks personal, Design Choice 7; no `TimeProvider`, time comes from the record); maps the record per Design Choice 6 (`Metadata["before"]`, `Metadata["after"]` as the change sets' name/value dictionaries, `Metadata["event"]`); returns the store's `Left` unchanged.
+2. **Modify `ServiceCollectionExtensions.cs`** (`AddEncinaAudit`): register the adapter as a singleton. Registration order: the null sink of core is replaced because `AddEncinaAudit` removes a null-sink descriptor first (small helper next to `OperationAuditStoreRegistration`), so the adapter wins in any registration order (`AGENTS.md` section 3).
+3. **DI test** with `ValidateOnBuild` and `ValidateScopes`, both orders, and the "audit + resharding" combination (a resolved singleton orchestrator with the singleton adapter and a scoped store).
 4. Counter and log messages in Phase 6.
 
 </details>
@@ -220,7 +295,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Phase 1 merged. IOperationAuditStore is scoped for the database providers and singleton for the in-memory default; the adapter is scoped.
+- Phase 1 merged. IOperationAuditStore is scoped for the database providers and singleton for the in-memory default; the adapter is a singleton that opens a scope per call, because the orchestrator that consumes it is a singleton.
 
 TASK:
 Implement the adapter and its registration; test with a fake IOperationAuditStore that fails, succeeds and records.
@@ -244,10 +319,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify `ReshardingOrchestrator.cs`**: inject `IConfigurationChangeAuditSink` (constructor, null-checked); before `SwapTopologyAsync` in the cutover phase build the record: `Before` and `After` from the two topologies as shard ids, active flags and replica counts, with `Changed("connection_strings")` for any shard whose connection strings differ; call `RecordAsync`; a `Left` fails the resharding (phase `Failed`) before the swap. After the swap record the outcome entry. `RollbackAsync` does the same with `EventName = "ShardingConfigChanged"` and a `rollback` fact.
+1. **Modify `ReshardingOrchestrator.cs`**: inject `IConfigurationChangeAuditSink` (constructor, null-checked); before `SwapTopologyAsync` in the cutover phase build the record: `Before` and `After` from the two topologies as shard ids, active flags and replica counts, with `Changed("connection_strings")` for any shard whose connection strings differ; call `RecordAsync`; a `Left` fails the resharding (phase `Failed`) before the swap with `encina.sharding.audit_unavailable`. After the swap record the outcome entry. `RollbackAsync` does the same with `EventName = "ShardingConfigChanged"` and a `rollback` fact. The failure points follow the table of Design Choice 9 (recommended): execute write-ahead failure blocks the swap; a failed rollback write-ahead or a failed outcome entry never undoes or blocks the topology and leaves an `AuditPending` marker in the resharding state store that the next cycle retries; each point has a unit test with a fake sink.
 2. Actor: the identity of the request when there is one; otherwise `service:encina.sharding.resharding`.
 3. **Modify `ReshardingServiceCollectionExtensions.cs`** to keep the sink resolvable (the null sink makes it optional).
-4. **Log messages** for the sharding side: next free ids in `Core = (100, 199)` after the highest sharding id in use (`ColocationLog` 121-125, `ShardReplicaLogEvents` 126-130; confirm the highest before numbering); codes only.
+4. **Log messages** for the sharding side: the ids follow the highest id in use in `Core = (100, 199)` computed at implementation time over the whole range (ids 121-161 are already used in `src/Encina/Sharding` alone, so the plan numbers none); packed sequentially, codes only: write-ahead failed, outcome failed, rollback audit failed, `AuditPending` retried.
+5. **Error code** `encina.sharding.audit_unavailable` in `ReshardingErrorCodes.cs` (`ErrorCategory.Unavailable`, Design Choice 3) with its `GetCategory` unit test.
 
 </details>
 
@@ -284,7 +360,7 @@ REFERENCE FILES:
 1. In the administration service (Design Choice 5B), build and record the write-ahead record before calling the store, per operation: Created (`After`: name, strategy, schema name, `Changed("connection_string")` when set), Updated (`Before` and `After` of the changed non-secret fields), Deactivated (`IsActive` true to false).
 2. `TenantId` of the entry is the affected tenant, not the caller's; `UserId` is the actor.
 3. `TenantShardMigrated` is not emitted until `tenant-shard-assignment` exists; the event name and its record shape are reserved in the sink documentation.
-4. **Log messages** `TenancyLog` ids 1805-1809 (existing `Tenancy = (1800, 1899)`, 1800-1804 used).
+4. **Log messages** in a new class `TenancyConfigurationAuditLog` with the new range `TenancyConfigurationAudit = (6370, 6379)` (ids 6370-6374: tenant created, updated, deactivated audited, audit write failed, audit retry), claimed from `artifacts/decisions/plan-batch/eventid-blocks.md` because `Tenancy` ids 1805-1810 belong to #711; register the range in `EventIdRanges.cs` first and map it to the `Encina.Tenancy` entry of `AssemblyRanges` in `EncinaEventIdAllocationTests`.
 
 </details>
 
@@ -317,8 +393,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. No option is added: auditing is on when `AddEncinaAudit` is registered; without it the null sink applies (documented as "configuration changes are not audited").
-2. A start-up check (`IHostedService`, following `ABACDecisionAuditStartupCheck`) logs a warning once when multi-tenancy or resharding is registered and the sink is the null sink.
-3. DI tests for the three combinations (audit only, resharding only, both).
+2. A start-up check (`IHostedService`, following `ABACDecisionAuditStartupCheck`), per Design Choice 8 (recommended A): fails host start when resharding is registered and the sink is the null sink, unless `ReshardingOptions.AllowUnauditedTopologyChanges` is set, in which case it logs once by code that topology changes are unaudited; with option B it logs a warning once instead. Multi-tenancy alone (no tenant administration yet) does not trigger it.
+3. DI tests for the combinations (audit only, resharding only, both, resharding with the opt-out).
 
 </details>
 
@@ -350,10 +426,10 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Counter** in `OperationAuditMeter` (`src/Encina.Security.Audit/Diagnostics/OperationAuditMeter.cs`): `encina.audit.config_changes` (`Counter<long>`, tags `event` and `outcome`); the issue proposed `encina.audit.config_change_count`; ADR-054 (lowercase, dot separated, no `_total`) is followed and the name is fixed here.
-2. **Log messages** for the adapter: Security.Audit ids 5021-5026 (the #798 plan takes 5013-5020; confirm the highest in `SecurityAudit = (5000, 5099)` before numbering).
+2. **Log messages** for the adapter: Security.Audit ids 5016-5018 (the next ids after the last one of #798, 5015: recorded (debug), store failed, masker unavailable); three messages, packed, no gap.
 3. **Tenant tag**: through the shared helper of #2676 when it exists (ADR-054 D4); the entry's `TenantId` is already persisted.
 4. No span: events are recorded inside existing operations.
-5. Add the `Encina` assembly's new ids to the `AssemblyRanges` map only if a new range is registered (none expected).
+5. The new range `TenancyConfigurationAudit = (6370, 6379)` is registered and mapped in the pull request that adds the tenant events (Phase 4); the sharding ids sit in the existing `Core` range, already mapped.
 
 </details>
 
@@ -397,14 +473,26 @@ REFERENCE FILES:
 
 **Per-file targets** (proposed; measured values replace them, never lower):
 
-| File | Flags | Justification |
-|------|-------|---------------|
-| `Encina/Auditing/ConfigurationChangeSet.cs` (new) | unit 100, guard 95 | pure builder |
-| `Encina/Auditing/ConfigurationChangeRecord.cs` (new) | unit 95, guard 95 | record with init members |
-| `Security.Audit/OperationAuditConfigurationChangeSink.cs` (new) | unit 98, guard 90, contract 90 | mapping and failure paths |
-| `Encina/Sharding/Resharding/ReshardingOrchestrator.cs` | unit 90, guard 80 | the two new emission points and their failure branches |
-| `Security.Audit/ServiceCollectionExtensions.cs` (existing unit 92, guard 82) | unit 92, guard 82 | one registration line |
-| Tenant administration service (prerequisite) | unit 95, guard 90 | owned by the prerequisite issue; the audit calls add branches |
+"Baseline" is the per-file target in `.github/coverage-manifest/` on `d1793713d`; "none" means no per-file entry (the package default applies).
+
+| File | Baseline | Flags | Justification |
+|------|----------|-------|---------------|
+| `Encina/Auditing/ConfigurationChangeSet.cs` (new, PR 1a) | new | unit 100, guard 95 | pure builder. |
+| `Encina/Auditing/ConfigurationChangeRecord.cs` (new, PR 1a) | new | unit 95, guard 95 | record with init members. |
+| `Encina/Auditing/IConfigurationChangeAuditSink.cs` (new, PR 1a) | new | unit 0 | an interface, no executable line. |
+| `Encina/Auditing/NullConfigurationChangeAuditSink.cs` (new, PR 1a) | new | unit 100, guard 100 | one method returning success. |
+| `Encina/Core/ServiceCollectionExtensions.cs` (PR 1a) | unit 96, guard 86, contract 92 | unchanged | one registration line in a covered method. |
+| `Security.Audit/OperationAuditConfigurationChangeSink.cs` (new, PR 1b) | new | unit 98, guard 90, contract 90 | mapping, scope-per-call and failure paths. |
+| `Security.Audit/ServiceCollectionExtensions.cs` and `OperationAuditStoreRegistration.cs` (PR 1b) | unit 92, guard 82; unit 95 | unchanged | one registration and one helper branch, covered by the order tests. |
+| `Security.Audit/Diagnostics/OperationAuditMeter.cs` (PR 1b) | unit 100, guard 0 | unchanged | one counter read through a meter listener. |
+| `Security.Audit/Diagnostics/ConfigurationChangeAuditLog.cs` (new, PR 1b) | new | unit 90 | generated logging methods exercised with a fake logger. |
+| `Encina/Sharding/Resharding/ReshardingOrchestrator.cs` (PR 2) | none | unit 90, guard 80 | the emission points and every failure branch of Design Choice 9 are unit-tested with a fake sink. |
+| `Encina/Sharding/Resharding/ReshardingServiceCollectionExtensions.cs` (PR 2) | none | unit 80 | one registration check, proven by the DI test. |
+| `Encina/Sharding/Resharding/ReshardingErrorCodes.cs` (PR 2) | none | unit 90 | the new code asserted with its category. |
+| `Encina/Sharding/Resharding/ShardTopologyChangeSetMapper.cs` (new, PR 2) | new | unit 100, guard 90 | the pure topology-to-change-set mapping (CRAP extraction). |
+| `Encina/Sharding/Resharding/ReshardingAuditStartupCheck.cs` (new, PR 1c) | new | unit 95 | the three outcomes (audit present, null sink with opt-out, null sink without) are unit-tested. |
+| `Encina.Tenancy/Diagnostics/TenancyConfigurationAuditLog.cs` (new, PR 3) | new | unit 90 | generated logging methods. |
+| Tenant administration service (prerequisite) | owned by the prerequisite | unit 95, guard 90 | the audit calls add branches; the prerequisite issue sets its own targets. |
 
 CRAP gate: extract the topology diff (`ShardTopology` to change set) into its own small method to keep every method at or below 10.
 
@@ -439,7 +527,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML docs on all new public API; `README.md` of `Encina.Tenancy` and `Encina.Security.Audit`; configuration guide (docs-writer).
-2. ADR in `docs/architecture/adr/`: "Configuration change audit through a core sink" once Design Choices 4 and 5 are answered.
+2. ADR in `docs/architecture/adr/`: "Configuration change audit through a core sink" once Design Choices 4, 5, 8 and 9 are answered (ADR number assigned when the ADR pull request opens).
 3. `changelog.d/752-config-change-audit.added.md` (mechanical-fixer); `PublicAPI.Unshipped.txt` for `Encina` and `Encina.Security.Audit`.
 4. `docs/INVENTORY.md` entry; build with 0 warnings; every coverage flag at its target.
 
@@ -495,28 +583,28 @@ REFERENCE FILES:
 | TenancyMetrics, TenancyActivitySource, TenancyLog (EventIds 1800-1804) | src/Encina.Tenancy/Diagnostics/ | existing diagnostics of the tenancy package |
 | OperationAuditMeter | src/Encina.Security.Audit/Diagnostics/OperationAuditMeter.cs | home of the new counter |
 | EventIdRanges (Tenancy 1800-1899, SecurityAudit 5000-5099, Core 100-199) | src/Encina/Diagnostics/EventIdRanges.cs | ranges to extend |
-| Plan #751 (write-ahead decision audit) | docs/plans/abac-decision-audit-implementation-plan-751.md | pattern for fail-closed audit of administrative operations |
+| #751 (write-ahead decision audit) | src/Encina.Security.ABAC/DecisionAudit/ | pattern for fail-closed audit of administrative operations |
 | Coverage manifests | .github/coverage-manifest/Encina.json, .github/coverage-manifest/Encina.Tenancy.json, .github/coverage-manifest/Encina.Security.Audit.json | per-file targets |
 
 ### Event ID Allocation
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Security.Audit` | 5021-5026 | inside `SecurityAudit = (5000, 5099)`; #798 plan uses 5013-5020 |
-| `Encina.Tenancy` | 1805-1809 | inside `Tenancy = (1800, 1899)`; 1800-1804 in use |
-| `Encina` (sharding) | next free ids in `Core = (100, 199)` | highest in use must be confirmed (121-130 seen); register nothing new |
+| `Encina.Security.Audit` | 5016-5018 | inside `SecurityAudit = (5000, 5099)`; #798 uses 5013-5015 |
+| `Encina.Tenancy` (configuration audit) | 6370-6374 inside the new `TenancyConfigurationAudit = (6370, 6379)` | claimed from `eventid-blocks.md` (free 6370-6399); `Tenancy` 1805-1810 belong to #711, none used here; the range is registered first and mapped to the `Encina.Tenancy` assembly |
+| `Encina` (sharding) | first free ids in `Core = (100, 199)` after the highest in use | ids 121-161 are used in `src/Encina/Sharding` alone; compute over the whole range at implementation time, register nothing new |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 | :--- | :--- | :--- |
-| Production, core abstraction and records (Encina) | 4 | new: sink interface, record, change set builder, null sink |
-| Production, adapter and DI (Security.Audit) | 4 | new 2, modified 2 |
-| Production, sharding emission (Encina) | 3 | modified: orchestrator, registration, log messages |
-| Production, tenancy lifecycle events (Encina.Tenancy), after the prerequisite | 5 | modified 3, new 2 |
-| Tests (unit, guard, contract, justification .md) | 20 | new |
-| Documentation (READMEs, configuration guide, ADR, changelog fragments, PublicAPI, manifests) | 8 | docs-writer and mechanical-fixer |
-| Total | 44 | three pull requests (the tenant part after the prerequisite) |
+| Production, core abstraction and records (Encina) | 5 | new: sink interface, record, change set builder, null sink; modified: core registration |
+| Production, adapter and DI (Security.Audit) | 5 | new 2 (adapter, log class), modified 3 |
+| Production, sharding emission and start-up check (Encina) | 6 | modified: orchestrator, registration, error codes; new: mapper, start-up check, options edit |
+| Production, tenancy lifecycle events (Encina.Tenancy), after the prerequisite | 6 | modified 3, new 3 (including the log class and the range) |
+| Tests (unit, guard, contract, justification .md) | 24 | new |
+| Documentation (READMEs, configuration guide, ADR, changelog fragments, PublicAPI, manifests) | 10 | docs-writer and mechanical-fixer |
+| Total | about 56 | six pull requests (the tenant part after the prerequisite) |
 
 ---
 
@@ -533,7 +621,7 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. Core: IConfigurationChangeAuditSink, ConfigurationChangeRecord, ConfigurationChangeSet (secrets only as Changed), NullConfigurationChangeAuditSink.
 2. Security.Audit: OperationAuditConfigurationChangeSink writing OperationAuditEntry (Action = event name, EntityType = ShardTopology or Tenant, Metadata = redacted before/after); registered so that it wins in any order.
-3. ReshardingOrchestrator: write-ahead record before SwapTopologyAsync, outcome record after; execute and rollback; a sink Left fails the resharding.
+3. ReshardingOrchestrator: write-ahead record before SwapTopologyAsync, outcome record after; execute and rollback; a sink Left before the swap fails the resharding with encina.sharding.audit_unavailable (Unavailable); the rollback and the post-swap outcome follow Design Choice 9.
 4. After the tenant administration prerequisite: Created, Updated, Deactivated events; TenantShardMigrated after tenant-shard-assignment.
 5. Counter encina.audit.config_changes, log messages in registered ranges, start-up warning for the null sink.
 6. Tests of 7 types (4 justified), docs, ADR, fragments via specialists.
@@ -559,12 +647,12 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Audit records are write-only here. |
 | 2 | OpenTelemetry | ✅ | Counter `encina.audit.config_changes`; tenant tag through the #2676 helper when it exists. |
-| 3 | Structured Logging | ✅ | Security.Audit 5021-5026, Tenancy 1805-1809, next free ids in the `Core` range for sharding; codes only. |
+| 3 | Structured Logging | ✅ | Security.Audit 5016-5018, the new `TenancyConfigurationAudit` range 6370-6379 (ids 6370-6374), first free ids in the `Core` range for sharding; codes only. |
 | 4 | Health Checks | ❌ | No new checkable dependency; a one-time start-up warning covers the null sink. |
 | 5 | Validation | ❌ | No new input; the records are produced internally. |
 | 6 | Resilience | ❌ | Failure semantics are fail closed (Design Choice 3), not a retry feature. |
 | 7 | Distributed Locks | ❌ | No shared mutable state is introduced; concurrent reshardings are already serialised by the state store. |
-| 8 | Transactions | ⏭️ | The write-ahead record is not in the change's transaction; atomic commit of change and audit is revisited with the tenant administration prerequisite (its store may support a unit of work). Tracked by the prerequisite issue file `tenant-lifecycle-administration`. |
+| 8 | Transactions | ⏭️ | Defer: the audit write is not in the change's transaction (the plan says so: write-ahead plus an outcome entry, Design Choice 9). Whether change and audit can commit atomically through a unit of work is its own question, a separate line in the prerequisite issue file `tenant-lifecycle-administration`; its issue number is added here when `open-issue` has created it (until then this Defer carries no number). |
 | 9 | Idempotency | ❌ | Each change is a distinct event. |
 | 10 | Multi-Tenancy | ✅ | The entry records the affected tenant (`TenantId`). |
 | 11 | Module Isolation | ❌ | No module scoping of configuration changes. |
@@ -574,18 +662,21 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- **For Phases 1-3 and 5-8 (sharding)**: none open. They can start after the maintainer answers Design Choice 4.
-- **For Phase 4 (tenant events)**: issue file `tenant-lifecycle-administration` (administration service, write port, `TenantInfo.IsActive`) and, for `TenantShardMigrated`, issue file `tenant-shard-assignment`. #596 (persistent `ITenantStore`) supplies the persistence the service writes through.
-- **Soft**: #2676 (tenant tag helper), #2972 (administration surface and platform-operator permission), #749 and #750 (sibling audit trails for messaging and sagas that can reuse the sink pattern), #798 plan for the Security.Audit EventId block.
+- **For Phases 1-3 and 5-8 (sharding)**: none open. They can start after the maintainer answers Design Choices 4, 8 and 9.
+- **For Phase 4 (tenant events)**: issue files `tenant-lifecycle-administration` (administration service, write port, `TenantInfo.IsActive`) and, for `TenantShardMigrated`, `tenant-shard-assignment`; their issue numbers are listed here once `open-issue` has created them. #596 (persistent `ITenantStore`) supplies the persistence the service writes through.
+- **Soft**: #2676 (tenant tag helper), #2972 (administration surface and platform-operator permission), #749 and #750 (sibling audit trails for messaging and sagas that can reuse the sink pattern), #798 (Security.Audit EventIds 5013-5015; this plan takes 5016-5018), #1257 (the tenant lifecycle consumer).
 
 ---
 
 ## Next Steps
 
-1. Maintainer answers Design Choices 4 and 5 when work on the issue starts (recorded in `## Maintainer Decisions`).
+1. Maintainer answers Design Choices 4, 5, 7, 8 and 9 when work on the issue starts (recorded in `## Maintainer Decisions`).
 2. Open the two prerequisite issues from the files in `artifacts/issues/`.
-3. Worker pull requests, each at most 15 files and 1500 lines:
-   - **PR 1**: Phases 1, 2, 5 and 6 (core abstraction, adapter, registration, start-up check, counter) with their unit, guard and contract tests: about 15 files.
-   - **PR 2**: Phase 3 (resharding emission) with tests and the justification files: about 10 files.
-   - **PR 3**: Phase 4 (tenant events) after the prerequisite, plus documentation and the ADR.
+3. Worker pull requests. Counts include tests, manifest entries, PublicAPI lines, fragments and justification files; each builds alone, carries its own tests and stays within 15 files and 1500 lines (recount at start):
+   - **PR 1a** (core sink): `IConfigurationChangeAuditSink`, `ConfigurationChangeRecord`, `ConfigurationChangeSet`, `NullConfigurationChangeAuditSink`, `Core/ServiceCollectionExtensions.cs` (5); unit tests for the builder, the record and the null sink, and a DI test (4); `Encina.json` manifest, `PublicAPI.Unshipped.txt` (2): 11 files.
+   - **PR 1b** (adapter): `OperationAuditConfigurationChangeSink`, `ServiceCollectionExtensions`, the null-sink replacement helper in `OperationAuditStoreRegistration`, `OperationAuditMeter`, `ConfigurationChangeAuditLog` (5); adapter unit, guard and contract tests, DI test with the audit + resharding combination (4); `Encina.Security.Audit.json` manifest, `PublicAPI.Unshipped.txt`, changelog fragment (3): 12 files.
+   - **PR 1c** (start-up policy, Design Choice 8): `ReshardingAuditStartupCheck`, `ReshardingOptions`, `ReshardingServiceCollectionExtensions` (3); unit and DI tests (2); manifest, PublicAPI (2): 7 files.
+   - **PR 2** (resharding emission): `ReshardingOrchestrator`, `ShardTopologyChangeSetMapper`, `ReshardingErrorCodes`, the state-store `AuditPending` marker (the resharding state type and its store interface implementers, counted at start) (4); unit tests for the orchestrator failure points, the mapper and the error category (3); the four justification `.md` files (4); manifest, PublicAPI (2): 13 files.
+   - **PR 3**: Phase 4 (tenant events, the range registration, `TenancyConfigurationAuditLog`) after the prerequisite, with its tests.
+   - **PR 4**: documentation, the ADR and the READMEs.
 4. Link this plan from #752.
