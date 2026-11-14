@@ -2,12 +2,12 @@
 
 > **Issue**: [#1241](https://github.com/dlrivada/Encina/issues/1241) (SPEC-002 tracking id **P-39**, priority **P0**)
 > **Type**: Feature
-> **Complexity**: Medium-High (8 phases, new package, no provider-specific code, ~42 files, 3 pull requests)
+> **Complexity**: Medium-High (8 phases, new package, no provider-specific code, ~85 files, 8 pull requests)
 > **Estimated Scope**: ~1,500-2,000 lines of production code + ~1,900-2,500 lines of tests
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-048, AC-039, section 5.11 (generic extension points), DEC-015 (eIDAS 2 is post-1.0, #805); cross-cutting REQ-061 (AC-043) and REQ-062 (AC-044)
-> **Depends on**: [#1233](https://github.com/dlrivada/Encina/issues/1233) (P-31, `Encina.Http`; plan [http-implementation-plan-1233.md](http-implementation-plan-1233.md)) for the RFC 3161 client; [#1240](https://github.com/dlrivada/Encina/issues/1240) (P-38, `Encina.ChainedLog`; plan [chained-log-implementation-plan-1240.md](chained-log-implementation-plan-1240.md)) for the chained-log hook
+> **Depends on**: [#1233](https://github.com/dlrivada/Encina/issues/1233) (P-31, `Encina.Http`; plan [http-implementation-plan-1233.md](http-implementation-plan-1233.md)) (application-side configuration of the named client, not a package reference); [#1240](https://github.com/dlrivada/Encina/issues/1240) (P-38, `Encina.ChainedLog`; plan [chained-log-implementation-plan-1240.md](chained-log-implementation-plan-1240.md)) for the chained-log hook
 > **Related**: [#1246](https://github.com/dlrivada/Encina/issues/1246) (`ICertificateReader`, X.509 retrieval per tenant), [#805](https://github.com/dlrivada/Encina/issues/805) (eIDAS 2, post-1.0)
 
 ---
@@ -19,7 +19,7 @@ Clinical consents, documents and chained records benefit from evidential time (a
 This plan delivers:
 
 1. A new package **`Encina.Compliance.Evidence`** with `ITimeStampAuthority` (request a token for a digest, verify a token) and `ISignatureProvider` (sign, verify), their models and coded errors.
-2. **`Rfc3161TimeStampAuthority`**: an RFC 3161 client built on `System.Security.Cryptography.Pkcs` (`Rfc3161TimestampRequest`, `Rfc3161TimestampToken`; no third-party library) that sends the request over a named `HttpClient` from `Encina.Http` (#1233), so credentials and client certificates resolve per tenant and calls are rate limited and redacted by that package.
+2. **`Rfc3161TimeStampAuthority`**: an RFC 3161 client built on `System.Security.Cryptography.Pkcs` (`Rfc3161TimestampRequest`, `Rfc3161TimestampToken`; no third-party library) that sends the request over a named `HttpClient` taken from `IHttpClientFactory`; when the application configures that name with `Encina.Http` (#1233), credentials and client certificates resolve per tenant and calls are rate limited and redacted by that package. The package itself does not reference `Encina.Http`.
 3. **`CertificateSignatureProvider`**: a CMS (PKCS #7, detached) signature provider over an `X509Certificate2` resolved per tenant (`ICertificateReader`, #1246). It is a plain electronic signature and is documented as **not** a qualified electronic signature; applications that need a qualified signature back `ISignatureProvider` with their provider.
 4. **Optional hooks** from the chained log (P-38) and Attestation: extension methods that time-stamp a `ChainedLogEntry` or an `AttestationReceipt` on request and return the token to the caller, plus notifications that audit handlers can record. Automatic, durable stamping is a follow-up (Design Choice 4).
 
@@ -27,11 +27,24 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 
 **Standards**: RFC 3161 (Time-Stamp Protocol), RFC 5652 (CMS), eIDAS Reg. (EU) 910/2014 Art. 41-42 (electronic time stamps) and as amended by Reg. (EU) 2024/1183 (eIDAS 2) [S]; GDPR Art. 5(1)(f), Art. 32; SPEC-002 REQ-048.
 
-**Affected packages**: new `Encina.Compliance.Evidence`; `Encina` (core: one EventId range); `Encina.Http` and `Encina.ChainedLog` and `Encina.Compliance.Attestation` and `Encina.Security.Secrets` are consumed and not modified.
+**Affected packages**: new `Encina.Compliance.Evidence`; `Encina` (core: one EventId range); `Encina.ChainedLog`, `Encina.Compliance.Attestation` and `Encina.Security.Secrets` are consumed and not modified (their READMEs get one section, PR 8); `Encina.Http` is configured by the application, not referenced.
 
 **Provider category**: none. The issue states "no provider-specific code": the package keeps no store, so the 10-provider matrix does not apply. Persisting tokens inside the chained log is a deferred issue (Design Choice 4).
 
-**Size**: about 42 files, so three worker pull requests: PR 1 (abstractions, models, errors, options, RFC 3161 client and verification, diagnostics, unit and guard tests); PR 2 (signature provider, hooks, DI, health check, notifications, contract and integration tests with a fake authority); PR 3 (documentation, manifests follow-ups, load/benchmark justifications). Each stays within 15 files and 1,500 lines.
+**Size**: about 85 files including tests, manifests, PublicAPI, `ProjectReference` edits and fragments, so eight worker pull requests. Every PR builds and passes alone with its own tests and manifest rows, stays within 15 files and 1,500 lines, and references only packages that are on main when it opens. The package never references `Encina.Http`: it takes its client by name from `IHttpClientFactory` (default name `encina-timestamp-authority`), and the application configures that name with `AddEncinaHttpClient` (per-tenant credentials, mTLS, rate limits, redaction) or with a plain `AddHttpClient`; this is the registration point, not a transition layer, so nothing is replaced later.
+
+| PR | Content | Files | Hard prerequisite |
+|----|---------|-------|-------------------|
+| 1 | Skeleton: csproj (references `Encina` and `System.Security.Cryptography.Pkcs` only), `Encina.slnx`, `PublicAPI.Shipped/Unshipped.txt`, README, manifest, `EvidenceErrors`, `TimeStampRequest`, `TimeStampToken`, `TimeStampVerification`, `ITimeStampAuthority`; unit and guard tests | 13 | none |
+| 2 | RFC 3161 client: `Rfc3161TimeStampAuthority`, `TimeStampTokenVerifier`, `TimeStampOptions` and validator, PublicAPI, manifest; unit, guard, contract and WireMock integration tests with a fake authority (test helper that builds real tokens) | 13 | PR 1 |
+| 3 | `AddEncinaEvidence` / `UseRfc3161TimeStamping`, `EvidenceDiagnostics`, `EvidenceLogMessages`, `EventIdRanges.cs`, `EncinaEventIdAllocationTests`, `EvidenceHealthCheck`, PublicAPI (`Encina` and the package), manifest; DI, telemetry, health and guard tests | 12 | PR 2 |
+| 4 | Signature abstractions: `ISignatureProvider`, `SignatureRequest`, `SignatureResult`, `SignatureVerification`, `SignatureLevel`, PublicAPI, manifest; unit and guard tests | 9 | PR 1 |
+| 5 | `CertificateSignatureProvider`, `SignatureOptions` and validator, `EvidenceSignedNotification`, csproj `ProjectReference` to `Encina.Security.Secrets`, DI (modify), PublicAPI, manifest; unit, guard and contract tests | 13 | PR 3, PR 4, and #1246 (`ICertificateReader`) merged |
+| 6 | ChainedLog hook: `ChainedLogTimeStampExtensions`, `TimeStampEvidence`, `EvidenceTimeStampedNotification`, csproj `ProjectReference` to `Encina.ChainedLog`, PublicAPI, manifest; unit, guard and integration tests on real entries | 11 | PR 3, and #1240 merged |
+| 7 | Attestation hook: `AttestationTimeStampExtensions`, csproj `ProjectReference` to `Encina.Compliance.Attestation`, PublicAPI, manifest; unit, guard and integration tests on real receipts | 8 | PR 6 |
+| 8 | Documentation: package README final, `docs/features/` page, README sections of `Encina.ChainedLog` and `Encina.Compliance.Attestation`, `docs/INVENTORY.md`, `added` fragment, load and benchmark justification `.md` files | 9 | PR 7 |
+
+PRs 1 to 4 can merge before #1233, #1240 and #1246; only PR 5 and PR 6 wait for the packages named in the last column.
 
 ---
 
@@ -44,44 +57,47 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) New package `Encina.Compliance.Evidence` referencing `Encina.Http`, `Encina.ChainedLog` and `Encina.Compliance.Attestation`** | Applications that only use attestation do not pull `Encina.Http` and `System.Security.Cryptography.Pkcs`; the extension points are opt-in | One more package; it references the two evidence-producing packages for the hooks |
-| **B) Inside `Encina.Compliance.Attestation`** | The issue lists Attestation as affected; no new package | Every Attestation user takes `Encina.Http` and the Pkcs library; Attestation grows beyond attestation |
+| **A) New package `Encina.Compliance.Evidence` referencing `Encina.ChainedLog`, `Encina.Compliance.Attestation` and `Encina.Security.Secrets` for the hooks and the signature provider** | Applications that only use attestation do not pull `System.Security.Cryptography.Pkcs`; the extension points are opt-in | One more package; it references the two evidence-producing packages for the hooks |
+| **B) Inside `Encina.Compliance.Attestation`** | The issue lists Attestation as affected; no new package | Every Attestation user takes the Pkcs library; Attestation grows beyond attestation |
 | **C) Two packages, `Encina.TimeStamping` and `Encina.Signatures`** | Smallest units | The two share models, options, tenant handling and hooks; two packages for two small abstractions |
 
-### Chosen Option: **A — one new package**
+### Chosen Option: **A — one new package (recommended, pending the maintainer)**
 
 ### Rationale
 
-- The issue says "home package fixed in the implementation plan"; pay-for-what-you-use (AGENTS.md section 1) puts an optional capability that needs an HTTP client and a cryptography package into a package of its own.
-- The name is regulation-neutral (evidence), consistent with the neutral naming of `Encina.ChainedLog`; eIDAS appears in the documentation, not in type or option names.
+- Scenario in which A wins: an application that wants time-stamping and signatures together under one registration and one set of tenant and trust options.
+- Scenario in which C wins: an application that only needs a time-stamp client and wants a package with no signature or certificate-reader code.
+- Scenario in which B wins: the maintainer prefers fewer packages and accepts that every Attestation user takes the Pkcs dependency.
+- Recommendation A: pay-for-what-you-use (AGENTS.md section 1) puts an optional capability that needs a cryptography package into a package of its own; the issue says "home package fixed in the implementation plan", so the maintainer confirms it. The name is regulation-neutral (evidence), consistent with `Encina.ChainedLog`; eIDAS appears in the documentation, not in type or option names. Option C (two neutral packages) also satisfies pay-for-what-you-use, which is why this is a Dilemma.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 1 ("pay-for-what-you-use (every feature opt-in)") and section 3 (provider coherence: abstractions and implementations placed by dependency); the issue body ("home package fixed in the implementation plan")
+**Class:** Dilemma
+**Settled by:** none; awaits the maintainer
 
 </details>
 
 <details>
-<summary><strong>2. RFC 3161 Implementation — the platform library, a named <code>HttpClient</code> from <code>Encina.Http</code></strong></summary>
+<summary><strong>2. RFC 3161 Implementation — the platform library, a named <code>HttpClient</code> from <code>IHttpClientFactory</code></strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `System.Security.Cryptography.Pkcs` (`Rfc3161TimestampRequest`, `Rfc3161TimestampToken`) for the request, parsing and signature check; transport through a named client registered with `AddEncinaHttpClient` of `Encina.Http`** | No third-party dependency (the package is already version-managed by the repository); per-tenant credentials, mTLS, rate limits and redaction come from #1233 | Depends on #1233 being implemented; the platform API cannot build a token (tests build one by hand) |
+| **A) `System.Security.Cryptography.Pkcs` (`Rfc3161TimestampRequest`, `Rfc3161TimestampToken`) for the request, parsing and signature check; transport through a named client taken from `IHttpClientFactory` (the application configures that name with `AddEncinaHttpClient` of `Encina.Http` for per-tenant credentials, mTLS, rate limits and redaction)** | No third-party dependency (the package is already version-managed by the repository); no project reference to `Encina.Http`, so it builds before #1233 | The platform API cannot build a token (tests build one by hand) |
 | **B) A third-party RFC 3161 library (for example BouncyCastle)** | Can also create tokens | A large dependency for a client that only requests and verifies |
 | **C) Hand-written ASN.1 request and response parsing** | No dependency | Security-sensitive parsing we should not own |
 
-### Chosen Option: **A — platform Pkcs library over `Encina.Http`**
+### Chosen Option: **A — platform Pkcs library over a named client**
 
 ### Rationale
 
 - The client sends only the digest (`Rfc3161TimestampRequest.CreateFromHash`), a random nonce and `RequestSignerCertificates = true`; the document never leaves the application.
-- Verification checks, in order: the response status (granted, grantedWithMods; anything else is `Left(evidence.timestamp_rejected)` with the status code), the nonce, the message imprint against the expected digest and algorithm, the CMS signature over the TSTInfo, and the signer certificate chain against `TimeStampOptions.TrustedRoots` **at the token's generation time** (`ChainPolicy.VerificationTime`), with the `id-kp-timeStamping` extended key usage. Revocation checking is on by default (`X509RevocationMode.Online`); an unreachable revocation source makes verification `IsValid = false` (fail closed), and `RevocationMode = Offline` is an explicit, logged opt-out for air-gapped systems.
+- Verification checks, in order: the response status (granted, grantedWithMods; anything else is `Left(evidence.timestamp_rejected)` with the status code), the nonce, the message imprint against the expected digest and algorithm, the CMS signature over the TSTInfo, and the signer certificate chain against `TimeStampOptions.TrustedRoots` **at the token's generation time** (`ChainPolicy.VerificationTime`), with the `id-kp-timeStamping` extended key usage. The chain policy uses `X509ChainTrustMode.CustomRootTrust` with `CustomTrustStore = TrustedRoots`, so the machine store is never trusted in addition to the configured roots (without it the system roots would be accepted too: a fail-open). Revocation checking is on by default (`X509RevocationMode.Online`); an unreachable revocation source makes verification `IsValid = false` with the distinct code `evidence.revocation_unavailable` (fail closed), and `RevocationMode = Offline` is an explicit, logged opt-out for air-gapped systems.
+- What `IsValid = false` means: revocation status is evaluated now, even though the chain time is the token time. A TSA certificate revoked after a token was legitimately issued therefore makes older tokens `IsValid = false`, and a CRL/OCSP outage turns valid evidence into invalid; the result says "could not prove validity now", not "the token is forged". The documentation states this, and `revocation_unavailable` lets an application treat an outage differently from a bad signature.
 - A Right with `IsValid = false` and a code describes a bad token; a `Left` means the verification could not run (for example no trust roots configured).
 - The fake authority of the tests builds a TSTInfo with `AsnWriter`, signs it with `SignedCms` and a test certificate, and serves it through `Encina.Testing.WireMock`.
 
-**Class:** Settled
-**Settled by:** RFC 3161 and RFC 5652; the issue body ("an RFC 3161 HTTP client implementation over `Encina.Http` (P-31)"); AGENTS.md section 3 ("Compliance and security gates fail closed"); `Directory.Packages.props` (`System.Security.Cryptography.Pkcs` is already managed)
+**Class:** Trivial
+**Settled by:** Existing convention: `Directory.Packages.props` already manages `System.Security.Cryptography.Pkcs` (10.0.13), the platform API for RFC 3161; the fail-closed verification follows AGENTS.md section 3. Options B (BouncyCastle) and C (a hand parser) are not excluded by a rule, they are not chosen because the platform already provides the primitive; nothing else in the plan depends on this choice
 
 </details>
 
@@ -96,16 +112,19 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 | **B) Ship only the interface (the issue's "applications back with their provider")** | Smallest | An abstraction with no implementation is untestable in the package and is dead code until an application writes one |
 | **C) Ship PAdES/XAdES/CAdES profiles** | Closer to eIDAS formats | A signature-format module: the eIDAS 2 module that is post-1.0 (#805) |
 
-### Chosen Option: **A — interface plus a plain CMS reference implementation**
+### Chosen Option: **A — interface plus a plain CMS reference implementation (recommended, pending the maintainer)**
 
 ### Rationale
 
+- Scenario in which A wins: an application that wants a working per-tenant signature out of the box and a tested reference for its own qualified provider.
+- Scenario in which B wins: the issue's text (comment of 2026-10-17: "generic extension points only (`ITimeStampAuthority` ..., `ISignatureProvider`)" and the body "applications back with their provider") is read literally: only the interface ships, applications supply every implementation, and no code can be mistaken for a qualified signature.
+- Recommendation A because an abstraction used only by tests is weaker than one with a tested implementation; B is the literal reading of the issue and the maintainer decides which one it is.
 - `SignatureResult` carries `SignatureLevel` (`Plain` for the shipped provider; an application's provider may report `Advanced` or `Qualified`, which Encina does not check), the signature bytes, the algorithm, the signer certificate thumbprint and the signing time from `TimeProvider`.
 - The certificate (with private key) is resolved per tenant by `ICertificateReader` (#1246); the private key is never logged or serialized.
 - Verification checks the CMS signature, the chain against `SignatureOptions.TrustedRoots` and the certificate validity at the signing time.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 3 ("NEVER add ... legacy code" / every line serves a current purpose, section 1); SPEC-002 section 5.11 and DEC-015 (generic points now, eIDAS 2 module post-1.0)
+**Class:** Dilemma
+**Settled by:** none; awaits the maintainer (SPEC-002 section 5.11 and DEC-015 allow both A and B: generic points now, eIDAS 2 module post-1.0)
 
 </details>
 
@@ -127,7 +146,10 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 - Scenario in which A wins: the scope the issue declares ("Provider Implementation Matrix: Not applicable"), and applications that stamp selected records (a signed consent, a closing invoice batch) rather than every entry.
 - Scenario in which B wins: the reference application wants every chained-log entry stamped without writing code and wants the tokens retrievable with the chain; then token persistence belongs in the chained log on all providers.
 - Recommendation A for this issue because B needs the chained log (#1240) to exist first and is a 10-provider feature of its own; a follow-up issue proposing B ("Automatic time-stamping of chained-log entries with persisted RFC 3161 tokens on the 10 database providers") is opened with this plan, so nothing is forgotten.
-- The helpers never run inside a database transaction on the caller's behalf: stamping happens after the append has committed, with the entry's hash as the digest.
+- The helpers never run inside a database transaction on the caller's behalf: stamping happens after the append has committed.
+- Digest: `digest = SHA-256(raw entry-hash bytes)` (or the algorithm the authority is configured for, `TimeStampOptions.DigestAlgorithm`). With the HMAC hasher of #1240 the entry hash is a MAC, not the output of a hash algorithm, and the TSA imprint needs a real `HashAlgorithmName` and length; hashing the bytes makes the imprint length check and the verification unambiguous. A unit test verifies a token against the same derivation. For an `AttestationReceipt` the digest is `SHA-256(content hash bytes)`.
+- Tenant mismatch (fail closed, `Forbidden`): the entry carries its own `TenantId` (the receipt's comes from its `AuditRecord`). The hook compares it with the tenant resolved from the ambient context and returns `Left(evidence.tenant_mismatch)` (category `Forbidden`) when they differ or when tenancy is required and no tenant resolves, so an entry of tenant A is never stamped with tenant B's endpoint and credential and never published as tenant B; a unit test covers the mismatch for both entry kinds.
+- `Publish` of `EvidenceTimeStampedNotification` returning `Left` after a successful stamp is neither swallowed nor turned into a failed stamp: it is logged by error code and counted (`evidence.outcome = notification_failed`), and the evidence is still returned to the caller.
 
 **Class:** Dilemma
 **Settled by:** none; awaits the maintainer
@@ -141,7 +163,7 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A default TSA endpoint plus an optional per-tenant endpoint map in `TimeStampOptions`; credentials (API key, bearer, client certificate) resolved per tenant by the `Encina.Http` auth providers and `ISecretReader` under a name composed from client, tenant and purpose; with tenancy required and no tenant, `Left(evidence.tenant_required)`** | Meets AC-043 ("TSA and signature credentials resolve per tenant"); secrets stay in the secrets providers | A tenant map in options for endpoints |
+| **A) A default TSA endpoint plus an optional per-tenant endpoint map in `TimeStampOptions`; credentials (API key, bearer, client certificate) resolved per tenant by the `Encina.Http` auth providers and `ISecretReader` under a name composed from client, tenant and purpose with an injective encoding (each segment length-prefixed, the same rule #1233 must apply to its secret names; the two plans are aligned through the sibling link, so tenant `a` + purpose `b:c` and tenant `a:b` + purpose `c` never collide; a property test generates segment pairs and asserts no two distinct inputs map to one name); with tenancy required and no tenant, `Left(evidence.tenant_required)`** | Meets AC-043 ("TSA and signature credentials resolve per tenant"); secrets stay in the secrets providers | A tenant map in options for endpoints |
 | **B) One global endpoint and credential** | Simplest | A tenant's credential or certificate could be used for another; fails AC-043 |
 | **C) A store of tenant TSA settings** | Dynamic | A new store on 10 providers, outside this issue's matrix |
 
@@ -150,11 +172,36 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 ### Rationale
 
 - Plain `http://` endpoints are refused unless `AllowInsecureHttp` is set (an explicit, logged opt-out): the token is signed, but the request leaks the digest and metadata, and defaults must fail closed.
-- Tenant resolution follows `DefaultConsentService` (`RequireTenantContext`, ambient tenant, fixed default tenant when tenancy is off).
+- Tenant resolution follows `DefaultConsentService` (`RequireTenantContext`, ambient tenant through `IRequestContextAccessor`); with tenancy off there is no tenant value at all (null, as `DefaultConsentService` does), so the default endpoint and credential apply and no literal "default" tenant can clash with a real tenant of that name.
 - The signature certificate name is composed the same way (`evidence-signing`, tenant).
 
 **Class:** Settled
 **Settled by:** SPEC-002 REQ-061 and AC-043 (as written in the issue's acceptance criteria: "TSA and signature credentials resolve per tenant"); plan #1233 (per-client, per-tenant handlers and secret names); AGENTS.md section 3 (fail closed)
+
+</details>
+
+<details>
+<summary><strong>6. Where the Hooks Live — in the core package or in small satellites</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The two hook classes live in `Encina.Compliance.Evidence` (PRs 6 and 7), which then references `Encina.ChainedLog` and `Encina.Compliance.Attestation`** | One package; one registration; simplest to find | An application that only wants an RFC 3161 client also pulls the chained log and the attestation module |
+| **B) Satellites `Encina.Compliance.Evidence.ChainedLog` and `Encina.Compliance.Evidence.Attestation`, each referencing the core package and one evidence package** | Pay-for-what-you-use: the core stays on `Encina` and Pkcs only | Two more packages, each with README, manifest and PublicAPI |
+| **C) The hooks live in `Encina.ChainedLog` and `Encina.Compliance.Attestation`, which reference the Evidence abstractions** | No extra package | Reverses the dependency: the primitives would reference an evidence package |
+
+### Chosen Option: **A — hooks in the core package (recommended, pending the maintainer)**
+
+### Rationale
+
+- Scenario in which A wins: the usual application stamps selected chained-log entries and receipts and wants one package.
+- Scenario in which B wins: an application that only needs the RFC 3161 client and does not want the chained log or the attestation module in its dependency graph.
+- Scenario in which C wins: the maintainer wants the primitives to offer stamping themselves and accepts the reversed reference.
+- Recommendation A for simplicity; the split into PRs 6 and 7 already isolates the two references, so moving to B later is a package move of two files each.
+
+**Class:** Dilemma
+**Settled by:** none; awaits the maintainer
 
 </details>
 
@@ -169,14 +216,25 @@ Qualification is not decided by this code. A token is a qualified time-stamp onl
 
 #### `src/Encina.Compliance.Evidence/` (new package)
 
-1. **`Encina.Compliance.Evidence.csproj`** (references `Encina`, `Encina.Http`, `Encina.ChainedLog`, `Encina.Compliance.Attestation`, `Encina.Security.Secrets`, `System.Security.Cryptography.Pkcs`, PublicApiAnalyzers), `PublicAPI.Shipped.txt`/`Unshipped.txt`, `README.md`, `Encina.slnx`, coverage manifest (written by `mechanical-fixer`)
+1. **`Encina.Compliance.Evidence.csproj`** (PR 1: references `Encina`, `System.Security.Cryptography.Pkcs` and PublicApiAnalyzers only; `Encina.Security.Secrets` is added in PR 5, `Encina.ChainedLog` in PR 6 and `Encina.Compliance.Attestation` in PR 7, each with the PR that needs it), `PublicAPI.Shipped.txt`/`Unshipped.txt`, `README.md`, `Encina.slnx`, coverage manifest (written by `mechanical-fixer`)
 2. **`Model/TimeStampRequest.cs`** — `HashAlgorithmName`, `Digest` (`ReadOnlyMemory<byte>`), `Policy?` (OID), `RequestCertificate` (default true)
 3. **`Model/TimeStampToken.cs`** — `Encoded` (bytes), `GenerationTimeUtc`, `SerialNumber`, `HashAlgorithm`, `Imprint`, `TsaName?`, `PolicyOid?`
 4. **`Model/TimeStampVerification.cs`** — `IsValid`, `Code?` (`evidence.imprint_mismatch`, `evidence.chain_invalid`, `evidence.signature_invalid`, `evidence.revocation_unavailable`, ...), `GenerationTimeUtc?`, `VerifiedAtUtc`
 5. **`Model/SignatureRequest.cs`, `Model/SignatureResult.cs`, `Model/SignatureVerification.cs`, `Model/SignatureLevel.cs`** (`Plain`, `Advanced`, `Qualified`)
 6. **`Abstractions/ITimeStampAuthority.cs`** — `RequestAsync(TimeStampRequest, ct)` and `VerifyAsync(TimeStampToken, ReadOnlyMemory<byte> expectedDigest, HashAlgorithmName, ct)`, both `Either<EncinaError, T>`
 7. **`Abstractions/ISignatureProvider.cs`** — `SignAsync(SignatureRequest, ct)` and `VerifyAsync(SignatureResult, ReadOnlyMemory<byte> digest, ct)`
-8. **`EvidenceErrors.cs`** — `evidence.timestamp_rejected`, `evidence.timestamp_failed`, `evidence.tenant_required`, `evidence.trust_roots_missing`, `evidence.endpoint_insecure`, `evidence.certificate_unavailable`, `evidence.signature_failed` (codes and non-identifying details; never digests, tokens or certificate text)
+8. **`EvidenceErrors.cs`** (PR 1) — codes and non-identifying details only (never digests, tokens or certificate text); every code is created with `EncinaErrors.Create(code, category, ...)` (ADR-062, the completeness scan fails an uncategorized call), each category asserted by a `GetCategory` test:
+
+   | Code | `ErrorCategory` | Rule |
+   |------|-----------------|------|
+   | `evidence.timestamp_rejected` | `UpstreamFailure` | R7: the authority answered with a rejection status |
+   | `evidence.timestamp_failed` | `Unavailable`, `Timeout` or `UpstreamFailure` by cause | R7: network error or 503 is `Unavailable`, a timeout is `Timeout`, an unexpected response is `UpstreamFailure` |
+   | `evidence.tenant_required` | `InvalidRequest` | R3: a missing tenant |
+   | `evidence.tenant_mismatch` | `Forbidden` | the hook's entry belongs to another tenant than the ambient one |
+   | `evidence.trust_roots_missing`, `evidence.endpoint_insecure` | `Internal` | R1/R4: wiring found at start-up |
+   | `evidence.certificate_unavailable`, `evidence.signature_failed` | `Internal` | R4: key or crypto failure |
+
+   Verification outcomes (`imprint_mismatch`, `chain_invalid`, `signature_invalid`, `revocation_unavailable`) stay `Right(IsValid = false)` with a code, not errors
 
 </details>
 
@@ -294,11 +352,13 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Hooks/ChainedLogTimeStampExtensions.cs`** — `TimeStampAsync(this ITimeStampAuthority, ChainedLogEntry entry, ct)`: digest = the entry's hash bytes with the hasher's algorithm; returns `Either<EncinaError, TimeStampEvidence>` (`TimeStampEvidence`: token, `Reference` = chain tenant, partition and sequence); `VerifyTimeStampAsync(...)`
-2. **`Hooks/AttestationTimeStampExtensions.cs`** — same for an `AttestationReceipt` (digest = the receipt's content hash)
+Phase 4 is split by pull request: hooks and notifications in PRs 6 and 7, `AddEncinaEvidence` and the health check in PR 3.
+
+1. **`Hooks/ChainedLogTimeStampExtensions.cs`** (PR 6) — `TimeStampAsync(this ITimeStampAuthority, ChainedLogEntry entry, ct)`: digest = `SHA-256(entry-hash bytes)` (Design Choice 4), tenant of the entry checked against the ambient tenant (`evidence.tenant_mismatch`); returns `Either<EncinaError, TimeStampEvidence>` (`TimeStampEvidence`: token, `Reference` = chain tenant, partition and sequence); `VerifyTimeStampAsync(...)`
+2. **`Hooks/AttestationTimeStampExtensions.cs`** (PR 7) — same for an `AttestationReceipt` (digest = `SHA-256(content hash bytes)`, tenant from its `AuditRecord`, same mismatch rule)
 3. **`Notifications/EvidenceTimeStampedNotification.cs`, `EvidenceSignedNotification.cs`** — published after a successful stamp or signature through the Encina publisher (tenant, outcome, generation time; no token bytes, no digest) so applications can persist or audit the evidence
-4. **`ServiceCollectionExtensions.AddEncinaEvidence(Action<EvidenceOptions>)`** — `UseRfc3161TimeStamping(Action<TimeStampOptions>)` (registers the named `Encina.Http` client, `Rfc3161TimeStampAuthority`, validator with `ValidateOnStart`) and `UseCertificateSignatures(Action<SignatureOptions>)`; each is opt-in; DI test with `ValidateOnBuild` and `ValidateScopes`
-5. **Health check** — `EvidenceHealthCheck` (`DefaultName` const, static `Tags`, scoped resolution): configuration valid, trust roots present, and the rolling success rate of recent time-stamp requests; it never makes a paid probe request
+4. **`ServiceCollectionExtensions.AddEncinaEvidence(Action<EvidenceOptions>)`** — `UseRfc3161TimeStamping(Action<TimeStampOptions>)` (takes the named client `ClientName` from `IHttpClientFactory`, which the application configures with `AddEncinaHttpClient` or `AddHttpClient`; registers `Rfc3161TimeStampAuthority`, validator with `ValidateOnStart`) and `UseCertificateSignatures(Action<SignatureOptions>)`; each is opt-in; DI test with `ValidateOnBuild` and `ValidateScopes`
+5. **Health check** — `EvidenceHealthCheck` (PR 3; `DefaultName` const, static `Tags`, scoped resolution): configuration valid, trust roots present, and the rolling success rate of recent time-stamp requests, kept in a thread-safe singleton counter (`Interlocked` or a lock) that scoped resolution of the check never resets; it never makes a paid probe request
 
 </details>
 
@@ -350,14 +410,14 @@ REFERENCE FILES:
 ```
 CONTEXT:
 - Tenant resolution decision table: DefaultConsentService (RequireTenantContext, ambient tenant, fixed default tenant when
-  tenancy is off). Encina.Http composes retry through the standard resilience handler (ADR-055).
+  tenancy is off, where the tenant is null). Encina.Http composes retry through the standard resilience handler (ADR-055).
 
 TASK:
 Wire tenant resolution into the authority and signature provider and add the two-tenant tests.
 
 KEY RULES:
-- Tenant comes from IRequestContext, never from request data.
-- With tenancy off, a fixed default tenant applies and no tenant configuration is needed.
+- Tenant comes from IRequestContextAccessor, never from request data; a hook compares the entry's tenant with it and fails with Forbidden on mismatch.
+- With tenancy off, the tenant is null, the default endpoint applies and no tenant configuration is needed.
 - No second retry layer inside the authority.
 
 REFERENCE FILES:
@@ -376,8 +436,8 @@ REFERENCE FILES:
 
 The names in the issue (`encina.timestamp.requests`, `encina.timestamp.request`, `server.address`) were proposals; the plan names them after the package: source and meter `Encina.Compliance.Evidence`.
 
-1. **`Diagnostics/EvidenceDiagnostics.cs`** — `ActivitySource` and `Meter` `Encina.Compliance.Evidence`; counters `evidence.timestamps.requested.total` (tag `evidence.outcome`), `evidence.timestamps.verified.total` (tag `evidence.outcome`), `evidence.signatures.total` (tags `evidence.operation`, `evidence.outcome`); histogram `evidence.timestamp.duration.ms`; activities `Evidence.TimeStamp`, `Evidence.VerifyTimeStamp`, `Evidence.Sign` with `evidence.tenant_id` and `evidence.hash_algorithm`; no digest, token, endpoint query or certificate content
-2. **`EventIdRanges.cs`** — register `ComplianceEvidence = (6590, 6599)` (from the batch block 6550-6599) and map `Encina.Compliance.Evidence` in `EncinaEventIdAllocationTests`
+1. **`Diagnostics/EvidenceDiagnostics.cs`** — `ActivitySource` and `Meter` `Encina.Compliance.Evidence`; counters `evidence.timestamps.requested.total` (tag `evidence.outcome`), `evidence.timestamps.verified.total` (tag `evidence.outcome`), `evidence.signatures.total` (tags `evidence.operation`, `evidence.outcome`); histogram `evidence.timestamp.duration.ms`; activities `Evidence.TimeStamp`, `Evidence.VerifyTimeStamp`, `Evidence.Sign` with `evidence.tenant_id` (emitted only when multi-tenancy is on and absent when it is off, ADR-054 D4; the notifications follow the same rule) and `evidence.hash_algorithm`; no digest, token, endpoint query or certificate content
+2. **`EventIdRanges.cs`** — register `ComplianceEvidence = (6590, 6599)` (from the batch block 6550-6599; all ten ids are used, so any later message needs a new block) and map `Encina.Compliance.Evidence` in `EncinaEventIdAllocationTests` (PR 3, the first PR that logs)
 3. **`Diagnostics/EvidenceLogMessages.cs`** — `[LoggerMessage]` 6590 onward, packed: `TimeStampRequested` (6590, Debug), `TimeStampGranted` (6591, Information; generation time and serial only), `TimeStampFailed` (6592, Error; code), `TimeStampRejected` (6593, Warning; status code), `TokenVerified` (6594, Debug), `TokenInvalid` (6595, Warning; code), `SignatureProduced` (6596, Debug), `SignatureFailed` (6597, Error; code), `TrustRootsMissing` (6598, Critical, start-up), `InsecureEndpointAllowed` (6599, Warning, start-up)
 4. The host name of the authority is not a tag; `server.address` from the issue's proposal is dropped (an endpoint can identify the tenant's provider contract)
 
@@ -413,15 +473,35 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Manifest first: per-file targets with one-sentence justifications for every new file in `.github/coverage-manifest/Encina.Compliance.Evidence.json` (written by `mechanical-fixer`).
+Manifest first: each pull request adds the rows of its own files to `.github/coverage-manifest/Encina.Compliance.Evidence.json` (written by `mechanical-fixer`), in the same PR. Numeric per-file targets (percent of coverable lines per flag) with one-sentence justifications:
 
-1. **UnitTests** — request building (nonce, imprint, algorithm), every verification step failing alone (status, nonce, imprint, signature, chain, EKU, revocation unavailable, expired signer at generation time), options validators (http refused, roots required), tenant resolution, signature sign and verify round trip with a test certificate, hooks and notifications, telemetry with an in-memory exporter (tenant tag present; no digest, token or URL anywhere), health check, DI tests
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|-----:|------:|---------:|---------:|------------:|---------------|
+| `Model/*.cs` (request, token, verification, signature models) | 90 | 0 | 0 | 0 | 0 | Records exercised by every test; no validated parameters |
+| `EvidenceErrors.cs` | 100 | 0 | 0 | 0 | 0 | Each factory asserted for code and `ErrorCategory` |
+| `TimeStamp/Rfc3161TimeStampAuthority.cs` | 90 | 80 | 70 | 0 | 80 | Request building and failure mapping are unit cases; only the WireMock fake authority drives the full HTTP path |
+| `TimeStamp/TimeStampTokenVerifier.cs` | 60 | 40 | 70 | 0 | 90 | Real tokens exist only in the integration fake authority, which is the only flag that builds them; unit covers the steps that fail before signature parsing (status, nonce, imprint mismatch with hand-built input) |
+| `TimeStampOptions.cs`, validator | 100 | 100 | 0 | 0 | 0 | Pure validation: https, roots, endpoint |
+| `Signing/CertificateSignatureProvider.cs` | 90 | 80 | 70 | 0 | 0 | Sign and verify round trip with a per-run test certificate |
+| `SignatureOptions.cs`, validator | 100 | 100 | 0 | 0 | 0 | Pure validation and key-material redaction |
+| `Hooks/*.cs` | 95 | 80 | 0 | 0 | 80 | Tenant mismatch and digest derivation are unit cases; integration stamps real entries and receipts |
+| `Notifications/*.cs` | 100 | 0 | 0 | 0 | 0 | Records with no logic |
+| Secret-name encoding helper | 100 | 80 | 0 | 90 | 0 | Pure function; the property test asserts injectivity |
+| `ServiceCollectionExtensions.cs` | 100 | 100 | 0 | 0 | 0 | DI tests with `ValidateOnBuild` and `ValidateScopes` |
+| `Health/EvidenceHealthCheck.cs` | 95 | 60 | 0 | 0 | 0 | Configured, unconfigured and failing-rate cases |
+| `Diagnostics/EvidenceDiagnostics.cs` | 100 | 0 | 0 | 0 | 0 | Listener tests, tenancy on and off |
+| `Diagnostics/EvidenceLogMessages.cs` | 0 | 0 | 0 | 0 | 0 | Source-generated delegates without executable lines |
+| `EventIdRanges.cs`, `EncinaEventIdAllocationTests`, `Encina.slnx` (modify) | baseline | baseline | baseline | baseline | baseline | One field and one map entry; the existing allocation test covers them; baselines are read from the manifest when PR 3 starts |
+
+The verifier steps are unit-covered only up to signature parsing; the chain, EKU, revocation and signature steps run only against the fake authority's real tokens, so the integration flag carries them.
+
+1. **UnitTests** — request building (nonce, imprint, algorithm), every verification step failing alone (status, nonce, imprint, signature, chain, EKU, revocation unavailable, expired signer at generation time), options validators (http refused, roots required), tenant resolution, signature sign and verify round trip with a test certificate, hooks and notifications, telemetry with an in-memory exporter (`evidence.tenant_id` present when tenancy is on and absent when it is off; no digest, token or URL anywhere), a `GetCategory` test per error code (ADR-062), tenant mismatch of both hooks, a `Left` from `Publish` after a stamp, a chain that trusts only `TrustedRoots` (a token signed by a machine-store root is invalid), health check, DI tests
 2. **GuardTests** — all public constructors, methods and extension methods
 3. **ContractTests** — `ITimeStampAuthority` and `ISignatureProvider` contracts against the real implementations and the fake authority
-4. **PropertyTests** — justified: protocol client; covered by integration tests against a fake authority (as the issue's matrix says)
+4. **PropertyTests** — the secret-name encoding is injective (generated tenant and purpose pairs); the protocol client itself is justified as covered by integration tests against a fake authority (as the issue's matrix says)
 5. **IntegrationTests** — fake RFC 3161 authority hosted with `Encina.Testing.WireMock` (a TSTInfo built with `AsnWriter`, signed with `SignedCms` and a test certificate): granted token verifies; wrong imprint, wrong nonce, rejected status, untrusted chain, oversize response and a 503 each produce the right code; two-tenant credentials; the chained-log and Attestation hooks on real entries and receipts (AC-039)
 6. **Load/Benchmark** — `.md` justifications: stamping and signing are not concurrent hot paths
-7. **PR split** — PR 1 Phases 1-2, 6 (diagnostics) with unit and guard tests; PR 2 Phases 3-5 with contract and integration tests; PR 3 documentation
+7. **PR split** — the eight pull requests of the split table in the Summary; each carries its own unit, guard, contract and integration tests
 
 </details>
 
@@ -521,7 +601,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.Evidence` | 6590-6599 (`ComplianceEvidence`, new, from the batch block 6550-6599) | Uses all ten ids; to be registered in `EventIdRanges.cs` by PR 1 |
+| `Encina.Compliance.Evidence` | 6590-6599 (`ComplianceEvidence`, new, from the batch block 6550-6599) | Uses all ten ids; to be registered in `EventIdRanges.cs` by PR 3 |
 
 ### Estimated File Count
 
@@ -530,7 +610,7 @@ REFERENCE FILES:
 | Production | ~24 | csproj, models, abstractions, errors, RFC 3161 client and verifier, signature provider, options and validators, hooks, notifications, DI, health check, diagnostics, log messages, README, PublicAPI |
 | Tests | ~14 | unit, guard, contract, integration with a fake authority, DI |
 | Justifications, manifest, changelog, documentation | ~6 | |
-| **Total** | **~44** | three pull requests |
+| **Total** | **~85** | eight pull requests (see the split table in the Summary; the category counts above exclude PublicAPI files, manifests, test helpers and `ProjectReference` edits) |
 
 ---
 
@@ -591,7 +671,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ | No shared state updated by concurrent hosts; the package keeps no store |
 | 8 | Transactions | ❌ | No store; the hooks deliberately run after the caller's commit so no lock is held during a network call |
 | 9 | Idempotency | ❌ | A second token for the same digest is harmless and expected on retry; nothing to deduplicate |
-| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043: tenant endpoint, credentials and signing certificate resolved per tenant; two-tenant test; fixed default tenant when tenancy is off |
+| 10 | Multi-Tenancy | ✅ | REQ-061/AC-043: tenant endpoint, credentials and signing certificate resolved per tenant; two-tenant test; the hooks refuse an entry of another tenant (`evidence.tenant_mismatch`); no tenant value at all when tenancy is off |
 | 11 | Module Isolation | ❌ | SPEC-002 requires no module scoping; `ModuleId` in messaging stays with #747 |
 | 12 | Audit Trail | ✅ | `EvidenceTimeStampedNotification` and `EvidenceSignedNotification` let the application record each result with its evidence; the package keeps no audit store of its own |
 
@@ -601,17 +681,17 @@ REFERENCE FILES:
 
 | Item | Why | State |
 |------|-----|-------|
-| #1233 `Encina.Http` (P-31) | Transport, per-tenant credentials, mTLS, rate limits | Open; plan in review. PR 1 can use a plain named `HttpClient` until it lands |
-| #1240 `Encina.ChainedLog` (P-38) | Chained-log hook | Open; plan in review. The Attestation hook does not wait for it |
-| #1246 `ICertificateReader` | Per-tenant signing certificate | Open; plan in review. PR 2 waits for it |
-| EventId range 6590-6599 | New logging | Registered by PR 1 |
+| #1233 `Encina.Http` (P-31) | Configures the named client with per-tenant credentials, mTLS, rate limits (application side) | Not a prerequisite of any PR: the package takes the client by name from `IHttpClientFactory` |
+| #1240 `Encina.ChainedLog` (P-38) | Chained-log hook | Open; plan in review. Hard prerequisite of PR 6 only |
+| #1246 `ICertificateReader` | Per-tenant signing certificate | Open; plan in review. Hard prerequisite of PR 5 only |
+| EventId range 6590-6599 | New logging | Registered by PR 3, the first PR that logs |
 | Follow-up issue: persisted tokens in the chained log on the 10 providers | Design Choice 4, option B | Issue file written with this plan |
 
 ---
 
 ## Next Steps
 
-1. Link this plan from issue #1241; ask the maintainer the Dilemma of Design Choice 4 when work on the issue starts
-2. PR 1 (abstractions, RFC 3161 client and verification, diagnostics), PR 2 (signature provider, hooks, DI, health, integration tests), PR 3 (documentation)
+1. Link this plan from issue #1241; ask the maintainer the Dilemmas of Design Choices 1, 3, 4 and 6 when work on the issue starts
+2. The eight pull requests of the split table, in order (PRs 5 and 6 wait for #1246 and #1240)
 3. Open the follow-up issue for persisted time-stamp tokens (Design Choice 4, option B)
 4. The final commit references `Fixes #1241`
