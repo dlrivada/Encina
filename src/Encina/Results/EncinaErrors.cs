@@ -62,7 +62,12 @@ public static class EncinaErrors
         string message,
         Exception? exception = null,
         IReadOnlyDictionary<string, object?>? details = null)
-        => EncinaError.FromEncinaException(new EncinaException(code, message, exception, details, category));
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentNullException.ThrowIfNull(message);
+
+        return EncinaError.FromEncinaException(new EncinaException(code, message, exception, details, category));
+    }
 
     /// <summary>
     /// Creates an authorization forbidden error, optionally referencing the policy that was not satisfied.
@@ -134,7 +139,12 @@ public static class EncinaErrors
         Exception exception,
         string? message = null,
         IReadOnlyDictionary<string, object?>? details = null)
-        => Create(code, category, message ?? exception.Message, exception, details);
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(code);
+        ArgumentNullException.ThrowIfNull(exception);
+
+        return Create(code, category, message ?? exception.Message, exception, details);
+    }
 }
 
 /// <summary>

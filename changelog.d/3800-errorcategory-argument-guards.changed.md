@@ -1,0 +1,1 @@
+- `EncinaErrors.Create` and `EncinaErrors.FromException` (the `ErrorCategory` overloads) now throw `ArgumentNullException`/`ArgumentException` for a null or blank `code`, a null `message` (`Create`) and a null `exception` (`FromException`) (#3800).
