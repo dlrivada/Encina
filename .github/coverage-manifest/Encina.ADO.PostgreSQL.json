@@ -643,8 +643,20 @@
       "defaultRule": "*Factory.cs",
       "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
       "override": [
+        "unit",
+        "guard",
         "integration"
-      ]
+      ],
+      "targets": {
+        "unit": 90,
+        "guard": 20,
+        "integration": 70
+      },
+      "justifications": {
+        "unit": "Unit tests with a mocked tenant store drive every resolution branch, including the fail-closed tenant_not_found and tenant_required paths (measured 92.3%); only the lines after a successful open need a real server.",
+        "guard": "Guard tests cover the three constructor null checks and the null, empty and whitespace tenant id guard of CreateConnectionForTenantAsync (measured 23.1%); the rest is resolution logic, not argument checks.",
+        "integration": "Integration tests in the shared ADO collection open real connections for a known DatabasePerTenant tenant and the RequireTenant=false default and assert the coded denials (measured 75.0%); the shared-schema and missing-default-string branches are left to the unit tests."
+      }
     },
     "Tenancy/TenantEntityMappingBuilder.cs": {
       "defaultTests": [
