@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-11, main `942c0f124`)
+### What exists today (re-verified on 2026-11-14, main `c871956bf`)
 
 - `IRoutingSlipStore` (`src/Encina.Messaging/RoutingSlip/IRoutingSlipStore.cs`) has six `Task`-returning members: `GetAsync(Guid)`, `AddAsync(IRoutingSlipState)`, `UpdateAsync(IRoutingSlipState)`, `GetStuckAsync(TimeSpan olderThan, int batchSize)`, `GetExpiredAsync(int batchSize)` and `SaveChangesAsync`. `IRoutingSlipState` holds `RoutingSlipId`, `SlipType`, `Data`, `Itinerary`, `ActivityLog`, `Status`, `CurrentStep`, `CreatedAtUtc`, `LastUpdatedAtUtc`, `CompletedAtUtc`, `TimeoutAtUtc` and `ErrorMessage` (string-typed, serialized). The issue's original listing (`CreateAsync(RoutingSlip)`, `GetByCorrelationIdAsync`, `UpdateStepAsync`, `CompleteAsync`, `FailAsync`, `GetInProgressAsync`) and its two-table sketch do not match `src`. There is no implementation of the store, and no entity.
 - `RoutingSlipRunner` (`RoutingSlipRunner.cs`) does **not** use a store: `MessagingServiceCollectionExtensions.RegisterRoutingSlips` (lines 114-120) registers only `RoutingSlipOptions` and `IRoutingSlipRunner`. `RunAsync` generates the id (`Guid.NewGuid()`, line 75), executes all steps inline in one call, and returns a `RoutingSlipResult<TData>`.
@@ -89,6 +89,8 @@
 ### Rationale
 
 - A single worker owns a slip during `RunAsync`, so concurrency arises between the original run and the recovery processor (a slow run flagged as stuck). A makes that race detectable without infrastructure and doubles as the idempotency guard for duplicate step completions (function 9).
+- **What the loser does** (applies to A): `UpdateAsync` with a stale version returns the typed `Left` with the new code `RoutingSlipErrorCodes.ConcurrencyConflict` (category `Conflict`, distinct from the store-fault codes). When the **original run** gets it, another worker has taken the slip over: the run **stops without compensating and without marking anything** (the taker owns the slip's outcome; compensating would duplicate the taker's resume or compensation) and returns that `Left` to its caller. When the **recovery processor** gets it, another instance took the slip first: it skips the slip. Tests cover both orders (original first, processor first).
+- **EF save ownership** (part of this answer; recommended, pending the maintainer): the EF store saves inside `AddAsync`/`UpdateAsync` on its own context. The alternative is the runner calling `IRoutingSlipStore.SaveChangesAsync` after each step; it keeps the interface member meaningful but makes every caller responsible for the call, and the concurrency `Left` would surface at a different point than the update. Phase 4 states the recommended path.
 - B wins if the application already runs a lock provider for other modules; C wins only when no recovery processor runs and exactly one worker owns every slip.
 
 **Class:** Dilemma
@@ -120,22 +122,22 @@ The runner executes steps that are delegates, and only names, data and position 
 </details>
 
 <details>
-<summary><strong>5. Separation, time, error text, serialization, startup validation, names and scope</strong></summary>
+<summary><strong>5. Time, error text, serialization, startup validation, names and scope</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A separate persistent store, the shared conventions and a startup check** (no shared saga store, no headers, no workflow engine) | Routing slips define their steps up front and sagas react to events, so two contracts stay clear; the state is visible and recoverable; lightweight | One more store and table per provider |
-| **B) Reuse `ISagaStore`, carry the slip in message headers, or adopt a workflow engine (Temporal, Elsa)** | Fewer tables, or a ready engine | Headers give no visibility and cannot recover failures that need intervention; a saga store mixes two patterns; a workflow engine is heavyweight for sequential processing |
+| **A) The shared conventions: `TimeProvider`, error codes in storage, the startup check, `RoutingSlipStore{...}` names, 10 providers** | The only option that complies with the cited rules | One more store and table per provider |
+| **B) Deviate: system clock, raw exception text persisted, a missing store tolerated silently, other names or fewer providers** | Less work | Each deviation breaks a cited rule (below) |
 
-### Chosen Option: **A — A separate persistent store and the shared conventions**
+### Chosen Option: **A — The shared conventions**
 
 ### Rationale
 
 - Time: `TimeProvider` injected into every store and the processor; stuck means `LastUpdatedAtUtc <= now - olderThan` (and status `Running` or `Compensating`), expired means `TimeoutAtUtc <= now` and not terminal (`AGENTS.md` section 3). Database calls are asynchronous with a `CancellationToken`.
-- Error text: `ErrorMessage` holds an error code or exception type, never `EncinaError.Message` (`AGENTS.md` section 3). The runner today builds `EncinaErrors.Create(HandlerFailed, ex.Message)` for an unexpected exception; persisted text uses the code `RoutingSlipErrorCodes.HandlerFailed` and the exception type, and Phase 1 fixes that error to carry no raw exception message.
-- Payload: `Data` and `ActivityLog` are serialized through `IMessageSerializer` (already registered with `TryAddDefaultMessageSerializer` by the other messaging patterns), so message encryption applies to personal data inside a slip.
+- Error text: `ErrorMessage` holds an error code or exception type, never `EncinaError.Message` (`AGENTS.md` section 3). The runner today builds `EncinaErrors.Create(HandlerFailed, ex.Message)` for an unexpected exception (`RoutingSlipRunner.cs:148`); Phase 1 removes `ex.Message` so persisted and returned text is the code and the exception type, and a test asserts the error text no longer contains the exception message.
+- Payload: `Data` and `ActivityLog` are serialized through `IMessageSerializer` (already registered with `TryAddDefaultMessageSerializer` by the other messaging patterns). **Encryption is not applied by this plan**: `Encina.Messaging.Encryption` (`DefaultMessageEncryptionProvider`) has no routing-slip hook on main and encryption is applied by that provider, not by the serializer, so personal data placed in a slip's `Data` is stored as the serializer writes it; the README says so and that protecting it is the application's concern until a follow-up issue adds a hook.
 - Startup validation: enabling routing slips with no registered `IRoutingSlipStore` fails host start (ADR-050 row at line 53), through an internal hosted check that migrates into #2382's validator. Names: `RoutingSlipStore{ADO|Dapper|EF|MongoDB}` (`AGENTS.md` section 4). Scope: the 10 providers (`AGENTS.md` section 5), SQLite out (ADR-024).
 - No in-memory store is delivered (none exists today); tests use a fake in `Encina.Testing.Fakes`. A Development-only in-memory store, if wanted, rides with #2382.
 
@@ -144,24 +146,154 @@ The runner executes steps that are delegates, and only names, data and position 
 
 </details>
 
+<details>
+<summary><strong>6. A separate store, or reuse the saga store, headers or a workflow engine</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A separate `IRoutingSlipStore`** | Routing slips define their steps up front and sagas react to events, so two contracts stay clear; the state is visible and recoverable; lightweight | One more store and table per provider |
+| **B) Reuse `ISagaStore`, carry the slip in message headers, or adopt a workflow engine (Temporal, Elsa)** | Fewer tables, or a ready engine | Headers give no visibility and cannot recover failures that need intervention; a saga store mixes two patterns; a workflow engine is heavyweight for sequential processing |
+
+### Chosen Option: **A — A separate store** (recommended, pending the maintainer)
+
+### Rationale
+
+- The exclusion of B is design judgment, not a cited rule, so it is the maintainer's to confirm. A matches the existing `IRoutingSlipStore` interface and ADR-050's row, which already name a routing slip store. B wins if the maintainer wants one durable-workflow substrate for sagas and slips.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Stuck threshold versus step duration</strong></summary>
+
+### Options Considered
+
+`StuckThreshold` defaults to 10 minutes while `DefaultTimeout` is 30 minutes, and `LastUpdatedAtUtc` changes only after each step, so any step that runs longer than 10 minutes is "stuck" while still running and the recovery processor takes it over. With Design Choice 3 A the original run then fails with the concurrency `Left` and stops, which is correct but routine: the race is not an edge case with the defaults.
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Validate at startup that `StuckThreshold >= DefaultTimeout`** (and change the default `StuckThreshold` to at least 30 minutes) | No new write path; a slip is taken over only after it exceeded its own timeout | A genuinely crashed slip waits at least `DefaultTimeout` to be recovered; changes an existing default |
+| **B) A heartbeat: the runner updates `LastUpdatedAtUtc` every `HeartbeatInterval` while a step runs** | Fast recovery of crashed slips; long steps are never taken over | A timer and an extra write per interval; the heartbeat itself can conflict with a takeover |
+
+### Chosen Option: **A — Startup validation `StuckThreshold >= DefaultTimeout`** (recommended, pending the maintainer)
+
+### Rationale
+
+- A removes the routine race with a one-line validation and no new moving part; the options already document both values. B wins when slips contain steps of unbounded duration and fast crash recovery matters.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Recovery of a step whose outcome is unknown (at-least-once resume)</strong></summary>
+
+### Options Considered
+
+The state is written after each step. A crash after a step's side effect but before `UpdateAsync` leaves `CurrentStep` at the previous step, so a resume would run that step again. To know which step was in flight, the runner persists `CurrentStep` **before** executing it (write-ahead).
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Write-ahead, then re-execute the in-flight step on resume (at-least-once)** | Simple; the slip completes; matches how retries work elsewhere | Steps must be idempotent; documented in the builder XML and the guide |
+| **B) Write-ahead, then compensate the completed steps and mark `Failed` when a step was in flight with unknown outcome** | No step runs twice | A crash always fails the slip; compensation of a possibly-unexecuted step must tolerate "nothing to undo" |
+
+### Chosen Option: **A — Re-execute the in-flight step (at-least-once)** (recommended, pending the maintainer)
+
+### Rationale
+
+- A delivers "survives a restart and can be resumed" (the issue's criterion) at the price users must know: resumed steps are at-least-once and must be idempotent. B is the choice when steps cannot be made idempotent. Either way write-ahead persistence is added (two writes per step) and the idempotency requirement is written in the XML docs of the builder and in the guide.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Tenant and module context when a slip is resumed</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Store `TenantId`/`ModuleId` at start from the ambient request context; the recovery processor restores them before running steps; with tenancy on and no tenant on the row it does not resume, marks the slip `Failed` with `routingslip.tenant_missing` and logs the code** | Fail closed (`AGENTS.md` section 3); a resumed slip runs as its original caller | The runner and processor need the context setters |
+| **B) Resume with no tenant context** | No change | A slip runs unscoped while tenancy is on: fail open |
+
+### Chosen Option: **A — Restore the context, fail closed**
+
+### Rationale
+
+- Only A satisfies the fail-closed rule. `RunAsync` has no request-context parameter, so the runner reads the tenant from the ambient `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`; `IRequestContext.TenantId` exists, while `IRequestContext` has no module id today, so the worker names the module source after verifying `src`). The processor reads **every tenant** (stated for all ten stores and asserted by the contract test); the new decorator adds a tenant tag only when multi-tenancy is on (ADR-054 D4).
+
+**Class:** Settled
+**Settled by:** AGENTS.md section 3 (compliance and security gates fail closed), SPEC-000 section 2 (tenancy in 1.0), ADR-054 D4
+
+</details>
+
+### Exact `Either` signatures (Design Choice 2 A)
+
+All members take a trailing `CancellationToken cancellationToken = default`. `Option` is LanguageExt's.
+
+| Member | Returns |
+|--------|---------|
+| `GetAsync(Guid routingSlipId)` | `Either<EncinaError, Option<IRoutingSlipState>>` (`None` when absent, no error) |
+| `AddAsync(IRoutingSlipState state)` | `Either<EncinaError, Unit>` |
+| `UpdateAsync(IRoutingSlipState state)` | `Either<EncinaError, Unit>`; the stale-version `Left` is `routingslip.concurrency_conflict` |
+| `GetStuckAsync(TimeSpan olderThan, int batchSize)` | `Either<EncinaError, IReadOnlyList<IRoutingSlipState>>` |
+| `GetExpiredAsync(int batchSize)` | `Either<EncinaError, IReadOnlyList<IRoutingSlipState>>` |
+| `SaveChangesAsync()` | `Either<EncinaError, Unit>` |
+
+### Error codes and categories (ADR-062)
+
+Every `Left` is created with `EncinaErrors.Create(code, category, ...)` and a `GetCategory` test asserts every row (one code, one category).
+
+| Code | Category | Note |
+|------|----------|------|
+| `routingslip.concurrency_conflict` (new) | `Conflict` | Stale `Version`; distinct from store faults |
+| `routingslip.store_failed` (new) | `Internal` | Non-transient database or driver fault |
+| `routingslip.store_unavailable` (new) | `Unavailable` | Connection failure where the provider distinguishes it |
+| `routingslip.tenant_missing` (new) | `FailedPrecondition` | Design Choice 9 |
+| `routingslip.definition_not_registered` (new) | `FailedPrecondition` | The recovery processor finds no definition for a `SlipType` (Design Choice 4 B) |
+| `routingslip.not_found` | `NotFound` | Only when the request names the slip |
+| `routingslip.invalid_status`, `routingslip.already_completed` | `FailedPrecondition` | Existing codes |
+| `routingslip.timeout` | `Timeout` | Existing |
+| `routingslip.handler.cancelled` | `Cancelled` | Existing |
+| `routingslip.handler.failed`, `routingslip.step_failed`, `routingslip.compensation_failed`, `routingslip.deserialization_failed` | `Internal` | Existing; `handler.failed` carries no exception message after Phase 1 |
+| `routingslip.no_steps` | `InvalidRequest` | Existing |
+
 ---
 
 ## Implementation Phases
 
 ### Phase 1: Core — Contract, Runner, Registry, Startup Check, Recovery Processor and Split
 
-> **Goal**: Apply the answers to Design Choices 2 to 4 in `Encina.Messaging` before any provider work.
+> **Goal**: Apply the answers to Design Choices 2 to 4 and 6 to 8 in `Encina.Messaging` before any provider work.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `IRoutingSlipStore.cs`: `Either<EncinaError, T>` returns (Design Choice 2); `IRoutingSlipState` gains `Version` and `TenantId`/`ModuleId` (Design Choice 3; tenant and module as typed columns like the dead letter row, `AGENTS.md` section 6, functions 10 and 11); `UpdateAsync` is conditional on the version and returns a typed concurrency `Left`.
-2. **Modify** `RoutingSlipRunner.cs`: persist the state through the store at start (`AddAsync`), after each step (`UpdateAsync`, `ActivityLog` and `CurrentStep`) and at completion, failure, compensation and timeout; replace the raw `ex.Message` in the `HandlerFailed` error with the code; keep the in-process behavior when a store call is a `Left` (fail the run visibly, compensate).
-3. **Create** (Design Choice 4 option B) `IRoutingSlipDefinitionRegistry`, its default implementation, a registration method on `MessagingConfiguration` or an `AddEncinaRoutingSlip<TData>(slipType, definitionFactory)` extension, and `RoutingSlipRecoveryProcessor` (hosted, `PeriodicTimer` per iteration catch, `StuckCheckInterval`, `StuckThreshold`, `BatchSize`): stuck slips are taken over with a version bump and resumed or compensated, expired slips are compensated and marked `TimedOut`. For option A the processor only marks `Failed`/`TimedOut`.
-4. **Create** `RoutingSlipStartupCheck` (internal hosted service, the pattern of `DelayedRetryStartupCheck`) and call it from `RegisterRoutingSlips`.
-5. **Modify** `Encina.Testing.Fakes` (a `FakeRoutingSlipStore`) and the existing runner tests (`RoutingSlipRunnerDiRegistrationTests` and the unit and guard tests under `tests/Encina.*Tests/Messaging/RoutingSlip`).
+1. **Modify** `IRoutingSlipStore.cs`: `Either<EncinaError, T>` returns with the exact signatures of the table in Design Choices (Design Choice 2); `IRoutingSlipState` gains `Version` and `TenantId`/`ModuleId` (Design Choice 3; tenant and module as typed columns like the dead letter row, `AGENTS.md` section 6, functions 10 and 11); `UpdateAsync` is conditional on the version and returns the typed `routingslip.concurrency_conflict` `Left`.
+2. **Modify** `RoutingSlipRunner.cs`: persist the state through the store at start (`AddAsync`, tenant and module read from `IRequestContextAccessor`, Design Choice 9), **write-ahead** `CurrentStep` before each step and after each step (`UpdateAsync`, `ActivityLog` and `CurrentStep`, Design Choice 8), and at completion, failure, compensation and timeout; replace the raw `ex.Message` in the `HandlerFailed` error with the code. A store `Left` that is an infrastructure fault fails the run visibly and compensates (in-process behaviour kept); **the concurrency `Left` is different: the run stops without compensating and without marking anything** (Design Choice 3), and a test covers it. Document on the builder XML and in the guide that resumed steps are at-least-once and must be idempotent (Design Choice 8 A).
+3. **Create** (Design Choice 4 option B) `IRoutingSlipDefinitionRegistry`, its default implementation, a registration method on `MessagingConfiguration` or an `AddEncinaRoutingSlip<TData>(slipType, definitionFactory)` extension, and `RoutingSlipRecoveryProcessor` (hosted singleton, `PeriodicTimer` with a per-iteration catch, `StuckCheckInterval`, `StuckThreshold`, `BatchSize`). The processor is a singleton while the runner and the store are scoped (`MessagingServiceCollectionExtensions.cs:119`) and the options a singleton, so **each iteration creates a scope through `IServiceScopeFactory`** and resolves the store and the runner from it (as `DelayedRetryProcessor` does); a DI test with `ValidateScopes` proves no scoped service is injected into the singleton. Stuck slips are taken over with a version bump and resumed or compensated, expired slips are compensated and marked `TimedOut`; a concurrency `Left` means another worker owns the slip and it is skipped. **Tenant restore**: before running steps the processor restores tenant and module context from the row and, with tenancy on and no tenant on the row, does not resume: it marks the slip `Failed` with `routingslip.tenant_missing` and logs the code (Design Choice 9); tests cover both. `StuckThreshold >= DefaultTimeout` is validated at startup if Design Choice 7 is A. For option A of Design Choice 4 the processor only marks `Failed`/`TimedOut`.
+4. **Create** `RoutingSlipStartupCheck` (internal hosted service, the pattern of `DelayedRetryStartupCheck`) and call it from `RegisterRoutingSlips`. **Merge order**: today the runner works without a store, and the check plus a runner that requires a store would make every `UseRoutingSlips` host fail to start until a provider store exists. Therefore the startup check and the runner's requirement of a store land in the **same pull request as the first store family** (P3 below), not in the core PRs; P1 and P2 keep the runner working without a store (the store is optional there and the runner persists only when one is registered).
+5. **Add** `FakeRoutingSlipStore` to `Encina.Testing.Fakes` and update the existing runner tests (`RoutingSlipRunnerDiRegistrationTests` and the unit and guard tests under `tests/Encina.*Tests/Messaging/RoutingSlip`).
 6. **Register** EventIds 6840-6849 as `MessagingRoutingSlip` in `EventIdRanges.cs` and in the `Encina.Messaging` entry of the `AssemblyRanges` map (the `Messaging` range 2800-2999 is almost full: 170 ids used, the last 2998); update `PublicAPI.Unshipped.txt`.
-7. **Split**: S1 core contract and runner, S2 registry and recovery processor and startup check, S3-S5 ADO.NET, S6-S8 Dapper, S9 EF Core, S10 MongoDB, S11 cross-provider tests (contract, property, integration collections), S12 documentation. Each stays within 15 files and 1,500 lines.
+7. **Split** into twelve pull requests, each carrying its own tests and manifest rows (a production-only PR cannot reach its per-flag targets and fails the blocking `crap-gate`), each at most 15 files and 1,500 lines **counting tests, scripts, `PublicAPI`, manifests and fragments**:
+
+   | PR | Content | Files (approx.) |
+   |----|---------|-----------------|
+   | P1 | Interface to `Either`, `Version`/`TenantId`/`ModuleId` on the state, new and categorized error codes, the runner persisting through an optional store with the concurrency rule and write-ahead, `FakeRoutingSlipStore`, abstract `RoutingSlipStoreContractTests` run on the fake, adapted existing tests, `PublicAPI`, EventIds, manifests | 15 (the worker splits the runner change from the contract if over) |
+   | P2 | Definition registry, `RoutingSlipRecoveryProcessor` (scope per iteration, tenant restore), their tests, manifest | 10 |
+   | P3 | The first store family (ADO.NET SQL Server): state, store, script, registration change, **startup check and the runner's required store**, `Log.cs`, `PublicAPI`, manifest; unit, guard, DI (`ValidateOnBuild`, `ValidateScopes`, with and without store) and integration tests, derived contract class | 15 |
+   | P4-P5 | ADO.NET PostgreSQL and MySQL, same shape without the startup check | 13 each |
+   | P6-P8 | Dapper SqlServer, PostgreSQL, MySQL | 13 each |
+   | P9 | EF Core (one package, three providers) | 15 |
+   | P10 | MongoDB | 13 |
+   | P11 | `InstrumentedRoutingSlipStore` decorator, its decoration line, the health check and tests, manifests | 8 |
+   | P12 | Documentation: READMEs, routing slip guide, ADR-050 row, `docs/INVENTORY.md`, two changelog fragments; carries `Fixes #590` | 12 |
+
+   The contract suite is introduced in P1 against the fake and reused by each provider PR through one derived class; line counts are re-measured when each PR is briefed.
 
 </details>
 
@@ -173,20 +305,24 @@ CONTEXT:
 Encina (.NET 10, C# 14, pre-1.0, no backward compatibility). RoutingSlipRunner (src/Encina.Messaging/
 RoutingSlip/RoutingSlipRunner.cs) runs all steps inline and uses no store; IRoutingSlipStore has no
 implementation. Steps are delegates (RoutingSlipStepDefinition<TData>), so only names, serialized data
-and position can be persisted. The maintainer answered Design Choices 1-4 of
-docs/plans/routing-slip-stores-implementation-plan-590.md (apply the recorded answers).
+and position can be persisted. The maintainer answered Design Choices 1-4 and 6-8 of
+docs/plans/routing-slip-stores-implementation-plan-590.md (apply the recorded answers; build the
+pull requests P1-P12 of Phase 1 item 7 one at a time, each with its tests).
 
 TASK:
-1. Change IRoutingSlipStore to Either<EncinaError, T> returns; add Version, TenantId and ModuleId to
-   IRoutingSlipState; make UpdateAsync conditional on Version with a typed concurrency Left.
-2. Wire RoutingSlipRunner to the store (AddAsync at start, UpdateAsync after each step and at the end),
-   serializing Data and ActivityLog with IMessageSerializer; replace the raw exception message in the
-   HandlerFailed error by the error code.
+1. Change IRoutingSlipStore to Either<EncinaError, T> returns (exact signatures in the plan); add
+   Version, TenantId and ModuleId to IRoutingSlipState; make UpdateAsync conditional on Version with
+   the typed routingslip.concurrency_conflict Left.
+2. Wire RoutingSlipRunner to the store (AddAsync at start, write-ahead CurrentStep, UpdateAsync after
+   each step and at the end), serializing Data and ActivityLog with IMessageSerializer; replace the raw
+   exception message in the HandlerFailed error by the error code; on the concurrency Left stop WITHOUT
+   compensating or marking anything.
 3. If the answer to Design Choice 4 is the definition registry: add IRoutingSlipDefinitionRegistry and
    RoutingSlipRecoveryProcessor (stuck: bump the version, resume or compensate; expired: compensate and
    mark TimedOut). Otherwise the processor marks Failed/TimedOut only.
 4. Add RoutingSlipStartupCheck (fail the host when UseRoutingSlips is on and no IRoutingSlipStore is
-   registered, naming the module, ADR-050 and how to add a store); call it from RegisterRoutingSlips.
+   registered, naming the module, ADR-050 and how to add a store); call it from RegisterRoutingSlips,
+   in the SAME pull request as the first store family (P3) so no host breaks while main has no store.
 5. Add the fake store, update tests, register EventIds 6840-6849 and PublicAPI lines.
 
 KEY RULES:
@@ -215,7 +351,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** per package `RoutingSlip/RoutingSlipState.cs` (the `IRoutingSlipState` entity) and `RoutingSlip/RoutingSlipStoreADO.cs`, following `DeadLetter/` in the same package.
-2. **Create** per package `Scripts/0NN_CreateRoutingSlipsTable.sql` (next free number; `030` is the highest on ADO.SqlServer today) with the columns of the issue's sketch plus `version`, `tenant_id` and `module_id`, and indexes on `(status, last_updated_at_utc)` and `(status, timeout_at_utc)`.
+2. **Create** per package `Scripts/0NN_CreateRoutingSlipsTable.sql` (next free number; `030` is the highest on ADO.SqlServer today) with the columns of the issue's sketch plus `version`, `tenant_id` and `module_id`, and indexes on `(status, last_updated_at_utc)` and `(status, timeout_at_utc)`. Time columns are `datetime2(7)` / `timestamptz` / `DATETIME(6)` (a default MySQL `DATETIME` rounds to the second and would move the stuck threshold); `status` is a case-sensitive indexed column (`COLLATE Latin1_General_100_BIN2` on SQL Server, as in the dead letter script).
 3. **Implement** `GetAsync`, `AddAsync`, the version-conditional `UpdateAsync` (zero rows affected is the concurrency `Left`), `GetStuckAsync` (`status IN ('Running','Compensating') AND last_updated_at_utc <= @threshold`), `GetExpiredAsync` (`timeout_at_utc <= @now` and non-terminal) with `TOP (@n)` or `LIMIT @n` per database, `SaveChangesAsync` (a no-op like the non-EF stores).
 4. **Modify** each package's `ServiceCollectionExtensions` to register `IRoutingSlipStore` with `TryAdd` when `UseRoutingSlips` is on, including the tenancy variant; add EventIds inside `ADOSqlServer` 3200-3249, `ADOPostgreSQL` 3250-3299, `ADOMySQL` 3300-3349.
 
@@ -301,7 +437,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina.EntityFrameworkCore/RoutingSlip/RoutingSlipState.cs` (with `[ConcurrencyCheck]` or `IsConcurrencyToken` on `Version`), `RoutingSlipStateConfiguration.cs` (indexes of Phase 2) and `RoutingSlipStoreEF.cs`.
-2. **Implement** `UpdateAsync` through the concurrency token (`DbUpdateConcurrencyException` is the concurrency `Left`) and the queries with LINQ.
+2. **Implement** `UpdateAsync` through the concurrency token (`DbUpdateConcurrencyException` is the concurrency `Left`) and the queries with LINQ. **Who saves**: `DbUpdateConcurrencyException` is raised only when changes are saved and the runner calls `AddAsync`/`UpdateAsync` only, so the EF store's `AddAsync`/`UpdateAsync` **save immediately** (`SaveChangesAsync` inside the call) on **its own `DbContext`/connection, never the scoped one**, so the caller's tracked changes on a shared context are not flushed; the interface's `SaveChangesAsync` is then a no-op for EF too. A test shows two stale updates produce exactly one `Left` and one stored write.
 3. **Modify** `ServiceCollectionExtensions.cs` (registration next to line 212, tenancy variant) and add EventIds inside `EntityFrameworkCore` 3000-3099.
 
 </details>
@@ -380,7 +516,7 @@ REFERENCE FILES:
 
 1. **Create** `src/Encina.OpenTelemetry/MessagingStores/InstrumentedRoutingSlipStore.cs` (decorator, like `InstrumentedDeadLetterStore`) and its `DecorateService<IRoutingSlipStore>` line in `ServiceCollectionExtensions.cs` (next to line 152), so all 10 providers are instrumented once.
 2. **Create** a health check reporting stuck and expired counts from `GetStuckAsync`/`GetExpiredAsync` (or a count member if the maintainer prefers) and store connectivity.
-3. **Create** DI tests with `ValidateOnBuild` and `ValidateScopes` per provider: the host starts with `UseRoutingSlips` on and only the provider's registration; with no store the startup check fails.
+3. **Create** DI tests with `ValidateOnBuild` and `ValidateScopes` per provider: the host starts with `UseRoutingSlips` on and only the provider's registration; with no store the startup check fails; the hosted `RoutingSlipRecoveryProcessor` (a singleton) resolves the store and runner only through `IServiceScopeFactory` per iteration, so `ValidateScopes` passes. The decorator, health check and their tests travel in P11, each provider's DI test in that provider's PR. The decorator adds a tenant tag only when multi-tenancy is on and never carries `EncinaError.Message` (ADR-054 D4).
 
 </details>
 
@@ -424,7 +560,29 @@ REFERENCE FILES:
 3. **Contract tests**: one `IRoutingSlipStore` contract run over all 10 stores (real implementations).
 4. **Property tests** (FsCheck): stuck and expired selection and the state round trip (serialize, store, read, deserialize).
 5. **Integration tests** on the shared collection fixtures (`ADO-`/`Dapper-`/`EFCore-` x `SqlServer`/`PostgreSQL`/`MySQL`, MongoDB): a slip survives a restart (new provider scope, same database), stuck and expired selection, concurrent update (one winner), recovery processor end to end (option B); `ClearAllDataAsync` in `InitializeAsync`; never a `.md` justification.
-6. **Load tests** for concurrent updates of one slip (Design Choice 3 option A or B), else a justification file; a benchmark justification file.
+6. **Load tests** for concurrent updates of one slip (Design Choice 3 option A or B), else a justification file; a benchmark justification file. Load-flag expectation for the version-conflict path of each store's `UpdateAsync`: 60 percent of that method (many writers racing on one slip is exactly the load flag's subject).
+7. **Semantic tests** (contract suite, every provider): two stale updates give one success and one `routingslip.concurrency_conflict`; the original run that loses stops without compensating (runner test); the processor that loses skips; a slip written before a step and then abandoned is resumed at that step (Design Choice 8 A) or compensated (B); a resumed slip without tenant while tenancy is on is marked `Failed` with `routingslip.tenant_missing`; `GetCategory` of every code row; the `HandlerFailed` error text does not contain the exception message.
+
+#### Per-file coverage targets (percent, per flag)
+
+Manifests: `Encina.Messaging.json`, `Encina.Testing.Fakes.json`, `Encina.OpenTelemetry.json` and one per provider package. Provider rows apply to each of the nine provider stores (the EF row counts three providers through one file).
+
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|------|-------|----------|----------|-------------|---------------|
+| `RoutingSlipRunner.cs` (modified) | baseline + 5 | 90 | 0 | 0 | 40 | Persistence, write-ahead and the concurrency rule are unit tested with the fake; integration proves a restart on a real database; the PR reports the measured value against the manifest baseline |
+| `RoutingSlipRecoveryProcessor.cs` | 90 | 90 | 0 | 0 | 70 | Loop and scope handling with a fake clock; integration runs it end to end |
+| `RoutingSlipDefinitionRegistry` (default implementation) | 95 | 90 | 60 | 0 | 0 | In-memory map; no database |
+| `RoutingSlipStartupCheck.cs` | 95 | 0 | 0 | 0 | 0 | One check with no parameters beyond DI; the DI tests of the PR cover both outcomes |
+| `RoutingSlipErrorCodes.cs` (modified) | 95 | 0 | 80 | 0 | 0 | Constants plus category assertions |
+| `FakeRoutingSlipStore.cs` | 90 | 90 | 90 | 60 | 0 | The contract suite runs on it |
+| `InstrumentedRoutingSlipStore.cs` | 90 | 90 | 80 | 0 | 0 | Decorator over the contract |
+| `RoutingSlipStore{ADO,Dapper,EF,MongoDB}.cs` (each) | 85 | 90 | 85 | 60 | 85 | Fault paths unit tested; contract and integration cover version conflict, stuck and expired selection; property covers selection |
+| `RoutingSlipState.cs` (each provider) | 90 | 0 | 70 | 0 | 80 | Property bag, no validated parameters |
+| Provider `ServiceCollectionExtensions.cs` (modified) | baseline + 5 | 95 | 0 | 0 | 60 | DI tests per provider |
+| `MongoDbIndexCreator.cs` (modified) | baseline | 0 | 0 | 0 | 80 | Reachable only against a real MongoDB |
+| Provider `Log.cs` (modified) | 60 | 0 | 0 | 0 | 40 | Source-generated logging |
+
+Each PR reports the measured per-flag value of every touched file against these targets (`coverage-report.cs` "Per-file targets" table) and the local `crap-gate` table.
 
 </details>
 
@@ -542,7 +700,7 @@ REFERENCE FILES:
 | Coverage manifests | ~10 | One edit per package |
 | Tests | ~45 | Unit, guard, contract, property, integration, DI, load or justification |
 | Documentation | ~12 | READMEs, guide, ADR-050 row, INVENTORY, 2 changelog fragments |
-| **Total** | **~131** | About twelve pull requests (Phase 1 item 7) |
+| **Total** | **~131** | Twelve pull requests P1-P12 (Phase 1 item 7), each at most 15 files and 1,500 lines counting tests, scripts, manifests, `PublicAPI` and fragments |
 
 ---
 
@@ -594,15 +752,15 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | The state is rewritten after every step and read by id only for recovery; a cached copy would be stale and break the version check |
-| 2 | OpenTelemetry | ✅ Phase 6 | `InstrumentedRoutingSlipStore` decorator covers all 10 providers; the runner's step transitions are already logged through `RoutingSlipLog` |
+| 2 | OpenTelemetry | ✅ Phase 6 | `InstrumentedRoutingSlipStore` decorator covers all 10 providers (a tenant tag only when multi-tenancy is on, ADR-054 D4); the runner's step transitions are already logged through `RoutingSlipLog` |
 | 3 | Structured Logging | ✅ Phases 1-5 | `[LoggerMessage]` ids 6840-6849 for the core and ids inside the provider ranges, packed sequentially, registered first (ADR-021) |
 | 4 | Health Checks | ✅ Phase 6 | Stuck and expired counts and store connectivity |
 | 5 | Validation | ✅ Phases 2-5 | Guard tests for `batchSize`, `olderThan` and null state; the slip data is validated by the builder |
 | 6 | Resilience | ❌ N/A | Transient database retry belongs to the existing database resilience options (`src/Encina/Database/DatabaseResilienceOptions.cs`), shared by all stores; no second layer |
 | 7 | Distributed Locks | ❌ N/A | Optimistic concurrency (Design Choice 3 option A) replaces a lock; it becomes ✅ only if the maintainer picks option B |
-| 8 | Transactions | ✅ Phases 2-5 | Each add or update is one atomic statement or document write on one table; `SaveChangesAsync` is a no-op like the non-EF stores |
-| 9 | Idempotency | ✅ Phase 1 | The `Version` check makes a duplicate step completion a typed concurrency `Left` instead of a second write |
-| 10 | Multi-Tenancy | ✅ Phase 1 | Typed `TenantId` column on the state, filled from the request context at start |
+| 8 | Transactions | ✅ Phases 2-5 | Each add or update is one atomic statement or document write on one table, on the store's own connection or context (never the caller's tracked changes); the EF store saves inside `AddAsync`/`UpdateAsync` (Design Choice 3), so `SaveChangesAsync` is a no-op for every provider |
+| 9 | Idempotency | ✅ Phase 1 | The `Version` check makes a duplicate step completion a typed concurrency `Left` instead of a second write; resumed steps are at-least-once and must be idempotent (Design Choice 8) |
+| 10 | Multi-Tenancy | ✅ Phase 1 | Typed `TenantId` column on the state, filled from `IRequestContextAccessor` at start and restored by the recovery processor, which fails closed without a tenant (Design Choice 9) |
 | 11 | Module Isolation | ✅ Phase 1 | Typed `ModuleId` column on the state, filled from the request context at start |
 | 12 | Audit Trail | ❌ N/A | The persisted `ActivityLog` is the durable step history; routing slips are not a compliance surface that SPEC-002 requires auditing |
 
@@ -630,5 +788,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #590 and ask the maintainer to answer Design Choices 1 to 4 when work starts (Design Choice 2 together with #594).
-2. Implement Phases 1 to 8 as the pull requests of Phase 1 item 7, `Fixes #590` on the last.
+1. Link this plan from #590 and ask the maintainer to answer Design Choices 1 to 4 and 6 to 8 when work starts (Design Choice 2 together with #594).
+2. Implement Phases 1 to 8 as the pull requests P1-P12 of Phase 1 item 7, `Fixes #590` on the last (P12); the startup check lands with the first store family (P3) so main keeps working.
