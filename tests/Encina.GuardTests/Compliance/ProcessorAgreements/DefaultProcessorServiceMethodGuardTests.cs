@@ -1,8 +1,11 @@
+using Encina.Compliance.ProcessorAgreements;
 using Encina.Compliance.ProcessorAgreements.Aggregates;
 using Encina.Compliance.ProcessorAgreements.ReadModels;
 using Encina.Compliance.ProcessorAgreements.Services;
 using Encina.Marten;
 using Encina.Marten.Projections;
+using Encina.Tenancy;
+using Microsoft.Extensions.Options;
 
 namespace Encina.GuardTests.Compliance.ProcessorAgreements;
 
@@ -32,7 +35,9 @@ public sealed class DefaultProcessorServiceMethodGuardTests
         Substitute.For<IReadModelRepository<ProcessorReadModel>>();
 
     private readonly ICacheProvider _cache = Substitute.For<ICacheProvider>();
+    private readonly IOptions<ProcessorAgreementOptions> _options = Options.Create(new ProcessorAgreementOptions());
     private readonly TimeProvider _timeProvider = TimeProvider.System;
+    private readonly IRequestContextAccessor _requestContextAccessor = Substitute.For<IRequestContextAccessor>();
 
     private readonly ILogger<DefaultProcessorService> _logger =
         NullLogger<DefaultProcessorService>.Instance;
@@ -40,47 +45,52 @@ public sealed class DefaultProcessorServiceMethodGuardTests
     #region Constructor Guard Completeness
 
     /// <summary>
-    /// Verifies that the constructor accepts all valid non-null parameters without throwing.
+    /// Verifies that the constructor accepts all valid non-null parameters without throwing,
+    /// with and without the optional tenant provider.
     /// </summary>
     [Fact]
     public void Constructor_AllValidParameters_DoesNotThrow()
     {
-        var act = () => new DefaultProcessorService(
-            _repository, _readModelRepository, _cache, _timeProvider, _logger);
-
-        Should.NotThrow(act);
+        Should.NotThrow(() => new DefaultProcessorService(
+            _repository, _readModelRepository, _cache, _options, _timeProvider, _requestContextAccessor, _logger));
+        Should.NotThrow(() => new DefaultProcessorService(
+            _repository, _readModelRepository, _cache, _options, _timeProvider, _requestContextAccessor, _logger,
+            Substitute.For<ITenantProvider>()));
     }
 
     /// <summary>
-    /// Verifies that all five constructor parameters are individually guarded by
+    /// Verifies that every required constructor parameter is individually guarded by
     /// trying each null permutation and expecting ArgumentNullException.
     /// </summary>
     [Fact]
     public void Constructor_EachParameter_IsGuarded()
     {
-        // repository
         Should.Throw<ArgumentNullException>(
-            () => new DefaultProcessorService(null!, _readModelRepository, _cache, _timeProvider, _logger))
+            () => new DefaultProcessorService(null!, _readModelRepository, _cache, _options, _timeProvider, _requestContextAccessor, _logger))
             .ParamName.ShouldBe("repository");
 
-        // readModelRepository
         Should.Throw<ArgumentNullException>(
-            () => new DefaultProcessorService(_repository, null!, _cache, _timeProvider, _logger))
+            () => new DefaultProcessorService(_repository, null!, _cache, _options, _timeProvider, _requestContextAccessor, _logger))
             .ParamName.ShouldBe("readModelRepository");
 
-        // cache
         Should.Throw<ArgumentNullException>(
-            () => new DefaultProcessorService(_repository, _readModelRepository, null!, _timeProvider, _logger))
+            () => new DefaultProcessorService(_repository, _readModelRepository, null!, _options, _timeProvider, _requestContextAccessor, _logger))
             .ParamName.ShouldBe("cache");
 
-        // timeProvider
         Should.Throw<ArgumentNullException>(
-            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, null!, _logger))
+            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, null!, _timeProvider, _requestContextAccessor, _logger))
+            .ParamName.ShouldBe("options");
+
+        Should.Throw<ArgumentNullException>(
+            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, _options, null!, _requestContextAccessor, _logger))
             .ParamName.ShouldBe("timeProvider");
 
-        // logger
         Should.Throw<ArgumentNullException>(
-            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, _timeProvider, null!))
+            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, _options, _timeProvider, null!, _logger))
+            .ParamName.ShouldBe("requestContextAccessor");
+
+        Should.Throw<ArgumentNullException>(
+            () => new DefaultProcessorService(_repository, _readModelRepository, _cache, _options, _timeProvider, _requestContextAccessor, null!))
             .ParamName.ShouldBe("logger");
     }
 

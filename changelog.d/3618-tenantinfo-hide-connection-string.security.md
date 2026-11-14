@@ -1,0 +1,1 @@
+- `TenantInfo` (Encina.Tenancy) no longer exposes its database connection string: `ConnectionString` is excluded from System.Text.Json serialization and `ToString()` prints `ConnectionString = ***` instead of the value. A JSON round trip of a `TenantInfo` now yields a null `ConnectionString`; configuration binding of `TenancyOptions.Tenants` still reads it (#3618).
