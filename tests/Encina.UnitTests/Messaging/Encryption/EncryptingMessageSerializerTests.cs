@@ -122,6 +122,251 @@ public class EncryptingMessageSerializerTests : IDisposable
     }
 
     [Fact]
+    public void Serialize_DerivedTypeOfMarkedBase_IsEncrypted()
+    {
+        // Arrange — the derived type declares no attribute; [EncryptedMessage] is inherited
+        // from its base, so it cannot escape encryption (#3273).
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<DerivedEncryptedTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("base-key")));
+
+        // Act
+        var result = serializer.Serialize(new DerivedEncryptedTestMessage { Data = "secret", Extra = "x" });
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:base-key:");
+        result.ShouldNotContain("secret");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c => c.KeyId == "base-key"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_MarkedTypeWithEncryptAllMessages_IsEncrypted()
+    {
+        // Arrange — both the attribute and EncryptAllMessages require encryption
+        var options = CreateOptions(enabled: true, encryptAll: true);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<EncryptedTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("attr-key")));
+
+        // Act
+        var result = serializer.Serialize(new EncryptedTestMessage { Data = "secret" });
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:attr-key:");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_UnmarkedTypeWithoutEncryptAllMessages_DoesNotCallProvider()
+    {
+        // Arrange — decision (2) of #3273: no attribute and EncryptAllMessages=false stays plaintext
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<TestMessage>()).Returns("{\"Name\":\"test\"}");
+
+        // Act
+        var result = serializer.Serialize(new TestMessage { Name = "test" });
+
+        // Assert
+        result.ShouldBe("{\"Name\":\"test\"}");
+        _ = _provider.DidNotReceive().EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_MarkedConcreteTypePassedAsInterface_IsEncryptedWithConcreteKey()
+    {
+        // Arrange — the static type is an unmarked interface; the runtime type is marked (#3780)
+        var options = CreateOptions(enabled: true, encryptAll: false, defaultKeyId: "default-key");
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<IRuntimeTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("concrete-key")));
+        IRuntimeTestMessage message = new MarkedRuntimeTestMessage { Data = "secret" };
+
+        // Act
+        var result = serializer.Serialize(message);
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:concrete-key:");
+        result.ShouldNotContain("secret");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c =>
+                c.KeyId == "concrete-key"
+                && c.MessageType == typeof(MarkedRuntimeTestMessage).AssemblyQualifiedName),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_MarkedConcreteTypePassedAsBaseClass_IsEncryptedWithConcreteKey()
+    {
+        // Arrange — the static type is an unmarked base class; the runtime type is marked (#3780)
+        var options = CreateOptions(enabled: true, encryptAll: false, defaultKeyId: "default-key");
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<RuntimeTestMessageBase>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("concrete-key")));
+        RuntimeTestMessageBase message = new MarkedRuntimeTestMessage { Data = "secret" };
+
+        // Act
+        var result = serializer.Serialize(message);
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:concrete-key:");
+        result.ShouldNotContain("secret");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c => c.KeyId == "concrete-key"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_UnmarkedConcreteTypePassedAsInterface_StaysPlainAndDoesNotCallProvider()
+    {
+        // Arrange — EncryptAllMessages=false and neither the interface nor the concrete type is marked
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<IRuntimeTestMessage>()).Returns("{\"Data\":\"plain\"}");
+        IRuntimeTestMessage message = new UnmarkedRuntimeTestMessage { Data = "plain" };
+
+        // Act
+        var result = serializer.Serialize(message);
+
+        // Assert
+        result.ShouldBe("{\"Data\":\"plain\"}");
+        _ = _provider.DidNotReceive().EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_EncryptAllMessagesWithUnmarkedConcreteTypePassedAsInterface_IsEncrypted()
+    {
+        // Arrange — EncryptAllMessages=true encrypts whatever the static type is, with the default key
+        var options = CreateOptions(enabled: true, encryptAll: true, defaultKeyId: "default-key");
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<IRuntimeTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("default-key")));
+        IRuntimeTestMessage message = new UnmarkedRuntimeTestMessage { Data = "secret" };
+
+        // Act
+        var result = serializer.Serialize(message);
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:default-key:");
+        result.ShouldNotContain("secret");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c =>
+                c.KeyId == "default-key"
+                && c.MessageType == typeof(UnmarkedRuntimeTestMessage).AssemblyQualifiedName),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_MessagePassedAsInterface_CallsInnerWithTheStaticGenericArgument()
+    {
+        // Arrange — decision (1) of #3780: the inner call, and so the JSON format, is unchanged
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<IRuntimeTestMessage>()).Returns("{\"Data\":\"plain\"}");
+        IRuntimeTestMessage message = new UnmarkedRuntimeTestMessage { Data = "plain" };
+
+        // Act
+        var result = serializer.Serialize(message);
+
+        // Assert
+        result.ShouldBe("{\"Data\":\"plain\"}");
+        var call = _inner.ReceivedCalls().ShouldHaveSingleItem();
+        call.GetMethodInfo().Name.ShouldBe(nameof(IMessageSerializer.Serialize));
+        call.GetMethodInfo().GetGenericArguments().ShouldBe([typeof(IRuntimeTestMessage)]);
+        call.GetArguments().ShouldBe([message]);
+    }
+
+    [Fact]
+    public void Serialize_NullMessageOfUnmarkedType_StaysPlainAndDoesNotCallProvider()
+    {
+        // Arrange — a null message falls back to typeof(T), as before #3780
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize<TestMessage?>(null).Returns("null");
+
+        // Act
+        var result = serializer.Serialize<TestMessage?>(null);
+
+        // Assert
+        result.ShouldBe("null");
+        _ = _provider.DidNotReceive().EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_NullMessageOfMarkedType_IsEncryptedWithTheStaticTypeKey()
+    {
+        // Arrange — a null message falls back to typeof(T), so a marked T is still encrypted
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize<EncryptedBaseTestMessage?>(null).Returns("null");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Right<EncinaError, EncryptedPayload>(CreatePayload("base-key")));
+
+        // Act
+        var result = serializer.Serialize<EncryptedBaseTestMessage?>(null);
+
+        // Assert
+        result.ShouldStartWith("ENC:v1:base-key:");
+        _ = _provider.Received(1).EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(),
+            Arg.Is<MessageEncryptionContext>(c => c.KeyId == "base-key"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public void Serialize_EncryptionFailsForMessagePassedAsInterface_ThrowsWithConcreteTypeName()
+    {
+        // Arrange — decision (6) of #3780: a failure throws, never falls back to plaintext
+        var options = CreateOptions(enabled: true, encryptAll: false);
+        var serializer = CreateSerializer(options);
+        _inner.Serialize(Arg.Any<IRuntimeTestMessage>()).Returns("{\"Data\":\"secret\"}");
+        _provider.EncryptAsync(
+            Arg.Any<ReadOnlyMemory<byte>>(), Arg.Any<MessageEncryptionContext>(), Arg.Any<CancellationToken>())
+            .Returns(Left<EncinaError, EncryptedPayload>(MessageEncryptionErrors.EncryptionFailed("x")));
+        IRuntimeTestMessage message = new MarkedRuntimeTestMessage { Data = "secret" };
+
+        // Act
+        Action act = () => serializer.Serialize(message);
+
+        // Assert
+        Should.Throw<InvalidOperationException>(act).Message.ShouldContain(nameof(MarkedRuntimeTestMessage));
+    }
+
+    [Fact]
+    public void AttributeCache_DerivedTypeOfMarkedBase_ReturnsInheritedInfo()
+    {
+        // Act
+        var info = EncryptedMessageAttributeCache.GetEncryptionInfo(typeof(DerivedEncryptedTestMessage));
+
+        // Assert — the inherited attribute is found, with the base's key
+        info.ShouldNotBeNull();
+        info.KeyId.ShouldBe("base-key");
+        EncryptedMessageAttributeCache.GetEncryptionInfo(typeof(TestMessage)).ShouldBeNull();
+    }
+
+    [Fact]
     public void Serialize_EncryptionFails_ThrowsInvalidOperationException()
     {
         // Arrange
@@ -259,6 +504,16 @@ public class EncryptingMessageSerializerTests : IDisposable
         });
     }
 
+    private static EncryptedPayload CreatePayload(string keyId) => new()
+    {
+        Ciphertext = ImmutableArray.Create<byte>(1, 2, 3),
+        KeyId = keyId,
+        Algorithm = "AES-256-GCM",
+        Nonce = ImmutableArray.Create<byte>(10, 20, 30),
+        Tag = ImmutableArray.Create<byte>(40, 50, 60),
+        Version = 1
+    };
+
     public class TestMessage
     {
         public string? Name { get; set; }
@@ -269,4 +524,30 @@ public class EncryptingMessageSerializerTests : IDisposable
     {
         public string? Data { get; set; }
     }
+
+    [EncryptedMessage(KeyId = "base-key")]
+    public class EncryptedBaseTestMessage
+    {
+        public string? Data { get; set; }
+    }
+
+    public sealed class DerivedEncryptedTestMessage : EncryptedBaseTestMessage
+    {
+        public string? Extra { get; set; }
+    }
+
+    public interface IRuntimeTestMessage
+    {
+        string? Data { get; set; }
+    }
+
+    public abstract class RuntimeTestMessageBase : IRuntimeTestMessage
+    {
+        public string? Data { get; set; }
+    }
+
+    [EncryptedMessage(KeyId = "concrete-key")]
+    public sealed class MarkedRuntimeTestMessage : RuntimeTestMessageBase;
+
+    public sealed class UnmarkedRuntimeTestMessage : RuntimeTestMessageBase;
 }
