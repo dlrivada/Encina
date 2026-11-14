@@ -1,5 +1,6 @@
 #pragma warning disable CA2012 // ValueTask instances used in NSubstitute mock setup
 
+using Encina.Diagnostics;
 using Encina.Security.Secrets;
 using Encina.Security.Secrets.Abstractions;
 using Encina.Security.Secrets.Configuration;
@@ -7,6 +8,8 @@ using LanguageExt;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Shouldly;
 
@@ -325,6 +328,229 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
 
     #endregion
 
+    #region Reload timer
+
+    private static readonly TimeSpan ReloadInterval = TimeSpan.FromMinutes(1);
+
+    [Fact]
+    public void ReloadTimer_InjectedClockReachesTheInterval_ReloadsSecretsAndSignalsTheReload()
+    {
+        // Arrange
+        var values = new Queue<string>(["v1", "v2"]);
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, string>>(values.Dequeue()));
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var provider = CreateReloadingProvider(clock, new FakeLoggerProvider());
+        provider.Load();
+        var reloaded = false;
+        provider.GetReloadToken().RegisterChangeCallback(_ => reloaded = true, null);
+
+        // Act: the injected clock, not the system clock, fires the reload
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var value).ShouldBeTrue();
+        value.ShouldBe("v2");
+        reloaded.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void ReloadTimer_LoadThrows_LogsTheExceptionTypeWithoutItsMessageKeepsTheDataAndKeepsRunning()
+    {
+        // Arrange: the first load succeeds, the first reload throws, the second reload succeeds
+        var secret = "SECRET-" + Guid.NewGuid().ToString("N");
+        var call = 0;
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => ++call switch
+            {
+                1 => new ValueTask<Either<EncinaError, string>>("v1"),
+                2 => throw new InvalidOperationException(secret),
+                _ => new ValueTask<Either<EncinaError, string>>("v3")
+            });
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var logs = new FakeLoggerProvider();
+        using var provider = CreateReloadingProvider(clock, logs);
+        provider.Load();
+
+        // Act: the failing reload must not escape the timer callback
+        Should.NotThrow(() => clock.Advance(ReloadInterval));
+
+        // Assert: logged once with EventId 5151, message redacted, previous data kept
+        var record = logs.Collector.GetSnapshot().Where(r => r.Id.Id == 5151).ShouldHaveSingleItem();
+        record.Level.ShouldBe(LogLevel.Error);
+        var logged = record.Exception.ShouldBeOfType<RedactedException>();
+        logged.ToString().ShouldContain(nameof(InvalidOperationException));
+        logged.ToString().ShouldNotContain(secret);
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+
+        // Act: the timer keeps running, so the next interval reloads
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+    }
+
+    [Fact]
+    public void ReloadTimer_ReaderReturnsLeft_KeepsThePreviousDataWithoutSignallingAndTheNextCompleteReloadApplies()
+    {
+        // Arrange: the first load succeeds, the first reload returns Left, the second reload succeeds
+        var call = 0;
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => ++call switch
+            {
+                1 => new ValueTask<Either<EncinaError, string>>("v1"),
+                2 => new ValueTask<Either<EncinaError, string>>(SecretsErrors.NotFound("api-key")),
+                _ => new ValueTask<Either<EncinaError, string>>("v3")
+            });
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var logs = new FakeLoggerProvider();
+        using var provider = CreateReloadingProvider(clock, logs);
+        provider.Load();
+        var reloads = 0;
+        provider.GetReloadToken().RegisterChangeCallback(_ => reloads++, null);
+
+        // Act: a reload that could not read every secret
+        clock.Advance(ReloadInterval);
+
+        // Assert: the previous data is kept, no reload is signalled, and the Left is logged by its error code
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+        reloads.ShouldBe(0);
+        var errorCode = SecretsErrors.NotFound("api-key").GetCode().IfNone(string.Empty);
+        errorCode.ShouldNotBeEmpty();
+        var warning = logs.Collector.GetSnapshot()
+            .Where(r => r.Level == LogLevel.Warning && r.Message.Contains("api-key", StringComparison.Ordinal))
+            .ShouldHaveSingleItem();
+        warning.Message.ShouldContain(errorCode);
+
+        // Act: the next interval reads every secret
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+        reloads.ShouldBe(1);
+    }
+
+    [Fact]
+    public void ReloadTimer_LoggingTheFailureThrows_DoesNotEscapeTheTimerAndKeepsRunning()
+    {
+        // Arrange: the reload throws, and so does the logging provider that would record it
+        var call = 0;
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => ++call switch
+            {
+                1 => new ValueTask<Either<EncinaError, string>>("v1"),
+                2 => throw new InvalidOperationException("reload failed"),
+                _ => new ValueTask<Either<EncinaError, string>>("v3")
+            });
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddProvider(new ThrowingLoggerProvider()));
+        services.AddSingleton(_mockReader);
+        var options = new SecretsConfigurationOptions
+        {
+            SecretNames = ["api-key"],
+            ReloadInterval = ReloadInterval
+        };
+        using var provider = new SecretsConfigurationProvider(services.BuildServiceProvider(), options, clock);
+        provider.Load();
+
+        // Act
+        Should.NotThrow(() => clock.Advance(ReloadInterval));
+
+        // Assert: the previous data is kept
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+
+        // Act: the timer keeps running, so the next interval reloads
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+    }
+
+    [Fact]
+    public void ReloadTimer_ReloadCallbackThrows_IsLoggedAndDoesNotEscapeTheTimer()
+    {
+        // Arrange
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, string>>("v1"));
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var logs = new FakeLoggerProvider();
+        using var provider = CreateReloadingProvider(clock, logs);
+        provider.Load();
+        provider.GetReloadToken().RegisterChangeCallback(_ => throw new InvalidOperationException("listener failed"), null);
+
+        // Act
+        Should.NotThrow(() => clock.Advance(ReloadInterval));
+
+        // Assert
+        logs.Collector.GetSnapshot().Where(r => r.Id.Id == 5151).ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void ReloadTimer_SecretReaderNoLongerResolvable_KeepsThePreviousDataWithoutSignallingAndKeepsRunning()
+    {
+        // Arrange: the reader resolves for the first load, not for the first reload, and again for the second
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, string>>("v1"), new ValueTask<Either<EncinaError, string>>("v3"));
+        var readerResolutions = 0;
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(ISecretReader))
+            .Returns(_ => ++readerResolutions == 2 ? null : _mockReader);
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var options = new SecretsConfigurationOptions
+        {
+            SecretNames = ["api-key"],
+            ReloadInterval = ReloadInterval
+        };
+        using var provider = new SecretsConfigurationProvider(serviceProvider, options, clock);
+        provider.Load();
+        var reloads = 0;
+        provider.GetReloadToken().RegisterChangeCallback(_ => reloads++, null);
+
+        // Act: a reload without a reader
+        Should.NotThrow(() => clock.Advance(ReloadInterval));
+
+        // Assert: the previous data is kept and no reload is signalled
+        provider.TryGet("api-key", out var kept).ShouldBeTrue();
+        kept.ShouldBe("v1");
+        reloads.ShouldBe(0);
+
+        // Act: the timer keeps running, so the next interval reloads
+        clock.Advance(ReloadInterval);
+
+        // Assert
+        provider.TryGet("api-key", out var reloaded).ShouldBeTrue();
+        reloaded.ShouldBe("v3");
+        reloads.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task ReloadTimer_AfterDispose_DoesNotReload()
+    {
+        // Arrange
+        _mockReader.GetSecretAsync("api-key", Arg.Any<CancellationToken>())
+            .Returns(_ => new ValueTask<Either<EncinaError, string>>("v1"));
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var provider = CreateReloadingProvider(clock, new FakeLoggerProvider());
+        provider.Load();
+        _mockReader.ClearReceivedCalls();
+
+        // Act
+        provider.Dispose();
+        clock.Advance(ReloadInterval * 3);
+
+        // Assert
+        await _mockReader.DidNotReceive().GetSecretAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    #endregion
+
     #region Helpers
 
     private SecretsConfigurationProvider CreateProvider(Action<SecretsConfigurationOptions> configure)
@@ -333,6 +559,44 @@ public sealed class SecretsConfigurationProviderTests : IDisposable
         var options = new SecretsConfigurationOptions();
         configure(options);
         return new SecretsConfigurationProvider(sp, options);
+    }
+
+    private SecretsConfigurationProvider CreateReloadingProvider(FakeTimeProvider clock, FakeLoggerProvider logs)
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(builder => builder.AddProvider(logs));
+        services.AddSingleton(_mockReader);
+        var options = new SecretsConfigurationOptions
+        {
+            SecretNames = ["api-key"],
+            ReloadInterval = ReloadInterval
+        };
+        return new SecretsConfigurationProvider(services.BuildServiceProvider(), options, clock);
+    }
+
+    private sealed class ThrowingLoggerProvider : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new ThrowingLogger();
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class ThrowingLogger : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter) =>
+                throw new InvalidOperationException("logging provider failed");
+        }
     }
 
     #endregion
