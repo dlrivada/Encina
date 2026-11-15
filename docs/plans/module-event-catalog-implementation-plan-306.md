@@ -10,7 +10,7 @@
 
 ## Summary
 
-#306 asks for integration events between modules: `IIntegrationEvent`, `IntegrationEventBase`, `IModuleEventBus`, an in-process bus with optional outbox, `IIntegrationEventHandler<T>`, `[DependsOnEvents]`, `IModuleEventCatalog` and startup validation. Almost all of it is the scope of #358 ("Inter-Module Communication"), which is planned. State of `origin/main` (`db1e7f688`) and of the sibling plans, verified by reading:
+#306 asks for integration events between modules: `IIntegrationEvent`, `IntegrationEventBase`, `IModuleEventBus`, an in-process bus with optional outbox, `IIntegrationEventHandler<T>`, `[DependsOnEvents]`, `IModuleEventCatalog` and startup validation. Almost all of it is the scope of #358 ("Inter-Module Communication"), which is planned. State of `origin/main` (`96c8803bd`) and of the sibling plans, verified by reading:
 
 | #306 item | Today | Owner |
 |-----------|-------|-------|
