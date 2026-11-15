@@ -2,7 +2,7 @@
 
 > **Issue**: [#364](https://github.com/dlrivada/Encina/issues/364)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 3 pull requests of 12, 12 and 4 files)
+> **Complexity**: Medium (6 phases, 3 pull requests of 13, 14 and 6 files)
 > **Estimated Scope**: about 450 lines of production code and about 1,000 lines of tests, split over three pull requests
 > **Family**: modular monolith (#352 umbrella, #360 supplies the module graph and state, #358, #359); this plan owns module health, readiness and propagation
 
@@ -26,7 +26,7 @@ The issue asks for `IModuleHealthCheck`, `IModuleReadinessCheck`, `ModuleHealthS
 
 The wrong granularity: because `AddEncinaModuleHealthChecks()` registers one composite, ASP.NET's tag predicates cannot select a module, so no per-module endpoint, per-module readiness or per-module metric is possible. The plan therefore registers one health check and one readiness check per module, named from the module's own `Name`, and lets #622's publisher and #454's probes see them.
 
-Delivered in `Encina.AspNetCore` (no new package, Design Choice 1): a `ModuleHealthEvaluator` that evaluates every module once per probe and applies dependency propagation; per-module health and readiness registrations (added from `IModuleRegistry` at options-build time, so registration order does not matter); `MapEncinaModuleHealthChecks` with one endpoint per module; logging (EventIds 7645-7648); guide updates.
+Delivered in `Encina.AspNetCore` (no new package, Design Choice 1): a `ModuleHealthEvaluator` that evaluates every module once per probe and applies dependency propagation; per-module health and readiness registrations (added from `IModuleRegistry` at options-build time, so registration order does not matter); `MapEncinaModuleHealthChecks` with one endpoint per module; logging (EventIds 7645-7649); guide updates.
 
 **Provider category**: none. Module checks read other checks and the lifecycle state; the database, cache and transport checks they aggregate already exist per provider (`Encina.Messaging.Health`, the provider packages) and are not changed here.
 
@@ -114,7 +114,7 @@ A wins when readiness means "the module finished its startup and is not stopping
 
 ### Rationale
 
-B wins because registration order is a recurring defect class in Encina (`AGENTS.md` section 3, registration completeness), and it keeps standard ASP.NET behavior. A wins only if per-module selection is not wanted. Names: `encina-module-{name}` for health and `encina-module-{name}-ready` for readiness, with the name lowered by `ToLowerInvariant`; tags: `encina`, `modules`, `module:{name}`. The mapping from module to name is injective: `ModuleRegistry` rejects two names equal ignoring case, and the setup rejects two modules whose lowered names are equal (a registration error), so no two modules share a name or a tag. The tenant concept does not enter these names.
+B wins because registration order is a recurring defect class in Encina (`AGENTS.md` section 3, registration completeness), and it keeps standard ASP.NET behavior. A wins only if per-module selection is not wanted. Names: `encina-module-{name}` for health and `encina-module-{name}-ready` for readiness, with the name lowered by `ToLowerInvariant`; tags: `encina`, `modules`, `module:{name}`. The mapping from module to name is injective: `ModuleRegistry` rejects two names equal ignoring case, and the setup rejects two modules whose lowered names are equal (an `InvalidOperationException` when the options are first built, and at host startup through a `ValidateOnStart` check of `ModuleHealthOptions`), so no two modules share a name or a tag. The tenant concept does not enter these names.
 
 **Class:** Dilemma
 
@@ -215,7 +215,7 @@ A wins because module names are known at startup and every ASP.NET convention (a
 1. `src/Encina.AspNetCore/Modules/ModuleHealthEvaluator.cs` (internal sealed, singleton): constructor `(IModuleRegistry, IModuleGraph, IModuleStateProvider, IServiceProvider, ILogger<...>)`; `Task<IReadOnlyDictionary<string, ModuleHealthEntry>> EvaluateAsync(CancellationToken)` implements D6 (single-flight) and D5 (propagation in `IModuleGraph.StartOrder`); a module's own result is the worst `HealthStatus` of its `IModuleWithHealthChecks.GetHealthChecks()` results (a module without that interface has no own checks and is `Healthy` while its state is `Running`); an `IModuleHealthCheck` whose `ModuleName` differs from the owning module is reported `Unhealthy` once with a fixed description. `ModuleHealthEntry` is an internal record (`Status`, `Description`, `Data`).
 2. Scoped dependencies: `IModuleWithHealthChecks.GetHealthChecks()` may build scoped checks, so the evaluator resolves nothing scoped itself; a check needing a scope uses `IServiceScopeFactory` internally, as the existing checks do.
 3. `ModuleHealthCheck` (`IHealthCheck`, internal) reads its module's entry from the evaluator and maps it to ASP.NET's `HealthCheckResult` through the same status mapping as `CompositeEncinaHealthCheck`; `ModuleReadinessCheck` maps the module's lifecycle state (D3): `Running` healthy, anything else unhealthy with a fixed description naming the state.
-4. `src/Encina.AspNetCore/Modules/Diagnostics/ModuleHealthLog.cs` (`[LoggerMessage]`, EventIds 7645 evaluated, 7646 propagated degradation, 7647 check failed by exception type, 7648 module not ready) and `EventIdRanges.ModulesHealth = (7645, 7649)` plus the `Encina.AspNetCore` entry of the allocation test map (`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`).
+4. `src/Encina.AspNetCore/Modules/Diagnostics/ModuleHealthLog.cs` (`[LoggerMessage]`, EventIds 7645 evaluated, 7646 propagated degradation, 7647 check failed by exception type, 7648 module not ready, 7649 no module registry found, used by pull request 2's setup) and `EventIdRanges.ModulesHealth = (7645, 7649)` plus the `Encina.AspNetCore` entry of the allocation test map (`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`) and the core `src/Encina/PublicAPI.Unshipped.txt` line for the new field (`static readonly Encina.Diagnostics.EventIdRanges.ModulesHealth -> (int Min, int Max)`, through `mechanical-fixer`; the sibling `EventIdRanges.AspNetCore` line is there at line 2038).
 5. Tests: unit `ModuleHealthEvaluatorTests` (worst-of own checks, propagation through a chain and a diamond, a throwing check, cancellation, single-flight with a gate that holds the first evaluation), `ModuleHealthChecksTests` (status mapping, readiness per state), property `ModuleHealthEvaluatorPropertyTests` (a module never reports healthier than the worst of its own checks, never `Unhealthy` only because of a dependency, and every module appears exactly once), allocation map edit; manifest entries for the new files.
 
 </details>
@@ -237,11 +237,11 @@ REFERENCE FILES: src/Encina.AspNetCore/Health/CompositeEncinaHealthCheck.cs, src
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.AspNetCore/Modules/ModuleHealthRegistrationSetup.cs` (internal sealed, `IConfigureOptions<HealthCheckServiceOptions>`): constructor `(IModuleRegistry, ModuleHealthEvaluator, IOptions<ModuleHealthOptions>)`; for each module adds `HealthCheckRegistration` `encina-module-{name}` (tags `encina`, `modules`, `module:{name}`, plus the caller's tags) and `encina-module-{name}-ready` (tags `modules`, `module:{name}`, `ready`, `startup` from #454's `EncinaHealthTags`), each with the configured `failureStatus` and `timeout`; rejects two modules whose lowered names are equal with `InvalidOperationException`.
-2. `HealthCheckBuilderExtensions.cs`: `AddEncinaModuleHealthChecks(tags, failureStatus, timeout)` now registers the evaluator and the setup (replacing the single composite named `encina-modules`); the generic `AddEncinaModuleHealthChecks<TModule>` overload is removed (its type-name-derived name was not injective) and replaced by the optional `string[] moduleNames` filter on the main method; a missing `IModuleRegistry` makes the setup add nothing and log once at Warning (an application without modules).
-3. `ModuleHealthOptions` (`Timeout`, default 10 seconds, validated greater than zero) registered through `AddOptions<ModuleHealthOptions>().Validate(...)`.
-4. Existing tests updated: `tests/Encina.UnitTests/AspNetCore/ModuleHealthCheckTests.cs` and `tests/Encina.UnitTests/AspNetCore/Health/HealthCheckBuilderExtensionsTests.cs` (the `encina-modules` registration name and the removed overload).
-5. Tests: unit `ModuleHealthRegistrationSetupTests` (names, tags, two registrations per module, duplicate lowered names throw, filter), guard `ModuleHealthOptionsGuardTests`, a DI test `ModuleHealthRegistrationTests` building the provider with `ValidateOnBuild` and `ValidateScopes` in both orders of `AddHealthChecks` and `AddEncinaModules`; PublicAPI (`Encina.AspNetCore`, through `mechanical-fixer`), manifest.
+1. `src/Encina.AspNetCore/Modules/ModuleHealthRegistrationSetup.cs` (internal sealed, `IConfigureOptions<HealthCheckServiceOptions>`): constructor `(IServiceProvider, ModuleHealthEvaluator, IOptions<ModuleHealthOptions>, ILogger<ModuleHealthRegistrationSetup>)`. `IModuleRegistry` is NOT a constructor dependency (constructor injection of an unregistered service fails resolution): the setup reads it with `serviceProvider.GetService<IModuleRegistry>()`, which returns null in an application without modules; then it adds nothing and logs once at Warning with EventId 7649 (`ModuleHealthLog`, added in pull request 1, inside the block 7645-7649). For each module (after the `ModuleNames` filter) it adds `HealthCheckRegistration` `encina-module-{name}` (tags `encina`, `modules`, `module:{name}`, plus `ModuleHealthOptions.Tags`) and `encina-module-{name}-ready` (tags `modules`, `module:{name}`, `ready`, `startup` from #454's `EncinaHealthTags`), each with `ModuleHealthOptions.FailureStatus` and `ModuleHealthOptions.Timeout`; rejects two modules whose lowered names are equal with `InvalidOperationException`. That check runs when `HealthCheckServiceOptions` is first built (the first probe or the first resolution of `HealthCheckService`), so a duplicate surfaces as a failed probe, not at startup; `AddEncinaModuleHealthChecks` therefore also registers a `ValidateOnStart` check on `ModuleHealthOptions` that builds the same name set from the registry, so a duplicate fails host startup.
+2. `HealthCheckBuilderExtensions.cs`: `AddEncinaModuleHealthChecks(tags, failureStatus, timeout, moduleNames)` now registers the evaluator, the setup and `ModuleHealthOptions` (replacing the single composite named `encina-modules`); the caller's `tags`, `failureStatus` and `timeout` reach the setup only through `ModuleHealthOptions` (see task 3), because the setup is created by the container and has no other carrier. The generic `AddEncinaModuleHealthChecks<TModule>` overload is removed (its type-name-derived name was not injective) and replaced by the optional `string[] moduleNames` filter on the main method. New parameters are optional, so the two existing calls in `tests/Encina.GuardTests/AspNetCore/AspNetCoreGuardTests.cs` (lines 72-75 and 163-167, no arguments) still compile unchanged.
+3. `ModuleHealthOptions` (`Timeout`, default 10 seconds, validated greater than zero; `FailureStatus`, `HealthStatus?` default null meaning ASP.NET's default; `Tags`, `IReadOnlyCollection<string>` default empty; `ModuleNames`, `IReadOnlyCollection<string>?` default null meaning every module) registered through `AddOptions<ModuleHealthOptions>().Configure(...).Validate(...)`; the extension copies its arguments into it.
+4. Existing tests updated: `tests/Encina.UnitTests/AspNetCore/ModuleHealthCheckTests.cs` and `tests/Encina.UnitTests/AspNetCore/Health/HealthCheckBuilderExtensionsTests.cs` (the `encina-modules` registration name and the removed overload); `tests/Encina.GuardTests/AspNetCore/AspNetCoreGuardTests.cs` is edited to add a guard test for the new `moduleNames` filter (a null or empty element is rejected) (#3798), its two existing calls stay as they are.
+5. Tests: unit `ModuleHealthRegistrationSetupTests` (names, tags, caller tags and failure status carried, two registrations per module, duplicate lowered names throw, filter, a missing registry adds nothing and logs 7649 once), guard `ModuleHealthOptionsGuardTests`, a DI test `ModuleHealthRegistrationTests` building the provider with `ValidateOnBuild` and `ValidateScopes` in both orders of `AddHealthChecks` and `AddEncinaModules`; PublicAPI (`Encina.AspNetCore`, through `mechanical-fixer`), manifest.
 
 </details>
 
@@ -286,7 +286,7 @@ REFERENCE FILES: src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs, t
 <summary>Tasks</summary>
 
 1. OpenTelemetry (function 2): no new instrument; every module registration is a check, so #622's `IHealthCheckPublisher` (`encina.health.check_status`, tag `check.name`) emits one series per module health and readiness check.
-2. Logging (function 3): `ModuleHealthLog`, EventIds 7645-7648 in `ModulesHealth` (7645-7649).
+2. Logging (function 3): `ModuleHealthLog`, EventIds 7645-7649 in `ModulesHealth` (7645-7649, all five used).
 3. Resilience (function 6): `HealthCheckRegistration.Timeout` per module registration from `ModuleHealthOptions.Timeout`; a check that exceeds it is `Unhealthy` by ASP.NET's own handling.
 4. Module isolation (function 11): per-module health is module-scoped; the module name is the only identifier used.
 5. Multi-tenancy (function 10): health is per process and per module; there is no tenant-scoped module, so no tenant tag, no tenant-qualified identifier and no call to `ResolveRead` or `ResolveWrite` of #1257 and #798 (tenant-scoped resource health belongs to the tenancy packages).
@@ -335,7 +335,7 @@ Per-flag targets for the files this work adds or changes, entered in `.github/co
 1. **Unit, Guard, Property, Integration (`TestServer`)** as listed in the phases.
 2. **Load**: justification file `tests/Encina.LoadTests/Health/ModuleHealth.md`: the evaluator's concurrency is exercised by a single-flight unit test and probes are not a throughput path.
 3. **Benchmark**: justification file `tests/Encina.BenchmarkTests/Health/ModuleHealth.md`: a probe path of a handful of in-memory checks, not a hot path; both justification files ship in pull request 1.
-4. **Documentation (pull request 3)**: extend `docs/guides/health-checks.md` (module section: per-module checks, readiness, propagation, endpoints, authorization, what is never exposed) through `docs-writer`, XML docs with examples, `docs/INVENTORY.md` and `ROADMAP.md` lines, `changelog.d/364-module-health.added.md` and `364-module-health-registration.changed.md` through `mechanical-fixer`; no ADR (no new cross-package decision; health tags are #454's ADR).
+4. **Documentation (pull request 3)**: extend `docs/guides/health-checks.md` (module section: per-module checks, readiness, propagation, endpoints, authorization, what is never exposed) and replace the removed generic overload `AddEncinaModuleHealthChecks<OrdersModule>()` still shown at `src/Encina.AspNetCore/README.md:815` (verified on origin/main; line 810 shows the non-generic call, which stays valid) through `docs-writer`, XML docs with examples, `docs/INVENTORY.md` and `ROADMAP.md` lines, `changelog.d/364-module-health.added.md` and `364-module-health-registration.changed.md` through `mechanical-fixer`; no ADR (no new cross-package decision; health tags are #454's ADR).
 5. `dotnet build --configuration Release` with zero warnings; all tests green; every flag at its target; CRAP of every changed method below 10.
 
 </details>
@@ -407,22 +407,22 @@ REFERENCE FILES: AGENTS.md section 8, .github/coverage-manifest/Encina.AspNetCor
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.AspNetCore` (`ModulesHealth`, new) | 7645-7649, ids 7645-7648 used | From the assigned block 7600-7649 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); #360 7600-7619, #352 7620-7629, #358 7630-7644 |
+| `Encina.AspNetCore` (`ModulesHealth`, new) | 7645-7649, all five used (7649 is the setup's missing-registry warning) | From the assigned block 7600-7649 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); #360 7600-7619, #352 7620-7629, #358 7630-7644 |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production code | 9 | New: `ModuleHealthEvaluator`, `ModuleHealthCheck`, `ModuleReadinessCheck`, `ModuleHealthLog`, `ModuleHealthRegistrationSetup`, `ModuleHealthOptions`, `ModuleHealthEndpointRouteBuilderExtensions`; edited: `HealthCheckBuilderExtensions`, `EventIdRanges` |
-| Public API and manifest | 2 | `Encina.AspNetCore` PublicAPI and `Encina.AspNetCore.json` (touched in pull requests 2 and 1) |
-| Tests | 10 | unit 4 (evaluator, checks, setup, endpoints), property 1, guard 2, DI 1, allocation map edit, two existing test files edited |
+| Public API and manifest | 3 | core `src/Encina/PublicAPI.Unshipped.txt` (pull request 1), `Encina.AspNetCore` PublicAPI (pull request 2) and `Encina.AspNetCore.json` (touched in pull requests 1 and 2, so counted in both) |
+| Tests | 12 | unit 4 (evaluator, checks, setup, endpoints), property 1, guard 2 (options, endpoints), DI 1, allocation map edit, three existing test files edited (`ModuleHealthCheckTests`, `HealthCheckBuilderExtensionsTests`, `AspNetCoreGuardTests`) |
 | Justification files | 2 | load, benchmark (pull request 1) |
-| Documentation | 4 | guide edit, inventory and roadmap lines, 2 changelog fragments |
-| **Pull request 1** | **12** | 5 production (`ModuleHealthEvaluator`, `ModuleHealthCheck`, `ModuleReadinessCheck`, `ModuleHealthLog`, `EventIdRanges`), manifest, 4 tests (evaluator unit, checks unit, property, allocation map edit), 2 justification files; about 600 lines |
-| **Pull request 2** | **12** | `ModuleHealthRegistrationSetup`, `ModuleHealthOptions`, `HealthCheckBuilderExtensions`, `ModuleHealthEndpointRouteBuilderExtensions` (4), PublicAPI, manifest, 6 tests (setup unit, endpoint unit with `TestServer`, options guard, endpoint guard, DI test, the two edited existing files); about 800 lines |
-| **Pull request 3** | **4** | guide, inventory and roadmap, 2 changelog fragments |
+| Documentation | 6 | guide edit, `src/Encina.AspNetCore/README.md` edit, inventory, roadmap, 2 changelog fragments |
+| **Pull request 1** | **13** | 5 production (`ModuleHealthEvaluator`, `ModuleHealthCheck`, `ModuleReadinessCheck`, `ModuleHealthLog`, `EventIdRanges`), core PublicAPI, manifest, 4 tests (evaluator unit, checks unit, property, allocation map edit), 2 justification files; about 600 lines |
+| **Pull request 2** | **14** | `ModuleHealthRegistrationSetup`, `ModuleHealthOptions`, `HealthCheckBuilderExtensions`, `ModuleHealthEndpointRouteBuilderExtensions` (4), PublicAPI, manifest, 8 tests (setup unit, endpoint unit with `TestServer`, options guard, endpoint guard, DI test, the three edited existing files including `AspNetCoreGuardTests`); about 850 lines |
+| **Pull request 3** | **6** | guide, `src/Encina.AspNetCore/README.md`, inventory, roadmap, 2 changelog fragments |
 
-Callers and implementers, by grep on `origin/main`: `AddEncinaModuleHealthChecks` is called only by its own tests (`ModuleHealthCheckTests`, `HealthCheckBuilderExtensionsTests`) and is documented in `docs/guides/health-checks.md`; `IModuleWithHealthChecks` has implementers only in tests; `IModuleHealthCheck` has no implementer in `src/`. Pull request 2 removes the generic overload and the `encina-modules` name together with the two tests that use them, so no pull request leaves a broken build. Pull request 1 adds only internal types and a log, with its own tests, so it builds and passes alone.
+Callers and implementers, by grep on `origin/main`: `AddEncinaModuleHealthChecks` is called only by its own tests (`ModuleHealthCheckTests`, `HealthCheckBuilderExtensionsTests`, `AspNetCoreGuardTests`) and is documented in `docs/guides/health-checks.md` and `src/Encina.AspNetCore/README.md`; `IModuleWithHealthChecks` has implementers only in tests; `IModuleHealthCheck` has no implementer in `src/`. Pull request 2 removes the generic overload and the `encina-modules` name together with the tests that use them (the two unit test files; `AspNetCoreGuardTests` only uses the non-generic call), so no pull request leaves a broken build. Pull request 1 adds only internal types and a log, with its own tests, so it builds and passes alone.
 
 ---
 
@@ -434,7 +434,7 @@ Callers and implementers, by grep on `origin/main`: `AddEncinaModuleHealthChecks
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP. Application modules live in core (src/Encina/Modules); Encina.AspNetCore registers one composite module health check named encina-modules today; #360 adds IModuleGraph and IModuleStateProvider; #454 adds probe tags, options and the JSON writer; #622 adds the health metrics publisher.
 
-IMPLEMENTATION OVERVIEW: PR1 ModuleHealthEvaluator (single-flight, dependency propagation, never throws), the health and readiness IHealthCheck classes, ModuleHealthLog 7645-7648, the ModulesHealth range and the justification files; PR2 an IConfigureOptions<HealthCheckServiceOptions> that adds one health and one readiness registration per module, AddEncinaModuleHealthChecks rewritten, MapEncinaModuleHealthChecks with one fixed endpoint per module; PR3 guide and changelog. Dilemmas D3, D4, D5, D6 and D8 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 ModuleHealthEvaluator (single-flight, dependency propagation, never throws), the health and readiness IHealthCheck classes, ModuleHealthLog 7645-7649, the ModulesHealth range (with its core PublicAPI line) and the justification files; PR2 an IConfigureOptions<HealthCheckServiceOptions> that adds one health and one readiness registration per module, AddEncinaModuleHealthChecks rewritten, MapEncinaModuleHealthChecks with one fixed endpoint per module; PR3 guide, package README, inventory, roadmap and changelog; a missing IModuleRegistry is read with GetService (never a constructor dependency) and logs 7649; the caller's tags, failure status and module filter reach the setup through ModuleHealthOptions. Dilemmas D3, D4, D5, D6 and D8 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Reuse IModuleHealthCheck, IModuleWithHealthChecks, HealthCheckResult and EncinaHealthCheck; dependents are at most Degraded; readiness is the lifecycle state; descriptions carry fixed text and exception types only, never messages; names and tags from the lowered module name with a duplicate check; registration independent of order, proven by a DI test with ValidateOnBuild and ValidateScopes; an unknown module is 404; details only through the caller's writer; CRAP <= 10; targets never go down.
 
@@ -451,7 +451,7 @@ REFERENCE FILES: src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs, s
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A health result must reflect real time, so nothing is cached (D6 coalesces only work already in flight). |
 | 2 | OpenTelemetry | ✅ | Every module health and readiness registration is a check for #622's `encina.health.check_status` publisher; no new instrument is added here. |
-| 3 | Structured Logging | ✅ | `ModuleHealthLog`, EventIds 7645-7648 in the registered `ModulesHealth` range. |
+| 3 | Structured Logging | ✅ | `ModuleHealthLog`, EventIds 7645-7649 in the registered `ModulesHealth` range. |
 | 4 | Health Checks | ✅ | This plan is the module health integration: per-module health, readiness, propagation and endpoints. |
 | 5 | Validation | ❌ | Probes take no external input; the endpoint pattern and `ModuleHealthOptions` are validated at startup, which is configuration validation, not request validation. |
 | 6 | Resilience | ✅ | Per-registration `Timeout` from `ModuleHealthOptions`; a check that throws becomes `Unhealthy` with the exception type only. |
@@ -475,6 +475,6 @@ REFERENCE FILES: src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs, s
 ## Next Steps
 
 1. Ask the maintainer D3, D4, D5, D6 and D8 when work on #364 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: evaluator, checks, log and range (12 files), after #360's graph and state pull requests.
-3. Pull request 2: per-module registration and endpoints (12 files), after #454 pull request 1.
-4. Pull request 3: documentation and changelog fragments (4 files).
+2. Pull request 1: evaluator, checks, log and range (13 files), after #360's graph and state pull requests.
+3. Pull request 2: per-module registration and endpoints (14 files), after #454 pull request 1.
+4. Pull request 3: documentation and changelog fragments (6 files).
