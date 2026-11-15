@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for versioned module contracts so that modules can evolve without breaking their consumers: `[ModuleVersion]` and `[ModuleMinimumVersion]` on a module, `[ModuleApiVersion]` and a deprecation marker on module API interfaces, `[HandlerVersion]` on handlers, a version resolution configuration (`AddEncinaModuleVersioning`), `RequestedVersion` on the request context, a Roslyn analyzer for deprecated usage, a startup compatibility check, version information in traces and an adapter pattern. State of `origin/main` (`db1e7f688`), verified by reading and grep (nothing named `ModuleVersion`, `ModuleApiVersion` or `WithEncinaModules` exists in `src` or `tests`):
+The issue asks for versioned module contracts so that modules can evolve without breaking their consumers: `[ModuleVersion]` and `[ModuleMinimumVersion]` on a module, `[ModuleApiVersion]` and a deprecation marker on module API interfaces, `[HandlerVersion]` on handlers, a version resolution configuration (`AddEncinaModuleVersioning`), `RequestedVersion` on the request context, a Roslyn analyzer for deprecated usage, a startup compatibility check, version information in traces and an adapter pattern. State of `origin/main` (`96c8803bd`), verified by reading and grep (nothing named `ModuleVersion`, `ModuleApiVersion` or `WithEncinaModules` exists in `src` or `tests`):
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
