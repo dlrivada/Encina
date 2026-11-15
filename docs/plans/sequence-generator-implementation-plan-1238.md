@@ -3,7 +3,7 @@
 > **Issue**: [#1238](https://github.com/dlrivada/Encina/issues/1238) (SPEC-002 P-36, REQ-045, AC-039, AC-043, scenario S8; parent [#1186](https://github.com/dlrivada/Encina/issues/1186))
 > **Type**: Feature
 > **Complexity**: High (one primitive, four different SQL and driver mechanisms, concurrency correctness on every provider)
-> **Estimated Scope**: ~1,100-1,500 lines of production code + ~3,000-3,800 lines of tests; 148 files counted per pull request (production, tests, manifests, PublicAPI, documentation), split into 14 pull requests of at most 15 files each (see Next Steps)
+> **Estimated Scope**: ~1,100-1,500 lines of production code + ~3,000-3,800 lines of tests; 153 files counted per pull request (production, tests, manifests, PublicAPI, documentation), split into 15 pull requests of at most 15 files each (see Next Steps)
 
 ---
 
@@ -32,9 +32,9 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 
 ### Affected packages
 
-- `Encina` (core): abstraction, tenant resolution, options, validator, in-memory store, health check, diagnostics (folder `Sequences/`).
+- `Encina` (core): abstraction, tenant resolution, options, validator, errors, diagnostics, log messages (folder `Sequences/`). Core cannot reference `Encina.Messaging` (`Encina.Messaging.csproj` references `Encina`, not the reverse), and `ITransactionLeaseSource` and `IEncinaHealthCheck`/`EncinaHealthCheck` live there, so the in-memory store, the health check and the `AddEncinaSequences` registration live in `Encina.Messaging` (folder `Sequences/`, see Design Choice 1, placement note). Every provider package already references `Encina.Messaging`.
 - `Encina.ADO.{SqlServer,PostgreSQL,MySQL}`, `Encina.Dapper.{SqlServer,PostgreSQL,MySQL}`, `Encina.EntityFrameworkCore`, `Encina.MongoDB`: the store and its registration.
-- `Encina.Messaging`: the `MessagingConfiguration` flag `UseSequenceStore` only.
+- `Encina.Messaging`: `InMemorySequenceStore`, `SequenceStoreHealthCheck`, the `AddEncinaSequences` registration, and the `MessagingConfiguration` flag `UseSequenceStore`.
 - `tests/Encina.TestInfrastructure` (schemas), `src/Encina/Diagnostics/EventIdRanges.cs`.
 
 ### Provider category
@@ -65,6 +65,7 @@ SPEC-002 REQ-045, AC-039, AC-043, S8, DEC-002, REQ-061, REQ-062; ADR-057 (Verifa
 
 - `ISequenceStore.NextAsync(string tenantId, string sequenceKey, ct)` is the provider contract; `ISequenceGenerator.NextAsync(string sequenceKey, ct)` keeps the signature of the issue.
 - The store also exposes `CheckAsync(ct)` for the health check (the table or collection is reachable).
+- Placement note (a build constraint, verified on `origin/main`): `Encina.csproj` has no project reference and `Encina.Messaging.csproj` references `Encina`, so core cannot see `ITransactionLeaseSource` (`src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs:22`) or `IEncinaHealthCheck`/`EncinaHealthCheck` (`src/Encina.Messaging/Health/`). The contract, generator, validator, options, errors, diagnostics and log messages stay in core; the in-memory store (which honours the ambient lease), the health check and the `AddEncinaSequences` registration live in `Encina.Messaging/Sequences/`. All 8 provider packages already reference `Encina.Messaging`, so a provider's registration finds the in-memory default and replaces it with `TryAdd` ordering.
 - Names are generic (`Sequence`, `SequenceKey`); no type, option, namespace or metric name contains a regulation name (ADR-057 D23). An architecture test scans the public surface of the package for those names.
 
 </details>
@@ -214,8 +215,8 @@ In a MongoDB multi-document transaction a concurrent write to the same document 
    | `sequence.conflict` | `Conflict` | R2: MongoDB write conflict (Design Choice 5), the whole unit of work is retried |
    | `sequence.store_failed` | `Internal` | R4: a store failure |
 
-7. `InMemorySequenceStore.cs` — thread-safe; allocation is tentative and honoured only when the ambient lease commits (test double for the contract, not for production). It ships in the same pull request as the registration (PR C2), so the registration and its DI test with `ValidateOnBuild` and `ValidateScopes` pass without any database package.
-8. `ServiceCollectionExtensions.cs` (or the core registration file) — `AddEncinaSequences(Action<SequenceOptions>?)` with `TryAdd*`, registering the in-memory default and `SequenceOptionsValidator` with `ValidateOnStart`. The `MessagingConfiguration` flag `UseSequenceStore` for the relational and EF Core database stores follows the `UseBreakTheGlassStore` precedent (`MessagingConfiguration.cs:557`, also listed in `PatternFlags()` at `:1037` and covered by `MessagingConfigurationPatternFlagsTests.cs`); `Encina.Messaging` is therefore listed in Affected packages even though a sequence is not a messaging pattern (the flag only selects the store). MongoDB has its own options class and reads `EncinaMongoDbOptions.UseSequenceStore` (precedent `EncinaMongoDbOptions.cs:142`). The flag lands in its own pull request F.
+7. `src/Encina.Messaging/Sequences/InMemorySequenceStore.cs` (not core: it needs `ITransactionLeaseSource`) — thread-safe; allocation is tentative and honoured only when the ambient lease commits (test double for the contract, not for production). It ships in the same pull request as the registration (PR C2), so the registration and its DI test with `ValidateOnBuild` and `ValidateScopes` pass without any database package.
+8. `src/Encina.Messaging/Sequences/ServiceCollectionExtensions.cs` (the registration lives where the in-memory default lives) — `AddEncinaSequences(Action<SequenceOptions>?)` with `TryAdd*`, registering the in-memory default and `SequenceOptionsValidator` with `ValidateOnStart`. The `MessagingConfiguration` flag `UseSequenceStore` for the relational and EF Core database stores follows the `UseBreakTheGlassStore` precedent (`MessagingConfiguration.cs:557`, also listed in `PatternFlags()` at `:1037` and covered by `MessagingConfigurationPatternFlagsTests.cs`); `Encina.Messaging` is therefore listed in Affected packages even though a sequence is not a messaging pattern (the flag only selects the store). MongoDB has its own options class and reads `EncinaMongoDbOptions.UseSequenceStore` (precedent `EncinaMongoDbOptions.cs:142`). The flag lands in its own pull request F.
 9. `README` sentence in the package documentation: "a regulation-neutral primitive; Encina ships no Verifactu code" (issue comment, ADR-057 D23); it lands in the documentation pull request.
 
 </details>
@@ -382,8 +383,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Health/SequenceStoreHealthCheck.cs` (core) — calls `ISequenceStore.CheckAsync`; `DefaultName`, static `Tags`.
-2. Startup validation: `SequenceOptionsValidator` registered with `ValidateOnStart` (in PR C2 with the registration); DI test with `ValidateOnBuild` and `ValidateScopes` for the core registration (PR C2) and for each provider's registration (that provider's pull request).
+1. `src/Encina.Messaging/Sequences/SequenceStoreHealthCheck.cs` (derives from `EncinaHealthCheck`, which core cannot see) — calls `ISequenceStore.CheckAsync`; `DefaultName`, static `Tags`; registered by `AddEncinaSequences` (PR H).
+2. Startup validation: `SequenceOptionsValidator` registered with `ValidateOnStart` (in PR C2 with the registration); DI test with `ValidateOnBuild` and `ValidateScopes` for the registration (PR C2) and for each provider's registration (that provider's pull request).
 3. Architecture test `SequencePackageHasNoRegulationNamesTests` asserting the public surface of the package contains none of the names listed in ADR-057.
 
 </details>
@@ -423,7 +424,7 @@ REFERENCE FILES:
 
 1. `src/Encina/Diagnostics/EventIdRanges.cs` — register `Sequences = (5750, 5799)`; add it to the `Encina` entry of `AssemblyRanges` in `EncinaEventIdAllocationTests.cs`.
 2. `Sequences/SequenceDiagnostics.cs` — `ActivitySource` and `Meter` `Encina.Sequences`; counter `encina.sequence.allocated` (tag `encina.sequence.key_hash`); histogram `encina.sequence.wait_time`; span `encina.sequence.next` with `encina.tenant_id`.
-3. `Sequences/SequenceLogMessages.cs` — `[LoggerMessage]` EventIds 5750-5757, packed (allocated, transaction required, tenant required, lock timeout, store failed, key invalid).
+3. `Sequences/SequenceLogMessages.cs` — `[LoggerMessage]` EventIds 5750-5756, packed, one per error code plus the success message (allocated, transaction required, tenant required, lock timeout, conflict, store failed, key invalid). `SequenceLogMessages` stays in core because `DefaultSequenceGenerator` logs; the health check (in `Encina.Messaging`, Phase 5) logs nothing.
 
 </details>
 
@@ -473,9 +474,9 @@ REFERENCE FILES:
    | `SequenceOptions.cs`, `SequenceOptionsValidator.cs` | 100 | 100 | 0 | 0 | 0 | Plain options and a validator reached by unit and guard tests; `SequenceOptions` has no parameters, so its guard target is 0 |
    | `SequenceErrors.cs` | 100 | 0 | 0 | 0 | 0 | Static factories without parameters: every code and its `GetCategory()` row is a unit test, guard tests cannot reach it |
    | `DefaultSequenceGenerator.cs` | 95 | 100 | 85 | 80 | 0 | Tenant table, key validation and store call are driven by unit tests; the contract and property tests run it over the in-memory store; the database tests exercise the store, not the generator |
-   | `InMemorySequenceStore.cs` | 95 | 100 | 95 | 90 | 0 | A test double fully driven by the contract and the gapless property, with no container |
-   | `ServiceCollectionExtensions.cs` (core `Sequences` registration) | 100 | 100 | 0 | 0 | 0 | One registration method covered by the DI test and its null guards |
-   | `SequenceStoreHealthCheck.cs` | 95 | 100 | 0 | 0 | 0 | One call and two outcomes covered by unit tests with a substitute store |
+   | `InMemorySequenceStore.cs` (`Encina.Messaging`) | 95 | 100 | 95 | 90 | 0 | A test double fully driven by the contract and the gapless property, with no container |
+   | `ServiceCollectionExtensions.cs` (`Encina.Messaging/Sequences` registration) | 100 | 100 | 0 | 0 | 0 | One registration method covered by the DI test and its null guards |
+   | `SequenceStoreHealthCheck.cs` (`Encina.Messaging`) | 95 | 100 | 0 | 0 | 0 | One call and two outcomes covered by unit tests with a substitute store |
    | `SequenceDiagnostics.cs`, `SequenceLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Static meters and source-generated log methods without validated parameters; unit tests read them with a `MeterListener` and a fake logger |
    | `SequenceStoreADO.cs` (3), `SequenceStoreDapper.cs` (3) | 70 | 100 | 0 | 0 | 90 | The SQL runs only on a real database: integration reaches every branch including lock timeout (second connection) and no transaction; unit tests cover error mapping with mocked exceptions |
    | `SequenceStoreEF.cs`, `SequenceSqlDialect.cs` | 80 | 100 | 0 | 0 | 90 | The dialect is a pure selector (unit); the SQL runs in the three EF integration classes |
@@ -582,7 +583,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (sequences) | 5750-5799 (new `Sequences`) | 5750-5757 used; mapped to the existing `Encina` entry of the allocation test |
+| `Encina` (sequences) | 5750-5799 (new `Sequences`) | 5750-5756 used; mapped to the existing `Encina` entry of the allocation test |
 | Neighbours in the family | 5500-5549 (#1234), 5550-5699 (#1235), 5700-5749 (#1236) | Reserved by the sibling plans |
 
 ### Estimated File Count
@@ -592,8 +593,9 @@ Counted per pull request from the task lists above (production, tests, manifests
 | PR | Files | Of which tests |
 |----|------:|---------------:|
 | C1 contract, validator, options, errors | 12 | 4 |
-| C2 generator, in-memory store, registration | 11 | 6 |
-| C3 health check, diagnostics, EventIds | 14 | 6 |
+| C2 generator (core), in-memory store and registration (`Encina.Messaging`) | 13 | 6 |
+| C3 diagnostics, log messages, EventIds | 11 | 4 |
+| H health check (`Encina.Messaging`) | 6 | 2 |
 | F `UseSequenceStore` flag | 4 | 1 |
 | A1 ADO SqlServer | 12 | 6 |
 | A2 ADO PostgreSQL | 11 | 5 |
@@ -605,7 +607,7 @@ Counted per pull request from the task lists above (production, tests, manifests
 | M MongoDB | 11 | 4 |
 | L property and load tests | 6 | 6 |
 | W documentation | 12 | 0 |
-| **Total** | **148** | **61** |
+| **Total** | **153** | **61** |
 
 ### Findings in the Current Code
 
@@ -662,7 +664,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A cached number would defeat gaplessness; no read path |
 | 2 | OpenTelemetry | ✅ | `encina.sequence.next` span, `allocated` counter and `wait_time` histogram with `encina.tenant_id` and a key hash (Phase 6, REQ-062) |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5750-5757 in the new `Sequences` range (Phase 6) |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` EventIds 5750-5756 in the new `Sequences` range (Phase 6) |
 | 4 | Health Checks | ✅ | `SequenceStoreHealthCheck`: table or collection reachable (Phase 5) |
 | 5 | Validation | ✅ | Key validator and options validator at start-up (Phases 1 and 5) |
 | 6 | Resilience | ❌ | No call to an external system; a lock timeout returns a `Left` and retrying belongs to the caller's transaction |
@@ -691,15 +693,16 @@ REFERENCE FILES:
 ## Next Steps
 
 1. The maintainer decides Design Choices 4 (key rules) and 5 (MongoDB conflict handling), the Dilemmas; the other choices are Settled by the issue, ADR-050, ADR-057, SPEC-002 or AGENTS.md. The orchestrator records the answers in a `## Maintainer Decisions` section.
-2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into fourteen pull requests of at most 15 files each, counted from the task lists above (the per-PR totals are the table in "Estimated File Count"; line counts are re-measured when each sub-issue is written, and a PR that would pass 1500 lines is cut again, for example EF Core per database). Every PR carries its own tests, PublicAPI lines and coverage manifest, and builds alone once its predecessors are merged. Order and content:
+2. The feature exceeds one worker pull request (15 files, 1500 lines). Split it into fifteen pull requests of at most 15 files each, counted from the task lists above (the per-PR totals are the table in "Estimated File Count"; line counts are re-measured when each sub-issue is written, and a PR that would pass 1500 lines is cut again, for example EF Core per database). Every PR carries its own tests, PublicAPI lines and coverage manifest, and builds alone once its predecessors are merged. Order and content:
    - **C1** (Phase 1, part): `ISequenceGenerator`, `ISequenceStore`, `SequenceKeyValidator`, `SequenceOptions`, `SequenceOptionsValidator`, `SequenceErrors`, `src/Encina/PublicAPI.Unshipped.txt`, `Encina.json`; unit tests for validator, options validator and errors (with the `GetCategory()` rows) and a guard test. It registers nothing, so it needs no store (12 files).
-   - **C2** (Phase 1, rest, and the DI test of Phase 5): `DefaultSequenceGenerator`, `InMemorySequenceStore`, the `AddEncinaSequences` registration with `SequenceOptionsValidator` on `ValidateOnStart`, PublicAPI, `Encina.json`; unit tests for the generator, the in-memory store and the registration (DI test with `ValidateOnBuild` and `ValidateScopes`), a guard test, `SequenceStoreContract` and its in-memory contract test. The in-memory store is here so the registration builds and its tests pass alone (11 files).
-   - **C3** (Phases 5 and 6): `SequenceStoreHealthCheck`, `SequenceDiagnostics`, `SequenceLogMessages`, the `DefaultSequenceGenerator` calls, `EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs`, the registration of the health check, PublicAPI, `Encina.json`; health-check, diagnostics and naming architecture tests, the updated generator tests and a guard test (14 files).
+   - **C2** (Phase 1, rest, and the DI test of Phase 5): core `DefaultSequenceGenerator`; in `Encina.Messaging/Sequences/` `InMemorySequenceStore` and the `AddEncinaSequences` registration with `SequenceOptionsValidator` on `ValidateOnStart`; the PublicAPI files of `Encina` and `Encina.Messaging`, `Encina.json` and `Encina.Messaging.json`; six test files: unit tests for the generator, the in-memory store and the registration (DI test with `ValidateOnBuild` and `ValidateScopes`), a guard test, `SequenceStoreContract` and its in-memory contract test. The in-memory store is here so the registration builds and its tests pass alone (13 files: 7 production and manifest, 6 tests).
+   - **C3** (Phase 6): `SequenceDiagnostics`, `SequenceLogMessages`, the `DefaultSequenceGenerator` calls, `EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs`, `src/Encina/PublicAPI.Unshipped.txt`, `Encina.json`; diagnostics unit tests, the `SequencePackageHasNoRegulationNamesTests` architecture test, the updated generator tests and a guard test (11 files).
+   - **H** (Phase 5, health check; after C2): `Encina.Messaging/Sequences/SequenceStoreHealthCheck.cs`, its registration inside `AddEncinaSequences`, `Encina.Messaging` PublicAPI and `Encina.Messaging.json`, a unit test and a guard test (6 files).
    - **F**: `MessagingConfiguration.UseSequenceStore` (property and `PatternFlags()` entry), `Encina.Messaging` PublicAPI and manifest, `MessagingConfigurationPatternFlagsTests.cs` (4 files).
    - **A1, A2, A3** (Phase 2 and 3, ADO SqlServer, then PostgreSQL, then MySQL; each needs F and C2): the provider's script, its `000_CreateAllTables.sql`, `SequenceStoreADO.cs`, `ServiceCollectionExtensions.cs`, PublicAPI, manifest, the test schema file (`SqlServerSchema.cs`, `PostgreSqlSchema.cs`, `MySqlSchema.cs`), unit tests, guard tests, the integration class (contract scenarios and 50 concurrent allocations) and the DI test of the registration (11 files each; A1 also edits `Encina.IntegrationTests.csproj` to link `SequenceStoreContract.cs`, 12 files).
    - **D1, D2, D3** (Phase 2 and 3, Dapper, each after the ADO PR of the same database, which brings the test schema file): script, `000_CreateAllTables.sql`, `SequenceStoreDapper.cs`, registration, PublicAPI, manifest, unit, guard, integration and DI tests (10 files each).
-   - **E** (Phases 2 and 4, EF Core): entity, configuration, builder extension, `SequenceSqlDialect`, `SequenceStoreEF`, registration, PublicAPI, manifest, `EFCoreSchema.cs`, unit and DI tests, guard tests and three integration classes (SqlServer, PostgreSQL, MySQL) (14 files).
-   - **M** (Phases 2 and 4, MongoDB): `SequenceDocument`, `SequenceStoreMongoDB`, `MongoDbIndexCreator.cs`, `EncinaMongoDbOptions.cs` (flag and collection name), registration, PublicAPI, manifest, unit and DI tests, guard tests, the replica-set and standalone integration class and `EncinaMongoDbOptionsTests.cs` (11 files).
+   - **E** (Phases 2 and 4, EF Core): entity, configuration, builder extension, `SequenceSqlDialect`, `SequenceStoreEF`, registration, PublicAPI, manifest, `EFCoreSchema.cs` (9 production, manifest and schema files); five test files: `SequenceStoreEFTests.cs` (unit tests and the DI test of the registration), `SequenceStoreEFGuardTests.cs` and three integration classes (SqlServer, PostgreSQL, MySQL) (14 files).
+   - **M** (Phases 2 and 4, MongoDB): `SequenceDocument`, `SequenceStoreMongoDB`, `MongoDbIndexCreator.cs`, `EncinaMongoDbOptions.cs` (flag and collection name), registration, PublicAPI, manifest (7 production and manifest files); four test files: `SequenceStoreMongoDBTests.cs` (unit tests and the DI test), `SequenceStoreMongoDBGuardTests.cs`, the replica-set and standalone integration class and `EncinaMongoDbOptionsTests.cs` (11 files).
    - **L** (Phase 7): the FsCheck property test, four load tests (ADO, Dapper, EF Core, MongoDB) and the benchmark `.md` justification (6 files).
    - **W** (Phase 8, documentation by `docs-writer`): changelog fragment, `docs/features/sequences.md`, `docs/INVENTORY.md`, the README section and the 8 provider README sections (12 files).
 3. Link this plan from #1238 and start sub-issue C1 with an `issue-worker`.
