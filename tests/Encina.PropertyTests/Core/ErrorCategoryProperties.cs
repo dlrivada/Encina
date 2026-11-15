@@ -23,12 +23,17 @@ public sealed class ErrorCategoryProperties
         from suffix in Gen.Elements(Suffixes)
         select prefix + separator + middle + suffix);
 
+    // The categorized overloads reject an empty code (#3800), so the generated code is never empty for them.
+    private static Arbitrary<string> NonEmptyCodeArb() => Arb.From(
+        Gen.Elements(Prefixes.Where(p => p.Length > 0))
+            .SelectMany(prefix => Gen.Elements(Suffixes).Select(suffix => prefix + suffix)));
+
     private static Arbitrary<ErrorCategory> CategoryArb() => Arb.From(Gen.Elements(Enum.GetValues<ErrorCategory>()));
 
     [Fact]
     public void Create_AnyCodeAndCategory_RoundTrips()
     {
-        Prop.ForAll(CodeArb(), CategoryArb(), (code, category) =>
+        Prop.ForAll(NonEmptyCodeArb(), CategoryArb(), (code, category) =>
         {
             var error = EncinaErrors.Create(code, category, "message");
 
@@ -39,7 +44,7 @@ public sealed class ErrorCategoryProperties
     [Fact]
     public void FromException_AnyCodeAndCategory_RoundTrips()
     {
-        Prop.ForAll(CodeArb(), CategoryArb(), (code, category) =>
+        Prop.ForAll(NonEmptyCodeArb(), CategoryArb(), (code, category) =>
         {
             var error = EncinaErrors.FromException(code, category, new InvalidOperationException("boom"));
 
