@@ -2,11 +2,10 @@
 using System.Text.Json;
 using Encina.Sharding;
 using Encina.Sharding.ReplicaSelection;
-using Xunit;
 
 namespace Encina.UnitTests.Sharding;
 
-public class ShardReplicaConfigSecretMaskingTests
+public sealed class ShardReplicaConfigSecretMaskingTests
 {
     private const string PrimaryConnectionString = "Server=primary;Database=db;User Id=sa;Password=SuperSecret123!;";
     private const string Replica1 = "Server=replica1;Database=db;User Id=sa;Password=ReplicaSecret1!;";
@@ -26,17 +25,17 @@ public class ShardReplicaConfigSecretMaskingTests
         var result = config.ToString();
 
         // Assert
-        Assert.DoesNotContain("SuperSecret123!", result);
-        Assert.DoesNotContain("ReplicaSecret1!", result);
-        Assert.DoesNotContain("ReplicaSecret2!", result);
-        Assert.DoesNotContain(PrimaryConnectionString, result);
-        Assert.DoesNotContain(Replica1, result);
-        Assert.DoesNotContain(Replica2, result);
+        result.ShouldNotContain("SuperSecret123!");
+        result.ShouldNotContain("ReplicaSecret1!");
+        result.ShouldNotContain("ReplicaSecret2!");
+        result.ShouldNotContain(PrimaryConnectionString);
+        result.ShouldNotContain(Replica1);
+        result.ShouldNotContain(Replica2);
 
-        Assert.Contains("PrimaryConnectionString = ***", result);
-        Assert.Contains("ReplicaConnectionStrings = [2 masked]", result);
-        Assert.Contains("ShardId = shard-0", result);
-        Assert.Contains("Strategy = RoundRobin", result);
+        result.ShouldContain("PrimaryConnectionString = ***");
+        result.ShouldContain("ReplicaConnectionStrings = [2 masked]");
+        result.ShouldContain("ShardId = shard-0");
+        result.ShouldContain("Strategy = RoundRobin");
     }
 
     [Fact]
@@ -53,10 +52,10 @@ public class ShardReplicaConfigSecretMaskingTests
         var result = config.ToString();
 
         // Assert
-        Assert.Contains("PrimaryConnectionString = ***", result);
-        Assert.Contains("ReplicaConnectionStrings = [0 masked]", result);
-        Assert.DoesNotContain(PrimaryConnectionString, result);
-        Assert.DoesNotContain("SuperSecret123!", result);
+        result.ShouldContain("PrimaryConnectionString = ***");
+        result.ShouldContain("ReplicaConnectionStrings = [0 masked]");
+        result.ShouldNotContain(PrimaryConnectionString);
+        result.ShouldNotContain("SuperSecret123!");
     }
 
     [Fact]
@@ -73,12 +72,12 @@ public class ShardReplicaConfigSecretMaskingTests
         var result = $"Config: {config}";
 
         // Assert
-        Assert.DoesNotContain("SuperSecret123!", result);
-        Assert.DoesNotContain("ReplicaSecret1!", result);
-        Assert.DoesNotContain(PrimaryConnectionString, result);
-        Assert.DoesNotContain(Replica1, result);
-        Assert.Contains("***", result);
-        Assert.Contains("[1 masked]", result);
+        result.ShouldNotContain("SuperSecret123!");
+        result.ShouldNotContain("ReplicaSecret1!");
+        result.ShouldNotContain(PrimaryConnectionString);
+        result.ShouldNotContain(Replica1);
+        result.ShouldContain("***");
+        result.ShouldContain("[1 masked]");
     }
 
     [Fact]
@@ -95,20 +94,20 @@ public class ShardReplicaConfigSecretMaskingTests
         var json = JsonSerializer.Serialize(config);
 
         // Assert
-        Assert.DoesNotContain("SuperSecret123!", json);
-        Assert.DoesNotContain("ReplicaSecret1!", json);
-        Assert.DoesNotContain("ReplicaSecret2!", json);
+        json.ShouldNotContain("SuperSecret123!");
+        json.ShouldNotContain("ReplicaSecret1!");
+        json.ShouldNotContain("ReplicaSecret2!");
 
-        Assert.DoesNotContain(PrimaryConnectionString, json);
-        Assert.DoesNotContain(Replica1, json);
-        Assert.DoesNotContain(Replica2, json);
+        json.ShouldNotContain(PrimaryConnectionString);
+        json.ShouldNotContain(Replica1);
+        json.ShouldNotContain(Replica2);
 
-        Assert.DoesNotContain("PrimaryConnectionString", json);
-        Assert.DoesNotContain("ReplicaConnectionStrings", json);
+        json.ShouldNotContain("PrimaryConnectionString");
+        json.ShouldNotContain("ReplicaConnectionStrings");
 
         // Non-sensitive properties should still be present.
-        Assert.Contains("shard-0", json);
-        Assert.Contains("\"Strategy\":0", json);
+        json.ShouldContain("shard-0");
+        json.ShouldContain("\"Strategy\":0");
     }
 
     [Fact]
@@ -125,14 +124,14 @@ public class ShardReplicaConfigSecretMaskingTests
         var json = JsonSerializer.Serialize(config);
 
         // Assert
-        Assert.DoesNotContain("SuperSecret123!", json);
-        Assert.DoesNotContain("ReplicaSecret1!", json);
-        Assert.DoesNotContain(PrimaryConnectionString, json);
-        Assert.DoesNotContain(Replica1, json);
+        json.ShouldNotContain("SuperSecret123!");
+        json.ShouldNotContain("ReplicaSecret1!");
+        json.ShouldNotContain(PrimaryConnectionString);
+        json.ShouldNotContain(Replica1);
 
-        Assert.DoesNotContain("PrimaryConnectionString", json);
-        Assert.DoesNotContain("ReplicaConnectionStrings", json);
-        Assert.Contains("shard-2", json);
+        json.ShouldNotContain("PrimaryConnectionString");
+        json.ShouldNotContain("ReplicaConnectionStrings");
+        json.ShouldContain("shard-2");
     }
 
     [Fact]
@@ -149,26 +148,26 @@ public class ShardReplicaConfigSecretMaskingTests
             ReplicaSelectionStrategy.RoundRobin);
 
         // Assert
-        Assert.Single(options.Shards);
+        options.Shards.Count.ShouldBe(1);
 
         var shard = options.Shards[0];
 
-        Assert.Equal("shard-0", shard.ShardId);
-        Assert.Equal(PrimaryConnectionString, shard.PrimaryConnectionString);
-        Assert.Equal(2, shard.ReplicaConnectionStrings.Count);
-        Assert.Equal(Replica1, shard.ReplicaConnectionStrings[0]);
-        Assert.Equal(Replica2, shard.ReplicaConnectionStrings[1]);
-        Assert.Equal(ReplicaSelectionStrategy.RoundRobin, shard.Strategy);
+        shard.ShardId.ShouldBe("shard-0");
+        shard.PrimaryConnectionString.ShouldBe(PrimaryConnectionString);
+        shard.ReplicaConnectionStrings.Count.ShouldBe(2);
+        shard.ReplicaConnectionStrings[0].ShouldBe(Replica1);
+        shard.ReplicaConnectionStrings[1].ShouldBe(Replica2);
+        shard.Strategy.ShouldBe(ReplicaSelectionStrategy.RoundRobin);
 
         // ToString must still mask connection strings.
         var toString = shard.ToString();
 
-        Assert.DoesNotContain("SuperSecret123!", toString);
-        Assert.DoesNotContain("ReplicaSecret1!", toString);
-        Assert.DoesNotContain("ReplicaSecret2!", toString);
-        Assert.DoesNotContain(PrimaryConnectionString, toString);
-        Assert.DoesNotContain(Replica1, toString);
-        Assert.DoesNotContain(Replica2, toString);
-        Assert.Contains("***", toString);
+        toString.ShouldNotContain("SuperSecret123!");
+        toString.ShouldNotContain("ReplicaSecret1!");
+        toString.ShouldNotContain("ReplicaSecret2!");
+        toString.ShouldNotContain(PrimaryConnectionString);
+        toString.ShouldNotContain(Replica1);
+        toString.ShouldNotContain(Replica2);
+        toString.ShouldContain("***");
     }
 }
