@@ -44,10 +44,21 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
 
     private ServiceProvider BuildServiceProvider(
         Action<ProcessorAgreementOptions>? configure = null,
-        FakeCacheProvider? cacheProvider = null)
+        FakeCacheProvider? cacheProvider = null,
+        string? ambientTenantId = null)
     {
         var services = new ServiceCollection();
         services.AddLogging();
+
+        if (ambientTenantId is not null)
+        {
+            // Registered before AddEncinaProcessorAgreements, whose TryAdd keeps this accessor.
+            var tenantContext = Substitute.For<IRequestContext>();
+            tenantContext.TenantId.Returns(ambientTenantId);
+            var accessor = Substitute.For<IRequestContextAccessor>();
+            accessor.RequestContext.Returns(tenantContext);
+            services.AddSingleton(accessor);
+        }
 
         services.AddSingleton(_fixture.Store!);
         services.AddScoped(sp => sp.GetRequiredService<IDocumentStore>().LightweightSession());
@@ -88,7 +99,7 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
     public async Task ProcessorService_RegisterAndGet_ReturnsReadModelWithAllFields()
     {
         // Arrange
-        using var provider = BuildServiceProvider();
+        using var provider = BuildServiceProvider(ambientTenantId: "t-proj");
         Guid processorId;
 
         using (var scope = provider.CreateScope())
@@ -125,10 +136,41 @@ public sealed class ProcessorAgreementAdvancedIntegrationTests
     }
 
     [Fact]
+    public async Task ProcessorService_GetTenantBoundProcessorWithoutAmbientTenant_ReturnsNotFound()
+    {
+        // Arrange — registered under "t-proj", read back with no ambient tenant
+        using var registerProvider = BuildServiceProvider(ambientTenantId: "t-proj");
+        Guid processorId;
+
+        using (var scope = registerProvider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<IProcessorService>();
+            var result = await service.RegisterProcessorAsync(
+                "Stripe", "US", "dpo@stripe.com", null, 0,
+                SubProcessorAuthorizationType.Specific, "t-proj", "m-proj");
+            processorId = result.Match(id => id, _ => throw new InvalidOperationException("Register failed"));
+        }
+
+        using var noTenantProvider = BuildServiceProvider(options =>
+        {
+            options.EnforcementMode = ProcessorAgreementEnforcementMode.Block;
+            options.RequireTenantContext = false;
+        });
+
+        // Act
+        using var readScope = noTenantProvider.CreateScope();
+        var getResult = await readScope.ServiceProvider.GetRequiredService<IProcessorService>()
+            .GetProcessorAsync(processorId);
+
+        // Assert
+        getResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task DPAService_ExecuteAndGet_ReturnsReadModelWithAllFields()
     {
         // Arrange — register processor first, then execute DPA
-        using var provider = BuildServiceProvider();
+        using var provider = BuildServiceProvider(ambientTenantId: "t1");
         Guid processorId;
         Guid dpaId;
 

@@ -3,18 +3,18 @@ using System.Collections.Immutable;
 namespace Encina.Messaging.Encryption.Model;
 
 /// <summary>
-/// Immutable context for message encryption operations, carrying key selection, tenant isolation,
+/// Immutable context for message encryption operations, carrying key selection
 /// and message identification data.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The encryption context determines which key is used for encryption, provides tenant isolation
-/// for multi-tenant applications, and carries message metadata for audit and debugging.
+/// The encryption context determines which key is used for encryption and carries
+/// message metadata for audit and debugging.
 /// </para>
 /// <para>
 /// Unlike <see cref="Security.Encryption.EncryptionContext"/> (which carries field-level encryption
 /// context with <c>Purpose</c> for key derivation), this context focuses on message-level concerns:
-/// tenant key isolation, message type identification, and message correlation.
+/// message type identification and message correlation.
 /// </para>
 /// <para>
 /// The <see cref="AssociatedData"/> property enables authenticated encryption with associated data (AEAD),
@@ -46,11 +46,11 @@ public sealed record MessageEncryptionContext
     public string? KeyId { get; init; }
 
     /// <summary>
-    /// Optional tenant identifier for multi-tenant key isolation.
+    /// Optional tenant identifier carried with the message.
     /// </summary>
     /// <remarks>
-    /// When set, the <see cref="Abstractions.ITenantKeyResolver"/> maps this tenant ID
-    /// to a tenant-specific key identifier, ensuring cryptographic isolation between tenants.
+    /// Currently this property does not influence key selection: the encryption pipeline
+    /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// </remarks>
     public string? TenantId { get; init; }
 

@@ -1,6 +1,6 @@
 # Encina.GraphQL
 
-GraphQL integration for Encina using HotChocolate. Maps GraphQL queries, mutations, and subscriptions to Encina requests with full Relay Connection specification support for cursor-based pagination.
+GraphQL integration for Encina using HotChocolate. Maps GraphQL queries and mutations to Encina requests with full Relay Connection specification support for cursor-based pagination.
 
 ## Installation
 
@@ -25,8 +25,7 @@ dotnet add package Encina.GraphQL
 services.AddEncinaGraphQL(options =>
 {
     options.Path = "/graphql";
-    options.EnableGraphQLIDE = true;        // Enable Banana Cake Pop
-    options.MaxExecutionDepth = 15;         // Prevent DoS attacks
+    options.EnableGraphQLIDE = true;        // No effect yet: no code reads this option
     options.ExecutionTimeout = TimeSpan.FromSeconds(30);
 });
 
@@ -165,14 +164,14 @@ var dtoConnection = connection.Map(order => new OrderDto(order.Id, order.Total))
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `Path` | `/graphql` | GraphQL endpoint path |
-| `EnableGraphQLIDE` | `true` | Enable Banana Cake Pop IDE |
-| `EnableIntrospection` | `true` | Allow schema introspection |
-| `IncludeExceptionDetails` | `false` | Include exception details in errors |
-| `MaxExecutionDepth` | `15` | Maximum query depth (DoS protection) |
-| `ExecutionTimeout` | `30s` | Request timeout |
-| `EnableSubscriptions` | `false` | Enable GraphQL subscriptions |
-| `EnablePersistedQueries` | `false` | Enable persisted query support |
+| `Path` | `/graphql` | GraphQL endpoint path. No effect yet: no code reads it |
+| `EnableGraphQLIDE` | `true` | Intended to enable the Banana Cake Pop IDE. No effect yet: no code reads it |
+| `EnableIntrospection` | `true` | Intended to allow schema introspection. No effect yet: no code reads it |
+| `IncludeExceptionDetails` | `false` | Intended to include exception details in errors. No effect yet: no code reads it |
+| `MaxExecutionDepth` | `15` | Intended maximum query depth. No effect yet: no code reads it, so it is not a protection |
+| `ExecutionTimeout` | `30s` | Timeout applied to queries and mutations run through the bridge |
+| `EnableSubscriptions` | `true` | Subscriptions are not implemented; the option only chooses which error `SubscribeAsync` returns |
+| `EnablePersistedQueries` | `false` | Intended to enable persisted query support. No effect yet: no code reads it |
 
 ## Integration with HotChocolate Pagination
 

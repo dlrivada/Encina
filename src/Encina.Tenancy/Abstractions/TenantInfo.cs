@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Encina.Tenancy;
 
 /// <summary>
@@ -18,6 +20,14 @@ namespace Encina.Tenancy;
 /// <item><see cref="TenantIsolationStrategy.SchemaPerTenant"/>: <see cref="SchemaName"/> determines the schema to use</item>
 /// <item><see cref="TenantIsolationStrategy.DatabasePerTenant"/>: <see cref="ConnectionString"/> determines the database to connect to</item>
 /// </list>
+/// <para>
+/// <see cref="ConnectionString"/> is a credential. It is marked <see cref="JsonIgnoreAttribute"/>
+/// and masked by <see cref="ToString"/>, so logging, string interpolation and System.Text.Json
+/// serialization never write it. As a consequence, a JSON round trip loses the connection string:
+/// a <see cref="TenantInfo"/> deserialized from JSON always has a <c>null</c>
+/// <see cref="ConnectionString"/>. Store tenant metadata with System.Text.Json only when the
+/// connection string comes from another source (for example a secret store or configuration binding).
+/// </para>
 /// </remarks>
 /// <param name="TenantId">The unique identifier for the tenant.</param>
 /// <param name="Name">The display name of the tenant.</param>
@@ -25,6 +35,8 @@ namespace Encina.Tenancy;
 /// <param name="ConnectionString">
 /// The connection string for database-per-tenant strategy.
 /// <c>null</c> when using shared schema or schema-per-tenant strategies.
+/// WARNING: contains sensitive credential data; it is excluded from JSON serialization and
+/// from <see cref="ToString"/>.
 /// </param>
 /// <param name="SchemaName">
 /// The schema name for schema-per-tenant strategy.
@@ -57,9 +69,21 @@ public sealed record TenantInfo(
     string TenantId,
     string Name,
     TenantIsolationStrategy Strategy,
-    string? ConnectionString = null,
+    [property: JsonIgnore] string? ConnectionString = null,
     string? SchemaName = null)
 {
+    /// <summary>
+    /// Returns a description of the tenant that never contains the connection string.
+    /// </summary>
+    /// <returns>
+    /// The tenant identifier, name, strategy and schema name, plus
+    /// <c>ConnectionString = ***</c> when a connection string is set.
+    /// </returns>
+    public override string ToString() =>
+        ConnectionString is null
+            ? $"TenantInfo {{ TenantId = {TenantId}, Name = {Name}, Strategy = {Strategy}, SchemaName = {SchemaName} }}"
+            : $"TenantInfo {{ TenantId = {TenantId}, Name = {Name}, Strategy = {Strategy}, SchemaName = {SchemaName}, ConnectionString = *** }}";
+
     /// <summary>
     /// Gets a value indicating whether this tenant uses a dedicated database.
     /// </summary>

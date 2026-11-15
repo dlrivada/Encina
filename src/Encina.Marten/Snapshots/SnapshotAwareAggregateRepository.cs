@@ -172,7 +172,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             var versionBeforeAppend = aggregate.Version - events.Length;
             _session.Events.Append(aggregate.Id, aggregate.Version, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();
@@ -265,7 +265,7 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
             // Start a new stream
             _session.Events.StartStream<TAggregate>(aggregate.Id, events);
 
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             // Clear uncommitted events after successful save
             aggregate.ClearUncommittedEvents();

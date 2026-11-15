@@ -176,7 +176,9 @@ To start with skipping enabled anyway, set `MartenOperationAuditOptions.AllowSki
 
 ### Recognise it
 
-1. Look for an Error entry in the logger you gave to `BuildProjectionDaemonAsync` (category `Marten.Daemon` in the integration test) that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below.
+1. Look for an Error entry that reads "Subscription OperationAuditEntryProjection:All failed while creating a SQL batch", with an inner `JasperFx.Events.Daemon.ApplyEventException` ("Failure to apply event #`<sequence>` Id(`<event guid>`)") whose inner exception is the one below. Where to look depends on how the daemon runs:
+   - A host daemon (`AddAsyncDaemon`) logs under the category `Marten.Events.Daemon.Coordination.ProjectionCoordinator`, and repeats the entry on every retry (see [What happens](#what-happens)).
+   - A standalone daemon (`BuildProjectionDaemonAsync`) logs to the logger you pass to that call, so the category is whatever that logger has. The integration test creates it as `Marten.Daemon`.
 2. `EncryptedFieldDecryptionException` derives from `CryptographicException`. Its message is fixed and holds only the code `audit.marten.encrypted_field_unreadable`. Its `Reason` property says which of the six cases applies.
 3. The message never contains plaintext, a key id, a period or the envelope. Use the sequence number or event id from the log to find the row in the `mt_events` table, and read its stream and period from there.
 4. A daemon check shows the same thing: `IProjectionDaemon.StatusFor(shard)` is `AgentStatus.Paused`, and `HasAnyPaused()` is `true`.

@@ -19,8 +19,11 @@ public sealed class AwsKmsOptions
     public string? KeyId { get; set; }
 
     /// <summary>
-    /// Gets or sets the encryption algorithm. Defaults to <c>"SYMMETRIC_DEFAULT"</c> (AES-256-GCM).
+    /// Gets or sets the AWS KMS encryption algorithm name. Defaults to <c>"SYMMETRIC_DEFAULT"</c>.
     /// </summary>
+    /// <remarks>
+    /// Currently this option has no effect: the key provider does not read it.
+    /// </remarks>
     public string EncryptionAlgorithm { get; set; } = "SYMMETRIC_DEFAULT";
 
     /// <summary>

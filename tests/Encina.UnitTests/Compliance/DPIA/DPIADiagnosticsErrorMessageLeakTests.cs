@@ -11,6 +11,7 @@ using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 
 using NSubstitute;
 
@@ -39,7 +40,6 @@ public sealed class DPIADiagnosticsErrorMessageLeakTests
     {
         var options = new DPIAOptions
         {
-            EnableExpirationMonitoring = true,
             ExpirationCheckInterval = TimeSpan.FromHours(1),
             PublishNotifications = false
         };
@@ -53,6 +53,7 @@ public sealed class DPIADiagnosticsErrorMessageLeakTests
         var sut = new DPIAReviewReminderService(
             scopeFactory,
             Options.Create(options),
+            new FakeTimeProvider(),
             NullLogger<DPIAReviewReminderService>.Instance);
 
         using var capture = CreateCapture();

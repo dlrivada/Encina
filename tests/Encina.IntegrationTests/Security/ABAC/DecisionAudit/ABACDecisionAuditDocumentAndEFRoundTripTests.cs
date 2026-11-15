@@ -19,6 +19,8 @@ using Microsoft.Extensions.Options;
 
 using MongoDB.Driver;
 
+using Shouldly;
+
 namespace Encina.IntegrationTests.Security.ABAC.DecisionAudit;
 
 /// <summary>
@@ -33,6 +35,9 @@ public abstract class ABACDecisionAuditEFRoundTripTestsBase : ABACDecisionAuditR
 
     protected abstract Task PrepareAsync();
 
+    /// <summary>Clears the shared tables so the rows written here never outlive the class (#3463).</summary>
+    protected abstract Task CleanAsync();
+
     public async ValueTask InitializeAsync() => await PrepareAsync();
 
     public async ValueTask DisposeAsync()
@@ -43,6 +48,27 @@ public abstract class ABACDecisionAuditEFRoundTripTestsBase : ABACDecisionAuditR
         }
 
         _contexts.Clear();
+        await CleanAsync();
+    }
+
+    [Fact]
+    public void Start_IsDerivedFromTheCurrentTime() =>
+        Start.ShouldBeInRange(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow);
+
+    [Fact]
+    public async Task OperationAuditPurge_AfterTheDecisionRoundTrip_FindsNothingOlderThanThirtyDays()
+    {
+        if (!IsAvailable)
+        {
+            Assert.Skip("The database of this provider is not available.");
+        }
+
+        // The decisions this class records are stamped relative to now, so the retention purge that
+        // OperationAuditStoreEF tests run next in the same container must find none of them old (#3463).
+        await RecordOneGrantedDecisionAsync();
+        await using var context = CreateContext();
+        var purged = await new OperationAuditStoreEF(context).PurgeEntriesAsync(DateTime.UtcNow.AddDays(-30));
+        purged.Match(Right: count => count, Left: error => throw new ShouldAssertException(error.GetCode().IfNone("<none>"))).ShouldBe(0);
     }
 
     protected override IOperationAuditStore CreateStore()
@@ -58,6 +84,8 @@ public abstract class ABACDecisionAuditEFRoundTripTestsBase : ABACDecisionAuditR
 [Collection("EFCore-SqlServer")]
 public sealed class ABACDecisionAuditEFSqlServerRoundTripTests(EFCoreSqlServerFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
+    protected override Task CleanAsync() => fixture.ClearAllDataAsync();
+
     protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
 
     protected override async Task PrepareAsync()
@@ -72,6 +100,8 @@ public sealed class ABACDecisionAuditEFSqlServerRoundTripTests(EFCoreSqlServerFi
 [Collection("EFCore-PostgreSQL")]
 public sealed class ABACDecisionAuditEFPostgreSqlRoundTripTests(EFCorePostgreSqlFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
+    protected override Task CleanAsync() => fixture.ClearAllDataAsync();
+
     protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
 
     protected override async Task PrepareAsync()
@@ -88,6 +118,8 @@ public sealed class ABACDecisionAuditEFPostgreSqlRoundTripTests(EFCorePostgreSql
 public sealed class ABACDecisionAuditEFMySqlRoundTripTests(EFCoreMySqlFixture fixture) : ABACDecisionAuditEFRoundTripTestsBase
 {
     protected override bool IsAvailable => fixture.IsAvailable;
+
+    protected override Task CleanAsync() => fixture.ClearAllDataAsync();
 
     protected override AuditTestDbContext CreateContext() => fixture.CreateDbContext<AuditTestDbContext>();
 

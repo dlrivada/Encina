@@ -426,7 +426,7 @@
       },
       "justifications": {
         "unit": "Unit tests read and set every option and its default through the decision audit tests of the PEP, so each accessor runs.",
-        "guard": "Guard tests set and read every option, including WriteTimeout and AllowCrossTenantQueries, and validate them."
+        "guard": "Guard tests set and read the options, including WriteTimeout, and validate them."
       }
     },
     "DecisionAudit/ABACDecisionAuditOutcomes.cs": {
@@ -619,7 +619,7 @@
         "integration": 75
       },
       "justifications": {
-        "unit": "Unit tests cover the five tenant cases, mismatch, blank tenants, validation, store errors, filter normalization and the paged JSON Lines export.",
+        "unit": "Unit tests cover the tenant cases (ambient tenant forced, fail-closed denial without one in a multi-tenant application for query and export, single-tenant unchanged), mismatch, blank tenants, validation, store errors, filter normalization and the paged JSON Lines export.",
         "guard": "Guard tests reject null arguments and run a query and an export.",
         "contract": "The contract test reads back what the recorder wrote.",
         "integration": "The round trip queries and exports on every real store; the partial-export and unreadable-entry failure paths need a failing store and are unit-tested."

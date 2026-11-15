@@ -2,7 +2,8 @@
 #
 # Runs the REAL check-project-membership.ps1 in a child session with gh replaced by a stub (nothing touches GitHub).
 # Asserts: none missing -> exit 0 and no add; some missing -> exit 1, lists number and title, no add; -Add -> adds
-# exactly the missing ones with the keyring (token variables cleared) and exits 0; a failed add exits 1.
+# exactly the missing ones with the keyring (token variables cleared) and exits 0; a failed add exits 1. Open pull
+# requests count like open issues (#3328).
 # Exit code: 0 when every assertion passes, 1 otherwise.
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +23,7 @@ $isIssues = $args[0] -eq 'api' -and ($args -join ' ') -like '*issues?state=open*
 if ($env:CPM_LIST_FAIL -and $isIssues) { $global:LASTEXITCODE = 1; exit 1 }
 if ($env:CPM_BAD_JSON -and $isIssues) { 'not json <html>'; exit 0 }
 if ($isIssues) {
-    # REST, --paginate --slurp: an array of pages; a pull request (pull_request member) must be dropped.
+    # REST, --paginate --slurp: an array of pages; a pull request (pull_request member) is kept: it belongs on the project too (#3328).
     $all = @(1, 2, 3) | ForEach-Object { @{ number = $_; title = "Issue $_"; html_url = "https://github.com/dlrivada/Encina/issues/$_" } }
     $all += @{ number = 4; title = 'A pull request'; html_url = 'https://github.com/dlrivada/Encina/pull/4'; pull_request = @{ url = 'x' } }
     ConvertTo-Json -InputObject @(, $all) -Depth 5; exit 0
@@ -50,21 +51,28 @@ function Invoke-Check([string]$On, [string]$ExtraArgs = '', [string]$AddFail = '
     $cmd = "function gh { & '$tmp\gh-stub.ps1' @args }; & '$script' $ExtraArgs; exit `$LASTEXITCODE"
     $out = & pwsh -NoProfile -Command $cmd 2>&1 | ForEach-Object { "$_" }
     $code = $LASTEXITCODE
-    $adds = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'gh project item-add*' }) } else { @() }
-    $tok = if (Test-Path $log) { @(Get-Content $log | Where-Object { $_ -like 'TOKENS:*' }) } else { @() }
+    # @() around the if-expression keeps a single match an array (it would unwrap to a string).
+    $adds = @(if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like 'gh project item-add*' } })
+    $tok = @(if (Test-Path $log) { Get-Content $log | Where-Object { $_ -like 'TOKENS:*' } })
     return @{ Exit = $code; Text = ($out -join "`n"); Adds = $adds; Tokens = $tok }
 }
 
 try {
+    $r = Invoke-Check '1,2,3,4'
+    Assert-That 'none missing: exit 0, nothing added (an item of another repository is ignored)' ($r.Exit -eq 0 -and $r.Adds.Count -eq 0 -and $r.Text.Contains('All 4 open issues and pull requests')) $r.Text
+
     $r = Invoke-Check '1,2,3'
-    Assert-That 'none missing: exit 0, nothing added (an issue of another repository is ignored)' ($r.Exit -eq 0 -and $r.Adds.Count -eq 0 -and $r.Text.Contains('All 3 open issues')) $r.Text
+    Assert-That 'an open pull request that is not on the project is listed (#3328)' ($r.Exit -eq 1 -and $r.Text.Contains('#4 A pull request') -and $r.Adds.Count -eq 0) $r.Text
 
-    $r = Invoke-Check '1'
-    Assert-That 'some missing: exit 1, lists number and title, nothing added' ($r.Exit -eq 1 -and $r.Text.Contains('#2 Issue 2') -and $r.Text.Contains('#3 Issue 3') -and -not $r.Text.Contains('#1 Issue 1') -and $r.Adds.Count -eq 0) $r.Text
+    $r = Invoke-Check '1,4'
+    Assert-That 'some missing: exit 1, lists number and title, nothing added' ($r.Exit -eq 1 -and $r.Text.Contains('#2 Issue 2') -and $r.Text.Contains('#3 Issue 3') -and -not $r.Text.Contains('#1 Issue 1') -and -not $r.Text.Contains('#4 A pull request') -and $r.Adds.Count -eq 0) $r.Text
 
-    $r = Invoke-Check '1' '-Add'
+    $r = Invoke-Check '1,4' '-Add'
     Assert-That '-Add: adds exactly the missing issues, reports each, exit 0' ($r.Exit -eq 0 -and $r.Adds.Count -eq 2 -and $r.Adds[0] -eq 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/issues/2' -and $r.Adds[1].EndsWith('/issues/3') -and $r.Text.Contains('ADDED   #2') -and $r.Text.Contains('ADDED   #3')) ($r.Text + ' | ' + ($r.Adds -join ' | '))
     Assert-That 'the add runs with GITHUB_TOKEN and GH_TOKEN cleared' ($r.Tokens.Count -eq 2 -and @($r.Tokens | Where-Object { $_ -ne 'TOKENS:[]' }).Count -eq 0) ($r.Tokens -join ' | ')
+
+    $r = Invoke-Check '1,2,3' '-Add'
+    Assert-That '-Add adds an open pull request by its URL (#3328)' ($r.Exit -eq 0 -and $r.Adds.Count -eq 1 -and $r.Adds[0] -eq 'gh project item-add 1 --owner dlrivada --url https://github.com/dlrivada/Encina/pull/4' -and $r.Text.Contains('ADDED   #4')) ($r.Text + ' | ' + ($r.Adds -join ' | '))
 
     $env:CPM_LIST_FAIL = '1'
     $r = Invoke-Check '1'

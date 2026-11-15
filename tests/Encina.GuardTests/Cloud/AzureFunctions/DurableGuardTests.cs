@@ -375,49 +375,73 @@ public class DurableGuardTests
         ex.ParamName.ShouldBe("context");
     }
 
-    [Fact]
-    public async Task FanOutWithResultAsync_ThrowsOnNullContext()
-    {
-        TaskOrchestrationContext context = null!;
-
-        var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, Activity, [1]));
-
-        ex.ParamName.ShouldBe("context");
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    public async Task FanOutWithResultAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
+    public async Task FanOutFirstSuccessAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
     {
         var context = Substitute.For<TaskOrchestrationContext>();
 
         var ex = await Should.ThrowAsync<ArgumentException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, activityName!, [1]));
+            () => FanOut.FanOutFirstSuccessAsync<int, string>(context, activityName!, [1]));
 
         ex.ParamName.ShouldBe("activityName");
     }
 
     [Fact]
-    public async Task FanOutWithResultAsync_ThrowsOnNullInputs()
+    public async Task FanOutFirstSuccessAsync_ThrowsOnNullInputs()
     {
         var context = Substitute.For<TaskOrchestrationContext>();
 
         var ex = await Should.ThrowAsync<ArgumentNullException>(
-            () => FanOut.FanOutWithResultAsync<int, string>(context, Activity, null!));
+            () => FanOut.FanOutFirstSuccessAsync<int, string>(context, Activity, null!));
+
+        ex.ParamName.ShouldBe("inputs");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task FanOutAllAsync_ThrowsOnNullOrEmptyActivityName(string? activityName)
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var ex = await Should.ThrowAsync<ArgumentException>(
+            () => FanOut.FanOutAllAsync<int, string>(context, activityName!, [1]));
+
+        ex.ParamName.ShouldBe("activityName");
+    }
+
+    [Fact]
+    public async Task FanOutAllAsync_ThrowsOnNullInputs()
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var ex = await Should.ThrowAsync<ArgumentNullException>(
+            () => FanOut.FanOutAllAsync<int, string>(context, Activity, null!));
 
         ex.ParamName.ShouldBe("inputs");
     }
 
     [Fact]
-    public async Task FanOutWithResultAsync_ReturnsEmptyForNoInputs()
+    public async Task FanOutAllAsync_ReturnsEmptyRightForNoInputs()
     {
         var context = Substitute.For<TaskOrchestrationContext>();
 
-        var results = await FanOut.FanOutWithResultAsync<int, string>(context, Activity, []);
+        var result = await FanOut.FanOutAllAsync<int, string>(context, Activity, []);
 
-        results.ShouldBeEmpty();
+        result.Match(Right: values => values.Count, Left: _ => -1).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task FanOutFirstSuccessAsync_ReturnsTheAggregateErrorForNoInputs()
+    {
+        var context = Substitute.For<TaskOrchestrationContext>();
+
+        var result = await FanOut.FanOutFirstSuccessAsync<int, string>(context, Activity, []);
+
+        result.Match(Right: _ => "", Left: error => error.GetCode().IfNone(string.Empty))
+            .ShouldBe("durable.fanout_failed");
     }
 
     [Fact]

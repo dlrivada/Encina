@@ -120,7 +120,6 @@ public sealed class DPIAPipelineIntegrationTests
         options.DPOEmail.ShouldBeNull();
         options.DPOName.ShouldBeNull();
         options.PublishNotifications.ShouldBeTrue();
-        options.EnableExpirationMonitoring.ShouldBeFalse();
         options.ExpirationCheckInterval.ShouldBe(TimeSpan.FromHours(1));
         options.AutoRegisterFromAttributes.ShouldBeFalse();
         options.AutoDetectHighRisk.ShouldBeFalse();
@@ -246,33 +245,16 @@ public sealed class DPIAPipelineIntegrationTests
     #region Conditional Service Registration
 
     [Fact]
-    public void AddEncinaDPIA_WithExpirationMonitoring_RegistersHostedService()
+    public void AddEncinaDPIA_WithoutAnyOption_RegistersReviewReminderHostedService()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddEncinaDPIA(options =>
-        {
-            options.EnableExpirationMonitoring = true;
-        });
+        services.AddEncinaDPIA();
 
-        services.ShouldContain(
+        services.Count(
             d => d.ServiceType == typeof(IHostedService)
-              && d.ImplementationType == typeof(DPIAReviewReminderService));
-    }
-
-    [Fact]
-    public void AddEncinaDPIA_WithoutExpirationMonitoring_DoesNotRegisterHostedService()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaDPIA(options =>
-        {
-            options.EnableExpirationMonitoring = false;
-        });
-
-        services.ShouldNotContain(
-            d => d.ServiceType == typeof(IHostedService)
-              && d.ImplementationType == typeof(DPIAReviewReminderService));
+              && d.ImplementationType == typeof(DPIAReviewReminderService))
+            .ShouldBe(1);
     }
 
     [Fact]

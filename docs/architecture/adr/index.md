@@ -57,6 +57,7 @@ has_children: true
 | [057](057-verifactu-boundary.md) | The Verifactu Boundary: Regulation-Neutral Primitives Only (Accepted) |
 | [058](058-encina-cli-command-architecture.md) | Encina.Cli Command Architecture: An In-App Command Host and One Command Contract (Accepted) |
 | [060](060-cpm-transitive-pinning-non-packable.md) | Central Package Management Transitive Pinning Only in Non-Packable Projects (Accepted) |
+| [062](062-error-category-contract.md) | Error Category Contract on EncinaError (Accepted) |
 | [063](063-in-repo-coverage-comment-replaces-codecov.md) | An In-Repository Coverage Comment Replaces Codecov (Accepted, supersedes 023) |
 
 ## Reserved numbers

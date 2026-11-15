@@ -14,13 +14,18 @@ namespace Encina.Tenancy;
 /// connection strings based on tenant context. Derived classes implement
 /// the actual connection creation logic specific to their database provider.
 /// </para>
-/// <para><b>Connection String Resolution Order:</b></para>
+/// <para><b>Connection String Resolution (fail closed):</b></para>
 /// <list type="number">
-/// <item>Explicit <paramref name="tenantId"/> parameter</item>
-/// <item>Current tenant from <see cref="ITenantProvider.GetCurrentTenantId"/></item>
-/// <item>Tenant's <see cref="TenantInfo.ConnectionString"/> from store</item>
-/// <item><see cref="TenantConnectionOptions.DefaultConnectionString"/></item>
+/// <item>The tenant id is the explicit <c>tenantId</c> argument, or else <see cref="ITenantProvider.GetCurrentTenantId"/>.
+/// A null, empty or whitespace id means no tenant.</item>
+/// <item>No tenant: <see cref="TenancyErrors.TenantRequired"/> when <see cref="TenancyOptions.RequireTenant"/> is
+/// <c>true</c> (the default); <see cref="TenantConnectionOptions.DefaultConnectionString"/> only when it is <c>false</c>.</item>
+/// <item>A tenant id the <see cref="ITenantStore"/> does not know: <see cref="TenancyErrors.TenantNotFound"/>, and no
+/// connection is created. There is no opt-out.</item>
+/// <item>A known tenant: its <see cref="TenantInfo.ConnectionString"/>, or
+/// <see cref="TenantConnectionOptions.DefaultConnectionString"/> when it has none.</item>
 /// </list>
+/// <para>An exception thrown by the tenant store propagates (ADR-006); it never falls back to the default.</para>
 /// </remarks>
 /// <example>
 /// <code>
@@ -29,8 +34,9 @@ namespace Encina.Tenancy;
 ///     public SqlServerTenantConnectionFactory(
 ///         ITenantProvider tenantProvider,
 ///         ITenantStore tenantStore,
-///         IOptions&lt;TenantConnectionOptions&gt; options)
-///         : base(tenantProvider, tenantStore, options)
+///         IOptions&lt;TenantConnectionOptions&gt; options,
+///         IOptions&lt;TenancyOptions&gt; tenancyOptions)
+///         : base(tenantProvider, tenantStore, options, tenancyOptions)
 ///     {
 ///     }
 ///
@@ -55,6 +61,7 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
 {
     private readonly ITenantProvider _tenantProvider;
     private readonly ITenantStore _tenantStore;
+    private readonly bool _requireTenant;
 
     /// <summary>
     /// Gets the connection options.
@@ -67,21 +74,27 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
     /// <param name="tenantProvider">The tenant provider.</param>
     /// <param name="tenantStore">The tenant store.</param>
     /// <param name="options">The connection options.</param>
+    /// <param name="tenancyOptions">
+    /// The tenancy options; <see cref="TenancyOptions.RequireTenant"/> decides whether a missing tenant is refused.
+    /// </param>
     /// <exception cref="ArgumentNullException">
     /// Thrown when any parameter is null.
     /// </exception>
     protected TenantConnectionFactoryBase(
         ITenantProvider tenantProvider,
         ITenantStore tenantStore,
-        IOptions<TenantConnectionOptions> options)
+        IOptions<TenantConnectionOptions> options,
+        IOptions<TenancyOptions> tenancyOptions)
     {
         ArgumentNullException.ThrowIfNull(tenantProvider);
         ArgumentNullException.ThrowIfNull(tenantStore);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(tenancyOptions);
 
         _tenantProvider = tenantProvider;
         _tenantStore = tenantStore;
         Options = options.Value;
+        _requireTenant = tenancyOptions.Value.RequireTenant;
     }
 
     /// <inheritdoc />
@@ -108,23 +121,25 @@ public abstract class TenantConnectionFactoryBase<TConnection> : ITenantConnecti
         // Use provided tenant ID or get from current context
         tenantId ??= _tenantProvider.GetCurrentTenantId();
 
-        // If no tenant context, use default connection string
+        // No tenant: refused unless RequireTenant was explicitly turned off (fail closed)
         if (string.IsNullOrWhiteSpace(tenantId))
         {
-            return GetDefaultConnectionString();
+            return _requireTenant ? TenancyErrors.TenantRequired() : GetDefaultConnectionString();
         }
 
-        // Get tenant info from store
+        // Get tenant info from store; a store exception propagates (ADR-006)
         var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken);
 
-        // Use tenant's connection string if available
-        if (tenant is not null && !string.IsNullOrWhiteSpace(tenant.ConnectionString))
+        // An unknown tenant never reaches the default database
+        if (tenant is null)
         {
-            return tenant.ConnectionString;
+            return TenancyErrors.TenantNotFound();
         }
 
-        // Fall back to default connection string
-        return GetDefaultConnectionString();
+        // A known tenant uses its own connection string, or the default when it has none
+        return string.IsNullOrWhiteSpace(tenant.ConnectionString)
+            ? GetDefaultConnectionString()
+            : tenant.ConnectionString;
     }
 
     /// <summary>

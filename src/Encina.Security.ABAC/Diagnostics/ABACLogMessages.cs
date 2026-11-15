@@ -312,7 +312,7 @@ internal static partial class ABACLogMessages
     internal static partial void EnforcementDisabled(ILogger logger);
 
     // ── Fail-Closed Messages (9091-9093) ─────────────────────────────
-    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9090 belong to the
+    // Event IDs: 9091-9093 (see EventIdRanges.SecurityABAC; 9079-9089 belong to the
     // decision audit trail of #751). Codes and exception types only, never a user identifier,
     // an error message or an exception message (#1676).
 
@@ -337,8 +337,8 @@ internal static partial class ABACLogMessages
     internal static partial void StoreEvaluationFailed(
         ILogger logger, Exception exception);
 
-    // ── Decision Audit (9079-9090) ───────────────────────────────────
-    // Event IDs: 9079-9090 (see EventIdRanges.SecurityABAC), the block reserved for the decision
+    // ── Decision Audit (9079-9089) ───────────────────────────────────
+    // Event IDs: 9079-9089 (see EventIdRanges.SecurityABAC), the block reserved for the decision
     // audit trail of #751; 9084, 9086 and 9087 are the startup check. Codes and exception types
     // only: never a subject, a tenant, an attribute value, an error message or an exception message.
 
@@ -386,7 +386,7 @@ internal static partial class ABACLogMessages
 
     /// <summary>
     /// The write of a decision record failed or timed out, but the entry with its decision id was
-    /// found committed, so the record counts as written (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
+    /// found committed, so the record counts as written (Event IDs 9079-9089, see EventIdRanges.SecurityABAC).
     /// </summary>
     [LoggerMessage(
         EventId = 9089,
@@ -394,17 +394,6 @@ internal static partial class ABACLogMessages
         Message = "The write of ABAC decision {DecisionId} reported a failure ({FailureCode}) but the entry is stored; the record counts as written")]
     internal static partial void DecisionAlreadyStored(
         ILogger logger, Guid decisionId, string failureCode);
-
-    /// <summary>
-    /// A decision audit query ran without a tenant in a multi-tenant application because
-    /// <c>AllowCrossTenantQueries</c> is set: the logged opt-out of the reader's tenant gate
-    /// (Event IDs 9079-9090, see EventIdRanges.SecurityABAC).
-    /// </summary>
-    [LoggerMessage(
-        EventId = 9090,
-        Level = LogLevel.Warning,
-        Message = "A decision audit query ran without a tenant in a multi-tenant application (AllowCrossTenantQueries is set)")]
-    internal static partial void DecisionAuditCrossTenantQuery(ILogger logger);
 
     /// <summary>
     /// The decision audit runs in <c>BestEffort</c>: a request proceeds when its record cannot be

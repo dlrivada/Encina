@@ -6,6 +6,7 @@ using Encina.Compliance.DPIA.Services;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Encina.Compliance.DPIA;
@@ -31,6 +32,9 @@ public static class ServiceCollectionExtensions
     /// <item><see cref="IDPIAAssessmentEngine"/> → <see cref="DefaultDPIAAssessmentEngine"/> (Scoped, using TryAdd)</item>
     /// <item><see cref="IRiskCriterion"/> — 6 built-in risk criteria (Singleton, using TryAddEnumerable)</item>
     /// <item><see cref="DPIARequiredPipelineBehavior{TRequest, TResponse}"/> (Transient, using TryAddEnumerable)</item>
+    /// <item>The DPIA review-reminder hosted service (Singleton <see cref="Microsoft.Extensions.Hosting.IHostedService"/>, using TryAddEnumerable).
+    /// It is always registered: the periodic review of Article 35(11) is a legal obligation, so its monitor has no switch.
+    /// <see cref="DPIAOptions.ExpirationCheckInterval"/> sets how often it runs.</item>
     /// </list>
     /// </para>
     /// <para>
@@ -60,7 +64,6 @@ public static class ServiceCollectionExtensions
     /// <b>Conditional registrations:</b>
     /// <list type="bullet">
     /// <item>Health check: Only registered when <see cref="DPIAOptions.AddHealthCheck"/> is <c>true</c></item>
-    /// <item>Expiration monitoring: Only registered when <see cref="DPIAOptions.EnableExpirationMonitoring"/> is <c>true</c></item>
     /// </list>
     /// </para>
     /// </remarks>
@@ -83,7 +86,7 @@ public static class ServiceCollectionExtensions
     /// {
     ///     options.BlockWithoutDPIA = true;
     ///     options.AddHealthCheck = true;
-    ///     options.EnableExpirationMonitoring = true;
+    ///     options.ExpirationCheckInterval = TimeSpan.FromMinutes(30);
     /// });
     ///
     /// // With auto-registration and heuristic detection
@@ -129,6 +132,9 @@ public static class ServiceCollectionExtensions
         // Register pipeline behavior
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(DPIARequiredPipelineBehavior<,>)));
 
+        // Review-reminder monitor (Art. 35(11)): always on, no switch (#3270)
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, DPIAReviewReminderService>());
+
         // Evaluate conditional features from a local options instance
         var optionsInstance = new DPIAOptions();
         configure?.Invoke(optionsInstance);
@@ -136,7 +142,6 @@ public static class ServiceCollectionExtensions
         // Auto-registration from attributes (and optionally auto-detection)
         AddAutoRegistration(services, optionsInstance, Assembly.GetCallingAssembly());
         AddHealthCheck(services, optionsInstance);
-        AddExpirationMonitoring(services, optionsInstance);
 
         return services;
     }
@@ -174,14 +179,6 @@ public static class ServiceCollectionExtensions
                 .AddCheck<DPIAHealthCheck>(
                     DPIAHealthCheck.DefaultName,
                     tags: DPIAHealthCheck.Tags);
-        }
-    }
-
-    private static void AddExpirationMonitoring(IServiceCollection services, DPIAOptions options)
-    {
-        if (options.EnableExpirationMonitoring)
-        {
-            services.AddHostedService<DPIAReviewReminderService>();
         }
     }
 }

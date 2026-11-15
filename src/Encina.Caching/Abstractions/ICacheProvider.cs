@@ -15,7 +15,6 @@ namespace Encina.Caching;
 /// <item><description>Valkey - Redis fork backed by AWS/Google/Linux Foundation</description></item>
 /// <item><description>Dragonfly - 25x Redis throughput</description></item>
 /// <item><description>KeyDB - Multi-threaded Redis</description></item>
-/// <item><description>NCache - Native .NET distributed cache</description></item>
 /// </list>
 /// </remarks>
 /// <example>
