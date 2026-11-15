@@ -9,10 +9,10 @@ namespace Encina.GuardTests.Database.Sharding;
 public sealed class ShardedReadWriteOptionsGuardTests
 {
     [Fact]
-    public void AddShard_NullShardId_ThrowsArgumentException()
+    public void AddShard_NullShardId_ThrowsArgumentNullException()
     {
         var options = new ShardedReadWriteOptions();
-        var ex = Should.Throw<ArgumentException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             options.AddShard(null!, "conn"));
         ex.ParamName.ShouldBe("shardId");
     }
@@ -34,10 +34,10 @@ public sealed class ShardedReadWriteOptionsGuardTests
     }
 
     [Fact]
-    public void AddShard_NullPrimaryConnectionString_ThrowsArgumentException()
+    public void AddShard_NullPrimaryConnectionString_ThrowsArgumentNullException()
     {
         var options = new ShardedReadWriteOptions();
-        var ex = Should.Throw<ArgumentException>(() =>
+        var ex = Should.Throw<ArgumentNullException>(() =>
             options.AddShard("shard-0", null!));
         ex.ParamName.ShouldBe("primaryConnectionString");
     }
