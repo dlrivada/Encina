@@ -21,7 +21,7 @@
 
 The issue stores the resolved validator instances in a `static ConcurrentDictionary<Type, object>` inside the provider. That is correct only when every registration is a singleton and only one container exists in the process:
 
-- A scoped or transient validator (the documented use case of the lifetime overload, and the shape of the repository's own benchmark) would be captured by a process-wide static: it would outlive its scope (a disposed `DbContext` reaching a later request) and be shared across threads and requests ([Microsoft guidance on captive dependencies](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines#captive-dependency)).
+- A scoped or transient validator (the documented use case of the lifetime overload, and the shape of the repository's own benchmark) would be captured by a process-wide static: it would outlive its scope (a disposed `DbContext` reaching a later request) and be shared across threads and requests (Microsoft's dependency injection guidelines, section "Captive dependency").
 - A static dictionary is shared by every container in the process: two hosts, or two test fixtures, that register different validators for the same request type would read each other's validators.
 
 ### What this plan delivers
@@ -55,7 +55,7 @@ A cache that keeps only what is true for the lifetime of the container and is co
 - The cache key is the CLR request type, a compile-time value: the number of entries is bounded by the number of request types in the application, never by request data, so the cache cannot grow without limit.
 
 **Class:** Settled
-**Settled by:** [Microsoft DI guidelines, "Captive dependency"](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection-guidelines#captive-dependency) (a longer-lived holder must not keep a shorter-lived service) and the repository's own tests: `ServiceCollectionExtensionsTests.cs:86-109` register validators as `Scoped` and `Transient` through the lifetime overload, and `FluentValidationProviderTests.cs` builds a new container per test (`BuildServiceProvider` at `:274`, `:298`) registering different validators for the same request type (`:347` a factory validator for `RequiredFieldRequest`, `:431-434` a generic helper that registers a different `TValidator` per test), which a process-wide static would mix; only option C is container-correct and effective
+**Settled by:** Microsoft DI guidelines, section "Captive dependency" (a longer-lived holder must not keep a shorter-lived service) and the repository's own tests: `ServiceCollectionExtensionsTests.cs:86-109` register validators as `Scoped` and `Transient` through the lifetime overload, and `FluentValidationProviderTests.cs` builds a new container per test (`BuildServiceProvider` at `:274`, `:298`) registering different validators for the same request type (`:347` a factory validator for `RequiredFieldRequest`, `:431-434` a generic helper that registers a different `TValidator` per test), which a process-wide static would mix; only option C is container-correct and effective
 
 </details>
 
