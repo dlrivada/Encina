@@ -2,8 +2,8 @@
 
 > **Issue**: [#326](https://github.com/dlrivada/Encina/issues/326)
 > **Type**: Feature
-> **Complexity**: High (5 phases, 5 PRs, one provider, security-sensitive)
-> **Estimated Scope**: 62 files and about 5,000 changed lines over 5 PRs (the table in "Estimated File Count" lists every file per PR; the figures assume the recommended answers to the Dilemmas)
+> **Complexity**: High (5 phases, 8 PRs, one provider, security-sensitive)
+> **Estimated Scope**: 101 files and about 6,500 changed lines over 8 PRs (the table in "Estimated File Count" lists every file per PR; the figures assume the recommended answers to the Dilemmas)
 
 ---
 
@@ -14,7 +14,7 @@
 **What it implements**
 
 - `EncinaMartenOptions.MultiTenancy` (`MartenMultiTenancyOptions`): `Isolation`, `ConnectionStringResolver`, `SchemaResolver`, `AllowCrossTenantQueries` (default false), `CrossTenantRole`.
-- A tenant-aware session factory so that every repository in the DI container gets a session bound to the current tenant, and fails closed with a `Left` when the context has no tenant.
+- A tenant-aware session accessor (decision 6): the four Marten repositories obtain their session lazily, per operation, from an accessor that returns the session bound to the current tenant and fails closed with a `Left` when the context has no tenant; a tenant-aware Marten session factory opens the sessions.
 - Per-tenant `IDocumentStore` routing for the dedicated and schema modes (cached, disposed with the host).
 - Tenant provisioning and deprovisioning (Dilemma D2) and an explicit, logged cross-tenant read.
 - Per-tenant health check, diagnostics and an isolation test: a tenant never reads another tenant's events.
@@ -27,17 +27,19 @@
 
 **Boundary with #1257**: #1257 owns the SPEC-002 capabilities' tenant keys and the two-tenant suite across the 10 providers and Marten. This plan delivers the Marten mechanism that suite relies on; this plan's own isolation tests cover the mechanism, #1257 covers the capabilities.
 
-**Size and split (AGENTS.md section 11)**: 62 files exceed one worker PR, so the work ships as five PRs of at most 15 files and 1,500 lines each, counted with every edited file (registry, allocation test, project file, DI, error codes), test, manifest entry and changelog fragment. Each PR adds the manifest entries (per file, per flag, one-sentence justification) of the files it creates, with the tests that meet them; no PR uses a type or log class of a later PR, so the log class, metrics and EventIds are created in PR 2, the first PR that logs. The file lists per PR are in "Estimated File Count".
+**Size and split (AGENTS.md section 11)**: 101 files exceed one worker PR, so the work ships as eight PRs of at most 15 files and 1,500 lines each, counted with every edited file (registry, allocation test, project file, DI, error codes, repository constructors and their existing test callers), test, manifest entry and changelog fragment. Each PR adds the manifest entries (per file, per flag, one-sentence justification) of the files it creates, with the tests that meet them; no PR uses a type or log class of a later PR, so the log class and EventIds are created in PR 2, the first PR that logs, and the telemetry in PR 7, the first PR that uses it. The file lists per PR are in "Estimated File Count"; the counts assume the recommended answers to the Dilemmas (decision 6 option A).
 
 | PR | Content | Files | Lines (estimate) |
 |----|---------|-------|------------------|
 | 1 | Phase 1: options, project reference, error codes, spike test, options tests | 8 | about 600 |
-| 2 | Phase 2 and the diagnostics of Phase 4: conjoined mode, tenant session factory, DI, log, metrics, EventIds, tests | 15 | about 1,300 |
-| 3 | Phase 3: dedicated and schema routing, resolver, isolation property test, load test | 14 | about 1,300 |
-| 4 | Provisioning and deprovisioning (Phase 4) | 11 | about 1,000 |
-| 5 | Cross-tenant scope, health check (Phase 4) and documentation (Phase 5) | 14 | about 1,100 |
-
-PR 2 and PR 3 start only after the maintainer has answered D1 and D3 (and the PR 1 spike has been read): they implement whichever mode set the answers settle.
+| 2 | Phase 2: session accessor seam, tenant session factory, conjoined configuration, DI, log class and EventIds | 14 | about 1,000 |
+| 3 | `MartenAggregateRepository` takes the accessor; its 14 existing test callers change with the constructor | 15 | about 700 |
+| 4 | `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` take the accessor; their existing test callers change | 13 | about 600 |
+| 5 | `MartenReadModelRepository` takes the accessor, its existing test callers, and the two-tenant conjoined integration test | 8 | about 500 |
+| 6 | Phase 3: dedicated and schema routing, resolver, isolation property test, load test | 15 | about 1,300 |
+| 7 | Provisioning and deprovisioning, telemetry (Phase 4) | 13 | about 1,100 |
+| 8 | Cross-tenant scope, health check (Phase 4) and documentation (Phase 5) | 15 | about 1,100 |
+PRs 2 to 6 start only after the maintainer has answered D1 and D3 and decision 6 (and the PR 1 spike has been read): they implement whichever mode set and session design the answers settle. If decision 6 is answered with option B, PRs 3 to 5 disappear and PR 2 has the factory and one exception type instead of the accessor seam (about 64 files over 5 PRs).
 
 ---
 
@@ -145,20 +147,21 @@ Background daemons and projections run without a request context; they must bind
 </details>
 
 <details>
-<summary><strong>6. How a missing tenant surfaces from a session factory</strong></summary>
+<summary><strong>6. How a missing tenant surfaces: where the session is obtained</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| A. The tenant-bound session factory throws a dedicated exception when the context has no tenant, and Encina's repositories (which call `IDocumentSession` through DI) map it to `Left` `marten.tenant_required` at their boundary | Works with Marten's `ISessionFactory`, whose `OpenSession` returns a session, not an `Either` | An exception crosses DI resolution when a session is injected directly into user code |
-| B. A separate `Either`-returning `ITenantSessionProvider.OpenAsync` used by Encina repositories, with `IDocumentSession` registered scoped over it | Railway style end to end | A second way to get a session; user code that injects `IDocumentSession` gets the exception anyway |
+| A. A lazy session-accessor seam: `IMartenSessionAccessor.GetAsync(ct)` returns `Either<EncinaError, IDocumentSession>`; the four repositories (`MartenAggregateRepository`, `SnapshotAwareAggregateRepository`, `MartenReadModelRepository`, `MartenSnapshotStore`) take the accessor in their constructor instead of `IDocumentSession` and call it at the start of each operation, returning `Left` `marten.tenant_required` when the context has no tenant; a default accessor wraps the plain session when multi-tenancy is off; the inline projection relay is created per call from the obtained session, so `InlineProjectionRelay` does not change | Railway style end to end; fails closed with a `Left` inside the repository, where the failure belongs | A constructor signature change in four repositories and about 31 existing test files that construct them (counted on this branch by `new <Repository><` in `src` and `tests`: 14 for `MartenAggregateRepository`, 6 for `SnapshotAwareAggregateRepository`, 6 for `MartenReadModelRepository`, 5 for `MartenSnapshotStore`, with overlap), delivered in PRs 3 to 5; other consumers of `IDocumentSession` (projection manager, `EventPublishingPipelineBehavior`, `CommittedEventCollector`, `Encina.Audit.Marten`, `Encina.Marten.GDPR`) keep the plain session, which fails at resolution when the tenant is missing: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/marten-tenancy-session-consumers.md) |
+| B. The tenant-bound session factory throws a dedicated `TenantRequiredException` when the context has no tenant, and nothing else changes | No repository change; the plan shrinks by PRs 3 to 5 | The throw happens while DI builds the repository, and `Encina.Send` resolves the handler (`ResolveHandler` in `src/Encina/Core/Encina.cs`) before the pipeline runs, so no repository, behavior or handler code can turn it into a `Left`; it denies but surfaces as an exception, not as the `Left` the rest of Encina returns |
+| C. A pipeline behavior that checks the tenant first | A `Left` before the handler | Cannot work alone: the handler and its repositories are resolved before any behavior runs, so the factory still throws first (it would have to accompany option B) |
 
 ### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-Marten's session factory has no way to return an error value, so one of the two layers must throw; ADR-001 and ADR-053 apply to business results, and a missing tenant on an injected session is a gate that must deny (AGENTS.md section 3). The spike of PR 1 confirms the exact Marten 9.38 `ISessionFactory` contract before PR 2.
+Marten's session factory has no way to return an error value, so for a session injected through DI the only fail-closed outcome is an exception (option B); a `Left` is possible only if the repository obtains the session itself (option A), which is the design that follows ADR-001 and ADR-053 and AGENTS.md section 3 (a missing tenant denies, and the denial is a value). A costs the constructor changes counted above; B is the smaller and faster option and is valid when exceptions at resolution are acceptable for a denied request. The spike of PR 1 confirms the exact Marten 9.38 `ISessionFactory` contract and how `Encina.Send` reports a resolution exception, before PR 2.
 
 **Class:** Dilemma
 
@@ -171,7 +174,7 @@ Marten's session factory has no way to return an error value, so one of the two 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| A. `MultiTenancy.Isolation` is the one mode of the store; a tenant whose `TenantInfo` strategy differs gets `Left` `marten.tenant_strategy_mismatch` (category `Conflict`, ADR 062 rule R2) | One mode to reason about and test | A deployment cannot mix a premium dedicated tenant with shared ones |
+| A. `MultiTenancy.Isolation` is the one mode of the store; a tenant whose `TenantInfo` strategy differs gets `Left` `marten.tenant_strategy_mismatch` (category per decision 14) | One mode to reason about and test | A deployment cannot mix a premium dedicated tenant with shared ones |
 | B. The mode is per tenant, read from `TenantInfo` (`HasDedicatedDatabase`, `HasDedicatedSchema`) | Mixed deployments | Every repository path must handle all three modes at once; the isolation test matrix multiplies |
 
 ### Chosen Option: **A** (recommended, pending the maintainer)
@@ -291,17 +294,38 @@ A background daemon or projection without a request context must bind a tenant e
 
 | Option | Pros | Cons |
 |--------|------|------|
-| A. `marten.tenant_required` (`InvalidRequest`), `marten.cross_tenant_denied` (`Forbidden`), `marten.tenant_provisioning_failed` (`Internal`), `marten.tenant_strategy_mismatch` (`Conflict`), all created with the category overload of `EncinaErrors.Create` | ADR 062 (merged in PR #3599) already decides that the `*_tenant_required` codes are `InvalidRequest` and that denials are `Forbidden` (rule R6); the `marten.<snake_case>` shape follows `MartenErrorCodes` | Four constants |
-| B. The same codes without a category | One argument fewer | Category inferred from the code text, the path ADR 062 retires |
+| A. `marten.tenant_required` (`InvalidRequest`) and `marten.cross_tenant_denied` (`Forbidden`), created with the category overload of `EncinaErrors.Create` | ADR 062 (merged in PR #3599) decides that the `*_tenant_required` codes are `InvalidRequest` and that denials are `Forbidden` (rule R6); the `marten.<snake_case>` shape follows `MartenErrorCodes` | Two constants |
+| B. The same two codes without a category | One argument fewer | Category inferred from the code text, the path ADR 062 retires |
 
 ### Chosen Option: **A**
 
 ### Rationale
 
-The categories follow ADR 062; the names follow the existing constants in `src/Encina.Marten/MartenErrorCodes.cs`.
+The categories follow ADR 062; the names follow the existing constants in `src/Encina.Marten/MartenErrorCodes.cs`. The categories of the other two codes are decision 14.
 
 **Class:** Trivial
 **Settled by:** ADR 062 (decided table for `*_tenant_required` and rule R6) and `src/Encina.Marten/MartenErrorCodes.cs`
+
+</details>
+
+<details>
+<summary><strong>14. Categories of <code>marten.tenant_strategy_mismatch</code> and <code>marten.tenant_provisioning_failed</code></strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| A. `tenant_strategy_mismatch` is `Conflict` and `tenant_provisioning_failed` is `Internal` | A mismatch is a state conflict between the tenant record and the store mode; a provisioning failure is a fault of the store | ADR 062 rule R2 covers version mismatches, operations in progress and invalid transitions, not a configuration mismatch, and does not decide provisioning failures |
+| B. `tenant_strategy_mismatch` is `Forbidden` (rule R6 makes tenant conflicts `Forbidden`) and `tenant_provisioning_failed` is `Unavailable` (the target database or schema cannot be reached) | R6 is the nearest decided rule; a provisioning failure is usually the store being unreachable | A mismatch is a misconfiguration, not a denial; `Unavailable` suggests a retry that may not help |
+| C. `tenant_strategy_mismatch` is `Internal` (a misconfigured deployment) | The caller cannot fix it | Hides a tenant-record problem as a server fault |
+
+### Chosen Option: **A** (recommended, pending the maintainer)
+
+### Rationale
+
+The category sets the HTTP and gRPC status users see (ADR 062), and no decided rule fixes either code, so the maintainer chooses.
+
+**Class:** Dilemma
 
 </details>
 
@@ -316,7 +340,7 @@ The categories follow ADR 062; the names follow the existing constants in `src/E
 
 1. `src/Encina.Marten/Tenancy/MartenMultiTenancyOptions.cs` (new) and `EncinaMartenOptions.MultiTenancy` (edit); validation (a resolver is required for the dedicated and schema modes); a `ToString()` that never prints connection strings, and `[JsonIgnore]` on resolvers that carry them (AGENTS.md section 3, #851).
 2. Project reference `Encina.Marten` to `Encina.Tenancy` (edit of `src/Encina.Marten/Encina.Marten.csproj`; subject to D4).
-3. Error codes in `MartenErrorCodes` (edit): the four codes of decision 13 with the category overload of `EncinaErrors.Create` (ADR 062).
+3. Error codes in `MartenErrorCodes` (edit): the four codes of decisions 13 and 14 with the category overload of `EncinaErrors.Create` (ADR 062).
 4. Spike integration test (decides D1, D3 and the session-factory contract of decision 6): conjoined events with two tenant ids on a real store, and the available Marten 9.38 API for tenant-bound sessions and per-tenant databases and schemas.
 5. Tests in the same PR: options unit (validation, `ToString`), options guard (`tests/Encina.GuardTests`: null resolvers where checked), the spike. Manifest entries for the new and edited files in `.github/coverage-manifest/Encina.Marten.json` with the tests that meet them (`mechanical-fixer`). No PublicAPI lines (no file for `Encina.Marten`).
 
@@ -334,16 +358,26 @@ REFERENCE FILES: src/Encina.Marten/EncinaMartenOptions.cs, src/Encina.Tenancy/Co
 
 </details>
 
-### Phase 2: Conjoined Mode, the Tenant Guard and Diagnostics (PR 2, 15 files, blocked until D1 is answered)
+### Phase 2: Session Seam and Conjoined Configuration (PR 2, 14 files), Repositories (PRs 3 to 5); blocked until D1 and decision 6 are answered
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `MartenTenancyConfigurator` (`IConfigureOptions<StoreOptions>`, registered like `ConfigureMartenEventMetadata`) that sets the tenancy style and multi-tenants documents when `Isolation` is `SharedSchema`.
-2. `TenantSessionFactory` (Marten `ISessionFactory`) reading `IRequestContext.TenantId`; when absent it fails closed (`marten.tenant_required`, surfaced as decision 6 says) instead of opening an unscoped session; `RequireTenant = false` does not change that (decision 8).
-3. `AddEncinaMarten` registers the factory only when `MultiTenancy.Isolation` is configured (`TryAdd*`, never overriding the application's own `ISessionFactory`); DI test with `ValidateOnBuild` and `ValidateScopes`.
-4. Diagnostics, created here because the factory is the first logger: `MartenTenancyLog`, `MartenTenancyMetrics`, `MartenTenancyActivitySource`; register `MartenTenancy = (7280, 7289)` in `src/Encina/Diagnostics/EventIdRanges.cs` and add it to the `["Encina.Marten"]` list in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (Phase 4 lists the ids).
-5. Tests in the same PR: configurator unit, factory unit, DI test (new file), factory guard, diagnostics unit, and the integration test with two tenants on PostgreSQL (tenant A never reads tenant B's events, aggregates or read models); manifest entries for every new file.
+PR 2 (14 files):
+
+1. `IMartenSessionAccessor` (`ValueTask<Either<EncinaError, IDocumentSession>> GetAsync(CancellationToken)`, decision 6 option A) and its single implementation `MartenSessionAccessor`: with no `MultiTenancy.Isolation` configured it opens the plain session; with isolation configured it reads `IRequestContext.TenantId` and returns `Left` `marten.tenant_required` when it is absent, never an unscoped session; `RequireTenant = false` does not change that (decision 8).
+2. `TenantSessionFactory` (Marten `ISessionFactory`) that opens the tenant-bound session for the accessor.
+3. `MartenTenancyConfigurator` (`IConfigureOptions<StoreOptions>`, registered like `ConfigureMartenEventMetadata`) that sets the tenancy style and multi-tenants documents when `Isolation` is `SharedSchema`.
+4. `AddEncinaMarten` registers the accessor always and the factory and configurator only when `MultiTenancy.Isolation` is configured (`TryAdd*`, never overriding the application's own `ISessionFactory`); DI test with `ValidateOnBuild` and `ValidateScopes`.
+5. Diagnostics, created here because the accessor is the first logger: `MartenTenancyLog` (`[LoggerMessage]`); register `MartenTenancy = (7280, 7289)` in `src/Encina/Diagnostics/EventIdRanges.cs` and add it to the `["Encina.Marten"]` list in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (Phase 4 lists the ids).
+6. Tests in the same PR: accessor unit, factory unit, configurator unit, DI test (new file), guard (accessor, factory), the allocation test edit; manifest entries for every new file.
+
+PRs 3 to 5 (the constructor changes, each with its existing test callers in the same PR, counted by `new <Repository><` on this branch):
+
+7. PR 3 (15 files): `MartenAggregateRepository` takes `IMartenSessionAccessor` instead of `IDocumentSession`, gets the session at the start of each operation (a `Left` is returned as is) and builds its `InlineProjectionRelay` per call from that session, so the relay does not change; the 14 existing test files that construct it change with it (1 contract, 2 guard, 10 integration, 1 unit), and the unit file gains the missing-tenant `Left` test.
+8. PR 4 (13 files): `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` change the same way; their existing test callers (6 and 5 files, fewer where one file constructs both) change with them.
+9. PR 5 (8 files): `MartenReadModelRepository` changes the same way (6 existing test callers) and the integration test with two tenants on PostgreSQL is added (tenant A never reads tenant B's events, aggregates or read models).
+10. These are not signature-compatible: the old constructors are removed (AGENTS.md section 3, no compatibility layer); no `[Obsolete]`.
 
 </details>
 
@@ -351,23 +385,23 @@ REFERENCE FILES: src/Encina.Marten/EncinaMartenOptions.cs, src/Encina.Tenancy/Co
 <summary><strong>Prompt for AI Agents — Phase 2</strong></summary>
 
 ```text
-CONTEXT: Phase 1 options and spike exist. EncinaStoreOptionsConfigurator bridges IConfigureOptions<StoreOptions> into Marten; MartenAggregateRepository receives IDocumentSession and IRequestContext by constructor.
-TASK: Implement conjoined tenancy through the store options and the tenant-bound session factory; a missing tenant returns Left, never an unscoped session.
-KEY RULES: fail closed; TryAdd* registration that never overrides the application's own; tests execute real code; the two-tenant test uses the shared Marten PostgreSQL fixture.
+CONTEXT: Phase 1 options and spike exist. EncinaStoreOptionsConfigurator bridges IConfigureOptions<StoreOptions> into Marten; MartenAggregateRepository receives IDocumentSession and IRequestContext by constructor (src/Encina.Marten/MartenAggregateRepository.cs line 54), and Encina.Send resolves the handler before the pipeline runs.
+TASK: PR 2 implements the session accessor, the tenant-bound session factory and the conjoined configuration; PRs 3 to 5 move the four repositories to the accessor with their test callers; a missing tenant returns Left, never an unscoped session.
+KEY RULES: fail closed; TryAdd* registration that never overrides the application's own; old constructors removed with all callers in the same PR; tests execute real code; the two-tenant test uses the shared Marten PostgreSQL fixture.
 REFERENCE FILES: src/Encina.Marten/EncinaStoreOptionsConfigurator.cs, src/Encina.Marten/ConfigureMartenEventMetadata.cs, src/Encina.Marten/ServiceCollectionExtensions.cs
 ```
 
 </details>
 
-### Phase 3: Dedicated and Schema-per-Tenant Routing (PR 3, 15 files, blocked until D1 and D3 are answered)
+### Phase 3: Dedicated and Schema-per-Tenant Routing (PR 6, 15 files, blocked until D1 and D3 are answered)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `ITenantStoreResolver` / `TenantDocumentStoreResolver`: builds and caches one `IDocumentStore` per tenant from `ConnectionStringResolver` (dedicated) or `SchemaResolver` (schema, D3), disposes them with the host; the cache bound `MaxCachedTenantStores` (an edit of `MartenMultiTenancyOptions`) and the eviction follow decision 9; resolver output is validated per decision 10.
+1. `ITenantStoreResolver` / `TenantDocumentStoreResolver`: builds and caches one `IDocumentStore` per tenant from `ConnectionStringResolver` (dedicated) or `SchemaResolver` (schema, D3), disposes them with the host; the cache bound `MaxCachedTenantStores` (an edit of `MartenMultiTenancyOptions`, with its options test edit) and the eviction follow decision 9; resolver output is validated per decision 10.
 2. The session factory routes through the resolver for these modes (edit of `TenantSessionFactory`; `ServiceCollectionExtensions` registers the resolver; new `[LoggerMessage]` entries in `MartenTenancyLog`).
-3. Tenant data comes from `ITenantStore.GetTenantAsync` (`TenantInfo` carries the strategy); an unknown tenant is a `Left`; a strategy that differs from `MultiTenancy.Isolation` is `marten.tenant_strategy_mismatch` (decision 7).
-4. Tests in the same PR: resolver unit (cache, bound, disposal), resolver guard, routing and isolation per mode (integration, two tenants, the conjoined case already shipped in PR 2), the isolation property test (FsCheck: for any two tenants, the events one writes are never returned to the other), the DI test (edit), a load test with many tenants (connection routing; the load-test justification, if one is needed, lives in this PR), and the benchmark `.md` justification (routing is cached, not a hot path; allowed for benchmarks, never for unit, guard or contract tests). Manifest entries for the new files.
+3. Tenant data comes from `ITenantStore.GetTenantAsync` (`TenantInfo` carries the strategy); an unknown tenant is a `Left`; a strategy that differs from `MultiTenancy.Isolation` is `marten.tenant_strategy_mismatch` (decisions 7 and 14).
+4. Tests in the same PR: resolver unit (cache, bound, disposal), resolver guard, routing and isolation per mode (integration, two tenants, the conjoined case already shipped in PR 5), the isolation property test (FsCheck: for any two tenants, the events one writes are never returned to the other), the DI test (edit), the options unit test (edit, for `MaxCachedTenantStores`), a load test with many tenants (connection routing), and the benchmark `.md` justification (routing is cached, not a hot path; allowed for benchmarks, never for unit, guard or contract tests). Manifest entries for the new files.
 
 </details>
 
@@ -383,15 +417,15 @@ REFERENCE FILES: src/Encina.Tenancy/Data/ITenantConnectionFactory.cs, src/Encina
 
 </details>
 
-### Phase 4: Provisioning (PR 4, 11 files), Cross-Tenant Access and Health (PR 5), Observability (created in PR 2)
+### Phase 4: Provisioning and Telemetry (PR 7, 13 files), Cross-Tenant Access and Health (PR 8), Observability
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. PR 4: `IMartenTenantProvisioner` (`ProvisionTenantAsync`, `DeprovisionTenantAsync(tenantId, purge, ct)` per decision 11, `GetStatisticsAsync`, all `Either`), idempotent provisioning; DDL through the tenant store with the names validated per decision 10; `TenantStatistics`; new log entries and the DI registration (edits); tests: provisioner unit, guard, contract (real provisioner), integration (provision, deprovision, purge), DI test (edit); manifest entries.
-2. PR 5: cross-tenant read per decision 12: `ICrossTenantReader` and its implementation, requiring `AllowCrossTenantQueries`, logged and counted; the caller authorizes with `[RequireRole]` and `CrossTenantRole`.
-3. PR 5: `MartenTenantHealthCheck` per tenant, building on `Encina.Tenancy`'s `TenantHealthCheck` (`DefaultName` const, static `Tags`).
-4. PR 2 creates the diagnostics; the ids are packed sequentially from 7280 in the order the PRs add them: 7280 tenant required (PR 2), 7281 tenant bound (PR 2), 7282 store created (PR 3), 7283 store evicted (PR 3), 7284 strategy mismatch (PR 3), 7285 tenant provisioned (PR 4), 7286 tenant deprovisioned (PR 4), 7287 provisioning failed (PR 4), 7288 cross-tenant read (PR 5), 7289 cross-tenant denied (PR 5); the whole range 7280-7289 is registered in PR 2 and lies inside the block assigned to this family in `artifacts/decisions/plan-batch/eventid-blocks.md`. Counter `encina.marten.tenancy.cross_tenant_reads`, span `encina.marten.tenancy.resolve` (`tenant.isolation`); tenant ids, schema names and connection strings are never tags or log arguments.
+1. PR 7: `IMartenTenantProvisioner` (`ProvisionTenantAsync`, `DeprovisionTenantAsync(tenantId, purge, ct)` per decision 11, `GetStatisticsAsync`, all `Either`), idempotent provisioning; DDL through the tenant store with the names validated per decision 10; `TenantStatistics`; `MartenTenancyTelemetry` (one file holding the meter, the counter `encina.marten.tenancy.cross_tenant_reads` used from PR 8, and the activity source with the span `encina.marten.tenancy.provision`; tenant ids, schema names and connection strings are never tags or log arguments), created here because the provisioner is its first user; new log entries and the DI registration (edits); tests: provisioner unit, guard, contract (real provisioner), integration (provision, deprovision, purge), telemetry unit, DI test (edit); manifest entries.
+2. PR 8: cross-tenant read per decision 12: `ICrossTenantReader` and its implementation, requiring `AllowCrossTenantQueries`, logged and counted; the caller authorizes with `[RequireRole]` and `CrossTenantRole`.
+3. PR 8: `MartenTenantHealthCheck` per tenant, building on `Encina.Tenancy`'s `TenantHealthCheck` (`DefaultName` const, static `Tags`).
+4. PR 2 creates the log class; the ids are packed sequentially from 7280 in the order the PRs add them: 7280 tenant required (PR 2), 7281 tenant bound (PR 2), 7282 store created (PR 6), 7283 store evicted (PR 6), 7284 strategy mismatch (PR 6), 7285 tenant provisioned (PR 7), 7286 tenant deprovisioned (PR 7), 7287 provisioning failed (PR 7), 7288 cross-tenant read (PR 8), 7289 cross-tenant denied (PR 8); the whole range 7280-7289 is registered in PR 2 and lies inside the block assigned to this family in `artifacts/decisions/plan-batch/eventid-blocks.md`.
 
 </details>
 
@@ -407,13 +441,13 @@ REFERENCE FILES: src/Encina.Tenancy/Health/TenantHealthCheck.cs, src/Encina.Tena
 
 </details>
 
-### Phase 5: Testing, Documentation and Finalization (tests in PRs 1 to 5, documentation in PR 5)
+### Phase 5: Testing, Documentation and Finalization (tests in PRs 1 to 8, documentation in PR 8)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Each PR carries its own tests and per-file manifest targets with justifications (`.github/coverage-manifest/Encina.Marten.json`, `mechanical-fixer`), as listed in Phases 1 to 4: the isolation property test ships in PR 3, the provisioner contract and integration tests in PR 4, the cross-tenant denial integration test in PR 5. Phase 5 adds none.
-2. PR 5 (4 documentation files), `docs-writer`: multi-tenancy guide with a decision table of the three modes, ADR for D1 to D4 and decisions 6 to 12 (ADR number assigned when the ADR pull request opens), `docs/INVENTORY.md`, changelog fragment `changelog.d/326-marten-multi-tenancy.added.md`. `Encina.Marten` has no package README on main.
+1. Each PR carries its own tests and per-file manifest targets with justifications (`.github/coverage-manifest/Encina.Marten.json`, `mechanical-fixer`), as listed in Phases 1 to 4: the isolation property test ships in PR 6, the provisioner contract and integration tests in PR 7, the cross-tenant denial integration test in PR 8. Phase 5 adds none.
+2. PR 8 (4 documentation files), `docs-writer`: multi-tenancy guide with a decision table of the three modes, ADR for D1 to D4 and decisions 6 to 14 (ADR number assigned when the ADR pull request opens), `docs/INVENTORY.md`, changelog fragment `changelog.d/326-marten-multi-tenancy.added.md`. `Encina.Marten` has no package README on main.
 3. Verification in every PR: zero warnings, every flag at target, CRAP of changed methods at most 10.
 
 </details>
@@ -423,7 +457,7 @@ REFERENCE FILES: src/Encina.Tenancy/Health/TenantHealthCheck.cs, src/Encina.Tena
 
 ```text
 CONTEXT: All modes, provisioning, diagnostics exist; coverage is per flag against .github/coverage-manifest/Encina.Marten.json.
-TASK: PR 5 only: write the guide, the ADR, the INVENTORY entry and the fragment (docs-writer and mechanical-fixer); tests and manifest targets shipped with PRs 1 to 5.
+TASK: PR 8 only: write the guide, the ADR, the INVENTORY entry and the fragment (docs-writer and mechanical-fixer); tests and manifest targets shipped with PRs 1 to 8.
 KEY RULES: shared fixtures only; FsCheck through Encina.Testing.FsCheck; Shouldly through Encina.Testing.Shouldly; docs cite coverage with covref markers.
 REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/Marten, tests/Encina.PropertyTests, docs/testing/coverage-measurement-methodology.md
 ```
@@ -452,17 +486,17 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/Marten, tests/Enci
 | `EventMetadataOptions.CaptureTenantId` | `src/Encina.Marten/EventMetadataOptions.cs` | Stays as metadata; isolation is separate |
 | `EncinaStoreOptionsConfigurator` | `src/Encina.Marten/EncinaStoreOptionsConfigurator.cs` | Carries the store-options configuration |
 | `TenantHealthCheck`, `TenancyActivitySource`, `TenancyMetrics` | `src/Encina.Tenancy` | Patterns for the per-tenant health and diagnostics |
-| `Encina.Audit.Marten`, `Encina.Marten.GDPR` stores | `src/Encina.Audit.Marten`, `src/Encina.Marten.GDPR` | Take `IDocumentSession` from DI, so they become tenant-scoped through the factory |
+| `Encina.Audit.Marten`, `Encina.Marten.GDPR` stores | `src/Encina.Audit.Marten`, `src/Encina.Marten.GDPR` | Take `IDocumentSession` from DI, so they become tenant-scoped through the factory and fail at resolution when the tenant is missing (decision 6; their move to the accessor is the follow-up issue to be opened, draft: artifacts/decisions/plan-batch/followups/marten-tenancy-session-consumers.md) |
 
 ### Event ID Allocation
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Marten` (new range `MartenTenancy`) | 7280-7289 (all ten used, listed in Phase 4) | Inside the block 7250-7299 assigned to the family in the batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`), which records the sub-ranges of the sibling plans |
+| `Encina.Marten` (new range `MartenTenancy`) | 7280-7289 (all ten used, listed in Phase 4) | Inside the block 7250-7299 assigned to the family in the batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`), which lists the issues sharing the block; each sibling plan names its own range |
 
 ### Estimated File Count
 
-Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `Encina.Tenancy` is untouched unless D2 = B. No existing signature changes, so there are no existing callers to update.
+Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `Encina.Tenancy` is untouched unless D2 = B. Under decision 6 option A the constructors of four repositories change and their existing test callers (counted by `new <Repository><` on this branch) change in the same PRs (3 to 5); under option B no existing signature changes.
 
 | PR | Category | Files | Notes |
 |----|----------|-------|-------|
@@ -470,24 +504,34 @@ Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `E
 | 1 | Tests | 3 | Options unit, options guard, spike (integration) |
 | 1 | Manifest | 1 | `Encina.Marten.json` |
 | 1 | **Subtotal** | **8** | |
-| 2 | Source | 7 | `TenantSessionFactory`, `MartenTenancyConfigurator`, `ServiceCollectionExtensions` edit, `MartenTenancyLog`, `MartenTenancyMetrics`, `MartenTenancyActivitySource`, `EventIdRanges.cs` edit |
-| 2 | Tests | 7 | Configurator unit, factory unit, DI (new), factory guard, diagnostics unit, two-tenant integration, `EncinaEventIdAllocationTests.cs` edit |
+| 2 | Source | 7 | `IMartenSessionAccessor`, `MartenSessionAccessor`, `TenantSessionFactory`, `MartenTenancyConfigurator`, `ServiceCollectionExtensions` edit, `MartenTenancyLog`, `EventIdRanges.cs` edit |
+| 2 | Tests | 6 | Accessor unit, factory unit, configurator unit, DI (new), guard (accessor, factory), `EncinaEventIdAllocationTests.cs` edit |
 | 2 | Manifest | 1 | `Encina.Marten.json` |
-| 2 | **Subtotal** | **15** | |
-| 3 | Source | 6 | `ITenantStoreResolver`, `TenantDocumentStoreResolver`, `MartenMultiTenancyOptions` edit, `TenantSessionFactory` edit, `ServiceCollectionExtensions` edit, `MartenTenancyLog` edit |
-| 3 | Tests | 7 | Resolver unit, resolver guard, routing integration, isolation property, load, DI test edit, benchmark `.md` justification |
-| 3 | Manifest | 1 | `Encina.Marten.json` |
-| 3 | **Subtotal** | **14** | |
-| 4 | Source | 5 | `IMartenTenantProvisioner`, `MartenTenantProvisioner`, `TenantStatistics`, `MartenTenancyLog` edit, `ServiceCollectionExtensions` edit |
-| 4 | Tests | 5 | Provisioner unit, guard, contract, integration, DI test edit |
-| 4 | Manifest | 1 | `Encina.Marten.json` |
-| 4 | **Subtotal** | **11** | |
-| 5 | Source | 5 | `ICrossTenantReader`, `CrossTenantReader`, `MartenTenantHealthCheck`, `MartenTenancyLog` edit, `ServiceCollectionExtensions` edit |
-| 5 | Tests | 4 | Cross-tenant unit, health unit, guard (reader and health check), integration (cross-tenant denial) |
-| 5 | Manifest | 1 | `Encina.Marten.json` |
-| 5 | Docs | 4 | Guide, ADR, `docs/INVENTORY.md`, changelog fragment |
-| 5 | **Subtotal** | **14** | |
-| | **Total** | **62** | 8 + 15 + 14 + 11 + 14; each PR at most 15 files and 1,500 lines |
+| 2 | **Subtotal** | **14** | |
+| 3 | Source | 1 | `MartenAggregateRepository` constructor |
+| 3 | Existing test callers | 14 | 1 contract, 2 guard, 10 integration, 1 unit (gains the missing-tenant `Left` test) |
+| 3 | **Subtotal** | **15** | |
+| 4 | Source | 2 | `SnapshotAwareAggregateRepository`, `MartenSnapshotStore` constructors |
+| 4 | Existing test callers | 11 | 6 and 5 files that construct them, fewer where one file constructs both |
+| 4 | **Subtotal** | **13** | At most 13 |
+| 5 | Source | 1 | `MartenReadModelRepository` constructor |
+| 5 | Existing test callers | 6 | 2 contract, 1 guard, 2 integration, 1 unit |
+| 5 | Tests | 1 | Two-tenant conjoined integration test |
+| 5 | **Subtotal** | **8** | |
+| 6 | Source | 6 | `ITenantStoreResolver`, `TenantDocumentStoreResolver`, `MartenMultiTenancyOptions` edit, `TenantSessionFactory` edit, `ServiceCollectionExtensions` edit, `MartenTenancyLog` edit |
+| 6 | Tests | 8 | Resolver unit, resolver guard, routing integration, isolation property, load, DI test edit, options test edit, benchmark `.md` justification |
+| 6 | Manifest | 1 | `Encina.Marten.json` |
+| 6 | **Subtotal** | **15** | |
+| 7 | Source | 6 | `IMartenTenantProvisioner`, `MartenTenantProvisioner`, `TenantStatistics`, `MartenTenancyTelemetry`, `MartenTenancyLog` edit, `ServiceCollectionExtensions` edit |
+| 7 | Tests | 6 | Provisioner unit, guard, contract, integration, telemetry unit, DI test edit |
+| 7 | Manifest | 1 | `Encina.Marten.json` |
+| 7 | **Subtotal** | **13** | |
+| 8 | Source | 5 | `ICrossTenantReader`, `CrossTenantReader`, `MartenTenantHealthCheck`, `MartenTenancyLog` edit, `ServiceCollectionExtensions` edit |
+| 8 | Tests | 5 | Cross-tenant unit, health unit, guard (reader and health check), integration (cross-tenant denial), DI test edit |
+| 8 | Manifest | 1 | `Encina.Marten.json` |
+| 8 | Docs | 4 | Guide, ADR, `docs/INVENTORY.md`, changelog fragment |
+| 8 | **Subtotal** | **15** | |
+| | **Total** | **101** | 8 + 14 + 15 + 13 + 8 + 15 + 13 + 15; each PR at most 15 files and 1,500 lines |
 
 ---
 
@@ -499,7 +543,7 @@ Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `E
 ```text
 PROJECT CONTEXT: Encina, pre-1.0, .NET 10 / C# 14. Issue #326 adds multi-tenancy for event sourcing to Encina.Marten using the Encina.Tenancy abstractions. Follow AGENTS.md: fail closed, ROP, secrets never in logs or ToString, TimeProvider, per-flag coverage.
 
-IMPLEMENTATION OVERVIEW: Phase 1 options, reference, error codes and a Marten-API spike (PR 1). Phase 2 conjoined mode through store options and a tenant-bound session factory, with the EventId range 7280-7289 and diagnostics (PR 2). Phase 3 per-tenant store resolver for dedicated and schema modes (PR 3). Phase 4 provisioning (PR 4), explicit logged cross-tenant reads and health check (PR 5). Phase 5 docs (PR 5). Each PR carries its own tests and manifest targets. Dilemmas D1 (enforcement), D2 (provisioning home), D3 (schema mode), D4 (reuse of Tenancy) and decisions 6 to 12 follow the maintainer's answers; the spike can send D1 and D3 back to the maintainer.
+IMPLEMENTATION OVERVIEW: Phase 1 options, reference, error codes and a Marten-API spike (PR 1). Phase 2 session accessor, tenant-bound session factory and conjoined mode through store options, with the EventId range 7280-7289 (PR 2), then the four repositories take the accessor with their test callers (PRs 3 to 5). Phase 3 per-tenant store resolver for dedicated and schema modes (PR 6). Phase 4 provisioning and telemetry (PR 7), explicit logged cross-tenant reads and health check (PR 8). Phase 5 docs (PR 8). Each PR carries its own tests and manifest targets. Dilemmas D1 (enforcement), D2 (provisioning home), D3 (schema mode), D4 (reuse of Tenancy) and decisions 6 to 12 and 14 follow the maintainer's answers; the spike can send D1 and D3 back to the maintainer.
 
 KEY PATTERNS: tenant from IRequestContext.TenantId; Left when missing; TryAdd* registration with a ValidateOnBuild test; sequential EventIds registered first; shared integration fixtures with two tenants.
 
@@ -515,9 +559,9 @@ REFERENCE FILES: src/Encina.Marten/EncinaMartenOptions.cs, src/Encina.Marten/Enc
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The per-tenant store cache covers the hot path; an `ICacheProvider` layer over tenant configuration has no measured need |
-| 2 | OpenTelemetry | ✅ | `encina.marten.tenancy.resolve` span and cross-tenant counter (Phases 2 and 4) |
+| 2 | OpenTelemetry | ✅ | `encina.marten.tenancy.provision` span and cross-tenant counter (`MartenTenancyTelemetry`, PR 7; counter used in PR 8) |
 | 3 | Structured Logging | ✅ | `MartenTenancyLog`, EventIds 7280-7289; the cross-tenant opt-in is logged (Phases 2 to 4) |
-| 4 | Health Checks | ✅ | `MartenTenantHealthCheck` per tenant (Phase 4, PR 5) |
+| 4 | Health Checks | ✅ | `MartenTenantHealthCheck` per tenant (Phase 4, PR 8) |
 | 5 | Validation | ✅ | Options, tenant identifiers and resolver output validated (decision 10, Phases 1 and 4) |
 | 6 | Resilience | ❌ | A failure to reach a tenant database is a `Left` logged by error code and the caller retries; a retry policy on the store resolver would hide a tenant-specific outage |
 | 7 | Distributed Locks | ❌ | Provisioning is idempotent (create if missing, ignore if present), so concurrent provisioning converges without a lock |
@@ -525,20 +569,20 @@ REFERENCE FILES: src/Encina.Marten/EncinaMartenOptions.cs, src/Encina.Marten/Enc
 | 9 | Idempotency | ✅ | Provisioning and deprovisioning are idempotent (Phase 4) |
 | 10 | Multi-Tenancy | ✅ | This is the feature |
 | 11 | Module Isolation | ❌ | Marten has no module-scoped streams today, so tenant filtering has no module dimension |
-| 12 | Audit Trail | ⏭️ | Provisioning, deprovisioning and cross-tenant reads are compliance relevant: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/marten-tenancy-audit.md); cross-tenant reads are already logged and counted in Phase 4 |
+| 12 | Audit Trail | ⏭️ | Provisioning, deprovisioning and cross-tenant reads are compliance relevant: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/marten-tenancy-audit.md); cross-tenant reads are already logged and counted in PR 8 |
 
 ---
 
 ## Prerequisites & Dependencies
 
 - #346 (Multi-Tenancy Support, open) is the umbrella; #357 delivered `Encina.Tenancy`.
-- #1257 consumes this mechanism for the SPEC-002 two-tenant suite on Marten; it should be briefed after PR 1 of this plan merges.
+- #1257 consumes this mechanism for the SPEC-002 two-tenant suite on Marten; it should be briefed after PR 5 of this plan merges.
 - Siblings #323 (per-tenant snapshot policies) and #324 (per-tenant rebuild) wait for this plan.
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers the Dilemmas (D1 to D4 and decisions 6 to 12) when work on #326 starts; the answers go into `## Maintainer Decisions`.
+1. The maintainer answers the Dilemmas (D1 to D4 and decisions 6 to 12 and 14) when work on #326 starts; the answers go into `## Maintainer Decisions`.
 2. Run the Phase 1 spike first; if Marten 9.38 supports more or less than assumed, update the choices before PR 2 starts.
-3. Write the PR briefs in order and brief #1257 after PR 2; open the audit follow-up from its draft.
+3. Write the PR briefs in order and brief #1257 after PR 5 (the repositories are tenant aware from then on); open the audit follow-up and the session-consumers follow-up from their drafts.
