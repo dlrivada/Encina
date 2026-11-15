@@ -17,12 +17,39 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
 
 jobs:
+  # Light path (#3843): a pull request whose every changed file is under docs/plans/** has no
+  # code to analyse, so the analysis is skipped. Fail closed: the detection runs on
+  # pull_request events only, and the analysis runs unless the answer is exactly 'false'.
+  changes:
+    name: Detect plans-only change
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      other-files: ${{ steps.filter.outputs.other }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          # 'every': 'other' is true exactly when some changed file is outside docs/plans/**.
+          predicate-quantifier: every
+          filters: |
+            other:
+              - '**'
+              - '!docs/plans/**'
+
   # Static analysis only — coverage is measured per flag against the manifests (see ADR-063)
   # SonarScanner for .NET requires begin → build → end in the SAME job
   sonarcloud:
     name: SonarCloud Analysis
+    needs: changes
     runs-on: ubuntu-latest
     if: >-
+      !cancelled() &&
+      needs.changes.outputs.other-files != 'false' &&
       github.actor != 'dependabot[bot]' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch' ||
        github.event.pull_request.head.repo.full_name == github.repository)

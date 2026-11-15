@@ -64,9 +64,46 @@ on:
 # so a publisher calling this workflow cannot deadlock on its own group.
 
 jobs:
+  # Light path (#3843): a pull request whose every changed file is under docs/plans/** builds
+  # only the Jekyll site (a broken plan page is still caught); the solution build and DocFX
+  # are skipped. Fail closed: the detection runs on pull_request events only, and the full
+  # build runs unless the answer is exactly 'false'. Deploy stays main-only.
+  changes:
+    name: Detect plans-only change
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    # No pull-requests permission: this workflow is also called by the dashboard publishers,
+    # whose grants do not include it, and a nested job may not ask for more than its caller.
+    # The repository is public, so listing a pull request's files needs only contents: read.
+    permissions:
+      contents: read
+    outputs:
+      other-files: ${{ steps.filter.outputs.other }}
+    steps:
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          # 'every': 'other' is true exactly when some changed file is outside docs/plans/**.
+          predicate-quantifier: every
+          filters: |
+            other:
+              - '**'
+              - '!docs/plans/**'
+
   build-docs:
     name: Build Documentation
+    needs: changes
+    # !cancelled(): a failed detection must not skip the build, it runs the full one.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+
+    # A new push to a pull request cancels the superseded build. Main, dispatch and
+    # workflow_call runs get a unique group, so they are never cancelled or queued and
+    # a publisher calling this workflow cannot deadlock on a group it holds.
+    concurrency:
+      group: ${{ github.event_name == 'pull_request' && format('docs-build-{0}', github.ref) || format('docs-build-{0}', github.run_id) }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
     # configure-pages@v5 needs pages:write to enable the Pages environment.
     # id-token is only required by deploy-pages@v5 (deploy job) — don't
@@ -84,6 +121,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup .NET SDK
+        if: needs.changes.outputs.other-files != 'false'
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
@@ -194,18 +232,23 @@ jobs:
             --docs-root docs
 
       - name: Restore .NET tools
+        if: needs.changes.outputs.other-files != 'false'
         run: dotnet tool restore
 
       - name: Restore dependencies
+        if: needs.changes.outputs.other-files != 'false'
         run: dotnet restore Encina.slnx
 
       - name: Build solution (XML docs generation)
+        if: needs.changes.outputs.other-files != 'false'
         run: dotnet build Encina.slnx --configuration Release --no-restore
 
       - name: Generate API metadata (DocFX)
+        if: needs.changes.outputs.other-files != 'false'
         run: dotnet docfx metadata docs/docfx.json --warningsAsErrors false
 
       - name: Build API reference site (DocFX)
+        if: needs.changes.outputs.other-files != 'false'
         run: dotnet docfx build docs/docfx.json --warningsAsErrors false
 
       - name: Setup Pages
@@ -227,6 +270,7 @@ jobs:
         run: sudo chown -R "$USER:$USER" _site
 
       - name: Merge DocFX API reference into Jekyll site
+        if: needs.changes.outputs.other-files != 'false'
         shell: bash
         run: |
           if [ ! -d docs/_api-build ] || [ -z "$(ls -A docs/_api-build 2>/dev/null)" ]; then
