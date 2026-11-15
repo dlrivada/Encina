@@ -61,6 +61,12 @@
 #     tests/ in template guidance or search regexes while writing only under artifacts/ or its own temp
 #     workspace (#1368, #1380).
 # The commands of a `pwsh -Command` / `bash -c` wrapper are analysed like the others.
+# A relative script path whose launching base is unknown (an earlier `Set-Location $var`) is resolved against the
+# checkout root of the payload cwd (#3600) and judged on its text, but never sanctioned by path, with its relative
+# write targets left unresolved; it is not tried when the command writes a file whose target is unresolved. The
+# base is a guess: the shell may run another file of that name (open evasion, same family as the others above).
+# A relative write target is resolved against the known working directory before it is judged (#3242); the
+# src/tests segment rule applies only to a target with no known base.
 # Not seen: targets that depend on a variable, deletions, and writes by other programs (dotnet run of a script
 # that is not itself a bare or `--file` .cs argument, compiled tools, ...).
 # Exit code 2 blocks the call and shows stderr to Claude; any failure of the hook itself allows the call
@@ -292,6 +298,26 @@ try {
                 $s.Full = $resolved
             }
         }
+        # #3600: a relative script path whose launching base is unknown (an earlier `Set-Location $var`, or a
+        # Pop-Location with an empty stack) resolves against the checkout root the hook knows (the root of the
+        # payload cwd, else the project directory). A path with a variable stays unresolved and denied below, and
+        # the resolved script is still read and judged like any other, so this only adds scripts to the analysis.
+        # The base is a guess, so the fallback is as strict as the variable resolution above: not when the same
+        # command writes a file whose target the hook cannot resolve (it may create the script), the script is
+        # never sanctioned by path (the file the shell runs may be another one), and its own analysis keeps the
+        # base unknown ($s.Base stays empty).
+        $fallbackUsed = $false
+        if ($null -eq $s.Full -and [string]::IsNullOrWhiteSpace([string]$s.Base) -and -not ([string]$s.Raw).Contains('$') -and
+            @($scriptScan.Writes | Where-Object { $null -eq $_.Full -and -not $_.Directory }).Count -eq 0) {
+            $rootLocation = Get-RepoLocation $scriptCwd $layout
+            $fallbackBase = if ($null -ne $rootLocation) { $rootLocation.Root } else { $projectDir }
+            $token = New-CommandToken ([string]$s.Raw) $false $false $false
+            $fallbackFull = Resolve-TargetPath $token $fallbackBase $false
+            if (-not [string]::IsNullOrEmpty($fallbackFull)) {
+                $s.Full = $fallbackFull
+                $fallbackUsed = $true
+            }
+        }
         # A launch through a variable (`& $x`) is usually an executable or a script block, not a script: it is
         # unresolvable only when the same command also writes a file, which could have created the script (#1854).
         if ($null -eq $s.Full -and $s.Dynamic -and @($scriptScan.Writes | Where-Object { $_.Content }).Count -eq 0) { continue }
@@ -366,7 +392,7 @@ try {
         # command may run the old text before it rewrites it, or append to it), so each is judged; a script the
         # command writes is never sanctioned, since the sanction covers the repository's own file, not new text.
         $scriptLocation = Get-RepoLocation $s.Full $layout
-        $sanctioned = $own.Count -eq 0 -and $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
+        $sanctioned = $own.Count -eq 0 -and -not $fallbackUsed -and $null -ne $scriptLocation -and (Test-ScriptIsSanctioned $s.Full $scriptLocation.Root)
         # An append leaves the old text in place, so old and new are judged as one script too (two harmless halves
         # can write src/ together).
         $candidates = [System.Collections.Generic.List[string]]::new()

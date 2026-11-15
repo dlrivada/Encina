@@ -88,7 +88,7 @@ public static class ProblemDetailsExtensions
                 : null
         };
 
-        AddCorrelationExtensions(problemDetails, httpContext, options);
+        AddCorrelationExtensions(problemDetails, httpContext);
         AddErrorCodeExtension(problemDetails, error);
 
         // Exception details follow the same option and the same Development-only guard as the detail
@@ -114,10 +114,10 @@ public static class ProblemDetailsExtensions
         }
     }
 
-    private static void AddCorrelationExtensions(
-        ProblemDetails problemDetails,
-        HttpContext httpContext,
-        EncinaAspNetCoreOptions options)
+    // The correlation id is the normalized one of the ambient request context, the value the
+    // Correlation-Id response header carries; the raw request header is never echoed. With no
+    // context the field is omitted.
+    private static void AddCorrelationExtensions(ProblemDetails problemDetails, HttpContext httpContext)
     {
         var traceId = httpContext.TraceIdentifier;
         if (!string.IsNullOrEmpty(traceId))
@@ -125,9 +125,10 @@ public static class ProblemDetailsExtensions
             problemDetails.Extensions["traceId"] = traceId;
         }
 
-        if (httpContext.Request.Headers.TryGetValue(options.CorrelationIdHeader, out var correlationId))
+        var correlationId = httpContext.RequestServices.GetService<IRequestContextAccessor>()?.RequestContext?.CorrelationId;
+        if (!string.IsNullOrEmpty(correlationId))
         {
-            problemDetails.Extensions["correlationId"] = correlationId.ToString();
+            problemDetails.Extensions["correlationId"] = correlationId;
         }
     }
 

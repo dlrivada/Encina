@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Encina.Tenancy;
+using Microsoft.Extensions.Configuration;
 
 namespace Encina.UnitTests.Tenancy;
 
@@ -202,6 +204,122 @@ public class TenantInfoTests
         // Act & Assert
         tenant1.ShouldNotBe(tenant2);
         (tenant1 != tenant2).ShouldBeTrue();
+    }
+
+    #endregion
+
+    #region Secret Protection Tests
+
+    private const string SecretConnectionString = "Server=db;User Id=sa;Password=secret;";
+
+    private static TenantInfo CreateTenantWithSecret() =>
+        new("t1", "Acme", TenantIsolationStrategy.DatabasePerTenant, SecretConnectionString, "acme_schema");
+
+    [Fact]
+    public void ToString_WithConnectionString_MasksTheConnectionString()
+    {
+        // Arrange
+        var tenant = CreateTenantWithSecret();
+
+        // Act
+        var text = tenant.ToString();
+
+        // Assert
+        text.ShouldNotContain("secret");
+        text.ShouldNotContain("Server=db");
+        text.ShouldNotContain("Password");
+        text.ShouldContain("ConnectionString = ***");
+        text.ShouldBe(
+            "TenantInfo { TenantId = t1, Name = Acme, Strategy = DatabasePerTenant, SchemaName = acme_schema, ConnectionString = *** }");
+    }
+
+    [Fact]
+    public void StringInterpolation_WithConnectionString_MasksTheConnectionString()
+    {
+        // Arrange
+        var tenant = CreateTenantWithSecret();
+
+        // Act
+        var text = $"Resolved {tenant}";
+
+        // Assert
+        text.ShouldNotContain("secret");
+        text.ShouldNotContain("Server=db");
+        text.ShouldContain("ConnectionString = ***");
+    }
+
+    [Fact]
+    public void ToString_WithoutConnectionString_OmitsTheConnectionString()
+    {
+        // Arrange
+        var tenant = new TenantInfo("t2", "Contoso", TenantIsolationStrategy.SchemaPerTenant, SchemaName: "contoso");
+
+        // Act
+        var text = tenant.ToString();
+
+        // Assert
+        text.ShouldBe("TenantInfo { TenantId = t2, Name = Contoso, Strategy = SchemaPerTenant, SchemaName = contoso }");
+        text.ShouldNotContain("ConnectionString");
+    }
+
+    [Fact]
+    public void JsonSerialize_WithConnectionString_ExcludesTheConnectionString()
+    {
+        // Arrange
+        var tenant = CreateTenantWithSecret();
+
+        // Act
+        var json = JsonSerializer.Serialize(tenant);
+
+        // Assert
+        json.ShouldNotContain("ConnectionString", Case.Insensitive);
+        json.ShouldNotContain("Password");
+        json.ShouldNotContain("secret");
+        json.ShouldContain("\"TenantId\":\"t1\"");
+    }
+
+    [Fact]
+    public void JsonRoundTrip_WithConnectionString_LosesTheConnectionString()
+    {
+        // Arrange
+        var tenant = CreateTenantWithSecret();
+        var json = JsonSerializer.Serialize(tenant);
+
+        // Act
+        var restored = JsonSerializer.Deserialize<TenantInfo>(json);
+
+        // Assert
+        restored.ShouldNotBeNull();
+        restored.ConnectionString.ShouldBeNull();
+        restored.TenantId.ShouldBe("t1");
+        restored.Name.ShouldBe("Acme");
+        restored.Strategy.ShouldBe(TenantIsolationStrategy.DatabasePerTenant);
+        restored.SchemaName.ShouldBe("acme_schema");
+    }
+
+    [Fact]
+    public void ConfigurationBinding_TenancyOptionsTenants_StillBindsTheConnectionString()
+    {
+        // Arrange
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Tenancy:Tenants:0:TenantId"] = "t1",
+                ["Tenancy:Tenants:0:Name"] = "Acme",
+                ["Tenancy:Tenants:0:Strategy"] = "DatabasePerTenant",
+                ["Tenancy:Tenants:0:ConnectionString"] = SecretConnectionString,
+            })
+            .Build();
+        var options = new TenancyOptions();
+
+        // Act
+        configuration.GetSection("Tenancy").Bind(options);
+
+        // Assert
+        options.Tenants.Count.ShouldBe(1);
+        options.Tenants[0].TenantId.ShouldBe("t1");
+        options.Tenants[0].Strategy.ShouldBe(TenantIsolationStrategy.DatabasePerTenant);
+        options.Tenants[0].ConnectionString.ShouldBe(SecretConnectionString);
     }
 
     #endregion

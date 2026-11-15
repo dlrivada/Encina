@@ -1,6 +1,8 @@
 using Encina.IntegrationTests.Infrastructure.Marten.Fixtures;
 using Encina.IntegrationTests.Infrastructure.Marten.Snapshots;
 using Encina.Marten;
+using Encina.Marten.Snapshots;
+using LanguageExt;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
@@ -213,5 +215,125 @@ public sealed class MartenAggregateRepositoryIntegrationTests : IAsyncLifetime
             var result = await repo.CreateAsync(aggregate);
             result.IsRight.ShouldBeTrue($"Aggregate {i} should persist");
         }
+    }
+
+    // #3787: a failed SaveChangesAsync must leave the scoped session clean so later writes succeed.
+
+    private static void ShouldHaveErrorCode(Either<EncinaError, Unit> result, string expectedCode)
+    {
+        result.IsLeft.ShouldBeTrue("the operation should fail");
+        result.LeftToSeq().Head.GetCode().Match(
+            code => code.ShouldBe(expectedCode),
+            () => throw new ShouldAssertException("Expected an error code but got none"));
+    }
+
+    private static SnapshotAwareAggregateRepository<TestSnapshotableAggregate> CreateSnapshotAwareRepo(global::Marten.IDocumentSession session)
+    {
+        return new SnapshotAwareAggregateRepository<TestSnapshotableAggregate>(
+            session,
+            new MartenSnapshotStore<TestSnapshotableAggregate>(
+                session,
+                NullLogger<MartenSnapshotStore<TestSnapshotableAggregate>>.Instance),
+            Substitute.For<IRequestContext>(),
+            NullLogger<SnapshotAwareAggregateRepository<TestSnapshotableAggregate>>.Instance,
+            Microsoft.Extensions.Options.Options.Create(new EncinaMartenOptions()));
+    }
+
+    [Fact]
+    public async Task CreateAsync_StreamAlreadyExists_ThenSaveOnSameSession_Succeeds()
+    {
+        await using var session = _fixture.Store!.LightweightSession();
+        var repo = CreateRepo(session);
+        var id = Guid.NewGuid();
+
+        var original = new TestSnapshotableAggregate(id, "Collision");
+        (await repo.CreateAsync(original)).IsRight.ShouldBeTrue();
+
+        // Same fixed stream id: the second create collides and returns Left
+        var duplicate = await repo.CreateAsync(new TestSnapshotableAggregate(id, "Collision"));
+        ShouldHaveErrorCode(duplicate, MartenErrorCodes.StreamAlreadyExists);
+
+        // A later write on the same session must not replay the failed StartStream
+        original.AddItem(25m);
+        var save = await repo.SaveAsync(original);
+
+        save.IsRight.ShouldBeTrue($"SaveAsync after a collision should succeed: {save}");
+
+        await using var verifySession = _fixture.Store.LightweightSession();
+        var verified = await CreateRepo(verifySession).LoadAsync(id);
+        verified.IsRight.ShouldBeTrue();
+        verified.IfRight(agg => agg.Total.ShouldBe(25m));
+    }
+
+    [Fact]
+    public async Task SaveAsync_ConcurrencyConflict_ThenCreateOnSameSession_Succeeds()
+    {
+        await using var createSession = _fixture.Store!.LightweightSession();
+        var id = Guid.NewGuid();
+        (await CreateRepo(createSession).CreateAsync(new TestSnapshotableAggregate(id, "Conflict"))).IsRight.ShouldBeTrue();
+
+        await using var sessionA = _fixture.Store.LightweightSession();
+        await using var sessionB = _fixture.Store.LightweightSession();
+        var repoA = CreateRepo(sessionA);
+        var repoB = CreateRepo(sessionB);
+        var aggregateA = (await repoA.LoadAsync(id)).Match(agg => agg, _ => null!);
+        var aggregateB = (await repoB.LoadAsync(id)).Match(agg => agg, _ => null!);
+
+        aggregateB.AddItem(1m);
+        (await repoB.SaveAsync(aggregateB)).IsRight.ShouldBeTrue();
+
+        aggregateA.AddItem(2m);
+        ShouldHaveErrorCode(await repoA.SaveAsync(aggregateA), MartenErrorCodes.ConcurrencyConflict);
+
+        // The rejected append must not be replayed with the next write on session A
+        var other = new TestSnapshotableAggregate(Guid.NewGuid(), "After conflict");
+        var create = await repoA.CreateAsync(other);
+
+        create.IsRight.ShouldBeTrue($"CreateAsync after a concurrency conflict should succeed: {create}");
+    }
+
+    [Fact]
+    public async Task SnapshotAware_CreateAsync_StreamAlreadyExists_ThenSaveOnSameSession_Succeeds()
+    {
+        await using var session = _fixture.Store!.LightweightSession();
+        var repo = CreateSnapshotAwareRepo(session);
+        var id = Guid.NewGuid();
+
+        var original = new TestSnapshotableAggregate(id, "SnapshotCollision");
+        (await repo.CreateAsync(original)).IsRight.ShouldBeTrue();
+
+        var duplicate = await repo.CreateAsync(new TestSnapshotableAggregate(id, "SnapshotCollision"));
+        ShouldHaveErrorCode(duplicate, MartenErrorCodes.StreamAlreadyExists);
+
+        original.AddItem(40m);
+        var save = await repo.SaveAsync(original);
+
+        save.IsRight.ShouldBeTrue($"SaveAsync after a collision should succeed: {save}");
+    }
+
+    [Fact]
+    public async Task SnapshotAware_SaveAsync_ConcurrencyConflict_ThenCreateOnSameSession_Succeeds()
+    {
+        await using var createSession = _fixture.Store!.LightweightSession();
+        var id = Guid.NewGuid();
+        (await CreateSnapshotAwareRepo(createSession).CreateAsync(new TestSnapshotableAggregate(id, "SnapshotConflict")))
+            .IsRight.ShouldBeTrue();
+
+        await using var sessionA = _fixture.Store.LightweightSession();
+        await using var sessionB = _fixture.Store.LightweightSession();
+        var repoA = CreateSnapshotAwareRepo(sessionA);
+        var repoB = CreateSnapshotAwareRepo(sessionB);
+        var aggregateA = (await repoA.LoadAsync(id)).Match(agg => agg, _ => null!);
+        var aggregateB = (await repoB.LoadAsync(id)).Match(agg => agg, _ => null!);
+
+        aggregateB.AddItem(1m);
+        (await repoB.SaveAsync(aggregateB)).IsRight.ShouldBeTrue();
+
+        aggregateA.AddItem(2m);
+        ShouldHaveErrorCode(await repoA.SaveAsync(aggregateA), MartenErrorCodes.ConcurrencyConflict);
+
+        var create = await repoA.CreateAsync(new TestSnapshotableAggregate(Guid.NewGuid(), "After conflict"));
+
+        create.IsRight.ShouldBeTrue($"CreateAsync after a concurrency conflict should succeed: {create}");
     }
 }

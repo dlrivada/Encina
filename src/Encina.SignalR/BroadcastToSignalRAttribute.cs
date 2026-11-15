@@ -10,14 +10,17 @@ namespace Encina.SignalR;
 /// hub method name.
 /// </para>
 /// <para>
-/// Supports targeting specific users, groups, or all connected clients.
+/// Name the audience with <see cref="TargetUsers"/> or <see cref="TargetGroups"/>. A notification
+/// that declares neither reaches every connected client only when the host registers its type with
+/// <see cref="SignalROptions.AllowBroadcastToAll{TNotification}"/>; otherwise the broadcast is
+/// refused, as it is when the declared targets resolve to no user or group.
 /// </para>
 /// </remarks>
 /// <example>
 /// <code>
-/// // Broadcast to all connected clients
-/// [BroadcastToSignalR(Method = "OrderCreated")]
-/// public record OrderCreatedNotification(Guid OrderId) : INotification;
+/// // Broadcast to the group of the order's tenant (never to every connected client)
+/// [BroadcastToSignalR(Method = "OrderCreated", TargetGroups = "{TenantId}")]
+/// public record OrderCreatedNotification(Guid OrderId, string TenantId) : INotification;
 ///
 /// // Broadcast to specific user (using property placeholder)
 /// [BroadcastToSignalR(Method = "OrderUpdated", TargetUsers = "{CustomerId}")]

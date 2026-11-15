@@ -1,0 +1,3 @@
+- Durable fan-out in `Encina.AzureFunctions` no longer reports a failed activity as a success (#3214): `FanOutAsync`, `FanOutAllAsync`, `FanOutFirstSuccessAsync` and both `FanOutMultipleAsync` overloads now read every activity as `ActivityResult<T>`; an activity that throws or returns a plain value becomes a `Left` with code `durable.activity_failed`.
+- `FanOutFirstSuccessAsync` returns the first success to complete (`Task.WhenAny`) instead of waiting for every activity, and `FanOutAllAsync` returns one aggregate error `durable.fanout_failed` (details `total`, `failedCount` and `failures` with input index and code, never messages) whatever the number of failures (#3216).
+- `FanOutFanInExtensions` is tested end to end on the Durable Task in-process test host (#3114).

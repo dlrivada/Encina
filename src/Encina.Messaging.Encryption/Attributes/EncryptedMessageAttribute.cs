@@ -16,14 +16,14 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// use <see cref="Security.Encryption.EncryptAttribute"/> instead.
 /// </para>
 /// <para>
-/// <strong>Precedence</strong>: This attribute overrides global configuration.
-/// <c>[EncryptedMessage(Enabled = false)]</c> disables encryption for a specific type
-/// even when <c>MessageEncryptionOptions.EncryptAllMessages</c> is <c>true</c>.
+/// <strong>No opt-out</strong>: a type marked with this attribute, or a type derived from a
+/// marked type (the attribute is inherited), is always encrypted, whatever the value of
+/// <c>MessageEncryptionOptions.EncryptAllMessages</c>. The attribute has no member that
+/// disables encryption for a marked type. (The global <c>MessageEncryptionOptions.Enabled</c>
+/// switch still turns the whole encryption pipeline off; its removal is tracked by #3759.)
 /// </para>
 /// <para>
-/// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key,
-/// or <see cref="UseTenantKey"/> to enable multi-tenant key isolation via
-/// <see cref="Abstractions.ITenantKeyResolver"/>.
+/// <strong>Key selection</strong>: Use <see cref="KeyId"/> to specify a per-type encryption key.
 /// </para>
 /// <para>
 /// <strong>Compliance</strong>: Supports GDPR (Article 32), HIPAA (§164.312(a)(2)(iv)),
@@ -39,29 +39,11 @@ namespace Encina.Messaging.Encryption.Attributes;
 /// // Per-type key for PCI-DSS compliance
 /// [EncryptedMessage(KeyId = "payment-key")]
 /// public sealed record PaymentProcessedNotification(Guid PaymentId) : INotification;
-///
-/// // Multi-tenant key isolation
-/// [EncryptedMessage(UseTenantKey = true)]
-/// public sealed record TenantDataChangedNotification(string TenantId) : INotification;
-///
-/// // Explicitly disable encryption for a type (overrides global config)
-/// [EncryptedMessage(Enabled = false)]
-/// public sealed record PublicAnnouncementNotification(string Message) : INotification;
 /// </code>
 /// </example>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
 public sealed class EncryptedMessageAttribute : Attribute
 {
-    /// <summary>
-    /// Gets or sets whether encryption is enabled for this message type.
-    /// </summary>
-    /// <remarks>
-    /// Defaults to <c>true</c>. Set to <c>false</c> to explicitly disable encryption
-    /// for this type, even when global encryption is enabled via
-    /// <c>MessageEncryptionOptions.EncryptAllMessages</c>.
-    /// </remarks>
-    public bool Enabled { get; set; } = true;
-
     /// <summary>
     /// Gets or sets the specific encryption key identifier for this message type.
     /// </summary>
@@ -74,12 +56,11 @@ public sealed class EncryptedMessageAttribute : Attribute
     public string? KeyId { get; set; }
 
     /// <summary>
-    /// Gets or sets whether to use tenant-specific encryption keys for this message type.
+    /// Gets or sets whether tenant-specific encryption keys are requested for this message type.
     /// </summary>
     /// <remarks>
-    /// When <c>true</c>, the <see cref="Abstractions.ITenantKeyResolver"/> is used to
-    /// resolve a tenant-specific key ID based on the current tenant context.
-    /// This ensures cryptographic isolation between tenants.
+    /// Currently this property has no effect: no key selection depends on it and the pipeline
+    /// does not call <see cref="Abstractions.ITenantKeyResolver"/>.
     /// Defaults to <c>false</c>.
     /// </remarks>
     public bool UseTenantKey { get; set; }

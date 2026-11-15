@@ -8,7 +8,6 @@ using LanguageExt;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Encina.Security.ABAC.DecisionAudit;
 
@@ -26,20 +25,16 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
     private static readonly byte[] LineSeparator = "\n"u8.ToArray();
 
     private readonly IServiceProvider _serviceProvider;
-    private readonly IOptions<ABACOptions> _options;
     private readonly ILogger<ABACDecisionAuditReader> _logger;
 
     public ABACDecisionAuditReader(
         IServiceProvider serviceProvider,
-        IOptions<ABACOptions> options,
         ILogger<ABACDecisionAuditReader> logger)
     {
         ArgumentNullException.ThrowIfNull(serviceProvider);
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
 
         _serviceProvider = serviceProvider;
-        _options = options;
         _logger = logger;
     }
 
@@ -96,7 +91,7 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
         ArgumentNullException.ThrowIfNull(query);
         ArgumentNullException.ThrowIfNull(destination);
 
-        // The tenant gate runs (and logs) once per export. The range is not pinned here: the Marten
+        // The tenant gate runs once per export. The range is not pinned here: the Marten
         // store rejects a UTC DateTime filter (follow-up issue), so a caller that needs a stable
         // export under live writes sets ToUtc itself.
         var pinned = query with { PageNumber = 1, PageSize = OperationAuditQuery.MaxPageSize };
@@ -165,7 +160,7 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
             : Unit.Default;
 
     // The tenant filter the store query runs with. The ambient tenant always wins; without one, a
-    // multi-tenant application denies unless the operator opt-out is set; a single-tenant one passes.
+    // multi-tenant application always denies (there is no cross-tenant switch); a single-tenant one passes.
     // A blank tenant is no tenant: stores ignore a whitespace tenant filter, so treating it as a
     // tenant would read every tenant's trail.
     private Either<EncinaError, TenantFilter> ResolveTenant(string? requested)
@@ -184,21 +179,10 @@ internal sealed class ABACDecisionAuditReader : IABACDecisionAuditReader
             ? new TenantFilter(ambient)
             : ABACErrors.DecisionAuditTenantMismatch();
 
-    private Either<EncinaError, TenantFilter> WithoutAmbientTenant(string? requested)
-    {
-        if (!IsMultiTenant())
-        {
-            return new TenantFilter(requested);
-        }
-
-        if (!_options.Value.DecisionAudit.AllowCrossTenantQueries)
-        {
-            return ABACErrors.DecisionAuditTenantRequired();
-        }
-
-        ABACLogMessages.DecisionAuditCrossTenantQuery(_logger);
-        return new TenantFilter(requested);
-    }
+    private Either<EncinaError, TenantFilter> WithoutAmbientTenant(string? requested) =>
+        IsMultiTenant()
+            ? ABACErrors.DecisionAuditTenantRequired()
+            : new TenantFilter(requested);
 
     /// <summary>The tenant a store query filters by; <c>null</c> means no tenant filter.</summary>
     private readonly record struct TenantFilter(string? TenantId);

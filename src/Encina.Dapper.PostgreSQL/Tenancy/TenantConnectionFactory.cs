@@ -84,7 +84,7 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
 
         if (tenant is null)
         {
-            return EncinaError.New($"Tenant '{tenantId}' not found.");
+            return TenancyErrors.TenantNotFound();
         }
 
         return GetConnectionStringForTenant(tenant)
@@ -92,22 +92,44 @@ public sealed class TenantConnectionFactory : ITenantConnectionFactory
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Fails closed: a present tenant identifier the store does not know returns
+    /// <see cref="TenancyErrors.TenantNotFound"/>, and a missing (null, empty or whitespace) identifier returns
+    /// <see cref="TenancyErrors.TenantRequired"/> while <see cref="TenancyOptions.RequireTenant"/> is <c>true</c>.
+    /// The default connection string serves a missing tenant only when <see cref="TenancyOptions.RequireTenant"/>
+    /// is <c>false</c>.
+    /// </remarks>
     public async ValueTask<Either<EncinaError, string>> GetConnectionStringAsync(CancellationToken cancellationToken = default)
     {
+        // GetCurrentTenantAsync returns null both for "no tenant" and "unknown tenant", so read the id first.
+        var tenantId = _tenantProvider.GetCurrentTenantId();
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return _options.RequireTenant ? TenancyErrors.TenantRequired() : GetDefaultConnectionString();
+        }
+
         var tenant = await _tenantProvider.GetCurrentTenantAsync(cancellationToken).ConfigureAwait(false);
-        return GetConnectionStringForTenant(tenant);
+
+        // A present tenant id the store does not know never reaches the default database.
+        return tenant is null ? TenancyErrors.TenantNotFound() : GetConnectionStringForTenant(tenant);
     }
 
-    private Either<EncinaError, string> GetConnectionStringForTenant(TenantInfo? tenant)
+    private Either<EncinaError, string> GetConnectionStringForTenant(TenantInfo tenant)
     {
         // If tenant has a dedicated database with its own connection string, use it
-        if (tenant?.HasDedicatedDatabase == true &&
+        if (tenant.HasDedicatedDatabase &&
             !string.IsNullOrEmpty(tenant.ConnectionString))
         {
             return tenant.ConnectionString;
         }
 
         // Otherwise, use the default connection string
+        return GetDefaultConnectionString();
+    }
+
+    private Either<EncinaError, string> GetDefaultConnectionString()
+    {
         if (string.IsNullOrEmpty(_options.DefaultConnectionString))
         {
             return EncinaError.New(

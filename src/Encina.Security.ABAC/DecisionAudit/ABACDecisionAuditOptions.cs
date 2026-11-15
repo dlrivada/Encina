@@ -108,19 +108,4 @@ public sealed class ABACDecisionAuditOptions
     /// <para>The value must be greater than zero and is validated when the application starts.</para>
     /// </remarks>
     public TimeSpan HealthFailureWindow { get; set; } = TimeSpan.FromMinutes(5);
-
-    /// <summary>
-    /// Gets or sets whether the decision audit reader may run without a tenant in a multi-tenant
-    /// application. Default is <c>false</c>.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// When multi-tenancy is enabled (a multi-tenancy package registered
-    /// <see cref="MultiTenancyMarker"/>) and the request carries no tenant, the reader denies the
-    /// query. This option is the explicit opt-out for operator tooling that reads the trail of every
-    /// tenant; each query it lets through is logged. An ambient tenant is always forced, whatever
-    /// this option says. Single-tenant applications need no configuration.
-    /// </para>
-    /// </remarks>
-    public bool AllowCrossTenantQueries { get; set; }
 }

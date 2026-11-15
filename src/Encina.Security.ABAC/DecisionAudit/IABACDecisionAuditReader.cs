@@ -19,9 +19,8 @@ namespace Encina.Security.ABAC.DecisionAudit;
 /// forced and a query naming another tenant is denied with
 /// <see cref="ABACErrors.DecisionAuditTenantMismatchCode"/>. When the request carries none and
 /// multi-tenancy is enabled (<see cref="MultiTenancyMarker"/> is registered), the query is denied
-/// with <see cref="ABACErrors.DecisionAuditTenantRequiredCode"/> unless
-/// <see cref="ABACDecisionAuditOptions.AllowCrossTenantQueries"/> is set (a logged opt-out for
-/// operator tooling). A single-tenant application (no marker) queries without a tenant.
+/// with <see cref="ABACErrors.DecisionAuditTenantRequiredCode"/>; no option lets a query read
+/// across tenants. A single-tenant application (no marker) queries without a tenant.
 /// </para>
 /// <para>
 /// <b>Errors</b>: an invalid page or time range gives <see cref="ABACErrors.InvalidDecisionAuditQueryCode"/>;

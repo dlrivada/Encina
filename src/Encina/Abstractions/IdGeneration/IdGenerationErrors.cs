@@ -6,7 +6,7 @@ namespace Encina;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Each factory method creates an error using <see cref="EncinaErrors.Create"/> with
+/// Each factory method creates an error using <see cref="EncinaErrors.Create(string, string, Exception?, IReadOnlyDictionary{string, object?}?)"/> with
 /// the corresponding <see cref="IdGenerationErrorCodes"/> code, ensuring consistent
 /// error metadata for OpenTelemetry correlation and log filtering.
 /// </para>

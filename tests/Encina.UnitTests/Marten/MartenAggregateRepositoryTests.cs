@@ -299,6 +299,7 @@ public class MartenAggregateRepositoryTests
 
         // Act & Assert
         await Should.ThrowAsync<ConcurrencyTestException>(() => sut.SaveAsync(aggregate));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -321,6 +322,7 @@ public class MartenAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Concurrency conflict"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -343,6 +345,7 @@ public class MartenAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Failed to save"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     // CreateAsync tests
@@ -424,6 +427,27 @@ public class MartenAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Stream already exists"));
+        _session.Received(1).EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task CreateAsync_StartStreamThrows_DoesNotEjectPendingChanges()
+    {
+        // Arrange: the failure happens before anything is queued, so unrelated operations
+        // the caller queued on the session must survive
+        var aggregate = new TestAggregate();
+        aggregate.DoSomething();
+        _session.Events.StartStream<TestAggregate>(Arg.Any<Guid>(), Arg.Any<object[]>())
+            .Throws(new ArgumentException("invalid stream id"));
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.CreateAsync(aggregate);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await _session.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        _session.DidNotReceive().EjectAllPendingChanges();
     }
 
     [Fact]
@@ -446,6 +470,7 @@ public class MartenAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Failed to create"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     /// <summary>Builds a fake Marten stream of <paramref name="count"/> events for <paramref name="id"/>.</summary>

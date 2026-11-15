@@ -356,6 +356,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Act & Assert
         await Should.ThrowAsync<ConcurrencyTestException>(() => sut.SaveAsync(aggregate));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -378,6 +379,7 @@ public class SnapshotAwareAggregateRepositoryTests
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
             Left: err => err.Message.ShouldContain("Concurrency conflict"));
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -397,6 +399,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     [Fact]
@@ -498,6 +501,27 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task CreateAsync_StartStreamThrows_DoesNotEjectPendingChanges()
+    {
+        // Arrange: the failure happens before anything is queued, so unrelated operations
+        // the caller queued on the session must survive
+        var aggregate = new TestSnapshotAggregate();
+        aggregate.DoSomething();
+        _session.Events.StartStream<TestSnapshotAggregate>(Arg.Any<Guid>(), Arg.Any<object[]>())
+            .Throws(new ArgumentException("invalid stream id"));
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.CreateAsync(aggregate);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        await _session.DidNotReceive().SaveChangesAsync(Arg.Any<CancellationToken>());
+        _session.DidNotReceive().EjectAllPendingChanges();
     }
 
     [Fact]
@@ -517,6 +541,7 @@ public class SnapshotAwareAggregateRepositoryTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
+        _session.Received(1).EjectAllPendingChanges();
     }
 
     private static List<IEvent> CreateFakeEvents(Guid id, params int[] versions)

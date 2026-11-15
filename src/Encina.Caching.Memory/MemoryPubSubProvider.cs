@@ -17,7 +17,7 @@ namespace Encina.Caching.Memory;
 /// <item><description>Unit testing cache invalidation flows</description></item>
 /// </list>
 /// <para>
-/// For distributed pub/sub across multiple instances, use Redis or NCache providers.
+/// For distributed pub/sub across multiple instances, use the Redis provider.
 /// </para>
 /// </remarks>
 public sealed partial class MemoryPubSubProvider : IPubSubProvider

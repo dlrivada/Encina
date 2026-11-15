@@ -60,14 +60,15 @@ public sealed class DapperTenancyOptions
     public bool ValidateTenantOnModify { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a value indicating whether to throw an exception
+    /// Gets or sets a value indicating whether to refuse operations
     /// when no tenant context is available for operations that require it.
     /// </summary>
     /// <value>The default is <c>true</c>.</value>
     /// <remarks>
     /// <para>
     /// When <c>true</c>, operations on tenant entities without a current
-    /// tenant context will throw an <see cref="InvalidOperationException"/>.
+    /// tenant context return a <c>Left</c> with the <c>Repository.TenantRequired</c> error
+    /// before any database call. Nothing is thrown.
     /// </para>
     /// <para>
     /// When <c>false</c>, operations will proceed without tenant filtering,

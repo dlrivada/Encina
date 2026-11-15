@@ -14,8 +14,9 @@ namespace Encina.Messaging.Encryption;
 /// exactly once via reflection. Subsequent lookups return the cached result with zero overhead.
 /// </para>
 /// <para>
-/// Returns <c>null</c> for types that do not have the <see cref="EncryptedMessageAttribute"/>,
-/// allowing callers to distinguish between "not decorated" and "decorated with Enabled = false".
+/// Returns <c>null</c> for types that do not have the <see cref="EncryptedMessageAttribute"/>
+/// (declared or inherited from a base type). A non-<c>null</c> result means the type must be
+/// encrypted: the attribute carries no value that disables encryption.
 /// </para>
 /// </remarks>
 internal static class EncryptedMessageAttributeCache
@@ -43,7 +44,7 @@ internal static class EncryptedMessageAttributeCache
             return null;
         }
 
-        return new EncryptedMessageInfo(attribute.Enabled, attribute.KeyId, attribute.UseTenantKey);
+        return new EncryptedMessageInfo(attribute.KeyId, attribute.UseTenantKey);
     }
 
     /// <summary>
@@ -57,8 +58,8 @@ internal static class EncryptedMessageAttributeCache
 
 /// <summary>
 /// Cached metadata from an <see cref="EncryptedMessageAttribute"/> discovered on a message type.
+/// Its presence alone means the type is always encrypted.
 /// </summary>
-/// <param name="Enabled">Whether encryption is enabled for this message type.</param>
 /// <param name="KeyId">The specific key identifier for this type, or <c>null</c> for the default key.</param>
-/// <param name="UseTenantKey">Whether to use tenant-specific encryption keys.</param>
-internal sealed record EncryptedMessageInfo(bool Enabled, string? KeyId, bool UseTenantKey);
+/// <param name="UseTenantKey">The attribute's <c>UseTenantKey</c> value; not consumed yet.</param>
+internal sealed record EncryptedMessageInfo(string? KeyId, bool UseTenantKey);
