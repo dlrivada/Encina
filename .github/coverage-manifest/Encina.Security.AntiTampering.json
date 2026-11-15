@@ -91,7 +91,7 @@
         "guard": 30
       },
       "justifications": {
-        "unit": "InMemoryNonceStoreTests cover add, replay, the lazy expiry paths of TryAddAsync and ExistsAsync, the cleanup timer driven by the injected clock, a failing sweep that is logged and does not stop the timer, and disposal (measured 100%); 95 leaves room only for the TryUpdate race, which no deterministic test reaches.",
+        "unit": "InMemoryNonceStoreTests cover add, replay, the lazy expiry paths of TryAddAsync and ExistsAsync, the cleanup timer driven by the injected clock, a failing sweep that is logged and does not stop the timer, disposal, and the value-checked removal that keeps a nonce refreshed after its expired entry was read (#3836) (measured 100%); 95 leaves room only for the TryUpdate race, which no deterministic test reaches.",
         "guard": "AntiTamperingGuardTests reject a null, empty or whitespace nonce in TryAddAsync and ExistsAsync, which runs the constructor and both argument checks (measured 34.1%); the store logic past the checks belongs to the unit flag."
       }
     },
