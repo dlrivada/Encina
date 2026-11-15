@@ -411,6 +411,6 @@ docs/plans/package-comparison-implementation-plan-86.md, .claude/skills/encina-d
 
 ## Next Steps
 
-1. The orchestrator links this plan from #86 and asks the maintainer about Design Choices 1 and 4 when work on the issue starts.
+1. The orchestrator links this plan from #86 and asks the maintainer about Design Choice 4 (Design Choice 1 is Settled) when work on the issue starts.
 2. Brief a `docs-writer` for the two pages and four link edits (6 files, about 700 lines).
 3. If #85 and #86 merge in either order, add the sideways link in a follow-up; never link an unmerged page.
