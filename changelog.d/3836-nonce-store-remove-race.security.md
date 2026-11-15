@@ -1,0 +1,1 @@
+- `Encina.Security.AntiTampering`: `InMemoryNonceStore` no longer removes a nonce that `TryAddAsync` refreshed after the cleanup sweep or the lazy expiry in `ExistsAsync` read its expired entry. Both now remove an entry only if it still holds the expiry they read, so a replay of the refreshed nonce stays rejected (#3836).

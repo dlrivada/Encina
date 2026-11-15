@@ -71,11 +71,15 @@ public sealed class DelayedRetryScheduler : IDelayedRetryScheduler
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        var requestType = typeof(TRequest).AssemblyQualifiedName
-            ?? typeof(TRequest).FullName
-            ?? typeof(TRequest).Name;
+        // The runtime type, not TRequest: a request typed as an interface or base class must still be
+        // stored complete, encrypted when its concrete type is marked, and rebuilt by the processor
+        // from the stored name (#3780).
+        var runtimeType = request.GetType();
+        var requestType = runtimeType.AssemblyQualifiedName
+            ?? runtimeType.FullName
+            ?? runtimeType.Name;
 
-        var requestContent = _messageSerializer.Serialize(request);
+        var requestContent = _messageSerializer.SerializeAsRuntimeType(request);
         var contextContent = SerializeContext(context);
 
         var now = _timeProvider.GetUtcNow().UtcDateTime;
