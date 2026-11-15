@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue is a broad "first-class modular monolith with Aspire" statement: `IEncinaModule` with lifecycle hooks, discovery, module-scoped services, a dedicated `DbContext` per module, per-module health, in-memory and outbox inter-module communication, public API contracts, an AppHost extension `WithEncinaModules`, dashboard views of modules and their dependencies, module restart and reload, and a migration path that extracts a module into a service (`WithEncinaFromModule`). State of `origin/main` (`db1e7f688`) and of the sibling plans, verified by reading and grep (nothing named `WithEncinaModules`, `WithEncinaFromModule` or `IEncinaModule` exists in `src` or `tests`; `src/Encina.Aspire.Testing` is the only Aspire package):
+The issue is a broad "first-class modular monolith with Aspire" statement: `IEncinaModule` with lifecycle hooks, discovery, module-scoped services, a dedicated `DbContext` per module, per-module health, in-memory and outbox inter-module communication, public API contracts, an AppHost extension `WithEncinaModules`, dashboard views of modules and their dependencies, module restart and reload, and a migration path that extracts a module into a service (`WithEncinaFromModule`). State of `origin/main` (`96c8803bd`) and of the sibling plans, verified by reading and grep (nothing named `WithEncinaModules`, `WithEncinaFromModule` or `IEncinaModule` exists in `src` or `tests`; `src/Encina.Aspire.Testing` is the only Aspire package):
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
