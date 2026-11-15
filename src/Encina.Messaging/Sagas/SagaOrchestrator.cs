@@ -113,7 +113,9 @@ public sealed class SagaOrchestrator
 
         var sagaId = Guid.NewGuid();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var serializedData = _messageSerializer.Serialize(data);
+        // The runtime type, not TSagaData, so saga data typed as a base class is stored complete and
+        // encrypted when its concrete type is marked (#3780).
+        var serializedData = _messageSerializer.SerializeAsRuntimeType(data);
 
         var effectiveTimeout = timeout ?? _options.DefaultSagaTimeout;
         var timeoutAtUtc = effectiveTimeout.HasValue ? now.Add(effectiveTimeout.Value) : (DateTime?)null;
@@ -158,17 +160,33 @@ public sealed class SagaOrchestrator
         where TSagaData : class
     {
         var stateResult = await _store.GetAsync(sagaId, cancellationToken).ConfigureAwait(false);
-        if (stateResult.IsLeft)
-            return stateResult.LeftToArray()[0];
+        var advanced = stateResult.Bind(stateOpt => AdvanceState(sagaId, stateOpt, updateData));
+        if (advanced.IsLeft)
+            return advanced.LeftToArray()[0];
 
-        var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
-        if (stateOpt.IsNone)
+        var (state, data) = advanced.RightToArray()[0];
+
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
+
+        Log.SagaAdvanced(_logger, sagaId, state.CurrentStep);
+
+        return new SagaAdvanceResult<TSagaData>(sagaId, state.CurrentStep, data);
+    }
+
+    // The in-memory part of AdvanceAsync: checks the loaded saga, applies the update and moves it one step on.
+    private Either<EncinaError, (ISagaState State, TSagaData Data)> AdvanceState<TSagaData>(
+        Guid sagaId,
+        Option<ISagaState> stateOpt,
+        Func<TSagaData, TSagaData>? updateData)
+        where TSagaData : class
+    {
+        if (stateOpt.Case is not ISagaState state)
         {
             Log.SagaNotFound(_logger, sagaId);
             return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
         }
-
-        var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Running)
         {
@@ -185,19 +203,14 @@ public sealed class SagaOrchestrator
         if (updateData != null)
         {
             data = updateData(data);
-            state.Data = _messageSerializer.Serialize(data);
+            // The runtime type, not TSagaData, so updated data of a marked derived type is encrypted (#3780).
+            state.Data = _messageSerializer.SerializeAsRuntimeType(data);
         }
 
         state.CurrentStep++;
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
-        if (updateResult.IsLeft)
-            return updateResult.LeftToArray()[0];
-
-        Log.SagaAdvanced(_logger, sagaId, state.CurrentStep);
-
-        return new SagaAdvanceResult<TSagaData>(sagaId, state.CurrentStep, data);
+        return (state, data);
     }
 
     /// <summary>
