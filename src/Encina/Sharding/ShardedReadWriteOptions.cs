@@ -109,10 +109,10 @@ public sealed class ShardedReadWriteOptions
     /// Internal record for a shard's replica configuration entry.
     /// </summary>
     internal sealed record ShardReplicaConfig(
-      string ShardId,
-      string PrimaryConnectionString,
-      IReadOnlyList<string> ReplicaConnectionStrings,
-      ReplicaSelectionStrategy? Strategy)
+        string ShardId,
+        string PrimaryConnectionString,
+        IReadOnlyList<string> ReplicaConnectionStrings,
+        ReplicaSelectionStrategy? Strategy)
     {
         [JsonIgnore]
         public string PrimaryConnectionString { get; } = PrimaryConnectionString;
