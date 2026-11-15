@@ -109,13 +109,15 @@ public sealed class InMemoryNonceStore : INonceStore, IDisposable
 
         if (_nonces.TryGetValue(nonce, out var expiresAt))
         {
-            if (expiresAt > _timeProvider.GetUtcNow())
+            var now = _timeProvider.GetUtcNow();
+
+            if (expiresAt > now)
             {
                 return ValueTask.FromResult(true);
             }
 
             // Expired — clean up lazily
-            _nonces.TryRemove(nonce, out _);
+            TryRemoveExpired(new KeyValuePair<string, DateTimeOffset>(nonce, expiresAt), now);
         }
 
         return ValueTask.FromResult(false);
@@ -154,12 +156,19 @@ public sealed class InMemoryNonceStore : INonceStore, IDisposable
 
         foreach (var kvp in _nonces)
         {
-            if (kvp.Value <= now)
-            {
-                _nonces.TryRemove(kvp.Key, out _);
-            }
+            TryRemoveExpired(kvp, now);
         }
     }
+
+    /// <summary>
+    /// Removes an expired entry only if it still holds the expiry that was read, so a nonce that
+    /// <see cref="TryAddAsync"/> replaced in the meantime is kept and its replay still rejected (#3836).
+    /// </summary>
+    /// <param name="observed">The entry as it was read.</param>
+    /// <param name="now">The current time.</param>
+    /// <returns><see langword="true"/> if the entry was removed.</returns>
+    internal bool TryRemoveExpired(KeyValuePair<string, DateTimeOffset> observed, DateTimeOffset now) =>
+        observed.Value <= now && _nonces.TryRemove(observed);
 
     /// <inheritdoc />
     public void Dispose()
