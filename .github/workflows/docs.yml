@@ -72,9 +72,11 @@ jobs:
     name: Detect plans-only change
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    # No pull-requests permission: this workflow is also called by the dashboard publishers,
+    # whose grants do not include it, and a nested job may not ask for more than its caller.
+    # The repository is public, so listing a pull request's files needs only contents: read.
     permissions:
       contents: read
-      pull-requests: read
     outputs:
       other-files: ${{ steps.filter.outputs.other }}
     steps:
