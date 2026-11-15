@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for explicit vertical slice support: a `[VerticalSlice]` marker, slice-scoped pipeline behaviors (`[SlicePipeline]`), slice discovery (`AddEncinaSlices`), a feature folder convention, the CLI command `encina generate slice`, minimal API endpoint generation, `SliceTestBase<T>` for isolated tests and a documentation generator. State of `origin/main` (`db1e7f688`), verified by reading and grep:
+The issue asks for explicit vertical slice support: a `[VerticalSlice]` marker, slice-scoped pipeline behaviors (`[SlicePipeline]`), slice discovery (`AddEncinaSlices`), a feature folder convention, the CLI command `encina generate slice`, minimal API endpoint generation, `SliceTestBase<T>` for isolated tests and a documentation generator. State of `origin/main` (`96c8803bd`), verified by reading and grep:
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
