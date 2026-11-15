@@ -414,7 +414,7 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md.
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` (`MessagingLocking`, registered by the #713 plan) | 7505 | `SagaLockContended`; 7500-7503 are #713's, 7504 is #714's; 7506-7549 stay unassigned |
+| `Encina.Messaging` (`MessagingLocking`, registered by the #713 plan) | 7505 | `SagaLockContended`; 7500-7503 are #713's, 7504 is #714's; 7506-7539 stay unassigned |
 
 ### Estimated File Count
 
