@@ -1,7 +1,7 @@
 {
   "package": "Encina.Tenancy",
   "generated": "2026-03-27T12:05:17Z",
-  "totalFiles": 17,
+  "totalFiles": 18,
   "targets": {
     "guard": 15,
     "unit": 60
@@ -34,7 +34,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 20 },
+      "justifications": {
+        "unit": "Every member, including both branches of the ToString override that masks the connection string, is executed by TenantInfoTests.",
+        "guard": "The record has no guard clauses; guard tests only execute its constructor while guarding the tenancy APIs that receive a TenantInfo, which covers about a fifth of its lines."
+      }
     },
     "Abstractions/TenantIsolationStrategy.cs": {
       "defaultTests": [
@@ -70,7 +75,12 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "An interface with no executable lines; its contract is exercised through TenantConnectionFactoryBase.",
+        "guard": "An interface with no executable lines, so there is nothing for a guard test to execute."
+      }
     },
     "Data/TenantConnectionFactoryBase.cs": {
       "defaultTests": [
@@ -78,14 +88,24 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests drive every branch of the fail-closed resolution: unknown tenant, missing tenant with RequireTenant on and off, known tenant with and without a connection string, store exceptions and the null-argument constructor checks.",
+        "guard": "No guard test derives from this abstract base yet and Encina.GuardTests was outside the #3673 change; its constructor null checks are covered by unit tests, and a guard test is tracked in #3757."
+      }
     },
     "Data/TenantConnectionOptions.cs": {
       "defaultTests": [
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 75 },
+      "justifications": {
+        "unit": "Every property default and setter is asserted by the options and ServiceCollectionExtensions unit tests.",
+        "guard": "Guard tests instantiate the options while guarding ConfigureTenantConnections, measured at 3 of 4 lines."
+      }
     },
     "Diagnostics/TenancyActivitySource.cs": {
       "defaultTests": [
@@ -142,6 +162,18 @@
       "justifications": {
         "unit": "Unit tests cover the default and configured registrations, custom stores, and the multi-tenancy marker that the dead letter manager and the ABAC decision audit reader share.",
         "guard": "Guard tests reject null services and register every tenancy service, the marker included."
+      }
+    },
+    "TenancyErrors.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Error factory with stable codes and categories",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests call both factories and assert each code, its ErrorCategory and that the message carries no tenant id.",
+        "guard": "Both factories are parameterless static methods with no guard clause, so guard tests have nothing to reject here."
       }
     },
     "Stores/InMemoryTenantStore.cs": {

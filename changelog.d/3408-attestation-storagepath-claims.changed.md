@@ -1,0 +1,1 @@
+- `HashChainOptions.StoragePath` is documented as reserved and not implemented: the hash chain is kept in memory, and the XML summary, the package README and the attestation feature page no longer present it as persistence (#3715).

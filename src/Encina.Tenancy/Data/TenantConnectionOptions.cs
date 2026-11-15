@@ -57,23 +57,6 @@ public sealed class TenantConnectionOptions
     /// </remarks>
     public int ConnectionTimeoutSeconds { get; set; } = 30;
 
-    /// <summary>
-    /// Gets or sets a value indicating whether to throw an exception when
-    /// no connection string can be resolved.
-    /// </summary>
-    /// <value>The default is <c>true</c>.</value>
-    /// <remarks>
-    /// <para>
-    /// When <c>true</c>, throws <see cref="InvalidOperationException"/> if
-    /// no connection string is available for the tenant.
-    /// </para>
-    /// <para>
-    /// When <c>false</c>, returns a connection using the default connection string
-    /// even if the tenant is not found (useful for graceful degradation scenarios).
-    /// </para>
-    /// </remarks>
-    public bool ThrowOnMissingConnectionString { get; set; } = true;
-
     /// <inheritdoc/>
     public override string ToString() =>
         $"TenantConnectionOptions {{ AutoOpen={AutoOpenConnections}, Timeout={ConnectionTimeoutSeconds}s }}";

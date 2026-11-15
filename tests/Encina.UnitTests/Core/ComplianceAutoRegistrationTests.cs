@@ -49,16 +49,14 @@ public sealed class ComplianceAutoRegistrationTests
         services.Any(d => d.ServiceType == typeof(DPIAAutoRegistrationDescriptor)).ShouldBeFalse();
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void AddEncinaDPIA_ExpirationMonitoring_RegistersReminderServiceOnlyWhenEnabled(bool enabled)
+    [Fact]
+    public void AddEncinaDPIA_AlwaysRegistersReminderService()
     {
         var services = new ServiceCollection();
 
-        services.AddEncinaDPIA(o => o.EnableExpirationMonitoring = enabled);
+        services.AddEncinaDPIA();
 
-        HostedServiceTypes(services).Contains(typeof(DPIAReviewReminderService)).ShouldBe(enabled);
+        HostedServiceTypes(services).ShouldContain(typeof(DPIAReviewReminderService));
     }
 
     [Theory]

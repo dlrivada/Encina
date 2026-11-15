@@ -55,7 +55,7 @@ public interface IMessageEncryptionProvider
     /// </summary>
     /// <param name="plaintext">The plaintext bytes to encrypt (typically UTF-8 encoded JSON).</param>
     /// <param name="context">
-    /// The encryption context specifying key selection, tenant isolation, and associated data.
+    /// The encryption context specifying key selection and associated data.
     /// </param>
     /// <param name="cancellationToken">A token to cancel the operation.</param>
     /// <returns>

@@ -18,7 +18,12 @@ public class ReadAuditStoreEFMySqlIntegrationTests : IAsyncLifetime
 
     public ReadAuditStoreEFMySqlIntegrationTests(EFCoreMySqlFixture fixture) => _fixture = fixture;
 
-    public async ValueTask InitializeAsync() => await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
+    public async ValueTask InitializeAsync()
+    {
+        await _fixture.EnsureSchemaCreatedAsync<AuditTestDbContext>();
+        await _fixture.ClearAllDataAsync();
+    }
+
     public async ValueTask DisposeAsync() => await _fixture.ClearAllDataAsync();
 
     [Fact]

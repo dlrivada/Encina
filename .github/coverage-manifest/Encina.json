@@ -28,7 +28,11 @@
         "unit"
       ],
       "defaultRule": "*Errors.cs",
-      "reason": "Static error factory methods"
+      "reason": "Static error factory methods",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Every factory is a one-line Create call that the IdGeneration unit tests run (measured 100% on 2026-11-11, #3545)."
+      }
     },
     "Abstractions/IdGeneration/IIdGenerator.cs": {
       "defaultTests": [],
@@ -577,6 +581,39 @@
         "unit": "The file holds only const strings, so it has no coverable lines.",
         "guard": "The file holds only const strings, so it has no coverable lines.",
         "contract": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "Errors/EncinaErrorMetadataKeys.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Metadata key constants",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "The file holds only const strings, so it has no coverable lines."
+      }
+    },
+    "Errors/ErrorCategory.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Enum of error categories",
+      "targets": { "unit": 0 },
+      "justifications": {
+        "unit": "An enum declaration has no coverable lines; ErrorCategoryTests asserts its stable values."
+      }
+    },
+    "Errors/LegacyErrorCategoryInference.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Transitional code-to-category inference, deleted by F2 of #3419",
+      "targets": { "unit": 100 },
+      "justifications": {
+        "unit": "Pure predicates over the code text with one LegacyErrorCategoryInferenceTests row per branch (measured 100% on 2026-11-11, #3545)."
       }
     },
     "GlobalSuppressions.cs": {
@@ -1566,15 +1603,18 @@
     },
     "Results/EncinaErrors.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Errors.cs",
       "reason": "Static error factory methods",
       "targets": {
-        "unit": 75
+        "unit": 90,
+        "guard": 40
       },
       "justifications": {
-        "unit": "Static error factory methods tested for major paths (measured 79%)."
+        "unit": "The factories, the categorized Create/FromException overloads and GetCategory are unit-tested on every branch (measured 95.7% on 2026-11-11, #3545); the uncovered lines are internal helpers exercised from other packages.",
+        "guard": "The guard tests exercise the argument checks of the categorized Create and FromException overloads (measured 43% on 2026-11-13, #3800); the remaining lines are the category-less overloads, the authorization factories and the extension methods, which the unit tests cover."
       }
     },
     "Results/NullFunctionalFailureDetector.cs": {
@@ -2892,7 +2932,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 100 },
+      "justifications": {
+        "unit": "Every member, including the masking ToString and the replica validation, is driven by ShardRecordsSecretMaskingTests and ShardInfoTests (measured 24/24 lines on 2026-11-13, #3685).",
+        "guard": "ShardInfoGuardTests drive every constructor argument check (shard id, connection string, replica entries) and the null-replica path (measured 24/24 lines on 2026-11-13, #3685)."
+      }
     },
     "Sharding/ShardingErrorCodes.cs": {
       "defaultTests": [
@@ -3030,7 +3075,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 80 },
+      "justifications": {
+        "unit": "ShardRecordsSecretMaskingTests and the time-based sharding unit tests run every member, including the masking ToString (measured 21/21 lines on 2026-11-13, #3685).",
+        "guard": "TimeBasedShardingGuardTests drive the shard id, connection string and period checks; ToString and a synthesized accessor have no argument to guard (measured 17/21 lines on 2026-11-13, #3685)."
+      }
     },
     "Sharding/TimeBased/TierTransition.cs": {
       "defaultTests": [

@@ -35,7 +35,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 100
+      },
+      "justifications": {
+        "unit": "The serializer and attribute-cache tests construct the attribute through reflection on marked types and read KeyId and UseTenantKey.",
+        "guard": "The attribute has only auto-properties and a parameterless constructor, so there is no guard clause to test.",
+        "contract": "The contract tests instantiate the attribute and pin its defaults and its exact public surface (KeyId and UseTenantKey, no opt-out member)."
+      }
     },
     "DefaultMessageEncryptionProvider.cs": {
       "defaultTests": [
@@ -72,7 +82,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Marked, inherited and unmarked types drive both cache branches and ClearCache runs around every serializer test.",
+        "guard": "The class is internal and is never called with a null type by the public API, so guard tests cannot reach it."
+      }
     },
     "EncryptedPayloadFormatter.cs": {
       "defaultTests": [
@@ -102,7 +120,15 @@
         "unit"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": {
+        "unit": 100,
+        "contract": 100
+      },
+      "justifications": {
+        "unit": "The options tests read every default and set every property.",
+        "contract": "The contract tests pin every default value of the options class."
+      }
     },
     "Model/EncryptedPayload.cs": {
       "defaultTests": [
@@ -127,7 +153,17 @@
         "property"
       ],
       "defaultRule": "*Serializer.cs",
-      "reason": "Serialization with round-trip invariant"
+      "reason": "Serialization with round-trip invariant",
+      "targets": {
+        "unit": 90,
+        "guard": 8,
+        "property": 0
+      },
+      "justifications": {
+        "unit": "Every encrypt/decrypt path, both failure paths, the marked-or-EncryptAllMessages predicate and the runtime-type resolution (interface, base type and null message) are unit tested; only the tracing and metrics branches stay partly uncovered.",
+        "guard": "Only the four constructor ThrowIfNull lines are reachable by guard tests; the rest of the file is behaviour, not guards.",
+        "property": "No property test drives the serializer today; its decision is a two-input predicate fully enumerated by unit tests."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [

@@ -1,0 +1,1 @@
+- The Problem Details body of Encina.AspNetCore now carries the `correlationId` that the response sends in its `Correlation-Id` header, read from the ambient request context instead of the raw request header, so an oversized or control-character client id is never echoed; without a request context the field is omitted (#3427).

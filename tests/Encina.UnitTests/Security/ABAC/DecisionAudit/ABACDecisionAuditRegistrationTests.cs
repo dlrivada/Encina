@@ -109,7 +109,6 @@ public sealed class ABACDecisionAuditRegistrationTests
         var options = new ABACOptions();
 
         options.DecisionAudit.WriteTimeout.ShouldBe(TimeSpan.FromSeconds(5));
-        options.DecisionAudit.AllowCrossTenantQueries.ShouldBeFalse();
         new ABACOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
     }
 

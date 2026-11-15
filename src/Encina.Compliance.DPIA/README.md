@@ -166,8 +166,7 @@ public sealed class CrossBorderTransferCriterion : IRiskCriterion
 | `DPOName` | `string?` | `null` | Data Protection Officer name |
 | `DPOEmail` | `string?` | `null` | Data Protection Officer email |
 | `PublishNotifications` | `bool` | `true` | Publish domain notifications |
-| `EnableExpirationMonitoring` | `bool` | `false` | Enable background expiration monitoring service |
-| `ExpirationCheckInterval` | `TimeSpan` | `1 hour` | Interval between expiration monitoring checks |
+| `ExpirationCheckInterval` | `TimeSpan` | `1 hour` | Interval between expiration monitoring checks (the monitoring service is always on, Art. 35(11)); between 1 millisecond and `uint.MaxValue - 1` milliseconds |
 | `AutoRegisterFromAttributes` | `bool` | `true` | Auto-register draft assessments from `[RequiresDPIA]` at startup |
 | `AutoDetectHighRisk` | `bool` | `true` | Auto-detect high-risk processing patterns |
 | `BlockWithoutDPIA` | `bool` | `false` | Block requests without any DPIA assessment |
@@ -244,7 +243,6 @@ Tags: `encina`, `gdpr`, `dpia`, `compliance`, `ready`
 services.AddEncinaDPIA(options =>
 {
     options.EnforcementMode = DPIAEnforcementMode.Block;
-    options.EnableExpirationMonitoring = false; // Disable background service in tests
     options.DefaultReviewPeriod = TimeSpan.FromDays(365);
 });
 ```

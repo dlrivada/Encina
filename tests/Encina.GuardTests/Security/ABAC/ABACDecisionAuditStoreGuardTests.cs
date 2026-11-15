@@ -86,15 +86,13 @@ public sealed class ABACDecisionAuditStoreGuardTests
     // ── ABACDecisionAuditOptions ─────────────────────────────────────
 
     [Fact]
-    public void Options_WriteTimeoutAndCrossTenantOptOut_AcceptAnyValueAndValidateAtStart()
+    public void Options_WriteTimeout_AcceptsAValidValueAndValidatesAtStart()
     {
         var options = new ABACOptions();
 
         options.DecisionAudit.WriteTimeout = TimeSpan.FromSeconds(2);
-        options.DecisionAudit.AllowCrossTenantQueries = true;
 
         options.DecisionAudit.WriteTimeout.ShouldBe(TimeSpan.FromSeconds(2));
-        options.DecisionAudit.AllowCrossTenantQueries.ShouldBeTrue();
         new ABACOptionsValidator().Validate(null, options).Succeeded.ShouldBeTrue();
     }
 

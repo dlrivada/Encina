@@ -146,7 +146,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
             ProjectionLog.StoringReadModel(_logger, typeof(TReadModel).Name, readModel.Id);
 
             _session.Store(readModel);
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             ProjectionLog.StoredReadModel(_logger, typeof(TReadModel).Name, readModel.Id);
 
@@ -177,7 +177,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
             ProjectionLog.StoringReadModels(_logger, typeof(TReadModel).Name, modelList.Count);
 
             _session.Store<TReadModel>([.. modelList]);
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             ProjectionLog.StoredReadModels(_logger, typeof(TReadModel).Name, modelList.Count);
 
@@ -205,7 +205,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
             ProjectionLog.DeletingReadModel(_logger, typeof(TReadModel).Name, id);
 
             _session.Delete<TReadModel>(id);
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             ProjectionLog.DeletedReadModel(_logger, typeof(TReadModel).Name, id);
 
@@ -237,7 +237,7 @@ public sealed class MartenReadModelRepository<TReadModel> : IReadModelRepository
                 .ConfigureAwait(false);
 
             _session.DeleteWhere<TReadModel>(_ => true);
-            await _session.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await _session.SaveChangesOrEjectAsync(cancellationToken).ConfigureAwait(false);
 
             ProjectionLog.DeletedAllReadModels(_logger, typeof(TReadModel).Name, count);
 

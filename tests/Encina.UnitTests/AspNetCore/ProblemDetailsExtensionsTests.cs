@@ -1,6 +1,8 @@
 using Encina.AspNetCore;
+using Encina.UnitTests.Core.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.Extensions.Logging.Testing;
 
 namespace Encina.UnitTests.AspNetCore;
 
@@ -183,15 +185,113 @@ public sealed class ProblemDetailsExtensionsTests
 
     #region ToProblemDetails — Extensions
 
-    [Fact]
-    public void ToProblemDetails_WithCorrelationId_IncludesInExtensions()
-    {
-        var error = EncinaErrors.Create("test.error", "test");
-        var context = CreateHttpContext();
-        context.Request.Headers["X-Correlation-ID"] = "corr-123";
+    private const string CorrelationHeader = "X-Correlation-ID";
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+    // Runs the real context middleware over the request header and builds the problem inside its
+    // scope, the way an endpoint does, so the body and the response header come from one pipeline.
+    private static async Task<(string? Body, string Header)> ProblemInsideScopeAsync(string? requestHeader)
+    {
+        var host = new ScopeTestHost();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IRequestContextAccessor>(host.Accessor)
+                .BuildServiceProvider()
+        };
+        if (requestHeader is not null)
+        {
+            context.Request.Headers[CorrelationHeader] = requestHeader;
+        }
+
+        string? body = null;
+        var middleware = new EncinaContextMiddleware(
+            ctx =>
+            {
+                var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(ctx)
+                    .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+                body = problem.Extensions.TryGetValue("correlationId", out var value) ? (string?)value : null;
+                return Task.CompletedTask;
+            },
+            Options.Create(new EncinaAspNetCoreOptions()),
+            new FakeLogger<EncinaContextMiddleware>());
+
+        await middleware.InvokeAsync(context, host.Factory);
+
+        return (body, context.Response.Headers[CorrelationHeader].ToString());
+    }
+
+    [Fact]
+    public async Task ToProblemDetails_WithCorrelationId_BodyEqualsTheResponseHeader()
+    {
+        var (body, header) = await ProblemInsideScopeAsync("corr-123");
+
+        body.ShouldBe("corr-123");
+        body.ShouldBe(header);
+    }
+
+    [Fact]
+    public async Task ToProblemDetails_WithOversizedCorrelationId_BodyCarriesTheNormalizedHeaderValue()
+    {
+        var raw = new string('a', 1_000_000);
+
+        var (body, header) = await ProblemInsideScopeAsync(raw);
+
+        body.ShouldNotBeNull();
+        body.ShouldBe(header);
+        body.ShouldNotBe(raw);
+        body.Length.ShouldBeLessThan(InboundRequestInfo.MaxIdLength + 1);
+    }
+
+    [Fact]
+    public async Task ToProblemDetails_WithControlCharactersInCorrelationId_BodyCarriesTheNormalizedHeaderValue()
+    {
+        const string raw = "corr\u0001\r\nforged-log-line";
+
+        var (body, header) = await ProblemInsideScopeAsync(raw);
+
+        body.ShouldNotBeNull();
+        body.ShouldBe(header);
+        body.ShouldNotBe(raw);
+        body.Any(char.IsControl).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task ToProblemDetails_WithoutCorrelationHeader_BodyEqualsTheGeneratedHeaderValue()
+    {
+        var (body, header) = await ProblemInsideScopeAsync(null);
+
+        body.ShouldNotBeNullOrEmpty();
+        body.ShouldBe(header);
+    }
+
+    [Fact]
+    public void ToProblemDetails_WithoutRequestContext_OmitsTheCorrelationIdAndNeverEchoesTheHeader()
+    {
+        var host = new ScopeTestHost();
+        var context = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection()
+                .AddSingleton<IRequestContextAccessor>(host.Accessor)
+                .BuildServiceProvider()
+        };
+        context.Request.Headers[CorrelationHeader] = "client-supplied";
+
+        var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(context)
+            .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+
+        problem.Extensions.ContainsKey("correlationId").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void ToProblemDetails_WithoutAccessorRegistered_OmitsTheCorrelationIdAndNeverEchoesTheHeader()
+    {
+        var context = CreateHttpContext();
+        context.Request.Headers[CorrelationHeader] = "client-supplied";
+
+        var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(context)
+            .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+
+        problem.Extensions.ContainsKey("correlationId").ShouldBeFalse();
     }
 
     [Fact]

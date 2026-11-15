@@ -32,13 +32,16 @@ namespace Encina.Tenancy;
 /// public class SqlServerTenantConnectionFactory : ITenantConnectionFactory&lt;SqlConnection&gt;
 /// {
 ///     private readonly ITenantProvider _tenantProvider;
+///     private readonly ITenantStore _tenantStore;
 ///     private readonly TenancyOptions _options;
 ///
 ///     public SqlServerTenantConnectionFactory(
 ///         ITenantProvider tenantProvider,
+///         ITenantStore tenantStore,
 ///         IOptions&lt;TenancyOptions&gt; options)
 ///     {
 ///         _tenantProvider = tenantProvider;
+///         _tenantStore = tenantStore;
 ///         _options = options.Value;
 ///     }
 ///
@@ -63,14 +66,16 @@ namespace Encina.Tenancy;
 ///     {
 ///         tenantId ??= _tenantProvider.GetCurrentTenantId();
 ///
-///         if (tenantId is null)
-///             return GetDefaultConnectionString();
+///         if (string.IsNullOrWhiteSpace(tenantId))
+///             return _options.RequireTenant ? TenancyErrors.TenantRequired() : GetDefaultConnectionString();
 ///
-///         var tenant = await _tenantProvider.GetCurrentTenantAsync(cancellationToken);
+///         var tenant = await _tenantStore.GetTenantAsync(tenantId, cancellationToken);
+///         if (tenant is null)
+///             return TenancyErrors.TenantNotFound(); // fail closed: never the default database
 ///
-///         return tenant?.ConnectionString
-///             ?? _options.DefaultConnectionString
-///             ?? EncinaError.New($"No connection string for tenant '{tenantId}'").ToString();
+///         return string.IsNullOrWhiteSpace(tenant.ConnectionString)
+///             ? GetDefaultConnectionString()
+///             : tenant.ConnectionString;
 ///     }
 ///
 ///     private Either&lt;EncinaError, string&gt; GetDefaultConnectionString()
@@ -104,12 +109,15 @@ public interface ITenantConnectionFactory<TConnection>
     /// The caller is responsible for disposing the connection.
     /// </para>
     /// <para>
-    /// Connection resolution order:
+    /// Connection resolution order (fail closed):
     /// <list type="number">
-    /// <item>If <paramref name="tenantId"/> provided, use that tenant's connection string</item>
-    /// <item>Otherwise, use current tenant from <see cref="ITenantProvider.GetCurrentTenantId"/></item>
-    /// <item>If tenant has <see cref="TenantInfo.ConnectionString"/>, use it</item>
-    /// <item>Otherwise, use <see cref="TenancyOptions.DefaultConnectionString"/></item>
+    /// <item>If <paramref name="tenantId"/> provided, use that tenant; otherwise the current tenant from
+    /// <see cref="ITenantProvider.GetCurrentTenantId"/></item>
+    /// <item>No tenant: <see cref="TenancyErrors.TenantRequired"/> when <see cref="TenancyOptions.RequireTenant"/> is
+    /// <c>true</c>; the default connection string only when it is <c>false</c></item>
+    /// <item>A tenant the <see cref="ITenantStore"/> does not know: <see cref="TenancyErrors.TenantNotFound"/>, and no
+    /// connection is created</item>
+    /// <item>If the tenant has <see cref="TenantInfo.ConnectionString"/>, use it; otherwise the default connection string</item>
     /// </list>
     /// </para>
     /// </remarks>
