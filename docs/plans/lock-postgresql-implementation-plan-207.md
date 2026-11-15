@@ -15,7 +15,7 @@
 
 Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvider` over PostgreSQL **advisory locks** (`pg_try_advisory_lock`, `pg_advisory_unlock`, and the transaction-level `pg_try_advisory_xact_lock`). It is the PostgreSQL entry of the seven lock providers SPEC-000 DEC-009 fixes for 1.0 (InMemory, Redis, SqlServer, PostgreSQL, MySQL, Azure Blob, DynamoDB).
 
-1. **One dedicated connection per live handle.** An advisory lock belongs to the database session, so the handle owns an `NpgsqlConnection` from acquire to release (the model of the SQL Server provider). Releasing runs `pg_advisory_unlock` and returns the connection to the pool; `DISCARD ALL`, which Npgsql runs when it resets a pooled connection, frees any advisory lock that survived.
+1. **One dedicated connection per live handle.** An advisory lock belongs to the database session, so the handle owns an `NpgsqlConnection` from acquire to release (the model of the SQL Server provider). The connection is unpooled (design choice 9), so closing it always ends the session and the server frees the lock, even when `pg_advisory_unlock` fails.
 2. **Poll, do not block.** Acquire calls `pg_try_advisory_lock` every `retry` until the `wait` deadline, so the `retry` parameter of the interface has its meaning, delays use `TimeProvider`, and cancellation needs no server-side cancel request.
 3. **Expiry is enforced.** An advisory lock has no TTL, so the handle arms a `TimeProvider` timer that releases the lock at `ExpiresAtUtc`; `ExtendAsync` verifies on the server that the session still holds the lock and moves the deadline. A crashed process loses its connection, and the server frees the lock.
 4. **ADR-052 outcomes.** Acquired is `Right(Some(handle))`, contention or the wait elapsing is `Right(None)`, a database fault is `Left`, cancellation propagates.
@@ -213,6 +213,27 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 
 </details>
 
+<details>
+<summary><strong>9. Connection pooling of the lock connections</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Dedicated unpooled connections (`Pooling = false` on the lock connection string)** | Closing the connection always ends the session, so a failed unlock can never leave a lock held on an idle pooled connection; no pool-reset subtleties | A TCP and authentication handshake per acquire; each live handle holds one server connection (`max_connections`) |
+| **B) Pooled connections, explicit `pg_advisory_unlock`, and discard the connection when the unlock fails** | No handshake per acquire | Npgsql may defer the session reset of a pooled connection to its next use, so correctness rests on the unlock-failure path being right; discarding a single pooled connection has no direct public API (it needs a pool clear) |
+
+### Chosen Option: **A — unpooled lock connections** (recommended, pending the maintainer)
+
+### Rationale
+
+- Locks are coordination calls, not a hot data path, and mutual exclusion must not depend on a pool detail. Option B wins for a very high acquire rate where the handshake dominates; the maintainer can pick it when work starts, with the integration test "a failed unlock never leaves the lock held" as its acceptance.
+- Because every live handle holds a server connection, the README documents `max_connections` sizing, and the provider exposes no pool setting.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -287,7 +308,7 @@ REFERENCE FILES:
 #### `src/Encina.DistributedLock.PostgreSQL/`
 
 1. **`IAdvisoryLockSession.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> HoldsLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> IsLockedByAnyoneAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> UnlockAsync(long key, CancellationToken ct)`, `ValueTask DisposeAsync()`; plus an internal factory `IAdvisoryLockSessionFactory.OpenAsync(bool transactionMode, CancellationToken ct)`
-2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one `NpgsqlConnection` (and, in transaction mode, one `NpgsqlTransaction`); the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)`; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
+2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one unpooled `NpgsqlConnection` (the factory sets `Pooling = false` on the connection string, design choice 9) and, in transaction mode, one `NpgsqlTransaction`; the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)`; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
 3. **`PostgreSQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSQLLockOptions> options, ILogger<PostgreSQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension
 4. **`PostgreSQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per ADR-054 D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7550-7557 (Phase 5)
@@ -558,7 +579,7 @@ REFERENCE FILES:
 | Source | Provision | Relevance |
 |--------|-----------|-----------|
 | PostgreSQL documentation, "Explicit Locking: Advisory Locks" | `pg_try_advisory_lock(bigint)`, `pg_advisory_unlock`, `pg_try_advisory_xact_lock`; session locks survive transaction end, are held until unlock or session end, and are not subject to rollback | Defines the two modes and the release behavior |
-| PostgreSQL documentation, `DISCARD ALL` | Includes `pg_advisory_unlock_all()` | Why a pooled connection returned after a failed unlock cannot keep a lock |
+| PostgreSQL documentation, `DISCARD ALL`; Npgsql documentation on pooling and connection reset | `DISCARD ALL` includes `pg_advisory_unlock_all()`; Npgsql may defer the reset of a pooled connection to its next use | Why the lock connections are unpooled (design choice 9) |
 | PostgreSQL documentation, `pg_locks` | Advisory locks appear with `locktype = 'advisory'`, `classid`/`objid` holding the two halves of the `bigint` key and `objsubid = 1` | The non-intrusive probe |
 | ADR-052 | Lock providers return `Either`; contention is `Right(None)`; a fault is `Left` | Outcome mapping of every method |
 | ADR-062 | Error categories; R4 provider failures are `Internal`; R5 cancellation | Categories of the `Left` cases |
@@ -690,6 +711,6 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #207 and start the PR 1 brief; PRs 2 to 4 wait for [#2667](https://github.com/dlrivada/Encina/issues/2667).
-2. When work on the issue starts, ask the maintainer to answer Dilemmas 2 (transaction mode), 4 (poll or block) and 5 (enforced expiry), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 2 (transaction mode), 4 (poll or block), 5 (enforced expiry) and 9 (unpooled connections), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
 3. Follow-up issue file written with this plan: `artifacts/issues/lock-reader-writer-abstraction.md` (shared locks need a reader/writer lock contract above `IDistributedLockProvider`; the PostgreSQL `pg_advisory_lock_shared` and the other backends are candidates).
 4. One commit per phase; the last commit of PR 4 references `Fixes #207`.
