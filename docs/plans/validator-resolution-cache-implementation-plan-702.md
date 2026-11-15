@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `db1e7f688`)
+### What exists today (read on 2026-11-15, main `96c8803bd`)
 
 - `FluentValidationProvider.ValidateAsync<TRequest>` resolves the validators of the request type on every call: `_serviceProvider.GetServices<IValidator<TRequest>>().ToList()` (`FluentValidationProvider.cs:44`), then builds a `Task[]` with LINQ (`:66-68`), awaits `Task.WhenAll` (`:70`) and flattens the failures with LINQ into a `List<ValidationError>` (`:73-77`). When no validator is registered it returns `ValidationResult.Success` after the resolution and the list allocation (`:46-49`).
 - The provider is registered scoped (`TryAddScoped<IValidationProvider, FluentValidationProvider>`, `ServiceCollectionExtensions.cs:62` and `:104`), so a new instance exists per scope and an instance-level cache would never be hit twice. Validators are registered by assembly scanning with `ServiceLifetime.Singleton` by default (`RegisterValidators(..., lifetime = ServiceLifetime.Singleton)`, `:114`, descriptor built at `:138`); the second overload registers them with the lifetime the caller passes (the XML text names scoped validators that depend on a `DbContext` as the use case), and an application may register any validator manually with any lifetime (the existing benchmark registers one with `AddTransient<IValidator<FluentCommand>, FluentCommandValidator>()`, `tests/Encina.BenchmarkTests/Encina.Benchmarks/ValidationBenchmarks.cs`).
