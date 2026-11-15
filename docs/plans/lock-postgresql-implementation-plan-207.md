@@ -71,7 +71,7 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Session-level exclusive locks only** | One code path; simplest to test and to reason about | The lock cannot be used behind PgBouncer in transaction-pooling mode, where one client session is not one server session |
-| **B) Session-level by default, transaction-level (`pg_try_advisory_xact_lock`) as an opt-in `PostgreSqlLockOptions.UseTransactionLocks`** | The issue's own task list; works behind a transaction pooler; the server frees the lock when the transaction ends, even if the unlock call never runs | A second path: the handle holds an open transaction for the whole hold time (idle in transaction), so long holds keep a snapshot and need `idle_in_transaction_session_timeout` awareness |
+| **B) Session-level by default, transaction-level (`pg_try_advisory_xact_lock`) as an opt-in `PostgreSQLLockOptions.UseTransactionLocks`** | The issue's own task list; works behind a transaction pooler; the server frees the lock when the transaction ends, even if the unlock call never runs | A second path: the handle holds an open transaction for the whole hold time (idle in transaction), so long holds keep a snapshot and need `idle_in_transaction_session_timeout` awareness |
 
 ### Chosen Option: **B — session-level by default, `UseTransactionLocks` as an opt-in** (recommended, pending the maintainer)
 
@@ -221,9 +221,9 @@ Four pull requests, each at most 15 files and 1500 changed lines counting tests,
 
 | PR | Phases | Files (production and metadata) | Files (tests and docs) | Files / lines (approx.) |
 |---|---|---|---|---|
-| 1 | Phase 1 and the EventId registration of Phase 5 | csproj, `PostgreSqlLockOptions`, `PostgreSqlLockKey`, two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (9) | `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` reference, `PostgreSqlLockOptionsTests`, `PostgreSqlLockKeyTests` (4) | 13 files / 600 |
-| 2 | Phases 2 and 5 (logs, diagnostics) | `IAdvisoryLockSession`, `NpgsqlAdvisoryLockSession`, `PostgreSqlDistributedLockProvider`, `PostgreSqlLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (6) | `FakeAdvisoryLockSession`, provider unit tests (acquire/contend/expiry), handle unit tests, guard tests, `Encina.GuardTests.csproj` reference (5) | 11 files / 1,300 |
-| 3 | Phase 3 | `ServiceCollectionExtensions`, `Health/PostgreSqlDistributedLockHealthCheck`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test with `ValidateOnBuild`/`ValidateScopes`, health check unit tests, guard tests for both (3) | 7 files / 700 |
+| 1 | Phase 1 and the EventId registration of Phase 5 | csproj, `PostgreSQLLockOptions`, `PostgreSQLLockKey`, two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (9) | `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` reference, `PostgreSQLLockOptionsTests`, `PostgreSQLLockKeyTests` (4) | 13 files / 600 |
+| 2 | Phases 2 and 5 (logs, diagnostics) | `IAdvisoryLockSession`, `NpgsqlAdvisoryLockSession`, `PostgreSQLDistributedLockProvider`, `PostgreSQLLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (6) | `FakeAdvisoryLockSession`, provider unit tests (acquire/contend/expiry), handle unit tests, guard tests, `Encina.GuardTests.csproj` reference (5) | 11 files / 1,300 |
+| 3 | Phase 3 | `ServiceCollectionExtensions`, `Health/PostgreSQLDistributedLockHealthCheck`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test with `ValidateOnBuild`/`ValidateScopes`, health check unit tests, guard tests for both (3) | 7 files / 700 |
 | 4 | Phases 4, 6 and 7 | none | contract class and `Encina.ContractTests.csproj` reference, integration tests and `Encina.IntegrationTests.csproj` reference, property test of the key (`Encina.PropertyTests.csproj` reference), README, changelog fragment, two load/benchmark justification files, manifest (11) | 11 files / 900 |
 
 If a PR measures over 15 files or 1,500 lines, the worker splits it again and never asks for `size-exception-approved`. PR 2 has the least slack (about 1,300 lines): if the provider tests grow, the handle tests move to PR 3.
@@ -238,12 +238,12 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 #### `src/Encina.DistributedLock.PostgreSQL/`
 
 1. **`Encina.DistributedLock.PostgreSQL.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `Npgsql` (central version), the PublicApiAnalyzers, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests`; a new GUID
-2. **`PostgreSqlLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString` (secret rule, `AGENTS.md` section 3); `bool UseTransactionLocks`; `TimeSpan UnlockTimeout = 5 s` (the bound of a timer-driven release); a `ToString()` that prints only the prefix and the mode, never the connection string
-3. **`PostgreSqlLockKey.cs`** (new, internal static) — `static string Compose(string prefix, string resource)` (the `lock:` format of the SQL Server provider) and `static long ToAdvisoryKey(string composedKey)` (SHA-256, first 8 bytes big-endian)
+2. **`PostgreSQLLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString` (secret rule, `AGENTS.md` section 3); `bool UseTransactionLocks`; `TimeSpan UnlockTimeout = 5 s` (the bound of a timer-driven release); a `ToString()` that prints only the prefix and the mode, never the connection string
+3. **`PostgreSQLLockKey.cs`** (new, internal static) — `static string Compose(string prefix, string resource)` (the `lock:` format of the SQL Server provider) and `static long ToAdvisoryKey(string composedKey)` (SHA-256, first 8 bytes big-endian)
 4. **`PublicAPI.Shipped.txt`** (new, `#nullable enable`) and **`PublicAPI.Unshipped.txt`** (the options members)
 5. **`Encina.slnx`** (modify) — the project line; **`.github/coverage-manifest/Encina.DistributedLock.PostgreSQL.json`** (new, written by `mechanical-fixer` from the target table of Phase 6)
 6. **`tests/Encina.UnitTests/Encina.UnitTests.csproj`** (modify) — project reference
-7. **`tests/Encina.UnitTests/DistributedLock/PostgreSql/PostgreSqlLockOptionsTests.cs`** and **`PostgreSqlLockKeyTests.cs`** (new) — defaults, `ToString` hides the connection string, key determinism, prefix handling, different names give different keys for a fixed sample set
+7. **`tests/Encina.UnitTests/DistributedLock/PostgreSQL/PostgreSQLLockOptionsTests.cs`** and **`PostgreSQLLockKeyTests.cs`** (new) — defaults, `ToString` hides the connection string, key determinism, prefix handling, different names give different keys for a fixed sample set
 
 </details>
 
@@ -260,7 +260,7 @@ CONTEXT:
 - The options hold a connection string: [JsonIgnore] and a ToString() that never prints it.
 
 TASK:
-Create the csproj, PostgreSqlLockOptions, the internal PostgreSqlLockKey, the two PublicAPI files, the slnx line,
+Create the csproj, PostgreSQLLockOptions, the internal PostgreSQLLockKey, the two PublicAPI files, the slnx line,
 the unit test project reference and the unit tests of options and key. Ask mechanical-fixer for the manifest and
 the Unshipped lines.
 
@@ -288,8 +288,8 @@ REFERENCE FILES:
 
 1. **`IAdvisoryLockSession.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> HoldsLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> IsLockedByAnyoneAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> UnlockAsync(long key, CancellationToken ct)`, `ValueTask DisposeAsync()`; plus an internal factory `IAdvisoryLockSessionFactory.OpenAsync(bool transactionMode, CancellationToken ct)`
 2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one `NpgsqlConnection` (and, in transaction mode, one `NpgsqlTransaction`); the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)`; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
-3. **`PostgreSqlDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSqlLockOptions> options, ILogger<PostgreSqlDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension
-4. **`PostgreSqlLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per ADR-054 D4)
+3. **`PostgreSQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSQLLockOptions> options, ILogger<PostgreSQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension
+4. **`PostgreSQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per ADR-054 D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7550-7557 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** (the provider and its constructor), the manifest (per-file targets, Phase 7)
 7. **Tests**: `FakeAdvisoryLockSession` (test double with scripted results and a log of calls), provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, fault on try-lock, cancellation, registry extend of a held and an unheld resource, expiry release, double dispose), handle unit tests, guard tests (constructor and the four methods), `Encina.GuardTests.csproj` project reference
@@ -338,8 +338,8 @@ REFERENCE FILES:
 
 #### `src/Encina.DistributedLock.PostgreSQL/`
 
-1. **`ServiceCollectionExtensions.cs`** (new, public static) — `AddEncinaDistributedLockPostgreSql(this IServiceCollection, string connectionString)` and the overload with `Action<PostgreSqlLockOptions>`; `TryAddSingleton(TimeProvider.System)`, `Configure<PostgreSqlLockOptions>`, `TryAddSingleton<IAdvisoryLockSessionFactory>`, `TryAddSingleton<IDistributedLockProvider, PostgreSqlDistributedLockProvider>`; registers the health check when `ProviderHealthCheck.Enabled` (the shape of `AddEncinaDistributedLockSqlServer`); options validated at start (non-empty connection string)
-2. **`Health/PostgreSqlDistributedLockHealthCheck.cs`** (new, public sealed) — `IEncinaHealthCheck`; `public const string DefaultName = "postgresql-distributed-lock"`; tags `["postgresql", "distributed-lock", "ready"]`; opens a session, takes and releases a random advisory key, returns `Unhealthy` with the exception type only (never the message or the connection string)
+1. **`ServiceCollectionExtensions.cs`** (new, public static) — `AddEncinaDistributedLockPostgreSQL(this IServiceCollection, string connectionString)` and the overload with `Action<PostgreSQLLockOptions>`; `TryAddSingleton(TimeProvider.System)`, `Configure<PostgreSQLLockOptions>`, `TryAddSingleton<IAdvisoryLockSessionFactory>`, `TryAddSingleton<IDistributedLockProvider, PostgreSQLDistributedLockProvider>`; registers the health check when `ProviderHealthCheck.Enabled` (the shape of `AddEncinaDistributedLockSqlServer`); options validated at start (non-empty connection string)
+2. **`Health/PostgreSQLDistributedLockHealthCheck.cs`** (new, public sealed) — `IEncinaHealthCheck`; `public const string DefaultName = "postgresql-distributed-lock"`; tags `["postgresql", "distributed-lock", "ready"]`; opens a session, takes and releases a random advisory key, returns `Unhealthy` with the exception type only (never the message or the connection string)
 3. **`PublicAPI.Unshipped.txt`**, the manifest
 4. **Tests**: DI test building the provider with `ValidateOnBuild` and `ValidateScopes` (registration completeness, `AGENTS.md` section 3), a registration-order test (a provider registered earlier by the application is not overridden: `TryAdd`), health check unit tests with the fake session, guard tests of both public types
 
@@ -352,11 +352,11 @@ REFERENCE FILES:
 You are implementing Phase 3 of issue #207: registration and health check of the PostgreSQL lock provider.
 
 CONTEXT:
-- Phase 2 produced PostgreSqlDistributedLockProvider and IAdvisoryLockSessionFactory.
+- Phase 2 produced PostgreSQLDistributedLockProvider and IAdvisoryLockSessionFactory.
 - The registration must resolve everything the provider needs: options, TimeProvider, the session factory, logger.
 
 TASK:
-Write ServiceCollectionExtensions (two overloads) and PostgreSqlDistributedLockHealthCheck; add the DI test with
+Write ServiceCollectionExtensions (two overloads) and PostgreSQLDistributedLockHealthCheck; add the DI test with
 ValidateOnBuild and ValidateScopes, the health check tests and the guard tests.
 
 KEY RULES:
@@ -406,7 +406,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - issue #741 (the tenant decorator; read the issue, its plan is not on main yet)
-- src/Encina.DistributedLock.PostgreSQL/PostgreSqlDistributedLockProvider.cs
+- src/Encina.DistributedLock.PostgreSQL/PostgreSQLDistributedLockProvider.cs
 ```
 
 </details>
@@ -418,10 +418,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify, PR 1) — `public static readonly (int Min, int Max) DistributedLockPostgreSql = (7550, 7559);` with the XML summary `Encina.DistributedLock.PostgreSQL — PostgreSQL advisory lock provider`; the new field line in `src/Encina/PublicAPI.Unshipped.txt`
-2. **`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`** (modify, PR 1) — `["Encina.DistributedLock.PostgreSQL"] = [nameof(EventIdRanges.DistributedLockPostgreSql)]`
+1. **`src/Encina/Diagnostics/EventIdRanges.cs`** (modify, PR 1) — `public static readonly (int Min, int Max) DistributedLockPostgreSQL = (7550, 7559);` with the XML summary `Encina.DistributedLock.PostgreSQL — PostgreSQL advisory lock provider`; the new field line in `src/Encina/PublicAPI.Unshipped.txt`
+2. **`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`** (modify, PR 1) — `["Encina.DistributedLock.PostgreSQL"] = [nameof(EventIdRanges.DistributedLockPostgreSQL)]`
 3. **Log messages** (PR 2) — 7550 lock acquired (Debug), 7551 lock released (Debug), 7552 wait elapsed, lock contended (Debug), 7553 acquire fault (Warning, exception type), 7554 release failed, connection closed to free the lock (Warning), 7555 expiry reached, lock released by the timer (Information), 7556 extend found the lock lost (Warning), 7557 timer release failed (Warning). 7558-7559 stay spare. Contention is never an error level.
-4. **Metrics and spans** (PR 2) — `PostgreSqlLockDiagnostics`: spans `DistributedLock.Acquire` and `DistributedLock.Release`, counter `encina.distributed_lock.acquisitions`; names align with the shared instruments of [#724](https://github.com/dlrivada/Encina/issues/724) and move onto them if it lands first.
+4. **Metrics and spans** (PR 2) — `PostgreSQLLockDiagnostics`: spans `DistributedLock.Acquire` and `DistributedLock.Release`, counter `encina.distributed_lock.acquisitions`; names align with the shared instruments of [#724](https://github.com/dlrivada/Encina/issues/724) and move onto them if it lands first.
 
 </details>
 
@@ -437,7 +437,7 @@ CONTEXT:
 - Contention is not a failure: Debug level and outcome "contended".
 
 TASK:
-Register DistributedLockPostgreSql = (7550, 7559), map the assembly, add the [LoggerMessage] methods with the ids
+Register DistributedLockPostgreSQL = (7550, 7559), map the assembly, add the [LoggerMessage] methods with the ids
 in the Tasks, and the diagnostics class. Run the architecture tests.
 
 KEY RULES:
@@ -463,18 +463,18 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 
 | File | unit | guard | contract | integration | property | Justification |
 |---|---:|---:|---:|---:|---:|---|
-| `PostgreSqlDistributedLockProvider.cs` | 90 | 14 | 45 | 70 | 0 | The poll loop, registry, timer, handle and error mapping run against the fake session; the contract suite adds the shared scenarios; integration adds the real server; property 0: no randomized logic beyond the key |
+| `PostgreSQLDistributedLockProvider.cs` | 90 | 14 | 45 | 70 | 0 | The poll loop, registry, timer, handle and error mapping run against the fake session; the contract suite adds the shared scenarios; integration adds the real server; property 0: no randomized logic beyond the key |
 | `NpgsqlAdvisoryLockSession.cs` | 5 | 5 | 0 | 90 | 0 | Needs a real PostgreSQL; unit and guard reach only the guards; contract 0 because the contract class uses the provider on the shared container (integration flag) |
-| `PostgreSqlLockKey.cs` | 100 | 0 | 0 | 0 | 95 | Pure function; guard 0: internal type without `InternalsVisibleTo` for `Encina.GuardTests`; FsCheck covers determinism and spread |
-| `PostgreSqlLockOptions.cs` | 100 | 0 | 0 | 0 | 0 | Property bag; guard 0: no parameters |
+| `PostgreSQLLockKey.cs` | 100 | 0 | 0 | 0 | 95 | Pure function; guard 0: internal type without `InternalsVisibleTo` for `Encina.GuardTests`; FsCheck covers determinism and spread |
+| `PostgreSQLLockOptions.cs` | 100 | 0 | 0 | 0 | 0 | Property bag; guard 0: no parameters |
 | `ServiceCollectionExtensions.cs` | 95 | 90 | 0 | 0 | 0 | DI with a validated provider; guard covers each overload |
-| `Health/PostgreSqlDistributedLockHealthCheck.cs` | 85 | 85 | 0 | 75 | 0 | Fake session for unit; the integration test runs it against the container |
-| `PostgreSqlLockDiagnostics.cs` | 80 | 0 | 0 | 0 | 0 | Instruments exercised through the provider tests; guard 0: no parameters |
+| `Health/PostgreSQLDistributedLockHealthCheck.cs` | 85 | 85 | 0 | 75 | 0 | Fake session for unit; the integration test runs it against the container |
+| `PostgreSQLLockDiagnostics.cs` | 80 | 0 | 0 | 0 | 0 | Instruments exercised through the provider tests; guard 0: no parameters |
 
 1. **Unit** — the scenarios of Phases 1 to 3, using `FakeTimeProvider` and the fake session.
 2. **Guard** — constructor (null options, null logger, options without a connection string) and each method (null or whitespace resource, non-positive expiry as #2724 decides).
-3. **Contract** — one derived class of the suite #2667 creates, named `PostgreSqlDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held/unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference.
-4. **Property** — FsCheck on `PostgreSqlLockKey`: determinism, prefix separation, no exception for any string.
+3. **Contract** — one derived class of the suite #2667 creates, named `PostgreSQLDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held/unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference.
+4. **Property** — FsCheck on `PostgreSQLLockKey`: determinism, prefix separation, no exception for any string.
 5. **Integration** — `[Collection("ADO-PostgreSQL")]` on `PostgreSqlFixture`, `[Trait("Category", "Integration")]`, `[Trait("Database", "PostgreSQL")]`: two providers on one database block each other; release frees the lock; killing the session (`pg_terminate_backend`) frees it; the expiry timer frees it; transaction mode; `IsLockedAsync` does not disturb a concurrent contender; cancellation inside a wait; health check on a real server.
 6. **Load and benchmark** — `.md` justification files under `tests/Encina.NBomber/Scenarios/Locking/` and `tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/`: the provider is a thin client over a database primitive and is covered by the shared lock scenarios once its factory is added by the issue that owns those scenarios; a missing `.md` would mean "not evaluated" (`AGENTS.md` section 9).
 
@@ -594,7 +594,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.DistributedLock.PostgreSQL` (new range `DistributedLockPostgreSql`) | 7550-7559 | From the block 7550-7599 assigned to this family (`lock-providers-1`); 7550-7557 used, 7558-7559 spare. The other provider plans of the family take 7560-7569 (MySQL), 7570-7579 (Azure Blob) and 7580-7589 (DynamoDB); 7590-7599 stay spare |
+| `Encina.DistributedLock.PostgreSQL` (new range `DistributedLockPostgreSQL`) | 7550-7559 | From the block 7550-7599 assigned to this family (`lock-providers-1`); 7550-7557 used, 7558-7559 spare. The other provider plans of the family take 7560-7569 (MySQL), 7570-7579 (Azure Blob) and 7580-7589 (DynamoDB); 7590-7599 stay spare |
 | `Encina.DistributedLock.SqlServer` (existing, for reference) | 3800-3849 | Not touched |
 
 ### Estimated File Count
@@ -629,13 +629,13 @@ PROJECT CONTEXT:
 - Time only from TimeProvider. EncinaError.Message never reaches logs, tags or health checks.
 
 IMPLEMENTATION OVERVIEW:
-1. Package skeleton: csproj, PostgreSqlLockOptions ([JsonIgnore] connection string, UseTransactionLocks),
-   PostgreSqlLockKey (SHA-256 to bigint of "{prefix}:lock:{resource}").
-2. IAdvisoryLockSession seam and NpgsqlAdvisoryLockSession adapter; PostgreSqlDistributedLockProvider: poll the
+1. Package skeleton: csproj, PostgreSQLLockOptions ([JsonIgnore] connection string, UseTransactionLocks),
+   PostgreSQLLockKey (SHA-256 to bigint of "{prefix}:lock:{resource}").
+2. IAdvisoryLockSession seam and NpgsqlAdvisoryLockSession adapter; PostgreSQLDistributedLockProvider: poll the
    try-lock every retry until wait, one session per handle, expiry enforced by a TimeProvider timer that never
    throws, provider ExtendAsync through a registry of live handles, IsLockedAsync through pg_locks.
-3. AddEncinaDistributedLockPostgreSql (two overloads, TryAdd*), health check, DI test with ValidateOnBuild.
-4. EventIds 7550-7557 in range DistributedLockPostgreSql (7550-7559), diagnostics, ActivitySource and Meter.
+3. AddEncinaDistributedLockPostgreSQL (two overloads, TryAdd*), health check, DI test with ValidateOnBuild.
+4. EventIds 7550-7557 in range DistributedLockPostgreSQL (7550-7559), diagnostics, ActivitySource and Meter.
 5. Tests: unit (fake session, FakeTimeProvider), guard, contract (suite of #2667), property (key), integration on
    the ADO-PostgreSQL collection; documentation through docs-writer; changelog and PublicAPI through mechanical-fixer.
 
@@ -662,7 +662,7 @@ REFERENCE FILES:
 | 1 | Caching | ❌ | Lock state is ephemeral coordination state; caching it would be a defect |
 | 2 | OpenTelemetry | ✅ | Phase 5: spans for acquire and release, acquisitions counter with `provider` and `outcome` tags; no tenant tag here, the #741 decorator adds `encina.tenant_id` (ADR-054 D4); names align with [#724](https://github.com/dlrivada/Encina/issues/724) |
 | 3 | Structured Logging | ✅ | Phase 5: `[LoggerMessage]` EventIds 7550-7557 in the registered range, exception type only |
-| 4 | Health Checks | ✅ | Phase 3: `PostgreSqlDistributedLockHealthCheck` takes and releases a random advisory key |
+| 4 | Health Checks | ✅ | Phase 3: `PostgreSQLDistributedLockHealthCheck` takes and releases a random advisory key |
 | 5 | Validation | ✅ | Phases 1 and 3: connection string validated at startup; resource and expiry arguments validated as [#2724](https://github.com/dlrivada/Encina/issues/2724) decides |
 | 6 | Resilience | ❌ | The provider's own wait/retry loop is the retry; a fault ends the attempt with `Left` and the caller decides; a Polly policy would double the retries |
 | 7 | Distributed Locks | ❌ | This is the distributed lock feature itself |
