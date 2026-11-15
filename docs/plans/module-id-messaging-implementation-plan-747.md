@@ -12,7 +12,7 @@
 
 Add the module to the four messaging rows: `IOutboxMessage.ModuleId`, `ISagaState.ModuleId`, `IScheduledMessage.ModuleId` and `IDeadLetterMessage.ModuleId`, filled when the row is created from the ambient module, persisted by all 10 database providers, readable through a module-filtered query per store, and restored as the ambient module when a stored row is dispatched again (outbox delivery, scheduled delivery, saga timeout and compensation, dead letter replay is #2013's, see Design Choice 6).
 
-**State of `origin/main` (`db1e7f688`), verified by reading and grep (corrects the issue text):**
+**State of `origin/main` (`96c8803bd`), verified by reading and grep (corrects the issue text):**
 
 - There is no `IModuleContext`. The ambient module is `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs`, an `AsyncLocal` implementation in `ModuleExecutionContext.cs`). It is set only by `ModuleExecutionContextBehavior` in `Encina.EntityFrameworkCore` and only with `UseModuleIsolation`; ADO.NET, Dapper and MongoDB register the context and nothing sets it. #352 (pull request 1) moves the producer to core and runs it whenever `AddEncinaModules` is used; until it merges the stamped value is `null` outside EF Core with module isolation, which this plan handles as "no module" and tests with an explicit scope (`IModuleExecutionContext.CreateScope`).
 - The issue says "13 database providers". The matrix is 10 (`AGENTS.md` section 5): ADO.NET x3, Dapper x3, EF Core x3 (one `Encina.EntityFrameworkCore` package serves SQL Server, PostgreSQL and MySQL), MongoDB. SQLite and Oracle are out of the matrix.
