@@ -110,7 +110,7 @@ public sealed class ConsentGrantStreamIdIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task GrantConsentAsync_RepeatThenWithdraw_WithdrawsTheOneRecord()
     {
-        // Arrange — two grants of one key, then a withdrawal in a later request (its own session).
+        // Arrange — two grants of one key, then a withdrawal in a later request (its own session); the one-session case is the next test.
         var subjectId = NewSubjectId();
         var granted = await CreateService(tenantId: null).GrantConsentAsync(subjectId, Purpose, "v1", "web-form", "actor");
         var repeated = await CreateService(tenantId: null).GrantConsentAsync(subjectId, Purpose, "v1", "web-form", "actor");
@@ -126,6 +126,28 @@ public sealed class ConsentGrantStreamIdIntegrationTests : IAsyncLifetime
         var reloaded = await CreateRepository().LoadAsync(consentId);
         reloaded.IfRight(aggregate => aggregate.Status.ShouldBe(ConsentStatus.Withdrawn));
         reloaded.IsRight.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GrantConsentAsync_RepeatThenWithdraw_OnOneSession_WithdrawsTheOneRecord()
+    {
+        // Arrange — one service, hence one scoped session, for every step (no fresh session in between).
+        var subjectId = NewSubjectId();
+        var service = CreateService(tenantId: null);
+
+        // Act
+        var granted = await service.GrantConsentAsync(subjectId, Purpose, "v1", "web-form", "actor");
+        var repeated = await service.GrantConsentAsync(subjectId, Purpose, "v1", "web-form", "actor");
+        var consentId = granted.Match(Right: id => id, Left: _ => Guid.Empty);
+        var withdrawn = await service.WithdrawConsentAsync(consentId, "actor");
+
+        // Assert
+        repeated.ShouldBe(granted);
+        withdrawn.IsRight.ShouldBeTrue($"Withdrawal on the same session should succeed: {withdrawn}");
+        (await CountGrantedEventsAsync(subjectId)).ShouldBe(1);
+        var reloaded = await CreateRepository().LoadAsync(consentId);
+        reloaded.IsRight.ShouldBeTrue();
+        reloaded.IfRight(aggregate => aggregate.Status.ShouldBe(ConsentStatus.Withdrawn));
     }
 
     [Fact]
