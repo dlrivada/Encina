@@ -340,7 +340,7 @@ public class ConsentAggregatePropertyTests
 
         var expected = regrantAt > withdrawnAt ? ConsentStatus.Active : ConsentStatus.Withdrawn;
         return aggregate.Status == expected
-            && aggregate.UncommittedEvents[^1] is Encina.Compliance.Consent.Events.ConsentRegranted;
+            && aggregate.UncommittedEvents[^1] is global::Encina.Compliance.Consent.Events.ConsentRegranted;
     }
 
     /// <summary>
