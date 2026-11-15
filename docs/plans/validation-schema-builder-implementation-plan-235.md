@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `db1e7f688`)
+### What exists today (read on 2026-11-15, main `96c8803bd`)
 
 - All validation in Encina is rule-attached-to-a-type: FluentValidation `AbstractValidator<T>` classes, DataAnnotations attributes and MiniValidation (which reads the same attributes), run by the one registered `IValidationProvider` after the request is bound (`ValidationPipelineBehavior`, `ValidationOrchestrator`; `src/Encina/Validation/`). The only provider-neutral result is `ValidationResult` with `ValidationError(PropertyName, ErrorMessage)` (`ValidationResult.cs:97`).
 - There is no schema concept, no package `Encina.Validation.Schema`, no `Schema` type, no parser from raw input, no type coercion, no composition, no discriminated union and no limits on untrusted input (`git grep -n "Encina.Validation.Schema" -- src` is empty). The only Roslyn component in `src` is `Encina.Security.ABAC.Analyzers`; the generator project of #227 does not exist yet.
