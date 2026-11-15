@@ -1,0 +1,33 @@
+> test info
+
+
+
+test suite: `Encina`
+
+test name: `brokers`
+
+session id: `2026-11-14_02-33-11_8b7d425a`
+
+> scenario stats
+
+
+
+scenario: `send_flow`
+
+  - duration: `00:01:00`
+
+load simulations:
+
+  - `inject`, rate: `240000`, interval: `00:00:01`, during: `00:01:00`
+
+|scenario and steps|ok stats|
+|---|---|
+|scenario name|`send_flow`|
+|requests|total = `14400000`, ok = `14400000`, fail = `0`|
+|RPS (req/sec)|total = `240000`/s, ok = `240000`/s, fail = `0`/s|
+|latency (ms)|min = `0`, mean = `0.02`, max = `566.91`, StdDev = `0.86`|
+|latency percentile (ms)|p50 = `0`, p75 = `0`, p95 = `0.01`, p99 = `0.01`|
+
+
+
+
