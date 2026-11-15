@@ -252,6 +252,94 @@ public sealed class InMemoryNonceStoreTests : IDisposable
 
     #endregion
 
+    #region Expired entry replaced concurrently (#3836)
+
+    [Fact]
+    public async Task ExistsAsync_NonceRefreshedBetweenTheExpiredReadAndTheRemoval_KeepsTheRefreshedNonce()
+    {
+        // Arrange: an expired nonce, and a clock that refreshes it through TryAddAsync on its next read,
+        // which is after ExistsAsync has read the expired entry and before it removes it
+        var clock = new ReadHookTimeProvider(DateTimeOffset.UtcNow);
+        using var store = new InMemoryNonceStore(clock);
+        await store.TryAddAsync("nonce-1", TimeSpan.FromMinutes(1));
+        clock.Advance(TimeSpan.FromMinutes(2));
+        var refreshed = false;
+        clock.OnNextRead = () => refreshed = store.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10)).AsTask().GetAwaiter().GetResult();
+
+        // Act
+        var exists = await store.ExistsAsync("nonce-1");
+
+        // Assert: ExistsAsync answers for the expired entry it read, but the refreshed nonce survives
+        exists.ShouldBeFalse();
+        refreshed.ShouldBeTrue();
+        store.Count.ShouldBe(1);
+        (await store.ExistsAsync("nonce-1")).ShouldBeTrue();
+        (await store.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task TryRemoveExpired_EntryReplacedAfterTheSweepReadIt_KeepsTheReplacement()
+    {
+        // Arrange: the entry as the cleanup sweep reads it, then a TryAddAsync that replaces it
+        var expiredAt = _timeProvider.GetUtcNow().AddMinutes(1);
+        await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(1));
+        _timeProvider.Advance(TimeSpan.FromMinutes(2));
+        var observedBySweep = new KeyValuePair<string, DateTimeOffset>("nonce-1", expiredAt);
+        (await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10))).ShouldBeTrue();
+
+        // Act
+        var removed = _sut.TryRemoveExpired(observedBySweep, _timeProvider.GetUtcNow());
+
+        // Assert: the replay of the refreshed nonce is still rejected
+        removed.ShouldBeFalse();
+        (await _sut.ExistsAsync("nonce-1")).ShouldBeTrue();
+        (await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(10))).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task TryRemoveExpired_UnchangedExpiredEntry_RemovesIt()
+    {
+        // Arrange
+        var expiredAt = _timeProvider.GetUtcNow().AddMinutes(1);
+        await _sut.TryAddAsync("nonce-1", TimeSpan.FromMinutes(1));
+        _timeProvider.Advance(TimeSpan.FromMinutes(2));
+
+        // Act
+        var removed = _sut.TryRemoveExpired(
+            new KeyValuePair<string, DateTimeOffset>("nonce-1", expiredAt), _timeProvider.GetUtcNow());
+
+        // Assert
+        removed.ShouldBeTrue();
+        _sut.Count.ShouldBe(0);
+    }
+
+    /// <summary>
+    /// A fake clock that runs <see cref="OnNextRead"/> once, inside the next <see cref="GetUtcNow"/>
+    /// call, so a test can act between the store's read of an entry and its use of the time.
+    /// </summary>
+    private sealed class ReadHookTimeProvider(DateTimeOffset start) : TimeProvider
+    {
+        private readonly FakeTimeProvider _inner = new(start);
+
+        public Action? OnNextRead { get; set; }
+
+        public void Advance(TimeSpan delta) => _inner.Advance(delta);
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            var hook = OnNextRead;
+            OnNextRead = null;
+            hook?.Invoke();
+
+            return _inner.GetUtcNow();
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period) =>
+            _inner.CreateTimer(callback, state, dueTime, period);
+    }
+
+    #endregion
+
     #region Default TimeProvider
 
     [Fact]
