@@ -11,7 +11,7 @@
 
 Add the Backends for Frontends (BFF) pattern to Encina: a request for one client type (web, mobile, IoT) is answered by calling several backend services in parallel and composing one response, all inside the Encina pipeline. The recommended shape (Dilemma D1, option A) is **in-process aggregation**: each backend call is an Encina request dispatched through `IEncina` (typically an `Encina.Refit` request), so validation, caching, resilience, tenancy and authorization apply to every step with no new code, and a new package `Encina.BFF` supplies the fan-out engine, the aggregation contracts, route declaration and endpoint mapping. A reverse-proxy gateway (YARP) stays outside the first delivery unless the maintainer answers D1 with option B.
 
-Facts checked against `origin/main` (`18ec8dd19`):
+Facts checked against `origin/main` (`18ec8dd19`, verified 2026-11-10):
 
 - There is no `Encina.BFF`, `Encina.BFF.YARP` or `Encina.BFF.Aggregation` project, no `IBffRequestAdapter`, `IResponseAggregator<T>`, `BffRoute` or `AggregateFrom` in `src/`, and `Directory.Packages.props` has no `Yarp.ReverseProxy`.
 - `src/Encina.Refit` is the only HTTP client integration: `RestApiRequestHandler<TRequest,TApiClient,TResponse>` turns an HTTP call into `Either<EncinaError,T>` with the outbound taxonomy (`OutboundErrorCodes`: `Timeout`, `RateLimited`, `ServerError`, `NetworkError`, `ClientError`, `UnexpectedResponse`, with transient and ambiguous flags) and records `Encina.Outbound.Send` and `encina.outbound.requests_total`.
@@ -226,7 +226,7 @@ C is excluded by the fail-closed principle (AGENTS.md section 3), A and B both s
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `src/Encina.BFF/Encina.BFF.csproj` (references `Encina`, the ASP.NET Core framework, `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `InternalsVisibleTo` for the five test projects like `Encina.AspNetCore`), added to `Encina.slnx`; `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `README.md`.
+1. `src/Encina.BFF/Encina.BFF.csproj` (references `Encina`, the ASP.NET Core framework, `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `InternalsVisibleTo` for the five test projects like `Encina.AspNetCore`), added to `Encina.slnx`; `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, `README.md` (S1 carries it, a new package needs its README in the creating pull request; S6 only extends it).
 2. `Abstractions/BffContext.cs`: `ClientType`, `TenantId`, `CorrelationId` taken from `IRequestContext`. With tenancy on and no tenant resolved no context is built: the endpoint returns `Left` (`encina.bff.tenant_required`, `InvalidRequest`) before any backend call (fail closed).
 3. `Abstractions/ServiceResponse.cs`: step name, `Either<EncinaError, object>`, `Elapsed`, `Skipped`.
 4. `Abstractions/IBffRequestAdapter.cs`: the issue's `ForwardAsync<TRequest,TResponse>(TRequest, BffContext, CancellationToken)` returning `Either<EncinaError,TResponse>`; the default implementation (`Adapters/DefaultBffRequestAdapter.cs`, lands in S3 with its tests) dispatches through `IEncina.Send` with the step timeout.
@@ -467,14 +467,14 @@ Total about 64 files and more than 5,000 lines: well above one worker pull reque
 
 | Sub-issue | Content | Files |
 |-----------|---------|-------|
-| **S1** | Project, `Encina.slnx`, `BffContext`, `ServiceResponse`, `IBffRequestAdapter`, `IResponseAggregator`, `BffErrors` (categorized), `PublicAPI.Shipped/Unshipped.txt`, manifest; `Encina.UnitTests` and `Encina.GuardTests` project references; errors, response and context unit tests and a guard test | 15 |
-| **S2** | `EventIdRanges.BFF`, `AssemblyRanges` entry, core `PublicAPI.Unshipped.txt`, `Encina.json` row, `BffLog`, `AggregationBuilder`, `AggregationStep`, `ParallelAggregationExecutor`, `BffDiagnostics`, package `PublicAPI` and manifest edits; builder, executor and diagnostics unit tests and a guard test | 15 |
-| **S3** | `DefaultBffRequestAdapter`, `BffAggregator`, `BffRouteAttribute`, `BffRouteDiscovery`, `BffEndpointExtensions`, `BffOptions` and validator, `ServiceCollectionExtensions`, `PublicAPI`, manifest; adapter and aggregator, routing, options/DI unit tests and a guard test | 14 |
+| **S1** | 1 `Encina.BFF.csproj`, 2 `Encina.slnx`, 3 `BffContext`, 4 `ServiceResponse`, 5 `IBffRequestAdapter`, 6 `BffErrors` (categorized), 7-8 `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`, 9 `README.md` (the creating pull request carries it), 10 manifest `Encina.BFF.json`, 11-12 the `Encina.UnitTests` and `Encina.GuardTests` project references, 13 `BffErrorsTests`, 14 `BffContextAndResponseTests`, 15 `BffGuardTests` (`IResponseAggregator` moves to S3 with its only consumer, `BffAggregator`) | 15 |
+| **S2** | `EventIdRanges.BFF`, `AssemblyRanges` entry, core `PublicAPI.Unshipped.txt`, `Encina.json` row, `BffLog`, `AggregationBuilder`, `AggregationStep`, `ParallelAggregationExecutor`, `BffDiagnostics`, package `PublicAPI` and manifest edits; builder, executor and diagnostics unit tests and a guard test; S2 builds with the executor tests as the only consumer of the `Optional()` and builder contract (the aggregator-facing API gets its production consumer in S3) | 15 |
+| **S3** | `IResponseAggregator`, `DefaultBffRequestAdapter`, `BffAggregator`, `BffRouteAttribute`, `BffRouteDiscovery`, `BffEndpointExtensions`, `BffOptions` and validator, `ServiceCollectionExtensions`, `PublicAPI`, manifest; adapter and aggregator, routing, options/DI unit tests and a guard test | 15 |
 | **S4** | `BffBackendHealthCheck`, `PublicAPI`, manifest; `Encina.PropertyTests` and `Encina.ContractTests` project references; property tests, contract tests, the architecture test, health unit and guard tests | 11 |
 | **S5** | Integration tests (host helper, mandatory/optional/tenancy/authorization cases, cache case), `Encina.IntegrationTests` reference, load test and `Encina.LoadTests` reference, benchmark and `Encina.BenchmarkTests` reference, justification `.md` files | about 12 |
 | **S6** | Documentation: README, guide, ADR, changelog fragment, INVENTORY row, ROADMAP edit (`docs-writer`) | about 6 |
 
-The integration-flag targets of S1 to S4 files are met by S5; those sub-issues report their other flags and state the integration flag as pending S5. Each sub-issue is opened after the maintainer answers the Dilemmas.
+S1, S2 and S3 are exactly 15, so a worker that needs an extra file moves one test file out, in this order: S1 merges `BffContextAndResponseTests` into S2's executor tests, S2 merges the diagnostics tests into the executor tests, S3 moves the options/DI unit tests to S4 (13 files). The integration-flag targets of S1 to S4 files are met by S5; those sub-issues report their other flags and state the integration flag as pending S5. Each sub-issue is opened after the maintainer answers the Dilemmas.
 
 ---
 
