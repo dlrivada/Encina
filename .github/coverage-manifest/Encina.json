@@ -2910,10 +2910,16 @@
     },
     "Sharding/ShardedReadWriteOptions.cs": {
       "defaultTests": [
-        "unit"
+        "unit",
+        "guard"
       ],
       "defaultRule": "*Options.cs",
-      "reason": "Configuration POCO with defaults and validation"
+      "reason": "Configuration POCO with defaults and validation",
+      "targets": { "unit": 100, "guard": 60 },
+      "justifications": {
+        "unit": "The option defaults, AddShard and the ShardReplicaConfig record members are driven by ShardReplicaConfigSecretMaskingTests and the sharded read/write options unit tests.",
+        "guard": "ShardedReadWriteOptionsGuardTests drive the shard id and primary connection string checks of AddShard; the success path and the record are covered by unit tests."
+      }
     },
     "Sharding/ShardedSpecificationResult.cs": {
       "defaultTests": [
