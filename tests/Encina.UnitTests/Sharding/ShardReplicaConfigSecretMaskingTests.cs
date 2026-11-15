@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Encina.UnitTests.Sharding;
 
-public class ShardRecordsSecretMaskingTests
+public class ShardReplicaConfigSecretMaskingTests
 {
     private const string PrimaryConnectionString = "Server=primary;Database=db;User Id=sa;Password=SuperSecret123!;";
     private const string Replica1 = "Server=replica1;Database=db;User Id=sa;Password=ReplicaSecret1!;";
