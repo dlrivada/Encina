@@ -2,8 +2,8 @@
 
 > **Issue**: [#1951](https://github.com/dlrivada/Encina/issues/1951)
 > **Type**: Feature
-> **Complexity**: High (11 phases across 9 packages, no new package, 109 file changes in 11 pull requests; see Estimated File Count)
-> **Estimated Scope**: about 8,200 changed lines in total (production code, tests, manifests, PublicAPI and documentation), per pull request in Estimated File Count
+> **Complexity**: High (11 phases across 9 packages, no new package, 137 file changes in 11 pull requests; see Estimated File Count)
+> **Estimated Scope**: about 9,300 changed lines in total (production code, tests, manifests, PublicAPI and documentation), per pull request in Estimated File Count
 > **Specification**: GDPR Art. 5(2), Art. 30; SPEC-002 REQ-061, REQ-062 (part of #1186)
 > **Depends on**: #1778 (the entity-change audit store of ADR-036) and #1196 (the Art. 9(2) fields whose changes must be auditable)
 
@@ -35,7 +35,7 @@ Every successful register or update of a processing activity (the controller's A
 
 ## Design Choices
 
-Five Dilemmas are open (5, 8, 11, 12 and 13); the maintainer answers them when work on the issue starts. Choices 1 to 4, 6, 7, 9 and 10 are Settled or Trivial.
+Four Dilemmas are open (5, 8, 11 and 12); the maintainer answers them when work on the issue starts. Choices 1 to 4, 6, 7, 9, 10 and 13 are Settled or Trivial.
 
 <details>
 <summary><strong>1. How the change and its audit entry commit together</strong></summary>
@@ -303,14 +303,15 @@ Five Dilemmas are open (5, 8, 11, 12 and 13); the maintainer answers them when w
 | **A) Required constructor parameters and registered dependencies.** Every registry (in-memory, EF Core, MongoDB, ADO x3, Dapper x3) requires `IRequestContextAccessor` and `TimeProvider` in its constructor; every `AddEncinaGDPR` / `AddEncinaProcessingActivity*` method calls `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()` and `TryAddSingleton(TimeProvider.System)`; the ADO, Dapper and MongoDB registrations, which register a ready-made instance today, become factories that resolve both with `GetRequiredService`; each phase has a DI test with `ValidateOnBuild` and `ValidateScopes` that asserts the resolved registry holds a non-null accessor | A missing dependency fails the build of the provider, never audits a silent `null` actor and tenant (fail closed); the same shape on all 11 registries | Every test that constructs a registry passes the two dependencies (six files for the in-memory registry, counted in Phase 2) |
 | **B) Optional constructor parameters with defaults** (a fresh `RequestContextAccessor` and `TimeProvider.System`), and the registrations still add the accessor | Existing callers compile unchanged | A hand-built registry, or a registration that forgets the accessor, audits a `null` actor and tenant without any error, which the review found and AGENTS.md section 3 (registration completeness, fail closed on missing context) rules out for the registered path |
 
-### Chosen Option: **A — Required parameters, registered dependencies, factories** (recommended, pending the maintainer)
+### Chosen Option: **A — Required parameters, registered dependencies, factories**
 
 ### Rationale
 
 - Missing context must not silently produce an audit entry with no actor or tenant. With A, a missing registration is a start-up failure. With tenancy off, or with no request in flight (the start-up auto-registration), the accessor exists and carries no tenant or user, so `null` is then the true value (Design Choices 4 and 6), not a wiring gap.
-- B wins only if the maintainer prefers not to touch the test callers; it keeps the gap for hand-built registries, so I do not recommend it. The sibling compliance packages already register the accessor with `TryAddSingleton` (`AddEncinaConsent`, `AddEncinaDataSubjectRights`, `AddEncinaProcessorAgreements`).
+- B's only advantage is that existing callers keep compiling, and compatibility is not a criterion before 1.0; B also keeps the silent-`null` gap that the fail-closed rule forbids. Only A satisfies both rules. The sibling compliance packages already register the accessor with `TryAddSingleton` (`AddEncinaConsent`, `AddEncinaDataSubjectRights`, `AddEncinaProcessorAgreements`). Every test caller of a changed constructor is listed in the phase that changes it.
 
-**Class:** Dilemma
+**Class:** Settled
+**Settled by:** AGENTS.md section 1 (pre-1.0: best solution first, no compatibility as a reason); AGENTS.md section 3 (registration completeness; fail closed on missing context)
 
 </details>
 
@@ -414,7 +415,7 @@ REFERENCE FILES:
 
 ### Phase 3: EF Core Registry
 
-> **Goal**: The EF Core registry audits atomically on SqlServer, PostgreSQL and MySQL. **Size**: 13 files, about 1,100 lines.
+> **Goal**: The EF Core registry audits atomically on SqlServer, PostgreSQL and MySQL. **Size**: 15 files, about 1,200 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -426,7 +427,9 @@ REFERENCE FILES:
 5. New tests: `tests/Encina.GuardTests/EntityFrameworkCore/ProcessingActivity/ProcessingActivityRegistryEFGuardTests.cs` (null tests of the three constructor parameters, #3798), `tests/Encina.UnitTests/EntityFrameworkCore/ProcessingActivity/ProcessingActivityAuditModelCheckTests.cs` (the model check, and the DI test: `AddEncinaProcessingActivityEFCore` alone builds with `ValidateOnBuild` and `ValidateScopes` and the resolved registry holds a non-null accessor).
 6. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (13): the 3 source files of tasks 1-3, `PublicAPI.Unshipped.txt`, the manifest, the 6 caller test files of task 4 and the 2 test files of task 5.
+Shared callers of the changed EF constructor (Design Choice 13): `tests/Encina.GuardTests/Compliance/GDPR/ProcessingActivityRegistryGuardTests.cs` and `tests/Encina.UnitTests/OpenTelemetry/ProcessingActivityRegistryActivityStatusTests.cs` (their EF cases).
+
+Exact file list (15): the 3 source files of tasks 1-3, `PublicAPI.Unshipped.txt`, the manifest, the 6 caller test files of task 4, the 2 test files of task 5 and the 2 shared callers.
 
 </details>
 
@@ -439,7 +442,7 @@ CONTEXT:
 
 TASK:
 Make ProcessingActivityRegistryEF write the change and its entry in one SaveChangesAsync, add the model check, update the
-callers and write the tests. Exactly the 13 files of the Phase 3 file list.
+callers and write the tests. Exactly the 15 files of the Phase 3 file list.
 
 KEY RULES:
 - Database calls are asynchronous with a CancellationToken; no synchronous overloads.
@@ -498,7 +501,7 @@ REFERENCE FILES:
 
 ### Phase 5: ADO.NET SqlServer Registry
 
-> **Goal**: The ADO SqlServer registry audits atomically. **Size**: 9 files, about 700 lines.
+> **Goal**: The ADO SqlServer registry audits atomically. **Size**: 13 files, about 850 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -510,7 +513,9 @@ REFERENCE FILES:
 5. New test: `tests/Encina.UnitTests/ADO/SqlServer/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor). The guard file of task 4 gains the null tests of the two new parameters (#3798).
 6. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (9): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 caller test files and the new test file.
+Shared callers of the changed constructor (Design Choice 13), changed for this provider: `tests/Encina.GuardTests/Compliance/GDPR/ProcessingActivityRegistryGuardTests.cs`, `tests/Encina.UnitTests/OpenTelemetry/ProcessingActivityRegistryActivityStatusTests.cs`, `tests/Encina.UnitTests/Compliance/StoreFailures/RelationalProviderStoreFailureTests.cs` and `tests/Encina.ContractTests/Compliance/GDPR/ProcessingActivityRegistryProviderContractTests.cs` (`Contract_ADOAndDapperProviders_HaveConnectionStringConstructor` asserts the `(string, IRequestContextAccessor, TimeProvider)` shape for each provider already migrated and the old shape for the others, so it passes after every phase; Phases 6-10 move their provider to the new list).
+
+Exact file list (13): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 caller test files, the new test file and the 4 shared callers.
 
 </details>
 
@@ -522,7 +527,7 @@ CONTEXT:
 - Phases 1-4 merged. The ADO registries are built from a connection string; each opens its own connection per call.
 
 TASK:
-Add the atomic audit write to the ADO SqlServer registry, the schema check and the tests. Exactly the 9 files of the Phase 5
+Add the atomic audit write to the ADO SqlServer registry, the schema check and the tests. Exactly the 13 files of the Phase 5
 file list.
 
 KEY RULES:
@@ -540,7 +545,7 @@ REFERENCE FILES:
 
 ### Phase 6: ADO.NET PostgreSQL Registry
 
-> **Goal**: The ADO PostgreSQL registry audits atomically. **Size**: 8 files, about 600 lines.
+> **Goal**: The ADO PostgreSQL registry audits atomically. **Size**: 12 files, about 750 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -549,7 +554,9 @@ REFERENCE FILES:
 2. Tests: `tests/Encina.GuardTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOPostgreSqlTests.cs` (`[Collection("ADO-PostgreSQL")]`), new `tests/Encina.UnitTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
+Shared callers, changed for this provider as in Phase 5: `ProcessingActivityRegistryGuardTests.cs` (GDPR guard), `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs` and `ProcessingActivityRegistryProviderContractTests.cs`.
+
+Exact file list (12): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 test files and the 4 shared callers.
 
 </details>
 
@@ -561,7 +568,7 @@ CONTEXT:
 - Phase 5 merged; mirror it for ADO PostgreSQL.
 
 TASK:
-Exactly the 8 files of the Phase 6 file list.
+Exactly the 12 files of the Phase 6 file list.
 
 KEY RULES:
 - PostgreSQL dialect; asynchronous calls with a CancellationToken; [Collection("ADO-PostgreSQL")].
@@ -577,7 +584,7 @@ REFERENCE FILES:
 
 ### Phase 7: ADO.NET MySQL Registry
 
-> **Goal**: The ADO MySQL registry audits atomically. **Size**: 8 files, about 600 lines.
+> **Goal**: The ADO MySQL registry audits atomically. **Size**: 13 files, about 800 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -586,7 +593,9 @@ REFERENCE FILES:
 2. Tests: `tests/Encina.GuardTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOMySqlTests.cs` (`[Collection("ADO-MySQL")]`), new `tests/Encina.UnitTests/ADO/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
+Shared callers, changed for this provider as in Phase 5: `ProcessingActivityRegistryGuardTests.cs` (GDPR guard), `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs`, `ProcessingActivityRegistryProviderContractTests.cs`, and `tests/Encina.IntegrationTests/SchemaScripts/MySqlSchemaScriptsIntegrationTests.cs` (its ADO MySQL registry).
+
+Exact file list (13): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 test files and the 5 shared callers.
 
 </details>
 
@@ -598,7 +607,7 @@ CONTEXT:
 - Phase 5 merged; mirror it for ADO MySQL.
 
 TASK:
-Exactly the 8 files of the Phase 7 file list.
+Exactly the 13 files of the Phase 7 file list.
 
 KEY RULES:
 - MySQL dialect; asynchronous calls with a CancellationToken; [Collection("ADO-MySQL")].
@@ -613,7 +622,7 @@ REFERENCE FILES:
 
 ### Phase 8: Dapper SqlServer Registry
 
-> **Goal**: The Dapper SqlServer registry audits atomically. **Size**: 9 files, about 700 lines.
+> **Goal**: The Dapper SqlServer registry audits atomically. **Size**: 13 files, about 850 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -622,7 +631,9 @@ REFERENCE FILES:
 2. Tests: `tests/Encina.GuardTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperSqlServerTests.cs` (`[Collection("Dapper-SqlServer")]`), `tests/Encina.UnitTests/Compliance/StoreFailures/StoreFailureDoesNotLeakExceptionMessageTests.cs` (the Dapper case), new `tests/Encina.UnitTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (9): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 4 test files.
+Shared callers, changed for this provider as in Phase 5: `ProcessingActivityRegistryGuardTests.cs` (GDPR guard), `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs` and `ProcessingActivityRegistryProviderContractTests.cs`.
+
+Exact file list (13): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 4 test files and the 4 shared callers.
 
 </details>
 
@@ -634,7 +645,7 @@ CONTEXT:
 - Phases 1-7 merged; the Dapper registries mirror the ADO ones.
 
 TASK:
-Exactly the 9 files of the Phase 8 file list.
+Exactly the 13 files of the Phase 8 file list.
 
 KEY RULES:
 - CommandDefinition with the CancellationToken; one connection and one transaction; [Collection("Dapper-SqlServer")].
@@ -650,7 +661,7 @@ REFERENCE FILES:
 
 ### Phase 9: Dapper PostgreSQL Registry
 
-> **Goal**: The Dapper PostgreSQL registry audits atomically. **Size**: 8 files, about 600 lines.
+> **Goal**: The Dapper PostgreSQL registry audits atomically. **Size**: 12 files, about 750 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -659,7 +670,9 @@ REFERENCE FILES:
 2. Tests: `tests/Encina.GuardTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperPostgreSqlTests.cs` (`[Collection("Dapper-PostgreSQL")]`), new `tests/Encina.UnitTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
+Shared callers, changed for this provider as in Phase 5: `ProcessingActivityRegistryGuardTests.cs` (GDPR guard), `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs` and `ProcessingActivityRegistryProviderContractTests.cs`.
+
+Exact file list (12): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 test files and the 4 shared callers.
 
 </details>
 
@@ -671,7 +684,7 @@ CONTEXT:
 - Phase 8 merged; mirror it for Dapper PostgreSQL.
 
 TASK:
-Exactly the 8 files of the Phase 9 file list.
+Exactly the 12 files of the Phase 9 file list.
 
 KEY RULES:
 - PostgreSQL dialect; CommandDefinition with the CancellationToken; [Collection("Dapper-PostgreSQL")].
@@ -686,7 +699,7 @@ REFERENCE FILES:
 
 ### Phase 10: Dapper MySQL Registry
 
-> **Goal**: The Dapper MySQL registry audits atomically. **Size**: 8 files, about 600 lines.
+> **Goal**: The Dapper MySQL registry audits atomically. **Size**: 13 files, about 800 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -695,7 +708,9 @@ REFERENCE FILES:
 2. Tests: `tests/Encina.GuardTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperMySqlTests.cs` (`[Collection("Dapper-MySQL")]`), new `tests/Encina.UnitTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
-Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
+Shared callers, changed for this provider as in Phase 5: `ProcessingActivityRegistryGuardTests.cs` (GDPR guard), `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs`, `ProcessingActivityRegistryProviderContractTests.cs` (after this phase every provider is on the new shape, so the old-shape branch of the contract test is removed), and `tests/Encina.IntegrationTests/SchemaScripts/MySqlSchemaScriptsIntegrationTests.cs` (its Dapper MySQL registry).
+
+Exact file list (13): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest, the 3 test files and the 5 shared callers.
 
 </details>
 
@@ -707,7 +722,7 @@ CONTEXT:
 - Phase 8 merged; mirror it for Dapper MySQL.
 
 TASK:
-Exactly the 8 files of the Phase 10 file list.
+Exactly the 13 files of the Phase 10 file list.
 
 KEY RULES:
 - MySQL dialect; CommandDefinition with the CancellationToken; [Collection("Dapper-MySQL")].
@@ -799,16 +814,16 @@ REFERENCE FILES:
 |--------------|-------|-------|---------------|----------|
 | PR 1 | 1 | 14 | 1,100 | GDPR core model, diff, recorder, factory, error; PublicAPI; manifest; 4 test files |
 | PR 2 | 2 | 15 | 1,000 | in-memory registry, auto-registration, diagnostics, registration; PublicAPI; manifest; 9 test files |
-| PR 3 | 3 | 13 | 1,100 | EF registry, model check, registration; PublicAPI; manifest; 8 test files |
+| PR 3 | 3 | 15 | 1,200 | EF registry, model check, registration; PublicAPI; manifest; 10 test files (2 shared callers) |
 | PR 4 | 4 | 9 | 700 | MongoDB registry, transaction check, registration; PublicAPI; manifest; 4 test files |
-| PR 5 | 5 | 9 | 700 | ADO SqlServer registry, schema check, registration; PublicAPI; manifest; 4 test files |
-| PR 6 | 6 | 8 | 600 | ADO PostgreSQL, same shape; 3 test files |
-| PR 7 | 7 | 8 | 600 | ADO MySQL, same shape; 3 test files |
-| PR 8 | 8 | 9 | 700 | Dapper SqlServer, same shape; 4 test files |
-| PR 9 | 9 | 8 | 600 | Dapper PostgreSQL, same shape; 3 test files |
-| PR 10 | 10 | 8 | 600 | Dapper MySQL, same shape; 3 test files |
+| PR 5 | 5 | 13 | 850 | ADO SqlServer registry, schema check, registration; PublicAPI; manifest; 8 test files (4 shared callers) |
+| PR 6 | 6 | 12 | 750 | ADO PostgreSQL, same shape; 7 test files (4 shared callers) |
+| PR 7 | 7 | 13 | 800 | ADO MySQL, same shape; 8 test files (5 shared callers) |
+| PR 8 | 8 | 13 | 850 | Dapper SqlServer, same shape; 8 test files (4 shared callers) |
+| PR 9 | 9 | 12 | 750 | Dapper PostgreSQL, same shape; 7 test files (4 shared callers) |
+| PR 10 | 10 | 13 | 800 | Dapper MySQL, same shape; 8 test files (5 shared callers) |
 | PR 11 | 11 | 8 | 500 | contract test, 2 manifests, 2 justification files, README, feature page, changelog fragment |
-| **Total** | | **109** | **8,200** | 109 file changes in 11 pull requests; `StoreFailureDoesNotLeakExceptionMessageTests.cs`, the GDPR manifest and the EF manifest change in more than one pull request, so fewer distinct files are touched |
+| **Total** | | **137** | **9,300** | 137 file changes in 11 pull requests; the four shared callers (GDPR `ProcessingActivityRegistryGuardTests.cs`, `ProcessingActivityRegistryActivityStatusTests.cs`, `RelationalProviderStoreFailureTests.cs`, `ProcessingActivityRegistryProviderContractTests.cs`), `MySqlSchemaScriptsIntegrationTests.cs`, `StoreFailureDoesNotLeakExceptionMessageTests.cs`, the GDPR manifest and the EF manifest change in more than one pull request, so fewer distinct files are touched |
 
 ---
 
@@ -888,4 +903,4 @@ REFERENCE FILES:
 
 1. Link this plan from #1951, #1778 (the transaction-aware write requirement) and #1196.
 2. When #1951 is picked up, re-check each Design Choice against the merged #1778 contract; present the Dilemmas to the maintainer and record the answers in `## Maintainer Decisions`; re-count the file lists of the phases a decision changes (Design Choices 5 and 8).
-3. Ship Phases 1 to 11 as separate pull requests referencing #1951; the last one carries `Fixes #1951`.
+3. Ship Phases 1 to 11 as 11 separate pull requests (137 file changes in total, each at most 15 files and 1500 lines) referencing #1951; before each, re-run `git grep -n "new ProcessingActivityRegistry" -- tests` so every caller of the constructor it changes is in its file list; the last one carries `Fixes #1951`.
