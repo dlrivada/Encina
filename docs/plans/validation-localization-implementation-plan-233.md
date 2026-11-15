@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `db1e7f688`)
+### What exists today (read on 2026-11-15, main `96c8803bd`)
 
 - A validation failure is a `ValidationError(string? PropertyName, string ErrorMessage)`, a two-field positional record (`src/Encina/Validation/ValidationResult.cs:97`), and the message is whatever string the provider library produced. `ValidationOrchestrator` joins those messages into the text of a code-less `Left` (`ValidationOrchestrator.cs:68-71`, via `ValidationResult.ToErrorMessage`, `ValidationResult.cs:77`).
 - Nothing in `src` mentions localization: `git grep -n -E "Microsoft.Extensions.Localization|IStringLocalizer" -- src '*.csproj' '*.props'` finds nothing, `IRequestContext` carries `CorrelationId`, `CausationId`, `Identity`, `IdempotencyKey`, `TenantId`, `Timestamp` and `Metadata` but no culture, and there is no `AddEncinaValidation(options)` entry point (the issue's snippet is aspirational; each provider has its own `Add...` method).
