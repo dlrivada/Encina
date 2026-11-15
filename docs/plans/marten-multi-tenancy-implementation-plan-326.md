@@ -3,7 +3,7 @@
 > **Issue**: [#326](https://github.com/dlrivada/Encina/issues/326)
 > **Type**: Feature
 > **Complexity**: High (5 phases, 8 PRs, one provider, security-sensitive)
-> **Estimated Scope**: 101 files and about 6,500 changed lines over 8 PRs (the table in "Estimated File Count" lists every file per PR; the figures assume the recommended answers to the Dilemmas)
+> **Estimated Scope**: 106 files and about 6,500 changed lines over 8 PRs (the table in "Estimated File Count" lists every file per PR; the figures assume the recommended answers to the Dilemmas)
 
 ---
 
@@ -27,19 +27,19 @@
 
 **Boundary with #1257**: #1257 owns the SPEC-002 capabilities' tenant keys and the two-tenant suite across the 10 providers and Marten. This plan delivers the Marten mechanism that suite relies on; this plan's own isolation tests cover the mechanism, #1257 covers the capabilities.
 
-**Size and split (AGENTS.md section 11)**: 101 files exceed one worker PR, so the work ships as eight PRs of at most 15 files and 1,500 lines each, counted with every edited file (registry, allocation test, project file, DI, error codes, repository constructors and their existing test callers), test, manifest entry and changelog fragment. Each PR adds the manifest entries (per file, per flag, one-sentence justification) of the files it creates, with the tests that meet them; no PR uses a type or log class of a later PR, so the log class and EventIds are created in PR 2, the first PR that logs, and the telemetry in PR 7, the first PR that uses it. The file lists per PR are in "Estimated File Count"; the counts assume the recommended answers to the Dilemmas (decision 6 option A).
+**Size and split (AGENTS.md section 11)**: 106 files exceed one worker PR, so the work ships as eight PRs of at most 15 files and 1,500 lines each, counted with every edited file (registry, allocation test, project file, DI, error codes, repository constructors and their existing test callers), test, manifest entry and changelog fragment. Each PR adds the manifest entries (per file, per flag, one-sentence justification) of the files it creates, with the tests that meet them; no PR uses a type or log class of a later PR, so the log class and EventIds are created in PR 2, the first PR that logs, and the telemetry in PR 7, the first PR that uses it. The file lists per PR are in "Estimated File Count"; the counts assume the recommended answers to the Dilemmas (decision 6 option A).
 
 | PR | Content | Files | Lines (estimate) |
 |----|---------|-------|------------------|
 | 1 | Phase 1: options, project reference, error codes, spike test, options tests | 8 | about 600 |
 | 2 | Phase 2: session accessor seam, tenant session factory, conjoined configuration, DI, log class and EventIds | 14 | about 1,000 |
-| 3 | `MartenAggregateRepository` takes the accessor; its 14 existing test callers change with the constructor | 15 | about 700 |
-| 4 | `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` take the accessor; their existing test callers change | 13 | about 600 |
-| 5 | `MartenReadModelRepository` takes the accessor, its existing test callers, and the two-tenant conjoined integration test | 8 | about 500 |
+| 3 | `EventPublishingPipelineBehavior`, `MartenInlineProjectionDispatcher` and `MartenReadModelRepository` take the accessor; their existing test callers change with the constructors | 14 | about 600 |
+| 4 | `MartenAggregateRepository` takes the accessor; its 14 existing test callers change with the constructor | 15 | about 700 |
+| 5 | `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` take the accessor; their existing test callers change; the two-tenant conjoined integration test | 12 | about 600 |
 | 6 | Phase 3: dedicated and schema routing, resolver, isolation property test, load test | 15 | about 1,300 |
 | 7 | Provisioning and deprovisioning, telemetry (Phase 4) | 13 | about 1,100 |
 | 8 | Cross-tenant scope, health check (Phase 4) and documentation (Phase 5) | 15 | about 1,100 |
-PRs 2 to 6 start only after the maintainer has answered D1 and D3 and decision 6 (and the PR 1 spike has been read): they implement whichever mode set and session design the answers settle. If decision 6 is answered with option B, PRs 3 to 5 disappear and PR 2 has the factory and one exception type instead of the accessor seam (about 64 files over 5 PRs).
+PRs 2 to 6 start only after the maintainer has answered D1 and D3 and decision 6 (and the PR 1 spike has been read): they implement whichever mode set and session design the answers settle. If decision 6 is answered with option B, PRs 3 to 5 disappear and PR 2 has the factory and one exception type instead of the accessor seam (about 64 files over 5 PRs); with B every command still fails while DI builds `EventPublishingPipelineBehavior`, which is resolved for every request.
 
 ---
 
@@ -153,7 +153,7 @@ Background daemons and projections run without a request context; they must bind
 
 | Option | Pros | Cons |
 |--------|------|------|
-| A. A lazy session-accessor seam: `IMartenSessionAccessor.GetAsync(ct)` returns `Either<EncinaError, IDocumentSession>`; the four repositories (`MartenAggregateRepository`, `SnapshotAwareAggregateRepository`, `MartenReadModelRepository`, `MartenSnapshotStore`) take the accessor in their constructor instead of `IDocumentSession` and call it at the start of each operation, returning `Left` `marten.tenant_required` when the context has no tenant; a default accessor wraps the plain session when multi-tenancy is off; the inline projection relay is created per call from the obtained session, so `InlineProjectionRelay` does not change | Railway style end to end; fails closed with a `Left` inside the repository, where the failure belongs | A constructor signature change in four repositories and about 31 existing test files that construct them (counted on this branch by `new <Repository><` in `src` and `tests`: 14 for `MartenAggregateRepository`, 6 for `SnapshotAwareAggregateRepository`, 6 for `MartenReadModelRepository`, 5 for `MartenSnapshotStore`, with overlap), delivered in PRs 3 to 5; other consumers of `IDocumentSession` (projection manager, `EventPublishingPipelineBehavior`, `CommittedEventCollector`, `Encina.Audit.Marten`, `Encina.Marten.GDPR`) keep the plain session, which fails at resolution when the tenant is missing: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/marten-tenancy-session-consumers.md) |
+| A. A lazy session-accessor seam: `IMartenSessionAccessor.GetAsync(ct)` returns `Either<EncinaError, IDocumentSession>`; the four repositories (`MartenAggregateRepository`, `SnapshotAwareAggregateRepository`, `MartenReadModelRepository`, `MartenSnapshotStore`) and the two other consumers that DI builds for every command, `EventPublishingPipelineBehavior` (registered open generic and scoped by default while `AutoPublishDomainEvents` is true, `ServiceCollectionExtensions.cs` line 67-70, and resolved by `PipelineBuilder.cs` line 103 before the pipeline runs, so with a plain `IDocumentSession` it would throw for every request) and `MartenInlineProjectionDispatcher` (takes `IDocumentSession` and is injected into the repository constructors, so any registered projection would reproduce the failure), take the accessor in their constructor instead of `IDocumentSession` and call it at the start of each operation, returning `Left` `marten.tenant_required` when the context has no tenant; the accessor returns the scope's own session instance (cached per scope), never a new session, because the pipeline behavior must read the events the repository staged in that same session, and a different session would leave domain events unpublished without any error; a default accessor wraps the plain session when multi-tenancy is off; the inline projection relay is created per call from the obtained session, so `InlineProjectionRelay` does not change | Railway style end to end; fails closed with a `Left` inside the repository, where the failure belongs | Constructor signature changes in six types and about 36 existing test files that construct them (counted on this branch by `new <Type><` in `tests`: 14 for `MartenAggregateRepository`, 6 for `SnapshotAwareAggregateRepository`, 6 for `MartenReadModelRepository`, 5 for `MartenSnapshotStore`, 3 for `EventPublishingPipelineBehavior`, 2 for `MartenInlineProjectionDispatcher`, with overlap; 9 unique files for the snapshot repository and store together), delivered in PRs 3 to 5; other consumers of `IDocumentSession` (projection manager, `CommittedEventCollector`, `Encina.Audit.Marten`, `Encina.Marten.GDPR`) keep the plain session, which fails at resolution when the tenant is missing: follow-up issue to be opened (draft: artifacts/decisions/plan-batch/followups/marten-tenancy-session-consumers.md) |
 | B. The tenant-bound session factory throws a dedicated `TenantRequiredException` when the context has no tenant, and nothing else changes | No repository change; the plan shrinks by PRs 3 to 5 | The throw happens while DI builds the repository, and `Encina.Send` resolves the handler (`ResolveHandler` in `src/Encina/Core/Encina.cs`) before the pipeline runs, so no repository, behavior or handler code can turn it into a `Left`; it denies but surfaces as an exception, not as the `Left` the rest of Encina returns |
 | C. A pipeline behavior that checks the tenant first | A `Left` before the handler | Cannot work alone: the handler and its repositories are resolved before any behavior runs, so the factory still throws first (it would have to accompany option B) |
 
@@ -221,7 +221,7 @@ The issue has one `Isolation` option; mixed modes are a larger feature that #125
 
 ### Rationale
 
-The default is a starting point with no measurement behind it (the load test of PR 3 measures it); disposing a store with an open session would break a live request, so eviction only touches idle stores. B wins when memory must never exceed the bound.
+The default is a starting point with no measurement behind it (the load test of PR 6 measures it); disposing a store with an open session would break a live request, so eviction only touches idle stores. B wins when memory must never exceed the bound.
 
 **Class:** Dilemma
 
@@ -318,6 +318,7 @@ The categories follow ADR 062; the names follow the existing constants in `src/E
 | A. `tenant_strategy_mismatch` is `Conflict` and `tenant_provisioning_failed` is `Internal` | A mismatch is a state conflict between the tenant record and the store mode; a provisioning failure is a fault of the store | ADR 062 rule R2 covers version mismatches, operations in progress and invalid transitions, not a configuration mismatch, and does not decide provisioning failures |
 | B. `tenant_strategy_mismatch` is `Forbidden` (rule R6 makes tenant conflicts `Forbidden`) and `tenant_provisioning_failed` is `Unavailable` (the target database or schema cannot be reached) | R6 is the nearest decided rule; a provisioning failure is usually the store being unreachable | A mismatch is a misconfiguration, not a denial; `Unavailable` suggests a retry that may not help |
 | C. `tenant_strategy_mismatch` is `Internal` (a misconfigured deployment) | The caller cannot fix it | Hides a tenant-record problem as a server fault |
+| D. `tenant_strategy_mismatch` is `FailedPrecondition` (the system is not in the state the operation needs) | The closest semantic match to a precondition on the tenant record | ADR 062 rule R2 says "Do not use `FailedPrecondition` before #3420", whose row is provisional (HTTP 400), so it is not allowed until #3420 lands; listed to record why it is excluded today |
 
 ### Chosen Option: **A** (recommended, pending the maintainer)
 
@@ -365,18 +366,18 @@ REFERENCE FILES: src/Encina.Marten/EncinaMartenOptions.cs, src/Encina.Tenancy/Co
 
 PR 2 (14 files):
 
-1. `IMartenSessionAccessor` (`ValueTask<Either<EncinaError, IDocumentSession>> GetAsync(CancellationToken)`, decision 6 option A) and its single implementation `MartenSessionAccessor`: with no `MultiTenancy.Isolation` configured it opens the plain session; with isolation configured it reads `IRequestContext.TenantId` and returns `Left` `marten.tenant_required` when it is absent, never an unscoped session; `RequireTenant = false` does not change that (decision 8).
+1. `IMartenSessionAccessor` (`ValueTask<Either<EncinaError, IDocumentSession>> GetAsync(CancellationToken)`, decision 6 option A) and its single implementation `MartenSessionAccessor`, scoped, which returns the scope's own session instance on every call (the unit test asserts two calls return the same instance, because a new session would leave the events staged by a repository unseen by `EventPublishingPipelineBehavior`): with no `MultiTenancy.Isolation` configured it returns the scope's plain session; with isolation configured it reads `IRequestContext.TenantId` and returns `Left` `marten.tenant_required` when it is absent, never an unscoped session; `RequireTenant = false` does not change that (decision 8).
 2. `TenantSessionFactory` (Marten `ISessionFactory`) that opens the tenant-bound session for the accessor.
 3. `MartenTenancyConfigurator` (`IConfigureOptions<StoreOptions>`, registered like `ConfigureMartenEventMetadata`) that sets the tenancy style and multi-tenants documents when `Isolation` is `SharedSchema`.
 4. `AddEncinaMarten` registers the accessor always and the factory and configurator only when `MultiTenancy.Isolation` is configured (`TryAdd*`, never overriding the application's own `ISessionFactory`); DI test with `ValidateOnBuild` and `ValidateScopes`.
 5. Diagnostics, created here because the accessor is the first logger: `MartenTenancyLog` (`[LoggerMessage]`); register `MartenTenancy = (7280, 7289)` in `src/Encina/Diagnostics/EventIdRanges.cs` and add it to the `["Encina.Marten"]` list in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (Phase 4 lists the ids).
 6. Tests in the same PR: accessor unit, factory unit, configurator unit, DI test (new file), guard (accessor, factory), the allocation test edit; manifest entries for every new file.
 
-PRs 3 to 5 (the constructor changes, each with its existing test callers in the same PR, counted by `new <Repository><` on this branch):
+PRs 3 to 5 (the constructor changes of six types, each with its existing test callers in the same PR, counted by `new <Repository><` on this branch):
 
-7. PR 3 (15 files): `MartenAggregateRepository` takes `IMartenSessionAccessor` instead of `IDocumentSession`, gets the session at the start of each operation (a `Left` is returned as is) and builds its `InlineProjectionRelay` per call from that session, so the relay does not change; the 14 existing test files that construct it change with it (1 contract, 2 guard, 10 integration, 1 unit), and the unit file gains the missing-tenant `Left` test.
-8. PR 4 (13 files): `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` change the same way; their existing test callers (6 and 5 files, fewer where one file constructs both) change with them.
-9. PR 5 (8 files): `MartenReadModelRepository` changes the same way (6 existing test callers) and the integration test with two tenants on PostgreSQL is added (tenant A never reads tenant B's events, aggregates or read models).
+7. PR 3 (14 files): the consumers that DI builds for every command move first. `EventPublishingPipelineBehavior` (open generic, scoped, registered by default, resolved before the pipeline runs) takes the accessor, obtains the scope's session after the handler (a `Left` from the accessor is returned, never a pass-through) and keeps reading the events staged in that same session; `MartenInlineProjectionDispatcher` (injected into the repository constructors) takes the accessor and returns the `Left`; `MartenReadModelRepository` takes the accessor. Their existing test callers change with the constructors (3 files for the behavior: 1 contract, 1 guard, 1 unit; 2 for the dispatcher: 1 guard, 1 unit; 6 for the read-model repository: 2 contract, 1 guard, 2 integration, 1 unit; fewer where one file constructs several), and each unit file gains the missing-tenant `Left` test, so the per-flag targets of the edited files are met in this PR.
+8. PR 4 (15 files): `MartenAggregateRepository` takes `IMartenSessionAccessor` instead of `IDocumentSession`, gets the session at the start of each operation (a `Left` is returned as is) and builds its `InlineProjectionRelay` per call from that session, so the relay does not change; the 14 existing test files that construct it change with it (1 contract, 2 guard, 10 integration, 1 unit), and the unit file gains the missing-tenant `Left` test.
+9. PR 5 (12 files): `SnapshotAwareAggregateRepository` and `MartenSnapshotStore` change the same way; their existing test callers (9 unique files for the two) change with them, with the missing-tenant `Left` test in the unit files; the integration test with two tenants on PostgreSQL is added (tenant A never reads tenant B's events, aggregates or read models, and the domain events of the command are published).
 10. These are not signature-compatible: the old constructors are removed (AGENTS.md section 3, no compatibility layer); no `[Obsolete]`.
 
 </details>
@@ -386,7 +387,7 @@ PRs 3 to 5 (the constructor changes, each with its existing test callers in the 
 
 ```text
 CONTEXT: Phase 1 options and spike exist. EncinaStoreOptionsConfigurator bridges IConfigureOptions<StoreOptions> into Marten; MartenAggregateRepository receives IDocumentSession and IRequestContext by constructor (src/Encina.Marten/MartenAggregateRepository.cs line 54), and Encina.Send resolves the handler before the pipeline runs.
-TASK: PR 2 implements the session accessor, the tenant-bound session factory and the conjoined configuration; PRs 3 to 5 move the four repositories to the accessor with their test callers; a missing tenant returns Left, never an unscoped session.
+TASK: PR 2 implements the session accessor, the tenant-bound session factory and the conjoined configuration; PRs 3 to 5 move EventPublishingPipelineBehavior, MartenInlineProjectionDispatcher and the four repositories to the accessor (the scope's own session instance) with their test callers; a missing tenant returns Left, never an unscoped session.
 KEY RULES: fail closed; TryAdd* registration that never overrides the application's own; old constructors removed with all callers in the same PR; tests execute real code; the two-tenant test uses the shared Marten PostgreSQL fixture.
 REFERENCE FILES: src/Encina.Marten/EncinaStoreOptionsConfigurator.cs, src/Encina.Marten/ConfigureMartenEventMetadata.cs, src/Encina.Marten/ServiceCollectionExtensions.cs
 ```
@@ -496,7 +497,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/Marten, tests/Enci
 
 ### Estimated File Count
 
-Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `Encina.Tenancy` is untouched unless D2 = B. Under decision 6 option A the constructors of four repositories change and their existing test callers (counted by `new <Repository><` on this branch) change in the same PRs (3 to 5); under option B no existing signature changes.
+Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `Encina.Tenancy` is untouched unless D2 = B. Under decision 6 option A the constructors of six types (four repositories, `EventPublishingPipelineBehavior`, `MartenInlineProjectionDispatcher`) change and their existing test callers (counted by `new <Repository><` on this branch) change in the same PRs (3 to 5); under option B no existing signature changes.
 
 | PR | Category | Files | Notes |
 |----|----------|-------|-------|
@@ -508,16 +509,16 @@ Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `E
 | 2 | Tests | 6 | Accessor unit, factory unit, configurator unit, DI (new), guard (accessor, factory), `EncinaEventIdAllocationTests.cs` edit |
 | 2 | Manifest | 1 | `Encina.Marten.json` |
 | 2 | **Subtotal** | **14** | |
-| 3 | Source | 1 | `MartenAggregateRepository` constructor |
-| 3 | Existing test callers | 14 | 1 contract, 2 guard, 10 integration, 1 unit (gains the missing-tenant `Left` test) |
-| 3 | **Subtotal** | **15** | |
-| 4 | Source | 2 | `SnapshotAwareAggregateRepository`, `MartenSnapshotStore` constructors |
-| 4 | Existing test callers | 11 | 6 and 5 files that construct them, fewer where one file constructs both |
-| 4 | **Subtotal** | **13** | At most 13 |
-| 5 | Source | 1 | `MartenReadModelRepository` constructor |
-| 5 | Existing test callers | 6 | 2 contract, 1 guard, 2 integration, 1 unit |
-| 5 | Tests | 1 | Two-tenant conjoined integration test |
-| 5 | **Subtotal** | **8** | |
+| 3 | Source | 3 | `EventPublishingPipelineBehavior`, `MartenInlineProjectionDispatcher`, `MartenReadModelRepository` constructors |
+| 3 | Existing test callers | 11 | Behavior 3 (contract, guard, unit), dispatcher 2 (guard, unit), read-model repository 6 (2 contract, 1 guard, 2 integration, 1 unit); the unit files gain the missing-tenant `Left` tests; fewer files where one file constructs several |
+| 3 | **Subtotal** | **14** | At most 14 |
+| 4 | Source | 1 | `MartenAggregateRepository` constructor |
+| 4 | Existing test callers | 14 | 1 contract, 2 guard, 10 integration, 1 unit (gains the missing-tenant `Left` test) |
+| 4 | **Subtotal** | **15** | |
+| 5 | Source | 2 | `SnapshotAwareAggregateRepository`, `MartenSnapshotStore` constructors |
+| 5 | Existing test callers | 9 | Unique files that construct either (6 and 5, with overlap) |
+| 5 | Tests | 1 | Two-tenant conjoined integration test (also asserts the domain events are published) |
+| 5 | **Subtotal** | **12** | |
 | 6 | Source | 6 | `ITenantStoreResolver`, `TenantDocumentStoreResolver`, `MartenMultiTenancyOptions` edit, `TenantSessionFactory` edit, `ServiceCollectionExtensions` edit, `MartenTenancyLog` edit |
 | 6 | Tests | 8 | Resolver unit, resolver guard, routing integration, isolation property, load, DI test edit, options test edit, benchmark `.md` justification |
 | 6 | Manifest | 1 | `Encina.Marten.json` |
@@ -531,7 +532,7 @@ Every added or edited file is counted. `Encina.Marten` has no PublicAPI file; `E
 | 8 | Manifest | 1 | `Encina.Marten.json` |
 | 8 | Docs | 4 | Guide, ADR, `docs/INVENTORY.md`, changelog fragment |
 | 8 | **Subtotal** | **15** | |
-| | **Total** | **101** | 8 + 14 + 15 + 13 + 8 + 15 + 13 + 15; each PR at most 15 files and 1,500 lines |
+| | **Total** | **106** | 8 + 14 + 14 + 15 + 12 + 15 + 13 + 15; each PR at most 15 files and 1,500 lines |
 
 ---
 
