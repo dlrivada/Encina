@@ -7,7 +7,7 @@
 > **Milestone**: v0.17.0 — Compliance Lifecycle
 > **Parent EPIC**: [#1186](https://github.com/dlrivada/Encina/issues/1186) — EU regulatory readiness (SPEC-002)
 > **Specification**: [SPEC-002](../specifications/SPEC-002-eu-regulatory-readiness.md) REQ-048, AC-039, section 5.11 (generic extension points), DEC-015 (eIDAS 2 is post-1.0, #805); cross-cutting REQ-061 (AC-043) and REQ-062 (AC-044)
-> **Depends on**: [#1233](https://github.com/dlrivada/Encina/issues/1233) (P-31, `Encina.Http`; plan [http-implementation-plan-1233.md](http-implementation-plan-1233.md)) (application-side configuration of the named client, not a package reference); [#1240](https://github.com/dlrivada/Encina/issues/1240) (P-38, `Encina.ChainedLog`; plan [chained-log-implementation-plan-1240.md](chained-log-implementation-plan-1240.md)) for the chained-log hook
+> **Depends on**: [#1233](https://github.com/dlrivada/Encina/issues/1233) (P-31, `Encina.Http`; plan [http-implementation-plan-1233.md](http-implementation-plan-1233.md)) (application-side configuration of the named client, not a package reference); [#1240](https://github.com/dlrivada/Encina/issues/1240) (P-38, `Encina.ChainedLog`; plan #1240) for the chained-log hook
 > **Related**: [#1246](https://github.com/dlrivada/Encina/issues/1246) (`ICertificateReader`, X.509 retrieval per tenant), [#805](https://github.com/dlrivada/Encina/issues/805) (eIDAS 2, post-1.0)
 
 ---
