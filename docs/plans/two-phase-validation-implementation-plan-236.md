@@ -398,7 +398,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | No shared state |
 | 8 | Transactions | ❌ N/A | Phase 1 runs before the handler; phase 2 reads inside the handler's scope and starts no transaction here |
 | 9 | Idempotency | ❌ N/A | The observer is read-only and repeatable |
-| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific rules per phase: draft `artifacts/issues/validation-two-phase-tenant-module-scoping.md`; today `TenantId` reaches phase 1 through the request context and phase 2 through the handler |
+| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific rules per phase: draft `artifacts/issues/validation-tenant-module-scoped-resources.md`; today `TenantId` reaches phase 1 through the request context and phase 2 through the handler |
 | 11 | Module Isolation | ⏭️ Follow-up | Module-scoped validators per phase: the same draft |
 | 12 | Audit Trail | ⏭️ Follow-up | Auditing of rejected requests is a follow-up of the family that accompanies the plan of #230; the observer's log is operational, not an audit record |
 
@@ -428,5 +428,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #236 and ask the maintainer to answer Design Choices 1 to 3 and register row C9 when work starts.
-2. Open the follow-up issue when the first pull request opens: tenant and module scoped validators per phase (draft: `artifacts/issues/validation-two-phase-tenant-module-scoping.md`).
+2. Open the follow-up issue when the first pull request opens: tenant and module scoped validators per phase (draft: `artifacts/issues/validation-tenant-module-scoped-resources.md`).
 3. Implement S1 to S3 as the pull requests of the Estimated File Count split, `Fixes #236` on S3.
