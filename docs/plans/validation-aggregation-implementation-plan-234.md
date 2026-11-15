@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `db1e7f688`)
+### What exists today (read on 2026-11-15, main `96c8803bd`)
 
 - `ValidationOrchestrator` calls exactly one `IValidationProvider` (`ValidationOrchestrator.cs:65`) and turns an invalid `ValidationResult` into a code-less `Left` (`:71`). Each provider package registers itself with `TryAdd`, so the first package registered wins and there is no way to run two providers for one request: `AddEncinaFluentValidation` uses `TryAddScoped` (`FluentValidation/ServiceCollectionExtensions.cs:62`), `AddDataAnnotationsValidation` and `AddMiniValidation` use `TryAddSingleton` (`DataAnnotations/ServiceCollectionExtensions.cs:72`, `MiniValidator/ServiceCollectionExtensions.cs:65`).
 - `ValidationResult` is an immutable list of `ValidationError(PropertyName, ErrorMessage)` (`ValidationResult.cs:97`) with `Success`, `Failure(...)` and `ToErrorMessage` (`:77`); it has no group, source, priority, ordering rule or merge operation. Inside one provider the only aggregation is `FluentValidationProvider` flattening the failures of its validators (`FluentValidationProvider.cs:73-77`).
