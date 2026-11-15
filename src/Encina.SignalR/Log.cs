@@ -55,4 +55,8 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 4613, Level = LogLevel.Warning, Message = "An EncinaHub is mapped but the allow-list is empty, so every SendCommand, SendQuery and PublishNotification call is denied; register types with SignalROptions.AllowRequest or AllowNotification")]
     public static partial void EmptyAllowListWithMappedHub(ILogger logger);
+
+    // SignalRNotificationBroadcaster explicit audience: EventId 4614. Only the type FullName, never the payload.
+    [LoggerMessage(EventId = 4614, Level = LogLevel.Error, Message = "Refused to broadcast notification {NotificationType}: it declares no targets and is not registered with SignalROptions.AllowBroadcastToAll, or its declared targets resolved to no user or group; nothing was sent")]
+    public static partial void BroadcastRefusedNoTargets(ILogger logger, string notificationType);
 }
