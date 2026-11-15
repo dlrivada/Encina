@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Encina.Sharding.ReplicaSelection;
 
 namespace Encina.Sharding;
@@ -108,8 +109,18 @@ public sealed class ShardedReadWriteOptions
     /// Internal record for a shard's replica configuration entry.
     /// </summary>
     internal sealed record ShardReplicaConfig(
-        string ShardId,
-        string PrimaryConnectionString,
-        IReadOnlyList<string> ReplicaConnectionStrings,
-        ReplicaSelectionStrategy? Strategy);
+      string ShardId,
+      string PrimaryConnectionString,
+      IReadOnlyList<string> ReplicaConnectionStrings,
+      ReplicaSelectionStrategy? Strategy)
+    {
+        [JsonIgnore]
+        public string PrimaryConnectionString { get; } = PrimaryConnectionString;
+
+        [JsonIgnore]
+        public IReadOnlyList<string> ReplicaConnectionStrings { get; } = ReplicaConnectionStrings;
+
+        public override string ToString() =>
+            $"ShardReplicaConfig {{ ShardId = {ShardId}, PrimaryConnectionString = ***, ReplicaConnectionStrings = [{ReplicaConnectionStrings.Count} masked], Strategy = {Strategy} }}";
+    }
 }
