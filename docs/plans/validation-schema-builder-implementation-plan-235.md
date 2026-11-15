@@ -619,7 +619,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | No shared state to coordinate |
 | 8 | Transactions | ❌ N/A | Validation runs before the handler |
 | 9 | Idempotency | ❌ N/A | Schema validation is deterministic and stateless |
-| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific schemas (the issue defers them): draft `artifacts/issues/validation-schema-tenant-module-scoping.md`; no tenant id is stored or keyed here (register row C9), so there is no tenant-qualified id to make injective |
+| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific schemas (the issue defers them): draft `artifacts/issues/validation-tenant-module-scoped-resources.md`; no tenant id is stored or keyed here (register row C9), so there is no tenant-qualified id to make injective |
 | 11 | Module Isolation | ⏭️ Follow-up | Module-scoped schema definitions: the same draft |
 | 12 | Audit Trail | ⏭️ Follow-up | Auditing of rejected requests is a follow-up of the family (accompanies the plan of #230); the schema issues carry no values |
 
@@ -649,5 +649,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #235 and ask the maintainer to answer Design Choices 1, 2 and 5 and register rows C1, C2, C5 and C11 when work starts.
-2. Open the follow-up issues when the first pull request opens: the source-generated form of schemas (draft: `artifacts/issues/validation-schema-source-generator.md`) and tenant and module scoped schemas (draft: `artifacts/issues/validation-schema-tenant-module-scoping.md`).
+2. Open the follow-up issues when the first pull request opens: the source-generated form of schemas (draft: `artifacts/issues/validation-schema-source-generator.md`) and tenant and module scoped schemas (draft: `artifacts/issues/validation-tenant-module-scoped-resources.md`).
 3. Implement S1 to S8 as the pull requests of the Estimated File Count split, `Fixes #235` on S8.
