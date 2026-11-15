@@ -37,7 +37,7 @@
 - `IdGenerationErrors` and `IdGenerationErrorCodes` are in core (`src/Encina/Abstractions/IdGeneration/`); codes have the form `encina.idgen.*`. `IdGenerationLog` uses ids 8030, 8040 and 8050 inside `IdGeneration = (8030, 8099)`.
 - `Encina.IdGeneration` references `Encina` and `Encina.Messaging`; `Encina.DistributedLock` references the same two. No project references the other, so `Encina.DistributedLock` -> `Encina.IdGeneration` creates no cycle (only the database packages, `Encina.AspNetCore` and `Encina.OpenTelemetry` reference `Encina.IdGeneration`).
 - No production code in `src/` consumes `IDistributedLockProvider` (ADR-052 Context); `ILockHandle` has `DateTime ExpiresAtUtc` and `ExtendAsync`. The SQL Server handle is built with `now.Add(expiry)` but the lock lives with its connection (`SqlServerDistributedLockProvider.cs` line 74; #2405). #2405 also records that the Redis provider-level `ExtendAsync(resource)` does not check ownership, so renewal must use the handle.
-- The block `7500-7549` is assigned to the lock-messaging family in the plan-batch registry; `7500-7505` are used by the messaging lock plans (#713 to #715; 7506-7539 stay unassigned), and this plan takes `7540-7549` for a new range registered in `src/Encina/Diagnostics/EventIdRanges.cs` (it has no entry yet).
+- The lock-messaging family owns `7500-7539` (`MessagingLocking`) in the plan-batch registry; `7500-7505` are used by the messaging lock plans (#713 to #715; 7506-7539 stay unassigned). This plan takes `7540-7549` (`MachineIdLease`), outside that block, for a new range registered in `src/Encina/Diagnostics/EventIdRanges.cs` (it has no entry yet).
 - Manifest `.github/coverage-manifest/Encina.IdGeneration.json`: package targets guard 15, unit 60; `Configuration/SnowflakeOptions.cs` guard 90, property 50, contract 50; `Generators/SnowflakeIdGenerator.cs` guard 65, property 55, contract 18; `Health/IdGeneratorHealthCheck.cs` guard 95; `Extensions/ServiceCollectionExtensions.cs` guard 55.
 
 ---
@@ -295,8 +295,8 @@ You are implementing Phase 3 of issue #2394: the EventId range, log messages and
 
 CONTEXT:
 - ADR-021: register the range in EventIdRanges.cs before any [LoggerMessage] uses it, map the assembly in
-  EncinaEventIdAllocationTests, add the field to PublicAPI.Unshipped.txt. Ids are packed from 7540 with no gaps; the block
-  7500-7549 is assigned to the lock-messaging family; 7500-7505 belong to the messaging lock plans.
+  EncinaEventIdAllocationTests, add the field to PublicAPI.Unshipped.txt. Ids are packed from 7540 with no gaps; the range
+  7540-7549 is MachineIdLease (this plan); the lock-messaging block 7500-7539 is not used by this plan; 7500-7505 belong to the messaging lock plans.
 - AGENTS.md section 3: EncinaError.Message and exception messages never reach logs; log the code or the exception type.
 
 TASK:
