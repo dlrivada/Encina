@@ -34,7 +34,7 @@ Eight provider packages ship an `OutboxProcessor` that derives from `OutboxProce
 - No production code in `src/` consumes `IDistributedLockProvider` (ADR-052, Context table); the interface is pre-ADR-052 (`Task<IAsyncDisposable?>`), and `ILockHandle` has `DateTime ExpiresAtUtc` and `ExtendAsync` (`src/Encina.DistributedLock/ILockHandle.cs`). `ScheduledMessageProcessor` records the gap in its remarks ("See Issue #716").
 - `Encina.DistributedLock.csproj` references `Encina` and `Encina.Messaging`, so the adapter cannot live in `Encina.Messaging` (project cycle).
 - `MessagingConfiguration` has opt-in flags in the `UseOutbox` style (`src/Encina.Messaging/MessagingConfiguration.cs`); `DelayedRetryStartupCheck` (`src/Encina.Messaging/Recoverability/DelayedRetryStartupCheck.cs`) is the existing model of a startup check.
-- EventIds: `Messaging = (2800, 2999)` and `MessagingOutbox = (2000, 2099)` exist; the block `7500-7549` is assigned to this family in the plan-batch registry and has no entry in `src/Encina/Diagnostics/EventIdRanges.cs` yet. `EncinaEventIdAllocationTests` maps `Encina.Messaging` to six ranges.
+- EventIds: `Messaging = (2800, 2999)` and `MessagingOutbox = (2000, 2099)` exist; the block `7500-7539` is assigned to this family in the plan-batch registry and has no entry in `src/Encina/Diagnostics/EventIdRanges.cs` yet. `EncinaEventIdAllocationTests` maps `Encina.Messaging` to six ranges.
 - The issue text says "All 13 database providers": the database matrix of `AGENTS.md` section 5 has 10 (Oracle and SQLite are out of it).
 - Manifests: `.github/coverage-manifest/Encina.Messaging.json` (targets contract 15, guard 20, property 15, unit 70; `OutboxProcessorBase.cs` unit 85, guard 10, integration 70) and `Encina.DistributedLock.json` (guard 20, unit 60).
 
@@ -266,7 +266,7 @@ src/Encina.Messaging/MessagingConfiguration.cs, docs/architecture/adr/052-distri
 
 #### `src/Encina`
 
-5. **`Diagnostics/EventIdRanges.cs`** (modify) — `public static readonly (int Min, int Max) MessagingLocking = (7500, 7549);` before any message exists (ADR-021), with `Encina.Messaging` mapped to it in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify).
+5. **`Diagnostics/EventIdRanges.cs`** (modify) — `public static readonly (int Min, int Max) MessagingLocking = (7500, 7539);` before any message exists (ADR-021), with `Encina.Messaging` mapped to it in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (modify).
 6. **`PublicAPI.Unshipped.txt`** of `Encina` (the field) and of Messaging, through `mechanical-fixer`.
 
 </details>
@@ -279,12 +279,12 @@ You are implementing Phase 2 of issue #713: the lock gate, its logs and metrics,
 
 CONTEXT:
 - Phase 1 created the port, options and names. EventIds are registered first (ADR-021) in EventIdRanges.cs; the block
-  7500-7549 is assigned to this family and ids are packed from 7500: 7500-7503 are this plan's, 7504 belongs to #714
+  7500-7539 is assigned to this family and ids are packed from 7500: 7500-7503 are this plan's, 7504 belongs to #714
   and 7505 to #715.
 - AGENTS.md section 3: EncinaError.Message never reaches logs or tags; log the code or the exception type.
 
 TASK:
-Add the range MessagingLocking = (7500, 7549), map it for Encina.Messaging in EncinaEventIdAllocationTests, create
+Add the range MessagingLocking = (7500, 7539), map it for Encina.Messaging in EncinaEventIdAllocationTests, create
 MessagingLockGate, MessagingLockMarker, MessagingLockLog and MessagingLockMetrics as listed, and unit-test every
 outcome with an NSubstitute port and a FakeTimeProvider: off, provider missing (Left with the FailedPrecondition
 category), acquired, contended, failed, cancelled.
@@ -521,7 +521,7 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md, docs/tes
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Messaging` (new `MessagingLocking`) | 7500-7549 | Block assigned to this family; this plan registers the range in PR 2 and uses 7500-7503; #714 uses 7504, #715 uses 7505; #716 reuses 7500-7503; 7506-7539 stay unassigned (7540-7549 is the `MachineIdLease` range of #2394) |
+| `Encina.Messaging` (new `MessagingLocking`) | 7500-7539 | Block assigned to this family; this plan registers the range in PR 2 and uses 7500-7503; #714 uses 7504, #715 uses 7505; #716 reuses 7500-7503; 7506-7539 stay unassigned (7540-7549 is the `MachineIdLease` range of #2394, outside this block) |
 
 ### Estimated File Count
 
@@ -560,7 +560,7 @@ an opt-in distributed lock around each outbox processing cycle and the shared me
 IMPLEMENTATION OVERVIEW:
 1. Encina.Messaging/Locking: IMessagingLockProvider, IMessagingLockHandle, options, names, marker, gate, logs (7500-7503),
    metrics; flag UseDistributedLocking; OutboxOptions.LockExpiry and LockWait.
-2. EventIdRanges: MessagingLocking = (7500, 7549), mapped for Encina.Messaging.
+2. EventIdRanges: MessagingLocking = (7500, 7539), mapped for Encina.Messaging.
 3. Encina.DistributedLock: internal adapter over IDistributedLockProvider (ADR-052 shapes) and
    AddEncinaMessagingDistributedLocking; startup check in Messaging.
 4. OutboxProcessorBase: acquire after the scope is created, dispose after SaveChangesAsync; contention skips, Left fails
