@@ -547,7 +547,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | No shared state to coordinate |
 | 8 | Transactions | ❌ N/A | Validation runs before the handler |
 | 9 | Idempotency | ❌ N/A | Localization is deterministic for a given culture and key |
-| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific locale preferences (the issue defers them): draft `artifacts/issues/validation-localization-tenant-module-scoping.md`; no tenant id is stored or keyed here, so there is no tenant-qualified key to make injective |
+| 10 | Multi-Tenancy | ⏭️ Follow-up | Tenant-specific locale preferences (the issue defers them): draft `artifacts/issues/validation-tenant-module-scoped-resources.md`; no tenant id is stored or keyed here, so there is no tenant-qualified key to make injective |
 | 11 | Module Isolation | ⏭️ Follow-up | Module-scoped resource sets: the same draft |
 | 12 | Audit Trail | ⏭️ Follow-up | Auditing of rejected requests with the locale is a follow-up of the family (accompanies the plan of #230); nothing here changes security state |
 
@@ -577,5 +577,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #233 and ask the maintainer to answer Design Choices 1 to 5 and register rows C9 and C10 when work starts.
-2. Open the follow-up issue when the first pull request opens: tenant and module scoped locale and resources (draft: `artifacts/issues/validation-localization-tenant-module-scoping.md`).
+2. Open the follow-up issue when the first pull request opens: tenant and module scoped locale and resources (draft: `artifacts/issues/validation-tenant-module-scoped-resources.md`).
 3. Implement S1 to S6 as the pull requests of the Estimated File Count split, `Fixes #233` on S6.
