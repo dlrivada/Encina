@@ -1,3 +1,1 @@
-Connection strings in `ShardReplicaConfig` are now masked in `ToString()` and excluded from JSON
-serialisation via `[JsonIgnore]`, preventing accidental exposure in logs, diagnostics, and
-serialised payloads. Fixes #3857.
+- **Shard replica configuration no longer exposes connection strings** (#3857). ShardReplicaConfig masks the primary connection string and the replica connection strings in ToString() (only the replica count is shown) and excludes them from System.Text.Json serialization.
