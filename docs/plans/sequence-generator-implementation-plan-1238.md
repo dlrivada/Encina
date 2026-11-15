@@ -203,7 +203,7 @@ In a MongoDB multi-document transaction a concurrent write to the same document 
 3. `DefaultSequenceGenerator.cs` — validates the key, resolves the tenant, calls the store, records telemetry. Constructor: `ISequenceStore`, `IRequestContextAccessor`, `IOptions<SequenceOptions>`.
 4. `SequenceKeyValidator.cs` — pure; the rule of Design Choice 4.
 5. `SequenceOptions.cs` — `StartAt` (default 1), `RequireTenantContext` (nullable), `CommandTimeout`; `SequenceOptionsValidator.cs`.
-6. `SequenceErrors.cs` — `sequence.key_invalid`, `sequence.tenant_required`, `sequence.transaction_required`, `sequence.lock_timeout`, `sequence.store_failed`.
+6. `SequenceErrors.cs` — `sequence.key_invalid`, `sequence.tenant_required`, `sequence.transaction_required`, `sequence.lock_timeout`, `sequence.conflict` (MongoDB write conflict, Design Choice 5), `sequence.store_failed`.
 7. `InMemorySequenceStore.cs` — thread-safe; allocation is tentative and honoured only when the ambient lease commits (test double for the contract, not for production).
 8. `ServiceCollectionExtensions.cs` (or the core registration file) — `AddEncinaSequences(Action<SequenceOptions>?)` with `TryAdd*`; `MessagingConfiguration` flag `UseSequenceStore` for the database stores, following the `UseBreakTheGlassStore` precedent (`MessagingConfiguration.cs:557`); `Encina.Messaging` is therefore listed in Affected packages even though a sequence is not a messaging pattern (the flag only selects the store).
 9. `README` sentence in the package documentation: "a regulation-neutral primitive; Encina ships no Verifactu code" (issue comment, ADR-057 D23).
