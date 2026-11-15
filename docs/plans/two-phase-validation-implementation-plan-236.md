@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `db1e7f688`)
+### What exists today (read on 2026-11-15, main `96c8803bd`)
 
 - Phase 1 exists and is complete: `ValidationPipelineBehavior<TRequest, TResponse>` runs the one registered `IValidationProvider` through `ValidationOrchestrator` before the handler and returns a `Left` without calling `nextStep()` on failure (`src/Encina/Validation/ValidationPipelineBehavior.cs:51-67`). It sits in the `Validation` pipeline stage (`PipelineStage.Validation = 900`, `src/Encina/Pipeline/Ordering/PipelineStage.cs`).
 - Phase 2 is plain handler code. The domain-side building blocks already exist: `IBusinessRule`/`BusinessRule`, `BusinessRuleError`, `Check`, `CheckFirst`, `CheckAll` (`src/Encina.DomainModeling/BusinessRule.cs`), aggregates and `ValueObject`. There is no guidance that says what belongs in which phase, no ADR, and no tested example.
