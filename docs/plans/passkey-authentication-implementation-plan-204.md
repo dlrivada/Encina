@@ -11,7 +11,7 @@
 
 Let a request declare that its caller must have authenticated with a passkey (WebAuthn/FIDO2): `[RequirePasskey]` on a command or query, enforced by `SecurityPipelineBehavior` in `Encina.Security`, with `AllowFallback = true` for "passkey preferred, password allowed". The recommended shape (Dilemma D1, option A) is **enforcement only**: Encina reads how the principal authenticated (the `amr` claim of RFC 8176) and leaves registration and assertion, the cryptographic ceremony, to ASP.NET Core Identity (.NET 10 passkey support) or to any identity provider. Encina therefore owns no credential store, no challenge state and no WebAuthn parsing.
 
-Facts checked against `origin/main` (`18ec8dd19`):
+Facts checked against `origin/main` (`18ec8dd19`, verified 2026-11-10; the `EventIdRanges.Security` range and the `SecurityPipelineBehavior` constructor line of `PublicAPI.Unshipped.txt` re-checked on `55ceb4ad4`, 2026-11-15):
 
 - There is no passkey code in `src/`: no `RequirePasskey`, no `IPasskeyChallenger`, and `Directory.Packages.props` has no FIDO2 or WebAuthn package.
 - Security attributes derive from `SecurityAttribute` (`src/Encina.Security/Attributes/`) and are dispatched in `SecurityPipelineBehavior<TRequest,TResponse>.EvaluateAttributeAsync`, with `GetDenialCode` and `GetAttributeTypePriority` as the two other places that list each attribute.
@@ -166,7 +166,7 @@ ADR-062 rule R6: denials are `Forbidden` and "no identity" is `Unauthenticated`.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Spike, first test of the phase** (`tests/Encina.IntegrationTests/Security/PasskeyIdentityClaimsTests.cs`): build a host with ASP.NET Core Identity (.NET 10), perform a passkey sign-in with a scripted authenticator response or, if that is impractical, read the claims produced by `SignInManager<TUser>` for a passkey sign-in, and record in the guide which `amr` values it adds. The result is written into this plan's `## Maintainer Decisions` before PR 2 starts, so the split and the D7 default are decided by evidence. If Identity adds none, Phase 4 adds the claim-stamping helper to `Encina.AspNetCore`.
+1. **Spike, first test of the phase** (`tests/Encina.IntegrationTests/Security/PasskeyIdentityClaimsTests.cs`): build a host with ASP.NET Core Identity (.NET 10), perform a passkey sign-in with a scripted authenticator response or, if that is impractical, read the claims produced by `SignInManager<TUser>` for a passkey sign-in, and record in the guide which `amr` values it adds. The spike is its own test-only PR 0 (the test, the `Encina.IntegrationTests` project edit and, if Identity passkeys need one, the `Directory.Packages.props` pin: at most 3 files) that merges before PR 1; its result is written into this plan's `## Maintainer Decisions` before PR 1 starts, so the split and the D7 default are decided by evidence. If Identity adds none, Phase 4 adds the claim-stamping helper to `Encina.AspNetCore`.
 2. `src/Encina.Security/Attributes/RequirePasskeyAttribute.cs`: `public sealed class RequirePasskeyAttribute : SecurityAttribute` with `public bool AllowFallback { get; set; }`.
 3. `src/Encina.Security/PasskeyOptions.cs`: `AuthenticationMethodClaimType` (default `"amr"`), `PasskeyMethodValues` (`IList<string>`, empty by default under D7 option A, so the application must choose; under D7 option B the default is the values the spike verified).
 4. `src/Encina.Security/PasskeyOptionsValidator.cs`: `internal sealed class PasskeyOptionsValidator : IValidateOptions<PasskeyOptions>` (a blank claim type or a blank value fails at startup; an empty list is allowed and makes the attribute deny, D7 option A).
@@ -341,20 +341,21 @@ REFERENCE FILES: tests/Encina.UnitTests/Security/, .github/coverage-manifest/Enc
 
 | Category | Files | Notes |
 |---|---|---|
-| Production, `Encina.Security` (new) | 5 | `RequirePasskeyAttribute`, `PasskeyOptions`, `PasskeyOptionsValidator`, `IPasskeyEvidenceReader` with `PasskeyEvidence`, `ClaimsPasskeyEvidenceReader` |
+| Production, `Encina.Security` (new) | 6 | `RequirePasskeyAttribute`, `PasskeyOptions`, `PasskeyOptionsValidator`, `IPasskeyEvidenceReader`, `PasskeyEvidence` (record and enum in their own file), `ClaimsPasskeyEvidenceReader` |
 | Production (modified) | 7 | `SecurityPipelineBehavior`, `SecurityErrors`, `ServiceCollectionExtensions`, `SecurityDiagnostics`, `SecurityLogMessages`, `EncinaErrorCodes`, `PublicAPI.Unshipped.txt` (`SecurityHealthCheck` is not touched) |
 | Tests | 8 new + 4 edited | Unit, guard, contract, property, integration (including the Identity spike); the new constructor parameter edits four existing test files (`SecurityCoreContractTests`, `SecurityCoreGuardTests`, `ObservabilityTests`, `SecurityPipelineBehaviorTests`, 8 construction sites) |
 | Load and benchmark | 2 | Justification `.md` files |
 | Manifests | 2 | `Encina.Security.json` and `Encina.json` (for `EncinaErrorCodes.cs`) |
 | Documentation | 3 | Guide, README section, changelog fragment |
 
-About 31 files in total, so the work is split in pull requests that each count code, tests, manifest and `PublicAPI` edits, build and pass alone, and stay within 15 files and 1500 lines (the targets of a file ship with the file, never in a later documentation PR):
+About 33 files in total (the spike's project edit and package pin included), so the work is split in pull requests that each count code, tests, manifest and `PublicAPI` edits, build and pass alone, and stay within 15 files and 1500 lines (the targets of a file ship with the file, never in a later documentation PR):
 
 | PR | Content | Files |
 |----|---------|-------|
-| 1 | Attribute, `PasskeyOptions` and validator, `IPasskeyEvidenceReader` with `PasskeyEvidence`, `ClaimsPasskeyEvidenceReader`, `EncinaErrorCodes.cs`, `SecurityErrors.cs`, `PublicAPI.Unshipped.txt`, both manifests; unit, guard, contract and property tests | about 14 |
-| 2 | `SecurityPipelineBehavior` branch and constructor, `AddEncinaSecurity` registration, the four existing test files edited for the new constructor argument, the behavior unit tests, the DI test and the Identity spike integration test, the `PublicAPI.Unshipped.txt` constructor line | about 11 |
-| 3 | `SecurityLogMessages.cs`, `SecurityDiagnostics.cs`, their tests, the manifest edit | about 6 |
+| 0 | Test-only spike: `PasskeyIdentityClaimsTests.cs` (the Identity claims spike), the `Encina.IntegrationTests` project edit, and the `Directory.Packages.props` pin if Identity passkeys need a package | 3 |
+| 1 | 6 new production files (`RequirePasskeyAttribute`, `PasskeyOptions`, `PasskeyOptionsValidator`, `IPasskeyEvidenceReader`, `PasskeyEvidence`, `ClaimsPasskeyEvidenceReader`), `EncinaErrorCodes.cs`, `SecurityErrors.cs`, `PublicAPI.Unshipped.txt`, `Encina.Security.json`, `Encina.json` (11 files), plus 3 test files: `ClaimsPasskeyEvidenceReaderTests`, `PasskeyOptionsValidatorTests` (unit) and `PasskeyGuardTests` (guard) | 14 |
+| 2 | `SecurityPipelineBehavior` branch and constructor, `AddEncinaSecurity` registration, the `PublicAPI.Unshipped.txt` constructor line (3 files), the four existing test files edited for the new constructor argument, `PasskeyEnforcementTests` (behavior unit), the DI test, `PasskeyEvidenceContractTests`, `PasskeyEvidencePropertyTests` (the contract and property tests moved here from PR 1, they exercise the reader through the behavior) | 11 |
+| 3 | `SecurityLogMessages.cs`, `SecurityDiagnostics.cs`, their tests, the manifest edit; PR 3 merges directly after PR 2 and before any release, because between them an `AllowFallback` pass is silent (no 8006 log, no counter) | about 6 |
 | 4 | Guide, README section, changelog fragment, load and benchmark justification files, `ROADMAP.md` | about 6 |
 | 5 (only if the spike shows Identity emits no method claim) | The `Encina.AspNetCore` claim-stamping helper, its tests, registration, manifest | about 6 |
 
@@ -411,6 +412,6 @@ REFERENCE FILES: src/Encina.Security/SecurityPipelineBehavior.cs, src/Encina.Sec
 ## Next Steps
 
 1. The maintainer answers D1, D2, D3 and D7 when work on #204 starts; the answers go into `## Maintainer Decisions`.
-2. Run the Phase 1 Identity spike first and write its result into `## Maintainer Decisions` before PR 2 starts; it decides D7 option B's values and whether PR 5 exists.
+2. Merge PR 0 (the Identity spike) first and write its result into `## Maintainer Decisions` before PR 1 starts; it decides D7 option B's values and whether PR 5 exists.
 3. Open the deferred audit issue from the issue file `artifacts/issues/security-attribute-denial-audit.md` (authorization denials of `SecurityPipelineBehavior` into the operation audit store) before the plan is briefed.
 4. Brief a worker per pull request of the split in the Estimated File Count table, in order.
