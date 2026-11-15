@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ReadWriteSeparation.ConcurrentReplicaSelectionBenchmarks-20261115-011803</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.60GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]    : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                         </th><th>ThreadCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Completed Work Items</th><th>Lock Contentions</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Concurrent LeastConnections (lease)&#39;</td><td>1</td><td>218.272 &mu;s</td><td>0.3393 &mu;s</td><td>0.4645 &mu;s</td><td>218.204 &mu;s</td><td>30.21</td><td>0.81</td><td>1.9531</td><td>-</td><td>-</td><td>32.72 KB</td><td>22.28</td>
+</tr><tr><td>&#39;Concurrent LeastConnections&#39;</td><td>1</td><td>181.182 &mu;s</td><td>3.8196 &mu;s</td><td>5.5988 &mu;s</td><td>177.771 &mu;s</td><td>25.08</td><td>1.01</td><td>1.9531</td><td>-</td><td>-</td><td>32.72 KB</td><td>22.28</td>
+</tr><tr><td>&#39;Concurrent Random&#39;</td><td>1</td><td>13.576 &mu;s</td><td>0.0863 &mu;s</td><td>0.1265 &mu;s</td><td>13.526 &mu;s</td><td>1.88</td><td>0.05</td><td>0.0763</td><td>-</td><td>-</td><td>1.47 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Concurrent RoundRobin&#39;</td><td>1</td><td>7.230 &mu;s</td><td>0.1271 &mu;s</td><td>0.1903 &mu;s</td><td>7.332 &mu;s</td><td>1.00</td><td>0.04</td><td>0.0839</td><td>-</td><td>-</td><td>1.47 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Concurrent LeastConnections (lease)&#39;</td><td>4</td><td>410.226 &mu;s</td><td>4.7340 &mu;s</td><td>6.9391 &mu;s</td><td>406.445 &mu;s</td><td>14.34</td><td>0.25</td><td>1.9531</td><td>2.9995</td><td>1.5977</td><td>33.3 KB</td><td>16.27</td>
+</tr><tr><td>&#39;Concurrent LeastConnections&#39;</td><td>4</td><td>316.646 &mu;s</td><td>2.7744 &mu;s</td><td>3.9790 &mu;s</td><td>316.770 &mu;s</td><td>11.07</td><td>0.14</td><td>1.9531</td><td>3.0000</td><td>8.2407</td><td>33.3 KB</td><td>16.27</td>
+</tr><tr><td>&#39;Concurrent Random&#39;</td><td>4</td><td>9.312 &mu;s</td><td>0.0490 &mu;s</td><td>0.0718 &mu;s</td><td>9.324 &mu;s</td><td>0.33</td><td>0.00</td><td>0.1221</td><td>2.9992</td><td>0.0000</td><td>2.05 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Concurrent RoundRobin&#39;</td><td>4</td><td>28.610 &mu;s</td><td>0.0816 &mu;s</td><td>0.1222 &mu;s</td><td>28.641 &mu;s</td><td>1.00</td><td>0.01</td><td>0.1221</td><td>2.9991</td><td>-</td><td>2.05 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Concurrent LeastConnections (lease)&#39;</td><td>8</td><td>442.772 &mu;s</td><td>4.5247 &mu;s</td><td>6.7723 &mu;s</td><td>445.598 &mu;s</td><td>15.21</td><td>0.24</td><td>1.9531</td><td>5.1621</td><td>1.7070</td><td>33.86 KB</td><td>13.94</td>
+</tr><tr><td>&#39;Concurrent LeastConnections&#39;</td><td>8</td><td>321.678 &mu;s</td><td>3.1686 &mu;s</td><td>4.7426 &mu;s</td><td>322.907 &mu;s</td><td>11.05</td><td>0.17</td><td>1.9531</td><td>6.6240</td><td>10.4370</td><td>34.1 KB</td><td>14.04</td>
+</tr><tr><td>&#39;Concurrent Random&#39;</td><td>8</td><td>10.175 &mu;s</td><td>0.0547 &mu;s</td><td>0.0801 &mu;s</td><td>10.172 &mu;s</td><td>0.35</td><td>0.00</td><td>0.1373</td><td>3.9499</td><td>0.0000</td><td>2.45 KB</td><td>1.01</td>
+</tr><tr><td>&#39;Concurrent RoundRobin&#39;</td><td>8</td><td>29.109 &mu;s</td><td>0.1102 &mu;s</td><td>0.1650 &mu;s</td><td>29.101 &mu;s</td><td>1.00</td><td>0.01</td><td>0.1221</td><td>3.9637</td><td>-</td><td>2.43 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Concurrent LeastConnections (lease)&#39;</td><td>16</td><td>456.124 &mu;s</td><td>14.7167 &mu;s</td><td>21.5715 &mu;s</td><td>468.128 &mu;s</td><td>15.29</td><td>0.71</td><td>1.9531</td><td>6.5405</td><td>3.9067</td><td>34.57 KB</td><td>11.69</td>
+</tr><tr><td>&#39;Concurrent LeastConnections&#39;</td><td>16</td><td>364.380 &mu;s</td><td>14.9508 &mu;s</td><td>22.3777 &mu;s</td><td>362.208 &mu;s</td><td>12.22</td><td>0.74</td><td>1.9531</td><td>14.8359</td><td>18.3340</td><td>35.87 KB</td><td>12.13</td>
+</tr><tr><td>&#39;Concurrent Random&#39;</td><td>16</td><td>11.589 &mu;s</td><td>0.0408 &mu;s</td><td>0.0611 &mu;s</td><td>11.594 &mu;s</td><td>0.39</td><td>0.00</td><td>0.1831</td><td>3.9055</td><td>-</td><td>3.15 KB</td><td>1.07</td>
+</tr><tr><td>&#39;Concurrent RoundRobin&#39;</td><td>16</td><td>29.830 &mu;s</td><td>0.0798 &mu;s</td><td>0.1194 &mu;s</td><td>29.851 &mu;s</td><td>1.00</td><td>0.01</td><td>0.1526</td><td>3.8983</td><td>-</td><td>2.96 KB</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
