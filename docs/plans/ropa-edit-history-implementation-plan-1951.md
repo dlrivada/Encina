@@ -2,8 +2,8 @@
 
 > **Issue**: [#1951](https://github.com/dlrivada/Encina/issues/1951)
 > **Type**: Feature
-> **Complexity**: High (11 phases across 9 packages, no new package, 107 file changes in 11 pull requests; see Estimated File Count)
-> **Estimated Scope**: about 8,000 changed lines in total (production code, tests, manifests, PublicAPI and documentation), per pull request in Estimated File Count
+> **Complexity**: High (11 phases across 9 packages, no new package, 109 file changes in 11 pull requests; see Estimated File Count)
+> **Estimated Scope**: about 8,200 changed lines in total (production code, tests, manifests, PublicAPI and documentation), per pull request in Estimated File Count
 > **Specification**: GDPR Art. 5(2), Art. 30; SPEC-002 REQ-061, REQ-062 (part of #1186)
 > **Depends on**: #1778 (the entity-change audit store of ADR-036) and #1196 (the Art. 9(2) fields whose changes must be auditable)
 
@@ -35,7 +35,7 @@ Every successful register or update of a processing activity (the controller's A
 
 ## Design Choices
 
-Four Dilemmas are open (5, 8, 11 and 12); the maintainer answers them when work on the issue starts. Choices 1 to 4, 6, 7, 9 and 10 are Settled or Trivial.
+Five Dilemmas are open (5, 8, 11, 12 and 13); the maintainer answers them when work on the issue starts. Choices 1 to 4, 6, 7, 9 and 10 are Settled or Trivial.
 
 <details>
 <summary><strong>1. How the change and its audit entry commit together</strong></summary>
@@ -293,6 +293,27 @@ Four Dilemmas are open (5, 8, 11 and 12); the maintainer answers them when work 
 
 </details>
 
+<details>
+<summary><strong>13. How the registries receive the request context</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Required constructor parameters and registered dependencies.** Every registry (in-memory, EF Core, MongoDB, ADO x3, Dapper x3) requires `IRequestContextAccessor` and `TimeProvider` in its constructor; every `AddEncinaGDPR` / `AddEncinaProcessingActivity*` method calls `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()` and `TryAddSingleton(TimeProvider.System)`; the ADO, Dapper and MongoDB registrations, which register a ready-made instance today, become factories that resolve both with `GetRequiredService`; each phase has a DI test with `ValidateOnBuild` and `ValidateScopes` that asserts the resolved registry holds a non-null accessor | A missing dependency fails the build of the provider, never audits a silent `null` actor and tenant (fail closed); the same shape on all 11 registries | Every test that constructs a registry passes the two dependencies (six files for the in-memory registry, counted in Phase 2) |
+| **B) Optional constructor parameters with defaults** (a fresh `RequestContextAccessor` and `TimeProvider.System`), and the registrations still add the accessor | Existing callers compile unchanged | A hand-built registry, or a registration that forgets the accessor, audits a `null` actor and tenant without any error, which the review found and AGENTS.md section 3 (registration completeness, fail closed on missing context) rules out for the registered path |
+
+### Chosen Option: **A — Required parameters, registered dependencies, factories** (recommended, pending the maintainer)
+
+### Rationale
+
+- Missing context must not silently produce an audit entry with no actor or tenant. With A, a missing registration is a start-up failure. With tenancy off, or with no request in flight (the start-up auto-registration), the accessor exists and carries no tenant or user, so `null` is then the true value (Design Choices 4 and 6), not a wiring gap.
+- B wins only if the maintainer prefers not to touch the test callers; it keeps the gap for hand-built registries, so I do not recommend it. The sibling compliance packages already register the accessor with `TryAddSingleton` (`AddEncinaConsent`, `AddEncinaDataSubjectRights`, `AddEncinaProcessorAgreements`).
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -349,7 +370,7 @@ REFERENCE FILES:
 
 ### Phase 2: In-Memory Registry and Auto-Registration
 
-> **Goal**: The default registry audits register, update and the start-up auto-registration. **Size**: 13 files, about 900 lines.
+> **Goal**: The default registry audits register, update and the start-up auto-registration. **Size**: 15 files, about 1,000 lines.
 
 <details>
 <summary>Tasks</summary>
@@ -374,7 +395,7 @@ CONTEXT:
 - Phase 1 is merged. Callers: `git grep -n "AutoRegisterFromAssemblies" -- tests src` before editing.
 
 TASK:
-Wire the recorder into the in-memory registry and the auto-registration, add the counter and the tests. Exactly the 13 files of
+Wire the recorder into the in-memory registry and the auto-registration, add the counter, register IRequestContextAccessor and TimeProvider, and write the tests. Exactly the 15 files of
 the Phase 2 file list.
 
 KEY RULES:
@@ -398,7 +419,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.EntityFrameworkCore/ProcessingActivity/ProcessingActivityRegistryEF.cs`: the constructor takes the change mapping dependencies (accessor, `TimeProvider`); on register and update, load the current row (update), compute the diff, add the entity-change entry to the same `DbContext` and call `SaveChangesAsync` once; an empty diff writes nothing; only a failed audit write returns `gdpr.ropa_audit_failed` (Design Choice 9).
+1. `src/Encina.EntityFrameworkCore/ProcessingActivity/ProcessingActivityRegistryEF.cs`: the constructor becomes `(DbContext dbContext, IRequestContextAccessor requestContextAccessor, TimeProvider timeProvider)`, all required and null-checked (Design Choice 13); on register and update, load the current row (update), compute the diff, add the entity-change entry to the same `DbContext` and call `SaveChangesAsync` once; an empty diff writes nothing; only a failed audit write returns `gdpr.ropa_audit_failed` (Design Choice 9).
 2. `src/Encina.EntityFrameworkCore/ProcessingActivity/ProcessingActivityAuditModelCheck.cs` (new, internal, `IValidateOptions` or start-up check): the application's model contains the entity-change audit entity (registration completeness).
 3. `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs` (`AddEncinaProcessingActivityEFCore`): requires the store, registers the check, `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()` and `TryAddSingleton(TimeProvider.System)` (the scoped type registration then resolves both); the store wins over the in-memory default in any order. `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.EntityFrameworkCore.json`.
 4. Existing test callers: `tests/Encina.UnitTests/EntityFrameworkCore/ProcessingActivity/ProcessingActivityRegistryEFTests.cs`, `tests/Encina.UnitTests/Compliance/StoreFailures/StoreFailureDoesNotLeakExceptionMessageTests.cs` (the EF cases), `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/ProcessingActivity/ProcessingActivityTestDbContext.cs` (adds the audit entity), and the integration files `.../SqlServer/ProcessingActivity/ProcessingActivityRegistryEFSqlServerTests.cs`, `.../PostgreSQL/ProcessingActivity/ProcessingActivityRegistryEFPostgreSqlTests.cs`, `.../MySQL/ProcessingActivity/ProcessingActivityRegistryEFMySqlTests.cs` (register and update leave an entry with the changed fields; no-op per Design Choice 12; a forced audit failure rolls the change back; tenant and actor present; two tenants; no data subject data).
@@ -524,8 +545,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. The Phase 5 tasks 1-3 in `src/Encina.ADO.PostgreSQL/` (`ProcessingActivityRegistryADO.cs`, new `ProcessingActivity/ProcessingActivityAuditSchemaCheck.cs`, `ServiceCollectionExtensions.cs` with `AddEncinaProcessingActivityADOPostgreSQL`), with the PostgreSQL dialect (`@param`, case-sensitive identifiers, `true`/`false`); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.ADO.PostgreSQL.json`.
-2. Tests: `tests/Encina.GuardTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs`, `tests/Encina.IntegrationTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOPostgreSqlTests.cs` (`[Collection("ADO-PostgreSQL")]`), new `tests/Encina.UnitTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs`.
+1. The Phase 5 tasks 1-3 in `src/Encina.ADO.PostgreSQL/` (`ProcessingActivityRegistryADO.cs`, new `ProcessingActivity/ProcessingActivityAuditSchemaCheck.cs`, `ServiceCollectionExtensions.cs` with `AddEncinaProcessingActivityADOPostgreSQL`), with the PostgreSQL dialect (`@param`, case-sensitive identifiers, `true`/`false`). As in Phase 5 (Design Choice 13): the constructor becomes `(string connectionString, IRequestContextAccessor requestContextAccessor, TimeProvider timeProvider)`, all required; `AddEncinaProcessingActivityADOPostgreSQL` calls `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()` and `TryAddSingleton(TimeProvider.System)` and replaces the ready-made instance with a factory using `GetRequiredService`. `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.ADO.PostgreSQL.json`.
+2. Tests: `tests/Encina.GuardTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryADOPostgreSqlTests.cs` (`[Collection("ADO-PostgreSQL")]`), new `tests/Encina.UnitTests/ADO/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
 Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
@@ -561,8 +582,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. The Phase 5 tasks 1-3 in `src/Encina.ADO.MySQL/` (`AddEncinaProcessingActivityADOMySQL`), with the MySQL dialect (`@param`, backtick identifiers, `0`/`1`); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.ADO.MySQL.json`.
-2. Tests: `tests/Encina.GuardTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs`, `tests/Encina.IntegrationTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOMySqlTests.cs` (`[Collection("ADO-MySQL")]`), new `tests/Encina.UnitTests/ADO/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs`.
+1. The Phase 5 tasks 1-3 in `src/Encina.ADO.MySQL/` (`AddEncinaProcessingActivityADOMySQL`), with the MySQL dialect (`@param`, backtick identifiers, `0`/`1`). Same constructor `(string connectionString, IRequestContextAccessor requestContextAccessor, TimeProvider timeProvider)` and the same registration change as Phase 6 (accessor and `TimeProvider` by `TryAddSingleton`, a factory instead of the ready-made instance; Design Choice 13). `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.ADO.MySQL.json`.
+2. Tests: `tests/Encina.GuardTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/ADO/MySQL/ProcessingActivity/ProcessingActivityRegistryADOMySqlTests.cs` (`[Collection("ADO-MySQL")]`), new `tests/Encina.UnitTests/ADO/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
 Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
@@ -597,8 +618,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Dapper.SqlServer/ProcessingActivity/ProcessingActivityRegistryDapper.cs`: the Phase 5 sequence with Dapper `ExecuteAsync(CommandDefinition)` on one connection and transaction; new `ProcessingActivity/ProcessingActivityAuditSchemaCheck.cs`; `ServiceCollectionExtensions.cs` (`AddEncinaProcessingActivityDapperSqlServer`); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.SqlServer.json`.
-2. Tests: `tests/Encina.GuardTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs`, `tests/Encina.IntegrationTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperSqlServerTests.cs` (`[Collection("Dapper-SqlServer")]`), `tests/Encina.UnitTests/Compliance/StoreFailures/StoreFailureDoesNotLeakExceptionMessageTests.cs` (the Dapper case), new `tests/Encina.UnitTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs`.
+1. `src/Encina.Dapper.SqlServer/ProcessingActivity/ProcessingActivityRegistryDapper.cs`: the Phase 5 sequence with Dapper `ExecuteAsync(CommandDefinition)` on one connection and transaction; the constructor becomes `(string connectionString, IRequestContextAccessor requestContextAccessor, TimeProvider timeProvider)`, all required (Design Choice 13); new `ProcessingActivity/ProcessingActivityAuditSchemaCheck.cs`; `ServiceCollectionExtensions.cs` (`AddEncinaProcessingActivityDapperSqlServer`: `TryAddSingleton<IRequestContextAccessor, RequestContextAccessor>()`, `TryAddSingleton(TimeProvider.System)`, and a factory using `GetRequiredService` instead of today's ready-made instance); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.SqlServer.json`.
+2. Tests: `tests/Encina.GuardTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityRegistryDapperSqlServerTests.cs` (`[Collection("Dapper-SqlServer")]`), `tests/Encina.UnitTests/Compliance/StoreFailures/StoreFailureDoesNotLeakExceptionMessageTests.cs` (the Dapper case), new `tests/Encina.UnitTests/Dapper/SqlServer/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
 Exact file list (9): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 4 test files.
@@ -634,8 +655,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. The Phase 8 task 1 in `src/Encina.Dapper.PostgreSQL/` (`AddEncinaProcessingActivityDapperPostgreSQL`), PostgreSQL dialect; `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.PostgreSQL.json`.
-2. Tests: `tests/Encina.GuardTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs`, `tests/Encina.IntegrationTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperPostgreSqlTests.cs` (`[Collection("Dapper-PostgreSQL")]`), new `tests/Encina.UnitTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs`.
+1. The Phase 8 task 1 in `src/Encina.Dapper.PostgreSQL/` (`AddEncinaProcessingActivityDapperPostgreSQL`), PostgreSQL dialect, with the same constructor and registration change (accessor and `TimeProvider` required, registered by `TryAddSingleton`, factory instead of the ready-made instance; Design Choice 13); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.PostgreSQL.json`.
+2. Tests: `tests/Encina.GuardTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityRegistryDapperPostgreSqlTests.cs` (`[Collection("Dapper-PostgreSQL")]`), new `tests/Encina.UnitTests/Dapper/PostgreSQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
 Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
@@ -670,8 +691,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. The Phase 8 task 1 in `src/Encina.Dapper.MySQL/` (`AddEncinaProcessingActivityDapperMySQL`), MySQL dialect; `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.MySQL.json`.
-2. Tests: `tests/Encina.GuardTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs`, `tests/Encina.IntegrationTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperMySqlTests.cs` (`[Collection("Dapper-MySQL")]`), new `tests/Encina.UnitTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs`.
+1. The Phase 8 task 1 in `src/Encina.Dapper.MySQL/` (`AddEncinaProcessingActivityDapperMySQL`), MySQL dialect, with the same constructor and registration change (accessor and `TimeProvider` required, registered by `TryAddSingleton`, factory instead of the ready-made instance; Design Choice 13); `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Dapper.MySQL.json`.
+2. Tests: `tests/Encina.GuardTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperGuardTests.cs` (plus null tests of the two new parameters, #3798), `tests/Encina.IntegrationTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityRegistryDapperMySqlTests.cs` (`[Collection("Dapper-MySQL")]`), new `tests/Encina.UnitTests/Dapper/MySQL/ProcessingActivity/ProcessingActivityAuditSchemaCheckTests.cs` (the check, and the DI test with `ValidateOnBuild` and `ValidateScopes` asserting a non-null accessor).
 3. Manifest: unit, guard and integration targets of the three source files, each with a one-sentence justification.
 
 Exact file list (8): the 3 source files, `PublicAPI.Unshipped.txt`, the manifest and the 3 test files.
@@ -777,7 +798,7 @@ REFERENCE FILES:
 | Pull request | Phase | Files | Lines (about) | Contents |
 |--------------|-------|-------|---------------|----------|
 | PR 1 | 1 | 14 | 1,100 | GDPR core model, diff, recorder, factory, error; PublicAPI; manifest; 4 test files |
-| PR 2 | 2 | 13 | 900 | in-memory registry, auto-registration, diagnostics, registration; PublicAPI; manifest; 7 test files |
+| PR 2 | 2 | 15 | 1,000 | in-memory registry, auto-registration, diagnostics, registration; PublicAPI; manifest; 9 test files |
 | PR 3 | 3 | 13 | 1,100 | EF registry, model check, registration; PublicAPI; manifest; 8 test files |
 | PR 4 | 4 | 9 | 700 | MongoDB registry, transaction check, registration; PublicAPI; manifest; 4 test files |
 | PR 5 | 5 | 9 | 700 | ADO SqlServer registry, schema check, registration; PublicAPI; manifest; 4 test files |
@@ -787,7 +808,7 @@ REFERENCE FILES:
 | PR 9 | 9 | 8 | 600 | Dapper PostgreSQL, same shape; 3 test files |
 | PR 10 | 10 | 8 | 600 | Dapper MySQL, same shape; 3 test files |
 | PR 11 | 11 | 8 | 500 | contract test, 2 manifests, 2 justification files, README, feature page, changelog fragment |
-| **Total** | | **107** | **8,100** | 107 file changes in 11 pull requests; `StoreFailureDoesNotLeakExceptionMessageTests.cs`, the GDPR manifest and the EF manifest change in more than one pull request, so fewer distinct files are touched |
+| **Total** | | **109** | **8,200** | 109 file changes in 11 pull requests; `StoreFailureDoesNotLeakExceptionMessageTests.cs`, the GDPR manifest and the EF manifest change in more than one pull request, so fewer distinct files are touched |
 
 ---
 
@@ -815,6 +836,8 @@ KEY PATTERNS:
 - gdpr.ropa_audit_failed is ErrorCategory.Internal (ADR-062 R4).
 - Actor and tenant from IRequestContextAccessor (tenant null with tenancy off), time from TimeProvider, async database calls.
 - Registration completeness: a database registry requires the store; the database store wins over the in-memory default.
+- Every registry requires IRequestContextAccessor and TimeProvider; every Add* method registers both with TryAddSingleton;
+  ADO, Dapper and MongoDB registrations are factories; a DI test with ValidateOnBuild/ValidateScopes per phase (Design Choice 13).
 - Shared [Collection] fixtures for integration tests; CRAP <= 10 on changed methods; at most 15 files per pull request.
 
 REFERENCE FILES:
