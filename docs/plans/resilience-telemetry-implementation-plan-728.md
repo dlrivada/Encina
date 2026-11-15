@@ -22,7 +22,7 @@ What this plan delivers: `ActivitySource("Encina.Resilience")` request spans wit
 
 - **Affected packages**: `Encina` (core, `Diagnostics/`, `Recoverability/RetryMetrics.cs`), `Encina.Polly`, `Encina.Extensions.Resilience`, `Encina.OpenTelemetry`.
 - **Provider category**: Resilience (Polly, Extensions.Resilience; `Encina.Http` is deferred to [#1233](https://github.com/dlrivada/Encina/issues/1233)). No database, caching, transport, lock or validation provider matrix applies.
-- **Estimated size**: about 40 files and 2,000-2,400 lines, which exceeds one worker pull request (15 files, 1,500 lines). The split into six pull requests is in "Implementation Phases" below.
+- **Estimated size**: about 40 files and 2,000-2,400 lines, which exceeds one worker pull request (15 files, 1,500 lines). The split into seven pull requests is in "Implementation Phases" below.
 - **Prerequisites**: [#2277](https://github.com/dlrivada/Encina/issues/2277) (removes the dead `EnableTelemetry` and `EnableLogging`) and [#2274](https://github.com/dlrivada/Encina/issues/2274) (rate-limiter state change) are open; see "Prerequisites & Dependencies".
 
 ---
@@ -210,12 +210,13 @@ Polly's `ConfigureTelemetry(ILoggerFactory)` also enables Polly's own event logg
 
 | PR | Phases | Content | Depends on |
 |----|--------|---------|------------|
-| PR-1 | 1, 2, 3 (retry and breakers), 6 task 1 (tenant tag on spans), 8 (its unit and guard tests) | `ResilienceTelemetry` in core (tenant tag included), Polly enricher, `RetryPipelineBehavior`, `CircuitBreakerPipelineBehavior`, `DatabaseCircuitBreakerPipelineBehavior`, remove `RetryTelemetry` and `RecordAttempt`, unit and guard tests, `PublicAPI.Unshipped.txt` and manifest entries of the files it touches | #2277 merged first (it edits the same options file) |
-| PR-2 | 3 (shed load), 5 (OpenTelemetry), 7, 6 task 1 (tenant tag on its instruments), 8 (its unit and guard tests) | Bulkhead and rate-limit instruments, bulkhead and rate-limiter gauges, rate-limiter state-change counter, `WithEncina()` subscriptions, their tests, `PublicAPI`, manifests | PR-1; #2274 for the state-change event |
-| PR-3a | 4, 8 (its unit and guard tests), 9 task 2 | `StandardResiliencePipelineBehavior`, `ResilienceTelemetryEnricher`, registration, unit and guard tests, `PublicAPI`, manifest, the two changelog fragments (about 12 files) | PR-1 |
-| PR-3b | 8 (contract, integration, benchmark) | Contract test pinning the names, the two end-to-end integration tests, the two benchmark files (about 6 files) | PR-1, PR-2, PR-3a |
+| PR-1a | 1, 2, 3 (retry), 6 task 1 (tenant tag on spans), 8 (its unit and guard tests) | 13 files. Production and metadata (8): `src/Encina/Diagnostics/ResilienceTelemetry.cs` (tenant tag included), `src/Encina/Recoverability/RetryMetrics.cs` (remove `RecordAttempt`), `RetryPipelineBehavior.cs`, deleted `src/Encina.Polly/Diagnostics/RetryTelemetry.cs`, `PublicAPI.Unshipped.txt` of `Encina` and of `Encina.Polly`, manifests `Encina.json` and `Encina.Polly.json`. Tests (5): `ResilienceTelemetryTests.cs`, the existing `RetryPipelineBehavior` test file, the removed `RetryTelemetry` test, the `RetryMetrics` test edit and one guard test | #2277 merged first (it edits the same options file) |
+| PR-1b | 1 (Polly enricher), 3 (breakers), 6 task 1 (tenant tag on the enricher), 8 (its unit and guard tests) | 10 files. Production and metadata (7): `PollyTelemetryEnricher.cs`, `PollyTelemetry.cs`, `CircuitBreakerPipelineBehavior.cs`, `DatabaseCircuitBreakerPipelineBehavior.cs`, `RetryPipelineBehavior.cs` (its `ConfigureTelemetry` call), `PublicAPI.Unshipped.txt` and `Encina.Polly.json`. Tests (3): the two existing breaker behavior test files and one new enricher and telemetry test file; the guard test of the enricher is inside the existing guard file edit (no extra file) | PR-1a |
+| PR-2 | 3 (shed load), 5 (OpenTelemetry), 7, 6 task 1 (tenant tag on its instruments), 8 (its unit and guard tests) | 14 files. Production and metadata (10): `BulkheadPipelineBehavior.cs` and `RateLimitingPipelineBehavior.cs` (instruments), the `ResilienceTelemetry` edit (instrument names), the Polly `ServiceCollectionExtensions.cs` callback registration, the `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` (`WithEncina()` subscriptions), `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Polly`, manifests `Encina.json`, `Encina.Polly.json` and `Encina.OpenTelemetry.json`. Tests (4): the two existing behavior test files, `ResilienceInstrumentsTests.cs` (instruments and `WithEncina()` subscriptions) and one guard test | PR-1a; #2274 for the state-change event |
+| PR-3a | 4, 8 (its unit and guard tests), 9 task 2 | `StandardResiliencePipelineBehavior`, `ResilienceTelemetryEnricher`, registration, unit and guard tests, `PublicAPI`, manifest, the two changelog fragments (about 12 files) | PR-1b |
+| PR-3b | 8 (contract, integration, benchmark) | Contract test pinning the names, the two end-to-end integration tests, the two benchmark files (about 6 files) | PR-1b, PR-2, PR-3a |
 | PR-3c | 9 (docs) | Two package READMEs, the observability guide and `docs/INVENTORY.md` (about 4 files, by `docs-writer`) | PR-3a |
-| PR-4 | 6 (health check) | `RateLimiterThrottledHealthCheck`, its tests, `PublicAPI`, manifest | PR-2 and #2274 |
+| PR-4 | 6 (health check) | 6 files: `RateLimiterThrottledHealthCheck.cs`, `Encina.Polly.csproj` (adds `<ProjectReference Include="..\Encina.Messaging\Encina.Messaging.csproj" />` under Design Choice 3 option A; the dependency disappears with the package under R1), `PublicAPI.Unshipped.txt`, `Encina.Polly.json`, one unit test and one guard test | PR-2 and #2274 |
 
 ### Phase 1: Core Telemetry Model and Names
 
@@ -408,7 +409,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Tenant (delivered inside PR-1 for the spans and the Polly enricher, and inside PR-2 for the Encina-owned instruments, not in the health-check PR): every span and every enriched or Encina-owned instrument adds `encina.tenant_id` only when `IRequestContext.TenantId` is not null (ADR-054 D4); no tag when multi-tenancy is off.
+1. Tenant (delivered inside PR-1a for the spans and PR-1b for the Polly enricher, and inside PR-2 for the Encina-owned instruments, not in the health-check PR): every span and every enriched or Encina-owned instrument adds `encina.tenant_id` only when `IRequestContext.TenantId` is not null (ADR-054 D4); no tag when multi-tenancy is off.
 2. Health check (PR-4, after #2274): `src/Encina.Polly/Health/RateLimiterThrottledHealthCheck.cs` deriving from `EncinaHealthCheck` (`src/Encina.Messaging/Health/EncinaHealthCheck.cs`), `public const string DefaultName = "encina-polly-ratelimiter"`, static tags array, reads the rate-limiter state through the state-change event or `IRateLimiter.GetState`; returns `Degraded` while a key is `Throttled`, `Healthy` otherwise; registration via a `AddRateLimiterHealthCheck` extension on `IHealthChecksBuilder` with `TryAdd*`.
 3. Fail closed where context is missing: if the limiter cannot be resolved, the check reports `Unhealthy` rather than `Healthy`.
 
@@ -604,7 +605,7 @@ REFERENCE FILES:
 | Integration tests | 0 | 2 | Existing end-to-end tests extended |
 | Benchmarks | 1 | 1 | Zero-allocation benchmark |
 | Documentation | 0 | 5 | Two READMEs, observability guide, `docs/INVENTORY.md`, two changelog fragments |
-| **Total** | **~10** | **~33** | About 2,000-2,400 changed lines over six pull requests (PR-1, PR-2, PR-3a, PR-3b, PR-3c, PR-4) |
+| **Total** | **~10** | **~33** | About 2,000-2,400 changed lines over seven pull requests (PR-1a, PR-1b, PR-2, PR-3a, PR-3b, PR-3c, PR-4) |
 
 ---
 
@@ -623,7 +624,8 @@ PROJECT CONTEXT:
 - ADR-055 R1 will replace both packages with Encina.Resilience; this work lands in them now and reuses a shared class in core.
 
 IMPLEMENTATION OVERVIEW:
-PR-1 (Phases 1-3 retry and breakers): src/Encina/Diagnostics/ResilienceTelemetry.cs; Polly enricher; Retry, CircuitBreaker, DatabaseCircuitBreaker behaviors; delete RetryTelemetry.cs and RetryMetrics.RecordAttempt.
+PR-1a (Phases 1-3 retry): src/Encina/Diagnostics/ResilienceTelemetry.cs; RetryPipelineBehavior; delete RetryTelemetry.cs and RetryMetrics.RecordAttempt.
+PR-1b (Phases 1-3 breakers): Polly enricher and PollyTelemetry; CircuitBreaker and DatabaseCircuitBreaker behaviors; ConfigureTelemetry on the retry pipeline.
 PR-2 (shed load, OpenTelemetry): bulkhead and rate-limit instruments; state-change counter/gauge (waits for #2274); WithEncina() subscribes Encina.Resilience source/meter and the Polly meter.
 PR-3a (Phase 4): StandardResiliencePipelineBehavior + enricher, unit and guard tests, changelog fragments. PR-3b: contract, integration and benchmark tests. PR-3c: READMEs, guide, INVENTORY (docs-writer).
 PR-4 (Phase 6): RateLimiterThrottledHealthCheck (after #2274).
@@ -671,7 +673,7 @@ REFERENCE FILES:
 
 | Item | State | Effect on this plan |
 |------|-------|---------------------|
-| [#2277](https://github.com/dlrivada/Encina/issues/2277) | open | Removes the dead `EnableTelemetry` and `EnableLogging`; merge before PR-1 to avoid editing the same file |
+| [#2277](https://github.com/dlrivada/Encina/issues/2277) | open | Removes the dead `EnableTelemetry` and `EnableLogging`; merge before PR-1a to avoid editing the same file |
 | [#2274](https://github.com/dlrivada/Encina/issues/2274) | open | Supplies the rate-limiter state-change event; PR-2's state-change counter and PR-4's health check wait for it |
 | [#2414](https://github.com/dlrivada/Encina/issues/2414) | open | Rate-limiter consolidation; may move the limiter that PR-2 instruments |
 | [#1787](https://github.com/dlrivada/Encina/issues/1787) | open | Architecture test that every source and meter is subscribed; this plan adds explicit entries to `WithEncina()` and must satisfy it |
@@ -687,6 +689,6 @@ REFERENCE FILES:
 1. Review and approve this plan.
 2. Link it from issue #728.
 3. When work on #728 starts, put Design Choices 1, 2 and 3 to the maintainer and record the answers in a `## Maintainer Decisions` section placed last.
-4. Merge #2277, then start PR-1 (Phases 1-3); each phase is a self-contained commit.
-5. PR-2 and PR-4 wait for #2274; PR-3a follows PR-1, PR-3b follows PR-3a, PR-2 and PR-1, PR-3c follows PR-3a.
+4. Merge #2277, then start PR-1a (Phases 1-3); each phase is a self-contained commit. PR-1b follows PR-1a.
+5. PR-2 and PR-4 wait for #2274; PR-3a follows PR-1b, PR-3b follows PR-3a, PR-2 and PR-1b, PR-3c follows PR-3a.
 6. The final PR references `Fixes #728`.
