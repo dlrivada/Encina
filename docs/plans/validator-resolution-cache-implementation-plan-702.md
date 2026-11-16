@@ -4,13 +4,13 @@
 > **Type**: Feature (performance)
 > **Related**: #230 (owns `IRequestValidator<T>` and `RequestValidatorRunner`; its plan also adds an optional constructor parameter to `FluentValidationProvider`), #726 (central validation instrumentation), #945 (individual validation provider benchmarks), #1338 and #1339 (guard and DI proof tests of the providers), ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Low (one internal-behavior class and two small edits in one package; the hard part is lifetime correctness, not code volume)
-> **Estimated Scope**: ~170 lines of production code + ~600 lines of tests and benchmark + ~30 lines of documentation, in two pull requests of at most 12 files and 800 lines each
+> **Estimated Scope**: ~170 lines of production code + ~600 lines of tests and benchmark + ~30 lines of documentation, in two pull requests of at most 14 files and 900 lines each
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-15, main `96c8803bd`)
+### What exists today (read on 2026-11-16, main `3c95c4b2c`)
 
 - `FluentValidationProvider.ValidateAsync<TRequest>` resolves the validators of the request type on every call: `_serviceProvider.GetServices<IValidator<TRequest>>().ToList()` (`FluentValidationProvider.cs:44`), then builds a `Task[]` with LINQ (`:66-68`), awaits `Task.WhenAll` (`:70`) and flattens the failures with LINQ into a `List<ValidationError>` (`:73-77`). When no validator is registered it returns `ValidationResult.Success` after the resolution and the list allocation (`:46-49`).
 - The provider is registered scoped (`TryAddScoped<IValidationProvider, FluentValidationProvider>`, `ServiceCollectionExtensions.cs:62` and `:104`), so a new instance exists per scope and an instance-level cache would never be hit twice. Validators are registered by assembly scanning with `ServiceLifetime.Singleton` by default (`RegisterValidators(..., lifetime = ServiceLifetime.Singleton)`, `:114`, descriptor built at `:138`); the second overload registers them with the lifetime the caller passes (the XML text names scoped validators that depend on a `DbContext` as the use case), and an application may register any validator manually with any lifetime (the existing benchmark registers one with `AddTransient<IValidator<FluentCommand>, FluentCommandValidator>()`, `tests/Encina.BenchmarkTests/Encina.Benchmarks/ValidationBenchmarks.cs`).
@@ -26,7 +26,7 @@ The issue stores the resolved validator instances in a `static ConcurrentDiction
 
 ### What this plan delivers
 
-A cache that keeps only what is true for the lifetime of the container and is correct for every lifetime: a container-level singleton `ValidatorResolutionCache` that, per request type, learns once whether the registrations are `None` (no validator: the call returns `Success` without resolving or allocating), `Singleton` (every registration is a singleton: the resolved array is reused) or `Dynamic` (at least one scoped or transient registration: resolved on every call, exactly as today). The provider also loses its avoidable per-call allocations (the `ToList`, the `Task[]` LINQ chain). Validation behavior is identical for every lifetime. Nothing changes for DataAnnotations and MiniValidator (nothing to cache, see Design Choice 3).
+A cache that keeps only what is true for the lifetime of the container and is correct for every lifetime: a container-level singleton `ValidatorResolutionCache` that, per request type, learns once whether the registrations are `None` (no validator: the call returns `Success` without resolving or allocating), `Singleton` (every registration is a singleton and the container confirms it: the resolved array is reused) or `Dynamic` (at least one scoped or transient registration, or any doubt: resolved on every call, exactly as today). How the cache learns is Design Choice 2, a Dilemma: a probe alone can misclassify a factory that returns a shared instance chosen by scoped state. The provider also loses its avoidable per-call allocations (the `ToList`, the `Task[]` LINQ chain). Validation behavior is identical for every lifetime. Nothing changes for DataAnnotations and MiniValidator (nothing to cache, see Design Choice 3).
 
 - Affected packages: `Encina.FluentValidation` (the only one with a validator list to cache); `Encina` core, `Encina.DataAnnotations` and `Encina.MiniValidator` are not touched.
 - Provider category: Validation (3) (`AGENTS.md` section 5): the issue's "apply to all 3 where applicable" resolves to one applicable provider (Design Choice 3); the other two keep their behavior and a benchmark confirms they have no resolution cost to remove.
@@ -66,16 +66,18 @@ A cache that keeps only what is true for the lifetime of the container and is co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Read the `ServiceDescriptor` lifetimes of the `IServiceCollection` (a catalog captured by the registration method)** | Deterministic, no extra construction of validators | A registration made by hand after `AddEncinaFluentValidation` is seen only if the catalog reads the collection lazily, and a collection mutated after the provider was built (a pattern some test fixtures use) makes the catalog disagree with the container: a transient validator could be misread as singleton and captured |
-| **B) Probe the container once per request type: open two scopes from `IServiceScopeFactory`, resolve `IEnumerable<IValidator<TRequest>>` in each, and compare the instances; all empty gives `None`, every instance reference-equal across both scopes gives `Singleton`, anything else (or an exception while constructing) gives `Dynamic`** | Observes what the container really does, for any registration style, container implementation or registration order; never misclassifies a scoped or transient validator, because those return different instances per scope | The validators of the probed type are constructed up to two extra times, once per request type per container; a validator whose constructor needs request-bound state throws in the probe and is classified `Dynamic` (the safe side: it is resolved per call, as today, and fails there if it is really broken) |
+| **A) Read the `ServiceDescriptor` lifetimes of the `IServiceCollection` (a catalog captured by the registration method)** | Deterministic, no extra construction of validators; sees a `Transient` or `Scoped` factory registration whatever the factory returns | A registration made by hand after `AddEncinaFluentValidation` is seen only if the catalog reads the collection lazily, and a collection mutated after the provider was built (a pattern some test fixtures use) makes the catalog disagree with the container: a transient validator could be misread as singleton and captured |
+| **B) Probe the container once per request type: open two scopes from `IServiceScopeFactory`, resolve `IEnumerable<IValidator<TRequest>>` in each, and compare the instances; all empty gives `None`, every instance reference-equal across both scopes gives `Singleton`, anything else (or an exception while constructing) gives `Dynamic`** | Observes what the container really does, for any registration style, container implementation or registration order; scoped and transient validators that build a new instance per resolution return different instances per scope and are classified `Dynamic` | **Misclassifies a factory registration that returns a shared, pre-built instance chosen by scoped state.** Example: `AddTransient<IValidator<T>>(sp => sp.GetRequiredService<ITenantContext>().IsPremium ? premiumValidator : standardValidator)` with both validators built once. Both probe scopes see the same default tenant context, return the very same instance, the type is classified `Singleton`, and every later scope (another tenant) receives the wrong validator for the life of the container: a validation bypass per tenant, which the descriptor lifetime (`Transient`) would have exposed. The validators of the probed type are also constructed up to two extra times (see register row C3 for first-call cost, side effects and cancellation) |
 | **C) No instance caching: cache only the `None` fact and drop the `ToList`/LINQ allocations** | No classification, no probe, nothing to get wrong | Resolution of existing validators still happens per call (the part the issue wants to remove) |
+| **D) Hybrid: a type is `Singleton` only when A reports every registration of `IValidator<TRequest>` as a `Singleton` descriptor AND the B probe confirms reference-equal instances; a non-singleton descriptor, an unknown descriptor set or a probe disagreement gives `Dynamic`** | Catches the tenant-factory scenario above (its descriptor is `Transient` or `Scoped`, so the type is `Dynamic` before any probe); the probe still catches a singleton descriptor whose factory returns different instances | Carries both the staleness risk of A (the catalog is read lazily from the `IServiceCollection` the extension method received, so a descriptor added after the container was built is unseen: the type then falls to the probe verdict only for singletons already built, never to a wrong `Singleton` from a non-singleton descriptor) and the probe cost of B. A `Singleton` descriptor whose factory returns a shared instance chosen by scoped state cannot be built at all: `ValidateScopes` rejects a scoped service in a singleton factory, and without it the factory fails or sees the root provider |
 
-### Chosen Option: **B — Observe the container with a two-scope probe** (recommended, pending the maintainer)
+### Chosen Option: **D — Descriptor lifetimes, confirmed by the two-scope probe** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The failure that matters is a wrong `Singleton` classification: it hands a scoped service to a later request. B can only say `Singleton` when two independent scopes returned the very same instances, which is what a singleton is; A can say it from stale or incomplete descriptor data.
-- A wins when the application replaces the DI container with one whose lifetime semantics differ from the built-in ones and probing is costly (validators with heavy constructors); C wins when the benchmark of phase 1 shows the resolution is not the cost (Design Choice 5).
+- The failure that matters is a wrong `Singleton` classification: it hands a scoped or per-tenant service to a later request, a fail-open validation outcome. Probe-only B proves "the same instance twice", not "the same instance always": the tenant-factory registration above passes B and fails D. This plan therefore does not claim that B never misclassifies.
+- B wins when the application replaces the DI container with one whose `ServiceDescriptor` lifetimes are not the truth about instance lifetime and every validator registration is a plain type (no factory); A alone wins when validators have heavy or side-effecting constructors and probing is unacceptable; C wins when the benchmark of phase 1 shows the resolution is not the cost (Design Choice 5).
+- If the maintainer picks B, the limitation is stated in the XML documentation of `ValidatorResolutionCache` ("a validator factory must not return an instance that depends on scoped state; register it with the scoped lifetime and build a new instance") and pinned by a test that registers the tenant factory and asserts the documented, wrong `Singleton` verdict, so the limitation cannot be forgotten. If the maintainer picks D, the same registration is a test that asserts `Dynamic` and the per-tenant validator result.
 
 **Class:** Dilemma
 
@@ -132,10 +134,21 @@ A cache that keeps only what is true for the lifetime of the container and is co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Two pull requests: S1 adds the benchmark and removes the avoidable allocations; S2 adds the cache only if the S1 benchmark shows the resolution cost is at least 10 percent of the allocated bytes per `ValidateAsync` call with singleton validators** | Complexity is added only against a measured cost; the allocation clean-up ships regardless | An extra pull request and a threshold that is a judgement |
+| **A) Two pull requests: S1 adds the benchmark and removes the avoidable allocations; S2 adds the cache only if the S1 benchmark shows the resolution cost is at least 10 percent of the allocated bytes per `ValidateAsync` call with singleton validators (formula and arms below)** | Complexity is added only against a measured cost; the allocation clean-up ships regardless | An extra pull request and a threshold that is a judgement |
 | **B) One pull request with the benchmark and the cache** | One review | If the cost is negligible the cache is complexity with no return |
 
 ### Chosen Option: **A — Measure first, threshold 10 percent** (recommended, pending the maintainer)
+
+### The gate, defined (applies to option A)
+
+- **Baseline first.** S1 edits the provider in the same pull request that adds the benchmark, so the "before" is measured before the edit: the worker adds the benchmark file, runs it against the UNCHANGED provider (the state of `origin/main`), records the numbers, and only then edits `FluentValidationProvider.cs` and runs it again for the "after".
+- **Arms** (one class, `[MemoryDiagnoser]`, the singleton-validator scenario is the one the gate reads, because that is the only scenario the cache can improve; the `none` and `transient` scenarios are reported for information):
+  1. `ResolveOnly`: `scopedProvider.GetServices<IValidator<TRequest>>().ToList()` in an already-open scope (the control arm: the resolution cost with nothing else).
+  2. `WholeCallBefore`: `FluentValidationProvider.ValidateAsync` on the unchanged provider.
+  3. `WholeCallAfter`: the same call after the allocation clean-up (run last).
+  The scope is opened once in `[GlobalSetup]` and reused, so scope creation is excluded from every arm; the request, context and validator are built in setup.
+- **Formula:** `resolution share (%) = 100 x Allocated(ResolveOnly) / Allocated(WholeCallBefore)`, with `Allocated` the `Allocated` column of BenchmarkDotNet (bytes per operation). S2 is opened only when the share is 10 or more. The after-clean-up share, `100 x Allocated(ResolveOnly) / Allocated(WholeCallAfter)`, is reported next to it so the maintainer sees whether the clean-up alone already removed the cost.
+- **Where the numbers go:** a table in the description of the S1 pull request (arm, scenario, mean, allocated bytes, share) and the same table in the commit message of the benchmark commit; the plan file is not edited. The maintainer reads that table to decide S2.
 
 ### Rationale
 
@@ -152,10 +165,13 @@ A cache that keeps only what is true for the lifetime of the container and is co
 |----|--------|-------|-------|
 | C1 | A `Dynamic` request type is resolved on every call exactly as today, so a scoped or transient validator never outlives its scope | Settled | Microsoft DI guidelines (captive dependency), cited in Design Choice 1 |
 | C2 | The cache key is the CLR `Type` only: no tenant, user or request data enters the key, so there is no tenant-qualified id to make injective and no `default` tenant segment to reserve; validators receive `TenantId` per call through `RootContextData`, unchanged | Settled | ADR-054 D4 (tenant is a tag, not a key, and only when multi-tenancy is on); the provider code (`FluentValidationProvider.cs:62`) |
-| C3 | A probe that throws classifies the type `Dynamic`; the exception is not logged (no message, no data) and the real call path reports any genuine failure | Dilemma (recommended, pending the maintainer) | follows Design Choice 2 option B; `AGENTS.md` section 3 (gates fail closed: the safe classification is the one that validates exactly as before) |
+| C3 | Probe behavior (applies to options B and D of Design Choice 2): (a) the probe runs on the first request path of each request type, so that first call pays up to two extra constructions of every validator of the type and its constructor dependencies (a validator whose constructor opens a `DbContext` or other resource builds it in a probe scope, and the probe scopes are disposed at once); (b) any exception except `OperationCanceledException` classifies the type `Dynamic`, is not logged (no message, no data) and the real call path reports a genuine failure; (c) an `OperationCanceledException` raised while constructing a validator propagates and is not cached, because cancellation is not an error to swallow (ADR-052) and a cancelled first call must not pin a classification | Dilemma (recommended, pending the maintainer): (a) a first-call latency and side-effect cost the maintainer accepts or avoids by choosing option A of Design Choice 2 (no probe); (b)/(c) are the recommended defaults | follows Design Choice 2; `AGENTS.md` section 3 (gates fail closed: the safe classification is the one that validates exactly as before; background cancellation propagates, ADR-052) |
 | C4 | No `[LoggerMessage]` is added: the cache is a hot path with no operational event; no EventId range is needed | Trivial | `AGENTS.md` section 7 (ranges only for logging code that exists) |
 | C5 | No new error code is created, so there is no ADR-062 `ErrorCategory` to assign; a validation failure keeps going through `ValidationResult` and the existing orchestrator `Left` | Settled | ADR-062 contract (a category is chosen where an error is created; none is created here) |
 | C6 | The cache type is `public sealed` with a public constructor so the registration and the tests can build it; its only public member besides the constructor is the generic resolve method | Dilemma (recommended, pending the maintainer) | public surface; `internal` plus `InternalsVisibleTo` is the alternative (the guard test project reaches it either way) |
+| C7 | Public names and shape: `ValidatorResolutionCache` and `Resolve<TRequest>(IServiceProvider scopedProvider)` returning `IReadOnlyList<IValidator<TRequest>>` (read-only view of the shared array; callers cannot mutate the cached instances) | Dilemma (recommended, pending the maintainer) | public surface; alternatives are a different type name, `IEnumerable<IValidator<TRequest>>` (no indexer, lazier) or `ReadOnlySpan` (not usable across `await`, so rejected by the async call path); recorded with C6 |
+| C8 | `Resolve` calls `ArgumentNullException.ThrowIfNull(scopedProvider)` first even when the answer is `None` or `Singleton` and the provider is never touched, so a caller bug fails the same way for every classification | Trivial | `AGENTS.md` section 9 (guard tests for validated parameters) and the sibling guard in `FluentValidationProvider.cs:40-41` |
+| C9 | Constructor parameter order on `FluentValidationProvider`: `(IServiceProvider serviceProvider, ValidatorResolutionCache? cache = null)` today; when #230 also adds `RequestValidatorRunner? runner = null`, the pull request that lands second appends its parameter after the other's, both optional, and every call site that passes the first optional parameter positionally is updated in that pull request | Dilemma (recommended, pending the maintainer) | the order is a public-signature choice the two plans share; the alternative is named arguments only at the call sites with the registration building the provider through the container; recorded here and in the #230 plan |
 
 ---
 
@@ -168,9 +184,9 @@ A cache that keeps only what is true for the lifetime of the container and is co
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `tests/Encina.BenchmarkTests/Encina.Benchmarks/FluentValidationResolutionBenchmarks.cs` (`[MemoryDiagnoser]`; three scenarios of the same `ValidateAsync` call: no validator registered, one singleton validator, one transient validator; plus the DataAnnotations and MiniValidator calls as the control of Design Choice 3). Run with `dotnet run -c Release --project tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj -- --filter "*FluentValidationResolution*"`; the measured allocated bytes per call go into the pull request description and decide Design Choice 5.
+1. **Create** `tests/Encina.BenchmarkTests/Encina.Benchmarks/FluentValidationResolutionBenchmarks.cs` (`[MemoryDiagnoser]`; the three arms `ResolveOnly`, `WholeCallBefore`, `WholeCallAfter` of Design Choice 5 over three scenarios: no validator registered, one singleton validator, one transient validator; plus the DataAnnotations and MiniValidator calls as the control of Design Choice 3). Order of work: (a) add the benchmark file; (b) run it on the unchanged provider with `dotnet run -c Release --project tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj -- --filter "*FluentValidationResolution*"` and record `ResolveOnly` and `WholeCallBefore`; (c) only then edit the provider (task 2) and run again for `WholeCallAfter`; (d) compute the share of Design Choice 5 and put the table in the pull request description. Verify the filter first with `--list flat --filter "*FluentValidationResolution*"`.
 2. **Modify** `src/Encina.FluentValidation/FluentValidationProvider.cs`: keep the resolution as it is; replace `.ToList()` by `.ToArray()` with an early return on `Length == 0`, and replace the `Select`/`ToArray`, `SelectMany`/`Where`/`Select`/`ToList` chains by two loops with a pre-sized `Task<FluentValidation.Results.ValidationResult>[]` and a single `List<ValidationError>` (behavior and error order unchanged).
-3. **Modify** `.github/coverage-manifest/Encina.FluentValidation.json` through `mechanical-fixer`: explicit per-file targets for `FluentValidationProvider.cs` (table in Research).
+3. **Modify** `.github/coverage-manifest/Encina.FluentValidation.json` through `mechanical-fixer`: the explicit per-file unit target (95) for `FluentValidationProvider.cs` (table in Research; the other flags are entered by S2 with their tests).
 4. Tests: the existing 441-line `FluentValidationProviderTests.cs` and `ValidationPipelineBehaviorTests.cs` already pin the behavior (result equality, error order, the "no validators" path, parallel failures); the change is covered by them unchanged, and the pull request description lists which tests cover each edited branch for the crap-gate.
 
 </details>
@@ -187,9 +203,14 @@ with GetServices(...).ToList() on every call.
 TASK:
 1. Add a BenchmarkDotNet class FluentValidationResolutionBenchmarks in tests/Encina.BenchmarkTests/Encina.Benchmarks
    (use BenchmarkSwitcher conventions of the project, MemoryDiagnoser, scenarios: none/singleton/transient validators,
-   plus DataAnnotations and MiniValidator controls). Run it and record allocated bytes per call.
-2. In FluentValidationProvider.ValidateAsync replace the ToList and the LINQ chains by an array and two loops.
-   Result values and error ORDER must not change.
+   plus DataAnnotations and MiniValidator controls; arms ResolveOnly = GetServices<IValidator<T>>().ToList() in a scope
+   opened once in GlobalSetup, WholeCallBefore = ValidateAsync on the UNCHANGED provider, WholeCallAfter).
+2. BEFORE editing the provider run the benchmark and record Allocated bytes of ResolveOnly and WholeCallBefore for the
+   singleton scenario. Then in FluentValidationProvider.ValidateAsync replace the ToList and the LINQ chains by an array
+   and two loops. Result values and error ORDER must not change. Run again for WholeCallAfter.
+3. Compute share = 100 * Allocated(ResolveOnly) / Allocated(WholeCallBefore) (singleton scenario), also with
+   WholeCallAfter, and put the table (arm, scenario, mean, allocated bytes, share) in the pull request description
+   and the benchmark commit message. S2 is opened only when the share is 10 or more.
 
 KEY RULES:
 - No behavior change; existing FluentValidationProviderTests must pass unchanged.
@@ -212,12 +233,12 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.FluentValidation/ValidatorResolutionCache.cs`: `public sealed class ValidatorResolutionCache`; constructor `(IServiceScopeFactory scopeFactory)` (a singleton can take the factory, never a scoped service); one public method `IReadOnlyList<IValidator<TRequest>> Resolve<TRequest>(IServiceProvider scopedProvider)` that returns the shared array for `Singleton`, an empty list for `None` without touching `scopedProvider`, and `scopedProvider.GetServices<IValidator<TRequest>>().ToArray()` for `Dynamic`. An internal `Classify(Type)` runs the two-scope probe of Design Choice 2 (reference equality of the instances, a thrown exception gives `Dynamic`).
+1. **Create** `src/Encina.FluentValidation/ValidatorResolutionCache.cs`: `public sealed class ValidatorResolutionCache`; constructor `(IServiceScopeFactory scopeFactory)` (a singleton can take the factory, never a scoped service); one public method `IReadOnlyList<IValidator<TRequest>> Resolve<TRequest>(IServiceProvider scopedProvider)` that returns the shared array for `Singleton`, an empty list for `None` without touching `scopedProvider` (the `ArgumentNullException.ThrowIfNull(scopedProvider)` runs first in every case, register row C8), and `scopedProvider.GetServices<IValidator<TRequest>>().ToArray()` for `Dynamic`. An internal `Classify(Type)` runs the classification of Design Choice 2 as the maintainer decides it (the plan assumes option D: descriptor lifetimes first, then the two-scope reference-equality probe; any exception except `OperationCanceledException` gives `Dynamic`, register row C3). Under option D the registration method also hands the cache the descriptor catalog (a second internal constructor parameter, an `IServiceCollection` reference captured by the `TryAddSingleton` factory); the public constructor stays `(IServiceScopeFactory)`.
 2. **Modify** `FluentValidationProvider.cs`: optional trailing constructor parameter `ValidatorResolutionCache? cache = null`; when null the provider resolves as in phase 1. The plan of #230 adds its own optional `RequestValidatorRunner? runner = null` to the same constructor: the pull request that lands second appends its parameter after the other's, both optional, so the 6 existing `new FluentValidationProvider(serviceProvider)` sites compile unchanged (verified with `git grep -c "new FluentValidationProvider(" -- tests`).
 3. **Modify** `src/Encina.FluentValidation/ServiceCollectionExtensions.cs`: `services.TryAddSingleton<ValidatorResolutionCache>()` in both `AddEncinaFluentValidation` overloads (next to `:62` and `:104`); the singleton takes `IServiceScopeFactory`, which the container always provides.
 4. **Modify** `src/Encina.FluentValidation/PublicAPI.Unshipped.txt` (the type, its constructor and `Resolve`) and `.github/coverage-manifest/Encina.FluentValidation.json` (a new entry for `ValidatorResolutionCache.cs`) through `mechanical-fixer`.
 5. **Modify** `src/Encina.FluentValidation/README.md` through `docs-writer`: a short "Performance" note (what is cached, what is not, the lifetime guarantee) and the changelog fragment `changelog.d/702-validator-resolution-cache.changed.md` through `mechanical-fixer`.
-6. Tests (all new files): `ValidatorResolutionCacheTests` (unit: `None`, `Singleton` returns the same array on the second call, `Dynamic` with a scoped validator returns a different instance per scope, transient likewise, mixed registrations are `Dynamic`, a validator whose constructor throws in the probe is `Dynamic`, the same request type in two caches does not share state, 64 concurrent first calls give one stable classification); `FluentValidationProviderCacheTests` (unit: results identical with and without the cache for each lifetime); `ValidatorResolutionCacheGuardTests` (guard: null `scopeFactory`, null `scopedProvider`; a null cache in the provider is a valid case that uncached behavior); `ValidatorResolutionCacheRegistrationTests` (DI: builds the provider with `ValidateOnBuild` and `ValidateScopes` for both `AddEncinaFluentValidation` overloads and resolves the provider, the orchestrator and the cache); `ValidatorResolutionCacheProperties` (FsCheck: for any mix of lifetimes the cached provider returns the same `ValidationResult` as the uncached one).
+6. Tests (all new files): `ValidatorResolutionCacheTests` (unit: `None`, `Singleton` returns the same array on the second call, `Dynamic` with a scoped validator returns a different instance per scope, transient likewise, mixed registrations are `Dynamic`, a validator whose constructor throws in the probe is `Dynamic`, an `OperationCanceledException` thrown by a validator constructor in the probe propagates and is not classified, the same request type in two caches does not share state, 64 concurrent first calls give one stable classification, and the tenant-factory scenario of Design Choice 2: a `Transient` factory registration returning one of two pre-built validators by a scoped `ITenantContext`, resolved in two scopes with different tenants, must give each tenant its own validator under option D (`Dynamic`) or, under option B, the test asserts the documented limitation); `FluentValidationProviderCacheTests` (unit: results identical with and without the cache for each lifetime); `ValidatorResolutionCacheGuardTests` (guard: null `scopeFactory`, null `scopedProvider`, and the `FluentValidationProvider` constructor, request and context checks; a null cache in the provider is a valid case that keeps the uncached behavior, asserted as a valid result, not an exception); `ValidatorResolutionCacheRegistrationTests` (DI: builds the provider with `ValidateOnBuild` and `ValidateScopes` for both `AddEncinaFluentValidation` overloads and resolves the provider, the orchestrator and the cache); `ValidatorResolutionCacheProperties` (FsCheck: for any mix of lifetimes the cached provider returns the same `ValidationResult` as the uncached one); `ValidatorResolutionCacheContractTests` in `tests/Encina.ContractTests/Validation/FluentValidation/` (contract: the public contract of `Resolve<TRequest>`: the same instances for a singleton type across scopes, distinct instances per scope for scoped and transient types, an empty list for an unregistered type, `ArgumentNullException` for a null provider; real instances, no reflection), which needs one `ProjectReference` to `Encina.FluentValidation` added to `tests/Encina.ContractTests/Encina.ContractTests.csproj` (that project does not reference it today; both files are counted below).
 
 </details>
 
@@ -231,8 +252,11 @@ the phase 1 benchmark shows the resolution cost threshold of Design Choice 5. Re
 container is built; validators may be singleton, scoped or transient.
 
 TASK:
-1. Create ValidatorResolutionCache (container singleton, ctor IServiceScopeFactory) with the two-scope probe: None,
-   Singleton (reference-equal instances across two scopes), Dynamic (everything else, or a throwing probe).
+1. Create ValidatorResolutionCache (container singleton, ctor IServiceScopeFactory) classifying each request type per
+   the maintainer's answer to Design Choice 2 (recommended: descriptor lifetimes first, then the two-scope probe):
+   None, Singleton (all singleton descriptors AND reference-equal instances across two scopes), Dynamic (everything
+   else, or a throwing probe; OperationCanceledException propagates). A factory registration that returns a shared
+   instance chosen by scoped state (per tenant) MUST NOT end up Singleton: add the test of Design Choice 2.
 2. Give FluentValidationProvider an optional trailing ValidatorResolutionCache? parameter; null keeps today's behavior.
 3. Register the cache with TryAddSingleton in both AddEncinaFluentValidation overloads.
 
@@ -288,18 +312,20 @@ Every count includes tests, the coverage manifest, PublicAPI, the README and the
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1 | Benchmark and allocation clean-up | 0 | 1 (`FluentValidationProvider.cs`) | 1 (benchmark) | 0 | 1 | 0 | 3 | ~200 |
-| S2 | Resolution cache | 1 (`ValidatorResolutionCache.cs`) | 3 (provider, `ServiceCollectionExtensions.cs`, PublicAPI) | 5 (cache unit, provider unit, guard, DI, property) | 0 | 1 | 2 (README, changelog fragment) | 12 | ~800 |
-| **Total** | | **1** | **4** | **6** | **0** | **2** | **2** | **15** | **~1,000** |
+| S2 | Resolution cache | 1 (`ValidatorResolutionCache.cs`) | 4 (provider, `ServiceCollectionExtensions.cs`, PublicAPI, `Encina.ContractTests.csproj` reference) | 6 (cache unit, provider unit, guard, DI, property, contract) | 0 | 1 | 2 (README, changelog fragment) | 14 | ~900 |
+| **Total** | | **1** | **5** | **7** | **0** | **2** | **2** | **17** | **~1,100** |
 
-The columns sum to the total (1 + 4 + 6 + 0 + 2 + 2 = 15 files; S1 3 + S2 12 = 15). S2 is not opened when the S1 measurement is under the threshold of Design Choice 5; the plan then ends after S1 and the issue closes with the measurement as its evidence.
+The columns sum to the total (1 + 5 + 7 + 0 + 2 + 2 = 17 files; S1 3 + S2 14 = 17); each pull request is at most 15 files and 1500 lines. S2 is not opened when the S1 measurement is under the threshold of Design Choice 5; the plan then ends after S1 and issue #702 is left with its acceptance criteria "validator list cached ... ConcurrentDictionary", "thread-safe" and "applied to all 3" unmet by design. The criteria are the maintainer's to amend (this plan never comments on an issue): the proposed amended text, for the maintainer to apply, is the draft `artifacts/decisions/plan-batch/followups/validator-resolution-cache-criteria-amendment.md`.
 
 Per-file coverage targets (per flag, with a one-sentence justification), written into `.github/coverage-manifest/Encina.FluentValidation.json` by the pull request that adds or touches the file:
 
-| File | Unit | Guard | Property | Justification |
-|------|------|-------|----------|---------------|
-| `ValidatorResolutionCache.cs` | 95 | 90 | 60 | Every classification (none, singleton, scoped, transient, mixed, throwing probe) and the concurrent first call are reachable with plain registrations; the guard tests reach both argument checks; the property test drives random lifetime mixes through the resolve method |
-| `FluentValidationProvider.cs` | 95 | 40 | 50 | The loops and the empty path are covered by the existing provider tests and the new cache tests; the guard tests reach the request and context checks and the optional constructor parameter; the property test compares cached and uncached results |
-| `ServiceCollectionExtensions.cs` | 90 | 85 | 0 | The new `TryAddSingleton` lines are covered by the DI test; the existing null checks are guard-tested; no property applies to registration |
+| File | Unit | Guard | Contract | Property | Justification |
+|------|------|-------|----------|----------|---------------|
+| `ValidatorResolutionCache.cs` | 95 | 90 | 85 | 60 | Every classification (none, singleton, scoped, transient, mixed, tenant factory, throwing probe) and the concurrent first call are reachable with plain registrations; the guard tests reach the constructor and `scopedProvider` argument checks; the contract tests execute the real `Resolve` for each lifetime (its remaining lines are the probe error paths only unit tests drive); the property test drives random lifetime mixes through the resolve method |
+| `FluentValidationProvider.cs` | 95 | 60 | 0 | 50 | The loops and the empty path are covered by the existing provider tests and the new cache tests; the guard tests reach the constructor, request and context checks (every validated parameter, the rest of the file is the async body they cannot reach); no contract applies (the provider implements `IValidationProvider`, whose contract is already pinned in core); the property test compares cached and uncached results |
+| `ServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | The new `TryAddSingleton` lines are covered by the DI test; the existing null checks are guard-tested; no contract or property applies to registration |
+
+The S1 pull request enters only the `FluentValidationProvider.cs` unit target (95, met by the existing provider tests, which it edits); no guard test of the provider exists on `main` (verified by searching `tests/Encina.GuardTests` for `FluentValidationProvider`), so the guard, contract and property targets of the table are entered by S2, in the same pull request as the tests that meet them (the S2 guard test class also covers the provider's constructor, request and context checks).
 
 ---
 
@@ -318,9 +344,11 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. S1: a benchmark that isolates validator resolution, and a provider hot path without ToList or LINQ chains.
-2. S2 (only if the benchmark shows at least 10 percent of allocated bytes in resolution): ValidatorResolutionCache, a
-   container singleton that classifies each request type as None, Singleton or Dynamic with a two-scope probe, so a
-   scoped or transient validator is never cached; optional constructor parameter on the provider; TryAddSingleton in
+2. S2 (only if the benchmark shows share = 100 * Allocated(ResolveOnly) / Allocated(WholeCallBefore) of at least 10
+   for the singleton scenario, baseline measured before the provider edit): ValidatorResolutionCache, a
+   container singleton that classifies each request type as None, Singleton or Dynamic (descriptor lifetimes confirmed
+   by a two-scope probe, per the maintainer's answer to Design Choice 2), so a scoped, transient or per-tenant factory
+   validator is never cached; optional constructor parameter on the provider; TryAddSingleton in
    both AddEncinaFluentValidation overloads.
 3. DataAnnotations and MiniValidator are unchanged (nothing to resolve).
 
@@ -381,6 +409,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #702 and ask the maintainer to answer Design Choices 2 and 5 and register row C6 when work starts.
-2. Implement S1 and read its benchmark; open S2 only when the threshold of Design Choice 5 is met, with `Fixes #702` on the last pull request that ships.
-3. Open the follow-up issue when the first pull request opens: the same resolution cost in the `IRequestValidator<T>` runner of #230 (draft: `artifacts/issues/validation-runner-resolution-cache.md`).
+1. Link this plan from #702 and ask the maintainer to answer Design Choices 2 and 5 and register rows C3, C6, C7 and C9 when work starts.
+2. Implement S1 and read its benchmark table; open S2 only when the threshold of Design Choice 5 is met, with `Fixes #702` on the last pull request that ships. Maintainer action if S2 is never opened: amend the acceptance criteria of #702 (cache, thread safety, "all 3") to the measurement outcome with the text of `artifacts/decisions/plan-batch/followups/validator-resolution-cache-criteria-amendment.md`, then close it; the plan itself never comments on the issue.
+3. Open the follow-up issue when the first pull request opens: the same resolution cost in the `IRequestValidator<T>` runner of #230 (follow-up issue to be opened, draft: `artifacts/decisions/plan-batch/followups/validation-runner-resolution-cache.md`).
