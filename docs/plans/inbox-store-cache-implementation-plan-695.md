@@ -2,7 +2,7 @@
 
 > **Issue**: [#695](https://github.com/dlrivada/Encina/issues/695)
 > **Type**: Feature
-> **Complexity**: Medium (5 phases, 3 pull requests of 9, 13 and 15 files)
+> **Complexity**: Medium (5 phases, 4 pull requests of 9, 13, 13 and 4 files)
 > **Estimated Scope**: about 550 lines of production code, about 1100 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching, messaging, idempotency)
 
@@ -12,7 +12,7 @@
 
 `InboxOrchestrator.ProcessCoreAsync` (`src/Encina.Messaging/Inbox/InboxOrchestrator.cs` line 131) calls `IInboxStore.GetMessageAsync(messageId)` once per received message; it is the only production caller (the other two sites are `InstrumentedInboxStore` and a test helper). The issue asks for a cache decorator in front of that read.
 
-Re-checked against `origin/main` (db1e7f688), the issue text does not fit the code in four places, and the plan resolves each one:
+Re-checked against `origin/main` (63cd79396), the issue text does not fit the code in four places, and the plan resolves each one:
 
 1. **The sketch is not the interface.** Every store method returns `Task<Either<EncinaError, ...>>` and the lookup returns `Option<IInboxMessage>` (`IInboxStore.cs`); the sketch returns a bare `IInboxMessage?`.
 2. **`Encina.Messaging` cannot host the decorator.** `Encina.Caching` references `Encina.Messaging` (`Encina.Caching.csproj`), so the decorator and its options live in `Encina.Caching`; a Messaging reference to Caching would be circular.
@@ -23,7 +23,7 @@ This plan **owns the shared foundation of the cache-stores family**: the injecti
 
 **Affected packages:** `Encina.Caching` (decorator, options, key builder, registration, telemetry, logs, errors), `Encina` (EventId range registration only). No provider package changes.
 
-**Provider category**: Database (10) for the decorated stores (the decorator is provider-independent, the integration scenario runs against all ten); Caching (8) for the cache behind it: tested with Memory (unit and integration) and Redis (integration); Valkey, Dragonfly, Garnet and KeyDB share the Redis wrapper; Hybrid is exercised by the contract of `ICacheProvider` only; Memcached (planned, #277) needs no change.
+**Provider category**: Database (10) for the decorated stores (the decorator is provider-independent, the integration scenario runs against all ten); Caching (8) for the cache behind it, consistent because the decorator uses only `ICacheProvider` (Get/Set/Remove, TTL, serialization abstraction) and no pub/sub or tags. Coverage of the eight: Memory (L1) runs the scenario against the ten real stores (unit and integration, PR 3); Redis runs one integration class with the existing `RedisCollection` fixture (PR 3) that proves the `CachedInboxEntry` serialization round trip and the TTL on a real server; Valkey, Dragonfly, Garnet and KeyDB are covered by that Redis run because they share the Redis wrapper (`Encina.Caching.Redis` speaks the same protocol commands this decorator needs), with no own run; Hybrid (L1+L2) is not run: it is covered only by the `ICacheProvider` contract and by its own package tests, and an inbox scenario on Hybrid is the follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/inbox-cache-hybrid-run.md`); Memcached (planned, #277) needs no change.
 
 **Sibling plans (caching family)**: #2408 owns `CacheInvalidationPostCommitProcessor` and the range `CachingInvalidation` (300-319); #2407 owns the DSR cache purge (range 320-329) and the tenant namespace pattern `{prefix}:t:{escaped tenant}:`; #271 (tag invalidation, open) is not a prerequisite. The decorators of this family never use tags.
 
@@ -109,7 +109,7 @@ This plan **owns the shared foundation of the cache-stores family**: the injecti
 
 ### Rationale
 
-- C wins when a custom `IInboxStore` caller needs the provider's concrete message type on a hit; nothing in `src/` casts the result of `GetMessageAsync` (checked: the three call sites above).
+- C wins when a custom `IInboxStore` caller needs the provider's concrete message type on a hit; nothing in `src/` casts the result of `GetMessageAsync` (checked: the three call sites above). B wins in no scenario (an EF entity with tracking state is unsafe to serialize or share); it stays in the table only to record why it is rejected.
 - The key is `{CachingOptions.KeyPrefix}:x-store:inbox:{segment}` where the id passes through `StoreCacheKey.Segment` (design choice 5). The inbox table has no tenant column today (`IInboxMessage` has no `TenantId`; the id is the primary key), so the key mirrors the identity of the row and has no tenant segment. If a tenant column is added to the inbox, the key gains the tenant segment of `StoreCacheKey.Tenant` in the same change.
 - Class: Dilemma
 
@@ -142,16 +142,17 @@ This plan **owns the shared foundation of the cache-stores family**: the injecti
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A failing cache call is caught, counted and logged by exception type (`ForLogging()`), and the call falls through to the inner store; with `CachingOptions.ThrowOnCacheErrors` the decorator returns `Left` with `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4) instead** | The cache is an optimization: its outage never fails a message; one switch already exists for strict deployments; ROP, no exception | A permanently broken cache is only visible in metrics and logs |
-| **B) Always fail the operation on a cache error** | Loud | A Redis outage stops the whole inbox |
+| **A) A failing cache call is caught, counted and logged by exception type (`ForLogging()`), and the call falls through to the inner store; with `CachingOptions.ThrowOnCacheErrors` the decorator returns `Left` with `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4) instead** | The cache is an optimization: its outage never fails a message; one switch already exists for strict deployments; ROP, no exception | A permanently broken cache is only visible in metrics and logs; the decorator reuses the global `CachingOptions.ThrowOnCacheErrors` instead of owning a flag (its documented meaning is "cache errors propagate and fail the request", `CachingOptions.cs` line 103), so one setting changes the behavior of every caching feature of the application |
+| **B) Always fail the operation on a cache error (`Left` with `store_cache.failed`), no switch** | Loud: a broken cache is noticed at once; no reuse of a global flag; no hidden configuration | A Redis outage stops the whole inbox |
 | **C) Disable the cache after N failures** | Self-heals | Hidden state machine in a decorator |
 
-### Chosen Option: **A - fall through, strict switch returns `Left`**
+### Chosen Option: **A - fall through, strict switch returns `Left`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (Railway Oriented Programming: no exception for business logic; an exception passed to a logger goes through `ForLogging()`) and ADR-062 (every new code states its category). A `Left` from the inner store is never swallowed: it is returned as it is and never cached.
+- A wins for availability: the inbox keeps working through a cache outage, and the inner store, the source of truth, answers every call. B wins in deployments that prefer a loud failure to a silent loss of the optimization. A `Left` from the inner store is never swallowed in either option: it is returned as it is and never cached, and a failing cache call is never hidden (it is counted and logged), so AGENTS.md section 3 (errors never swallowed) is met by both.
+- The plan reuses the existing `CachingOptions.ThrowOnCacheErrors` rather than adding a flag to `InboxCachingOptions`; a flag of its own is a one-line change if the maintainer prefers that (the siblings reuse the same decision).
+- Class: Dilemma
 
 </details>
 
@@ -171,6 +172,64 @@ This plan **owns the shared foundation of the cache-stores family**: the injecti
 
 - **Class:** Trivial
 - **Settled by:** the assignment of block 350-399 to this family in the plan batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`) and AGENTS.md section 7 (register the range in `EventIdRanges.cs` first; the allocation test maps `Encina.Caching` to it). Ids are packed: 350-353 here, 354-360 are #698, and #696 and #699 reuse 350-353.
+
+</details>
+
+<details>
+<summary><strong>8. Defaults of `InboxCachingOptions`</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Duration` 1 hour and `MaxCachedResponseLength` 32768 characters** | A redelivery of a processed message usually arrives within the broker's redelivery window, well inside an hour; 32768 characters keeps one entry far below typical cache value limits; the effective TTL is anyway min(`Duration`, remaining retention) | A response changed or removed outside the decorator (the purge on another instance) can be served for up to an hour, bounded by the `ExpiresAtUtc` check on every hit |
+| **B) `Duration` 15 minutes and `MaxCachedResponseLength` 8192 characters** | Shorter exposure of a stale or personal response; smaller memory footprint | More misses for slow redeliveries; larger responses are never cached |
+
+### Chosen Option: **A - 1 hour and 32768 characters** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins for deployments with strict memory budgets or a short redelivery window; A wins for the general case. Both are plain option defaults that the application overrides in `AddEncinaInboxCaching(options => ...)`; the code is identical.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Which processed rows are cached (null response, handler `Left`, skip accounting)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Cache a row only when `IsProcessed && Response is not null` (the branch `InboxOrchestrator` serves, line 214), including the row that `CacheHandlerErrorAsync` writes for a handler `Left`; a processed row with a null `Response` is never cached; an entry that is not cached is counted (`outcome=skipped`) and logged once by reason code (event 353), never with the id** | The cache holds exactly what the orchestrator serves, so a hit changes no outcome; a handler `Left` is a processed business outcome (ADR-001) and a redelivery returns the same `Left` from the cache | A processed message with no response (a handler that returns a unit-like response serialized to null) gets no cache benefit |
+| **B) Cache every processed row, including a null response** | One more case cached | The orchestrator does not serve a processed row with a null `Response` (it re-enters the processing branch), so the cached copy changes nothing but costs a write |
+
+### Chosen Option: **A - the orchestrator's own serving condition**
+
+### Rationale
+
+- **Class:** Trivial
+- **Settled by:** `InboxOrchestrator.cs` line 214 (`existingMessage.IsProcessed && existingMessage.Response != null` is the only branch that returns a stored response) and lines 334-340 (a handler `Left` is stored through `CacheHandlerErrorAsync` as the processed response and a `Right` through `MarkAsProcessedAsync`; both produce a processed row with a response, so both are cached by the same rule). The skip counter and the log carry no id or response (ADR-054 D6).
+
+</details>
+
+<details>
+<summary><strong>10. The cached response at rest (personal data)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Cache the response exactly as the inbox row stores it (the serialized handler response), plaintext in the cache provider, with a TTL bounded by the retention of the row; document that a response containing personal data must not be cached or that the application must not register the cache; the erasure and eviction of inbox cache entries by data subject is a follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/inbox-cache-personal-data-erasure.md`)** | Same storage form as the inbox row; no extra component; the decorator stays small | A shared cache (Redis and its siblings) holds a copy outside the inbox row's access controls and outside the DSR purge of #2407, which removes only tenant-namespaced keys (`{prefix}:t:{tenant}:`), and inbox keys have no tenant; the copy lives up to `Duration` after an erasure |
+| **B) Encrypt the cached entry before it is written (the encryption of `Encina.Messaging.Encryption` for the stored response)** | No plaintext copy in the cache | Adds a dependency and a key-management path to `Encina.Caching`; the decorator would need the encryption service of the inbox row, and the row's own storage may already be plaintext |
+| **C) Cache a marker only (processed: yes) and serve the response from the store** | No payload in the cache | The orchestrator needs the response, so every hit still reads the row: no gain, the feature has no purpose |
+
+### Chosen Option: **A - cache as stored, documented, with the erasure follow-up** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins when responses of the application carry personal data and the maintainer wants the cache safe to enable without application-side care; A wins now because it adds no dependency and the opt-in extension is a deliberate application choice. C wins nowhere (it removes the benefit). The public documentation of PR 4 states the rule in A; the follow-up issue to be opened covers either the purge by subject (the inbox has no tenant column or subject today) or the encryption of option B, and cites #2407's purge design (a pluggable `ICachePurgePatternSource` in `Encina.Caching` that lists the patterns to purge per tenant) as the extension point.
+- Class: Dilemma
 
 </details>
 
@@ -205,7 +264,7 @@ Tasks:
 2. **Create** `internal static class StoreCachingRegistration` with `Decorate<TService>(IServiceCollection services, Func<IServiceProvider, TService, TService> factory, string serviceName)`: finds the non-keyed `TService` descriptor, throws `InvalidOperationException` naming `serviceName` and the required order when there is none, replaces it with a descriptor of the same lifetime that builds the inner service from the old descriptor (instance, factory or `ActivatorUtilities`) and passes it to `factory`; a second call stacks a second decorator (the DI test proves the order).
 3. **Register** `CachingStores = (350, 389)` and the allocation-test mapping (task 3 and 4 of the table).
 4. **Tests**: key encoding of every special character; hostile ids (`a:b`, `a*`, `%3A`) never equal another tuple's key; tenant `default` differs from no tenant; `PatternFor` is a prefix of every key of its kind; FsCheck: for random `(tenant, kind, segments)` tuples two different tuples never give one key and `Segment` is reversible by percent-decoding; the helper replaces an instance, a factory and a type registration, keeps the lifetime, throws when the service is absent, and a stacked second decoration wraps the first.
-5. **Manifest (same PR as the tests)**: targets with one-sentence justifications through `mechanical-fixer` (Phase 3 table).
+5. **Manifest (same PR as the tests)**: targets with one-sentence justifications through `mechanical-fixer` (the PR 1 rows of the Phase 4 table: `StoreCacheKey.cs` and `StoreCachingRegistration.cs`).
 
 </details>
 
@@ -263,13 +322,13 @@ PR 2 holds exactly these 13 files:
 
 Tasks:
 
-1. **Create** `internal sealed class CachingInboxStoreDecorator : IInboxStore` with the constructor `(IInboxStore inner, ICacheProvider cache, InboxCachingOptions options, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider, StoreCacheTelemetry telemetry, ILogger<CachingInboxStoreDecorator> logger)`. `GetMessageAsync`: build the key; `cache.GetAsync<CachedInboxEntry>`; a hit returns `Right(Some(new CachedInboxMessage(entry)))` after checking `ExpiresAtUtc` against the clock (an expired entry is removed and treated as a miss); a miss calls the inner store, returns a `Left` untouched, and caches the result only when `Some`, `IsProcessed`, `Response is not null`, the response is within `MaxCachedResponseLength` and the remaining retention is positive. Every cache call is wrapped (design choice 6). `AddAsync`, `MarkAsProcessedAsync`, `CacheHandlerErrorAsync`, `MarkAsFailedAsync`, `GetExpiredMessagesAsync` and `SaveChangesAsync` pass through unchanged. `RemoveExpiredMessagesAsync` calls the inner store and, on `Right`, removes the key of every id.
+1. **Create** `internal sealed class CachingInboxStoreDecorator : IInboxStore` with the constructor `(IInboxStore inner, ICacheProvider cache, IOptions<InboxCachingOptions> options, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider, StoreCacheTelemetry telemetry, ILogger<CachingInboxStoreDecorator> logger)`. `GetMessageAsync`: build the key; `cache.GetAsync<CachedInboxEntry>`; a hit returns `Right(Some(new CachedInboxMessage(entry)))` after checking `ExpiresAtUtc` against the clock (an expired entry is removed and treated as a miss); a miss calls the inner store, returns a `Left` untouched, and caches the result only when `Some`, `IsProcessed`, `Response is not null`, the response is within `MaxCachedResponseLength` and the remaining retention is positive. Every cache call is wrapped (design choice 6). `AddAsync`, `MarkAsProcessedAsync`, `CacheHandlerErrorAsync`, `MarkAsFailedAsync`, `GetExpiredMessagesAsync` and `SaveChangesAsync` pass through unchanged. `RemoveExpiredMessagesAsync` calls the inner store and, on `Right`, removes the key of every id.
 2. **Create** `public sealed class InboxCachingOptions { TimeSpan Duration (default 1 hour, must be positive); int MaxCachedResponseLength (default 32768, must be positive) }`; setters reject invalid values with `ArgumentOutOfRangeException`. The issue's `Enabled` and `CacheKeyPrefix` are not options: registering the extension is the opt-in, and the prefix is `CachingOptions.KeyPrefix` (one prefix per application, so a pattern flush of the prefix covers every cache of the family).
-3. **Create** `public static IServiceCollection AddEncinaInboxCaching(this IServiceCollection services, Action<InboxCachingOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; registers `Configure<InboxCachingOptions>`, `TryAddSingleton<StoreCacheTelemetry>`, `TryAddSingleton(TimeProvider.System)`, then `StoreCachingRegistration.Decorate<IInboxStore>` (the decorator resolves `ICacheProvider` as required: a missing cache provider fails at the first resolution, and the DI test proves the message).
+3. **Create** `public static IServiceCollection AddEncinaInboxCaching(this IServiceCollection services, Action<InboxCachingOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; registers `Configure<InboxCachingOptions>` (which provides `IOptions<InboxCachingOptions>`, the type the decorator and `StoreCachingRegistration.Decorate` factory request, never the bare options class), `TryAddSingleton<StoreCacheTelemetry>`, `TryAddSingleton(TimeProvider.System)`, then `StoreCachingRegistration.Decorate<IInboxStore>`. The decorator is built by a factory descriptor, which `ValidateOnBuild` cannot analyze, so `ICacheProvider` is resolved with `GetRequiredService` and a missing cache provider fails at the first resolution of `IInboxStore` (the first message), not at build; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` with a cache provider registered, and asserts the exception of the missing-provider case on first resolution. Registering a cache provider is a documented prerequisite.
 4. **Create** `StoreCacheErrors.Failed(Exception)` returning the categorized error (`EncinaErrors.FromException("store_cache.failed", ErrorCategory.Internal, ex, ...)`, category named explicitly with the `category:` argument so the completeness scan recognises it).
-5. **Tests (unit)**: hit returns the copy without calling the inner store; miss caches only processed entries with a response; `None`, unprocessed, failed (`RetryCount > 0` and no response) and oversized entries are never cached; the TTL is the minimum of `Duration` and the remaining retention (`FakeTimeProvider`); an expired cached entry is a miss; a `Left` from the inner store is returned and never cached; `RemoveExpiredMessagesAsync` evicts after `Right` and not after `Left`; a throwing cache falls through, counts and logs by type; with `ThrowOnCacheErrors` it returns `Left` with the code and category; every other member delegates exactly once; the copy ignores setter writes; a hostile `messageId` yields an encoded key and never a pattern.
+5. **Tests (unit)**: hit returns the copy without calling the inner store; miss caches only processed entries with a response; `None`, unprocessed, failed (`RetryCount > 0` and no response), processed-with-null-`Response` and oversized entries are never cached (the last two count `skipped` and log event 353 by reason code); a processed row holding a handler `Left` response is cached like any processed row; the defaults of `InboxCachingOptions` are 1 hour and 32768; the TTL is the minimum of `Duration` and the remaining retention (`FakeTimeProvider`); an expired cached entry is a miss; a `Left` from the inner store is returned and never cached; `RemoveExpiredMessagesAsync` evicts after `Right` and not after `Left`; a throwing cache falls through, counts and logs by type; with `ThrowOnCacheErrors` it returns `Left` with the code and category; every other member delegates exactly once; the copy ignores setter writes; a hostile `messageId` yields an encoded key and never a pattern.
 6. **Tests (guard)**: `AddEncinaInboxCaching(null)` throws; `InboxCachingOptions` setters reject zero and negative values. The decorator constructor is internal, so its null checks are covered by the unit tests (guard target 0 with that reason).
-7. **Manifest and changelog** through `mechanical-fixer` (Phase 3 table; fragment text: "Added opt-in `AddEncinaInboxCaching`: a cache-aside decorator for the inbox store that serves processed messages from the cache for any of the ten database providers").
+7. **Manifest and changelog** through `mechanical-fixer` (the PR 2 rows of the Phase 4 table, unit, guard and property flags only; the integration targets are entered in PR 3 with the tests that meet them; fragment text: "Added opt-in `AddEncinaInboxCaching`: a cache-aside decorator for the inbox store that serves processed messages from the cache for any of the ten database providers").
 
 </details>
 
@@ -304,26 +363,26 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Per-provider integration scenario, benchmark and coverage targets (pull request 3)
+### Phase 3: Per-provider integration scenario, Redis run and integration targets (pull request 3)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 15 files (12 tests and the benchmark, then the three documentation files):
+PR 3 holds exactly these 13 files (12 test files and the manifest):
 
 | # | File | Change |
 |---|------|--------|
-| 13 | `docs/messaging/inbox.md` | modify (`docs-writer`: the opt-in cache, the call-order rule, the processed-only rule) |
-| 14 | `docs/features/query-caching.md` | modify (`docs-writer`: link to the store caches) |
-| 15 | `docs/INVENTORY.md` | modify (`docs-writer`: the `MessagingStores` folder) |
-| 1 | `tests/Encina.IntegrationTests/Messaging/InboxCachingScenario.cs` | new (shared scenario: processed message served from the cache, redelivery of a failed message re-runs the handler, removal evicts) |
+| 1 | `tests/Encina.IntegrationTests/Messaging/InboxCachingScenario.cs` | new (shared scenario: processed message served from the cache, redelivery of a failed message re-runs the handler, removal evicts, and a row removed by another instance inside the TTL is not served) |
 | 2-4 | `tests/Encina.IntegrationTests/ADO/{SqlServer,PostgreSQL,MySQL}/Inbox/InboxStoreADOCachingTests.cs` | new (3) |
 | 5-7 | `tests/Encina.IntegrationTests/Dapper/{SqlServer,PostgreSQL,MySQL}/Inbox/InboxStoreDapperCachingTests.cs` | new (3) |
 | 8-10 | `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/{SqlServer,PostgreSQL,MySQL}/Inbox/InboxStoreEF<Db>CachingTests.cs` | new (3) |
 | 11 | `tests/Encina.IntegrationTests/Infrastructure/MongoDB/Stores/InboxStoreMongoDBCachingTests.cs` | new |
-| 12 | `tests/Encina.BenchmarkTests/Caching/InboxStoreCacheBenchmarks.cs` | new (cached versus uncached duplicate lookup over a fake store with a fixed latency; `BenchmarkSwitcher`) |
+| 12 | `tests/Encina.IntegrationTests/Infrastructure/Caching/InboxCachingRedisTests.cs` | new (`[Collection(RedisCollection.Name)]`, an in-test inner store, `RedisCacheProvider`: serialization round trip of `CachedInboxEntry`, TTL, hit and eviction on a real Redis server) |
+| 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`: the integration targets of the decorator and `CachedInboxEntry`, Phase 4 table) |
 
-The folders are the ones that hold today's `InboxStore*Tests.cs` of each provider (verified on `origin/main` for the ten providers); the new classes use the same `[Collection("<Family>-<Database>")]` fixtures and the same harness as `InboxPipelineScenario`, with `MemoryCacheProvider` as the cache, so no new container is needed. A Redis-backed run of the shared scenario is added to the existing Redis integration collection when the maintainer asks for it; the 10 database providers are the required matrix here.
+The folders are the ones that hold today's `InboxStore*Tests.cs` of each provider (verified on `origin/main` for the ten providers); the new classes use the same `[Collection("<Family>-<Database>")]` fixtures and the same harness as `InboxPipelineScenario`, with `MemoryCacheProvider` as the cache, so no new container is needed. `Encina.IntegrationTests` already references `Encina.Caching`, `Encina.Caching.Memory`, `Encina.Caching.Redis` and `Encina.Caching.Hybrid` (`Encina.IntegrationTests.csproj` lines 118, 155-157), so no csproj edit is needed. The Redis class uses the existing `RedisFixture` and `RedisCollection` (`Infrastructure/Caching/Fixtures/RedisFixture.cs`) and no database container, so it needs an in-test inner store rather than a real one; the Hybrid cache has no run (see the provider category and the follow-up issue to be opened).
+
+Scenario list: (1) after a message is processed the next `GetMessageAsync` is a cache hit (the inner store is not called); (2) a failed message is never served from the cache and its handler re-runs until `MaxRetries`; (3) `RemoveExpiredMessagesAsync` evicts the id; (4) a processed row removed by the purge service on another instance, while this instance still holds its cache entry, is served only until the row's `ExpiresAtUtc`; after that instant the hit path treats the entry as a miss and the inner store answers `None` (the expiry check of the hit path is the guard, with `FakeTimeProvider`); (5) a handler `Left` stored through `CacheHandlerErrorAsync` is served from the cache on redelivery; (6) with the cache provider throwing, the call falls through to the store and the message is still processed.
 
 </details>
 
@@ -332,18 +391,20 @@ The folders are the ones that hold today's `InboxStore*Tests.cs` of each provide
 
 ```
 CONTEXT:
-PR 1 and PR 2 of issue #695 are merged: AddEncinaInboxCaching decorates IInboxStore. This PR proves it against the ten database providers.
+PR 1 and PR 2 of issue #695 are merged: AddEncinaInboxCaching decorates IInboxStore. This PR proves it against the ten database providers
+and one Redis server.
 
 TASK:
 1. Write InboxCachingScenario (static asserts like InboxPipelineScenario) and one thin class per provider using its shared collection fixture.
 2. Scenario: after a message is processed the next GetMessageAsync is a cache hit (inner call count 0); a failed message is never served
-   from the cache and its handler re-runs until MaxRetries; RemoveExpiredMessagesAsync evicts the id.
-3. Add the benchmark with BenchmarkSwitcher and verify the filter with --list flat.
+   from the cache and its handler re-runs until MaxRetries; RemoveExpiredMessagesAsync evicts the id; a row removed on another instance is
+   served only until ExpiresAtUtc; a handler Left response is served from the cache; a throwing cache falls through.
+3. Write InboxCachingRedisTests with the existing RedisCollection fixture; ask mechanical-fixer for the integration targets in the manifest.
 
 KEY RULES:
 - [Collection("<Family>-<Database>")] shared fixtures only; ClearAllDataAsync in InitializeAsync; never dispose the shared fixture.
-- Integration tests execute the real stores and the real decorator; no mocks of either.
-- Outputs go under artifacts/; no BenchmarkRunner.Run<T>().
+- Integration tests execute the real stores and the real decorator; no mocks of either (the Redis class uses an in-test inner store).
+- Outputs go under artifacts/.
 
 REFERENCE FILES:
 - tests/Encina.IntegrationTests/Messaging/InboxPipelineScenario.cs
@@ -363,15 +424,19 @@ REFERENCE FILES:
 3. **Error code**: `store_cache.failed`, `ErrorCategory.Internal` (ADR-062, rule R4: provider failures are `Internal`).
 4. **Coverage targets** (per file, per flag; measured values replace the estimates before PR 2 and PR 3 open):
 
-| File | unit | guard | property | integration | Justification |
-|------|------|-------|----------|-------------|---------------|
-| `MessagingStores/StoreCacheKey.cs` | 100 | 0 | 90 | 0 | Pure encoding fully unit tested; internal type without `InternalsVisibleTo` for `Encina.GuardTests`; the injectivity property is the invariant; no I/O to integrate |
-| `MessagingStores/StoreCachingRegistration.cs` | 95 | 0 | 0 | 0 | Registration paths unit tested; internal type; no property over registrations |
-| `MessagingStores/CachingInboxStoreDecorator.cs` | 95 | 0 | 0 | 70 | Every branch unit tested with a fake store and cache; internal type; the integration scenario reaches hit, miss and eviction against real stores |
-| `MessagingStores/CachedInboxEntry.cs` | 100 | 0 | 0 | 50 | Mapping fully unit tested; internal; reached by the scenario on every hit |
-| `MessagingStores/InboxCachingOptions.cs` | 100 | 100 | 0 | 0 | Setter validation fully reachable from both flags; no integration surface |
-| `MessagingStores/StoreCachingServiceCollectionExtensions.cs` | 95 | 90 | 0 | 0 | DI test and guard tests reach every line; integration uses it indirectly |
-| `MessagingStores/StoreCacheErrors.cs`, `StoreCacheTelemetry.cs`, `StoreCacheLog.cs` | 90 | 0 | 0 | 0 | Counters and log methods asserted through the decorator tests; internal types |
+Each file has its own manifest row, entered in the PR that adds the tests meeting each target (the integration columns of the decorator and the entry are entered by PR 3, which holds the integration tests):
+
+| File | PR | unit | guard | property | integration | Justification |
+|------|----|------|-------|----------|-------------|---------------|
+| `MessagingStores/StoreCacheKey.cs` | 1 | 100 | 0 | 90 | 0 | Pure encoding fully unit tested; internal type without `InternalsVisibleTo` for `Encina.GuardTests`; the injectivity property is the invariant; no I/O to integrate |
+| `MessagingStores/StoreCachingRegistration.cs` | 1 | 95 | 0 | 0 | 0 | Registration paths unit tested; internal type; no property over registrations |
+| `MessagingStores/CachingInboxStoreDecorator.cs` | 2 (integration in 3) | 95 | 0 | 0 | 70 | Every branch unit tested with a fake store and cache; internal type; the PR 3 scenario reaches hit, miss, eviction and fall-through against real stores |
+| `MessagingStores/CachedInboxEntry.cs` | 2 (integration in 3) | 100 | 0 | 0 | 50 | Mapping fully unit tested; internal; reached by the PR 3 scenario on every hit and by the Redis serialization round trip |
+| `MessagingStores/InboxCachingOptions.cs` | 2 | 100 | 100 | 0 | 0 | Setter validation fully reachable from both flags; no integration surface |
+| `MessagingStores/StoreCachingServiceCollectionExtensions.cs` | 2 | 95 | 90 | 0 | 0 | DI test and guard tests reach every line; integration uses it indirectly |
+| `MessagingStores/StoreCacheErrors.cs` | 2 | 90 | 0 | 0 | 0 | The error factory is asserted through the strict-mode decorator test; internal type |
+| `MessagingStores/StoreCacheTelemetry.cs` | 2 | 90 | 0 | 0 | 0 | Counter recording asserted through the decorator tests with a meter listener; internal type |
+| `MessagingStores/StoreCacheLog.cs` | 2 | 90 | 0 | 0 | 0 | Log methods asserted through the decorator tests with a fake logger; internal type |
 
 5. **Contract and load**: no contract test (no new public interface; the decorated interface keeps its contract, asserted by the unit tests with the real `FakeInboxStore` behind it); no load test (the decorator holds no shared state beyond the cache provider, which the cache packages already load-test); the manifest `reason` says so.
 
@@ -403,15 +468,28 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: Documentation and finalization
+### Phase 5: Benchmark, documentation and finalization (pull request 4)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
+PR 4 holds exactly these 4 files:
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/InboxStoreCacheBenchmarks.cs` | new (cached versus uncached duplicate lookup over an in-benchmark inner store with a fixed latency and `MemoryCacheProvider`; `BenchmarkSwitcher` already runs the project) |
+| 2 | `docs/messaging/inbox.md` | modify (`docs-writer`: the opt-in cache, the call-order rule, the processed-only rule, the personal-data rule of Design Choice 10) |
+| 3 | `docs/features/query-caching.md` | modify (`docs-writer`: link to the store caches) |
+| 4 | `docs/INVENTORY.md` | modify (`docs-writer`: the `MessagingStores` folder) |
+
+The benchmark project is `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/` (it references `Encina`, `Encina.Caching` and `Encina.Caching.Memory`; no csproj edit). `Encina.Caching` has no `InternalsVisibleTo` entry for the benchmark project, so the benchmark builds the decorator through the public `AddEncinaInboxCaching` and resolves `IInboxStore` from a service provider; it never names the internal decorator.
+
+Steps of the phase:
+
 1. XML documentation (`<summary>`, `<remarks>`, `<param>`, `<example>`) on `AddEncinaInboxCaching` and `InboxCachingOptions`, including the call-order rule (provider first, caching after) and the statement that only processed messages are cached.
-2. `docs/messaging/inbox.md` and `docs/features/query-caching.md` get a short section through `docs-writer` in PR 3 (no hand-typed figures; coverage cited with `cov:` markers); `Encina.Caching` has no README on `main`, so none is created by this plan.
+2. `docs/messaging/inbox.md` and `docs/features/query-caching.md` get a short section through `docs-writer` in PR 4 (no hand-typed figures; coverage cited with `cov:` markers); `Encina.Caching` has no README on `main`, so none is created by this plan.
 3. `changelog.d/695-inbox-store-cache.added.md` (PR 2, `mechanical-fixer`); `PublicAPI.Unshipped.txt` of `Encina.Caching` and `Encina`.
-4. `docs/INVENTORY.md`: the new `MessagingStores` folder (once, in PR 3).
+4. `docs/INVENTORY.md`: the new `MessagingStores` folder (once, in PR 4).
 5. Build with `dotnet build --configuration Release` (0 warnings), `dotnet test` of each flag, `dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications`.
 
 </details>
@@ -421,11 +499,12 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-Issue #695 is implemented. Finish the documentation and verification of PR 2.
+Issue #695 is implemented in PR 1 to PR 3. PR 4 adds the benchmark and the documentation, and finalizes verification.
 
 TASK:
-Write the XML docs, ask docs-writer for the inbox page section, ask mechanical-fixer for PublicAPI lines, the changelog fragment and
-the INVENTORY entry, and run the build, the tests and the coverage checks.
+Write the benchmark in tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks (public AddEncinaInboxCaching only, no internal types),
+verify the filter with --list flat, ask docs-writer for the inbox page section, the query-caching link and the INVENTORY entry,
+and run the build, the tests and the coverage checks.
 
 KEY RULES:
 - Say the call-order rule and the processed-only rule in the public docs; never promise a gain for new message ids.
@@ -482,10 +561,10 @@ REFERENCE FILES:
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 9 | 1 | New: key builder, registration helper, decorator, entry, options, extension, errors, telemetry, log; modified: `EventIdRanges.cs` |
-| Tests | 18 | 1 | New: key unit, injectivity property, registration unit (PR 1); decorator unit, guard, DI (PR 2); scenario, 10 provider classes, benchmark (PR 3); modified: the allocation test |
+| Tests | 19 | 1 | New: key unit, injectivity property, registration unit (PR 1); decorator unit, guard, DI (PR 2); scenario, 10 provider classes, Redis class (PR 3); benchmark (PR 4); modified: the allocation test |
 | Documentation | 0 | 3 | inbox page, query-caching page, `INVENTORY.md` |
-| Configuration | 1 | 3 | Changelog fragment; `Encina.Caching.json` (touched in PR 1 and PR 2), PublicAPI (`Encina`, `Encina.Caching`) |
-| **Total** | **28** | **8** | 3 pull requests: 9, 13 and 15 files (37 file touches: the manifest is touched twice), each at most 15 files and about 700 lines |
+| Configuration | 1 | 3 | Changelog fragment; `Encina.Caching.json` (touched in PR 1, PR 2 and PR 3), PublicAPI (`Encina`, `Encina.Caching`) |
+| **Total** | **29** | **8** | 4 pull requests: 9, 13, 13 and 4 files (39 file touches: the manifest is touched in PR 1, PR 2 and PR 3, so 37 distinct files), each at most 15 files and about 700 lines |
 
 ---
 
@@ -505,7 +584,8 @@ IMPLEMENTATION OVERVIEW:
    the EventId range and its allocation test.
 2. PR 2: CachingInboxStoreDecorator (processed entries only, TTL bounded by retention), options, AddEncinaInboxCaching, errors,
    telemetry, logs 350-353, tests, manifest and changelog.
-3. PR 3: integration scenario over the 10 database providers with a Memory cache, and the benchmark.
+3. PR 3: integration scenario over the 10 database providers with a Memory cache, one Redis-backed class, and the integration targets in the manifest.
+4. PR 4: the benchmark (public extension only) and the documentation.
 
 KEY PATTERNS:
 - Cache-aside on GetMessageAsync only for a message that IsProcessed and has a Response; never None, never unprocessed; no write-through.
@@ -513,7 +593,7 @@ KEY PATTERNS:
 - Keys go through StoreCacheKey; no key, id, response or tenant in logs or tags; exceptions through ForLogging().
 - The extension fails at registration when IInboxStore is not registered yet (call it after the provider).
 - No scoped service in a singleton; DI test with ValidateOnBuild and ValidateScopes in both orders with Encina.OpenTelemetry.
-- Apply Design Choices 2 and 4 as the Maintainer Decisions section says.
+- Apply Design Choices 2, 4, 6, 8 and 10 as the maintainer answers them; until then build the recommended option of each.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Inbox/IInboxStore.cs, InboxOrchestrator.cs, MessagingServiceCollectionExtensions.cs (RegisterInbox)
@@ -545,7 +625,7 @@ REFERENCE FILES:
 | 11 | Module Isolation | ❌ N/A | The inbox is not module scoped. |
 | 12 | Audit Trail | ❌ N/A | A cache lookup is not an audit event; the inbox record is the audit of the receipt. |
 
-**Deferred items:** none that need an issue from this plan. The response payload is cached in the same form the inbox row stores it, with a TTL bounded by the retention of that row; a subject-level erasure that must also clear the cache is the DSR purge of #2407 (tenant namespace) and does not reach inbox keys, which have no tenant: the follow-up is part of the inbox tenant-column work, not of this plan.
+**Deferred items:** two follow-up issues to be opened, both drafted: (1) erasure or encryption of cached inbox responses that contain personal data (draft: `artifacts/decisions/plan-batch/followups/inbox-cache-personal-data-erasure.md`; Design Choice 10): the response is cached in the same form the inbox row stores it, plaintext in a shared cache, with a TTL bounded by the retention of that row; the DSR purge of #2407 removes tenant-namespaced keys through its `ICachePurgePatternSource` extension point and inbox keys have no tenant, so they are outside its reach; (2) an inbox cache scenario on the Hybrid cache (draft: `artifacts/decisions/plan-batch/followups/inbox-cache-hybrid-run.md`).
 
 ---
 
@@ -557,7 +637,7 @@ REFERENCE FILES:
 | Inbox stores of the 10 database providers | ✅ Available | ADO x3, Dapper x3, EF Core x3, MongoDB |
 | #2408 (post-commit invalidation) | ⏭️ Sibling | Not required: this decorator never needs eviction timing |
 | #1257 (`TenantCacheKey`) | ⏭️ Sibling | `StoreCacheKey.Tenant` delegates to it when it lands; not required |
-| Maintainer answers to Design Choices 2 and 4 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 2, 4, 6, 8 and 10 | Pending | Asked when work starts |
 
 No blocking prerequisites.
 
@@ -565,6 +645,6 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 2 and 4) when work starts, records the answers under `## Maintainer Decisions`, then briefs three workers in the phase order.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 2, 4, 6, 8 and 10) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs four workers in the phase order.
 2. After PR 2, #696 and #699 build on `StoreCachingRegistration`, `StoreCacheTelemetry` and `StoreCacheLog`; #698 and #697 build on `StoreCacheKey`.
-3. After PR 3, comment on #695 with the measured benchmark so the maintainer can judge the gain on duplicate-heavy workloads.
+3. After PR 4, comment on #695 with the measured benchmark so the maintainer can judge the gain on duplicate-heavy workloads.
