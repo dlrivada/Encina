@@ -2,7 +2,7 @@
 
 > **Issue**: [#423](https://github.com/dlrivada/Encina/issues/423)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, 3 pull requests of 14, 6 and 7 files)
+> **Complexity**: Medium (7 phases, 3 pull requests of 15, 9 and 6 files)
 > **Estimated Scope**: ~500 lines of production code + ~1,200 lines of tests
 > **Family**: modular monolith (#352 boundaries, #358 events and module API, #359 data isolation, #360 lifecycle and graph, #364 health, #365 slices, #366 versions) and Aspire (#416 `Encina.Aspire.Hosting`, #417 service defaults, #419 dashboard commands, #440 umbrella); this plan owns the composition of the two: how a module is local, remote or disabled, and how the AppHost declares and watches modules
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue is a broad "first-class modular monolith with Aspire" statement: `IEncinaModule` with lifecycle hooks, discovery, module-scoped services, a dedicated `DbContext` per module, per-module health, in-memory and outbox inter-module communication, public API contracts, an AppHost extension `WithEncinaModules`, dashboard views of modules and their dependencies, module restart and reload, and a migration path that extracts a module into a service (`WithEncinaFromModule`). State of `origin/main` (`96c8803bd`) and of the sibling plans, verified by reading and grep (nothing named `WithEncinaModules`, `WithEncinaFromModule` or `IEncinaModule` exists in `src` or `tests`; `src/Encina.Aspire.Testing` is the only Aspire package):
+The issue is a broad "first-class modular monolith with Aspire" statement: `IEncinaModule` with lifecycle hooks, discovery, module-scoped services, a dedicated `DbContext` per module, per-module health, in-memory and outbox inter-module communication, public API contracts, an AppHost extension `WithEncinaModules`, dashboard views of modules and their dependencies, module restart and reload, and a migration path that extracts a module into a service (`WithEncinaFromModule`). State of `origin/main` (`0b941beeb`) and of the sibling plans, verified by reading and grep (nothing named `WithEncinaModules`, `WithEncinaFromModule` or `IEncinaModule` exists in `src` or `tests`; `src/Encina.Aspire.Testing` is the only Aspire package):
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -30,7 +30,7 @@ The plan therefore delivers only what no sibling owns: the **module mode** (a mo
 1. **A process that runs only some of the modules must still start.** A `[DependsOn]` (#360) on a module that is not in this process is today a startup error ("declared-but-unregistered dependency"). With modes, a dependency on a `Remote` module is allowed (the module runs elsewhere) and a dependency on a `Disabled` module remains an error (Design Choice 4).
 2. **The AppHost cannot read the application's types.** An AppHost references the application only through the generated `Projects.*` metadata, so it can pass names, not module classes (Design Choice 2).
 
-**Delivered**: `ModuleMode` and its configuration key; mode resolution in `AddEncinaModules` (the `IConfiguration` overload of #360); `WithEncinaModules` and `WithEncinaModuleMode` in `Encina.Aspire.Hosting`; one HTTP health check per module on the Aspire resource.
+**Delivered**: `ModuleMode` and its configuration key; mode resolution in `AddEncinaModules` (the `IConfiguration` overload of #360); `WithEncinaModules` (declaring each module with its mode) in `Encina.Aspire.Hosting`; one HTTP health check on the Aspire resource for each module that is `Local` in that resource (a `Remote` or `Disabled` module is not registered there, so `/health/modules/{name}` would answer 404 and the check would stay unhealthy for ever).
 
 **Not in scope**: hosting package, `AddEncina`/`WithEncina`, service defaults and dashboard commands (#416, #417, #419); module restart and reload (Design Choice 5); synchronous calls to a `Remote` module (spike issue file); cross-process trace propagation (the transport and outbox work of the messaging family).
 
@@ -70,7 +70,7 @@ A wins when the maintainer wants the issue to stay as the "modular monolith plus
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Explicit names in the AppHost: `.WithEncinaModules(m => m.Add("orders").Add("inventory", dependsOn: "orders"))`; the application validates at startup that the declared set equals `IModuleRegistry` (mismatch is logged, and an unknown module in a mode key fails the start)** | Works with the `Projects.*` metadata; no assembly loading; no reflection in the AppHost | Names are written twice (module class and AppHost) |
+| **A) Explicit names in the AppHost: `.WithEncinaModules(m => m.Add("orders").Add("inventory", AppHostModuleMode.Remote))`, one call per project resource; an unknown module in a mode key fails the application start (Phase 1 task 3). A module declared in the AppHost but absent from the application is not detected by the application (it only sees `Modules__{name}__Mode` variables); its health check answers 404 and shows unhealthy on the dashboard** | Works with the `Projects.*` metadata; no assembly loading; no reflection in the AppHost | Names are written twice (module class and AppHost) |
 | **B) The AppHost references the module assemblies and reads `[DependsOn]` and `Name` by reflection** | One declaration | The AppHost loads application code and references every module project |
 | **C) The running application reports its modules (health or telemetry) and the dashboard shows what it receives** | Nothing to declare | The AppHost cannot set modes or health checks before the application runs |
 
@@ -154,7 +154,7 @@ Modules are registered into a service collection that is built once, and #352's 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One HTTP health check per module on the project resource (`WithHttpHealthCheck("/health/modules/{name}")`, the endpoint of #364); the dashboard lists each check under the resource** | Uses Aspire's own health model; no custom resource type; small | Modules are not separate rows in the resource list |
+| **A) One HTTP health check per `Local` module on the project resource (`WithHttpHealthCheck("/health/modules/{name}")`, the endpoint of #364); no check for a `Remote` or `Disabled` module; the dashboard lists each check under the resource** | Uses Aspire's own health model; no custom resource type; small | Modules are not separate rows in the resource list |
 | **B) One child custom resource per module (`WithParentRelationship`, state published with `ResourceNotificationService` from the health endpoint)** | Each module is a row with its own state and dependency relationship | A background poller and a custom resource type; more code to keep in step with #364 |
 | **C) Both** | Richest | Most code |
 
@@ -162,7 +162,7 @@ Modules are registered into a service collection that is built once, and #352's 
 
 ### Rationale
 
-A wins for the first release because the dashboard already shows health checks and the endpoints already exist. B wins when the module dependency graph itself must be visible as rows (Aspire 13.6.5 provides `WithParentRelationship`, `CustomResourceSnapshot` and `PublishUpdateAsync`, verified in `Aspire.Hosting.xml` of the pinned package). C wins only if both are wanted at once.
+A wins for the first release because the dashboard already shows health checks and the endpoints already exist. B wins when the module dependency graph itself must be visible as rows (`WithParentRelationship`, `CustomResourceSnapshot` and `PublishUpdateAsync` are to be verified at work start in `Aspire.Hosting.xml` of the `Aspire.Hosting` version that #416 pins; `Directory.Packages.props` today pins only `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL`, both 13.6.5). C wins only if both are wanted at once.
 
 **Class:** Dilemma
 
@@ -204,7 +204,7 @@ The package is created for exactly this kind of AppHost extension (#416 body: "E
 2. `src/Encina/Modules/ModuleModeResolver.cs` (internal static, pure): `ModuleModeResolution Resolve(IReadOnlyList<string> moduleNames, IReadOnlyDictionary<string, string?> modeValues, IModuleGraph graph)` returns the mode per module and every problem: an unparsable value, a key for an unknown module (case-insensitive), a `Local` module whose dependency is `Disabled`; a `Remote` dependency is allowed (D3, D4).
 3. `ModuleServiceCollectionExtensions.AddEncinaModules(services, IConfiguration, configure)` (the overload of #360): reads `Modules:{Name}:Mode`, runs the resolver, throws one `InvalidOperationException` listing every problem, then registers only `Local` modules (their `ConfigureServices`, handlers and lifecycle hooks); `Remote` and `Disabled` modules are not registered, so `IModuleRegistry` lists local modules only and the module graph is built over all declared modules.
 4. `src/Encina/Modules/Diagnostics/ModuleModeLog.cs` (`[LoggerMessage]`): EventIds 7690 modes applied (Information: counts per mode), 7691 module not started locally because it is `Remote` (Information, name), 7692 module disabled (Information, name), 7693 invalid configuration (Error, count and names only); `EventIdRanges.ModulesEnablement = (7690, 7695)` registered first, and the `Encina` entry of the allocation test map `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
-5. Tests: unit `ModuleModeResolverTests` (default local, each value, an invalid value, an unknown module key, remote dependency allowed, disabled dependency rejected, every problem listed in one message), unit `ModuleModeRegistrationTests` (end to end through `AddEncinaModules` with an in-memory `IConfiguration`: remote and disabled modules are not registered and their handlers do not exist), guard, property (for generated graphs and modes the result has no problem exactly when no local module depends on a disabled one), DI test with `ValidateOnBuild` and `ValidateScopes`; `PublicAPI.Unshipped.txt` and the `Encina.json` manifest through `mechanical-fixer`.
+5. Tests: contract `ModuleModeContractTests` (the enum values `Local = 0`, `Remote = 1`, `Disabled = 2` stay stable, and `AddEncinaModules` honors each value through the public registration with a real module), unit `ModuleModeResolverTests` (default local, each value, an invalid value, an unknown module key, remote dependency allowed, disabled dependency rejected, every problem listed in one message), unit `ModuleModeRegistrationTests` (end to end through `AddEncinaModules` with an in-memory `IConfiguration`: remote and disabled modules are not registered and their handlers do not exist), guard, property (for generated graphs and modes the result has no problem exactly when no local module depends on a disabled one), DI test with `ValidateOnBuild` and `ValidateScopes`; `PublicAPI.Unshipped.txt` and the `Encina.json` manifest through `mechanical-fixer`.
 
 </details>
 
@@ -241,9 +241,9 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Aspire.Hosting/Modules/EncinaModulesBuilder.cs`: `Add(string name, string? dependsOn = null)` collecting declared modules (names validated: non-blank, unique case-insensitively, characters of a configuration key segment).
-2. `src/Encina.Aspire.Hosting/Modules/ModuleResourceBuilderExtensions.cs`: `WithEncinaModules<T>(this IResourceBuilder<T>, Action<EncinaModulesBuilder>)` sets the environment `Modules__{name}__Mode=Local` for each declared module and one HTTP health check per module (`WithHttpHealthCheck("/health/modules/{name lowered}")`, D6); `WithEncinaModuleMode<T>(this IResourceBuilder<T>, string module, ModuleMode mode)` overrides one module's mode (`Remote` or `Disabled`) for an extracted layout; a mode for an undeclared module throws `InvalidOperationException` at AppHost build time.
-3. Tests with `DistributedApplicationTestingBuilder` over container or executable resources: environment variables, health check annotations, duplicate and invalid names, an override for an undeclared module; guard tests; the entries of the `Encina.Aspire.Hosting` manifest and `PublicAPI.Unshipped.txt`.
+1. `src/Encina.Aspire.Hosting/Modules/AppHostModuleMode.cs` (public enum with the same three names as core `ModuleMode`: `Local`, `Remote`, `Disabled`) and `EncinaModulesBuilder.cs`: `Add(string name, AppHostModuleMode mode = AppHostModuleMode.Local)` collecting declared modules (names validated: non-blank, unique case-insensitively, characters of a configuration key segment). The AppHost API deliberately does not use core `ModuleMode`: `Encina.Aspire.Hosting` takes no reference to `Encina`, so an AppHost does not load the application runtime (names, not application types, D2); the application parses the environment value into `ModuleMode`.
+2. `src/Encina.Aspire.Hosting/Modules/ModuleResourceBuilderExtensions.cs`: `WithEncinaModules<T>(this IResourceBuilder<T>, Action<EncinaModulesBuilder>)` runs the action first, then, once, sets the environment `Modules__{name}__Mode={mode}` for each declared module and adds one HTTP health check (`WithHttpHealthCheck("/health/modules/{name lowered}")`, D6) only for the modules whose mode is `Local` (a health check annotation cannot be removed afterwards, which is why the checks are emitted only after the declaration is complete). A project that runs one module and delegates another is `WithEncinaModules(m => m.Add("orders").Add("inventory", AppHostModuleMode.Remote))`. There is no separate per-module override method.
+3. Project files: `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` gain a `ProjectReference` to `Encina.Aspire.Hosting` (two csproj edits, counted in PR 2). Tests with `DistributedApplicationTestingBuilder` over container or executable resources: environment variables, health check annotations only for `Local` modules (a `Remote` and a `Disabled` module get the variable and no check), duplicate and invalid names, the names of `AppHostModuleMode` equal to the names of `ModuleMode` (the unit project references both); guard tests; the entries of the `Encina.Aspire.Hosting` manifest and `PublicAPI.Unshipped.txt`.
 
 </details>
 
@@ -252,20 +252,20 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #423. The package Encina.Aspire.Hosting exists (#416). Aspire.Hosting is pinned at 13.6.5 in Directory.Packages.props. D2 (explicit names), D6 (health checks per module) and D7 (generic extension) apply.
+- Issue #423. The package Encina.Aspire.Hosting exists (#416, which also pins Aspire.Hosting in Directory.Packages.props; today only Aspire.Hosting.Testing and Aspire.Hosting.PostgreSQL, both 13.6.5, are pinned). D2 (explicit names), D6 (health checks per module) and D7 (generic extension) apply.
 
 TASK:
-Add EncinaModulesBuilder and the two extension methods with their tests.
+Add AppHostModuleMode, EncinaModulesBuilder and WithEncinaModules with their tests and the two test project references.
 
 KEY RULES:
-- No reflection over application types in the AppHost; names only.
-- The default health path is the per-module endpoint of #364 ("/health/modules/{name lowered}").
+- No reflection over application types in the AppHost and no reference to Encina; names only.
+- The default health path is the per-module endpoint of #364 ("/health/modules/{name lowered}"); a check is added only for a Local module and only after the declaration action has run (a Remote or Disabled module is not registered in the process, so its endpoint is a 404).
 - Validate at AppHost build time; never write a secret or connection string into an environment variable value of this feature.
 - XML docs with examples; PublicAPI.Unshipped.txt; zero warnings.
 
 REFERENCE FILES:
 - src/Encina.Aspire.Testing/DistributedApplicationTestingBuilderExtensions.cs
-- Directory.Packages.props (Aspire.Hosting 13.6.5)
+- Directory.Packages.props (Aspire.Hosting.Testing 13.6.5; Aspire.Hosting is pinned by #416)
 - tests/Encina.UnitTests (existing Aspire testing usage)
 ```
 
@@ -279,7 +279,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. Module isolation (function 11): modes decide which modules are present; the boundary rule (#352) still decides what a present module may call; a call to a `Remote` module has no local handler and fails as an unknown handler, which the spike issue file addresses.
-2. Health checks (function 4): Phase 2 (one HTTP health check per module on the resource) over #364's endpoints.
+2. Health checks (function 4): Phase 2 (one HTTP health check per `Local` module on the resource) over #364's endpoints.
 3. Structured logging (function 3): Phase 1.
 4. Deferred, as issue files in this plan's worktree: `artifacts/issues/module-extraction-remote-module-api.md` (a `[SPIKE]` on calling an extracted module). Per-module cache isolation is #746 and the module on audit rows is #1636 (both open and planned).
 
@@ -327,7 +327,7 @@ TASK:
 Confirm the log messages are covered by the Phase 1 tests and that no new meter is needed.
 
 KEY RULES:
-- ADR-021: ranges registered first; ADR-054 D4 applies only to metrics that carry a tenant, and none is added.
+- ADR-021: ranges registered first; ADR-054 D4 (docs/architecture/adr/054-observability-conventions-and-trace-propagation.md) applies only to metrics that carry a tenant, and none is added.
 
 REFERENCE FILES:
 - src/Encina/Modules/Diagnostics/ModuleMetrics.cs
@@ -342,16 +342,16 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit, Guard, Property, DI** as in Phases 1 and 2; **Contract**: justification file `tests/Encina.ContractTests/Core/Modules/ModuleMode.md` (an enum and a pure resolver covered by unit and property tests; no provider-implemented interface is added); **Integration**: a test in `tests/Encina.IntegrationTests/Core/Modules/` builds a host from `Modules__x__Mode` environment variables and starts it (`ModuleModeHostIntegrationTests`; no database, so no provider fixture); an Aspire-level run of two real service projects with `Aspire.Hosting.Testing` is the sample of the guide and is not a CI test (the repository has no sample AppHost project yet). **Load**: justification `tests/Encina.LoadTests/Core/Modules/ModuleMode.md` (startup-time logic). **Benchmark**: justification `tests/Encina.BenchmarkTests/Core/Modules/ModuleMode.md`.
+1. **Unit, Guard, Property, DI** as in Phases 1 and 2; **Contract**: `ModuleModeContractTests` in pull request 1 (a justification file is not allowed for a contract flag, AGENTS.md section 9; `ModuleMode` is public API); **Integration**: a test in `tests/Encina.IntegrationTests/Core/Modules/` builds a host from `Modules__x__Mode` environment variables and starts it (`ModuleModeHostIntegrationTests`; no database, so no provider fixture); an Aspire-level run of two real service projects with `Aspire.Hosting.Testing` is the sample of the guide and is not a CI test (the repository has no sample AppHost project yet). **Load**: justification `tests/Encina.LoadTests/Core/Modules/ModuleMode.md` (startup-time logic). **Benchmark**: justification `tests/Encina.BenchmarkTests/Core/Modules/ModuleMode.md`.
 2. **Per-file targets** (each flag with a one-sentence justification in the manifest; baselines of edited files, `ModuleServiceCollectionExtensions.cs` and `EventIdRanges.cs`, are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`; a target is the measured value or higher):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
    |------|:---:|:---:|:---:|:---:|:---:|---------------|
    | `Modules/ModuleModeResolver.cs` | 100 | 0 | 0 | 90 | 0 | A pure function with no parameterized public member; the property test generates graphs and modes |
-   | `Modules/ModuleMode.cs` | 100 | 0 | 0 | 0 | 0 | Enum parsing is reached through the resolver tests; no executable members |
+   | `Modules/ModuleMode.cs` | 100 | 0 | 100 | 0 | 0 | An enum has no executable members for guard; the contract test pins its values and the resolver tests parse it |
    | `Modules/ModuleServiceCollectionExtensions.cs` (mode paths) | 95 | 80 | 0 | 0 | 80 | Registration of local, remote and disabled modules runs end to end in unit and host tests |
    | `Modules/Diagnostics/ModuleModeLog.cs` | 90 | 0 | 0 | 0 | 0 | Reached through registration tests; no parameterized public member |
-   | `Encina.Aspire.Hosting/Modules/EncinaModulesBuilder.cs`, `ModuleResourceBuilderExtensions.cs` | 90 | 85 | 0 | 0 | 0 | Run with the Aspire testing builder over real resources; guard reaches argument checks; no external infrastructure |
+   | `Encina.Aspire.Hosting/Modules/EncinaModulesBuilder.cs`, `ModuleResourceBuilderExtensions.cs`, `AppHostModuleMode.cs` | 90 | 85 | 0 | 0 | 0 | Run with the Aspire testing builder over real resources; guard reaches argument checks; no external infrastructure |
 
 </details>
 
@@ -363,7 +363,7 @@ CONTEXT:
 - Issue #423. Per-flag coverage per AGENTS.md section 9; targets live in the package manifests.
 
 TASK:
-Write the tests and manifest entries; the three justification files cover only contract, load and benchmark.
+Write the tests and manifest entries; the two justification files cover only load and benchmark.
 
 KEY RULES:
 - Tests execute real code and never swallow an exception; a nullable parameter that accepts null gets a valid-result test; Shouldly through Encina.Testing.Shouldly.
@@ -447,11 +447,11 @@ REFERENCE FILES:
 
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
-| 1 | `ModuleMode`, `ModuleModeResolver`, `ModuleServiceCollectionExtensions` edit, `ModuleModeLog`, `EventIdRanges`, allocation test map, PublicAPI, manifest, 4 test files (resolver, registration, guard, property), the DI test and the host integration test | 14 | 1,200 |
-| 2 | `EncinaModulesBuilder`, `ModuleResourceBuilderExtensions`, PublicAPI, hosting manifest, 2 test files (unit and guard) | 6 | 500 |
-| 3 | Guide, inventory and roadmap lines, changelog fragment, 3 justification files (contract, load, benchmark) | 7 | 450 |
+| 1 | `ModuleMode`, `ModuleModeResolver`, `ModuleServiceCollectionExtensions` edit, `ModuleModeLog`, `EventIdRanges`, allocation test map, PublicAPI, manifest, 5 test files (contract, resolver, registration, guard, property), the DI test and the host integration test | 15 | 1,300 |
+| 2 | `AppHostModuleMode`, `EncinaModulesBuilder`, `ModuleResourceBuilderExtensions`, PublicAPI, hosting manifest, 2 test files (unit and guard), 2 test project `ProjectReference` edits (`Encina.UnitTests.csproj`, `Encina.GuardTests.csproj`) | 9 | 600 |
+| 3 | Guide, inventory and roadmap lines, changelog fragment, 2 justification files (load, benchmark) | 6 | 400 |
 
-Pull request 1 needs #360 pull requests 1 to 3 merged; pull request 2 needs #416's package and pull request 1; pull request 3 is last. No interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
+Pull request 1 needs #360 pull requests 1 to 3 merged; pull request 2 needs #416's package (which also pins `Aspire.Hosting`) and pull request 1; pull request 3 is last. No interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -489,12 +489,12 @@ Pull request 1 needs #360 pull requests 1 to 3 merged; pull request 2 needs #416
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 6 | `ModuleMode`, resolver, log, builder, extension methods; edits of `ModuleServiceCollectionExtensions` and `EventIdRanges` counted in the split |
+| Production code | 7 | `ModuleMode`, resolver, log, `AppHostModuleMode`, builder, extension methods; edits of `ModuleServiceCollectionExtensions` and `EventIdRanges` counted in the split |
 | Public API and manifests | 4 | `Encina`, hosting package, manifests |
-| Tests | 8 | Resolver, registration, guard, property, DI, 2 hosting, host integration, allocation map edit |
-| Justification files | 3 | Contract, load, benchmark |
+| Tests and project files | 11 | Contract, resolver, registration, guard, property, DI, 2 hosting, host integration, allocation map edit, 2 csproj edits (counted in the split) |
+| Justification files | 2 | Load, benchmark |
 | Documentation | 4 | Guide, inventory, roadmap, changelog fragment |
-| **Total** | **~29 across 3 pull requests** | The sum of the rows of the split table is the authority |
+| **Total** | **30 across 3 pull requests** | The sum of the rows of the split table is the authority |
 
 ---
 
@@ -510,12 +510,12 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. ModuleMode, the pure resolver, the mode handling in AddEncinaModules and the log 7690-7693 (Phase 1).
-2. WithEncinaModules and WithEncinaModuleMode with per-module health checks in Encina.Aspire.Hosting (Phase 2).
+2. WithEncinaModules (each module declared with its mode) with health checks for Local modules only, in Encina.Aspire.Hosting (Phase 2).
 3. Documentation (Phase 6).
 
 KEY PATTERNS:
 - Mode key Modules:{Name}:Mode (Local default, Remote, Disabled); invalid values and unknown module keys fail the start listing every problem; a Remote dependency satisfies [DependsOn], a Disabled one does not.
-- The AppHost passes names and modes as environment variables Modules__{name}__Mode and adds one HTTP health check per module at /health/modules/{name lowered}; no reflection over application types.
+- The AppHost passes names and modes as environment variables Modules__{name}__Mode and adds one HTTP health check per Local module (never for Remote or Disabled) at /health/modules/{name lowered}; no reflection over application types.
 - No restart of a single module; no synchronous call to a remote module in this plan.
 
 REFERENCE FILES:
@@ -536,7 +536,7 @@ REFERENCE FILES:
 | 1 | Caching | ⏭️ | Deferred as in the issue: per-module cache isolation is #746 (open, planned); nothing cached here |
 | 2 | OpenTelemetry | ❌ | Not applicable: in-process module calls share the request trace and `ModuleActivitySource` exists; propagation across processes belongs to the transport and outbox work of the messaging family |
 | 3 | Structured Logging | ✅ | Phase 1: `ModuleModeLog`, EventIds 7690-7693 |
-| 4 | Health Checks | ✅ | Phase 2: one HTTP health check per module on the Aspire resource, over #364's endpoints |
+| 4 | Health Checks | ✅ | Phase 2: one HTTP health check per `Local` module on the Aspire resource, over #364's endpoints |
 | 5 | Validation | ✅ | Mode values, module keys, names and dependencies are validated at startup and AppHost build time; the issue marks structural boundaries as not applicable, but configuration is input |
 | 6 | Resilience | ⏭️ | Deferred as in the issue: circuit breakers between modules are part of the spike issue file on remote calls |
 | 7 | Distributed Locks | ❌ | Not applicable: configuration and declaration only |
