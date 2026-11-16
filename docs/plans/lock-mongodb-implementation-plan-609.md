@@ -241,7 +241,7 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 3. **`Locking/MongoLockTiming.cs`** (new, internal static) — `Compose(prefix, resource)` (the `lock:` format of the SQL Server provider; the key is stored unhashed in `_id`, so tenant-qualified keys of #741 stay injective), `LeaseFor(heartbeatInterval, expiry)` (`3 x interval` clamped to the expiry), `TakeoverThreshold(now, skew)`
 4. **`EncinaMongoDbOptions.cs`** (modify) — `bool UseDistributedLock`, `MongoDbLockOptions DistributedLockOptions { get; } = new()`, and `MongoDbCollectionNames.DistributedLocks = "distributed_locks"`
 5. **`MongoDbIndexCreator.cs`** (modify) — a `(UseDistributedLock, CreateDistributedLockIndexesAsync)` entry that creates the TTL index on `ExpiresAtUtc` with `ExpireAfter = TimeSpan.Zero` and logs `Log.CreatedDistributedLockIndexes` (EventId 3190, added to `Log.cs`; Phase 5)
-6. **`Encina.MongoDB.csproj`** (modify) — `ProjectReference` to `..\Encina.DistributedLock\Encina.DistributedLock.csproj`
+6. **`Encina.MongoDB.csproj`** (modify) — `ProjectReference` to `..\Encina.DistributedLock\Encina.DistributedLock.csproj`, and an `InternalsVisibleTo` entry for `Encina.PropertyTests` (the csproj lists only `Encina.UnitTests`, `Encina.IntegrationTests` and `Encina.GuardTests` on origin/main; without the new entry the PR 3 property test of the internal `MongoLockTiming` does not compile; no extra file, the csproj is already in PR 1)
 7. **`PublicAPI.Unshipped.txt`** (the options members) and the manifest entries (targets in Phase 6)
 8. **Tests**: `MongoDbLockOptionsTests` (defaults, `ToString`), `MongoLockTimingTests` (key format, lease clamp, threshold), and the existing index creator unit test extended for the new entry
 
@@ -339,7 +339,7 @@ REFERENCE FILES:
 
 #### `src/Encina.MongoDB/`
 
-1. **`ServiceCollectionExtensions.cs`** (modify) — when `UseDistributedLock` is true: `TryAddSingleton<IMongoLockStore>` (from `IMongoClient` and the options), `TryAddSingleton<IDistributedLockProvider, MongoDbDistributedLockProvider>`, an options validation (positive `HeartbeatInterval`, non-negative `ClockSkewAllowance` below the lease) with `ValidateOnStart`; `TimeProvider` is already registered by `AddEncinaMongoDB`; the existing `MongoDbHealthCheck` covers connectivity, so no new health check is added
+1. **`ServiceCollectionExtensions.cs`** (modify) — when `UseDistributedLock` is true: `TryAddSingleton<IMongoLockStore>` (from `IMongoClient` and the options), `TryAddSingleton<IDistributedLockProvider>` with a factory delegate that builds `MongoDbDistributedLockProvider` through its internal constructor with the registered store (MS DI cannot use an internal constructor, so the store registration is unused unless the provider is registered with this factory delegate; the public constructor builds its own adapter for code that news the provider up directly), an options validation (positive `HeartbeatInterval`, non-negative `ClockSkewAllowance` below the lease) with `ValidateOnStart`; `TimeProvider` is already registered by `AddEncinaMongoDB`; the existing `MongoDbHealthCheck` covers connectivity, so no new health check is added
 2. **`PublicAPI.Unshipped.txt`** and the manifest, if the registration adds public members
 3. **Tests**: DI test building the provider with `ValidateOnBuild` and `ValidateScopes` (registration completeness, `AGENTS.md` section 3), a registration-order test (an application's own `IDistributedLockProvider` registration is not overridden), a test that the flag off registers no lock service (pay-for-what-you-use)
 
@@ -464,8 +464,8 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 | File | unit | guard | contract | integration | property | Justification |
 |---|---:|---:|---:|---:|---:|---|
 | `Locking/MongoDbDistributedLockProvider.cs` | 90 | 14 | 45 | 70 | 0 | The retry loop, registry, heartbeat timer, handle and error mapping run against the fake store; the contract suite adds the shared scenarios; integration adds a real MongoDB; property 0: no randomized logic beyond the timing helper |
-| `Locking/MongoLockStore.cs` | 5 | 5 | 0 | 90 | 0 | Needs a real MongoDB; unit and guard reach only the guards; contract 0 because the contract class runs on the shared container (integration flag) |
-| `Locking/MongoLockTiming.cs` | 100 | 0 | 0 | 0 | 95 | Pure functions; guard 0: internal type without `InternalsVisibleTo` for `Encina.GuardTests`; FsCheck covers the lease clamp and the threshold |
+| `Locking/MongoLockStore.cs` | 5 | 5 | 0 | 90 | 0 | Needs a real MongoDB; unit and guard reach only the guards (the adapter is internal and `Encina.GuardTests` has `InternalsVisibleTo` on `Encina.MongoDB`, so its constructor null checks, and the internal provider constructor's null store, are guard tests); contract 0 because the contract class runs on the shared container (integration flag) |
+| `Locking/MongoLockTiming.cs` | 100 | 0 | 0 | 0 | 95 | Pure functions with no reference-type or validated parameters beyond strings checked by the caller; guard 0 because there is nothing to guard (not an `InternalsVisibleTo` gap: `Encina.GuardTests` and, after PR 1, `Encina.PropertyTests` can see the type); unit covers every line and FsCheck covers the lease clamp and the threshold |
 | `Locking/MongoDbLockOptions.cs` | 100 | 0 | 0 | 0 | 0 | Property bag; guard 0: no parameters |
 | `Locking/MongoDbLockDiagnostics.cs` | 80 | 0 | 0 | 0 | 0 | Instruments exercised through the provider tests; guard 0: no parameters |
 | `ServiceCollectionExtensions.cs` (changed lines) | 90 | 90 | 0 | 0 | 0 | The registration branch is covered by the DI tests; guard covers the null checks |
