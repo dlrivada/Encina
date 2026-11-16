@@ -14,15 +14,19 @@ name: Documentation
 # record of each dashboard's last published data) and call this workflow
 # through workflow_call. See .github/scripts/pages-dashboard-data.ps1 (#1386).
 #   build-docs (no lock, ~15 minutes):
-#     1. stages the live Pages data and the dashboard-data branch in
-#        _dashboards/, only to render the covref/mutref/perf citation markers
-#        into docs/ (INV-002: rendering never blocks the deploy),
+#     1. stages the dashboard-data branch in _dashboards/, only to render the
+#        covref/mutref/perf citation markers into docs/ (INV-002: rendering
+#        never blocks the deploy),
 #     2. builds Jekyll + DocFX, adds the rendered cited-by.json files and
 #        uploads the site, WITHOUT the dashboard data, as the docs-site artifact.
 #   deploy (inside the "pages" concurrency lock):
-#     3. lays the dashboard data over the site: the live Pages copy, then the
-#        dashboard-data branch; any read failure fails the deploy,
+#     3. lays the dashboard data of the dashboard-data branch over the site; a
+#        missing branch, a git failure or a dashboard without latest.json and
+#        history.json fails the deploy,
 #     4. uploads and deploys the site and smoke-checks it.
+# No step reads the live Pages site it is about to replace (#3746): the branch
+# is the only source of the dashboard data, so a Pages outage (HTTP 503) cannot
+# fail or change a deploy.
 # Reading the data inside the lock means no deploy can revert data another
 # deploy published while this one was building, and a pending deploy that the
 # "pages" group cancels loses no dashboard data: its data is already on the
@@ -126,51 +130,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Fetch live dashboard data from Pages
-        # Staged only for the citation renderers below (docref-index.json) and
-        # for the live cited-by.json a skipped renderer leaves in place. The
+      - name: Stage persisted dashboard data for the renderers
+        # The docref indexes of the dashboard-data branch (a publisher commits
+        # to it before its deploy) feed the citation renderers below; the
         # dashboard data itself is laid over the site by the deploy job, inside
         # the "pages" lock (#1386). Gated to the deploy path: pull requests
-        # never deploy, so they skip the network calls.
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        shell: bash
-        run: |
-          for domain in coverage benchmarks load-tests mutations; do
-            echo "Fetching live $domain data from Pages..."
-            mkdir -p "_dashboards/$domain/data"
-            for file in latest.json history.json docref-index.json fingerprints.json cited-by.json benchmark-coverage.json; do
-              url="https://dlrivada.github.io/Encina/$domain/data/$file"
-              if curl -fsSL -o "_dashboards/$domain/data/$file.new" "$url" 2>/dev/null; then
-                mv "_dashboards/$domain/data/$file.new" "_dashboards/$domain/data/$file"
-                echo "  ✓ $domain/data/$file"
-              else
-                rm -f "_dashboards/$domain/data/$file.new"
-                echo "  - $domain/data/$file (not on Pages)"
-              fi
-            done
-            # Badges live at /<domain>/badge.{svg,json} (referenced from README).
-            for badge in badge.svg badge.json; do
-              url="https://dlrivada.github.io/Encina/$domain/$badge"
-              if curl -fsSL -o "_dashboards/$domain/$badge.new" "$url" 2>/dev/null; then
-                mv "_dashboards/$domain/$badge.new" "_dashboards/$domain/$badge"
-                echo "  ✓ $domain/$badge"
-              else
-                rm -f "_dashboards/$domain/$badge.new"
-              fi
-            done
-          done
-
-      - name: Stage persisted dashboard data for the renderers
-        # The dashboard-data branch is at least as fresh as the live copy (a
-        # publisher commits to it before its deploy), so its docref indexes
-        # win for the citations. INV-002: a problem here only leaves the
-        # citations older; the deploy job re-reads the data and fails loudly.
+        # never deploy. INV-002: a problem here only skips the citation
+        # rendering; the deploy job re-reads the branch and fails loudly.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         continue-on-error: true
         shell: bash
         run: |
           if ! git ls-remote --exit-code --heads origin refs/heads/dashboard-data > /dev/null; then
-            echo "No dashboard-data branch yet; the renderers use the live data"
+            echo "No dashboard-data branch; the citation renderers are skipped"
             exit 0
           fi
           git fetch --no-tags --depth=1 origin +refs/heads/dashboard-data:refs/remotes/origin/dashboard-data
@@ -289,8 +261,9 @@ jobs:
 
       - name: Copy the rendered cited-by.json files into the site
         # The build owns cited-by.json (the renderers write it from the docref
-        # indexes, or the live copy stays when a renderer skipped). Every other
-        # dashboard file is laid over the site by the deploy job.
+        # indexes; when a renderer skipped, the copy Jekyll took from docs/, if
+        # any, stays). Every other dashboard file is laid over the site by the
+        # deploy job.
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         run: |
@@ -374,8 +347,9 @@ jobs:
           tar -xf _site-artifact/docs-site.tar -C _site
 
       - name: Lay the current dashboard data over the site
-        # Inside the lock: the live Pages data of every dashboard, then the
-        # dashboard-data branch on top. A failed read fails the deploy; the
+        # Inside the lock: the dashboard-data branch is the only source (#3746);
+        # the live site is never read. A missing branch, a git failure or a
+        # dashboard without latest.json and history.json fails the deploy; the
         # committed docs/*/data copies are never published in their place.
         shell: pwsh
         run: ./.github/scripts/pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site
