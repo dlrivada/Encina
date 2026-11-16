@@ -21,7 +21,7 @@ Add an `IDistributedLockProvider` over **MongoDB** to the existing `Encina.Mongo
 4. **Poll, do not block.** Acquire retries every `retry` until the `wait` deadline; delays use `TimeProvider`.
 5. **ADR-052 outcomes.** Acquired is `Right(Some(handle))`, contention or the wait elapsing is `Right(None)`, a MongoDB fault is `Left`, cancellation propagates.
 6. **Non-intrusive probe.** `IsLockedAsync` is a `Find` of an unexpired document; it never writes.
-7. **Operations.** The existing `MongoDbHealthCheck` already covers connectivity; `[LoggerMessage]` EventIds 3167-3175 inside the registered MongoDB range, an `ActivitySource` and a `Meter`.
+7. **Operations.** The existing `MongoDbHealthCheck` already covers connectivity; `[LoggerMessage]` EventIds 3190-3198 (a sub-range reserved for this plan) inside the registered MongoDB range, an `ActivitySource` and a `Meter`.
 
 The issue's sample (`DistributedLockProviderMongoDB`, `IDistributedLock`, `DateTime.UtcNow`, an unexpired-lock filter that treats a missing owner as free) does not match the code: `IDistributedLockProvider` has no `IDistributedLock`, time must come from `TimeProvider` (`AGENTS.md` section 3), and the real contract is ADR-052. This plan uses the real names.
 
@@ -33,10 +33,10 @@ The issue's sample (`DistributedLockProviderMongoDB`, `IDistributedLock`, `DateT
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5), implemented on the MongoDB provider of the database family. Matrix in Research.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `0b941beeb`):
 
 - `src/Encina.MongoDB` has no lock code and no reference to `Encina.DistributedLock` (it references `Encina`, `Encina.Messaging`, the compliance packages and others). Every feature there is gated by a flag of `EncinaMongoDbOptions` (`UseOutbox`, `UseInbox`, `UseSagas`, `UseScheduling`, `UseDeadLetterQueue`, `UseAuditLogStore`, ...), has collection names in `MongoDbCollectionNames`, and creates its indexes in `MongoDbIndexCreator.FeatureIndexCreators()`.
-- EventIds 3100-3166 are used in `src/Encina.MongoDB/Log.cs` (3162 lives in `ReadWriteSeparation/ReadWriteRoutingPipelineBehavior.cs`; 3128 is an unused gap); 3167-3199 are free inside the registered `MongoDB = (3100, 3199)` range.
+- EventIds 3100-3166 are used in `src/Encina.MongoDB/Log.cs` (3162 lives in `ReadWriteSeparation/ReadWriteRoutingPipelineBehavior.cs`; 3128 is an unused gap); 3167-3199 are free inside the registered `MongoDB = (3100, 3199)` range, but not exclusive: the plans of #594 and #590 claim "3167+" for their MongoDB log entries, so this plan takes the top of the range, 3190-3198, and leaves 3167-3189 to them.
 - `MongoDbHealthCheck` (`DefaultName = "encina-mongodb"`) exists; `MongoDbFixture` (`mongo:7`, collection name `MongoDB`) and its `ClearAllDataAsync` exist.
 - `IDistributedLockProvider` still has the pre-ADR-052 shapes; [#2667](https://github.com/dlrivada/Encina/issues/2667) changes them and creates `LockErrorCodes`. **This plan is written to the ADR-052 contract; implementation starts after #2667 merges.**
 - `Encina.UnitTests`, `Encina.GuardTests`, `Encina.PropertyTests` and `Encina.IntegrationTests` reference both `Encina.MongoDB` and `Encina.DistributedLock`; `Encina.ContractTests` references `Encina.MongoDB`, which will bring `Encina.DistributedLock` in transitively. No contract test class for locks exists yet; #2667 creates the suite.
@@ -223,7 +223,7 @@ Three pull requests, each at most 15 files and 1500 changed lines counting tests
 |---|---|---|---|---|
 | 1 | Phase 1 | `Locking/MongoDbLockOptions`, `Locking/LockDocument`, `Locking/MongoLockTiming`, `EncinaMongoDbOptions.cs`, `MongoDbIndexCreator.cs`, `Log.cs`, `Encina.MongoDB.csproj`, `PublicAPI.Unshipped.txt`, manifest (9) | unit `MongoDbLockOptionsTests` and `MongoLockTimingTests`, the index creator unit test (extended) (3) | 12 files / 650 |
 | 2 | Phases 2 and 5 | `Locking/IMongoLockStore`, `Locking/MongoLockStore`, `Locking/MongoDbDistributedLockProvider`, `Locking/MongoDbLockDiagnostics`, `Log.cs`, `PublicAPI.Unshipped.txt`, manifest (7) | `FakeMongoLockStore`, provider unit tests, handle and heartbeat unit tests, guard tests (4) | 11 files / 1,300 |
-| 3 | Phases 3, 4, 6 and 7 | `ServiceCollectionExtensions.cs`, `PublicAPI.Unshipped.txt`, manifest (3) | DI test with `ValidateOnBuild`/`ValidateScopes`, contract class, integration tests, property test of the timing helper, `README.md` of `Encina.MongoDB`, changelog fragment, two load/benchmark justification files (9) | 12 files / 1,100 |
+| 3 | Phases 3, 4, 6 and 7 | `ServiceCollectionExtensions.cs`, `PublicAPI.Unshipped.txt`, manifest (3) | DI test with `ValidateOnBuild`/`ValidateScopes`, `tests/Encina.GuardTests/MongoDB/ServiceCollectionExtensionsGuardTests.cs` (existing file, modified: null checks of the lock registration), contract class, the `MongoDB` collection definition in `Encina.ContractTests` (new file), integration tests, property test of the timing helper, `README.md` of `Encina.MongoDB`, changelog fragment, two load/benchmark justification files (10) | 13 files / 1,150 |
 
 If a PR measures over 15 files or 1,500 lines, the worker splits it again and never asks for `size-exception-approved`. PR 2 has the least line slack: if the heartbeat tests grow, they move to PR 3.
 
@@ -240,7 +240,7 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 2. **`Locking/LockDocument.cs`** (new, internal sealed) — `[BsonId] string Id`, `string OwnerId`, `DateTime AcquiredAtUtc`, `DateTime ExpiresAtUtc` (UTC kind, millisecond precision)
 3. **`Locking/MongoLockTiming.cs`** (new, internal static) — `Compose(prefix, resource)` (the `lock:` format of the SQL Server provider; the key is stored unhashed in `_id`, so tenant-qualified keys of #741 stay injective), `LeaseFor(heartbeatInterval, expiry)` (`3 x interval` clamped to the expiry), `TakeoverThreshold(now, skew)`
 4. **`EncinaMongoDbOptions.cs`** (modify) — `bool UseDistributedLock`, `MongoDbLockOptions DistributedLockOptions { get; } = new()`, and `MongoDbCollectionNames.DistributedLocks = "distributed_locks"`
-5. **`MongoDbIndexCreator.cs`** (modify) — a `(UseDistributedLock, CreateDistributedLockIndexesAsync)` entry that creates the TTL index on `ExpiresAtUtc` with `ExpireAfter = TimeSpan.Zero` and logs `Log.CreatedDistributedLockIndexes` (EventId 3167, added to `Log.cs`; Phase 5)
+5. **`MongoDbIndexCreator.cs`** (modify) — a `(UseDistributedLock, CreateDistributedLockIndexesAsync)` entry that creates the TTL index on `ExpiresAtUtc` with `ExpireAfter = TimeSpan.Zero` and logs `Log.CreatedDistributedLockIndexes` (EventId 3190, added to `Log.cs`; Phase 5)
 6. **`Encina.MongoDB.csproj`** (modify) — `ProjectReference` to `..\Encina.DistributedLock\Encina.DistributedLock.csproj`
 7. **`PublicAPI.Unshipped.txt`** (the options members) and the manifest entries (targets in Phase 6)
 8. **Tests**: `MongoDbLockOptionsTests` (defaults, `ToString`), `MongoLockTimingTests` (key format, lease clamp, threshold), and the existing index creator unit test extended for the new entry
@@ -290,8 +290,8 @@ REFERENCE FILES:
 1. **`IMongoLockStore.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryAcquireAsync(string key, string ownerId, DateTime nowUtc, DateTime thresholdUtc, DateTime expiresAtUtc, CancellationToken ct)` (true acquired, false contended), `RenewAsync(key, ownerId, nowUtc, newExpiresAtUtc, ct)` (false when the document is no longer ours or its lease has passed), `ReleaseAsync(key, ownerId, ct)`, `IsLockedAsync(key, nowUtc, ct)`; each returns `Either<EncinaError, bool>`
 2. **`MongoLockStore.cs`** (new, internal sealed) — wraps `IMongoCollection<LockDocument>` taken from `IMongoClient`/`EncinaMongoDbOptions` with majority concerns (design choice 6); the upsert of design choice 5 and the duplicate key recognition (`MongoWriteException` with `ServerErrorCategory.DuplicateKey` and the bulk-write shape); the classification of design choice 8
 3. **`MongoDbDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; the public constructor is `(IMongoClient client, IOptions<EncinaMongoDbOptions> options, ILogger<MongoDbDistributedLockProvider> logger, TimeProvider? timeProvider = null)` and an internal constructor takes the `IMongoLockStore` for the tests; `TryAcquireAsync` (retry loop until `wait`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that renews the lease on a `TimeProvider` timer (callback catches everything), deletes the document at its deadline, marks itself lost when a renewal matches nothing, and moves its deadline on `ExtendAsync`; `OwnerId` is a new GUID per acquisition
-4. **`MongoDbLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.MongoDB.Locking`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`mongodb`) and `outcome` (`acquired`, `contended`, `failed`); counter `encina.distributed_lock.renewals` with tag `outcome` (`renewed`, `lost`, `failed`); no tenant tag (the decorator of #741 adds `encina.tenant_id`, ADR-054 D4)
-5. **`src/Encina.MongoDB/Log.cs`** (modify) — the `[LoggerMessage]` methods, EventIds 3168-3175 (Phase 5)
+4. **`MongoDbLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.MongoDB.Locking`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`mongodb`) and `outcome` (`acquired`, `contended`, `failed`); counter `encina.distributed_lock.renewals` with tag `outcome` (`renewed`, `lost`, `failed`); no tenant tag (the decorator of #741 adds `encina.tenant_id`, [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4)
+5. **`src/Encina.MongoDB/Log.cs`** (modify) — the `[LoggerMessage]` methods, EventIds 3191-3198 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** (the provider and its constructor) and the manifest (targets in Phase 6)
 7. **Tests**: `FakeMongoLockStore` (scripted results and a call log), provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, skew allowance respected, fault on acquire, cancellation, registry extend held and unheld, deadline release, double dispose), heartbeat tests (renews every interval, lost document marks the handle, transient failure retried, `UseHeartbeat = false` writes the full expiry once), guard tests of the public constructor and the four methods
 
@@ -312,7 +312,7 @@ CONTEXT:
 
 TASK:
 Write IMongoLockStore and its driver adapter, the provider with its private handle and heartbeat, the diagnostics
-class and the log methods (EventIds 3168-3175 in Log.cs). Write the fake store and the unit and guard tests of the
+class and the log methods (EventIds 3191-3198 in Log.cs). Write the fake store and the unit and guard tests of the
 Tasks.
 
 KEY RULES:
@@ -419,8 +419,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Range**: no registration is needed. `EventIdRanges.MongoDB = (3100, 3199)` and the architecture test mapping of `Encina.MongoDB` already exist; ids 3167 to 3175 are the next free ids after 3166 (verified free on `origin/main` at `db1e7f688`).
-2. **Log messages** — PR 1: 3167 distributed lock indexes created (Information, `Log.CreatedDistributedLockIndexes`, called by the index creator). PR 2, in `Log.cs`: 3168 lock acquired (Debug), 3169 lock released (Debug), 3170 wait elapsed, lock contended (Debug), 3171 acquire fault (Warning, exception type), 3172 release failed, the lease expires on its own (Warning), 3173 lease lost during heartbeat (Warning), 3174 heartbeat failed transiently (Warning), 3175 deadline reached, lock released by the handle (Information). 3176-3199 stay free. If the pull requests merge in another order, the worker re-packs the ids without gaps.
+1. **Range**: no registration is needed. `EventIdRanges.MongoDB = (3100, 3199)` and the architecture test mapping of `Encina.MongoDB` already exist; ids 3190 to 3198 are free on `origin/main` at `0b941beeb` (`git grep` of `src/` finds none of 3167-3199 in use) and are reserved for this plan at the top of the range, because the plans of #594 and #590 claim "3167+" (grep of `docs/plans`); they take 3167-3189 between them.
+2. **Log messages** — PR 1: 3190 distributed lock indexes created (Information, `Log.CreatedDistributedLockIndexes`, called by the index creator). PR 2, in `Log.cs`: 3191 lock acquired (Debug), 3192 lock released (Debug), 3193 wait elapsed, lock contended (Debug), 3194 acquire fault (Warning, exception type), 3195 release failed, the lease expires on its own (Warning), 3196 lease lost during heartbeat (Warning), 3197 heartbeat failed transiently (Warning), 3198 deadline reached, lock released by the handle (Information). 3199 stays spare. The sub-range is fixed (3190-3198, packed without gaps inside it), so the merge order of this plan against #594 and #590 does not change any id.
 3. **Metrics and spans** (PR 2) — `MongoDbLockDiagnostics`: spans `DistributedLock.Acquire` and `DistributedLock.Release`, counters of Phase 2; names align with the shared instruments of [#724](https://github.com/dlrivada/Encina/issues/724) and move onto them if it lands first.
 
 </details>
@@ -433,12 +433,12 @@ You are implementing Phase 5 of issue #609: EventIds, logs and instruments of th
 
 CONTEXT:
 - ADR-021: ids must sit inside the package's registered range. Encina.MongoDB owns 3100-3199 and uses 3100-3166;
-  the lock messages take 3167 onward, packed in merge order without gaps.
+  the lock messages take the reserved sub-range 3190-3198, packed without gaps inside it.
 - Contention is not a failure: Debug level and outcome "contended".
 
 TASK:
-Add the [LoggerMessage] methods to Log.cs with the ids in the Tasks (the index message in PR 1 is 3167, the
-provider messages are 3168 to 3175), and the diagnostics class. Run the architecture tests.
+Add the [LoggerMessage] methods to Log.cs with the ids in the Tasks (the index message in PR 1 is 3190, the
+provider messages are 3191 to 3198), and the diagnostics class. Run the architecture tests.
 
 KEY RULES:
 - Packed ids, no gaps. Log the exception through ForLogging(), never its message.
@@ -473,7 +473,7 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 
 1. **Unit** — the scenarios of Phases 1 to 3 with `FakeTimeProvider` and the fake store.
 2. **Guard** — the public constructor (null client, null options, null logger) and each method (null or whitespace resource, non-positive expiry as #2724 decides).
-3. **Contract** — one derived class of the suite #2667 creates, `MongoDbDistributedLockContractTests`, on the `MongoDB` collection, running the same scenarios as the other providers (free, contended, expiry, extend held and unheld, double dispose, cancellation).
+3. **Contract** — `MongoDbDistributedLockContractTests`, on the `MongoDB` collection, which `Encina.ContractTests` does not define (the collection of `MongoDbFixture` is used from `Encina.IntegrationTests`), so PR 3 adds `tests/Encina.ContractTests/DistributedLock/MongoDB/MongoDbCollection.cs` (`[CollectionDefinition("MongoDB")]` with `ICollectionFixture<MongoDbFixture>`, the shape of `LocalStackCollection.cs` in that project). #2667 does not state a reusable abstract base class: PR 3 reads the suite as #2667 merged it and either derives from its base or, when none exists, extracts one (a new file; PR 3 stays at 14 files). The class runs the same scenarios as the other providers (free, contended, expiry, extend held and unheld, double dispose, cancellation).
 4. **Property** — FsCheck on `MongoLockTiming`: lease never above the expiry, threshold never after `now`, key format round trip.
 5. **Integration** — `[Collection("MongoDB")]` on `MongoDbFixture`, `[Trait("Category", "Integration")]`, `[Trait("Database", "MongoDB")]`: two providers on one database block each other; release deletes the document; the heartbeat keeps a short lease alive past its duration; a document deleted behind the handle's back marks it lost; an abandoned handle's lease lapses and a contender takes the lock; concurrent acquirers (many tasks, one key) produce exactly one holder; the TTL index exists; `IsLockedAsync` does not disturb a contender; cancellation inside a wait.
 6. **Load and benchmark** — `.md` justification files under `tests/Encina.NBomber/Scenarios/Locking/` and `tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/`: the provider is a thin client over single-document writes whose latency is the network, covered by the shared lock scenarios once its factory is added by the issue that owns those scenarios; a missing `.md` would mean "not evaluated" (`AGENTS.md` section 9).
@@ -598,7 +598,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.MongoDB` (existing range `MongoDB`) | 3167-3175 | Inside 3100-3199, after the last used id 3166; no new range and nothing taken from the family block 7550-7599; 3176-3199 stay free. The index creation message of PR 1 takes 3167 and the provider messages 3168-3175 follow in merge order |
+| `Encina.MongoDB` (existing range `MongoDB`) | 3190-3198 | Inside 3100-3199, above the last used id 3166; no new range and nothing taken from the family block 7550-7599. Reserved at the top of the range because the plans of #594 and #590 claim "3167+"; they take 3167-3189, 3199 stays spare. The index creation message of PR 1 takes 3190 and the provider messages 3191-3198 |
 
 ### Estimated File Count
 
@@ -608,10 +608,10 @@ REFERENCE FILES:
 | Production (modified) | 5 | `EncinaMongoDbOptions.cs`, `MongoDbIndexCreator.cs`, `ServiceCollectionExtensions.cs`, `Log.cs`, `Encina.MongoDB.csproj` |
 | Metadata | 2 | `PublicAPI.Unshipped.txt`, `Encina.MongoDB.json` manifest (touched in each PR) |
 | Unit tests | 6 | options, timing, provider, heartbeat, DI, index creator (extended) (plus the fake store) |
-| Guard tests | 1 | provider and registration |
-| Contract, property and integration tests | 3 | one class each |
+| Guard tests | 2 | provider (new, PR 2) and the existing `ServiceCollectionExtensionsGuardTests.cs` (modified, PR 3) |
+| Contract, property and integration tests | 4 | one class each, plus the `MongoDB` collection definition for `Encina.ContractTests` |
 | Documentation and changelog | 4 | README section, fragment, two justification files |
-| **Total** | **~32 touches** | Over 3 pull requests of at most 15 files each (12, 11 and 12) |
+| **Total** | **~34 touches** | Over 3 pull requests of at most 15 files each (12, 11 and 13) |
 
 ---
 
@@ -642,7 +642,7 @@ IMPLEMENTATION OVERVIEW:
    registry of live handles; IsLockedAsync through Find.
 3. Registration in AddEncinaMongoDB behind the flag (TryAdd*, ValidateOnStart), DI test with ValidateOnBuild and
    ValidateScopes; the existing MongoDbHealthCheck covers connectivity.
-4. EventIds 3167-3175 in Log.cs inside the registered MongoDB range, diagnostics, ActivitySource and Meter.
+4. EventIds 3190-3198 in Log.cs inside the registered MongoDB range, diagnostics, ActivitySource and Meter.
 5. Tests: unit (fake store, FakeTimeProvider), guard, contract (suite of #2667), property (timing), integration on
    the MongoDB collection; documentation through docs-writer; changelog and PublicAPI through mechanical-fixer.
 
@@ -668,8 +668,8 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Lock state is ephemeral coordination state; caching it would be a defect |
-| 2 | OpenTelemetry | ✅ | Phase 5: spans for acquire and release, acquisitions and renewals counters with `provider` and `outcome` tags; no tenant tag here, the #741 decorator adds `encina.tenant_id` (ADR-054 D4); names align with [#724](https://github.com/dlrivada/Encina/issues/724) |
-| 3 | Structured Logging | ✅ | Phase 5: `[LoggerMessage]` EventIds 3167-3175 in `Log.cs`, inside the registered `MongoDB` range, exception type only |
+| 2 | OpenTelemetry | ✅ | Phase 5: spans for acquire and release, acquisitions and renewals counters with `provider` and `outcome` tags; no tenant tag here, the #741 decorator adds `encina.tenant_id` ([ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4); names align with [#724](https://github.com/dlrivada/Encina/issues/724) |
+| 3 | Structured Logging | ✅ | Phase 5: `[LoggerMessage]` EventIds 3190-3198 in `Log.cs`, inside the registered `MongoDB` range, exception type only |
 | 4 | Health Checks | ✅ | The existing `MongoDbHealthCheck` (`encina-mongodb`) covers the connectivity the issue asks for; no lock-specific check is added |
 | 5 | Validation | ✅ | Phase 3: options validated at startup (heartbeat, skew); resource and expiry arguments validated as [#2724](https://github.com/dlrivada/Encina/issues/2724) decides |
 | 6 | Resilience | ✅ | Phase 4: the driver's retryable writes and server selection apply; the heartbeat retries on the next tick while the lease is valid; no Polly policy on top |
