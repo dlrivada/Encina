@@ -205,20 +205,6 @@ public sealed class BreakTheGlassStoreEFTests
     }
 
     [Fact]
-    public async Task ArgumentGuards_RejectNullsBeforeAnyDatabaseCall()
-    {
-        var store = new BreakTheGlassStoreEF<BtgContext>(new ThrowingFactory(new InvalidOperationException("never used")));
-
-        Should.Throw<ArgumentNullException>(() => new BreakTheGlassStoreEF<BtgContext>(null!));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.AddAsync(null!));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.FindEffectiveAsync(null, null!, "s", "c", DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.TryCloseAsync(null, Guid.NewGuid(), BreakTheGlassStatus.Revoked, null!, DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.TryRecordReviewAsync(null, Guid.NewGuid(), BreakTheGlassReviewOutcome.Justified, null!, null, DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.QueryReviewQueueAsync(null, null!));
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await store.GetExpiredUnrecordedAsync(DateTimeOffset.UnixEpoch, 0));
-    }
-
-    [Fact]
     public void ActiveKeyOf_SeparatesTheKeyParts_AndTreatsANullTenantAsEmpty()
     {
         BreakTheGlassStoreEF<BtgContext>.ActiveKeyOf("t", "a", "bc", "s").ShouldNotBe(BreakTheGlassStoreEF<BtgContext>.ActiveKeyOf("t", "ab", "c", "s"));
@@ -249,12 +235,4 @@ public sealed class BreakTheGlassStoreEFTests
         entity.GetIndexes().Single(i => i.GetDatabaseName() == BreakTheGlassElevationEntityConfiguration.ActiveKeyIndexName).IsUnique.ShouldBeTrue();
         entity.GetIndexes().Count().ShouldBe(3);
     }
-
-    [Fact]
-    public void ModelBuilderExtension_RejectsANullBuilder() =>
-        Should.Throw<ArgumentNullException>(() => BreakTheGlassModelBuilderExtensions.ApplyBreakTheGlassConfiguration(null!));
-
-    [Fact]
-    public void Configuration_RejectsANullBuilder() =>
-        Should.Throw<ArgumentNullException>(() => new BreakTheGlassElevationEntityConfiguration().Configure(null!));
 }

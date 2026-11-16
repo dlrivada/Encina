@@ -144,6 +144,7 @@ internal sealed class DefaultConsentService : IConsentService
         DateTimeOffset? expiresAtUtc = null,
         string? tenantId = null,
         string? moduleId = null,
+        DateTimeOffset? occurredAtUtc = null,
         CancellationToken cancellationToken = default)
     {
         // Neither the data subject's own identifier nor the actor (which is frequently the data
@@ -157,21 +158,48 @@ internal sealed class DefaultConsentService : IConsentService
 
         try
         {
-            var id = Guid.NewGuid();
-            var occurredAtUtc = _timeProvider.GetUtcNow();
-            var effectiveMetadata = metadata ?? new Dictionary<string, object?>();
+            // The stream id is derived from (effective tenant, subject, purpose), so the event
+            // store itself rejects a second stream for the same key, atomically and also under
+            // concurrent grants (#3769). A null subject or purpose throws here and is reported
+            // as a service error, as Grant reports blank ones.
+            var id = ConsentStreamId.For(effectiveTenantId, dataSubjectId, purpose);
 
+            // The act's own timestamp (when the data subject acted) orders acts on the same key;
+            // it defaults to the injected clock (#3771). An act dated beyond the tolerance in the
+            // future is refused: as the ordering watermark it would turn every later act on the
+            // key into a late one and lock the consent in its current state.
+            var now = _timeProvider.GetUtcNow();
+            var actAtUtc = (occurredAtUtc ?? now).ToUniversalTime();
+            if (actAtUtc > now + MaxActClockAhead)
+            {
+                _logger.ConsentGrantActInFuture(purpose);
+                return ConsentErrors.ActInFuture(purpose, MaxActClockAhead);
+            }
+
+            var act = new GrantAct(
+                consentVersionId, source, grantedBy, ipAddress, proofOfConsent,
+                metadata ?? new Dictionary<string, object?>(), expiresAtUtc, actAtUtc);
+
+            // Grant validates every argument of the act, so the existing-stream path below
+            // receives an act that is already valid.
             var aggregate = ConsentAggregate.Grant(
-                id, dataSubjectId, purpose, consentVersionId, source,
-                ipAddress, proofOfConsent, effectiveMetadata, expiresAtUtc,
-                grantedBy, occurredAtUtc, effectiveTenantId, moduleId);
+                id, dataSubjectId, purpose, act.ConsentVersionId, act.Source,
+                act.IpAddress, act.ProofOfConsent, act.Metadata, act.ExpiresAtUtc,
+                act.GrantedBy, act.OccurredAtUtc, effectiveTenantId, moduleId);
 
             var result = await _repository.CreateAsync(aggregate, cancellationToken);
+
+            if (result.Match(Right: _ => false, Left: error => HasCode(error, MartenErrorCodes.StreamAlreadyExists)))
+            {
+                // A sequential repeat, or the loser of a concurrent first grant: continue as a
+                // grant on the existing stream, never an error for a valid grant (#3771, D3).
+                return await GrantOnExistingConsentAsync(id, purpose, act, cancellationToken);
+            }
 
             return result.Match<Either<EncinaError, Guid>>(
                 Right: _ =>
                 {
-                    _logger.ConsentGrantedService(id.ToString(), purpose);
+                    _logger.ConsentGrantedService(purpose);
                     ConsentDiagnostics.ConsentGrantedTotal.Add(1);
                     return id;
                 },
@@ -183,6 +211,181 @@ internal sealed class DefaultConsentService : IConsentService
             return ConsentErrors.ServiceError("GrantConsent", ex);
         }
     }
+
+    /// <summary>
+    /// The arguments of one grant act, validated by <see cref="ConsentAggregate.Grant"/> before
+    /// they reach an existing stream.
+    /// </summary>
+    private sealed record GrantAct(
+        string ConsentVersionId,
+        string Source,
+        string GrantedBy,
+        string? IpAddress,
+        string? ProofOfConsent,
+        IReadOnlyDictionary<string, object?> Metadata,
+        DateTimeOffset? ExpiresAtUtc,
+        DateTimeOffset OccurredAtUtc);
+
+    /// <summary>
+    /// The transition a grant on an existing consent records, chosen by the consent's status.
+    /// </summary>
+    private enum GrantTransition
+    {
+        Renewal,
+        Regrant,
+        Reconsent
+    }
+
+    /// <summary>
+    /// Records a grant whose deterministic consent stream already exists: a sequential repeat or
+    /// the loser of a concurrent first grant for the same (tenant, subject, purpose) key
+    /// (#3769, #3771).
+    /// </summary>
+    /// <remarks>
+    /// An optimistic concurrency conflict on save (another grant, withdrawal or other write
+    /// appended to the stream between the load and the save) is retried on the reloaded stream, so
+    /// the act is evaluated against the state that won the race. Every conflict means another
+    /// write to the same consent committed, so with up to <see cref="MaxGrantAttempts"/> concurrent
+    /// writes on one key every grant is recorded. Beyond that the last conflict is returned
+    /// unchanged (<see cref="MartenErrorCodes.ConcurrencyConflict"/>): the act was not recorded and
+    /// the caller may retry it.
+    /// </remarks>
+    private async Task<Either<EncinaError, Guid>> GrantOnExistingConsentAsync(
+        Guid consentId,
+        string purpose,
+        GrantAct act,
+        CancellationToken cancellationToken)
+    {
+        var result = await RecordGrantOnExistingAsync(consentId, purpose, act, cancellationToken);
+
+        for (var attempt = 1; attempt < MaxGrantAttempts && IsConcurrencyConflict(result); attempt++)
+        {
+            _logger.ConsentGrantConcurrencyRetry(purpose);
+            result = await RecordGrantOnExistingAsync(consentId, purpose, act, cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// How many times a grant on an existing consent is attempted when other writes to the same
+    /// consent keep winning the optimistic concurrency race (#3771).
+    /// </summary>
+    private const int MaxGrantAttempts = 5;
+
+    /// <summary>
+    /// How far ahead of the injected clock a grant act's own timestamp may be before the grant is
+    /// refused (#3771): enough for ordinary client clock drift, never enough to lock a consent.
+    /// </summary>
+    internal static readonly TimeSpan MaxActClockAhead = TimeSpan.FromMinutes(5);
+
+    private static bool IsConcurrencyConflict(Either<EncinaError, Guid> result) =>
+        result.Match(Right: _ => false, Left: error => HasCode(error, MartenErrorCodes.ConcurrencyConflict));
+
+    /// <summary>
+    /// Loads the existing consent and records the grant act on it as a renewal (Active), a regrant
+    /// (Withdrawn or Expired) or a reconsent (RequiresReconsent with the current version).
+    /// </summary>
+    private async Task<Either<EncinaError, Guid>> RecordGrantOnExistingAsync(
+        Guid consentId,
+        string purpose,
+        GrantAct act,
+        CancellationToken cancellationToken)
+    {
+        var loadResult = await _repository.LoadAsync(consentId, cancellationToken);
+
+        return await loadResult.MatchAsync<Either<EncinaError, Guid>>(
+            RightAsync: async aggregate =>
+            {
+                // The checks of a first grant apply to every grant on an existing record: the
+                // tenant is resolved (fail closed) before the stream id is derived. The minor rule
+                // (#1255) and the channel/basis checks (#1199) are not in this package yet; when
+                // they land they are enforced here as well, or a regrant would bypass them.
+                if (aggregate.Status == ConsentStatus.RequiresReconsent
+                    && !string.Equals(act.ConsentVersionId, aggregate.ConsentVersionId, StringComparison.Ordinal))
+                {
+                    _logger.ConsentGrantReconsentRequired(purpose);
+                    return ConsentErrors.ReconsentRequired(purpose, aggregate.ConsentVersionId, act.ConsentVersionId);
+                }
+
+                // An act older than the latest act is recorded in the history without changing
+                // the current state (the aggregate and the projection apply the same rule).
+                var appliedToState = !ConsentAggregate.IsLateAct(act.OccurredAtUtc, aggregate.LastActAtUtc, aggregate.Status);
+                var transition = RecordTransition(aggregate, act);
+                var saveResult = await _repository.SaveAsync(aggregate, cancellationToken);
+
+                return saveResult.Match<Either<EncinaError, Guid>>(
+                    Right: _ =>
+                    {
+                        _logger.ConsentGrantOnExistingRecorded(purpose, transition.ToString(), appliedToState);
+                        RecordGrantMetric(transition, appliedToState);
+                        InvalidateCache(consentId, aggregate);
+                        return consentId;
+                    },
+                    Left: error => error);
+            },
+            Left: error => error);
+    }
+
+    /// <summary>
+    /// Raises the event of the transition the consent's status calls for. Every status a stored
+    /// consent can have maps to one transition; RequiresReconsent was checked for the current
+    /// version by the caller.
+    /// </summary>
+    // crap-exempt: single-question switch — which transition records a grant on a consent in this status.
+    private static GrantTransition RecordTransition(ConsentAggregate aggregate, GrantAct act)
+    {
+        switch (aggregate.Status)
+        {
+            case ConsentStatus.Active:
+                aggregate.RenewByGrant(
+                    act.ConsentVersionId, act.Source, act.IpAddress, act.ProofOfConsent,
+                    act.Metadata, act.ExpiresAtUtc, act.GrantedBy, act.OccurredAtUtc);
+                return GrantTransition.Renewal;
+
+            case ConsentStatus.RequiresReconsent:
+                aggregate.ProvideReconsent(
+                    act.ConsentVersionId, act.Source, act.IpAddress, act.ProofOfConsent,
+                    act.Metadata, act.ExpiresAtUtc, act.GrantedBy, act.OccurredAtUtc);
+                return GrantTransition.Reconsent;
+
+            default:
+                aggregate.Regrant(
+                    act.ConsentVersionId, act.Source, act.IpAddress, act.ProofOfConsent,
+                    act.Metadata, act.ExpiresAtUtc, act.GrantedBy, act.OccurredAtUtc);
+                return GrantTransition.Regrant;
+        }
+    }
+
+    /// <summary>
+    /// Counts a transition that changed the state; a late act kept only in the history is not
+    /// counted as a renewal, regrant or reconsent.
+    /// </summary>
+    private static void RecordGrantMetric(GrantTransition transition, bool appliedToState)
+    {
+        if (appliedToState)
+        {
+            CounterFor(transition).Add(1);
+        }
+    }
+
+    // crap-exempt: single-question switch — which counter measures this transition.
+    private static System.Diagnostics.Metrics.Counter<long> CounterFor(GrantTransition transition) =>
+        transition switch
+        {
+            GrantTransition.Renewal => ConsentDiagnostics.ConsentRenewedTotal,
+            GrantTransition.Reconsent => ConsentDiagnostics.ConsentReconsentTotal,
+            _ => ConsentDiagnostics.ConsentGrantedTotal
+        };
+
+
+    /// <summary>
+    /// Whether a repository error carries the given error code.
+    /// </summary>
+    private static bool HasCode(EncinaError error, string expectedCode) =>
+        error.GetCode().Match(
+            Some: code => string.Equals(code, expectedCode, StringComparison.Ordinal),
+            None: () => false);
 
     /// <inheritdoc />
     public async ValueTask<Either<EncinaError, Unit>> WithdrawConsentAsync(
@@ -221,7 +424,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ConsentWithdrawnService(consentId.ToString());
+                            _logger.ConsentWithdrawnService();
                             ConsentDiagnostics.ConsentWithdrawnTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -232,7 +435,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "WithdrawConsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("WithdrawConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Withdrawn");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -279,7 +482,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ConsentRenewedService(consentId.ToString(), consentVersionId);
+                            _logger.ConsentRenewedService(consentVersionId);
                             ConsentDiagnostics.ConsentRenewedTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -290,7 +493,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "RenewConsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("RenewConsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -345,7 +548,7 @@ internal sealed class DefaultConsentService : IConsentService
                     return saveResult.Match<Either<EncinaError, Unit>>(
                         Right: _ =>
                         {
-                            _logger.ReconsentProvidedService(consentId.ToString(), newConsentVersionId);
+                            _logger.ReconsentProvidedService(newConsentVersionId);
                             ConsentDiagnostics.ConsentReconsentTotal.Add(1);
                             InvalidateCache(consentId, aggregate);
                             return Unit.Default;
@@ -356,7 +559,7 @@ internal sealed class DefaultConsentService : IConsentService
         }
         catch (InvalidOperationException ex)
         {
-            _logger.ConsentInvalidStateTransition(consentId.ToString(), "ProvideReconsent", ex.ForLogging());
+            _logger.ConsentInvalidStateTransition("ProvideReconsent", ex.ForLogging());
             return ConsentErrors.InvalidStateTransition("current", "Active");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

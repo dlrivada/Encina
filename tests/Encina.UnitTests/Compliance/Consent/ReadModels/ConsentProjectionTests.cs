@@ -47,7 +47,10 @@ public class ConsentProjectionTests
 
     private ConsentReadModel CreateActiveReadModel(Guid? consentId = null, int version = 1)
     {
-        var granted = CreateConsentGrantedEvent(consentId: consentId);
+        // A fixed grant instant earlier than every later event in these tests: an act older than
+        // the latest act would be recorded without changing the read model (#3771).
+        var granted = CreateConsentGrantedEvent(
+            consentId: consentId, occurredAtUtc: new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         var readModel = _sut.Create(granted, _context);
         readModel.Version = version;
         return readModel;
