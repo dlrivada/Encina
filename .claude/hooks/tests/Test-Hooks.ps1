@@ -464,6 +464,13 @@ Set-Content $scriptWritesSrc 'File.WriteAllText("src/x.cs", "y");'
 Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
 Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
+# #3896: Test-ScriptReferencesPath is segment- and URL-aware.
+$scriptUrlTestsDocsPs1 = Join-Path $work 'script-url-tests-docs.ps1'
+$scriptUrlTestsWritesTestsPs1 = Join-Path $work 'script-url-tests-writes-tests.ps1'
+$scriptFileUriTestsPs1 = Join-Path $work 'script-file-uri-tests.ps1'
+Set-Content $scriptUrlTestsDocsPs1 "Invoke-RestMethod 'https://example.com/tests/data.json' | Set-Content 'docs/x.md'"
+Set-Content $scriptUrlTestsWritesTestsPs1 "`$u = 'https://example.com/tests/data.json'`nSet-Content 'tests/x.cs' 'y'"
+Set-Content $scriptFileUriTestsPs1 "Set-Content 'file:///tests/x.cs' 'y'"
 
 # #2892: a .ps1 is judged by where it writes, not by the src/ and tests/ words in its text. Each script is the
 # text of one scenario; $main is interpolated, every script variable is escaped with a backtick.
@@ -523,7 +530,8 @@ $ps1Scripts = [ordered]@{
     AliasPrefix         = "param([string]`$Spec = '$main\src', [Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
     IexDriveSlashes     = "Invoke-Expression `"Set-Content '$($main.Replace(':\', '://').Replace('\', '/'))/src/x.txt' 1`"`n"
     # A write to tests/ through a variable, next to a URL.
-    TestsViaVariable    = "`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
+    FileUriSrc          = "Invoke-Expression `"Set-Content 'file:///$($main.Replace('\', '/'))/src/x.txt' 1`"`n"
+    TestsViaVariable    ="`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
 }
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
 $expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
@@ -639,6 +647,9 @@ $writeCases = @(
     @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, 2, 'call operator of a script that writes tests/, from the main checkout'),
     @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, 2, 'dot-source of a script that writes tests/, from the main checkout'),
     @('PowerShell', @{ command = "& '$scriptWritesDocsPs1'" }, $main, 0, 'call operator of a script that writes only docs/, from the main checkout'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsDocsPs1'" }, $main, 0, '#3896: a script with a URL that has a /tests/ segment and writes only docs/: allowed'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsWritesTestsPs1'" }, $main, 2, '#3896: a script with a /tests/ URL that also writes tests/: blocked'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptFileUriTestsPs1'" }, $main, 2, '#3896: a file: URI naming tests/ is still a path mention: blocked'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
@@ -1146,6 +1157,7 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpAmbiguous)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S is an ambiguous prefix of -Sp and -Sq, so it binds nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpSwitch)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -Sp is a switch parameter, so no literal is bound: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AliasPrefix)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a script with an [Alias] binds nothing from the command line: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.FileUriSrc)'" }, $main, $null, 2, 'main session (#3896): a file: URI naming src/ is still a path mention (not blanked as a URL): denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.IexDriveSlashes)'" }, $main, $null, 2, 'main session (#3896): a drive path written with // is not a URL: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts$([char]0x2019)\..\src\x'" }, $main, $null, 2, 'main session (#3896): a -Sp literal with a Unicode quote does not parse back to itself: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)'" }, $main, $null, 0, 'main session (#3896): a URL with a /tests/ segment is not a repository path: allowed'),
