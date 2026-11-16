@@ -112,7 +112,7 @@ jobs:
 
           # Coverage DocRef index (SPEC-001). Guard: an empty candidate never replaces the
           # published index; when it is left out of the overlay, the dashboard-data branch
-          # (or, before the first persist, the live Pages copy) keeps the previous one.
+          # keeps the previous one (the deploy reads only that branch, #3746).
           # IDs come from the manifests (REQ-003), so the index is never literally
           # empty: a run whose Cobertura collection broke still lists every file,
           # all noData. "Empty" therefore means "no entry with data".
@@ -120,7 +120,7 @@ jobs:
             cp -f coverage-artifact/docref-index.json overlay/coverage/data/docref-index.json
             echo "Coverage DocRef index: $(jq 'length' overlay/coverage/data/docref-index.json) entries from the CI artifact"
           else
-            echo "No usable DocRef index in the artifact; the live Pages copy is kept"
+            echo "No usable DocRef index in the artifact; the dashboard-data branch copy is kept"
           fi
 
           # Inject runId into the snapshot so history can reference raw artifacts
