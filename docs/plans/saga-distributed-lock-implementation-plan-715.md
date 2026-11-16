@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (4 pull requests; one scope primitive and one adoption that waits for the saga commit owner)
 > **Estimated Scope**: ~200-260 lines of production code + ~1,000-1,300 lines of tests
-> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Saga row: concurrency control on the saga row, and a lock when timeouts run on several instances); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions.md) D4; [ADR-062](../architecture/adr/062-error-category-contract.md)
+> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Saga row: concurrency control on the saga row, and a lock when timeouts run on several instances); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: the shared contract of the #713 plan (PRs 1 to 3) and #2667; PR 2 of this plan also needs the commit owner `SagaOrchestrator.CommitAsync` of the #720 plan
 > **Related**: #713 (owns the shared piece), #720 (saga compensation transaction and commit owner), #2213 (timeout is an unconditional read-modify-write), #2208 (nothing enforces saga timeouts), #1237 (correlation, decided by compare-and-set), #297 (state machine), #738 (tenant id on sagas), #750 (saga audit), #218 (fencing), #223 (auto-extend)
 
@@ -29,7 +29,7 @@ A saga row is changed by read-modify-write calls on `SagaOrchestrator` (`Advance
 
 **Provider category**: Database (10) as consumers (`ISagaStore`: ADO.NET x3, Dapper x3, EF Core, MongoDB) with one integration proof per provider; Distributed locks as the engine through the #713 adapter.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `e694eb032`):
 
 - `SagaOrchestrator` (`src/Encina.Messaging/Sagas/SagaOrchestrator.cs`) takes the store, a serializer, `SagaOptions`, a logger and a time provider (18 construction sites in `src/` and `tests/`), and has the six read-modify-write methods named above, each guarded by a status check (`SagaStatus.Running`, `Compensating`) that returns `saga.invalid_status` when the saga moved on. It never calls `SaveChangesAsync`.
 - **No production code calls `TimeoutAsync`** (grep over `src/`: the callers are `SagaOrchestratorTests` and `SagaOrchestratorGuardTests`); #2208 records that nothing enforces saga timeouts. `SagaRunner` (`src/Encina.Messaging/Sagas/LowCeremony/SagaRunner.cs`) starts a **new** saga for every `RunAsync` (`StartAsync`, then `ExecuteStepsAsync`, `HandleStepFailedAsync`, `CompensateAsync`), so today two actors never touch the same row in one process. The concurrency this plan addresses appears with the timeout processor (#2208), the compensation retry (#720), the correlation resume (#1237) and the state machine (#297).
@@ -184,8 +184,8 @@ A saga row is changed by read-modify-write calls on `SagaOrchestrator` (`Advance
 
 1. **`Locking/MessagingLockNames.cs`** (modify, file of #713) — `static string Saga(Guid sagaId)` returning `"encina:saga:" + sagaId.ToString("N")`.
 2. **`Sagas/SagaErrorCodes.cs`** (modify) — `const string LockContended = "saga.lock_contended"`.
-3. **`Sagas/SagaOrchestrator.cs`** (modify, the `SagaOptions` class) — `TimeSpan LockExpiry` (5 minutes), `TimeSpan LockWait` (10 seconds), `IDictionary<string, TimeSpan> LockExpiryBySagaType` (ordinal comparer); an internal `Validate`.
-4. **`Sagas/SagaLockScope.cs`** (new, public sealed, scoped) — constructor `(IMessagingLockProvider? lockProvider, MessagingLockMarker? marker, SagaOptions options, ILogger<SagaLockScope> logger)`; `ValueTask<Either<EncinaError, T>> RunExclusiveAsync<T>(Guid sagaId, string sagaType, string? tenantId, Func<CancellationToken, ValueTask<Either<EncinaError, T>>> work, CancellationToken cancellationToken)`: guards (`ArgumentException.ThrowIfNullOrWhiteSpace(sagaType)`, `ArgumentNullException.ThrowIfNull(work)`), flag off runs `work`; otherwise `MessagingLockGate.TryEnterAsync(..., "saga", MessagingLockNames.Saga(sagaId), expiryFor(sagaType), options.LockWait, tenantId, ...)`: `Left` returned, `None` returns `Left` `saga.lock_contended` (`ErrorCategory.Conflict`) and logs 7505, `Some(handle)`: `await using` around `work(ct)`, then log 7503 when the handle expired.
+3. **`Sagas/SagaOrchestrator.cs`** (modify, the `SagaOptions` class) — `TimeSpan LockExpiry` (5 minutes), `TimeSpan LockWait` (10 seconds), `IDictionary<string, TimeSpan> LockExpiryBySagaType` (ordinal comparer); an internal `Validate` (positive expiries, `LockWait` not greater than `LockExpiry`). The caller is `MessagingServiceCollectionExtensions` (task 6): in the branch that registers the scope it calls `config.SagaOptions.Validate()` and throws `InvalidOperationException` at registration, so the rule runs only when `UseSagas` and `UseDistributedLocking` are both on and no application that leaves locking off is affected.
+4. **`Sagas/SagaLockScope.cs`** (new, public sealed, scoped) — constructor `(SagaOptions options, ILogger<SagaLockScope> logger, IMessagingLockProvider? lockProvider = null, MessagingLockMarker? marker = null)` (the `= null` defaults are required: Microsoft DI does not treat a `T?` annotation as optional, so without them a missing provider would fail resolution instead of reaching the gate's `messaging.lock_provider_missing`); `ValueTask<Either<EncinaError, T>> RunExclusiveAsync<T>(Guid sagaId, string sagaType, string? tenantId, Func<CancellationToken, ValueTask<Either<EncinaError, T>>> work, CancellationToken cancellationToken)`: guards (`ArgumentException.ThrowIfNullOrWhiteSpace(sagaType)`, `ArgumentNullException.ThrowIfNull(work)`), flag off runs `work`; otherwise `MessagingLockGate.TryEnterAsync(..., "saga", MessagingLockNames.Saga(sagaId), expiryFor(sagaType), options.LockWait, ..., tenantId: tenantId)` (the optional trailing `tenantId` is part of the gate delivered by #713 PR 2, so this PR builds as soon as #713 PRs 1 and 2 merged and never depends on #714): `Left` returned, `None` returns `Left` `saga.lock_contended` (`ErrorCategory.Conflict`) and logs 7505, `Some(handle)`: `await using` around `work(ct)`, then log 7503 when the handle expired.
 5. **`Locking/MessagingLockLog.cs`** (modify) — EventId 7505 `SagaLockContended` (Warning: saga type, saga id).
 6. **`MessagingServiceCollectionExtensions.cs`** (modify) — when `UseSagas` and `UseDistributedLocking` are on: `services.AddScoped<SagaLockScope>()` next to `AddScoped<SagaOrchestrator>()` (line 365).
 7. **`PublicAPI.Unshipped.txt`** (Messaging) through `mechanical-fixer`.
@@ -199,7 +199,7 @@ A saga row is changed by read-modify-write calls on `SagaOrchestrator` (`Advance
 You are implementing Phase 1 of issue #715: the exclusive saga scope.
 
 CONTEXT:
-- The shared lock contract (gate, marker, names, flag, EventIds 7500-7504) comes from the plans of #713 and #714; do not
+- The shared lock contract (gate with the optional tenantId, marker, names, flag, EventIds 7500-7503) comes from the plan of #713 (7504 is #714's); do not
   recreate it. SagaOrchestrator never calls SaveChangesAsync and its methods must stay lock-free: the lock providers are
   not reentrant, so a method called inside the scope must not take the lock again.
 - SagaOptions is a singleton; the scope is scoped and resolves the port and marker from DI per scope.
@@ -209,7 +209,7 @@ Create the items of the Phase 1 tasks. Unit tests: flag off runs work with no po
 and releases after it returns (ordering log); contended after the wait returns Left with category Conflict and logs 7505; a
 provider Left is returned unchanged and work never runs; expired handle logs 7503; a throwing work still releases;
 cancellation; the expiry override by saga type; option validation. Guard tests for the public constructor and method
-(null and whitespace). A DI test with ValidateOnBuild and ValidateScopes for the flags on and off.
+(null and whitespace). A DI test with ValidateOnBuild and ValidateScopes for the flags on and off and with the lock provider absent (the scope resolves with null and the gate returns Left messaging.lock_provider_missing).
 
 KEY RULES:
 - Never describe the scope as atomic or transactional; it encloses what the caller puts in work, including the commit.
@@ -268,7 +268,7 @@ docs/plans/saga-compensation-transaction-implementation-plan-720.md.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Telemetry reuses the counter of #713 with `pattern="saga"` and the `tenant.id` tag only when the caller passes a tenant (the runner passes the request context's tenant, which exists only when tenancy is on, #738 adds the saga-level tenant).
+1. Telemetry reuses the counter of #713 with `pattern="saga"` and the `encina.tenant_id` tag only when the caller passes a tenant (the runner passes the request context's tenant, which exists only when tenancy is on, #738 adds the saga-level tenant).
 2. Logs: 7500, 7501, 7503 from the shared gate; 7505 here. No new meter or activity: `SagaActivitySource` spans of the run enclose the scope.
 3. Audit (#750), tenant column (#738), correlation (#1237), state machine (#297): evaluated in the matrix; none adds code here.
 
@@ -284,14 +284,14 @@ CONTEXT:
 - The counter and gate come from #713; ADR-054 D4: the tenant tag only where a tenant exists.
 
 TASK:
-Test that the counter carries pattern "saga" and tenant.id only when a tenant was passed, and that no tag or log carries
+Test that the counter carries pattern "saga" and encina.tenant_id only when a tenant was passed, and that no tag or log carries
 EncinaError.Message.
 
 KEY RULES:
 - Bounded tags only.
 
 REFERENCE FILES: src/Encina.Messaging/Diagnostics/SagaActivitySource.cs (under Encina.Messaging/Diagnostics),
-docs/architecture/adr/054-observability-conventions.md.
+docs/architecture/adr/054-observability-conventions-and-trace-propagation.md.
 ```
 
 </details>
@@ -350,7 +350,7 @@ docs/testing/integration-tests.md.
 
 1. XML docs on `SagaLockScope`, the three options and `SagaErrorCodes.LockContended`, with the commit-window explanation in the remarks.
 2. `changelog.d/715-saga-distributed-lock.added.md`, through `mechanical-fixer`.
-3. The saga section of the messaging locks page owned by #713 and `src/Encina.Messaging/README.md`, through `docs-writer`: how a caller uses the scope, the relation to #2213 and #1237, the limits.
+3. The saga section of the messaging locks page created by #713 PR 5 (this step starts after #713 PR 5 merges) and `src/Encina.Messaging/README.md`, through `docs-writer`: how a caller uses the scope, the relation to #2213 and #1237, the limits.
 4. Build and test verification: zero warnings, per-flag targets met.
 
 </details>
@@ -423,7 +423,7 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md.
 | Production (new) | 1 | `SagaLockScope` |
 | Production (modified) | 6 | `MessagingLockNames`, `SagaErrorCodes`, `SagaOrchestrator.cs` (options), `MessagingLockLog`, `MessagingServiceCollectionExtensions`, `SagaRunner` |
 | `PublicAPI.Unshipped.txt` and manifest | 2 | Messaging |
-| Tests | 19 | Unit (5), guard (2), DI (1), integration base plus ten classes (11), name format in the unit file |
+| Tests | 19 | Unit (5, the name-format cases live in these files and are not a separate file), guard (2), DI (1), integration base plus ten classes (11) |
 | Documentation | 4 | Fragment, page section, README, two `.md` justifications |
 
 PR split (each at most 15 files and 1500 lines, each building and passing alone):
@@ -473,7 +473,7 @@ docs/plans/saga-compensation-transaction-implementation-plan-720.md, docs/plans/
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Saga state is not cacheable data |
-| 2 | OpenTelemetry | ✅ | Phase 3: counter of #713 with `pattern="saga"` and `tenant.id` when a tenant is passed (ADR-054 D4) |
+| 2 | OpenTelemetry | ✅ | Phase 3: counter of #713 with `pattern="saga"` and `encina.tenant_id` when a tenant is passed (ADR-054 D4) |
 | 3 | Structured Logging | ✅ | Phase 1: 7505 plus the shared 7500-7503; saga type and id only |
 | 4 | Health Checks | ⏭️ | `SagaHealthCheck` exists; a lock-held-too-long signal waits for the timeout processor (#2208) |
 | 5 | Validation | ✅ | Phase 1: `SagaOptions.Validate`; the startup check is #713's |
@@ -489,7 +489,7 @@ docs/plans/saga-compensation-transaction-implementation-plan-720.md, docs/plans/
 
 ## Prerequisites & Dependencies
 
-- The #713 plan's PRs 1 and 2 before PR 1 here, and its PR 3 plus #2667 before the integration tests run.
+- The #713 plan's PRs 1 and 2 (the gate already carries the optional `tenantId`, so this plan does not wait for #714) before PR 1 here, its PR 3 plus #2667 before the integration tests run, and its PR 5 (the messaging locks page) before this plan's documentation step. EventId 7505 is allocated after 7504 only by number; the two plans do not touch the same line of `MessagingLockLog`.
 - PR 2 needs #720's PR 12 (`SagaOrchestrator.CommitAsync`); PR 1 does not.
 - #1237 chose compare-and-set over a lock for concurrent resumes and #2213 has no plan yet; both are compatible with the scope (Design Choice 1 states the complement); neither blocks it, and neither is a pending maintainer decision.
 - Not blocked by another issue's open maintainer decision.
