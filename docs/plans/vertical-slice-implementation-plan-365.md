@@ -2,7 +2,7 @@
 
 > **Issue**: [#365](https://github.com/dlrivada/Encina/issues/365)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, 5 pull requests of 14, 15, 6, 6 and 4 files)
+> **Complexity**: Medium (7 phases, 5 pull requests of 15, 15, 7, 6 and 4 files)
 > **Estimated Scope**: ~700 lines of production code + ~1,600 lines of tests
 > **Family**: modular monolith (#352, #358, #359, #360, #364 and the module plans #366, #423); this plan owns the slice markers, the slice-scoped pipeline and the slice tooling, which sit inside a module and need no module feature
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for explicit vertical slice support: a `[VerticalSlice]` marker, slice-scoped pipeline behaviors (`[SlicePipeline]`), slice discovery (`AddEncinaSlices`), a feature folder convention, the CLI command `encina generate slice`, minimal API endpoint generation, `SliceTestBase<T>` for isolated tests and a documentation generator. State of `origin/main` (`96c8803bd`), verified by reading and grep:
+The issue asks for explicit vertical slice support: a `[VerticalSlice]` marker, slice-scoped pipeline behaviors (`[SlicePipeline]`), slice discovery (`AddEncinaSlices`), a feature folder convention, the CLI command `encina generate slice`, minimal API endpoint generation, `SliceTestBase<T>` for isolated tests and a documentation generator. State of `origin/main` (`0b941beeb`), verified by reading and grep:
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -98,7 +98,7 @@ A wins when the slice name feeds a pipeline filter and a trace tag, which must n
 
 ### Rationale
 
-A wins because the default stays "everything runs" and an exclusion is always an explicit, central decision (`AGENTS.md` section 1: opt-in). C wins for teams that want each slice to spell out its full pipeline; B wins when the behavior author, not the host, decides. Registration fails with `InvalidOperationException` when a scoped type is not an open generic `IPipelineBehavior<,>`, when it is registered as scoped twice, or when a `[SlicePipeline]` lists a type that was not scoped (startup configuration errors, the same channel as `ModuleConfiguration`; there is no error code, so no ADR-062 category applies).
+A wins because the default stays "everything runs" and an exclusion is always an explicit, central decision (`AGENTS.md` section 1: opt-in). Under A a request that belongs to no slice runs every behavior, scoped or not, because scoping only narrows the pipelines of slices (otherwise a scoped `TransactionPipelineBehavior` would silently stop running for every non-slice handler). C wins for teams that want each slice to spell out its full pipeline; B wins when the behavior author, not the host, decides. Registration fails with `InvalidOperationException` when a scoped type is not an open generic `IPipelineBehavior<,>`, when it is registered as scoped twice, or when a `[SlicePipeline]` lists a type that was not scoped (startup configuration errors, the same channel as `ModuleConfiguration`; there is no error code, so no ADR-062 category applies).
 
 **Class:** Dilemma
 
@@ -262,11 +262,11 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Slices/SliceBehaviorFilter.cs` (internal sealed, singleton): built from the registry and the scoped list; `bool Applies(Type openBehaviorType, Type requestType)` is true for an unscoped behavior and, for a scoped one, only when the slice of `requestType` lists it. `PipelineBuilder<TRequest,TResponse>.ResolveSteps` resolves it with `GetService` (null when slices are not used: no cost) and drops behaviors it rejects; the result is deterministic per `TRequest`, so the order cache of `PipelineOrderResolver` (per closed pipeline) stays valid; the per-closed-type answer is cached in a static field of the generic class.
+1. `src/Encina/Slices/SliceBehaviorFilter.cs` (internal sealed, singleton): built from the registry and the scoped list; `bool Applies(Type openBehaviorType, Type requestType)` is true for an unscoped behavior, true for every behavior (scoped or not) when `requestType` belongs to no slice (D3 rule: scoping only narrows slice pipelines), and, for a scoped behavior of a request that belongs to a slice, only when that slice lists it. `PipelineBuilder<TRequest,TResponse>.ResolveSteps` (a static method that keeps no static state) resolves the filter with `GetService` (null when slices are not used: no cost) and drops behaviors it rejects; the result is deterministic per `TRequest`, so the order cache of `PipelineOrderResolver` (per closed pipeline) stays valid. The per-closed-type answer is cached inside the filter instance, in a `ConcurrentDictionary<(Type Behavior, Type Request), bool>`, never in a static field: the answer depends on the slice registry and the scoped list of one container, and two hosts in one process (every test run, `WebApplicationFactory`) must not share it. The filter is a singleton registered per container by `AddEncinaSlices`.
 2. `EncinaPipelineInspector` uses the same `ResolveSteps` (line 37), so the inspector shows the filtered pipeline; a unit test asserts it.
 3. `src/Encina/Slices/SliceContextPipelineBehavior.cs` (stage `Observability`, order after the request activity): sets the tag `slice.name` on `Activity.Current` and opens a logging scope `{Slice}`; registered by `AddEncinaSlices`, so only slice users pay.
-4. `src/Encina/Slices/Diagnostics/SliceLog.cs` (`[LoggerMessage]`, EventIds 7680 slices discovered at startup (Information, count only), 7681 behavior skipped for a slice (Debug, behavior type name and slice name once per closed pipeline)); `EventIdRanges.VerticalSlices = (7680, 7689)` registered first, and the `Encina` entry of the allocation test map `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
-5. Tests: unit (scoped behavior skipped for another slice and run for a listed one, unscoped behavior always runs, request outside every slice keeps the full pipeline, gate-stage behavior rejected at registration, the order of the remaining steps is unchanged), property (for generated behavior and slice sets the steps of a request equal the unscoped steps minus the scoped behaviors the slice does not list), tag and scope test with an `ActivityListener`, DI test; `PublicAPI.Unshipped.txt` and the `Encina.json` manifest.
+4. `src/Encina/Slices/Diagnostics/SliceLog.cs` (`[LoggerMessage]`, one EventId, 7680: behavior skipped for a slice (Debug, behavior type name and slice name, logged by the filter the first time it computes the answer for a closed pipeline). No "slices discovered" log exists: discovery runs at registration, where there is no `ILogger`); `EventIdRanges.VerticalSlices = (7680, 7689)` registered first, and the `Encina` entry of the allocation test map `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
+5. Tests: unit (scoped behavior skipped for another slice and run for a listed one, unscoped behavior always runs, request outside every slice keeps the full pipeline (every scoped behavior runs too), two containers in one process with different scoped lists give independent answers for the same request type, gate-stage behavior rejected at registration, the order of the remaining steps is unchanged), property (for generated behavior and slice sets the steps of a request equal the unscoped steps minus the scoped behaviors the slice does not list), tag and scope test with an `ActivityListener`, guard test for the `SliceContextPipelineBehavior` constructor, the PR 1 DI test extended to assert the filter and context-behavior registrations; `SliceServiceCollectionExtensions.cs` (a PR 1 file) is edited to register them; `PublicAPI.Unshipped.txt` and the `Encina.json` manifest.
 
 </details>
 
@@ -282,9 +282,9 @@ Add the filter, hook it into ResolveSteps, add the context behavior, the log, th
 
 KEY RULES:
 - An unscoped behavior is never filtered; a gate-stage behavior can never be scoped (fail closed).
-- No allocation per request when slices are unused: GetService returns null and the old path runs; cache the per-closed-type answer in a static field.
-- EventIds packed from 7680 inside 7680-7689, range registered in EventIdRanges.cs first; logs carry type names only.
-- Tags: slice.name on the existing request activity; no new metric label with a tenant (ADR-054 D4 only applies to metrics that already exist).
+- No allocation per request when slices are unused: GetService returns null and the old path runs; cache the per-closed-type answer inside the singleton SliceBehaviorFilter instance (ConcurrentDictionary), NEVER in a static field (two containers in one process must not share it); a request that belongs to no slice runs every behavior.
+- EventId 7680 only (behavior skipped), inside 7680-7689, range registered in EventIdRanges.cs first; logs carry type names only.
+- Tags: slice.name on the existing request activity; no new metric label with a tenant (ADR-054 D4 only applies to metrics that already exist; see docs/architecture/adr/054-observability-conventions-and-trace-propagation.md).
 
 REFERENCE FILES:
 - src/Encina/Pipeline/PipelineBuilder.cs
@@ -303,7 +303,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `src/Encina.Testing/SliceTestBase.cs`: `public abstract class SliceTestBase<TSlice> : IDisposable, IAsyncDisposable`; discovers the slice through `SliceDiscovery` over `typeof(TSlice)`, builds an `EncinaTestFixture` with the slice's handler (`WithHandler`), virtual `ConfigureServices(EncinaTestFixture fixture)` for the slice's own dependencies, and `Slice.SendAsync<TResponse>(IRequest<TResponse>, CancellationToken)` returning `EncinaTestContext<TResponse>` (`ShouldSucceed`, `ShouldFailWith`). A type that is not a slice, or has no handler, throws `ArgumentException` naming the type.
-2. Tests: unit (a command slice succeeds, a handler `Left` is returned unchanged, the dependency override works, a non-slice type is rejected), guard; `PublicAPI.Unshipped.txt` and `Encina.Testing.json`. An example in `Encina.Testing.Examples` through the same pull request only if it stays within 15 files.
+2. Tests: unit (a command slice succeeds, a handler `Left` is returned unchanged, the dependency override works, a non-slice type is rejected), guard; the `Encina.Testing.json` manifest. `src/Encina.Testing` has no `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt` or `AdditionalFiles` entry (and neither has `Encina.Cli`), so its public API is not tracked today and this plan adds no PublicAPI line for it; starting to track it would need every existing public symbol declared, which is out of scope. An example in `Encina.Testing.Examples` is not part of this pull request.
 
 </details>
 
@@ -340,7 +340,8 @@ REFERENCE FILES:
 
 1. `src/Encina.Cli/Services/SliceOptions.cs` and `SliceCodeGenerator.cs` (new, so `CodeGenerator.cs` does not grow past its 507 lines): `SliceOptions` (`Name`, `Module`, `Kind` command or query, `ResponseType`, `Validator` of the three providers or none, `Endpoint`, `OutputDirectory`, `Namespace`); `GenerateSliceAsync` writes `Features/<Module>/<Name>/<Name>Command.cs` (or `Query`), `<Name>Handler.cs`, optionally `<Name>Validator.cs` and `<Name>Endpoint.cs`, each carrying `[VerticalSlice("<Module>/<Name>")]` on the handler (D2, D5, D7); an existing file is never overwritten (the result reports it as skipped).
 2. `src/Encina.Cli/Commands/GenerateCommand.cs`: `CreateSliceCommand()` (`generate slice <name> --module <m> --type command|query --response <t> [--validator ...] [--endpoint] [--output] [--namespace]`) added to the list at line 23-27.
-3. Tests: unit `SliceCodeGeneratorTests` (each file's text, the three validator templates, no overwrite, invalid names), `GenerateCommandTests` (the option wiring); the manifest `Encina.Cli.json`.
+3. `generate slice` stays scaffolding under the existing `generate` command of `docs/architecture/adr/058-encina-cli-command-architecture.md`: it writes files only, starts no application and writes no audit entry.
+4. Tests: unit `SliceCodeGeneratorTests` (each file's text, the three validator templates, no overwrite, invalid names), `GenerateCommandTests` (the option wiring); the manifest `Encina.Cli.json`.
 
 </details>
 
@@ -408,7 +409,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit, Guard, DI, Property** as in Phases 1 to 4; **Contract**: `SliceRegistryContractTests` (the registry honors the `ISliceRegistry` contract with the real implementation); **Integration**: a test in `tests/Encina.IntegrationTests/Core/Slices/` builds a host with `AddEncina`, `AddEncinaSlices` and two slices and sends requests through the real pipeline (no database, so no provider fixture); **Load**: justification file `tests/Encina.LoadTests/Core/Slices/SlicePipeline.md` (the filter result is cached per closed type); **Benchmark**: `tests/Encina.BenchmarkTests/Core/Slices/SlicePipeline.md` (justification: an optional `GetService` and a static cache; the existing pipeline benchmarks cover the unchanged path).
+1. **Unit, Guard, DI, Property** as in Phases 1 to 4; **Contract**: `SliceRegistryContractTests` in pull request 1 (the registry honors the `ISliceRegistry` contract with the real implementation); **Integration**, in pull request 3 (so the integration targets below are first measured there): a test in `tests/Encina.IntegrationTests/Core/Slices/` builds a host with `AddEncina`, `AddEncinaSlices` and two slices and sends requests through the real pipeline (no database, so no provider fixture); **Load**: justification file `tests/Encina.LoadTests/Core/Slices/SlicePipeline.md` (the filter result is cached per closed type in the filter instance); **Benchmark**: `tests/Encina.BenchmarkTests/Core/Slices/SlicePipeline.md` (justification: an optional `GetService` and a per-container cache; the existing pipeline benchmarks cover the unchanged path).
 2. **Per-file targets** (each flag with a one-sentence justification in the manifest; baselines of edited files, `PipelineBuilder.cs` and `EventIdRanges.cs`, are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`, and a target is the measured value or higher):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
@@ -482,17 +483,17 @@ REFERENCE FILES:
 
 ### Proposed split into pull requests (limit 15 files and 1500 lines each)
 
-Order: the CLI and the test base need pull request 1; pull request 2 changes `PipelineBuilder` and is independent of 3 and 4. Counts include tests, PublicAPI and manifests.
+Order: the CLI and the test base need pull request 1; pull request 2 changes `PipelineBuilder` and is independent of 4; pull request 3 needs pull request 2 (its integration test runs the real filtered pipeline). Counts include tests, PublicAPI and manifests.
 
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
-| 1 | Attributes (2), descriptor, registry interface and implementation, discovery, configuration, registration extension, PublicAPI, manifest, 3 unit and guard test files, DI test | 14 | 1,000 |
-| 2 | Filter, `PipelineBuilder` edit, context behavior, log, `EventIdRanges`, allocation test map, PublicAPI, manifest, unit tests (filter, behavior, inspector), property test, integration test, 2 justification files | 15 | 1,200 |
-| 3 | `SliceTestBase<T>`, PublicAPI, `Encina.Testing.json`, 2 test files, contract test | 6 | 400 |
+| 1 | Attributes (2), descriptor, registry interface and implementation, discovery, configuration, registration extension (8), PublicAPI, manifest, 3 unit and guard test files, DI test, contract test | 15 | 1,050 |
+| 2 | Filter, `PipelineBuilder` edit, context behavior, log, `EventIdRanges`, allocation test map, `SliceServiceCollectionExtensions` edit, PublicAPI, manifest (9), DI test edit, 3 unit tests (filter, behavior, inspector), property test, guard test (15) | 15 | 1,200 |
+| 3 | `SliceTestBase<T>`, `Encina.Testing.json`, 2 test files (unit, guard), integration test, 2 justification files (load, benchmark); needs pull request 2 | 7 | 650 |
 | 4 | `SliceOptions`, `SliceCodeGenerator`, `GenerateCommand` edit, `Encina.Cli.json`, 2 test files | 6 | 600 |
 | 5 | Guide, inventory and roadmap lines, changelog fragment | 4 | 300 |
 
-A pull request that measures over 15 files or 1,500 lines when it is briefed is split again (pull request 2 first: move the integration test and the two justification files to pull request 3).
+A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -504,6 +505,8 @@ A pull request that measures over 15 files or 1,500 lines when it is briefed is 
 |-----------|-----------------|---------------------|
 | `AGENTS.md` sections 1, 3 and 5 | Opt-in, fail-closed gates, validation category consistency | D3, D4, D7 |
 | ADR-021 | EventId ranges registered first | `VerticalSlices` 7680-7689 |
+| [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) | Observability conventions, D4 tenant tags on metrics | `slice.name` tag only; no tenant metric label |
+| [ADR-058](../architecture/adr/058-encina-cli-command-architecture.md) | CLI command architecture | `generate slice` is scaffolding under `generate` |
 | #2184 and `PipelineStage` | Closed stage vocabulary, undeclared steps run inside every gate | D4 |
 | Vertical Slice Architecture (Jimmy Bogard), FastEndpoints, feature folders | Named by the issue | Concept source |
 
@@ -524,18 +527,18 @@ A pull request that measures over 15 files or 1,500 lines when it is briefed is 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (`VerticalSlices`, new) | 7680-7689, ids 7680-7681 used | From the assigned block 7650-7699 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); 7682-7689 free; registered in `EventIdRanges.cs` and the allocation test map before use |
+| `Encina` (`VerticalSlices`, new) | 7680-7689, id 7680 used | From the assigned block 7650-7699 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); 7681-7689 free; registered in `EventIdRanges.cs` and the allocation test map before use |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production code | 15 | 2 attributes, descriptor, registry (2), discovery, configuration, extension, filter, context behavior, log, `SliceTestBase`, 2 CLI files, `PipelineBuilder` and `GenerateCommand` and `EventIdRanges` edits counted in the split |
-| Public API and manifests | 5 | `Encina`, `Encina.Testing`, `Encina.Cli`, `Encina.json`, `Encina.Testing.json` |
-| Tests | 14 | Unit, guard, DI, property, contract, integration, allocation map edit |
+| Public API and manifests | 5 touches | `Encina` PublicAPI (PR 1 and PR 2), `Encina.json` (PR 1 and PR 2), `Encina.Testing.json`, `Encina.Cli.json`; `Encina.Testing` and `Encina.Cli` have no PublicAPI files |
+| Tests | 15 | Unit, guard, DI, property, contract, integration, allocation map edit |
 | Justification files | 2 | Load, benchmark |
 | Documentation | 4 | Guide, inventory, roadmap, changelog fragment |
-| **Total** | **~40 across 5 pull requests** | The sum of the rows of the split table is the authority |
+| **Total** | **47 file touches across 5 pull requests** | The sum of the rows of the split table (15 + 15 + 7 + 6 + 4) is the authority; a file edited in two pull requests counts in each |
 
 ---
 
@@ -578,7 +581,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ | Deferred as in the issue: a cache behavior is scoped per slice by a user with `ScopeBehavior`; no cache code in this plan |
 | 2 | OpenTelemetry | ✅ | Phase 2: tag `slice.name` on the existing request activity; no new metric |
-| 3 | Structured Logging | ✅ | Phase 2: `{Slice}` log scope and `SliceLog` EventIds 7680-7681 |
+| 3 | Structured Logging | ✅ | Phase 2: `{Slice}` log scope and `SliceLog` EventId 7680 |
 | 4 | Health Checks | ❌ | Not applicable: an organizational pattern with no dependency |
 | 5 | Validation | ✅ | Phase 4: validator templates for the three providers (D7) |
 | 6 | Resilience | ❌ | Not applicable: no external call |
@@ -602,5 +605,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. The maintainer answers D2, D3, D4, D5 and D6 when work on #365 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
-2. Pull request 1 first; pull requests 2, 3 and 4 follow in any order; pull request 5 last.
+2. Pull request 1 first; pull requests 2 and 4 follow in any order; pull request 3 after pull request 2; pull request 5 last.
 3. Open the issue file `artifacts/issues/vertical-slice-documentation-generator.md` when this plan merges.
