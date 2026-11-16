@@ -2,7 +2,7 @@
 
 > **Issue**: [#352](https://github.com/dlrivada/Encina/issues/352)
 > **Type**: Feature (umbrella of the modular-monolith family)
-> **Complexity**: Medium (6 phases, 4 pull requests of 10, 15, 15 and 7 files)
+> **Complexity**: Medium (6 phases, 4 pull requests of 10, 15, 15 and 9 files)
 > **Estimated Scope**: about 700 lines of production code and about 1,500 lines of tests, split over four pull requests
 > **Family**: #360 (graph, exports, lifecycle: prerequisite), #358 (events and module API), #359 (data isolation), #364 (health); module id on cache keys #746 and on audit rows #1636
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for a modular monolith in a new `Encina.Modules` package with `EncinaModule`, `[Module]`, a registry, an event bus, contracts, a module isolation behavior, database strategies and a startup orchestrator. Most of it exists or belongs to a sibling issue. State of `origin/main` (`db1e7f688`), verified by reading and by grep:
+The issue asks for a modular monolith in a new `Encina.Modules` package with `EncinaModule`, `[Module]`, a registry, an event bus, contracts, a module isolation behavior, database strategies and a startup orchestrator. Most of it exists or belongs to a sibling issue. State of `origin/main` (`e694eb032`), verified by reading and by grep:
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -79,7 +79,7 @@ Same decision as #360 (one placement for the family). The module system ships in
 
 ### Rationale
 
-A wins when correctness must not depend on pipeline ordering: the caller is `CurrentModule` as it is before the scope for this request opens. B wins if the maintainer wants the boundary gate usable without the context scope (for example boundary checks in an application that sets the context itself). The stage is chosen when the pull request reads `PipelineOrderResolver`; the recommendation is `PipelineStage.Admission` with an early order, so the module is known to the audit, authorization and caching steps that read it (#746, #1636).
+A wins when correctness must not depend on pipeline ordering: the caller is `CurrentModule` as it is before the scope for this request opens. B wins if the maintainer wants the boundary gate usable without the context scope (for example boundary checks in an application that sets the context itself). The recommended option includes the stage: the behavior declares `PipelineStage.Admission` (200, `src/Encina/Pipeline/Ordering/PipelineStage.cs`, resolved by `PipelineOrderResolver`), so the module is known to the audit, authorization and caching steps that read it (#746, #1636); the stage is part of the public behavior, not left to the implementing pull request.
 
 **Class:** Dilemma
 
@@ -144,7 +144,7 @@ B wins when the dependency graph must stay truthful (the architecture tests of `
 Boundary enforcement is an architecture aid, not a compliance control, so the fail-closed rule for compliance gates does not force it on; it is on when requested and, once on, it fails closed for any cross-module request it cannot prove allowed.
 
 **Class:** Settled
-**Settled by:** `AGENTS.md` section 1 (every feature opt-in, pay-for-what-you-use) and section 3 (every messaging pattern optional and disabled by default; the same principle for module enforcement).
+**Settled by:** `AGENTS.md` section 1 (design principle: pay-for-what-you-use, every feature opt-in).
 
 </details>
 
@@ -287,12 +287,12 @@ REFERENCE FILES: src/Encina/Modules/ModuleHandlerRegistry.cs, tests/Encina.Guard
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Modules/ModuleBoundaryOptions.cs` (sealed): `bool EnforceModuleBoundaries` (default `false`), `bool AllowCrossModuleQueries` (default `true`), `bool AllowCrossModuleCommands` (default `false`); `ModuleConfiguration` exposes the same three properties and `AddEncinaModules` registers the options as a singleton (the pattern of `services.AddSingleton(config.ModuleIsolationOptions)` in the EF registration).
+1. `src/Encina/Modules/ModuleBoundaryOptions.cs` (sealed): `bool EnforceModuleBoundaries` (default `false`), `bool AllowCrossModuleQueries` (default `true`), `bool AllowCrossModuleCommands` (default `false`); `ModuleConfiguration` exposes the same three properties and `AddEncinaModules` registers the options as a singleton (the pattern of `services.AddSingleton(config.ModuleIsolationOptions)` in the EF registration); the XML docs of the class state the D4 defaults (`AllowCrossModuleQueries` true, `AllowCrossModuleCommands` false) and that enforcement is off by default (D5).
 2. `src/Encina/Modules/ModuleBoundaryEvaluator.cs` (internal static): `BoundaryDecision Evaluate(string? callerModule, string? targetModule, Type requestType, IModuleGraph graph, ModuleBoundaryOptions options)` returning `Allowed`, or `Denied(reason)` with the reasons `NotExported`, `DependencyNotDeclared`, `CommandsNotAllowed`, `QueriesNotAllowed`; the whole decision table in one pure method, every branch tested (D4, D6).
 3. `src/Encina/Modules/ModuleBoundaryErrors.cs` (public static): `ModuleBoundaryViolation(string callerModule, string targetModule, Type requestType, reason)` creating `EncinaErrors.Create("encina.modules.boundary_violation", ErrorCategory.Forbidden, message, details: ...)`; the message names the two modules and the request type name, never request content.
 4. `ModuleContextPipelineBehavior.cs`: when the options enforce, call the evaluator before opening the scope and return `Left(ModuleBoundaryViolation)` on a denial (a denial is an `Either` result, never an exception); log 7623 (denied, Warning, module names and request type name only), 7624 (allowed cross-module call, Debug); `ModuleMetrics` gains the counter `encina.modules.boundary_denials_total` with tags `caller_module`, `target_module`, `request_kind` and, when `MultiTenancyMarker` is registered, the tenant tag required by ADR-054 D4.
 5. `ModuleBoundaryLog.cs`: 7623, 7624 and 7625 (startup Information: enforcement on, number of modules without exports).
-6. Tests: unit `ModuleBoundaryEvaluatorTests` (every row of the decision table), `ModuleContextPipelineBehaviorTests` (denied, allowed, host call, unowned handler, kind switches, a nested call keeps the original caller), `ModuleBoundaryErrorsTests`; guard `ModuleBoundaryGuardTests` for options and errors; contract `ModuleBoundaryContractTests` (the error code and its `ErrorCategory.Forbidden` through `GetCategory`); PublicAPI; manifest. The property test `ModuleBoundaryEvaluatorPropertyTests` (a same-module call is always allowed; a denial always has a reason; disabling enforcement always allows) ships in pull request 4 to keep pull request 3 at 15 files, together with the manifest entry of its flag.
+6. Tests: unit `ModuleBoundaryEvaluatorTests` (every row of the decision table), `ModuleContextPipelineBehaviorTests` (denied, allowed, host call, unowned handler, kind switches, a nested call keeps the original caller), `ModuleBoundaryErrorsTests`; guard `ModuleBoundaryGuardTests` for options and errors, and the edit of `ModuleContextPipelineBehaviorGuardTests` (created in pull request 1) because this pull request changes the behavior's constructor to take `IModuleGraph` and `ModuleBoundaryOptions` in addition to the three original parameters; the edit of any direct `new ModuleContextPipelineBehavior(...)` in `ModuleContextPipelineBehaviorTests` is in the listed edit of that file; PublicAPI; manifest. The contract test `ModuleBoundaryContractTests` (the error code and its `ErrorCategory.Forbidden` through `GetCategory`) and the property test `ModuleBoundaryEvaluatorPropertyTests` (a same-module call is always allowed; a denial always has a reason; disabling enforcement always allows) ship in pull request 4 to keep pull request 3 at 15 files, together with the manifest entries of their flags (the contract and property targets of Phase 5 are entered there, never before their tests).
 
 </details>
 
@@ -389,7 +389,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Core/Modules/ModuleLifecycleHostedServic
 1. XML docs with examples on every public member.
 2. `docs/features/modular-monolith.md` through `docs-writer`: the family map (table of this plan's Summary), how a boundary is declared (exports, dependencies, attribute), how to enable enforcement, the acceptance criteria of the issue mapped to #360, #358, #359 and #364, and the microservice extraction path (exports are the contracts).
 3. `docs/INVENTORY.md` and `ROADMAP.md` lines; changelog fragment `changelog.d/352-modular-monolith-boundaries.added.md` (through `mechanical-fixer`).
-4. ADR: one ADR for the shared module visibility model (exports, declared dependencies, ambient caller); ADR number assigned when the ADR pull request opens.
+4. ADR: one ADR for the shared module visibility model (exports, declared dependencies, ambient caller); ADR number assigned when the ADR pull request opens; the pull request also adds the row to `docs/architecture/adr/index.md`.
 5. `dotnet build --configuration Release` with zero warnings, all tests green, every flag at its target.
 
 </details>
@@ -450,11 +450,11 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, docs/features/module-isola
 | Public API and manifests | 2 to 4 per pull request | `Encina` PublicAPI and `Encina.json` each time; `Encina.EntityFrameworkCore` PublicAPI and manifest in pull request 2 |
 | Tests | 17 touches | unit 7 (the EF test file is deleted in pull request 2), guard 3, contract 1, property 1, DI 1, allocation map edit 1 |
 | Justification files | 3 | integration, load, benchmark (pull request 2) |
-| Documentation | 5 | guide, inventory, roadmap, ADR, changelog fragment |
+| Documentation | 6 | guide, inventory, roadmap, ADR, ADR index line, changelog fragment |
 | **Pull request 1** | **10** | 4 production (`ModuleContextPipelineBehavior`, `ModuleServiceCollectionExtensions`, `ModuleBoundaryLog`, `EventIdRanges`), `Encina` PublicAPI, `Encina.json`, 4 tests (`ModuleContextPipelineBehaviorTests`, `ModuleContextRegistrationTests`, `ModuleContextPipelineBehaviorGuardTests`, allocation map edit); about 450 lines |
 | **Pull request 2** | **15** | removal side (6): deleted `ModuleExecutionContextBehavior`, EF `ServiceCollectionExtensions`, EF `Log.cs`, EF PublicAPI, EF manifest, deleted `ModuleExecutionContextBehaviorTests`; attribute side (9): `ModuleAttribute`, `ModuleHandlerRegistry`, `Encina` PublicAPI, `Encina.json`, 2 tests (`ModuleHandlerRegistryAttributeTests`, `ModuleAttributeGuardTests`), 3 justification files; about 400 lines |
-| **Pull request 3** | **15** | `ModuleBoundaryOptions`, `ModuleBoundaryEvaluator`, `ModuleBoundaryErrors`, `ModuleContextPipelineBehavior`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`, `ModuleMetrics`, `ModuleBoundaryLog` (8), PublicAPI, manifest, 5 tests (`ModuleBoundaryEvaluatorTests`, `ModuleBoundaryErrorsTests`, `ModuleContextPipelineBehaviorTests` edit, `ModuleBoundaryGuardTests`, `ModuleBoundaryContractTests`); about 800 lines |
-| **Pull request 4** | **7** | `ModuleBoundaryEvaluatorPropertyTests`, manifest, guide, inventory, roadmap, ADR, changelog fragment |
+| **Pull request 3** | **15** | `ModuleBoundaryOptions`, `ModuleBoundaryEvaluator`, `ModuleBoundaryErrors`, `ModuleContextPipelineBehavior`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`, `ModuleMetrics`, `ModuleBoundaryLog` (8), PublicAPI, manifest, 5 tests (`ModuleBoundaryEvaluatorTests`, `ModuleBoundaryErrorsTests`, `ModuleContextPipelineBehaviorTests` edit, `ModuleBoundaryGuardTests`, `ModuleContextPipelineBehaviorGuardTests` edit); about 800 lines |
+| **Pull request 4** | **9** | `ModuleBoundaryEvaluatorPropertyTests`, `ModuleBoundaryContractTests`, manifest, guide, inventory, roadmap, ADR, `docs/architecture/adr/index.md` line, changelog fragment |
 
 Callers and implementers of the changed code, by grep on `origin/main`: `ModuleExecutionContextBehavior` has one registration (EF `ServiceCollectionExtensions.cs:307`) and one test file; `IModuleExecutionContext` has registrations in ADO.SqlServer, Dapper.SqlServer, EF Core and MongoDB (`TryAddScoped`, so the core registration wins or yields in any order) and optional readers in `TransferBlockingPipelineBehavior` and `DataMinimizationPipelineBehavior`. The PostgreSQL and MySQL ADO.NET and Dapper packages inject the context without registering it; with `AddEncinaModules` registering it in core they gain a producer too (their module isolation tests stay green). Interface changes: none; the pull requests change no interface, so none can leave the build broken.
 
@@ -512,4 +512,4 @@ REFERENCE FILES: src/Encina/Modules/*.cs, src/Encina.EntityFrameworkCore/Modules
 2. Pull request 1: the module context behavior in core (10 files).
 3. Pull request 2: removal of the EF original, `[Module]` and the justification files (15 files).
 4. Pull request 3: the boundary rule (15 files), after #360's graph is merged.
-5. Pull request 4: property test, guide, ADR, inventory, roadmap and changelog fragment (7 files).
+5. Pull request 4: property and contract tests, manifest, guide, ADR and its index line, inventory, roadmap and changelog fragment (9 files).
