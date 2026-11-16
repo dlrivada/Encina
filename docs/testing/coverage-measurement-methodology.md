@@ -190,7 +190,7 @@ The per-file targets are summarised as target attainment (next subsection) and s
 
 #### Target check (`--check-targets`)
 
-`--check-targets` (#1651) judges the per-file targets of the package manifests against the measured Cobertura data and tells you which targets a run does not meet. It is the mode a CI gate calls; run it locally after the measurement commands above, from the repository root.
+`--check-targets` (#1651) judges the per-file targets of the package manifests against the measured Cobertura data and tells you which targets a run does not meet. It is meant to back a CI gate (#1651; no workflow calls it yet); run it locally after the measurement commands above, from the repository root.
 
 ```powershell
 dotnet run --file .github/scripts/coverage-report.cs -- --check-targets [--files-from <list>] [--enforce] [--require-all-flags] [--input <dir>] [--output <dir>]
@@ -200,7 +200,7 @@ dotnet run --file .github/scripts/coverage-report.cs -- --check-targets [--files
 |---|---|
 | `--enforce` | Exit 1 when there is any finding. Without it the mode is report-only: it prints the findings and exits 0. |
 | `--require-all-flags` | Every flag is required to have data for each target, as in the nightly run. Without it, only flags that have a Cobertura file in the run are required, so a pull request that ran only the unit tests is not failed for the guard targets. |
-| `--files-from <list>` | A text file with one repository path per line (the files a pull request touches). Adds the touched-file checks (`no-targets`, `dropped-path`). Given without a value, the script prints an error and exits 1, so the touched-file check can never be switched off by accident. |
+| `--files-from <list>` | A text file with one repository path per line (the files a pull request touches). Adds the touched-file checks (`no-targets`, `dropped-path`) and writes `<output>/pr-coverage-comment.md` with the "Per-file targets" rows of the touched `src/` files. Given without a value, the script prints an error and exits 1, so the touched-file check can never be switched off by accident. |
 | `--input <dir>`, `--output <dir>` | The Cobertura folder (default `artifacts/test-results`) and the output folder (default `artifacts/coverage`), as in the report mode. |
 
 Rules of the mode:
@@ -222,7 +222,7 @@ Finding kinds:
 | `no-manifest` | The manifests cannot vouch for anything. | No manifest was loaded, or at least one did not parse. |
 | `no-coverage` | There is nothing to judge. | No Cobertura file of a known flag was found while targets exist, or the input directory is missing. |
 
-To verify the script's own logic without repository data, run the self-test, which covers the mode's rules and the `check-targets.json` fields:
+To verify the script's own logic without repository data, run `dotnet run --file .github/scripts/coverage-report.cs -- --self-test`; it asserts the finding rules and the exact fields of `check-targets.json`. To exercise the modes end to end against fixture manifests and Cobertura files (the finding kinds, the exit codes and the rewrite of a stale `check-targets.json`), run the fixture self-test:
 
 ```powershell
 pwsh -NoProfile -File .github/scripts/coverage-report-selftest.ps1
