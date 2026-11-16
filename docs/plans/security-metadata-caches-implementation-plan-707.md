@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Low (4 phases, 2 pull requests of 10 and 4 files)
 > **Estimated Scope**: about 150 lines of production code, about 450 lines of tests and benchmarks
-> **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching, performance, security, audit)
+> **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
 ---
 
@@ -49,7 +49,7 @@ The plan therefore caches (a) the per-type audit metadata (attribute, entity typ
 ### Rationale
 
 - The issue is `priority-low`, `complexity-low`; the real cost is reflection plus regex matching per request on two hot paths.
-- Option C wins if profiling shows the two costs are negligible; the benchmark of Phase 1 is how that is measured, and it is written first.
+- Option C wins if profiling shows the two costs are negligible; the benchmark of Phase 1 is how that is measured, and it is written first. The worker does not apply a threshold of its own: it records the allocation and time numbers of the baseline in the PR description and reports them, and the orchestrator brings them to the maintainer with this Dilemma before Option C is chosen or the implementation continues.
 - Class: Dilemma
 
 </details>
@@ -82,7 +82,7 @@ The plan therefore caches (a) the per-type audit metadata (attribute, entity typ
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Static `ConcurrentDictionary<Type, T>` (internal), the pattern of `ShouldAuditCache` and `EntityIdPropertyCache`** | Same pattern, same `Clear()` test hook; values are pure functions of the `Type` | Pins types of unloadable assemblies (as the two existing caches do) |
+| **A) Static `ConcurrentDictionary<Type, T>` (internal), the pattern of `ShouldAuditCache` and `EntityIdPropertyCache`** | Same pattern, same `Clear()` test hook; values are pure functions of the `Type` alone | Pins types of unloadable assemblies (as the two existing caches do) |
 | **B) Instance field of the factory** | Dies with the factory | The factory is registered as a singleton in practice; no gain; the behaviors are transient per closed generic, so their caches must be static |
 
 ### Chosen Option: **A - static, keyed by `Type`**
@@ -91,6 +91,7 @@ The plan therefore caches (a) the per-type audit metadata (attribute, entity typ
 
 - **Class:** Trivial
 - **Settled by:** the issue text of #707 ("extend same pattern" of `ShouldAuditCache`) and the existing code (`AuditPipelineBehavior.cs` line 49, `RequestMetadataExtractor.cs` line 13); `docs/engineering/prompts/implementation-plan-prompt.md` (pipeline behaviors: static per-generic-type attribute caching).
+- This applies to caches whose value depends on the `Type` alone. A cache whose value also depends on an instance's options (the redactor's effective sensitive-field set) is not static: see Design Choice 6.
 
 </details>
 
@@ -102,7 +103,7 @@ The plan therefore caches (a) the per-type audit metadata (attribute, entity typ
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `IPiiMasker` gains an overload taking a prepared field set** | Typed, no hidden cache | A public interface change that every custom masker must implement |
-| **B) `RequestAuditMetadata` freezes the attribute's `SensitiveFields` into one array; `DefaultSensitiveDataRedactor` caches the effective `HashSet<string>` in a `ConditionalWeakTable<string[], HashSet<string>>` keyed by that array's reference** | No API change; the cached array is never mutated by callers (the metadata owns it); a caller that passes a fresh array each time simply misses, and the table does not retain it | A reference-keyed cache is an implicit contract between the factory and the redactor |
+| **B) `RequestAuditMetadata` freezes the attribute's `SensitiveFields` into one array; `DefaultSensitiveDataRedactor` caches the effective `HashSet<string>` in an instance field `ConditionalWeakTable<string[], HashSet<string>>` keyed by that array's reference (placement: Design Choice 6)** | No API change; the cached array is never mutated by callers (the metadata owns it); a caller that passes a fresh array each time simply misses, and the table does not retain it | A reference-keyed cache is an implicit contract between the factory and the redactor |
 
 ### Chosen Option: **B - reference-keyed cache in the redactor** (recommended, pending the maintainer)
 
@@ -128,8 +129,30 @@ The plan therefore caches (a) the per-type audit metadata (attribute, entity typ
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (errors are never swallowed; compliance and security gates fail closed) and AGENTS.md section 6 function 10 (nothing tenant- or user-specific is stored outside the request): option B keeps a failure after the cause is fixed, which conflicts with the first rule.
+- **Class:** Trivial
+- **Settled by:** `ConcurrentDictionary.GetOrAdd` stores nothing when the value factory throws, so today's behavior (a malformed attribute throws on every call) is preserved without extra code; a fix needs a rebuild, which clears a static cache anyway.
+- The cached `AuditableAttribute` and `SecurityAttribute` instances become shared across requests (today `GetCustomAttribute` returns fresh ones). No code in `Encina.Security*` assigns an attribute property after construction (grep of `src/Encina.Security*` found none), so sharing changes no behavior; the cache holds nothing tenant-, user- or request-specific (AGENTS.md section 6 function 10).
+
+</details>
+
+<details>
+<summary><strong>6. Placement of the redactor's effective-set cache</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Instance field of each `DefaultSensitiveDataRedactor`** | The cached set contains that redactor's own `GlobalSensitiveFields` (`DefaultSensitiveDataRedactor.cs` lines 102-111) and is never served to another redactor with different options, so masking cannot fail open | One table per redactor (the redactor is a singleton in practice, so one in the process) |
+| **B) Static table keyed by the array and the redactor instance (composite key)** | One shared structure | A composite key adds code and a second weak reference for no gain; a mistake in the key serves one redactor's set to another and masking fails open |
+
+### Chosen Option: **A - instance field** (recommended, pending the maintainer)
+
+### Rationale
+
+- The effective set is the redactor's `_sensitivePatterns` (defaults plus its options' `GlobalSensitiveFields`) united with the attribute's fields; a static table keyed only by the array would serve a set built without global field `X` to a second redactor whose options add `X`, and `X` would stop being redacted. Compliance gates fail closed (AGENTS.md section 3).
+- Option B wins only if a measured need appears for sharing the table across redactor instances, which no in-tree host has.
+- A unit test builds two redactors with different `GlobalSensitiveFields` and passes both the same cached array: each redacts its own global field (Phase 1 task 5).
+- Class: Dilemma
 
 </details>
 
@@ -159,11 +182,11 @@ PR 1 holds exactly these 10 files:
 
 Tasks:
 
-1. **Baseline first**: write `AuditEntryFactoryBenchmarks` over `DefaultOperationAuditEntryFactory.Create` (a request type with `[Auditable]` and `SensitiveFields`, and one without) with `BenchmarkSwitcher.FromAssembly(...).Run(args, config)`; verify the filter with `--list flat --filter "*AuditEntryFactory*"`, run `--job short`, and record allocations and time in the PR description. If the baseline shows no measurable cost, stop and report (Design Choice 1, Option C).
+1. **Baseline first**: write `AuditEntryFactoryBenchmarks` over `DefaultOperationAuditEntryFactory.Create` (a request type with `[Auditable]` and `SensitiveFields`, and one without) with `BenchmarkSwitcher.FromAssembly(...).Run(args, config)`; verify the filter with `--list flat --filter "*AuditEntryFactory*"`, run `--job short`, and record allocations and time in the PR description. The worker applies no threshold: it reports the baseline numbers and the orchestrator takes them to the maintainer with Design Choice 1 (Option C) before the implementation continues.
 2. **Create** `internal sealed record RequestAuditMetadata(AuditableAttribute? Attribute, string EntityType, string Action, string[]? SensitiveFields, bool? IncludePayload)` and `static RequestAuditMetadata For(Type requestType)` backed by `ConcurrentDictionary<Type, RequestAuditMetadata>`; the factory delegate calls `requestType.GetCustomAttribute<AuditableAttribute>()` and `RequestMetadataExtractor.ExtractFromTypeName(requestType)` once, copies `SensitiveFields` into a private array, and applies the same precedence as today (`attribute.EntityType ?? convention`). `internal static void Clear()` for tests, as `RequestMetadataExtractor.ClearCache` does.
 3. **Modify** `DefaultOperationAuditEntryFactory.Create<TRequest, TResponse>`: replace the two per-call lookups by `RequestAuditMetadata.For(typeof(TRequest))` and pass `metadata.SensitiveFields` where it passes `auditableAttribute?.SensitiveFields` today. The entry produced is identical.
-4. **Modify** `DefaultSensitiveDataRedactor`: `BuildEffectivePatterns` is called through a `ConditionalWeakTable<string[], HashSet<string>>` when the argument is a `string[]` (the cached array); other `IEnumerable<string>` arguments keep today's per-call path. The cached set is read-only after construction and the constructor-built default set is not exposed.
-5. **Tests**: `For` returns the same instance on a second call (`ShouldBeSameAs`); two request types do not share an entry; a type with `[Auditable(EntityType = "X", Action = "Y")]` takes the attribute values, a type without it takes the convention; the cached field array is a copy (mutating the attribute's array after the first call does not change the next result); the redactor returns the same redaction for the cached and an uncached call with the same fields, and a fresh array each call still redacts correctly; the factory produces equal entries (apart from `Id` and timestamps) on the first and the hundredth call; a concurrent test (`Parallel.For`, 64 iterations, 8 types) sees no exception and one instance per type; a masker that throws still returns `Left(audit.masking_failed)` on a repeated call (the failure is not cached). Guard tests: no public symbol is added, so the guard flag is unchanged.
+4. **Modify** `DefaultSensitiveDataRedactor`: `BuildEffectivePatterns` is called through a `private readonly ConditionalWeakTable<string[], HashSet<string>>` instance field (never static, Design Choice 6) when the argument is a `string[]` (the cached array); other `IEnumerable<string>` arguments keep today's per-call path. The cached set is read-only after construction and the constructor-built default set is not exposed.
+5. **Tests**: every test that asserts identity or counts on the static cache (`ShouldBeSameAs`, one instance per type) uses request types private to its own test class (nested types), so a parallel test class calling `Clear()` cannot make it flaky; the classes that call `Clear()` are put in one non-parallel xUnit collection. `For` returns the same instance on a second call (`ShouldBeSameAs`); two request types do not share an entry; a type with `[Auditable(EntityType = "X", Action = "Y")]` takes the attribute values, a type without it takes the convention; the cached field array is a copy (mutating the attribute's array after the first call does not change the next result); the redactor returns the same redaction for the cached and an uncached call with the same fields, and a fresh array each call still redacts correctly; two redactors built with different `GlobalSensitiveFields` and given the same cached array each redact their own global field (the set of one is never served to the other); the factory produces equal entries (apart from `Id` and timestamps) on the first and the hundredth call; a concurrent test (`Parallel.For`, 64 iterations, 8 types) sees no exception and one instance per type; a masker that throws still returns `Left(audit.masking_failed)` on a repeated call (the failure is not cached). Guard tests: no public symbol is added, so the guard flag is unchanged.
 6. **Manifest**: targets for the new file and the two touched files (Phase 3 table).
 
 </details>
@@ -178,9 +201,9 @@ Encina is a .NET 10 / C# 14 library, pre-1.0. Issue #707 caches per-type audit m
 builds an effective HashSet per call when SensitiveFields is present. There is no regex in the masking path.
 
 TASK:
-1. Write AuditEntryFactoryBenchmarks first and record the baseline; stop and report if the cost is not measurable.
+1. Write AuditEntryFactoryBenchmarks first and record the baseline; report the numbers (no threshold of your own) and wait for the orchestrator.
 2. Add RequestAuditMetadata (static ConcurrentDictionary<Type, ...>, internal Clear()) and use it in the factory.
-3. Add the reference-keyed ConditionalWeakTable<string[], HashSet<string>> in the redactor.
+3. Add the reference-keyed ConditionalWeakTable<string[], HashSet<string>> to the redactor as an INSTANCE field, never static (its set contains that redactor's GlobalSensitiveFields).
 4. Write the unit tests of the plan; ask mechanical-fixer for the manifest entry and the changelog fragment.
 
 KEY RULES:
@@ -216,7 +239,7 @@ PR 2 holds exactly these 4 files:
 
 Tasks:
 
-1. **Modify** `SecurityPipelineBehavior<TRequest, TResponse>`: a `private static readonly` profile per closed generic type, built once: `bool AllowsAnonymous` (`typeof(TRequest).GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0`) and the `SecurityAttribute[]` already ordered by `Order` then `GetAttributeTypePriority`. `DiscoverAttributes` keeps its instance-level logic that depends on options and logging: it still logs `AllowAnonymousBypass` on every request and still reads `_options.RequireAuthenticatedByDefault` on every request, only the reflection and the sort move into the static profile. The list returned to `AuthorizeAsync` is the cached array (read-only); `AuthorizeAsync` takes `IReadOnlyList<SecurityAttribute>` instead of `List<SecurityAttribute>` (a private change).
+1. **Modify** `SecurityPipelineBehavior<TRequest, TResponse>` (the `List<SecurityAttribute>` parameters of `AuthorizeAsync` line 142, `DenyMissingContext` line 186 and `EvaluateAttributesAsync` line 219, and the return of `DiscoverAttributes` line 118): a `private static readonly` profile per closed generic type, built once: `bool AllowsAnonymous` (`typeof(TRequest).GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: true).Length > 0`) and the `SecurityAttribute[]` already ordered by `Order` then `GetAttributeTypePriority`. `DiscoverAttributes` keeps its instance-level logic that depends on options and logging: it still logs `AllowAnonymousBypass` on every request and still reads `_options.RequireAuthenticatedByDefault` on every request, only the reflection and the sort move into the static profile. The list returned to `AuthorizeAsync` is the cached array (read-only); `AuthorizeAsync`, `DenyMissingContext` and `EvaluateAttributesAsync` all take `IReadOnlyList<SecurityAttribute>` instead of `List<SecurityAttribute>` (private changes).
 2. **Tests**: attribute order unchanged (`Order`, then type priority) on the first and later calls; `[AllowAnonymous]` still bypasses and still logs on each call; `RequireAuthenticatedByDefault` toggled between two behavior instances with different options still changes the outcome (the option is not cached); two closed generics do not share a profile; the denial and allow results of every existing test are unchanged.
 
 </details>
@@ -375,9 +398,9 @@ Encina is a .NET 10 / C# 14 library, pre-1.0, no backward compatibility. Issue #
 factory and the security behavior resolve by reflection on every request.
 
 IMPLEMENTATION OVERVIEW:
-1. Benchmark DefaultOperationAuditEntryFactory first; stop if no cost is measurable.
+1. Benchmark DefaultOperationAuditEntryFactory first; report the numbers and wait for the orchestrator.
 2. RequestAuditMetadata (static ConcurrentDictionary<Type, ...>) used by the factory.
-3. Reference-keyed cache of the effective sensitive-field set in DefaultSensitiveDataRedactor.
+3. Reference-keyed INSTANCE cache of the effective sensitive-field set in DefaultSensitiveDataRedactor.
 4. Static per-closed-generic attribute profile in SecurityPipelineBehavior.
 5. No SecurityContext cache, no regex cache (the premises do not hold), no logging, no telemetry, no new error code.
 Two pull requests: Phase 1, Phase 2.
@@ -385,7 +408,7 @@ Two pull requests: Phase 1, Phase 2.
 KEY PATTERNS:
 - Cache only successful pure results keyed by Type; masking and authorization stay fail closed.
 - Options-dependent decisions (RequireAuthenticatedByDefault, exclusion lists) are never cached.
-- Apply Design Choices 1, 2 and 4 as the Maintainer Decisions section says.
+- Apply Design Choices 1, 2, 4 and 6 as the Maintainer Decisions section says.
 
 REFERENCE FILES:
 - src/Encina.Security.Audit/DefaultOperationAuditEntryFactory.cs
@@ -403,7 +426,7 @@ REFERENCE FILES:
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | Caching | ✅ Include | In-process per-type caches (`ConcurrentDictionary`, `ConditionalWeakTable`), not `ICacheProvider`. |
+| 1 | Caching | ✅ Include | In-process caches (static `ConcurrentDictionary` per type; per-instance `ConditionalWeakTable` in the redactor), not `ICacheProvider`. |
 | 2 | OpenTelemetry | ❌ N/A | No telemetry is added; the caches hold no tenant data, so no tenant tag applies (ADR-054 D4). |
 | 3 | Structured Logging | ❌ N/A | The caches are silent; no EventId range is needed. |
 | 4 | Health Checks | ❌ N/A | No external dependency. |
@@ -411,7 +434,7 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ N/A | No external call. |
 | 7 | Distributed Locks | ❌ N/A | `ConcurrentDictionary.GetOrAdd` needs no lock; the factory function is pure. |
 | 8 | Transactions | ❌ N/A | No mutation outside the process. |
-| 9 | Idempotency | ✅ Include | `GetOrAdd` may run the factory twice for one key; the factory is pure, so the stored result is the same either way. |
+| 9 | Idempotency | ❌ N/A | No message or request is deduplicated; `GetOrAdd` may run its pure factory twice for one key, which is not ADR-018 idempotency (duplicate messages). |
 | 10 | Multi-Tenancy | ✅ Include | Caches are keyed by `Type` only and never hold tenant, user or claim values; `SecurityContext` is not cached for that reason (Design Choice 2). |
 | 11 | Module Isolation | ❌ N/A | Not module scoped. |
 | 12 | Audit Trail | ✅ Include | The audit entry content and the fail-closed masking must not change; the unit tests compare cached and uncached entries. |
@@ -426,7 +449,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | `ShouldAuditCache` and `EntityIdPropertyCache` patterns | ✅ Available | The pattern to follow |
 | `Encina.Benchmarks` references `Encina.Security.Audit` | ✅ Available | `tests/Encina.BenchmarkTests/Encina.Benchmarks/Encina.Benchmarks.csproj` |
-| Maintainer answers to Design Choices 1, 2 and 4 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1, 2, 4 and 6 | Pending | Asked when work starts |
 
 No blocking prerequisites.
 
@@ -434,5 +457,5 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 2, 4) when work starts, records the answers under `## Maintainer Decisions`, then briefs two workers (Phase 1, Phase 2).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 2, 4, 6) when work starts, records the answers under `## Maintainer Decisions`, then briefs two workers (Phase 1, Phase 2).
 2. After merge, comment on #707 with the benchmark result and the two items that were not implemented, with the reason.
