@@ -30,7 +30,7 @@ Add the package `Encina.DistributedLock.AzureBlob`, an `IDistributedLockProvider
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5); it is also a cloud-tied provider, so it follows the "tested with a local emulator" rule of the lock table (Azurite). Matrix in Research.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `0b941beeb`):
 
 - The package does not exist. `Azure.Storage.Blobs` 12.30.1 and `Azure.Identity` 1.21.0 are in `Directory.Packages.props` and no `src/` project references `Azure.Storage.Blobs` yet; `Testcontainers.Azurite` 4.15.0 is there too.
 - `AzuriteFixture` (`tests/Encina.TestInfrastructure/Fixtures/AzuriteFixture.cs`, image `azurite:3.37.0`, started with `--skipApiVersionCheck`, exposes `ConnectionString`, `BlobEndpoint`, `BlobServiceClient`) and the collection `Cloud-Azurite` (`tests/Encina.IntegrationTests/Infrastructure/Azurite/AzuriteCollection.cs`) exist.
@@ -80,7 +80,7 @@ Add the package `Encina.DistributedLock.AzureBlob`, an `IDistributedLockProvider
 
 - The interface promises auto-release (the process crash case) and the provider must work without a hosted service (registration completeness, `AGENTS.md` section 3). Option B wins when an application holds thousands of concurrent locks per process; the maintainer can pick it when work starts, and the handle then registers with the service instead of arming a timer.
 - The timer callback catches every exception and logs only the exception type (`AGENTS.md` section 3). A renewal that fails with `LeaseIdMismatch` or `LeaseLost` marks the handle lost: `IsReleased` becomes true, a Warning is logged, and `ExtendAsync` answers `Right(false)`. A transient renewal failure is retried on the next tick while the lease is still valid by the handle's clock.
-- Lease duration: `LeaseDuration` defaults to 30 s and is validated in 15..60 s; `RenewInterval` defaults to 10 s and must be below a third of the lease. When the caller's `expiry` is shorter than the lease, the lease is still the minimum 15 s and the handle releases explicitly at its deadline; a crash then frees the lock after at most the lease duration, which is longer than the `expiry` and is documented.
+- Lease duration: `LeaseDuration` defaults to 30 s and is validated in 15..60 s; `RenewInterval` defaults to 10 s and must be at most a third of the lease (10 s of the 30 s default is exactly a third, so the default options pass their own validator; a unit test "default options validate" proves it). When the caller's `expiry` is shorter than the lease, the lease is still the minimum 15 s and the handle releases explicitly at its deadline; a crash then frees the lock after at most the lease duration, which is longer than the `expiry` and is documented.
 
 **Class:** Dilemma
 
@@ -118,14 +118,14 @@ Add the package `Encina.DistributedLock.AzureBlob`, an `IDistributedLockProvider
 | **A) Two registration overloads: a connection string, and an application-supplied `BlobServiceClient`** | The connection string suits Azurite and shared-key setups; a supplied client carries managed identity (`DefaultAzureCredential`) or any `TokenCredential` and its own `RetryOptions` | Two overloads to test |
 | **B) Connection string only** | One overload | No managed identity, which production Azure deployments use; the secret would be the only credential |
 
-### Chosen Option: **A — connection string and `BlobServiceClient` overloads**
+### Chosen Option: **A — connection string and `BlobServiceClient` overloads** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The options class holds the connection string as a secret: `[JsonIgnore]` and a `ToString()` that never prints it (`AGENTS.md` section 3). A supplied client keeps credentials out of Encina's options entirely.
+- The options class holds the connection string as a secret: `[JsonIgnore]` and a `ToString()` that never prints it (`AGENTS.md` section 3). A supplied client keeps credentials out of Encina's options entirely. Both options satisfy that rule, so the choice is a design one.
+- Option B wins when the package should stay minimal and every deployment, Azurite included, uses a connection string; the maintainer can pick it when work starts.
 
-**Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (options with a connection string or key: `[JsonIgnore]`, `ToString()` override)
+**Class:** Dilemma
 
 </details>
 
@@ -204,7 +204,7 @@ Four pull requests, each at most 15 files and 1500 changed lines counting tests,
 | 1 | Phase 1 and the EventId registration of Phase 5 | csproj, `AzureBlobLockOptions`, `AzureBlobLockName`, two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (9) | `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` reference, `AzureBlobLockOptionsTests`, `AzureBlobLockNameTests` (4) | 13 files / 650 |
 | 2 | Phases 2 and 5 (logs, diagnostics) | `IBlobLeaseGateway`, `AzureBlobLeaseGateway`, `AzureBlobDistributedLockProvider`, `AzureBlobLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (6) | `FakeBlobLeaseGateway`, provider unit tests, handle and renewal unit tests, guard tests, `Encina.GuardTests.csproj` reference (5) | 11 files / 1,350 |
 | 3 | Phase 3 | `AzureBlobLockOptionsValidator`, `ServiceCollectionExtensions`, `Health/AzureBlobDistributedLockHealthCheck`, `PublicAPI.Unshipped.txt`, manifest (5) | DI test with `ValidateOnBuild`/`ValidateScopes` (all overloads), validator and health check unit tests, guard tests (3) | 8 files / 850 |
-| 4 | Phases 4, 6 and 7 | none | contract class and `Encina.ContractTests.csproj` reference, integration tests on `Cloud-Azurite` and `Encina.IntegrationTests.csproj` reference, property test of the blob name and `Encina.PropertyTests.csproj` reference, README, changelog fragment, two load/benchmark justification files, manifest (11) | 11 files / 900 |
+| 4 | Phases 4, 6 and 7 | none | contract class, the `Cloud-Azurite` collection definition in `Encina.ContractTests` (new file) and `Encina.ContractTests.csproj` reference, integration tests on `Cloud-Azurite` and `Encina.IntegrationTests.csproj` reference, property test of the blob name and `Encina.PropertyTests.csproj` reference, README, changelog fragment, two load/benchmark justification files, manifest (12) | 12 files / 950 |
 
 If a PR measures over 15 files or 1,500 lines, the worker splits it again and never asks for `size-exception-approved`. PR 2 has the least slack: if the renewal tests grow, they move to PR 3.
 
@@ -217,8 +217,8 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 
 #### `src/Encina.DistributedLock.AzureBlob/`
 
-1. **`Encina.DistributedLock.AzureBlob.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `Azure.Storage.Blobs` (central version), PublicApiAnalyzers, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests`; a new GUID
-2. **`AzureBlobLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString`; `string ContainerName = "encina-locks"`; `bool CreateContainerIfNotExists = true`; `TimeSpan LeaseDuration = 30 s`; `TimeSpan RenewInterval = 10 s`; `ToString()` prints the container and lease settings, never the connection string; an `IValidateOptions<AzureBlobLockOptions>` rule set in Phase 3 (lease 15..60 s, renew below a third of the lease, valid container name)
+1. **`Encina.DistributedLock.AzureBlob.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `Azure.Storage.Blobs` (central version), PublicApiAnalyzers, `InternalsVisibleTo` as `AssemblyAttribute` items for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests` (the pattern of `Encina.Messaging.csproj`; the SQL Server csproj has none); a new GUID
+2. **`AzureBlobLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString`; `string ContainerName = "encina-locks"`; `bool CreateContainerIfNotExists = true`; `TimeSpan LeaseDuration = 30 s`; `TimeSpan RenewInterval = 10 s`; `ToString()` prints the container and lease settings, never the connection string; an `IValidateOptions<AzureBlobLockOptions>` rule set in Phase 3 (lease 15..60 s, renew at most a third of the lease, valid container name)
 3. **`AzureBlobLockName.cs`** (new, internal static) — `Compose(prefix, resource)` (the `lock:` format of the SQL Server provider) and `ToBlobName(composedKey)` (`locks/` plus lower-case hex SHA-256)
 4. **`PublicAPI.Shipped.txt`** (new, `#nullable enable`) and **`PublicAPI.Unshipped.txt`**
 5. **`Encina.slnx`** (modify) and **`.github/coverage-manifest/Encina.DistributedLock.AzureBlob.json`** (new, written by `mechanical-fixer` from the target table of Phase 6)
@@ -268,7 +268,7 @@ REFERENCE FILES:
 1. **`IBlobLeaseGateway.cs`** (new, internal) — `Task<Either<EncinaError, LeaseOutcome>> AcquireAsync(string blobName, TimeSpan leaseDuration, CancellationToken ct)` (`LeaseOutcome`: `Acquired(leaseId)` or `Contended`), `RenewAsync(blobName, leaseId, ct)` returning `Either<EncinaError, bool>` (false when the lease is gone), `ReleaseAsync(blobName, leaseId, ct)`, `IsLeasedAsync(blobName, ct)`, `EnsureContainerAsync(ct)`; each returns `Either<EncinaError, ...>`
 2. **`AzureBlobLeaseGateway.cs`** (new, internal sealed) — wraps `BlobContainerClient` and `BlobLeaseClient`; the blob creation with `If-None-Match: *`; the classification of design choice 7 (409 `LeaseAlreadyPresent`, 404, others)
 3. **`AzureBlobDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<AzureBlobLockOptions> options, ILogger<AzureBlobDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the gateway; `TryAcquireAsync` (retry loop until `wait`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that renews the lease on a `TimeProvider` timer (callback catches everything), releases at its deadline, marks itself lost when a renewal reports the lease gone, and moves its deadline on `ExtendAsync`
-4. **`AzureBlobLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.AzureBlob`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`azure_blob`) and `outcome` (`acquired`, `contended`, `failed`); counter `encina.distributed_lock.renewals` with tag `outcome` (`renewed`, `lost`, `failed`); no tenant tag (the decorator of #741 adds `encina.tenant_id`, ADR-054 D4)
+4. **`AzureBlobLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.AzureBlob`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`azure_blob`) and `outcome` (`acquired`, `contended`, `failed`); counter `encina.distributed_lock.renewals` with tag `outcome` (`renewed`, `lost`, `failed`); no tenant tag (the decorator of #741 adds `encina.tenant_id`, [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7570-7578 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** and the manifest (targets in Phase 6)
 7. **Tests**: `FakeBlobLeaseGateway` (scripted results and a call log), provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, 404 then create, fault on acquire, cancellation, registry extend held and unheld, expiry release, double dispose), renewal tests (renews every interval, lease lost marks the handle, transient failure retried, deadline stops renewing), guard tests, `Encina.GuardTests.csproj` project reference
@@ -316,7 +316,7 @@ REFERENCE FILES:
 
 #### `src/Encina.DistributedLock.AzureBlob/`
 
-1. **`AzureBlobLockOptionsValidator.cs`** (new, internal sealed) — `IValidateOptions<AzureBlobLockOptions>`: lease 15..60 s, `RenewInterval` below a third of the lease, a valid container name (3 to 63 lower-case letters, digits and hyphens); registered with `ValidateOnStart`
+1. **`AzureBlobLockOptionsValidator.cs`** (new, internal sealed) — `IValidateOptions<AzureBlobLockOptions>`: lease 15..60 s, `RenewInterval` at most a third of the lease (the defaults 30 s and 10 s pass; the unit test "default options validate" and a boundary test at exactly a third and just above it cover it), a valid container name (3 to 63 lower-case letters, digits and hyphens); registered with `ValidateOnStart`
 2. **`ServiceCollectionExtensions.cs`** (new, public static) — `AddEncinaDistributedLockAzureBlob(this IServiceCollection, string connectionString)`, the overload with `Action<AzureBlobLockOptions>`, and `AddEncinaDistributedLockAzureBlob(this IServiceCollection, BlobServiceClient client, Action<AzureBlobLockOptions>? configure = null)`; `TryAddSingleton(TimeProvider.System)`, `Configure<AzureBlobLockOptions>`, the validator, `TryAddSingleton<IBlobLeaseGateway>`, `TryAddSingleton<IDistributedLockProvider, AzureBlobDistributedLockProvider>`; registers the health check when `ProviderHealthCheck.Enabled`
 3. **`Health/AzureBlobDistributedLockHealthCheck.cs`** (new, public sealed) — `IEncinaHealthCheck`; `public const string DefaultName = "azure-blob-distributed-lock"`; tags `["azure", "blob", "distributed-lock", "ready"]`; reads the container properties (and, when the container is missing, reports `Unhealthy`); returns the exception type only, never the connection string or the response body
 4. **`PublicAPI.Unshipped.txt`**, the manifest
@@ -443,7 +443,7 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 
 | File | unit | guard | contract | integration | property | Justification |
 |---|---:|---:|---:|---:|---:|---|
-| `AzureBlobDistributedLockProvider.cs` | 90 | 14 | 45 | 70 | 0 | The retry loop, registry, renewal timer, handle and error mapping run against the fake gateway; the contract suite adds the shared scenarios; integration adds Azurite; property 0: no randomized logic beyond the name |
+| `AzureBlobDistributedLockProvider.cs` | 90 | 14 | 45 | 70 | 0 | The retry loop, registry, renewal timer, handle and error mapping run against the fake gateway (guard reaches only the public constructor and methods; the internal gateway constructor is covered by unit tests); the contract suite adds the shared scenarios; integration adds Azurite; property 0: no randomized logic beyond the name |
 | `AzureBlobLeaseGateway.cs` | 5 | 5 | 0 | 90 | 0 | Needs Azurite; unit and guard reach only the guards; contract 0 because the contract class runs on the shared Azurite container (integration flag) |
 | `AzureBlobLockName.cs` | 100 | 0 | 0 | 0 | 95 | Pure function; guard 0: internal type without `InternalsVisibleTo` for `Encina.GuardTests`; FsCheck covers determinism, shape and no exception for any string |
 | `AzureBlobLockOptions.cs` | 100 | 0 | 0 | 0 | 0 | Property bag; guard 0: no parameters |
@@ -453,8 +453,8 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 | `AzureBlobLockDiagnostics.cs` | 80 | 0 | 0 | 0 | 0 | Instruments exercised through the provider tests; guard 0: no parameters |
 
 1. **Unit** — the scenarios of Phases 1 to 3 with `FakeTimeProvider` and the fake gateway.
-2. **Guard** — constructor (null options, null logger, null gateway on the internal constructor), each method (null or whitespace resource, non-positive expiry as #2724 decides), and the three registration overloads (null services, null or empty connection string, null client).
-3. **Contract** — one derived class of the suite #2667 creates, `AzureBlobDistributedLockContractTests`, on the `Cloud-Azurite` collection, running the same scenarios as the other providers (free, contended, expiry, extend held and unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference.
+2. **Guard** — the public constructor (null options, null logger; the constructor taking the internal `IBlobLeaseGateway` is not reachable from `Encina.GuardTests`, which is not in the `InternalsVisibleTo` list, so its null check is a unit test), each method (null or whitespace resource, non-positive expiry as #2724 decides), and the three registration overloads (null services, null or empty connection string, null client).
+3. **Contract** — `AzureBlobDistributedLockContractTests`, on the `Cloud-Azurite` collection, running the same scenarios as the other providers (free, contended, expiry, extend held and unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference. `Cloud-Azurite` is defined only in `Encina.IntegrationTests` (`Infrastructure/Azurite/`), so PR 4 adds `tests/Encina.ContractTests/DistributedLock/AzureBlob/AzuriteCollection.cs` (`[CollectionDefinition("Cloud-Azurite")]` with `ICollectionFixture<AzuriteFixture>`, the shape of `LocalStackCollection.cs` in that project). #2667 does not state a reusable abstract base class: PR 4 reads the suite as #2667 merged it and either derives from its base or, when none exists, extracts one (a new file; PR 4 then splits if it passes 15 files).
 4. **Property** — FsCheck on `AzureBlobLockName`: always `locks/` plus 64 lower-case hex characters, deterministic, no exception for any string.
 5. **Integration** — `[Collection("Cloud-Azurite")]` on `AzuriteFixture` (the collection already exists in `Encina.IntegrationTests`), `[Trait("Category", "Integration")]`: two providers on one container block each other; release frees the lease; the renewal keeps a 30 s lease alive past its duration; a lease broken by another client marks the handle lost; the lease of an abandoned handle expires on its own after the lease duration (the one slow test, at least 15 s of real time, justified because Azurite owns the lease clock); `IsLockedAsync` does not disturb a contender; the container is created when missing; health check against Azurite.
 6. **Load and benchmark** — `.md` justification files under `tests/Encina.NBomber/Scenarios/Locking/` and `tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/`: the provider is a thin client over storage operations whose latency is the network, covered by the shared lock scenarios once its factory is added by the issue that owns those scenarios; a missing `.md` would mean "not evaluated" (`AGENTS.md` section 9).
@@ -585,11 +585,11 @@ REFERENCE FILES:
 | Metadata (new and modified) | 7 | two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (`Directory.Packages.props` is not touched: the Azure packages are already there) |
 | Unit tests | 7 | options, name, provider, handle and renewal, validator, DI, health check (plus the fake gateway) |
 | Guard tests | 2 | provider, registration and health check |
-| Contract and property tests | 2 | contract class, name property |
+| Contract and property tests | 3 | contract class, `Cloud-Azurite` collection definition for `Encina.ContractTests`, name property |
 | Integration tests | 1 | one class on the shared Azurite collection |
 | Test project references | 5 | UnitTests, GuardTests, ContractTests, IntegrationTests, PropertyTests |
 | Documentation and changelog | 4 | README, fragment, two justification files |
-| **Total** | **~39 touches** | Over 4 pull requests of at most 15 files each (13, 11, 8 and 11) |
+| **Total** | **~40 touches** | Over 4 pull requests of at most 15 files each (13, 11, 8 and 12) |
 
 ---
 
@@ -674,5 +674,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #209 and start the PR 1 brief; PRs 2 to 4 wait for [#2667](https://github.com/dlrivada/Encina/issues/2667).
-2. When work on the issue starts, ask the maintainer to answer Dilemma 2 (renewal inside the handle or in a hosted service) and Dilemma 5 (container creation default), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemma 2 (renewal inside the handle or in a hosted service), Dilemma 4 (registration overloads) and Dilemma 5 (container creation default), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
 3. One commit per phase; the last commit of PR 4 references `Fixes #209`.
