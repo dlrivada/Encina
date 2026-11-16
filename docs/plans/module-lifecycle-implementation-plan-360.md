@@ -2,7 +2,7 @@
 
 > **Issue**: [#360](https://github.com/dlrivada/Encina/issues/360)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, 4 pull requests of 13, 12, 15 and 14 files)
+> **Complexity**: Medium (7 phases, 4 pull requests of 13, 14, 15 and 14 files)
 > **Estimated Scope**: about 900 lines of production code and about 1,800 lines of tests, split over four pull requests
 > **Family**: modular monolith (#352 umbrella, #358, #359, #364); this plan owns the dependency graph, the exports, the lifecycle hooks and the module state that the other four consume
 
@@ -10,10 +10,10 @@
 
 ## Summary
 
-Encina already has a module system, and the issue's "current state" (three empty interfaces) is stale. On `origin/main` (`db1e7f688`) the system lives in the core `Encina` package, namespace `Encina.Modules` (`src/Encina/Modules/`, 27 files):
+Encina already has a module system, and the issue's "current state" (three empty interfaces) is stale. On `origin/main` (`e694eb032`) the system lives in the core `Encina` package, namespace `Encina.Modules` (`src/Encina/Modules/`, 28 files):
 
 - `IModule` (`Name`, `ConfigureServices(IServiceCollection)`), `IModuleLifecycle : IModule` (`OnStartAsync`, `OnStopAsync`), `IModuleRegistry` (`Modules`, `GetModule`, `ContainsModule`, `GetLifecycleModules`), `ModuleRegistry` (unique names, case-insensitive).
-- `ModuleConfiguration.AddModule<T>()`, `AddModule(IModule)`, `AddModule(IModule, Assembly?)`, `WithoutHandlerDiscovery()`, and `AddEncinaModules` (`ModuleServiceCollectionExtensions.cs`), which registers the registry, the handler registry, each module as a singleton, `ModuleLifecycleHostedService` (only when a module implements `IModuleLifecycle`) and calls `ConfigureServices` of every module in registration order.
+- `ModuleConfiguration.AddModule<T>()`, `AddModule(IModule)`, `AddModule(IModule, Assembly?)`, `WithoutHandlerDiscovery()`, and `AddEncinaModules` (`ModuleServiceCollectionExtensions.cs`), which registers the registry, the handler registry, each module as a singleton, `ModuleLifecycleHostedService` (today only when a module implements `IModuleLifecycle`, `ModuleServiceCollectionExtensions.cs:83-86`; Design Choice 11 makes it unconditional) and calls `ConfigureServices` of every module in registration order.
 - `ModuleLifecycleHostedService` starts modules in registration order and stops them in reverse; a failed start throws (the host fails to start), a failed stop is collected into an `AggregateException` after every module was asked to stop. Its log lines are hand-written `LogInformation` calls under `#pragma warning disable CA1848`, with no EventIds.
 - `ModuleActivitySource.StartLifecycle(moduleName, operation)` and `ModuleMetrics` exist (`src/Encina/Modules/Diagnostics/`), but the hosted service calls neither.
 
@@ -25,7 +25,7 @@ This plan delivers, in `Encina` core with no new package (Design Choice 1):
 2. Discovery: `DiscoverModulesFromAssemblies(...)` and a pattern overload over the loaded assemblies.
 3. `EncinaModule`, an abstract base class with no-op hooks and `Exports`, and the new `IModuleLifecycle` hooks (the old `OnStartAsync`/`OnStopAsync` are replaced, never aliased).
 4. Module-scoped configuration through a context object.
-5. `IModuleStateProvider` (a thread-safe per-module state) and the `IHostApplicationLifetime` integration for the "started" phase.
+5. `IModuleStateProvider` (a thread-safe per-module state that reaches `Running` for every module, plain `IModule` classes included) and the `IHostApplicationLifetime` integration for the "started" phase.
 6. `[LoggerMessage]` logging with EventIds, lifecycle spans and a duration histogram.
 
 **Out of scope here, owned by siblings (cited by issue number):** the cross-module access rule that consumes `Exports` is #352; the integration event bus is #358; schema and database isolation is #359; per-module health that reads the state and graph is #364; the module-id dimension on cache keys is #746, on audit rows #1636.
@@ -55,7 +55,7 @@ This plan delivers, in `Encina` core with no new package (Design Choice 1):
 The module system already ships in core (`ROADMAP.md` marks "Module registry and lifecycle hooks" and "Module-scoped behaviors" done), so a new package would split one feature over two assemblies. B wins only if the maintainer wants core free of any module code, which is a separate refactor.
 
 **Class:** Trivial
-**Settled by:** existing placement: `src/Encina/Modules/*.cs` (27 files) and `ROADMAP.md` line 329.
+**Settled by:** existing placement: `src/Encina/Modules/*.cs` (28 files) and `ROADMAP.md` line 329.
 
 </details>
 
@@ -87,7 +87,7 @@ B wins when modules are written by teams that mostly extend `EncinaModule` and t
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Replace them by the new members; no alias, no default interface method** | One lifecycle surface; follows the pre-1.0 rule | Every implementer changes: `ModuleLifecycleHostedServiceTests` (8 references) and `ModuleRegistryTests` (2) in `tests/Encina.UnitTests/Core/Modules/` |
+| **A) Replace them by the new members; no alias, no default interface method** | One lifecycle surface; follows the pre-1.0 rule | Every implementer changes: `ModuleLifecycleHostedServiceTests` in `tests/Encina.UnitTests/Core/Modules/` (the only file that calls `OnStartAsync`/`OnStopAsync`; `ModuleRegistryTests` uses `Substitute.For<IModule, IModuleLifecycle>()`, which compiles unchanged) |
 | **B) Keep them and add the new hooks beside them** | No test edits | Two parallel start paths; this is a compatibility layer |
 
 ### Chosen Option: **A — replace**
@@ -179,7 +179,7 @@ B wins when modules are referenced projects, the normal modular-monolith case. C
 
 ### Rationale
 
-A wins when isolation matters more than convenience: the context hands each module only its section. C wins for modules that need configuration only at runtime. With no `IConfiguration` passed, `Configuration` is an empty in-memory configuration, never `null`. The section name `Modules:{Name}` is the issue's example; the key comparison follows .NET configuration (case-insensitive). Options classes that hold secrets keep the `[JsonIgnore]` and `ToString()` rule of `AGENTS.md` section 3 (the context never logs values).
+A wins when isolation matters more than convenience: the context hands each module only its section. C wins for modules that need configuration only at runtime. With no `IConfiguration` passed, `Configuration` is an empty in-memory configuration (`ConfigurationBuilder`, never `null`), which needs a `PackageReference` to `Microsoft.Extensions.Configuration` in `src/Encina/Encina.csproj` (core has only `Hosting.Abstractions`, which brings `Configuration.Abstractions`); the version is already central in `Directory.Packages.props`, so this is the one new dependency of core and it is counted in pull request 2. The section name `Modules:{Name}` is the issue's example; the key comparison follows .NET configuration (case-insensitive). Options classes that hold secrets keep the `[JsonIgnore]` and `ToString()` rule of `AGENTS.md` section 3 (the context never logs values).
 
 **Class:** Dilemma
 
@@ -244,7 +244,28 @@ A wins when modules are independent business areas and health endpoints drive or
 The lifecycle runs once per process; health is also per instance (issue #364: "each instance checks its own health"). Persistence would only add a store, a migration and the 10-provider matrix for no consumer.
 
 **Class:** Trivial
-**Settled by:** `AGENTS.md` section 3 (pay-for-what-you-use) and the per-instance scope of the lifecycle itself (`ModuleLifecycleHostedService` runs per host).
+**Settled by:** `AGENTS.md` section 1 (pay-for-what-you-use design principle) and the per-instance scope of the lifecycle itself (`ModuleLifecycleHostedService` runs per host).
+
+</details>
+
+<details>
+<summary><strong>11. The state of a plain `IModule` that has no hooks (Dilemma D11)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Register `ModuleLifecycleHostedService` whenever `AddEncinaModules` is used (drop the `GetLifecycleModules().Count > 0` condition at `ModuleServiceCollectionExtensions.cs:83-86`); after the last `OnInitializeAsync` succeeds it marks every module `Running`, plain modules included (they go `Configured` to `Running` and skip `Initializing`)** | Every module reaches `Running`, so #364's readiness (`Running` is ready) is correct for every application; one rule for all modules | A hosted service now exists for applications with no hooks (a loop over a handful of modules, no work) |
+| **B) Keep the conditional registration; the state provider reports `Configured` for modules that have no hooks and consumers (#364) treat "no hooks and `Configured`" as ready** | No hosted service for hook-less applications | Every consumer must know the special case; `Running` is not a reliable "up" signal |
+| **C) The tracker marks hook-less modules `Running` when `AddEncinaModules` runs, before any host exists** | No hosted service change | `Running` is reported before the host started and before dependencies initialized; wrong for a state that other features read |
+
+### Chosen Option: **A — always register; every module reaches `Running`** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the state is a signal other features read (#364 readiness: `Running` is ready, anything else is not ready): it must be true for every module, and `AddEncinaModules` is already the opt-in of the module system. B wins when avoiding one extra hosted service matters more than a uniform state. C wins only if the state is meant to mean "registered and configured". The condition is removed in pull request 3 (which already edits `ModuleServiceCollectionExtensions.cs`) and the `Running` transition for every module is recorded in pull request 4; pull request 4 includes a unit test with plain `IModule` modules only that asserts `Running` after start. #364's dependency note states that its readiness check relies on this behavior.
+
+**Class:** Dilemma
 
 </details>
 
@@ -289,7 +310,8 @@ REFERENCE FILES: src/Encina/Modules/ModuleConfiguration.cs, src/Encina/Modules/M
 2. `ModuleConfiguration.cs`: `DiscoverModulesFromAssemblies(params Assembly[] assemblies)` and `DiscoverModulesFromPattern(string pattern)` (uses `AppDomain.CurrentDomain.GetAssemblies()` at call time), both feeding `AddModule` so duplicate names and the graph checks apply.
 3. `ModuleServiceCollectionExtensions.cs`: overload `AddEncinaModules(this IServiceCollection, IConfiguration, Action<ModuleConfiguration>)`; the configuration is kept on the `ModuleConfiguration` for the hook contexts of Phase 3.
 4. `src/Encina/Modules/ModuleConfigurationExtensions.cs`: `IConfiguration GetModuleSection(this IConfiguration configuration, string moduleName)` returning `configuration.GetSection($"Modules:{moduleName}")`.
-5. PublicAPI lines, tests (unit `ModuleDiscoveryTests.cs`, `ModuleConfigurationExtensionsTests.cs`; guard `ModuleDiscoveryGuardTests.cs`), manifest entries.
+5. `src/Encina/Encina.csproj`: `PackageReference Include="Microsoft.Extensions.Configuration"` (D7, empty configuration object).
+6. PublicAPI lines, tests (unit `ModuleDiscoveryTests.cs`, `ModuleConfigurationExtensionsTests.cs`; guard `ModuleDiscoveryGuardTests.cs` and `ModuleConfigurationGuardTests.cs`, the latter for `GetModuleSection(null/whitespace moduleName)`, the `AddEncinaModules(services, configuration, configure)` overload with null arguments and `DiscoverModulesFromAssemblies`/`DiscoverModulesFromPattern` null arguments), manifest entries.
 
 </details>
 
@@ -313,10 +335,10 @@ REFERENCE FILES: src/Encina/Modules/ModuleHandlerRegistry.cs (GetLoadableTypes),
 1. `src/Encina/Modules/IModuleLifecycle.cs` (rewritten): `void OnPreConfigure(ModuleConfigurationContext)`, `void OnPostConfigure(ModuleConfigurationContext)`, `Task OnInitializeAsync(ModuleInitializationContext, CancellationToken)`, `Task OnStartedAsync(ModuleStartedContext, CancellationToken)`, `Task OnStoppingAsync(ModuleStoppingContext, CancellationToken)`, `Task OnStoppedAsync(ModuleStoppedContext, CancellationToken)`.
 2. `src/Encina/Modules/ModuleLifecycleContexts.cs`: sealed records `ModuleConfigurationContext(string ModuleName, IServiceCollection Services, IConfiguration Configuration)`, `ModuleInitializationContext(string ModuleName, IServiceProvider Services)`, `ModuleStartedContext`, `ModuleStoppingContext`, `ModuleStoppedContext` (same two members); each validates its arguments.
 3. `src/Encina/Modules/EncinaModule.cs`: `public abstract class EncinaModule : IModuleLifecycle` with abstract `Name` and `ConfigureServices`, virtual no-op hooks returning `Task.CompletedTask`, and `public virtual IReadOnlyCollection<Type> Exports => []` (D8).
-4. `ModuleServiceCollectionExtensions.cs`: after the graph is built run `OnPreConfigure` of every lifecycle module in order, then `ConfigureServices` of every module, then `OnPostConfigure`; exports are copied into the graph.
+4. `ModuleServiceCollectionExtensions.cs`: after the graph is built run `OnPreConfigure` of every lifecycle module in order, then `ConfigureServices` of every module, then `OnPostConfigure`; exports are copied into the graph; register `ModuleLifecycleHostedService` unconditionally (D11: the `GetLifecycleModules().Count > 0` condition is removed; the service skips modules that implement no hook).
 5. `ModuleLifecycleHostedService.cs`: start `OnInitializeAsync` in graph order, stop `OnStoppingAsync` then `OnStoppedAsync` in reverse order; failure rules of D9 for initialize, stopping and stopped; hand-written log lines become `ModuleLifecycleLog` (`src/Encina/Modules/Diagnostics/ModuleLifecycleLog.cs`, `[LoggerMessage]`, EventIds 7600-7617 packed).
 6. `src/Encina/Diagnostics/EventIdRanges.cs`: `ModulesLifecycle = (7600, 7619)`; `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`: add the range to the `Encina` entry of the assembly map.
-7. Tests: unit (`ModuleLifecycleHostedServiceTests` extended to the new hooks and order, `EncinaModuleTests` new, `ModuleRegistryTests` edited for the new interface), guard (`ModuleLifecycleContextsGuardTests`), contract (`tests/Encina.ContractTests/Core/Modules/ModuleLifecycleContractTests.cs`: `EncinaModule` keeps the documented hook order and defaults).
+7. Tests: unit (`ModuleLifecycleHostedServiceTests` extended to the new hooks and order and to a host with plain `IModule` modules only, `EncinaModuleTests` new; `ModuleRegistryTests` is not edited: it only calls `Substitute.For<IModule, IModuleLifecycle>()`, which compiles unchanged), guard (`ModuleLifecycleContextsGuardTests` and `ModuleLifecycleHostedServiceGuardTests`, the constructor null checks of the hosted service), contract (`tests/Encina.ContractTests/Core/Modules/ModuleLifecycleContractTests.cs`: `EncinaModule` keeps the documented hook order and defaults).
 8. PublicAPI (replace the two removed lines, add the new ones) and manifest entries.
 
 </details>
@@ -338,12 +360,12 @@ REFERENCE FILES: src/Encina/Modules/ModuleLifecycleHostedService.cs, src/Encina/
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Modules/ModuleLifecycleState.cs`: enum and `IModuleStateProvider` (`ModuleLifecycleState GetState(string moduleName)`, `IReadOnlyDictionary<string, ModuleLifecycleState> GetAll()`); internal `ModuleStateTracker` (a lock-protected dictionary, case-insensitive) registered as singleton; the hosted service records every transition.
+1. `src/Encina/Modules/ModuleLifecycleState.cs`: enum and `IModuleStateProvider` (`ModuleLifecycleState GetState(string moduleName)`, `IReadOnlyDictionary<string, ModuleLifecycleState> GetAll()`); internal `ModuleStateTracker` (a lock-protected dictionary, case-insensitive) registered as singleton and seeded `Registered` then `Configured` by `AddEncinaModules`; the hosted service (registered for every application using `AddEncinaModules`, D11) records every transition and, after the last `OnInitializeAsync` succeeds, marks every module `Running`, including plain `IModule` modules that have no hooks (they go `Configured` to `Running`). A failed initialize marks that module `Failed`.
 2. `ModuleLifecycleHostedService.cs`: register `OnStartedAsync` on `IHostApplicationLifetime.ApplicationStarted` (the constructor gains `IHostApplicationLifetime`); the callback catches every exception (D9) and never throws.
 3. Observability: a span per hook through `ModuleActivitySource.StartLifecycle` (tag `module.name`, plus the `lifecycle.phase` tag; no tenant tag, see the telemetry note below), a histogram `encina.modules.lifecycle_duration` and a counter `encina.modules.lifecycle_failures_total` in `ModuleMetrics` (tags `module`, `phase`); the OpenTelemetry package already initializes `ModuleMetrics` (`src/Encina.OpenTelemetry/Modules/ModuleMetricsInitializer.cs`).
 4. DI test `tests/Encina.UnitTests/Core/Modules/ModuleLifecycleRegistrationTests.cs`: builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves `IModuleGraph`, `IModuleStateProvider` and the hosted service.
 5. Documentation through `docs-writer`: a new `docs/features/module-lifecycle.md` next to `docs/features/module-isolation.md`, the `docs/INVENTORY.md` line for `IModuleLifecycle`, the `ROADMAP.md` line for #360; changelog fragment `changelog.d/360-module-lifecycle.added.md` (through `mechanical-fixer`).
-6. Tests: unit `ModuleStateTrackerTests.cs`, hosted-service tests for the started and failed paths; guard `ModuleStateTrackerGuardTests.cs` (the justification files ship in pull request 2, see Phase 6).
+6. Tests: unit `ModuleStateTrackerTests.cs`, hosted-service tests for the started and failed paths and for plain `IModule` modules only (state `Running` after start, D11); guard `ModuleStateTrackerGuardTests.cs` (the justification files ship in pull request 2, see Phase 6).
 
 </details>
 
@@ -365,7 +387,7 @@ REFERENCE FILES: src/Encina/Modules/Diagnostics/ModuleActivitySource.cs, src/Enc
 <summary>Tasks</summary>
 
 1. Structured logging and spans as in Phases 3 and 4 (functions 2 and 3).
-2. State provider for health (function 4): #364 consumes it; this plan adds no health check.
+2. State provider for health (function 4): #364 consumes it and relies on every module, plain `IModule` included, reaching `Running` (D11); this plan adds no health check.
 3. Module isolation (function 11): the graph and exports are the inputs of #352's boundary behavior.
 4. Telemetry tenancy (ADR-054 D4): lifecycle spans and metrics are process-level and carry no tenant tag; a tenant tag is emitted only when multi-tenancy is enabled and the operation has a tenant, which a startup hook does not. No tenant-qualified identifier exists in this feature, so the reserved `default` tenant segment and injectivity rules do not apply.
 5. Error codes: this feature adds no `EncinaError` code (registration problems are `InvalidOperationException` at startup, the channel of `ModuleConfiguration`; hook failures are exceptions of the module's own code). If a later design wraps them in an `Either`, each new code needs an ADR-062 `ErrorCategory` (a missing dependency would be `FailedPrecondition`, a cycle `InvalidRequest`).
@@ -378,7 +400,7 @@ REFERENCE FILES: src/Encina/Modules/Diagnostics/ModuleActivitySource.cs, src/Enc
 ```text
 CONTEXT: The lifecycle is process-wide; no tenant or store is involved.
 TASK: Verify the integrations above exist in code: spans, histogram, logs, state provider; confirm no tenant tag is emitted by lifecycle telemetry.
-KEY RULES: Pay for what you use: all instrumentation is cheap when no listener is attached; no new dependency in core.
+KEY RULES: Pay for what you use: all instrumentation is cheap when no listener is attached; the only new dependency of core is the Microsoft.Extensions.Configuration package reference of pull request 2 (D7).
 REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/054-observability-conventions-and-trace-propagation.md.
 ```
 
@@ -393,7 +415,8 @@ Per-flag targets for the files this work adds or changes, entered in `.github/co
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
-| `Modules/ModuleGraph.cs` | 95 | 0 | 0 | 80 | 0 |
+| `Modules/ModuleGraph.cs` | 95 | 70 | 0 | 80 | 0 |
+| `Modules/ModuleConfigurationExtensions.cs` | 100 | 100 | 0 | 0 | 0 |
 | `Modules/ModuleDependencyResolver.cs` | 100 | 0 | 0 | 90 | 0 |
 | `Modules/DependsOnAttribute.cs` | 100 | 100 | 0 | 0 | 0 |
 | `Modules/ModuleDiscovery.cs` | 95 | 60 | 0 | 0 | 0 |
@@ -404,14 +427,15 @@ Per-flag targets for the files this work adds or changes, entered in `.github/co
 
 | File and flag | Justification |
 |---------------|---------------|
-| `ModuleGraph.cs` unit 95, property 80 | The ordering, dependents and Mermaid branches are all reachable from unit tests; the property test reaches the sort for generated graphs but not the text rendering. |
+| `ModuleGraph.cs` unit 95, guard 70, property 80 | The ordering, dependents and Mermaid branches are all reachable from unit tests; `ModuleGraphGuardTests` reach the null and whitespace checks of `GetDependencies`, `GetDependents` and `GetExports` (not the sort); the property test reaches the sort for generated graphs but not the text rendering. |
+| `ModuleConfigurationExtensions.cs` unit 100, guard 100 | One method with a null and a whitespace check, both driven by `ModuleConfigurationGuardTests` and `ModuleConfigurationExtensionsTests`. |
 | `ModuleDependencyResolver.cs` unit 100, property 90 | A small pure function whose every branch (order, tie, missing, cycle) a unit test drives; generated cyclic and acyclic graphs cover the loop. |
 | `DependsOnAttribute.cs` unit 100, guard 100 | A constructor with two guard branches, both reachable by guard tests. |
 | `ModuleDiscovery.cs` unit 95, guard 60 | Discovery over a test assembly reaches every filter branch; guard tests reach the null and empty-pattern checks only. |
 | `EncinaModule.cs` unit 100 | Default members are one-line returns that a unit test calls; guard 0 because the type has no parameterized public member. |
 | `ModuleLifecycleContexts.cs` unit 100, guard 100 | Records whose constructors validate arguments; both flags reach every check. |
 | `ModuleStateTracker.cs` unit 100, guard 60 | Transitions and reads are unit-testable; guard tests reach the name checks. |
-| `ModuleLifecycleHostedService.cs` unit 95, guard 40 | The hook order, failure and cancellation paths run from unit tests with fakes; guard tests reach the constructor checks only; the interface and contract flags are 0 for every file above because contract coverage comes from `ModuleGraphContractTests`, which targets the interfaces (no executable lines). |
+| `ModuleLifecycleHostedService.cs` unit 95, guard 40 | The hook order, failure and cancellation paths run from unit tests with fakes; `ModuleLifecycleHostedServiceGuardTests` (pull request 3) reach the constructor checks only; the interface and contract flags are 0 for every file above because contract coverage comes from `ModuleGraphContractTests`, which targets the interfaces (no executable lines). |
 | All files, integration 0 | In-process code with no external dependency; justification file `tests/Encina.IntegrationTests/Core/Modules/ModuleLifecycle.md` (non-database feature). |
 
 1. **Unit**: `tests/Encina.UnitTests/Core/Modules/` (files named in the phases); a host built with `HostBuilder` and the real `ModuleLifecycleHostedService` for the started callback; `FakeTimeProvider` for durations.
@@ -446,7 +470,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Core/Modules/ModuleLifecycleHostedServic
 1. XML docs on every public member (with an `<example>` for `[DependsOn]` and `EncinaModule`).
 2. `docs/features/module-lifecycle.md` and the `docs/INVENTORY.md` line (through `docs-writer`; one Diataxis quadrant, no hand-typed figures).
 3. `changelog.d/360-module-lifecycle.added.md` and `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
-4. No ADR: no new dependency and no cross-package rule beyond ADR-050; the shared module visibility model (exports and dependencies) is recorded in the #352 plan, and the ADR number is assigned when that ADR pull request opens.
+4. No ADR: no new package and no cross-package rule beyond ADR-050; the shared module visibility model (exports and dependencies) is recorded in the #352 plan, and the ADR number is assigned when that ADR pull request opens.
 5. `dotnet build --configuration Release` with zero warnings and all tests green; every flag at its target.
 
 </details>
@@ -494,7 +518,7 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, doc
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (`ModulesLifecycle`, new) | 7600-7619, ids 7600-7617 used | From the assigned block 7600-7649 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); the siblings take 7620-7629 (#352), 7630-7644 (#358) and 7645-7649 (#364); #359 stays inside the existing `ModuleIsolation` 1900-1999 (ids from 1907) |
+| `Encina` (`ModulesLifecycle`, new) | 7600-7619, ids 7600-7617 used | From the assigned block 7600-7649 (registry `artifacts/decisions/plan-batch/eventid-blocks.md`); the siblings take 7620-7629 (#352), 7630-7644 (#358) and 7645-7649 (#364); #359 stays inside the existing `ModuleIsolation` 1900-1999 (ids 1907 onward are free; `ModuleLog.cs` uses 1900-1906) and its plan lists its script-writer ids there |
 
 ### Estimated File Count
 
@@ -502,15 +526,16 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md, doc
 |----------|------:|-------|
 | Production code | 17 | 11 new (`DependsOnAttribute`, `IModuleGraph`, `ModuleGraph`, `ModuleDependencyResolver`, `ModuleDiscovery`, `ModuleConfigurationExtensions`, `EncinaModule`, `ModuleLifecycleContexts`, `ModuleLifecycleState`, `ModuleStateTracker`, `ModuleLifecycleLog`) and 6 edited (`IModuleLifecycle`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`, `ModuleLifecycleHostedService`, `ModuleMetrics`, `EventIdRanges`) |
 | Public API and manifest | 2 per pull request | `src/Encina/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.json`, edited in each of the four pull requests |
-| Tests | 18 | 5 in pull request 1, 3 in pull request 2, 6 in pull request 3, 4 in pull request 4 (new and edited; the two edited existing files are `ModuleLifecycleHostedServiceTests` and `ModuleRegistryTests`) |
+| Project file | 1 | `src/Encina/Encina.csproj` (Microsoft.Extensions.Configuration reference, pull request 2) |
+| Tests | 19 | 5 in pull request 1, 4 in pull request 2, 6 in pull request 3, 4 in pull request 4 (new and edited; the edited existing files are `ModuleLifecycleHostedServiceTests`, in pull requests 3 and 4, and `EncinaEventIdAllocationTests`) |
 | Justification files | 3 | integration, load, benchmark (pull request 2) |
 | Documentation | 4 | page, inventory line, roadmap line, changelog fragment (pull request 4) |
 | **Pull request 1** | **13** | 6 production (`DependsOnAttribute`, `IModuleGraph`, `ModuleGraph`, `ModuleDependencyResolver`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`), PublicAPI, manifest, 5 tests (`ModuleGraphTests`, `ModuleConfigurationDependencyTests`, `ModuleGraphGuardTests`, `ModuleGraphPropertyTests`, `ModuleGraphContractTests`); about 900 lines |
-| **Pull request 2** | **12** | 4 production (`ModuleDiscovery`, `ModuleConfigurationExtensions`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`), PublicAPI, manifest, 3 tests, 3 justification files; about 600 lines |
-| **Pull request 3** | **15** | 7 production (`IModuleLifecycle`, `ModuleLifecycleContexts`, `EncinaModule`, `ModuleServiceCollectionExtensions`, `ModuleLifecycleHostedService`, `ModuleLifecycleLog`, `EventIdRanges`), PublicAPI, manifest, 6 tests (`ModuleLifecycleHostedServiceTests`, `EncinaModuleTests`, `ModuleRegistryTests`, `ModuleLifecycleContextsGuardTests`, `ModuleLifecycleContractTests`, `EncinaEventIdAllocationTests`); about 1,100 lines |
+| **Pull request 2** | **14** | 4 production (`ModuleDiscovery`, `ModuleConfigurationExtensions`, `ModuleConfiguration`, `ModuleServiceCollectionExtensions`), `Encina.csproj`, PublicAPI, manifest, 4 tests (`ModuleDiscoveryTests`, `ModuleConfigurationExtensionsTests`, `ModuleDiscoveryGuardTests`, `ModuleConfigurationGuardTests`), 3 justification files; about 650 lines |
+| **Pull request 3** | **15** | 7 production (`IModuleLifecycle`, `ModuleLifecycleContexts`, `EncinaModule`, `ModuleServiceCollectionExtensions`, `ModuleLifecycleHostedService`, `ModuleLifecycleLog`, `EventIdRanges`), PublicAPI, manifest, 6 tests (`ModuleLifecycleHostedServiceTests`, `EncinaModuleTests`, `ModuleLifecycleContextsGuardTests`, `ModuleLifecycleHostedServiceGuardTests`, `ModuleLifecycleContractTests`, `EncinaEventIdAllocationTests`); about 1,150 lines |
 | **Pull request 4** | **14** | 4 production (`ModuleLifecycleState`, `ModuleStateTracker`, `ModuleLifecycleHostedService`, `ModuleMetrics`), PublicAPI, manifest, 4 tests (`ModuleStateTrackerTests`, `ModuleStateTrackerGuardTests`, `ModuleLifecycleRegistrationTests`, hosted-service tests edit), 4 documentation files; about 900 lines |
 
-Implementers and callers of the changed interface, verified by grep on `origin/main`: `IModuleLifecycle` is implemented only in tests (`ModuleLifecycleHostedServiceTests`, `ModuleRegistryTests`) and referenced by `ModuleRegistry`, `IModuleRegistry`, `ModuleLifecycleHostedService` and `ModuleServiceCollectionExtensions`; no `src/` package other than `Encina` implements it, and `ModuleTestFixture` (`Encina.Testing`) takes `IModule` only. Pull request 3 therefore changes interface and implementers together, so the build is never broken between pull requests. Each pull request has its own tests and manifest entries (a pull request that adds production code without tests fails the crap-gate).
+Implementers and callers of the changed interface, verified by grep on `origin/main`: `IModuleLifecycle` is implemented only in tests (`ModuleLifecycleHostedServiceTests`; `ModuleRegistryTests` only creates a substitute for it) and referenced by `ModuleRegistry`, `IModuleRegistry`, `ModuleLifecycleHostedService` and `ModuleServiceCollectionExtensions`; no `src/` package other than `Encina` implements it, and `ModuleTestFixture` (`Encina.Testing`) takes `IModule` only. Pull request 3 therefore changes interface and implementers together, so the build is never broken between pull requests. Each pull request has its own tests and manifest entries (a pull request that adds production code without tests fails the crap-gate).
 
 ---
 
@@ -522,7 +547,7 @@ Implementers and callers of the changed interface, verified by grep on `origin/m
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library with no backward-compatibility duty. The module system already lives in core (src/Encina/Modules): IModule, IModuleLifecycle (OnStartAsync/OnStopAsync), IModuleRegistry, ModuleConfiguration, AddEncinaModules and ModuleLifecycleHostedService, which starts in registration order. Zero warnings, ROP for operations, exceptions only for startup configuration errors.
 
-IMPLEMENTATION OVERVIEW: PR1 [DependsOn], IModuleGraph, topological order with cycle and missing-dependency errors; PR2 discovery by assembly and by pattern over loaded assemblies, IConfiguration overload and GetModuleSection; PR3 EncinaModule, the new IModuleLifecycle (two sync registration hooks, four async runtime hooks, old hooks replaced), contexts, hosted service on the graph order, source-generated logs in ModulesLifecycle 7600-7619; PR4 IModuleStateProvider, ApplicationStarted callback, spans and metrics, DI test, docs and changelog. Dilemmas D2, D4, D6, D7, D8 and D9 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 [DependsOn], IModuleGraph, topological order with cycle and missing-dependency errors; PR2 discovery by assembly and by pattern over loaded assemblies, IConfiguration overload and GetModuleSection; PR3 EncinaModule, the new IModuleLifecycle (two sync registration hooks, four async runtime hooks, old hooks replaced), contexts, hosted service on the graph order, source-generated logs in ModulesLifecycle 7600-7619; PR4 IModuleStateProvider, ApplicationStarted callback, spans and metrics, DI test, docs and changelog. Dilemmas D2, D4, D6, D7, D8, D9 and D11 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Names compare OrdinalIgnoreCase; startup errors are InvalidOperationException naming the modules; every callback registered on a token or timer catches its exceptions; logs carry error codes or ForLogging() data, never exception messages; singletons take no scoped service; each pull request stands alone with tests and manifest entries; CRAP <= 10; targets never go down.
 
@@ -554,7 +579,7 @@ REFERENCE FILES: src/Encina/Modules/*.cs, src/Encina/Modules/Diagnostics/*.cs, s
 
 ## Prerequisites & Dependencies
 
-- **None blocking.** The plan depends only on code on `origin/main` (`db1e7f688`).
+- **None blocking.** The plan depends only on code on `origin/main` (`e694eb032`).
 - **Consumers waiting on this plan:** #352 (exports and graph for the boundary rule), #358 (module dependency validation for event subscribers) and #364 (graph for dependency-aware health, state for lifecycle health). Open them after pull request 1 and 3 respectively.
 - **Related, not blocking:** #746 and #1636 add a module dimension to cache keys and audit rows; the module producer gap they record (the ambient `IModuleExecutionContext` is set only by the EF Core package) is addressed in #352.
 
@@ -562,8 +587,8 @@ REFERENCE FILES: src/Encina/Modules/*.cs, src/Encina/Modules/Diagnostics/*.cs, s
 
 ## Next Steps
 
-1. Ask the maintainer D2, D4, D6, D7, D8 and D9 when work on #360 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D4, D6, D7, D8, D9 and D11 when work on #360 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: graph and ordered registration (13 files).
-3. Pull request 2: discovery, scoped configuration and the three justification files (12 files).
+3. Pull request 2: discovery, scoped configuration, the configuration package reference and the three justification files (14 files).
 4. Pull request 3: `EncinaModule`, new hooks, hosted service rewrite and the EventId range (15 files).
 5. Pull request 4: state provider, host lifetime, observability, docs and the changelog fragment (14 files).
