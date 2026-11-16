@@ -117,6 +117,10 @@ public sealed record ConsentExpired(
 /// GDPR Article 7(1) requires demonstrable proof of consent — renewal events provide
 /// a fresh evidence trail that the data subject continues to consent.
 /// </para>
+/// <para>
+/// Like every act of consent, a renewal older than the consent's latest act is recorded without
+/// changing the state (see <see cref="ConsentRenewedByGrant"/>, #3771).
+/// </para>
 /// </remarks>
 /// <param name="ConsentId">The consent aggregate identifier.</param>
 /// <param name="DataSubjectId">Identifier of the data subject who renewed consent.</param>
@@ -198,12 +202,109 @@ public sealed record ConsentVersionChanged(
 /// <param name="Metadata">Additional key-value metadata associated with this reconsent.</param>
 /// <param name="ExpiresAtUtc">When the reconsent expires (UTC), or <c>null</c> if no expiration.</param>
 /// <param name="GrantedBy">Identifier of the actor who recorded the reconsent.</param>
-/// <param name="OccurredAtUtc">Timestamp when reconsent was provided (UTC).</param>
+/// <param name="OccurredAtUtc">
+/// Timestamp when the data subject provided the reconsent (UTC). When the reconsent comes from
+/// <c>IConsentService.GrantConsentAsync</c> this is the act's own timestamp supplied by the client
+/// application; an act older than the consent's latest act is recorded without changing the state
+/// (see <see cref="ConsentRenewedByGrant"/>).
+/// </param>
 public sealed record ConsentReconsentProvided(
     Guid ConsentId,
     string DataSubjectId,
     string Purpose,
     string NewConsentVersionId,
+    string Source,
+    string? IpAddress,
+    string? ProofOfConsent,
+    IReadOnlyDictionary<string, object?> Metadata,
+    DateTimeOffset? ExpiresAtUtc,
+    string GrantedBy,
+    DateTimeOffset OccurredAtUtc) : INotification;
+
+/// <summary>
+/// Raised when a data subject grants consent again for a purpose whose consent is still
+/// <see cref="ConsentStatus.Active"/>: the repeated grant is recorded as a renewal (#3771).
+/// </summary>
+/// <remarks>
+/// <para>
+/// Unlike <see cref="ConsentRenewed"/>, this event carries the full proof of the grant act
+/// (source, IP address, proof of consent, metadata), because a repeated grant is a new act of
+/// consent that must be demonstrable on its own under GDPR Article 7(1). Identical repeats (for
+/// example a double click or a redelivered message) append identical events, so every act the
+/// subject made stays in the ledger.
+/// </para>
+/// <para>
+/// <b>Ordering by the act's own timestamp.</b> <paramref name="OccurredAtUtc"/> is when the data
+/// subject acted, as supplied by the client application, not when Encina received the request (the
+/// event store records the receipt time in its own event metadata). The most recent act wins: an
+/// act older than the consent's latest act (<c>ConsentAggregate.LastActAtUtc</c>) is recorded in
+/// the history without changing the current state. An unsynchronised client clock can therefore
+/// order acts inconsistently, and Encina cannot correct it. Handlers that react to the current
+/// state should read it (for example <c>IConsentService.HasValidConsentAsync</c>) instead of
+/// inferring it from this single event.
+/// </para>
+/// </remarks>
+/// <param name="ConsentId">The consent aggregate identifier.</param>
+/// <param name="DataSubjectId">Identifier of the data subject who granted consent again.</param>
+/// <param name="Purpose">The processing purpose for which consent was granted again.</param>
+/// <param name="ConsentVersionId">The version of consent terms the data subject agreed to.</param>
+/// <param name="Source">The channel through which the grant was collected.</param>
+/// <param name="IpAddress">IP address of the data subject at the time of the grant, or <c>null</c>.</param>
+/// <param name="ProofOfConsent">Hash or reference to the consent form shown, or <c>null</c>.</param>
+/// <param name="Metadata">Additional key-value metadata associated with the grant.</param>
+/// <param name="ExpiresAtUtc">When the renewed consent expires (UTC), or <c>null</c> if no expiration.</param>
+/// <param name="GrantedBy">Identifier of the actor who recorded the grant.</param>
+/// <param name="OccurredAtUtc">When the data subject granted consent (UTC), supplied by the client application.</param>
+public sealed record ConsentRenewedByGrant(
+    Guid ConsentId,
+    string DataSubjectId,
+    string Purpose,
+    string ConsentVersionId,
+    string Source,
+    string? IpAddress,
+    string? ProofOfConsent,
+    IReadOnlyDictionary<string, object?> Metadata,
+    DateTimeOffset? ExpiresAtUtc,
+    string GrantedBy,
+    DateTimeOffset OccurredAtUtc) : INotification;
+
+/// <summary>
+/// Raised when a data subject grants consent again for a purpose whose consent was
+/// <see cref="ConsentStatus.Withdrawn"/> or <see cref="ConsentStatus.Expired"/> (#3771).
+/// </summary>
+/// <remarks>
+/// <para>
+/// The consent returns to <see cref="ConsentStatus.Active"/> on the same stream, with the fresh
+/// proof, version and expiry of this act; the earlier withdrawal or expiry stays in the ledger, so
+/// the periods during which processing was and was not lawful remain reconstructible (GDPR
+/// Articles 5(2), 7(1) and 7(3)).
+/// </para>
+/// <para>
+/// The same ordering rule as <see cref="ConsentRenewedByGrant"/> applies: an act older than the
+/// consent's latest act (for example a grant made before the withdrawal but delivered after it) is
+/// recorded without changing the state, so a late grant never undoes a later withdrawal. The act
+/// timestamp comes from the client application; an unsynchronised client clock can order acts
+/// inconsistently, and Encina cannot correct it.
+/// </para>
+/// </remarks>
+/// <param name="ConsentId">The consent aggregate identifier.</param>
+/// <param name="DataSubjectId">Identifier of the data subject who granted consent again.</param>
+/// <param name="Purpose">The processing purpose for which consent was granted again.</param>
+/// <param name="PreviousStatus">The status the consent had when the grant was recorded (Withdrawn or Expired).</param>
+/// <param name="ConsentVersionId">The version of consent terms the data subject agreed to.</param>
+/// <param name="Source">The channel through which the grant was collected.</param>
+/// <param name="IpAddress">IP address of the data subject at the time of the grant, or <c>null</c>.</param>
+/// <param name="ProofOfConsent">Hash or reference to the consent form shown, or <c>null</c>.</param>
+/// <param name="Metadata">Additional key-value metadata associated with the grant.</param>
+/// <param name="ExpiresAtUtc">When the regranted consent expires (UTC), or <c>null</c> if no expiration.</param>
+/// <param name="GrantedBy">Identifier of the actor who recorded the grant.</param>
+/// <param name="OccurredAtUtc">When the data subject granted consent (UTC), supplied by the client application.</param>
+public sealed record ConsentRegranted(
+    Guid ConsentId,
+    string DataSubjectId,
+    string Purpose,
+    ConsentStatus PreviousStatus,
+    string ConsentVersionId,
     string Source,
     string? IpAddress,
     string? ProofOfConsent,

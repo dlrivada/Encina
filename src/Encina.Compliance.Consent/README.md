@@ -9,14 +9,14 @@ GDPR-compliant consent management for Encina. Provides declarative, attribute-ba
 
 - **Event-Sourced Consent** — `ConsentAggregate` with full lifecycle: grant, withdraw, expire, renew, version change, reconsent
 - **CQRS Architecture** — Commands via `IAggregateRepository<ConsentAggregate>`, queries via `IReadModelRepository<ConsentReadModel>`
-- **6 Domain Events** — `ConsentGranted`, `ConsentWithdrawn`, `ConsentExpired`, `ConsentRenewed`, `ConsentVersionChanged`, `ConsentReconsentProvided`
+- **8 Domain Events** — `ConsentGranted`, `ConsentWithdrawn`, `ConsentExpired`, `ConsentRenewed`, `ConsentVersionChanged`, `ConsentReconsentProvided`, `ConsentRenewedByGrant`, `ConsentRegranted`
 - **Declarative Consent Enforcement** — `[RequireConsent("marketing")]` attribute on request types
 - **Pipeline Enforcement** — `ConsentRequiredPipelineBehavior` validates consent before handler execution
 - **Three Enforcement Modes** — `Block` (reject), `Warn` (log and proceed), `Disabled` (no-op)
 - **Railway Oriented Programming** — All operations return `Either<EncinaError, T>`, no exceptions
 - **Cache-Aside Pattern** — `ICacheProvider` integration with fire-and-forget invalidation
 - **Marten Projections** — `ConsentProjection` transforms events to `ConsentReadModel` for efficient querying
-- **Full Observability** — OpenTelemetry tracing, structured logging (EventId 8200-8269), 5 metric counters + 1 histogram, health check
+- **Full Observability** — OpenTelemetry tracing, structured logging (EventId 8200-8299), 5 metric counters + 1 histogram, health check
 - **PostgreSQL via Marten** — Event store + document DB for event sourcing and projections
 - **.NET 10 Compatible** — Built with latest C# features
 
@@ -79,10 +79,13 @@ var result = await consentService.GrantConsentAsync(
     grantedBy: "user-123",
     ipAddress: "192.168.1.1",
     proofOfConsent: "form-hash-abc",
-    expiresAtUtc: DateTimeOffset.UtcNow.AddDays(365));
+    expiresAtUtc: DateTimeOffset.UtcNow.AddDays(365),
+    occurredAtUtc: DateTimeOffset.UtcNow);  // optional: when the data subject acted
 
 // result: Either<EncinaError, Guid> — the consent aggregate ID
 ```
+
+`occurredAtUtc` is optional and defaults to the current time of the injected `TimeProvider`; see [Granting consent on an existing record](#granting-consent-on-an-existing-record).
 
 ### 4. Withdraw Consent (Article 7(3))
 
@@ -106,6 +109,25 @@ var consent = await consentService.GetConsentBySubjectAndPurposeAsync("user-123"
 // Get all consents for a data subject
 var allConsents = await consentService.GetAllConsentsAsync("user-123");
 ```
+
+## Granting consent on an existing record
+
+There is one consent record per (tenant, data subject, purpose). `GrantConsentAsync` always returns that record's consent ID: a new one for the first grant, the existing one afterwards. A grant on an existing record is a new act with its own proof, version and expiry:
+
+| Current status | What the grant records | Result |
+|----------------|------------------------|--------|
+| `Active` | `ConsentRenewedByGrant` | Renewal; identical repeats (double click, redelivered message) append identical events |
+| `Withdrawn` or `Expired` | `ConsentRegranted` | Consent is `Active` again on the same stream; the withdrawal or expiry stays in the history |
+| `RequiresReconsent` | `ConsentReconsentProvided` | Accepted only when `consentVersionId` is the current consent version; otherwise `consent.reconsent_required`, pointing to `ProvideReconsentAsync` |
+
+Acts are ordered by the optional `occurredAtUtc` parameter, the timestamp of the act itself (default: the injected `TimeProvider`):
+
+- A grant older than the consent's latest act (`LastActAtUtc`) is kept in the history without changing the state.
+- Withdrawals, expiries and version changes always apply, and a withdrawal wins a tie with a grant at the same instant.
+- A timestamp more than five minutes in the future is refused with `consent.act_in_future`.
+- Concurrent grants on one key are retried on the reloaded stream, up to five attempts; a conflict that persists is returned as `marten.concurrency_conflict`.
+
+> **Warning: the act timestamp comes from the client application.** An unsynchronised client clock can order acts inconsistently (a grant may be kept only in the history, or may supersede a later act), and Encina cannot detect or correct it. Because a late act is a history-only event, handlers of the consent events must read the current state (`HasValidConsentAsync`) instead of inferring it from a single event.
 
 ## Consent Lifecycle
 
@@ -181,6 +203,8 @@ var allConsents = await consentService.GetAllConsentsAsync("user-123");
 | `consent.version_mismatch` | Consent was given for a different version |
 | `consent.not_found` | Consent aggregate not found by ID |
 | `consent.invalid_state_transition` | Invalid state transition (e.g., withdraw from expired) |
+| `consent.reconsent_required` | A grant on a record that requires reconsent used a version other than the current one; use `ProvideReconsentAsync` |
+| `consent.act_in_future` | The act timestamp is more than five minutes ahead of the injected clock |
 | `consent.service_error` | Internal service error during consent operation |
 | `consent.event_history_unavailable` | Event history retrieval not yet available |
 
@@ -233,7 +257,7 @@ public class ConsentIntegrationTests
 
 - **Tracing**: `Encina.Compliance.Consent` ActivitySource with consent-specific tags
 - **Metrics**: 5 counters (`consent.granted.total`, `consent.withdrawn.total`, `consent.renewed.total`, `consent.reconsent.total`, `consent.expired.total`) + 1 histogram (`consent.validation.duration`)
-- **Logging**: Structured log events via `LoggerMessage.Define` (EventId 8200-8269, zero-allocation)
+- **Logging**: Structured log events via `LoggerMessage.Define` (EventId 8200-8299, zero-allocation)
 - **Health Check**: Verifies `IConsentService` resolvability and DI configuration
 
 ## Related Packages
