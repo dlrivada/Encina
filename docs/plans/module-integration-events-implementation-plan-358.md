@@ -2,7 +2,7 @@
 
 > **Issue**: [#358](https://github.com/dlrivada/Encina/issues/358)
 > **Type**: Feature
-> **Complexity**: High (6 phases, 6 pull requests of 5, 10, 13, 10, 12 and 4 files)
+> **Complexity**: High (6 phases, 6 pull requests of 5, 12, 13, 14, 12 and 6 files)
 > **Estimated Scope**: about 900 lines of production code and about 2,000 lines of tests, split over six pull requests
 > **Family**: modular monolith (#352 umbrella, #360 graph and exports, #359, #364); this plan owns the integration event contract and the module event bus
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for a distinction between domain events and integration events, an in-memory `IIntegrationEventBus`, a module public API pattern, domain and integration dispatchers, outbox integration and module dependency validation. State of `origin/main` (`db1e7f688`), verified by reading and grep:
+The issue asks for a distinction between domain events and integration events, an in-memory `IIntegrationEventBus`, a module public API pattern, domain and integration dispatchers, outbox integration and module dependency validation. State of `origin/main` (`e694eb032`), verified by reading and grep:
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -209,23 +209,22 @@ The issue's `DispatchStrategy.Sequential` or `Parallel` is exactly `Notification
 </details>
 
 <details>
-<summary><strong>9. The module public API marker</strong></summary>
+<summary><strong>9. The module public API marker (Dilemma D9)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `IModulePublicApi` (marker, in core `Encina.Modules`); the implementation class is internal to the module; the interface is listed in the module's `Exports` (#360); names end with `ModuleApi` as the existing architecture rule requires** | Matches the issue and the existing rule and `MockModuleApi<T>` | A marker adds no behavior by itself |
-| **B) No marker; exports alone identify a public API** | Fewer types | The validator cannot tell an API interface from any exported type |
+| **A) `IModulePublicApi` (marker, in core `Encina.Modules`); the implementation class is internal to the module; the interface is listed in the module's `Exports` (#360); names end with `ModuleApi` as the existing architecture rule requires** | Matches the issue and the existing rule and `MockModuleApi<T>`; the validator and architecture rules can find API interfaces by type | A marker adds no behavior by itself; one more public type |
+| **B) No marker; exports alone identify a public API, and the naming rule (`ModuleApiInterfacesShouldFollowNamingConvention`, names ending with `ModuleApi`) is the only convention** | Fewer types; the existing rule still holds | The validator cannot tell an API interface from any exported type except by name |
 
-### Chosen Option: **A — marker plus exports**
+### Chosen Option: **A — marker plus exports** (recommended, pending the maintainer)
 
 ### Rationale
 
-The marker is what lets the validator and the architecture rules find API interfaces. The convention is already enforced by `ModuleArchitectureRules.ModuleApiInterfacesShouldFollowNamingConvention` (`HaveNameEndingWith("ModuleApi")`).
+A wins when tools must find API interfaces by type rather than by suffix. B wins when the maintainer prefers the smallest public surface and accepts a name-based convention (the existing rule at `src/Encina.Testing/Modules/ModuleArchitectureRules.cs` matches by name only and is satisfied by both options; `src/Encina.Testing/Modules/MockModuleApi.cs` does not need the marker either).
 
-**Class:** Trivial
-**Settled by:** `src/Encina.Testing/Modules/ModuleArchitectureRules.cs` (`ModuleApiInterfacesShouldFollowNamingConvention`) and `src/Encina.Testing/Modules/MockModuleApi.cs`.
+**Class:** Dilemma
 
 </details>
 
@@ -259,18 +258,19 @@ REFERENCE FILES: src/Encina.DomainModeling/IIntegrationEvent.cs, src/Encina.Doma
 
 ### Phase 2: The in-memory bus (pull requests 2 and 3)
 
-Pull request 2 carries items 1, 2, 3, 6 and the tests of the checks; pull request 3 carries the observability items 4 and 5 and the telemetry registration, so each stays within 15 files.
+Pull request 2 carries items 1, 2, 3, 6, 8 and the tests of the checks; pull request 3 carries the observability items 4 and 5 and the telemetry registration, so each stays within 15 files.
 
 <details>
 <summary>Tasks</summary>
 
 1. `src/Encina.DomainModeling/IIntegrationEventBus.cs`: `ValueTask<Either<EncinaError, Unit>> PublishAsync<TEvent>(TEvent @event, CancellationToken ct = default) where TEvent : IIntegrationEvent` and `ValueTask<Either<EncinaError, Unit>> PublishAsync(IEnumerable<IIntegrationEvent> events, CancellationToken ct = default)` (ROP, not `Task` as in the issue).
-2. `src/Encina.DomainModeling/InMemoryIntegrationEventBus.cs` (internal sealed): constructor `(IEncina encina, IModuleExecutionContext moduleContext, IModuleRegistry registry, IModuleGraph graph, ModuleBoundaryOptions boundaries, ILogger<...>)`; checks (D2): non-blank `SourceModule`, ambient module equals `SourceModule` (OrdinalIgnoreCase) or, with no ambient module, `SourceModule` is registered; when boundaries are enforced the event type must be in `graph.GetExports(SourceModule)`; then `_encina.Publish(@event, ct)` and returns its result unchanged (a `Left` from a handler is returned, never swallowed); batch per D5. The bus is registered as scoped because `IEncina`'s scope handling and `IModuleExecutionContext` are scoped.
+2. `src/Encina.DomainModeling/InMemoryIntegrationEventBus.cs` (internal sealed): constructor `(IEncina encina, IModuleExecutionContext moduleContext, IModuleRegistry registry, IModuleGraph graph, ModuleBoundaryOptions boundaries, ILogger<...>)`; checks (D2): non-blank `SourceModule`, ambient module equals `SourceModule` (OrdinalIgnoreCase) or, with no ambient module, `SourceModule` is registered; when boundaries are enforced the event type must be in `graph.GetExports(SourceModule)`; then `_encina.Publish(@event, ct)` and returns its result unchanged (a `Left` from a handler is returned, never swallowed); batch per D5. The bus is registered as scoped because `IEncina`'s scope handling and `IModuleExecutionContext` are scoped. The source and export checks live in `src/Encina.DomainModeling/IntegrationEventChecks.cs` (internal static, one pure method per check), shared with the outbox bus of Phase 4 through `InternalsVisibleTo`, so no new public name exists.
 3. `src/Encina.DomainModeling/IntegrationEventErrors.cs`: factories for `encina.modules.event_source_mismatch` (`ErrorCategory.Forbidden`), `encina.modules.event_source_unknown` (`InvalidRequest`), `encina.modules.event_not_exported` (`Forbidden`) through `EncinaErrors.Create(code, category, message)`; messages name modules and the event type name only.
-4. `src/Encina.DomainModeling/Diagnostics/IntegrationEventLog.cs` (`[LoggerMessage]`, EventIds 7630-7635 for published, failed, mismatch, unknown source, not exported, batch stopped) and `IntegrationEventTelemetry.cs` (an `ActivitySource` and a `Meter` named `Encina.DomainModeling.IntegrationEvents`; counter `encina.integration_events.published_total` with tags `event_type`, `source_module`, `outcome` and, when `MultiTenancyMarker` is registered, the tenant tag required by ADR-054 D4); the OpenTelemetry package registers the source and the meter (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`).
-5. `EventIdRanges.ModulesIntegrationEvents = (7630, 7644)` and the `Encina.DomainModeling` entry of the allocation test map.
-6. `src/Encina.DomainModeling/IntegrationEventServiceCollectionExtensions.cs`: `AddEncinaIntegrationEvents(this IServiceCollection)`, `TryAddScoped<IIntegrationEventBus, InMemoryIntegrationEventBus>()`; throws when `IModuleRegistry` is not registered (the bus needs `AddEncinaModules`, a registration error rather than a bus that skips its checks).
-7. Tests: unit (every check, a handler `Left` returned, order and stop of a batch, the export check on and off), guard, DI registration test with `ValidateOnBuild` and `ValidateScopes`, property (any event whose source equals the ambient module and is exported publishes; any other source is denied), contract (`IIntegrationEventBus` behavior with the real bus), allocation map edit; PublicAPI, manifests of `Encina.DomainModeling` and `Encina.OpenTelemetry`.
+4. `src/Encina.DomainModeling/Diagnostics/IntegrationEventLog.cs` (`[LoggerMessage]`, EventIds 7630-7635 for published, failed, mismatch, unknown source, not exported, batch stopped) and `IntegrationEventTelemetry.cs` (both internal, so no PublicAPI line; an `ActivitySource` and a `Meter` named `Encina.DomainModeling.IntegrationEvents`; counter `encina.integration_events.published_total` with tags `event_type`, `source_module`, `outcome` and, when `MultiTenancyMarker` is registered, the tenant tag required by ADR-054 D4); the OpenTelemetry package registers the source and the meter by name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`) and its unit test (`tests/Encina.UnitTests/OpenTelemetry/ServiceCollectionExtensionsTests.cs`) is extended for the new source and meter.
+5. `EventIdRanges.ModulesIntegrationEvents = (7630, 7644)` (with its line in `src/Encina/PublicAPI.Unshipped.txt`, a core file) and the `Encina.DomainModeling` entry of the allocation test map.
+6. `src/Encina.DomainModeling/IntegrationEventServiceCollectionExtensions.cs`: `AddEncinaIntegrationEvents(this IServiceCollection)`, `TryAddScoped<IIntegrationEventBus, InMemoryIntegrationEventBus>()`; it performs no check at the call, so the result never depends on whether `AddEncinaModules` ran before it: the bus constructor requires `IModuleRegistry`, so a provider built without `AddEncinaModules` fails with the container's resolution error (proven by `ValidateOnBuild`), never a bus that skips its checks. The DI test builds the provider in both orders (`AddEncinaModules` first and last) and asserts the same result.
+7. `src/Encina.DomainModeling/Encina.DomainModeling.csproj`: an `InternalsVisibleTo` assembly attribute for `Encina.GuardTests` (the guard tests of the internal bus, the checker and the startup validator do not compile without it; the csproj grants UnitTests, IntegrationTests, ContractTests and PropertyTests today) and one for `Encina.Messaging` (the outbox bus uses `IntegrationEventChecks`, Phase 4).
+8. Tests: unit (every check, a handler `Left` returned, order and stop of a batch, the export check on and off), guard, DI registration test with `ValidateOnBuild` and `ValidateScopes` in both registration orders, property (any event whose source equals the ambient module and is exported publishes; any other source is denied), contract (`IIntegrationEventBus` behavior with the real bus), allocation map edit; PublicAPI, manifests of `Encina.DomainModeling` and `Encina.OpenTelemetry`.
 
 </details>
 
@@ -292,9 +292,10 @@ REFERENCE FILES: src/Encina.DomainModeling/DomainEventDispatchHelper.cs, src/Enc
 <summary>Tasks</summary>
 
 1. `src/Encina/Modules/IModulePublicApi.cs` (core): marker interface (D9).
-2. `src/Encina.DomainModeling/ModuleContractValidator.cs` (internal): given `IModuleGraph`, `IModuleRegistry`, the registered `INotificationHandler<>` service descriptors for `IIntegrationEvent` types (the handler's module comes from `IModuleHandlerRegistry`) and the registered `IModulePublicApi` services, it computes the violations of D7: an event handled in module B that no other module exports, an event exported by two modules, an API interface not exported by the module that owns its implementation, a subscriber with no declared dependency on the publisher.
-3. `src/Encina.DomainModeling/ModuleContractStartupValidator.cs` (internal hosted service): runs once at start; with `EnforceModuleBoundaries` on throws `InvalidOperationException` listing all violations, otherwise logs each (EventIds 7636 failed, 7637 validated).
-4. Tests: unit (each violation kind, no violations, enforcement on and off), guard, property (generated module and event sets: no violation is reported when every handled event is exported by exactly one other module that the subscriber depends on); PublicAPI (core and DomainModeling), manifests.
+2. `src/Encina.DomainModeling/ModuleContractValidator.cs` (internal): given `IModuleGraph`, `IModuleRegistry`, a list of (event type, handler implementation type) pairs and the registered `IModulePublicApi` interface and implementation types, it computes the violations of D7 (the handler's module comes from `IModuleHandlerRegistry.GetModule(implementationType)`, which falls back to the assembly-to-module map for any concrete type): an event handled in module B that no other module exports, an event exported by two modules, an API interface not exported by the module that owns its implementation, a subscriber with no declared dependency on the publisher.
+3. `src/Encina.DomainModeling/IntegrationEventHandlerCatalog.cs` (internal sealed, singleton): the source of the handler and API pairs. A hosted service cannot read the `IServiceCollection` after the provider is built, so `AddEncinaIntegrationEvents` registers the catalog with the collection instance captured; the catalog enumerates the descriptors lazily on first use (the startup validator), after every registration has run, so registration order does not matter. It lists the `INotificationHandler<T>` descriptors whose `T : IIntegrationEvent` and the `IModulePublicApi` implementations.
+4. `src/Encina.DomainModeling/ModuleContractStartupValidator.cs` (internal hosted service): runs once at start over the catalog; with `EnforceModuleBoundaries` on throws `InvalidOperationException` listing all violations, otherwise logs each (EventIds 7636 failed, 7637 validated, added to the existing `IntegrationEventLog.cs`). `IntegrationEventServiceCollectionExtensions.cs` (pull request 2) is edited here to register the catalog and the hosted service by `TryAddEnumerable`, and the DI registration test of pull request 2 is extended to resolve both (a validator that is not registered never runs).
+5. Tests: unit (each violation kind, no violations, enforcement on and off), guard (needs the `Encina.GuardTests` `InternalsVisibleTo` of Phase 2 task 7), property (generated module and event sets: no violation is reported when every handled event is exported by exactly one other module that the subscriber depends on); PublicAPI (core and DomainModeling), manifests.
 
 </details>
 
@@ -315,8 +316,8 @@ REFERENCE FILES: src/Encina.DomainModeling/BoundedContext.cs (BoundedContextVali
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Messaging/Encina.Messaging.csproj`: `ProjectReference` to `Encina.DomainModeling` (D1).
-2. `src/Encina.Messaging/Outbox/OutboxIntegrationEventBus.cs` (internal sealed, scoped): performs the same checks as the in-memory bus (shared through an internal checker in `Encina.DomainModeling` exposed with `InternalsVisibleTo` for `Encina.Messaging`, or duplicated in a small public static `IntegrationEventChecks`, decided at implementation by the smaller surface), then writes the event through the shared writer used by `TransactionalOutboxPipelineBehavior` (`OutboxWriter.WriteAsync`), returning its `Either`; a failed write is returned, never reported as published. No atomicity claim: the row commits with the business change only when the enclosing request holds the transaction lease that #1236 and #718 provide.
+1. `src/Encina.Messaging/Encina.Messaging.csproj`: `ProjectReference` to `Encina.DomainModeling` (D1) and an `InternalsVisibleTo` assembly attribute for `Encina.GuardTests` (absent today; the guard tests of the internal outbox bus need it).
+2. `src/Encina.Messaging/Outbox/OutboxIntegrationEventBus.cs` (internal sealed, scoped): performs the same checks as the in-memory bus through the internal `IntegrationEventChecks` of `Encina.DomainModeling` (visible to `Encina.Messaging` through the attribute added in Phase 2 task 7; no public checker type exists), then writes the event through the shared writer used by `TransactionalOutboxPipelineBehavior` (`OutboxWriter.WriteAsync`), returning its `Either`; a failed write is returned, never reported as published. No atomicity claim: the row commits with the business change only when the enclosing request holds the transaction lease that #1236 and #718 provide.
 3. `src/Encina.Messaging/Outbox/IntegrationEventOutboxServiceCollectionExtensions.cs`: `AddEncinaIntegrationEventOutbox(this IServiceCollection)`: decorates (or replaces) the bus registration regardless of registration order, requires `IOutboxStore` to be registered and, with `MultiTenancyMarker` present, throws `InvalidOperationException` until the outbox row carries the tenant (D6).
 4. Logs 7638 (stored, Debug) and 7639 (store failed, Error by error code); the allocation test map gains the new range for `Encina.Messaging`.
 5. Tests: unit with `FakeOutboxStore` (a published event produces one row typed by its runtime type; a store `Left` is returned; the multi-tenant guard throws; registration order does not matter), guard, DI test (`ValidateOnBuild`, `ValidateScopes`), integration `IntegrationEventOutboxIntegrationTests` on PostgreSQL through ADO.NET (`[Collection("ADO-PostgreSQL")]`: publish, process with the real outbox processor, handler receives the event), contract (the outbox bus satisfies `IIntegrationEventBus`); the outbox store itself keeps its existing 10-provider contract and integration coverage.
@@ -387,7 +388,7 @@ Per-flag targets for the files this work adds or changes, entered in the manifes
 | `ModuleContractStartupValidator.cs` unit 90, guard 60 | The enforce and warn paths run with fakes; guard tests reach the constructor checks only. |
 | `OutboxIntegrationEventBus.cs` unit 90, guard 60, contract 90, integration 80 | The write, the failure and the guard run with `FakeOutboxStore`; integration runs the end-to-end flow on PostgreSQL and misses only store failure paths. |
 
-1. **Unit, Guard, Contract, Property, Integration** as listed in the phases; **Load**: justification file `tests/Encina.LoadTests/Modules/IntegrationEventBus.md` (the in-memory bus adds checks and delegates to `IEncina.Publish`, whose load tests exist); **Benchmark**: justification file `tests/Encina.BenchmarkTests/Modules/IntegrationEventBus.md` (the publish path is the existing notification benchmark plus a constant-time check). Both ship in pull request 3.
+1. **Unit, Guard, Contract, Property, Integration** as listed in the phases; **Load**: justification file `tests/Encina.LoadTests/Modules/IntegrationEventBus.md` (the in-memory bus adds checks and delegates to `IEncina.Publish`, whose load tests exist); **Benchmark**: justification file `tests/Encina.BenchmarkTests/Modules/IntegrationEventBus.md` (the publish path is the existing notification benchmark plus a constant-time check). Both ship in pull request 6. The guard targets above are on internal types and are reachable because pull request 2 adds the `InternalsVisibleTo` for `Encina.GuardTests` to `Encina.DomainModeling.csproj` and pull request 5 adds it to `Encina.Messaging.csproj`.
 2. **Documentation (pull request 6)**: `docs/features/integration-events.md` through `docs-writer` (domain versus integration events, the bus, source and export rules, the module API pattern, outbox mode and its limits), XML docs with examples, `docs/INVENTORY.md`, `ROADMAP.md`, `changelog.d/358-module-integration-events.added.md` through `mechanical-fixer`; no ADR of its own: the shared module visibility ADR belongs to #352 (ADR number assigned when that ADR pull request opens).
 3. `dotnet build --configuration Release` with zero warnings; all tests green; every flag at its target; CRAP table of every changed method below 10.
 
@@ -444,17 +445,17 @@ REFERENCE FILES: .github/coverage-manifest/Encina.DomainModeling.json, .github/c
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 17 | `IIntegrationEvent` edit; `IIntegrationEventBus`, `InMemoryIntegrationEventBus`, `IntegrationEventErrors`, `IntegrationEventLog`, `IntegrationEventTelemetry`, `IntegrationEventServiceCollectionExtensions`, `IModulePublicApi`, `ModuleContractValidator`, `ModuleContractStartupValidator`, `OutboxIntegrationEventBus`, `IntegrationEventOutboxServiceCollectionExtensions` new; `EventIdRanges`, `Encina.Messaging.csproj`, OpenTelemetry `ServiceCollectionExtensions` edited |
+| Production code | 21 | `IIntegrationEvent` edit; `IIntegrationEventBus`, `InMemoryIntegrationEventBus`, `IntegrationEventChecks`, `IntegrationEventErrors`, `IntegrationEventLog`, `IntegrationEventTelemetry`, `IntegrationEventServiceCollectionExtensions`, `IntegrationEventHandlerCatalog`, `IModulePublicApi`, `ModuleContractValidator`, `ModuleContractStartupValidator`, `OutboxIntegrationEventBus`, `IntegrationEventOutboxServiceCollectionExtensions`, `IntegrationEventOutboxLog` new; `EventIdRanges`, `Encina.DomainModeling.csproj`, `Encina.Messaging.csproj`, OpenTelemetry `ServiceCollectionExtensions` edited (and two edits of already-new files in later pull requests) |
 | Public API and manifests | 2 to 4 per pull request | `Encina.DomainModeling`, `Encina`, `Encina.Messaging`, `Encina.OpenTelemetry` |
-| Tests | about 20 | unit, guard, contract, property, DI, integration (one), allocation map edit |
-| Justification files | 2 | load, benchmark (pull request 3) |
-| Documentation | 4 | guide, inventory, roadmap, changelog fragment |
+| Tests | about 22 | unit, guard, contract, property, DI, integration (one), allocation map edit, OpenTelemetry registration test edit |
+| Justification files | 2 | load, benchmark (pull request 6) |
+| Documentation | 4 | guide, inventory, roadmap, changelog fragment (pull request 6) |
 | **Pull request 1** | **5** | `IIntegrationEvent`, PublicAPI, manifest, 2 tests (`IntegrationEventTests`, `IntegrationEventContractTests`); about 200 lines |
-| **Pull request 2** | **10** | 4 production (`IIntegrationEventBus`, `InMemoryIntegrationEventBus`, `IntegrationEventErrors`, `IntegrationEventServiceCollectionExtensions`), PublicAPI, manifest, 4 tests (bus unit, guard, DI registration, contract); about 700 lines |
-| **Pull request 3** | **13** | 5 production (`IntegrationEventLog`, `IntegrationEventTelemetry`, `InMemoryIntegrationEventBus` edit, `EventIdRanges`, OpenTelemetry `ServiceCollectionExtensions`), 4 tests (allocation map edit, telemetry unit, bus unit edit, property), 2 manifests (`Encina.DomainModeling`, `Encina.OpenTelemetry`), 2 justification files; about 700 lines |
-| **Pull request 4** | **10** | `IModulePublicApi`, `ModuleContractValidator`, `ModuleContractStartupValidator`, `Encina` PublicAPI, 2 manifests, 4 tests (validator unit, startup unit, guard, property); about 700 lines |
-| **Pull request 5** | **12** | `OutboxIntegrationEventBus`, `IntegrationEventOutboxServiceCollectionExtensions`, `IntegrationEventOutboxLog`, `Encina.Messaging.csproj`, PublicAPI, manifest, 5 tests (unit with `FakeOutboxStore`, guard, DI, contract, PostgreSQL integration), allocation map edit; about 800 lines |
-| **Pull request 6** | **4** | guide, inventory and roadmap lines in one edit pass, changelog fragment, XML doc touch-ups |
+| **Pull request 2** | **12** | 5 production (`IIntegrationEventBus`, `InMemoryIntegrationEventBus`, `IntegrationEventChecks`, `IntegrationEventErrors`, `IntegrationEventServiceCollectionExtensions`), `Encina.DomainModeling.csproj` (`InternalsVisibleTo` for `Encina.GuardTests` and `Encina.Messaging`), PublicAPI, manifest, 4 tests (bus unit, guard, DI registration, contract); about 750 lines |
+| **Pull request 3** | **13** | 5 production (`IntegrationEventLog`, `IntegrationEventTelemetry`, `InMemoryIntegrationEventBus` edit, `EventIdRanges`, OpenTelemetry `ServiceCollectionExtensions`), `Encina` PublicAPI (the `EventIdRanges` field), 5 tests (allocation map edit, telemetry unit, bus unit edit, property, OpenTelemetry `ServiceCollectionExtensionsTests` edit), 2 manifests (`Encina.DomainModeling`, `Encina.OpenTelemetry`); about 700 lines |
+| **Pull request 4** | **14** | 6 production (`IModulePublicApi`, `ModuleContractValidator`, `ModuleContractStartupValidator`, `IntegrationEventHandlerCatalog`, `IntegrationEventServiceCollectionExtensions` edit, `IntegrationEventLog` edit for 7636-7637), `Encina` PublicAPI, 2 manifests, 5 tests (validator unit, startup unit, guard, property, DI registration test edit); about 800 lines |
+| **Pull request 5** | **12** | `OutboxIntegrationEventBus`, `IntegrationEventOutboxServiceCollectionExtensions`, `IntegrationEventOutboxLog`, `Encina.Messaging.csproj` (`ProjectReference` and `InternalsVisibleTo` for `Encina.GuardTests`), PublicAPI, manifest, 5 tests (unit with `FakeOutboxStore`, guard, DI, contract, PostgreSQL integration), allocation map edit; about 800 lines |
+| **Pull request 6** | **6** | guide, inventory, roadmap, changelog fragment, 2 justification files (load, benchmark) |
 
 Callers and implementers, by grep on `origin/main`: `IIntegrationEvent` is referenced in `Encina.DomainModeling` (`IIntegrationEvent.cs`, `IntegrationEventExtensions.cs`, `IDomainEvent.cs` comment) and in `Encina.Testing` only through `INotification` collectors; no test type implements it today (the module test fixtures publish plain `INotification` types), so adding `SourceModule` leaves no broken implementer and the interface change and its implementers land in one pull request. `ModuleTestFixtureTests` and `IntegrationEventCollectorTests` use their own event types and are re-checked in pull request 1.
 
@@ -468,7 +469,7 @@ Callers and implementers, by grep on `origin/main`: `IIntegrationEvent` is refer
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP. Application modules (IModule) live in core; Encina.DomainModeling has IIntegrationEvent (not an INotification), mappers and BoundedContext types; Encina.Messaging has the outbox. IEncina.Publish needs INotification.
 
-IMPLEMENTATION OVERVIEW: PR1 IIntegrationEvent becomes an INotification with SourceModule; PR2 IIntegrationEventBus and the in-memory bus with source and export checks and errors; PR3 logs 7630-7635, telemetry, the ModulesIntegrationEvents range 7630-7644 and the justification files; PR4 IModulePublicApi and the startup contract validator (logs 7636-7637); PR5 the optional outbox bus in Encina.Messaging (logs 7638-7639) that fails closed with multi-tenancy until #737; PR6 documentation. Dilemmas D1, D2, D3, D5, D6 and D7 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 IIntegrationEvent becomes an INotification with SourceModule; PR2 IIntegrationEventBus and the in-memory bus with source and export checks and errors; PR3 logs 7630-7635, telemetry and the ModulesIntegrationEvents range 7630-7644; PR4 IModulePublicApi and the startup contract validator with its handler catalog (logs 7636-7637); PR5 the optional outbox bus in Encina.Messaging (logs 7638-7639) that fails closed with multi-tenancy until #737; PR6 documentation and the justification files. Dilemmas D1, D2, D3, D5, D6, D7 and D9 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Check failures and handler failures are Left(EncinaError) with an ErrorCategory, never exceptions and never swallowed; no atomicity claim about outbox rows (commit owners are #1236, #718, #720); the bus delegates dispatch to IEncina.Publish and the global NotificationDispatchOptions; telemetry and logs carry codes, module names and type names only; tenant tag only with multi-tenancy; singletons take no scoped service; each pull request stands alone with tests and manifest entries; CRAP <= 10; targets never go down.
 
@@ -508,10 +509,10 @@ REFERENCE FILES: src/Encina.DomainModeling/*.cs, src/Encina/Modules/*.cs, src/En
 
 ## Next Steps
 
-1. Ask the maintainer D1, D2, D3, D5, D6 and D7 when work on #358 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D1, D2, D3, D5, D6, D7 and D9 when work on #358 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: the contract (5 files).
-3. Pull request 2: the in-memory bus and its checks (10 files), after #360 and #352 pull requests 1 and 3.
-4. Pull request 3: logging, telemetry, EventId range and the two justification files (13 files).
-5. Pull request 4: `IModulePublicApi` and the contract validator (10 files).
+3. Pull request 2: the in-memory bus, its checks and the `InternalsVisibleTo` entries (12 files), after #360 and #352 pull requests 1 and 3.
+4. Pull request 3: logging, telemetry and the EventId range (13 files).
+5. Pull request 4: `IModulePublicApi`, the contract validator, the handler catalog and its registration (14 files).
 6. Pull request 5: outbox mode (12 files).
-7. Pull request 6: documentation and changelog (4 files).
+7. Pull request 6: documentation, changelog and the two justification files (6 files).
