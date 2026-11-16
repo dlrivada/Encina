@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (5 pull requests; this plan owns the contract the other messaging lock plans reuse)
 > **Estimated Scope**: ~650-800 lines of production code + ~1,700-2,000 lines of tests
-> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Outbox row allows "row claiming or a lock"); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); [ADR-054](../architecture/adr/054-observability-conventions.md) D4 (tenant tag); [ADR-062](../architecture/adr/062-error-category-contract.md) (error category)
+> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Outbox row allows "row claiming or a lock"); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 (tenant tag); [ADR-062](../architecture/adr/062-error-category-contract.md) (error category)
 > **Depends on**: #2667 (implements ADR-052; open, not a pending maintainer decision)
 > **Related**: #714 (inbox), #715 (saga), #716 (scheduled messages) reuse the contract of this plan; #717 (leader election), #1251 (row claiming), #741 (tenant-scoped locks), #2382 (requirements validator), #218 (fencing), #223 (auto-extend), #2396 (processor health)
 
@@ -22,13 +22,13 @@ Eight provider packages ship an `OutboxProcessor` that derives from `OutboxProce
 
 **Standards**: ADR-052 (contention is `Right(None)`, a fault is `Left`); ADR-050 (the lock is a listed alternative for the Outbox row, enforced by startup validation); ADR-062 (error category of new codes: this plan adds none, a provider `Left` is returned unchanged); `AGENTS.md` sections 3 and 6.
 
-**Estimated scope**: 11 new production files, 6 modified, 3 PublicAPI files, 2 coverage manifests (plus `Encina.json`), 16 test files; 5 pull requests (see Estimated File Count).
+**Estimated scope**: 11 new production files, 6 modified, 3 PublicAPI files, 3 coverage manifests (`Encina.Messaging.json`, `Encina.DistributedLock.json`, `Encina.json`), 22 test files plus 1 test csproj edit; 5 pull requests (see Estimated File Count).
 
 **Affected packages**: `Encina.Messaging` (port, options, gate, flag, processor base), `Encina.DistributedLock` (adapter, registration), `Encina` (EventId range entry only). The eight `*.OutboxProcessor` classes are not edited.
 
 **Provider category**: Distributed locks as the engine (the adapter works over any `IDistributedLockProvider`; InMemory, Redis and SqlServer exist, PostgreSQL #207 and MySQL #208 are pending, Azure Blob #209 and DynamoDB #210 are not built; SPEC-000 DEC-009 lists exactly these seven); Database (10) as consumers of the one shared base class (one integration class per provider proves the adoption: ADO.NET and Dapper on SqlServer, PostgreSQL and MySQL, EF Core on the same three, and MongoDB).
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `e694eb032`):
 
 - `OutboxProcessorBase : BackgroundService` (`src/Encina.Messaging/Outbox/OutboxProcessorBase.cs`) has a sealed `ExecuteAsync` loop (`ProcessPendingMessagesAsync` then `Task.Delay(ProcessingInterval)`) and a cycle that creates a scope, resolves the store, `IEncina` and the serializer, runs `OutboxBatchProcessor`, then `store.SaveChangesAsync(CancellationToken.None)`. It takes `(IServiceProvider, ILogger, OutboxOptions, TimeProvider?)`; the eight providers derive from it (`src/Encina.ADO.{SqlServer,PostgreSQL,MySQL}/Outbox/OutboxProcessor.cs`, `src/Encina.Dapper.{...}/Outbox/OutboxProcessor.cs`, `src/Encina.EntityFrameworkCore/Outbox/OutboxProcessor.cs`, `src/Encina.MongoDB/Outbox/OutboxProcessor.cs`).
 - No production code in `src/` consumes `IDistributedLockProvider` (ADR-052, Context table); the interface is pre-ADR-052 (`Task<IAsyncDisposable?>`), and `ILockHandle` has `DateTime ExpiresAtUtc` and `ExtendAsync` (`src/Encina.DistributedLock/ILockHandle.cs`). `ScheduledMessageProcessor` records the gap in its remarks ("See Issue #716").
@@ -114,7 +114,7 @@ Eight provider packages ship an `OutboxProcessor` that derives from `OutboxProce
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A fixed `OutboxOptions.LockExpiry` (default 5 minutes, validated greater than `ProcessingInterval`); the gate logs EventId 7503 when the handle's `ExpiresAtUtc` has passed before the cycle ends** | No renewal loop; no dependency on #223 | A cycle longer than the expiry loses the lock while it runs |
+| **A) A fixed `OutboxOptions.LockExpiry` (default 5 minutes, validated greater than `ProcessingInterval` only when the lock is on, by the startup check); the gate logs EventId 7503 when the handle's `ExpiresAtUtc` has passed before the cycle ends** | No renewal loop; no dependency on #223 | A cycle longer than the expiry loses the lock while it runs |
 | **B) Renew with `IMessagingLockHandle.ExtendAsync` during the cycle** | A long batch keeps its lock | A renewal task per cycle; a renewal failure must stop the batch, which `OutboxBatchProcessor` cannot do today; overlaps #223 (auto-extend) |
 
 ### Chosen Option: **A — fixed expiry, loss made visible** (recommended, pending the maintainer)
@@ -212,12 +212,12 @@ Eight provider packages ship an `OutboxProcessor` that derives from `OutboxProce
 2. **`IMessagingLockHandle.cs`** — `IAsyncDisposable` with `DateTime ExpiresAtUtc { get; }` (UTC, the type `ILockHandle` uses) and `ValueTask<Either<EncinaError, bool>> ExtendAsync(TimeSpan extension, CancellationToken cancellationToken)`.
 3. **`MessagingLockOptions.cs`** — `TimeSpan RetryInterval` (default 200 ms, positive): the interval the adapter passes to `TryAcquireAsync` while waiting.
 4. **`MessagingLockOptionsValidator.cs`** — `IValidateOptions<MessagingLockOptions>`: `RetryInterval` positive.
-5. **`MessagingLockNames.cs`** — `const string OutboxProcess = "encina:outbox:process"`, `ScheduledProcess = "encina:scheduled:process"` (used by #716), and the factories for the parameterised names that #714 and #715 add to this class in their own pull requests.
+5. **`MessagingLockNames.cs`** — `const string OutboxProcess = "encina:outbox:process"`, `ScheduledProcess = "encina:scheduled:process"` (used by #716), and the factories for the parameterised names that #714 and #715 add to this class in their own pull requests. The class is `internal static` (every caller is inside `Encina.Messaging`; the property and unit tests see it through `InternalsVisibleTo`), so it has no guard test and its guard target is 0; the factory guards that #714 adds are covered by unit tests.
 
 #### Existing files
 
 6. **`MessagingConfiguration.cs`** (modify) — `bool UseDistributedLocking { get; set; }`, opt-in, XML docs naming the registration and the startup check.
-7. **`Outbox/OutboxOptions.cs`** (modify) — `TimeSpan LockExpiry` (5 minutes) and `TimeSpan LockWait` (zero) with the setter checks of the file's style; `Validate` rejects a `LockExpiry` that is not greater than `ProcessingInterval` and a `LockWait` greater than `LockExpiry`.
+7. **`Outbox/OutboxOptions.cs`** (modify) — `TimeSpan LockExpiry` (5 minutes) and `TimeSpan LockWait` (zero) with the setter checks of the file's style; `Validate` rejects a non-positive `LockExpiry` and a `LockWait` greater than `LockExpiry` (both new properties, so no existing configuration changes meaning). `Validate` does NOT compare `LockExpiry` with `ProcessingInterval`: the 5-minute default would make any existing `ProcessingInterval` of 5 minutes or more throw for an application that never enables locking (pay-for-what-you-use). That comparison runs in the startup check of Phase 3, only when the lock is on.
 8. **`PublicAPI.Unshipped.txt`** (Messaging; through `mechanical-fixer`).
 
 </details>
@@ -259,10 +259,10 @@ src/Encina.Messaging/MessagingConfiguration.cs, docs/architecture/adr/052-distri
 
 #### `src/Encina.Messaging/Locking/`
 
-1. **`MessagingLockGate.cs`** (internal static) — `ValueTask<Either<EncinaError, Option<IMessagingLockHandle>>> TryEnterAsync(IMessagingLockProvider? provider, MessagingLockMarker? marker, string pattern, string lockName, TimeSpan expiry, TimeSpan wait, ILogger logger, CancellationToken ct)`: no marker means the feature is off and the result is a no-op handle (`Right(Some(NoOpHandle))`); a marker with no provider is `Left` `messaging.lock_provider_missing` (category `FailedPrecondition`, ADR-062; the startup check normally prevents it); otherwise it calls the provider, records the outcome (acquired, contended, failed) and logs by error code. `NoOpHandle` is a private nested type.
+1. **`MessagingLockGate.cs`** (internal static) — `ValueTask<Either<EncinaError, Option<IMessagingLockHandle>>> TryEnterAsync(IMessagingLockProvider? provider, MessagingLockMarker? marker, string pattern, string lockName, TimeSpan expiry, TimeSpan wait, ILogger logger, CancellationToken ct, string? tenantId = null)`. The optional trailing `tenantId` is owned by this plan so that #714, #715 and #716 only pass it and never edit the gate's signature (a sibling that lands first still builds): when it is not null the attempt counter carries the tenant tag, when null the tag is omitted. No marker means the feature is off and the result is a no-op handle (`Right(Some(NoOpHandle))`); a marker with no provider is `Left` `messaging.lock_provider_missing` (category `FailedPrecondition`, ADR-062; the startup check normally prevents it); otherwise it calls the provider, records the outcome (acquired, contended, failed) and logs by error code. `NoOpHandle` is a private nested type.
 2. **`MessagingLockMarker.cs`** (internal sealed) — registered exactly when `UseDistributedLocking` is on (Phase 3); the processors learn the flag from its presence, because they receive options and a service provider, not `MessagingConfiguration`.
 3. **`MessagingLockLog.cs`** (internal static partial) — `[LoggerMessage]` 7500 `LockAcquireFailed` (Error: pattern, error code), 7501 `LockNotAcquired` (Debug: pattern), 7502 `LockReleaseFailed` (Warning: pattern, exception type via `ForLogging()`), 7503 `LockExpiredBeforeCompletion` (Warning: pattern).
-4. **`Diagnostics/MessagingLockMetrics.cs`** — on the shared `Meter("Encina")`: `Counter<long> encina.messaging.lock.attempts_total` with tags `pattern` (outbox, inbox, saga, scheduling; bounded) and `outcome` (acquired, contended, failed). No tenant tag at cycle level (Design Choice 6); #714 and #715 add the tenant tag where a tenant exists.
+4. **`Diagnostics/MessagingLockMetrics.cs`** — on the shared `Meter("Encina")`: `Counter<long> encina.messaging.lock.attempts_total` with tags `pattern` (outbox, inbox, saga, scheduling; bounded) and `outcome` (acquired, contended, failed). The optional tag `encina.tenant_id` (the precedent of `src/Encina/Recoverability/RetryMetrics.cs`) is added only when the gate receives a `tenantId`; the outbox cycle passes none (Design Choice 6), #714 and #715 pass one where a tenant exists, and the reserved `default` segment and the injective tenant-qualified names stay in #741's decorator.
 
 #### `src/Encina`
 
@@ -308,12 +308,12 @@ src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, src/Encina.Messaging
 
 #### `src/Encina.DistributedLock`
 
-1. **`Messaging/DistributedLockMessagingLockProvider.cs`** (internal sealed) — implements `IMessagingLockProvider` over `IDistributedLockProvider` with the ADR-052 shapes: `Right(Some(ILockHandle))` becomes `Right(Some(wrapper))`, `Right(None)` stays `None`, a `Left` is returned unchanged. The private wrapper implements `IMessagingLockHandle` by delegating `ExpiresAtUtc`, `ExtendAsync` and `DisposeAsync`; a dispose exception is caught and logged with EventId 7502 by exception type and never rethrown from a `finally` path.
+1. **`Messaging/DistributedLockMessagingLockProvider.cs`** (internal sealed) — implements `IMessagingLockProvider` over `IDistributedLockProvider` with the ADR-052 shapes: `Right(Some(ILockHandle))` becomes `Right(Some(wrapper))`, `Right(None)` stays `None`, a `Left` is returned unchanged. The private wrapper implements `IMessagingLockHandle` by delegating `ExpiresAtUtc`, `ExtendAsync` and `DisposeAsync`. `ILockHandle.ExtendAsync` stays `Task<bool>` after #2667 (only the provider-level extend becomes `Either`), so the wrapper converts: `true`/`false` becomes `Right(bool)`, an exception other than cancellation becomes a `Left` with a `LockErrorCodes` fault code (#2667; the exception type is logged, never its message), and `OperationCanceledException` propagates. A dispose exception is caught and logged with EventId 7502 by exception type and never rethrown from a `finally` path.
 2. **`ServiceCollectionExtensions.cs`** (modify) — `AddEncinaMessagingDistributedLocking(this IServiceCollection services)`: `TryAddSingleton<IMessagingLockProvider, DistributedLockMessagingLockProvider>()`, `AddOptions<MessagingLockOptions>()` with the validator.
 
 #### `src/Encina.Messaging`
 
-3. **`Locking/MessagingLockStartupCheck.cs`** (internal sealed, `IHostedService`, modelled on `DelayedRetryStartupCheck`) — throws `InvalidOperationException` in `StartAsync` naming the module, the requirement, ADR-050 and the fix when the marker exists and no `IMessagingLockProvider` is registered.
+3. **`Locking/MessagingLockStartupCheck.cs`** (internal sealed, `IHostedService`, modelled on `DelayedRetryStartupCheck`) — when the marker exists, `StartAsync` resolves `IMessagingLockProvider` with `GetService` (not just a registration lookup) and throws `InvalidOperationException` naming the module, the requirement, ADR-050 and the fix when it is null; resolving the singleton also fails the host at start when the adapter's own dependency, `IDistributedLockProvider`, is missing (otherwise the host would start and every cycle would fail closed late). It also checks, only here and only when the lock is on, that `OutboxOptions.LockExpiry` is greater than `OutboxOptions.ProcessingInterval` (when the outbox is registered) and fails with the same exception type naming both values. Constructor parameters of type `T?` carry `= null` so the container accepts them when the service is not registered.
 4. **`MessagingServiceCollectionExtensions.cs`** (modify) — when `UseDistributedLocking` is on: register `MessagingLockMarker` and the startup check; it does not register `MessagingLockOptions` (the single place is the adapter registration, so options are registered once).
 
 </details>
@@ -333,8 +333,9 @@ TASK:
 Create DistributedLockMessagingLockProvider (internal), AddEncinaMessagingDistributedLocking, MessagingLockStartupCheck
 and the flag-driven registration of the marker and check. Write unit tests with a substituted IDistributedLockProvider
 (acquired, contended, Left unchanged, dispose failure logged by type), a DI test building the provider with
-ValidateOnBuild and ValidateScopes for flag on and off in both registration orders, a contract test running the
-same scenarios through the InMemory, Redis and SqlServer providers, and guard tests for the public extension.
+ValidateOnBuild and ValidateScopes for flag on and off in both registration orders, startup-check tests (port missing,
+adapter dependency missing, LockExpiry not greater than ProcessingInterval fails only with the flag on), and guard
+tests for the public extension. The contract test over the real providers is Phase 5 (PR 4).
 
 KEY RULES:
 - Never inject a scoped service into a singleton; the adapter and the options are singletons.
@@ -394,7 +395,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, tests/Encin
 <summary><strong>Tasks</strong></summary>
 
 1. **Unit and guard** (in PRs 1 to 3): the files named in the earlier phases.
-2. **Contract** (PR 3): `MessagingLockProviderContractTests` runs the same scenarios against the adapter over InMemory, Redis (Testcontainers fixture, `RedisFixture`) and SqlServer.
+2. **Contract** (PR 4): `MessagingLockProviderContractTests` runs the same scenarios against the adapter over InMemory, Redis (Testcontainers fixture, `RedisFixture`) and SqlServer. `tests/Encina.ContractTests/Encina.ContractTests.csproj` has no lock-package reference today, so PR 4 also edits it (`ProjectReference` to `Encina.DistributedLock`, `.InMemory`, `.Redis`, `.SqlServer`) and counts that file; the contract test sits in PR 4 so PR 3 keeps its margin.
 3. **Property** (PR 1): lock names are distinct constants; the parameterised names of #714 and #715 add their injectivity property to the same class.
 4. **Integration** (PRs 4 and 5): an abstract `OutboxProcessorLockIntegrationTestsBase` under `tests/Encina.IntegrationTests/Messaging/` starts two processor instances of one provider over one database and one Redis lock and asserts that each pending message is published exactly once while both run; one concrete class per provider, each in its own `[Collection("<Family>-<Database>")]`: PR 4 has ADO and Dapper on SqlServer, PostgreSQL and MySQL (six classes), PR 5 has EF Core on the same three (three classes) and MongoDB. Provider rule of `AGENTS.md` section 9: the ten providers are covered.
 5. **Load and benchmark**: justified in `.md` files (the lock adds one acquire per cycle, not a hot path).
@@ -532,7 +533,8 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md, docs/tes
 | `PublicAPI.Unshipped.txt` | 3 | Messaging, Encina, DistributedLock |
 | Coverage manifests | 3 | `Encina.Messaging.json`, `Encina.DistributedLock.json`, `Encina.json` |
 | Tests | 22 | Unit (6), guard (2), contract (1), property (1), allocation map (1), integration base plus ten classes (11) |
-| Documentation | 5 | Two READMEs, one feature page, one changelog fragment, two `.md` justifications |
+| Test project references | 1 | `tests/Encina.ContractTests/Encina.ContractTests.csproj` (ProjectReference to the four lock packages) |
+| Documentation | 6 | Two READMEs, one feature page, one changelog fragment, two `.md` justifications |
 
 PR split (each at most 15 files and 1500 lines, counting tests, `PublicAPI`, manifests, README and fragment; each builds and passes alone):
 
@@ -540,9 +542,11 @@ PR split (each at most 15 files and 1500 lines, counting tests, `PublicAPI`, man
 |----|---------|------:|-------------:|
 | 1 | Phase 1: port, options, names, flag, `OutboxOptions` fields, tests, `PublicAPI`, Messaging manifest | 13 | 650 |
 | 2 | Phase 2: gate, marker, log, metrics, range, allocation map, tests, `PublicAPI` x2, manifests x2 | 13 | 850 |
-| 3 | Phases 3 and 4: adapter, registration, startup check, processor gate, tests (unit, DI, contract, guard), `PublicAPI`, manifests; starts after #2667 and PR 2 | 14 | 1,200 |
-| 4 | Phase 5 integration, SQL families: base, six ADO and Dapper classes, fixture helper | 8 | 900 |
+| 3 | Phases 3 and 4: adapter, registration (DistributedLock and Messaging), startup check, processor gate (5), `PublicAPI`, manifests x2, tests (adapter unit, DI, startup check, `OutboxProcessorBaseLockTests`, guard = 5); starts after #2667 and PR 2 | 13 | 1,000 |
+| 4 | Phase 5 integration, SQL families and contract: base, six ADO and Dapper classes, fixture helper, `MessagingLockProviderContractTests`, `Encina.ContractTests.csproj` | 10 | 1,100 |
 | 5 | Phase 5 integration, EF Core x3 and MongoDB, plus Phase 6 (READMEs, feature page, fragment, justifications) | 11 | 800 |
+
+The feature page created in PR 5 is the page the sibling plans (#714, #715, #716) extend with their own sections, so their documentation steps start after PR 5 of this plan merges.
 
 ---
 
@@ -589,7 +593,7 @@ src/Encina/Diagnostics/EventIdRanges.cs, docs/architecture/adr/052-distributed-l
 | 2 | OpenTelemetry | ✅ | Phase 2: `encina.messaging.lock.attempts_total{pattern,outcome}`; no tenant tag at cycle level (ADR-054 D4 applies where a tenant exists) |
 | 3 | Structured Logging | ✅ | Phase 2: `[LoggerMessage]` 7500-7503 in `MessagingLocking`, registered first |
 | 4 | Health Checks | ⏭️ | Processor liveness is #2396; the lock adds no checkable dependency of its own (the lock provider has its own health check) |
-| 5 | Validation | ✅ | Phase 1: options validator, `LockExpiry` greater than `ProcessingInterval`; Phase 3: startup check |
+| 5 | Validation | ✅ | Phase 1: options validator; Phase 3: startup check (port present, `LockExpiry` greater than `ProcessingInterval`, only with the flag on) |
 | 6 | Resilience | ❌ | No retry or breaker around the lock: a failed acquire is retried at the next interval by design |
 | 7 | Distributed Locks | ✅ | The feature itself |
 | 8 | Transactions | ❌ | The lock is not a transaction and the plan makes no atomicity claim; the processor's own save is unchanged |
