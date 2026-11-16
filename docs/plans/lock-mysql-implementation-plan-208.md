@@ -31,7 +31,7 @@ Add the package `Encina.DistributedLock.MySQL`, an `IDistributedLockProvider` ov
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5); matrix in Research.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `0b941beeb`):
 
 - The package does not exist. `MySqlConnector` 2.6.1 is in `Directory.Packages.props`; `MySqlFixture` (`tests/Encina.TestInfrastructure/Fixtures/MySqlFixture.cs`, image `mysql:9.1`) and the collection `ADO-MySQL` (`tests/Encina.IntegrationTests/ADO/Collections.cs`) exist.
 - `IDistributedLockProvider` still has the pre-ADR-052 shapes; [#2667](https://github.com/dlrivada/Encina/issues/2667) changes them and creates `LockErrorCodes`. **This plan is written to the ADR-052 contract; implementation starts after #2667 merges.**
@@ -221,7 +221,7 @@ Four pull requests, each at most 15 files and 1500 changed lines counting tests,
 | 1 | Phase 1 and the EventId registration of Phase 5 | csproj, `MySQLLockOptions`, `MySQLLockName`, two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (9) | `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` reference, `MySQLLockOptionsTests`, `MySQLLockNameTests` (4) | 13 files / 600 |
 | 2 | Phases 2 and 5 (logs, diagnostics) | `IUserLockSession`, `MySqlConnectorUserLockSession`, `MySQLDistributedLockProvider`, `MySQLLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (6) | `FakeUserLockSession`, provider unit tests, handle unit tests, guard tests, `Encina.GuardTests.csproj` reference (5) | 11 files / 1,300 |
 | 3 | Phase 3 | `ServiceCollectionExtensions`, `Health/MySQLDistributedLockHealthCheck`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test with `ValidateOnBuild`/`ValidateScopes`, health check unit tests, guard tests (3) | 7 files / 700 |
-| 4 | Phases 4, 6 and 7 | none | contract class and `Encina.ContractTests.csproj` reference, integration tests and `Encina.IntegrationTests.csproj` reference, property test of the name function and `Encina.PropertyTests.csproj` reference, README, changelog fragment, two load/benchmark justification files, manifest (11) | 11 files / 900 |
+| 4 | Phases 4, 6 and 7 | none | contract class, the `ADO-MySQL` collection definition in `Encina.ContractTests` (new file) and `Encina.ContractTests.csproj` reference, integration tests and `Encina.IntegrationTests.csproj` reference, property test of the name function and `Encina.PropertyTests.csproj` reference, README, changelog fragment, two load/benchmark justification files, manifest (12) | 12 files / 950 |
 
 If a PR measures over 15 files or 1,500 lines, the worker splits it again and never asks for `size-exception-approved`. PR 2 has the least slack: if the provider tests grow, the handle tests move to PR 3.
 
@@ -234,7 +234,7 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 
 #### `src/Encina.DistributedLock.MySQL/`
 
-1. **`Encina.DistributedLock.MySQL.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `MySqlConnector` (central version), PublicApiAnalyzers, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests`; a new GUID
+1. **`Encina.DistributedLock.MySQL.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `MySqlConnector` (central version), PublicApiAnalyzers, `InternalsVisibleTo` as `AssemblyAttribute` items for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests` (the pattern of `Encina.Messaging.csproj`; the SQL Server csproj has none); a new GUID
 2. **`MySQLLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString` (secret rule, `AGENTS.md` section 3); `TimeSpan ReleaseTimeout = 5 s` (the bound of a timer-driven release); `ToString()` prints only the prefix and the defaults
 3. **`MySQLLockName.cs`** (new, internal static) — `static string Compose(string prefix, string resource)` (the `lock:` format of the SQL Server provider) and `static string ToLockName(string composedKey)` (lower-case hex SHA-256, 64 characters)
 4. **`PublicAPI.Shipped.txt`** (new, `#nullable enable`) and **`PublicAPI.Unshipped.txt`**
@@ -285,7 +285,7 @@ REFERENCE FILES:
 1. **`IUserLockSession.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryLockAsync(string name, CancellationToken ct)`, `HoldsLockAsync(string name, ct)`, `IsLockedByAnyoneAsync(string name, ct)`, `ReleaseAsync(string name, ct)`, `ValueTask DisposeAsync()`; plus an internal `IUserLockSessionFactory.OpenAsync(CancellationToken ct)`
 2. **`MySqlConnectorUserLockSession.cs`** (new, internal sealed) — wraps one unpooled `MySqlConnection` (the factory sets `Pooling = false` through `MySqlConnectionStringBuilder`, design choice 5); `SELECT GET_LOCK(@n, 0)`, `SELECT RELEASE_LOCK(@n)`, `SELECT IS_USED_LOCK(@n) = CONNECTION_ID()`, `SELECT IS_USED_LOCK(@n) IS NOT NULL`; a `NULL` result or a `MySqlException` becomes `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
 3. **`MySQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<MySQLLockOptions> options, ILogger<MySQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (the callback catches everything and logs the exception type), releases at the deadline, and verifies the session on `ExtendAsync`
-4. **`MySQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.MySQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`mysql`) and `outcome` (`acquired`, `contended`, `failed`); no tenant tag (the provider is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per ADR-054 D4)
+4. **`MySQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.MySQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`mysql`) and `outcome` (`acquired`, `contended`, `failed`); no tenant tag (the provider is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7560-7567 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** and the manifest (targets in Phase 6)
 7. **Tests**: `FakeUserLockSession`, provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, fault on try-lock, `NULL` result, cancellation, registry extend held and unheld, expiry release, double dispose), handle unit tests, guard tests, `Encina.GuardTests.csproj` project reference
@@ -469,7 +469,7 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 
 1. **Unit** — the scenarios of Phases 1 to 3 with `FakeTimeProvider` and the fake session.
 2. **Guard** — constructor (null options, null logger, options without a connection string) and each method (null or whitespace resource, non-positive expiry as #2724 decides).
-3. **Contract** — one derived class of the suite #2667 creates, `MySQLDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held and unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference.
+3. **Contract** — `MySQLDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held and unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference. It needs the shared container, and `Encina.ContractTests` defines no `ADO-MySQL` collection (the collection lives only in `Encina.IntegrationTests/ADO/Collections.cs`; `MySqlFixture` is reachable through the `Encina.TestInfrastructure` reference), so PR 4 adds `tests/Encina.ContractTests/DistributedLock/MySQL/MySqlCollection.cs` (`[CollectionDefinition("ADO-MySQL")]` with `ICollectionFixture<MySqlFixture>`, the shape of `LocalStackCollection.cs` in that project). #2667 does not state a reusable abstract base class: PR 4 reads the suite as #2667 merged it and either derives from its base or, when none exists, extracts one (a new file; PR 4 then splits if it passes 15 files).
 4. **Property** — FsCheck on `MySQLLockName`: always 64 lower-case hex characters, deterministic, no exception for any string.
 5. **Integration** — `[Collection("ADO-MySQL")]` on `MySqlFixture`, `[Trait("Category", "Integration")]`, `[Trait("Database", "MySQL")]`: two providers on one database block each other; release frees the lock; `KILL CONNECTION` of the holder frees it; the expiry timer frees it; `IsLockedAsync` does not disturb a concurrent contender; a long raw name (200 characters) works; cancellation inside a wait; health check on a real server.
 6. **Load and benchmark** — `.md` justification files under `tests/Encina.NBomber/Scenarios/Locking/` and `tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/`: the provider is a thin client over a database primitive, covered by the shared lock scenarios once its factory is added by the issue that owns those scenarios; a missing `.md` would mean "not evaluated" (`AGENTS.md` section 9).
@@ -600,11 +600,11 @@ REFERENCE FILES:
 | Metadata (new and modified) | 7 | two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (`Directory.Packages.props` is not touched: `MySqlConnector` is already there) |
 | Unit tests | 6 | options, name, provider, handle, DI, health check (plus the fake session) |
 | Guard tests | 2 | provider, registration and health check |
-| Contract and property tests | 2 | contract class, name property |
+| Contract and property tests | 3 | contract class, `ADO-MySQL` collection definition for `Encina.ContractTests`, name property |
 | Integration tests | 1 | one class on the shared collection |
 | Test project references | 5 | UnitTests, GuardTests, ContractTests, IntegrationTests, PropertyTests |
 | Documentation and changelog | 4 | README, fragment, two justification files |
-| **Total** | **~36 touches** | Over 4 pull requests of at most 15 files each (13, 11, 7 and 11) |
+| **Total** | **~37 touches** | Over 4 pull requests of at most 15 files each (13, 11, 7 and 12) |
 
 ---
 
