@@ -5,7 +5,7 @@
 > **Complexity**: Medium (one new provider package, 4 pull requests)
 > **Estimated Scope**: ~650-800 lines of production code + ~1,200-1,500 lines of tests
 > **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027, DEC-003, DEC-009, AC-027
-> **Decision**: [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract), [ADR-062](../architecture/adr/062-error-category-contract.md) (error categories)
+> **Decision**: [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract), [ADR-062](../architecture/adr/062-error-category-contract.md) (error categories), [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) (D4: tenant tags on telemetry)
 > **Depends on**: [#2667](https://github.com/dlrivada/Encina/issues/2667) (implements ADR-052; open, not a pending maintainer decision; it blocks this issue)
 > **Related**: [#208](https://github.com/dlrivada/Encina/issues/208) (MySQL provider, same family), [#209](https://github.com/dlrivada/Encina/issues/209), [#210](https://github.com/dlrivada/Encina/issues/210), [#226](https://github.com/dlrivada/Encina/issues/226) (Redis RedLock), [#741](https://github.com/dlrivada/Encina/issues/741) (tenant-scoped locks), [#755](https://github.com/dlrivada/Encina/issues/755) (health checks), [#724](https://github.com/dlrivada/Encina/issues/724) (lock observability), [#218](https://github.com/dlrivada/Encina/issues/218) (fencing), [#223](https://github.com/dlrivada/Encina/issues/223) (auto-extend), [#2405](https://github.com/dlrivada/Encina/issues/2405), [#2720](https://github.com/dlrivada/Encina/issues/2720), [#2722](https://github.com/dlrivada/Encina/issues/2722), [#2724](https://github.com/dlrivada/Encina/issues/2724) (defects of the SQL Server provider this plan must not repeat)
 
@@ -30,13 +30,13 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 
 **Provider category**: Distributed locks (`AGENTS.md` section 5). The matrix is in Research. The issue's wording about "Database (10)" does not apply: the database matrix covers stores, and the lock set is the closed list of seven.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `0b941beeb`):
 
 - The package does not exist. `src/` has `Encina.DistributedLock`, `.InMemory`, `.Redis` and `.SqlServer`; `Npgsql` 10.0.2 is already in `Directory.Packages.props`; `Encina.slnx` lists the four lock projects.
 - `IDistributedLockProvider` still has the pre-ADR-052 shapes (`Task<IAsyncDisposable?>`, `Task<bool>`). [#2667](https://github.com/dlrivada/Encina/issues/2667) changes them and creates `LockErrorCodes`; **this plan is written to the ADR-052 contract and its implementation starts after #2667 merges**.
 - `SqlServerDistributedLockProvider` is the closest model: one `SqlConnection` per handle, `GetLockKey` builds `lock:{resource}` or `{KeyPrefix}:lock:{resource}`, a health check registered when `ProviderHealthCheck.Enabled`, `[LoggerMessage]` EventIds 3800-3804. Its known defects (probe takes the lock, `ExtendAsync` is a no-op, negative codes collapse) are issues #2722, #2405, #2720, and are not repeated here.
 - `PostgreSqlFixture` (`tests/Encina.TestInfrastructure/Fixtures/PostgreSqlFixture.cs`, `postgres:17-alpine`) and the collection `ADO-PostgreSQL` (`tests/Encina.IntegrationTests/ADO/Collections.cs`) exist.
-- No contract test class for locks exists yet; #2667 creates the suite and the plan of #755 adds the first project reference to the contract test project.
+- No contract test class for locks exists yet; #2667 creates the suite and the plan of #755 adds the first project reference to the contract test project. `Encina.ContractTests` defines no `ADO-PostgreSQL` collection (`PostgreSqlFixture` is reachable through its `Encina.TestInfrastructure` reference; the collection lives only in `Encina.IntegrationTests/ADO/Collections.cs`), so PR 4 creates one.
 
 ---
 
@@ -245,7 +245,7 @@ Four pull requests, each at most 15 files and 1500 changed lines counting tests,
 | 1 | Phase 1 and the EventId registration of Phase 5 | csproj, `PostgreSQLLockOptions`, `PostgreSQLLockKey`, two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (9) | `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` reference, `PostgreSQLLockOptionsTests`, `PostgreSQLLockKeyTests` (4) | 13 files / 600 |
 | 2 | Phases 2 and 5 (logs, diagnostics) | `IAdvisoryLockSession`, `NpgsqlAdvisoryLockSession`, `PostgreSQLDistributedLockProvider`, `PostgreSQLLockDiagnostics`, `PublicAPI.Unshipped.txt`, manifest (6) | `FakeAdvisoryLockSession`, provider unit tests (acquire/contend/expiry), handle unit tests, guard tests, `Encina.GuardTests.csproj` reference (5) | 11 files / 1,300 |
 | 3 | Phase 3 | `ServiceCollectionExtensions`, `Health/PostgreSQLDistributedLockHealthCheck`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test with `ValidateOnBuild`/`ValidateScopes`, health check unit tests, guard tests for both (3) | 7 files / 700 |
-| 4 | Phases 4, 6 and 7 | none | contract class and `Encina.ContractTests.csproj` reference, integration tests and `Encina.IntegrationTests.csproj` reference, property test of the key (`Encina.PropertyTests.csproj` reference), README, changelog fragment, two load/benchmark justification files, manifest (11) | 11 files / 900 |
+| 4 | Phases 4, 6 and 7 | none | contract class, the `ADO-PostgreSQL` collection definition in `Encina.ContractTests` (new file) and `Encina.ContractTests.csproj` reference, integration tests and `Encina.IntegrationTests.csproj` reference, property test of the key (`Encina.PropertyTests.csproj` reference), README, changelog fragment, two load/benchmark justification files, manifest (12) | 12 files / 950 |
 
 If a PR measures over 15 files or 1,500 lines, the worker splits it again and never asks for `size-exception-approved`. PR 2 has the least slack (about 1,300 lines): if the provider tests grow, the handle tests move to PR 3.
 
@@ -258,7 +258,7 @@ If a PR measures over 15 files or 1,500 lines, the worker splits it again and ne
 
 #### `src/Encina.DistributedLock.PostgreSQL/`
 
-1. **`Encina.DistributedLock.PostgreSQL.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `Npgsql` (central version), the PublicApiAnalyzers, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests`; a new GUID
+1. **`Encina.DistributedLock.PostgreSQL.csproj`** (new) — modeled on `Encina.DistributedLock.SqlServer.csproj`: `ProjectReference` to `Encina.DistributedLock`, `PackageReference` `Npgsql` (central version), the PublicApiAnalyzers, `InternalsVisibleTo` as `AssemblyAttribute` items for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests` (the pattern of `Encina.Messaging.csproj`; the SQL Server csproj has none); `Encina.GuardTests` is deliberately not listed, so the internal types carry guard target 0 and the guard tests reach only the public constructor and methods; a new GUID
 2. **`PostgreSQLLockOptions.cs`** (new, public sealed) — `: DistributedLockOptions`; `[JsonIgnore] string? ConnectionString` (secret rule, `AGENTS.md` section 3); `bool UseTransactionLocks`; `TimeSpan UnlockTimeout = 5 s` (the bound of a timer-driven release); a `ToString()` that prints only the prefix and the mode, never the connection string
 3. **`PostgreSQLLockKey.cs`** (new, internal static) — `static string Compose(string prefix, string resource)` (the `lock:` format of the SQL Server provider) and `static long ToAdvisoryKey(string composedKey)` (SHA-256, first 8 bytes big-endian)
 4. **`PublicAPI.Shipped.txt`** (new, `#nullable enable`) and **`PublicAPI.Unshipped.txt`** (the options members)
@@ -308,12 +308,12 @@ REFERENCE FILES:
 #### `src/Encina.DistributedLock.PostgreSQL/`
 
 1. **`IAdvisoryLockSession.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> HoldsLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> IsLockedByAnyoneAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> UnlockAsync(long key, CancellationToken ct)`, `ValueTask DisposeAsync()`; plus an internal factory `IAdvisoryLockSessionFactory.OpenAsync(bool transactionMode, CancellationToken ct)`
-2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one unpooled `NpgsqlConnection` (the factory sets `Pooling = false` on the connection string, design choice 9) and, in transaction mode, one `NpgsqlTransaction`; the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)`; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
+2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one unpooled `NpgsqlConnection` (the factory sets `Pooling = false` on the connection string, design choice 9) and, in transaction mode, one `NpgsqlTransaction`; the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)` in session mode; in transaction mode `UnlockAsync` ends the private transaction (commit), because a transaction-level advisory lock has no unlock function and is freed only when its transaction ends (a rollback on a faulted release path frees it equally), so it never calls `pg_advisory_unlock` on a lock it did not take at session level; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
 3. **`PostgreSQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSQLLockOptions> options, ILogger<PostgreSQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension
-4. **`PostgreSQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per ADR-054 D4)
+4. **`PostgreSQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7550-7557 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** (the provider and its constructor), the manifest (per-file targets, Phase 7)
-7. **Tests**: `FakeAdvisoryLockSession` (test double with scripted results and a log of calls), provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, fault on try-lock, cancellation, registry extend of a held and an unheld resource, expiry release, double dispose), handle unit tests, guard tests (constructor and the four methods), `Encina.GuardTests.csproj` project reference
+7. **Tests**: `FakeAdvisoryLockSession` (test double with scripted results and a log of calls), provider unit tests (acquired, contended until the deadline with `FakeTimeProvider`, fault on try-lock, cancellation, registry extend of a held and an unheld resource, expiry release, double dispose, release in transaction mode ends the transaction and frees the lock), handle unit tests, guard tests (constructor and the four methods), `Encina.GuardTests.csproj` project reference
 
 </details>
 
@@ -494,9 +494,9 @@ Per-file targets (the manifest lists them with these sentences; the numbers are 
 
 1. **Unit** — the scenarios of Phases 1 to 3, using `FakeTimeProvider` and the fake session.
 2. **Guard** — constructor (null options, null logger, options without a connection string) and each method (null or whitespace resource, non-positive expiry as #2724 decides).
-3. **Contract** — one derived class of the suite #2667 creates, named `PostgreSQLDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held/unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference.
+3. **Contract** — `PostgreSQLDistributedLockContractTests`, running the same scenarios as InMemory, Redis and SQL Server (free, contended, expiry, extend held/unheld, double dispose, cancellation); `Encina.ContractTests.csproj` reference. It needs the shared container, and `Encina.ContractTests` defines no `ADO-PostgreSQL` collection, so PR 4 adds `tests/Encina.ContractTests/DistributedLock/PostgreSQL/PostgreSqlCollection.cs` (`[CollectionDefinition("ADO-PostgreSQL")]` with `ICollectionFixture<PostgreSqlFixture>`, the shape of `LocalStackCollection.cs` in that project). #2667 does not state a reusable abstract base class: PR 4 reads the suite as #2667 merged it and either derives from its base or, when none exists, extracts one (the extraction is counted in the 12 files only if it adds a file; PR 4 then splits).
 4. **Property** — FsCheck on `PostgreSQLLockKey`: determinism, prefix separation, no exception for any string.
-5. **Integration** — `[Collection("ADO-PostgreSQL")]` on `PostgreSqlFixture`, `[Trait("Category", "Integration")]`, `[Trait("Database", "PostgreSQL")]`: two providers on one database block each other; release frees the lock; killing the session (`pg_terminate_backend`) frees it; the expiry timer frees it; transaction mode; `IsLockedAsync` does not disturb a concurrent contender; cancellation inside a wait; health check on a real server.
+5. **Integration** — `[Collection("ADO-PostgreSQL")]` on `PostgreSqlFixture`, `[Trait("Category", "Integration")]`, `[Trait("Database", "PostgreSQL")]`: two providers on one database block each other; release frees the lock; killing the session (`pg_terminate_backend`) frees it; the expiry timer frees it; transaction mode (including "release in transaction mode frees the lock" for another session); `IsLockedAsync` does not disturb a concurrent contender; cancellation inside a wait; health check on a real server.
 6. **Load and benchmark** — `.md` justification files under `tests/Encina.NBomber/Scenarios/Locking/` and `tests/Encina.BenchmarkTests/Encina.DistributedLock.Benchmarks/`: the provider is a thin client over a database primitive and is covered by the shared lock scenarios once its factory is added by the issue that owns those scenarios; a missing `.md` would mean "not evaluated" (`AGENTS.md` section 9).
 
 </details>
@@ -626,11 +626,11 @@ REFERENCE FILES:
 | Metadata (new and modified) | 7 | two `PublicAPI` files, `Encina.slnx`, `EventIdRanges.cs`, `Encina` `PublicAPI.Unshipped.txt`, manifest (`Directory.Packages.props` is not touched: `Npgsql` is already there) |
 | Unit tests | 6 | options, key, provider, handle, DI, health check (plus the fake session) |
 | Guard tests | 2 | provider, registration and health check |
-| Contract and property tests | 2 | contract class, key property |
+| Contract and property tests | 3 | contract class, `ADO-PostgreSQL` collection definition for `Encina.ContractTests`, key property |
 | Integration tests | 1 | one class on the shared collection |
 | Test project references | 5 | UnitTests, GuardTests, ContractTests, IntegrationTests, PropertyTests |
 | Documentation and changelog | 4 | README, fragment, two justification files |
-| **Total** | **~36 touches** | Over 4 pull requests of at most 15 files each (13, 11, 7 and 11) |
+| **Total** | **~37 touches** | Over 4 pull requests of at most 15 files each (13, 11, 7 and 12) |
 
 ---
 
