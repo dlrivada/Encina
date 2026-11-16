@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Medium (3 pull requests; the shared lock contract comes from the #713 plan)
 > **Estimated Scope**: ~120-160 lines of production code + ~700-900 lines of tests
-> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Scheduling row lists "row claiming or a lock"); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); [ADR-054](../architecture/adr/054-observability-conventions.md) D4 (tenant tag)
+> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Scheduling row lists "row claiming or a lock"); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md) (lock failure contract); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 (tenant tag)
 > **Depends on**: the shared contract of the #713 plan (PRs 1 to 3: port, gate, marker, adapter, flag) and #2667 (ADR-052 implementation)
 > **Related**: #713 (outbox, owns the shared piece), #717 (leader election), #1251 (row claiming), #735 (idempotent re-execution), #739 (tenant id on scheduled messages), #749 (audit of processors), #741 (tenant-scoped locks)
 
@@ -27,7 +27,7 @@
 
 **Provider category**: Database (10) as consumers, through the one shared processor (`IScheduledMessageStore` implementations: ADO.NET x3, Dapper x3, EF Core, MongoDB, `src/Encina.*/Scheduling/ScheduledMessageStore*.cs`, plus the instrumented wrapper and `FakeScheduledMessageStore`, which need no change); Distributed locks as the engine (the adapter of #713 works over every `IDistributedLockProvider`).
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `e694eb032`):
 
 - `ScheduledMessageProcessor : BackgroundService` (`src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs`) takes `(IServiceProvider, SchedulingOptions, ILogger<ScheduledMessageProcessor>, TimeProvider?)`, loops `ProcessOnceAsync` then `Task.Delay(ProcessingInterval)`, and creates one `AsyncScope` per cycle from which it resolves `SchedulerOrchestrator` and `IScheduledMessageDispatcher`. Its remarks name the gap: "Without a lock, multi-replica deployments may process the same message concurrently. See Issue #716." (line 40).
 - `SchedulerOrchestrator.ProcessDueMessagesAsync` (`SchedulerOrchestrator.cs` line 305) reads due messages, dispatches each, applies the retry policy and recurring rescheduling, and saves the outcomes (`SaveBatchOutcomesAsync`, line 368). It is called only by the processor (verified by grep over `src/`).
@@ -114,7 +114,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Fixed `SchedulingOptions.LockExpiry` (5 minutes, greater than `ProcessingInterval`); EventId 7503 when the handle expired before the cycle ended** | No renewal loop | A batch longer than the expiry loses the lock while it runs |
+| **A) Fixed `SchedulingOptions.LockExpiry` (5 minutes, greater than `ProcessingInterval`, checked at startup only when the lock is on); EventId 7503 when the handle expired before the cycle ended** | No renewal loop | A batch longer than the expiry loses the lock while it runs |
 | **B) Renew during the cycle (#223)** | Long batches keep the lock | A renewal task per cycle; `ProcessDueMessagesAsync` cannot be interrupted between messages today |
 
 ### Chosen Option: **A — fixed expiry, loss made visible** (recommended, pending the maintainer)
@@ -159,8 +159,9 @@
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Scheduling/SchedulingOptions.cs`** (modify) — `TimeSpan LockExpiry` (5 minutes) and `TimeSpan LockWait` (zero) with positive and non-negative setter checks; an internal `Validate(string paramName)` rejecting a `LockExpiry` not greater than `ProcessingInterval` and a `LockWait` greater than `LockExpiry`, called from the processor constructor.
-2. **`Scheduling/ScheduledMessageProcessor.cs`** (modify) — in `ProcessOnceAsync`, after `CreateAsyncScope()`: resolve `IMessagingLockProvider?` and `MessagingLockMarker?` from `scope.ServiceProvider`, call `MessagingLockGate.TryEnterAsync(provider, marker, "scheduling", MessagingLockNames.ScheduledProcess, _options.LockExpiry, _options.LockWait, _logger, ct)`. `Left`: log the error code and return; `None`: return; `Some(handle)`: `await using` it around the existing body (activity start to the result handling), and log EventId 7503 when `handle.ExpiresAtUtc` is earlier than `_timeProvider.GetUtcNow()` after the body. The constructor signature does not change (6 construction sites in 2 test files stay valid). Update the remarks: the "Distributed locks" bullet now says "opt-in through `UseDistributedLocking` (#716)".
+1. **`Scheduling/SchedulingOptions.cs`** (modify) — `TimeSpan LockExpiry` (5 minutes) and `TimeSpan LockWait` (zero) with positive and non-negative setter checks; an internal `Validate(string paramName)` rejecting a `LockWait` greater than `LockExpiry`, called from the processor constructor (both properties are new, so no existing configuration changes meaning). `Validate` does NOT compare `LockExpiry` with `ProcessingInterval`: with the 5-minute default, a configured `ProcessingInterval` of 5 minutes or more would throw for an application that never enables locking (pay-for-what-you-use). That comparison lives in task 1b.
+1b. **`Locking/MessagingLockStartupCheck.cs`** (modify, file of #713) — when the marker exists and `SchedulingOptions` is registered, also fail at `StartAsync` with the check's `InvalidOperationException` (naming both values) when `SchedulingOptions.LockExpiry` is not greater than `ProcessingInterval`; with the flag off nothing is compared. A test case is added to the check's unit tests (`MessagingLockStartupCheckTests`, file of #713).
+2. **`Scheduling/ScheduledMessageProcessor.cs`** (modify) — in `ProcessOnceAsync`, after `CreateAsyncScope()`: resolve `IMessagingLockProvider?` and `MessagingLockMarker?` from `scope.ServiceProvider`, call `MessagingLockGate.TryEnterAsync(provider, marker, "scheduling", MessagingLockNames.ScheduledProcess, _options.LockExpiry, _options.LockWait, _logger, ct)`. `Left`: log the error code and return; `None`: return; `Some(handle)`: `await using` it around the existing body (activity start to the result handling), so the code order is: acquire, then start the activity, then run the orchestrator, then stop the activity in its own `finally` (the existing code), and only then dispose the handle; a skipped cycle (`None` or `Left`) returns before `StartProcessingCycle`, so it starts no activity. Log EventId 7503 when `handle.ExpiresAtUtc` is earlier than `_timeProvider.GetUtcNow()` after the body. The constructor signature does not change (6 construction sites in 2 test files stay valid), so no new `T?` constructor parameter needs a `= null` default. The call passes no `tenantId`: the optional trailing parameter of the gate (delivered by #713 PR 2) stays null because the cycle is cross-tenant, so this plan does not depend on #714. Update the remarks: the "Distributed locks" bullet now says "opt-in through `UseDistributedLocking` (#716)".
 3. **`PublicAPI.Unshipped.txt`** (Messaging): the two options properties, through `mechanical-fixer`.
 4. **Cross-cutting**: no new log or metric type; the gate of #713 records `encina.messaging.lock.attempts_total{pattern="scheduling"}` and logs 7500, 7501 and 7503.
 
@@ -201,7 +202,7 @@ tests/Encina.UnitTests/Messaging/Processors, docs/plans/outbox-distributed-lock-
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. No new EventIds: this plan uses 7500-7503 of the `MessagingLocking` range registered by the #713 plan (PR 2 of that plan merges first).
+1. No new EventIds and no new error code (so nothing to categorize under ADR-062): this plan uses 7500-7503 of the `MessagingLocking` range registered by the #713 plan (PR 2 of that plan merges first).
 2. The cycle activity (`SchedulingActivitySource.StartProcessingCycle`) is started only after the lock is held, so a skipped cycle creates no span; a lock failure sets no activity status because none exists yet, and is visible through the counter and log 7500.
 3. No tenant tag: the cycle is cross-tenant (Design Choice 5).
 4. Health, resilience, audit and idempotency are evaluated in the matrix; none adds code here.
@@ -247,6 +248,7 @@ src/Encina.Messaging/Diagnostics/SchedulingProcessorLog.cs.
 |------|-----:|------:|---------:|---------:|------------:|---------------|
 | `Scheduling/ScheduledMessageProcessor.cs` | 90 | 40 | 0 | 0 | 60 | New entry (no target exists today); every gate branch is unit-testable and the two-processor test runs it on each store; contract and property 0: no public interface and no pure logic |
 | `Scheduling/SchedulingOptions.cs` | 95 | 40 | 0 | 0 | 0 | Setters and `Validate` are directly drivable; guard covers the setter checks |
+| `Locking/MessagingLockStartupCheck.cs` (changed lines) | 90 | 0 | 0 | 0 | 0 | The target set by #713 is kept; the new rule adds unit cases; internal, so guard 0 |
 
 </details>
 
@@ -283,7 +285,7 @@ docs/testing/integration-tests.md.
 
 1. XML docs on `LockExpiry` and `LockWait`, naming the flag and the registration.
 2. `changelog.d/716-scheduled-message-distributed-lock.added.md`, through `mechanical-fixer`.
-3. The scheduling section of the messaging locks page owned by #713, and `src/Encina.Messaging/README.md`, through `docs-writer`: the single-writer limits and the relation to #735 and #1251.
+3. The scheduling section of the messaging locks page created by #713 PR 5 (this step starts after #713 PR 5 merges), and `src/Encina.Messaging/README.md`, through `docs-writer`: the single-writer limits and the relation to #735 and #1251.
 4. Build and test verification: zero warnings, per-flag targets met.
 
 </details>
@@ -351,16 +353,16 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md.
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production (modified) | 2 | `SchedulingOptions`, `ScheduledMessageProcessor` |
+| Production (modified) | 3 | `SchedulingOptions`, `ScheduledMessageProcessor`, `MessagingLockStartupCheck` (file of #713) |
 | `PublicAPI.Unshipped.txt` and manifest | 2 | Messaging |
-| Tests | 14 | Unit (2), guard (1), integration base plus ten classes (11) |
-| Documentation | 4 | Changelog fragment, page section, README, two `.md` justifications |
+| Tests | 15 | Unit (2), guard (1), `MessagingLockStartupCheckTests` (modified, file of #713) (1), integration base plus ten classes (11) |
+| Documentation | 5 | Changelog fragment, page section, README, two `.md` justifications |
 
 PR split (each at most 15 files and 1500 lines, each building and passing alone):
 
 | PR | Content | Files | Lines (est.) |
 |----|---------|------:|-------------:|
-| 1 | Phases 1 and 2: options, processor gate, unit and guard tests, `PublicAPI`, manifest; starts after PRs 1 to 3 of the #713 plan | 7 | 450 |
+| 1 | Phases 1 and 2: options, processor gate, startup-check rule, unit and guard tests, startup-check test case, `PublicAPI`, manifest; starts after PRs 1 to 3 of the #713 plan | 9 | 550 |
 | 2 | Phase 3 integration: base plus six ADO and Dapper classes | 7 | 600 |
 | 3 | Phase 3 integration: EF Core x3 and MongoDB; Phase 4: fragment, README, page section, justifications | 9 | 600 |
 
@@ -404,7 +406,7 @@ docs/plans/outbox-distributed-lock-implementation-plan-713.md.
 | 2 | OpenTelemetry | ✅ | Phase 2: the counter of #713 with `pattern="scheduling"`; the cycle span starts after the lock; no tenant tag (cross-tenant cycle) |
 | 3 | Structured Logging | ✅ | Reuses 7500-7503; no new id |
 | 4 | Health Checks | ⏭️ | Processor liveness is #2396; no new checkable dependency |
-| 5 | Validation | ✅ | Phase 1: `SchedulingOptions.Validate` for the two new options |
+| 5 | Validation | ✅ | Phase 1: `SchedulingOptions.Validate` for the two new options; the `LockExpiry` versus `ProcessingInterval` rule in the startup check, only with the flag on |
 | 6 | Resilience | ❌ | A failed acquire is retried at the next interval by design |
 | 7 | Distributed Locks | ✅ | The feature itself |
 | 8 | Transactions | ❌ | The lock is not a transaction; the orchestrator's save is unchanged |
@@ -417,7 +419,7 @@ docs/plans/outbox-distributed-lock-implementation-plan-713.md.
 
 ## Prerequisites & Dependencies
 
-- The #713 plan's PRs 1 to 3 (port, gate, marker, flag, adapter, startup check, EventId range) must merge first; PR 3 of that plan needs #2667.
+- The #713 plan's PRs 1 to 3 (port, gate, marker, flag, adapter, startup check, EventId range) must merge first; PR 3 of that plan needs #2667. The documentation step of PR 3 here also needs #713 PR 5 (the messaging locks page).
 - Not blocked by another issue's open maintainer decision: the dilemmas that matter here (lock lifetime, flag) are #713's and are answered once for both plans.
 - No follow-up issue file is needed: #735, #739, #749, #2396, #223 and #218 are open issues named above.
 
