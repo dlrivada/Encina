@@ -188,6 +188,46 @@ Rule: `AGENTS.md` section 9 requires targets and justifications for every new fi
 
 The per-file targets are summarised as target attainment (next subsection) and shown on the coverage dashboard; they are not part of the docref index.
 
+#### Target check (`--check-targets`)
+
+`--check-targets` (#1651) judges the per-file targets of the package manifests against the measured Cobertura data and tells you which targets a run does not meet. It is the mode a CI gate calls; run it locally after the measurement commands above, from the repository root.
+
+```powershell
+dotnet run --file .github/scripts/coverage-report.cs -- --check-targets [--files-from <list>] [--enforce] [--require-all-flags] [--input <dir>] [--output <dir>]
+```
+
+| Argument | Effect |
+|---|---|
+| `--enforce` | Exit 1 when there is any finding. Without it the mode is report-only: it prints the findings and exits 0. |
+| `--require-all-flags` | Every flag is required to have data for each target, as in the nightly run. Without it, only flags that have a Cobertura file in the run are required, so a pull request that ran only the unit tests is not failed for the guard targets. |
+| `--files-from <list>` | A text file with one repository path per line (the files a pull request touches). Adds the touched-file checks (`no-targets`, `dropped-path`). Given without a value, the script prints an error and exits 1, so the touched-file check can never be switched off by accident. |
+| `--input <dir>`, `--output <dir>` | The Cobertura folder (default `artifacts/test-results`) and the output folder (default `artifacts/coverage`), as in the report mode. |
+
+Rules of the mode:
+
+- `--enforce` and `--require-all-flags` only apply to `--check-targets`; given alone, the script prints an error and exits 1, because a silent no-op `--enforce` would read as a passing gate.
+- `--check-targets` cannot be combined with another `--check-*` mode; run it as its own step.
+- It always writes `<output>/check-targets.json`, including when the input directory does not exist (then with a `no-coverage` finding), so a stale file of an earlier run is never read as current. The fields are `enforce`, `requireAllFlags`, `flagsInRun` (the flags that have a Cobertura file), `checkedTargets` (the pairs with a target above 0), `passed` and `findings` (each with `kind`, `subject` and `message`).
+- Each pair of file and flag is compared on its unrounded measured percentage, as in the report.
+
+Finding kinds:
+
+| Kind | Meaning | Emitted when |
+|---|---|---|
+| `below-target` | A file is below the target of a flag. | The measured value is lower than the target, whether or not the flag is in the run list. |
+| `no-data` | A target has no coverage data. | The flag has a Cobertura file in the run but none for the file, or `--require-all-flags` is set and the flag has no data. A target of 0 never needs data. |
+| `parse-error` | A Cobertura file could not be read. | The file failed to parse; recorded in every mode, because the flag it belongs to cannot be vouched for. |
+| `no-targets` | A touched file has no per-file target. | With `--files-from`, a touched `src/` file that still exists has no entry in the `targets` of its package manifest. A deleted file is not reported. |
+| `dropped-path` | A touched path could not be checked. | With `--files-from`, a touched `src/` C# path contains characters other than ASCII letters, digits and `. / - _ +`, so the filter drops it. The finding gives the number of such paths and never echoes them. |
+| `no-manifest` | The manifests cannot vouch for anything. | No manifest was loaded, or at least one did not parse. |
+| `no-coverage` | There is nothing to judge. | No Cobertura file of a known flag was found while targets exist, or the input directory is missing. |
+
+To verify the script's own logic without repository data, run the self-test, which covers the mode's rules and the `check-targets.json` fields:
+
+```powershell
+pwsh -NoProfile -File .github/scripts/coverage-report-selftest.ps1
+```
+
 #### Target attainment
 
 Target attainment answers one question: how close is each (file, flag) pair to its own per-file target, and how close is the whole repository? It is computed by `.github/scripts/coverage-report.cs` from the same measured values as the "Per-file targets" table (`GapPoints`, `Attainment`, `LinesToCover`, `LineWeight`, `SummariseAttainment`). A **pair** is one file with one flag that has a target; the aggregates below count only pairs whose target is above 0 (see the rules).
