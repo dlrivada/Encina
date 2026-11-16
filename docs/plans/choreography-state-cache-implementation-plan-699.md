@@ -2,7 +2,7 @@
 
 > **Issue**: [#699](https://github.com/dlrivada/Encina/issues/699)
 > **Type**: Feature
-> **Complexity**: Medium (5 phases, 3 pull requests of 7, 12 and 12 files)
+> **Complexity**: Medium (5 phases, 3 pull requests of 7, 12 and 14 files)
 > **Estimated Scope**: about 350 lines of production code, about 800 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching, messaging, saga)
 
@@ -12,9 +12,9 @@
 
 The issue asks for `CachingChoreographyStateStoreDecorator`: a cache-aside `GetAsync(correlationId)` and a write-through on `UpdateAsync`, `AddEventAsync` and `AddCompensationAsync`, "identical to the Saga Store caching pattern".
 
-Re-checked against `origin/main` (db1e7f688), the plan finds that this issue sits on ground that does not exist yet and shares every hazard of #696:
+Re-checked against `origin/main` (c1d5cb869), the plan finds that this issue sits on ground that does not exist yet and shares every hazard of #696. It is a **wait plan**: no pull request can start before #592 and #1467 merge, and #592 may change the interface this plan decorates, so every file list, member name and count below is **re-verified against `origin/main` when work starts**, and the PR split is recounted then:
 
-1. **There is nothing to decorate today.** `IChoreographyStateStore` (`src/Encina.Messaging/Choreography/IChoreographyStateStore.cs`) has no implementation in `src/` and no DI registration (no `AddEncinaChoreography`, no `UseChoreography` on `MessagingConfiguration`); `docs/messaging/sagas.md` documents a feature that is not wired (open #1467, #1471, #1472). The persistent stores are #592 (database providers) and #593 (Marten, EventStoreDB). #592 also proposes a different interface (`GetByCorrelationIdAsync`, `UpdateStateAsync`, `RecordEventAsync`, ...), so member names here follow whatever #592 merges; the plan states the design by role (read, write, time-dependent query).
+1. **There is nothing to decorate today.** `IChoreographyStateStore` (`src/Encina.Messaging/Choreography/IChoreographyStateStore.cs`) has no implementation in `src/` and no DI registration (no `AddEncinaChoreography`, no `UseChoreography` on `MessagingConfiguration`); `docs/messaging/sagas.md` documents a feature that is not wired (open #1467, #1471, #1472). The persistent stores are #592 (database providers) and #593 (Marten, EventStoreDB). #592 also proposes a different interface (`GetByCorrelationIdAsync`, `UpdateStateAsync`, `RecordEventAsync`, `GetTimedOutAsync`, ...) and adds `TenantId` and `ModuleId` to the states (its cross-cutting table, with #737-#741), so member names here follow whatever #592 merges; the plan states the design by role (read, write, time-dependent query) and the key is tenant- and module-aware (Design Choice 6).
 2. **The state is mutable, and a handler that reads it to update it is read-modify-write.** `IChoreographyState` has settable members (`CorrelationId`, `SagaType`, `StateData`, `Status`, `LastUpdatedAtUtc`, `EventCount`, ...); the reaction handlers documented in `docs/messaging/sagas.md` read from the store and write their results back through it. A cached instance handed to a mutating caller is a shared object, and a copy returned to a store that relies on change tracking (EF Core, the way `SagaStoreEF.UpdateAsync` does) would lose the change; see #696, Summary 1 to 3.
 3. **The compensation list drives side effects.** `GetPendingCompensationsAsync` returns the compensations still to run, most recent first, and `MarkCompensationCompletedAsync` removes one; a stale list runs a compensation twice. It must never come from a cache. Neither may `GetStuckSagasAsync`.
 4. **The contract is not ROP.** Members return `Task` or `Task<T>` and signal failure by exception; the decorator cannot return a `Left` and keeps that contract.
@@ -23,7 +23,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 
 **Affected packages:** `Encina.Messaging` (the port, its default implementation and the registration line inside the registration #592 adds), `Encina.Caching` (reader, decorator, options, registration). No provider package changes.
 
-**Provider category**: Database (10) for the persistent stores #592 adds (ADO x3, Dapper x3, EF Core x3, MongoDB); the decorator is provider independent and #592's per-provider tests gain the cached scenario in PR 3. Event sourcing (#593, Marten, EventStoreDB) is outside the database matrix and works through the same interface. Caching (8): Memory (unit and integration), Redis family through the `ICacheProvider` contract.
+**Provider category**: Database (10) for the persistent stores #592 adds (ADO x3, Dapper x3, EF Core x3, MongoDB). #592 and the acceptance list of #699 say "13 providers" because they count SQLite (ADO, Dapper, EF Core); SQLite is outside the provider matrix (ADR-024, AGENTS.md section 5), so this plan covers the 10 and states the deviation from the issue wording on purpose. The decorator is provider independent and #592's per-provider tests gain the cached scenario in PR 3. Event sourcing (#593, Marten, EventStoreDB) is outside the database matrix and works through the same interface. Caching (8): Memory (unit and integration), Redis family through the `ICacheProvider` contract.
 
 **Sibling plans (caching family)**: #695 (foundation), #696 (the pattern and its Dilemmas: if the maintainer answers C there, the answer here is C), #698 and #697 (independent). #720's saga compensation work does not touch this store.
 
@@ -47,6 +47,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 ### Rationale
 
 - C wins if the maintainer judges that nothing should be built on an unimplemented feature (and answers C on #696); A would win only with an optimistic version column on every store, a feature of its own.
+- The Memory and Hybrid (L1) cache providers hold their entries per process: an eviction on instance A never clears instance B's L1 entry, so "evict on write" is distributed only for the Redis family; elsewhere the staleness bound is `Duration`. The documentation task states this limit.
 - The issue's acceptance items "write-through" and "time-dependent queries bypass cache" become: evict on write and never cache `GetStuckSagasAsync`.
 - Class: Dilemma
 
@@ -59,7 +60,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) An internal immutable `CachedChoreographyEntry` of plain values (correlation id, saga type, state data, status, timestamps, event count, error message); a hit returns a fresh internal `CachedChoreographyState : IChoreographyState`; only a found state is cached; terminal statuses (`Completed`, `Compensated`) use `TerminalDuration` (default 1 hour), others `Duration` (default 5 seconds); `Failed` uses the short TTL; an entry over `MaxCachedStateLength` (default 65536 characters of `StateData`) is skipped** | No shared instance; serializer independent; `null` ("not found") is never cached, because the state may be created a moment later | One more copy type |
+| **A) An internal immutable `CachedChoreographyEntry` of plain values (correlation id, saga type, state data, status, timestamps, event count, error message); a hit returns a fresh internal `CachedChoreographyState : IChoreographyState`; only a found state is cached (`null`, "not found", is never cached because the state may be created a moment later)** | No shared instance; serializer independent | One more copy type |
 | **B) Cache the provider's state object** | No copy type | Shared mutable instance; provider types (tracking entities) in a shared cache |
 
 ### Chosen Option: **A - copy-on-read entry**
@@ -67,7 +68,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (provider coherence: no provider-specific type crosses an abstraction; the abstraction is `IChoreographyState` with settable members, `IChoreographyState.cs`) and the same hazard analysis as #696 (Summary 2). Option B hands one mutable object to concurrent callers.
+- **Settled by:** AGENTS.md section 3, "Provider coherence": abstractions carry no provider-specific code, and the provider's state object (a tracking entity for EF Core) is provider-specific, so it cannot be placed in the shared cache; `IChoreographyState.cs` has settable members, so a shared instance would be mutated by concurrent callers. Only A satisfies both. The TTL and size defaults are not part of this entry (Design Choice 7).
 
 </details>
 
@@ -78,7 +79,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `GetPendingCompensationsAsync` and `GetStuckSagasAsync` pass through; `CreateAsync`, `UpdateAsync`, `AddEventAsync`, `AddCompensationAsync` and `MarkCompensationCompletedAsync` pass through and then evict the state key after the inner call returned without throwing** | A compensation list or a stuck list is never stale; every write path invalidates | A reader on another instance may see a pre-commit state for up to `Duration` (the commit is outside the store); stated in the documentation |
+| **A) `GetPendingCompensationsAsync` and `GetStuckSagasAsync` pass through; `CreateAsync`, `UpdateAsync`, `AddEventAsync`, `AddCompensationAsync` and `MarkCompensationCompletedAsync` pass through and then evict the state key after the inner call returned without throwing (the failure of the eviction itself is Design Choice 9)** | A compensation list or a stuck list is never stale; every write path invalidates | A reader on another instance may see a pre-commit state for up to `Duration` (the commit is outside the store); stated in the documentation |
 | **B) Cache the compensation list with a short TTL** | Fewer reads in a failing choreography | A stale list runs a compensation twice |
 
 ### Chosen Option: **A - pass through and evict**
@@ -97,7 +98,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A failing cache call falls through to the inner store and is counted and logged by exception type (`ForLogging()`); with `CachingOptions.ThrowOnCacheErrors` the cache exception is rethrown, because the wrapped contract signals failure by exception; the key is `StoreCacheKey.Build(KeyPrefix, null, "choreo", correlationId)` (the id is percent-encoded; the state has no tenant); EventIds are the shared 350-353** | The decorator never adds a failure mode a caller did not already handle; the key is injective; nothing new to register | The strict switch throws, unlike the `Either` stores of #695 and #696, because this interface has no `Left` |
+| **A) A failing cache call on the read path falls through to the inner store and is counted and logged by exception type (`ForLogging()`); with `CachingOptions.ThrowOnCacheErrors` the cache exception is rethrown by the reader, because the wrapped contract signals failure by exception; the key is Design Choice 6; EventIds are the shared 350-353** | The reader never adds a failure mode a caller did not already handle; nothing new to register | The strict switch throws, unlike the `Either` stores of #695 and #696, because this interface has no `Left` |
 | **B) Convert to `Either`** | ROP | Changes the interface that #592 owns; not this issue |
 
 ### Chosen Option: **A - fall through, rethrow only under the strict switch**
@@ -105,7 +106,7 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** `IChoreographyStateStore.cs` (members return `Task` and throw; there is no `Either`), AGENTS.md section 3 (an exception passed to a logger goes through `ForLogging()`; errors are never swallowed) and the family block of EventIds 350-399 of the plan batch registry (ids 350-353 are #695's shared failure logs). No new error code is created, so there is no `ErrorCategory` to state. Whether #592 turns the interface into ROP is #592's decision; if it does, this decorator returns `Left store_cache.failed` (`Internal`, ADR-062) under the strict switch like the sibling decorators.
+- **Settled by:** `IChoreographyStateStore.cs` (members return `Task` and throw; there is no `Either`; B would change the interface that #592 owns) and AGENTS.md section 3 (an exception passed to a logger goes through `ForLogging()`). The shared ids 350-353 are #695's failure logs inside the family block 350-399 of the plan batch registry. No new error code is created, so there is no `ErrorCategory` to state. Whether #592 turns the interface into ROP is #592's decision; if it does, this decorator returns `Left store_cache.failed` (`Internal`, ADR-062) under the strict switch like the sibling decorators.
 
 </details>
 
@@ -123,8 +124,87 @@ The plan therefore applies the pattern of #696 (its recommended option, pending 
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (registration completeness proven by a DI test with `ValidateOnBuild` and `ValidateScopes`) and the project reference direction (`Encina.Caching` references `Encina.Messaging`, `Encina.Caching.csproj`). The call-order mechanism is the choice of #695 (its Design Choice 2); this plan follows whichever option the maintainer picks there.
+- **Class:** Trivial
+- **Settled by:** AGENTS.md section 3 (registration completeness proven by a DI test with `ValidateOnBuild` and `ValidateScopes`) and the project reference direction (`Encina.Caching` references `Encina.Messaging`, `Encina.Caching.csproj`: a flag in Messaging cannot reach the cache). The call-order mechanism is the pending choice of #695 (its Design Choice 2) and this plan follows whichever option the maintainer picks there; it is not decided here.
+
+</details>
+
+<details>
+<summary><strong>6. Tenant and module in the key</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Tenant- and module-qualified key: `StoreCacheKey.Build(KeyPrefix, tenantId, kind, ...)` with `kind` `choreo` (no module) or `choreo-module` and the module id as the first segment; the tenant and module come from the same context #592's store scopes by; when tenancy is enabled and no tenant resolves, the reader skips the cache (counted `skipped`, reason `no_tenant`) and reads the store, which applies its own fail-closed rule; a single-tenant application uses no tenant segment; the correlation id and module id are percent-encoded** | Injective (two tenant, module, id tuples never give one key; the tenant `default` and "no tenant" differ, #695 Design Choice 5); no tenant can read another's cached state; the missing-context case denies the cache, never the store's own check | The key needs the tenant context before the lookup, so `Encina.Caching` may need a reference to the tenant abstraction (`ITenantProvider`, `Encina.Tenancy`) or a delegate; settled when #592 shows how it resolves the tenant |
+| **B) Tenant-less key (correlation ids are unique across tenants)** | No tenant dependency; the shape of main's interface (no tenant member today) | Wrong the moment #592 adds `TenantId` and correlation ids repeat across tenants: tenant A's state is served to tenant B |
+| **C) Do not cache when the state has a tenant** | No key work | The cache is useless in a multi-tenant application |
+
+### Chosen Option: **A - tenant- and module-qualified key** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins only if #592 drops `TenantId` and `ModuleId`; C wins if the maintainer judges the tenant-context dependency of `Encina.Caching` unacceptable. #592's cross-cutting table includes both (`TenantId` with #737-#741, `ModuleId`), so the plan is written for A and re-verified at pick-up.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. TTL and size defaults</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Duration` 5 seconds for running states, `TerminalDuration` 1 hour for `Completed` and `Compensated`, `Failed` uses the short TTL, `MaxCachedStateLength` 65536 characters of `StateData` (a larger entry is skipped, counted `skipped`, reason `too_large`); all changeable per registration** | The values of #696 Design Choice 3, so the family behaves one way; a terminal state never changes again | A recreated correlation id keeps the terminal entry until eviction or 1 hour |
+| **B) One TTL (`Duration`) for every status** | Smallest staleness for every status | A finished choreography is re-read every few seconds |
+
+### Chosen Option: **A - the defaults of #696** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins when correlation ids are reused after completion; the answer given on #696 Design Choice 3 applies here and the two are asked together.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. What the cache stores: payload and retention</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Cache the entry as the row holds it (status fields, `StateData`, `ErrorMessage`), plaintext in the cache provider, for the TTL of Design Choice 7 (up to 1 hour for terminal states); document that choreography data holding personal data must not be cached (or the application must not register the cache) and that a cached copy can outlive the deletion or erasure of the row by up to the TTL; the erasure and eviction by data subject is a follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/choreography-cache-personal-data-erasure.md`)** | The status view returns what the store returns; same stance as #696 Design Choice 8 and the inbox response of #695 (its Design Choice 10), so the family behaves one way | Plaintext personal data (the reference application handles health data) and error text in a shared cache for up to an hour; the application opts out by not registering the cache |
+| **B) Cache only the status fields (id, type, status, timestamps, event count) and read `StateData` and `ErrorMessage` from the store** | No payload and no error text in the cache | The payload still costs the database read; two reads for one snapshot |
+| **C) A per-choreography-type exclusion list in `ChoreographyCachingOptions`** | Mixed applications cache only choreographies without personal data | A configuration the application must keep correct |
+
+### Chosen Option: **A - cache as stored, documented, with the erasure follow-up** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins when the payloads are large and sensitive and a status badge is all the readers need; C wins when one application mixes choreographies with and without personal data. The answer on #696 Design Choice 8 applies here and the two are asked together.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Failure of the eviction after a committed write</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A failing eviction is counted and logged by exception type (`ForLogging()`) and never rethrown, even under `ThrowOnCacheErrors` (that switch governs the reader); the entry stays stale for at most its TTL (up to 1 hour for a terminal state of a recreated correlation id)** | The caller never sees a failure of a write that committed, so it does not retry and duplicate an event | Bounded staleness up to the TTL after a cache outage |
+| **B) Rethrow the eviction failure under `ThrowOnCacheErrors`** | The strict switch means strict everywhere; nothing is hidden | The caller sees an exception for a committed write; a retry duplicates the event or compensation |
+| **C) Evict before and after the inner call** | A second chance if the first eviction failed | Two cache calls per write; the eviction before the commit can be undone by a concurrent read |
+
+### Chosen Option: **A - never fail a committed write** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins for an application that prefers a loud failure over any staleness and accepts idempotent retries; C wins when the first eviction fails often. The ordering is "evict after the inner call returns": for ADO.NET, Dapper and MongoDB stores the write is immediate; for EF Core the commit is `SaveChangesAsync`, owned by the caller or unit of work outside the choreography store, so an eviction before the commit can be refilled by a concurrent read with the pre-commit state for up to `Duration`. #696 analyses the per-family eviction points for the saga stores; the same analysis for the choreography stores is made when #592 exists (it does not today).
+- Class: Dilemma
 
 </details>
 
@@ -143,11 +223,13 @@ PR 1 holds exactly these 7 files (member names of the store are the ones #592 me
 |---|------|--------|
 | 1 | `src/Encina.Messaging/Choreography/IChoreographyStatusReader.cs` | new (public; one read member returning the state or null) |
 | 2 | `src/Encina.Messaging/Choreography/StoreChoreographyStatusReader.cs` | new (internal; wraps `IChoreographyStateStore`) |
-| 3 | the choreography registration method #592 or #1467 adds in `src/Encina.Messaging` | modify (one `TryAddScoped<IChoreographyStatusReader, StoreChoreographyStatusReader>()` line) |
+| 3 | the file that holds the choreography registration #1467 adds in `src/Encina.Messaging` (no such file exists on `origin/main`; it is named, and PR 1 recounted, when #1467 merges) | modify (one `TryAddScoped<IChoreographyStatusReader, StoreChoreographyStatusReader>()` line) |
 | 4 | `src/Encina.Messaging/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 5 | `tests/Encina.UnitTests/Messaging/Choreography/ChoreographyStatusReaderTests.cs` | new |
 | 6 | `tests/Encina.UnitTests/Messaging/Choreography/ChoreographyStatusReaderRegistrationTests.cs` | new (DI test with `ValidateOnBuild` and `ValidateScopes`) |
 | 7 | `.github/coverage-manifest/Encina.Messaging.json` | modify (`mechanical-fixer`) |
+
+`Encina.UnitTests` already references `Encina.Messaging` and `Encina.Caching` (`Encina.UnitTests.csproj`), so no project reference edit is needed in PR 1 or PR 2.
 
 Tasks:
 
@@ -207,10 +289,10 @@ PR 2 holds exactly these 12 files:
 Tasks:
 
 1. **Create** `CachingChoreographyStatusReader` with the shape of `CachingSagaStatusReader` of #696: hit returns a fresh `CachedChoreographyState`; miss calls the inner reader, caches a found state within `MaxCachedStateLength` with the TTL of Design Choice 2, never caches `null` or a thrown inner failure (an inner exception propagates untouched, it is the store's failure and is never cached).
-2. **Create** `EvictingChoreographyStateStoreDecorator : IChoreographyStateStore`: every member delegates; the five write members evict the state key after the inner call returned; `GetPendingCompensationsAsync` and `GetStuckSagasAsync` delegate with no cache call; no read is served from the cache.
-3. **Create** `ChoreographyCachingOptions { Duration 5 s, TerminalDuration 1 h, MaxCachedStateLength 65536 }` with positive-value setters.
+2. **Create** `EvictingChoreographyStateStoreDecorator : IChoreographyStateStore`: every member delegates; the five write members evict the state key (Design Choice 6) after the inner call returned; a failing eviction is counted and logged and never rethrown (Design Choice 9); `GetPendingCompensationsAsync` and `GetStuckSagasAsync` delegate with no cache call; no read is served from the cache.
+3. **Create** `ChoreographyCachingOptions { Duration 5 s, TerminalDuration 1 h, MaxCachedStateLength 65536 }` with positive-value setters (Design Choice 7).
 4. **Add** `AddEncinaChoreographyCaching` (guards `services`; options; `StoreCachingRegistration.Decorate` for the store and the reader; throws when no store is registered).
-5. **Tests (unit)**: hit, miss, TTL by status, `null` and oversized never cached, the copy is independent, every write evicts and a throwing inner call does not evict-and-hide (the exception propagates), the two time-dependent members make no cache call, a throwing cache falls through and with `ThrowOnCacheErrors` rethrows.
+5. **Tests (unit)**: hit, miss, TTL by status, `null` and oversized never cached, the copy is independent, keys differ by tenant and by module and a missing tenant under tenancy skips the cache (never a tenant-less key), every write evicts and a throwing inner call does not evict-and-hide (the exception propagates), a failing eviction after a successful write does not throw (also under `ThrowOnCacheErrors`), the two time-dependent members make no cache call, a throwing cache on a read falls through and with `ThrowOnCacheErrors` rethrows.
 6. **Tests (guard)**: extension and options setters; the decorators are internal (guard target 0 with that reason).
 
 </details>
@@ -247,7 +329,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 12 files:
+PR 3 holds exactly these 14 files (the 10 provider classes, the scenario, the sagas page and the two manifests that carry the integration targets of the tests in this PR):
 
 | # | File | Change |
 |---|------|--------|
@@ -256,7 +338,9 @@ PR 3 holds exactly these 12 files:
 | 5-7 | `tests/Encina.IntegrationTests/Dapper/{SqlServer,PostgreSQL,MySQL}/Choreography/ChoreographyStoreDapperCachingTests.cs` | new (3) |
 | 8-10 | `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/{SqlServer,PostgreSQL,MySQL}/Choreography/ChoreographyStoreEF<Db>CachingTests.cs` | new (3) |
 | 11 | `tests/Encina.IntegrationTests/Infrastructure/MongoDB/Stores/ChoreographyStoreMongoDBCachingTests.cs` | new |
-| 12 | `docs/messaging/sagas.md` | modify (`docs-writer`: the status cache and its staleness bound, in the choreography section that #1467 and #1472 correct) |
+| 12 | `docs/messaging/sagas.md` | modify (`docs-writer`: the status cache, its staleness bound, the per-process limit of the Memory and Hybrid (L1) providers, and the payload and retention stance of Design Choice 8, in the choreography section that #1467 and #1472 correct) |
+| 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`: the integration targets of the table in Phase 4) |
+| 14 | `.github/coverage-manifest/Encina.Messaging.json` | modify (`mechanical-fixer`: the integration target of `StoreChoreographyStatusReader.cs`) |
 
 The folders and fixtures are those #592 creates for its own store tests (the `{Family}-{Database}` collections); the scenario runs a full create, event, update, compensate and complete choreography with the caching registrations active and asserts the stored state after every step (the guard against lost updates), that a status read after a write is a miss and the next is a hit, and that the compensation list is always read from the store.
 
@@ -289,18 +373,18 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Telemetry**: the shared `StoreCacheTelemetry` of #695 with `store=choreography`; no correlation id, key or state in a tag; no tenant tag (the state has no tenant scope, ADR-054 D4, D6).
+1. **Telemetry**: the shared `StoreCacheTelemetry` of #695 with `store=choreography`; no correlation id, key, module id or state in a tag; the tenant tag only where ADR-054 D4 requires it for a tenant-scoped operation (a missing tenant is never replaced by a made-up value; the outcome is `skipped`, reason `no_tenant`).
 2. **Logs**: shared ids 350-353; no new ids. **Error codes**: none (Design Choice 4), so no `ErrorCategory` to state; if #592 adopts ROP the shared `store_cache.failed` (`Internal`) is used.
-3. **Coverage targets** (per file, per flag; measured values replace the estimates before PR 2 and PR 3 open):
+3. **Coverage targets** (per file, per flag; each flag's target is entered in the manifest of the pull request whose tests meet it: the unit and guard columns in PR 1 and PR 2, the integration column only in PR 3; measured values replace the estimates before each PR opens):
 
-| File | unit | guard | integration | Justification |
-|------|------|-------|-------------|---------------|
-| `Choreography/StoreChoreographyStatusReader.cs` (Messaging) | 100 | 0 | 0 | One delegating call, fully unit tested; internal type without `InternalsVisibleTo` for `Encina.GuardTests` |
-| `MessagingStores/CachingChoreographyStatusReader.cs` | 95 | 0 | 70 | Every TTL, skip and failure branch unit tested; internal; the scenario reaches hit, miss and expiry against real stores |
-| `MessagingStores/EvictingChoreographyStateStoreDecorator.cs` | 95 | 0 | 70 | Every member and eviction unit tested; internal; the scenario proves persistence through it |
-| `MessagingStores/CachedChoreographyEntry.cs` | 100 | 0 | 50 | Mapping fully unit tested; reached on every hit |
-| `MessagingStores/ChoreographyCachingOptions.cs` | 100 | 100 | 0 | Setter validation reachable from both flags |
-| `MessagingStores/StoreCachingServiceCollectionExtensions.cs` (added method) | 95 | 90 | 0 | DI test and guard tests reach every line |
+| File | unit (PR) | guard | integration (PR 3) | Justification |
+|------|-----------|-------|--------------------|---------------|
+| `Choreography/StoreChoreographyStatusReader.cs` (Messaging) | 100 (PR 1) | 0 | 60 | One delegating call, fully unit tested; the scenario reads through it on every provider; guard 0 because the type is internal without `InternalsVisibleTo` for `Encina.GuardTests` |
+| `MessagingStores/CachingChoreographyStatusReader.cs` | 95 (PR 2) | 0 | 70 | Every TTL, skip, tenant and failure branch unit tested; internal; the scenario reaches hit, miss and expiry against real stores |
+| `MessagingStores/EvictingChoreographyStateStoreDecorator.cs` | 95 (PR 2) | 0 | 70 | Every member, eviction and eviction failure unit tested; internal; the scenario proves persistence through it |
+| `MessagingStores/CachedChoreographyEntry.cs` | 100 (PR 2) | 0 | 50 | Mapping fully unit tested; reached on every hit |
+| `MessagingStores/ChoreographyCachingOptions.cs` | 100 (PR 2) | 100 | 0 | Setter validation reachable from both flags; the scenario only reads defaults |
+| `MessagingStores/StoreCachingServiceCollectionExtensions.cs` (added method) | 95 (PR 2) | 90 | 0 | DI test and guard tests reach every line |
 
 4. **Contract, property, load, benchmark**: no new contract or property test (the decorated interface keeps its contract; the unit cases cover the invariants); no load or benchmark test (a status view cached for seconds; the handler path is not cached); the manifest `reason` says so.
 
@@ -334,7 +418,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation on `IChoreographyStatusReader`, `ChoreographyCachingOptions` and `AddEncinaChoreographyCaching` (bounded staleness, call order, example).
-2. `docs/messaging/sagas.md` through `docs-writer` (PR 3); `changelog.d/699-choreography-state-cache.added.md` (PR 2); PublicAPI of `Encina.Messaging` and `Encina.Caching`.
+2. `docs/messaging/sagas.md` through `docs-writer` (PR 3); `changelog.d/699-choreography-state-cache.added.md` (PR 2); PublicAPI of `Encina.Messaging` (PR 1) and `Encina.Caching` (PR 2).
 3. Build with `dotnet build --configuration Release` (0 warnings), `dotnet test` of each flag, `dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications`.
 
 </details>
@@ -399,8 +483,8 @@ REFERENCE FILES:
 | Production code | 6 | 2 | New: port, default reader, caching reader, evicting decorator, entry, options; modified: the registration of #592/#1467, `StoreCachingServiceCollectionExtensions.cs` |
 | Tests | 16 | 1 | New: reader unit, DI (PR 1); reader unit, decorator unit, DI (PR 2); scenario and 10 provider classes (PR 3); modified: `StoreCachingGuardTests.cs` |
 | Documentation | 0 | 1 | `docs/messaging/sagas.md` |
-| Configuration | 1 | 4 | Changelog fragment; two PublicAPI files, `Encina.Messaging.json`, `Encina.Caching.json` |
-| **Total** | **23** | **8** | 3 pull requests: 7, 12 and 12 files (31 file touches), each at most 15 files and about 700 lines |
+| Configuration | 1 | 4 | Changelog fragment; two PublicAPI files, `Encina.Messaging.json`, `Encina.Caching.json` (each manifest is touched twice: PR 1 and PR 3 for Messaging, PR 2 and PR 3 for Caching) |
+| **Total** | **23** | **8** | 31 distinct files; 3 pull requests: 7, 12 and 14 files (33 file touches), each at most 15 files and about 800 lines |
 
 ---
 
@@ -419,13 +503,14 @@ IMPLEMENTATION OVERVIEW:
 1. PR 1: IChoreographyStatusReader and its default (Messaging), registered next to the store.
 2. PR 2: CachingChoreographyStatusReader, EvictingChoreographyStateStoreDecorator, CachedChoreographyEntry, ChoreographyCachingOptions,
    AddEncinaChoreographyCaching, tests, manifest, changelog.
-3. PR 3: integration scenario over the 10 database providers and the sagas page.
+3. PR 3: integration scenario over the 10 database providers, the sagas page and the integration coverage targets.
 
 KEY PATTERNS:
 - Mirror #696: copy-on-read entries, short TTL for running states, long TTL for Completed and Compensated, null never cached.
 - The interface throws (no Either): a cache failure falls through, the strict switch rethrows.
 - Keys through StoreCacheKey; shared EventIds 350-353; no key, id or state in logs or tags.
-- Apply Design Choice 1 as the Maintainer Decisions section says (and the answer given on #696).
+- Apply Design Choices 1, 6, 7, 8 and 9 as the Maintainer Decisions section says (and the answers given on #696).
+- Keys carry tenant and module; a missing tenant under tenancy skips the cache; a failing eviction never fails a committed write.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Choreography/IChoreographyStateStore.cs, IChoreographyState.cs
@@ -443,7 +528,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ✅ Include | The feature: a bounded-staleness cache of the choreography status view with eviction on write. |
-| 2 | OpenTelemetry | ✅ Include | The shared counters with `store=choreography`; no ids or state in tags; no tenant tag (ADR-054 D4, D6). |
+| 2 | OpenTelemetry | ✅ Include | The shared counters with `store=choreography`; no ids or state in tags; tenant tag per ADR-054 D4 only for a tenant-scoped operation (D6). |
 | 3 | Structured Logging | ✅ Include | Shared ids 350-353; exceptions through `ForLogging()`. |
 | 4 | Health Checks | ❌ N/A | The cache is optional and falls through; the stores of #592 bring their own checks. |
 | 5 | Validation | ✅ Include | Options setters reject non-positive values. |
@@ -451,11 +536,11 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | The handler path is not cached, so there is no shared mutable cache entry to lock. |
 | 8 | Transactions | ✅ Include | Nothing is published to the cache before a commit: entries come only from reads; eviction follows writes; the plan claims bounded staleness, not atomicity. |
 | 9 | Idempotency | ❌ N/A | Status reads are idempotent; event idempotency is the inbox's concern. |
-| 10 | Multi-Tenancy | ✅ Include | The state has no tenant today, so the key has none; `StoreCacheKey` is injective and ready for a tenant column. |
-| 11 | Module Isolation | ❌ N/A | Choreographies are not module scoped. |
+| 10 | Multi-Tenancy | ✅ Include | #592 adds `TenantId` to the states; the key carries the tenant segment, `StoreCacheKey` is injective, a missing tenant under tenancy skips the cache and never builds a tenant-less key (Design Choice 6). |
+| 11 | Module Isolation | ✅ Include | #592 adds `ModuleId` to the states; the module id is a key segment (`choreo-module` kind, Design Choice 6). |
 | 12 | Audit Trail | ❌ N/A | A status read is not an audit event. |
 
-**Deferred items:** none that need an issue. The documentation gap about the unimplemented choreography feature already has issues (#1467, #1471, #1472); the stores are #592 and #593.
+**Deferred items:** one follow-up issue to be opened, drafted: erasure or exclusion of cached choreography state that contains personal data (draft: `artifacts/decisions/plan-batch/followups/choreography-cache-personal-data-erasure.md`; Design Choice 8). The same gap exists for the saga cache (its own follow-up is drafted in the #696 plan). The documentation gap about the unimplemented choreography feature already has issues (#1467, #1471, #1472); the stores are #592 and #593.
 
 ---
 
@@ -466,7 +551,8 @@ REFERENCE FILES:
 | #592 (persistent stores for the database providers) and #593 (Marten, EventStoreDB) | ⏭️ Open | Blocking for every PR of this plan: there is no store to decorate on `main` |
 | #1467 (choreography has no implementation and no DI registration) | ⏭️ Open | The registration method where PR 1 adds the reader default |
 | #695 foundation and #696 pattern | ⏭️ Sibling plans | PR 2 needs both merged |
-| Maintainer answers to Design Choice 1 (and the answer on #696) | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1, 6, 7, 8 and 9 (and the answers on #696) | Pending | Asked when work starts |
+| Re-verification of file lists, member names and counts against `origin/main` | At pick-up | #592 may change the interface and add tenant and module members; #593 also implements it |
 
 Blocking prerequisites: #592 and #1467 for all PRs; #695 and #696 for PR 2.
 
@@ -474,6 +560,6 @@ Blocking prerequisites: #592 and #1467 for all PRs; #695 and #696 for PR 2.
 
 ## Next Steps
 
-1. The orchestrator keeps #699 out of the work queue until #592 and #1467 are merged; then it asks the maintainer Design Choice 1 together with the answer on #696, records it under `## Maintainer Decisions` and briefs three workers.
+1. The orchestrator keeps #699 out of the work queue until #592 and #1467 are merged; then it asks the maintainer Design Choice 1 together with the answer on #696, records it under `## Maintainer Decisions` and briefs three workers (after re-verifying the file lists and counts).
 2. If the maintainer answers C, comment on #699 with the evidence (no store, mutable read-modify-write state) and close it with #592 as the owner of any later cache.
 3. After PR 3, comment on #699 with the integration result.
