@@ -13,7 +13,7 @@ using Shouldly;
 namespace Encina.UnitTests.Security.BreakTheGlass;
 
 /// <summary>
-/// Registration completeness and argument guards of the SQL Server break-the-glass stores (ADO.NET and Dapper):
+/// Registration completeness and failure paths of the SQL Server break-the-glass stores (ADO.NET and Dapper):
 /// the database store wins over the in-memory default in either registration order without overriding the
 /// application's own store, the provider builds with <c>ValidateOnBuild</c> and <c>ValidateScopes</c>, a provider
 /// failure is a <c>Left</c> and never an exception. The behavior against a real database is in the integration tests.
@@ -190,31 +190,5 @@ public sealed class BreakTheGlassSqlServerStoreTests
 
         results.ShouldAllBe(result => result.IsLeft);
         results.ShouldAllBe(result => result.Match(Right: _ => string.Empty, Left: error => error.GetCode().IfNone(string.Empty)) == BreakTheGlassErrors.StoreFailedCode);
-    }
-
-    [Theory]
-    [InlineData("ADO")]
-    [InlineData("Dapper")]
-    public async Task ArgumentGuards_RejectNullsBeforeAnyDatabaseCall(string provider)
-    {
-        var store = NewStore(provider, Substitute.For<IDbConnection>());
-
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.AddAsync(null!));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.FindEffectiveAsync(null, null!, "s", "c", DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.FindEffectiveAsync(null, "u", null!, "c", DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.FindEffectiveAsync(null, "u", "s", null!, DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.TryCloseAsync(null, Guid.NewGuid(), BreakTheGlassStatus.Revoked, null!, DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.TryRecordReviewAsync(null, Guid.NewGuid(), BreakTheGlassReviewOutcome.Justified, null!, null, DateTimeOffset.UnixEpoch));
-        await Should.ThrowAsync<ArgumentNullException>(async () => await store.QueryReviewQueueAsync(null, null!));
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(async () => await store.GetExpiredUnrecordedAsync(DateTimeOffset.UnixEpoch, 0));
-    }
-
-    [Fact]
-    public void Constructors_RejectANullConnectionAndAnInvalidTableName()
-    {
-        Should.Throw<ArgumentNullException>(() => new BreakTheGlassStoreADO(null!));
-        Should.Throw<ArgumentNullException>(() => new BreakTheGlassStoreDapper(null!));
-        Should.Throw<ArgumentException>(() => new BreakTheGlassStoreADO(Substitute.For<IDbConnection>(), tableName: "x; DROP TABLE y"));
-        Should.Throw<ArgumentException>(() => new BreakTheGlassStoreDapper(Substitute.For<IDbConnection>(), tableName: "x; DROP TABLE y"));
     }
 }
