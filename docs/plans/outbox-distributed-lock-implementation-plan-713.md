@@ -259,8 +259,8 @@ src/Encina.Messaging/MessagingConfiguration.cs, docs/architecture/adr/052-distri
 
 #### `src/Encina.Messaging/Locking/`
 
-1. **`MessagingLockGate.cs`** (internal static) — `ValueTask<Either<EncinaError, Option<IMessagingLockHandle>>> TryEnterAsync(IMessagingLockProvider? provider, MessagingLockMarker? marker, string pattern, string lockName, TimeSpan expiry, TimeSpan wait, ILogger logger, CancellationToken ct, string? tenantId = null)`. The optional trailing `tenantId` is owned by this plan so that #714, #715 and #716 only pass it and never edit the gate's signature (a sibling that lands first still builds): when it is not null the attempt counter carries the tenant tag, when null the tag is omitted. No marker means the feature is off and the result is a no-op handle (`Right(Some(NoOpHandle))`); a marker with no provider is `Left` `messaging.lock_provider_missing` (category `FailedPrecondition`, ADR-062; the startup check normally prevents it); otherwise it calls the provider, records the outcome (acquired, contended, failed) and logs by error code. `NoOpHandle` is a private nested type.
-2. **`MessagingLockMarker.cs`** (internal sealed) — registered exactly when `UseDistributedLocking` is on (Phase 3); the processors learn the flag from its presence, because they receive options and a service provider, not `MessagingConfiguration`.
+1. **`MessagingLockGate.cs`** (internal static) — `ValueTask<Either<EncinaError, Option<IMessagingLockHandle>>> TryEnterAsync(IMessagingLockProvider? provider, MessagingLockMarker? marker, string pattern, string lockName, TimeSpan expiry, TimeSpan wait, ILogger logger, CancellationToken ct, string? tenantId = null)`. The optional trailing `tenantId` is owned by this plan so that #714, #715 and #716 only pass it and never edit the gate's signature (a sibling that lands first still builds): when it is not null the attempt counter carries the tenant tag, when null the tag is omitted. No marker means the feature is off and the result is a no-op handle (`Right(Some(NoOpHandle))`); a marker with no provider is `Left` `messaging.lock_provider_missing` (category `FailedPrecondition`, ADR-062; the startup check normally prevents it); otherwise it calls the provider, records the outcome (acquired, contended, failed) and logs by error code. It wraps the handle it returns in a private nested `LoggingHandle` that delegates `ExpiresAtUtc` and `ExtendAsync`, and whose `DisposeAsync` catches a dispose failure (never `OperationCanceledException`), logs 7502 by exception type through `MessagingLockLog` and does not rethrow: the 7502 logging therefore lives on the Messaging side, next to the internal `MessagingLockLog`, and the adapter in `Encina.DistributedLock` neither logs nor needs `InternalsVisibleTo`. `NoOpHandle` is a private nested type.
+2. **`MessagingLockMarker.cs`** (`public sealed`, an empty type) — public because the public constructors of `SagaLockScope` (#715) and `InboxLockPipelineBehavior<,>` (#714) take it, and a public member cannot expose an internal type (CS0051). Registered exactly when `UseDistributedLocking` is on (Phase 3); the processors learn the flag from its presence, because they receive options and a service provider, not `MessagingConfiguration`. XML documentation states that it is a registration marker with no members; its `PublicAPI.Unshipped.txt` lines are in PR 2's existing `PublicAPI` count.
 3. **`MessagingLockLog.cs`** (internal static partial) — `[LoggerMessage]` 7500 `LockAcquireFailed` (Error: pattern, error code), 7501 `LockNotAcquired` (Debug: pattern), 7502 `LockReleaseFailed` (Warning: pattern, exception type via `ForLogging()`), 7503 `LockExpiredBeforeCompletion` (Warning: pattern).
 4. **`Diagnostics/MessagingLockMetrics.cs`** — on the shared `Meter("Encina")`: `Counter<long> encina.messaging.lock.attempts_total` with tags `pattern` (outbox, inbox, saga, scheduling; bounded) and `outcome` (acquired, contended, failed). The optional tag `encina.tenant_id` (the precedent of `src/Encina/Recoverability/RetryMetrics.cs`) is added only when the gate receives a `tenantId`; the outbox cycle passes none (Design Choice 6), #714 and #715 pass one where a tenant exists, and the reserved `default` segment and the injective tenant-qualified names stay in #741's decorator.
 
@@ -287,9 +287,10 @@ TASK:
 Add the range MessagingLocking = (7500, 7539), map it for Encina.Messaging in EncinaEventIdAllocationTests, create
 MessagingLockGate, MessagingLockMarker, MessagingLockLog and MessagingLockMetrics as listed, and unit-test every
 outcome with an NSubstitute port and a FakeTimeProvider: off, provider missing (Left with the FailedPrecondition
-category), acquired, contended, failed, cancelled.
+category), acquired, contended, failed, cancelled, and a handle whose DisposeAsync throws (logged 7502 by exception type, not rethrown).
 
 KEY RULES:
+- MessagingLockMarker is public (CS0051: public constructors of #714 and #715 take it).
 - Contention is not an error: it is counted and logged at Debug only.
 - Tags are bounded (pattern, outcome); no free text, no lock names with ids.
 
@@ -308,7 +309,7 @@ src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, src/Encina.Messaging
 
 #### `src/Encina.DistributedLock`
 
-1. **`Messaging/DistributedLockMessagingLockProvider.cs`** (internal sealed) — implements `IMessagingLockProvider` over `IDistributedLockProvider` with the ADR-052 shapes: `Right(Some(ILockHandle))` becomes `Right(Some(wrapper))`, `Right(None)` stays `None`, a `Left` is returned unchanged. The private wrapper implements `IMessagingLockHandle` by delegating `ExpiresAtUtc`, `ExtendAsync` and `DisposeAsync`. `ILockHandle.ExtendAsync` stays `Task<bool>` after #2667 (only the provider-level extend becomes `Either`), so the wrapper converts: `true`/`false` becomes `Right(bool)`, an exception other than cancellation becomes a `Left` with a `LockErrorCodes` fault code (#2667; the exception type is logged, never its message), and `OperationCanceledException` propagates. A dispose exception is caught and logged with EventId 7502 by exception type and never rethrown from a `finally` path.
+1. **`Messaging/DistributedLockMessagingLockProvider.cs`** (internal sealed) — implements `IMessagingLockProvider` over `IDistributedLockProvider` with the ADR-052 shapes: `Right(Some(ILockHandle))` becomes `Right(Some(wrapper))`, `Right(None)` stays `None`, a `Left` is returned unchanged. The private wrapper implements `IMessagingLockHandle` by delegating `ExpiresAtUtc`, `ExtendAsync` and `DisposeAsync`. `ILockHandle.ExtendAsync` stays `Task<bool>` after #2667 (only the provider-level extend becomes `Either`), so the wrapper converts: `true`/`false` becomes `Right(bool)`, an exception other than cancellation becomes a `Left` with a `LockErrorCodes` fault code (#2667; the exception type is logged, never its message), and `OperationCanceledException` propagates. The wrapper does not log: dispose failures are caught and logged (7502) by the gate's `LoggingHandle` in `Encina.Messaging` (Phase 2 task 1), because `MessagingLockLog` is internal to Messaging and Messaging has no `InternalsVisibleTo` for `Encina.DistributedLock`; an extend fault becomes a `Left` carrying its code, which the caller logs by code.
 2. **`ServiceCollectionExtensions.cs`** (modify) — `AddEncinaMessagingDistributedLocking(this IServiceCollection services)`: `TryAddSingleton<IMessagingLockProvider, DistributedLockMessagingLockProvider>()`, `AddOptions<MessagingLockOptions>()` with the validator.
 
 #### `src/Encina.Messaging`
@@ -332,7 +333,7 @@ CONTEXT:
 TASK:
 Create DistributedLockMessagingLockProvider (internal), AddEncinaMessagingDistributedLocking, MessagingLockStartupCheck
 and the flag-driven registration of the marker and check. Write unit tests with a substituted IDistributedLockProvider
-(acquired, contended, Left unchanged, dispose failure logged by type), a DI test building the provider with
+(acquired, contended, Left unchanged, extend fault becomes a Left; the dispose-failure log of 7502 is tested in PR 2 on the gate), a DI test building the provider with
 ValidateOnBuild and ValidateScopes for flag on and off in both registration orders, startup-check tests (port missing,
 adapter dependency missing, LockExpiry not greater than ProcessingInterval fails only with the flag on), and guard
 tests for the public extension. The contract test over the real providers is Phase 5 (PR 4).
@@ -404,7 +405,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, tests/Encin
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|-----:|------:|---------:|---------:|------------:|---------------|
 | `Locking/MessagingLockGate.cs` | 95 | 0 | 0 | 0 | 0 | Pure branches covered by unit tests; internal type with no `InternalsVisibleTo` for `Encina.GuardTests` |
-| `Locking/MessagingLockMarker.cs` | 90 | 0 | 0 | 0 | 0 | One empty type; reached through the gate and DI tests; internal |
+| `Locking/MessagingLockMarker.cs` | 90 | 0 | 0 | 0 | 0 | One empty public type with no constructor parameters and no executable code, so guard tests cannot reach anything; reached through the gate and DI tests |
 | `Locking/MessagingLockLog.cs` | 60 | 0 | 0 | 0 | 0 | Source-generated; excluded from coverage by attribute, tested through the gate |
 | `Locking/MessagingLockOptions.cs` and `MessagingLockOptionsValidator.cs` | 95 | 90 | 0 | 0 | 0 | Setter guards and validator rules are directly drivable |
 | `Locking/MessagingLockNames.cs` | 95 | 0 | 0 | 80 | 0 | Constants and factories; the property test checks distinctness |
