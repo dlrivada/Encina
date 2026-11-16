@@ -101,6 +101,32 @@ function Get-BoundArgument($Tokens, [int]$From, [object[]]$Positions, [int]$Want
 }
 
 # The value token of a named-only parameter (-Name value, -Name:value, or a prefix of five letters or more).
+# #3896: the named arguments that follow a launched script (`pwsh -File s.ps1 -Sp 'D:\x'`): name (lower case, no
+# dash) -> literal value. A name given twice, or whose value is a variable, a subexpression or missing, maps to
+# $null (unresolved), so the analysis never trusts an argument it cannot read. Positional arguments are ignored.
+function Get-LaunchArguments($Tokens, $FileToken) {
+    $result = @{}
+    $at = -1
+    for ($i = 0; $i -lt $Tokens.Count; $i++) { if ([object]::ReferenceEquals($Tokens[$i], $FileToken)) { $at = $i; break } }
+    if ($at -lt 0) { return $result }
+    for ($i = $at + 1; $i -lt $Tokens.Count; $i++) {
+        $t = $Tokens[$i]
+        if ($t.Quoted -or -not $t.Value.StartsWith('-') -or $t.Value.Length -lt 2) { continue }
+        $name = $t.Value.Substring(1)
+        $valueToken = $null
+        $colon = $name.IndexOf(':')
+        if ($colon -gt 0) {
+            $valueToken = New-CommandToken $name.Substring($colon + 1) $t.Quoted $t.Dynamic $t.Subexpression $t.Bash
+            $name = $name.Substring(0, $colon)
+        }
+        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) { $valueToken = $Tokens[$i + 1]; $i++ }
+        $name = $name.ToLowerInvariant()
+        $value = if ($null -ne $valueToken -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
+        $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
+    }
+    return $result
+}
+
 function Get-NamedArgument($Tokens, [int]$From, [string[]]$Names) {
     for ($i = $From; $i -lt $Tokens.Count; $i++) {
         $t = $Tokens[$i]
@@ -161,8 +187,31 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 
 # Whether a script's own source text mentions any of the given guarded-path tokens (case-insensitive literal
 # match; a crude but conservative signal, since the script is not tokenised the way a shell statement is).
+#
+# #3896: a token counts only as a whole path segment: a URL is blanked first (`https://host/tests/x` is not a
+# repository path; a `file:` URL is kept, it names a local path) and the token must not continue a longer name
+# on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
+# the folder).
+function Remove-UrlText([string]$Text) {
+    return [regex]::Replace($Text, '(?i)\b(?!file:)[a-z][a-z0-9+.\-]*://[^\s''"`<>()]*', ' ')
+}
+
+# Whether a text names src or tests as a path segment (the word on its own, outside a URL and a longer name).
+function Test-PathWordMention([string]$Text) {
+    return (Remove-UrlText $Text) -match '(?i)(^|[^A-Za-z0-9_.-])(src|tests)($|[^A-Za-z0-9_-])'
+}
+
 function Test-ScriptReferencesPath([string]$Text, [string[]]$Tokens) {
-    foreach ($t in $Tokens) { if ($Text.IndexOf($t, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+    $clean = Remove-UrlText $Text
+    foreach ($t in $Tokens) {
+        $from = 0
+        while ($from -lt $clean.Length) {
+            $i = $clean.IndexOf($t, $from, [StringComparison]::OrdinalIgnoreCase)
+            if ($i -lt 0) { break }
+            if ($i -eq 0 -or $clean[$i - 1] -notmatch '[A-Za-z0-9_.-]') { return $true }
+            $from = $i + 1
+        }
+    }
     return $false
 }
 
@@ -190,7 +239,7 @@ function Test-ScriptHasWriteApi([string]$Text) {
 #            longer than 8192 characters is unresolved (SwEval), so a doubling chain cannot stall the hook.
 # A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.
 function Test-ScriptWritesAreSafe {
-    param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout)
+    param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout, $LaunchArgs = $null)
 
     $opaque = [System.Collections.Generic.List[string]]::new()
     $guarded = [System.Collections.Generic.List[string]]::new()
@@ -705,7 +754,30 @@ function Test-ScriptWritesAreSafe {
                 if (-not $ok) { foreach ($p in $params) { SwAdd (SwKey $p.Name) $null } }
             }
         }
-        foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) { if (-not $functionParams.Contains($p)) { SwAdd (SwKey $p.Name) $null } }
+        # #3896: a parameter of the script itself that the launching command passes a literal (`-Sp 'D:\x'`) takes
+        # that literal; an unsupplied, non-literal or ambiguous one stays tainted. Only a string or untyped parameter
+        # is bound (a switch or an array does not hold one literal).
+        $scriptParams = @(if ($null -ne $root.ParamBlock) { $root.ParamBlock.Parameters })
+        foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) {
+            if ($functionParams.Contains($p)) { continue }
+            $literal = $null
+            $bindings = 0
+            if ($null -ne $LaunchArgs -and $scriptParams -contains $p -and $p.StaticType -in [string], [object]) {
+                $pkey = SwKey $p.Name
+                foreach ($argName in @($LaunchArgs.Keys)) {
+                    $an = ([string]$argName).ToLowerInvariant()
+                    if ($an -eq '') { continue }
+                    $owners = @($scriptParams | Where-Object { (SwKey $_.Name) -eq $an })
+                    if ($owners.Count -eq 0) { $owners = @($scriptParams | Where-Object { (SwKey $_.Name).StartsWith($an) }) }
+                    if ($owners.Count -eq 1 -and $owners[0] -eq $p -and $pkey -ne '') { $literal = $LaunchArgs[$argName]; $bindings++ }
+                }
+            }
+            if ($bindings -eq 1 -and $null -ne $literal -and [string]$literal -ne '') {
+                $literalRoot = [System.Management.Automation.Language.Parser]::ParseInput("'" + ([string]$literal).Replace("'", "''") + "'", [ref]$null, [ref]$null)
+                SwAdd (SwKey $p.Name) $literalRoot.EndBlock.Statements[0].PipelineElements[0].Expression
+            }
+            else { SwAdd (SwKey $p.Name) $null }
+        }
 
         # Write sites.
         foreach ($c in $commands) {
@@ -1283,7 +1355,7 @@ function Get-ShellWrites {
                 $scriptBase = if ($baseUnsure) { $null } else { $current }
                 $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
                 if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
-                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase })
+                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase; LaunchArgs = (Get-LaunchArguments $tokens $fileToken) })
             }
         }
         elseif ($name -eq 'git') {

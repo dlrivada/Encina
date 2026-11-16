@@ -509,6 +509,17 @@ $ps1Scripts = [ordered]@{
     ParamDrivenTool     = "param([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'), [string]`$Repo = 'dlrivada/Encina')`n`$outDir = Split-Path -Parent `$Out`nif (-not (Test-Path `$outDir)) { New-Item -ItemType Directory -Force -Path `$outDir | Out-Null }`n[ordered]@{ repo = `$Repo } | ConvertTo-Json | Set-Content -Path `$Out -Encoding utf8`n"
     ParamDrivenMention  = "# Output goes next to the tests of the board.`nparam([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'))`nSet-Content -Path `$Out -Value 'x' -Encoding utf8`n"
     WorkingDirectoryRel = "Set-Content 'x.cs' 'y'`n"
+    # #3896: modelled on the board refresh script (artifacts/board/refresh-dash.ps1): an -Sp param, a call-operator
+    # script block, URLs with a `load-tests` segment and writes only under "$Sp\...".
+    BoardRefresh        = "param([string]`$Sp = `$PSScriptRoot)`n`$base = 'https://dlrivada.github.io/Encina'`nfunction Get-J(`$u) { Invoke-RestMethod -Uri `$u -TimeoutSec 30 }`n`$iso = { param(`$t) ([datetime]`$t).ToUniversalTime().ToString('o') }`n`$load = Get-J `"`$base/load-tests/data/latest.json`"`n[ordered]@{ asOf = (& `$iso `$load.timestamp); url = `"`$base/load-tests/dashboard/`" } | ConvertTo-Json -Compress | Set-Content -Encoding utf8 `"`$Sp\loadtests.json`"`n"
+    # A script whose text names tests/ legitimately and whose only target is bound to -Sp.
+    ParamSpMention      = "param([string]`$Sp)`n# Output is written next to the board, never under src/ or tests/.`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    ParamSpAmbiguous    = "param([string]`$Sp, [string]`$Sq)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    ParamSpSwitch       = "param([switch]`$Sp)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    # A URL with a /tests/ segment and a hyphenated name are not repository paths.
+    UrlTestsSegment     = "param([string]`$Sp = `$PSScriptRoot)`n`$r = Invoke-RestMethod -Uri 'https://example.com/tests/data.json'`n`$r | ConvertTo-Json | Set-Content `"`$Sp\data.json`"`n"
+    # A write to tests/ through a variable, next to a URL.
+    TestsViaVariable    = "`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
 }
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
 $expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
@@ -1111,7 +1122,29 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Repo x" }, $main, $null, 0, 'main session (#2892): the same tool with an unrelated argument is allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenMention)'" }, $main, $null, 2, 'main session (#2892): a param()-driven tool whose text names tests and whose target is unresolved: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\src\Encina\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as src/: denied'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied')
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied'),
+    # #3896: a param-bound target takes the literal the launching command passes; a URL or a hyphenated name is no path.
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): board refresh script with -Sp under artifacts/ and load-tests URLs: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\artifacts\board'" }, $main, 'a1b2', 0, 'site-steward (#3896): board refresh script with -Sp under artifacts/: allowed', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$outside\scratchpad'" }, $main, $null, 0, 'main session (#3896): board refresh script with -Sp in the scratchpad: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$outside\scratchpad'" }, $main, 'a1b2', 0, 'site-steward (#3896): board refresh script with -Sp in the scratchpad: allowed', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)'" }, $main, $null, 0, 'main session (#3896): board refresh script with no -Sp and no src/tests word: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): board refresh script with -Sp under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\tests\board'" }, $main, 'a1b2', 2, 'site-steward (#3896): board refresh script with -Sp under tests/: denied', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp:'$main\src\board'" }, $main, $null, 2, 'main session (#3896): -Sp:value form under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): a script that names tests/ in a comment, -Sp under artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -S '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): -S (unique prefix of -Sp) under artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): a script that names tests/, -Sp under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'tests\board'" }, $main, $null, 2, 'main session (#3896): -Sp a relative tests/ path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)'" }, $main, $null, 2, 'main session (#3896): a script that names tests/ with -Sp not passed (unresolved): denied'),
+    @('PowerShell', @{ command = "`$d = '$main\artifacts\board'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `$d" }, $main, $null, 2, 'main session (#3896): -Sp passed through a variable (unresolved) to a script naming tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\a' -Sp '$main\src\b'" }, $main, $null, 2, 'main session (#3896): -Sp passed twice is not trusted: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpAmbiguous)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S is an ambiguous prefix of -Sp and -Sq, so it binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpSwitch)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -Sp is a switch parameter, so no literal is bound: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)'" }, $main, $null, 0, 'main session (#3896): a URL with a /tests/ segment is not a repository path: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)' -Sp '$main\tests\x'" }, $main, $null, 2, 'main session (#3896): the same script with -Sp under tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.TestsViaVariable)'" }, $main, $null, 2, 'main session (#3896): a write to tests/ through a variable, next to a URL: denied'),
+    @('PowerShell', @{ command = "Invoke-RestMethod -Uri 'https://example.com/tests/data.json' | Set-Content '$main\artifacts\data.json'" }, $main, $null, 0, 'main session (#3896): a URL with a /tests/ segment in a command is not a repository path: allowed')
 ) + @(
     # The real parameter-driven repository tools that never name src/ or tests/ keep running (review of PR #3236).
     foreach ($realTool in 'tools\ai\priority\collect-issues.ps1', 'tools\ai\board\build-board-stats.ps1', 'tools\ai\board\reconcile-board.ps1', '.github\scripts\link-health-report.ps1', '.github\scripts\sonar-issues.ps1', '.github\scripts\crap-gate-selftest.ps1', 'tools\ai\priority\Test-Priority.ps1') {
