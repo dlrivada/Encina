@@ -2,7 +2,7 @@
 
 > **Issue**: [#2408](https://github.com/dlrivada/Encina/issues/2408)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 5 pull requests of 14, 7, 7, 15 and 14 files)
+> **Complexity**: Medium (6 phases, 5 pull requests of 15, 7, 7, 15 and 14 files)
 > **Estimated Scope**: about 700 lines of production code, about 1400 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching category)
 
@@ -12,7 +12,7 @@
 
 `CacheInvalidationPipelineBehavior` (`src/Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs`, registered by `AddEncinaCaching` as an open generic `IPipelineBehavior<,>`) runs `nextStep()` and then evicts, but it declares no pipeline stage, so whether it runs before or after the transaction depends on registration order. A concurrent reader can re-cache the old value when the eviction runs before the commit. The only subscriber of invalidation messages is the CDC one (`src/Encina.Cdc/Caching/CacheInvalidationSubscriberService.cs`, internal), so an application with L1 caches on several instances publishes messages that nobody consumes.
 
-Re-checked against `origin/main` (db1e7f688): the post-commit mechanism of #2184 exists. `IRequestPostCommitProcessor<TRequest, TResponse>` (`src/Encina/Abstractions/IRequestPostCommitProcessor.cs`) runs only after the inner pipeline, including the commit, returned `Right`, and never after a rollback; `PipelineBuilder.WrapProcessors` wraps every registered processor. What #2184 has not finished: no built-in behavior declares a stage yet and the startup placement validation is pending, which is why this plan does not rely on the stage of the existing behavior (Design Choice 1).
+Re-checked against `origin/main` (e694eb032): the post-commit mechanism of #2184 exists. `IRequestPostCommitProcessor<TRequest, TResponse>` (`src/Encina/Abstractions/IRequestPostCommitProcessor.cs`) runs only after the inner pipeline, including the commit, returned `Right`, and never after a rollback; `PipelineBuilder.WrapProcessors` wraps every registered processor. What #2184 has not finished: no built-in behavior declares a stage yet and the startup placement validation is pending, which is why this plan does not rely on the stage of the existing behavior (Design Choice 1).
 
 The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TRequest, TResponse>` and a singleton `DelayedInvalidationScheduler` for `[InvalidatesCache(DelayMilliseconds = ...)]`, (b) moves the subscriber into `Encina.Caching` as a generic hosted service over `IPubSubProvider` with bounded retry and a health check, registered by `AddEncinaCacheInvalidationSubscriber()`, and (c) makes the CDC registration reuse it. The tenant segment of the key is out of scope (#1913, closed); the message keeps today's raw key pattern (Design Choice 4).
 
@@ -20,7 +20,9 @@ The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TReq
 
 **Provider category**: Caching (8). Behavior of the processor is provider-independent (`ICacheProvider`, `IPubSubProvider`). Cross-instance delivery needs a real backplane: Redis and the four Redis-protocol products (Valkey, Dragonfly, Garnet, KeyDB, whose wrappers call `AddEncinaRedisCache`, which registers `RedisPubSubProvider`) have it; Memory registers `MemoryPubSubProvider`, which is in-process only; Hybrid registers no `IPubSubProvider`; Memcached (planned, #277) has no pub/sub, a documented gap.
 
-**Sibling plans (caching family)**: this plan owns `CacheInvalidationPostCommitProcessor`, the generic subscriber, `CacheInvalidationSubscriberOptions` and the EventId range 300-319. #2402 (Hybrid `RemoveByPatternAsync` removes only tracked keys) decides whether the post-commit eviction is complete for Hybrid; #1954 (type-wide pattern misses per-user entries) decides what a pattern matches. Neither is a prerequisite for the code of this plan; both are named in Prerequisites.
+**Sibling plans (caching family)**: this plan owns `CacheInvalidationPostCommitProcessor`, the generic subscriber, `CacheInvalidationSubscriberOptions` and the EventId range 300-319. #2402 (Hybrid `RemoveByPatternAsync` removes only tracked keys) decides whether the post-commit eviction is complete for Hybrid; #1954 (type-wide pattern misses per-user entries) decides what a pattern matches. Neither is a prerequisite for the code of this plan; both are named in Prerequisites. #2407 (DSR erasure: purge caches) is a sibling in the same EventId block 300-349: it takes 320-329 and plans a comment on #2408; this plan keeps 300-319 and the two plans never share an id.
+
+**Decision record on the issue**: the maintainer comment on #2408 of 2026-10-17 reads "Settled by elimination, no maintainer decision needed. Answer: invalidate in the post-commit stage (from #2184) and move the pub/sub subscriber into `Encina.Caching` as a generic hosted service reused by CDC." It fixes the stage and the subscriber's home (Design Choice 6); it does not say how the stage is reached (Design Choice 1, still a Dilemma) and does not mention a switch (Design Choice 2 rests on AGENTS.md alone).
 
 ---
 
@@ -41,7 +43,7 @@ The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TReq
 
 ### Rationale
 
-- The maintainer comment of 2026-10-17 on #2408 says "invalidate in the post-commit stage (from #2184)"; Options A and B both claim it, so this is a Dilemma, not a Settled choice.
+- The maintainer comment of 2026-10-17 on #2408 says "invalidate in the post-commit stage (from #2184)"; Options A and B both claim it (A through the post-commit processor, B through a declared stage), so this is a Dilemma, not a Settled choice.
 - Option B wins once #2184 declares the stage of `TransactionPipelineBehavior` and the maintainer wants the least churn; Option A wins now because its guarantee does not depend on that later phase.
 - A post-commit step that throws propagates (fail-fast, `PostCommitProcessorStep`); the processor keeps the existing `CachingOptions.ThrowOnCacheErrors` contract (`CachingOptions.cs` line 106): off, a failed eviction is logged by exception type and counted, on, it throws.
 - Class: Dilemma
@@ -64,7 +66,7 @@ The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TReq
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 1 and section 3 (no legacy code, compatibility aliases or compatibility layers; pre-1.0 best solution first); the decision comment on #2408 of 2026-10-17 names the post-commit stage without a switch. B and C both keep the pre-commit path, which those rules forbid.
+- **Settled by:** AGENTS.md section 1 and section 3 (no legacy code, compatibility aliases or compatibility layers; pre-1.0 best solution first). B and C both keep the pre-commit path as a configuration switch, which those rules forbid; only A has no switch. The 2026-10-17 comment on #2408 supports the post-commit stage only (Design Choice 1); the `InvalidateAfterCommit` sketch is in the issue body, not in that comment.
 
 </details>
 
@@ -187,7 +189,7 @@ The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TReq
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the assignment of block 300-349 to this family in the plan batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`, 2026-11-15) and AGENTS.md section 7 (register the range in `EventIdRanges.cs` before use; the allocation test maps it to `Encina.Caching`). The existing behavior ids 3500-3503 stay with the behavior until it is deleted.
+- **Settled by:** the assignment of block 300-349 to this family in the plan batch registry (`artifacts/decisions/plan-batch/eventid-blocks.md`, 2026-11-15) and AGENTS.md section 7 (register the range in `EventIdRanges.cs` before use; the allocation test maps it to `Encina.Caching`). The existing behavior ids 3500-3503 stay with the behavior until it is deleted. The sibling #2407 takes 320-329 of the same block; this plan keeps 300-319.
 
 </details>
 
@@ -200,7 +202,7 @@ The plan (a) replaces the behavior by `CacheInvalidationPostCommitProcessor<TReq
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 14 files (row 8 is two files):
+PR 1 holds exactly these 15 files (row 8 is two files; the limit is 15):
 
 | # | File | Change |
 |---|------|--------|
@@ -214,17 +216,18 @@ PR 1 holds exactly these 14 files (row 8 is two files):
 | 8 | `src/Encina.Caching/PublicAPI.Unshipped.txt` and `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`; two files) |
 | 9 | `tests/Encina.UnitTests/Caching/CacheInvalidationPostCommitProcessorTests.cs` | new |
 | 10 | `tests/Encina.GuardTests/Infrastructure/Caching/CacheInvalidationPostCommitProcessorGuardTests.cs` | new |
-| 11 | `tests/Encina.UnitTests/Caching/CachingInvalidationRegistrationTests.cs` | new (DI test with `ValidateOnBuild` and `ValidateScopes`) |
+| 11 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (line 104-121 `AddEncinaCaching_WhenCacheInvalidationEnabled_RegistersInvalidationBehavior` asserts an `IPipelineBehavior<,>` named `CacheInvalidation*`; it asserts the `IRequestPostCommitProcessor<,>` and `DelayedInvalidationScheduler` descriptors instead; the DI test with `ValidateOnBuild` and `ValidateScopes` is added here, including the case with no `IPubSubProvider`) |
 | 12 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 13 | `changelog.d/2408-post-commit-cache-invalidation.changed.md` | new (`mechanical-fixer`) |
+| 14 | `tests/Encina.UnitTests/Caching/Base/BaseServiceCollectionExtensionsTests.cs` | modify (line 105-121 holds the same assertion, `AddEncinaCaching_WhenCacheInvalidationEnabled_RegistersInvalidationBehavior`; the base class is inherited by the provider registration test classes, so the assertion moves to the processor descriptor in the same PR or every inheritor fails) |
 
 Tasks:
 
-1. **Create** `public sealed class CacheInvalidationPostCommitProcessor<TRequest, TResponse> : IRequestPostCommitProcessor<TRequest, TResponse>` with `[PipelineStage(PipelineStage.Transaction, Order = -100)]` (the assembly `Encina.Caching` is in `PipelineOrderValidator.BuiltInAssemblies`, so rule R3 requires the declared stage). Constructor `(ICacheProvider cacheProvider, ICacheKeyGenerator keyGenerator, IOptions<CachingOptions> options, DelayedInvalidationScheduler scheduler, ILogger<CacheInvalidationPostCommitProcessor<TRequest, TResponse>> logger, IPubSubProvider? pubSubProvider = null)`, `ArgumentNullException.ThrowIfNull` on the first five. A `static readonly InvalidatesCacheAttribute[]` per closed generic type (as the behavior does); `Process` returns `Right` immediately when `EnableCacheInvalidation` is off or the array is empty; otherwise, per attribute: generate the pattern with `GeneratePatternFromTemplate`, hand it to the scheduler when `DelayMilliseconds > 0`, else remove locally and broadcast (`BroadcastInvalidation && EnablePubSubInvalidation && pubSubProvider is not null`), exactly as `CacheInvalidationPipelineBehavior.InvalidateCacheAsync` does today. A thrown exception is logged with `ex.ForLogging()` (EventId 302, 303) and counted; with `ThrowOnCacheErrors` it is rethrown. Always `Right` otherwise.
-2. **Create** `public sealed class DelayedInvalidationScheduler : IDisposable` (singleton): `Schedule(string pattern, bool broadcast, string correlationId, TimeSpan delay)` creates a `TimeProvider.CreateTimer` whose callback catches every exception (EventId 305) and never throws (AGENTS.md section 3), keeps the timer in a `ConcurrentDictionary<long, ITimer>` that the callback removes it from, and `Dispose` disposes the timers left at container shutdown. It is not a hosted service (`Encina.Caching` has no hosting reference until Phase 4).
-3. **Modify** `AddEncinaCaching`: replace the `CacheInvalidationPipelineBehavior<,>` registration by `services.TryAddSingleton<DelayedInvalidationScheduler>()` and `services.AddTransient(typeof(IRequestPostCommitProcessor<,>), typeof(CacheInvalidationPostCommitProcessor<,>))`, both inside `if (options.EnableCacheInvalidation)`. The behavior class stays in the assembly, unregistered, until pull request 3.
+1. **Create** `public sealed class CacheInvalidationPostCommitProcessor<TRequest, TResponse> : IRequestPostCommitProcessor<TRequest, TResponse>` with `[PipelineStage(PipelineStage.Transaction, Order = -100)]` (the assembly `Encina.Caching` is in `PipelineOrderValidator.BuiltInAssemblies`, so rule R3 requires the declared stage). Constructor `(ICacheProvider cacheProvider, ICacheKeyGenerator keyGenerator, IOptions<CachingOptions> options, DelayedInvalidationScheduler scheduler, ILogger<CacheInvalidationPostCommitProcessor<TRequest, TResponse>> logger, IPubSubProvider? pubSubProvider = null)` (the `= null` default is required: Microsoft DI ignores the `?` annotation and supplies a default value only when the parameter declares one, so with no backplane registered the processor still activates), `ArgumentNullException.ThrowIfNull` on the first five. A `static readonly InvalidatesCacheAttribute[]` per closed generic type (as the behavior does); `Process` returns `Right` immediately when `EnableCacheInvalidation` is off or the array is empty; otherwise, per attribute: generate the pattern with `GeneratePatternFromTemplate`, hand it to the scheduler when `DelayMilliseconds > 0`, else remove locally and broadcast (`BroadcastInvalidation && EnablePubSubInvalidation && pubSubProvider is not null`), exactly as `CacheInvalidationPipelineBehavior.InvalidateCacheAsync` does today. A thrown exception is logged with `ex.ForLogging()` (EventId 302, 303) and counted; with `ThrowOnCacheErrors` it is rethrown. Always `Right` otherwise.
+2. **Create** `public sealed class DelayedInvalidationScheduler : IDisposable` (singleton): `Schedule(string pattern, bool broadcast, string correlationId, TimeSpan delay)` creates a `TimeProvider.CreateTimer` whose callback catches every exception (EventId 305) and never throws (AGENTS.md section 3), keeps the timer in a `ConcurrentDictionary<long, ITimer>` that the callback removes it from, and `Dispose` disposes the timers left at container shutdown. It is not a hosted service (`Encina.Caching` has no hosting reference until Phase 4). Constructor `(ICacheProvider cacheProvider, IOptions<CachingOptions> options, TimeProvider timeProvider, ILogger<DelayedInvalidationScheduler> logger, IPubSubProvider? pubSubProvider = null)`: the `= null` default is mandatory for the same reason as in the processor (Hybrid and applications without a backplane register no `IPubSubProvider`), and the scheduler is public only because the public processor constructor takes it.
+3. **Modify** `AddEncinaCaching`: replace the `CacheInvalidationPipelineBehavior<,>` registration by `services.TryAddSingleton(TimeProvider.System)` (`AddEncinaCaching` registers no `TimeProvider` today; the old behavior took an optional one), `services.TryAddSingleton<DelayedInvalidationScheduler>()` and `services.AddTransient(typeof(IRequestPostCommitProcessor<,>), typeof(CacheInvalidationPostCommitProcessor<,>))`, both inside `if (options.EnableCacheInvalidation)`. The behavior class stays in the assembly, unregistered, until pull request 3.
 4. **Register** the range (task 6 of the table) and the allocation-test mapping.
-5. **Tests**: processor evicts and broadcasts after `Right`; does not evict on `Left`; a `PipelineBuilder`-driven test with a stand-in transaction behavior that returns `Left` (rollback) proves "a rolled-back command evicts nothing", and one that returns `Right` proves the eviction ran after the commit step returned; no `InvalidatesCache` attribute is a no-op; delayed eviction on a `FakeTimeProvider` (and after the request token is cancelled); a throwing `ICacheProvider` is logged and does not fail the request, and with `ThrowOnCacheErrors` it throws; a broadcast failure follows the same rule; guard tests for the constructor and `Process`; DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
+5. **Tests**: processor evicts and broadcasts after `Right`; does not evict on `Left`; a `PipelineBuilder`-driven test with a stand-in transaction behavior that returns `Left` (rollback) proves "a rolled-back command evicts nothing", and one that returns `Right` proves the eviction ran after the commit step returned; no `InvalidatesCache` attribute is a no-op; delayed eviction on a `FakeTimeProvider` (and after the request token is cancelled); a throwing `ICacheProvider` is logged and does not fail the request, and with `ThrowOnCacheErrors` it throws; a broadcast failure follows the same rule; guard tests for the constructor and `Process`; DI test (in `ServiceCollectionExtensionsTests.cs`, rows 11 and 14) builds the provider with `ValidateOnBuild` and `ValidateScopes`, once with `AddEncinaCaching` plus the Memory pub/sub provider and once with no `IPubSubProvider`, and resolves the processor in both.
 6. **Manifest (same PR as the tests)**: targets with one-sentence justifications in `Encina.Caching.json` (Phase 6 table). Measured values replace the estimates before the PR.
 
 </details>
@@ -323,7 +326,7 @@ PR 3 holds exactly these 7 files:
 | 6 | `.github/coverage-manifest/Encina.Caching.json` | modify (remove the entry of the deleted file; allowed because the source file is gone; `mechanical-fixer`) |
 | 7 | `docs/INVENTORY.md` | modify (`docs-writer`) |
 
-Before deleting, `Select-String` over `src`, `tests`, `docs` and `.github` must show no reference left outside `docs/knowledge` (those records describe history). The EventIds 3500-3503 disappear with the behavior; the ids 3504-3513 of the other behaviors are untouched.
+Before deleting, `Select-String` over `src`, `tests`, `docs` and `.github` must show no reference left outside `docs/knowledge` (those records describe history) and outside one accepted historical comment: `.github/workflows/mutation-tests.yml` line 121 names `CacheInvalidationPipelineBehaviorTests` in a comment about an earlier fix (PR #2563). Workflows are an orchestrator hot spot, so the worker neither edits that comment nor counts it in the 7 files; the gate lists it as expected. The registration tests that mentioned the behavior (`ServiceCollectionExtensionsTests.cs` and `Base/BaseServiceCollectionExtensionsTests.cs`) were retargeted in PR 1. The EventIds 3500-3503 disappear with the behavior; the ids 3504-3513 of the other behaviors are untouched.
 
 </details>
 
@@ -378,11 +381,11 @@ PR 4 holds exactly these 15 files; nothing registers the new subscriber yet exce
 
 Tasks:
 
-1. **Create** `CacheInvalidationSubscriberService : IHostedService` with constructor `(IPubSubProvider? pubSubProvider, ICacheProvider cacheProvider, IOptions<CacheInvalidationSubscriberOptions> options, TimeProvider timeProvider, ILogger<CacheInvalidationSubscriberService> logger)`; `StartAsync` fails with an `InvalidOperationException` naming the missing service type when `pubSubProvider` is null (Design Choice 7), then subscribes to every channel in `options.Channels` through `SubscribeAsync(channel, handler, ct)`. The handler validates the message (Design Choice 5), calls `RemoveByPatternAsync`, retries up to `MaxAttempts` with exponential delay on `timeProvider`, and never throws. `StopAsync` disposes the subscriptions.
+1. **Create** `CacheInvalidationSubscriberService : IHostedService` with constructor `(ICacheProvider cacheProvider, IOptions<CacheInvalidationSubscriberOptions> options, TimeProvider timeProvider, ILogger<CacheInvalidationSubscriberService> logger, IPubSubProvider? pubSubProvider = null)` (the optional parameter is last and declares `= null`: Microsoft DI ignores the `?` annotation, so without the default a host with no `IPubSubProvider` would fail at activation with a DI error and never reach the clear `StartAsync` failure of Design Choice 7; `src/Encina.Security.Secrets/ServiceCollectionExtensions.cs` line 285 shows the factory-registration alternative, which is not needed with a default); `StartAsync` fails with an `InvalidOperationException` naming the missing service type when `pubSubProvider` is null (Design Choice 7), then subscribes to every channel in `options.Channels` through `SubscribeAsync(channel, handler, ct)`. The handler validates the message (Design Choice 5), calls `RemoveByPatternAsync`, retries up to `MaxAttempts` with exponential delay on `timeProvider`, and never throws. `StopAsync` disposes the subscriptions.
 2. **Create** `CacheInvalidationSubscriberOptions { HashSet<string> Channels (default: the CachingOptions default channel), int MaxAttempts = 3, TimeSpan RetryBaseDelay = 200 ms }` with an options validator (at least one channel, `MaxAttempts >= 1`).
 3. **Create** `AddEncinaCacheInvalidationSubscriber(this IServiceCollection, Action<CacheInvalidationSubscriberOptions>? configure = null)`: `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, CacheInvalidationSubscriberService>())`, `TryAddSingleton(TimeProvider.System)`, the options and their validator, and the health check; calling it twice, or once from CDC and once from the application, merges the channels and registers one service. It resolves the channel from `CachingOptions.InvalidationChannel` when the application sets it.
 4. **Health check**: `CacheInvalidationSubscriberHealthCheck : EncinaHealthCheck` reports Healthy when the subscription is active; Unhealthy with the exception type only otherwise.
-5. **Tests**: valid message evicts; invalid message (empty, 1025 characters, control character) is rejected and never reaches the cache; a failing provider retries `MaxAttempts` times then logs and counts, the handler returns normally; `FakeTimeProvider` drives the delays; missing pub/sub provider fails `StartAsync`; the integration test runs two service providers on one Redis container, evicts through the processor of one and asserts the other drops its entry; the contract test publishes through `MemoryPubSubProvider`.
+5. **Tests**: valid message evicts; invalid message (empty, 1025 characters, control character) is rejected and never reaches the cache; a failing provider retries `MaxAttempts` times then logs and counts, the handler returns normally; `FakeTimeProvider` drives the delays; missing pub/sub provider fails `StartAsync`, and the registration test (row 9) builds the provider with `ValidateOnBuild` and `ValidateScopes` and no `IPubSubProvider`, proving the service activates and only `StartAsync` fails; the integration test runs two service providers on one Redis container, evicts through the processor of one and asserts the other drops its entry; the contract test publishes through `MemoryPubSubProvider`.
 6. **Hybrid, Valkey, Dragonfly, Garnet, KeyDB**: the registration test class (the unit project already references every wrapper; the integration project references only Memory, Redis and Hybrid) has one case per Redis-protocol wrapper that calls the real `AddEncina<Product>Cache` and asserts the `IPubSubProvider` descriptor resolves to `RedisPubSubProvider`, so the subscriber is wired for the four products; the wire behavior is proven once against the Redis container (the products speak the same protocol). Hybrid is asserted to have no `IPubSubProvider` (a documented gap: `StartAsync` fails clearly, Design Choice 7); Memcached has no provider yet.
 
 </details>
@@ -481,16 +484,20 @@ REFERENCE FILES:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Behaviors/CacheInvalidationPostCommitProcessor.cs` | 95 | 25 | 0 | 0 | Small and fully driven by the unit tests; guard tests reach only the constructor and `Process` checks; no contract or integration flag targets a deterministic in-process step |
+| `Behaviors/CacheInvalidationPostCommitProcessor.cs` | 100 | 28 | 0 | 0 | Replaces `CacheInvalidationPipelineBehavior.cs`, whose manifest targets are unit 100 and guard 28, so the replacement never lowers them; every branch is driven by the unit tests, guard tests reach the constructor and `Process` checks; no contract or integration flag targets a deterministic in-process step |
 | `Behaviors/DelayedInvalidationScheduler.cs` | 95 | 20 | 0 | 0 | A `FakeTimeProvider` reaches every branch; guard reaches the argument checks |
 | `Subscribers/CacheInvalidationSubscriberService.cs` | 90 | 25 | 30 | 60 | Unit covers retry, rejection and start failure; the contract test covers the publish-evict path on `MemoryPubSubProvider`; the Redis integration test covers the real subscription |
 | `Subscribers/CacheInvalidationSubscriberHealthCheck.cs` | 90 | 20 | 0 | 0 | Two outcomes, driven by unit tests |
 | `Configuration/CacheInvalidationSubscriberOptions.cs` | 90 | 30 | 0 | 0 | Defaults and validator driven by unit tests |
 | `Diagnostics/CacheInvalidationLog.cs`, `CacheInvalidationTelemetry.cs` | 70 | 0 | 0 | 0 | Generated logger bodies run only when a test enables the level; no parameters guard tests could reach |
-| `ServiceCollectionExtensions.cs` (Caching) | 90 | 30 | 0 | 0 | The registration paths are covered by the DI tests |
+| `ServiceCollectionExtensions.cs` (Caching, PR 1 and PR 4) | 90 | 30 | 0 | 0 | The registration paths are covered by the DI tests |
+| `Encina.Cdc/ServiceCollectionExtensions.cs` (PR 5) | no explicit target | no explicit target | 0 | 0 | The file has only the default-rule entry in `Encina.Cdc.json`; the change is one call to `AddEncinaCacheInvalidationSubscriber`, measured through the new registration test (the measured figures go in the PR report) |
+| `Encina.Cdc/Caching/CdcCacheInvalidationLog.cs` (PR 5) | no explicit target | 0 | 0 | 0 | Only default-rule entry (unit); the PR deletes ids 4806-4811 and adds no executable code |
+| `Attributes/InvalidatesCacheAttribute.cs` (PR 3) | no explicit target | no explicit target | 0 | 0 | Default-rule entry; the PR changes only its XML documentation, so the measured coverage must not drop |
+| `Encina/Diagnostics/EventIdRanges.cs` (PR 1) | 95 (unchanged) | 0 | 0 | 0 | One new `static readonly` field; the existing unit target of 95 in `Encina.json` is kept and the allocation architecture tests reach the new range |
 
 5. **Property, load and benchmark**: property tests are not required (no non-trivial invariant beyond the validated pattern length); the four existing benchmark classes are retargeted in PR 2 (a benchmark justification is not needed because they exist); a load test is not written (the processor holds no shared mutable state beyond the scheduler's dictionary, covered by a concurrency unit test).
-6. **Documentation (`docs-writer`, in PR 5)**: the Encina.Caching package README (no README exists today: create it, with the post-commit contract, the subscriber, the backplane gap table and the telemetry deviation), the `cdc-cache-invalidation.md` and `cdc.md` pages, `INVENTORY.md`; XML documentation with examples on every new public type; changelog fragments as named in the file tables; ROADMAP is unaffected. No ADR: the choices follow #2184 and ADR-050.
+6. **Documentation (`docs-writer`, in PR 5)**: the Encina.Caching package README (no README exists today: create it, with the post-commit contract, the subscriber, the backplane gap table, the telemetry deviation and a trust assumption: a message on the shared channel is evicted as a pattern, so any publisher on that channel can purge any key; this is inherited from today's CDC subscriber and the channel must be restricted to trusted publishers), the `cdc-cache-invalidation.md` and `cdc.md` pages, `INVENTORY.md`; XML documentation with examples on every new public type; changelog fragments as named in the file tables; ROADMAP is unaffected. No ADR: the choices follow #2184 and ADR-050.
 7. **Verification**: `dotnet build --configuration Release` with zero warnings; `dotnet test` of the unit, guard and contract projects; the Redis integration test with Docker; per-flag coverage measured with `coverage-report.cs` and `--check-justifications`; CRAP at most 10 for every added method.
 
 </details>
@@ -559,13 +566,15 @@ REFERENCE FILES:
 
 ### Estimated File Count
 
-| Category | New Files | Modified Files | Notes |
-|----------|-----------|----------------|-------|
-| Production code | 8 | 8 | New: processor, scheduler, log, telemetry, subscriber, subscriber check, options (7) plus the Caching README; modified: Caching DI (twice), csproj, attribute, `EventIdRanges.cs`, Cdc DI, Cdc log; deleted: behavior, 2 Cdc classes |
-| Tests | 7 | 12 | New unit, guard, DI, contract, integration; modified or deleted: 3 unit, 4 benchmarks, 1 Cdc guard, 1 Cdc integration, 2 deleted, the allocation test |
-| Documentation | 1 | 4 | Caching README (new); `cdc-cache-invalidation.md`, `cdc.md`, Cdc README, `INVENTORY.md` (twice) |
-| Configuration | 3 | 5 | Three changelog fragments; PublicAPI (Caching three times, Encina once), manifests (Caching three times, Cdc once) |
-| **Total** | **19** | **29** | 5 pull requests: 14, 7, 7, 15 and 14 files (PR 1 counts the PublicAPI of two projects as two files); each at most 15 files; PR 3 deletes about 840 lines and PR 4 adds about 1100, both under 1500 |
+A file touched by several pull requests is counted once per pull request, because each limit is per PR.
+
+| Category | New Files | Modified Files | Deleted Files | Notes |
+|----------|-----------|----------------|---------------|-------|
+| Production code (`src/`) | 7 | 8 | 3 | New: processor, scheduler, log, telemetry (PR 1); subscriber, subscriber check, options (PR 4). Modified: Caching DI (PR 1, PR 4), `EventIdRanges.cs`, attribute, Caching log, csproj, Cdc log, Cdc DI. Deleted: behavior, the two Cdc classes |
+| Tests | 8 | 13 | 2 | New: 2 in PR 1 (unit, guard), 5 in PR 4 (unit, DI, guard, contract, integration), 1 in PR 5 (CDC DI). Modified: allocation test, `ServiceCollectionExtensionsTests.cs`, `Base/BaseServiceCollectionExtensionsTests.cs` (PR 1); 3 unit and 4 benchmark files (PR 2); contract csproj (PR 4); Cdc guard and integration tests (PR 5). Deleted: the behavior's unit and guard test files |
+| Documentation | 1 | 5 | 0 | Caching README (new); `INVENTORY.md` (PR 3 and PR 5), `cdc-cache-invalidation.md`, `cdc.md`, Cdc README |
+| Configuration | 3 | 8 | 0 | Three changelog fragments; PublicAPI (Caching in PR 1, PR 3 and PR 4, Encina in PR 1); manifests (Caching in PR 1, PR 3 and PR 4, Cdc in PR 5) |
+| **Total** | **19** | **34** | **5** | 58 file operations over 5 pull requests of 15, 7, 7, 15 and 14 files (PR 1 counts the PublicAPI of two projects as two files); each at most 15 files; PR 3 deletes about 840 lines and PR 4 adds about 1100, both under 1500 |
 
 ---
 
@@ -593,7 +602,7 @@ KEY PATTERNS:
 - The wire message stays the raw key pattern; the subscriber validates it and never widens it.
 - Timer callbacks and subscriber handlers never throw; failures are retried, logged by exception type and counted.
 - No scoped service in a singleton; registration is idempotent and proven by DI tests with ValidateOnBuild and ValidateScopes.
-- Apply Design Choices 1, 3, 4, 5 and 7 as the Maintainer Decisions section says.
+- Apply Design Choices 1, 3, 4, 5 and 7 as the maintainer's answers, recorded when work starts, say.
 
 REFERENCE FILES:
 - src/Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs
@@ -646,5 +655,5 @@ No blocking prerequisites.
 ## Next Steps
 
 1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 3, 4, 5, 7) when work starts, records the answers under `## Maintainer Decisions`, then briefs five workers in the phase order.
-2. After PR 1 is merged, comment on #2408 with the result; after PR 5, on the CDC cache invalidation documentation issue if one is open.
+2. After PR 1 is merged, comment on #2408 with the result. The sibling #2407 (DSR erasure: purge caches, EventIds 320-329) also plans a comment on #2408; the two plans share no EventId.
 3. The `Security.Secrets` and `Security.ABAC` pub/sub hosted services share the subscriber shape; whether they adopt the generic subscriber is outside this issue.
