@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (4 pull requests; one new pipeline behavior placed outside the transaction)
 > **Estimated Scope**: ~300-380 lines of production code + ~1,100-1,400 lines of tests
-> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md) (inbox record versus business transaction); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Inbox row: row claiming or a lock when consumers run concurrently); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions.md) D4; [ADR-062](../architecture/adr/062-error-category-contract.md)
+> **Specification**: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md) REQ-027 (lock providers); [ADR-048](../architecture/adr/048-inbox-record-vs-business-transaction.md) (inbox record versus business transaction); [ADR-050](../architecture/adr/050-modules-may-require-modules.md) (the Inbox row: row claiming or a lock when consumers run concurrently); [ADR-052](../architecture/adr/052-distributed-lock-failure-contract.md); [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4; [ADR-062](../architecture/adr/062-error-category-contract.md)
 > **Depends on**: the shared contract of the #713 plan (PRs 1 to 3) and #2667 (ADR-052 implementation)
 > **Related**: #713 (owns the shared piece), #2401 (the inbox runs the handler twice on concurrent delivery: the atomic-claim alternative), #2184 (pipeline stages), #715, #716, #741 (tenant-scoped locks), #223 (auto-extend), #218 (fencing)
 
@@ -31,7 +31,7 @@ The placement is the point of this plan, because of ADR-048: the inbox runs **in
 
 **Provider category**: Database (10) as consumers through the shared orchestrator and behavior (`IInboxStore`: ADO.NET x3, Dapper x3, EF Core, MongoDB), plus the integration proof per provider; Distributed locks as the engine through the #713 adapter.
 
-**What the code does today** (`origin/main` at `db1e7f688`):
+**What the code does today** (`origin/main` at `e694eb032`):
 
 - `InboxPipelineBehavior<,>` (`src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs`) admits an `IIdempotentRequest`, skips a nested dispatch that has no key of its own, validates the key and calls `InboxOrchestrator.ProcessAsync`. The orchestrator reads `GetMessageAsync`, adds a new record (an independent write) or handles an existing one, and never calls `SaveChangesAsync`: the processed mark is enlisted in the business transaction (ADR-048).
 - Ordering: `PipelineStage` exists (`src/Encina/Pipeline/Ordering/PipelineStage.cs`: `Transaction` 1300, `Idempotency` 1400, `Application` 1500) and `PipelineOrderResolver` is wired in `src/Encina/Core/ServiceCollectionExtensions.cs` (line 65); a behavior with no declared stage is placed in `Application`/0 (`PipelineOrderResolver.cs` lines 289 to 304), which is inner to `Transaction`. `TransactionPipelineBehavior` and `InboxPipelineBehavior` declare no stage today; #2184 gives them one. A behavior declaring `Transaction`/-200 is outer to both before and after that change.
@@ -225,11 +225,12 @@ src/Encina.Messaging/Inbox/InboxOrchestrator.cs, docs/plans/outbox-distributed-l
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Inbox/InboxLockPipelineBehavior.cs`** (new, public sealed, `IPipelineBehavior<TRequest, TResponse>`, `[PipelineStage(PipelineStage.Transaction, Order = -200)]`) — constructor `(IMessagingLockProvider? lockProvider, MessagingLockMarker? marker, InboxOptions options, ILogger<InboxLockPipelineBehavior<TRequest, TResponse>> logger)`; `Handle`: not admitted (`InboxRequestAdmission`) means `nextStep()`; otherwise `MessagingLockGate.TryEnterAsync(..., "inbox", MessagingLockNames.Inbox(key), options.LockExpiry, options.LockWait, tenantId: context.TenantId, ...)`; `Left` returned unchanged; `None` returns `Left` `inbox.lock_contended` created with `ErrorCategory.Conflict` and logs 7504 (request type, correlation id); `Some(handle)`: `await using` around `nextStep()`; after it, log 7503 when `handle.ExpiresAtUtc` passed.
-2. **`Locking/MessagingLockGate.cs`** and **`Diagnostics/MessagingLockMetrics.cs`** (modify, files of #713) — an optional `string? tenantId` parameter; the counter adds the tag `tenant.id` only when it is non-null (ADR-054 D4: the context carries a tenant only when tenancy is on).
+1. **`Inbox/InboxLockPipelineBehavior.cs`** (new, public sealed, `IPipelineBehavior<TRequest, TResponse>`, `[PipelineStage(PipelineStage.Transaction, Order = -200)]`) — constructor `(InboxOptions options, ILogger<InboxLockPipelineBehavior<TRequest, TResponse>> logger, IMessagingLockProvider? lockProvider = null, MessagingLockMarker? marker = null)` (the `= null` defaults are required: Microsoft DI does not treat a `T?` annotation as optional, so without them the behavior would fail to resolve when the provider is absent and the gate's `messaging.lock_provider_missing` branch would be unreachable through DI); `Handle`: not admitted (`InboxRequestAdmission`) means `nextStep()`; otherwise `MessagingLockGate.TryEnterAsync(..., "inbox", MessagingLockNames.Inbox(key), options.LockExpiry, options.LockWait, tenantId: context.TenantId, ...)`; `Left` returned unchanged; `None` returns `Left` `inbox.lock_contended` created with `ErrorCategory.Conflict` and logs 7504 (request type, correlation id); `Some(handle)`: `await using` around `nextStep()`; after it, log 7503 when `handle.ExpiresAtUtc` passed.
+2. **No edit to `Locking/MessagingLockGate.cs` or `Diagnostics/MessagingLockMetrics.cs`**: the optional trailing `string? tenantId = null` of `TryEnterAsync` and the tag `encina.tenant_id` (added only when it is non-null; ADR-054 D4: the context carries a tenant only when tenancy is on) are delivered by #713 PR 2, so #714, #715 and #716 only pass the argument and none of them lands before it exists.
 3. **`Locking/MessagingLockLog.cs`** (modify) — EventId 7504 `InboxLockContended` (Warning: request type, correlation id), inside the `MessagingLocking` range registered by #713.
 4. **`MessagingServiceCollectionExtensions.cs`** (modify) — when `UseInbox` and `UseDistributedLocking` are both on: `services.AddScoped(typeof(IPipelineBehavior<,>), typeof(InboxLockPipelineBehavior<,>))` next to the existing inbox behavior registration (line 327).
 5. **`PublicAPI.Unshipped.txt`**: the behavior and its constructor, through `mechanical-fixer`.
+6. **`tests/Encina.TestInfrastructure/Messaging/InboxLockPipelineHost.cs`** (new) — the one helper that builds the real pipeline (`AddEncinaMessaging` with `UseInbox`, `UseTransactions` and `UseDistributedLocking`, so the transaction behavior, the inbox behavior and the lock behavior are registered by the production extension) that the order test, the DI test (`Encina.UnitTests`) and the integration base of PR 3 (`Encina.IntegrationTests`) share; both test projects already reference `Encina.TestInfrastructure`.
 
 </details>
 
@@ -246,12 +247,12 @@ CONTEXT:
   scope; the options are a singleton.
 
 TASK:
-Create InboxLockPipelineBehavior, extend the gate and metrics with the optional tenant id, add EventId 7504 and the
+Create InboxLockPipelineBehavior, pass the tenant id to the gate (its optional parameter comes from #713 PR 2), add EventId 7504 and the
 registration as listed. Unit tests: not admitted passes through, flag off passes through, acquired runs the next step
 inside the lock and releases after it returns (assert with an ordering log), contended after the wait returns Left with
 category Conflict and logs 7504, provider Left returned unchanged, expired handle logs 7503, cancellation. An order test
 through IEncinaPipelineInspector proving the lock behavior is outer to TransactionPipelineBehavior and InboxPipelineBehavior.
-A DI test with ValidateOnBuild and ValidateScopes for the flags on and off. Guard tests for the public constructor.
+A DI test with ValidateOnBuild and ValidateScopes for the flags on and off and with the lock provider absent (the behavior resolves with null and the gate returns Left messaging.lock_provider_missing). Guard tests for the public constructor.
 
 KEY RULES:
 - Never log the message id or EncinaError.Message; the tenant tag only when a tenant exists.
@@ -271,7 +272,7 @@ docs/architecture/adr/048-inbox-record-vs-business-transaction.md.
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Telemetry reuses the counter of #713 with `pattern="inbox"` and the optional `tenant.id` tag; the behavior starts no new activity (the inbox and transaction spans exist).
+1. Telemetry reuses the counter of #713 with `pattern="inbox"` and the optional `encina.tenant_id` tag; the behavior starts no new activity (the inbox and transaction spans exist).
 2. Logs: 7500, 7501 and 7503 from the shared gate; 7504 added here. 7505 is not used by this plan (the next family id is 7505, taken by #715).
 3. Health, caching, resilience, audit: evaluated in the matrix; none adds code here.
 
@@ -287,13 +288,13 @@ CONTEXT:
 - The counter and gate come from #713; the tenant tag rule is ADR-054 D4 (a tag only when a tenant exists).
 
 TASK:
-Test that the counter carries pattern "inbox" and tenant.id only when the request context has a tenant, and that no tag
+Test that the counter carries pattern "inbox" and encina.tenant_id only when the request context has a tenant, and that no tag
 or log contains the message id.
 
 KEY RULES:
 - Bounded tags only; document the tenant cardinality note by linking the observability guide (#906).
 
-REFERENCE FILES: src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, docs/architecture/adr/054-observability-conventions.md.
+REFERENCE FILES: src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, docs/architecture/adr/054-observability-conventions-and-trace-propagation.md.
 ```
 
 </details>
@@ -307,7 +308,7 @@ REFERENCE FILES: src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, doc
 
 1. **Unit, guard, contract**: in PRs 1 and 2 (files named above); the order test runs the real registrations.
 2. **Property** (PR 1): name determinism and absence of the raw id.
-3. **Integration** (PRs 3 and 4): an abstract `InboxLockConcurrencyIntegrationTestsBase` under `tests/Encina.IntegrationTests/Messaging/` sends the same message id twice at once through the full pipeline (transaction behavior, inbox behavior and the lock behavior) over one store and a Redis lock; it asserts the handler ran once and both deliveries returned the same response; one concrete class per provider in its `[Collection("<Family>-<Database>")]`: PR 3 has ADO and Dapper on SqlServer, PostgreSQL and MySQL (six classes), PR 4 has EF Core on the same three and MongoDB (four). All ten providers are covered.
+3. **Integration** (PRs 3 and 4): an abstract `InboxLockConcurrencyIntegrationTestsBase` under `tests/Encina.IntegrationTests/Messaging/` sends the same message id twice at once through the full pipeline (transaction behavior, inbox behavior and the lock behavior, registered by the shared `InboxLockPipelineHost` of Phase 2 task 6, which the order test also uses) over one store and a Redis lock; it asserts the handler ran once and both deliveries returned the same response; one concrete class per provider in its `[Collection("<Family>-<Database>")]`: PR 3 has ADO and Dapper on SqlServer, PostgreSQL and MySQL (six classes), PR 4 has EF Core on the same three and MongoDB (four). All ten providers are covered.
 4. **Load and benchmark**: justified in `.md` files (one acquire per idempotent request; not a hot path of its own).
 5. **Per-file targets**:
 
@@ -317,7 +318,7 @@ REFERENCE FILES: src/Encina.Messaging/Diagnostics/OutboxProcessorMetrics.cs, doc
 | `Inbox/InboxRequestAdmission.cs` | 95 | 0 | 0 | 0 | 0 | Internal static helper; guard 0 because the type is internal without `InternalsVisibleTo` for `Encina.GuardTests` |
 | `Inbox/InboxPipelineBehavior.cs` | 95 | 40 | 0 | 0 | 0 | Existing tests kept; the extraction adds no behavior |
 | `Inbox/InboxOptions.cs` | 95 | 40 | 0 | 0 | 0 | Setters and `Validate` are directly drivable |
-| `Locking/MessagingLockNames.cs` | 95 | 0 | 0 | 80 | 0 | Hash and format; the property test covers determinism |
+| `Locking/MessagingLockNames.cs` | 95 | 0 | 0 | 80 | 0 | Hash and format; the property test covers determinism; the class is `internal static` (decided in #713), so guard is 0 and the `Inbox(string)` null and whitespace guards are covered by unit tests |
 
 </details>
 
@@ -354,7 +355,7 @@ docs/testing/integration-tests.md.
 
 1. XML docs on the behavior, `LockExpiry`, `LockWait` and `InboxErrorCodes.LockContended`, with the ADR-048 explanation in the remarks.
 2. `changelog.d/714-inbox-distributed-lock.added.md`, through `mechanical-fixer`.
-3. The inbox section of the messaging locks page owned by #713 and `src/Encina.Messaging/README.md`, through `docs-writer`: when to enable the lock, the relation to #2401, the limits.
+3. The inbox section of the messaging locks page created by #713 PR 5 (this step starts after #713 PR 5 merges) and `src/Encina.Messaging/README.md`, through `docs-writer`: when to enable the lock, the relation to #2401, the limits.
 4. Build and test verification: zero warnings, per-flag targets met.
 
 </details>
@@ -426,9 +427,9 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Messaging/README.md, docs/arc
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production (new) | 2 | `InboxLockPipelineBehavior`, `InboxRequestAdmission` |
-| Production (modified) | 8 | `MessagingLockNames`, `InboxOptions`, `InboxOrchestrator` (codes), `InboxPipelineBehavior`, `MessagingLockGate`, `MessagingLockMetrics`, `MessagingLockLog`, `MessagingServiceCollectionExtensions` |
+| Production (modified) | 6 | `MessagingLockNames`, `InboxOptions`, `InboxOrchestrator` (codes), `InboxPipelineBehavior`, `MessagingLockLog`, `MessagingServiceCollectionExtensions` (the gate and the metrics are #713's, already carrying `tenantId`) |
 | `PublicAPI.Unshipped.txt` and manifest | 2 | Messaging |
-| Tests | 21 | Unit (6), guard (1), property (1), order and DI (2), integration base plus ten classes (11) |
+| Tests | 22 | Unit (6), guard (1), property (1), order and DI (2), shared pipeline host in `Encina.TestInfrastructure` (1), integration base plus ten classes (11) |
 | Documentation | 4 | Fragment, page section, README, two `.md` justifications |
 
 PR split (each at most 15 files and 1500 lines, each building and passing alone):
@@ -436,7 +437,7 @@ PR split (each at most 15 files and 1500 lines, each building and passing alone)
 | PR | Content | Files | Lines (est.) |
 |----|---------|------:|-------------:|
 | 1 | Phase 1: names, options, error code, admission helper, `InboxPipelineBehavior` extraction, tests, `PublicAPI`, manifest; starts after PRs 1 and 2 of the #713 plan | 12 | 700 |
-| 2 | Phases 2 and 3: behavior, gate and metrics tenant tag, log 7504, registration, tests (unit, order, DI, guard), `PublicAPI`; needs the adapter (PR 3 of #713) only for integration | 13 | 1,100 |
+| 2 | Phases 2 and 3: behavior, log 7504, registration (3), `PublicAPI`, manifest, shared `InboxLockPipelineHost`, tests (behavior, gate-outcome use, order, DI, guard, metrics tag = 6); needs #713 PR 2 (gate with `tenantId`) and, for integration only, the adapter (PR 3 of #713) | 12 | 1,000 |
 | 3 | Phase 4 integration: base plus six ADO and Dapper classes | 7 | 700 |
 | 4 | Phase 4 integration: EF Core x3 and MongoDB; Phase 5: fragment, README, page section, justifications | 9 | 650 |
 
@@ -480,7 +481,7 @@ docs/plans/outbox-distributed-lock-implementation-plan-713.md.
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The cached response is the inbox's own; the lock adds no cache |
-| 2 | OpenTelemetry | ✅ | Phase 3: counter of #713 with `pattern="inbox"` and `tenant.id` only when a tenant exists (ADR-054 D4) |
+| 2 | OpenTelemetry | ✅ | Phase 3: counter of #713 with `pattern="inbox"` and `encina.tenant_id` only when a tenant exists (ADR-054 D4) |
 | 3 | Structured Logging | ✅ | Phase 2: 7504 plus the shared 7500-7503; no message id or error message in any field |
 | 4 | Health Checks | ❌ | No new checkable dependency; the lock provider has its own health check |
 | 5 | Validation | ✅ | Phase 1: `InboxOptions.Validate` for the lock timings; the startup check is #713's |
@@ -496,7 +497,7 @@ docs/plans/outbox-distributed-lock-implementation-plan-713.md.
 
 ## Prerequisites & Dependencies
 
-- The #713 plan's PRs 1 and 2 (names class, gate, marker, flag, range) before PR 1 here; PR 3 of #713 (adapter, startup check) and #2667 before integration tests run.
+- The #713 plan's PRs 1 and 2 (names class, gate with the optional `tenantId`, marker, flag, range) before PR 1 here; #713 PR 5 (the messaging locks page) before this plan's documentation step; PR 3 of #713 (adapter, startup check) and #2667 before integration tests run.
 - #2184 is not a prerequisite: a behavior that declares `Transaction`/-200 is outer to the transaction behavior whether or not #2184 gives that behavior a stage.
 - #2401 (atomic claim) is an alternative, not a blocker; its plan does not exist yet. Dilemma 1 asks which of A and C the maintainer wants.
 - Not blocked by another issue's open maintainer decision.
