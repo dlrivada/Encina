@@ -2,7 +2,7 @@
 
 > **Issue**: [#709](https://github.com/dlrivada/Encina/issues/709)
 > **Type**: Feature
-> **Complexity**: Low (4 phases, 1 pull request of 15 files; one optional second pull request of 11 files)
+> **Complexity**: Low (4 phases, 1 pull request of 14 files; one optional second pull request of 11 files)
 > **Estimated Scope**: about 150 lines of production code, about 500 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (transport, caching, performance, messaging)
 
@@ -62,7 +62,7 @@ The plan caches Azure Service Bus senders per entity name in a singleton `Servic
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A public sealed `ServiceBusSenderCache : IAsyncDisposable`, registered with `TryAddSingleton` next to the client, injected into the scoped publisher** | The container owns and disposes the senders before the client (it is created after it); the scoped publisher does not own anything, as the regression #1608 requires; no scoped service in a singleton | The publisher constructor gains a parameter (15 construction sites in 4 test files) |
+| **A) A public sealed `ServiceBusSenderCache : IAsyncDisposable`, registered with `TryAddSingleton` next to the client, injected into the scoped publisher** | The container owns and disposes the senders before the client (it is created after it); the scoped publisher does not own anything, as the regression #1608 requires; no scoped service in a singleton | The publisher constructor gains a parameter (15 construction sites in 4 test files: `AzureServiceBusGuardTests.cs` 9, `AzureServiceBusMessagePublisherTests.cs` 4, `AzureServiceBusPublisherMessageIdTests.cs` 1, `AzureServiceBusPublisherContractTests.cs` 1) |
 | **B) Static `ConcurrentDictionary` in the publisher** | No constructor change | Senders would outlive the container-owned `ServiceBusClient` and nothing disposes them |
 | **C) Cache inside a wrapper around `ServiceBusClient`** | One object | Changes what the client registration means for every consumer of `ServiceBusClient` |
 
@@ -82,7 +82,7 @@ The plan caches Azure Service Bus senders per entity name in a singleton `Servic
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Key: the entity name, `StringComparer.OrdinalIgnoreCase` (Service Bus entity names are case-insensitive); at most 256 entries, beyond which a sender is created, used and disposed as today; a cached sender whose `IsClosed` is true is replaced; a send that throws never evicts** | Bounded memory when a caller derives names from data; a closed sender is never reused; the SDK recovers links itself | 256 is a constant, not an option |
+| **A) Key: the entity name, `StringComparer.OrdinalIgnoreCase` (Service Bus entity names are case-insensitive); at most 256 entries, beyond which a sender is created, used and disposed as today; a cached sender whose `IsClosed` is true is replaced and the replaced instance is disposed (a failing dispose is logged by `SenderCloseFailed`, never thrown); a send that throws never evicts** | Bounded memory when a caller derives names from data; a closed sender is never reused; the SDK recovers links itself | 256 is a constant, not an option |
 | **B) Unbounded** | Simplest | A caller generating a queue name per message grows the cache without limit |
 | **C) LRU with eviction and disposal** | Bounded and reusable | An evicted sender can be in use by a concurrent send; more code than the issue's scope |
 
@@ -106,13 +106,36 @@ The plan caches Azure Service Bus senders per entity name in a singleton `Servic
 |--------|------|------|
 | **A) `DisposeAsync` closes every sender, catching each failure and logging it by exception type (EventId 4312, inside the existing `AzureServiceBus` range 4300-4349), never throwing; `GetSender` after disposal throws `ObjectDisposedException`, which the publisher's existing `catch` turns into its existing `Left`** | Nothing swallowed silently; shutdown always completes | One log message |
 | **B) Ignore close failures** | No log | A swallowed failure |
+| **C) Close every sender, collect the failures and throw an `AggregateException` from `DisposeAsync`** | Nothing is hidden from the caller | A container shutdown fails on a broker fault; throwing from `DisposeAsync` breaks the dispose contract for the remaining services the container is disposing |
 
-### Chosen Option: **A**
+### Chosen Option: **A** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (errors are never swallowed in background infrastructure; an exception passed to a logger goes through `ForLogging()`, never its message) and the EventId rule of section 7 (ids inside the package's existing range need no new range: 4312 follows the last used id, 4311).
+- AGENTS.md section 3 excludes option B (errors are never swallowed; an exception passed to a logger goes through `ForLogging()`, never its message), but it does not choose between A and C: whether a failed close at shutdown is a log line or an exception, and its level (Warning), are choices of this plan. The EventId rule of section 7 is met by either (ids inside the package's existing range need no new range: 4312 follows the last used id, 4311).
+- Option C wins if the application wants a failed shutdown to surface as an error.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>5. How the integration test observes sender reuse</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A counting `ServiceBusClient` subclass registered by the test (`CreateSender` is `virtual`; the cache receives it through the container) that counts calls and delegates; two sends to one queue assert one `CreateSender` call** | No production member for tests; no public API change | The test registers its own client, so it covers the cache through that registration |
+| **B) A public read-only `CachedSenderCount` on `ServiceBusSenderCache`** | Simple assertion | A public member that exists only for tests |
+| **C) An `InternalsVisibleTo` for the integration project and an internal `Count`** | No public member | Verified on `origin/main`: no `InternalsVisibleTo` exists in `src/Encina.AzureServiceBus` or its csproj; adding one is a package-level decision |
+
+### Chosen Option: **A - counting client** (recommended, pending the maintainer)
+
+### Rationale
+
+- The package ships no `PublicAPI.*.txt` files, so B would add a member to an untracked surface; A needs neither a public member nor a visibility attribute. The unit tests count with `Received(1).CreateSender(...)` on a substitute client.
+- Option B wins if the maintainer wants `CachedSenderCount` as an operational diagnostic; option C wins if `InternalsVisibleTo` is wanted for the package anyway.
+- Class: Dilemma
 
 </details>
 
@@ -125,7 +148,7 @@ The plan caches Azure Service Bus senders per entity name in a singleton `Servic
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 15 files:
+PR 1 holds exactly these 14 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -139,22 +162,21 @@ PR 1 holds exactly these 15 files:
 | 8 | `tests/Encina.UnitTests/AzureServiceBus/Publishing/AzureServiceBusPublisherLifetimeTests.cs` | modify (cache disposed with the container, client untouched by the scope) |
 | 9 | `tests/Encina.GuardTests/AzureServiceBus/AzureServiceBusGuardTests.cs` | modify (publisher and cache constructors) |
 | 10 | `tests/Encina.ContractTests/MessageBrokers/AzureServiceBus/AzureServiceBusPublisherContractTests.cs` | modify (construction sites) |
-| 11 | `tests/Encina.IntegrationTests/MessageBrokers/AzureServiceBus/AzureServiceBusPublisherIntegrationTests.cs` | modify (the existing emulator collection fixture: two sends to one queue use one cached sender; a closed sender is replaced) |
+| 11 | `tests/Encina.IntegrationTests/MessageBrokers/AzureServiceBus/AzureServiceBusPublisherIntegrationTests.cs` | modify (the existing emulator collection fixture: two sends to one queue use one cached sender, observed through a counting client of Design Choice 5; a closed sender is replaced) |
 | 12 | `tests/Encina.BenchmarkTests/Encina.Benchmarks/Messaging/AzureServiceBus/SenderCache.md` | new (benchmark justification, see task 7) |
 | 13 | `.github/coverage-manifest/Encina.AzureServiceBus.json` | modify (`mechanical-fixer`) |
 | 14 | `changelog.d/709-azure-service-bus-sender-cache.changed.md` | new (`mechanical-fixer`) |
-| 15 | `docs/INVENTORY.md` | modify (`docs-writer`; the new public type) |
 
-The package ships no `PublicAPI.*.txt` files and no README today (verified), so neither is counted.
+The package ships no `PublicAPI.*.txt` files and no README today (verified), so neither is counted. `docs/INVENTORY.md` lists packages and categories, not public types (the Azure Service Bus entries are at lines 2084, 2097 and 7390), so a new type gives it nothing to record and it is not a file of this plan.
 
 Tasks:
 
-1. **Create** `public sealed class ServiceBusSenderCache : IAsyncDisposable` with constructor `(ServiceBusClient client, ILogger<ServiceBusSenderCache> logger)` (`ArgumentNullException.ThrowIfNull` on both) and `ServiceBusSender GetSender(string entityName)` (`ArgumentException.ThrowIfNullOrWhiteSpace`): a `ConcurrentDictionary<string, ServiceBusSender>` with `StringComparer.OrdinalIgnoreCase`; a closed sender is replaced through `TryUpdate`; beyond 256 entries the call returns a sender the caller must dispose, and the publisher disposes it (`GetSender` returns a small struct `(ServiceBusSender Sender, bool Owned)` for that reason).
-2. **Modify** the four sites of the publisher to `var lease = _senderCache.GetSender(name)` and `if (lease.Owned) await lease.Sender.DisposeAsync()` in a `finally`; the existing `try/catch` and `Left` codes are unchanged. The constructor becomes `(ServiceBusClient client, ServiceBusSenderCache senderCache, ILogger<AzureServiceBusMessagePublisher> logger, IOptions<EncinaAzureServiceBusOptions> options)`; update the 15 construction sites of the 4 test files (`Select-String -Pattern 'new AzureServiceBusMessagePublisher\('` finds them).
+1. **Create** `public sealed class ServiceBusSenderCache : IAsyncDisposable` with constructor `(ServiceBusClient client, ILogger<ServiceBusSenderCache> logger)` (`ArgumentNullException.ThrowIfNull` on both) and `ServiceBusSender GetSender(string entityName)` (`ArgumentException.ThrowIfNullOrWhiteSpace`): a `ConcurrentDictionary<string, ServiceBusSender>` with `StringComparer.OrdinalIgnoreCase`; a closed sender is replaced through `TryUpdate` and the replaced (closed) instance is disposed after the update (a sender created by a caller that loses the `TryUpdate` race is disposed too; a failing dispose is logged by `SenderCloseFailed` and never thrown); beyond 256 entries the call returns a sender the caller must dispose, and the publisher disposes it (`GetSender` returns a small struct `(ServiceBusSender Sender, bool Owned)` for that reason).
+2. **Modify** the four sites of the publisher to `var lease = _senderCache.GetSender(name)` and `if (lease.Owned) await lease.Sender.DisposeAsync()` in a `finally`; the existing `try/catch` and `Left` codes are unchanged. The constructor becomes `(ServiceBusClient client, ServiceBusSenderCache senderCache, ILogger<AzureServiceBusMessagePublisher> logger, IOptions<EncinaAzureServiceBusOptions> options)`; update the 15 construction sites in 4 test files (`Select-String -Pattern 'new AzureServiceBusMessagePublisher\('` finds them: `AzureServiceBusGuardTests.cs` 9, `AzureServiceBusMessagePublisherTests.cs` 4, `AzureServiceBusPublisherMessageIdTests.cs` 1, `AzureServiceBusPublisherContractTests.cs` 1; `AzureServiceBusPublisherLifetimeTests.cs` has none because it resolves the publisher through DI). The guard tests also gain a null check of the new `senderCache` parameter.
 3. **Register** the cache with `services.TryAddSingleton<ServiceBusSenderCache>()` after the client (`ServiceCollectionExtensions.cs`, after the `ServiceBusClient` registration), so a test that registers its own client keeps working.
 4. **Dispose** closes every cached sender, catching each failure (`SenderCloseFailed(ILogger, Exception)`, EventId 4312, `ex.ForLogging()`).
-5. **Tests**: same entity name returns the same sender (`ShouldBeSameAs`), different names return different senders, case differences share one entry, a closed sender is replaced, the 257th entity returns an owned sender, concurrent `GetSender` calls (64, `Parallel.For`) create one sender per name (use `Lazy` or `GetOrAdd` with a factory guard so a sender created twice is disposed), `DisposeAsync` closes all and logs a failing close without throwing, a send after disposal returns the publisher's existing `Left`; a DI test with `ValidateOnBuild` and `ValidateScopes` resolves the publisher in two scopes and finds the same cache and no client disposal; guard tests for both constructors and `GetSender`.
-6. **Integration** (shared `ServiceBusEmulatorFixture` collection): two sends and one publish to the same queue and topic succeed; the second send reuses the sender (asserted through the cache's `Count`, an internal member visible to the integration project through its `InternalsVisibleTo`; verify before use, else a public read-only `CachedSenderCount`).
+5. **Tests**: same entity name returns the same sender (`ShouldBeSameAs`), different names return different senders, case differences share one entry, a closed sender is replaced and the replaced instance is disposed, the 257th entity returns an owned sender, concurrent `GetSender` calls (64, `Parallel.For`) create one sender per name (use `Lazy` or `GetOrAdd` with a factory guard so a sender created twice is disposed), `DisposeAsync` closes all and logs a failing close without throwing, a send after disposal returns the publisher's existing `Left`; a DI test with `ValidateOnBuild` and `ValidateScopes` resolves the publisher in two scopes and finds the same cache and no client disposal; guard tests for both constructors and `GetSender`.
+6. **Integration** (shared `ServiceBusEmulatorFixture` collection): two sends and one publish to the same queue and topic succeed; the second send reuses the sender (asserted by a counting `ServiceBusClient` subclass that overrides the virtual `CreateSender`, counts and delegates, Design Choice 5; no production member is added for the test).
 7. **Benchmark justification** `SenderCache.md` (the format of `Messaging/DeadLetter/DeadLetterStore.md`): a meaningful benchmark needs a real broker round trip (the emulator is a Docker container, not a micro-benchmark target) and the saving is one AMQP link attach per call; the integration test proves the reuse and the cache is covered by unit tests.
 8. **Manifest**: targets in Phase 3.
 
@@ -172,7 +194,7 @@ TASK:
 1. Create ServiceBusSenderCache (singleton, IAsyncDisposable) with the key, bound and replacement rules of the plan.
 2. Inject it into the publisher, replace the four CreateSender sites, update the 15 test construction sites.
 3. Register it with TryAddSingleton; add the 4312 log; write the unit, guard, contract, DI and integration tests.
-4. Ask mechanical-fixer for the manifest and the changelog fragment, docs-writer for INVENTORY.md.
+4. Ask mechanical-fixer for the manifest and the changelog fragment.
 
 KEY RULES:
 - The publisher must not dispose cached senders or the client; only the cache disposes senders, only the container disposes the cache.
@@ -291,7 +313,7 @@ REFERENCE FILES:
 
 1. XML documentation with an example on `ServiceBusSenderCache` and a note on the changed `AzureServiceBusMessagePublisher` constructor.
 2. Changelog fragment (`changed`): the publisher keeps one sender per entity; the constructor takes the cache; the fragment names the five transports investigated without change and why.
-3. `docs-writer`: `docs/INVENTORY.md` (PR 1); no README exists for the package, and creating one is outside this issue.
+3. No documentation page changes: `docs/INVENTORY.md` has nothing to record for a new type and no README exists for the package (creating one is outside this issue).
 4. Verification: `dotnet build --configuration Release` with zero warnings; `dotnet test` of the unit, guard and contract projects; the integration test with Docker (the emulator); per-flag coverage and the CRAP table of changed methods.
 
 </details>
@@ -312,7 +334,6 @@ KEY RULES:
 
 REFERENCE FILES:
 - changelog.d/README.md
-- docs/INVENTORY.md
 ```
 
 </details>
@@ -364,11 +385,13 @@ No new range is registered.
 
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
-| Production code | 1 | 3 | New: `ServiceBusSenderCache`; modified: publisher, DI extension, `Log.cs` (PR 1); PR 2 adds 3 modified publishers |
-| Tests | 2 | 7 | New: cache unit tests, the benchmark justification; modified: 4 construction-site test files, lifetime tests, integration tests, guard tests (PR 1); PR 2 adds a benchmark and 3 unit test files |
-| Documentation | 0 | 1 | `INVENTORY.md` |
-| Configuration | 1 | 1 | One changelog fragment; one manifest (PR 2 adds 3 manifests and a fragment) |
-| **Total** | **4** | **12** | PR 1 = 15 files, PR 2 (optional) = 11 files; each at most 15 files and about 600 lines |
+| Production code | 1 | 3 | New: `ServiceBusSenderCache`; modified: publisher, DI extension, `Log.cs` |
+| Tests | 2 | 6 | New: cache unit tests, the benchmark justification; modified: unit publisher tests, message id tests, lifetime tests, guard tests, contract tests, integration tests |
+| Documentation | 0 | 0 | None (`INVENTORY.md` has nothing to record for a new type) |
+| Configuration | 1 | 1 | One changelog fragment; one manifest |
+| **Total (PR 1)** | **4** | **10** | 4 + 10 = 14 files, the 14 rows of the Phase 1 table; about 600 lines |
+
+PR 2 (optional, Phase 2): 2 new files (the benchmark and a changelog fragment) and 9 modified files (3 publishers, 3 unit test files, 3 manifests) = 11 files, about 300 lines. Neither pull request exceeds 15 files or 1500 lines.
 
 ---
 
@@ -385,7 +408,7 @@ verification shows the only real per-publish cost is the Azure Service Bus sende
 IMPLEMENTATION OVERVIEW:
 1. ServiceBusSenderCache (public sealed, IAsyncDisposable, singleton): entity-name key (OrdinalIgnoreCase), at most 256 entries,
    closed senders replaced, DisposeAsync logs close failures (EventId 4312).
-2. AzureServiceBusMessagePublisher takes the cache and no longer disposes senders (4 sites, 15 test construction sites).
+2. AzureServiceBusMessagePublisher takes the cache and no longer disposes senders (4 sites, 15 test construction sites in 4 files).
 3. Optional pull request: Kafka MessageType header bytes and MQTT/NATS default destinations per (prefix, type), only if the
    maintainer answers B and a benchmark shows a gain.
 Phase 1 is the pull request; Phase 2 is conditional.
@@ -393,7 +416,7 @@ Phase 1 is the pull request; Phase 2 is conditional.
 KEY PATTERNS:
 - The container owns the cache and the client; the scoped publisher owns nothing (#1608).
 - Cache only entity names and per-type constants; never tenant, message or per-message values.
-- Apply Design Choices 1 and 3 as the Maintainer Decisions section says.
+- Apply Design Choices 1, 3, 4 and 5 as the maintainer answers them (the answers are recorded in the plan when given).
 
 REFERENCE FILES:
 - src/Encina.AzureServiceBus/AzureServiceBusMessagePublisher.cs
@@ -433,7 +456,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | `ServiceBusEmulatorFixture` collection | ✅ Available | `tests/Encina.IntegrationTests/MessageBrokers/AzureServiceBus` |
 | #1608 lifetime regression tests | ✅ Available | `AzureServiceBusPublisherLifetimeTests` |
-| Maintainer answers to Design Choices 1 and 3 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1, 3, 4 and 5 | Pending | Asked when work starts |
 
 No blocking prerequisites.
 
@@ -441,5 +464,6 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 and 3) when work starts, records the answers under `## Maintainer Decisions`, then briefs one worker for Phase 1 (and Phase 2 only if the answer is B).
-2. After merge, comment on #709 with the investigation table so the five transports are closed with evidence.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 3, 4 and 5) when work starts, records the answers under `## Maintainer Decisions`, then briefs one worker for Phase 1 (and Phase 2 only if the answer is B).
+2. Option A of Design Choice 1 leaves the acceptance criteria of #709 (topic cache in all transports, exchange declaration cache, routing key cache) unmet by design, because the code they describe does not exist. When Design Choice 1 is answered, the maintainer amends #709 to the verified scope (draft of the replacement criteria: `artifacts/decisions/plan-batch/followups/709-acceptance-criteria-amendment.md`; the plan never edits or comments on the issue); until then the pull request says `Refs #709`, not `Fixes #709`.
+3. After the amendment and the merge, the maintainer closes #709 citing the investigation table of this plan, so the five transports are closed with evidence.
