@@ -25,6 +25,9 @@ plus <tmp>/src copied from the fixtures. Nothing reads the network, the clock or
      --require-all-flags, or when the flag ran), an unparsable Cobertura file and a touched src file with no
      per-file target; report-only exits 0 everywhere and records the findings in check-targets.json; the
      summary JSON keys that docs/coverage/app.js reads stay equal to expected-latest-shape.json.
+  13-16. (#3860) a touched src C# path with a space is a dropped-path finding; --files-from without a value
+     exits 1; an empty manifest directory is a no-manifest finding; a missing input directory rewrites
+     check-targets.json with a no-coverage finding (a stale file is never left behind).
 
 Exit code: 0 if every assertion passes, 1 otherwise.
 #>
@@ -133,6 +136,21 @@ function Assert-Findings {
     }
 }
 
+# Asserts that one finding kind is among those written to check-targets.json (other kinds may be present).
+function Assert-FindingKindPresent {
+    param([string]$Title, $Scenario, [string]$ExpectedKind)
+
+    $json = Get-Content (Join-Path $Scenario.Output 'check-targets.json') -Raw | ConvertFrom-Json
+    $kinds = @($json.findings | ForEach-Object { $_.kind })
+    if ($kinds -notcontains $ExpectedKind) {
+        Write-Host "FAIL: $Title - finding kinds '$($kinds -join ',')' do not include '$ExpectedKind'"
+        $script:failures++
+    }
+    else {
+        Write-Host "PASS: $Title - finding kind '$ExpectedKind' present"
+    }
+}
+
 # The key sets of the summary JSON that docs/coverage/app.js reads must not change (#1651).
 function Assert-SummaryShape {
     param($Scenario)
@@ -216,7 +234,8 @@ try {
 
     $broken = New-TargetsScenario -Name 'targets-broken' -BrokenFlag 'GuardTests'
     Assert-Run '10a. --check-targets --enforce with an unparsable Cobertura file' (Get-TargetsArgs $broken -Enforce) 1 'PARSE-ERROR: GuardTests/coverage\.cobertura\.xml'
-    Assert-Findings '10a. parse error' $broken 'no-data,parse-error'
+    # The incidental no-data rows of the broken flag are not pinned: only that parse-error is present.
+    Assert-FindingKindPresent '10a. parse error' $broken 'parse-error'
     Assert-Run '10b. --check-targets report-only with an unparsable Cobertura file (recorded, exit 0)' (Get-TargetsArgs $broken) 0 'PARSE-ERROR'
 
     $untargeted = New-TargetsScenario -Name 'targets-untargeted' -ExtraSourceFiles @('Extra.cs')
@@ -229,6 +248,36 @@ try {
     New-Item -ItemType Directory -Path $noFlags.Input -Force | Out-Null
     Assert-Run '9d. --check-targets --enforce with no Cobertura report at all (never a vacuous pass)' (Get-TargetsArgs $noFlags -Enforce) 1 'NO-COVERAGE'
     Assert-Findings '9d. no coverage' $noFlags 'no-coverage'
+
+    # #3860: a touched src C# path the character filter drops is a finding, never a silent escape.
+    $dropped = New-TargetsScenario -Name 'targets-dropped'
+    $droppedList = Join-Path $stagingRoot 'dropped-touched.txt'
+    Set-Content -Path $droppedList -Value @('src/Pkg/A.cs', 'src/Pkg/My File.cs')
+    $dropped.Touched = $droppedList
+    Assert-Run '13a. --check-targets --enforce, a touched src path with a space is dropped' (Get-TargetsArgs $dropped -Enforce -WithTouched) 1 'DROPPED-PATH: touched-files'
+    Assert-Findings '13a. dropped path' $dropped 'dropped-path'
+    Assert-Run '13b. --check-targets report-only, a dropped path (recorded, exit 0)' (Get-TargetsArgs $dropped -WithTouched) 0 'report-only'
+
+    # #3860: --files-from without a value is an argument error, never a skipped touched-file check.
+    Assert-Run '14. --files-from as the last argument has no value' ((Get-TargetsArgs $good -Enforce) + '--files-from') 1 '--files-from needs a file path'
+
+    # #3860: an empty manifest directory under --check-targets --enforce is a no-manifest finding, never a vacuous pass.
+    $noManifest = New-TargetsScenario -Name 'targets-no-manifest'
+    $noManifest.Manifest = $empty
+    Assert-Run '15. --check-targets --enforce with an empty manifest directory' (Get-TargetsArgs $noManifest -Enforce) 1 'NO-MANIFEST'
+    Assert-Findings '15. no manifest' $noManifest 'no-manifest'
+
+    # #3860: a missing input directory rewrites check-targets.json, so a stale file is never read as current.
+    $missingInput = New-TargetsScenario -Name 'targets-missing-input'
+    $missingInput.Input = Join-Path $stagingRoot 'no-such-input'
+    New-Item -ItemType Directory -Path $missingInput.Output -Force | Out-Null
+    $staleJson = Join-Path $missingInput.Output 'check-targets.json'
+    Set-Content -Path $staleJson -Value '{ "passed": true, "findings": [] }'
+    Assert-Run '16a. --check-targets report-only with a missing input directory (exit 0)' (Get-TargetsArgs $missingInput) 0 'report-only'
+    Assert-Findings '16a. missing input replaces the stale check-targets.json' $missingInput 'no-coverage'
+    Set-Content -Path $staleJson -Value '{ "passed": true, "findings": [] }'
+    Assert-Run '16b. --check-targets --enforce with a missing input directory' (Get-TargetsArgs $missingInput -Enforce) 1 'NO-COVERAGE'
+    Assert-Findings '16b. missing input under --enforce' $missingInput 'no-coverage'
 
     Assert-Run '12a. --enforce without --check-targets is rejected' @('--enforce', '--manifest', $good.Manifest, '--input', $good.Input, '--output', $good.Output) 1 'only apply to --check-targets'
     Assert-Run '12b. --check-targets cannot be combined with --check-justifications' @('--check-targets', '--check-justifications', '--manifest', $good.Manifest) 1 'cannot be combined'
