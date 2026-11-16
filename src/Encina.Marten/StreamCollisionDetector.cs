@@ -7,6 +7,13 @@ internal static class StreamCollisionDetector
 {
     private const string StreamPrimaryKeyConstraint = "pkey_mt_streams_id";
 
+    private static readonly string[] MartenCollisionTypeNames =
+    [
+        "StreamIdCollision",
+        "ExistingStream",
+        "DuplicateStream",
+    ];
+
     /// <summary>
     /// Determines whether <paramref name="ex"/> (or any exception in its inner chain) reports a stream collision.
     /// </summary>
@@ -20,17 +27,7 @@ internal static class StreamCollisionDetector
     {
         for (var current = ex; current is not null; current = current.InnerException)
         {
-            var typeName = current.GetType().Name;
-
-            if (typeName.Contains("StreamIdCollision", StringComparison.OrdinalIgnoreCase)
-                || typeName.Contains("ExistingStream", StringComparison.OrdinalIgnoreCase)
-                || typeName.Contains("DuplicateStream", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            if (typeName.Equals("PostgresException", StringComparison.Ordinal)
-                && current.ToString().Contains(StreamPrimaryKeyConstraint, StringComparison.OrdinalIgnoreCase))
+            if (IsCollisionShape(current))
             {
                 return true;
             }
@@ -38,4 +35,20 @@ internal static class StreamCollisionDetector
 
         return false;
     }
+
+    private static bool IsCollisionShape(Exception exception)
+    {
+        var typeName = exception.GetType().Name;
+
+        return IsMartenCollisionType(typeName) || IsStreamPrimaryKeyViolation(typeName, exception);
+    }
+
+    private static bool IsMartenCollisionType(string typeName) =>
+        Array.Exists(
+            MartenCollisionTypeNames,
+            name => typeName.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsStreamPrimaryKeyViolation(string typeName, Exception exception) =>
+        typeName.Equals("PostgresException", StringComparison.Ordinal)
+        && exception.ToString().Contains(StreamPrimaryKeyConstraint, StringComparison.OrdinalIgnoreCase);
 }
