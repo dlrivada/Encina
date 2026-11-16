@@ -4,7 +4,8 @@
 > **Type**: Feature
 > **Related**: #230 (owns `IRequestValidator<T>`, `RequestValidatorRunner` and EventIds 550-559; a blocking prerequisite of S1 and S5), #228 (value objects; its boilerplate generator reuses this project), #231 (OpenAPI validators; reuses the rule model and emitters), #234 and #236 (planned apart), #702 (validator resolution cache), #726 (central validation instrumentation), ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Very high (a new Roslyn component, a runtime contract in core and a change in the three validation providers)
-> **Estimated Scope**: ~1,900 lines of production code (generator, emitters, runtime) + ~3,200 lines of tests (about 600 of them snapshots) + ~450 lines of documentation, in seven pull requests of at most 15 files and 1,000 lines each
+> **Estimated Scope**: ~1,900 lines of production code (generator, emitters, runtime) + ~2,700 lines of tests (about 600 of them snapshots) + ~450 lines of documentation (~5,050 lines in total, as the Estimated File Count table), in seven pull requests of at most 15 files and 1,500 lines each
+> **Note on #230**: every statement about `IRequestValidator<T>`, the runner, its constructors and EventIds 550-559 follows the plan of #230 (a plan pull request, not code on `main`); it is re-verified against `main` when S1 starts
 
 ---
 
@@ -66,6 +67,7 @@ A new package `Encina.Validation.Generators` (an incremental source generator, a
 
 ### Rationale
 
+- The cited reasoning (the attributes must work under the reflective providers) is also met by a third option, the attributes in a separate small package referenced by both core consumers and the generator; the contract-in-core choice is therefore a decision, not a rule.
 - With A a type validates identically whether or not the generator ran, which is what the equivalence contract test asserts. B wins when the package must be removable without any source change.
 
 **Class:** Dilemma
@@ -123,14 +125,13 @@ A new package `Encina.Validation.Generators` (an incremental source generator, a
 | **A) `Encina.Validation.Generators`, one analyzer-packaged assembly** | The name in the issue title; the same packaging as `Encina.Security.ABAC.Analyzers` | None |
 | **B) `Encina.Validation.SourceGenerator` (the name in the issue's Affected Packages)** | Singular | Contradicts the title |
 
-### Chosen Option: **A — `Encina.Validation.Generators`**
+### Chosen Option: **A — `Encina.Validation.Generators`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The issue title is the name every later issue uses (#228 and #231 refer to "the generator").
+- The issue itself names both (title `Encina.Validation.Generators`, Affected Packages `Encina.Validation.SourceGenerator`). A is the name the sibling plans #228 and #231 use for "the generator project" and the plural matches the one package that also hosts their emitters; B wins when the maintainer prefers the singular form of the Affected Packages list.
 
-**Class:** Trivial
-**Settled by:** the title of issue #227 (`Encina.Validation.Generators`) and the packaging precedent `src/Encina.Security.ABAC.Analyzers/Encina.Security.ABAC.Analyzers.csproj`
+**Class:** Dilemma
 
 </details>
 
@@ -144,14 +145,13 @@ A new package `Encina.Validation.Generators` (an incremental source generator, a
 | **A) `IIncrementalGenerator` with `ForAttributeWithMetadataName`, equatable value models, no `Compilation` captured in a model; tests drive `CSharpGeneratorDriver` and assert incrementality with `TrackIncrementalGeneratorSteps`, plus Verify snapshots** | The acceptance criterion "incremental generation"; no new test package | Hand-written harness |
 | **B) The `Microsoft.CodeAnalysis.Testing` packages** | Ready harness | A new central package for one project |
 
-### Chosen Option: **A — Incremental generator with the driver harness**
+### Chosen Option: **A — Incremental generator with the driver harness** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The incremental model is the acceptance criterion and the Roslyn guidance the issue links; `Microsoft.CodeAnalysis.CSharp` is already a central version and `Encina.Testing.Verify` wraps snapshots.
+- The incremental model is the acceptance criterion ("Incremental generation") and the Roslyn guidance the issue links; `Microsoft.CodeAnalysis.CSharp` is already a central version and `Encina.Testing.Verify` wraps snapshots. B also satisfies the criterion, so the new central test package is a decision: B wins when the maintainer accepts a new test dependency for a ready harness. The harness is shared by several test projects, so it lives in `tests/Encina.TestInfrastructure` (S2), which `Encina.UnitTests`, `Encina.PropertyTests` and `Encina.ContractTests` already reference.
 
-**Class:** Trivial
-**Settled by:** issue #227 acceptance criteria ("Incremental generation") and its linked Roslyn incremental generators document
+**Class:** Dilemma
 
 </details>
 
@@ -159,15 +159,22 @@ A new package `Encina.Validation.Generators` (an incremental source generator, a
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
-| C1 | The generator is `netstandard2.0`, `EnforceExtendedAnalyzerRules`, no reflection in generated code (`[GeneratedRegex]` for `RegularExpression`), so the output is AOT-compatible | Settled | The issue label `aot-compatible` and the benefit "no reflection"; precedent csproj of `Encina.Security.ABAC.Analyzers` |
-| C2 | A shape the generator cannot support (nested request type, generic request type, an attribute argument that is not a constant, a name collision with an existing `<Type>Validator`) is a compile error `ENCVAL001` to `ENCVAL004`, never a silent skip | Settled | AGENTS.md section 8 (zero warnings) and section 3 (no silent success); a silent skip would leave the type unvalidated |
-| C3 | Field errors are `ValidationError(PropertyName, ErrorMessage)` as the reflective providers produce them; messages never include the value being validated | Settled | AGENTS.md section 3 (`EncinaError.Message` and request values never reach logs or responses) |
+| C1 | The generator is `netstandard2.0`, `EnforceExtendedAnalyzerRules`, no reflection in generated code (`[GeneratedRegex]` for `RegularExpression`), so the output is AOT-compatible | Settled | The issue label `aot-compatible` and the benefit "no reflection"; precedent csproj of `Encina.Security.ABAC.Analyzers`; the generated-code rule does not depend on C5, which only chooses how unknown attributes are called |
+| C2 | A shape the generator cannot support (nested request type, generic request type, an attribute argument that is not a constant, a name collision with an existing `<Type>Validator`) is a compile error `ENCVAL001` to `ENCVAL004`, never a silent skip. Option B: a warning diagnostic, and the type stays validated reflectively through the provider fallback of Design Choice 3 | Dilemma (recommended, pending the maintainer): error | an error cannot be missed and keeps the "zero warnings" rule of `AGENTS.md` section 8 trivially; a warning wins when the maintainer prefers a build that never fails because of a new generator |
+| C3 | Field errors are `ValidationError(PropertyName, ErrorMessage)` as the reflective providers produce them; messages never include the value being validated | Trivial | the DataAnnotations default messages carry the member name and the rule bounds, never the value, and the generated text equals them (equivalence tests, S3); logs and tags follow `AGENTS.md` section 3 |
 | C4 | No new `EncinaError` code and no new `ErrorCategory`: a failed field is a `ValidationResult` entry; the runner failure codes belong to #230 | Settled | ADR-062 (categories apply to `EncinaErrors.Create` calls; none is added here) |
 | C5 | Unknown `ValidationAttribute` subclasses are called as instances (`new X(args).GetValidationResult(value, context)`) in generated code, so no attribute is dropped | Dilemma (recommended, pending the maintainer) | scope of "support custom validation attributes"; the alternative is a diagnostic for every attribute outside the inlined set |
 | C6 | Inlined set: `Required`, `StringLength`, `MinLength`, `MaxLength`, `Range`, `RegularExpression`, `EmailAddress`, plus `NotEqual` and `GreaterThan`; everything else goes through C5 | Dilemma (recommended, pending the maintainer) | public behavior |
 | C7 | Generated class name is `<Type>Validator` in the request's namespace, `public sealed partial` (or `internal` when the request is internal) | Dilemma (recommended, pending the maintainer) | public name |
 | C8 | The generated validator does not echo values; `NotEqual` and `GreaterThan` compare in generated code with the property's own type (the `double` attribute argument is converted to the property type in the emitted literal) | Dilemma (recommended, pending the maintainer) | semantics of the two issue attributes |
-| C9 | EventId 560 (one message) in the new range `ValidationGenerated (560, 569)`, inside the block 550-599 assigned to the family | Trivial | AGENTS.md section 7; ADR-021; `artifacts/decisions/plan-batch/eventid-blocks.md` |
+| C9 | EventId 560 (one message) in the new range `ValidationGenerated (560, 569)`, inside the block 550-599 assigned to the family | Trivial | Settled by: AGENTS.md section 7; ADR-021; `artifacts/decisions/plan-batch/eventid-blocks.md` |
+| C10 | A generated `[GeneratedRegex]` for `RegularExpression` carries a match timeout equal to the attribute's `MatchTimeoutInMilliseconds` (DataAnnotations default 2,000 ms), never an infinite one, and the pattern and options come only from the attribute's constant arguments; this keeps the ReDoS exposure and the behaviour equal to the reflective provider. Option B: no timeout (the source generator default) | Dilemma (recommended, pending the maintainer): attribute timeout | request input reaches the pattern, so a timeout bounds the cost; no timeout wins only for patterns proven linear |
+| C11 | Generated validators are registered `Scoped`, like `AddRequestValidator` of #230 (a hand-written validator can take scoped services and the runner is scoped). Option B: `Singleton` for the stateless generated classes | Dilemma (recommended, pending the maintainer): Scoped | Scoped keeps one lifetime per runner dependency set; Singleton wins when allocation per request matters and the validators use no service |
+| C12 | The generated extension is `Microsoft.Extensions.DependencyInjection.<SanitizedAssemblyName>GeneratedValidatorsExtensions.Add<SanitizedAssemblyName>GeneratedValidators`; sanitizing replaces every character that is not a letter, digit or `_` with `_` and prefixes `_` when the name starts with a digit; two assemblies that sanitize to one name get distinct static classes in distinct assemblies, so only a consumer referencing both sees CS0121 and calls them by class name. Option B: a fixed name `AddGeneratedValidators` with the assembly name as a parameter | Dilemma (recommended, pending the maintainer): sanitized per assembly | public name; B wins when applications have many generated assemblies and want one call shape |
+| C13 | Generated and hand-written validators of one request type run together in the runner's order (registration order, per #230 register row D2); a generated validator is registered by `TryAddEnumerable`, so a second registration of it is ignored. Option B: generated validators always run first | Dilemma (recommended, pending the maintainer): registration order | depends on #230 D2; B wins when a stable result order across assemblies matters |
+| C14 | Run-time semantics of the two issue attributes: `GreaterThan` with a null value is valid (as `Range`; `Required` decides null); `NotEqual` with both values null is invalid (they are equal); a property type that is not `IComparable` for `GreaterThan` or a missing sibling for `NotEqual` is `ENCVAL004` at compile time in the generated path and an invalid result naming the property (fail closed, never an exception, never valid) in the reflective path; a numeric comparison uses the property's own type with `decimal` and `double` conversion exact for the constant. Option B: a missing sibling or non-comparable type throws `InvalidOperationException` as other `ValidationAttribute` misuse does | Dilemma (recommended, pending the maintainer): invalid result | fail-closed gate semantics (`AGENTS.md` section 3) with an `Either`-style result; B wins when the maintainer prefers developer errors to surface as exceptions |
+| C15 | The generator csproj hides RS1038 and NU5128 with `NoWarn` exactly as `src/Encina.Security.ABAC.Analyzers` does, and does not ship `AnalyzerReleases.*.md` for the four `ENCVAL` diagnostics. Option B: ship `AnalyzerReleases.Shipped.md` and `AnalyzerReleases.Unshipped.md` (two more files; S2 would exceed 15 files, so the harness edit would move to S3) | Dilemma (recommended, pending the maintainer): NoWarn like the precedent | zero warnings hold either way; B wins when the maintainer wants release tracking of the diagnostics from the first version |
+| C16 | The constructors of the runner (an optional `ILogger`) and the providers (an optional runner) are changed by #230 (its plan, phases 2, 4 and 5), with their callers counted there; this plan adds no constructor parameter and its S5 and S6 consume the runner as #230 leaves it. Option B: this plan makes the constructor changes itself (the 19, 25 and 6 `new` sites of the three providers would be edited here) | Dilemma (recommended, pending the maintainer): #230 owns them | #230's own constructor choice (optional or required runner) is itself pending; B wins when #230 is not implemented before this plan |
 
 ---
 
@@ -223,8 +230,8 @@ REFERENCE FILES:
 
 1. **Create** `src/Encina.Validation.Generators/Encina.Validation.Generators.csproj` (copy of the packaging of `Encina.Security.ABAC.Analyzers.csproj`: `netstandard2.0`, `LangVersion 14.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, `IncludeBuildOutput=false`, `DevelopmentDependency`, `PackagePath analyzers/dotnet/cs`, `Microsoft.CodeAnalysis.CSharp` with `PrivateAssets=all`) and add it to `Encina.slnx`.
 2. **Create** `ValidatorGenerator.cs` (`[Generator] public sealed class ValidatorGenerator : IIncrementalGenerator`, `ForAttributeWithMetadataName("Encina.Validation.GenerateValidatorAttribute")`), `Models/ValidatedTypeModel.cs`, `Models/PropertyRuleModel.cs`, `Models/EquatableArray.cs` (value equality so the pipeline caches), `Parsing/AttributeParser.cs` and `DiagnosticDescriptors.cs` (`ENCVAL001` unsupported type shape, `ENCVAL002` name collision, `ENCVAL003` non-constant attribute argument, `ENCVAL004` cross-field target property not found).
-3. **Modify** `tests/Encina.UnitTests/Encina.UnitTests.csproj` (one `ProjectReference`; the generator is not an `Analyzer` reference there) and **create** `.github/coverage-manifest/Encina.Validation.Generators.json` (through `mechanical-fixer`).
-4. Tests (S2): `GeneratorTestHost` (compile a source string, run the driver, return diagnostics and generated trees), parser unit tests, diagnostics unit tests, and an incrementality test (an unrelated edit does not re-run the model step).
+3. **Modify** `tests/Encina.TestInfrastructure/Encina.TestInfrastructure.csproj` (a `ProjectReference` to the generator, not as an `Analyzer`, and a `PackageReference` to the central `Microsoft.CodeAnalysis.CSharp`; `Encina.UnitTests`, `Encina.PropertyTests` and `Encina.ContractTests` already reference this project, so no other test csproj changes) and **create** `.github/coverage-manifest/Encina.Validation.Generators.json` (through `mechanical-fixer`). The csproj hides RS1038 and NU5128 as the precedent does (register row C15).
+4. Tests (S2): `GeneratorTestHost` in `tests/Encina.TestInfrastructure/Validation/` (compile a source string, run the driver, return diagnostics, generated trees and an in-memory loaded assembly; used by the S3 property test, the S5 DI test and the S6 tests), parser unit tests, diagnostics unit tests, and an incrementality test (an unrelated edit does not re-run the model step).
 
 </details>
 
@@ -376,8 +383,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Modify** `DataAnnotationsValidationProvider.cs` and `MiniValidationProvider.cs` (the runner exists from #230): when `runner.HasGeneratedValidator<TRequest>()` is true the reflective attribute pass is skipped and only the runner runs; otherwise unchanged. `FluentValidationProvider.cs` has no reflective attribute pass to skip and already calls the runner (#230), so it is not edited; its behavior with a generated validator is covered by the equivalence test.
-2. **Modify** the three manifests `Encina.DataAnnotations.json`, `Encina.MiniValidator.json` (through `mechanical-fixer`).
-3. Tests (S6): `tests/Encina.ContractTests/Core/Validation/GeneratedValidatorEquivalenceContractTests.cs` (the same annotated type validated reflectively and through the generated validator under each of the three providers gives the same `ValidationResult`); edit the three `AsyncValidationPipelineTests.cs` integration files of #230 to add a generated-validator case.
+2. **Modify** the two manifests `Encina.DataAnnotations.json` and `Encina.MiniValidator.json` (through `mechanical-fixer`).
+3. Tests (S6): two unit tests, one per provider (`DataAnnotationsValidationProviderGeneratedSkipTests.cs`, `MiniValidationProviderGeneratedSkipTests.cs` in `tests/Encina.UnitTests`: a type with a registered generated validator skips the reflective pass, the same type without a registration keeps it, a plain type is unchanged); `tests/Encina.ContractTests/Core/Validation/GeneratedValidatorEquivalenceContractTests.cs` (the same annotated type validated reflectively and through the generated validator under each of the three providers gives the same `ValidationResult`); edit the three `AsyncValidationPipelineTests.cs` integration files of #230 to add a generated-validator case.
 
 </details>
 
@@ -413,7 +420,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `tests/Encina.BenchmarkTests/Encina.Benchmarks/GeneratedValidationBenchmarks.cs` (reflective DataAnnotations against the generated validator, `BenchmarkSwitcher` per `AGENTS.md` section 9) and a load-test justification `.md` (the generated code is stateless and allocation-bounded).
-2. **Create** through `docs-writer`: `src/Encina.Validation.Generators/README.md`, `docs/features/source-generated-validation.md`; **modify** `docs/INVENTORY.md` (new package); an ADR for the emission target and the fallback rule (`docs/architecture/adr/`; number assigned when the ADR pull request opens) and its index line.
+2. **Create** through `docs-writer`: `src/Encina.Validation.Generators/README.md`, `docs/features/source-generated-validation.md`; **modify** `docs/INVENTORY.md` (new package); an ADR that records the maintainer's answers to Design Choices 1 to 4 (`docs/architecture/adr/`; ADR number assigned when the ADR pull request opens) and its index line.
 3. **Create** `changelog.d/227-validation-source-generators.added.md` (through `mechanical-fixer`).
 4. Build verification: `dotnet build --configuration Release` with zero warnings; per-flag coverage of the touched files against the manifest targets below.
 
@@ -479,27 +486,31 @@ Every count includes tests, snapshots, coverage manifest edits, PublicAPI files,
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1 | Attributes, marker, runner method (needs #230 S1) | 4 | 2 (runner, PublicAPI) | 4 (2 attribute unit, runner unit, guard) | 0 | 1 | 0 | 11 | ~700 |
-| S2 | Generator project, parser, diagnostics, harness | 7 (csproj, generator, 2 models, `EquatableArray`, parser, descriptors) | 0 | 4 (parser, diagnostics, incrementality, `GeneratorTestHost`) | 1 (`Encina.UnitTests.csproj`) | 1 (new) | 1 (`Encina.slnx`) | 14 | ~900 |
+| S2 | Generator project, parser, diagnostics, shared harness | 7 (csproj, generator, 2 models, `EquatableArray`, parser, descriptors) | 0 | 4 (parser, diagnostics, incrementality, `GeneratorTestHost` in `Encina.TestInfrastructure`) | 1 (`Encina.TestInfrastructure.csproj`) | 1 (new) | 1 (`Encina.slnx`) | 14 | ~900 |
 | S3 | Standard rule emission | 2 | 1 (`ValidatorGenerator.cs`) | 5 (snapshot class, equivalence property, 3 snapshots) | 0 | 1 | 0 | 9 | ~800 |
 | S4 | Cross-field and instance attributes | 2 | 1 (`ValidatorGenerator.cs`) | 4 (2 snapshots, diagnostics unit, equivalence property) | 0 | 1 | 0 | 8 | ~650 |
 | S5 | Registration, warning, EventIds | 2 (`RegistrationEmitter`, `GeneratedValidatorLog`) | 4 (`EventIdRanges.cs`, runner, PublicAPI, `ValidatorGenerator.cs`) | 3 (DI test, log test, runner test) | 1 (`EncinaEventIdAllocationTests`) | 2 | 0 | 12 | ~850 |
-| S6 | Providers skip reflection | 0 | 2 (DataAnnotations and MiniValidator providers) | 1 (equivalence contract) | 3 (integration tests of #230) | 2 | 0 | 8 | ~500 |
+| S6 | Providers skip reflection | 0 | 2 (DataAnnotations and MiniValidator providers) | 3 (equivalence contract, 2 provider unit tests of the skip branch) | 3 (integration tests of #230) | 2 | 0 | 10 | ~650 |
 | S7 | Benchmark, docs, ADR, changelog | 0 | 0 | 2 (benchmark, load `.md` justification) | 0 | 0 | 6 (package README, feature page, `docs/INVENTORY.md`, ADR, ADR index, changelog fragment) | 8 | ~500 |
-| **Total** | | **17** | **10** | **23** | **5** | **8** | **7** | **70** | **~4,900** |
+| **Total** | | **17** | **10** | **25** | **5** | **8** | **7** | **72** | **~5,050** |
 
-The columns sum to the total (17 + 10 + 23 + 5 + 8 + 7 = 70) and every statement of the total in this plan is 70 files. The largest pull request is 14 files; none exceeds 1,000 lines. S1 waits for #230 S1; S2 does not.
+The columns sum to the total (17 + 10 + 25 + 5 + 8 + 7 = 72) and every statement of the total in this plan is 72 files and about 5,050 lines (700 + 900 + 800 + 650 + 850 + 650 + 500). The largest pull request is S2 at 14 files; none exceeds 1,500 lines. S1 waits for #230 S1; S2 does not.
 
 Per-file coverage targets (per flag, with a one-sentence justification), written into the package manifests by the pull request that adds the file:
 
 | File | Unit | Guard | Property | Justification |
 |------|------|-------|----------|---------------|
-| `NotEqualAttribute.cs`, `GreaterThanAttribute.cs` | 95 | 90 | 50 | Small attributes with every branch (types, null, missing property) unit-tested and constructor arguments guard-tested; the equivalence property exercises them against the reflective oracle |
+| `NotEqualAttribute.cs`, `GreaterThanAttribute.cs` (S1: Unit and Guard) | 95 | 90 | 0 in S1 | Small attributes with every branch (types, null, missing property, register row C14) unit-tested and constructor arguments guard-tested in S1 |
+| `NotEqualAttribute.cs`, `GreaterThanAttribute.cs` (S4: Property) | 95 | 90 | 50 | The Property target is entered by S4, the pull request whose equivalence property exercises both attributes against the reflective oracle |
 | `GenerateValidatorAttribute.cs`, `IGeneratedRequestValidator.cs` | 100 | 0 | 0 | A marker attribute and a marker interface with no executable code to guard |
 | `ValidatorGenerator.cs`, `Parsing/AttributeParser.cs` | 85 | 0 | 0 | Driven through `CSharpGeneratorDriver` with every shape and diagnostic; the entry points take Roslyn structs or internal types the guard project cannot reference |
 | `Emit/*.cs` | 90 | 0 | 60 | Snapshot and unit tests cover each emitter branch; the equivalence property compares the generated code against `Validator.TryValidateObject`; internal types have no guard tests |
 | `DiagnosticDescriptors.cs`, `Models/*.cs` | 80 | 0 | 0 | Static descriptors and value models, covered by the diagnostics and incrementality tests |
 | `GeneratedValidatorLog.cs` | 90 | 0 | 0 | One source-generated log method, covered by the log test; no parameters to guard |
-| `RequestValidatorRunner.cs` (changed method) | 90 | 85 | 0 | `HasGeneratedValidator` has three paths (generated, attribute without registration, plain), each with a unit test |
+| `RequestValidatorRunner.cs` (changed method, S1) | 90 | 85 | 0 | `HasGeneratedValidator` has three paths (generated, attribute without registration, plain), each with a unit test |
+| `EventIdRanges.cs` (S5) | 100 | 0 | 0 | One new static field read by the existing allocation architecture test; no parameters, so guard tests reach nothing |
+| `DataAnnotationsValidationProvider.cs`, `MiniValidationProvider.cs` (S6) | 90 | 0 in S6 | 0 | The changed skip branch is covered by the two S6 provider unit tests; Contract 40 and Integration 50 are entered by S6 too (the equivalence contract test and the extended `AsyncValidationPipelineTests` run the provider's main path); the Guard and Property targets are entered by #230's pull requests, which own the constructors and the merge |
+| `Encina.Validation.Generators.csproj`, `Encina.TestInfrastructure.csproj`, `Encina.slnx` | n/a | n/a | n/a | Project files with no executable code; the harness `GeneratorTestHost.cs` is test infrastructure and has no manifest entry |
 
 ---
 
@@ -580,6 +591,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #227 and ask the maintainer to answer Design Choices 1 to 4 and the Dilemma rows C5 to C8 of the register when work starts.
-2. Open the follow-up issues when the first pull request opens (shared with #230): tenant and module scoped selection (draft: `artifacts/issues/validation-tenant-module-scoped-selection.md`) and auditing of validation failures (draft: `artifacts/issues/validation-failure-audit.md`).
+1. Link this plan from #227 and ask the maintainer to answer Design Choices 1 to 6 and the Dilemma rows C2, C5 to C8 and C10 to C16 of the register when work starts. At pick-up the maintainer also re-confirms the issue task "Generate FluentValidation validators", which Design Choice 1 option B replaces with the provider-neutral validator.
+2. Open the follow-up issues when the first pull request opens (shared with #230; both drafts exist in the planning worktree's `artifacts/issues/`): tenant and module scoped selection (draft: `artifacts/issues/validation-tenant-module-scoped-selection.md`) and auditing of validation failures (draft: `artifacts/issues/validation-failure-audit.md`).
 3. Implement S1 to S7 as the pull requests of the Estimated File Count split, `Fixes #227` on S7.
