@@ -1,7 +1,7 @@
 {
   "package": "Encina.Marten",
   "generated": "2026-03-30T00:00:00Z",
-  "totalFiles": 50,
+  "totalFiles": 51,
   "targets": {
     "unit": 38,
     "guard": 7,
@@ -157,6 +157,25 @@
       "defaultTests": [],
       "defaultRule": "Log.cs",
       "reason": "Source-generated [LoggerMessage] delegates, no logic"
+    },
+    "StreamCollisionDetector.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*Detector.cs",
+      "reason": "Internal static helper used by the aggregate repositories",
+      "targets": {
+        "unit": 100,
+        "guard": 0,
+        "contract": 0,
+        "integration": 60
+      },
+      "justifications": {
+        "unit": "StreamCollisionDetectorTests and the unit tests of MartenAggregateRepository and SnapshotAwareAggregateRepository drive every branch of IsStreamCollision; measured 100.00% on 2026-11-16 after the helper split.",
+        "guard": "Internal helper without parameters worth guarding beyond what the repository guard tests cover; measured 0.00% on 2026-11-16.",
+        "contract": "Internal static helper with no public contract to keep; the repository contract tests do not reach it.",
+        "integration": "Integration tests against Marten on PostgreSQL reach the collision path only for the real stream-collision cases; measured 83.33% on 2026-11-16 after the helper split."
+      }
     },
     "MartenAggregateRepository.cs": {
       "defaultTests": [

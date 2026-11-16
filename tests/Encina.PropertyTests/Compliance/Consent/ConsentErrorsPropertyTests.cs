@@ -95,4 +95,36 @@ public class ConsentErrorsPropertyTests
 
         return !error.Message.Contains(subjectId, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Invariant (#3771): <see cref="ConsentErrors.ReconsentRequired"/> always carries its code and
+    /// the InvalidRequest category, names <c>ProvideReconsentAsync</c> and both versions, for any
+    /// purpose and versions.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool ReconsentRequired_IsCodedInvalidRequestPointingToProvideReconsent(
+        NonEmptyString purpose, NonEmptyString currentVersionId, NonEmptyString grantedVersionId)
+    {
+        var error = ConsentErrors.ReconsentRequired(purpose.Get, currentVersionId.Get, grantedVersionId.Get);
+
+        return error.GetCode().Exists(c => c == ConsentErrors.ReconsentRequiredCode)
+            && error.GetCategory() == ErrorCategory.InvalidRequest
+            && error.Message.Contains("ProvideReconsentAsync", StringComparison.Ordinal)
+            && error.Message.Contains(currentVersionId.Get, StringComparison.Ordinal)
+            && error.Message.Contains(grantedVersionId.Get, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Invariant (#3771): <see cref="ConsentErrors.ActInFuture"/> always carries its code and the
+    /// InvalidRequest category, and its message names the purpose, for any purpose and tolerance.
+    /// </summary>
+    [Property(MaxTest = 100)]
+    public bool ActInFuture_IsCodedInvalidRequest(NonEmptyString purpose, PositiveInt minutes)
+    {
+        var error = ConsentErrors.ActInFuture(purpose.Get, TimeSpan.FromMinutes(minutes.Get));
+
+        return error.GetCode().Exists(c => c == ConsentErrors.ActInFutureCode)
+            && error.GetCategory() == ErrorCategory.InvalidRequest
+            && error.Message.Contains(purpose.Get, StringComparison.Ordinal);
+    }
 }

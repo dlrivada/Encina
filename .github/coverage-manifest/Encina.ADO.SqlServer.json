@@ -80,10 +80,12 @@
       "reason": "ADO.NET store with raw SQL — needs real database",
       "targets": {
         "unit": 25,
+        "guard": 6,
         "integration": 90
       },
       "justifications": {
         "unit": "BreakTheGlassSqlServerStoreTests covers the DI registration and the store_failed paths of the SQL Server break-the-glass store, while the SQL itself needs a real database and is covered by the integration flag.",
+        "guard": "Only the argument checks are guard-coverable and are covered by the guard test class BreakTheGlassStoreGuardTests (null connection in the constructor, invalid table name, null and range arguments of AddAsync, FindEffectiveAsync, TryCloseAsync, TryRecordReviewAsync, QueryReviewQueueAsync and GetExpiredUnrecordedAsync); the SQL and failure paths are reached only by the unit and integration flags.",
         "integration": "The shared BreakTheGlassStoreContract runs on the SQL Server collection fixtures through BreakTheGlassStoreSqlServerIntegrationTests, executing every method against a real database."
       }
     },

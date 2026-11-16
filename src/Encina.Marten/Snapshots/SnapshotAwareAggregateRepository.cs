@@ -485,10 +485,5 @@ public sealed class SnapshotAwareAggregateRepository<TAggregate> : IAggregateRep
     /// Determines if the exception is a stream collision exception.
     /// </summary>
     private static bool IsStreamCollisionException(Exception ex)
-    {
-        var typeName = ex.GetType().Name;
-        return typeName.Contains("StreamIdCollision", StringComparison.OrdinalIgnoreCase)
-            || typeName.Contains("ExistingStream", StringComparison.OrdinalIgnoreCase)
-            || typeName.Contains("DuplicateStream", StringComparison.OrdinalIgnoreCase);
-    }
+        => StreamCollisionDetector.IsStreamCollision(ex);
 }

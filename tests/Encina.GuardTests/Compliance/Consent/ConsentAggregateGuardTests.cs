@@ -525,7 +525,108 @@ public class ConsentAggregateGuardTests
 
     #endregion
 
+    #region RenewByGrant and Regrant Guards (#3771)
+
+    [Theory]
+    [InlineData(null, "web", "admin", "consentVersionId")]
+    [InlineData("", "web", "admin", "consentVersionId")]
+    [InlineData("   ", "web", "admin", "consentVersionId")]
+    [InlineData("v2", null, "admin", "source")]
+    [InlineData("v2", "", "admin", "source")]
+    [InlineData("v2", "   ", "admin", "source")]
+    [InlineData("v2", "web", null, "grantedBy")]
+    [InlineData("v2", "web", "", "grantedBy")]
+    [InlineData("v2", "web", "   ", "grantedBy")]
+    public void RenewByGrant_InvalidText_ThrowsArgumentException(
+        string? consentVersionId, string? source, string? grantedBy, string expectedParamName)
+    {
+        var aggregate = CreateActiveAggregate();
+
+        var act = () => aggregate.RenewByGrant(
+            consentVersionId!, source!, null, null, ValidMetadata, null, grantedBy!, DateTimeOffset.UtcNow);
+
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe(expectedParamName);
+    }
+
+    [Fact]
+    public void RenewByGrant_NullMetadata_ThrowsArgumentNullException()
+    {
+        var aggregate = CreateActiveAggregate();
+
+        var act = () => aggregate.RenewByGrant(
+            "v2", "web", null, null, null!, null, "admin", DateTimeOffset.UtcNow);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("metadata");
+    }
+
+    [Fact]
+    public void RenewByGrant_NullOptionalProofFields_RecordsTheRenewal()
+    {
+        var aggregate = CreateActiveAggregate();
+
+        aggregate.RenewByGrant("v2", "web", null, null, ValidMetadata, null, "admin", DateTimeOffset.UtcNow.AddMinutes(1));
+
+        aggregate.IpAddress.ShouldBeNull();
+        aggregate.ProofOfConsent.ShouldBeNull();
+        aggregate.ExpiresAtUtc.ShouldBeNull();
+        aggregate.ConsentVersionId.ShouldBe("v2");
+    }
+
+    [Theory]
+    [InlineData(null, "web", "admin", "consentVersionId")]
+    [InlineData("", "web", "admin", "consentVersionId")]
+    [InlineData("   ", "web", "admin", "consentVersionId")]
+    [InlineData("v2", null, "admin", "source")]
+    [InlineData("v2", "", "admin", "source")]
+    [InlineData("v2", "   ", "admin", "source")]
+    [InlineData("v2", "web", null, "grantedBy")]
+    [InlineData("v2", "web", "", "grantedBy")]
+    [InlineData("v2", "web", "   ", "grantedBy")]
+    public void Regrant_InvalidText_ThrowsArgumentException(
+        string? consentVersionId, string? source, string? grantedBy, string expectedParamName)
+    {
+        var aggregate = CreateWithdrawnAggregate();
+
+        var act = () => aggregate.Regrant(
+            consentVersionId!, source!, null, null, ValidMetadata, null, grantedBy!, DateTimeOffset.UtcNow);
+
+        Should.Throw<ArgumentException>(act).ParamName.ShouldBe(expectedParamName);
+    }
+
+    [Fact]
+    public void Regrant_NullMetadata_ThrowsArgumentNullException()
+    {
+        var aggregate = CreateWithdrawnAggregate();
+
+        var act = () => aggregate.Regrant(
+            "v2", "web", null, null, null!, null, "admin", DateTimeOffset.UtcNow);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("metadata");
+    }
+
+    [Fact]
+    public void Regrant_NullOptionalProofFields_ReactivatesTheConsent()
+    {
+        var aggregate = CreateWithdrawnAggregate();
+
+        aggregate.Regrant("v2", "web", null, null, ValidMetadata, null, "admin", DateTimeOffset.UtcNow.AddMinutes(1));
+
+        aggregate.Status.ShouldBe(ConsentStatus.Active);
+        aggregate.IpAddress.ShouldBeNull();
+        aggregate.ProofOfConsent.ShouldBeNull();
+        aggregate.ExpiresAtUtc.ShouldBeNull();
+    }
+
+    #endregion
+
     #region Helpers
+
+    private static ConsentAggregate CreateWithdrawnAggregate()
+    {
+        var aggregate = CreateActiveAggregate();
+        aggregate.Withdraw("admin", null, DateTimeOffset.UtcNow);
+        return aggregate;
+    }
 
     private static ConsentAggregate CreateActiveAggregate()
     {
