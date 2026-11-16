@@ -19,7 +19,10 @@ namespace Encina.Compliance.Consent.Aggregates;
 /// The lifecycle progresses through: <see cref="ConsentStatus.Active"/> →
 /// <see cref="ConsentStatus.Withdrawn"/> or <see cref="ConsentStatus.Expired"/>,
 /// with optional transitions through <see cref="ConsentStatus.RequiresReconsent"/>
-/// when consent terms change.
+/// when consent terms change. A grant on an existing record is recorded on the same stream
+/// (#3771): a renewal (<see cref="RenewByGrant"/>) while Active, a regrant (<see cref="Regrant"/>)
+/// from Withdrawn or Expired back to Active, and a reconsent (<see cref="ProvideReconsent"/>) from
+/// RequiresReconsent. Acts of consent are ordered by their own timestamp (<see cref="LastActAtUtc"/>).
 /// </para>
 /// <para>
 /// All state changes are captured as immutable events, providing a complete audit trail
@@ -134,6 +137,25 @@ public sealed class ConsentAggregate : AggregateBase
     /// Module identifier for modular monolith scoping.
     /// </summary>
     public string? ModuleId { get; private set; }
+
+    /// <summary>
+    /// Timestamp of the most recent act or transition that determines the current state (UTC).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The ordering watermark of the act-timestamp rule (#3771): an act of consent (grant renewal,
+    /// regrant, renewal or reconsent) whose own timestamp is older than this value is recorded in
+    /// the history without changing the current state, so the most recent act wins regardless of
+    /// the order in which the requests arrived. Withdrawals, expiries and version changes always
+    /// apply and advance the watermark (an expiry at its <see cref="ConsentExpired.ExpiredAtUtc"/>),
+    /// so a late grant never undoes a later withdrawal.
+    /// </para>
+    /// <para>
+    /// Grant act timestamps come from the client application; an unsynchronised client clock can
+    /// order acts inconsistently, and Encina cannot correct it.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset LastActAtUtc { get; private set; }
 
     /// <summary>
     /// Grants consent for a specific processing purpose on behalf of a data subject.
@@ -367,67 +389,247 @@ public sealed class ConsentAggregate : AggregateBase
             Id, DataSubjectId, Purpose, newConsentVersionId, source, ipAddress, proofOfConsent, metadata, expiresAtUtc, grantedBy, occurredAtUtc));
     }
 
+    /// <summary>
+    /// Records a repeated grant while the consent is <see cref="ConsentStatus.Active"/> as a
+    /// renewal that carries the full proof of the new act (#3771).
+    /// </summary>
+    /// <remarks>
+    /// Raises <see cref="ConsentRenewedByGrant"/>. When <paramref name="occurredAtUtc"/> is older
+    /// than <see cref="LastActAtUtc"/>, the act is recorded in the history without changing the
+    /// current state (see <see cref="IsLateAct"/>).
+    /// </remarks>
+    /// <param name="consentVersionId">The version of consent terms the data subject agrees to.</param>
+    /// <param name="source">The channel through which consent is collected.</param>
+    /// <param name="ipAddress">IP address of the data subject, or <c>null</c> if unavailable.</param>
+    /// <param name="proofOfConsent">Hash or reference to the consent form shown, or <c>null</c>.</param>
+    /// <param name="metadata">Additional key-value metadata for this act.</param>
+    /// <param name="expiresAtUtc">When the consent expires (UTC), or <c>null</c> for no expiration.</param>
+    /// <param name="grantedBy">Identifier of the actor recording the consent.</param>
+    /// <param name="occurredAtUtc">When the data subject acted (UTC), supplied by the client application.</param>
+    /// <exception cref="InvalidOperationException">Thrown when consent is not in <see cref="ConsentStatus.Active"/> status.</exception>
+    public void RenewByGrant(
+        string consentVersionId,
+        string source,
+        string? ipAddress,
+        string? proofOfConsent,
+        IReadOnlyDictionary<string, object?> metadata,
+        DateTimeOffset? expiresAtUtc,
+        string grantedBy,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (Status != ConsentStatus.Active)
+        {
+            throw new InvalidOperationException(
+                $"Cannot renew consent by a grant when it is in '{Status}' status. Renewal by grant is only allowed from Active status.");
+        }
+
+        ValidateGrantAct(consentVersionId, source, metadata, grantedBy);
+
+        RaiseEvent(new ConsentRenewedByGrant(
+            Id, DataSubjectId, Purpose, consentVersionId, source, ipAddress, proofOfConsent, metadata, expiresAtUtc, grantedBy, occurredAtUtc));
+    }
+
+    /// <summary>
+    /// Grants consent again after it was <see cref="ConsentStatus.Withdrawn"/> or
+    /// <see cref="ConsentStatus.Expired"/>, on the same stream, with fresh proof, version and
+    /// expiry (#3771).
+    /// </summary>
+    /// <remarks>
+    /// Raises <see cref="ConsentRegranted"/>, which returns the consent to
+    /// <see cref="ConsentStatus.Active"/> unless <paramref name="occurredAtUtc"/> is older than
+    /// <see cref="LastActAtUtc"/>: such a late act is recorded without changing the state, so a grant
+    /// made before a withdrawal never undoes it.
+    /// </remarks>
+    /// <param name="consentVersionId">The version of consent terms the data subject agrees to.</param>
+    /// <param name="source">The channel through which consent is collected.</param>
+    /// <param name="ipAddress">IP address of the data subject, or <c>null</c> if unavailable.</param>
+    /// <param name="proofOfConsent">Hash or reference to the consent form shown, or <c>null</c>.</param>
+    /// <param name="metadata">Additional key-value metadata for this act.</param>
+    /// <param name="expiresAtUtc">When the consent expires (UTC), or <c>null</c> for no expiration.</param>
+    /// <param name="grantedBy">Identifier of the actor recording the consent.</param>
+    /// <param name="occurredAtUtc">When the data subject acted (UTC), supplied by the client application.</param>
+    /// <exception cref="InvalidOperationException">Thrown when consent is not in <see cref="ConsentStatus.Withdrawn"/> or <see cref="ConsentStatus.Expired"/> status.</exception>
+    public void Regrant(
+        string consentVersionId,
+        string source,
+        string? ipAddress,
+        string? proofOfConsent,
+        IReadOnlyDictionary<string, object?> metadata,
+        DateTimeOffset? expiresAtUtc,
+        string grantedBy,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (Status is not (ConsentStatus.Withdrawn or ConsentStatus.Expired))
+        {
+            throw new InvalidOperationException(
+                $"Cannot regrant consent when it is in '{Status}' status. Regrant is only allowed from Withdrawn or Expired status.");
+        }
+
+        ValidateGrantAct(consentVersionId, source, metadata, grantedBy);
+
+        RaiseEvent(new ConsentRegranted(
+            Id, DataSubjectId, Purpose, Status, consentVersionId, source, ipAddress, proofOfConsent, metadata, expiresAtUtc, grantedBy, occurredAtUtc));
+    }
+
+    /// <summary>
+    /// Whether an act with the given timestamp is older than the latest act that determines the
+    /// current state, and is therefore recorded without changing it (#3771).
+    /// </summary>
+    /// <param name="actAtUtc">The act's own timestamp.</param>
+    /// <param name="lastActAtUtc">The ordering watermark (<see cref="LastActAtUtc"/>).</param>
+    /// <param name="status">The current status.</param>
+    /// <returns>
+    /// <c>true</c> when the act is strictly older than the watermark, or at the same instant while
+    /// the consent is Withdrawn or Expired: a withdrawal or expiry wins a tie, so a client that
+    /// truncates timestamps can never reactivate a consent withdrawn at the same instant. On an
+    /// active consent an act at the same instant applies, so identical repeats stay identical.
+    /// </returns>
+    internal static bool IsLateAct(DateTimeOffset actAtUtc, DateTimeOffset lastActAtUtc, ConsentStatus status) =>
+        actAtUtc < lastActAtUtc
+        || (actAtUtc == lastActAtUtc && status is ConsentStatus.Withdrawn or ConsentStatus.Expired);
+
+    /// <summary>
+    /// Returns the later of the current watermark and a transition timestamp.
+    /// </summary>
+    internal static DateTimeOffset AdvanceWatermark(DateTimeOffset lastActAtUtc, DateTimeOffset atUtc) =>
+        atUtc > lastActAtUtc ? atUtc : lastActAtUtc;
+
+    private static void ValidateGrantAct(
+        string consentVersionId, string source, IReadOnlyDictionary<string, object?> metadata, string grantedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(consentVersionId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentException.ThrowIfNullOrWhiteSpace(grantedBy);
+    }
+
     /// <inheritdoc />
+    // crap-exempt: single-question switch — dispatches each consent event type to its own Apply method.
     protected override void Apply(object domainEvent)
     {
         switch (domainEvent)
         {
             case ConsentGranted e:
-                Id = e.ConsentId;
-                DataSubjectId = e.DataSubjectId;
-                Purpose = e.Purpose;
-                ConsentVersionId = e.ConsentVersionId;
-                Source = e.Source;
-                IpAddress = e.IpAddress;
-                ProofOfConsent = e.ProofOfConsent;
-                Metadata = e.Metadata;
-                ExpiresAtUtc = e.ExpiresAtUtc;
-                GivenAtUtc = e.OccurredAtUtc;
-                Status = ConsentStatus.Active;
-                TenantId = e.TenantId;
-                ModuleId = e.ModuleId;
+                ApplyGranted(e);
                 break;
 
             case ConsentWithdrawn e:
                 Status = ConsentStatus.Withdrawn;
                 WithdrawnAtUtc = e.OccurredAtUtc;
                 WithdrawalReason = e.Reason;
+                LastActAtUtc = AdvanceWatermark(LastActAtUtc, e.OccurredAtUtc);
                 break;
 
-            case ConsentExpired:
+            case ConsentExpired e:
                 Status = ConsentStatus.Expired;
+                LastActAtUtc = AdvanceWatermark(LastActAtUtc, e.ExpiredAtUtc);
                 break;
 
             case ConsentRenewed e:
-                ConsentVersionId = e.ConsentVersionId;
-                ExpiresAtUtc = e.NewExpiresAtUtc;
-                if (e.Source is not null)
-                {
-                    Source = e.Source;
-                }
-
+                ApplyRenewed(e);
                 break;
 
             case ConsentVersionChanged e:
-                ConsentVersionId = e.NewVersionId;
-                if (e.RequiresReconsent)
-                {
-                    Status = ConsentStatus.RequiresReconsent;
-                }
-
+                ApplyVersionChanged(e);
                 break;
 
             case ConsentReconsentProvided e:
-                Status = ConsentStatus.Active;
-                ConsentVersionId = e.NewConsentVersionId;
-                Source = e.Source;
-                IpAddress = e.IpAddress;
-                ProofOfConsent = e.ProofOfConsent;
-                Metadata = e.Metadata;
-                ExpiresAtUtc = e.ExpiresAtUtc;
-                WithdrawnAtUtc = null;
-                WithdrawalReason = null;
+                ApplyGrantAct(e.NewConsentVersionId, e.Source, e.IpAddress, e.ProofOfConsent, e.Metadata, e.ExpiresAtUtc, e.OccurredAtUtc);
+                break;
+
+            case ConsentRenewedByGrant e:
+                ApplyGrantAct(e.ConsentVersionId, e.Source, e.IpAddress, e.ProofOfConsent, e.Metadata, e.ExpiresAtUtc, e.OccurredAtUtc);
+                break;
+
+            case ConsentRegranted e:
+                ApplyRegranted(e);
                 break;
         }
+    }
+
+    private void ApplyGranted(ConsentGranted e)
+    {
+        Id = e.ConsentId;
+        DataSubjectId = e.DataSubjectId;
+        Purpose = e.Purpose;
+        ConsentVersionId = e.ConsentVersionId;
+        Source = e.Source;
+        IpAddress = e.IpAddress;
+        ProofOfConsent = e.ProofOfConsent;
+        Metadata = e.Metadata;
+        ExpiresAtUtc = e.ExpiresAtUtc;
+        GivenAtUtc = e.OccurredAtUtc;
+        Status = ConsentStatus.Active;
+        TenantId = e.TenantId;
+        ModuleId = e.ModuleId;
+        LastActAtUtc = e.OccurredAtUtc;
+    }
+
+    private void ApplyRenewed(ConsentRenewed e)
+    {
+        if (IsLateAct(e.OccurredAtUtc, LastActAtUtc, Status))
+        {
+            return;
+        }
+
+        ConsentVersionId = e.ConsentVersionId;
+        ExpiresAtUtc = e.NewExpiresAtUtc;
+        if (e.Source is not null)
+        {
+            Source = e.Source;
+        }
+
+        LastActAtUtc = e.OccurredAtUtc;
+    }
+
+    private void ApplyVersionChanged(ConsentVersionChanged e)
+    {
+        ConsentVersionId = e.NewVersionId;
+        if (e.RequiresReconsent)
+        {
+            Status = ConsentStatus.RequiresReconsent;
+        }
+
+        LastActAtUtc = AdvanceWatermark(LastActAtUtc, e.OccurredAtUtc);
+    }
+
+    private void ApplyRegranted(ConsentRegranted e)
+    {
+        if (ApplyGrantAct(e.ConsentVersionId, e.Source, e.IpAddress, e.ProofOfConsent, e.Metadata, e.ExpiresAtUtc, e.OccurredAtUtc))
+        {
+            // The regrant starts a new consent period: the earlier grant and withdrawal stay in the ledger.
+            GivenAtUtc = e.OccurredAtUtc;
+        }
+    }
+
+    /// <summary>
+    /// Applies an act of consent that carries full proof, unless it is older than the latest act
+    /// (#3771). Returns whether the state changed.
+    /// </summary>
+    private bool ApplyGrantAct(
+        string consentVersionId,
+        string source,
+        string? ipAddress,
+        string? proofOfConsent,
+        IReadOnlyDictionary<string, object?> metadata,
+        DateTimeOffset? expiresAtUtc,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (IsLateAct(occurredAtUtc, LastActAtUtc, Status))
+        {
+            return false;
+        }
+
+        Status = ConsentStatus.Active;
+        ConsentVersionId = consentVersionId;
+        Source = source;
+        IpAddress = ipAddress;
+        ProofOfConsent = proofOfConsent;
+        Metadata = metadata;
+        ExpiresAtUtc = expiresAtUtc;
+        WithdrawnAtUtc = null;
+        WithdrawalReason = null;
+        LastActAtUtc = occurredAtUtc;
+        return true;
     }
 }

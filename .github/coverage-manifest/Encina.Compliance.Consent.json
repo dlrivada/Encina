@@ -33,16 +33,16 @@
         "integration"
       ],
       "targets": {
-        "guard": 55,
-        "property": 75,
-        "unit": 95,
-        "integration": 45
+        "guard": 70,
+        "property": 78,
+        "unit": 98,
+        "integration": 58
       },
       "justifications": {
-        "guard": "Guard tests cover the null, empty and whitespace argument checks of the aggregate factory and commands.",
-        "property": "FsCheck properties run the real aggregate over generated inputs and single state transitions.",
-        "unit": "ConsentAggregateTests and the service tests run every command, transition guard and Apply branch of the real aggregate (measured 100%).",
-        "integration": "The Consent integration tests create, reload and withdraw real aggregates through Marten on PostgreSQL (measured 50.4%); renew, version change and reconsent transitions are unit-tested."
+        "guard": "Guard tests cover the null, empty and whitespace argument checks of the aggregate factory and commands, and the renewal, regrant and reconsent commands.",
+        "property": "FsCheck properties run the real aggregate over generated inputs, single state transitions and act ordering (watermark) across renewal, regrant and reconsent.",
+        "unit": "ConsentAggregateTests, ConsentActOrderingTests and the service tests run every command, transition guard, renewal, regrant, reconsent and Apply branch of the real aggregate.",
+        "integration": "The Consent integration tests create, reload, renew and withdraw real aggregates through Marten on PostgreSQL; the regrant, reconsent and act-ordering transitions are covered by the unit, guard and property flags."
       }
     },
     "Attributes/RequireConsentAttribute.cs": {
@@ -94,10 +94,12 @@
         "property"
       ],
       "targets": {
-        "property": 50
+        "property": 60,
+        "unit": 95
       },
       "justifications": {
-        "property": "FsCheck properties assert over generated subject ids that no error factory puts the subject id in the message (#1350)."
+        "property": "FsCheck properties assert over generated subject ids that no error factory puts the subject id in the message (#1350).",
+        "unit": "Unit tests call every error factory and assert its error code and that the message carries no subject data."
       }
     },
     "ConsentMartenExtensions.cs": {
@@ -211,10 +213,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "guard": 25
+        "guard": 40,
+        "unit": 60
       },
       "justifications": {
-        "guard": "Guard tests construct ConsentGranted and ConsentVersionChanged through the aggregate Grant and ChangeVersion commands; the other event records belong to unit tests."
+        "guard": "Guard tests construct the event records (ConsentGranted, ConsentVersionChanged and the new grant-on-existing-stream events) through the aggregate commands, so their constructors and factories run under the guard flag.",
+        "unit": "Unit tests apply every event record through the aggregate and projection Apply branches, including the renewal, regrant and reconsent events."
       }
     },
     "Health/ConsentHealthCheck.cs": {
@@ -254,7 +258,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "ConsentProjectionTests apply every consent event to the projection and assert the resulting read model state.",
+        "guard": "The projection has no validated public parameters reachable by guard tests: Marten builds it and the handlers take events, so there is no null-checked argument to exercise."
+      }
     },
     "ReadModels/ConsentReadModel.cs": {
       "defaultTests": [
@@ -262,7 +274,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests exercise the read-model properties through the projection that populates them.",
+        "guard": "Plain read-model properties with no parameters or validation, so there is no argument for a guard test to check."
+      }
     },
     "ServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -286,14 +306,14 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "guard": 25,
-        "unit": 80,
-        "integration": 40
+        "guard": 42,
+        "unit": 85,
+        "integration": 57
       },
       "justifications": {
-        "guard": "Guard tests check the constructor null guards and drive every tenant-gated operation into the fail-closed gate (SPEC-002 DEC-006); the happy and error paths of the operations belong to unit tests.",
-        "unit": "DefaultConsentServiceTests drive every command and query against a substituted repository, including the deterministic-id create path and the StreamAlreadyExists re-read (measured 83.4%); the remaining lines are catch blocks for infrastructure exceptions.",
-        "integration": "The Consent integration tests run grants, a withdrawal and the tenant-scoped queries against Marten on PostgreSQL (measured 44.5%); renew, reconsent and cache paths are unit-tested."
+        "guard": "Guard tests check the constructor null guards and drive every tenant-gated operation, including grants on an existing stream, into the fail-closed gate (SPEC-002 DEC-006); the happy and error paths belong to unit tests.",
+        "unit": "Unit tests drive every command and query against a substituted repository, covering grants on an existing stream (renewal, regrant, reconsent), bounded concurrency retries, the deterministic-id create path and cache invalidation; the remaining lines are catch blocks for infrastructure exceptions.",
+        "integration": "The Consent integration tests run grants, renewals, a withdrawal and the tenant-scoped queries against Marten on PostgreSQL; the regrant, reconsent, concurrency retry and cache paths are unit-tested."
       }
     },
     "SubjectIdConversion.cs": {

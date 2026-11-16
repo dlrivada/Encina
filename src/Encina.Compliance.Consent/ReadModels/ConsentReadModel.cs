@@ -127,6 +127,17 @@ public sealed class ConsentReadModel : IReadModel
     public DateTimeOffset LastModifiedAtUtc { get; set; }
 
     /// <summary>
+    /// Timestamp of the most recent act or transition that determines the current state (UTC).
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <see cref="Aggregates.ConsentAggregate.LastActAtUtc"/>: an act of consent older than
+    /// this value is recorded in the event history without changing this read model's state (#3771).
+    /// Grant act timestamps come from the client application, so an unsynchronised client clock can
+    /// order acts inconsistently.
+    /// </remarks>
+    public DateTimeOffset LastActAtUtc { get; set; }
+
+    /// <summary>
     /// Event stream version for optimistic concurrency.
     /// </summary>
     /// <remarks>

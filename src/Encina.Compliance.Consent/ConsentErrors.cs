@@ -51,6 +51,78 @@ public static class ConsentErrors
     public const string TenantRequiredCode = "consent.tenant_required";
 
     /// <summary>
+    /// Error code when a grant on a consent that requires reconsent carries a consent version other
+    /// than the current one (#3771). Category <see cref="ErrorCategory.InvalidRequest"/> (ADR-062).
+    /// </summary>
+    public const string ReconsentRequiredCode = "consent.reconsent_required";
+
+    /// <summary>
+    /// Error code when a grant's act timestamp is further in the future than the allowed clock
+    /// drift (#3771). Category <see cref="ErrorCategory.InvalidRequest"/> (ADR-062).
+    /// </summary>
+    public const string ActInFutureCode = "consent.act_in_future";
+
+    /// <summary>
+    /// Creates the error returned when the <c>occurredAtUtc</c> of
+    /// <c>IConsentService.GrantConsentAsync</c> is later than the current time plus the allowed
+    /// clock drift (#3771).
+    /// </summary>
+    /// <remarks>
+    /// The act timestamp orders the acts on a consent; an act dated in the future would make every
+    /// later act look older and lock the consent in its current state, so it is refused before any
+    /// stream is touched. Neither the message nor the details carry the data subject's identifier.
+    /// </remarks>
+    /// <param name="purpose">The processing purpose of the consent.</param>
+    /// <param name="allowedClockAhead">How far in the future an act timestamp may be.</param>
+    /// <returns>An <see cref="ErrorCategory.InvalidRequest"/> error with code <see cref="ActInFutureCode"/>.</returns>
+    public static EncinaError ActInFuture(string purpose, TimeSpan allowedClockAhead) =>
+        EncinaErrors.Create(
+            code: ActInFutureCode,
+            category: ErrorCategory.InvalidRequest,
+            message: $"The grant act for {SubjectDescription} and purpose '{purpose}' is dated more than "
+                + $"{allowedClockAhead.TotalMinutes:0} minutes in the future. Check the client clock.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyPurpose] = purpose,
+                [MetadataKeyStage] = MetadataStageConsent,
+                ["allowedClockAheadSeconds"] = allowedClockAhead.TotalSeconds,
+                ["requirement"] = "consent_act_ordering"
+            });
+
+    /// <summary>
+    /// Creates the error returned when <c>IConsentService.GrantConsentAsync</c> targets a consent in
+    /// <see cref="ConsentStatus.RequiresReconsent"/> with a consent version other than the current
+    /// one (#3771).
+    /// </summary>
+    /// <remarks>
+    /// A grant counts as the reconsent only when it carries the current version; a grant of an
+    /// older version would bypass the reconsent flow that a material change of the terms requires.
+    /// The caller should collect consent to the current terms and call
+    /// <c>IConsentService.ProvideReconsentAsync</c> (or grant again with the current version).
+    /// Neither the message nor the details carry the data subject's identifier.
+    /// </remarks>
+    /// <param name="purpose">The processing purpose of the consent.</param>
+    /// <param name="currentVersionId">The consent version the data subject must agree to.</param>
+    /// <param name="grantedVersionId">The consent version the rejected grant carried.</param>
+    /// <returns>An <see cref="ErrorCategory.InvalidRequest"/> error with code <see cref="ReconsentRequiredCode"/>.</returns>
+    public static EncinaError ReconsentRequired(string purpose, string currentVersionId, string grantedVersionId) =>
+        EncinaErrors.Create(
+            code: ReconsentRequiredCode,
+            category: ErrorCategory.InvalidRequest,
+            message: $"Consent for {SubjectDescription} and purpose '{purpose}' requires reconsent to version "
+                + $"'{currentVersionId}'; a grant of version '{grantedVersionId}' cannot satisfy it. "
+                + "Collect consent to the current version and use ProvideReconsentAsync.",
+            details: new Dictionary<string, object?>
+            {
+                [MetadataKeyPurpose] = purpose,
+                [MetadataKeyStage] = MetadataStageConsent,
+                ["currentVersionId"] = currentVersionId,
+                ["grantedVersionId"] = grantedVersionId,
+                ["resolution"] = "ProvideReconsentAsync",
+                ["requirement"] = "consent_version_reconsent"
+            });
+
+    /// <summary>
     /// Creates an error when consent is missing for a required processing purpose.
     /// </summary>
     /// <param name="subjectId">The identifier of the data subject.</param>
