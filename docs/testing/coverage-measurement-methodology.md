@@ -57,13 +57,13 @@ The obligations model gives a lower but more honest number: it says "your tests 
 
 **Package coverage:**
 
-```
+```text
 package.coverage = Σ(file.met_obligations) / Σ(file.total_obligations) × 100
 ```
 
 **Overall coverage:**
 
-```
+```text
 overall.coverage = Σ(package.met_obligations) / Σ(package.total_obligations) × 100
 ```
 
@@ -96,7 +96,7 @@ enum TestType
 ```
 
 | Flag | Purpose | Project location | Directory pattern in artifacts |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Unit** | Isolated behavior tests, mocked dependencies | `tests/Encina.UnitTests/` | `UnitTests-*` |
 | **Guard** | Parameter validation (ArgumentNullException, ArgumentException on public methods) | `tests/Encina.GuardTests/` | `GuardTests-*` |
 | **Contract** | API surface and interface contracts, inheritance rules, exported types | `tests/Encina.ContractTests/` | `ContractTests-*` |
@@ -124,7 +124,7 @@ dotnet run --file .github/scripts/generate-coverage-manifest.cs [-- <options>]
 Rule types supported:
 
 | Match type | Semantics | Example |
-|---|---|---|
+| --- | --- | --- |
 | `exact` | Exact filename match | `Log.cs` → no tests |
 | `glob` | Glob pattern on filename | `*Store.cs` → unit+guard+integration |
 | `regex` | Regex on filename | `^I[A-Z].*\.cs$` → no tests (if also an interface) |
@@ -235,7 +235,7 @@ Target attainment answers one question: how close is each (file, flag) pair to i
 Definitions, for a pair with target `T` (percent), measured coverage `M` (percent), `covered` lines and `total` lines of that flag:
 
 | Quantity | Definition |
-|---|---|
+| --- | --- |
 | Gap | `max(0, T - M)`, in percentage points |
 | Attainment | `min(M / T, 1)`; a pair with `T = 0` has attainment 1 |
 | Lines to cover | `max(0, ceil(T × total / 100) - covered)`, the target is multiplied by the line count first, then divided; an unknown line count gives 0 |
@@ -255,7 +255,7 @@ Rules:
 Target attainment and the obligations figure measure different things and neither replaces the other:
 
 | | Obligations coverage | Target attainment |
-|---|---|---|
+| --- | --- | --- |
 | Question | What share of the applicable (flag, line) pairs is covered? | How close is each (file, flag) pair to its own target? |
 | Unit | Lines | Pairs (and, for the line-weighted value, target lines) |
 | Targets used | None (every applicable line counts) | The per-file `targets` of the manifests |
@@ -275,7 +275,7 @@ Each entry of `history.json` also carries the `attainment` object, copied by `co
 The target ratchet stops a pull request from lowering or removing a coverage target without anyone noticing. `.github/scripts/check-target-ratchet.cs` compares every `.github/coverage-manifest/*.json` file except `defaults.json` between the merge base of the pull request's base branch and `HEAD` (read with `git show`, renames followed). It checks the package-level `targets` and each file's `files[*].targets`. It only stops targets from falling; it does not raise any (targets rise gradually, see the obligations policy in [AGENTS.md section 9](../../AGENTS.md)).
 
 | Rule | Violation |
-|---|---|
+| --- | --- |
 | R-LOW | The head value of a target is lower than its base value. |
 | R-DROP | The base has a target for a flag or file and the head has none, while the source still exists in the head tree (`src/<Package>/<file>` for a file target; a `src/**/<Package>.csproj` for a package target). |
 
@@ -398,7 +398,7 @@ Categories are **not** defined in `coverage-weights.json` anymore. That file con
 Some files have **zero obligations** regardless of how many lines they contain. These are files whose inclusion in coverage metrics would be misleading. The exclusion rules are declared in `defaults.json` with `"tests": []`:
 
 | Pattern | Match type | Reason |
-|---|---|---|
+| --- | --- | --- |
 | `Log.cs` | exact | Source-generated `[LoggerMessage]` delegates — no logic |
 | `GlobalSuppressions.cs` | exact | Only `[SuppressMessage]` attributes |
 | `AssemblyInfo.cs` | exact | Assembly metadata |
@@ -440,7 +440,7 @@ The coverage pipeline is three workflows, only the last of which touches GitHub 
 
 1. **CI Full** runs the test suites, generates Cobertura XML outputs per test type, and uploads them as artifacts (`coverage-report` consolidated plus per-type `test-results-*` artifacts).
 2. **Publish Coverage** (`publish-coverage.yml`) is triggered by `workflow_run` when CI Full completes on `main`, or manually via `workflow_dispatch` with an optional `run_id` input. Its `publish-data` job computes the fresh coverage data and commits it to the orphan `dashboard-data` branch with `pages-dashboard-data.ps1 -Mode Persist` (see [`pages-dashboard-data.ps1`](../../.github/scripts/pages-dashboard-data.ps1)); it does not deploy anything itself.
-3. **`docs.yml`** is the only workflow that deploys GitHub Pages. Because Pages uses the `workflow` build type, every deploy replaces the whole site, so a raw `cp -r docs _site` copy from a publisher would wipe the Jekyll site and the DocFX API reference (#1381 — this happened before this pipeline existed). Publish Coverage's `deploy` job instead calls `docs.yml` through `workflow_call` with no inputs; the fresh data already sits on the `dashboard-data` branch, and `docs.yml`'s `deploy` job lays that branch over the live data of every dashboard, inside the `pages` concurrency lock, before deploying.
+3. **`docs.yml`** is the only workflow that deploys GitHub Pages. Because Pages uses the `workflow` build type, every deploy replaces the whole site, so a raw `cp -r docs _site` copy from a publisher would wipe the Jekyll site and the DocFX API reference (#1381 — this happened before this pipeline existed). Publish Coverage's `deploy` job instead calls `docs.yml` through `workflow_call` with no inputs; the fresh data already sits on the `dashboard-data` branch, and `docs.yml`'s `deploy` job lays that branch over the built site, inside the `pages` concurrency lock, before deploying. The deploy never reads the live Pages site (#3746).
 
 ### Publish Coverage steps (from `.github/workflows/publish-coverage.yml`)
 
@@ -449,7 +449,7 @@ The coverage pipeline is three workflows, only the last of which touches GitHub 
 1. **Fail loud on a broken source run.** If the triggering `workflow_run` did not conclude `success`, the first step prints `::error title=Source run did not succeed::...` and exits 1 — the workflow fails visibly instead of silently concluding `skipped` as it used to (#1361). `workflow_dispatch` skips this check.
 2. **Resolve the source run ID.** Uses the manual input if provided, the triggering workflow_run ID if automatic, or falls back to the latest successful CI Full run via `gh run list`.
 3. **Download the `coverage-report` artifact** from that run with `actions/download-artifact@v8` + `run-id:`.
-4. **Stage the fresh data under `overlay/coverage/data/`**: `latest.json` from the artifact's summary, `badge.svg`/`badge.json`, and `docref-index.json` — but only when the candidate index has at least one entry with data; an empty or missing candidate leaves the index out of the overlay, so persisting keeps the `dashboard-data` branch's previous committed copy (or, before the first persist, the live Pages copy) (see [DocRef convention](#docref-convention)).
+4. **Stage the fresh data under `overlay/coverage/data/`**: `latest.json` from the artifact's summary, `badge.svg`/`badge.json`, and `docref-index.json` — but only when the candidate index has at least one entry with data; an empty or missing candidate leaves the index out of the overlay, so persisting keeps the `dashboard-data` branch's previous committed copy (see [DocRef convention](#docref-convention)).
 5. **Inject the `runId`** into `latest.json` using `jq` so that future recalculations know which GitHub Actions run produced this snapshot, then **archive the snapshot** with a timestamped filename `{YYYY-MM-DDTHHMMSSZ}.json` alongside it.
 6. **Build the history file from the branch copy.** First run `pages-dashboard-data.ps1 -Mode Read -Domain coverage -OutDir base/coverage`, then build the base `history.json` from the `dashboard-data` branch copy. The publisher uses the branch copy when it is present and non-empty; otherwise it runs `pages-dashboard-data.ps1 -Mode Live -Domain coverage -OutDir live/coverage` (skipped when the branch already carries the files) and uses the larger, by entry count, of the live Pages copy and the copy committed at `docs/coverage/data/history.json`. In `-Mode Live` a 404 writes nothing; any other failure (HTTP error, timeout, empty or invalid JSON) fails the job, so an outage is never mistaken for an empty history. `coverage-history.cs` then appends the new entry.
 7. **Persist the staged files** to the orphan `dashboard-data` branch with `pages-dashboard-data.ps1 -Mode Persist -Domain coverage -OverlayRoot overlay`, only the files this workflow owns. This is committed before the deploy is requested, so a deploy the `pages` concurrency group cancels, or one that fails, loses no dashboard data: the next deploy of any kind reads the branch inside the lock. The docs content of a cancelled docs deploy is not on that branch; the next docs run republishes it.
@@ -460,14 +460,14 @@ The coverage pipeline is three workflows, only the last of which touches GitHub 
 
 `docs.yml` builds and deploys the whole Pages site, whether triggered directly (a push to `docs/**` or `src/**`) or through one of the four publishers' `workflow_call`. On the deploy path (`main`, not a pull request):
 
-1. **`build-docs` fetches the live data of all four dashboards** (coverage, mutations, benchmarks, load-tests — `latest.json`, `history.json`, `docref-index.json` and siblings, plus badges) from `https://dlrivada.github.io/Encina/<domain>/...`, then stages the `dashboard-data` branch on top, into `_dashboards/` — but only to feed the citation renderers below (`continue-on-error: true`, per INV-002); the dashboard data itself is not copied into the site here.
+1. **`build-docs` stages the `dashboard-data` branch** of all four dashboards (coverage, mutations, benchmarks, load-tests — `latest.json`, `history.json`, `docref-index.json` and siblings, plus badges) into `_dashboards/`, in the step "Stage persisted dashboard data for the renderers". It does not fetch the live Pages site (#3746). The staging only feeds the citation renderers below (`continue-on-error: true`, per INV-002); the dashboard data itself is not copied into the site here. If a renderer skips, the `cited-by.json` that Jekyll copied from `docs/` (if any) stays.
 2. **Render the `covref`/`mutref`/`perf` citation markers** in `docs/` (and `src/` for cov/mut) against the staged `docref-index.json` files, with `cov-docs-render.cs`, `mut-docs-render.cs` and `perf-docs-render.cs`.
 3. **Build Jekyll and DocFX**, merge the DocFX output into `_site/api/`, copy the rendered `cited-by.json` files into `_site/*/data/`, and upload the result as the `docs-site` artifact (a tar).
-4. **`deploy` downloads `docs-site` and runs `pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site`**, inside the `pages` concurrency lock: it removes the committed `docs/<domain>/data` copies from the site, lays the live Pages copy of every dashboard's managed files over it, then the `dashboard-data` branch on top (always at least as fresh as the live copy). Any read failure other than a 404 fails the deploy, and every dashboard must end with `latest.json` and `history.json`.
+4. **`deploy` downloads `docs-site` and runs `pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site`**, inside the `pages` concurrency lock: it removes the committed `docs/<domain>/data` copies and badges from the site (except `cited-by.json`), then lays only the `dashboard-data` branch over it. The live Pages site is never read (#3746). The deploy fails when the branch does not exist, on any git failure, when an assembled JSON file is empty or does not parse, or when any of the four dashboards lacks `latest.json` or `history.json` on the branch. Because the deploy fails closed in that way, after recreating the branch or adding a new dashboard each publisher must persist once before a docs push can deploy.
 5. **Upload and deploy** the Pages artifact. Pull requests only run `build-docs` (steps 1-3, scoped to build correctness) and never deploy.
 6. **Smoke-check the deploy**: after `deploy-pages`, the `deploy` job requests the site root (must be HTTP 200 with `text/html`, so an unrendered raw-copy deploy fails), `/api/`, each dashboard's landing page and its `data/latest.json`, retrying up to 6 times 20 seconds apart to absorb Pages propagation delay. Any non-200 fails the deploy with one `::error` line per URL.
 
-The `pages` concurrency group lives only on `docs.yml`'s `deploy` job, so a publisher calling it through `workflow_call` never waits on a group it already holds. Reading the dashboard data inside that lock, rather than at the start of the ~15-minute `build-docs`, closes a lost-update race (2026-09-27: docs runs 36324402010/36324661640 reverted the mutation data that Publish Mutations Data run 36323680322 had deployed) and means a pending deploy the `pages` group cancels loses no dashboard data, since that data is already committed to the `dashboard-data` branch and the deploy that superseded it reads that branch. The docs content of a cancelled docs deploy is not on the branch; the next docs run republishes it.
+The `pages` concurrency group lives only on `docs.yml`'s `deploy` job, so a publisher calling it through `workflow_call` never waits on a group it already holds. Reading the dashboard data from the `dashboard-data` branch inside that lock, rather than at the start of the ~15-minute `build-docs`, closes a lost-update race (2026-09-27: docs runs 36324402010/36324661640 reverted the mutation data that Publish Mutations Data run 36323680322 had deployed) and means a pending deploy the `pages` group cancels loses no dashboard data, since that data is already committed to the `dashboard-data` branch and the deploy that superseded it reads that branch. The docs content of a cancelled docs deploy is not on the branch; the next docs run republishes it.
 
 ### Freshness check
 
@@ -480,7 +480,7 @@ The source of each dashboard's `history.json` is the copy on the `dashboard-data
 It contains at most **100 entries**. When the 101st entry is appended, the oldest entry is removed. Each entry is intentionally lightweight (the full snapshot is kept separately in the archived `{timestamp}.json` file) and contains:
 
 | Field | Description |
-|---|---|
+| --- | --- |
 | `timestamp` | ISO 8601 UTC |
 | `file` | Name of the archived full snapshot |
 | `coverage` | Overall percentage, integer |
@@ -509,7 +509,7 @@ The unit of citation is the **file**, with a per-flag breakdown: line-level cita
 `coverage-report.cs` writes `docref-index.json` next to the summary on every CI Full run, and Publish Coverage serves it at `coverage/data/docref-index.json`. The set of IDs comes from the **manifests**, not from which files produced Cobertura data in the run: every manifest entry with at least one applicable flag and an existing source file has an ID, so citations stay stable across partial runs. Each entry contains:
 
 | Field | Meaning |
-|-------|---------|
+| --- | --- |
 | `package` | Package name (e.g. `Encina.Marten`) |
 | `path` | Source path from the repository root |
 | `coverage` | File-level obligations coverage (`metObligations / obligations`), over the flags that have data; `null` when no flag has data |
@@ -642,7 +642,7 @@ dotnet run --file .github/scripts/coverage-report.cs -- --check-flag-assignment 
 ```
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `--input` | `artifacts/test-results` | Folder with the per-flag Cobertura files |
 | `--output` | `artifacts/coverage` | Folder where `flag-assignment.json` is written |
 | `--min-lines` | `5` | Whole number of 1 or more. The limit is inclusive: a file with exactly `n` executed lines fails |
@@ -664,7 +664,7 @@ FLAG ASSIGNMENT: <pairs> file/flag pair(s) execute lines under a flag the manife
 ```
 
 | Exit code | When |
-|---|---|
+| --- | --- |
 | 0 | No file reaches `--min-lines`, including when nothing is unassigned |
 | 1 | At least one file reaches `--min-lines` |
 | 1 | The check cannot run: no manifest loaded, a manifest or a Cobertura report failed to parse, no Cobertura data or no executable source lines found, input folder missing, invalid `--min-lines` (including no value), or combined with another `--check-*` mode (it runs as its own step) |
