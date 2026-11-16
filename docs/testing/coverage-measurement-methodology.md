@@ -423,11 +423,11 @@ The coverage pipeline is three workflows, only the last of which touches GitHub 
 1. **`build-docs` stages the `dashboard-data` branch** of all four dashboards (coverage, mutations, benchmarks, load-tests — `latest.json`, `history.json`, `docref-index.json` and siblings, plus badges) into `_dashboards/`, in the step "Stage persisted dashboard data for the renderers". It does not fetch the live Pages site (#3746). The staging only feeds the citation renderers below (`continue-on-error: true`, per INV-002); the dashboard data itself is not copied into the site here. If a renderer skips, the `cited-by.json` that Jekyll copied from `docs/` (if any) stays.
 2. **Render the `covref`/`mutref`/`perf` citation markers** in `docs/` (and `src/` for cov/mut) against the staged `docref-index.json` files, with `cov-docs-render.cs`, `mut-docs-render.cs` and `perf-docs-render.cs`.
 3. **Build Jekyll and DocFX**, merge the DocFX output into `_site/api/`, copy the rendered `cited-by.json` files into `_site/*/data/`, and upload the result as the `docs-site` artifact (a tar).
-4. **`deploy` downloads `docs-site` and runs `pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site`**, inside the `pages` concurrency lock: it removes the committed `docs/<domain>/data` copies and badges from the site (except `cited-by.json`), then lays only the `dashboard-data` branch over it. The live Pages site is never read (#3746). The deploy fails when the branch does not exist, on any git failure, when an assembled JSON file is empty or does not parse, or when any of the four dashboards lacks `latest.json` or `history.json` on the branch.
+4. **`deploy` downloads `docs-site` and runs `pages-dashboard-data.ps1 -Mode Assemble -SiteRoot _site`**, inside the `pages` concurrency lock: it removes the committed `docs/<domain>/data` copies and badges from the site (except `cited-by.json`), then lays only the `dashboard-data` branch over it. The live Pages site is never read (#3746). The deploy fails when the branch does not exist, on any git failure, when an assembled JSON file is empty or does not parse, or when any of the four dashboards lacks `latest.json` or `history.json` on the branch. Because the deploy fails closed in that way, after recreating the branch or adding a new dashboard each publisher must persist once before a docs push can deploy.
 5. **Upload and deploy** the Pages artifact. Pull requests only run `build-docs` (steps 1-3, scoped to build correctness) and never deploy.
 6. **Smoke-check the deploy**: after `deploy-pages`, the `deploy` job requests the site root (must be HTTP 200 with `text/html`, so an unrendered raw-copy deploy fails), `/api/`, each dashboard's landing page and its `data/latest.json`, retrying up to 6 times 20 seconds apart to absorb Pages propagation delay. Any non-200 fails the deploy with one `::error` line per URL.
 
-The `pages` concurrency group lives only on `docs.yml`'s `deploy` job, so a publisher calling it through `workflow_call` never waits on a group it already holds. Reading the dashboard data inside that lock, rather than at the start of the ~15-minute `build-docs`, closes a lost-update race (2026-09-27: docs runs 36324402010/36324661640 reverted the mutation data that Publish Mutations Data run 36323680322 had deployed) and means a pending deploy the `pages` group cancels loses no dashboard data, since that data is already committed to the `dashboard-data` branch and the deploy that superseded it reads that branch. The docs content of a cancelled docs deploy is not on the branch; the next docs run republishes it.
+The `pages` concurrency group lives only on `docs.yml`'s `deploy` job, so a publisher calling it through `workflow_call` never waits on a group it already holds. Reading the dashboard data from the `dashboard-data` branch inside that lock, rather than at the start of the ~15-minute `build-docs`, closes a lost-update race (2026-09-27: docs runs 36324402010/36324661640 reverted the mutation data that Publish Mutations Data run 36323680322 had deployed) and means a pending deploy the `pages` group cancels loses no dashboard data, since that data is already committed to the `dashboard-data` branch and the deploy that superseded it reads that branch. The docs content of a cancelled docs deploy is not on the branch; the next docs run republishes it.
 
 ### Freshness check
 
@@ -602,7 +602,7 @@ dotnet run --file .github/scripts/coverage-report.cs -- --check-flag-assignment 
 ```
 
 | Option | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `--input` | `artifacts/test-results` | Folder with the per-flag Cobertura files |
 | `--output` | `artifacts/coverage` | Folder where `flag-assignment.json` is written |
 | `--min-lines` | `5` | Whole number of 1 or more. The limit is inclusive: a file with exactly `n` executed lines fails |
@@ -624,7 +624,7 @@ FLAG ASSIGNMENT: <pairs> file/flag pair(s) execute lines under a flag the manife
 ```
 
 | Exit code | When |
-|---|---|
+| --- | --- |
 | 0 | No file reaches `--min-lines`, including when nothing is unassigned |
 | 1 | At least one file reaches `--min-lines` |
 | 1 | The check cannot run: no manifest loaded, a manifest or a Cobertura report failed to parse, no Cobertura data or no executable source lines found, input folder missing, invalid `--min-lines` (including no value), or combined with another `--check-*` mode (it runs as its own step) |
