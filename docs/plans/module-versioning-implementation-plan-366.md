@@ -2,7 +2,7 @@
 
 > **Issue**: [#366](https://github.com/dlrivada/Encina/issues/366)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 5 pull requests of 12, 13, 14, 6 and 7 files)
+> **Complexity**: Medium (8 phases, 6 pull requests of 12, 14, 15, 3, 6 and 7 files)
 > **Estimated Scope**: ~900 lines of production code + ~2,000 lines of tests
 > **Family**: modular monolith (#352 boundary rule and context producer, #358 module API marker `IModulePublicApi`, #359 analyzer package, #360 module graph and `[DependsOn]`, #364 health); this plan owns module and API versions, version resolution and deprecation
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for versioned module contracts so that modules can evolve without breaking their consumers: `[ModuleVersion]` and `[ModuleMinimumVersion]` on a module, `[ModuleApiVersion]` and a deprecation marker on module API interfaces, `[HandlerVersion]` on handlers, a version resolution configuration (`AddEncinaModuleVersioning`), `RequestedVersion` on the request context, a Roslyn analyzer for deprecated usage, a startup compatibility check, version information in traces and an adapter pattern. State of `origin/main` (`96c8803bd`), verified by reading and grep (nothing named `ModuleVersion`, `ModuleApiVersion` or `WithEncinaModules` exists in `src` or `tests`):
+The issue asks for versioned module contracts so that modules can evolve without breaking their consumers: `[ModuleVersion]` and `[ModuleMinimumVersion]` on a module, `[ModuleApiVersion]` and a deprecation marker on module API interfaces, `[HandlerVersion]` on handlers, a version resolution configuration (`AddEncinaModuleVersioning`), `RequestedVersion` on the request context, a Roslyn analyzer for deprecated usage, a startup compatibility check, version information in traces and an adapter pattern. State of `origin/main` (`0b941beeb`), verified by reading and grep (nothing named `ModuleVersion`, `ModuleApiVersion` or `WithEncinaModules` exists in `src` or `tests`):
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -169,14 +169,14 @@ Every feature is opt-in; the registration throws `InvalidOperationException` whe
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) An unsupported requested version always returns `Left(encina.modules.version_unsupported)` (`ErrorCategory.InvalidRequest`); a deprecated version follows `DeprecationBehavior` `Log` (default, `Left` never), `Ignore` or `Reject` (`Left(encina.modules.version_deprecated)`, `ErrorCategory.FailedPrecondition`); `Throw` and `UnsupportedBehavior` of the issue do not exist** | Operations return `Either`; an unsupported version cannot pass; no single-valued enum | The issue's `Throw` value is renamed `Reject` |
+| **A) An unsupported requested version, and an explicit version on a request whose target module cannot be resolved, always return `Left(encina.modules.version_unsupported)` (`ErrorCategory.InvalidRequest`); a deprecated version follows `DeprecationBehavior` (`Log`, `Ignore` or `Reject`; the default is D9) and `Reject` returns `Left(encina.modules.version_deprecated)`, `ErrorCategory.FailedPrecondition`; `Throw` and `UnsupportedBehavior` of the issue do not exist** | Operations return `Either`; an unsupported version cannot pass; no single-valued enum | The issue's `Throw` value is renamed `Reject` |
 | **B) Keep `Throw` (an exception) and an `UnsupportedBehavior` enum with `Reject` only** | Matches the issue text | Exceptions for business rules; a one-value enum |
 
 ### Chosen Option: **A — `Left` results**
 
 ### Rationale
 
-Railway Oriented Programming is the project rule, and a gate that cannot resolve its context fails closed. A request with no requested version uses `DefaultVersion` (a missing hint is not a denial; an explicit unsupported value is).
+Railway Oriented Programming is the project rule, and a gate that cannot resolve its context fails closed. A request that carries an explicit `[RequestVersion]` (or an explicit context hint) but has no resolvable target module (`IModuleHandlerRegistry.GetModuleName` returns null and there is no ambient `IModuleExecutionContext` module) is `Left(encina.modules.version_unsupported)`, never "supported": the version gate cannot prove the version, so it denies. A request with no `[RequestVersion]` and no hint is a pass-through of the behavior. The defaults for a missing hint and for a deprecated version are registered separately in D9.
 
 **Class:** Settled
 **Settled by:** `AGENTS.md` section 3 (Railway Oriented Programming: operations return `Either`, never exceptions for business logic; gates fail closed) and ADR-062 (every error code carries an `ErrorCategory`).
@@ -198,6 +198,26 @@ Railway Oriented Programming is the project rule, and a gate that cannot resolve
 ### Rationale
 
 A wins when the maintainer wants one analyzer reference for module rules. B wins if versioning must ship before #359's analyzer. The rule reports Warning by default and carries the removal version in its message; there is no code fix.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Defaults for a missing version hint and a deprecated version (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A request with `[RequestVersion]` but no context hint uses the attribute's version, and with neither uses `DefaultVersion`; `DeprecationBehavior` defaults to `Log` (a deprecated version keeps serving and is logged and counted)** | Adopting versioning breaks no caller; deprecation is visible before removal | A deprecated API keeps working until the maintainer sets `Reject` |
+| **B) `DeprecationBehavior` defaults to `Reject`** | A deprecated version cannot be used by accident | The first deprecation breaks every caller of the old version at once |
+
+### Chosen Option: **A — `Log` by default** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins for a staged removal: warn first (the analyzer rule `ENCMOD004` warns at compile time too), then set `Reject` once callers moved. B wins for teams that treat a deprecation as an immediate stop. The defaults never relax D7: an unsupported or unresolvable explicit version is always `Left`.
 
 **Class:** Dilemma
 
@@ -225,7 +245,7 @@ A wins when the maintainer wants one analyzer reference for module rules. B wins
 
 ```text
 CONTEXT:
-- Issue #366; plan docs/plans/module-versioning-implementation-plan-366.md. D1-D5 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #366; plan docs/plans/module-versioning-implementation-plan-366.md. D1-D5, D8 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - Encina is pre-1.0: no [Obsolete] in Encina's own code; the deprecation marker is a contract attribute for users.
 
 TASK:
@@ -256,7 +276,7 @@ REFERENCE FILES:
 2. `ModuleVersioningOptions` (`DefaultVersion`, `SupportedVersions`, `DeprecationBehavior` {`Log`, `Ignore`, `Reject`}, `ValidateVersionCompatibility` default true; D6, D7).
 3. `ModuleVersionCompatibilityValidator` (internal static, pure): over `IModuleVersionRegistry`, the `[RequiresModuleVersion]` requirements and #360's `IModuleGraph`, it lists every violation (a requirement above the provider's version, a requirement on a module that is not a declared dependency, a version below the provider's minimum); `ModuleVersionStartupValidator` (internal hosted service) throws `InvalidOperationException` listing all violations at start when `ValidateVersionCompatibility` is on.
 4. `RequestContextVersionExtensions` (`WithRequestedModuleVersion`, `GetRequestedModuleVersion`, key `Encina.RequestedModuleVersion`, D4).
-5. `ModuleVersioningServiceCollectionExtensions.AddEncinaModuleVersioning(...)` (D6): `TryAddSingleton` for the registry and options, the hosted validator, the behavior of Phase 3.
+5. `ModuleVersioningServiceCollectionExtensions.AddEncinaModuleVersioning(...)` (D6): `TryAddSingleton` for the registry and options and the hosted validator. It does not register the behavior of Phase 3: pull request 3 edits this extension to add it, so pull request 2 builds alone.
 6. Tests: unit (default and declared versions, case-insensitive names, each validator violation, no violation, enforcement on and off, the context extensions), guard, property (generated module and requirement sets: no violation when every requirement is at most the provider's version and a declared dependency), DI test (`ValidateOnBuild`, `ValidateScopes`; missing `IModuleRegistry` throws); PublicAPI, manifest.
 
 </details>
@@ -293,11 +313,12 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Modules/Versioning/ModuleVersionPipelineBehavior.cs` (`[PipelineStage(PipelineStage.Validation, Order = -100)]`, `IPipelineBehavior<TRequest,TResponse>`): reads `[RequestVersion]` of `typeof(TRequest)` through a static per-generic cache; the requested version is `GetRequestedModuleVersion()` or the request attribute's or `DefaultVersion`; the target module comes from `IModuleHandlerRegistry` and the ambient `IModuleExecutionContext`; unsupported gives `Left(encina.modules.version_unsupported)`; deprecated follows `DeprecationBehavior` (D7); the activity gets tags `module.version` and `module.api_version`.
+1. `src/Encina/Modules/Versioning/ModuleVersionPipelineBehavior.cs` (`[PipelineStage(PipelineStage.Validation, Order = -100)]`, `IPipelineBehavior<TRequest,TResponse>`): reads `[RequestVersion]` of `typeof(TRequest)` through a static per-generic cache; the requested version is `GetRequestedModuleVersion()` or the request attribute's or `DefaultVersion`; the target module comes from `IModuleHandlerRegistry` and the ambient `IModuleExecutionContext`; a request with no `[RequestVersion]` and no hint is a pass-through; an explicit version whose target module cannot be resolved gives `Left(encina.modules.version_unsupported)` (`ErrorCategory.InvalidRequest`, fail closed, D7); unsupported gives `Left(encina.modules.version_unsupported)`; deprecated follows `DeprecationBehavior` (D7, D9); the activity gets tags `module.version` and `module.api_version`. It also edits `ModuleVersionStartupValidator` (a pull request 2 file) to log 7667 and 7668 through `ModuleVersionLog`, and `ModuleVersioningServiceCollectionExtensions` to register the behavior.
 2. `ModuleVersionErrors` (public static): the two error factories; `encina.modules.version_unsupported` is `ErrorCategory.InvalidRequest`, `encina.modules.version_deprecated` is `ErrorCategory.FailedPrecondition` (ADR-062); messages name module, request type and versions only.
 3. `ModuleVersionLog` (`[LoggerMessage]`): EventIds 7665 deprecated version used (Warning), 7666 unsupported version rejected (Warning), 7667 compatibility validated at startup (Information), 7668 incompatibility found at startup (Error, count and module names only). `EventIdRanges.ModulesVersioning = (7665, 7679)` registered first and the `Encina` entry of the allocation test map `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
-4. `ModuleVersionMetrics`: meter `Encina.Modules.Versioning`, counter `encina.modules.version_check_total` with tags `module`, `api_version`, `outcome` (`ok`, `deprecated`, `unsupported`) and the tenant tag only when multi-tenancy is on (ADR-054 D4); registered in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`.
-5. Tests: unit (supported, unsupported, deprecated with each behavior, missing hint uses the default, a `Left` from `nextStep` passes through unchanged, tags and counter with a listener), guard, contract (error codes and categories on the real errors), property (any version in the supported set passes and any outside is rejected); PublicAPI of `Encina` and `Encina.OpenTelemetry`, manifests.
+4. `ModuleVersionMetrics` (in `Encina`): meter `Encina.Modules.Versioning`, counter `encina.modules.version_check_total` with tags `module`, `api_version`, `outcome` (`ok`, `deprecated`, `unsupported`) and the tenant tag only when multi-tenancy is on (ADR-054 D4, [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md)). The label values are bounded: `module` is a registered module name and `api_version` comes from the declared attribute set (the registry's supported versions); an unvalidated hint is never a label, an unsupported or unresolvable one is recorded with the constant `api_version` value `unsupported`. Registration of the meter in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` is pull request 4.
+5. Tests: unit (supported, unsupported, unresolvable target module, no attribute pass-through, deprecated with each behavior, missing hint uses the default, a `Left` from `nextStep` passes through unchanged, tags and counter with a listener), guard, contract (error codes and categories on the real errors), property (any version in the supported set passes and any outside is rejected), and the pull request 2 DI test extended to assert the behavior registration; `PublicAPI.Unshipped.txt` of `Encina` and the manifest.
+6. Pull request 4 (`Encina.OpenTelemetry`): the one-line `AddMeter(ModuleVersionMetrics.MeterName)` edit of `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`, a unit test that the meter is registered, and the `Encina.OpenTelemetry.json` manifest entry. It adds no public symbol, so `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt` (the file that exists, in the `PublicAPI` subfolder) is not touched.
 
 </details>
 
@@ -312,7 +333,7 @@ TASK:
 Add the behavior, the error factories, the log, the meter, the EventId range and the tests.
 
 KEY RULES:
-- A missing hint uses DefaultVersion; an explicit unsupported value is rejected; a Left from the next step is returned unchanged, never swallowed.
+- A missing hint uses DefaultVersion (D9); an explicit unsupported value, or an explicit version whose target module cannot be resolved, is rejected (fail closed, D7); a Left from the next step is returned unchanged, never swallowed.
 - Static per-generic-type attribute caching; no per-request reflection.
 - EventIds packed from 7665 with no gaps inside 7665-7679, range registered in EventIdRanges.cs first; logs carry error codes and names only, never EncinaError.Message.
 - Tenant tag only with multi-tenancy (ADR-054 D4).
@@ -328,7 +349,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: The deprecation analyzer (pull request 4)
+### Phase 4: The deprecation analyzer (pull request 5)
 
 <details>
 <summary>Tasks</summary>
@@ -441,7 +462,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 7: Documentation & Finalization (pull request 5)
+### Phase 7: Documentation & Finalization (pull request 6)
 
 <details>
 <summary>Tasks</summary>
@@ -481,12 +502,13 @@ Every pull request builds alone, adds only types and no interface member, so no 
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
 | 1 | `ModuleVersion`, 6 attributes, PublicAPI, manifest, 3 test files (unit, guard, property) | 12 | 800 |
-| 2 | Registry (interface and implementation), options, compatibility validator, startup validator, context extensions, registration extension, PublicAPI, manifest, 5 test files | 13 | 1,100 |
-| 3 | Behavior, errors, log, metrics, `EventIdRanges`, allocation test map, OpenTelemetry `ServiceCollectionExtensions`, PublicAPI x2, manifests x2, 3 test files | 14 | 1,200 |
-| 4 | Analyzer descriptor edit, `DeprecatedModuleApiAnalyzer`, manifest, 3 analyzer test files | 6 | 500 |
-| 5 | Guide, inventory and roadmap lines, changelog fragment, 3 justification files (integration, load, benchmark) | 7 | 400 |
+| 2 | Registry (interface and implementation), options, compatibility validator, startup validator, context extensions, registration extension (7), PublicAPI, manifest, 5 test files (unit, guard, property, DI, context extensions) | 14 | 1,100 |
+| 3 | Behavior, errors, log, metrics, `EventIdRanges`, allocation test map, `ModuleVersionStartupValidator` edit, registration extension edit, PublicAPI, manifest (10), 4 test files (unit, guard, contract, property), DI test edit | 15 | 1,300 |
+| 4 | `Encina.OpenTelemetry` `ServiceCollectionExtensions` edit, `Encina.OpenTelemetry.json` manifest, 1 test file | 3 | 120 |
+| 5 | Analyzer descriptor edit, `DeprecatedModuleApiAnalyzer`, manifest, 3 analyzer test files | 6 | 500 |
+| 6 | Guide, inventory and roadmap lines, changelog fragment, 3 justification files (integration, load, benchmark) | 7 | 400 |
 
-Pull requests 2 to 4 need #360 (graph), #352 pull request 1 (context producer) and, for 4, #359 pull request 7; pull request 1 has no prerequisite. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
+Pull requests 2, 3 and 5 need #360 (graph), #352 pull request 1 (context producer) and, for 5, #359 pull request 7; pull request 3 needs pull request 2 and pull request 4 needs pull request 3; pull request 1 has no prerequisite. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -498,7 +520,7 @@ Pull requests 2 to 4 need #360 (graph), #352 pull request 1 (context producer) a
 |-----------|-----------------|---------------------|
 | `AGENTS.md` sections 1, 3 and 6 | Opt-in, ROP, fail-closed gates, 12 functions | D6, D7 |
 | ADR-021 | EventId ranges registered first | `ModulesVersioning` 7665-7679 |
-| ADR-054 D4 | Tenant tag only with multi-tenancy | Counter tags |
+| [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 | Tenant tag only with multi-tenancy | Counter tags |
 | ADR-062 | `ErrorCategory` on every code | `InvalidRequest` and `FailedPrecondition` |
 | Semantic Versioning, API evolution patterns (Fowler) | Compatible minor, breaking major | Concept source named by the issue |
 | ASP.NET Core API Versioning (`Asp.Versioning`) | HTTP version negotiation | Out of scope; contrasted in the guide |
@@ -527,11 +549,11 @@ Pull requests 2 to 4 need #360 (graph), #352 pull request 1 (context producer) a
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production code | 20 | Version type, 6 attributes, registry (2), options, 2 validators, extensions (2), behavior, errors, log, metrics, analyzer (2) |
-| Public API and manifests | 8 | `Encina`, `Encina.OpenTelemetry`, manifests of both and of the analyzers |
-| Tests | 14 | Unit, guard, property, contract, DI, analyzer |
+| Public API and manifests | 8 touches | `Encina` PublicAPI (PR 1, 2, 3), `Encina.json` (PR 1, 2, 3), `Encina.OpenTelemetry.json` and the analyzers manifest; `Encina.OpenTelemetry` PublicAPI (in its `PublicAPI` folder) is not touched |
+| Tests | 17 | Unit, guard, property, contract, DI (and its edit), OpenTelemetry meter, analyzer |
 | Justification files | 3 | Integration, load, benchmark |
 | Documentation | 4 | Guide, inventory, roadmap, changelog fragment |
-| **Total** | **~50 across 5 pull requests** | The sum of the rows of the split table is the authority |
+| **Total** | **57 file touches across 6 pull requests** | The sum of the rows of the split table (12 + 14 + 15 + 3 + 6 + 7) is the authority; a file edited in several pull requests counts in each |
 
 ---
 
@@ -543,13 +565,14 @@ Pull requests 2 to 4 need #360 (graph), #352 pull request 1 (context producer) a
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #366: module and module API versioning in core, with an analyzer rule. Plan: docs/plans/module-versioning-implementation-plan-366.md; D1-D5 and D8 are recommended, pending the maintainer.
+- Issue #366: module and module API versioning in core, with an analyzer rule. Plan: docs/plans/module-versioning-implementation-plan-366.md; D1-D5, D8 and D9 are recommended, pending the maintainer.
 
-IMPLEMENTATION OVERVIEW (5 pull requests, each builds alone):
+IMPLEMENTATION OVERVIEW (6 pull requests, each builds alone):
 1. ModuleVersion and the six attributes (Phase 1).
-2. Registry, options, compatibility validator, context extensions and AddEncinaModuleVersioning (Phase 2).
-3. The version pipeline behavior, errors, logs 7665-7668, meter and range 7665-7679 (Phase 3).
-4. ENCMOD004 in Encina.Modules.Analyzers (Phase 4); 5. documentation (Phase 7).
+2. Registry, options, compatibility validator, context extensions and AddEncinaModuleVersioning without the behavior (Phase 2).
+3. The version pipeline behavior and its registration, errors, logs 7665-7668, metrics and range 7665-7679 (Phase 3).
+4. The meter registration in Encina.OpenTelemetry (Phase 3 task 6).
+5. ENCMOD004 in Encina.Modules.Analyzers (Phase 4); 6. documentation (Phase 7).
 
 KEY PATTERNS:
 - Versions are Major.Minor; a module without [ModuleVersion] is 1.0; compatible means same major and available minor at least the required one.
@@ -589,13 +612,13 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- **#360** (`IModuleGraph`, `[DependsOn]`, `EncinaModule`) before pull request 2; **#352 pull request 1** (module context producer) before pull request 3; **#359 pull request 7** (`Encina.Modules.Analyzers`) before pull request 4; **#358 pull request 4** declares `IModulePublicApi`, which the guide shows beside `[ModuleApiVersion]` (no code dependency).
+- **#360** (`IModuleGraph`, `[DependsOn]`, `EncinaModule`) before pull request 2; **#352 pull request 1** (module context producer) before pull request 3; **#359 pull request 7** (`Encina.Modules.Analyzers`) before pull request 5; **#358 pull request 4** declares `IModulePublicApi`, which the guide shows beside `[ModuleApiVersion]` (no code dependency).
 - #364 may read `IModuleVersionRegistry` for health data once it exists (deferred issue file).
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3, D4, D5 and D8 when work on #366 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
-2. Pull request 1 first (no prerequisite); pull requests 2 to 4 after their prerequisites; pull request 5 last.
+1. The maintainer answers D1, D2, D3, D4, D5, D8 and D9 when work on #366 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+2. Pull request 1 first (no prerequisite); pull requests 2 to 5 after their prerequisites; pull request 6 last.
 3. Open the two issue files in `artifacts/issues/` when this plan merges.
