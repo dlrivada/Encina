@@ -2,8 +2,8 @@
 
 > **Issue**: [#2407](https://github.com/dlrivada/Encina/issues/2407)
 > **Type**: Feature
-> **Complexity**: High (9 phases, 9 pull requests of 13, 9, 15, 10, 15, 12, 7, 8 and 4 files)
-> **Estimated Scope**: about 700 lines of production code, about 1500 lines of tests
+> **Complexity**: High (11 pull requests of 13, 10, 9, 11, 9, 10, 15, 13, 7, 8 and 4 files: PR 1, 2, 2b, 3, 3b, 4, 5, 6, 7, 8, 9)
+> **Estimated Scope**: about 750 lines of production code, about 1650 lines of tests
 > **Milestone**: v0.17.0 - Compliance Lifecycle (GDPR Art. 5(2), 17, 19, 30; SPEC-002)
 
 ---
@@ -15,9 +15,9 @@
 - `ICacheProvider` has no tag invalidation. Its members are `GetAsync`, `SetAsync`, `RemoveAsync`, `RemoveByPatternAsync`, `ExistsAsync`, `GetOrSetAsync`, `SetWithSlidingExpirationAsync` and `RefreshAsync`. Tag-based invalidation is the open feature #271. Query-cache keys are hashes of the request properties (`DefaultCacheKeyGenerator`), so no pattern can find "the cached data of one subject".
 - The request id does not exist where the issue wants it. `ErasureRequest(string SubjectId, ErasureReason Reason, ErasureScope? Scope)` carries no DSR request id; `HandleErasureAsync` invents `$"dsr-{Guid.NewGuid():N}"` and fake field names (`field-1`, `field-2`, ...) for the notification. `DataSubjectRightsOptions.TrackAuditTrail` is declared but read nowhere (`DataSubjectRightsOptions.cs:213`), and `DSRAuditEntry` is used nowhere in `src/`; ADR-036 decision 4 (`docs/architecture/adr/036-three-audit-stores.md:66`) already orders both deleted.
 
-The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls once after a successful erase. It runs an ordered set of `IErasureCompletionStep` services: cache purge, audit entry, outbox notification. The three steps are not options: ADR-050 line 77 lists them as required for DSR, with no opt-out, so there are no `PurgeCaches`/`RecordAudit`/`NotifyProcessors` flags, and the unread `TrackAuditTrail` is deleted (ADR-036:66). Because the completion takes its steps as a collection, a step added by a later pull request never changes the constructor of `DefaultErasureCompletion`. `DefaultDSRService` receives the port as one trailing optional constructor parameter (31 construction sites in 17 test files stay untouched); with no port the erasure returns `Left` (fail closed). `ErasureRequest` gains the real request id (Design Choice 2). The processor-side consumer of the notification is outside this issue (follow-up issue to be opened, draft: `artifacts/decisions/plan-batch/followups/processor-erasure-notification-handler.md`).
+The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls once after a successful erase. It runs an ordered set of `IErasureCompletionStep` services: cache purge, audit entry, outbox notification. The three steps are not options: ADR-050 line 77 lists them as required for DSR, with no opt-out, so there are no `PurgeCaches`/`RecordAudit`/`NotifyProcessors` flags, and the unread `TrackAuditTrail` is deleted (ADR-036:66). Because the completion takes its steps as a collection, a step added by a later pull request never changes the constructor of `DefaultErasureCompletion`. `DefaultDSRService` receives the port as one trailing optional constructor parameter (31 construction sites in 17 test files stay untouched); with no port the erasure returns `Left` before the executor is called, so no data is erased without its completion (fail closed). `ErasureRequest` gains the real request id (Design Choice 2). The processor-side consumer of the notification is outside this issue (follow-up issue to be opened, draft: `artifacts/decisions/plan-batch/followups/processor-erasure-notification-handler.md`).
 
-**Affected packages:** `Encina.Compliance.DataSubjectRights` (port, steps, errors, logs, telemetry, a new `ProjectReference` to `Encina.Security.Audit`), `Encina.Caching` (two small changes consumed by the purge, PR 2), `Encina.Security.Audit` (consumed; no change), `Encina.Messaging` (consumed: `OutboxOrchestrator`, `IOutboxStore`; no change), `Encina` (EventId range registration only).
+**Affected packages:** `Encina.Compliance.DataSubjectRights` (port, steps, errors, logs, telemetry, a new `ProjectReference` to `Encina.Security.Audit`), `Encina.Caching` (three small changes consumed by the purge, PR 2), `Encina.EntityFrameworkCore` (the query-cache purge pattern source, PR 2b; `Encina.EntityFrameworkCore` already references DSR, so DSR cannot reference it back), `Encina.Security.Audit` (consumed; no change), `Encina.Messaging` (consumed: `OutboxOrchestrator`, `IOutboxStore`; no change), `Encina` (EventId range registration only).
 
 **Provider category**: Caching (8) for the purge, applied through `ICacheProvider.RemoveByPatternAsync` and therefore identical for Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet and KeyDB (Memcached planned, #277); Hybrid removes only tracked keys until #2402 is fixed, so the purge is complete for Hybrid only after it. The audit entry goes to any `IOperationAuditStore` (ADR-036 stores: ADO.NET x3, Dapper x3, EF Core, MongoDB, Marten); no new store. The notification goes to any `IOutboxStore` provider of the 10-provider matrix; no new store.
 
@@ -95,13 +95,14 @@ The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls onc
 |--------|------|------|
 | **A) Subject patterns from contributors** (`ISubjectCacheKeyContributor` per package, plus DSR's own `dsr:tenant:{seg}:restriction:{subject}` key) | Targeted; no collateral eviction | Cannot find query-cache entries (keys are request-property hashes): the acceptance "cached data of the subject is not served" is not guaranteed |
 | **B) Tag per subject through the cache provider** | Targeted and complete | Depends on the open feature #271 (no tag API exists on `ICacheProvider` today); needs all 8 providers |
-| **C) Purge the tenant's cache namespace: `RemoveByPatternAsync("{CachingOptions.KeyPrefix}:t:{EscapeSegment(tenant)}:*")`, or `"{KeyPrefix}:*"` when the application is single-tenant (Design Choices 5 and 6 make both safe)** | Complete by construction for every provider that honors `RemoveByPatternAsync`; one pattern; no new abstraction | An erasure evicts the whole tenant's cached entries (a warm-up cost for one tenant per erasure; erasures are rare) |
+| **C) Purge the tenant's cache namespace: `RemoveByPatternAsync("{CachingOptions.KeyPrefix}:t:{EscapeSegment(tenant)}:*")`, or `"{KeyPrefix}:*"` when the application is single-tenant, plus the patterns of every registered `ICachePurgePatternSource` (Design Choice 14) for keys written outside that namespace (Design Choices 5 and 6 make the base patterns safe)** | Covers every key that `DefaultCacheKeyGenerator` writes, for every provider that honors `RemoveByPatternAsync`, and every other key shape that a package declares through a source; no tag API needed | Only as complete as the registered sources: a package that writes keys through `ICacheProvider` and declares no source is not purged (the EF Core query cache is the known case, closed by PR 2b); an erasure evicts the whole tenant's cached entries (a warm-up cost for one tenant per erasure; erasures are rare); when multi-tenancy is registered but not required and the request has no tenant, the purge is `{KeyPrefix}:*` and evicts every tenant's entries (over-eviction, never disclosure) |
 
 ### Chosen Option: **C - purge the tenant namespace** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The key shape is the one `DefaultCacheKeyGenerator` produces (`{prefix}:t:{escaped tenant}:` when the context has a tenant, line 92; `{prefix}:` otherwise, line 93). With multi-tenancy required (`IsTenantContextRequired`, the service's existing guard) and no tenant in the context the step returns the existing `dsr.tenant_required` error and purges nothing (fail closed); it never falls back to `{KeyPrefix}:*`.
+- The key shape is the one `DefaultCacheKeyGenerator` produces (`{prefix}:t:{escaped tenant}:` when the context has a tenant, line 92; `{prefix}:` otherwise, line 93). With multi-tenancy required (`IsTenantContextRequired`, the service's existing guard) and no tenant in the context the step returns the existing `dsr.tenant_required` error and purges nothing (fail closed); it never falls back to `{KeyPrefix}:*`. When multi-tenancy is registered but not required and the context has no tenant, the step purges `{KeyPrefix}:*` (single-tenant behavior), which evicts the entries of every tenant: an over-eviction cost the application accepts by not requiring a tenant, stated in the README (PR 9).
+- The namespace pattern is not "complete by construction": it reaches only keys under `{KeyPrefix}`. The EF Core query cache writes `{QueryCacheOptions.KeyPrefix}:{tenant}:{Entity}:{hash}` (default `sm:qc:tenant-1:Order:...`; `src/Encina.EntityFrameworkCore/Caching/DefaultQueryCacheKeyGenerator.cs:90-91`, `QueryCacheOptions.cs:58`) with no `t:` marker and an unescaped tenant, so `sm:t:{tenant}:*` never matches it and erased rows could still be served from it. Design Choice 14 closes that gap; without it the acceptance "cached data is not served" is not met for applications that use EF Core query caching. The other writers of keys through `ICacheProvider` on `origin/main` were checked against the pattern: the idempotency and lock behaviors are handled by Design Choice 6; the read-model caches of the compliance services use keys by aggregate id with no tenant or subject segment (`consent:{consentId}` at `DefaultConsentService.cs:442`, `lb:reg:{registrationId}` at `DefaultLawfulBasisService.cs:446`, `ret:record:{recordId}` at `DefaultRetentionRecordService.cs:349`, `dr:location:{locationId}` at `DefaultDataLocationService.cs:380`) and no pattern can find "the subject's" entries among them; they are outside this plan and recorded as a follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/erasure-cache-purge-compliance-read-models.md`), which a source can close package by package.
 - Option B wins once #271 ships tags and a subject-tag convention exists for query caching; the step class (`CachePurgeErasureStep`) is the seam to replace. Option A wins for a deployment whose caches never hold subject data outside known keys.
 - The DSR service's own restriction key (`RestrictionCacheKey`, uses the literal tenant segment `-` when there is no tenant, so a tenant named `-` collides with "no tenant") is covered by the namespace pattern only when it uses the shared prefix; it does not (`dsr:` prefix). The step therefore also removes `dsr:tenant:{segment}:restriction:{subjectId}` explicitly. The collision of `-` is a defect of its own (follow-up issue to be opened, draft: `artifacts/decisions/plan-batch/followups/dsr-cache-key-tenant-segment-collision.md`). #3614 (open) tracks a related defect: invalidation patterns that miss keys with no tenant segment.
 - Class: Dilemma
@@ -249,6 +250,7 @@ The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls onc
 ### Rationale
 
 - ADR-050 sub-decision 5 (line 120) settles only that an audit failure fails the operation; the ordering around a failed purge and the "no undo" rule are choices of this plan, hence a Dilemma.
+- The presence of the port is checked before the executor is called: `HandleErasureAsync` with no `IErasureCompletion` returns `Left(dsr.erasure_completion_unavailable)` and erases nothing, so an erasure is never performed without its purge, audit and notification (fail closed). The alternative, checking after `EraseAsync`, returns the `Left` with the data already erased and no trace; it is not offered as an option because it fails open on the erasure.
 - Option B wins if the maintainer does not want failed attempts in the audit trail; option C wins if partial progress matters more than strict ordering.
 - The step contract: `IErasureCompletionStep { int Order { get; } bool RunsAfterFailure { get; } ValueTask<Either<EncinaError, Unit>> ExecuteAsync(ErasureCompletionContext context, CancellationToken cancellationToken); }`; `DefaultErasureCompletion` sorts by `Order` (purge 10, audit 20, notify 30), passes `context with { FailureCode = <first error code> }` to steps with `RunsAfterFailure` (audit), skips the others after a failure, and returns the first `Left`.
 - Class: Dilemma
@@ -283,7 +285,7 @@ The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls onc
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) New codes through the categorized `EncinaErrors.Create(code, category, message)` overload (ADR-062, merged in #3599): `dsr.erasure_completion_unavailable` (`FailedPrecondition`), `dsr.erasure_cache_purge_failed` (`UpstreamFailure`), `dsr.erasure_cache_tenant_invalid` (`Validation`), `dsr.erasure_cache_prefix_nested` (`FailedPrecondition`), `dsr.erasure_audit_failed` (`UpstreamFailure`), `dsr.erasure_notification_failed` (`UpstreamFailure`); new range `ComplianceDSRErasure = (320, 329)`; a tenant tag on the new counter when multi-tenancy is on** | Follows ADR-062, the family EventId block and ADR-054 D4 | The existing DSR counters keep the tenant as an activity attribute only (a documented divergence, #906) |
+| **A) New codes through the categorized `EncinaErrors.Create(code, category, message)` overload (ADR-062, merged in #3599): `dsr.erasure_completion_unavailable` (`FailedPrecondition`), `dsr.erasure_cache_purge_failed` (`UpstreamFailure`), `dsr.erasure_audit_failed` (`UpstreamFailure`), `dsr.erasure_notification_failed` (`UpstreamFailure`); new range `ComplianceDSRErasure = (320, 329)`; a tenant tag on the new counter when multi-tenancy is on** | Follows ADR-062, the family EventId block and ADR-054 D4 | The existing DSR counters keep the tenant as an activity attribute only (a documented divergence, #906) |
 | **B) Reuse `dsr.erasure_failed`** | No new codes | Hides which step failed |
 
 ### Chosen Option: **A**
@@ -291,7 +293,29 @@ The plan adds one port, `IErasureCompletion`, that `DefaultDSRService` calls onc
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** ADR-062 (every new code states its category and uses the categorized overload), ADR-054 D4 (tenant tag when multi-tenancy is enabled) and the EventId block 300-349 assigned to this family in `artifacts/decisions/plan-batch/eventid-blocks.md`; AGENTS.md section 7 (register the range, pack ids from the first). The two cache codes that exist only under the recommended options of Design Choices 5 and 6 are added by the PR that implements them (PR 4).
+- **Settled by:** ADR-062 (every new code states its category and uses the categorized overload), ADR-054 D4 (tenant tag when multi-tenancy is enabled) and the EventId block 300-349 assigned to this family in `artifacts/decisions/plan-batch/eventid-blocks.md`; AGENTS.md section 7 (register the range, pack ids from the first). Two further cache codes, `dsr.erasure_cache_tenant_invalid` (`Validation`) and `dsr.erasure_cache_prefix_nested` (`FailedPrecondition`), exist only under the recommended options of Design Choices 5 and 6: they follow the answers to those two Dilemmas, are added by PR 4 only if the maintainer picks those options, and this Trivial entry does not decide them.
+
+</details>
+
+<details>
+<summary><strong>14. Cache keys written outside the `{KeyPrefix}` namespace (EF Core query cache)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Exclude them and say so: the purge covers only `{KeyPrefix}` keys; the README states that EF Core query-cache entries are not purged; a follow-up issue to be opened (draft: `artifacts/decisions/plan-batch/followups/ef-query-cache-tenant-key-shape.md`) moves the EF generator to the `t:{EscapeSegment(tenant)}` shape or adds the source later** | No new abstraction; PR 2b disappears | The acceptance "cached data is not served" is not met for applications using EF Core query caching: erased rows can still be served until the follow-up lands, with the unescaped tenant segment |
+| **B) A public `ICachePurgePatternSource` in `Encina.Caching` (`IReadOnlyList<string> GetPatterns(string? tenantId)`, `tenantId` null or whitespace meaning single-tenant, as the EF key generator treats it); `CachePurgeErasureStep` takes `IEnumerable<ICachePurgePatternSource>` and purges its patterns too; `Encina.EntityFrameworkCore` registers `QueryCachePurgePatternSource` returning `{QueryCacheOptions.KeyPrefix}:{tenant}:*` (`{KeyPrefix}:*` single-tenant) from `AddQueryCaching` (`QueryCachingExtensions.cs:68,108`)** | Closes the known gap without a DSR reference to EF Core (which would be a cycle: `Encina.EntityFrameworkCore.csproj:33` references DSR); other packages declare their patterns the same way | Two more public types and two more pull requests' worth of files (PR 2 gains the interface, PR 2b adds the EF source: 9 files); the EF pattern uses the unescaped tenant as the generator writes it, so a tenant id that is a prefix of another (`a` and `a:b`) over-evicts (never discloses; glob characters are already rejected by Design Choice 5) |
+| **C) Change the EF Core generator so its keys fall under `{Caching KeyPrefix}:t:{EscapeSegment(tenant)}:`** | One pattern purges both; the tenant segment becomes escaped | Rewrites the EF key shape and the interceptor's invalidation patterns (`QueryCacheInterceptor.cs:556,585`: `{KeyPrefix}:*:{entityType}:*`), which depend on the current shape; the larger change, with its own regression risk |
+
+### Chosen Option: **B - a pattern source** (recommended, pending the maintainer)
+
+### Rationale
+
+- Verified on `origin/main`: `DefaultQueryCacheKeyGenerator.cs:89-91` writes `{KeyPrefix}:{tenant}:{Entity}:{hash}` and `QueryCacheOptions.KeyPrefix` defaults to `sm:qc` (`QueryCacheOptions.cs:58`); `sm:t:{tenant}:*` cannot match it. In single-tenant mode `{KeyPrefix}:*` reaches `sm:qc:` only while the two prefixes share `sm`; a custom `QueryCacheOptions.KeyPrefix` is not reached, which the source also closes.
+- Option A wins if the maintainer does not want a new public abstraction before 1.0 and accepts a documented gap; option C wins if the EF key shape is to be rewritten anyway (for example together with the tag work of #271); #3614 (open) tracks a related defect of invalidation patterns that miss keys with no tenant segment.
+- Under option B the unit tests of PR 4 use the real `QueryCachePurgePatternSource` with a real `MemoryCacheProvider` and an entry in the EF shape; the manifest and the matrix say which flags the source reaches.
+- Class: Dilemma
 
 </details>
 
@@ -350,24 +374,25 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 2: Encina.Caching prerequisites of the purge (pull request 2, 9 files)
+### Phase 2: Encina.Caching prerequisites of the purge (pull request 2, 10 files)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-This phase implements the recommended options of Design Choices 5 and 6 (if the maintainer picks option A of Design Choice 6, PR 2 shrinks to the `EscapeSegment` part; if C, it is dropped).
+This phase implements the recommended options of Design Choices 5, 6 and 14 (if the maintainer picks option A of Design Choice 6, PR 2 loses the prefix defaults and their two test files; if C, those parts are dropped; if option A of Design Choice 14, row 3 is dropped; row 2 stays in every case because the purge step needs it).
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`IdempotencyKeyPrefix = "sm-idempotency"`, `LockKeyPrefix = "sm-lock"`, XML docs) |
 | 2 | `src/Encina.Caching/KeyGeneration/CacheKeyRedactor.cs` | modify (`EscapeSegment` becomes public and checks its argument with `ArgumentNullException.ThrowIfNull`: the DSR purge step in another assembly must build the same tenant segment as `DefaultCacheKeyGenerator`; the other option, an `InternalsVisibleTo` entry for `Encina.Compliance.DataSubjectRights`, would expose every internal of the package) |
-| 3 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
-| 4 | `tests/Encina.UnitTests/Caching/Base/CachingOptionsTests.cs` | modify (defaults) |
-| 5 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (defaults) |
-| 6 | `tests/Encina.UnitTests/Caching/CacheLogRedactionTests.cs` | modify (`EscapeSegment` as public API: `%`, `:` escaped, injective for `a:b` vs `a%3Ab`) |
-| 7 | `tests/Encina.GuardTests/Caching/CacheKeyRedactorGuardTests.cs` | new (`EscapeSegment(null!)` throws `ArgumentNullException`) |
-| 8 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`; see the targets table) |
-| 9 | `changelog.d/2407-caching-non-nested-default-prefixes.changed.md` | new (`mechanical-fixer`) |
+| 3 | `src/Encina.Caching/Abstractions/ICachePurgePatternSource.cs` | new (Design Choice 14 option B: `IReadOnlyList<string> GetPatterns(string? tenantId)`; an interface with no executable lines, exercised through its implementations) |
+| 4 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 5 | `tests/Encina.UnitTests/Caching/Base/CachingOptionsTests.cs` | modify (defaults) |
+| 6 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (defaults) |
+| 7 | `tests/Encina.UnitTests/Caching/CacheLogRedactionTests.cs` | modify (`EscapeSegment` as public API: `%`, `:` escaped, injective for `a:b` vs `a%3Ab`) |
+| 8 | `tests/Encina.GuardTests/Caching/CacheKeyRedactorGuardTests.cs` | new (`EscapeSegment(null!)` throws `ArgumentNullException`) |
+| 9 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`; see the targets table) |
+| 10 | `changelog.d/2407-caching-non-nested-default-prefixes.changed.md` | new (`mechanical-fixer`) |
 
 Tasks: `git grep -n -F "sm:idempotency"` and `-F "sm:lock"` on `origin/main` find only `CachingOptions.cs` and the four test lines above (the two `DistributedIdempotencyPipelineBehaviorTests.cs` files set the prefix explicitly and do not change); no documentation page types the old defaults.
 
@@ -382,7 +407,8 @@ Phase 1 is merged. The DSR cache purge (PR 4) removes "{KeyPrefix}:*" in single-
 idempotency ("sm:idempotency") and lock ("sm:lock") keys, and it needs CacheKeyRedactor.EscapeSegment from another assembly.
 
 TASK:
-Change the two default prefixes so they do not nest under KeyPrefix, make EscapeSegment public with a null check, and test both.
+Change the two default prefixes so they do not nest under KeyPrefix, make EscapeSegment public with a null check, add the
+ICachePurgePatternSource interface (Design Choice 14), and test the first two.
 
 KEY RULES:
 - Pre-1.0: no compatibility alias for the old defaults.
@@ -397,7 +423,55 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: Completion port, step contract and service wiring (pull request 3, 15 files)
+### Phase 2b: EF Core query-cache purge pattern source (pull request 2b, 9 files)
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+This phase implements the recommended option of Design Choice 14 (dropped if the maintainer picks option A or C there). It uses only the interface of PR 2.
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.EntityFrameworkCore/Caching/QueryCachePurgePatternSource.cs` | new (`ICachePurgePatternSource`; constructor `(IOptions<QueryCacheOptions> options)`; `GetPatterns(tenantId)` returns `{KeyPrefix}:{tenantId}:*`, or `{KeyPrefix}:*` when `tenantId` is null or whitespace, the same rule `DefaultQueryCacheKeyGenerator.cs:89` uses) |
+| 2 | `src/Encina.EntityFrameworkCore/Extensions/QueryCachingExtensions.cs` | modify (`TryAddEnumerable(ServiceDescriptor.Singleton<ICachePurgePatternSource, QueryCachePurgePatternSource>())` in both `AddQueryCaching` overloads) |
+| 3 | `src/Encina.EntityFrameworkCore/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 4 | `tests/Encina.UnitTests/EntityFrameworkCore/Caching/QueryCachePurgePatternSourceTests.cs` | new (tenant and no-tenant patterns, a custom `KeyPrefix`, whitespace tenant, and the pattern matched against keys written by the real `DefaultQueryCacheKeyGenerator` for the same tenant and for another tenant through the real `MemoryCacheProvider`) |
+| 5 | `tests/Encina.UnitTests/EntityFrameworkCore/Caching/QueryCachingExtensionsTests.cs` | modify (the source is registered once per call and resolves with `ValidateOnBuild` and `ValidateScopes`) |
+| 6 | `tests/Encina.GuardTests/EntityFrameworkCore/Caching/QueryCachingGuardTests.cs` | modify (`QueryCachePurgePatternSource` constructor with null options; `GetPatterns(null)` is a valid call and is asserted as such in the unit tests, not here) |
+| 7 | `tests/Encina.ContractTests/EntityFrameworkCore/Caching/QueryCachePurgePatternSourceContractTests.cs` | new (the real source: every pattern starts with the configured `KeyPrefix`, is never a bare `*`, and contains the tenant when one is given) |
+| 8 | `.github/coverage-manifest/Encina.EntityFrameworkCore.json` | modify (`mechanical-fixer`; see the targets table) |
+| 9 | `changelog.d/2407-ef-query-cache-purge-pattern-source.added.md` | new (`mechanical-fixer`) |
+
+Tasks: the pattern uses the tenant as the generator writes it (unescaped); tenant ids with glob characters are rejected by the DSR step before any source is asked (Design Choice 5), so no source has to defend itself against them. No EventId, error code or telemetry: the source is a pure function.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 2b</strong></summary>
+
+```
+CONTEXT:
+Phase 2 is merged: Encina.Caching has ICachePurgePatternSource. Encina.EntityFrameworkCore already references the DSR project,
+so DSR cannot reference EF Core; the EF query cache keys ("sm:qc:{tenant}:{Entity}:{hash}") are declared through the interface.
+
+TASK:
+Add QueryCachePurgePatternSource, register it from AddQueryCaching, and test it against keys written by the real
+DefaultQueryCacheKeyGenerator.
+
+KEY RULES:
+- Pure function: no logging, no telemetry, no EncinaError.
+- Real classes in tests; guard test for the constructor; contract test as listed; DI test with ValidateOnBuild and ValidateScopes.
+- PublicAPI.Unshipped.txt, the manifest and the changelog fragment go through mechanical-fixer.
+
+REFERENCE FILES:
+- src/Encina.EntityFrameworkCore/Caching/DefaultQueryCacheKeyGenerator.cs
+- src/Encina.EntityFrameworkCore/Caching/QueryCacheOptions.cs
+- src/Encina.EntityFrameworkCore/Extensions/QueryCachingExtensions.cs
+```
+
+</details>
+
+### Phase 3: Completion port and default completion (pull request 3, 11 files)
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -407,20 +481,16 @@ REFERENCE FILES:
 | 1 | `src/Encina.Compliance.DataSubjectRights/Abstractions/IErasureCompletion.cs` | new (port and the public record `ErasureCompletionContext(string DSRRequestId, string SubjectId, string? TenantId, ErasureResult Result, string? FailureCode)`) |
 | 2 | `src/Encina.Compliance.DataSubjectRights/Abstractions/IErasureCompletionStep.cs` | new (Design Choice 11) |
 | 3 | `src/Encina.Compliance.DataSubjectRights/Erasure/DefaultErasureCompletion.cs` | new (constructor `(IEnumerable<IErasureCompletionStep> steps, ILogger<DefaultErasureCompletion> logger)`, never changed by later pull requests) |
-| 4 | `src/Encina.Compliance.DataSubjectRights/DSRErrors.cs` | modify (`ErasureCompletionUnavailableCode`, `FailedPrecondition`) |
-| 5 | `src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs` | modify (trailing `IErasureCompletion? completion = null`; call it after a successful erase; with `completion` null return `Left(ErasureCompletionUnavailable)`) |
-| 6 | `src/Encina.Compliance.DataSubjectRights/ServiceCollectionExtensions.cs` | modify (`TryAddScoped<IErasureCompletion, DefaultErasureCompletion>`) |
-| 7 | `src/Encina.Compliance.DataSubjectRights/Diagnostics/ErasureCompletionLog.cs` | new (ids 320 `CompletionUnavailable` Error, 321 `StepFailed` Error, error code only) |
-| 8 | `src/Encina.Compliance.DataSubjectRights/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
-| 9 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/DefaultErasureCompletionTests.cs` | new (ordering by `Order`; `RunsAfterFailure` steps run after a `Left` and receive the failure code; first `Left` returned; skipped steps; DI test with `ValidateOnBuild` and `ValidateScopes`) |
-| 10 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Services/DefaultDSRServiceTests.cs` | modify (the erasure success test passes a completion substitute; new tests: a `Left` of the completion fails the request; `completion` null returns `Left`) |
-| 11 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` | modify (the erasure test at line 103 reaches the completion, so it passes a substitute) |
-| 12 | `tests/Encina.GuardTests/Compliance/DataSubjectRights/ErasureCompletionGuardTests.cs` | new (constructor of `DefaultErasureCompletion`, `CompleteAsync` null context; null steps) |
-| 13 | `tests/Encina.ContractTests/Compliance/DataSubjectRights/IErasureCompletionContractTests.cs` | new (real `DefaultErasureCompletion` with fake steps: "a `Left` from any step fails the call, nothing is swallowed", ordering, failure-code propagation) |
-| 14 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
-| 15 | `changelog.d/2407-dsr-erasure-completion-port.added.md` | new (`mechanical-fixer`) |
+| 4 | `src/Encina.Compliance.DataSubjectRights/ServiceCollectionExtensions.cs` | modify (`TryAddScoped<IErasureCompletion, DefaultErasureCompletion>`) |
+| 5 | `src/Encina.Compliance.DataSubjectRights/Diagnostics/ErasureCompletionLog.cs` | new (id 320 `StepFailed` Error, error code only) |
+| 6 | `src/Encina.Compliance.DataSubjectRights/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 7 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/DefaultErasureCompletionTests.cs` | new (ordering by `Order`; `RunsAfterFailure` steps run after a `Left` and receive the failure code; first `Left` returned; skipped steps; DI test with `ValidateOnBuild` and `ValidateScopes`) |
+| 8 | `tests/Encina.GuardTests/Compliance/DataSubjectRights/ErasureCompletionGuardTests.cs` | new (constructor of `DefaultErasureCompletion`, `CompleteAsync` null context; null steps) |
+| 9 | `tests/Encina.ContractTests/Compliance/DataSubjectRights/IErasureCompletionContractTests.cs` | new (real `DefaultErasureCompletion` with fake steps: "a `Left` from any step fails the call, nothing is swallowed", ordering, failure-code propagation) |
+| 10 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
+| 11 | `changelog.d/2407-dsr-erasure-completion-port.added.md` | new (`mechanical-fixer`) |
 
-Tasks: `DefaultDSRServiceMethodGuardTests.cs` and the two error-message-leak tests that stop at an executor failure are unchanged (verified on `origin/main`: `ArgumentNullException.ThrowIfNull(request)` is line 626, before the completion call; the leak tests fail the executor first). A `Left` of the completion fails the request (counted as failed, logged by code); the erasure itself is not undone and the request can be repeated. No step is registered yet: with no steps the completion returns `Right`.
+Tasks: the port and the default completion exist and are registered but nothing calls them yet (PR 3b wires the service); with no steps registered the completion returns `Right`. The service is split out because wiring it changes three existing test files (`DefaultDSRServiceTests.cs`, `DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs`, `DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs`) and the 15-file limit would be exceeded.
 
 </details>
 
@@ -430,24 +500,68 @@ Tasks: `DefaultDSRServiceMethodGuardTests.cs` and the two error-message-leak tes
 ```
 CONTEXT:
 Phases 1 and 2 are merged: ErasureRequest carries DSRRequestId and the range ComplianceDSRErasure (320-329) is registered.
-DefaultDSRService has 31 construction sites in 17 test files, so the new collaborator is a trailing optional parameter.
 
 TASK:
 Create IErasureCompletion, ErasureCompletionContext, IErasureCompletionStep and DefaultErasureCompletion (steps sorted by Order;
-steps with RunsAfterFailure run after a Left and receive the first error code; the first Left is returned), the error code, the
-log class (ids 320-321) and the registration; call the completion from HandleErasureAsync after a successful EraseAsync.
+steps with RunsAfterFailure run after a Left and receive the first error code; the first Left is returned), the log class
+(id 320) and the registration. Nothing calls the port yet.
 
 KEY RULES:
-- A Left from any step fails the request; nothing is swallowed; completion null returns Left (fail closed).
-- Categorized overload of EncinaErrors.Create (FailedPrecondition); never put EncinaError.Message in a log, tag or audit entry.
+- A Left from any step fails the call; nothing is swallowed.
+- Never put EncinaError.Message in a log, tag or audit entry.
 - The completion is scoped; never inject a scoped service into a singleton.
 - Tests instantiate real classes; ValidateOnBuild and ValidateScopes DI test; guard and contract tests as listed.
 
 REFERENCE FILES:
+- src/Encina.Compliance.DataSubjectRights/ServiceCollectionExtensions.cs
+- src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs
+```
+
+</details>
+
+### Phase 3b: Wire the completion into `DefaultDSRService` (pull request 3b, 9 files)
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.Compliance.DataSubjectRights/DSRErrors.cs` | modify (`ErasureCompletionUnavailableCode`, `FailedPrecondition`) |
+| 2 | `src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs` | modify (trailing `IErasureCompletion? completion = null`; with `completion` null return `Left(ErasureCompletionUnavailable)` BEFORE `IDataErasureExecutor.EraseAsync` is called; call the completion after a successful erase) |
+| 3 | `src/Encina.Compliance.DataSubjectRights/Diagnostics/ErasureCompletionLog.cs` | modify (id 321 `CompletionUnavailable` Error, error code only) |
+| 4 | `src/Encina.Compliance.DataSubjectRights/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 5 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Services/DefaultDSRServiceTests.cs` | modify (the erasure success test passes a completion substitute; new tests: a `Left` of the completion fails the request; `completion` null returns `Left` and the executor is never called) |
+| 6 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` | modify (the erasure test at line 103 reaches the completion, so it passes a substitute) |
+| 7 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs` | modify (the two erasure tests at lines 71 and 89 now reach the completion check before the executor, so they pass a completion substitute) |
+| 8 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
+| 9 | `changelog.d/2407-dsr-erasure-requires-the-completion.changed.md` | new (`mechanical-fixer`) |
+
+Tasks: `DefaultDSRServiceMethodGuardTests.cs` is unchanged (verified on `origin/main`: `ArgumentNullException.ThrowIfNull(request)` is line 626, before the completion check). The nullable `completion` parameter accepts null and its valid result (`Left`, nothing erased) is asserted in the unit tests, not as an exception test in `Encina.GuardTests`. A `Left` of the completion fails the request (counted as failed, logged by code); the erasure itself is not undone and the request can be repeated. The check order (port first, executor second) is in Design Choice 11.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 3b</strong></summary>
+
+```
+CONTEXT:
+Phase 3 is merged: IErasureCompletion and DefaultErasureCompletion exist and are registered; nothing calls them.
+DefaultDSRService has 31 construction sites in 17 test files, so the new collaborator is a trailing optional parameter.
+
+TASK:
+Add the trailing IErasureCompletion? parameter to DefaultDSRService; with it null, HandleErasureAsync returns
+Left(dsr.erasure_completion_unavailable) before calling the executor; otherwise call the completion after a successful erase and
+fail the request on a Left. Add the error code and log id 321; give the three existing erasure tests a completion substitute.
+
+KEY RULES:
+- Fail closed: no completion, no erasure. Nothing is swallowed.
+- Categorized overload of EncinaErrors.Create (FailedPrecondition); never put EncinaError.Message in a log, tag or audit entry.
+
+REFERENCE FILES:
 - src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs
 - src/Encina.Compliance.DataSubjectRights/DSRErrors.cs
-- src/Encina.Compliance.DataSubjectRights/ServiceCollectionExtensions.cs
 - tests/Encina.UnitTests/Compliance/DataSubjectRights/Services/DefaultDSRServiceTests.cs
+- tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDiagnosticsErrorMessageLeakTests.cs
 ```
 
 </details>
@@ -459,18 +573,18 @@ REFERENCE FILES:
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Compliance.DataSubjectRights/Erasure/CachePurgeErasureStep.cs` | new (`Order = 10`; constructor `(ICacheProvider cache, IOptions<CachingOptions> cachingOptions, ILogger<CachePurgeErasureStep> logger)`) |
+| 1 | `src/Encina.Compliance.DataSubjectRights/Erasure/CachePurgeErasureStep.cs` | new (`Order = 10`; constructor `(ICacheProvider cache, IOptions<CachingOptions> cachingOptions, IEnumerable<ICachePurgePatternSource> sources, ILogger<CachePurgeErasureStep> logger)`; the sources are empty when no package registers one, and under option A of Design Choice 14 the parameter is absent) |
 | 2 | `src/Encina.Compliance.DataSubjectRights/DSRErrors.cs` | modify (`ErasureCachePurgeFailedCode` `UpstreamFailure`, `ErasureCacheTenantInvalidCode` `Validation`, `ErasureCachePrefixNestedCode` `FailedPrecondition`) |
 | 3 | `src/Encina.Compliance.DataSubjectRights/Diagnostics/ErasureCompletionLog.cs` | modify (ids 322 `CachePurged` Debug, 323 `CachePurgeFailed` Warning, exception through `ForLogging()`) |
 | 4 | `src/Encina.Compliance.DataSubjectRights/ServiceCollectionExtensions.cs` | modify (`TryAddEnumerable(ServiceDescriptor.Scoped<IErasureCompletionStep, CachePurgeErasureStep>())`) |
 | 5 | `src/Encina.Compliance.DataSubjectRights/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 6 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/CachePurgeErasureStepTests.cs` | new (including the registration test with `ValidateOnBuild` and `ValidateScopes`) |
 | 7 | `tests/Encina.GuardTests/Compliance/DataSubjectRights/ErasureCompletionGuardTests.cs` | modify (constructor and `ExecuteAsync` of the step) |
-| 8 | `tests/Encina.IntegrationTests/Compliance/DataSubjectRights/DSRErasureCachePurgeIntegrationTests.cs` | new (one collection: `[Collection(RedisCollection.Name)]`, `RedisFixture` of `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisFixture.cs:68`; the step against `RedisCacheProvider`: the tenant's entry is gone, another tenant's entry and an idempotency key remain) |
+| 8 | `tests/Encina.IntegrationTests/Compliance/DataSubjectRights/DSRErasureCachePurgeIntegrationTests.cs` | new (one collection: `[Collection(RedisCollection.Name)]`, `RedisFixture` of `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisFixture.cs:70`, `Name` at :76; the step against `RedisCacheProvider`: the tenant's entry and a key in the EF query-cache shape written for that tenant are gone, another tenant's entries and an idempotency key remain) |
 | 9 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
 | 10 | `changelog.d/2407-dsr-erasure-purges-caches.added.md` | new (`mechanical-fixer`) |
 
-Tasks: the step builds `"{KeyPrefix}:t:{CacheKeyRedactor.EscapeSegment(tenantId)}:*"` and removes it and the DSR restriction key. It never reads `EncinaError.Message`. Checks, each a `Left` with nothing purged: a tenant id containing a glob metacharacter (`*`, `?`, `[`, `]`, `\`) -> `dsr.erasure_cache_tenant_invalid` (Design Choice 5); a multi-tenant context with no tenant -> `DSRErrors.TenantRequired("HandleErasure")` (fail closed, never `{KeyPrefix}:*`); in single-tenant mode an idempotency or lock prefix that starts with `{KeyPrefix}:` -> `dsr.erasure_cache_prefix_nested` (Design Choice 6). A thrown provider exception becomes `Left(dsr.erasure_cache_purge_failed)`; the log carries the exception type through `ForLogging()` and the code only. The three checks are separate private methods so every method stays at CRAP 10 or below.
+Tasks: the step builds `"{KeyPrefix}:t:{CacheKeyRedactor.EscapeSegment(tenantId)}:*"` and removes it, the patterns returned by every registered `ICachePurgePatternSource.GetPatterns(tenantId)` (Design Choice 14; the EF Core source of PR 2b when `AddQueryCaching` is used) and the DSR restriction key. With no tenant and multi-tenancy not required, the step purges `{KeyPrefix}:*` and the sources' single-tenant patterns (the over-eviction named in Design Choice 4). It never reads `EncinaError.Message`. Checks, each a `Left` with nothing purged: a tenant id containing a glob metacharacter (`*`, `?`, `[`, `]`, `\`) -> `dsr.erasure_cache_tenant_invalid` (Design Choice 5); a multi-tenant context with no tenant -> `DSRErrors.TenantRequired("HandleErasure")` (fail closed, never `{KeyPrefix}:*`); in single-tenant mode an idempotency or lock prefix that starts with `{KeyPrefix}:` -> `dsr.erasure_cache_prefix_nested` (Design Choice 6). A thrown provider exception becomes `Left(dsr.erasure_cache_purge_failed)`; the log carries the exception type through `ForLogging()` and the code only. The three checks are separate private methods so every method stays at CRAP 10 or below.
 
 The integration test has a single `[Collection]` (an xUnit class belongs to exactly one) and uses the shared Redis fixture; it never creates a per-class container. The Memory provider's case-insensitive over-eviction is asserted by a unit test with the real `MemoryCacheProvider`.
 
@@ -481,11 +595,12 @@ The integration test has a single `[Collection]` (an xUnit class belongs to exac
 
 ```
 CONTEXT:
-Phases 1 to 3 are merged: DefaultErasureCompletion runs the registered IErasureCompletionStep services; none is registered yet.
-Encina.Caching exposes a public CacheKeyRedactor.EscapeSegment and non-nested default prefixes (Phase 2).
+Phases 1 to 3b (including 2b) are merged: DefaultErasureCompletion runs the registered IErasureCompletionStep services; none is registered yet.
+Encina.Caching exposes a public CacheKeyRedactor.EscapeSegment, non-nested default prefixes and ICachePurgePatternSource (Phase 2).
 
 TASK:
-Add CachePurgeErasureStep (Order 10): purge the tenant namespace through ICacheProvider.RemoveByPatternAsync and the DSR restriction key.
+Add CachePurgeErasureStep (Order 10): purge the tenant namespace, the patterns of every registered ICachePurgePatternSource and the
+DSR restriction key through ICacheProvider.RemoveByPatternAsync.
 
 KEY RULES:
 - Reject glob metacharacters in the tenant id, a missing required tenant, and nested idempotency/lock prefixes: Left, nothing purged.
@@ -555,7 +670,7 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: Outbox notification step (pull request 6, 12 files)
+### Phase 6: Outbox notification step (pull request 6, 13 files)
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -572,10 +687,11 @@ REFERENCE FILES:
 | 8 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/NotifyErasureStepTests.cs` | new (payload fields, both calls awaited, a `Left` of either, no subject value under option A, registration test with `ValidateOnBuild` and `ValidateScopes`) |
 | 9 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/ErasureStartupValidationTests.cs` | modify (outbox missing) |
 | 10 | `tests/Encina.GuardTests/Compliance/DataSubjectRights/ErasureCompletionGuardTests.cs` | modify (`NotifyErasureStep` constructor and `ExecuteAsync`) |
-| 11 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
-| 12 | `changelog.d/2407-dsr-erasure-notifies-through-the-outbox.added.md` | new (`mechanical-fixer`) |
+| 11 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/ServiceCollectionExtensionsTests.cs` | modify (the two tests at lines 55 and 80 build the provider with `ValidateOnBuild = true` and register no outbox (lines 59-63 and 84-89), so the new `TryAddEnumerable` of the notify step would make the provider build throw; each registers the outbox dependencies first: a substitute `IOutboxStore` and a real `OutboxOrchestrator` (it is `sealed`, so it is constructed, not substituted) built from that store, `new OutboxOptions()`, `NullLogger<OutboxOrchestrator>`, and substitutes of `IOutboxMessageFactory` and `IMessageSerializer`) |
+| 12 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
+| 13 | `changelog.d/2407-dsr-erasure-notifies-through-the-outbox.added.md` | new (`mechanical-fixer`) |
 
-Tasks: the step adds the notification to the outbox and saves; a `Left` of either call is `dsr.erasure_notification_failed`. After this pull request both the old best-effort publish and the outbox notification exist; PR 7 removes the old one. No integration test in this issue: the step has no SQL and the outbox store implementations are covered by their own provider tests; the manifest target says so.
+Tasks: a Development host that registers DSR without an outbox gets the DI exception of `ValidateOnBuild` before the named startup check runs; that is intended (fail closed), and the startup check's message is reached only when provider validation is off. The other registrations that call `AddEncinaDataSubjectRights()` under `ValidateOnBuild` were checked on `origin/main`: `PipelineBehaviorRegistrationTests.cs` builds with `ValidateOnBuild` only through `AssertBothResolve`, which never registers DSR, and `CryptoShreddingWiringTests.cs` builds DSR without validation. The step adds the notification to the outbox and saves; a `Left` of either call is `dsr.erasure_notification_failed`. After this pull request both the old best-effort publish and the outbox notification exist; PR 7 removes the old one. No integration test in this issue: the step has no SQL and the outbox store implementations are covered by their own provider tests; the manifest target says so.
 
 </details>
 
@@ -618,7 +734,7 @@ REFERENCE FILES:
 | 6 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`; removes the `Notifications/DataErasedNotification.cs` entry) |
 | 7 | `changelog.d/2407-dsr-erasure-publish-replaced-by-the-outbox.removed.md` | new (`mechanical-fixer`) |
 
-Tasks: `DataErasedNotification` is searched with `git grep` in `src/`, `tests/` and `docs/` before the deletion (on `origin/main`: `NotificationRecordTests.cs`, `DefaultDSRService.cs`, the PublicAPI file, `docs/INVENTORY.md:5963` and `docs/features/data-subject-rights.md:544-552,784`; the two docs files are PR 9). The best-effort publish for rectification and restriction is untouched.
+Tasks: `DataErasedNotification` is searched with `git grep` in `src/`, `tests/` and `docs/` before the deletion (on `origin/main`: `NotificationRecordTests.cs`, `DefaultDSRService.cs`, the PublicAPI file, `src/Encina.Compliance.DataSubjectRights/README.md:21`, `docs/INVENTORY.md:5963` and `docs/features/data-subject-rights.md:544-552,784`; the README and the two docs files are PR 9). The best-effort publish for rectification and restriction is untouched.
 
 </details>
 
@@ -655,11 +771,11 @@ REFERENCE FILES:
 | 3 | `src/Encina.Compliance.DataSubjectRights/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 4 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/Erasure/ErasureCompletionTelemetryTests.cs` | new (spans, counter tags, tenant tag only when multi-tenancy is on) |
 | 5 | `tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDiagnosticsSubjectIdLeakTests.cs` | modify (the new spans and the counter never carry the subject id, a cache pattern or a key) |
-| 6 | `tests/Encina.GuardTests/Compliance/DataSubjectRights/ErasureCompletionGuardTests.cs` | modify (new public diagnostics members with reference-type parameters) |
+| 6 | `tests/Encina.ContractTests/Compliance/DataSubjectRights/IErasureCompletionStepContractTests.cs` | new (the three real steps, created last because they all exist from PR 6: each returns `Left` and never throws for a failing cache provider, audit store and outbox; `Order` is 10, 20, 30 and `RunsAfterFailure` is true only for the audit step) |
 | 7 | `.github/coverage-manifest/Encina.Compliance.DataSubjectRights.json` | modify (`mechanical-fixer`) |
 | 8 | `changelog.d/2407-dsr-erasure-completion-telemetry.added.md` | new (`mechanical-fixer`) |
 
-Tasks: tags `step` (`purge`, `audit`, `notify`) and `outcome` (`success`, `failed`, `skipped`), and the tenant tag only when multi-tenancy is on (ADR-054 D4). No subject id, cache pattern or key is a tag or attribute.
+Tasks: no guard test joins this pull request: the new `DataSubjectRightsDiagnostics` members take strings and enums that no code validates, so no guard test can reach a check (the guard target of that file stays at its existing value). The step contract test sits here because `IErasureCompletionStep` is a public interface and each real implementation must keep its contract; PR 5 is at the 15-file limit and PR 8 is the last pull request after all three steps exist. Tags: `step` (`purge`, `audit`, `notify`) and `outcome` (`success`, `failed`, `skipped`), and the tenant tag only when multi-tenancy is on (ADR-054 D4). No subject id, cache pattern or key is a tag or attribute.
 
 </details>
 
@@ -690,7 +806,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`docs-writer`**: `src/Encina.Compliance.DataSubjectRights/README.md` (the completion, mandatory steps, fail-closed behavior, the cache purge scope and its Hybrid limitation until #2402, the audit entry shape, the outbox requirement, `TrackAuditTrail` removed from lines 50 and 232, the decorated in-memory store limit), `docs/features/data-subject-rights.md` (lines 544-552 and 784 name `DataErasedNotification`; line 581 sets `TrackAuditTrail`), `docs/INVENTORY.md` (line 5963), and `ROADMAP.md` only if the v0.17.0 text changes (4 files).
+1. **`docs-writer`**: `src/Encina.Compliance.DataSubjectRights/README.md` (the completion, mandatory steps, fail-closed behavior, the cache purge scope and its Hybrid limitation until #2402, the audit entry shape, the outbox requirement, `TrackAuditTrail` removed from lines 50 and 232, the decorated in-memory store limit, the over-eviction when no tenant is required, the query-cache and compliance read-model cache limits of Design Choices 4 and 14; line 21 names `DataErasedNotification`; the sample at line 109 already got the request id in PR 1), `docs/features/data-subject-rights.md` (lines 544-552 and 784 name `DataErasedNotification`; line 581 sets `TrackAuditTrail`; the 4 `new ErasureRequest(` samples at lines 181, 371, 375 and 739 get the request id), `docs/INVENTORY.md` (line 5963), and `ROADMAP.md` only if the v0.17.0 text changes (4 files).
 2. XML documentation with examples on every new public type is part of the code pull requests.
 3. **Verification per pull request**: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests`; the integration test with Docker; per-flag coverage with `coverage-report.cs` and `--check-justifications`; the CRAP table of the changed methods.
 4. **Follow-up issue files** (Next Steps).
@@ -702,7 +818,7 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-Code and tests of the eight code pull requests exist. The documentation pull request remains.
+Code and tests of the ten code pull requests exist. The documentation pull request remains.
 
 TASK:
 Through docs-writer, update the DSR README, the feature page and INVENTORY.md; confirm the changelog fragments exist.
@@ -730,19 +846,22 @@ Entered by `mechanical-fixer` in the pull request that adds the tests. A flag at
 | `Abstractions/IErasureCompletion.cs` | 70 | 0 | 0 | 0 | 0 | One interface (no executable lines) and the `ErasureCompletionContext` record with compiler-generated members; contract tests drive the port through `DefaultErasureCompletion` |
 | `Abstractions/IErasureCompletionStep.cs` | 0 | 0 | 0 | 0 | 0 | Interface with no executable lines; behaviour is covered through the implementations |
 | `Erasure/DefaultErasureCompletion.cs` | 95 | 25 | 85 | 0 | 0 | Sequential steps with explicit branches driven by fake steps; guard reaches the constructor and context checks; contract runs the real class with fake steps; no non-trivial invariant needs a property test |
-| `Erasure/CachePurgeErasureStep.cs` | 95 | 20 | 0 | 0 | 50 | Pattern building and three checks, all unit tested; the Redis integration test reaches the real removal |
-| `Erasure/AuditErasureStep.cs` | 95 | 20 | 0 | 0 | 50 | Builds one entry; the Marten integration test writes it to the real store |
-| `Erasure/NotifyErasureStep.cs` | 95 | 20 | 0 | 0 | 0 | Two awaited calls; unit tests substitute the orchestrator and the store; the outbox store tests of the messaging packages own the real store |
+| `Erasure/CachePurgeErasureStep.cs` | 95 | 20 | 50 | 0 | 50 | Pattern building and three checks, all unit tested; the step contract test (PR 8) reaches the constructor and the failure path; the Redis integration test reaches the real removal |
+| `Erasure/AuditErasureStep.cs` | 95 | 20 | 50 | 0 | 50 | Builds one entry; the step contract test (PR 8) reaches the failure path; the Marten integration test writes it to the real store |
+| `Erasure/NotifyErasureStep.cs` | 95 | 20 | 50 | 0 | 0 | Two awaited calls; unit tests build a real `OutboxOrchestrator` over a substitute store; the step contract test (PR 8) reaches the failure path; the outbox store tests of the messaging packages own the real store |
 | `Erasure/ErasureStartupValidationHostedService.cs` | 90 | 20 | 0 | 0 | 0 | Resolves services in a scope; unit tests with and without each service |
 | `Notifications/ErasureNotification.cs` | 70 | 0 | 0 | 0 | 0 | Positional record; compiler-generated members are not tested directly; no validated parameter |
 | `Diagnostics/ErasureCompletionLog.cs` | 70 | 0 | 0 | 0 | 0 | Generated logger bodies run only when a level is enabled; no parameters a guard test could reach |
 | `Diagnostics/DataSubjectRightsDiagnostics.cs` | keeps 100 | 0 | keeps 73 | keeps 61 | keeps 65 | Existing targets are not lowered (target-ratchet); the new members are driven by `ErasureCompletionTelemetryTests`; guard 0 because the new members take only strings and enums the unit tests already pass |
-| `Services/DefaultDSRService.cs` | keeps 97 | keeps 7 | keeps 52 | keeps 38 | keeps 61 | Existing targets are not lowered; the new branch is covered by the unit tests of PR 3 |
+| `Services/DefaultDSRService.cs` | keeps 97 | keeps 7 | keeps 52 | keeps 38 | keeps 61 | Existing targets are not lowered; the new branches (no completion, a `Left` of the completion) are covered by the unit tests of PR 3b |
 | `DSRErrors.cs` | keeps 100 | 0 | 0 | 0 | 0 | Every new factory is a pure function asserted for its code and category |
 | `ServiceCollectionExtensions.cs` | keeps 100 | keeps 100 | 0 | 0 | 0 | The new registrations are covered by the registration tests and the guard tests that call the extension |
 | `DataSubjectRightsOptions.cs` | keeps 100 | 0 | 0 | 0 | 0 | The deleted property leaves plain properties that are each asserted |
 | `Caching: Configuration/CachingOptions.cs` | 100 | keeps 85 | 0 | 0 | 0 | New defaults asserted by the two options tests; guard keeps its existing target |
 | `Caching: KeyGeneration/CacheKeyRedactor.cs` | keeps 100 | 10 | 0 | 0 | 0 | `EscapeSegment` gains one `ThrowIfNull` line reached by the new guard test |
+| `Caching: Abstractions/ICachePurgePatternSource.cs` | 0 | 0 | 0 | 0 | 0 | Interface with no executable lines; behavior is covered through `QueryCachePurgePatternSource` (PR 2b) and the DSR step |
+| `EntityFrameworkCore: Caching/QueryCachePurgePatternSource.cs` | 95 | 25 | 70 | 0 | 0 | A pure function of the options and the tenant: unit tests drive every branch against keys of the real generator; guard reaches the constructor check; the contract test runs the real source; no database is involved |
+| `EntityFrameworkCore: Extensions/QueryCachingExtensions.cs` | keeps existing | keeps existing | keeps existing | keeps existing | keeps existing | Targets are not lowered; the added registration is reached by the extension tests of PR 2b |
 
 **Property, load and benchmark**: no property test (the injectivity of the tenant segment is the existing `CacheKeyRedactor.EscapeSegment` behavior asserted by unit tests with hostile tenant ids); load and benchmark tests are not written (an erasure is a rare, serial operation); the manifest `reason` of each flag says so.
 
@@ -780,24 +899,26 @@ Entered by `mechanical-fixer` in the pull request that adds the tests. A flag at
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Compliance.DataSubjectRights` (new range `ComplianceDSRErasure`) | 320-329 (from block 300-349) | Registered in PR 1; packed in merge order: PR 3 320-321, PR 4 322-323, PR 5 324-326, PR 6 327-328; 329 stays free. `ComplianceDSR` 8300-8349 is full (sparse ids, no contiguous free block). #2408 owns 300-319 |
+| `Encina.Compliance.DataSubjectRights` (new range `ComplianceDSRErasure`) | 320-329 (from block 300-349) | Registered in PR 1; packed in merge order: PR 3 320, PR 3b 321, PR 4 322-323, PR 5 324-326, PR 6 327-328; 329 stays free. `ComplianceDSR` 8300-8349 is full (sparse ids, no contiguous free block). #2408 owns 300-319 |
 
 ### Estimated File Count
 
 | Pull request | Production code | Tests | Configuration (PublicAPI, manifest, changelog) | Documentation | Total |
 |--------------|:---------------:|:-----:|:----------------------------------------------:|:-------------:|:-----:|
 | PR 1 request id, EventId range | 3 | 5 | 4 | 1 | 13 |
-| PR 2 Caching prerequisites | 2 | 4 | 3 | 0 | 9 |
-| PR 3 completion port and wiring | 7 | 5 | 3 | 0 | 15 |
+| PR 2 Caching prerequisites | 3 | 4 | 3 | 0 | 10 |
+| PR 2b EF Core query-cache purge pattern source | 2 | 4 | 3 | 0 | 9 |
+| PR 3 completion port and default completion | 5 | 3 | 3 | 0 | 11 |
+| PR 3b wire the completion into the service | 3 | 3 | 3 | 0 | 9 |
 | PR 4 cache purge step | 4 | 3 | 3 | 0 | 10 |
 | PR 5 audit step, startup, `TrackAuditTrail` | 7 | 5 | 3 | 0 | 15 |
-| PR 6 outbox notification step | 6 | 3 | 3 | 0 | 12 |
+| PR 6 outbox notification step | 6 | 4 | 3 | 0 | 13 |
 | PR 7 remove the best-effort publish | 2 | 2 | 3 | 0 | 7 |
-| PR 8 telemetry | 2 | 3 | 3 | 0 | 8 |
+| PR 8 telemetry and step contract tests | 2 | 3 | 3 | 0 | 8 |
 | PR 9 documentation | 0 | 0 | 0 | 4 | 4 |
-| **Total** | **33** | **30** | **25** | **5** | **93** |
+| **Total** | **37** | **36** | **31** | **5** | **109** |
 
-Each pull request builds and passes alone; none uses a type, project or log class created by a later one (PR 8 telemetry follows the steps it measures). The sums: 13 + 9 + 15 + 10 + 15 + 12 + 7 + 8 + 4 = 93.
+Each pull request builds and passes alone; none uses a type, project or log class created by a later one (PR 8 follows the steps it measures). The sums: 13 + 10 + 9 + 11 + 9 + 10 + 15 + 13 + 7 + 8 + 4 = 109 (37 + 36 + 31 + 5). PR 2b is dropped under option A or C of Design Choice 14, and PR 2 then loses one file.
 
 ---
 
@@ -813,7 +934,8 @@ succeeds, purge the tenant's caches, record an audit entry and queue a notificat
 
 IMPLEMENTATION OVERVIEW:
 1. ErasureRequest carries the real DSRRequestId; range ComplianceDSRErasure (320-329) is registered.
-2. Encina.Caching: non-nested default prefixes and a public EscapeSegment.
+2. Encina.Caching: non-nested default prefixes, a public EscapeSegment and ICachePurgePatternSource; Encina.EntityFrameworkCore
+   declares its query-cache key shape through that interface (PR 2b).
 3. IErasureCompletion (one trailing optional parameter of DefaultDSRService) runs IErasureCompletionStep services in order:
    purge (10), audit (20, runs after a failure), notify (30). The three steps are mandatory; there are no flags.
 4. Cache purge removes the tenant namespace pattern through ICacheProvider.RemoveByPatternAsync (no tag API exists; #271).
@@ -821,14 +943,14 @@ IMPLEMENTATION OVERVIEW:
 6. ErasureNotification through OutboxOrchestrator.AddAsync and IOutboxStore.SaveChangesAsync; no recipients in the payload.
 7. Startup validation of the audit store (not the in-memory default outside Development) and the outbox.
 8. New error codes with ADR-062 categories; telemetry without subject data.
-Eight code pull requests plus one documentation pull request.
+Ten code pull requests (1, 2, 2b, 3, 3b, 4, 5, 6, 7, 8) plus one documentation pull request.
 
 KEY PATTERNS:
 - A Left from any step fails the request; the erasure is not undone and the request can be repeated.
 - Fail closed: missing tenant when required, missing completion, missing audit store or outbox at startup.
 - Never claim atomicity: the audit entry and the outbox row are written after the erasure, outside its transaction.
 - No subject id, error message or cache pattern in logs, tags, attributes or audit entries.
-- Apply the Maintainer Decisions section for Design Choices 4 to 7 and 9 to 11 once the maintainer has answered.
+- Apply the Maintainer Decisions section for Design Choices 4 to 7, 9 to 11 and 14 once the maintainer has answered.
 
 REFERENCE FILES:
 - src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs
@@ -847,7 +969,7 @@ REFERENCE FILES:
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | Caching | ✅ Include | The purge of the tenant's cached entries after an erasure (Design Choice 4). |
+| 1 | Caching | ✅ Include | The purge of the tenant's cached entries after an erasure, including the EF Core query-cache keys through `ICachePurgePatternSource` (Design Choices 4 and 14); the read-model caches of other compliance modules are deferred. |
 | 2 | OpenTelemetry | ✅ Include | A completion activity with step spans and a step counter; tenant tag when multi-tenancy is on (ADR-054 D4); no subject id or key (PR 8). |
 | 3 | Structured Logging | ✅ Include | EventIds 320-328 in the new range 320-329, error codes and exception types only. |
 | 4 | Health Checks | ❌ N/A | The existing DSR health check is unchanged; the startup check covers the new dependencies. |
@@ -866,6 +988,8 @@ REFERENCE FILES:
 - The `-` tenant segment collision in the DSR cache keys: `dsr-cache-key-tenant-segment-collision.md`.
 - Case-insensitive, escape-less glob matching of the Memory cache provider (provider inconsistency): `memory-cache-pattern-case-insensitive.md`.
 - The unused `DSRAuditEntry` record (ADR-036:66): `dsr-unused-audit-entry-record.md`.
+- The compliance read-model caches keyed by aggregate id (consent, lawful basis, retention, residency) that no tenant or subject pattern can reach: `erasure-cache-purge-compliance-read-models.md`.
+- The EF Core query-cache key shape (unescaped tenant, outside the `t:` namespace), needed only if Design Choice 14 is answered with option A or C: `ef-query-cache-tenant-key-shape.md`.
 - Retention of processed outbox rows: #1200 (open); under Design Choice 9 option B it becomes a prerequisite.
 - Tag-based purge instead of the tenant namespace: waits for #271 (open).
 
@@ -883,7 +1007,7 @@ REFERENCE FILES:
 | #2382 Startup requirements validator | ⏭️ Open feature | Replaces the local startup check (Design Choice 12) and owns the explicit opt-out and decorated-store detection |
 | #1200 Outbox retention | ⏭️ Open feature | Needed only under Design Choice 9 option B |
 | #1188, #1283 Retention holds | ⏭️ Open | Change what an erasure may do before this completion runs; not prerequisites |
-| Maintainer answers to Design Choices 4 to 7, 9, 10 and 11 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 4 to 7, 9, 10, 11 and 14 | Pending | Asked when work starts |
 
 No blocking prerequisites.
 
@@ -891,7 +1015,7 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 4, 5, 6, 7, 9, 10 and 11) when work starts, records the answers under `## Maintainer Decisions`, then briefs the eight code workers and the documentation worker in phase order (PR 2 changes or drops with the answer to Design Choice 6).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 4, 5, 6, 7, 9, 10, 11 and 14) when work starts, records the answers under `## Maintainer Decisions`, then briefs the ten code workers and the documentation worker in phase order (PR 2 changes or drops with the answer to Design Choice 6, PR 2b with the answer to Design Choice 14).
 2. Open the follow-up issues from the drafts in `artifacts/decisions/plan-batch/followups/` and link them from #2407.
 3. After the last pull request, comment on #2407 with the result and on #2408 with the namespace-purge decision.
 
@@ -899,4 +1023,4 @@ No blocking prerequisites.
 
 ## Maintainer Decisions
 
-Recorded decision of 2026-10-17 (comment on #2407, applied in Design Choices 1, 8 and 12): "orchestrate inside `DefaultDSRService` through small ports (`IErasureCachePurger`, awaited `IOperationAuditStore` entry, `ErasureNotification` via the Outbox), a `Left` fails the request, startup fails when DSR has no audit store". Design Choices 4, 5, 6, 7, 9, 10 and 11 are Dilemmas; their answers are recorded here, numbered like the choices, when the maintainer decides.
+Recorded decision of 2026-10-17 (comment on #2407, applied in Design Choices 1, 8 and 12): "orchestrate inside `DefaultDSRService` through small ports (`IErasureCachePurger`, awaited `IOperationAuditStore` entry, `ErasureNotification` via the Outbox), a `Left` fails the request, startup fails when DSR has no audit store". Design Choices 4, 5, 6, 7, 9, 10, 11 and 14 are Dilemmas; their answers are recorded here, numbered like the choices, when the maintainer decides.
