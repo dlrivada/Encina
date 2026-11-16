@@ -106,6 +106,9 @@ function Get-BoundArgument($Tokens, [int]$From, [object[]]$Positions, [int]$Want
 # $null (unresolved), so the analysis never trusts an argument it cannot read. Positional arguments are ignored.
 function Get-LaunchArguments($Tokens, $FileToken) {
     $result = @{}
+    # PowerShell reads U+2018..U+201F as quotes but this tokenizer does not: the argument list cannot be trusted.
+    $curly = '[' + [char]0x2018 + '-' + [char]0x201F + ']'
+    foreach ($tk in $Tokens) { if ([regex]::IsMatch([string]$tk.Value, $curly)) { return $result } }
     $at = -1
     for ($i = 0; $i -lt $Tokens.Count; $i++) { if ([object]::ReferenceEquals($Tokens[$i], $FileToken)) { $at = $i; break } }
     if ($at -lt 0) { return $result }
@@ -193,7 +196,7 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
 # the folder).
 function Remove-UrlText([string]$Text) {
-    return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?!file:)[a-z][a-z0-9+.\-]{1,31}://[^\s''"`<>()]*', ' ')
+    return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
 }
 
 # Whether a text names src or tests as a path segment (the word on its own, outside a URL and a longer name).
@@ -759,7 +762,7 @@ function Test-ScriptWritesAreSafe {
         # is bound (a switch or an array does not hold one literal).
         $scriptParams = @(if ($null -ne $root.ParamBlock) { $root.ParamBlock.Parameters })
         # An [Alias()] changes which parameter a name or prefix binds (aliases win before prefixes): bind nothing then.
-        $anyAlias = @($scriptParams | Where-Object { @($_.Attributes | Where-Object { $_.TypeName.Name -match '^(?i)Alias(Attribute)?$' }).Count -gt 0 }).Count -gt 0
+        $anyAlias = @($scriptParams | Where-Object { @($_.Attributes | Where-Object { $_.TypeName.FullName -match '(?i)(^|\.)Alias(Attribute)?$' }).Count -gt 0 }).Count -gt 0
         foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) {
             if ($functionParams.Contains($p)) { continue }
             $literal = $null
@@ -769,8 +772,8 @@ function Test-ScriptWritesAreSafe {
                 foreach ($argName in @($LaunchArgs.Keys)) {
                     $an = ([string]$argName).ToLowerInvariant()
                     if ($an -eq '') { continue }
+                    # Exact names only: a prefix could be a common parameter or an alias PowerShell binds instead.
                     $owners = @($scriptParams | Where-Object { (SwKey $_.Name) -eq $an })
-                    if ($owners.Count -eq 0) { $owners = @($scriptParams | Where-Object { (SwKey $_.Name).StartsWith($an) }) }
                     if ($owners.Count -eq 1 -and $owners[0] -eq $p -and $pkey -ne '') { $literal = $LaunchArgs[$argName]; $bindings++ }
                 }
             }

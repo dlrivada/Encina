@@ -471,6 +471,8 @@ $scriptFileUriTestsPs1 = Join-Path $work 'script-file-uri-tests.ps1'
 Set-Content $scriptUrlTestsDocsPs1 "Invoke-RestMethod 'https://example.com/tests/data.json' | Set-Content 'docs/x.md'"
 Set-Content $scriptUrlTestsWritesTestsPs1 "`$u = 'https://example.com/tests/data.json'`nSet-Content 'tests/x.cs' 'y'"
 Set-Content $scriptFileUriTestsPs1 "Set-Content 'file:///tests/x.cs' 'y'"
+$scriptCommaUrlSrcPs1 = Join-Path $work 'script-comma-url-src.ps1'
+Set-Content $scriptCommaUrlSrcPs1 "Set-Content https://x,src/a 1"
 
 # #2892: a .ps1 is judged by where it writes, not by the src/ and tests/ words in its text. Each script is the
 # text of one scenario; $main is interpolated, every script variable is escaped with a backtick.
@@ -530,7 +532,11 @@ $ps1Scripts = [ordered]@{
     AliasPrefix         = "param([string]`$Spec = '$main\src', [Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
     IexDriveSlashes     = "Invoke-Expression `"Set-Content '$($main.Replace(':\', '://').Replace('\', '/'))/src/x.txt' 1`"`n"
     # A write to tests/ through a variable, next to a URL.
-    FileUriSrc          = "Invoke-Expression `"Set-Content 'file:///$($main.Replace('\', '/'))/src/x.txt' 1`"`n"
+    CommaUrlSrc         = "Invoke-Expression `"Set-Content https://x,src/y 1`"`n"
+    PsDriveUrlSrc       = "Invoke-Expression `"Set-Content 'ab://src/x.txt' 1`"`n"
+    QualifiedAlias      = "param([string]`$Spec = '$main\src', [System.Management.Automation.Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
+    CommonPrefix        = "[CmdletBinding()]param([string]`$VerboseLevel = '$main\src')`n# never under src/ or tests/`nSet-Content -Path `"`$VerboseLevel\o.txt`" -Value 'y'`n"
+    FileUriSrc          ="Invoke-Expression `"Set-Content 'file:///$($main.Replace('\', '/'))/src/x.txt' 1`"`n"
     TestsViaVariable    ="`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
 }
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
@@ -649,6 +655,7 @@ $writeCases = @(
     @('PowerShell', @{ command = "& '$scriptWritesDocsPs1'" }, $main, 0, 'call operator of a script that writes only docs/, from the main checkout'),
     @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsDocsPs1'" }, $main, 0, '#3896: a script with a URL that has a /tests/ segment and writes only docs/: allowed'),
     @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsWritesTestsPs1'" }, $main, 2, '#3896: a script with a /tests/ URL that also writes tests/: blocked'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptCommaUrlSrcPs1'" }, $main, 2, '#3896: https://x,src/a writes src/ through the comma array: blocked'),
     @('PowerShell', @{ command = "pwsh -File '$scriptFileUriTestsPs1'" }, $main, 2, '#3896: a file: URI naming tests/ is still a path mention: blocked'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
@@ -1148,7 +1155,12 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\tests\board'" }, $main, 'a1b2', 2, 'site-steward (#3896): board refresh script with -Sp under tests/: denied', 'site-steward'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp:'$main\src\board'" }, $main, $null, 2, 'main session (#3896): -Sp:value form under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): a script that names tests/ in a comment, -Sp under artifacts/: allowed'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -S '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): -S (unique prefix of -Sp) under artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S (a prefix of -Sp) binds nothing, exact names only: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CommaUrlSrc)'" }, $main, $null, 2, 'main session (#3896): https://x,src/y writes src/ through the comma array: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.PsDriveUrlSrc)'" }, $main, $null, 2, 'main session (#3896): a PSDrive-style ab://src/ path is not blanked as a URL: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.QualifiedAlias)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a namespace-qualified [Alias] binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CommonPrefix)' -Verbose:false" }, $main, $null, 2, 'main session (#3896): -Verbose is not a prefix match for -VerboseLevel: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' $([char]0x2018) -Sp `"$main\artifacts`" $([char]0x2019)" }, $main, $null, 2, 'main session (#3896): curly quotes in the launch arguments bind nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): a script that names tests/, -Sp under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'tests\board'" }, $main, $null, 2, 'main session (#3896): -Sp a relative tests/ path: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)'" }, $main, $null, 2, 'main session (#3896): a script that names tests/ with -Sp not passed (unresolved): denied'),
