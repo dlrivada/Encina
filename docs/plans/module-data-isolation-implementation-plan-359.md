@@ -2,7 +2,7 @@
 
 > **Issue**: [#359](https://github.com/dlrivada/Encina/issues/359)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 10 database providers, 8 pull requests of 11, 11, 9, 9, 6, 15, 13 and 3 files)
+> **Complexity**: High (7 phases, 10 database providers, 8 pull requests of 11, 12, 11, 11, 6, 15, 13 and 5 files)
 > **Estimated Scope**: about 1,500 lines of production code and about 3,000 lines of tests, split over eight pull requests
 > **Family**: modular monolith (#352 umbrella, #358, #360, #364); this plan owns the data half of module isolation
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue proposes a new `Encina.Modular.Data` package with a `ModuleDataIsolation` enum, `[ModuleSchema]`, `IModuleDbContext<TModule>`, a Roslyn analyzer and EF extension methods. Most of the runtime already exists under other names, and reading it shows real gaps that the issue does not mention. State of `origin/main` (`db1e7f688`), verified by reading and grep:
+The issue proposes a new `Encina.Modular.Data` package with a `ModuleDataIsolation` enum, `[ModuleSchema]`, `IModuleDbContext<TModule>`, a Roslyn analyzer and EF extension methods. Most of the runtime already exists under other names, and reading it shows real gaps that the issue does not mention. State of `origin/main` (`e694eb032`), verified by reading and grep:
 
 | Issue item | Today | Owner of what remains |
 |------------|-------|-----------------------|
@@ -22,7 +22,7 @@ The issue proposes a new `Encina.Modular.Data` package with a `ModuleDataIsolati
 
 Four gaps found while reading the code, none in the issue:
 
-1. **Four providers silently ignore module isolation.** `RegisterModuleIsolation` exists only in `Encina.ADO.SqlServer`, `Encina.Dapper.SqlServer`, `Encina.EntityFrameworkCore` and `Encina.MongoDB`. `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.PostgreSQL` and `Encina.Dapper.MySQL` contain no `UseModuleIsolation` code (grep of `src/` finds the property only in the four registering packages and in `MessagingConfiguration`), although their `ModuleAwareConnectionFactory` and `SchemaValidatingCommand` classes exist. `config.UseModuleIsolation = true` there registers nothing, so no validation runs: a gate that fails open (`AGENTS.md` section 3, registration completeness and gates that fail closed). The integration tests of those packages build the wrappers by hand, so no test saw it.
+1. **Four providers do not register module isolation, and at runtime the gate is silent.** The limitation is documented in the package READMEs (`src/Encina.ADO.PostgreSQL/README.md:170`, `src/Encina.ADO.MySQL/README.md:200`, `src/Encina.Dapper.PostgreSQL/README.md:165` and `src/Encina.Dapper.MySQL/README.md:164`: "does not support `UseModuleIsolation`"), but nothing fails when an application sets it, so the defect is the silent runtime behavior. Pull requests 3 and 4 make those four sentences false and edit them. `RegisterModuleIsolation` exists only in `Encina.ADO.SqlServer`, `Encina.Dapper.SqlServer`, `Encina.EntityFrameworkCore` and `Encina.MongoDB`. `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.PostgreSQL` and `Encina.Dapper.MySQL` contain no `UseModuleIsolation` code (grep of `src/` finds the property only in the four registering packages and in `MessagingConfiguration`), although their `ModuleAwareConnectionFactory` and `SchemaValidatingCommand` classes exist. `config.UseModuleIsolation = true` there registers nothing, so no validation runs: a gate that fails open (`AGENTS.md` section 3, registration completeness and gates that fail closed). The integration tests of those packages build the wrappers by hand, so no test saw it.
 2. **Permission script generators exist for two of four engines.** SQL Server and PostgreSQL have one; MySQL (the schema is a database) and MongoDB (database per module, `MongoDbModuleIsolationOptions`) have none. `AGENTS.md` section 5 requires provider-dependent features on all 10 providers.
 3. **The generator default is wrong for two engines and the options are dead.** The registration helpers of ADO.SqlServer, Dapper.SqlServer and EF Core register `SqlServerPermissionScriptGenerator` by `TryAddSingleton`, so an EF Core PostgreSQL user receives the SQL Server generator. Nothing reads `GeneratePermissionScripts` or `PermissionScriptsOutputPath`; only the XML docs mention them.
 4. **The module producer is incomplete** (the context is set only by an EF Core behavior): owned by #352, whose pull request 1 moves it to core. Data isolation needs it, so this plan depends on it for the end-to-end tests of ADO.NET, Dapper and MongoDB.
@@ -92,7 +92,7 @@ The runtime ships in core and the providers (`ROADMAP.md` line 329); the only ne
 
 ### Rationale
 
-A wins when the options instance must stay the single source of truth for the registry, the interceptors and the script generators, which is how the code is built. B wins for applications with many modules that want zero per-module registration and accept changing the generator inputs. C wins if the maintainer prefers no attribute. A module that carries both an attribute and an explicit `AddModuleSchema` for the same name with a different schema throws `InvalidOperationException` at registration.
+A wins when the options instance must stay the single source of truth for the registry, the interceptors and the script generators, which is how the code is built. B wins for applications with many modules that want zero per-module registration and accept changing the generator inputs. C wins if the maintainer prefers no attribute. A module that carries both an attribute and an explicit `AddModuleSchema` for the same name with a different schema throws `InvalidOperationException` at registration. `AddModuleSchemaFrom<TModule>() where TModule : IModule, new()` instantiates the module at registration to read its `Name`, so a module that needs constructor arguments cannot use it and keeps `AddModuleSchema`.
 
 **Class:** Dilemma
 
@@ -218,7 +218,7 @@ A shared registration helper is the established way to keep eight registrations 
 
 ### Rationale
 
-A wins when compile-time feedback matters more than perfect recall (the runtime strategies catch the rest). B wins if false positives on string literals are a concern for the maintainer. The prefix `ENCMOD` avoids the issue's `ENC001` (too generic) and follows the per-feature prefix of the ABAC analyzers (`EEL`). A module owns a type when the type is declared in the assembly of the module class, or in the namespace of the module class when an assembly holds several modules; the schemas come from `[ModuleSchema]` metadata, which is readable across assemblies.
+A wins when compile-time feedback matters more than perfect recall (the runtime strategies catch the rest). B wins if false positives on string literals are a concern for the maintainer. The decision also covers the new public name `[ModuleDbContext(typeof(TModule))]` (core, `Encina.Modules.Isolation`), which marks the `DbContext` a module owns so that `ENCMOD001` can tell owner from user; the alternative is to infer ownership from `ModuleDbContext<TModule>` alone, which would miss plain `DbContext` classes. The prefix `ENCMOD` avoids the issue's `ENC001` (too generic) and follows the per-feature prefix of the ABAC analyzers (`EEL`). A module owns a type when the type is declared in the assembly of the module class, or in the namespace of the module class when an assembly holds several modules; the schemas come from `[ModuleSchema]` metadata, which is readable across assemblies.
 
 **Class:** Dilemma
 
@@ -261,7 +261,8 @@ REFERENCE FILES: src/Encina/Modules/Isolation/PostgreSqlPermissionScriptGenerato
 1. `src/Encina/Modules/Isolation/ModuleScriptDialect.cs`: enum `SqlServer`, `PostgreSql`, `MySql`, `MongoDb`; `ModuleIsolationOptions.ScriptDialect` (`ModuleScriptDialect?`).
 2. `src/Encina/Modules/Isolation/ModuleIsolationServiceCollectionExtensions.cs`: `AddEncinaModuleIsolationServices(this IServiceCollection, ModuleIsolationOptions, ModuleScriptDialect? defaultDialect)`: registers the options singleton, `TryAddSingleton<IModuleSchemaRegistry, ModuleSchemaRegistry>()`, `TryAddScoped<IModuleExecutionContext, ModuleExecutionContext>()`, the generator for `options.ScriptDialect ?? defaultDialect` by `TryAddSingleton` and, when `GeneratePermissionScripts` is on, the writer; throws `InvalidOperationException` when scripts are requested with no dialect or no output path.
 3. `src/Encina/Modules/Isolation/ModulePermissionScriptWriter.cs` (internal hosted service, D6): writes `GenerateAllScripts` results under `PermissionScriptsOutputPath`; the file name comes from `PermissionScript.Name` (generated constants plus a lower-cased module name), the resolved path must stay inside the output directory, an existing file with different content is overwritten only after a warning log, failures are logged by error code and rethrown (the host fails to start rather than reporting success).
-4. Tests: unit (helper registration for each dialect, `ValidateOnBuild` and `ValidateScopes`; writer with a fake file system path under a temp directory; options), guard, PublicAPI, `Encina.json`.
+4. `src/Encina/Modules/Diagnostics/ModuleLog.cs` (existing `ModuleIsolation` range 1900-1999, ids 1900-1906 used): two new `[LoggerMessage]` methods, `PermissionScriptOverwritten` (Warning, id 1907) and `PermissionScriptWriteFailed` (Error, id 1908, error code and file name only, never the exception message), packed from 1907; the `ModuleLog` XML remarks stay; the two new public methods get their PublicAPI lines in this pull request, and the writer unit tests assert that the warning and the error are logged (a fake logger).
+5. Tests: unit (helper registration for each dialect, `ValidateOnBuild` and `ValidateScopes`; writer with a fake file system path under a temp directory and the two log calls; options), guard, PublicAPI, `Encina.json`.
 
 </details>
 
@@ -282,8 +283,8 @@ REFERENCE FILES: src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs (Regist
 <details>
 <summary>Tasks</summary>
 
-1. **Pull request 3, ADO.NET**: `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL` gain `RegisterModuleIsolation` (the helper call with their dialect) and the `ModuleAwareConnectionFactory` wrapping in the `AddEncinaADO` overload that takes a connection factory, mirroring `Encina.ADO.SqlServer` (`ServiceCollectionExtensions.cs` lines 156-172 and 282-300); `Encina.ADO.SqlServer` switches its block to the helper.
-2. **Pull request 4, Dapper**: the same for `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` and `Encina.Dapper.SqlServer`.
+1. **Pull request 3, ADO.NET**: `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL` gain `RegisterModuleIsolation` (the helper call with their dialect) and the `ModuleAwareConnectionFactory` wrapping in the `AddEncinaADO` overload that takes a connection factory, mirroring `Encina.ADO.SqlServer` (`ServiceCollectionExtensions.cs` lines 156-172 and 282-300); `Encina.ADO.SqlServer` switches its block to the helper. The sentence "`AddEncinaADO` for PostgreSQL/MySQL does not support `UseModuleIsolation`" in `src/Encina.ADO.PostgreSQL/README.md` and `src/Encina.ADO.MySQL/README.md` is replaced by a description of the registered isolation (through `docs-writer`).
+2. **Pull request 4, Dapper**: the same for `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` and `Encina.Dapper.SqlServer`, and the same README sentence ("This registration does not support `UseModuleIsolation`") in `src/Encina.Dapper.PostgreSQL/README.md` and `src/Encina.Dapper.MySQL/README.md`.
 3. **Pull request 5, EF Core and MongoDB**: `Encina.EntityFrameworkCore` replaces its block and its unconditional SQL Server generator by the helper (dialect required for scripts, D5); `Encina.MongoDB` calls the helper with `MongoDb`.
 4. Tests per pull request: a DI test with `ValidateOnBuild` and `ValidateScopes` proving that with `UseModuleIsolation = true` every package registers the options, the registry, the context and, for ADO.NET and Dapper, a wrapped `IDbConnection`; integration tests that build the provider through `AddEncinaADO` or `AddEncinaDapper` (not the wrapper by hand) and prove a cross-schema statement throws `ModuleIsolationViolationException` for PostgreSQL and MySQL (extending `ModuleIsolationADOIntegrationTests` and `ModuleIsolationDapperIntegrationTests` of those two providers), and for MongoDB through `AddEncinaMongoDB`.
 5. Coverage manifests of every edited package (through `mechanical-fixer`).
@@ -310,7 +311,7 @@ REFERENCE FILES: src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs, src/En
 1. `src/Encina/Modules/Isolation/ModuleSchemaAttribute.cs` (`[AttributeUsage(AttributeTargets.Class)]`, `SchemaName` validated) and `ModuleIsolationOptions.AddModuleSchemaFrom<TModule>() where TModule : IModule, new()` (D3); a conflict with an explicit entry throws `InvalidOperationException`.
 2. `src/Encina/Modules/Isolation/IModuleDbContext.cs`: `public interface IModuleDbContext<TModule> where TModule : IModule { string Schema { get; } }`.
 3. `src/Encina.EntityFrameworkCore/Modules/ModuleDbContext.cs`: `public abstract class ModuleDbContext<TModule> : DbContext, IModuleDbContext<TModule>`, constructor `(DbContextOptions options, IModuleSchemaRegistry registry)`, `Schema` resolved from the registry by the module name, `OnModelCreating` calls `ApplyModuleSchema` and `ValidateModuleBoundaries`.
-4. `src/Encina.EntityFrameworkCore/Modules/ModelBuilderModuleExtensions.cs`: `ApplyModuleSchema(this ModelBuilder, IModuleSchemaRegistry, string moduleName)` (`HasDefaultSchema`; an unregistered module throws) and `ValidateModuleBoundaries(...)` (D4); MySQL maps a schema to a database, so the phase first verifies what the repository's MySQL EF provider does with `HasDefaultSchema` (`Directory.Packages.props` notes that `Pomelo.EntityFrameworkCore.MySql` waits for EF Core 10 support) and adds a MySQL case only for a provider that runs.
+4. `src/Encina.EntityFrameworkCore/Modules/ModelBuilderModuleExtensions.cs`: `ApplyModuleSchema(this ModelBuilder, IModuleSchemaRegistry, string moduleName)` (`HasDefaultSchema`; an unregistered module throws) and `ValidateModuleBoundaries(...)` (D4); MySQL maps a schema to a database, so the phase first verifies what the repository's MySQL EF provider does with `HasDefaultSchema` (`Directory.Packages.props` pins `Pomelo.EntityFrameworkCore.MySql` 9.0.0 and `ModuleIsolationEFMySqlTests` is skipped until a Pomelo release for EF Core 10 exists) and adds a MySQL case only for a provider that runs.
 5. Tests: unit (one file for the core attribute and options method, one for the two EF extensions) and one guard file; integration: the three EF Core classes (`ModuleIsolationEFSqlServerTests`, `ModuleIsolationEFPostgreSqlTests`, `ModuleIsolationEFMySqlTests`, each `IAsyncLifetime` and sealed, so each is edited) gain a case with a `ModuleDbContext` that creates its tables in its own schema and rejects a foreign-schema entity.
 6. PublicAPI of `Encina` and `Encina.EntityFrameworkCore`, manifests of both.
 
@@ -336,7 +337,7 @@ REFERENCE FILES: src/Encina/Modules/Isolation/ModuleIsolationOptions.cs, src/Enc
 1. `src/Encina.Modules.Analyzers/Encina.Modules.Analyzers.csproj` shaped like `Encina.Security.ABAC.Analyzers` (`netstandard2.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, packed under `analyzers/dotnet/cs`), a `README.md`, and an entry in `Encina.slnx`.
 2. `DiagnosticDescriptors.cs` (`ENCMOD001` to `ENCMOD003`, category `Encina.Modules`, default severity Warning for 001 and 002, Error for 003), `ModuleDataIsolationAnalyzer.cs` (`[DiagnosticAnalyzer(LanguageNames.CSharp)]`, concurrent execution enabled, generated code skipped), and a small internal `ModuleOwnership.cs` that maps a symbol to its module (D9).
 3. A `[ModuleDbContext(typeof(TModule))]` attribute is needed by `ENCMOD001`: `src/Encina/Modules/Isolation/ModuleDbContextAttribute.cs` is added in this pull request (core), with its PublicAPI line.
-4. Tests: `tests/Encina.UnitTests/Modules/Analyzers/ModuleDataIsolationAnalyzerTests.cs` compile snippets with `CSharpCompilation` and run `CompilationWithAnalyzers` (no new Roslyn testing package: `Microsoft.CodeAnalysis.CSharp` 5.0.0 is already in `Directory.Packages.props`); the unit test project gains a `ProjectReference` to the analyzer project; cases: each rule fires, a same-module use does not, generated code is skipped, a shared schema is allowed, a schema-qualified literal of the own module is allowed.
+4. Tests: `tests/Encina.UnitTests/Modules/Analyzers/ModuleDataIsolationAnalyzerTests.cs` compile snippets with `CSharpCompilation` and run `CompilationWithAnalyzers` (no new Roslyn testing package: `Microsoft.CodeAnalysis.CSharp` 5.0.0 is already in `Directory.Packages.props`); the unit test project gains a `ProjectReference` to the analyzer project and a `PackageReference` to `Microsoft.CodeAnalysis.CSharp` in the same `Encina.UnitTests.csproj` edit (today only `Encina.IntegrationTests` references it; the version is central in `Directory.Packages.props`); cases: each rule fires, a same-module use does not, generated code is skipped, a shared schema is allowed, a schema-qualified literal of the own module is allowed.
 5. Coverage manifest `.github/coverage-manifest/Encina.Modules.Analyzers.json` (new), through `mechanical-fixer`.
 
 </details>
@@ -363,7 +364,7 @@ REFERENCE FILES: src/Encina.Security.ABAC.Analyzers/Encina.Security.ABAC.Analyze
 3. Fail-closed: a package that cannot enforce isolation must not accept `UseModuleIsolation`; pull requests 3 to 5 make every package register it, and the DI tests prove it.
 4. Telemetry (ADR-054 D4): isolation violations have no counter today (seven throw sites: six `SchemaValidatingCommand` classes and the EF interceptor); adding one is a follow-up issue file (`artifacts/issues/module-isolation-violation-telemetry.md`, this plan's worktree). When added, the tenant tag is emitted only with multi-tenancy on.
 5. Error code and category (ADR-062): this feature adds no `EncinaError` code; violations are `ModuleIsolationViolationException` (code `Encina.ModuleIsolationViolation`), the existing channel; startup configuration errors are `InvalidOperationException`. A future `Either` form of the violation would be `ErrorCategory.Forbidden`.
-6. EventIds: none needed; the existing `ModuleIsolation` range 1900-1999 (ids 1900-1906 used) stays unchanged and no new range is requested.
+6. EventIds: the script writer logs, so its two messages take ids 1907 and 1908 of the existing `ModuleIsolation` range 1900-1999 (1900-1906 used, packed; Phase 2 task 4); no new range is requested.
 
 </details>
 
@@ -407,11 +408,11 @@ Per-flag targets for the files this work adds or changes, entered in the package
 | EF extensions unit 95, guard 70, integration 80 | Model building runs in unit tests with the in-memory relational-free path and in integration tests on SQL Server, PostgreSQL and MySQL; guard tests reach the null checks. |
 | Analyzer unit 90, guard 0 | The analyzer has no public parameterized API (the Roslyn entry points take framework types); the unit tests drive each diagnostic through a compilation. |
 | Contract 0 for every file above | The new public contracts (`IModuleDbContext<TModule>`, the dialect enum) have no executable lines; `IModulePermissionScriptGenerator` is covered by `ModuleIsolationContractTests`, which is extended with the two new generators in pull request 1. |
-| Integration 0 for the registration helper, writer, attributes and analyzer | In-process code with no database; the registration is proven end to end by the integration tests of pull requests 3 to 5; load and benchmark: a startup and compile-time feature, justification files `tests/Encina.LoadTests/Modules/ModuleIsolation.md` and `tests/Encina.BenchmarkTests/Modules/ModuleIsolation.md` in pull request 2. |
+| Integration 0 for the registration helper, writer, attributes and analyzer | In-process code with no database; the registration is proven end to end by the integration tests of pull requests 3 to 5; load and benchmark: a startup and compile-time feature, the existing justification files `tests/Encina.LoadTests/ModuleIsolation.md` and `tests/Encina.BenchmarkTests/ModuleIsolation.md` (they exist at the project roots) are extended in pull request 2 to cover script generation and registration; no second file is created. |
 
 1. **Unit**, **Guard**, **Property**, **Integration** as in the phases; **Contract**: `ModuleIsolationContractTests` gains the MySQL and MongoDB generators (pull request 1).
 2. **All 10 providers**: registration and end-to-end enforcement are tested for ADO.NET, Dapper and EF Core on SQL Server, PostgreSQL and MySQL and for MongoDB (pull requests 3 to 5); scripts are integration-tested on all four engines (SQL Server and PostgreSQL by the existing tests, MySQL and MongoDB by pull request 1).
-3. **Documentation (pull request 8)**: the page `docs/features/module-isolation.md` (provider setup, scripts, attribute, EF schema, analyzer) through `docs-writer`, the analyzer package README, `docs/INVENTORY.md`, `ROADMAP.md`, changelog fragment `changelog.d/359-module-data-isolation.added.md` (and `359-module-isolation-registration.fixed.md` for the four packages), through `mechanical-fixer`; no ADR (no new architectural decision beyond existing ADR-009 and ADR-024 provider scopes).
+3. **Documentation (pull request 8)**: the page `docs/features/module-isolation.md` (provider setup, scripts, attribute, EF schema, analyzer) through `docs-writer` (the analyzer README ships in pull request 7 and the four package README sentences in pull requests 3 and 4), `docs/INVENTORY.md`, `ROADMAP.md`, changelog fragment `changelog.d/359-module-data-isolation.added.md` (and `359-module-isolation-registration.fixed.md` for the four packages), through `mechanical-fixer`; no ADR (no new architectural decision beyond existing ADR-009 and ADR-024 provider scopes).
 4. `dotnet build --configuration Release` with zero warnings; all tests green; every flag at its target; CRAP table for every changed method below 10.
 
 </details>
@@ -462,7 +463,7 @@ REFERENCE FILES: .github/coverage-manifest/Encina.json, tests/Encina.ContractTes
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (`ModuleIsolation`, existing) | 1900-1999, ids 1900-1906 used | No new id in this plan; the new range for the family (7600-7649, from the registry `artifacts/decisions/plan-batch/eventid-blocks.md`) is used by #360, #352, #358 and #364 |
+| `Encina` (`ModuleIsolation`, existing) | 1900-1999, ids 1900-1906 used | This plan adds ids 1907 (script overwritten, Warning) and 1908 (script write failed, Error) in `ModuleLog.cs`, packed, no new range; the new range for the rest of the family (7600-7649, from the registry `artifacts/decisions/plan-batch/eventid-blocks.md`) is used by #360 (7600-7619), #352 (7620-7629), #358 (7630-7644) and #364 (7645-7649), so there is no collision |
 
 ### Estimated File Count
 
@@ -471,16 +472,16 @@ REFERENCE FILES: .github/coverage-manifest/Encina.json, tests/Encina.ContractTes
 | Production code | 23 | core: 8 new (two generators, dialect enum, helper, writer, two attributes, `IModuleDbContext`) and `ModuleIsolationOptions` edited; EF Core: `ModuleDbContext` and `ModelBuilderModuleExtensions` new; 8 package registrations edited (ADO.PostgreSQL, ADO.MySQL, ADO.SqlServer, Dapper.PostgreSQL, Dapper.MySQL, Dapper.SqlServer, EF Core, MongoDB); analyzer project 4 new (csproj, descriptors, analyzer, ownership) plus README and the `Encina.slnx` edit |
 | Public API and manifests | 1 to 4 per pull request | one PublicAPI file per touched package with new symbols; one manifest per touched package |
 | Tests | about 30 | unit, guard, property, contract edit, integration (MySQL and MongoDB scripts, ADO and Dapper PostgreSQL and MySQL end to end, MongoDB, EF Core three) |
-| Justification files | 2 | load and benchmark (pull request 2) |
-| Documentation | 5 | page, README, inventory, roadmap, changelog fragments |
+| Justification files | 2 | the existing load and benchmark files at the test project roots, edited (pull request 2) |
+| Documentation | 11 | pull request 3: 2 package READMEs; pull request 4: 2 package READMEs; pull request 7: analyzer README (counted in production); pull request 8: page, inventory, roadmap, 2 changelog fragments |
 | **Pull request 1** | **11** | 2 generators, PublicAPI, manifest, 7 tests (2 unit, guard edit, property, contract edit, 2 integration) |
-| **Pull request 2** | **11** | dialect enum, helper, writer, `ModuleIsolationOptions`, PublicAPI, manifest, 3 tests (helper unit, writer unit, guard), 2 justification files |
-| **Pull request 3** | **9** | `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.ADO.SqlServer` registrations, 3 manifests, DI test, 2 integration test edits |
-| **Pull request 4** | **9** | the same for the three Dapper packages |
+| **Pull request 2** | **12** | dialect enum, helper, writer, `ModuleIsolationOptions`, `ModuleLog` (ids 1907-1908), PublicAPI, manifest, 3 tests (helper unit, writer unit including the two log assertions, guard), 2 justification files (edits) |
+| **Pull request 3** | **11** | `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.ADO.SqlServer` registrations, 3 manifests, DI test, 2 integration test edits, 2 package READMEs (ADO.PostgreSQL, ADO.MySQL) |
+| **Pull request 4** | **11** | the same for the three Dapper packages (3 registrations, 3 manifests, DI test, 2 integration edits) and 2 package READMEs (Dapper.PostgreSQL, Dapper.MySQL) |
 | **Pull request 5** | **6** | `Encina.EntityFrameworkCore` and `Encina.MongoDB` registrations, 2 manifests, DI test, MongoDB integration edit |
 | **Pull request 6** | **15** | 5 production (`ModuleSchemaAttribute`, `IModuleDbContext`, `ModuleIsolationOptions` edit, `ModuleDbContext`, `ModelBuilderModuleExtensions`), 2 PublicAPI, 2 manifests, 3 unit and guard tests (core unit, EF unit, one guard file), 3 integration edits (`ModuleIsolationEFSqlServerTests`, `ModuleIsolationEFPostgreSqlTests`, `ModuleIsolationEFMySqlTests`) |
 | **Pull request 7** | **13** | analyzer csproj, README, descriptors, analyzer, ownership, `ModuleDbContextAttribute`, `Encina.slnx`, unit test project csproj edit, analyzer unit test, attribute guard test, `Encina.Modules.Analyzers.json`, `Encina.json` edit, `Encina` PublicAPI |
-| **Pull request 8** | **3** | docs page, inventory and roadmap together, changelog fragments |
+| **Pull request 8** | **5** | docs page, `docs/INVENTORY.md`, `ROADMAP.md`, 2 changelog fragments |
 
 Callers and implementers, by grep on `origin/main`: `IModulePermissionScriptGenerator` is implemented by two classes (both in core) and registered in three packages; `RegisterModuleIsolation` is a private method in four packages; `UseModuleIsolation` is read in `MessagingConfiguration`, ADO.SqlServer, Dapper.SqlServer, EF Core and MongoDB. No public interface is changed (only added), so no pull request can leave the build broken; pull request 6 uses `AddModuleSchemaFrom` that it adds itself.
 
@@ -511,7 +512,7 @@ REFERENCE FILES: src/Encina/Modules/Isolation/*.cs, src/Encina.ADO.SqlServer/Ser
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ | Module-scoped cache keys are #746 (open). |
 | 2 | OpenTelemetry | ⏭️ | Violation counter at the seven throw sites: follow-up issue file `artifacts/issues/module-isolation-violation-telemetry.md` (this plan's worktree); tenant tag only with multi-tenancy (ADR-054 D4). |
-| 3 | Structured Logging | ✅ | The script writer logs by error code and file name; the existing `ModuleLog` ids 1900-1906 stay; no new range. |
+| 3 | Structured Logging | ✅ | The script writer logs by error code and file name: `ModuleLog` ids 1907 (warning) and 1908 (error) in the existing 1900-1999 range; no new range. |
 | 4 | Health Checks | ⏭️ | Per-module database health is #364 (open, same family). |
 | 5 | Validation | ✅ | Registration validates dialect, output path and attribute conflicts; the EF model is validated; identifiers in generated scripts are validated. |
 | 6 | Resilience | ❌ | No external call is added; scripts run offline against a database a person chooses. |
@@ -526,7 +527,7 @@ REFERENCE FILES: src/Encina/Modules/Isolation/*.cs, src/Encina.ADO.SqlServer/Ser
 
 ## Prerequisites & Dependencies
 
-- **Pull requests 1 and 2 have none**: they depend only on code on `origin/main` (`db1e7f688`).
+- **Pull requests 1 and 2 have none**: they depend only on code on `origin/main` (`e694eb032`).
 - **End-to-end tests of pull requests 3 to 5**: the wrapped connections only validate while a module is the ambient module; the tests set the module with `IModuleExecutionContext.CreateScope` directly, so they do not wait for #352's producer move, which makes the production behavior complete for ADO.NET, Dapper and MongoDB.
 - **Related, not blocking**: #703 (cache of schema extraction) and #746 (module id in cache keys) touch the same isolation namespace; #360 supplies module names and the graph the analyzer's ownership rule can later reuse.
 
@@ -535,5 +536,5 @@ REFERENCE FILES: src/Encina/Modules/Isolation/*.cs, src/Encina.ADO.SqlServer/Ser
 ## Next Steps
 
 1. Ask the maintainer D3, D5, D6 and D9 when work on #359 starts; record the answers in `## Maintainer Decisions`.
-2. Pull requests in order: 1 generators (10 files), 2 helper and writer (11), 3 ADO.NET registration (9), 4 Dapper registration (9), 5 EF Core and MongoDB registration (6), 6 attribute and EF schema (15), 7 analyzer (10), 8 documentation (3).
+2. Pull requests in order: 1 generators (11 files), 2 helper, writer and log ids (12), 3 ADO.NET registration and READMEs (11), 4 Dapper registration and READMEs (11), 5 EF Core and MongoDB registration (6), 6 attribute and EF schema (15), 7 analyzer (13), 8 documentation (5).
 3. Open the follow-up issue files `module-isolation-violation-telemetry` and `module-cross-module-audit` when the plan is merged.
