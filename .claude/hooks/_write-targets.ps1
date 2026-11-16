@@ -193,7 +193,7 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
 # the folder).
 function Remove-UrlText([string]$Text) {
-    return [regex]::Replace($Text, '(?i)\b(?!file:)[a-z][a-z0-9+.\-]*://[^\s''"`<>()]*', ' ')
+    return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?!file:)[a-z][a-z0-9+.\-]{1,31}://[^\s''"`<>()]*', ' ')
 }
 
 # Whether a text names src or tests as a path segment (the word on its own, outside a URL and a longer name).
@@ -758,6 +758,8 @@ function Test-ScriptWritesAreSafe {
         # that literal; an unsupplied, non-literal or ambiguous one stays tainted. Only a string or untyped parameter
         # is bound (a switch or an array does not hold one literal).
         $scriptParams = @(if ($null -ne $root.ParamBlock) { $root.ParamBlock.Parameters })
+        # An [Alias()] changes which parameter a name or prefix binds (aliases win before prefixes): bind nothing then.
+        $anyAlias = @($scriptParams | Where-Object { @($_.Attributes | Where-Object { $_.TypeName.Name -match '^(?i)Alias(Attribute)?$' }).Count -gt 0 }).Count -gt 0
         foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) {
             if ($functionParams.Contains($p)) { continue }
             $literal = $null
@@ -772,11 +774,19 @@ function Test-ScriptWritesAreSafe {
                     if ($owners.Count -eq 1 -and $owners[0] -eq $p -and $pkey -ne '') { $literal = $LaunchArgs[$argName]; $bindings++ }
                 }
             }
-            if ($bindings -eq 1 -and $null -ne $literal -and [string]$literal -ne '') {
-                $literalRoot = [System.Management.Automation.Language.Parser]::ParseInput("'" + ([string]$literal).Replace("'", "''") + "'", [ref]$null, [ref]$null)
-                SwAdd (SwKey $p.Name) $literalRoot.EndBlock.Statements[0].PipelineElements[0].Expression
+            # The literal becomes a string node through the parser; any mismatch (a Unicode quote that ends the string
+            # early, a control character) means the value is not what the command line carries: unresolved.
+            $literalAst = $null
+            if ($bindings -eq 1 -and $null -ne $literal -and [string]$literal -ne '' -and -not $anyAlias) {
+                $parseErr = $null
+                $literalRoot = [System.Management.Automation.Language.Parser]::ParseInput("'" + ([string]$literal).Replace("'", "''") + "'", [ref]$null, [ref]$parseErr)
+                $stmts = @($literalRoot.EndBlock.Statements)
+                if ($parseErr.Count -eq 0 -and $stmts.Count -eq 1 -and $stmts[0].PipelineElements.Count -eq 1) {
+                    $candidateAst = $stmts[0].PipelineElements[0].Expression
+                    if ((SwKind $candidateAst 'StringConstantExpressionAst') -and [string]::Equals([string]$candidateAst.Value, [string]$literal, [StringComparison]::Ordinal)) { $literalAst = $candidateAst }
+                }
             }
-            else { SwAdd (SwKey $p.Name) $null }
+            SwAdd (SwKey $p.Name) $literalAst
         }
 
         # Write sites.

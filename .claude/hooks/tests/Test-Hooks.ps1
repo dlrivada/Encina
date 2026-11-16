@@ -518,6 +518,10 @@ $ps1Scripts = [ordered]@{
     ParamSpSwitch       = "param([switch]`$Sp)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     # A URL with a /tests/ segment and a hyphenated name are not repository paths.
     UrlTestsSegment     = "param([string]`$Sp = `$PSScriptRoot)`n`$r = Invoke-RestMethod -Uri 'https://example.com/tests/data.json'`n`$r | ConvertTo-Json | Set-Content `"`$Sp\data.json`"`n"
+    # Review of #3896: an [Alias] makes -Sp bind to $Target, not to the prefix match $Spec; a drive path written with
+    # `//` is no URL.
+    AliasPrefix         = "param([string]`$Spec = '$main\src', [Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
+    IexDriveSlashes     = "Invoke-Expression `"Set-Content '$($main.Replace(':\', '://').Replace('\', '/'))/src/x.txt' 1`"`n"
     # A write to tests/ through a variable, next to a URL.
     TestsViaVariable    = "`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
 }
@@ -1141,6 +1145,9 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\a' -Sp '$main\src\b'" }, $main, $null, 2, 'main session (#3896): -Sp passed twice is not trusted: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpAmbiguous)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S is an ambiguous prefix of -Sp and -Sq, so it binds nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpSwitch)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -Sp is a switch parameter, so no literal is bound: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AliasPrefix)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a script with an [Alias] binds nothing from the command line: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.IexDriveSlashes)'" }, $main, $null, 2, 'main session (#3896): a drive path written with // is not a URL: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts$([char]0x2019)\..\src\x'" }, $main, $null, 2, 'main session (#3896): a -Sp literal with a Unicode quote does not parse back to itself: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)'" }, $main, $null, 0, 'main session (#3896): a URL with a /tests/ segment is not a repository path: allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)' -Sp '$main\tests\x'" }, $main, $null, 2, 'main session (#3896): the same script with -Sp under tests/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.TestsViaVariable)'" }, $main, $null, 2, 'main session (#3896): a write to tests/ through a variable, next to a URL: denied'),
