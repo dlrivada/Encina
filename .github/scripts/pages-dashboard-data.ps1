@@ -42,14 +42,14 @@ The fix has four modes:
       of the new branch head, so it never drops the other publisher's data.
 
   -Mode Assemble  (docs.yml deploy job, inside the "pages" concurrency lock)
-      Lays the dashboard data over the built site: first the live Pages copy of every managed file
-      (a base for dashboards that have not persisted anything yet), then the "dashboard-data" branch
-      (always at least as fresh as the live copy). Every file that Jekyll copied from
-      docs/<domain>/data (committed latest, history and timestamped snapshots) and the committed
-      badges are removed first, except cited-by.json, so they are never published by accident. Any
-      failure to read the live site (other than a 404 for a file that dashboard does not publish) or
-      the branch fails the deploy, every JSON file of the assembled data (live or from the branch)
-      must parse, and every dashboard must end with a latest.json and a history.json.
+      Lays the dashboard data of the "dashboard-data" branch over the built site. The branch is the
+      only source: the live Pages site is the copy this deploy replaces, never read here (#3746:
+      HTTP 503s from Pages failed every deploy that depended on it). Every file that Jekyll copied
+      from docs/<domain>/data (committed latest, history and timestamped snapshots) and the
+      committed badges are removed first, except cited-by.json, so they are never published by
+      accident. A missing branch or any git failure fails the deploy, every JSON file of the
+      assembled data must parse, and every dashboard must end with a latest.json and a
+      history.json from the branch, so a dashboard without data fails the deploy visibly.
       cited-by.json is not touched: the build renders it from the docref indexes.
 
 Running inside the lock is what closes the lost-update race: deploys are serialized, and each one
@@ -81,7 +81,7 @@ A git checkout whose "origin" remote is the repository (credentials persisted fo
 The data branch; "dashboard-data" unless testing.
 
 .PARAMETER BaseUrl
-Live and Assemble: the live Pages root.
+Live only: the live Pages root.
 
 .EXAMPLE
 pwsh .github/scripts/pages-dashboard-data.ps1 -Mode Read -Domain mutations -OutDir base/mutations
@@ -126,11 +126,11 @@ $Domains = @('coverage', 'benchmarks', 'load-tests', 'mutations')
 # them over the site, so they are not published and need no live copy.
 $BranchOnlyDomains = @('honesty-audit')
 $StoredDomains = $Domains + $BranchOnlyDomains
-# Files under <domain>/data/ that the dashboards publish. cited-by.json is excluded on purpose: the
-# docs build renders it from the docref indexes and owns it.
-$DataFiles = @('latest.json', 'history.json', 'docref-index.json', 'fingerprints.json', 'benchmark-coverage.json')
+# Files under <domain>/data/ every published dashboard must have: Live reads them, and Assemble fails
+# the deploy when the branch lacks one.
 $RequiredDataFiles = @('latest.json', 'history.json')
-# Files under <domain>/ (the badges referenced from the README).
+# Files under <domain>/ (the badges referenced from the README) that Assemble removes from the built
+# site before laying the branch over it.
 $RootFiles = @('badge.svg', 'badge.json')
 $SnapshotPattern = '^\d{4}-\d{2}-\d{2}T\d{6}Z\.json$'
 
@@ -364,8 +364,7 @@ function Clear-DomainData {
     }
 }
 
-# Fails the deploy on the first JSON file of the assembled domain that does not parse, whether it
-# came from the live site or from the dashboard-data branch.
+# Fails the deploy on the first JSON file of the assembled domain that does not parse.
 function Assert-DomainJsonValid {
     param([string] $Root, [string] $Domain)
     $dataDir = Join-Path $Root "$Domain/data"
@@ -388,45 +387,33 @@ function Invoke-Assemble {
     if (-not $SiteRoot) { throw 'Assemble needs -SiteRoot.' }
     if (-not (Test-Path -LiteralPath $SiteRoot -PathType Container)) { throw "Site root $SiteRoot does not exist." }
     $SiteRoot = (Resolve-Path -LiteralPath $SiteRoot).Path
-    $cacheBuster = Get-CacheBuster
-    $origin = @{}
 
-    foreach ($domain in $Domains) {
-        Clear-DomainData -Root $SiteRoot -Domain $domain
-        $managed = @($DataFiles | ForEach-Object { "$domain/data/$_" }) + @($RootFiles | ForEach-Object { "$domain/$_" })
-        foreach ($relative in $managed) {
-            $path = Join-Path $SiteRoot $relative
-            if (Save-LiveFile -RelativePath $relative -Destination $path -CacheBuster $cacheBuster) {
-                $origin[$relative] = 'live'
-            }
-        }
+    # The data branch is the only source (#3746): the live site is the copy this deploy replaces,
+    # and reading it made every deploy depend on Pages answering (HTTP 503s failed the deploys of
+    # 2026-11-13..16). Without the branch there is no data to publish, so the deploy fails.
+    if (-not (Test-RemoteBranch)) {
+        throw "Refusing to deploy: the $Branch branch does not exist, so no dashboard has data to publish."
     }
+    foreach ($domain in $Domains) { Clear-DomainData -Root $SiteRoot -Domain $domain }
 
-    if (Test-RemoteBranch) {
-        Update-RemoteBranchRef
-        $persisted = New-TempDirectory
-        try {
-            $head = [string] ((Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output | Select-Object -First 1)
-            Expand-Commit -Commit $head -Destination $persisted
-            Write-Host "Applying $Branch at $head over the live data."
-            foreach ($domain in $Domains) {
-                $source = Join-Path $persisted $domain
-                if (-not (Test-Path -LiteralPath $source -PathType Container)) {
-                    Write-Host "  $domain has no persisted data yet; the live copy is kept."
-                    continue
-                }
+    Update-RemoteBranchRef
+    $head = [string] ((Invoke-Git -Arguments @('rev-parse', "refs/remotes/origin/$Branch")).Output | Select-Object -First 1)
+    $persisted = New-TempDirectory
+    $laid = @()
+    try {
+        Expand-Commit -Commit $head -Destination $persisted
+        Write-Host "Laying $Branch at $head over the site."
+        foreach ($domain in $Domains) {
+            $source = Join-Path $persisted $domain
+            if (Test-Path -LiteralPath $source -PathType Container) {
                 Copy-Tree -Source $source -Destination (Join-Path $SiteRoot $domain)
-                Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {
-                    $origin[[IO.Path]::GetRelativePath($persisted, $_.FullName).Replace('\', '/')] = $Branch
-                }
+                $laid += @(Get-ChildItem -LiteralPath $source -Recurse -File -Force |
+                        ForEach-Object { [IO.Path]::GetRelativePath($persisted, $_.FullName).Replace('\', '/') })
             }
         }
-        finally {
-            Remove-Item -LiteralPath $persisted -Recurse -Force -ErrorAction SilentlyContinue
-        }
     }
-    else {
-        Write-Host "Branch $Branch does not exist yet; every dashboard keeps its live data."
+    finally {
+        Remove-Item -LiteralPath $persisted -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     foreach ($domain in $Domains) { Assert-DomainJsonValid -Root $SiteRoot -Domain $domain }
@@ -437,8 +424,7 @@ function Invoke-Assemble {
         foreach ($file in $RequiredDataFiles) {
             if (-not (Test-Path -LiteralPath (Join-Path $SiteRoot "$domain/data/$file"))) { $missing += "$domain/data/$file" }
         }
-        $origin.Keys | Where-Object { $_.StartsWith("$domain/") } | Sort-Object |
-            ForEach-Object { Write-Host "  $_ <- $($origin[$_])" }
+        $laid | Where-Object { $_.StartsWith("$domain/") } | Sort-Object | ForEach-Object { Write-Host "  $_" }
         $latest = Join-Path $SiteRoot "$domain/data/latest.json"
         if (Test-Path -LiteralPath $latest) {
             $json = Get-Content -LiteralPath $latest -Raw | ConvertFrom-Json -Depth 100
@@ -448,7 +434,7 @@ function Invoke-Assemble {
         }
     }
     if ($missing.Count -gt 0) {
-        throw "Refusing to deploy: no live or persisted copy of $($missing -join ', ')."
+        throw "Refusing to deploy: $Branch at $head has no $($missing -join ', ')."
     }
 }
 
