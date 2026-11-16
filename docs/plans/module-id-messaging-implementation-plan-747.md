@@ -2,8 +2,8 @@
 
 > **Issue**: [#747](https://github.com/dlrivada/Encina/issues/747)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 10 database providers, about 130 files in 27 pull requests)
-> **Estimated Scope**: ~1,100 lines of production code + ~3,000 lines of tests and scripts
+> **Complexity**: High (10 phases, 10 database providers, 313 file touches in 28 pull requests; a file edited in several pull requests counts in each)
+> **Estimated Scope**: ~1,100 lines of production code + ~13,400 lines of tests, SQL scripts, manifests and documentation (about 14,500 lines in total; the split table is the authority)
 > **Family**: modular monolith (#352 owns the module context producer, #360 the module graph, #358 the module event bus); this plan owns the module dimension of the messaging rows
 
 ---
@@ -12,7 +12,7 @@
 
 Add the module to the four messaging rows: `IOutboxMessage.ModuleId`, `ISagaState.ModuleId`, `IScheduledMessage.ModuleId` and `IDeadLetterMessage.ModuleId`, filled when the row is created from the ambient module, persisted by all 10 database providers, readable through a module-filtered query per store, and restored as the ambient module when a stored row is dispatched again (outbox delivery, scheduled delivery, saga timeout and compensation, dead letter replay is #2013's, see Design Choice 6).
 
-**State of `origin/main` (`96c8803bd`), verified by reading and grep (corrects the issue text):**
+**State of `origin/main` (`0b941beeb`), verified by reading and grep (corrects the issue text):**
 
 - There is no `IModuleContext`. The ambient module is `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs`, an `AsyncLocal` implementation in `ModuleExecutionContext.cs`). It is set only by `ModuleExecutionContextBehavior` in `Encina.EntityFrameworkCore` and only with `UseModuleIsolation`; ADO.NET, Dapper and MongoDB register the context and nothing sets it. #352 (pull request 1) moves the producer to core and runs it whenever `AddEncinaModules` is used; until it merges the stamped value is `null` outside EF Core with module isolation, which this plan handles as "no module" and tests with an explicit scope (`IModuleExecutionContext.CreateScope`).
 - The issue says "13 database providers". The matrix is 10 (`AGENTS.md` section 5): ADO.NET x3, Dapper x3, EF Core x3 (one `Encina.EntityFrameworkCore` package serves SQL Server, PostgreSQL and MySQL), MongoDB. SQLite and Oracle are out of the matrix.
@@ -149,7 +149,7 @@ A wins when strictness must be structural. B wins if the maintainer prefers a sm
 
 ### Rationale
 
-A wins when module isolation must hold for background delivery (`AGENTS.md` section 3: a `Left` fails the operation, nothing reports success). B wins if module removal during the life of persisted rows is a real operating case. The restoration is active only when `IModuleExecutionContext` and `IModuleRegistry` are registered (optional constructor parameters, the same trigger style as `MultiTenancyMarker` in `DeadLetterManager`): with no module system registered there is nothing to restore or enforce. The ambient tenant restoration is #737/#738/#739's concern and is not touched. New code `encina.messaging.module_unknown` has `ErrorCategory.FailedPrecondition` (ADR-062).
+A wins when module isolation must hold for background delivery (`AGENTS.md` section 3: a `Left` fails the operation, nothing reports success). B wins if module removal during the life of persisted rows is a real operating case. The restoration is active only when `IModuleExecutionContext` and `IModuleRegistry` are registered (optional constructor parameters, the same trigger style as `MultiTenancyMarker` in `DeadLetterManager`): with no module system registered there is nothing to restore or enforce. The stored value is lower-invariant (D3), so the scope is created with the registered canonical name looked up in `IModuleRegistry` (case-insensitive), not with the stored value: consumers that compare `CurrentModule` case-sensitively see the same name as in a request-time scope. The ambient tenant restoration is #737/#738/#739's concern and is not touched. New code `encina.messaging.module_unknown` has `ErrorCategory.FailedPrecondition` (ADR-062).
 
 **Class:** Dilemma
 
@@ -182,8 +182,8 @@ A wins while no requirement asks which module processed an external message. B w
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Implementers first, interfaces last: each provider pull request adds `ModuleId` and the four new query members to its concrete classes (they compile against the old interfaces); the interface and orchestrator pull requests come after every implementer has them** | Every pull request builds and carries its own tests; no scaffold merges | The new members exist on concrete classes for several pull requests before the interfaces have them; 27 pull requests |
-| **B) One pull request with the whole change (about 130 files)** | One review | Over the 15-file and 1500-line limits (needs `size-exception-approved`) |
+| **A) Implementers first, interfaces last: each provider pull request adds `ModuleId` and the four new query members to its concrete classes (they compile against the old interfaces); the interface and orchestrator pull requests come after every implementer has them** | Every pull request builds and carries its own tests; no scaffold merges | The new members exist on concrete classes for several pull requests before the interfaces have them; 28 pull requests |
+| **B) One pull request with the whole change (313 file touches)** | One review | Over the 15-file and 1500-line limits (needs `size-exception-approved`) |
 | **C) Default interface members as a scaffold** | Interfaces first | A compatibility layer merges (`AGENTS.md` section 1) and the defaults would be untested production code |
 
 ### Chosen Option: **A — implementers first, interfaces last** (recommended, pending the maintainer)
@@ -234,7 +234,7 @@ Encina is pre-1.0 with no existing user and no migration support.
 `module.name` is already the tag of `ModuleActivitySource`.
 
 **Class:** Trivial
-**Settled by:** `src/Encina/Modules/Diagnostics/ModuleActivitySource.cs` (`activity?.SetTag("module.name", moduleName)`) and ADR-054 D4 (tenant tag only with multi-tenancy).
+**Settled by:** `src/Encina/Modules/Diagnostics/ModuleActivitySource.cs` (`activity?.SetTag("module.name", moduleName)`) and [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 (tenant tag only with multi-tenancy).
 
 </details>
 
@@ -290,8 +290,8 @@ REFERENCE FILES:
 
 Per package (`Encina.ADO.SqlServer|PostgreSQL|MySQL`, `Encina.Dapper.SqlServer|PostgreSQL|MySQL`):
 
-1. Pull request A: `Outbox/OutboxMessage.cs` and `Scheduling/ScheduledMessage.cs` get `string? ModuleId` (compiles against the old interfaces); `Outbox/OutboxStoreADO|Dapper.cs` and `Scheduling/ScheduledMessageStoreADO|Dapper.cs` include `ModuleId` in the `INSERT` and in every `SELECT` column list and add `GetPendingForModuleAsync` and `GetDueForModuleAsync` (strict `ModuleId = @ModuleId`, the argument passed through `MessagingModuleId.Normalize`, the provider's paging syntax: SQL Server `TOP (@n)`, PostgreSQL and MySQL `LIMIT @n`, same retry and ordering predicate as the unfiltered member); scripts `Scripts/001_CreateOutboxMessagesTable.sql`, `Scripts/004_CreateScheduledMessagesTable.sql` and `Scripts/000_CreateAllTables.sql` get `ModuleId` (`VARCHAR(128) NULL`; SQL Server `NVARCHAR(128)`; MySQL with `utf8mb4_bin`, PostgreSQL as its neighbours) and an index `(ModuleId, ProcessedAtUtc, ...)` whose trailing columns follow the existing pending-query index of the script; `PublicAPI.Unshipped.txt`, manifest entries, and one integration test class per package `ModuleIdOutboxScheduledIntegrationTests` (`[Collection("ADO-<Db>")]` or `[Collection("Dapper-<Db>")]`: round trip of the column, strict filter returns only the module's rows, another module and a row without module are not returned, blank argument throws).
-2. Pull request B: `Sagas/SagaState.cs`, `DeadLetter/DeadLetterMessage.cs`, `DeadLetter/DeadLetterMessageFactory.cs` (copies `data.ModuleId`), `Sagas/SagaStoreADO|Dapper.cs` (`GetActiveByModuleAsync`), `DeadLetter/DeadLetterStoreADO|Dapper.cs` (`GetByModuleAsync`), scripts `003_CreateSagaStatesTable.sql`, `029_CreateDeadLetterMessagesTable.sql` and `000_CreateAllTables.sql`, PublicAPI, manifest entries and the integration test class `ModuleIdSagaDeadLetterIntegrationTests`.
+1. Pull request A (12 files: 10 plus 2 guard edits): `Outbox/OutboxMessage.cs` and `Scheduling/ScheduledMessage.cs` get `string? ModuleId` (compiles against the old interfaces); `Outbox/OutboxStoreADO|Dapper.cs` and `Scheduling/ScheduledMessageStoreADO|Dapper.cs` include `ModuleId` in the `INSERT` and in every `SELECT` column list and add `GetPendingForModuleAsync` and `GetDueForModuleAsync` (strict `ModuleId = @ModuleId`, the argument passed through `MessagingModuleId.Normalize`, the provider's paging syntax: SQL Server `TOP (@n)`, PostgreSQL and MySQL `LIMIT @n`, same retry and ordering predicate as the unfiltered member); scripts `Scripts/001_CreateOutboxMessagesTable.sql`, `Scripts/004_CreateScheduledMessagesTable.sql` and `Scripts/000_CreateAllTables.sql` get `ModuleId` (`VARCHAR(128) NULL`; SQL Server `NVARCHAR(128)`; MySQL with `utf8mb4_bin`, PostgreSQL as its neighbours) and an index `(ModuleId, ProcessedAtUtc, ...)` whose trailing columns follow the existing pending-query index of the script; `PublicAPI.Unshipped.txt`, manifest entries, and one integration test class per package `ModuleIdOutboxScheduledIntegrationTests` (`[Collection("ADO-<Db>")]` or `[Collection("Dapper-<Db>")]`: round trip of the column, strict filter returns only the module's rows, another module and a row without module are not returned, blank argument throws), and the blank-module-id cases (`ArgumentException`) added to the two existing guard files of the package, `tests/Encina.GuardTests/<ADO|Dapper>/<Db>/OutboxStoreADOGuardsTests.cs` and `ScheduledMessageStoreADOGuardTests.cs` (ADO.NET) or `OutboxStoreDapperGuard(s)Tests.cs` and `ScheduledMessageStoreDapperGuard(s)Tests.cs` (Dapper), with the exact file name per database as it exists on main.
+2. Pull request B (13 files: 11 plus 2 guard files): `Sagas/SagaState.cs`, `DeadLetter/DeadLetterMessage.cs`, `DeadLetter/DeadLetterMessageFactory.cs` (copies `data.ModuleId`), `Sagas/SagaStoreADO|Dapper.cs` (`GetActiveByModuleAsync`), `DeadLetter/DeadLetterStoreADO|Dapper.cs` (`GetByModuleAsync`), scripts `003_CreateSagaStatesTable.sql`, `029_CreateDeadLetterMessagesTable.sql` and `000_CreateAllTables.sql`, PublicAPI, manifest entries, the integration test class `ModuleIdSagaDeadLetterIntegrationTests`, the blank-module-id case added to the existing saga store guard file (`SagaStoreADOGuardTests.cs` or `SagaStoreDapperGuardsTests.cs`, per database as on main) and a NEW dead letter store guard file per package (`DeadLetterStoreADOGuardTests.cs` or `DeadLetterStoreDapperGuardTests.cs`; no such file exists on main for the ADO.NET and Dapper dead letter stores).
 3. All database calls stay asynchronous with a `CancellationToken`; never `IDbConnection.Open()`.
 
 </details>
@@ -323,16 +323,16 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: EF Core and MongoDB providers (3 pull requests)
+### Phase 3: EF Core and MongoDB providers (4 pull requests: 14, 15, 16A, 16B)
 
-> **Goal**: The same behavior in `Encina.EntityFrameworkCore` (one implementation for SQL Server, PostgreSQL and MySQL, two pull requests) and `Encina.MongoDB` (one pull request).
+> **Goal**: The same behavior in `Encina.EntityFrameworkCore` (one implementation for SQL Server, PostgreSQL and MySQL, two pull requests) and `Encina.MongoDB` (two pull requests: 16A outbox and scheduled message, 16B saga and dead letter).
 
 <details>
 <summary>Tasks</summary>
 
-1. EF Core A (outbox and scheduled): `Outbox/OutboxMessage.cs`, `Outbox/OutboxMessageConfiguration.cs`, `Outbox/OutboxStoreEF.cs`, `Scheduling/ScheduledMessage.cs`, `Scheduling/ScheduledMessageConfiguration.cs`, `Scheduling/ScheduledMessageStoreEF.cs`: the property, `HasMaxLength(128)`, `HasIndex(...)` beside the existing indexes, the two module members as LINQ equality predicates; PublicAPI, manifest, and three integration test classes (`EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`).
-2. EF Core B (saga and dead letter): the same set for `Sagas/SagaState.cs`, `SagaStateConfiguration.cs`, `SagaStoreEF.cs`, `DeadLetter/DeadLetterMessage.cs`, `DeadLetterMessageConfiguration.cs`, `DeadLetterMessageFactory.cs`, `DeadLetterStoreEF.cs`. No EF migration is added (D9).
-3. MongoDB: the four `*/{Outbox,Saga,ScheduledMessage,DeadLetter}Message|SagaState.cs` documents get the field, the four stores get the module members, `MongoDbIndexCreator` gets four compound indexes guarded by the existing `Use*` flags, `DeadLetterMessageFactory` copies `data.ModuleId`; PublicAPI, manifest, one integration test class on the MongoDB fixture.
+1. EF Core A (outbox and scheduled): `Outbox/OutboxMessage.cs`, `Outbox/OutboxMessageConfiguration.cs`, `Outbox/OutboxStoreEF.cs`, `Scheduling/ScheduledMessage.cs`, `Scheduling/ScheduledMessageConfiguration.cs`, `Scheduling/ScheduledMessageStoreEF.cs`: the property, `HasMaxLength(128)`, `HasIndex(...)` beside the existing indexes, the two module members as LINQ equality predicates; PublicAPI, manifest, three integration test classes (`EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`) and the blank-module-id cases added to the existing guard files `tests/Encina.GuardTests/EntityFrameworkCore/Stores/OutboxStoreEFGuardTests.cs` and `ScheduledMessageStoreEFGuardTests.cs` (13 files).
+2. EF Core B (saga and dead letter): the same set for `Sagas/SagaState.cs`, `SagaStateConfiguration.cs`, `SagaStoreEF.cs`, `DeadLetter/DeadLetterMessage.cs`, `DeadLetterMessageConfiguration.cs`, `DeadLetterMessageFactory.cs`, `DeadLetterStoreEF.cs`, with the guard case added to `SagaStoreEFGuardTests.cs` and a new `DeadLetterStoreEFGuardTests.cs` (14 files). No EF migration is added (D9).
+3. MongoDB, pull request 16A (outbox and scheduled message): the two documents get the field, the two stores get the module members, `MongoDbIndexCreator` gets two compound indexes guarded by the existing `Use*` flags; PublicAPI, manifest, one integration test class on the MongoDB fixture and two new guard files (`OutboxStoreMongoDBGuardTests.cs`, `ScheduledMessageStoreMongoDBGuardTests.cs`; `tests/Encina.GuardTests/MongoDB/` has no per-store guard file for the messaging stores, to be re-checked against `StoreGuardTests.cs` at work start) (10 files). Pull request 16B (saga and dead letter): the two documents, the two stores, `DeadLetterMessageFactory` copying `data.ModuleId`, the other two compound indexes in `MongoDbIndexCreator` (a second edit of the file), PublicAPI, manifest, one integration test class and two new guard files (11 files).
 
 </details>
 
@@ -344,7 +344,7 @@ CONTEXT:
 - Phase 2 pull requests are merged (issue #747); the interfaces are still unchanged (D8).
 
 TASK:
-Implement the Phase 3 tasks, one pull request per item (EF Core A, EF Core B, MongoDB).
+Implement the Phase 3 tasks, one pull request per item (EF Core A, EF Core B, MongoDB 16A, MongoDB 16B).
 
 KEY RULES:
 - One EF store behavior for SQL Server, PostgreSQL and MySQL, proved by integration tests on each database.
@@ -369,8 +369,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 17, `Encina.Testing.Fakes`: `FakeOutboxMessage`, `FakeSagaState`, `FakeScheduledMessage`, `FakeDeadLetterMessage` get `ModuleId`; `FakeOutboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`, `FakeDeadLetterStore` get the module members with the strict rule of D4; PublicAPI, manifest, unit tests.
-2. Pull request 18, `Encina.Testing.Bogus` (`OutboxMessageFaker`, `SagaStateFaker`, `ScheduledMessageFaker`) and `Encina.Testing.FsCheck` (`ArbitraryMessages`): the property and a rule that generates a valid lower-invariant module or null; PublicAPI x2, manifests x2.
+1. Pull request 17, `Encina.Testing.Fakes`: `FakeOutboxMessage`, `FakeSagaState`, `FakeScheduledMessage`, `FakeDeadLetterMessage` get `ModuleId`; `FakeOutboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`, `FakeDeadLetterStore` get the module members with the strict rule of D4; PublicAPI, manifest, unit tests and one guard test file for the blank-module-id cases of the four fake stores (12 files).
+2. Pull request 18, `Encina.Testing.Bogus` (`OutboxMessageFaker`, `SagaStateFaker`, `ScheduledMessageFaker`) and `Encina.Testing.FsCheck` (`ArbitraryMessages`): the property and a rule that generates a valid lower-invariant module or null; PublicAPI of `Encina.Testing.Bogus`, manifests x2 (7 files). `Encina.Testing.FsCheck` has only a `PublicAPI.Shipped.txt` with `#nullable enable`, no `PublicAPI.Unshipped.txt` and no `AdditionalFiles` entry, so its public API is not tracked and no line is added there; starting to track it is out of scope.
 3. Pull request 19, benchmark states and test doubles that implement the message interfaces: `BenchmarkEntityFactory` in `Encina.ADO.Benchmarks` and `Encina.Dapper.Benchmarks`, the doubles in `OutboxOrchestratorTests`, `SagaOrchestratorTests`, `DeadLetterOrchestratorTests` and `RetryAfterCeilingProperties`.
 
 </details>
@@ -408,8 +408,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. Pull request 20: `IOutboxMessage`, `ISagaState`, `IScheduledMessage`, `IDeadLetterMessage` get `string? ModuleId { get; set; }` (XML docs: the lower-invariant name of the module that created the row, null for host work); PublicAPI, manifest, contract test `MessagingModuleIdContractTests` (every real row class and the fake round-trips the property).
-2. Pull request 21: `IOutboxStore.GetPendingForModuleAsync`, `IScheduledMessageStore.GetDueForModuleAsync` and their `InstrumentedOutboxStore` and `InstrumentedScheduledMessageStore` delegations (the module is a span tag `module.name` on the existing activity, never an unbounded metric label); PublicAPI x2, manifests x2, unit tests of the two decorators.
-3. Pull request 22: `ISagaStore.GetActiveByModuleAsync`, `IDeadLetterStore.GetByModuleAsync`, `InstrumentedSagaStore`, `InstrumentedDeadLetterStore` and the three store test doubles (`RecordingSagaStore` in `SagaRunnerOutcomeScenarios.cs`, `FailingUpdateStore` in `SagaRunnerTests.cs`, the dead letter store double in `AddDeadLetterQueueServicesTests.cs`); PublicAPI x2, manifests x2, unit tests.
+2. Pull request 21: `IOutboxStore.GetPendingForModuleAsync`, `IScheduledMessageStore.GetDueForModuleAsync` and their `InstrumentedOutboxStore` and `InstrumentedScheduledMessageStore` delegations (the module is a span tag `module.name` on the existing activity, never an unbounded metric label); PublicAPI x2 (`Encina.Messaging`, and `Encina.OpenTelemetry` in its `PublicAPI` folder), manifests x2, unit tests of the two decorators and the blank-module-id cases added to `InstrumentedOutboxStoreGuardTests.cs` and `InstrumentedScheduledMessageStoreGuardTests.cs` (12 files).
+3. Pull request 22: `ISagaStore.GetActiveByModuleAsync`, `IDeadLetterStore.GetByModuleAsync`, `InstrumentedSagaStore`, `InstrumentedDeadLetterStore` and the three store test doubles (`RecordingSagaStore` in `SagaRunnerOutcomeScenarios.cs`, `FailingUpdateStore` in `SagaRunnerTests.cs`, the dead letter store double in `AddDeadLetterQueueServicesTests.cs`); PublicAPI x2, manifests x2, unit tests, and the guard cases added to `InstrumentedSagaStoreGuardTests.cs` and `InstrumentedDeadLetterStoreGuardTests.cs` (15 files).
 
 </details>
 
@@ -444,11 +444,11 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 23 (stamping): `OutboxOrchestrator.AddAsync`, `SchedulerOrchestrator.ScheduleAsync` and `ScheduleRecurringAsync`, `SagaOrchestrator.StartAsync`, `DeadLetterOrchestrator.NewData`: new optional constructor parameter `IModuleExecutionContext? moduleContext = null`; after the factory returns, `row.ModuleId = MessagingModuleId.NormalizeOrNull(moduleContext?.CurrentModule)` (D1, D2); the dead letter takes the ambient module when it is captured in module context, and `OutboxOrchestrator`'s dead letter capture passes the source row's module through `DeadLetterData.ModuleId` so that a dead letter keeps the module of the message that failed. Every changed constructor line in `PublicAPI.Unshipped.txt` (remove old, add new).
-2. Pull request 25 (restoration, after the observability pull request 24): `MessagingModuleScope` (internal static, in `Encina.Messaging`): `IDisposable? Enter(IModuleExecutionContext? context, IModuleRegistry? registry, string? rowModuleId, out EncinaError? error)`; `OutboxBatchProcessor` wraps the publish callback, `SchedulerOrchestrator.ProcessDueMessagesAsync` (line 305, driven by the `ScheduledMessageProcessor` hosted service) wraps each message's dispatch, and `SagaOrchestrator.TimeoutAsync` (line 488) and the stuck-saga path wrap their step in it. An unregistered module returns `Left(encina.messaging.module_unknown)` (`ErrorCategory.FailedPrecondition`) from the delivery, which goes through the existing retry and dead letter handling. With no `IModuleExecutionContext` or no `IModuleRegistry` registered nothing is restored.
+1. Pull request 23 (stamping): `OutboxOrchestrator.AddAsync`, `SchedulerOrchestrator.ScheduleAsync` and `ScheduleRecurringAsync`, `SagaOrchestrator.StartAsync`, `DeadLetterOrchestrator.NewData`: new optional constructor parameter `IModuleExecutionContext? moduleContext = null`; after the factory returns, `row.ModuleId = MessagingModuleId.NormalizeOrNull(moduleContext?.CurrentModule)` (D1, D2); the dead letter takes the ambient module when it is captured in module context, and `OutboxOrchestrator`'s dead letter capture passes the source row's module through `DeadLetterData.ModuleId` so that a dead letter keeps the module of the message that failed. Every changed constructor line in `PublicAPI.Unshipped.txt` (remove old, add new). Guard cases (a null `moduleContext` is valid, so each is a valid-result test) are added to the existing `OutboxOrchestratorGuardTests.cs`, `SagaOrchestratorGuardTests.cs`, `SchedulerOrchestratorGuardTests.cs` and `DeadLetterGuardTests.cs` (15 files in the pull request).
+2. Pull request 25 (restoration, after the observability pull request 24): `MessagingModuleScope` (internal static, in `Encina.Messaging`): `IDisposable? Enter(IModuleExecutionContext? context, IModuleRegistry? registry, string? rowModuleId, out EncinaError? error)`; the scope restores the registered canonical name, not the stored lower-invariant value: `Enter` calls `IModuleRegistry.GetModule(rowModuleId)` (case-insensitive) and passes that module's `Name` to `CreateScope`, so a handler sees the same casing as in a request-time scope (a unit test asserts the registered casing); `OutboxBatchProcessor` wraps the publish callback, `SchedulerOrchestrator.ProcessDueMessagesAsync` (line 305, driven by the `ScheduledMessageProcessor` hosted service) wraps each message's dispatch, and `SagaOrchestrator.TimeoutAsync` (line 488) and the stuck-saga path wrap their step in it. An unregistered module returns `Left(encina.messaging.module_unknown)` (`ErrorCategory.FailedPrecondition`) from the delivery, which goes through the existing retry and dead letter handling. With no `IModuleExecutionContext` or no `IModuleRegistry` registered nothing is restored.
 3. `MessagingModuleErrorCodes` (public static, `ModuleUnknown`), registered as ADR-062 category `FailedPrecondition`.
 4. Registration: the optional parameters are resolved by the existing `AddEncinaMessaging` registrations (the types already exist as services when `AddEncinaModules` is used); no new service. DI test with `ValidateOnBuild` and `ValidateScopes`: with and without modules registered.
-5. Tests: unit (stamp from an explicit scope, null outside a module, restoration inside the publish callback, unknown module returns the error and is not dispatched, host row dispatches without scope, a failing handler's `Left` is returned and the scope is disposed), guard for the new constructor parameters and the helper, contract (orchestrators stamp identically on the fakes), property (a row stamped under module M is dispatched with `CurrentModule == M` for any generated M).
+5. Tests: unit (stamp from an explicit scope, null outside a module, restoration inside the publish callback, unknown module returns the error and is not dispatched, host row dispatches without scope, a failing handler's `Left` is returned and the scope is disposed), guard for the new constructor parameters (pull request 23; `MessagingModuleScope` is internal and `Encina.Messaging` has no `InternalsVisibleTo` for `Encina.GuardTests`, and its parameters are nullable by design, so it has no guard test and its valid-result cases are unit tests), contract (orchestrators stamp identically on the fakes), property (a row stamped under module M is dispatched with `CurrentModule == M` for any generated M).
 
 </details>
 
@@ -563,8 +563,8 @@ REFERENCE FILES:
 Tests travel with the pull request that adds the code they cover (see the split).
 
 1. **Unit**: pull requests 1, 17, 21-23 (normalizer, fakes, decorators, orchestrators).
-2. **Guard** (`tests/Encina.GuardTests`): `MessagingModuleId.Normalize` (null, empty, white space, 129 characters), each new store member (blank module id), each changed constructor (null `moduleContext` is valid: a test of the valid result, not an exception).
-3. **Contract**: `MessagingModuleIdContractTests` runs the same module scenarios against `FakeOutboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore`, `FakeDeadLetterStore` and the provider stores.
+2. **Guard** (`tests/Encina.GuardTests`): `MessagingModuleId.Normalize` (null, empty, white space, 129 characters; PR 1), each new store member (blank module id) in the per-store guard files listed in the PR 2-16B, 17, 21 and 22 tasks, each changed constructor (null `moduleContext` is valid: a test of the valid result, not an exception; PR 23).
+3. **Contract**: `MessagingModuleIdContractTests` (PR 20) runs the same module scenarios against the row classes, `FakeOutboxStore`, `FakeSagaStore`, `FakeScheduledMessageStore` and `FakeDeadLetterStore`. It does not run against the provider stores (they need real databases): the provider stores' contract target is 0 and their behavior is proved by the integration flag.
 4. **Property**: the normalizer and "a row stamped under M is dispatched under M".
 5. **Integration**: store-level tests in each provider pull request (Phases 2 and 3); the end-to-end test in pull request 26: a module-scoped outbox message is written under module M, processed by the real outbox processor, and the handler observes `CurrentModule == M`, on every provider through its shared collection (`ADO-`, `Dapper-` x `SqlServer`/`PostgreSQL`/`MySQL`, `EFCore-` x three, MongoDB); `ClearAllDataAsync` in `InitializeAsync`; never `IClassFixture`.
 6. **Load**: justification file `tests/Encina.LoadTests/Messaging/ModuleId.md` (one extra column and equality predicate; the concurrent paths keep their existing load tests). **Benchmark**: justification file `tests/Encina.BenchmarkTests/Messaging/ModuleId.md`.
@@ -572,11 +572,13 @@ Tests travel with the pull request that adds the code they cover (see the split)
 
    | File group | Unit | Guard | Contract | Property | Integration | Justification |
    |---|---|---|---|---|---|---|
-   | `MessagingModuleId.cs`, `MessagingModuleScope.cs`, `MessagingModuleErrorCodes.cs` | 100 | 90 | 0 | 90 | 0 | Pure functions whose every branch is a unit test; guard reaches the argument checks; the property test covers the case rule |
+   | `MessagingModuleId.cs` | 100 | 90 | 0 | 90 | 0 | Public pure function whose every branch is a unit test; guard reaches the argument checks; the property test covers the case rule |
+   | `MessagingModuleScope.cs`, `MessagingModuleErrorCodes.cs` | 100 | 0 | 0 | 90 | 0 | Guard 0: `MessagingModuleScope` is internal and `Encina.Messaging` has no `InternalsVisibleTo` for `Encina.GuardTests`, its parameters are nullable by design (valid-result cases are unit tests) and the error codes are constants; the property test proves "stamped under M, dispatched under M" |
    | Orchestrator module code (`Encina.Messaging`) | 95 | 80 | 80 | 60 | 0 | Stamp, restore and unknown module run with fake stores; the real stores have their own integration flag |
    | `MessagingModuleMetrics.cs`, `MessagingModuleLog.cs` | 90 | 0 | 0 | 0 | 0 | Counter and log calls are reached through the orchestrator unit tests; no parameterized public member |
-   | Provider stores, row classes, factories (ADO.NET x3, Dapper x3, EF Core, MongoDB) | 0 | 90 | 80 | 0 | 80 | The SQL, LINQ and Mongo filters can only be proved on real databases (`AGENTS.md` section 5); guard and contract cover the new members |
-   | Fakes, fakers, `ArbitraryMessages`, instrumented stores | 90 | 90 | 80 | 0 | 0 | Test doubles must behave like the real stores; delegation plus one span tag is fully reachable through a listener test |
+   | Provider stores, row classes, factories (ADO.NET x3, Dapper x3, EF Core, MongoDB) | 0 | 90 | 0 | 0 | 80 | The SQL, LINQ and Mongo filters can only be proved on real databases (`AGENTS.md` section 5), so integration carries the behavior; guard cases in the per-store guard files cover the blank-module-id checks; contract 0 because the contract test runs against fakes and row classes, not databases |
+   | Fakes and instrumented stores | 90 | 90 | 80 | 0 | 0 | Test doubles must behave like the real stores (contract test of PR 20); delegation plus one span tag is fully reachable through a listener test; guard cases in PR 17, 21 and 22 |
+   | Fakers and `ArbitraryMessages` | 90 | 0 | 0 | 90 | 0 | Generators have no parameterized member worth a guard test and no contract of their own; their output is exercised by the property tests of PR 1 and 25 |
 
 </details>
 
@@ -645,24 +647,25 @@ Order rule (D8 option A): implementers first, interfaces last; every pull reques
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
 | 1 | `Encina.Messaging`: `MessagingModuleId`, `DeadLetterData`, limits, PublicAPI, manifest, 3 test files | 8 | 350 |
-| 2-7 | One per ADO.NET and Dapper package, part A: 2 row classes, 2 stores, 3 scripts, PublicAPI, manifest, integration test | 10 | 450 |
-| 8-13 | One per ADO.NET and Dapper package, part B (after A): 2 row classes, factory, 2 stores, 3 scripts, PublicAPI, manifest, integration test | 12 | 500 |
-| 14 | `Encina.EntityFrameworkCore` A: 2 rows, 2 configurations, 2 stores, PublicAPI, manifest, 3 integration classes | 11 | 550 |
-| 15 | `Encina.EntityFrameworkCore` B: the same for saga and dead letter (plus the factory) | 12 | 600 |
-| 16 | `Encina.MongoDB`: 4 documents, factory, 4 stores, index creator, PublicAPI, manifest, integration test | 13 | 700 |
-| 17 | `Encina.Testing.Fakes`: 4 models, 4 stores, PublicAPI, manifest, unit tests | 11 | 500 |
-| 18 | `Encina.Testing.Bogus` and `Encina.Testing.FsCheck`: 3 fakers, `ArbitraryMessages`, PublicAPI x2, manifests x2 | 8 | 250 |
+| 2-7 | One per ADO.NET and Dapper package, part A: 2 row classes, 2 stores, 3 scripts, PublicAPI, manifest, integration test, 2 guard test edits | 12 | 510 |
+| 8-13 | One per ADO.NET and Dapper package, part B (after A): 2 row classes, factory, 2 stores, 3 scripts, PublicAPI, manifest, integration test (11), saga guard edit, new dead letter store guard file | 13 | 560 |
+| 14 | `Encina.EntityFrameworkCore` A: 2 rows, 2 configurations, 2 stores, PublicAPI, manifest, 3 integration classes, 2 guard edits | 13 | 610 |
+| 15 | `Encina.EntityFrameworkCore` B: the same for saga and dead letter (plus the factory), saga guard edit and new dead letter guard file | 14 | 680 |
+| 16A | `Encina.MongoDB` A: outbox and scheduled documents (2), stores (2), index creator, PublicAPI, manifest, integration test, 2 new guard files | 10 | 450 |
+| 16B | `Encina.MongoDB` B (after 16A): saga and dead letter documents (2), stores (2), factory, index creator (second edit), PublicAPI, manifest, integration test, 2 new guard files | 11 | 450 |
+| 17 | `Encina.Testing.Fakes`: 4 models, 4 stores, PublicAPI, manifest, unit tests, 1 guard test file | 12 | 540 |
+| 18 | `Encina.Testing.Bogus` and `Encina.Testing.FsCheck`: 3 fakers, `ArbitraryMessages`, PublicAPI (Bogus only), manifests x2 | 7 | 250 |
 | 19 | Benchmark states (2) and message doubles (4) | 6 | 150 |
 | 20 | 4 message interfaces, PublicAPI, manifest, contract test | 7 | 250 |
-| 21 | `IOutboxStore`, `IScheduledMessageStore`, 2 decorators, PublicAPI x2, manifests x2, 2 decorator tests | 10 | 450 |
-| 22 | `ISagaStore`, `IDeadLetterStore`, 2 decorators, 3 store doubles, PublicAPI x2, manifests x2, 2 decorator tests | 13 | 600 |
-| 23 | Stamping: the 4 orchestrators, PublicAPI, manifest, the 4 existing orchestrator unit test files (edited), guard test, DI test | 12 | 800 |
+| 21 | `IOutboxStore`, `IScheduledMessageStore`, 2 decorators, PublicAPI x2, manifests x2, 2 decorator tests, 2 instrumented-store guard edits | 12 | 530 |
+| 22 | `ISagaStore`, `IDeadLetterStore`, 2 decorators, 3 store doubles, PublicAPI x2, manifests x2, 2 decorator tests, 2 instrumented-store guard edits | 15 | 680 |
+| 23 | Stamping: the 4 orchestrators, PublicAPI, manifest, the 4 existing orchestrator unit test files (edited), 4 guard test files (edited), DI test | 15 | 950 |
 | 24 | Observability: `MessagingModuleMetrics`, `MessagingModuleLog`, `EventIdRanges`, allocation test map, OpenTelemetry `ServiceCollectionExtensions`, PublicAPI x2, manifests x2, 2 unit tests | 11 | 450 |
 | 25 | Restoration: `MessagingModuleScope`, `MessagingModuleErrorCodes`, `OutboxBatchProcessor`, `SchedulerOrchestrator`, `SagaOrchestrator`, PublicAPI, manifest, unit, property and contract tests | 12 | 900 |
-| 26 | End-to-end integration test on 10 providers (4 files: ADO, Dapper, EF Core, MongoDB classes), 2 justification files | 6 | 600 |
+| 26 | End-to-end integration test on 10 providers (4 files holding 10 classes, one `[Collection]` per class: ADO 3, Dapper 3, EF Core 3, MongoDB 1), 2 justification files | 6 | 600 |
 | 27 | Documentation: guide, inventory and roadmap lines, changelog fragment (through `docs-writer` and `mechanical-fixer`) | 4 | 300 |
 
-Pull requests 2 to 7 are part A and 8 to 13 part B of the six ADO.NET and Dapper packages, so the sequence is 1 to 27. The orchestrator opens them in the order above; the six providers of a part are independent and can be reviewed in parallel. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
+Pull requests 2 to 7 are part A and 8 to 13 part B of the six ADO.NET and Dapper packages, and pull request 16 is split into 16A and 16B, so the sequence is 1 to 27 with 16A and 16B (28 pull requests, 313 file touches: 8 + 72 + 78 + 13 + 14 + 10 + 11 + 12 + 7 + 6 + 7 + 12 + 15 + 15 + 11 + 12 + 6 + 4). The orchestrator opens them in the order above; the six providers of a part are independent and can be reviewed in parallel. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -675,7 +678,7 @@ Pull requests 2 to 7 are part A and 8 to 13 part B of the six ADO.NET and Dapper
 | `AGENTS.md` section 3 | Gates fail closed; a `Left` is never swallowed in background infrastructure; `EncinaError.Message` never logged | Strict filter, unknown module fails the delivery |
 | `AGENTS.md` section 5 | 10 database providers | Provider table |
 | `AGENTS.md` section 6, function 11 | `ModuleId`, `IModuleContext` as the module dimension | The feature itself |
-| ADR-054 D4 | Tenant tag only when multi-tenancy is on | Counter tags |
+| [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 | Tenant tag only when multi-tenancy is on | Counter tags |
 | ADR-062 | `ErrorCategory` on every error code | `encina.messaging.module_unknown` is `FailedPrecondition` |
 | Modular monolith guidance (Spring Modulith event publication registry; Kamil Grzybek's modular monolith) | A published event or job belongs to the module that created it | Concept source named by the issue |
 
@@ -706,13 +709,12 @@ Pull requests 2 to 7 are part A and 8 to 13 part B of the six ADO.NET and Dapper
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Messaging core | ~14 | Helper, 4 interfaces, 4 store members, orchestrators, scope helper, metrics, log, error codes, `EventIdRanges` |
-| ADO.NET x3 and Dapper x3 | ~66 | Per package: 4 row classes, 4 stores, factory, 5 scripts, PublicAPI, manifest |
-| EF Core and MongoDB | ~20 | Rows, configurations, stores, factories, index creator |
-| Fakes, fakers, instrumented stores, doubles | ~28 | With PublicAPI and manifests |
-| Tests | ~30 | 12 provider integration classes, 3 EF classes, end-to-end, unit, guard, contract, property, DI |
-| Documentation and fragments | ~6 | Guide, inventory, roadmap, changelog, 2 justification files |
-| **Total** | **~130 across 27 pull requests** | The sum of the rows of the split table is the authority |
+| Messaging core, interfaces, decorators, orchestrators (PR 1, 20-25) | 80 | 8 + 7 + 12 + 15 + 15 + 11 + 12, with their tests, guard edits, PublicAPI and manifests |
+| ADO.NET x3 and Dapper x3 (PR 2-13) | 150 | 6 x 12 (part A) + 6 x 13 (part B): rows, factories, stores, scripts, PublicAPI, manifests, integration and guard tests |
+| EF Core and MongoDB (PR 14, 15, 16A, 16B) | 48 | 13 + 14 + 10 + 11: rows, configurations, stores, factory, index creator, integration and guard tests |
+| Fakes, fakers, doubles (PR 17-19) | 25 | 12 + 7 + 6 |
+| End-to-end tests and documentation (PR 26, 27) | 10 | 6 + 4 (2 justification files, guide, inventory, roadmap, changelog fragment) |
+| **Total** | **313 file touches across 28 pull requests** | The sum of the rows of the split table is the authority; a file edited in several pull requests counts in each |
 
 ### Provider Matrix
 
@@ -735,7 +737,7 @@ PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers, no migrations.
 - Issue #747: ModuleId on the outbox, saga, scheduled message and dead letter rows for the 10 database providers. Plan: docs/plans/module-id-messaging-implementation-plan-747.md; Dilemmas D1-D3 and D5-D8 are recommended, pending the maintainer.
 
-IMPLEMENTATION OVERVIEW (the order of the 27 pull requests; every one builds):
+IMPLEMENTATION OVERVIEW (the order of the 28 pull requests, 16 being 16A and 16B; every one builds):
 1. MessagingModuleId and DeadLetterData.ModuleId (Phase 1).
 2. ADO.NET and Dapper packages, part A then B (Phase 2); EF Core and MongoDB (Phase 3).
 3. Fakes, generators, benchmark states and message doubles (Phase 4).
