@@ -57,13 +57,13 @@ The obligations model gives a lower but more honest number: it says "your tests 
 
 **Package coverage:**
 
-```
+```text
 package.coverage = Σ(file.met_obligations) / Σ(file.total_obligations) × 100
 ```
 
 **Overall coverage:**
 
-```
+```text
 overall.coverage = Σ(package.met_obligations) / Σ(package.total_obligations) × 100
 ```
 
@@ -96,7 +96,7 @@ enum TestType
 ```
 
 | Flag | Purpose | Project location | Directory pattern in artifacts |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Unit** | Isolated behavior tests, mocked dependencies | `tests/Encina.UnitTests/` | `UnitTests-*` |
 | **Guard** | Parameter validation (ArgumentNullException, ArgumentException on public methods) | `tests/Encina.GuardTests/` | `GuardTests-*` |
 | **Contract** | API surface and interface contracts, inheritance rules, exported types | `tests/Encina.ContractTests/` | `ContractTests-*` |
@@ -124,7 +124,7 @@ dotnet run --file .github/scripts/generate-coverage-manifest.cs [-- <options>]
 Rule types supported:
 
 | Match type | Semantics | Example |
-|---|---|---|
+| --- | --- | --- |
 | `exact` | Exact filename match | `Log.cs` → no tests |
 | `glob` | Glob pattern on filename | `*Store.cs` → unit+guard+integration |
 | `regex` | Regex on filename | `^I[A-Z].*\.cs$` → no tests (if also an interface) |
@@ -195,7 +195,7 @@ Target attainment answers one question: how close is each (file, flag) pair to i
 Definitions, for a pair with target `T` (percent), measured coverage `M` (percent), `covered` lines and `total` lines of that flag:
 
 | Quantity | Definition |
-|---|---|
+| --- | --- |
 | Gap | `max(0, T - M)`, in percentage points |
 | Attainment | `min(M / T, 1)`; a pair with `T = 0` has attainment 1 |
 | Lines to cover | `max(0, ceil(T × total / 100) - covered)`, the target is multiplied by the line count first, then divided; an unknown line count gives 0 |
@@ -215,7 +215,7 @@ Rules:
 Target attainment and the obligations figure measure different things and neither replaces the other:
 
 | | Obligations coverage | Target attainment |
-|---|---|---|
+| --- | --- | --- |
 | Question | What share of the applicable (flag, line) pairs is covered? | How close is each (file, flag) pair to its own target? |
 | Unit | Lines | Pairs (and, for the line-weighted value, target lines) |
 | Targets used | None (every applicable line counts) | The per-file `targets` of the manifests |
@@ -235,7 +235,7 @@ Each entry of `history.json` also carries the `attainment` object, copied by `co
 The target ratchet stops a pull request from lowering or removing a coverage target without anyone noticing. `.github/scripts/check-target-ratchet.cs` compares every `.github/coverage-manifest/*.json` file except `defaults.json` between the merge base of the pull request's base branch and `HEAD` (read with `git show`, renames followed). It checks the package-level `targets` and each file's `files[*].targets`. It only stops targets from falling; it does not raise any (targets rise gradually, see the obligations policy in [AGENTS.md section 9](../../AGENTS.md)).
 
 | Rule | Violation |
-|---|---|
+| --- | --- |
 | R-LOW | The head value of a target is lower than its base value. |
 | R-DROP | The base has a target for a flag or file and the head has none, while the source still exists in the head tree (`src/<Package>/<file>` for a file target; a `src/**/<Package>.csproj` for a package target). |
 
@@ -358,7 +358,7 @@ Categories are **not** defined in `coverage-weights.json` anymore. That file con
 Some files have **zero obligations** regardless of how many lines they contain. These are files whose inclusion in coverage metrics would be misleading. The exclusion rules are declared in `defaults.json` with `"tests": []`:
 
 | Pattern | Match type | Reason |
-|---|---|---|
+| --- | --- | --- |
 | `Log.cs` | exact | Source-generated `[LoggerMessage]` delegates — no logic |
 | `GlobalSuppressions.cs` | exact | Only `[SuppressMessage]` attributes |
 | `AssemblyInfo.cs` | exact | Assembly metadata |
@@ -440,7 +440,7 @@ The source of each dashboard's `history.json` is the copy on the `dashboard-data
 It contains at most **100 entries**. When the 101st entry is appended, the oldest entry is removed. Each entry is intentionally lightweight (the full snapshot is kept separately in the archived `{timestamp}.json` file) and contains:
 
 | Field | Description |
-|---|---|
+| --- | --- |
 | `timestamp` | ISO 8601 UTC |
 | `file` | Name of the archived full snapshot |
 | `coverage` | Overall percentage, integer |
@@ -469,7 +469,7 @@ The unit of citation is the **file**, with a per-flag breakdown: line-level cita
 `coverage-report.cs` writes `docref-index.json` next to the summary on every CI Full run, and Publish Coverage serves it at `coverage/data/docref-index.json`. The set of IDs comes from the **manifests**, not from which files produced Cobertura data in the run: every manifest entry with at least one applicable flag and an existing source file has an ID, so citations stay stable across partial runs. Each entry contains:
 
 | Field | Meaning |
-|-------|---------|
+| --- | --- |
 | `package` | Package name (e.g. `Encina.Marten`) |
 | `path` | Source path from the repository root |
 | `coverage` | File-level obligations coverage (`metObligations / obligations`), over the flags that have data; `null` when no flag has data |
