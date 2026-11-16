@@ -2,7 +2,7 @@
 
 > **Issue**: [#306](https://github.com/dlrivada/Encina/issues/306)
 > **Type**: Feature
-> **Complexity**: Low (4 phases, 2 pull requests of 11 and 3 files)
+> **Complexity**: Low (4 phases, 2 pull requests of 15 and 3 files)
 > **Estimated Scope**: ~250 lines of production code + ~600 lines of tests
 > **Family**: modular monolith (#358 owns the integration event contract, the module event bus and the contract validator; #360 the module graph and exports; #352 the boundary rule); this plan owns only what #306 adds on top: the event catalog
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-#306 asks for integration events between modules: `IIntegrationEvent`, `IntegrationEventBase`, `IModuleEventBus`, an in-process bus with optional outbox, `IIntegrationEventHandler<T>`, `[DependsOnEvents]`, `IModuleEventCatalog` and startup validation. Almost all of it is the scope of #358 ("Inter-Module Communication"), which is planned. State of `origin/main` (`96c8803bd`) and of the sibling plans, verified by reading:
+#306 asks for integration events between modules: `IIntegrationEvent`, `IntegrationEventBase`, `IModuleEventBus`, an in-process bus with optional outbox, `IIntegrationEventHandler<T>`, `[DependsOnEvents]`, `IModuleEventCatalog` and startup validation. Almost all of it is the scope of #358 ("Inter-Module Communication"), which is planned. State of `origin/main` (`0b941beeb`) and of the sibling plans, verified by reading:
 
 | #306 item | Today | Owner |
 |-----------|-------|-------|
@@ -100,23 +100,22 @@ A wins while every consumer is an `INotificationHandler` (#358 Design Choice 3).
 </details>
 
 <details>
-<summary><strong>4. `ValidateDependencies` reuses #358's validator</strong></summary>
+<summary><strong>4. `ValidateDependencies` reuses #358's validator (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `ValidateDependencies()` calls #358's pure `ModuleContractValidator` over the catalog's own snapshot of inputs and wraps the violations in one `Left`** | One set of rules; the catalog and the startup validator can never disagree | The catalog depends on #358 pull request 4 |
-| **B) The catalog implements its own checks** | Independent | Two validators for one contract (`AGENTS.md` section 3: no parallel layers) |
+| **B) The catalog implements its own checks** | Independent of #358's pending placement of the validator | Two validators for one contract that can disagree |
 
-### Chosen Option: **A — reuse the validator**
+### Chosen Option: **A — reuse the validator** (recommended, pending the maintainer)
 
 ### Rationale
 
-The error is `encina.modules.event_contract_invalid` with `ErrorCategory.FailedPrecondition` (ADR-062); the message lists module names and event type names only, never a payload.
+A wins while #358 keeps `ModuleContractValidator` as an internal pure function in `Encina.DomainModeling` (#358 plan pull request 4, itself a pending recommendation of #358 Design Choice 1): the catalog and the startup validator can never disagree. B wins if #358's D1 moves the contract elsewhere and the validator is not reachable from this package. The error is `encina.modules.event_contract_invalid` with `ErrorCategory.FailedPrecondition` (ADR-062); the message lists module names and event type names only, never a payload.
 
-**Class:** Trivial
-**Settled by:** the #358 plan, Phase 3 (`ModuleContractValidator` is a pure function over the graph, the registry and the handler discovery) and `AGENTS.md` section 3 (no parallel layers).
+**Class:** Dilemma
 
 </details>
 
@@ -134,7 +133,7 @@ The error is `encina.modules.event_contract_invalid` with `ErrorCategory.FailedP
 
 ### Rationale
 
-A wins when the catalog feeds checks that treat an empty answer as "safe". B wins for a diagnostics endpoint that must never throw. A blank name is an `ArgumentException` in both cases.
+A wins when the catalog feeds checks that treat an empty answer as "safe". B wins for a diagnostics endpoint that must never throw. A blank name is an `ArgumentException` in both cases. The exception is argument validation (the caller passed a name that is not a module), not a business rule, so it does not conflict with the Railway Oriented Programming rule; the business answer of the catalog, `ValidateDependencies`, returns `Either`.
 
 **Class:** Dilemma
 
@@ -176,7 +175,8 @@ Every feature is opt-in (`AGENTS.md` section 1). The extension throws `InvalidOp
 2. `src/Encina.DomainModeling/ModuleEventCatalog.cs` (internal sealed): built once, lazily and thread safely, from `IModuleRegistry`, `IModuleGraph` (exports) and the handler discovery of #358 PR4; a published event is an exported type that implements `IIntegrationEvent` (D3); a consumed event is the `TEvent` of a handler attributed to the module; `ValidateDependencies()` returns `Right(Unit)` or one `Left` listing every violation of #358's validator (D4).
 3. `src/Encina.DomainModeling/ModuleEventCatalogErrors.cs` (internal static): `encina.modules.event_contract_invalid` (`ErrorCategory.FailedPrecondition`).
 4. `src/Encina.DomainModeling/ModuleEventCatalogServiceCollectionExtensions.cs`: `AddEncinaModuleEventCatalog(this IServiceCollection)` (D6).
-5. Tests: unit `ModuleEventCatalogTests` (published and consumed lists, publishers and consumers, case-insensitive module names, Mermaid text, valid and invalid contract, the same input twice gives the same answer), guard `ModuleEventCatalogGuardTests` (null and blank module name, null event type, null services), DI `ModuleEventCatalogRegistrationTests` (`ValidateOnBuild` and `ValidateScopes`; missing registry throws), contract `ModuleEventCatalogContractTests` (the catalog agrees with `ModuleContractValidator` on the same inputs), property `ModuleEventCatalogPropertyTests` (for generated acyclic module and event sets every consumed event of a module is published by at least one module when the validator reports no violation); `PublicAPI.Unshipped.txt` and the `Encina.DomainModeling.json` manifest through `mechanical-fixer`.
+5. `src/Encina.DomainModeling/Encina.DomainModeling.csproj`: add `InternalsVisibleTo` for `Encina.GuardTests` (the existing list covers UnitTests, IntegrationTests, ContractTests, PropertyTests and providers, not GuardTests), so the guard tests reach the internal `ModuleEventCatalog` and its error factory directly.
+6. Tests: unit `ModuleEventCatalogTests` (published and consumed lists, publishers and consumers, case-insensitive module names, Mermaid text, valid and invalid contract, the same input twice gives the same answer), guard `ModuleEventCatalogGuardTests` (null and blank module name, null event type, null services), DI `ModuleEventCatalogRegistrationTests` (`ValidateOnBuild` and `ValidateScopes`; missing registry throws), contract `ModuleEventCatalogContractTests` (the catalog agrees with `ModuleContractValidator` on the same inputs), property `ModuleEventCatalogPropertyTests` (for generated acyclic module and event sets every consumed event of a module is published by at least one module when the validator reports no violation); `PublicAPI.Unshipped.txt` and the `Encina.DomainModeling.json` manifest through `mechanical-fixer`.
 
 </details>
 
@@ -185,7 +185,7 @@ Every feature is opt-in (`AGENTS.md` section 1). The extension throws `InvalidOp
 
 ```text
 CONTEXT:
-- Issue #306; plan docs/plans/module-event-catalog-implementation-plan-306.md. #358 pull requests 1 to 4 (contract, bus, ModuleContractValidator) and #360 (IModuleGraph, exports) are merged. D1, D2, D3 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #306; plan docs/plans/module-event-catalog-implementation-plan-306.md. #358 pull requests 1 to 4 (contract, bus, ModuleContractValidator) and #360 (IModuleGraph, exports) are merged. D1, D2, D3, D4 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 
 TASK:
 Add IModuleEventCatalog, its internal implementation, the error factory, the registration extension and every test listed.
@@ -317,7 +317,7 @@ REFERENCE FILES:
 
 | PR | Content | Approx. files | Approx. lines |
 |----|---------|---------------|---------------|
-| 1 | Interface, implementation, errors, registration extension, PublicAPI, manifest, 5 test files, 3 justification files (`Encina.DomainModeling`) | 14 | 850 |
+| 1 | Interface, implementation, errors, registration extension, csproj `InternalsVisibleTo` edit, PublicAPI, manifest, 5 test files, 3 justification files (`Encina.DomainModeling`) | 15 | 860 |
 | 2 | Guide section, inventory line, changelog fragment | 3 | 120 |
 
 Pull request 1 needs #358 pull requests 1 to 4 and #360 pull request 3 merged. It adds no change to an interface, so no implementer is touched.
@@ -355,11 +355,11 @@ Pull request 1 needs #358 pull requests 1 to 4 and #360 pull request 3 merged. I
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production code | 4 | Interface, implementation, errors, registration extension |
-| Public API and manifest | 2 | `Encina.DomainModeling` |
+| Public API, manifest and csproj | 3 | `Encina.DomainModeling` (the csproj gains the `Encina.GuardTests` `InternalsVisibleTo`) |
 | Tests | 5 | Unit, guard, DI, contract, property |
 | Justification files | 3 | Integration, load, benchmark |
 | Documentation | 3 | Guide section, inventory line, changelog fragment |
-| **Total** | **17 across 2 pull requests** | See the split table |
+| **Total** | **18 across 2 pull requests** | See the split table |
 
 ---
 
@@ -371,7 +371,7 @@ Pull request 1 needs #358 pull requests 1 to 4 and #360 pull request 3 merged. I
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #306 overlaps #358; this plan implements only the module event catalog. Plan: docs/plans/module-event-catalog-implementation-plan-306.md; D1, D2, D3 and D5 are recommended, pending the maintainer.
+- Issue #306 overlaps #358; this plan implements only the module event catalog. Plan: docs/plans/module-event-catalog-implementation-plan-306.md; D1, D2, D3, D4 and D5 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW:
 1. IModuleEventCatalog, ModuleEventCatalog, the error factory and AddEncinaModuleEventCatalog in Encina.DomainModeling, with tests and the three justification files (Phases 1-3).
@@ -421,5 +421,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3 and D5 when work on #306 starts; the answers go into `## Maintainer Decisions` and the markers are removed. If D1 is answered B, this plan is closed with #306.
+1. The maintainer answers D1, D2, D3, D4 and D5 when work on #306 starts; the answers go into `## Maintainer Decisions` and the markers are removed. If D1 is answered B, this plan is closed with #306.
 2. Pull request 1 after the prerequisites; pull request 2 afterwards.
