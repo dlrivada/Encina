@@ -17,7 +17,7 @@ This is the second plan of the family guards-1 (#653, #654, #655, #656, #657). I
 - **Affected packages**: `Encina.GuardClauses` only (`Guards.cs`, `PublicAPI.Unshipped.txt`, `README.md`).
 - **Provider category**: none. `Guards` is a pure static class: no database, cache, transport, lock or cloud provider is involved, so the matrices of AGENTS.md section 5 do not apply.
 - **Scope**: 1 new public method and 2 private helpers, plus tests, README, changelog fragment, `PublicAPI.Unshipped.txt` and the manifest entry: 8 files. Fits one worker PR (at most 15 files, 1500 lines).
-- **Prerequisites**: #653 merged first (private `CreateComparisonError`, the category constant, the manifest per-file entry); the implementing worker stops and reports if the helper is missing. Coordinates with #3737, #2108, #2123, #2043 (same as #653).
+- **Prerequisites**: #653 merged first (private `CreateComparisonError`, the category constant, the manifest per-file entry); the implementing worker stops and reports if the helper is missing. Coordinates with #3737, #2108, #2123, #2043 (same as #653). The ADR-062 category of the error is `ErrorCategory.Validation` (recommended, pending the maintainer; #653 choice 4), passed through the named argument `category:` by the helper of #653.
 
 ### Shared Pieces and Ownership (family guards-1 and guards-2)
 
@@ -72,7 +72,7 @@ Mapping of option B (the behavior never changes, only the name): #654 `TryValida
 ### Rationale
 
 - The accepted constraint stays `where T : IComparable<T>`, so `DateTime`, `TimeSpan`, `string`, `decimal` and numbers all work.
-- A null value compared with a non-null threshold is "less than" it, so `TryValidateLessThan(null, "name", "a", ...)` returns `false` with an error (fail closed) and never throws.
+- `Comparer<T>.Default` alone is null-safe but fails OPEN for one position (a null threshold sorts first, so every value would pass). The family rule is therefore explicit and fail closed: a null value or a null threshold (reference types) makes every comparison guard return `false` with an error, exactly like a NaN (choice 3). The private helper `IsUnusable<T>(T value)` (`value is null || IsNaN(value)`) implements both rules; #655, #657, #658, #659 and #660 use it. A guard never throws.
 
 - **Class:** Trivial
 - **Settled by:** AGENTS.md section 3 (Railway Oriented Programming: never exceptions for business logic; compliance and security gates fail closed)
@@ -116,10 +116,30 @@ Mapping of option B (the behavior never changes, only the name): #654 `TryValida
 ### Rationale
 
 - The helper of #653 gains an optional `object? threshold = null`; the key `threshold` is added only when it is not null. Tests of #653 cover the no-threshold branch, the tests of this plan cover the threshold branch.
-- The rejected value is not added (choice 3 of #653).
+- Whether the rejected value is added is a separate Dilemma (choice 5).
 
 - **Class:** Trivial
-- **Settled by:** #654 acceptance criteria ("Metadata includes guard type (`LessThan`), parameter name, actual value, threshold") for the threshold, and #2108 expected behavior ("`min` and `max` for `TryValidateInRange` (the bounds the check used, never the input)")
+- **Settled by:** #654 acceptance criteria ("Metadata includes guard type (`LessThan`), parameter name, actual value, threshold") for the threshold, and the existing `TryValidateInRange`, which already puts its bounds `min` and `max` in the details (`src/Encina.GuardClauses/Guards.cs:327-328`)
+
+</details>
+
+<details>
+<summary><strong>5. The rejected value in the details ("actual value" of the issue)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Omit the value; details hold `parameter`, `type`, `stage`, `guard`, `threshold`** | A value can be personal or financial data and details are serialized into snapshots (open bug #2108) | The issue's acceptance criteria list "actual value" among the metadata, and origin/main puts `["value"]` in the details of `TryValidatePositive`, `TryValidateNegative` and `TryValidateInRange` (`Guards.cs:255`, `:287`, `:326`) |
+| **B) Include `value`, as the existing numeric guards do** | Matches the issue and the siblings; useful to reproduce a failure | Repeats the defect #2108 reports |
+
+### Chosen Option: **A — omit the value (recommended, pending the maintainer)**
+
+### Rationale
+
+- The same Dilemma is owned by #653 (choice 3) and answered once for the family; it is listed here because this plan's tests (no `value` key) flip with the answer. Option B wins where details never leave a diagnostic context; option A wins everywhere they can reach a log or a snapshot.
+
+- **Class:** Dilemma
 
 </details>
 
@@ -134,8 +154,8 @@ Mapping of option B (the behavior never changes, only the name): #654 `TryValida
 
 1. `src/Encina.GuardClauses/Guards.cs`:
    - Extend the helper of #653: `CreateComparisonError(string guard, string paramName, Type valueType, string message, object? threshold = null)`; add `["threshold"] = threshold` when `threshold is not null`.
-   - Add `private static bool IsNaN<T>(T value)` (choice 3).
-   - Add `public static bool TryValidateLessThan<T>(T value, string paramName, T threshold, out EncinaError error, string? message = null) where T : IComparable<T>`: when `!IsNaN(value) && !IsNaN(threshold) && Comparer<T>.Default.Compare(value, threshold) >= 0` then `error = default; return true;`, otherwise `error = CreateComparisonError("LessThan", paramName, typeof(T), message ?? $"{paramName} must not be less than {threshold}.", threshold)` and `return false`.
+   - Add `private static bool IsNaN<T>(T value)` (choice 3) and `private static bool IsUnusable<T>(T value) => value is null || IsNaN(value)` (choice 2, fail closed on null).
+   - Add `public static bool TryValidateLessThan<T>(T value, string paramName, T threshold, out EncinaError error, string? message = null) where T : IComparable<T>`: when `!IsUnusable(value) && !IsUnusable(threshold) && Comparer<T>.Default.Compare(value, threshold) >= 0` then `error = default; return true;`, otherwise `error = CreateComparisonError("LessThan", paramName, typeof(T), message ?? $"{paramName} must not be less than {threshold}.", threshold)` and `return false`.
    - XML docs: summary starting "Fails when `value` is less than `threshold`", `typeparam`, every `param`, `returns`, `example` with the age case of the issue, and a remark that string comparison is culture-sensitive (`IComparable<string>`).
 2. `src/Encina.GuardClauses/PublicAPI.Unshipped.txt`: add `static Encina.GuardClauses.Guards.TryValidateLessThan<T>(T value, string! paramName, T threshold, out Encina.EncinaError error, string? message = null) -> bool` (via `mechanical-fixer`, sorted).
 
@@ -158,15 +178,15 @@ REFERENCE FILES: src/Encina.GuardClauses/Guards.cs (TryValidateInRange at 312), 
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/GuardClauses/GuardsTests.cs`, `#region TryValidateLessThan Tests`): value below, equal to and above the threshold for `int`, `decimal`, `double`, `DateTime`, `TimeSpan` and `string` (below returns `false`, equal and above return `true`); `double.NaN` as value and as threshold returns `false`; `double.NegativeInfinity` and `double.PositiveInfinity` against a finite threshold; a custom message replaces the default; the default message names the parameter and the threshold; the error is not `default`, has code `Guards.GuardValidationFailed` and `GetCategory()` equal to the constant; details hold `guard = "LessThan"`, `parameter`, `type`, `stage`, `threshold` and no `value`; the success path leaves `error` as `default`.
-2. Guard (`tests/Encina.GuardTests/Validation/GuardClauses/GuardsGuardTests.cs`): `TryValidateLessThan_NullStringValue_ReturnsFalseWithoutThrowing`, `TryValidateLessThan_NullStringThreshold_DoesNotThrow` (a null threshold sorts first, so every non-null value passes), `TryValidateLessThan_NullMessage_UsesDefaultMessage` (valid result, not an exception), `TryValidateLessThan_EmptyParamName_StillReturnsError`, `TryValidateLessThan_WhitespaceParamName_StillReturnsError`. There is no `ArgumentNullException` test: guards never validate `paramName` and never throw.
-3. Property (`tests/Encina.PropertyTests/Validation/GuardClauses/GuardsPropertyTests.cs`): FsCheck `[Property(MaxTest = 300)]` over `int` and `decimal` pairs: the result is `false` iff `value < threshold`; over `double` pairs generated with NaN: the result is `false` whenever either is NaN; the error is `default` exactly when the result is `true`.
+1. Unit (`tests/Encina.UnitTests/GuardClauses/GuardsTests.cs`, `#region TryValidateLessThan Tests`): value below, equal to and above the threshold for `int`, `decimal`, `double`, `DateTime`, `TimeSpan` and `string` (below returns `false`, equal and above return `true`); `double.NaN` and a null `string` as value and as threshold return `false`; `double.NegativeInfinity` and `double.PositiveInfinity` against a finite threshold; a custom message replaces the default; the default message names the parameter and the threshold; the error is not `default`, has code `Guards.GuardValidationFailed` and `GetCategory()` equal to the constant; details hold `guard = "LessThan"`, `parameter`, `type`, `stage`, `threshold` and no `value`; the success path leaves `error` as `default`.
+2. Guard (`tests/Encina.GuardTests/Validation/GuardClauses/GuardsGuardTests.cs`): `TryValidateLessThan_NullStringValue_ReturnsFalseWithoutThrowing`, `TryValidateLessThan_NullStringThreshold_ReturnsFalseWithoutThrowing` (a null threshold fails closed), `TryValidateLessThan_NullMessage_UsesDefaultMessage` (valid result, not an exception), `TryValidateLessThan_EmptyParamName_StillReturnsError`, `TryValidateLessThan_WhitespaceParamName_StillReturnsError`. There is no `ArgumentNullException` test: guards never validate `paramName` and never throw.
+3. Property (`tests/Encina.PropertyTests/Validation/GuardClauses/GuardsPropertyTests.cs`): FsCheck `[Property(MaxTest = 300)]` over `int` and `decimal` pairs: the result is `false` iff `value < threshold`; over `double` pairs generated with NaN: the result is `false` whenever either is NaN; over `string` pairs generated with null: `false` whenever either is null; the error is `default` exactly when the result is `true`.
 4. No contract, integration, load or benchmark test (a pure comparison on a static class; the PR description records the justification, as in #653).
-5. Per-file coverage targets: the entry `Guards.cs` of `.github/coverage-manifest/Encina.GuardClauses.json` keeps the values of #653 (unit 100, guard 100, property per #2043); the worker re-measures and, if the file grew, confirms the same numbers (targets never go down). The implementing worker reports the measured per-flag values.
+5. Per-file coverage targets: the entry `Guards.cs` of `.github/coverage-manifest/Encina.GuardClauses.json` is created by #653 (unit 100, guard 100, no property value; the manifest counts as a certain file in this PR even if #653 has not landed, where this PR creates it); the worker re-measures and, if the file grew, confirms the same numbers (targets never go down). The implementing worker reports the measured per-flag values.
 
 | File | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |------|------|-------|----------|----------|-------------|----------------------------|
-| `Guards.cs` | 100 | 100 | 0 | 87 (owned by #2043) | 0 | Every line of the new method and the two helpers (the NaN branches, the threshold branch and the failure branch) is reached by value-driven unit and guard tests; the property target stays with #2043; contract is 0 because the class implements no interface; integration is 0 because the class has no external dependency. |
+| `Guards.cs` | 100 | 100 | 0 | not set here (owned by #2043) | 0 | Every line of the new method and the helpers (the null and NaN branches, the threshold branch and the failure branch) is reached by value-driven unit and guard tests; no per-file property target is written because the file's measured property coverage is 111/164 = 67.68% (#2043), so 87 is unreachable by this PR, and the new method's own lines are fully covered by its FsCheck properties; contract is 0 because the class implements no interface; integration is 0 because the class has no external dependency. |
 
    CRAP: `TryValidateLessThan` complexity 4, `IsNaN<T>` complexity 6, both fully covered, below 10.
 
