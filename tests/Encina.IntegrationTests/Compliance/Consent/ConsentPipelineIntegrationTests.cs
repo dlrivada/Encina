@@ -213,7 +213,8 @@ public sealed class ConsentPipelineIntegrationTests
             string source, string grantedBy, string? ipAddress = null,
             string? proofOfConsent = null, IReadOnlyDictionary<string, object?>? metadata = null,
             DateTimeOffset? expiresAtUtc = null, string? tenantId = null,
-            string? moduleId = null, CancellationToken cancellationToken = default)
+            string? moduleId = null, DateTimeOffset? occurredAtUtc = null,
+            CancellationToken cancellationToken = default)
             => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, Guid>(Guid.NewGuid()));
 
         public ValueTask<Either<EncinaError, Unit>> WithdrawConsentAsync(
