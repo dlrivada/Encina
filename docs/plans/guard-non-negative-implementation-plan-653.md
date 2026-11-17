@@ -31,7 +31,7 @@ The five plans of this family and the three of guards-2 that add guards (#658, #
 | Whether the rejected value goes into the details (choice 3) | #653 | all |
 | `ErrorCategory` of the guard error (choice 4) | #653, coordinated with the slice #3737 | all |
 | Naming rule "the name states the failing condition" (D1), the `threshold` metadata key, the NaN rule and the helpers that implement them | #654 | #655, #657 and guards-2 |
-| Manifest entry `Guards.cs` per-file `targets` (unit 100, guard 100) when still absent | #653 (or whichever of #653, #2123 lands first) | all |
+| Manifest entry `Guards.cs` per-file `targets` (unit 100, guard 100; the file has only package-level targets today, no per-file entry; no property value, left to #2043) | #653 creates it (or #2123 if it lands first); the manifest counts as a certain file in every split | all |
 
 ---
 
@@ -98,7 +98,8 @@ The five plans of this family and the three of guards-2 that add guards (#658, #
 
 - Bounds that the check used (`threshold` in #654, #655, #657) are not input and stay; the input itself does not.
 - Option B wins when the guards run only in non-production diagnostics where the value is needed to reproduce a failure; option A wins everywhere the error can reach a log, a snapshot or a client, which is the default (AGENTS.md section 3: `EncinaError.Message` and similar never reach logs; the same care applies to details).
-- The helper takes no value parameter, so a later decision for B is a one-line change in one place.
+- The helper takes no value parameter, so a later decision for B is a one-line change in one place. The tests that assert the details contain no `value` key (Phase 2) flip with the maintainer's answer: under B they assert the key instead.
+- Origin/main today puts `["value"]` in the details of `TryValidatePositive`, `TryValidateNegative` and `TryValidateInRange` (`Guards.cs:255`, `:287`, `:326`); omitting it here is supported only by the open bug #2108, which is why it is a Dilemma and not a settled choice. It also omits the "actual value" metadata the issue's acceptance criteria list.
 
 - **Class:** Dilemma
 
@@ -120,7 +121,7 @@ The five plans of this family and the three of guards-2 that add guards (#658, #
 ### Rationale
 
 - The code is Trivial (the convention of the file). The category is the Dilemma: the migration slice #3737 (P-Misc) decides the category of the code `Encina.guard.validation_failed` for the existing guards, and the new guards must carry the same category (one code, one category). This plan therefore keeps the category in one private constant read by `CreateComparisonError`, so the outcome of #3737 changes one line.
-- Until #3737 lands, the pending line `src/Encina.GuardClauses/ => P-GuardClauses` of `tests/Encina.UnitTests/Core/ErrorCategoryPending.txt` covers the new call; if #3737 lands first, the helper's `EncinaErrors.Create(code, category, ...)` call already satisfies the scan (the named `category:` argument is used).
+- Until #3737 lands, the pending line `src/Encina.GuardClauses/ => P-GuardClauses` of `tests/Encina.UnitTests/Core/ErrorCategoryPending.txt` covers the new call; if #3737 lands first, the pending line is gone and the scan fails on any uncategorized call, so the helper must pass the category as the named argument `category: GuardErrorCategory` (the scan accepts only `ErrorCategory.X` written literally or a named `category:` argument; a positional variable is not recognised). The ADR-062 category of every new guard error is `ErrorCategory.Validation` (recommended, pending the maintainer).
 - Option B wins when guards are used for invariants of already-validated state (the README says guards are not input validation); option A wins when the result of a guard is returned to the caller of a handler (the README examples return the guard's `Left`).
 - A unit test asserts `error.GetCategory()` against the constant for the new guard.
 
@@ -162,7 +163,7 @@ The five plans of this family and the three of guards-2 that add guards (#658, #
 
 1. `src/Encina.GuardClauses/Guards.cs`:
    - Add `private const ErrorCategory GuardErrorCategory = ErrorCategory.Validation;` (the value follows the maintainer's answer to choice 4) with a comment naming #3737.
-   - Add `private static EncinaError CreateComparisonError(string guard, string paramName, Type valueType, string message)`: builds `Dictionary<string, object?>` with `parameter`, `type` (`valueType.FullName`), `stage` (`guard_validation`) and `guard`, and returns `EncinaErrors.Create(GuardValidationFailed, GuardErrorCategory, message, details: metadata)`. It takes no value (choice 3).
+   - Add `private static EncinaError CreateComparisonError(string guard, string paramName, Type valueType, string message)`: builds `Dictionary<string, object?>` with `parameter`, `type` (`valueType.FullName`), `stage` (`guard_validation`) and `guard`, and returns `EncinaErrors.Create(GuardValidationFailed, category: GuardErrorCategory, message: message, details: metadata)` (named `category:` argument, required by the completeness scan of ADR-062). It takes no value (choice 3).
    - Add `public static bool TryValidateNonNegative<T>(T value, string paramName, out EncinaError error, string? message = null) where T : INumber<T>`: if `!T.IsNaN(value) && value >= T.Zero` then `error = default; return true;`, otherwise `error = CreateComparisonError("NonNegative", paramName, typeof(T), message ?? $"{paramName} must be non-negative (zero or greater).")` and `return false`. `-0.0` is non-negative (it equals zero); `NaN` is rejected (fail closed, see #654 choice on NaN).
    - XML docs: `summary`, `typeparam`, every `param`, `returns`, `example` with the balance example of the issue, and a `remarks` line "Fails when the value is below zero or is NaN".
    - `using System.Numerics;` at the top of the file.
@@ -195,7 +196,7 @@ REFERENCE FILES: src/Encina.GuardClauses/Guards.cs (TryValidatePositive at 240, 
 
 | File | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |------|------|-------|----------|----------|-------------|----------------------------|
-| `Guards.cs` | 100 | 100 | 0 | 87 (value owned by #2043, kept as is) | 0 | A pure static class whose every line (the new helper and method included) is reached by value-driven unit and guard tests; property stays at the package key that #2043 raises with generated cases; contract is 0 because the class implements no interface; integration is 0 because `GuardsIntegrationTests` only re-drives existing guards. |
+| `Guards.cs` | 100 | 100 | 0 | not set here (owned by #2043) | 0 | A pure static class whose every line (the new helper and method included) is reached by value-driven unit and guard tests; no per-file property target is written by this PR because the measured property coverage of the file is 111/164 = 67.68% (#2043) and the missed lines belong to other methods, so 87 is unreachable here, and the new method's own lines are fully covered by its FsCheck properties; contract is 0 because the class implements no interface; integration is 0 because `GuardsIntegrationTests` only re-drives existing guards. |
 
    If #2123 has landed, the worker keeps its values (targets never go down). `dotnet run --file .github/scripts/coverage-report.cs -- --check-justifications` must pass, and the PR reports the measured per-flag values of `Guards.cs` against this table. CRAP of `TryValidateNonNegative` and `CreateComparisonError`: complexity 2 and 1, fully covered, far below 10.
 
