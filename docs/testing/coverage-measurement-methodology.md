@@ -179,11 +179,7 @@ dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/covera
 ```
 
 - `--check-justifications` lists every target without a justification, every justification without a target, every unknown flag, every value that is not an integer from 0 to 100 and every pair of flag keys that differ only by case (`unit` and `Unit`), and exits 1 if it finds any.
-<<<<<<< HEAD
-- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The report has no exit code for this; the judgement is the `--check-targets` mode (next subsection).
-=======
-- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The Status column reads `met`, `below`, or `zero-target` for a target of 0. The report has no exit code for this; the CI gate is #1651.
->>>>>>> origin/main
+- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The Status column reads `met`, `below`, or `zero-target` for a target of 0. The report has no exit code for this; the judgement is the `--check-targets` mode (next subsection).
 - The report compares the unrounded measured percentage with the target and rounds only for display (two decimals), so 89.96% does not meet 90.
 
 Generator deviation: the generator preserves per-file targets and justifications and never invents them, because a justification is a judgement about a specific file that a generator cannot make; it keeps its generic `reason` for `defaultTests`.
