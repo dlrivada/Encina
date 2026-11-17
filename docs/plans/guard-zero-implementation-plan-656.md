@@ -17,7 +17,7 @@ This is the fourth plan of the family guards-1 (#653, #654, #655, #656, #657). I
 - **Affected packages**: `Encina.GuardClauses` only (`Guards.cs`, `PublicAPI.Unshipped.txt`, `README.md`).
 - **Provider category**: none. `Guards` is a pure static class, so the matrices of AGENTS.md section 5 do not apply.
 - **Scope**: 1 new public method (no new helper), plus tests, README, changelog fragment, `PublicAPI.Unshipped.txt` and the manifest entry: 8 files. Fits one worker PR (at most 15 files, 1500 lines).
-- **Prerequisites**: #653 merged first (helper, category constant, constraint decision); #654 merged first when the NaN rule is wanted in the same shape (the NaN test below). The implementing worker stops and reports if they are missing.
+- **Prerequisites**: #653 merged first (helper, category constant, constraint decision); #654 merged first when the NaN rule is wanted in the same shape (the NaN test below). The implementing worker stops and reports if they are missing. The ADR-062 category of the error is `ErrorCategory.Validation` (recommended, pending the maintainer; #653 choice 4), passed through the named argument `category:` by the helper of #653. The manifest `.github/coverage-manifest/Encina.GuardClauses.json` has only package-level targets today; #653 creates the per-file entry of `Guards.cs`, and this PR counts the manifest as a certain file (it creates the entry itself if #653 has not landed). Because `T : INumber<T>` admits only value types, the null rule of the family (#654 choice 2) does not apply here.
 
 ### Shared Pieces and Ownership (family guards-1 and guards-2)
 
@@ -103,7 +103,7 @@ Implementation PRs land in the order #653, #654, #655, #656, #657, then guards-2
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `CreateComparisonError("Zero", paramName, typeof(T), message)`: details `parameter`, `type`, `stage`, `guard`, no value and no threshold; code `Guards.GuardValidationFailed`; category constant of #653** | One construction path and one category for every guard; no rejected value (open bug #2108); the scan of ADR-062 never sees one code with two categories | The issue's "actual value" metadata is not provided |
+| **A) `CreateComparisonError("Zero", paramName, typeof(T), message)` (no threshold: zero is implicit in the guard kind); code `Guards.GuardValidationFailed`** | One construction path and one code for every guard, as the 12 existing methods use one code (`Guards.cs:78`) | None for the code; category and value are separate choices |
 | **B) A dedicated code `guard.zero`** | Distinguishable | #233 owns the error-code contract; one code per guard breaks the file's convention |
 
 ### Chosen Option: **A — as #653**
@@ -113,7 +113,27 @@ Implementation PRs land in the order #653, #654, #655, #656, #657, then guards-2
 - The zero is implicit in the guard kind, so a threshold key adds nothing. The default message is `"{paramName} must not be zero."`. The category question (choice 4 of #653, coordinated with #3737) applies unchanged, and a unit test asserts `GetCategory()`.
 
 - **Class:** Trivial
-- **Settled by:** the convention of `src/Encina.GuardClauses/Guards.cs` (one code for all guards, `Guards.cs:78`) and #653 choices 3 and 4 (same code path)
+- **Settled by:** the convention of `src/Encina.GuardClauses/Guards.cs` (one code for all guards, `Guards.cs:78`)
+
+</details>
+
+<details>
+<summary><strong>5. The rejected value in the details ("actual value" of the issue)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Omit the value** | A value can be personal or financial data and details are serialized into snapshots (open bug #2108); for this guard the value is zero or NaN, so it adds nothing | The issue's acceptance criteria list "actual value", and origin/main puts `["value"]` in the details of `TryValidatePositive`, `TryValidateNegative` and `TryValidateInRange` (`Guards.cs:255`, `:287`, `:326`) |
+| **B) Include `value`, as the existing numeric guards do** | Matches the issue and the siblings | Repeats the defect #2108 reports |
+
+### Chosen Option: **A — omit the value (recommended, pending the maintainer)**
+
+### Rationale
+
+- Owned by #653 (choice 3) and answered once for the family; tests asserting no `value` key flip with the answer. The category question (choice 4 of #653, coordinated with #3737) applies unchanged, with `ErrorCategory.Validation` recommended, and a unit test asserts `GetCategory()`.
+
+- **Class:** Dilemma
 
 </details>
 
@@ -152,11 +172,11 @@ REFERENCE FILES: src/Encina.GuardClauses/Guards.cs (the method added by #653), s
 2. Guard (`tests/Encina.GuardTests/Validation/GuardClauses/GuardsGuardTests.cs`): `TryValidateZero_NullMessage_UsesDefaultMessage` (valid result, not an exception), `TryValidateZero_EmptyParamName_StillReturnsError`, `TryValidateZero_WhitespaceParamName_StillReturnsError`, `TryValidateZero_NaN_ReturnsFalse`. No `ArgumentNullException` test: guards never validate `paramName` and never throw.
 3. Property (`tests/Encina.PropertyTests/Validation/GuardClauses/GuardsPropertyTests.cs`): FsCheck `[Property(MaxTest = 300)]` over `int`, `decimal` and `double`: the result is `false` iff `value == 0` or the value is NaN; the error is `default` exactly when the result is `true`.
 4. No contract, integration, load or benchmark test (pure comparison; justification in the PR description, as in #653).
-5. Per-file targets: the entry `Guards.cs` keeps the values owned by #653 (unit 100, guard 100, property per #2043); the worker re-measures and reports.
+5. Per-file targets: the entry `Guards.cs` is created by #653 (unit 100, guard 100, no property value); the worker re-measures and reports.
 
 | File | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |------|------|-------|----------|----------|-------------|----------------------------|
-| `Guards.cs` | 100 | 100 | 0 | 87 (owned by #2043) | 0 | The new method has one success and one failure branch, both reached by value-driven unit and guard tests; the property target stays with #2043; contract and integration are 0 because the class has no interface and no external dependency. |
+| `Guards.cs` | 100 | 100 | 0 | not set here (owned by #2043) | 0 | The new method has one success and one failure branch, both reached by value-driven unit and guard tests; no per-file property target is written because the file's measured property coverage is 111/164 = 67.68% (#2043), so 87 is unreachable by this PR, and the new method's own lines are fully covered by its FsCheck properties; contract and integration are 0 because the class has no interface and no external dependency. |
 
    CRAP of `TryValidateZero`: complexity 3, fully covered, below 10.
 
