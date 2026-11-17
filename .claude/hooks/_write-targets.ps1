@@ -205,11 +205,13 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
 # the folder).
 #
-# A text that creates a drive (`New-PSDrive`, `ndr`, `mount`) can name any scheme (`git://src/x` may be a drive
-# path), so no URL is blanked in it.
+# A text that names a drive-creating command (`New-PSDrive`, `ndr`, `mount`) outside a comment can name any scheme
+# (`git://src/x` may be a drive path), so no URL is blanked in it. The word counts wherever it appears (an
+# assignment, a string handed to `iex`, an alias definition); a comment (`#` at a line start or after whitespace)
+# is dropped first, so "# mount point" does not count. Building the name from pieces is a known limit.
 function Remove-UrlText([string]$Text) {
-    # Command position only (statement start or after ; | & ( {), so a comment such as "# mount point" does not count.
-    if ($Text -match '(?im)(?:^|[;|&({])\s*(?:Microsoft\.PowerShell\.Management\\)?(?:New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
+    $code = [regex]::Replace($Text, '(?m)(?:^|(?<=\s))#.*$', '')
+    if ($code -match '(?i)(?<![\w-])(?:New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
     return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
 }
 
