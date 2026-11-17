@@ -425,6 +425,7 @@ jobs:
       # uploaded with the coverage artifact. Flipping this step to --enforce is the follow-up of #1651.
       - name: Check per-file coverage targets (report-only)
         if: always()
+        continue-on-error: true
         run: |
           dotnet run .github/scripts/coverage-report.cs -- --check-targets --require-all-flags --input artifacts/test-results --output artifacts/coverage
           if [ -f artifacts/coverage/check-targets.json ]; then

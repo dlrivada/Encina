@@ -554,9 +554,10 @@ jobs:
           merge-multiple: false
 
       - name: Check per-file coverage targets of the touched files (report-only)
+        continue-on-error: true
         run: |
           mkdir -p artifacts/coverage-targets
-          git diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > artifacts/coverage-targets/touched.txt
+          git -c core.quotepath=false diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > artifacts/coverage-targets/touched.txt
 
           dotnet run --file .github/scripts/coverage-report.cs -- --check-targets --files-from artifacts/coverage-targets/touched.txt --input artifacts/coverage-targets/coverage --output artifacts/coverage-targets/out
 
