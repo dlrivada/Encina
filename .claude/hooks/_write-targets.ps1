@@ -117,14 +117,20 @@ function Get-LaunchArguments($Tokens, $FileToken) {
         if ($t.Quoted -or -not $t.Value.StartsWith('-') -or $t.Value.Length -lt 2) { continue }
         $name = $t.Value.Substring(1)
         $valueToken = $null
+        $trusted = $false
         $colon = $name.IndexOf(':')
         if ($colon -gt 0) {
             $valueToken = New-CommandToken $name.Substring($colon + 1) $t.Quoted $t.Dynamic $t.Subexpression $t.Bash
+            # The `-Name:` prefix is plain text, so Literal is false for this token; Expanded says whether the
+            # shell rewrites any part of it (an escape, `$$`, `$?`, a subexpression).
+            $trusted = -not $t.Expanded
             $name = $name.Substring(0, $colon)
         }
-        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) { $valueToken = $Tokens[$i + 1]; $i++ }
+        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) { $valueToken = $Tokens[$i + 1]; $trusted = -not $valueToken.Expanded; $i++ }
         $name = $name.ToLowerInvariant()
-        $value = if ($null -ne $valueToken -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
+        # #3896: a value the shell expands (an escape, `$$`, `$?`, `$^` in double quotes) is not what the script receives,
+        # so it never binds.
+        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
         $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
     }
     return $result
@@ -195,7 +201,11 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # repository path; a `file:` URL is kept, it names a local path) and the token must not continue a longer name
 # on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
 # the folder).
+#
+# A text that creates a drive (`New-PSDrive`, `ndr`, `mount`) can name any scheme (`git://src/x` may be a drive
+# path), so no URL is blanked in it.
 function Remove-UrlText([string]$Text) {
+    if ($Text -match '(?i)(?<![\w-])(New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
     return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
 }
 

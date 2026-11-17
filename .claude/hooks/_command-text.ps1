@@ -218,6 +218,10 @@ function Split-CommandStatements {
         # unquoted text around it, so its Value is the text the command will use.
         $segments = 0
         $bare = $false
+        # Expanded: some part of the token is rewritten by the shell (an escape, a `$` in double quotes, a
+        # subexpression), so its Value is not the executed text. Unlike Literal it ignores plain unquoted text, so
+        # an `-Name:"value"` token can still tell whether its value part is trustworthy (#3896).
+        $expanded = $false
         while ($i -lt $n) {
             $c = $Text[$i]
             if ($c -in ' ', "`t", ';', "`n", "`r", '|', '{', '}') { break }
@@ -237,7 +241,7 @@ function Split-CommandStatements {
                 $segments++
                 # A `@"` body is expanded by PowerShell ($ and backtick escapes such as `u{73}), so its Value is
                 # not the executed text; it is not a Literal.
-                if ($q -eq '"' -and $sb.ToString() -match '[$`]') { $bare = $true }
+                if ($q -eq '"' -and $sb.ToString() -match '[$`]') { $bare = $true; $expanded = $true }
                 if ($q -eq '"' -and $sb.ToString() -match '\$[\w{(]') { $dynamic = $true }
                 if ($q -eq '"' -and $sb.ToString() -match '\$\(') { $subexpression = $true }
                 $i = if ($close.Success) { $end + 2 } else { $n }
@@ -278,7 +282,7 @@ function Split-CommandStatements {
                         break
                     }
                     # An escape or a `$` inside double quotes is expanded by the shell (`u{73}, $?, $$): not a Literal.
-                    if ($d -eq '$' -or ($d -eq '`' -and -not $Bash)) { $bare = $true }
+                    if ($d -eq '$' -or ($d -eq '`' -and -not $Bash)) { $bare = $true; $expanded = $true }
                     if ($d -eq '`' -and -not $Bash) {
                         if ($j + 1 -lt $n) { [void]$sb.Append($Text[$j + 1]) }
                         $j += 2
@@ -316,6 +320,7 @@ function Split-CommandStatements {
                 $dynamic = $true
                 $subexpression = $true
                 $bare = $true
+                $expanded = $true
                 $open = if ($c -eq '$') { $i + 1 } else { $i }
                 $before = $sb.Length
                 $i = Skip-Subexpression $Text $open $sb
@@ -326,16 +331,18 @@ function Split-CommandStatements {
             # Escapes outside quotes: PowerShell backtick, Bash backslash.
             if ((($c -eq '`' -and -not $Bash) -or ($c -eq '\' -and $Bash)) -and $i + 1 -lt $n) {
                 $bare = $true
+                $expanded = $true
                 [void]$sb.Append($Text[$i + 1]); $i += 2; continue
             }
 
-            if ($c -eq '$') { $dynamic = $true }
+            if ($c -eq '$') { $dynamic = $true; $expanded = $true }
             $bare = $true
             [void]$sb.Append($c)
             $i++
         }
         $token = New-CommandToken $sb.ToString() $quoted $dynamic $subexpression $Bash.IsPresent
         Add-Member -InputObject $token -NotePropertyName Literal -NotePropertyValue ($segments -eq 1 -and -not $bare -and -not $dynamic -and $sb.ToString().IndexOfAny([char[]](0x2018..0x201E)) -lt 0)
+        Add-Member -InputObject $token -NotePropertyName Expanded -NotePropertyValue $expanded
         Add-Member -InputObject $token -NotePropertyName PipeSource -NotePropertyValue $(if ($current.Count -eq 0) { $pipeSource } else { $null })
         $pipeSource = $null
         $current.Add($token)
