@@ -2,7 +2,7 @@
 
 > **Issue**: [#729](https://github.com/dlrivada/Encina/issues/729)
 > **Type**: Feature (validation, messaging)
-> **Related**: #730 (CDC event validation) and #732 (saga step validation) reuse the shared piece this plan owns (`ValidationOrchestrator.ValidateMessageAsync`); #726 (central validation instrumentation); #702 (validator resolution cache, merged plan); #230 (owns `IRequestValidator<T>`), #233 (owns the `ErrorCode` contract), #3415 (a code-less validation `Left` never becomes a 400), ADR-001, ADR-054, ADR-062 (merged: error category contract)
+> **Related**: #730 (CDC event validation) and #732 (saga step validation) reuse the shared pieces this plan owns (`ValidationOrchestrator.ValidateMessageAsync` and `EvaluateMessageAsync`); #726 (central validation instrumentation); #702 (validator resolution cache, merged plan); #230 (owns `IRequestValidator<T>`), #233 (owns the `ErrorCode` contract), #3415 (a code-less validation `Left` never becomes a 400), ADR-001, ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Medium (one dispatcher hook, one orchestrator method, no persistence)
 > **Estimated Scope**: ~2,700 lines in total (~420 production, ~1,700 tests, ~580 documentation), in four pull requests of at most 14 files and 1,000 lines each
 
@@ -23,7 +23,7 @@
 
 An opt-in gate in the notification dispatcher that validates the notification once, before the fan-out to its handlers, with whichever provider is registered:
 
-1. **`ValidationOrchestrator.ValidateMessageAsync<TMessage>`** (shared, owned by this plan, consumed by #730 and #732): validates any message object with the registered `IValidationProvider` and returns a coded, categorized `Left`; failure details carry property names and counts only.
+1. **`ValidationOrchestrator.ValidateMessageAsync<TMessage>`** (shared, owned by this plan, consumed by #730 and #732): validates any message object with the registered `IValidationProvider` and returns a coded, categorized `Left`; failure details carry property names and counts only. Its companion `EvaluateMessageAsync<TMessage>` returns the provider's `ValidationResult` unchanged, for callers that merge several validators (#730).
 2. **`AddEncinaNotificationValidation(Action<NotificationValidationOptions>?)`**: registers the internal gate and the options (`Mode`: `Reject` by default, or `Skip`).
 3. **The dispatcher hook**: after the handlers are resolved and only when at least one exists, the gate validates the runtime notification; `Reject` returns the `Left` and no handler runs, `Skip` logs and returns `Right` without running any handler.
 
@@ -31,7 +31,7 @@ Nothing changes for an application that does not call `AddEncinaNotificationVali
 
 - Affected packages: `Encina` (core) only. `Encina.FluentValidation`, `Encina.DataAnnotations` and `Encina.MiniValidator` need no code change; their documentation pages gain a notification example.
 - Provider category: Validation (3) (`AGENTS.md` section 5): one integration test per provider runs the same invalid notification through `IEncina.Publish` (Design Choice 4).
-- Shared pieces, owned by this plan: `ValidateMessageAsync`, `MessageValidationErrorCodes` (`validation.message_invalid`, `validation.message_cancelled`, `validation.provider_failed`) and the classifier entry; #730 and #732 build on them and open their pull requests after S1 of this plan.
+- Shared pieces, owned by this plan: `ValidateMessageAsync`, `EvaluateMessageAsync`, `MessageValidationErrorCodes` (`validation.message_invalid`, `validation.message_cancelled`, `validation.provider_failed`) and the classifier entry; #730 and #732 build on them and open their pull requests after S1 of this plan.
 - The issue's "optionally throw" is not offered: business failures are `Left` values (`AGENTS.md` section 3, ADR-001), so the throwing mode is the `Reject` mode.
 
 ---
@@ -153,10 +153,10 @@ Nothing changes for an application that does not call `AddEncinaNotificationVali
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina/Validation/MessageValidationErrorCodes.cs`: `public static class MessageValidationErrorCodes` with `MessageInvalid = "validation.message_invalid"`, `MessageCancelled = "validation.message_cancelled"`, `ProviderFailed = "validation.provider_failed"` (register row C3), XML docs naming the category of each.
-2. **Modify** `src/Encina/Validation/ValidationOrchestrator.cs`: add `public async ValueTask<Either<EncinaError, Unit>> ValidateMessageAsync<TMessage>(TMessage message, IRequestContext context, CancellationToken cancellationToken) where TMessage : class`. `ArgumentNullException.ThrowIfNull` on `message` and `context`; calls `_validationProvider.ValidateAsync(message, context, cancellationToken)`; an invalid result becomes `EncinaErrors.Create(MessageInvalid, ErrorCategory.Validation, <constant text>, details)` with details `validation.message_type`, `validation.error_count`, `validation.properties` (register rows C1, C2); an `OperationCanceledException` while the token is cancelled becomes `MessageCancelled`; any other exception becomes `EncinaErrors.FromException(ProviderFailed, ErrorCategory.Internal, ex)`. The existing `ValidateAsync<TRequest, TResponse>` is not touched (its code-less `Left` is #3415's concern).
+2. **Modify** `src/Encina/Validation/ValidationOrchestrator.cs`: add `public async ValueTask<Either<EncinaError, Unit>> ValidateMessageAsync<TMessage>(TMessage message, IRequestContext context, CancellationToken cancellationToken) where TMessage : class`. `ArgumentNullException.ThrowIfNull` on `message` and `context`; calls `_validationProvider.ValidateAsync(message, context, cancellationToken)`; an invalid result becomes `EncinaErrors.Create(MessageInvalid, ErrorCategory.Validation, <constant text>, details)` with details `validation.message_type`, `validation.error_count`, `validation.properties` (register rows C1, C2); an `OperationCanceledException` while the token is cancelled becomes `MessageCancelled`; any other exception becomes `EncinaErrors.FromException(ProviderFailed, ErrorCategory.Internal, ex)`. Also add `public ValueTask<ValidationResult> EvaluateMessageAsync<TMessage>(TMessage message, IRequestContext context, CancellationToken cancellationToken) where TMessage : class`: the same argument checks, then returns `_validationProvider.ValidateAsync(message, context, cancellationToken)` unchanged (an exception or a cancellation propagates to the caller); `ValidateMessageAsync` calls it, so the provider is invoked in one place. The existing `ValidateAsync<TRequest, TResponse>` is not touched (its code-less `Left` is #3415's concern).
 3. **Modify** `src/Encina/Recoverability/IErrorClassifier.cs`: add `MessageValidationErrorCodes.MessageInvalid` to `PermanentErrorCodes` (register row C4).
 4. **Modify** `src/Encina/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.json` through `mechanical-fixer`.
-5. Tests (new): `tests/Encina.UnitTests/Validation/ValidationOrchestratorMessageTests.cs` (valid result gives `Right`; invalid gives the code, `ErrorCategory.Validation`, the details with names and counts, no validator text and no property value in the error text; more than 20 properties are capped; cancellation; a throwing provider; each against a fake `IValidationProvider`) and `tests/Encina.GuardTests/Core/Validation/ValidationOrchestratorMessageGuardTests.cs` (null message, null context). (edited) `tests/Encina.UnitTests/Recoverability/DefaultErrorClassifierTests.cs` (the new code is `Permanent`, `validation.provider_failed` is not).
+5. Tests (new): `tests/Encina.UnitTests/Validation/ValidationOrchestratorMessageTests.cs` (valid result gives `Right`; invalid gives the code, `ErrorCategory.Validation`, the details with names and counts, no validator text and no property value in the error text; more than 20 properties are capped; cancellation; a throwing provider; each against a fake `IValidationProvider`; `EvaluateMessageAsync` returns the provider's result unchanged and lets an exception propagate) and `tests/Encina.GuardTests/Core/Validation/ValidationOrchestratorMessageGuardTests.cs` (null message and null context, for both methods). (edited) `tests/Encina.UnitTests/Recoverability/DefaultErrorClassifierTests.cs` (the new code is `Permanent`, `validation.provider_failed` is not).
 
 </details>
 
@@ -171,7 +171,8 @@ every EncinaError a category set with EncinaErrors.Create(code, category, messag
 
 TASK:
 1. Create MessageValidationErrorCodes (three codes) and add ValidationOrchestrator.ValidateMessageAsync<TMessage>
-   (TMessage : class) returning Either<EncinaError, Unit>.
+   (TMessage : class) returning Either<EncinaError, Unit>, and EvaluateMessageAsync<TMessage> returning the provider's
+   ValidationResult unchanged (ValidateMessageAsync calls it).
 2. Invalid result: EncinaErrors.Create(MessageInvalid, ErrorCategory.Validation, constant text, details with
    validation.message_type, validation.error_count, validation.properties (distinct names, at most 20)).
 3. Cancelled token: MessageCancelled (ErrorCategory.Cancelled). Other exception: FromException(ProviderFailed,
@@ -356,7 +357,7 @@ Every count includes tests, coverage manifest edits, PublicAPI files, READMEs an
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| S1 | Shared `ValidateMessageAsync`, codes, classifier entry | 1 (`MessageValidationErrorCodes`) | 3 (`ValidationOrchestrator`, `IErrorClassifier`, PublicAPI) | 2 (unit, guard) | 1 (`DefaultErrorClassifierTests`) | 1 | 0 | 8 | ~600 |
+| S1 | Shared `ValidateMessageAsync` and `EvaluateMessageAsync`, codes, classifier entry | 1 (`MessageValidationErrorCodes`) | 3 (`ValidationOrchestrator`, `IErrorClassifier`, PublicAPI) | 2 (unit, guard) | 1 (`DefaultErrorClassifierTests`) | 1 | 0 | 8 | ~600 |
 | S2 | Mode, options, gate, log, registration | 6 (`NotificationValidationMode`, `NotificationValidationOptions`, `INotificationValidationGate`, `NotificationValidationGate`, `NotificationValidationLog`, `NotificationValidationServiceCollectionExtensions`) | 2 (`EventIdRanges.cs`, PublicAPI) | 4 (gate, log, guard, registration) | 1 (`EncinaEventIdAllocationTests`) | 1 | 0 | 14 | ~950 |
 | S3 | Dispatcher wiring and provider tests | 0 | 1 (`Encina.NotificationDispatcher.cs`) | 4 (dispatch unit, 3 integration) | 0 | 1 | 0 | 6 | ~700 |
 | S4 | Documentation and finalization | 0 | 0 | 0 | 0 | 0 | 9 (feature page, `docs/features/index.md`, `pipeline-behaviors.md`, 3 provider READMEs, changelog fragment, 2 justification `.md`) | 9 | ~520 |
@@ -395,7 +396,8 @@ PROJECT CONTEXT:
 - Notifications have no pipeline: NotificationDispatcher resolves handlers and calls the dispatch strategy.
 
 IMPLEMENTATION OVERVIEW:
-1. ValidationOrchestrator.ValidateMessageAsync<TMessage> plus MessageValidationErrorCodes and the classifier entry (S1).
+1. ValidationOrchestrator.ValidateMessageAsync<TMessage> and EvaluateMessageAsync<TMessage> plus MessageValidationErrorCodes
+   and the classifier entry (S1).
 2. NotificationValidationMode/Options, the internal gate, AddEncinaNotificationValidation, log 650-652 (S2).
 3. The dispatcher hook after the zero-handler return, dispatch unit tests and one integration test per provider (S3).
 4. Feature page, README updates, changelog fragment, justification files (S4).
@@ -449,7 +451,7 @@ REFERENCE FILES:
 
 | Dependency | Issue | Notes |
 |-----------|-------|-------|
-| Central validation instrumentation | #726 | Instruments `ValidateMessageAsync` once it lands |
+| Central validation instrumentation | #726 | Instruments the orchestrator methods once it lands |
 | Code-less validation `Left` never becomes a 400 | #3415 | Independent: the new codes are categorized from the start |
 | Validator resolution cache | #702 | Speeds the provider call; independent |
 
@@ -459,4 +461,4 @@ REFERENCE FILES:
 
 1. Link this plan from #729 and ask the maintainer to answer Design Choices 1 and 2 when work starts.
 2. Implement S1 to S4 as the pull requests of the Estimated File Count split, `Fixes #729` on S4. Open S1 first: #730 and #732 wait for it.
-3. After S1 merges, the plans of #730 and #732 proceed; they use `ValidateMessageAsync` and `MessageValidationErrorCodes` as owned here.
+3. After S1 merges, the plans of #730 and #732 proceed; they use `EvaluateMessageAsync` (#730) and `ValidateMessageAsync` with `MessageValidationErrorCodes` (#732) as owned here.
