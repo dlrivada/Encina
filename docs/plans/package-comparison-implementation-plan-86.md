@@ -2,7 +2,7 @@
 
 > **Issue**: [#86](https://github.com/dlrivada/Encina/issues/86)
 > **Type**: Feature (documentation)
-> **Complexity**: Medium (4 phases, 6 files, no production code)
+> **Complexity**: Medium (4 phases, 7 files, no production code)
 > **Estimated Scope**: about 600-800 changed lines of Markdown, no tests
 
 ---
@@ -25,7 +25,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 **Affected packages**: none changed.
 
-**Size for the worker brief**: 6 files, about 700 lines. Within the 15-file and 1,500-line limit of one pull request.
+**Size for the worker brief**: 7 files, about 700 lines. Within the 15-file and 1,500-line limit of one pull request.
 
 ---
 
@@ -34,7 +34,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>1. Page shape — a Reference page for the tables and a separate How-to for the flowcharts</strong></summary>
 
-### Options Considered
+### Options Considered: Page structure
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -43,7 +43,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Reference page plus How-to page**
 
-### Rationale
+### Rationale: Page structure
 
 - Readers either look a fact up (tables) or decide what to use (flowcharts); the skill treats these as different moods.
 - The skill says a feature that needs several moods becomes several pages; the issue asks for tables plus flowcharts in one deliverable, not on one page.
@@ -56,7 +56,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>2. Database section — link and summarise docs/features/database-providers.md instead of copying its matrix</strong></summary>
 
-### Options Considered
+### Options Considered: Database section
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -65,7 +65,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Link and add only what is missing**
 
-### Rationale
+### Rationale: Database section
 
 - The existing page is already the verified source of "which store exists for which provider".
 - The original table's families (EF Core, Dapper, ADO.NET, MongoDB) are expanded to the 10 providers of AGENTS.md section 5.
@@ -78,7 +78,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>3. Performance — citations of benchmark pages, never ratings</strong></summary>
 
-### Options Considered
+### Options Considered: Performance citations
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -87,7 +87,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Citations only**
 
-### Rationale
+### Rationale: Performance citations
 
 - Benchmark pages that exist: `dapper-vs-ado-comparison.md`, `ado-*-benchmark-results.md`, `dapper-*-benchmark-results.md`, `mongodb-benchmark-results.md`, `caching-performance.md`, `caching-memory-`, `caching-hybrid-` and `caching-redis-benchmark-results.md`, `id-generation-comparison.md`. The page cites them; it types no figure.
 
@@ -99,7 +99,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>4. Transport "Best for" column — drop it or keep it with a source per row</strong></summary>
 
-### Options Considered
+### Options Considered: Transport "Best for" column
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -108,7 +108,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Keep "Type", drop "Best for" (recommended, pending the maintainer)**
 
-### Rationale
+### Rationale: Transport "Best for" column
 
 - Scenario where A wins: the maintainer wants the page to hold only what a reviewer can verify.
 - Scenario where B wins: the maintainer wants the table to answer "which one for my case" without opening the flowchart, and accepts the maintenance.
@@ -121,7 +121,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>5. Every cell verified in src/, and planned providers marked planned</strong></summary>
 
-### Options Considered
+### Options Considered: Cell verification
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -130,7 +130,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Verified cells, planned marked**
 
-### Rationale
+### Rationale: Cell verification
 
 - Lists come from AGENTS.md section 5: 10 database providers, 8 caches (Memcached planned), 10 transports plus 6 planned for 1.0, 3 validation libraries.
 - Where a provider lacks a feature the table says "not supported" with the reason "no such type in the package", as `docs/features/database-providers.md` does.
@@ -143,7 +143,7 @@ What the code and the docs say today (read on 2026-11-11):
 <details>
 <summary><strong>6. Flowcharts are Mermaid</strong></summary>
 
-### Options Considered
+### Options Considered: Flowchart format
 
 | Option | Pros | Cons |
 |--------|------|------|
@@ -152,7 +152,7 @@ What the code and the docs say today (read on 2026-11-11):
 
 ### Chosen Option: **A — Mermaid**
 
-### Rationale
+### Rationale: Flowchart format
 
 - One flowchart per category (database, caching, transport, validation), each decision node phrased as a requirement the reader can answer.
 
@@ -209,7 +209,8 @@ REFERENCE FILES
 <details>
 <summary>Tasks</summary>
 
-1. Create the page, front matter `title: "How to choose a provider"`, `layout: default`, `parent: "Guides"`.2. One Mermaid flowchart per category, each node a requirement ("Need persistence across restarts?", "Already running RabbitMQ?") with the outcomes naming a package as written in the reference page.
+1. Create the page, front matter `title: "How to choose a provider"`, `layout: default`, `parent: "Guides"`.
+2. One Mermaid flowchart per category, each node a requirement ("Need persistence across restarts?", "Already running RabbitMQ?") with the outcomes naming a package as written in the reference page.
 3. A short paragraph per category giving the reason behind each outcome, each reason pointing to a fact in the reference page or to an ADR (for example ADR-009, ADR-024).
 4. Link sideways: the reference page for the facts, `docs/architecture/data-access-providers.md` for the explanation.
 
@@ -280,7 +281,8 @@ README.md, docs/features/index.md, docs/guides/index.md, docs/features/database-
 2. For every table cell, list the type or package that backs it in the PR description (a short evidence table); a cell without evidence is removed.
 3. Validate each Mermaid block renders (GitHub preview or the site build in `docs.yml`).
 4. Run `docs-reviewer` on the two pages.
-5. `docs/INVENTORY.md`: add the pages if it lists them. No changelog fragment unless the maintainer says documentation is user-visible. No `src/` change.
+5. `changelog.d/86-package-comparison.added.md` (AGENTS.md section 11: a completed user-visible change adds a fragment): one `-` bullet announcing the package comparison reference page and the provider-selection guide, written through `mechanical-fixer`; check it with `dotnet run --file .github/scripts/changelog-fragments.cs -- --check`.
+6. `docs/INVENTORY.md`: add the pages if it lists them. No `src/` change.
 
 </details>
 
@@ -350,7 +352,8 @@ REFERENCE FILES
 | docs/features/index.md | 1 | one entry |
 | docs/guides/index.md | 1 | one entry |
 | docs/features/database-providers.md | 1 | one back-link |
-| Changelog fragment | 0 | not applicable |
+| Changelog fragment (changelog.d/86-package-comparison.added.md) | 1 | new, Phase 4 task 5 |
+| **Total** | **7** | within the 15-file limit of one pull request |
 
 ---
 
@@ -412,5 +415,5 @@ docs/plans/package-comparison-implementation-plan-86.md, .claude/skills/encina-d
 ## Next Steps
 
 1. The orchestrator links this plan from #86 and asks the maintainer about Design Choice 4 (Design Choice 1 is Settled) when work on the issue starts.
-2. Brief a `docs-writer` for the two pages and four link edits (6 files, about 700 lines).
+2. Brief a `docs-writer` for the two pages and four link edits plus the changelog fragment (7 files, about 700 lines).
 3. If #85 and #86 merge in either order, add the sideways link in a follow-up; never link an unmerged page.
