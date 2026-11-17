@@ -431,6 +431,55 @@ public class MartenAggregateRepositoryTests
     }
 
     [Fact]
+    public async Task CreateAsync_WrappedPostgresUniqueViolationOnStreamKey_ReturnsStreamAlreadyExists()
+    {
+        // Arrange
+        var aggregate = new TestAggregate();
+        aggregate.DoSomething();
+
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new OuterCommandException(
+                "command failed",
+                new PostgresException("23505: duplicate key value violates unique constraint \"pkey_mt_streams_id\"")));
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.CreateAsync(aggregate);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: err => err.GetCode().IfNone(string.Empty).ShouldBe(MartenErrorCodes.StreamAlreadyExists));
+        _session.Received(1).EjectAllPendingChanges();
+    }
+
+    [Fact]
+    public async Task CreateAsync_WrappedPostgresExceptionOnOtherConstraint_ReturnsCreateFailed()
+    {
+        // Arrange
+        var aggregate = new TestAggregate();
+        aggregate.DoSomething();
+
+        _session.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .ThrowsAsync(new OuterCommandException(
+                "command failed",
+                new PostgresException("23505: duplicate key value violates unique constraint \"other_key\"")));
+
+        var sut = CreateSut();
+
+        // Act
+        var result = await sut.CreateAsync(aggregate);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.Match(
+            Right: _ => throw new InvalidOperationException("Expected Left"),
+            Left: err => err.GetCode().IfNone(string.Empty).ShouldBe(MartenErrorCodes.CreateFailed));
+    }
+
+    [Fact]
     public async Task CreateAsync_StartStreamThrows_DoesNotEjectPendingChanges()
     {
         // Arrange: the failure happens before anything is queued, so unrelated operations
@@ -516,4 +565,6 @@ public class MartenAggregateRepositoryTests
     // Custom exception types that match Marten's naming conventions
     private sealed class ConcurrencyTestException(string message) : Exception(message);
     private sealed class ExistingStreamTestException(string message) : Exception(message);
+    private sealed class OuterCommandException(string message, Exception inner) : Exception(message, inner);
+    private sealed class PostgresException(string message) : Exception(message);
 }

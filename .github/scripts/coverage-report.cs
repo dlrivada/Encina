@@ -19,7 +19,8 @@
 // where it is required (the flag ran but has no data for the file; with --require-all-flags, every flag
 // is required, as in the nightly run, otherwise only flags that have a Cobertura file in the run are); (c) a
 // Cobertura file could not be parsed (recorded in every mode); (d) with --files-from, a touched src/ file that
-// still exists has no per-file target in its package manifest. --enforce and --require-all-flags need --check-targets.
+// still exists has no per-file target in its package manifest, or a touched src/ C# path has characters the
+// check cannot read (dropped-path). --enforce and --require-all-flags need --check-targets.
 //
 // --files-from (#3289) reads a list of repository paths, one per line (the files a pull request touches, from
 // the GitHub API), and also writes <output>/pr-coverage-comment.md: the "Per-file targets" rows of those files
@@ -69,7 +70,16 @@ string? filesFrom = null;
 
 for (int i = 0; i < args.Length; i++)
 {
-    if (args[i] == "--files-from" && i + 1 < args.Length) filesFrom = args[++i];
+    if (args[i] == "--files-from")
+    {
+        // A missing value must never silently disable the touched-file check of --enforce (#3860).
+        if (i + 1 >= args.Length)
+        {
+            Console.WriteLine("\nERROR: --files-from needs a file path.");
+            Environment.Exit(1);
+        }
+        filesFrom = args[++i];
+    }
     if (args[i] == "--check-flag-assignment") checkFlagAssignment = true;
     if (args[i] == "--min-lines" && (i + 1 >= args.Length || !int.TryParse(args[++i], NumberStyles.None, CultureInfo.InvariantCulture, out minLines) || minLines < 1))
     {
@@ -476,7 +486,8 @@ static TargetFinding? CheckTargetRow(FileTargetRow row, IReadOnlyCollection<Test
 // file has nothing to cover); touched is null without --files-from.
 static List<TargetFinding> FindTargetProblems(
     IReadOnlyList<FileTargetRow> rows, IReadOnlyCollection<TestType> flagsInRun, bool requireAllFlags,
-    IReadOnlyList<string> coverageParseFailures, IReadOnlySet<string>? touched, Func<string, bool> sourceExists)
+    IReadOnlyList<string> coverageParseFailures, IReadOnlySet<string>? touched, Func<string, bool> sourceExists,
+    int droppedSrcPaths = 0)
 {
     var findings = coverageParseFailures.Order(StringComparer.Ordinal)
         .Select(f => new TargetFinding("parse-error", f, "the Cobertura report could not be parsed, so its flag cannot be vouched for"))
@@ -497,6 +508,11 @@ static List<TargetFinding> FindTargetProblems(
             .Where(t => !targeted.Contains(t) && sourceExists(t))
             .Select(t => new TargetFinding("no-targets", t, "a touched src/ file has no per-file target in its package manifest")));
     }
+
+    // The path itself is not echoed: it is the very text the character filter refused.
+    if (droppedSrcPaths > 0)
+        findings.Add(new TargetFinding("dropped-path", "touched-files",
+            $"{droppedSrcPaths} touched src/ C# path(s) have characters the check cannot read (only ASCII letters, digits and . / - _ + are accepted), so their targets were not checked"));
 
     return findings;
 }
@@ -641,14 +657,26 @@ static HashSet<string> ParseTouchedFiles(IEnumerable<string> lines)
     var touched = new HashSet<string>(StringComparer.Ordinal);
     foreach (var raw in lines)
     {
-        var path = raw.Trim().Replace('\\', '/');
-        if (path.StartsWith("src/", StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal) &&
-            !path.Contains("..", StringComparison.Ordinal) &&
-            path.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '/' or '-' or '_' or '+'))
+        var path = NormalizeTouchedLine(raw);
+        if (IsSrcCSharpPath(path) && IsPlainPath(path))
             touched.Add(path);
     }
     return touched;
 }
+
+// How many lines name a src/ C# file that ParseTouchedFiles drops (a space, "$", "(", a non-ASCII letter, ".."
+// ...). Under --check-targets each one is a finding: a file the check cannot read must never escape it (#3860).
+static int CountDroppedSrcPaths(IEnumerable<string> lines)
+    => lines.Select(NormalizeTouchedLine).Count(path => IsSrcCSharpPath(path) && !IsPlainPath(path));
+
+static string NormalizeTouchedLine(string raw) => raw.Trim().Replace('\\', '/');
+
+static bool IsSrcCSharpPath(string path)
+    => path.StartsWith("src/", StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal);
+
+static bool IsPlainPath(string path)
+    => !path.Contains("..", StringComparison.Ordinal) &&
+       path.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '/' or '-' or '_' or '+');
 
 static string SourcePathOf(FileTargetRow row) => $"src/{row.Package}/{row.File}";
 
@@ -1033,6 +1061,16 @@ int RunSelfTest()
         "a touched file with no per-file target is a finding; a targeted or deleted file is not");
     Check(Find(targetedRows, unitRan, touched: null).Count == 0, "without --files-from no touched file is checked");
 
+    // A src/ C# path the character filter drops is a finding, never a silent escape (#3860).
+    string[] oddLines = ["src/Pkg/My File.cs", "src/Pkg/A$.cs", "src/Pkg/../x.cs", "src/Pkg/Ok.cs", "docs/My File.md", "tests/My File.cs", "src/Pkg/Readme.md", ""];
+    Check(CountDroppedSrcPaths(oddLines) == 3, "only src/ C# paths the filter refuses are counted as dropped");
+    Check(CountDroppedSrcPaths(["src/Pkg/A.cs"]) == 0, "a plain path is not counted as dropped");
+    var droppedFindings = FindTargetProblems(targetedRows, unitRan, false, [], touchedSet, _ => true, droppedSrcPaths: 2);
+    Check(droppedFindings.Any(f => f.Kind == "dropped-path" && !f.Message.Contains("My File", StringComparison.Ordinal)),
+        "dropped src paths are a dropped-path finding that does not echo the path");
+    Check(FindTargetProblems(targetedRows, unitRan, false, [], touchedSet, _ => true).All(f => f.Kind != "dropped-path"),
+        "no dropped path, no dropped-path finding");
+
     var reported = new List<TargetFinding> { new("below-target", "Pkg/A.cs unit", "x") };
     var reportDir = Path.Combine(Path.GetTempPath(), "coverage-report-selftest-targets-" + Guid.NewGuid().ToString("N"));
     try
@@ -1347,8 +1385,9 @@ if (!Directory.Exists(inputDir))
     if (checkUnmeasured || checkFlagAssignment) Environment.Exit(1);
     if (checkTargets)
     {
-        Console.WriteLine($"\n--check-targets: input directory '{inputDir}' not found; nothing was checked.");
-        if (enforce) Environment.Exit(1);
+        // Always (over)write check-targets.json so a stale file of an earlier run is never read as current (#3860).
+        var missingInput = new List<TargetFinding> { new("no-coverage", "input", $"the input directory '{inputDir}' was not found, so no target could be checked") };
+        if (RunCheckTargets(missingInput, [], [], enforce, requireAllFlags, outputDir)) Environment.Exit(1);
     }
     return;
 }
@@ -1844,10 +1883,12 @@ if (checkTargets)
 {
     // <repo>/.github/coverage-manifest -> <repo>; Combine + GetFullPath is safe with a trailing separator.
     var repoRootForTargets = Path.GetFullPath(Path.Combine(manifestDir, "..", ".."));
-    var touchedForTargets = filesFrom is not null ? ParseTouchedFiles(File.ReadAllLines(filesFrom)) : null;
+    var touchedLines = filesFrom is not null ? File.ReadAllLines(filesFrom) : null;
+    var touchedForTargets = touchedLines is not null ? ParseTouchedFiles(touchedLines) : null;
+    var droppedForTargets = touchedLines is not null ? CountDroppedSrcPaths(touchedLines) : 0;
     var flagsInRunForTargets = coverageByFlag.Keys.Where(f => f != TestType.None).ToList();
     var targetFindings = FindTargetProblems(fileTargetRows, flagsInRunForTargets, requireAllFlags, coverageParseFailureFiles,
-        touchedForTargets, path => File.Exists(Path.Combine(repoRootForTargets, path)));
+        touchedForTargets, path => File.Exists(Path.Combine(repoRootForTargets, path)), droppedForTargets);
     // A manifest that is missing or did not parse cannot vouch for anything: never a vacuous pass.
     if (manifest.Count == 0 || manifestParseFailures.Count > 0)
         targetFindings.Add(new TargetFinding("no-manifest", manifestDir,
@@ -2320,7 +2361,7 @@ sealed class MethodCrapInfo(string relFile, string className, string name, strin
 record FileTargetRow(string Package, string File, string Flag, double Target, double? Measured,
     int? TotalLines = null, int? CoveredLines = null);
 
-// One finding of --check-targets (#1651): Kind is below-target, no-data, parse-error, no-targets, no-coverage or no-manifest.
+// One finding of --check-targets (#1651): Kind is below-target, no-data, parse-error, no-targets, dropped-path, no-coverage or no-manifest.
 record TargetFinding(string Kind, string Subject, string Message);
 
 // Target attainment aggregates (#2542); the field names are the contract of latest.json overall.attainment.
