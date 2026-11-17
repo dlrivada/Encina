@@ -17,14 +17,14 @@ This is the third and last guard plan of the family guards-2 (#658, #659, #660).
 - **Affected packages**: `Encina.GuardClauses` only (`Guards.cs`, `PublicAPI.Unshipped.txt`, `README.md`).
 - **Provider category**: none. `Guards` is a pure static class, so the matrices of AGENTS.md section 5 do not apply.
 - **Scope**: 1 new public method (no new helper), plus tests, README, changelog fragment, `PublicAPI.Unshipped.txt` and the manifest entry: 8 files. Fits one worker PR (at most 15 files, 1500 lines).
-- **Prerequisites**: #653, #654 and #659 merged first (helper, category constant, `AreEqual<T>`); the implementing worker stops and reports if `AreEqual<T>` is missing from `Guards.cs`.
+- **Prerequisites**: #653, #654 and #659 merged first (helper, category constant, `IsUnusable<T>`, `AreEqual<T>`); the implementing worker stops and reports if `AreEqual<T>` is missing from `Guards.cs`. Relation to #654: `IsUnusable<T>` is applied on both operands if choice 5 is answered with option B (recommended) and deliberately not applied with option A, which keeps `Equals` semantics for an expected null or NaN. The ADR-062 category of the error is `ErrorCategory.Validation` (recommended, pending the maintainer; #653 choice 4), passed through the named argument `category:` by the helper of #653. The 12 existing `EncinaErrors.Create(GuardValidationFailed, ...)` calls of `Guards.cs` (`:124` to `:506`) carry no `category:` today (pending line, #3737); the new guard relies on #653's helper.
 
 ### Shared Pieces and Ownership (family guards-1 and guards-2)
 
 | Shared piece | Owner | Used by |
 |--------------|-------|---------|
 | `CreateComparisonError`, category constant, error code, no rejected value in the details, `ErrorCategory` | #653 | all |
-| Naming rule and its seven-name mapping (D1) | #654 | this plan, #658, #659 |
+| Naming rule and its seven-name mapping (D1); `IsUnusable<T>` | #654 | this plan, #658, #659 |
 | Per-file targets of the `Guards.cs` manifest entry | #653 | all |
 | Equality semantics: generic constraint, arrays, compared value out of the details, private `AreEqual<T>` | #659 | this plan |
 | This plan adds no shared piece | #660 | none |
@@ -117,7 +117,7 @@ Implementation PRs land in the order #653 to #657, #658, #659, #660, one at a ti
 - A remark in the XML docs and a sentence in the README carry the warning; no test can pin timing.
 
 - **Class:** Trivial
-- **Settled by:** the README of `Encina.GuardClauses` ("Important: GuardClauses vs Input Validation", defensive programming against bugs) and AGENTS.md section 3 (every line serves a current purpose)
+- **Settled by:** AGENTS.md section 3 (every line serves a current purpose: a second, constant-time algorithm serves no use case of #660, which lists a version, a checksum and a protocol version) and the .NET API `CryptographicOperations.FixedTimeEquals` for the case it is meant for
 
 </details>
 
@@ -128,40 +128,39 @@ Implementation PRs land in the order #653 to #657, #658, #659, #660, one at a ti
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `Equals` semantics as in #659 (two NaNs are equal, two nulls are equal, a NaN differs from every finite value); example with an optimistic-concurrency version (`long` and the `byte[]` row version)** | One rule for both equality guards; no NaN hole in a match check (a NaN never equals a finite expected value, so it fails); the tests execute the documented example | `(NaN, NaN)` passes, unlike the C# `==` operator; documented |
-| **B) The NaN rule of #654 (a NaN operand fails)** | One rule for every comparison guard | A match against an expected NaN would be impossible; the hole it closes does not exist for equality |
+| **A) `Equals` semantics as in the Dilemma of #659 (two NaNs are equal, two nulls are equal, a NaN differs from every finite value)** | The expected value can itself be null or NaN; same as the .NET helper; the tests execute the documented example (`long` and the `byte[]` row version) | Fail-open for a version gate: an unloaded (null) version equals a null expected version and `(NaN, NaN)` passes, contrary to the family rule of #654 choice 2 |
+| **B) The family rule of #654: `IsUnusable<T>` (null or NaN) on the value or on `expected` returns `false` with an error** | A match gate never passes on a missing or NaN value; one fail-closed rule for the family (#654 names #659 and #660 as users) | A match against an expected null or NaN cannot be expressed (use `TryValidateNotNull` or `TryValidate(condition, ...)`); differs from the .NET helper |
 
-### Chosen Option: **A — as #659**
+### Chosen Option: **B — apply `IsUnusable<T>` (recommended, pending the maintainer)**
 
 ### Rationale
 
-- The tests pin `(NaN, NaN)` returns `true`, `(NaN, 1.0)` returns `false`, `(null, null)` returns `true`, `(null, "a")` returns `false`, two equal `byte[]` copies return `true` (choice 2, option B).
-- A concurrency token the caller never loaded (`null` against an expected non-null version) fails, which is the safe direction for a match check.
+- The decision is owned by #659 (choice 5) and answered once; it is repeated here because a match check is where the fail-open reading hurts most (a token the caller never loaded must not match). Option A wins when the expected value can legitimately be null or NaN; option B wins for a gate. This plan relates to #654 by using `IsUnusable<T>` on both operands if the answer is B, and deliberately not using it if the answer is A.
+- Tests under B: `(NaN, NaN)`, `(NaN, 1.0)`, `(null, null)`, `(null, "a")` and `("a", null)` return `false`; two equal `byte[]` copies return `true` (#659 choice 3, option B); the tests flip for the null and NaN pairs under A (`true`, `false`, `true`, `false`, `false`).
 
-- **Class:** Trivial
-- **Settled by:** the issue's acceptance criterion "returns `false` when `value != expected`" and the use cases of #660 (version, checksum, protocol version), read with the `Equals` semantics verified on 2026-11-17 (`EqualityComparer<double>.Default.Equals(double.NaN, double.NaN)` returns `true`); it holds under any answer to choice 2
+- **Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Error construction and category</strong></summary>
+<summary><strong>6. Error code of the guard</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `CreateComparisonError("NotEqual", paramName, typeof(T), message ?? "...", threshold: null)` with code `Guards.GuardValidationFailed` and the category constant of #653** | One code, one category, one construction path for all guards | None |
+| **A) Reuse `Guards.GuardValidationFailed` (`Encina.guard.validation_failed`), the one code every existing guard returns** | All 12 existing methods create it (`Guards.cs:78`, `:124`, `:158`, ...); a consumer matches one code | A caller cannot tell a version conflict from another guard failure by code (the details carry `guard = "NotEqual"`) |
 | **B) A dedicated code such as `Encina.guard.concurrency_conflict` for the version use case** | A caller can tell a conflict from another guard failure | Breaks the single-code convention; #233 owns the error-code contract; a conflict is a domain error the caller maps itself |
 
-### Chosen Option: **A — the helper of #653**
+### Chosen Option: **A — the existing code**
 
 ### Rationale
 
-- The `ErrorCategory` is the one constant of #653 (ADR-062; decided in #653 choice 4 and the slice #3737). A unit test asserts `error.GetCategory()` against it.
+- The error is built through the helper of #653 and carries its `ErrorCategory` (`ErrorCategory.Validation`, recommended, pending the maintainer; #653 choice 4); those are #653's decisions, not decided here. The 12 existing `EncinaErrors.Create(GuardValidationFailed, ...)` calls (`Guards.cs:124` to `:506`) carry no `category:` today (pending line, #3737); the new guard does not copy them and relies on #653's helper. A unit test asserts `error.GetCategory()` against the constant of #653.
 - A caller that needs a typed conflict builds its own `EncinaError` from the `Left` or uses `TryValidate(condition, ...)`.
 
 - **Class:** Trivial
-- **Settled by:** AGENTS.md section 3 (ROP) and #653 choice 4 (one code for every guard, decided with #233)
+- **Settled by:** `src/Encina.GuardClauses/Guards.cs:78` and the 12 existing `EncinaErrors.Create(GuardValidationFailed, ...)` calls (`Guards.cs:124` to `:506`)
 
 </details>
 
@@ -174,7 +173,7 @@ Implementation PRs land in the order #653 to #657, #658, #659, #660, one at a ti
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.GuardClauses/Guards.cs`: add `public static bool TryValidateNotEqual<T>(T value, string paramName, T expected, out EncinaError error, string? message = null)` (with `where T : IComparable<T>` only if #659 choice 2 is answered with option A): when `AreEqual(value, expected)` then `error = default; return true;`, otherwise `error = CreateComparisonError("NotEqual", paramName, typeof(T), message ?? $"{paramName} does not match the expected value.", threshold: null)` and `return false`. XML docs: summary starting "Fails when `value` differs from `expected`", `typeparam`, every `param`, `returns`, `remarks` (NaN, null and array behavior; not for secrets, use `CryptographicOperations.FixedTimeEquals`), `example` with the optimistic-concurrency version.
+1. `src/Encina.GuardClauses/Guards.cs`: add `public static bool TryValidateNotEqual<T>(T value, string paramName, T expected, out EncinaError error, string? message = null)` (with `where T : IComparable<T>` only if #659 choice 2 is answered with option A): when `!IsUnusable(value) && !IsUnusable(expected) && AreEqual(value, expected)` (the `IsUnusable` terms only if choice 5 is answered with option B) then `error = default; return true;`, otherwise `error = CreateComparisonError("NotEqual", paramName, typeof(T), message ?? $"{paramName} does not match the expected value.", threshold: null)` and `return false`. XML docs: summary starting "Fails when `value` differs from `expected`", `typeparam`, every `param`, `returns`, `remarks` (NaN, null and array behavior; not for secrets, use `CryptographicOperations.FixedTimeEquals`), `example` with the optimistic-concurrency version.
 2. `src/Encina.GuardClauses/PublicAPI.Unshipped.txt`: add `static Encina.GuardClauses.Guards.TryValidateNotEqual<T>(T value, string! paramName, T expected, out Encina.EncinaError error, string? message = null) -> bool` (via `mechanical-fixer`, sorted).
 
 </details>
@@ -196,15 +195,15 @@ REFERENCE FILES: src/Encina.GuardClauses/Guards.cs (the helper added by #653 and
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/GuardClauses/GuardsTests.cs`, `#region TryValidateNotEqual Tests`): equal and different values for `int`, `long` (the version case), `string`, `Guid`, a test `enum` and a `record`; two `byte[]` copies with equal content return `true`, with different content return `false` (the row-version case, #659 choice 3 option B); `(NaN, NaN)` returns `true`, `(NaN, 1.0)` returns `false`; `(null, null)` returns `true`, `(null, "a")` returns `false`; custom message; default message names the parameter and not the values; error not `default`, code `Guards.GuardValidationFailed`, `GetCategory()` equal to the constant; details hold `guard = "NotEqual"`, `parameter`, `type`, `stage` and neither `value` nor `expected`; success leaves `error` as `default`.
-2. Guard (`tests/Encina.GuardTests/Validation/GuardClauses/GuardsGuardTests.cs`): `TryValidateNotEqual_NullValueAndNullExpected_ReturnsTrueWithoutThrowing`, `TryValidateNotEqual_NullValueNonNullExpected_ReturnsFalseWithoutThrowing`, `TryValidateNotEqual_NullMessage_UsesDefaultMessage` (valid result), `TryValidateNotEqual_EmptyParamName_StillReturnsError`, `TryValidateNotEqual_WhitespaceParamName_StillReturnsError`. No `ArgumentNullException` test: guards never validate `paramName` and never throw.
-3. Property (`tests/Encina.PropertyTests/Validation/GuardClauses/GuardsPropertyTests.cs`): FsCheck `[Property(MaxTest = 300)]`: for `int`, `string` and `Guid` pairs the result is `false` iff `value != expected`; for `byte[]` pairs the result is `true` iff the sequences are equal; `TryValidateNotEqual(a, b)` is the negation of `TryValidateEqual(a, b)` of #659 for every pair; the error is `default` exactly when the result is `true`.
+1. Unit (`tests/Encina.UnitTests/GuardClauses/GuardsTests.cs`, `#region TryValidateNotEqual Tests`): equal and different values for `int`, `long` (the version case), `string`, `Guid`, a test `enum` and a `record`; two `byte[]` copies with equal content return `true`, with different content return `false` (the row-version case, #659 choice 3 option B); `(NaN, NaN)`, `(NaN, 1.0)`, `(null, null)`, `(null, "a")` and `("a", null)` return `false` (choice 5, option B); custom message; default message names the parameter and not the values; error not `default`, code `Guards.GuardValidationFailed`, `GetCategory()` equal to the constant; details hold `guard = "NotEqual"`, `parameter`, `type`, `stage` and neither `value` nor `expected`; success leaves `error` as `default`.
+2. Guard (`tests/Encina.GuardTests/Validation/GuardClauses/GuardsGuardTests.cs`): `TryValidateNotEqual_NullValueAndNullExpected_ReturnsFalseWithoutThrowing`, `TryValidateNotEqual_NonNullValueNullExpected_ReturnsFalseWithoutThrowing`, `TryValidateNotEqual_NullValueNonNullExpected_ReturnsFalseWithoutThrowing`, `TryValidateNotEqual_NullMessage_UsesDefaultMessage` (valid result), `TryValidateNotEqual_EmptyParamName_StillReturnsError`, `TryValidateNotEqual_WhitespaceParamName_StillReturnsError`. No `ArgumentNullException` test: guards never validate `paramName` and never throw.
+3. Property (`tests/Encina.PropertyTests/Validation/GuardClauses/GuardsPropertyTests.cs`): FsCheck `[Property(MaxTest = 300)]`: for `int`, non-null `string` and `Guid` pairs the result is `false` iff `value != expected`; for `byte[]` pairs the result is `true` iff the sequences are equal (`SequenceEqual` is the oracle, not #659's method, which is not on `main` when this plan is written); for any pair with a null or NaN operand the result is `false` (option B); the error is `default` exactly when the result is `true`.
 4. No contract, integration, load or benchmark test (pure comparison; justification in the PR description, as in #653).
-5. Per-file targets: the entry `Guards.cs` keeps the values owned by #653 (unit 100, guard 100, property per #2043); the worker re-measures and reports.
+5. Per-file targets: the entry `Guards.cs` is created by #653 (unit 100, guard 100, no property value); the worker re-measures and reports.
 
 | File | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |------|------|-------|----------|----------|-------------|----------------------------|
-| `Guards.cs` | 100 | 100 | 0 | 87 (owned by #2043) | 0 | The new method has one success and one failure branch on top of the helper tested by #659, both reached by value-driven unit and guard tests; the property target stays with #2043; contract and integration are 0 because the class has no interface and no external dependency. |
+| `Guards.cs` | 100 | 100 | 0 | not set here (owned by #2043) | 0 | The new method has one success and one failure branch on top of the helper tested by #659, both reached by value-driven unit and guard tests; no per-file property target is written because the file's measured property coverage is 111/164 = 67.68% (#2043), so 87 is unreachable by this PR; contract and integration are 0 because the class has no interface and no external dependency. |
 
    CRAP of `TryValidateNotEqual`: complexity 3, fully covered, below 10.
 
