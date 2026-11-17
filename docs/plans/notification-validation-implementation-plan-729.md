@@ -23,7 +23,7 @@
 
 An opt-in gate in the notification dispatcher that validates the notification once, before the fan-out to its handlers, with whichever provider is registered:
 
-1. **`ValidationOrchestrator.ValidateMessageAsync<TMessage>`** (shared, owned by this plan, consumed by #730 and #732): validates any message object with the registered `IValidationProvider` and returns a coded, categorized `Left`; failure details carry property names and counts only. Its companion `EvaluateMessageAsync<TMessage>` returns the provider's `ValidationResult` unchanged, for callers that merge several validators (#730).
+1. **`ValidationOrchestrator.ValidateMessageAsync<TMessage>`** (owned by this plan, used by the notification gate; its companion `EvaluateMessageAsync` below is the piece #730 and #732 consume): validates any message object with the registered `IValidationProvider` and returns a coded, categorized `Left`; failure details carry property names and counts only. Its companion `EvaluateMessageAsync<TMessage>` returns the provider's `ValidationResult` unchanged, for callers that merge several validators (#730).
 2. **`AddEncinaNotificationValidation(Action<NotificationValidationOptions>?)`**: registers the internal gate and the options (`Mode`: `Reject` by default, or `Skip`).
 3. **The dispatcher hook**: after the handlers are resolved and only when at least one exists, the gate validates the runtime notification; `Reject` returns the `Left` and no handler runs, `Skip` logs and returns `Right` without running any handler.
 
@@ -461,4 +461,4 @@ REFERENCE FILES:
 
 1. Link this plan from #729 and ask the maintainer to answer Design Choices 1 and 2 when work starts.
 2. Implement S1 to S4 as the pull requests of the Estimated File Count split, `Fixes #729` on S4. Open S1 first: #730 and #732 wait for it.
-3. After S1 merges, the plans of #730 and #732 proceed; they use `EvaluateMessageAsync` (#730) and `ValidateMessageAsync` with `MessageValidationErrorCodes` (#732) as owned here.
+3. After S1 merges, the plans of #730 and #732 proceed; both use `EvaluateMessageAsync` as owned here and build their own coded errors from the merged results of their validators.
