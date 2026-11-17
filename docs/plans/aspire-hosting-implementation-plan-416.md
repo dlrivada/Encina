@@ -2,7 +2,7 @@
 
 > **Issue**: [#416](https://github.com/dlrivada/Encina/issues/416)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 3 pull requests of 14, 8 and 5 files)
+> **Complexity**: Medium (6 phases, 3 pull requests of 14, 7 and 7 files)
 > **Estimated Scope**: ~450 lines of production code + ~900 lines of tests
 > **Family**: Aspire (aspire-1): #440 umbrella and naming owner, #417 service defaults, #419 dashboard commands, #421 deployment; modules in the AppHost are #423; the family continues in #424, #425, #382, #387 and #391. **This plan owns the hosting package, `EncinaResource`, the AppHost options and the environment-variable contract that #417 reads.**
 
