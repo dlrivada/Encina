@@ -109,6 +109,9 @@ function Get-LaunchArguments($Tokens, $FileToken) {
     # PowerShell reads U+2018..U+201F as quotes but this tokenizer does not: the argument list cannot be trusted.
     $curly = '[' + [char]0x2018 + '-' + [char]0x201F + ']'
     foreach ($tk in $Tokens) { if ([regex]::IsMatch([string]$tk.Value, $curly)) { return $result } }
+    # The stop-parsing token `--%` passes the rest of the line with %VAR% expanded, before or after the file: no
+    # argument can be trusted.
+    foreach ($tk in $Tokens) { if (-not $tk.Quoted -and [string]$tk.Value -ceq '--%') { return $result } }
     $at = -1
     for ($i = 0; $i -lt $Tokens.Count; $i++) { if ([object]::ReferenceEquals($Tokens[$i], $FileToken)) { $at = $i; break } }
     if ($at -lt 0) { return $result }
@@ -130,7 +133,7 @@ function Get-LaunchArguments($Tokens, $FileToken) {
         $name = $name.ToLowerInvariant()
         # #3896: a value the shell expands (an escape, `$$`, `$?`, `$^` in double quotes) is not what the script receives,
         # so it never binds.
-        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
+        $value = if ($null -ne $valueToken -and $trusted -and -not ([string]$valueToken.Value).Contains('%') -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
         $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
     }
     return $result
@@ -205,7 +208,8 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # A text that creates a drive (`New-PSDrive`, `ndr`, `mount`) can name any scheme (`git://src/x` may be a drive
 # path), so no URL is blanked in it.
 function Remove-UrlText([string]$Text) {
-    if ($Text -match '(?i)(?<![\w-])(New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
+    # Command position only (statement start or after ; | & ( {), so a comment such as "# mount point" does not count.
+    if ($Text -match '(?im)(?:^|[;|&({])\s*(?:Microsoft\.PowerShell\.Management\\)?(?:New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
     return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
 }
 
