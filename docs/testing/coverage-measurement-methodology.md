@@ -179,7 +179,7 @@ dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/covera
 ```
 
 - `--check-justifications` lists every target without a justification, every justification without a target, every unknown flag, every value that is not an integer from 0 to 100 and every pair of flag keys that differ only by case (`unit` and `Unit`), and exits 1 if it finds any.
-- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The Status column reads `met`, `below`, or `zero-target` for a target of 0. The report has no exit code for this; the CI gate is #1651.
+- The default report adds a "Per-file targets" table with the measured value against the target for each flag, and prints the rows below target on the console. Each value is measured straight from that flag's Cobertura data, whatever the file's `defaultTests` say; a flag with no data counts as below any target above 0. The Status column reads `met`, `below`, or `zero-target` for a target of 0. The report has no exit code for this; the judgement is the `--check-targets` mode (next subsection).
 - The report compares the unrounded measured percentage with the target and rounds only for display (two decimals), so 89.96% does not meet 90.
 
 Generator deviation: the generator preserves per-file targets and justifications and never invents them, because a justification is a judgement about a specific file that a generator cannot make; it keeps its generic `reason` for `defaultTests`.
@@ -190,7 +190,7 @@ The per-file targets are summarised as target attainment (next subsection) and s
 
 #### Target check (`--check-targets`)
 
-`--check-targets` (#1651) judges the per-file targets of the package manifests against the measured Cobertura data and tells you which targets a run does not meet. It is meant to back a CI gate (#1651; no workflow calls it yet); run it locally after the measurement commands above, from the repository root.
+`--check-targets` (#1651) judges the per-file targets of the package manifests against the measured Cobertura data and tells you which targets a run does not meet. Two workflows call it, report-only: `ci-full.yml` runs `--check-targets --require-all-flags` after the weighted report on the full run (findings in the job summary, `check-targets.json` uploaded with the coverage-report artifact), and `ci.yml` runs a diff-aware `coverage-targets` job (`--check-targets --files-from <files the PR touches>`) on PRs that touch `src/`. Neither uses `--enforce` yet and the job is not part of `ci-result`; flipping to `--enforce` and adding the job to `ci-result` is the planned follow-up tracked by #1651. Run it locally after the measurement commands above, from the repository root.
 
 ```powershell
 dotnet run --file .github/scripts/coverage-report.cs -- --check-targets [--files-from <list>] [--enforce] [--require-all-flags] [--input <dir>] [--output <dir>]
@@ -222,7 +222,7 @@ Finding kinds:
 | `no-manifest` | The manifests cannot vouch for anything. | No manifest was loaded, or at least one did not parse. |
 | `no-coverage` | There is nothing to judge. | No Cobertura file of a known flag was found while targets exist, or the input directory is missing. |
 
-To verify the script's own logic without repository data, run `dotnet run --file .github/scripts/coverage-report.cs -- --self-test`; it asserts the finding rules and the exact fields of `check-targets.json`. To exercise the modes end to end against fixture manifests and Cobertura files (the finding kinds, the exit codes and the rewrite of a stale `check-targets.json`), run the fixture self-test:
+To verify the script's own logic without repository data, run `dotnet run --file .github/scripts/coverage-report.cs -- --self-test`; it asserts the finding rules and the exact fields of `check-targets.json`. To exercise the modes end to end against fixture manifests and Cobertura files (the finding kinds, the exit codes and the rewrite of a stale `check-targets.json`), run the fixture self-test (`ci.yml` runs it in the `coverage-citations` job):
 
 ```powershell
 pwsh -NoProfile -File .github/scripts/coverage-report-selftest.ps1

@@ -520,6 +520,57 @@ jobs:
 
           dotnet run --file .github/scripts/crap-gate.cs -- --enforce --threshold 10 --diff artifacts/crap-gate/diff.patch "${cobertura_files[@]}"
 
+  # #1651: diff-aware per-file target check on the src/ files a PR touches. REPORT-ONLY for now: no
+  # --enforce, and the job is not in ci-result `needs`. The follow-up, tracked by #1651, adds --enforce
+  # and lists this job in ci-result `needs`. Same artifacts and trigger as crap-gate.
+  coverage-targets:
+    needs: [changes, test-unit, test-integration, test-contract, test-property, test-guard, test-ef-providers]
+    if: |
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.src == 'true' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-results-*
+          path: artifacts/coverage-targets/coverage
+          merge-multiple: false
+
+      - name: Check per-file coverage targets of the touched files (report-only)
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts/coverage-targets
+          git -c core.quotepath=false diff --name-only --diff-filter=d ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} > artifacts/coverage-targets/touched.txt
+
+          dotnet run --file .github/scripts/coverage-report.cs -- --check-targets --files-from artifacts/coverage-targets/touched.txt --input artifacts/coverage-targets/coverage --output artifacts/coverage-targets/out
+
+          if [ -f artifacts/coverage-targets/out/check-targets.json ]; then
+            {
+              echo "### Per-file coverage targets of the touched files (report-only)"
+              echo ""
+              echo "Passed: $(jq -r '.passed' artifacts/coverage-targets/out/check-targets.json); checked targets: $(jq -r '.checkedTargets' artifacts/coverage-targets/out/check-targets.json); findings: $(jq '.findings | length' artifacts/coverage-targets/out/check-targets.json)."
+              echo ""
+              jq -r '.findings[:50][] | "- `\(.kind)` \(.subject)"' artifacts/coverage-targets/out/check-targets.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
   # SPEC-001 (REQ-005): every cov: citation in docs/, src/ and the root .md files must resolve against this tree's
   # coverage manifests and source files. Runs on every PR, docs-only included, needs no build
   # and no coverage data, and does not depend on GitHub Pages.
@@ -564,13 +615,15 @@ jobs:
         run: dotnet run .github/scripts/coverage-report.cs -- --check-missing-manifest
 
       # #1762: per-file targets and justifications are consistent (every target justified, no orphan),
-      # and the script's own per-file logic passes its self-test. Diff-aware enforcement is #1651.
+      # and the script's own per-file logic passes its self-test. The diff-aware target check
+      # (--check-targets) runs in the coverage-targets job (#1651).
       # #2542: coverage-history.cs copies the target attainment aggregates into history entries.
       - name: Check coverage-report self-test and per-file justifications
         run: |
           dotnet run .github/scripts/coverage-report.cs -- --self-test
           dotnet run .github/scripts/coverage-history.cs -- --self-test
           dotnet run .github/scripts/coverage-report.cs -- --check-justifications
+          pwsh -NoProfile -File .github/scripts/coverage-report-selftest.ps1
 
       # #2838: every src/<dir> holds a project file, so a package removed without its folder cannot linger.
       - name: Check that every src directory has a project
