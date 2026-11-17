@@ -219,8 +219,8 @@ function Split-CommandStatements {
         $segments = 0
         $bare = $false
         # Expanded: some part of the token is rewritten by the shell (an escape, a `$` in double quotes, a
-        # subexpression), so its Value is not the executed text. Unlike Literal it ignores plain unquoted text, so
-        # an `-Name:"value"` token can still tell whether its value part is trustworthy (#3896).
+        # subexpression, a Bash glob), so its Value is not the executed text. Unlike Literal it ignores plain
+        # unquoted text, so `-Name:value` and a bare value can still tell whether they are trustworthy (#3896).
         $expanded = $false
         while ($i -lt $n) {
             $c = $Text[$i]
@@ -282,7 +282,9 @@ function Split-CommandStatements {
                         break
                     }
                     # An escape or a `$` inside double quotes is expanded by the shell (`u{73}, $?, $$): not a Literal.
-                    if ($d -eq '$' -or ($d -eq '`' -and -not $Bash)) { $bare = $true; $expanded = $true }
+                    if ($d -eq '$' -or $d -eq '`') { $bare = $true; $expanded = $true }
+                    # Bash: a backtick in double quotes is a command substitution, like $(...).
+                    if ($d -eq '`' -and $Bash) { $dynamic = $true }
                     if ($d -eq '`' -and -not $Bash) {
                         if ($j + 1 -lt $n) { [void]$sb.Append($Text[$j + 1]) }
                         $j += 2
@@ -336,6 +338,10 @@ function Split-CommandStatements {
             }
 
             if ($c -eq '$') { $dynamic = $true; $expanded = $true }
+            # Bash: a backtick is a command substitution; `*`, `?`, `[` and `~` are expanded against the file system
+            # and $HOME. PowerShell: `@name` splats a variable. Their Value is not what the command receives.
+            if ($Bash -and $c -in '`', '*', '?', '[', '~') { $expanded = $true; if ($c -eq '`') { $dynamic = $true } }
+            if (-not $Bash -and $c -eq '@' -and $sb.Length -eq 0 -and $i + 1 -lt $n -and $Text[$i + 1] -match '[\w{]') { $dynamic = $true; $expanded = $true }
             $bare = $true
             [void]$sb.Append($c)
             $i++

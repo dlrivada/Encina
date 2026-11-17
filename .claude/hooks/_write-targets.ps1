@@ -121,8 +121,8 @@ function Get-LaunchArguments($Tokens, $FileToken) {
         $colon = $name.IndexOf(':')
         if ($colon -gt 0) {
             $valueToken = New-CommandToken $name.Substring($colon + 1) $t.Quoted $t.Dynamic $t.Subexpression $t.Bash
-            # The `-Name:` prefix is plain text, so Literal is false for this token; Expanded says whether the
-            # shell rewrites any part of it (an escape, `$$`, `$?`, a subexpression).
+            # Only an unquoted `-Name:value` reaches here (a quoted token was skipped above, so `-Name:'v'` binds
+            # nothing). Expanded says whether the shell rewrites any part of it (an escape, `$$`, `$?`, a subexpression).
             $trusted = -not $t.Expanded
             $name = $name.Substring(0, $colon)
         }

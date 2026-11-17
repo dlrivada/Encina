@@ -534,7 +534,7 @@ $ps1Scripts = [ordered]@{
     # A write to tests/ through a variable, next to a URL.
     CommaUrlSrc         = "Invoke-Expression `"Set-Content https://x,src/y 1`"`n"
     PsDriveUrlSrc       = "Invoke-Expression `"Set-Content 'ab://src/x.txt' 1`"`n"
-    # Review of #3896: a script that creates a drive keeps `git://src/...` as a path mention; an https URL naming src is not.
+    # Review of #3896: a script that creates a drive keeps `git://src/...` as a path mention; without a drive-creating command an https URL naming src is not one.
     GitDriveSrc         = "New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts' | Out-Null`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
     HttpsSrcUrl         = "param([string]`$Sp)`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     QualifiedAlias      = "param([string]`$Spec = '$main\src', [System.Management.Automation.Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
@@ -1179,6 +1179,10 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `"`$`$`"" }, $main, $null, 2, 'main session (#3896): -Sp "$$" binds nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `"`$^`"" }, $main, $null, 2, 'main session (#3896): -Sp "$^" binds nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:`"$main\artifacts\``u{73}rc`"" }, $main, $null, 2, 'main session (#3896): -Sp:"..`u{..}" inline escape binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:$main\artifacts\``u{73}rc" }, $main, $null, 2, 'main session (#3896): an unquoted -Sp:value with a `u{..} escape binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:`$`$" }, $main, $null, 2, 'main session (#3896): an unquoted -Sp:$$ binds nothing: denied'),
+    @('PowerShell', @{ command = "`$a = '$main\src'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp @a" }, $main, $null, 2, 'main session (#3896): -Sp @a (splat) binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp $main\artifacts\board" }, $main, $null, 0, 'main session (#3896): an unquoted literal -Sp value still binds: allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.GitDriveSrc)'" }, $main, $null, 2, 'main session (#3896): git://src/ next to New-PSDrive stays a path mention: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HttpsSrcUrl)' -Sp '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): an https URL naming src/ is not a path mention: allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)'" }, $main, $null, 0,'main session (#3896): a URL with a /tests/ segment is not a repository path: allowed'),
