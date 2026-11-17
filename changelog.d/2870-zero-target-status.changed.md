@@ -1,0 +1,1 @@
+- The coverage report, `latest.json` and the coverage dashboard now give a per-file target of 0 the status `zero-target` instead of `met`, and the dashboard lists those pairs per package; the attainment aggregates are unchanged (#2870).
