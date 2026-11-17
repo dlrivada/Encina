@@ -261,6 +261,21 @@
 
     if (rows.length === 0) return;
 
+    // Waived pairs (target 0) per package, so each one can be reviewed (#2870).
+    const zeroByPackage = new Map();
+    for (const r of rows.filter(x => x.status === 'zero-target')) {
+      if (!zeroByPackage.has(r.package)) zeroByPackage.set(r.package, []);
+      zeroByPackage.get(r.package).push(`${r.file} (${r.flag})`);
+    }
+    const zeroEl = document.getElementById('att-zero');
+    if (zeroByPackage.size > 0) {
+      zeroEl.innerHTML = '<summary>Zero-target pairs per package</summary>' +
+        [...zeroByPackage.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([pkg, files]) =>
+          `<details class="att-small"><summary>${escapeHtml(pkg)}: ${files.length.toLocaleString()}</summary>` +
+          `<ul>${files.sort().map(f => `<li>${escapeHtml(f)}</li>`).join('')}</ul></details>`).join('');
+      zeroEl.style.display = '';
+    }
+
     const PAGE = 50;
     let shown = PAGE;
     const sort = { column: 'gap', direction: 'desc' };
@@ -284,6 +299,8 @@
 
     function statusHtml(r) {
       if (r.status === 'met') return '<span class="status-pass">MET</span>';
+      // A target of 0 is a declared waiver: neither met nor below (#2870), so it must not reach the BELOW fall-through.
+      if (r.status === 'zero-target') return '<span style="color:var(--text-muted)" title="Target of 0: waived, not counted in the attainment figures">ZERO</span>';
       // Below its own target: warn from 80% of the target (methodology three-state rule), else fail.
       return (r.measured ?? 0) >= r.target * 0.8
         ? '<span class="status-warn">BELOW</span>' : '<span class="status-fail">BELOW</span>';

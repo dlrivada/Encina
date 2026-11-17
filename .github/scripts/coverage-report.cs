@@ -467,6 +467,11 @@ static FileTargetRow BuildFileTargetRow(
 static bool IsBelowTarget(FileTargetRow row)
     => row.Target > 0 && (row.Measured is null || row.Measured < row.Target);
 
+// The status of one pair in the per-file table, latest.json and the dashboard (#2870): a target of 0 is a
+// declared waiver, not a met obligation, so it has its own status; the aggregates still leave it out.
+static string TargetStatus(FileTargetRow row)
+    => row.Target == 0 ? "zero-target" : IsBelowTarget(row) ? "below" : "met";
+
 // ─── Target check (#1651): --check-targets ───────────────────────────────────────────────────────────
 
 // The finding of one (file, flag) pair with a target, or null when it is met. A pair below its target is
@@ -612,7 +617,7 @@ static FileTargetEntry ToFileTargetEntry(FileTargetRow row) => new(
     row.Measured is { } m ? Math.Round(m, 2) : null,
     row.CoveredLines, row.TotalLines,
     Math.Round(GapPoints(row), 2), IsBelowTarget(row) ? Math.Floor(Attainment(row) * 10000 + 1e-9) / 10000 : Math.Round(Attainment(row), 4), LinesToCover(row),
-    IsBelowTarget(row) ? "below" : "met");
+    TargetStatus(row));
 
 // The aggregates of one package's pairs, or null when the package has none.
 static AttainmentSummary? PackageAttainment(IReadOnlyList<FileTargetRow> rows, string package)
@@ -714,7 +719,7 @@ static string RenderPullRequestComment(
         sb.AppendLine("|------|:----:|:--------:|:------:|:---:|:--------------:|:------:|");
         var ordered = OrderByGap(rows);
         foreach (var row in ordered.Take(maxRows))
-            sb.AppendLine($"| `{row.Package}/{row.File}` | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {LinesToCover(row)} | {(row.Measured is null && row.Target > 0 ? "no data" : IsBelowTarget(row) ? "below" : "met")} |");
+            sb.AppendLine($"| `{row.Package}/{row.File}` | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {LinesToCover(row)} | {(row.Measured is null && row.Target > 0 ? "no data" : TargetStatus(row))} |");
         if (ordered.Count > maxRows)
             sb.AppendLine($"\n{ordered.Count - maxRows} more rows are in the CI run's coverage report.");
     }
@@ -942,6 +947,11 @@ int RunSelfTest()
     var withZero = SummariseAttainment([Pair("A.cs", "unit", 50, 100, 30), Pair("B.cs", "unit", 80, 200, 190), Pair("C.cs", "guard", 0, 50, 0)]);
     Check(withZero.Pairs == 2 && withZero.ZeroTarget == 1 && Near(withZero.Ratio, 0.5) && Near(withZero.MeanGap, 10) && Near(withZero.LineWeighted, 190.0 / 210.0),
         "a zero-target pair leaves the aggregates unchanged and is counted");
+    Check(TargetStatus(Pair("C.cs", "guard", 0, 50, 0)) == "zero-target" && TargetStatus(new FileTargetRow("Pkg", "C.cs", "guard", 0, null)) == "zero-target",
+        "a pair with a target of 0 has status zero-target, with or without data");
+    Check(TargetStatus(Pair("A.cs", "unit", 50, 100, 30)) == "below" && TargetStatus(Pair("B.cs", "unit", 80, 200, 190)) == "met",
+        "a pair with a target above 0 is below or met");
+    Check(ToFileTargetEntry(Pair("C.cs", "guard", 0, 50, 0)).Status == "zero-target", "a zero-target pair is written to latest.json as zero-target");
 
     // A pair with no data (D3) is 0% measured: counted, with the borrowed line count and no borrowed coverage.
     var other = new Dictionary<int, int>();
@@ -1737,7 +1747,7 @@ if (fileTargetRows.Count > 0)
     md.AppendLine("|------|:----:|:--------:|:------:|:---:|:----------:|:--------------:|:------:|");
     foreach (var row in OrderByGap(fileTargetRows))
     {
-        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {FormatAttainment(Attainment(row))} | {LinesToCover(row)} | {(IsBelowTarget(row) ? "below" : "met")} |");
+        md.AppendLine($"| {row.Package}/{row.File} | {row.Flag} | {FormatMeasured(row.Measured)} | {row.Target:0}% | {FormatGap(GapPoints(row))} | {FormatAttainment(Attainment(row))} | {LinesToCover(row)} | {TargetStatus(row)} |");
     }
 }
 
