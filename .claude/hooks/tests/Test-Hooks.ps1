@@ -539,7 +539,8 @@ $ps1Scripts = [ordered]@{
     MountCommentUrl     = "param([string]`$Sp)`n# mount point of the share`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     # The drive is created by an assignment, and the write goes through a string handed to Invoke-Expression.
     GitDriveAssigned    = "`$null = New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts'`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
-    HttpsSrcUrl         ="param([string]`$Sp)`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    GitDriveHashString  = "Write-Host `"Step # 1`"; `$null = New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts'`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
+    HttpsSrcUrl         = "param([string]`$Sp)`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     QualifiedAlias      = "param([string]`$Spec = '$main\src', [System.Management.Automation.Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
     CommonPrefix        = "[CmdletBinding()]param([string]`$VerboseLevel = '$main\src')`n# never under src/ or tests/`nSet-Content -Path `"`$VerboseLevel\o.txt`" -Value 'y'`n"
     FileUriSrc          ="Invoke-Expression `"Set-Content 'file:///$($main.Replace('\', '/'))/src/x.txt' 1`"`n"
