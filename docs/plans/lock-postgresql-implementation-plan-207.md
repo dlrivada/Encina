@@ -136,7 +136,7 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Informational: `ExpiresAtUtc` is recorded, the lock lives until disposal or connection loss** | No timer; what the SQL Server provider does today | The interface promises auto-release after `expiry`; an operation that hangs holds the lock forever while its process lives |
-| **B) Enforced: a `TimeProvider` timer releases the lock and closes the session at `ExpiresAtUtc`; `ExtendAsync` moves the deadline** | The same observable contract as Redis (`PX`) and the cloud providers; a hung holder cannot starve others | A timer callback per live handle (it must never throw, `AGENTS.md` section 3); a holder that works past its expiry loses the lock without being told until it calls `ExtendAsync` or disposes |
+| **B) Enforced: a `TimeProvider` timer releases the lock and closes the session at `ExpiresAtUtc`; `ExtendAsync` moves the deadline** | A similar contract to Redis (`PX`) and the cloud providers, but client-enforced: a hung holder whose process still runs cannot starve others | Redis `PX` is enforced by the server, while this timer runs in the holder's process: in a suspended process (debugger stop, SIGSTOP, VM freeze) the timer cannot fire and the advisory lock stays held until unlock or until the session ends (the server drops it only on connection loss, for example by TCP keepalive); a timer callback per live handle (it must never throw, `AGENTS.md` section 3); a holder that works past its expiry loses the lock without being told until it calls `ExtendAsync` or disposes |
 
 ### Chosen Option: **B — enforced expiry** (recommended, pending the maintainer)
 
@@ -220,7 +220,7 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Dedicated unpooled connections (`Pooling = false` on the lock connection string)** | Closing the connection always ends the session, so a failed unlock can never leave a lock held on an idle pooled connection; no pool-reset subtleties | A TCP and authentication handshake per acquire; each live handle holds one server connection (`max_connections`) |
+| **A) Dedicated unpooled connections (`Pooling = false` on the lock connection string)** | On a direct connection closing the connection ends the session (behind PgBouncer session pooling only if `server_reset_query` runs `DISCARD ALL` or `pg_advisory_unlock_all()`, see the rationale), so a failed unlock can never leave a lock held on an idle pooled connection; no pool-reset subtleties | A TCP and authentication handshake per acquire; each live handle holds one server connection (`max_connections`) |
 | **B) Pooled connections, explicit `pg_advisory_unlock`, and discard the connection when the unlock fails** | No handshake per acquire | Npgsql may defer the session reset of a pooled connection to its next use, so correctness rests on the unlock-failure path being right; discarding a single pooled connection has no direct public API (it needs a pool clear) |
 
 ### Chosen Option: **A — unpooled lock connections** (recommended, pending the maintainer)
@@ -228,6 +228,7 @@ Add the package `Encina.DistributedLock.PostgreSQL`, an `IDistributedLockProvide
 ### Rationale
 
 - Locks are coordination calls, not a hot data path, and mutual exclusion must not depend on a pool detail. Option B wins for a very high acquire rate where the handshake dominates; the maintainer can pick it when work starts, with the integration test "a failed unlock never leaves the lock held" as its acceptance.
+- "Closing the connection ends the session" holds only on a direct connection. Behind PgBouncer in session-pooling mode the server connection outlives the client one, so advisory locks are released only if `server_reset_query` (`DISCARD ALL` or `SELECT pg_advisory_unlock_all()`) is configured. The provider README MUST document this requirement and state that transaction-pooling and unconfigured session-pooling setups are unsupported for session mode; the integration test "a failed unlock never leaves the lock held" runs against a direct connection and against a PgBouncer session-pooling container with the reset query, and a second case without it asserts the documented unsupported behavior.
 - Because every live handle holds a server connection, the README documents `max_connections` sizing, and the provider exposes no pool setting.
 
 **Class:** Dilemma
@@ -309,7 +310,7 @@ REFERENCE FILES:
 
 1. **`IAdvisoryLockSession.cs`** (new, internal) — `Task<Either<EncinaError, bool>> TryLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> HoldsLockAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> IsLockedByAnyoneAsync(long key, CancellationToken ct)`, `Task<Either<EncinaError, bool>> UnlockAsync(long key, CancellationToken ct)`, `ValueTask DisposeAsync()`; plus an internal factory `IAdvisoryLockSessionFactory.OpenAsync(bool transactionMode, CancellationToken ct)`
 2. **`NpgsqlAdvisoryLockSession.cs`** (new, internal sealed) — wraps one unpooled `NpgsqlConnection` (the factory sets `Pooling = false` on the connection string, design choice 9) and, in transaction mode, one `NpgsqlTransaction`; the four calls above through `NpgsqlCommand` with parameters; `pg_try_advisory_lock(@k)` or `pg_try_advisory_xact_lock(@k)`; `pg_advisory_unlock(@k)` in session mode; in transaction mode `UnlockAsync` ends the private transaction (commit), because a transaction-level advisory lock has no unlock function and is freed only when its transaction ends (a rollback on a faulted release path frees it equally), so it never calls `pg_advisory_unlock` on a lock it did not take at session level; the `pg_locks` queries of design choice 6; classification of `PostgresException` and `NpgsqlException` into `Left` (`LockErrorCodes` backend-fault code of #2667), cancellation rethrown
-3. **`PostgreSQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSQLLockOptions> options, ILogger<PostgreSQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension
+3. **`PostgreSQLDistributedLockProvider.cs`** (new, public sealed partial) — `IDistributedLockProvider`; constructor `(IOptions<PostgreSQLLockOptions> options, ILogger<PostgreSQLDistributedLockProvider> logger, TimeProvider? timeProvider = null)` plus an internal constructor taking the session factory; `TryAcquireAsync` (poll loop, `Right(Some(handle))` / `Right(None)` / `Left`), `AcquireAsync` (same loop, no deadline), `IsLockedAsync`, `ExtendAsync(resource, extension, ct)` through the registry of live handles; a private `LockHandle : ILockHandle` that arms the expiry timer with `TimeProvider.CreateTimer` (callback catches everything and logs the exception type), releases at the deadline, and runs `ExtendAsync` as a server-verified extension; the handle serializes the timer callback and `ExtendAsync` on its state (one `SemaphoreSlim`), and the callback rechecks the current deadline under that gate before releasing, so an extension that completes first keeps the lock held; the Phase 2 tests include one that fires the expiry (fake `TimeProvider`) while an extension is in flight and asserts the lock stays held and the deadline moved
 4. **`PostgreSQLLockDiagnostics.cs`** (new, internal static) — `ActivitySource` and `Meter` named `Encina.DistributedLock.PostgreSQL`; counter `encina.distributed_lock.acquisitions` with tags `provider` (`postgresql`) and `outcome` (`acquired`, `contended`, `failed`); the provider tags no tenant (it is tenant-unaware; the decorator of #741 adds `encina.tenant_id` per [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4)
 5. **`[LoggerMessage]` methods** inside the provider (`partial`), EventIds 7550-7557 (Phase 5)
 6. **`PublicAPI.Unshipped.txt`** (the provider and its constructor), the manifest (per-file targets, Phase 7)
@@ -401,7 +402,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Tenancy**: no code in this package. The key the provider receives is already tenant-qualified by the decorator of [#741](https://github.com/dlrivada/Encina/issues/741) (reserved `default` tenant segment, injective encoding); a unit test asserts the provider never reads a tenant and hashes the whole composed name.
-2. **Fail closed**: a database fault never reports a held lock: `Left`; a lock that cannot be verified on `ExtendAsync` is `Right(false)`.
+2. **Fail closed**: a database fault never reports a held lock: `Left`. On `ExtendAsync`, a database fault from `HoldsLockAsync` is `Left` (backend fault, ADR-062 category), and `Right(false)` only when the check completes and finds no lock. Phase 4 tests assert `Left` on the faulted `HoldsLockAsync` path of `ExtendAsync` and `Right(false)` when the check finds no lock.
 3. **Resilience**: no Polly policy; the wait/retry loop is the retry, and a faulted try-lock ends the attempt with `Left` (the caller decides).
 4. **PgBouncer note**: README states that session mode needs a session-pooling or direct connection, and transaction mode is the option for transaction pooling.
 
@@ -661,7 +662,7 @@ IMPLEMENTATION OVERVIEW:
    the ADO-PostgreSQL collection; documentation through docs-writer; changelog and PublicAPI through mechanical-fixer.
 
 KEY PATTERNS:
-- Contention is Right(None); a database fault is Left; a lost lock is Right(false) on ExtendAsync.
+- Contention is Right(None); a database fault is Left (also from the HoldsLockAsync check of ExtendAsync); a lost lock is Right(false) on ExtendAsync only when the check completes.
 - Satellite DI with TryAdd*; startup validation of the connection string.
 - Four pull requests of at most 15 files; each builds and passes alone.
 
