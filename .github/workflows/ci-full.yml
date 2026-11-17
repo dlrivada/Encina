@@ -418,10 +418,28 @@ jobs:
 
       - name: Generate weighted coverage report
         if: always()
-        run: dotnet run .github/scripts/coverage-report.cs -- --output artifacts/coverage --input artifacts/test-results || true
+        run: dotnet run .github/scripts/coverage-report.cs -- --output artifacts/coverage --input artifacts/test-results
+
+      # #1651: judge every per-file target of the manifests against the full run, every flag required.
+      # Report-only for now (no --enforce): the findings reach the job summary and check-targets.json is
+      # uploaded with the coverage artifact. Flipping this step to --enforce is the follow-up of #1651.
+      - name: Check per-file coverage targets (report-only)
+        if: always()
+        run: |
+          dotnet run .github/scripts/coverage-report.cs -- --check-targets --require-all-flags --input artifacts/test-results --output artifacts/coverage
+          if [ -f artifacts/coverage/check-targets.json ]; then
+            {
+              echo "### Per-file coverage targets (report-only)"
+              echo ""
+              echo "Passed: $(jq -r '.passed' artifacts/coverage/check-targets.json); checked targets: $(jq -r '.checkedTargets' artifacts/coverage/check-targets.json); findings: $(jq '.findings | length' artifacts/coverage/check-targets.json)."
+              echo ""
+              jq -r '.findings[:50][] | "- `\(.kind)` \(.subject)"' artifacts/coverage/check-targets.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       # SPEC-001 (REQ-002): the coverage DocRef index is what documentation citations render from.
-      # The report step above tolerates failures so the job summary still appears; a missing index
+      # The report step above no longer tolerates failures; it and the steps below run with
+      # `if: always()`, so a failed report still reaches this check and the job summary. A missing index
       # must not be silent, because publish-coverage would then keep serving a stale one.
       - name: Verify coverage DocRef index
         if: always()
