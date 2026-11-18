@@ -2,7 +2,7 @@
 
 > **Issue**: [#419](https://github.com/dlrivada/Encina/issues/419)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 3 pull requests of 15, 11 and 6 files)
+> **Complexity**: Medium (6 phases, 3 pull requests of 15, 13 and 6 files)
 > **Estimated Scope**: ~550 lines of production code + ~1,100 lines of tests
 > **Family**: Aspire (aspire-1): #416 hosting package (this plan adds a folder to it), #417 service defaults (telemetry the dashboard shows), #421 deployment, #440 umbrella; app-side endpoints the commands call: #2229 (dead letter admin API), #2013 (audit of operator replay); the family continues in #424, #425, #382, #387 and #391. **This plan owns the command infrastructure, the failure-code table and the `AspireHosting` EventId range.**
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for dashboard "commands and metrics visualization" for the messaging patterns. State of `origin/main` (`ec129cae5`), verified by reading, grep and the Aspire package:
+The issue asks for dashboard "commands and metrics visualization" for the messaging patterns. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading, grep and the Aspire package:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -120,45 +120,105 @@ A wins for an application with multi-tenancy on, which is the common case for th
 </details>
 
 <details>
-<summary><strong>5. Metrics and "panel": through telemetry, not through a new endpoint</strong></summary>
+<summary><strong>5. The issue's "metrics endpoint integration" and "custom panel" (Dilemma D5)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The dashboard shows the Encina metrics because the application exports them over OTLP (#417); no endpoint and no panel are added** | Nothing to build; follows the platform; the real instrument names are used | The metrics are in the dashboard's metrics page, not in a custom Encina panel |
-| **B) A scrape endpoint (Prometheus-style) of the Encina metrics for the dashboard** | Looks like what the issue's "metrics endpoint integration" says | The Aspire dashboard ingests telemetry through OTLP; it does not scrape a metrics endpoint |
-| **C) A custom panel** | The issue's wish | `Aspire.Hosting` 13.6.5 exposes no panel extension (commands, URLs, snapshot properties, relationships, health checks only) |
+| **A) The acceptance item is met by telemetry: the application exports the Encina metrics over OTLP (#417) and the dashboard shows them on its metrics page; no endpoint is added** | Nothing to build; follows how the Aspire dashboard ingests telemetry (OTLP); the real instrument names are shown | No custom Encina page and no scrape endpoint |
+| **B) Add a Prometheus-format scrape endpoint to the application (an exporter the application opts into)** | An operator who runs Prometheus and Grafana next to the dashboard (#187 Grafana templates) can scrape it; matches the words of the issue | The Aspire dashboard does not scrape; the repository pins the Prometheus exporter package as a prerelease (`1.13.0-beta.1` in `Directory.Packages.props`); exporters stay out of the library (ADR-054 settled point 1), so it would be the application's code and documentation, not this package |
 
-### Chosen Option: **A — OTLP, no endpoint, no panel**
+### Chosen Option: **A — telemetry through OTLP** (recommended, pending the maintainer)
 
 ### Rationale
 
-Only A is possible with the platform: B and C need an API that is not there, and the application's metrics reach the dashboard once the service defaults of #417 subscribe the `Encina` meter.
+A wins when the dashboard is the operator's tool (the purpose of this issue); B wins when a Prometheus stack exists, in which case #1043 and #187 are the owners and the item moves there. A custom panel is not an option: the XML documentation of `Aspire.Hosting` 13.6.5 has no panel type (commands, URLs, `CustomResourceSnapshot.Properties`, relationships and health checks only). The instrument names are those of `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs`.
 
-**Class:** Settled
-**Settled by:** `Aspire.Hosting` 13.6.5 `Aspire.Hosting.xml` (no panel type; commands, URLs, `CustomResourceSnapshot.Properties`, relationships and health checks only); ADR-054 settled point 1 (the application chooses the exporters, so telemetry leaves by OTLP); `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs` (the instrument names).
+**Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Confirmation and the safe-to-repeat contract</strong></summary>
+<summary><strong>6. How the command reports the outcome of a batch replay (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Every command that changes data carries `CommandOptions.ConfirmationMessage` (the replay names the batch size cap), is enabled only while the resource is running, and never retries on its own; a repeated click is safe because the manager rejects an already replayed row with `dlq.already_replayed`** | The issue's "idempotent and safe, consider confirmation dialogs"; no surprise re-sends | One more click |
+| **A) The command reads the numeric counts of the response body (`TotalProcessed`, `SuccessCount`, `FailureCount` of `BatchReplayResult`, `IDeadLetterManager.cs:174-200`) and reports success only when `FailureCount` is 0 and rows were processed; otherwise it fails with the code `replay_incomplete` and the counts as integers; nothing else of the body is shown or logged** | Matches the #2229 plan's recommended semantics (a batch is HTTP 200 with the outcome in the body); the dashboard never shows success for a batch in which every row failed | The command depends on the response shape of #2229 (pending there) |
+| **B) The command replays one row at a time through the per-id route and maps its `409`** | The HTTP status carries the outcome | The operator must pick a message id, so "retry all" is lost; many calls for a batch |
+| **C) Treat any 2xx as success** | Simplest | A batch of rows that all fail (`dlq.already_replayed`, `dlq.replay_in_progress`) shows success: a fail-open report |
+
+### Chosen Option: **A — read the counts** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because it keeps the one-click "retry all" and reports the truth. B wins if the maintainer prefers HTTP status as the only signal and accepts per-row calls. C is rejected as a fail-open result. If #2229's own decision on batch results changes (its Design Choice 7), the command follows it; the integration test of Phase 5 sends the batch outcomes (all succeed, some fail, all fail, empty) through the stand-in endpoint.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. Confirmation, state gating and no automatic retry</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A command that changes data carries `CommandOptions.ConfirmationMessage`, is enabled only while the resource is running, and never retries on its own** | The issue's "idempotent and safe, consider confirmation dialogs"; no surprise re-sends | One more click |
 | **B) No confirmation** | Fewer clicks | A replay re-sends business messages |
 
 ### Chosen Option: **A — confirmation, state-gated, no automatic retry**
 
 ### Rationale
 
-The issue's technical considerations ask for exactly this: "commands should be idempotent and safe; consider confirmation dialogs for destructive operations".
+The issue's technical considerations ask for exactly this: "commands should be idempotent and safe; consider confirmation dialogs for destructive operations". The rule holds for every command this package adds, whatever the command set of D2.
 
 **Class:** Trivial
-**Settled by:** issue #419, Technical Considerations (idempotent and safe, confirmation dialogs); `CommandOptions.ConfirmationMessage` in `Aspire.Hosting.xml` 13.6.5; `src/Encina.Messaging/DeadLetter/DeadLetterManager.cs` (`dlq.already_replayed`).
+**Settled by:** issue #419, Technical Considerations (idempotent and safe, confirmation dialogs); `CommandOptions.ConfirmationMessage` in `Aspire.Hosting.xml` 13.6.5.
+
+</details>
+
+<details>
+<summary><strong>8. Default route prefix of the dead letter command (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `DeadLetterPrefix` defaults to `/api/dead-letters`, the default recommended by the #2229 plan (its choice F3, pending there)** | The command works with the default mapping of the endpoint | If #2229's maintainer answer differs, the default is wrong and every command answers `endpoint_not_found` |
+| **B) No default: the AppHost states the prefix** | Cannot be wrong silently | One more line in every AppHost |
+
+### Chosen Option: **A — the #2229 default** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins while #2229 recommends the same prefix; B wins if #2229's answer is not that prefix or the maintainer wants no default tied to another plan. The same answer applies to both plans.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Batch size cap of the replay command</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `AddRetryDeadLetters(int maxMessages = 100)`, validated from 1 up to `DeadLetterStoreLimits.MaxPageSize` (1000)** | The default is the manager's own; no number is invented: the manager rejects values below 1 and applies `Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize)` | The endpoint may cap lower (the #2229 plan recommends 100); the command then replays fewer rows than asked, and the outcome counts show it |
+| **B) Any positive number** | Flexible | The dashboard would promise more than the manager does |
+
+### Chosen Option: **A — default 100, 1 to 1000**
+
+### Rationale
+
+The values are those of the manager signature and its page limit, not new numbers; the counts of D6 report what was actually replayed.
+
+**Class:** Trivial
+**Settled by:** `src/Encina.Messaging/DeadLetter/IDeadLetterManager.cs` (`ReplayAllAsync(DeadLetterFilter filter, int maxMessages = 100, ...)`) and `DeadLetterManager.cs` (`ThrowIfLessThan(maxMessages, 1)`, `Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize)`).
 
 </details>
 
@@ -173,10 +233,10 @@ The issue's technical considerations ask for exactly this: "commands should be i
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Aspire.Hosting/Commands/EncinaCommandsOptions.cs` (public sealed): `DeadLetterPrefix` (default `"/api/dead-letters"`, the default of the #2229 plan, validated like a path: starts with `/`, no whitespace), `Credential` (`IResourceBuilder<ParameterResource>?`), `CredentialHeader` (default `"Authorization"`), `CredentialScheme` (default `"Bearer"`, null for a raw value), `TenantHeader` (`string?`, a valid header token). It holds a reference to a parameter, never a secret value, and `ToString()` is overridden to print no property that could hold one.
+1. `src/Encina.Aspire.Hosting/Commands/EncinaCommandsOptions.cs` (public sealed): `DeadLetterPrefix` (default `"/api/dead-letters"`, the default recommended by the #2229 plan, Design Choice 8; validated like a path: starts with `/`, no whitespace), `Credential` (`IResourceBuilder<ParameterResource>?`, marked `[JsonIgnore]`), `CredentialHeader` (default `"Authorization"`), `CredentialScheme` (default `"Bearer"`, null for a raw value), `TenantHeader` (`string?`, a valid header token). It holds a reference to a parameter, never a secret value, and `ToString()` is overridden to print no property that could hold one.
 2. `Commands/EncinaCommandFailure.cs` (internal static, pure): `Map(HttpStatusCode)` to the codes of the table in Phase 3 and `Cancelled`/`Timeout` helpers.
 3. `Commands/EncinaCommandsBuilder.cs` (public sealed) and `Commands/EncinaCommandBuilderExtensions.cs`: `WithEncinaCommands<T>(this IResourceBuilder<T> builder, Action<EncinaCommandsBuilder> configure)` with `where T : IResourceWithEndpoints`; the action runs first and the commands are then emitted once; a second call on the same resource throws `InvalidOperationException`; guards. Each command is added with `WithHttpCommand(path, displayName, endpointName: "http", commandName, new HttpCommandOptions { ... })` using `PrepareRequest`, `GetCommandResult`, `UpdateState`, `ConfirmationMessage`, `IconName`, `Arguments` and `ValidateArguments`, and `ResultMode` left at `None` so the response body is never returned to the dashboard.
-4. `Commands/Diagnostics/EncinaCommandLog.cs` (`[LoggerMessage]`): 820 command invoked (Information: command and resource names, whether a tenant was supplied), 821 command failed (Warning: command name, failure code, HTTP status as an integer), 822 command cancelled (Information), 823 tenant input rejected (Warning: no value), 824 credential parameter has no value (Error: parameter name); `EventIdRanges.AspireHosting = (820, 839)` registered first in `src/Encina/Diagnostics/EventIdRanges.cs`, the `Encina` PublicAPI line, and the `AssemblyRanges` entry of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
+4. `Commands/EncinaCommandDefinition.cs` (internal sealed record: name, display name, HTTP method, path, confirmation text, icon) that `EncinaCommandsBuilder` turns into one `WithHttpCommand` each; an internal `Add(EncinaCommandDefinition)` (visible to the test projects) lets the builder tests of this pull request use a test definition, because the first real command, `AddRetryDeadLetters`, arrives in pull request 2. `EventIdRanges.AspireHosting = (820, 839)` is registered in this pull request (with the `Encina` PublicAPI line and the `AssemblyRanges` entry of the allocation test), and the log class below, which has no caller before the request preparer, ships in pull request 2: `Commands/Diagnostics/EncinaCommandLog.cs` (`[LoggerMessage]`): 820 command invoked (Information: command and resource names, whether a tenant was supplied), 821 command failed (Warning: command name, failure code, HTTP status as an integer), 822 command cancelled (Information), 823 tenant input rejected (Warning: no value), 824 credential parameter has no value (Error: parameter name); `EventIdRanges.AspireHosting = (820, 839)` registered first in `src/Encina/Diagnostics/EventIdRanges.cs`, the `Encina` PublicAPI line, and the `AssemblyRanges` entry of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`.
 5. Tests: unit (the mapper for every status class, options validation, the builder emits one annotation per command, a second call throws, `UpdateState` disabled while the resource is not running, the confirmation message is set), guard, and the `Encina.json` and hosting manifest entries and `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
 
 </details>
@@ -186,7 +246,7 @@ The issue's technical considerations ask for exactly this: "commands should be i
 
 ```text
 CONTEXT:
-- Issue #419; plan docs/plans/aspire-dashboard-commands-implementation-plan-419.md. D1 to D4 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (#416).
+- Issue #419; plan docs/plans/aspire-dashboard-commands-implementation-plan-419.md. D1 to D6 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (#416).
 - Aspire.Hosting 13.6.5 offers WithHttpCommand and WithCommand with CommandOptions; confirm each member you use in Aspire.Hosting.xml before coding (HttpCommandOptions.PrepareRequest, GetCommandResult, ResultMode, CommandOptions.UpdateState, ConfirmationMessage, Arguments, ValidateArguments).
 
 TASK:
@@ -215,9 +275,9 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `EncinaCommandsBuilder.AddRetryDeadLetters(int maxMessages = 100)` (validated 1 to the manager default cap of 100, the cap `POST /replay` uses in the #2229 plan): command name `retry-dead-letters`, display name "Retry dead letters", `POST {DeadLetterPrefix}/replay` with a JSON body naming `maxMessages` only (no filter fields, so the client can never name a tenant or a type), confirmation text that states the cap, icon, enabled only while the resource is running.
+1. `EncinaCommandsBuilder.AddRetryDeadLetters(int maxMessages = 100)` (validated 1 to 1000, Design Choice 9): command name `retry-dead-letters`, display name "Retry dead letters", `POST {DeadLetterPrefix}/replay` with a JSON body naming `maxMessages` only (no filter fields, so the client can never name a tenant or a type), confirmation text that states the cap, icon, enabled only while the resource is running.
 2. `Commands/EncinaCommandRequestPreparer.cs` (internal): the credential header from `Credential.Resource.GetValueAsync(ct)` (an empty value logs 824 and fails the command with `credential_missing` before any request), and the optional tenant header (D4) from the `tenant` input (validated: non-whitespace-only, at most 128 characters, no control characters; never trimmed into `default`).
-3. `GetCommandResult` returns success for 2xx and a failure carrying only the code and the HTTP status number otherwise (never the body); a `409` from the endpoint maps to the `conflict` code.
+3. `GetCommandResult` (Design Choice 6, option A): for a 2xx it reads only the three counts of the batch body (`TotalProcessed`, `SuccessCount`, `FailureCount`) with a bounded `System.Text.Json` read and no other field; success only when `FailureCount` is 0 and `TotalProcessed` is above 0 (an empty queue is reported as success with "nothing to replay"); any other 2xx outcome fails with `replay_incomplete` and the three integers; an unreadable body fails with `upstream_failed`; for a non-2xx it returns the code of the status table and the status number, never the body; a `409` maps to `conflict`.
 4. Tests: unit for the preparer and the mapper paths, with a real minimal API on a loopback port that stands in for #2229's endpoint (200, 401, 403, 404, 409, 500, a timeout); the test invokes the real `ResourceCommandAnnotation.ExecuteCommand` after assigning an allocated endpoint to the model (the technique is confirmed at work start; when it is not possible the delegates of `HttpCommandOptions` are invoked directly); guard; the entries of the manifests and `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
 
 </details>
@@ -262,6 +322,7 @@ REFERENCE FILES:
    | `encina.aspire.command.endpoint_not_found` | `NotFound` | HTTP 404: the application did not map the operation or the prefix differs |
    | `encina.aspire.command.conflict` | `Conflict` | HTTP 409 |
    | `encina.aspire.command.rate_limited` | `RateLimited` | HTTP 429 |
+   | `encina.aspire.command.replay_incomplete` | `Conflict` | HTTP 2xx whose counts show rows that were not replayed (already replayed, replay in progress or failed) |
    | `encina.aspire.command.rejected` | `InvalidRequest` | Any other 4xx |
    | `encina.aspire.command.upstream_failed` | `UpstreamFailure` | HTTP 5xx or a connection failure |
    | `encina.aspire.command.timeout` | `Timeout` | The request timed out |
@@ -334,7 +395,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. **Unit, Guard** as in Phases 1 and 2. **Contract**: `tests/Encina.ContractTests/Aspire/EncinaCommandFailureContractTests.cs` pins the table of failure codes and their categories (the codes are a public contract of the dashboard). **Property**: `EncinaCommandFailurePropertyTests` (every HTTP status maps to exactly one code and 2xx maps to none). **Integration**: `tests/Encina.IntegrationTests/Aspire/RetryDeadLettersCommandTests.cs` runs the command against a real in-process ASP.NET Core server with `MapEncinaDeadLetterEndpoints` once #2229 is merged (before that, the stand-in minimal API of Phase 2); no database fixture, because the stand-in answers over a substituted manager. **Load** and **Benchmark**: justification files.
-2. **Per-file targets** (measured at work start; new files have no baseline; edited `EventIdRanges.cs` is measured then):
+2. **Per-file targets** (measured at work start; new files have no baseline; a target is the measured value or higher; the manifest of pull request 1 records Contract 0 and Property 0 for `EncinaCommandFailure.cs` and pull request 2, which ships the contract and property tests, raises them, because a target may only go up):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
    |------|:---:|:---:|:---:|:---:|:---:|---------------|
@@ -343,7 +404,10 @@ REFERENCE FILES:
    | `Commands/EncinaCommandsBuilder.cs` | 95 | 85 | 0 | 0 | 80 | Real model in unit tests; the integration test runs the command |
    | `Commands/EncinaCommandBuilderExtensions.cs` | 95 | 90 | 0 | 0 | 0 | Run over the real `DistributedApplication.CreateBuilder()` model |
    | `Commands/EncinaCommandRequestPreparer.cs` | 95 | 70 | 0 | 0 | 80 | Real `HttpRequestMessage`, stand-in server; guard reaches the argument checks of an internal type through `InternalsVisibleTo` |
-   | `Commands/Diagnostics/EncinaCommandLog.cs` | 90 | 0 | 0 | 0 | 0 | Generated log methods, reached through command tests; no parameterized public member |
+   | `Commands/Diagnostics/EncinaCommandLog.cs` | 90 | 0 | 0 | 0 | 0 | Generated log methods, reached through the preparer and command tests of pull request 2; no parameterized public member |
+   | `Commands/EncinaCommandDefinition.cs` | 95 | 0 | 0 | 0 | 0 | An internal record read by every builder test; no parameterized public member |
+   | `src/Encina/Diagnostics/EventIdRanges.cs` (edited: `AspireHosting`) | 100 | 0 | 0 | 0 | 0 | Static readonly tuples run at type initialization by any test that touches the class, and the allocation architecture test reads the new range; no parameters; the baseline is measured at work start and never lowered |
+   | `.github/coverage-manifest/Encina.json`, `src/Encina/PublicAPI.Unshipped.txt` | n/a | n/a | n/a | n/a | n/a | Data files with no executable lines |
 
 </details>
 
@@ -410,8 +474,8 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | `EncinaCommandsOptions`, `EncinaCommandFailure`, `EncinaCommandsBuilder`, `EncinaCommandBuilderExtensions`, `EncinaCommandLog`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt` edit, allocation test map edit, hosting `PublicAPI.Unshipped.txt` edit, hosting manifest edit, `Encina.json` manifest edit, unit tests for the mapper, the options and the builder (3 files), guard test file | 15 | 1,100 |
-| 2 | `EncinaCommandRequestPreparer`, `AddRetryDeadLetters` edit, hosting `PublicAPI.Unshipped.txt` and manifest edits, unit, guard, contract, property and integration test files, `Encina.ContractTests.csproj` and `Encina.IntegrationTests.csproj` edits (references to the hosting project; a reference already added by #416 is not repeated) | 11 | 1,000 |
+| 1 | `EncinaCommandsOptions`, `EncinaCommandFailure`, `EncinaCommandsBuilder`, `EncinaCommandBuilderExtensions`, `EncinaCommandDefinition`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt` edit, allocation test map edit, hosting `PublicAPI.Unshipped.txt` edit, hosting manifest edit, `Encina.json` manifest edit, unit tests for the mapper, the options and the builder (3 files), guard test file | 15 | 1,100 |
+| 2 | `EncinaCommandRequestPreparer`, `EncinaCommandLog`, `EncinaCommandsBuilder` edit (`AddRetryDeadLetters`), hosting `PublicAPI.Unshipped.txt` and manifest edits, unit, guard, contract, property and integration test files, `Encina.ContractTests.csproj`, `Encina.IntegrationTests.csproj` and `Encina.PropertyTests.csproj` edits (references to the hosting project; a reference already added by #416 is not repeated) | 13 | 1,150 |
 | 3 | README section, usage page, `docs/INVENTORY.md` line, changelog fragment, two justification files (load, benchmark) | 6 | 330 |
 
 PR 1 needs #416 pull request 1; PR 2 needs PR 1 (its integration test uses the stand-in endpoint, so it does not wait for #2229); PR 3 is last. No interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
@@ -453,12 +517,12 @@ PR 1 needs #416 pull request 1; PR 2 needs PR 1 (its integration test uses the s
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 7 | Options, mapper, builder, extension, preparer, log, `EventIdRanges.cs` edit |
+| Production code | 8 | Options, mapper, builder, extension, definition, preparer, log, `EventIdRanges.cs` edit |
 | Public API and manifests | 4 | Hosting `PublicAPI.Unshipped.txt` and hosting manifest (each edited in two pull requests), `Encina` PublicAPI, `Encina.json` |
-| Tests and project files | 12 | Nine test files (mapper, options and builder unit, guard; preparer unit and guard; contract; property; integration), allocation map edit, 2 csproj edits |
+| Tests and project files | 13 | Nine test files (mapper, options and builder unit, guard; preparer unit and guard; contract; property; integration), allocation map edit, 3 csproj edits (Contract, Integration, Property) |
 | Justification files | 2 | Load, benchmark |
 | Documentation | 4 | README section, usage page, inventory line, changelog fragment |
-| **Total** | **29 distinct files; 32 file touches across 3 pull requests** | The sum of the split table (15 + 11 + 6) is the authority (32) |
+| **Total** | **31 distinct files; 34 file touches across 3 pull requests** | The builder, `PublicAPI.Unshipped.txt` and the hosting manifest are edited in pull requests 1 and 2; the sum of the split table (15 + 13 + 6) is the authority (34) |
 
 ---
 
@@ -470,7 +534,7 @@ PR 1 needs #416 pull request 1; PR 2 needs PR 1 (its integration test uses the s
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #419: Aspire Dashboard commands, first the dead letter retry. Plan: docs/plans/aspire-dashboard-commands-implementation-plan-419.md; D1-D4 are recommended, pending the maintainer.
+- Issue #419: Aspire Dashboard commands, first the dead letter retry. Plan: docs/plans/aspire-dashboard-commands-implementation-plan-419.md; D1-D6 and D8 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. WithEncinaCommands, options, the failure mapper, the log 820-824 and the EventId range (Phase 1).
@@ -478,7 +542,7 @@ IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 3. README, usage page, inventory, changelog fragment, justification files (Phase 6).
 
 KEY PATTERNS:
-- WithHttpCommand with HttpCommandOptions; ResultMode None; the response body is never shown or logged; the failure is a code and a status number.
+- WithHttpCommand with HttpCommandOptions; ResultMode None; the body is never shown or logged: a batch reply is read only for its three counts (D6) and a failure is a code with numbers.
 - The credential is a secret parameter sent in a header; without it the command never sends a request; visibility is not authorization.
 - The tenant is an optional input sent verbatim in the configured header; a blank input sends nothing; default is never invented.
 - Only commands whose application operation exists or is planned are delivered; the other six are an issue file.
@@ -506,7 +570,7 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ | Not applicable: one request with a timeout and no automatic retry, because a replay re-sends business messages; the manager rejects a repeated row |
 | 7 | Distributed Locks | ❌ | Not applicable: the lock of a replay is the manager's claim on the row (#2229, `ReplayInProgress`) |
 | 8 | Transactions | ❌ | Not applicable: one HTTP call; atomicity is the endpoint's and manager's |
-| 9 | Idempotency | ✅ | D6: a repeated click is safe (`dlq.already_replayed` becomes the `conflict` code) and nothing retries |
+| 9 | Idempotency | ✅ | D7: nothing retries on its own and a confirmation precedes the call; a repeated click is reported through the counts of D6 (rows already replayed show as not replayed), never as a false success |
 | 10 | Multi-Tenancy | ✅ | D4: an optional tenant input sent verbatim; a blank input sends no header; the reserved `default` segment is never invented; the manager stays fail closed without a tenant |
 | 11 | Module Isolation | ❌ | Not applicable: dashboard module rows are #423 |
 | 12 | Audit Trail | ⏭️ | Deferred as in the issue: the audit of operator replay is #2013 (open, planned), done by the manager, with the credential's principal as actor |
@@ -523,5 +587,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3 and D4 when work on #419 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1 to D6 and D8 when work on #419 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1 after #416 pull request 1; pull request 2; pull request 3 last.
