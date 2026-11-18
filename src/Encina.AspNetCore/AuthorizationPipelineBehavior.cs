@@ -301,6 +301,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         LogAuthorizationDenied(_logger, requestType.FullName!, null, identityKind, reason, null);
         return EncinaErrors.Create( // NOSONAR S6966
             code: EncinaErrorCodes.AuthorizationForbidden,
+            category: ErrorCategory.Forbidden,
             message: reason,
             details: new Dictionary<string, object?>
             {
@@ -318,6 +319,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
         LogAuthorizationDenied(_logger, requestType.FullName!, null, identityKind, reason, null);
         return EncinaErrors.Create( // NOSONAR S6966
             code: EncinaErrorCodes.AuthorizationUnauthenticated,
+            category: ErrorCategory.Unauthenticated,
             message: reason,
             details: new Dictionary<string, object?>
             {
@@ -362,7 +364,7 @@ public sealed class AuthorizationPipelineBehavior<TRequest, TResponse> : IPipeli
             details["isCommand"] = IsCommand(requestType);
         }
 
-        return EncinaErrors.Create(code, reason, details: details); // NOSONAR S6966
+        return EncinaErrors.Create(code, category: ErrorCategory.Forbidden, message: reason, details: details); // NOSONAR S6966
     }
 
     /// <summary>
