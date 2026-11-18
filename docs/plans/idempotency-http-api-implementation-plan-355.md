@@ -2,8 +2,8 @@
 
 > **Issue**: [#355](https://github.com/dlrivada/Encina/issues/355)
 > **Type**: Feature
-> **Verified against**: origin/main `ec129cae5` (2026-11-17)
-> **Complexity**: Medium (4 phases, no database provider code, ~21 files in 3 pull requests)
+> **Verified against**: origin/main `d523eda92` (2026-11-18)
+> **Complexity**: Medium (4 phases, no database provider code, ~20 files in 3 pull requests)
 > **Estimated Scope**: ~250-350 lines of production code + ~600-800 lines of tests
 
 ---
@@ -12,7 +12,7 @@
 
 Issue #355 asks for Stripe-style API idempotency: a key from an HTTP header, a cached response returned for a duplicate with a clear `Idempotent-Replayed` marker, concurrent duplicates handled with a lock, a TTL, key format validation and distributed stores (Redis, SQL Server, in-memory). Most of its mechanism overlaps [#334](https://github.com/dlrivada/Encina/issues/334) (the store and the behavior) and the issue proposes a second `IIdempotencyStore`, a second `IdempotencyPipelineBehavior` and an `IIdempotentRequest` interface that already exists with another meaning. This plan therefore keeps only what is specific to HTTP and defers the rest to its owners (the disposition table is in Research).
 
-**What the code does today (verified on `origin/main` `ec129cae5`)**:
+**What the code does today (verified on `origin/main` `d523eda92`)**:
 
 - The host already extracts the key: `EncinaAspNetCoreOptions.IdempotencyKeyHeader` (default `X-Idempotency-Key`, `src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs:50`) is read by `HttpContextInboundRequestExtensions.cs:100` into `InboundRequestInfo.IdempotencyKey`, and `EncinaContextMiddleware` runs the request inside the inbound scope. So the issue's `IdempotencyMiddleware` that "extracts the key from the header" would duplicate it.
 - `InboundRequestNormalizer.IdempotencyKey` (`src/Encina/Identity/InboundRequestNormalizer.cs`) never refuses: a key longer than 255 characters, blank or with control characters is silently dropped, so the request runs as if it had no key. A request marked idempotent then fails inside the behavior with `idempotency.missing_key`, which the status mapping answers 500 ([#3438](https://github.com/dlrivada/Encina/issues/3438) reports this).
@@ -22,14 +22,14 @@ Issue #355 asks for Stripe-style API idempotency: a key from an HTTP header, a c
 
 What it implements:
 
-- The `Idempotent-Replayed: true` response header on a replayed answer, from the outcome that [#334](https://github.com/dlrivada/Encina/issues/334) records in `IIdempotencyOutcomeAccessor`.
+- The `Idempotent-Replayed: true` response header on a replayed answer, from the outcome that [#334](https://github.com/dlrivada/Encina/issues/334) records in its ambient `IIdempotencyOutcomeAccessor` (a singleton over an `AsyncLocal` holder: `src/Encina/Dispatchers/Encina.RequestDispatcher.cs:51` opens its own DI scope for every `Send`, so a scoped accessor read from `HttpContext.RequestServices` would never see the replay). The middleware opens the outcome scope around the dispatch and reads it from the response callback.
 - A key policy at the HTTP boundary: a request that carries the idempotency header with an unusable value (too long, blank, control characters, or not a UUID when the application chose `Uuid`) is answered 400 problem+json with a fixed detail and without the value.
 - The HTTP answers of the idempotency errors, by their ADR-062 category and not by code text: `idempotency.missing_key` and the invalid-key refusal 400, `idempotency.in_progress` 409, a reused key with a different payload (if [#3438](https://github.com/dlrivada/Encina/issues/3438) adds a fingerprint) 400 or 422 (Design Choice 4).
 - Observability of the refusal and the replay header, and an in-process end-to-end test through the real middleware.
 
 Standards and specifications: the IETF "Idempotency-Key HTTP header field" draft (in-flight duplicate 409; a reused key with another payload rejected; a missing key on a request that requires one is 400); Stripe idempotent requests (named comparable product: `Idempotent-Replayed: true`); ADR-062 (HTTP status from the category); ADR-054 D4 (tenant); AGENTS.md section 3 (fail-closed gates; `EncinaError.Message` never reaches the client unless the Development option is on); ADR-001 and ADR-006.
 
-Estimated scope: about 21 distinct files (2 new and 4 modified production files, 5 metadata files, 9 test files, 1 documentation file), shipped as three pull requests (A, B, C; see "Pull request split").
+Estimated scope: about 20 distinct files (2 new and 4 modified production files, 6 metadata files, 7 test files, 1 documentation file), shipped as three pull requests (A, B, C; see "Pull request split").
 
 Affected packages: `Encina.AspNetCore` only (and its `EventIdRanges` claim in `Encina`). No change in `Encina.Caching` or `Encina.Messaging`: the store, the behavior and the outcome types are [#334](https://github.com/dlrivada/Encina/issues/334).
 
@@ -46,8 +46,8 @@ Provider category: none for the HTTP layer. The Caching category applies through
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `EncinaContextMiddleware.RunNextAsync` registers `Response.OnStarting`, which reads the scoped `IIdempotencyOutcomeAccessor` from `HttpContext.RequestServices` and sets `Idempotent-Replayed: true` when the outcome is `Replayed`** | No new middleware, no ordering rule (the middleware already has a misordering latch and already writes the correlation id header at the same spot, `RunNextAsync`); works for controllers, minimal APIs and endpoints that write the response themselves | The header is a side effect of the context middleware, so it exists only when the application called `UseEncinaContext()` (which every idempotent endpoint needs anyway to get the key) |
-| **B) A new `UseEncinaIdempotency()` middleware** | Explicit and optional | A second middleware that must sit inside the first; one more ordering error to latch and test; the outcome accessor still has to be read the same way |
+| **A) `EncinaContextMiddleware.RunNextAsync` opens an `IdempotencyOutcomeScope` (`accessor.BeginScope()`, the singleton accessor of [#334](https://github.com/dlrivada/Encina/issues/334) resolved with `context.RequestServices.GetService`) around `_next` and registers `Response.OnStarting` with a static callback that holds the scope object and sets `Idempotent-Replayed: true` when `scope.Outcome` is `Replayed`** (the callback runs after the middleware code returned, which is why the scope's `Outcome` stays readable after `Dispose`) | No new middleware, no ordering rule (the middleware already has a misordering latch and already writes the correlation id header at the same spot, `RunNextAsync`); works for controllers, minimal APIs and endpoints that write the response themselves | The header is a side effect of the context middleware, so it exists only when the application called `UseEncinaContext()` (which every idempotent endpoint needs anyway to get the key) |
+| **B) A new `UseEncinaIdempotency()` middleware** | Explicit and optional | A second middleware that must sit inside the first; one more ordering error to latch and test; the outcome scope still has to be opened and read the same way |
 | **C) An `IEndpointFilter` and an MVC filter** | Per endpoint | Two filter types for two hosting models; endpoints that bypass them (a hub) get no header |
 
 ### Chosen Option: **A — `OnStarting` in the existing middleware** (recommended, pending the maintainer)
@@ -55,6 +55,7 @@ Provider category: none for the HTTP layer. The Caching category applies through
 ### Rationale
 
 - A wins when the header must appear for every hosting model with no registration step; B wins when an application wants idempotency answers without the identity middleware, which cannot happen because the key itself comes from that middleware's scope.
+- The accessor must be the ambient one of [#334](https://github.com/dlrivada/Encina/issues/334) Design Choice 6: the scoped variant is defeated by the dispatcher's own DI scope (`src/Encina/Dispatchers/Encina.RequestDispatcher.cs:51`), so a header read from `HttpContext.RequestServices` would never be set. This choice depends on that Dilemma; if the maintainer picks another carrier there (for example a returned wrapper), this plan's Phase 2 task 2 changes with it.
 - The header is added only when `EncinaAspNetCoreOptions.AddIdempotentReplayedHeader` (default `true`, the issue's `AddReplayedHeader`) is on; the value is the fixed text `true`, never the key.
 - **Class:** Dilemma
 
@@ -68,7 +69,7 @@ Provider category: none for the HTTP layer. The Caching category applies through
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) The pipeline behavior replays the stored `Right(response)`; the endpoint maps it as it mapped the first execution** | One mechanism for HTTP, queue consumers and scheduled work; no response buffering; the behavior already exists | The replayed HTTP answer is recomputed from the stored response, so a header that the endpoint derives from state (a `Location` built from the current request) is computed again |
-| **B) A middleware stores the full HTTP response (status, headers, body) and replays it byte for byte, as the issue's `IdempotencyMiddleware` does** | Exact replay including status and headers; independent of the pipeline | Buffers every response of an idempotent request; a second store and a second behavior beside the existing ones (AGENTS.md section 3: no second mechanism); invisible to non-HTTP callers |
+| **B) A middleware stores the full HTTP response (status, headers, body) and replays it byte for byte, as the issue's `IdempotencyMiddleware` does** | Exact replay including status and headers; independent of the pipeline | Buffers every response of an idempotent request; a second store and a second behavior beside the existing ones (two mechanisms for one feature to keep consistent); invisible to non-HTTP callers |
 
 ### Chosen Option: **A — replay in the pipeline** (recommended, pending the maintainer)
 
@@ -121,7 +122,7 @@ Provider category: none for the HTTP layer. The Caching category applies through
 </details>
 
 <details>
-<summary><strong>5. The idempotency store of the issue — owned by #334</strong></summary>
+<summary><strong>5. The idempotency store of the issue — consume #334 or a second store here</strong></summary>
 
 ### Options Considered
 
@@ -130,13 +131,13 @@ Provider category: none for the HTTP layer. The Caching category applies through
 | **A) Use the store and the behavior of [#334](https://github.com/dlrivada/Encina/issues/334); no store, lock or behavior here** | One mechanism; the issue's Redis and in-memory stores are the cache providers; the SQL Server store is the question [#334](https://github.com/dlrivada/Encina/issues/334) asks once (durable backend: the Inbox, or a store on the database providers) | This issue's checklist items for stores and locking are met by another issue |
 | **B) A second `IIdempotencyStore` here with `TryLockAsync` and `ReleaseLockAsync`** | Matches the issue text | Two stores with one name; the issue's own sketch is the "Inbox pattern only" alternative it rejected, rebuilt |
 
-### Chosen Option: **A — consume #334**
+### Chosen Option: **A — consume #334** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The concurrency answer the issue wants (a concurrent duplicate while the first runs) is the `InProgress` claim of the store, answered 409 here.
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (a feature has one mechanism; no second implementation beside an existing one) and [#334](https://github.com/dlrivada/Encina/issues/334) (owns the idempotency store, the lock-like claim and the TTL)
+- A wins while [#334](https://github.com/dlrivada/Encina/issues/334) (which owns the store, the lock-like claim and the TTL) keeps its own store Dilemmas open (its Design Choices 1 and 4): this plan then builds on whichever store #334 ends with and needs no change. B wins only if the maintainer rejects a cache-backed store in #334 and wants the HTTP layer to own a store, which would duplicate #334's contract.
+- **Class:** Dilemma
 
 </details>
 
@@ -197,7 +198,7 @@ src/Encina/Identity/InboundRequestInfo.cs
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.AspNetCore/EncinaContextMiddleware.cs`** (modify): in `RunInboundAsync`, before `RunHostInboundAsync`, read the header named by `IdempotencyKeyHeader`; when it is present and `IdempotencyKeyHeaderPolicy.IsUsable` is false, answer `Results.Problem(statusCode: 400, title: "Bad Request", detail: <fixed text>)` (the same helper path as the 403 refusals in `Complete`), log the new `IdempotencyKeyRejected` entry (header name only) and do not run the pipeline. Fail closed: a request that carries the header is never run with the value dropped.
-2. In `RunNextAsync`, after the correlation id header: when `AddIdempotentReplayedHeader` is on, `context.Response.OnStarting` with a static callback that resolves `IIdempotencyOutcomeAccessor` from `context.RequestServices` (`GetService`; absent means no marker) and sets `Idempotent-Replayed: true` when `Outcome == IdempotencyOutcome.Replayed`. No scoped service is captured by a singleton: the middleware instance holds only options and logger; the accessor is resolved per request.
+2. In `RunNextAsync`, after the correlation id header: when `AddIdempotentReplayedHeader` is on, resolve the singleton `IIdempotencyOutcomeAccessor` with `context.RequestServices.GetService` (absent means no marker, no scope), open `using var outcomeScope = accessor.BeginScope()` before `_next(context)` (so the `AsyncLocal` holder flows into the dispatch although `RequestDispatcher.cs:51` opens its own DI scope), and register `context.Response.OnStarting` with a static callback whose state is that `IdempotencyOutcomeScope`; the callback sets `Idempotent-Replayed: true` when `outcomeScope.Outcome == IdempotencyOutcome.Replayed`, read after the middleware code returned (the scope's `Outcome` stays readable after `Dispose`, per [#334](https://github.com/dlrivada/Encina/issues/334) Phase 1). Nothing scoped is captured by the singleton middleware: the instance holds only options and logger, and the accessor is a singleton.
 3. Keep `InvokeAsync` and `RunInboundAsync` under CRAP 10: the refusal check and the `OnStarting` registration are two small private methods.
 4. **`src/Encina.AspNetCore/EncinaContextMiddlewareLog.cs`** (modify): `[LoggerMessage]` EventIds 230 (`IdempotencyKeyRejected`, Warning, no value) and 231 (`IdempotentReplayMarked`, Debug), inside the existing `AspNetCore` range (200-249), which the registry shows free from 230; no range registration is needed.
 5. The two problem+json refusals for an in-progress duplicate and a missing key come from the ADR-062 category table once [#3419](https://github.com/dlrivada/Encina/issues/3419) S2 and H1 are merged: this plan adds no code-text branch to `MapErrorCodeToStatusCode`.
@@ -209,11 +210,13 @@ src/Encina/Identity/InboundRequestInfo.cs
 
 ```text
 CONTEXT: issue #355, Phase 2. EncinaContextMiddleware binds the inbound scope per request and already refuses ambiguous
-identities with a fixed problem+json (ForbiddenDetails). The outcome accessor exists (issue #334).
-TASK: Refuse a present but unusable idempotency header with 400 (fixed detail, no value, pipeline not run) and register
-Response.OnStarting to set Idempotent-Replayed: true when the scoped outcome is Replayed.
-KEY RULES: never write the key value into a response, log or metric; the middleware is a singleton: resolve the scoped
-accessor from HttpContext.RequestServices per request; [LoggerMessage] ids 230-231 only; do not raise the CRAP of
+identities with a fixed problem+json (ForbiddenDetails). The ambient outcome accessor exists (issue #334).
+TASK: Refuse a present but unusable idempotency header with 400 (fixed detail, no value, pipeline not run); open the
+IdempotencyOutcomeScope (accessor.BeginScope()) around _next and register Response.OnStarting with a static callback
+that sets Idempotent-Replayed: true when that scope's Outcome is Replayed.
+KEY RULES: never write the key value into a response, log or metric; the accessor is a singleton over an AsyncLocal
+holder (RequestDispatcher opens its own DI scope per Send, so never read a scoped accessor from HttpContext.RequestServices);
+resolve it per request with GetService, absent means no marker; [LoggerMessage] ids 230-231 only; do not raise the CRAP of
 InvokeAsync; the misordering latch and the 403/500 answers stay as they are.
 REFERENCE FILES: src/Encina.AspNetCore/EncinaContextMiddleware.cs, src/Encina.AspNetCore/EncinaContextMiddlewareLog.cs,
 tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.cs
@@ -251,11 +254,12 @@ REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.
 <summary><strong>Tasks</strong></summary>
 
 1. Unit (`tests/Encina.UnitTests/AspNetCore/`): `IdempotencyKeyHeaderPolicyTests` (blank, 255 and 256 characters, control characters, UUID forms), `EncinaContextMiddlewareTests` extended (unusable key answers 400 with no value in the body, usable key passes, replay marker present only for `Replayed`, option off removes the marker, the two log entries), `EncinaAspNetCoreOptionsTests` extended (defaults).
-2. Guard (`tests/Encina.GuardTests/AspNetCore/`): the middleware guard file extended: a request with the idempotency header and a context without the accessor registered still passes (no marker, no exception).
-3. Contract: an HTTP contract test that a marked request with a missing key answers 400, an in-progress duplicate 409, a replay 200 with `Idempotent-Replayed: true` (after #3419 S2 and H1).
-4. Integration (in-process `TestServer`, `tests/Encina.IntegrationTests/Web`, Memory cache provider, no container): first request 201, same key 201 with the marker and one handler run, concurrent same key 409, different tenant executes, unusable key 400. Database features need real databases; this one touches none.
+   Also in `EncinaContextMiddlewareTests` (behavior, so UnitTests and not guard): a request with the idempotency header and no accessor registered still passes (no marker, no exception), and a record made inside the dispatcher's inner DI scope sets the marker through the ambient outcome scope.
+2. Guard (`tests/Encina.GuardTests/AspNetCore/`): no new guard file and no new guard test: this plan adds no public constructor or method with parameters (the new members are enum values and two option properties; `IdempotencyKeyHeaderPolicy` is internal), `InvokeAsync` keeps its signature, and the existing middleware argument checks live in `tests/Encina.GuardTests/AspNetCore/RequestIdentityHttpGuardTests.cs` (it already exists and holds guard 55).
+3. Contract: no contract test. The HTTP contract (400, 409, replay marker) is asserted in the TestServer integration test below, because `tests/Encina.ContractTests` has no `Microsoft.AspNetCore.TestHost` reference (only `Encina.IntegrationTests` has it, with `Encina.AspNetCore`, `Encina.Caching` and `Encina.Caching.Memory` project references), so a contract test there would need a csproj edit and a new package reference for no contract the plan adds (no new public interface); the manifest entry of the middleware lists only the unit and guard flags.
+4. Integration (a new file in `tests/Encina.IntegrationTests/Web/`, in-process `TestServer`, Memory cache provider, no container): first request 201, same key 201 with the marker and one handler run, concurrent same key 409, different tenant executes, unusable key 400, missing key on a marked request 400 (the last two status assertions after #3419 S2 and H1). Database features need real databases; this one touches none.
 5. Load and benchmark: justification files (the added work per request is one header read and one `OnStarting` registration).
-6. Documentation through `docs-writer` and `mechanical-fixer`: XML docs, changelog fragment `changelog.d/355-http-idempotency.added.md`, the AspNetCore README section, the guide table.
+6. Documentation through `docs-writer` and `mechanical-fixer`: XML docs, the two changelog fragments (`355-idempotency-key-refused.changed.md` in PR A, `355-idempotent-replayed-header.added.md` in PR C), the AspNetCore README section, the guide table.
 7. Verification: `dotnet build --configuration Release` (0 warnings), `dotnet test`, per-flag coverage against the table below, `crap-gate` table for the changed methods.
 
 </details>
@@ -266,7 +270,7 @@ REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.
 ```text
 CONTEXT: issue #355. Tests must execute real package code. Targets never go down: EncinaContextMiddleware.cs keeps
 unit 95 and guard 55 (manifest .github/coverage-manifest/Encina.AspNetCore.json).
-TASK: Write the unit, guard, contract and TestServer integration tests of the plan and the justification files;
+TASK: Write the unit and TestServer integration tests of the plan (no guard or contract test is added, see the plan) and the justification files;
 hand documentation to docs-writer and the PublicAPI, changelog and manifest lines to mechanical-fixer.
 KEY RULES: Shouldly through Encina.Testing.Shouldly; builders for test data; deterministic clock; one behavior per test.
 REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.cs, docs/en/guides/TESTING.md
@@ -309,7 +313,7 @@ REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.
 | `EncinaContextMiddleware` | `src/Encina.AspNetCore/EncinaContextMiddleware.cs` | Gets the refusal and the `OnStarting` marker |
 | `HttpContextInboundRequestExtensions` | `src/Encina.AspNetCore/HttpContextInboundRequestExtensions.cs` | Existing header read (line 100) |
 | `InboundRequestNormalizer`, `InboundRequestInfo.MaxIdempotencyKeyLength` | `src/Encina/Identity/` | The bounds the policy repeats |
-| `IIdempotencyOutcomeAccessor`, `IdempotencyOutcome` | `src/Encina/Idempotency/` (new in #334 PR A) | The replay signal |
+| `IIdempotencyOutcomeAccessor`, `IdempotencyOutcomeScope`, `IdempotencyOutcome` | `src/Encina/Idempotency/` (new in #334 PR A; singleton over an `AsyncLocal` holder) | The replay signal, opened by the middleware around the dispatch |
 | `DistributedIdempotencyPipelineBehavior`, `InboxPipelineBehavior` | `src/Encina.Caching/Behaviors/`, `src/Encina.Messaging/Inbox/` | The replaying behaviors |
 | `ProblemDetailsExtensions` | `src/Encina.AspNetCore/ProblemDetailsExtensions.cs` | Maps the answers by category once #3419 lands |
 | `EncinaContextMiddlewareLog` | `src/Encina.AspNetCore/EncinaContextMiddlewareLog.cs` | New entries 230-231 |
@@ -326,6 +330,7 @@ REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.
 |------|-----:|------:|---------------|
 | `EncinaContextMiddleware.cs` (modified) | 95 | 55 | The current targets stay (they never go down); the new refusal and the marker are covered by unit and TestServer tests in the same file's existing suite |
 | `IdempotencyKeyHeaderPolicy.cs` (new) | 100 | 0 | A pure function whose branches are all asserted; internal static with no `InternalsVisibleTo` for `Encina.GuardTests`, so no guard test can reach it |
+| `IdempotencyKeyFormat.cs` (new, enum) | 0 | 0 | An enum with two members and no executable code; its values are exercised through the policy tests, which count on `IdempotencyKeyHeaderPolicy.cs` |
 | `EncinaAspNetCoreOptions.cs` (modified) | 100 | 0 | Defaults and setters, as today; the options class has no argument validation |
 | `EncinaContextMiddlewareLog.cs` (modified) | 0 | 0 | Source-generated `[LoggerMessage]` partials with no hand-written lines (as in the current entry); the messages are asserted in the middleware tests |
 
@@ -335,20 +340,20 @@ REFERENCE FILES: tests/Encina.UnitTests/AspNetCore/EncinaContextMiddlewareTests.
 |----------|-------|-------|
 | Production source, new | 2 | `IdempotencyKeyHeaderPolicy.cs` and the `IdempotencyKeyFormat` enum (own file) |
 | Production source, modified | 4 | `EncinaContextMiddleware.cs`, `EncinaContextMiddlewareLog.cs`, `EncinaAspNetCoreOptions.cs`, `HttpContextInboundRequestExtensions.cs` only if the header read is shared with the policy |
-| Metadata | 5 | `PublicAPI.Unshipped.txt` of `Encina.AspNetCore`, manifest `Encina.AspNetCore.json`, changelog fragment, README, `docs/INVENTORY.md` (if the enum is listed) |
-| Tests | 9 | policy unit, middleware unit (extended), options unit (extended), middleware guard (extended), HTTP contract, TestServer integration, load and benchmark justification files (2), the DI test extended if the options are validated |
+| Metadata | 6 | `PublicAPI.Unshipped.txt` of `Encina.AspNetCore`, manifest `Encina.AspNetCore.json`, two changelog fragments, README, `docs/INVENTORY.md` (if the enum is listed) |
+| Tests | 7 | policy unit (new), middleware unit (extended), options unit (extended), TestServer integration (new), load and benchmark justification files (2); no guard or contract file (Phase 4 tasks 2 and 3) |
 | Documentation | 1 | AspNetCore guide table |
-| **Total** | **~21 distinct** | Three pull requests (the PR table sums to 23 because the middleware and its unit test are touched in A and B) |
+| **Total** | **~20 distinct** | Three pull requests (the PR table sums to more because the middleware, its log file and its unit test are touched in A and B) |
 
 ### Pull request split
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
-| A | Phase 1 and the refusal of Phase 2 task 1: options, enum, policy, middleware refusal, log entries, `PublicAPI` and manifest, unit and guard tests | 11 |
-| B | Phase 2 task 2 (`OnStarting` marker), the HTTP contract test and the TestServer integration test; starts after [#334](https://github.com/dlrivada/Encina/issues/334) PR A (the accessor) and PR C (the behavior that records the outcome), and, for the 409 and 400 contract assertions, after [#3419](https://github.com/dlrivada/Encina/issues/3419) S2 and H1 | 6 |
-| C | Load and benchmark justification files, changelog fragment, README, guide table, `docs/INVENTORY.md` | 6 |
+| A | Phase 1 and the refusal of Phase 2 task 1: `EncinaAspNetCoreOptions.cs`, `IdempotencyKeyFormat.cs`, `IdempotencyKeyHeaderPolicy.cs`, `EncinaContextMiddleware.cs`, `EncinaContextMiddlewareLog.cs` (entry 230), `PublicAPI.Unshipped.txt`, manifest `Encina.AspNetCore.json`, and the unit tests (policy, middleware, options); the changelog fragment (`changelog.d/355-idempotency-key-refused.changed.md`, section `changed`: a request with an unusable idempotency header is now answered 400, where it ran with the key dropped before) | 11 |
+| B | Phase 2 task 2 (outcome scope and `OnStarting` marker): `EncinaContextMiddleware.cs`, `EncinaContextMiddlewareLog.cs` (entry 231), the middleware unit test file (extended), the TestServer integration test (new file; no csproj edit: `Encina.IntegrationTests` already references `Encina.AspNetCore`, `Encina.Caching`, `Encina.Caching.Memory` and `Microsoft.AspNetCore.TestHost`); starts after [#334](https://github.com/dlrivada/Encina/issues/334) PR A (the accessor) and PR C (the behavior that records the outcome), and, for the 409 and 400 status assertions, after [#3419](https://github.com/dlrivada/Encina/issues/3419) S2 and H1. It does not wait for [#3438](https://github.com/dlrivada/Encina/issues/3438) (`needs-decision`): the marker and the 409 work without the fingerprint-mismatch answer, which is added to this layer by a follow-up when #3438 adds its error code | 4 |
+| C | Load and benchmark justification files (2), changelog fragment (`changelog.d/355-idempotent-replayed-header.added.md`), README, guide table, `docs/INVENTORY.md` | 6 |
 
-Order: A can merge first (it needs nothing from #334: the refusal reads only options); B after #334 A and C; C last. Each pull request builds and passes alone: A adds options, policy and the refusal with their own tests; B adds a callback that reads an accessor and is a no-op when the accessor is not registered.
+Order: A can merge first (it needs nothing from #334: the refusal reads only options); B after #334 A and C; C last. Each pull request builds and passes alone: A adds options, policy and the refusal with their own tests; B adds a scope and a callback that are a no-op when the accessor is not registered. A and B are under the 15-file and 1500-line limits including tests, manifest and `PublicAPI`.
 
 ---
 
@@ -368,15 +373,16 @@ IMPLEMENTATION OVERVIEW:
 1. EncinaAspNetCoreOptions: IdempotencyKeyFormat (Opaque default, Uuid), AddIdempotentReplayedHeader (default true).
 2. IdempotencyKeyHeaderPolicy.IsUsable (internal static, pure).
 3. EncinaContextMiddleware: refuse a present but unusable header with 400 problem+json (fixed detail, no value, pipeline
-   not run); register Response.OnStarting to set Idempotent-Replayed: true when the scoped IIdempotencyOutcomeAccessor
-   says Replayed.
+   not run); open an IdempotencyOutcomeScope from the singleton IIdempotencyOutcomeAccessor around the dispatch and
+   register Response.OnStarting to set Idempotent-Replayed: true when that scope's Outcome is Replayed.
 4. EncinaContextMiddlewareLog: EventIds 230 (IdempotencyKeyRejected) and 231 (IdempotentReplayMarked) in the existing
    AspNetCore range.
-5. Tests: unit, guard, contract, TestServer integration (Memory cache provider); justification files; docs.
+5. Tests: unit, TestServer integration (Memory cache provider); justification files; docs.
 
 KEY PATTERNS:
 - Fail closed: a request carrying the header is never run with the value silently dropped.
-- The middleware is a singleton: resolve scoped services from HttpContext.RequestServices per request.
+- The middleware is a singleton: it holds no scoped service. The outcome carrier is the ambient accessor of #334 (a
+  singleton over an AsyncLocal holder), because the dispatcher opens its own DI scope per Send.
 - The key and EncinaError.Message never reach responses, logs or tags.
 - No code-text status branch: the 409 and 400 come from the ADR-062 category table (#3419 S2 and H1).
 - Targets never go down (EncinaContextMiddleware.cs unit 95, guard 55); CRAP <= 10 on every changed method.
@@ -414,7 +420,7 @@ docs/architecture/adr/062-error-category-contract.md
 
 | Issue | Relation | Notes |
 |-------|----------|-------|
-| [#334](https://github.com/dlrivada/Encina/issues/334) | Blocks PR B | Store, behavior, `IIdempotencyOutcomeAccessor`; asks the durable-backend question once |
+| [#334](https://github.com/dlrivada/Encina/issues/334) | Blocks PR B | Store, behavior, ambient `IIdempotencyOutcomeAccessor` and `IdempotencyOutcomeScope` (its Design Choice 6); asks the durable-backend question once |
 | [#3419](https://github.com/dlrivada/Encina/issues/3419) | Blocks the status assertions of PR B | Category-based status table (S2) and the AspNetCore host slice (H1) |
 | [#3438](https://github.com/dlrivada/Encina/issues/3438) | Shares the decisions of Design Choices 4 and 6 (`needs-decision`) | Fingerprint, header name, missing key answer |
 | [#3440](https://github.com/dlrivada/Encina/issues/3440) | Related | The 200-or-409 answer and `Retry-After` on a 409 for the Inbox; the same host table |
@@ -426,6 +432,6 @@ docs/architecture/adr/062-error-category-contract.md
 ## Next Steps
 
 1. Open PR A when the maintainer has answered Design Choice 3 (refuse at the boundary or drop); it needs nothing from #334.
-2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 2, 3, 4 and 6 (replay marker placement, replay layer, refusal at the boundary, status for a reused key (asked once, with #3438), header default (asked once, with #3438)) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
+2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1 to 6 (replay marker placement (its carrier is #334's Dilemma 6), replay layer, refusal at the boundary, status for a reused key (asked once, with #3438), the store of the issue (asked once, with #334), header default (asked once, with #3438)) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
 3. Re-check ids 230-231 in `Encina.AspNetCore` against the claims of the other plans when PR A starts.
 4. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
