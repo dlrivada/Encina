@@ -253,8 +253,7 @@ public static class OrchestrationContextExtensions
         catch (TaskFailedException ex)
         {
             return EncinaErrors.Create(
-                "durable.event_failed",
-                ErrorCategory.Internal,
+                "durable.event_failed", ErrorCategory.Internal,
                 $"Failed waiting for external event '{eventName}': {ex.Message}",
                 ex);
         }
