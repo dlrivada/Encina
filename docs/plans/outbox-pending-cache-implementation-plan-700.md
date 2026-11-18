@@ -10,12 +10,12 @@
 
 ## Summary
 
-The outbox processor of every provider derives from `OutboxProcessorBase` (`src/Encina.Messaging/Outbox/OutboxProcessorBase.cs`). Each cycle creates a scope, resolves `IOutboxStore`, and `OutboxBatchProcessor.ProcessAsync` calls `GetPendingMessagesAsync(BatchSize, MaxRetries)` once (the only production caller; the other sites are `InstrumentedOutboxStore` and the fake). The loop then waits `OutboxOptions.ProcessingInterval` (default 30 seconds, line 109). The issue asks for a cache decorator with a short TTL in front of that read.
+The outbox processor of every provider derives from `OutboxProcessorBase` (`src/Encina.Messaging/Outbox/OutboxProcessorBase.cs`). Each cycle creates a scope, resolves `IOutboxStore`, and `OutboxBatchProcessor.ProcessAsync` calls `GetPendingMessagesAsync(BatchSize, MaxRetries)` once (the only production caller; the other sites are `InstrumentedOutboxStore` and the fake). The loop then waits `OutboxOptions.ProcessingInterval` (default 30 seconds, `OutboxOptions.cs` line 16; the wait is the `Task.Delay` at `OutboxProcessorBase.cs` line 109). The issue asks for a cache decorator with a short TTL in front of that read.
 
-Re-checked against `origin/main` (ec129cae5), the issue text does not fit the code in five places, and the plan resolves each one:
+Re-checked against `origin/main` (d523eda92), the issue text does not fit the code in five places, and the plan resolves each one:
 
 1. **The sketch is not the interface.** Every method returns `Task<Either<EncinaError, ...>>` and the batch is `IEnumerable<IOutboxMessage>`; the sketch returns `IReadOnlyList<IOutboxMessage>` and uses `GetOrSetAsync`, which cannot return a `Left`.
-2. **`Encina.Messaging` cannot host the decorator.** `Encina.Caching` references `Encina.Messaging` (`Encina.Caching.csproj`), so the decorator and its options live in `Encina.Caching` (the placement of the family, as in #695). There is no per-provider registration to write: `RegisterOutbox` (`MessagingServiceCollectionExtensions.cs` line 281) registers `IOutboxStore` once for all providers, so "all 13 provider packages" is a leftover count (the matrix is the 10 database providers).
+2. **`Encina.Messaging` cannot host the decorator.** `Encina.Caching` references `Encina.Messaging` (`Encina.Caching.csproj`), so the decorator and its options live in `Encina.Caching` (the placement of the family, as in #695). There is no per-provider registration to write: `RegisterOutbox` (`MessagingServiceCollectionExtensions.cs` line 281) registers `IOutboxStore` once for all providers, so the acceptance criterion "Opt-in registration across all 13 providers" is met by that single registration, and the "13" is a leftover count: the matrix of AGENTS.md section 5 is the 10 database providers, all covered by the one call.
 3. **A cached non-empty batch makes duplicate delivery systematic.** The stores have no claim: no `UPDLOCK`, no `SKIP LOCKED`, no lease (the SQL Server query is `SELECT TOP (@BatchSize) ... WHERE ProcessedAtUtc IS NULL ... ORDER BY CreatedAtUtc`), and the sibling plan #713 states that two replicas polling at once already publish the same rows twice. A distributed cache that hands the same batch to every replica inside the TTL turns that race into the normal case.
 4. **The issue's invalidation is expensive and early.** `RemoveByPatternAsync($"{prefix}:pending:*")` on every `AddAsync` runs `server.KeysAsync` over the keyspace on Redis (`RedisCacheProvider.cs` lines 104-113), on the write path of every business transaction; and for EF Core `MarkAsProcessedAsync` and `AddAsync` only record changes on the context, which become visible at `SaveChangesAsync` (`OutboxProcessorBase.cs` line 157, `OutboxWriter.cs` lines 71-78), so an eviction at the write is followed by a refill from the not yet updated database.
 5. **The default TTL does not fit the default interval.** With `ProcessingInterval` at 30 seconds and the issue's 10-second TTL, a single processor never hits its own cache; the gain exists only with several replicas on a shared cache, or with an interval below the TTL. The plan ships the benchmark that measures it and documents the condition.
@@ -79,16 +79,16 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Evict on every state-changing call that returns `Right` (`AddAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync`, `RequeueExhaustedAsync` with a positive result), and again after `SaveChangesAsync` returns `Right` when this decorator instance saw any such call since the last save; never evict on `Left`; never cache a `Left`** | Correct for the providers that apply a write at once (ADO, Dapper, MongoDB) and for EF Core, whose changes land at `SaveChangesAsync`; `OutboxWriter` calls `AddAsync` and then `SaveChangesAsync` on the same store instance, the processor calls `SaveChangesAsync` after the batch | Two eviction points; a per-instance dirty flag |
-| **B) Evict at the write only (the issue)** | Simplest | For EF Core a concurrent poll refills the marker before the row exists in the database |
-| **C) Evict at `SaveChangesAsync` only** | One point | A provider that applies the write at once is stale until a save that may never come on that path |
+| **A) Evict on every state-changing call that returns `Right`, including `MarkAsProcessedAsync` (so `AddAsync`, `MarkAsProcessedAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync`, `RequeueExhaustedAsync` with a positive result), and again after `SaveChangesAsync` returns `Right` when this decorator instance saw any such call since the last save; never evict on `Left`; never cache a `Left`. It is one removal of an exact key under Design Choice 2 option B and a pattern removal under option A** | Meets the issue's criterion literally ("Invalidate on AddAsync, MarkAsProcessedAsync, MarkAsFailedAsync"); correct for every option of Design Choice 2, because under the full-batch option a processed message must leave the cached batch; correct for the providers that apply a write at once (ADO, Dapper, MongoDB) and for EF Core, whose changes land at `SaveChangesAsync` (`OutboxWriter.cs` lines 71-78, `OutboxProcessorBase.cs` line 157) | Two eviction points and a per-instance dirty flag; a removal per processed message that is a no-op when only the empty marker is cached |
+| **B) The same eviction set without `MarkAsProcessedAsync`** | Saves one removal per processed message | Valid only if Design Choice 2 keeps the empty marker (a processed message only removes pending rows); the issue's criterion is dropped, and the set must be reopened if the full batch is chosen |
+| **C) Evict at the write only (the issue)** | Simplest | For EF Core a concurrent poll refills the cache before the row changes in the database |
 
-### Chosen Option: **A - evict at the write and after the save**
+### Chosen Option: **A - evict at every write and after the save** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** #700 acceptance criterion "Invalidate on AddAsync, MarkAsProcessedAsync, MarkAsFailedAsync", `OutboxProcessorBase.cs` line 157 and `OutboxWriter.cs` lines 71-78 (EF Core persists at `SaveChangesAsync`), and AGENTS.md section 3 (a `Left` is never swallowed: it is returned untouched). B and C each have a concrete sequence that leaves the marker stale, so A is the only option that satisfies the criterion for all ten providers. `MarkAsProcessedAsync` needs no eviction: it only removes pending rows, which a stale empty marker cannot hide.
+- B wins when the maintainer keeps the empty marker and wants to avoid one cheap removal per processed message; A wins because it holds for every option of Design Choice 2, meets the acceptance criterion as written, and costs a no-op removal. C leaves a concrete stale sequence on EF Core. A `Left` is never swallowed: it is returned untouched (AGENTS.md section 3).
+- Class: Dilemma
 - A message added inside a business transaction that commits later (the `TransactionalOutboxPipelineBehavior` path commits with the unit of work, not through `IOutboxStore.SaveChangesAsync`) can still be hidden for at most the TTL; the documentation says so and names the TTL as the latency bound.
 
 </details>
@@ -100,15 +100,17 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `PendingBatchCacheDuration` 10 seconds (the issue's default), valid range 1 to 300 seconds; the setter rejects values outside it** | The issue's default and acceptance criterion; the upper bound keeps the latency bound meaningful | At the default interval (30 seconds) a single processor never hits |
-| **B) Default equal to `OutboxOptions.ProcessingInterval`** | Hits for a single processor | Doubles the worst-case delivery latency of a message added while a marker is cached; couples two options |
+| **A) `PendingBatchCacheDuration` 10 seconds (the issue's default), setter accepts 1 to 300 seconds; no `EnableCaching` flag, the extension call is the opt-in** | The issue's default; the upper bound keeps the latency bound meaningful; pay-for-what-you-use (AGENTS.md section 1) | At the default interval (`OutboxOptions.cs` line 16, 30 seconds) a single processor never hits; the range is the plan's own |
+| **B) Range 5 to 30 seconds (the issue's summary says "5-30 seconds") and the `EnableCaching` flag of the issue's configuration** | Follows the issue's text | A flag that does nothing without `Encina.Caching`; a narrower range than some deployments need |
+| **C) Default equal to `OutboxOptions.ProcessingInterval`** | Hits for a single processor | Doubles the worst-case delivery latency of a message added while a marker is cached; couples two options |
 
-### Chosen Option: **A - 10 seconds, 1 to 300**
+### Chosen Option: **A - 10 seconds, 1 to 300, no flag** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** #700 acceptance criteria ("Short default TTL (10 seconds, configurable)"). The key does not carry `batchSize`: an empty result is empty for every batch size, so one marker per `maxRetries` value exists. The issue's `EnableCaching` flag is not an option: registering the extension is the opt-in (AGENTS.md section 1, pay-for-what-you-use).
+- B wins when the maintainer wants the text of the issue followed exactly; C wins for a deployment that runs one processor and accepts a larger delay; A wins by default. The default of 10 seconds is the issue's acceptance criterion; the range and the missing flag are decisions of this plan, so they are asked here.
+- The key carries `maxRetries` and, under Design Choice 2 option B, no `batchSize` (an empty result is empty for every batch size); under option A of that choice the key also carries `batchSize`, as the issue's key does.
+- Class: Dilemma
 
 </details>
 
@@ -175,10 +177,10 @@ Prerequisite: PR 1 and PR 2 of #695 are merged (`StoreCacheKey`, `StoreCachingRe
 
 Tasks:
 
-1. **Create** `internal sealed class CachingOutboxStoreDecorator : IOutboxStore` with the constructor `(IOutboxStore inner, ICacheProvider cache, IOptions<OutboxCachingOptions> options, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider, StoreCacheTelemetry telemetry, ILogger<CachingOutboxStoreDecorator> logger)`. `GetPendingMessagesAsync`: build the key from `maxRetries`; a marker hit returns `Right` with an empty sequence (counted `hit`); a miss calls the inner store, returns a `Left` untouched, writes the marker only when the batch is empty, and returns the inner result (a non-empty batch counts `skipped`, reason `not_empty`, event 353). `AddAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync` and `RequeueExhaustedAsync` (positive result) call the inner store and, on `Right`, remove the key and set the dirty flag; `SaveChangesAsync` calls the inner store and, on `Right` with the flag set, removes the key and clears the flag. `MarkAsProcessedAsync`, `GetPendingCountAsync` and `GetExhaustedCountAsync` pass through. Every cache call is wrapped (Design Choice 5).
+1. **Create** `internal sealed class CachingOutboxStoreDecorator : IOutboxStore` with the constructor `(IOutboxStore inner, ICacheProvider cache, IOptions<OutboxCachingOptions> options, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider, StoreCacheTelemetry telemetry, ILogger<CachingOutboxStoreDecorator> logger)`. `GetPendingMessagesAsync`: build the key from `maxRetries`; a marker hit returns `Right` with an empty sequence (counted `hit`); a miss calls the inner store, returns a `Left` untouched, writes the marker only when the batch is empty, and returns the inner result (a non-empty batch counts `skipped`, reason `not_empty`, event 353). `AddAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync` and `RequeueExhaustedAsync` (positive result) call the inner store and, on `Right`, remove the key and set the dirty flag; `SaveChangesAsync` calls the inner store and, on `Right` with the flag set, removes the key and clears the flag. `GetPendingCountAsync` and `GetExhaustedCountAsync` pass through; `MarkAsProcessedAsync` evicts like the other writes (Design Choice 3). Every cache call is wrapped (Design Choice 5).
 2. **Create** `public sealed class OutboxCachingOptions { TimeSpan PendingBatchCacheDuration (default 10 seconds, 1 to 300 seconds, setter throws ArgumentOutOfRangeException) }`.
 3. **Add** `public static IServiceCollection AddEncinaOutboxCaching(this IServiceCollection services, Action<OutboxCachingOptions>? configure = null)` to `StoreCachingServiceCollectionExtensions`: `ArgumentNullException.ThrowIfNull(services)`; `Configure<OutboxCachingOptions>`; `TryAddSingleton<StoreCacheTelemetry>` and `TryAddSingleton(TimeProvider.System)` (already present from #695, `TryAdd` keeps it idempotent); then `StoreCachingRegistration.Decorate<IOutboxStore>`. The decorator is built by a factory descriptor, which `ValidateOnBuild` cannot analyze, so a missing `ICacheProvider` fails at the first resolution of `IOutboxStore` (the first processor cycle); the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` with a cache provider registered and asserts the missing-provider exception on first resolution. A cache provider is a documented prerequisite.
-4. **Tests (unit)**: an empty result writes the marker and the next call is a hit without calling the inner store; a non-empty result is never cached; a `Left` is returned untouched and never cached; `AddAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync` and a positive `RequeueExhaustedAsync` evict on `Right` and not on `Left`; `SaveChangesAsync` evicts only when a write happened in this instance and not after a `Left`; `MarkAsProcessedAsync` and the two counts do not touch the cache; the marker TTL is the configured duration (`FakeTimeProvider` and a fake cache); keys differ per `maxRetries`; a throwing cache falls through, counts and logs by type; with `ThrowOnCacheErrors` it returns `Left` with `store_cache.failed` and category `Internal`; every other member delegates exactly once.
+4. **Tests (unit)**: an empty result writes the marker and the next call is a hit without calling the inner store; a non-empty result is never cached; a `Left` is returned untouched and never cached; `AddAsync`, `MarkAsProcessedAsync`, `MarkAsFailedAsync`, `MarkAsExhaustedAsync` and a positive `RequeueExhaustedAsync` evict on `Right` and not on `Left` (Design Choice 3 option A); `SaveChangesAsync` evicts only when a write happened in this instance and not after a `Left`; the two counts do not touch the cache; the marker TTL is the configured duration (`FakeTimeProvider` and a fake cache); keys differ per `maxRetries`; a throwing cache falls through, counts and logs by type; with `ThrowOnCacheErrors` it returns `Left` with `store_cache.failed` and category `Internal`; every other member delegates exactly once.
 5. **Tests (guard)**: `AddEncinaOutboxCaching(null)` throws; the options setter rejects 0, negative and above-300-second values. The decorator constructor is internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests`, so its null checks are asserted by the unit tests (guard target 0 with that reason).
 6. **Manifest, PublicAPI and changelog** through `mechanical-fixer` (fragment text: "Added opt-in `AddEncinaOutboxCaching`: a short-TTL cache of the empty outbox poll for any of the ten database providers").
 
@@ -232,7 +234,7 @@ PR 2 holds exactly these 13 files:
 
 The folders are the ones that hold today's `OutboxStore*Tests.cs` (verified on `origin/main` for ADO, Dapper, MongoDB and the three EF folders); the new classes use the same `[Collection("<Family>-<Database>")]` fixtures and the harness of `OutboxRetryScenarios`, with `MemoryCacheProvider`, so no container is added. `Encina.IntegrationTests` already references `Encina.Caching`, `Encina.Caching.Memory` and `Encina.Caching.Redis`, so no csproj edit is needed. Valkey, Dragonfly, Garnet and KeyDB are covered by the Redis run (shared wrapper); Hybrid has no run (follow-up of #695).
 
-Scenario list: (1) an empty outbox: the second poll is a hit (inner call count 0); (2) a message added after the marker was written is returned as soon as `AddAsync` and `SaveChangesAsync` returned (eviction), proven for EF Core where the row exists only after the save; (3) a failed message with a next retry is fetched again when due; (4) `RequeueExhaustedAsync` makes the exhausted message pending at once; (5) a message committed by another instance after the marker was written is returned no later than the TTL (`FakeTimeProvider`); (6) a throwing cache falls through and the batch is still returned; (7) a non-empty batch is returned from the store on every poll (never cached).
+Scenario list: (1) an empty outbox: the second poll is a hit (inner call count 0); (2) a message added after the marker was written is returned as soon as `AddAsync` and `SaveChangesAsync` returned (eviction), proven for EF Core where the row exists only after the save; (3) a failed message with a next retry is fetched again no later than the TTL after it becomes due (the pending query filters `NextRetryAtUtc <= now`, so a live empty marker can hide it until the marker expires or is evicted); (4) `RequeueExhaustedAsync` makes the exhausted message pending at once; (5) a message committed by another instance after the marker was written is returned no later than the TTL (`FakeTimeProvider`); (6) a throwing cache falls through and the batch is still returned; (7) a non-empty batch is returned from the store on every poll (never cached).
 
 </details>
 
@@ -419,7 +421,7 @@ KEY PATTERNS:
 - Keys go through StoreCacheKey; no key, id or content in logs or tags; exceptions through ForLogging(); no tenant tag (no tenant scope).
 - The extension fails at registration when IOutboxStore is not registered yet (call it after the provider).
 - No scoped service in a singleton; DI test with ValidateOnBuild and ValidateScopes in both orders with Encina.OpenTelemetry.
-- Apply Design Choices 1, 2 and 5 as the maintainer answers them; until then build the recommended option of each.
+- Apply Design Choices 1 to 5 as the maintainer answers them; until then build the recommended option of each.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Outbox/IOutboxStore.cs, OutboxBatchProcessor.cs, OutboxProcessorBase.cs, OutboxWriter.cs
@@ -462,7 +464,7 @@ REFERENCE FILES:
 | Outbox stores of the 10 database providers | ✅ Available | ADO x3, Dapper x3, EF Core x3, MongoDB |
 | #695 PR 1 and PR 2 (foundation) | ⏭️ Sibling | `StoreCacheKey`, `StoreCachingRegistration`, `StoreCacheTelemetry`, `StoreCacheLog`, `StoreCacheErrors`, `StoreCachingServiceCollectionExtensions` must be merged first; PR 1 of this plan builds on them |
 | #713 (outbox processing lock) | ⏭️ Sibling | Not required |
-| Maintainer answers to Design Choices 1, 2 and 5 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 5 | Pending | Asked when work starts |
 
 One real prerequisite: #695 PR 1 and PR 2.
 
@@ -470,5 +472,5 @@ One real prerequisite: #695 PR 1 and PR 2.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 2 and 5) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs three workers in the phase order, after #695 PR 2 is merged.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 5) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs three workers in the phase order, after #695 PR 2 is merged.
 2. After PR 3, comment on #700 with the measured benchmark so the maintainer can judge the gain of the empty-poll cache against the processing interval in use.
