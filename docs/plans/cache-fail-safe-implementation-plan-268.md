@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (b4da9e482):
+Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (f484cdf4f):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -183,7 +183,7 @@ Tasks:
 
 1. **Create** `internal static class FailSafePolicy`: `bool IsStale(DateTime nowUtc, DateTime expiresAtUtc)`; `bool CanServeStale(DateTime nowUtc, DateTime? failSafeExpiresAtUtc)`; `bool IsInfrastructureFailure(EncinaError error)` (Design Choice 1: `error.GetCategory()` in the five categories); `bool IsThrottled(DateTime nowUtc, DateTime? lastFailureAtUtc, TimeSpan throttle)`; `TimeSpan PhysicalTtl(TimeSpan failSafe, TimeSpan logicalDuration)`.
 2. **Modify** `CacheAttribute` (`FailSafeDurationSeconds` 0 disables, `FailSafeThrottleDurationSeconds` 0 disables) and `CachePatternSettings.Resolve` (validation of Design Choice 5).
-3. **Modify** the behavior. Store: when fail-safe is on, `SetAsync` receives `PhysicalTtl`, and the entry holds `ExpiresAtUtc` (logical) and `FailSafeExpiresAtUtc = CachedAtUtc + FailSafeDurationSeconds`. Read: the entry is returned (not just its value) from `TryGetFromCacheAsync`. Fresh (`now < ExpiresAtUtc`): served as today. Stale and fail-safe on: if throttled, serve it (log 465); else run the miss path (single-flight of #266 when its mode is on, so the stale decision is made once per flight and shared): on `Right`, store and return; on an eligible failure or an exception (not `OperationCanceledException` from the caller's token) and `CanServeStale`, serve the stale value, log 462 with the error code or `ex.ForLogging()`, and rewrite the entry with `LastFailureAtUtc = now` and the remaining physical TTL; on a non-eligible `Left`, remove the stale entry and return the `Left`; when stale data is no longer allowed, log 466 and return the failure unchanged (the exception is rethrown). An entry without `ExpiresAtUtc` (older build) is fresh.
+3. **Modify** the behavior. Store: when fail-safe is on, `SetAsync` receives `PhysicalTtl`, and the entry holds `ExpiresAtUtc` (logical) and `FailSafeExpiresAtUtc = CachedAtUtc + FailSafeDurationSeconds`. Read: this PR uses the entry that `TryGetFromCacheAsync` and `TryGetForCallerAsync` return since #266 PR 1 (it does not change those methods). Fresh (`now < ExpiresAtUtc`): served as today. Stale and fail-safe on: if throttled, serve it (log 465); else run the miss path (single-flight of #266 when its mode is on, so the stale decision is made once per flight and shared): on `Right`, store and return; on an eligible failure or an exception (not `OperationCanceledException` from the caller's token) and `CanServeStale`, serve the stale value, log 462 with the error code or `ex.ForLogging()`, and rewrite the entry with `LastFailureAtUtc = now` and the remaining physical TTL; on a non-eligible `Left`, remove the stale entry and return the `Left`; when stale data is no longer allowed, log 466 and return the failure unchanged (the exception is rethrown). An entry without `ExpiresAtUtc` (older build) is fresh.
 4. **EventIds (packed, from #266's block):** 462 stale served on failure, 463 stale served on soft timeout, 464 hard timeout elapsed, 465 throttle active, 466 fail-safe exhausted, 467 abandoned run completed, 468 abandoned run faulted. PR 1 emits 462, 465, 466; PR 2 emits 463, 464, 467, 468. Counter `encina.cache.failsafe` with tag `outcome` (`stale_on_failure`, `stale_on_soft_timeout`, `hard_timeout`, `throttled`, `exhausted`) and the tag `encina.tenant_id` only with multi-tenancy on and a tenant present (ADR-054 D4). Logs carry the error code or exception type and the redacted key, never a message.
 5. **Tests (unit):** fresh hit unchanged; with fail-safe off every existing behavior test passes; stale entry plus `Left` of each of the five categories serves stale, `Forbidden` / `Unauthenticated` / `NotFound` / `Validation` returns the `Left` and removes the entry; an exception serves stale, a caller cancellation propagates; beyond `FailSafeExpiresAtUtc` the failure is returned; the throttle skips the handler for the throttle period and resumes after it (`FakeTimeProvider`); the provider receives the physical TTL; a bypassed request (no tenant under multi-tenancy, anonymous with `VaryByUser`) never reads a stale entry; two tenants never see each other's stale entry; settings validation per Design Choice 5. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`: an entry survives its logical expiry for the fail-safe lifetime and disappears after the physical TTL. **Guard tests:** no new public member has parameters (attribute properties only), and the internal types have no `InternalsVisibleTo` for `Encina.GuardTests`: none added.
 
@@ -283,6 +283,8 @@ REFERENCE FILES:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
+| `Attributes/CacheAttribute.cs` | keeps 100 | 0 | 0 | 0 | #266 sets the first target (the manifest has none today); the four new properties are initializers executed by the behavior and settings tests, no validated parameter |
+| `Patterns/CachePatternSettings.cs` | keeps 100 | 0 | 0 | 0 | Owned by #266; the fail-safe and timeout validation branches are covered by the settings tests of PR 1 and PR 2 |
 | `Patterns/FailSafePolicy.cs` | 100 | 0 | 0 | 0 | Five pure functions fully unit tested; internal without `InternalsVisibleTo` for the guard project |
 | `Patterns/FailSafeErrors.cs` | 100 | 0 | 0 | 0 | One factory asserted in a unit test; internal |
 | `Diagnostics/CachePatternLog.FailSafe.cs`, `CachePatternMetrics.FailSafe.cs` | 90 | 0 | 0 | 0 | Generated log bodies and counter calls run in the behavior tests |
@@ -348,7 +350,7 @@ REFERENCE FILES:
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 4 | 4 | New: policy, errors, two partial files; modified: attribute, settings, behavior, `PublicAPI.Unshipped.txt` |
-| Tests | 4 | 3 | New: policy, fail-safe, timeout, errors tests plus the integration test; modified: settings and fail-safe tests |
+| Tests | 5 | 2 | New: policy, fail-safe, timeout and errors tests plus the integration test; modified: the settings tests (both PRs) and the fail-safe tests (PR 2) |
 | Documentation | 0 | 1 | `docs/features/query-caching.md` |
 | Configuration | 2 | 1 | Two changelog fragments; the manifest |
 | **Total** | **10** | **9** | 2 pull requests: 14 and 13 files, each at most 15 files and 1500 lines |
@@ -411,7 +413,7 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
-| #266 PR 1 and PR 3 (`ExpiresAtUtc`, settings, log and metrics classes, EventId range) | Pending | Must be merged first |
+| #266 PR 1 (`ExpiresAtUtc`, settings, whole-entry hit path), PR 3 (log class, EventId range) and PR 4 (`CachePatternMetrics.cs`, created there) | Pending | PR 1 of this plan needs all three (its file 6 is a partial of the metrics class) |
 | #267 PR 2 and PR 3 (`IBackgroundCacheRefresher`) | Pending | Needed by PR 2 of this plan only, and only if Design Choice 3 is answered with option A |
 | ADR-062 error categories (`GetCategory`, `Create` with category) | ✅ Available | On `origin/main` |
 | Maintainer answers to Design Choices 1 to 5 | Pending | Asked when work starts |
