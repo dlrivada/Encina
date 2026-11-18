@@ -133,7 +133,10 @@ function Get-LaunchArguments($Tokens, $FileToken) {
         $name = $name.ToLowerInvariant()
         # #3896: a value the shell expands (an escape, `$$`, `$?`, `$^` in double quotes) is not what the script receives,
         # so it never binds.
-        $value = if ($null -ne $valueToken -and $trusted -and -not ([string]$valueToken.Value).Contains('%') -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression) { [string]$valueToken.Value } else { $null }
+        # A whitelist: only a value made of simple path characters (letters, digits, space, `\ / : . _ -`) binds. Any
+        # other character (`$`, a backtick, `%`, `@`, a quote, a wildcard) may be expanded by an outer shell wrapper
+        # (`pwsh -Command "..."`, `bash -c "..."`), so the parameter stays unresolved.
+        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression -and [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z0-9 \\/:._-]*\z')) { [string]$valueToken.Value } else { $null }
         $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
     }
     return $result
