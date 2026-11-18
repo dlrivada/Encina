@@ -2,7 +2,7 @@
 
 > **Issue**: [#1039](https://github.com/dlrivada/Encina/issues/1039)
 > **Type**: Feature
-> **Complexity**: Medium (4 phases, EF Core family only, 16 files in two pull requests, see Estimated File Count)
+> **Complexity**: Medium (4 phases, EF Core family only, 17 files in two pull requests, see Estimated File Count)
 > **Estimated Scope**: ~90 lines of production code + ~600 lines of tests + ~450 lines of documentation (about 1,150 changed lines in total)
 
 ---
@@ -14,8 +14,8 @@ An aggregate whose identity is a `GuidStronglyTypedId<TSelf>` is stored with the
 - **Standards**: none. The pattern is the one of the issue's reference ("EF Core Is DDD", Zoran Horvat); EF Core alternate keys and shadow properties are the mechanism.
 - **Affected packages**: `Encina.EntityFrameworkCore` (`Configuration/EntityConfigurationExtensions.cs`, its README, the coverage manifest). `Encina.DomainModeling` needs no change (`IEntity<TId>` and `GuidStronglyTypedId<TSelf>` are enough).
 - **Provider category**: Database, EF Core family only. The three relational EF Core providers of the matrix (SqlServer, PostgreSQL, MySQL) apply; ADO.NET, Dapper and MongoDB are not applicable (different mapping model); SQLite is out of the matrix (AGENTS.md section 5, ADR-024). The Provider Implementation Matrix below states each.
-- **Scope**: 1 new public extension method, plus unit, guard and integration tests, two test-type justification files, README, feature page, ADR, changelog fragment and manifest entry: 16 files, over one worker PR, so it ships as 2 pull requests of at most 11 files (see Estimated File Count).
-- **Public API tracking**: `src/Encina.EntityFrameworkCore/PublicAPI.Unshipped.txt` holds only `#nullable enable` and the package references no public API analyzer, so the issue's task "update `PublicAPI.Unshipped.txt`" needs no line today (checked on `origin/main` `ec129cae5`).
+- **Scope**: 1 new public extension method, plus unit, guard and integration tests, two test-type justification files, README, feature page, ADR, changelog fragment and manifest entry: 17 files, over one worker PR, so it ships as 2 pull requests of at most 12 files (see Estimated File Count).
+- **Public API tracking**: `src/Encina.EntityFrameworkCore/PublicAPI.Unshipped.txt` holds only `#nullable enable` and the package references no public API analyzer, so the issue's task "update `PublicAPI.Unshipped.txt`" needs no line today (checked on `origin/main` `d523eda92`).
 
 ### Provider Implementation Matrix
 
@@ -172,8 +172,8 @@ An aggregate whose identity is a `GuidStronglyTypedId<TSelf>` is stored with the
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Out of scope: the feature page documents that `FunctionalRepositoryEF<TEntity, TId>` looks entities up with `FindAsync([id])` (`GetByIdAsync` at `FunctionalRepositoryEF.cs:79`, `DeleteAsync` at `:440`), which targets the primary key and so does not accept the Guid of an entity configured with this helper; a follow-up issue makes the repository and the bulk operations (`FindPrimaryKey()` in `BulkOperationsEFSqlServer.cs:55` and its siblings) shadow-key aware** | The helper stays one small PR; the repository is optional (AGENTS.md section 3) and callers can use the `DbContext` (`FirstOrDefaultAsync(e => e.Id == id)`) | Until the follow-up, an application cannot combine this helper with `AddEncinaRepository` for the same entity |
-| **B) Include the repository and bulk-operation changes in this plan** | The pattern works end to end on the day it ships | Touches 10 more providers' code paths in other packages, more than the 15-file and 1500-line limit of one PR, and is not what the issue asks |
+| **A) Out of scope: the feature page documents that `FunctionalRepositoryEF<TEntity, TId>` looks entities up with `FindAsync([id])` (`GetByIdAsync` at `FunctionalRepositoryEF.cs:79`, `DeleteAsync` at `:440`), which targets the primary key and so does not accept the Guid of an entity configured with this helper; the audit interceptor (`AuditInterceptor.GetEntityId` at `Auditing/AuditInterceptor.cs:328` builds the audited entity id from `FindPrimaryKey()`, so the audit record would hold the internal `int` `PhysicalId` instead of the Guid `Id`) and `DbContextKeyExtensions.cs` also read `FindPrimaryKey()`; a follow-up issue makes the repository, the three EF bulk operations (`BulkOperationsEFSqlServer.cs:55` and its PostgreSQL and MySQL siblings), `AuditInterceptor.cs` and `DbContextKeyExtensions.cs` shadow-key aware (the grep of `FindPrimaryKey` over `src/Encina.EntityFrameworkCore` finds exactly these five files)** | The helper stays one small PR; the repository is optional (AGENTS.md section 3) and callers can use the `DbContext` (`FirstOrDefaultAsync(e => e.Id == id)`) | Until the follow-up, an application cannot combine this helper with `AddEncinaRepository` for the same entity |
+| **B) Include the repository and bulk-operation changes in this plan** | The pattern works end to end on the day it ships | Touches five more files (repository, three bulk operations, audit interceptor, key extensions) with their tests on three providers, which together with the helper exceeds the 15-file limit of one PR, and is not what the issue asks |
 
 ### Chosen Option: **A — document now, follow-up issue (recommended, pending the maintainer)**
 
@@ -247,13 +247,13 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/Configuration/EntityConfiguratio
 1. Unit (`tests/Encina.UnitTests/EntityFrameworkCore/Configuration/ShadowPrimaryKeyConfigurationTests.cs` and its support file `ShadowPrimaryKeyTestDbContext.cs` with `InvoiceId : GuidStronglyTypedId<InvoiceId>`, `CustomerId`, `Invoice : AggregateRoot<InvoiceId>`, `Customer`; the project already references `Microsoft.EntityFrameworkCore.InMemory`): the primary key is the shadow `int` `PhysicalId` and is `ValueGenerated.OnAdd`; the model has the alternate key `Id`; `Id` is `ValueGenerated.Never` and its provider type is `Guid`; a custom `shadowKeyName` is honored; the result is identical with `HasKey(e => e.Id)` before and after (choice 2); it composes with `ConfigureAggregateRoot<Invoice, InvoiceId>()` in both orders (`RowVersion` is a concurrency token, `DomainEvents` is ignored); a second aggregate's `HasOne<Customer>().WithMany().HasPrincipalKey(c => c.Id).HasForeignKey(i => i.CustomerId)` builds and the foreign key's principal key is the alternate key; calling the helper twice leaves one shadow property.
 2. Guard (`tests/Encina.GuardTests/EntityFrameworkCore/Configuration/EntityConfigurationExtensionsShadowKeyGuardTests.cs`): `ConfigureShadowPrimaryKey_NullBuilder_ThrowsArgumentNullException`, `..._NullShadowKeyName_ThrowsArgumentNullException`, `..._EmptyShadowKeyName_ThrowsArgumentException`, `..._WhitespaceShadowKeyName_ThrowsArgumentException`, `..._ShadowKeyNameEqualToId_ThrowsArgumentException`, `..._DefaultShadowKeyName_UsesPhysicalId` (valid result for the optional parameter). The builder for the name cases comes from the `OnModelCreating` of an InMemory context, as in `SoftDeleteTestDbContext`.
 3. No property test (configuration only, no input domain) and no contract test (a static class, no interface; the surface is the one method, covered by unit tests).
-4. Per-file targets for `Configuration/EntityConfigurationExtensions.cs` (the manifest entry has none today; the worker measures the baseline first with the per-flag runs of AGENTS.md section 9 and replaces these provisional numbers by the measured value minus 2 points when that is higher):
+4. Per-file targets for `Configuration/EntityConfigurationExtensions.cs` (the manifest entry has no per-file targets today). Baseline measured on 2026-11-18 on `origin/main` with `dotnet test tests\Encina.UnitTests --filter "FullyQualifiedName~EntityFrameworkCore" --collect "XPlat Code Coverage"` and the same for `tests\Encina.GuardTests` (252 coverable lines in the file): unit 15/252 = 6%, guard 0/252 = 0%, integration not measured (no test reaches the file). The new method adds about 13 coverable lines, all reached by the new tests, so the targets are the baseline plus the new lines, rounded down. The issue's criterion "coverage >= 85% for new code" is met by the new method itself (100% of its lines under unit; guard and integration each reach the lines their tests drive); a file-level 85% is unreachable because the other 239 lines are unrelated helpers (temporal tables, query filters) that this PR does not touch, and AGENTS.md section 9 replaces a single percentage by per-flag per-file targets. The worker re-measures with the per-flag runs and raises a number only if the measurement is higher.
 
-| Flag | Provisional target | One-sentence justification |
+| Flag | Target | One-sentence justification |
 |------|:-:|----------------------------|
-| Unit | 70 | The new method is fully reached by model-level unit tests; the other helpers of the 916-line file (temporal tables, query filter application) are reached by existing tenancy and soft-delete tests, so the file target follows the measured value. |
-| Guard | 40 | Guard tests reach the argument checks of the new method and the existing `ThrowIfNull` lines; most of the file has no parameters to guard. |
-| Integration | 0 in PR 1, set in PR 2 | PR 1 has no integration test; PR 2 raises it to the measured value because the three provider tests execute the new method against real databases. |
+| Unit | 11 | Baseline 6% plus the new method's 13 lines, all driven by model-level unit tests; the rest of the 252-line file is not touched by this PR. |
+| Guard | 5 | Baseline 0%; the guard tests execute the new method's argument checks and its valid default-name path (about 13 lines), and the other helpers have no parameters to guard. |
+| Integration | 0 in PR 1, 5 in PR 2 | PR 1 has no integration test (the target stays at the absent value); PR 2 raises it to 5 because the three provider tests execute the new method (about 13 of 252 lines) against real databases. |
 | Contract, Property | 0 | A static configuration class has no interface to keep and no input domain to generate. |
 
    CRAP of `ConfigureShadowPrimaryKey`: complexity 4 (three validations and the call chain), fully covered by the unit and guard tests, below 10.
@@ -302,7 +302,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCor
 <summary>Tasks</summary>
 
 1. `src/Encina.EntityFrameworkCore/README.md` (via `docs-writer`): add `ConfigureShadowPrimaryKey()` to the configuration helper table next to `ConfigureAggregateRoot()` (`README.md:596`).
-2. `docs/features/shadow-primary-key.md` (via `docs-writer`): when to use the pattern (high-volume tables, brownfield tables), when not (small tables, sequential Guids already mitigate fragmentation), the usage and the cross-aggregate `HasPrincipalKey` example, the `Find` and repository limitation of choice 7 with the workaround, why ADO.NET, Dapper and MongoDB are not covered; no hand-typed figures.
+2. `docs/features/shadow-primary-key.md` and its entry in `docs/features/index.md` (via `docs-writer`): when to use the pattern (high-volume tables, brownfield tables), when not (small tables, sequential Guids already mitigate fragmentation), the usage and the cross-aggregate `HasPrincipalKey` example, the `Find` and repository limitation of choice 7 with the workaround, why ADO.NET, Dapper and MongoDB are not covered; no hand-typed figures.
 3. `docs/architecture/adr/<number>-shadow-primary-key-guid-alternate-key.md` and its row in `docs/architecture/adr/index.md` (via `docs-writer`; the ADR number is assigned when the ADR pull request opens): the decision, the alternatives the issue rejected (source generator, convention, no helper) and choices 1, 7 and 8.
 4. `ROADMAP.md`, `docs/INVENTORY.md` and `docs/releases/` need no change (no new package or module).
 5. Build `dotnet build --configuration Release` (0 warnings), `dotnet test` of the unit, guard and integration projects filtered to the new classes, `--check-justifications`, the changelog check.
@@ -361,8 +361,8 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/README.md, docs/features/immutab
 | Unit and guard tests | 3 | `ShadowPrimaryKeyConfigurationTests.cs`, `ShadowPrimaryKeyTestDbContext.cs`, `EntityConfigurationExtensionsShadowKeyGuardTests.cs` (PR 1) |
 | Integration tests | 4 | `ShadowKeyDbContext.cs`, SqlServer, PostgreSQL and MySQL test classes (PR 2) |
 | Justifications | 2 | benchmark and load `.md` files (PR 2) |
-| Docs and metadata | 6 | `README.md`, `docs/features/shadow-primary-key.md`, the ADR, `docs/architecture/adr/index.md`, the changelog fragment (PR 1), `.github/coverage-manifest/Encina.EntityFrameworkCore.json` (both PRs) |
-| **Total** | **16 distinct** | PR 1: 6 files (about 330 lines); PR 2: 11 files (about 820 lines, the manifest counted again). No `ProjectReference`, DI registration or test-double changes |
+| Docs and metadata | 7 | `README.md`, `docs/features/shadow-primary-key.md`, its entry in `docs/features/index.md`, the ADR, `docs/architecture/adr/index.md`, the changelog fragment (PR 1), `.github/coverage-manifest/Encina.EntityFrameworkCore.json` (both PRs) |
+| **Total** | **17 distinct** | PR 1: 6 files (about 330 lines); PR 2: 12 files (about 840 lines, the manifest counted again). No `ProjectReference`, DI registration or test-double changes |
 
 ---
 
@@ -400,7 +400,7 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/Configuration/EntityConfiguratio
 | 9 | Idempotency | ❌ | Calling the helper twice leaves the same model (unit tested) |
 | 10 | Multi-Tenancy | ❌ | Tenant filters compose orthogonally; the Guid `Id` is globally unique, no tenant-qualified key is created, so the reserved `default` tenant segment does not apply |
 | 11 | Module Isolation | ❌ | Module-independent |
-| 12 | Audit Trail | ❌ | Audit columns are unaffected (`ConfigureAggregateRoot` keeps them); no audited operation |
+| 12 | Audit Trail | ⏭️ | Audit columns are unaffected (`ConfigureAggregateRoot` keeps them), but `AuditInterceptor.GetEntityId` (`Auditing/AuditInterceptor.cs:328`) and `DbContextKeyExtensions.cs` read `FindPrimaryKey()`, so for an entity configured with this helper the audited entity id would be the internal `int` `PhysicalId`; deferred with choice 7 to the follow-up issue `artifacts/issues/ef-repository-shadow-primary-key.md` (`[DEBT]`, already lists `AuditInterceptor`; the worker adds `DbContextKeyExtensions.cs`) |
 
 ---
 
@@ -409,4 +409,4 @@ REFERENCE FILES: src/Encina.EntityFrameworkCore/Configuration/EntityConfiguratio
 1. Commit this plan, open its PR and link it from #1039.
 2. Open the follow-up issue `artifacts/issues/ef-repository-shadow-primary-key.md` (the repository and bulk operations with a shadow primary key, choice 7).
 3. When #1039 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1, 7 and 8).
-4. Brief a worker for PR 1 (Phases 1-2, 6 files), then PR 2 (Phases 3-4, 11 files) after PR 1 is merged.
+4. Brief a worker for PR 1 (Phases 1-2, 6 files), then PR 2 (Phases 3-4, 12 files) after PR 1 is merged.
