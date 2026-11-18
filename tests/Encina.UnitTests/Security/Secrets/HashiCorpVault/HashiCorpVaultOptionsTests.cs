@@ -61,4 +61,46 @@ public sealed class HashiCorpVaultOptionsTests
 
         options.MountPoint.ShouldBe("custom-kv");
     }
+
+    [Fact]
+    public void ToString_WhenDefaults_PrintsExpected()
+    {
+        var options = new HashiCorpVaultOptions();
+
+        var str = options.ToString();
+
+        str.ShouldBe("HashiCorpVaultOptions { VaultAddress=, MountPoint=secret, AuthMethod=null, AllowInsecureHttp=False, AllowLocalEndpoints=False }");
+    }
+
+    [Fact]
+    public void ToString_WhenAuthMethodSet_MasksSecret()
+    {
+        var options = new HashiCorpVaultOptions
+        {
+            VaultAddress = "https://vault.example.com:8200",
+            AuthMethod = new TokenAuthMethodInfo("hvs.my-super-secret-token")
+        };
+
+        var str = options.ToString();
+
+        str.ShouldContain("AuthMethod=***");
+        str.ShouldNotContain("hvs.my-super-secret-token");
+        str.ShouldContain("VaultAddress=https://vault.example.com:8200");
+    }
+
+    [Fact]
+    public void JsonSerialize_ExcludesAuthMethod()
+    {
+        var options = new HashiCorpVaultOptions
+        {
+            VaultAddress = "https://vault.example.com:8200",
+            AuthMethod = new TokenAuthMethodInfo("hvs.my-super-secret-token")
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("AuthMethod");
+        json.ShouldNotContain("hvs.my-super-secret-token");
+        json.ShouldContain("VaultAddress");
+    }
 }
