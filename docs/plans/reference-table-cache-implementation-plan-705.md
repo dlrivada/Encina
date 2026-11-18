@@ -2,7 +2,7 @@
 
 > **Issue**: [#705](https://github.com/dlrivada/Encina/issues/705)
 > **Type**: Feature
-> **Complexity**: Medium-High (5 phases, 5 pull requests of 5, 12, 14, 14 and 3 files)
+> **Complexity**: Medium-High (5 phases, 5 pull requests of 6, 12, 14, 14 and 3 files)
 > **Estimated Scope**: about 600 lines of production code, about 1300 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching, sharding)
 
@@ -12,7 +12,7 @@
 
 Reference tables (ADR-013, `src/Encina/Sharding/ReferenceTables`) are replicated from one primary shard to every other shard. The issue asks for a `CachedReferenceTableStore` decorator over `IReferenceTableStore.GetAllAsync` with a long TTL, invalidated through the CDC cache handler and broadcast through pub/sub.
 
-Re-checked against `origin/main` (ec129cae5), the issue text does not fit the code in five places, and the plan resolves each one:
+Re-checked against `origin/main` (d523eda92), the issue text does not fit the code in five places, and the plan resolves each one:
 
 1. **The sketch is not the interface.** `IReferenceTableStore.GetAllAsync<TEntity>(CancellationToken)` takes no `shardId`, returns `Task<Either<EncinaError, IReadOnlyList<TEntity>>>` and operates on one shard connection; a store is created per shard by `IReferenceTableStoreFactory.CreateForShard(connectionString)`.
 2. **Decorating the store would serve stale data to the replicator.** The only production callers of the store reads are the replication path: `ReferenceTableReplicator.ReplicateEntityAsync` reads the primary with `GetAllAsync` (line 158) and `PollingRefreshDetector` compares `GetHashAsync` (line 82). A cached `GetAllAsync` would replicate stale rows to every shard, and a cached `GetHashAsync` can never detect a change inside the TTL. No other component reads reference data through `IReferenceTableStore`; applications read their local replica with ordinary repositories. The cache that has value is a new read API for application reads (Design Choice 1).
@@ -89,7 +89,7 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 
 ### Rationale
 
-- C wins for a deployment that uses only a shared cache and wants no hosted service; B wins only where CDC cache invalidation is always registered with it. A is the option that satisfies the issue without a hidden dependency. Publishing is optional per `ReferenceTableCachingOptions.EnableBroadcast` (default true when an `IPubSubProvider` is registered, otherwise the decorator publishes nothing and logs once at startup).
+- C wins for a deployment that uses only a shared cache and wants no hosted service; B wins only where CDC cache invalidation is always registered with it. A is the option that satisfies the issue without a hidden dependency. Publishing is optional per `ReferenceTableCachingOptions.EnableBroadcast` (default true when an `IPubSubProvider` is registered, otherwise the decorator publishes nothing and the subscriber logs event 424 once at start).
 - A broadcast failure never fails the replication: it is counted and logged (event 420) and the local removal has already happened. The message carries a key or a pattern of this feature only: no entity data, no tenant, no personal data.
 - Class: Dilemma
 
@@ -116,21 +116,21 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 </details>
 
 <details>
-<summary><strong>5. The issue's `hash` and `metadata` keys, TTL, serialization and failure semantics</strong></summary>
+<summary><strong>5. The issue's `hash` and `metadata` keys and the TTL</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Do not cache the content hash or the reflection metadata; the entity list entry has `Duration` 1 hour by default (valid 1 minute to 7 days, the issue's "long default TTL, default 1 hour"); a failing cache call is caught, counted and logged by exception type and the call falls through to the store, and with `CachingOptions.ThrowOnCacheErrors` it returns `Left` with the shared `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4)** | Change detection stays correct (finding 4); the cache is an optimization whose outage never stops a read; one existing switch; no new error code | A reuse of the global flag (the answer given to Design Choice 6 of #695 applies) |
+| **A) Do not cache the content hash or the reflection metadata; the entity list entry has `Duration` 1 hour by default (valid 1 minute to 7 days); an inner `Left` is returned as it is and never cached** | Change detection stays correct (finding 4); no new error code | The issue's three keys become one |
 | **B) Cache all three keys of the issue** | The issue's text | A cached hash blinds `PollingRefreshDetector`; serializing reflection metadata is useless |
 
-### Chosen Option: **A - entity list only, with the shared failure rule**
+### Chosen Option: **A - entity list only**
 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** `PollingRefreshDetector.cs` (line 82 reads `GetHashAsync` from the primary store to compare with the stored state, so the hash must be fresh), `EntityMetadataCache.cs` (a `ConcurrentDictionary` of reflection metadata), #705 acceptance criterion "Long default TTL (configurable, default 1 hour)", AGENTS.md section 3 (errors never swallowed: the inner `Left` is returned as it is and never cached), and #695 Design Choice 6 for the failure rule (its answer applies to the whole family).
+- **Settled by:** `PollingRefreshDetector.cs` (the hash of the primary store is read through `GetHashAsync`, invoked by reflection at line 145, to compare with the stored state, so the hash must be fresh), `EntityMetadataCache.cs` (a `ConcurrentDictionary` of reflection metadata), #705 acceptance criterion "Long default TTL (configurable, default 1 hour)", and AGENTS.md section 3 (errors never swallowed: the inner `Left` is returned as it is and never cached). The range 1 minute to 7 days is the plan's own bound, enforced by the setter (invalid values throw `ArgumentOutOfRangeException`).
 - The TTL bound: `Duration` is the worst-case staleness for an instance that misses both the replicator hook and the broadcast (a direct database change that no strategy sees, or a manual table); the documentation says so.
 
 </details>
@@ -142,7 +142,7 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The shared `StoreCacheLog` ids 350-353 for read, write and eviction failures with `store=ref_table`; a new range `CachingReferenceTables = (420, 434)` from the family block 400-449 with ids 420-423 for the broadcast and the subscriber; the shared `StoreCacheTelemetry` counters with `store=ref_table` (local) and `store=ref_table_broadcast` (received)** | No duplicated ids; the new range holds only what is new | One registry entry and an allocation-test mapping |
+| **A) The shared `StoreCacheLog` ids 350-353 for read, write and eviction failures with `store=ref_table`; a new range `CachingReferenceTables = (420, 434)` from the family block 400-449 with ids 420-424 for the broadcast and the subscriber; the shared `StoreCacheTelemetry` counters with `store=ref_table` (local) and `store=ref_table_broadcast` (received)** | No duplicated ids; the new range holds only what is new | One registry entry and an allocation-test mapping |
 | **B) A separate range and meter for everything** | Self-contained | Duplicates the shared failure ids and a second meter for the same concept |
 
 ### Chosen Option: **A - shared ids plus a small new range**
@@ -150,7 +150,27 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** AGENTS.md section 7 (register the range in `EventIdRanges.cs` first; ids packed sequentially) and the family block 400-449 of the plan batch registry (#704 uses 400-419, this plan 420-434). ADR-054 D4 and D6: reference data has no tenant scope, so there is no tenant tag and no tenant segment; no key, entity or list content in a log, tag or span.
+- **Settled by:** AGENTS.md section 7 (register the range in `EventIdRanges.cs` first; ids packed sequentially) and the registry `artifacts/decisions/plan-batch/eventid-blocks.md`, which assigns the block 400-449 to the family cache-stores-2 as a whole. Inside the block this plan reserves 420-434; the split of the block (400-419 reserved by the #704 plan, 420-434 here) is to be recorded in the registry when the pull requests open, and the allocation test fails on any overlap. ADR-054 D4 and D6: reference data has no tenant scope, so there is no tenant tag and no tenant segment; no key, entity or list content in a log, tag or span.
+- Ids packed from 420: 420 broadcast publish failed, 421 invalidation message rejected, 422 subscription failed, 423 subscriber removal failed, 424 broadcast not configured (Information, once at startup, when `EnableBroadcast` is on and no `IPubSubProvider` is registered).
+
+</details>
+
+<details>
+<summary><strong>7. Cache failure semantics</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A failing cache call is caught, counted and logged by exception type (`ForLogging()`), and the call falls through to the store; with `CachingOptions.ThrowOnCacheErrors` it returns `Left` with the shared `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4)** | A cache outage never stops a read or a replication; one existing switch; no new error code | Reuses a global flag |
+| **B) Always return `Left` on a cache error** | Loud | A Redis outage stops every read of a lookup list |
+
+### Chosen Option: **A - fall through, strict switch returns `Left`** (recommended, pending the maintainer)
+
+### Rationale
+
+- The same question is Design Choice 6 of #695, a Dilemma there too; this plan records its own entry so that it does not depend on that answer, and the maintainer's answers should match. A wins for availability; B wins in deployments that prefer a loud failure to a silent loss of the optimization. A `Left` from the store is never swallowed or cached under either option.
+- Class: Dilemma
 
 </details>
 
@@ -163,7 +183,7 @@ Re-checked against `origin/main` (ec129cae5), the issue text does not fit the co
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 5 files:
+PR 1 holds exactly these 6 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -171,13 +191,14 @@ PR 1 holds exactly these 5 files:
 | 2 | `src/Encina/Sharding/ReferenceTables/ReferenceTableReplicator.cs` | modify (uses it; behavior unchanged) |
 | 3 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 4 | `tests/Encina.UnitTests/Sharding/ReferenceTables/ReferenceTableConfigurationTests.cs` | modify (new cases) |
-| 5 | `.github/coverage-manifest/Encina.json` | modify (`mechanical-fixer`) |
+| 5 | `tests/Encina.GuardTests/Core/Sharding/ReferenceTableConfigurationGuardTests.cs` | new (the null topology check) |
+| 6 | `.github/coverage-manifest/Encina.json` | modify (`mechanical-fixer`: the `ReferenceTableConfiguration.cs` entry gets the `guard` flag and the targets of Phase 5) |
 
 Tasks:
 
-1. **Add** `public Either<EncinaError, ShardInfo> ResolvePrimaryShard(ShardTopology topology)` to the record: the primary is `Options.PrimaryShardId` or the first shard id of the topology; an absent id or a shard missing from the topology returns `Left` with `ReferenceTableErrorCodes.PrimaryShardNotFound` (the error the replicator returns today at the same two points). `ArgumentNullException.ThrowIfNull(topology)`.
-2. **Modify** `ReferenceTableReplicator.ReplicateEntityAsync` to call it instead of its inline resolution (lines 119-143), with the same errors; the existing replicator tests and `ReferenceTableReplicatorGuardTests` stay green.
-3. **Tests**: configured primary found; default to the first shard; empty topology; configured id absent from the topology; null topology throws; the replicator tests assert the same error code in the same two cases (no behavior change).
+1. **Add** `public Either<EncinaError, ShardInfo> ResolvePrimaryShard(ShardTopology topology)` to the record: the primary is `Options.PrimaryShardId` or the first shard id of the topology; an absent id or a shard missing from the topology returns `Left` with `ReferenceTableErrorCodes.PrimaryShardNotFound` (the error the replicator returns today at the same two points), now created with the explicit `ErrorCategory.Internal` (ADR-062 rule R1: a server-side topology or configuration lookup is `Internal`, not `NotFound`), so the scan keeps passing when the path leaves `ErrorCategoryPending.txt`; the message names the entity type through `EntityType.Name` of the record, so the text the replicator returns today ("Primary shard ... for reference table '<entity>'") is kept. `ArgumentNullException.ThrowIfNull(topology)`.
+2. **Modify** `ReferenceTableReplicator.ReplicateEntityAsync` to call it instead of its inline resolution (lines 116-139), with the same errors; the existing replicator tests and `ReferenceTableReplicatorGuardTests` stay green.
+3. **Tests**: configured primary found; default to the first shard; empty topology; configured id absent from the topology; null topology throws (in the new guard test file, so the guard target of the manifest entry is reachable by PR 1 itself); the replicator tests assert the same error code in the same two cases (no behavior change).
 4. **Manifest and PublicAPI** through `mechanical-fixer`.
 
 </details>
@@ -283,7 +304,7 @@ PR 3 holds exactly these 14 files:
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/ReferenceTables/ReferenceTableCacheInvalidationSubscriber.cs` | new (internal hosted service) |
-| 2 | `src/Encina.Caching/ReferenceTables/ReferenceTableCacheLog.cs` | new (internal; ids 420-423) |
+| 2 | `src/Encina.Caching/ReferenceTables/ReferenceTableCacheLog.cs` | new (internal; ids 420-424) |
 | 3 | `src/Encina.Caching/ReferenceTables/CachingReferenceTableReplicator.cs` | modify (publishes after the local eviction) |
 | 4 | `src/Encina.Caching/ReferenceTables/ReferenceTableCachingOptions.cs` | modify (`EnableBroadcast`, `InvalidationChannel`) |
 | 5 | `src/Encina.Caching/ReferenceTables/ReferenceTableCachingServiceCollectionExtensions.cs` | modify (registers the subscriber) |
@@ -301,7 +322,7 @@ Tasks:
 
 1. **Create** the subscriber (`IHostedService`): subscribes to `InvalidationChannel` at start (a failure to subscribe is logged and counted, and the host still starts: the broadcast is an optimization over the TTL), and for each message accepts only a string that starts with the `{prefix}:x-store:ref-table:` prefix of `StoreCacheKey`, then calls `RemoveByPatternAsync` (an exact key has no glob characters, so it removes exactly that key); any other message is dropped with a reason code (event 421, never the message text). It disposes the subscription at stop.
 2. **Modify** the decorator: after the local removal, when `EnableBroadcast` is true and an `IPubSubProvider` exists, publish the key or pattern; a publish failure is counted and logged with event 420 and never changes the result.
-3. **EventIds** (register first, ADR-021): `CachingReferenceTables = (420, 434)` in `EventIdRanges.cs`, mapped in `EncinaEventIdAllocationTests`; ids packed: 420 broadcast publish failed, 421 invalidation message rejected, 422 subscriber subscription failed, 423 subscriber removal failed. Exceptions through `ForLogging()`; no key, entity or message text in a log.
+3. **EventIds** (register first, ADR-021): `CachingReferenceTables = (420, 434)` in `EventIdRanges.cs`, mapped in `EncinaEventIdAllocationTests`; ids packed: 420 broadcast publish failed, 421 invalidation message rejected, 422 subscriber subscription failed, 423 subscriber removal failed, 424 broadcast not configured (Information, logged once by the subscriber at start when no `IPubSubProvider` is registered). Exceptions through `ForLogging()`; no key, entity or message text in a log.
 4. **Tests**: a message with the guard prefix removes the key locally; a message without it is rejected and counted; a subscription failure does not stop the host; the publisher publishes the key after the local removal and a throwing publisher does not change the replication result; with no `IPubSubProvider` nothing is published and registration succeeds; the subscriber is registered exactly once when `AddEncinaReferenceTableCaching` is called twice.
 
 </details>
@@ -316,13 +337,13 @@ and registers the EventId range.
 
 TASK:
 1. Register EventIdRanges.CachingReferenceTables = (420, 434) first, map it in EncinaEventIdAllocationTests, then write
-   ReferenceTableCacheLog (420-423) and ReferenceTableCacheInvalidationSubscriber.
+   ReferenceTableCacheLog (420-424) and ReferenceTableCacheInvalidationSubscriber.
 2. Make the decorator publish after the local removal; a publish failure never fails the replication.
 3. The subscriber accepts only messages with the ref-table prefix of StoreCacheKey (fail closed) and never logs the message text.
 4. Write the unit and guard tests; ask mechanical-fixer for the PublicAPI lines and the manifest.
 
 KEY RULES:
-- Ids 420-423 only, packed, inside the registered range; ADR-021.
+- Ids 420-424 only, packed, inside the registered range; ADR-021.
 - A background subscriber never lets an exception escape; a subscription failure is logged by exception type through ForLogging().
 - No key, entity data or message text in a log or tag. Zero warnings; CRAP of every method at most 10.
 
@@ -391,7 +412,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Telemetry** (the shared `StoreCacheTelemetry`, no file added): `encina.store_cache.requests` with `store=ref_table` and outcomes `hit`, `miss`, `skipped`, `failure`; `encina.store_cache.evictions` with `store=ref_table` (local, after a replication) and `store=ref_table_broadcast` (received). No key, entity type name from user data beyond the fixed `store` value, or list content in a tag or span; no tenant tag (ADR-054 D4: reference data has no tenant scope).
-2. **Logs and errors**: ids 350-353 (shared) and 420-423 (this plan); the only error code that can surface from the decorator is the shared `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4); the existing `entity_not_registered` and `primary_shard_not_found` codes keep the categories they have today. No new error code.
+2. **Logs and errors**: ids 350-353 (shared) and 420-424 (this plan); the only error code that can surface from the decorator is the shared `store_cache.failed` (`ErrorCategory.Internal`, ADR-062 rule R4); the existing `entity_not_registered` and `primary_shard_not_found` codes keep the categories they have today. No new error code.
 3. **Coverage targets** (per file, per flag; baseline: the new files do not exist; the manifest `targets` of `Encina.Caching` are unit 60, guard 30, contract 10 and of `Encina` unit 70, guard 20, contract 15; measured values replace the estimates before each pull request opens):
 
 | File | PR | unit | guard | property | integration | Justification |
@@ -402,7 +423,9 @@ REFERENCE FILES:
 | `ReferenceTables/ReferenceTableCachingOptions.cs` | 2 and 3 | 100 | 100 | 0 | 0 | Setter validation fully reachable from both flags |
 | `ReferenceTables/ReferenceTableCachingServiceCollectionExtensions.cs` | 2 and 3 | 95 | 90 | 0 | 0 | DI test and guard tests reach every line |
 | `ReferenceTables/ReferenceTableCacheLog.cs` | 3 | 90 | 0 | 0 | 0 | Log methods asserted through the decorator and subscriber tests with a fake logger; internal |
-| `Sharding/ReferenceTables/ReferenceTableConfiguration.cs` (`Encina`) | 1 | 95 | 20 | 0 | 0 | The new method and its null check are unit tested; the record has other members |
+| `Sharding/ReferenceTables/ReferenceTableConfiguration.cs` (`Encina`) | 1 | 95 | 20 | 0 | 0 | The new method is unit tested on every branch; its null check is reached by the new guard test file; the record has other members, so guard stays modest |
+| `Sharding/ReferenceTables/ReferenceTableReplicator.cs` (`Encina`) | 1 | 85 | 40 | 0 | 0 | Only the resolution block is replaced by the new method, so the existing replicator unit and guard tests keep covering the file; the targets must not drop and the same-error-code cases are added |
+| `ReferenceTables/IReferenceTableCache.cs` | 2 | 0 | 0 | 0 | 0 | Interface with no executable code; its contract is exercised through `ReferenceTableCache` |
 
 4. **Contract and load**: `IReferenceTableCache` is a new public interface with one implementation, so no contract test beyond the unit tests (justification in the manifest `reason`); no load test (the cache holds no state beyond the cache provider).
 
@@ -468,7 +491,7 @@ PR 5 holds exactly these 3 files: `tests/Encina.BenchmarkTests/Encina.Caching.Be
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Caching` (new range `CachingReferenceTables`) | 420-434 (from the family block 400-449) | 420-423 used by this plan; 424-434 free; 400-419 are #704 |
+| `Encina.Caching` (new range `CachingReferenceTables`) | 420-434 (from the family block 400-449) | 420-424 used by this plan; 425-434 free; 400-419 are #704 |
 | `Encina.Caching` (shared range `CachingStores` of #695) | 350-353 reused | read, write and eviction failures with `store=ref_table` |
 
 ### Estimated File Count
@@ -476,10 +499,10 @@ PR 5 holds exactly these 3 files: `tests/Encina.BenchmarkTests/Encina.Caching.Be
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 7 | 3 | New: interface, cache, replicator decorator, options, extension, subscriber, log; modified: `ReferenceTableConfiguration.cs`, `ReferenceTableReplicator.cs`, `EventIdRanges.cs` (the PR 3 edits of PR 2 files are counted once, as new) |
-| Tests | 19 | 2 | New: 3 unit and 1 guard in PR 2, 1 subscriber unit in PR 3, scenario, 9 per-provider classes for ADO, Dapper and EF Core, the MongoDB class, the Redis class and the EF context in PR 4, benchmark in PR 5; modified: `ReferenceTableConfigurationTests.cs`, `EncinaEventIdAllocationTests.cs` |
+| Tests | 20 | 2 | New: 1 guard in PR 1, 3 unit and 1 guard in PR 2, 1 subscriber unit in PR 3, scenario, 9 per-provider classes for ADO, Dapper and EF Core, the MongoDB class, the Redis class and the EF context in PR 4, benchmark in PR 5; modified: `ReferenceTableConfigurationTests.cs`, `EncinaEventIdAllocationTests.cs` |
 | Documentation | 0 | 2 | `reference-tables.md`, `INVENTORY.md` |
 | Configuration | 1 | 4 | Changelog fragment; `Encina.Caching.json` (PR 2, 3 and 4), `Encina.json`, PublicAPI (`Encina`, `Encina.Caching`) |
-| **Total** | **27** | **11** | 5 pull requests: 5, 12, 14, 14 and 3 files (48 file touches: 38 distinct files, because the shared files are touched in several pull requests), each at most 15 files and about 800 lines |
+| **Total** | **28** | **11** | 5 pull requests: 6, 12, 14, 14 and 3 files (49 file touches: 39 distinct files, because the shared files are touched in several pull requests), each at most 15 files and about 800 lines |
 
 ---
 
@@ -509,7 +532,7 @@ KEY PATTERNS:
 - Keys go through StoreCacheKey; no key, entity data or message text in logs or tags; no tenant (reference data has none).
 - The subscriber accepts only messages with the ref-table key prefix (fail closed); a background loop never lets an exception escape.
 - Singletons only; DI test with ValidateOnBuild and ValidateScopes; the extension fails at registration when no replicator is registered.
-- Apply Design Choices 1 to 4 as the maintainer answers them; until then build the recommended option of each.
+- Apply Design Choices 1 to 4 and 7 as the maintainer answers them; until then build the recommended option of each.
 
 REFERENCE FILES:
 - src/Encina/Sharding/ReferenceTables/ReferenceTableReplicator.cs, PollingRefreshDetector.cs, IReferenceTableStoreFactory.cs
@@ -529,7 +552,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ Include | The feature: cache-aside of reference lists over `ICacheProvider`, opt-in, with a TTL bound and replication-driven eviction. |
 | 2 | OpenTelemetry | ✅ Include | The shared counters with `store=ref_table` and `ref_table_broadcast`; no keys or content; no tenant tag (reference data has no tenant scope, ADR-054 D4, D6). |
-| 3 | Structured Logging | ✅ Include | Shared ids 350-353 and the new range 420-434 (ids 420-423); exceptions through `ForLogging()`. |
+| 3 | Structured Logging | ✅ Include | Shared ids 350-353 and the new range 420-434 (ids 420-424); exceptions through `ForLogging()`. |
 | 4 | Health Checks | ❌ N/A | The cache is optional and falls through; the cache providers have their own checks; the reference-table health check reads replication state, not the cache. |
 | 5 | Validation | ✅ Include | Options setters reject out-of-range values; the subscriber rejects messages without the key prefix; the key builder rejects an empty segment. |
 | 6 | Resilience | ✅ Include | A cache or broadcast outage never fails a read or a replication (fall through, count, log); `ThrowOnCacheErrors` is the strict switch. |
@@ -551,7 +574,7 @@ REFERENCE FILES:
 | Reference tables, replicator, stores for the 10 providers | ✅ Available | ADR-013; ADO x3, Dapper x3, EF Core x3, MongoDB |
 | `ICacheProvider`, `IPubSubProvider` and the cache provider packages | ✅ Available | Memory, Redis, Valkey, Dragonfly, Garnet, KeyDB, Hybrid; Memcached is planned (#277) |
 | #695 PR 1 and PR 2 (foundation) | ⏭️ Sibling | `StoreCacheKey`, `StoreCachingRegistration`, `StoreCacheTelemetry`, `StoreCacheLog`, `StoreCacheErrors` must be merged before PR 2 of this plan |
-| Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 4 and 7 | Pending | Asked when work starts |
 
 One real prerequisite: #695 PR 1 and PR 2 before PR 2 of this plan (PR 1 of this plan has none).
 
@@ -559,5 +582,5 @@ One real prerequisite: #695 PR 1 and PR 2 before PR 2 of this plan (PR 1 of this
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 4) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs five workers in the phase order (PR 1 may start at once).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 4 and 7) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs five workers in the phase order (PR 1 may start at once).
 2. After PR 5, comment on #705 with the measured benchmark so the maintainer can judge the gain of the list cache against the TTL in use.
