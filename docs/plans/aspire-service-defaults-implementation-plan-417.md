@@ -2,7 +2,7 @@
 
 > **Issue**: [#417](https://github.com/dlrivada/Encina/issues/417)
 > **Type**: Feature
-> **Complexity**: Medium (6 phases, 3 pull requests of 11, 15 and 7 files)
+> **Complexity**: Medium (6 phases, 3 pull requests of 13, 15 and 7 files)
 > **Estimated Scope**: ~500 lines of production code + ~1,000 lines of tests
 > **Family**: Aspire (aspire-1): #416 hosting package and the environment contract (writer), #419 dashboard commands, #421 deployment, #440 umbrella and naming owner; the family continues in #424, #425, #382, #387 and #391. **This plan owns the application-side package, the reader of the environment contract, the declared-pattern start check and the `AspireServiceDefaults` EventId range.**
 
@@ -10,11 +10,11 @@
 
 ## Summary
 
-Create `Encina.Aspire.ServiceDefaults`, the application-side package: one call, `AddEncinaDefaults`, that a solution's own service defaults project makes next to Aspire's `AddServiceDefaults`. State of `origin/main` (`ec129cae5`), verified by reading and grep:
+Create `Encina.Aspire.ServiceDefaults`, the application-side package: one call, `AddEncinaDefaults`, that a solution's own service defaults project makes next to Aspire's `AddServiceDefaults`. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
-| OpenTelemetry tracing and metrics of Encina | `AddEncinaOpenTelemetry(Action<EncinaOpenTelemetryOptions>?)` and `OpenTelemetryBuilder.WithEncina(EncinaOpenTelemetryOptions?)` in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` (`WithEncina` subscribes 21 sources and the `Encina` meter, `:181-213`); `AddEncinaInstrumentation()` for a tracer or meter builder subscribes only `Encina` (`:288`, `:301`) | **This plan** wires it; the exporter is not wired (Design Choice 5) |
+| OpenTelemetry tracing and metrics of Encina | `AddEncinaOpenTelemetry(Action<EncinaOpenTelemetryOptions>?)` and `OpenTelemetryBuilder.WithEncina(EncinaOpenTelemetryOptions?)` in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` (`WithEncina` subscribes 20 `AddSource` entries, `:181-208`, and the `Encina` meter, `:213`); `AddEncinaInstrumentation()` for a tracer or meter builder subscribes only `Encina` (`:288`, `:301`) | **This plan** wires it; the exporter is not wired (Design Choice 5) |
 | Health checks for the messaging patterns | `AddEncinaOutbox`, `AddEncinaInbox`, `AddEncinaSaga`, `AddEncinaScheduling`, the composite `AddEncinaHealthChecks` and the generic `AddEncinaHealthCheck<T>` in `src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs`; `DeadLetterHealthCheck` exists (`src/Encina.Messaging/Health/DeadLetterHealthCheck.cs`) with no builder extension | **This plan** registers them from the declaration |
 | `AddEncinaOutboxHealthCheck` and siblings of the issue sketch | Do not exist; the real names are the ones above | Names corrected here |
 | `AddEncinaResilienceHandler` | Does not exist; `AddEncinaStandardResilience` (`src/Encina.Extensions.Resilience`) is a handler pipeline behavior, not an HTTP handler | Design Choice 8 |
@@ -84,7 +84,7 @@ Having both names would be a compatibility alias, which AGENTS.md section 3 forb
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The declaration decides: patterns named by `Encina:Aspire:Patterns:*` (written by #416's `WithEncina`) or by `EncinaDefaultsOptions`; each declared pattern gets its health check** | A check is registered only for a pattern that exists (`AddEncinaOutbox` resolves `IOutboxStore` with `GetRequiredService`, so a check for an absent store would always be unhealthy); no work for a pattern the AppHost did not declare; typed configuration | An application without the AppHost declares in code (`configure`) |
+| **A) The declaration decides: patterns named by `Encina:Aspire:Patterns:*` (written by #416's `WithEncina`) or by `EncinaDefaultsOptions`; each declared pattern gets its health check; an absent key means "not declared" (never "all"), and a value that is not a boolean throws naming the key** | A check is registered only for a pattern that exists (`AddEncinaOutbox` resolves `IOutboxStore` with `GetRequiredService`, so a check for an absent store would always be unhealthy); no work for a pattern the AppHost did not declare; typed configuration | An application without the AppHost declares in code (`configure`) |
 | **B) Detect: one lazy check that looks up each store when it runs and reports only those present** | Needs no declaration; works in tests | New check logic that duplicates the four existing checks and their thresholds |
 | **C) Register all five checks always** | Simplest | An application that does not use inbox or sagas starts Unhealthy |
 
@@ -201,6 +201,68 @@ A wins because the issue's own matrix marks resilience deferred and `AddEncinaRe
 
 </details>
 
+<details>
+<summary><strong>9. What `configure` may do to the declaration (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `configure` runs after the declaration is read and may add patterns, never remove one the AppHost declared** | The AppHost's declaration cannot be silently contradicted by application code; an application without an AppHost declares in code | A test that wants to turn a declared pattern off cannot |
+| **B) `configure` has the last word and may set any flag to false** | Full control in the application | The declared architecture and the registered checks can disagree with no signal |
+
+### Chosen Option: **A — add only** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the AppHost is the statement of the architecture (D3); B wins for a team that wants the application to be authoritative. An undeclared pattern still cannot be turned off by the declaration, only by not calling `configure`.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Service name precedence (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `EncinaDefaultsOptions.ServiceName`, else `OTEL_SERVICE_NAME` from configuration (the variable Aspire injects with the resource name), else `builder.Environment.ApplicationName`** | The service shows in the dashboard under its AppHost resource name by default; code can override | Three sources to document |
+| **B) Always the `EncinaOpenTelemetryOptions` default `"Encina"`** | No logic | Every service of a solution is called `Encina` in the dashboard |
+| **C) Always `ApplicationName`** | Simple | Differs from the resource name the AppHost shows |
+
+### Chosen Option: **A — option, then `OTEL_SERVICE_NAME`, then application name** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because the dashboard groups telemetry by service name, and the name an operator knows is the AppHost resource name. Which of the resource builder and the environment variable wins at run time is verified by a test in Phase 2 (the resource `service.name` must equal the AppHost resource name).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>11. Names and tags of the registered checks</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The names and tags the existing builder extensions already use (`AddEncinaOutbox` default `"encina-outbox"` and sibling names; tags `encina`, the pattern tag, `database`, `messaging`; the dead letter check keeps its own name `"encina-deadletter"` and gets the tag `deadletter`)** | One set of names across the codebase; dashboards and alerts keyed on them keep working | None found |
+| **B) New Aspire-specific names** | Distinguishable | Two names for one check |
+
+### Chosen Option: **A — the existing names and tags**
+
+### Rationale
+
+The package registers existing checks and invents no new name or tag; the outbox check keeps its default of not being tagged `ready`, so a backlog never takes an instance out of rotation.
+
+**Class:** Trivial
+**Settled by:** `src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs` (the default names, `DefaultTags`, `DefaultTagsWithoutReady`) and `src/Encina.Messaging/Health/DeadLetterHealthCheck.cs` (name `encina-deadletter`).
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -215,7 +277,7 @@ A wins because the issue's own matrix marks resilience deferred and `AddEncinaRe
 1. `src/Encina.Aspire.ServiceDefaults/Encina.Aspire.ServiceDefaults.csproj` (`PackageId`, XML docs, `ProjectReference` to `Encina.OpenTelemetry`, `Encina.AspNetCore` and `Encina.Messaging`, `InternalsVisibleTo` for the unit, guard and contract test projects, PublicAPI files) and the project entry in `Encina.slnx`.
 2. `EncinaDefaultsOptions.cs` (public sealed): `Outbox`, `Inbox`, `Sagas`, `Scheduling`, `DeadLetterQueue` (bool), `ServiceName` (`string?`), `EnableTelemetry` (default true), `EnableHealthChecks` (default true).
 3. `EncinaAspireConfiguration.cs` (internal static): the keys `Encina:Aspire:Name` and `Encina:Aspire:Patterns:{Outbox|Inbox|Sagas|Scheduling|DeadLetterQueue}` (the colon form of the AppHost's `Encina__Aspire__*` variables), and `Read(IConfiguration)` returning the declared patterns; a value that is not `true` or `false` (case-insensitive) is an invalid declaration that throws `InvalidOperationException` naming the key (never the value); an absent key is "not declared".
-4. Tests: unit for the reader (each key, absent, `true`/`false`/`True`, an invalid value, the exception names the key and not the value); guard; the two project references of `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj`; `PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.Aspire.ServiceDefaults.json` through `mechanical-fixer`.
+4. Tests: unit for the reader (each key, absent, `true`/`false`/`True`, an invalid value, the exception names the key and not the value); guard; contract `tests/Encina.ContractTests/Aspire/DeclarationReaderContractTests.cs` (the five keys and `Encina:Aspire:Name` are read from a real `IConfiguration` built from the colon form and from the double-underscore environment form, so the public key names are pinned and the reader is executed; the writer-to-reader test across both packages is #440's and adds to this flag); the project references of `Encina.UnitTests.csproj`, `Encina.GuardTests.csproj` and `Encina.ContractTests.csproj`; `PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.Aspire.ServiceDefaults.json` through `mechanical-fixer`.
 
 </details>
 
@@ -224,7 +286,7 @@ A wins because the issue's own matrix marks resilience deferred and `AddEncinaRe
 
 ```text
 CONTEXT:
-- Issue #417; plan docs/plans/aspire-service-defaults-implementation-plan-417.md. D1 to D4, D7 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #417; plan docs/plans/aspire-service-defaults-implementation-plan-417.md. D1 to D4 and D7 to D10 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - #416 writes the environment variables Encina__Aspire__Name and Encina__Aspire__Patterns__{Outbox,Inbox,Sagas,Scheduling,DeadLetterQueue}; .NET maps a double underscore to a colon.
 
 TASK:
@@ -365,7 +427,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit, Guard, DI** as in Phases 1 and 2. **Contract**: `tests/Encina.ContractTests/Aspire/EnvironmentContractTests.cs` is owned by #440 (it compares the keys of this package and of #416 once both exist). **Property**: justification file (the reader maps strings to booleans, a table). **Integration**: `tests/Encina.IntegrationTests/Aspire/ServiceDefaultsHostTests.cs` builds a real host with the Encina fake stores and runs the start check and `/health` through the in-process test server; no database, so no provider fixture. **Load** and **Benchmark**: justification files (startup-time logic).
+1. **Unit, Guard, DI** as in Phases 1 and 2. **Contract**: `DeclarationReaderContractTests` ships in pull request 1 of this plan, so the Contract target below is reached by this plan alone; `tests/Encina.ContractTests/Aspire/EnvironmentContractTests.cs` of #440 later adds the cross-package check. **Property**: justification file (the reader maps strings to booleans, a table). **Integration**: `tests/Encina.IntegrationTests/Aspire/ServiceDefaultsHostTests.cs` builds a real host with the Encina fake stores and runs the start check and `/health` through the in-process test server; no database, so no provider fixture. **Load** and **Benchmark**: justification files (startup-time logic).
 2. **Per-file targets** (measured at work start; a target is the measured value or higher; new files have no baseline):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
@@ -375,6 +437,8 @@ REFERENCE FILES:
    | `EncinaDefaultsExtensions.cs` | 95 | 90 | 0 | 0 | 80 | Real `HostApplicationBuilder` in unit tests; the host test runs the whole registration |
    | `EncinaDefaultsStartupValidator.cs` | 95 | 70 | 0 | 0 | 80 | Real scopes over fake stores; guard reaches the constructor checks of an internal type through `InternalsVisibleTo` |
    | `Diagnostics/EncinaDefaultsLog.cs` | 90 | 0 | 0 | 0 | 0 | Generated log methods, reached through the start check; no parameterized public member |
+   | `src/Encina/Diagnostics/EventIdRanges.cs` (edited: `AspireServiceDefaults`) | 100 | 0 | 0 | 0 | 0 | Static readonly tuples run at type initialization by any test that touches the class, and the allocation architecture test reads the new range; no parameters, so guard is 0; the baseline is measured at work start and the target is never lowered |
+   | `.github/coverage-manifest/Encina.json`, `src/Encina/PublicAPI.Unshipped.txt` | n/a | n/a | n/a | n/a | n/a | Data files with no executable lines; the manifest entry records the row above |
 
 </details>
 
@@ -441,7 +505,7 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | csproj, `Encina.slnx` edit, `EncinaDefaultsOptions`, `EncinaAspireConfiguration`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, reader unit and guard tests, two test csproj edits (Unit, Guard) | 11 | 650 |
+| 1 | csproj, `Encina.slnx` edit, `EncinaDefaultsOptions`, `EncinaAspireConfiguration`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, reader unit, guard and contract tests, three test csproj edits (Unit, Guard, Contract) | 13 | 750 |
 | 2 | `EncinaDefaultsExtensions`, `EncinaDefaultsStartupValidator`, `EncinaDefaultsLog`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt` edit, allocation test map edit, `Encina.json` manifest edit, package manifest edit, package `PublicAPI.Unshipped.txt` edit, unit, DI, guard and integration test files, `Encina.IntegrationTests.csproj` edit | 15 | 1,300 |
 | 3 | README, usage page, `docs/INVENTORY.md` line, changelog fragment, three justification files (property, load, benchmark) | 7 | 330 |
 
@@ -486,10 +550,10 @@ PR 2 needs PR 1; PR 3 is last; the package is useful with declarations written b
 |----------|------:|-------|
 | Production code | 7 | csproj, options, configuration reader, extension, validator, log, `EventIdRanges.cs` edit |
 | Public API and manifests | 5 | Shipped, Unshipped, package manifest, `Encina.json` edit, `Encina` PublicAPI edit |
-| Tests and project files | 12 | Seven test files (reader unit and guard, extension unit, validator unit, DI, extension guard, integration), allocation map edit, 3 test csproj edits, `Encina.slnx` edit |
+| Tests and project files | 14 | Eight test files (reader unit, guard and contract, extension unit, validator unit, DI, extension guard, integration), allocation map edit, 4 test csproj edits, `Encina.slnx` edit |
 | Justification files | 3 | Property, load, benchmark |
 | Documentation | 4 | README, usage page, inventory line, changelog fragment |
-| **Total** | **31 distinct files; 33 file touches across 3 pull requests** | `PublicAPI.Unshipped.txt` and the package manifest are edited in pull requests 1 and 2; the sum of the split table (11 + 15 + 7) is the authority |
+| **Total** | **33 distinct files; 35 file touches across 3 pull requests** | `PublicAPI.Unshipped.txt` and the package manifest are edited in pull requests 1 and 2; the sum of the split table (13 + 15 + 7) is the authority |
 
 ---
 
@@ -501,7 +565,7 @@ PR 2 needs PR 1; PR 3 is last; the package is useful with declarations written b
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #417: AddEncinaDefaults for the Aspire service defaults project. Plan: docs/plans/aspire-service-defaults-implementation-plan-417.md; D1-D4, D7 and D8 are recommended, pending the maintainer.
+- Issue #417: AddEncinaDefaults for the Aspire service defaults project. Plan: docs/plans/aspire-service-defaults-implementation-plan-417.md; D1-D4 and D7-D10 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. Package, EncinaDefaultsOptions, the declaration reader (Phase 1).
@@ -554,5 +618,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3, D4, D7 and D8 when work on #417 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D3, D4 and D7 to D10 when work on #417 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1, then 2, then 3.
