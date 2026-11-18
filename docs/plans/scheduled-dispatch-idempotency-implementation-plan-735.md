@@ -2,8 +2,8 @@
 
 > **Issue**: [#735](https://github.com/dlrivada/Encina/issues/735)
 > **Type**: Feature
-> **Verified against**: origin/main `ec129cae5` (2026-11-17)
-> **Complexity**: Medium (4 phases, tests on all 10 database providers, ~38 files in 5 pull requests)
+> **Verified against**: origin/main `822c310c7` (2026-11-18)
+> **Complexity**: Medium (4 phases, tests on all 10 database providers, ~39 files in 5 pull requests)
 > **Estimated Scope**: ~300-420 lines of production code + ~900-1,200 lines of tests
 
 ---
@@ -12,7 +12,7 @@
 
 A scheduled message can be dispatched twice: the process crashes after the handler ran and before the message is marked processed, or another host reads the same due row. Row claiming ([#1251](https://github.com/dlrivada/Encina/issues/1251)) and the cycle lock ([#716](https://github.com/dlrivada/Encina/issues/716)) reduce concurrent double dispatch; neither closes the crash window, and the #1251 plan states it ("delivery stays at-least-once; consumer-side deduplication is #1220 (outbox) and #735 (scheduled)"). Issue #735 is the consumer-side half for scheduling: a dispatch must carry a stable identity so a duplicate is recognised, a re-dispatch must be detectable, and the module must not run without that protection (ADR-050, Scheduling row: "dispatch idempotency is required, startup validation").
 
-**What the code does today (verified on `origin/main` `ec129cae5`)**:
+**What the code does today (verified on `origin/main` `822c310c7`)**:
 
 - `ScheduledMessageProcessor` (`src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs:151`) calls `SchedulerOrchestrator.ProcessDueMessagesAsync` with the callback `(msg, type, req, ct) => dispatcher.DispatchAsync(type, req, ct)`. The dispatch carries **no identity at all**: `IScheduledMessageDispatcher.DispatchAsync(Type, object, CancellationToken)` has no context, and `CompiledExpressionScheduledMessageDispatcher` compiles `IEncina.Send(request, ct)` or `IEncina.Publish(notification, ct)`, which build their own context with no idempotency key.
 - The outcome of a successful dispatch is written afterwards: `CompleteDispatchedMessageAsync` marks a one-shot message processed or reschedules a recurring one (`RescheduleRecurringMessageAsync` sets `ScheduledAtUtc` to the next occurrence and resets `RetryCount`, for example `src/Encina.EntityFrameworkCore/Scheduling/ScheduledMessageStoreEF.cs:130`), and `SaveBatchOutcomesAsync` saves them after the batch (`SchedulerOrchestrator.cs`). A crash anywhere between the handler returning and that save redelivers the message.
@@ -30,7 +30,7 @@ What it implements:
 
 Standards and specifications: ADR-050 (Scheduling row: dispatch idempotency required, startup validation); ADR-001 and ADR-006 (ROP); ADR-048 (inbox record versus business transaction); ADR-054 D3 and D4 (package-named meter, tenant tag when tenancy is on); ADR-062 (error category set where the error is created); AGENTS.md section 3 (a store `Left` fails the operation; background loops never let an exception escape; gates fail closed; `TimeProvider` for time); the idempotent consumer pattern (named comparable products: MassTransit and Wolverine inbox deduplication).
 
-Estimated scope: about 38 distinct files (4 new and 7 modified production files, 7 metadata files, 18 test files, 2 documentation files), shipped as five pull requests (A to E; see "Pull request split").
+Estimated scope: about 39 distinct files (4 new and 7 modified production files, 8 metadata files, 18 test files, 2 documentation files), shipped as five pull requests (A to E; see "Pull request split").
 
 Affected packages: `Encina.Messaging` (key, dispatcher contract, processor, options, startup check, telemetry, registration) and `Encina` (`EventIdRanges.cs` only). **No provider package changes**: the key is derived from columns every store already persists (`Id`, `ScheduledAtUtc`); the 10 providers are proven by tests. The issue says "All 13 database provider packages"; AGENTS.md section 5 has 10.
 
@@ -144,6 +144,29 @@ Provider category: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one impleme
 
 </details>
 
+<details>
+<summary><strong>6. The tenant of a scheduled dispatch before #739 — consumers deny, or the module refuses to start under multi-tenancy</strong></summary>
+
+Scheduled messages carry no tenant until [#739](https://github.com/dlrivada/Encina/issues/739) lands, so with multi-tenancy on the dispatch context built by PR A has no tenant. A consumer that fails closed on a missing tenant ([#2452](https://github.com/dlrivada/Encina/issues/2452) for the cache behavior, [#3437](https://github.com/dlrivada/Encina/issues/3437) for the Inbox, the #733 gate) then denies every marked scheduled dispatch.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Accept the interim: the dispatch carries no tenant, marked consumers deny it (the failure goes through the scheduler's retry and dead-letter path), unmarked handlers are unaffected; the documentation states it until #739 lands** | Fail closed with no new code; no change to the startup check; nothing runs under a guessed tenant | A multi-tenant host that schedules a marked request sees failed dispatches until #739, discovered at run time, not at start |
+| **B) `SchedulingDispatchStartupCheck` also fails the start when the `MultiTenancyMarker` is registered, Scheduling is on and no tenant source for scheduled messages exists, with the same explicit opt-out** | The problem is found at startup, not as failed dispatches | Blocks every multi-tenant host that uses Scheduling for unmarked work too; the check grows a second condition that #739 removes |
+| **C) Sequence PRs A and B behind #739 when multi-tenancy is on** | No interim state at all | Delays the whole feature for hosts that are not multi-tenant, or needs a tenancy-dependent split |
+
+### Chosen Option: **A — accept the interim, document it** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when multi-tenant use of Scheduling with deduplicating consumers is rare before #739 and failing closed is acceptable; B wins when the maintainer wants the incompatibility reported at start, accepting that unmarked multi-tenant scheduling is blocked too; C wins only if multi-tenant hosts are the first users of this feature.
+- The key itself is tenant-free in every option (Design Choice 2); only the consumer's composed key needs the tenant.
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -246,7 +269,7 @@ src/Encina/Diagnostics/EventIdRanges.cs, docs/plans/processor-row-claiming-imple
 4. Integration (`Encina.IntegrationTests`, shared `[Collection]` fixtures): one shared scenario `ScheduledDispatchKeyScenario` run on the 10 providers through the existing scheduling store and cycle test files (ADO.NET x3, Dapper x3, EF Core x3, MongoDB): schedule a recurring message, dispatch it twice without saving the outcome (the simulated crash) and assert the same key both times; save, reschedule, and assert the next occurrence has another key; with an Inbox-marked request the handler runs once.
 5. DI: the Messaging DI test extended with the startup check (`ValidateOnBuild`, `ValidateScopes`).
 6. Load and benchmark: justification files (one string composition and one context per dispatch).
-7. Documentation through `docs-writer` and `mechanical-fixer`: XML docs, changelog fragment `changelog.d/735-scheduled-dispatch-idempotency.added.md`, the scheduling guide (the delivery guarantee, the three ways to satisfy the check), the ADR-050 table row for Scheduling, the `ScheduledMessageProcessor` remarks, `docs/INVENTORY.md`.
+7. Documentation through `docs-writer` and `mechanical-fixer`: XML docs, changelog fragments (`changelog.d/735-scheduling-startup-check.changed.md` in PR B and `changelog.d/735-scheduled-dispatch-idempotency.added.md` in PR E), the scheduling guide (the delivery guarantee, the three ways to satisfy the check, the interim tenant behavior before #739), the ADR-050 table row for Scheduling, the `ScheduledMessageProcessor` remarks, `docs/INVENTORY.md`.
 8. Verification: `dotnet build --configuration Release` (0 warnings), `dotnet test`, per-flag coverage against the table below, `crap-gate` table for the changed methods.
 
 </details>
@@ -308,10 +331,10 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 |------|-----:|------:|---------:|------------:|---------------|
 | `Scheduling/ScheduledDispatchKey.cs` | 100 | 0 | 0 | 70 | A pure function asserted exhaustively; internal static, no `InternalsVisibleTo` for `Encina.GuardTests`; the integration scenario exercises it on 10 providers |
 | `Scheduling/SchedulingDispatchStartupCheck.cs` | 92 | 70 | 0 | 0 | Every branch (each consumer present or absent, opt-out) is unit-testable with a built container; guard covers the constructor |
-| `Scheduling/CompiledExpressionScheduledMessageDispatcher.cs` (modified) | current | current | current | 0 | The existing targets stay (they never go down); the context path is covered by the rewritten dispatcher tests |
-| `Scheduling/ScheduledMessageProcessor.cs` (modified) | 80 | current | 0 | 60 | The manifest has no per-file target yet; the callback and its context are covered by processor unit tests and the cycle scenario; targets are added with the first pull request |
+| `Scheduling/CompiledExpressionScheduledMessageDispatcher.cs` (modified) | 95 | 60 | 60 | 0 | The `Encina.Messaging.json` manifest has no per-file target for it today (only `defaultTests` unit and guard), so these are new targets set by this plan: the compiled delegates and the null-context check are fully unit-asserted, guard covers the constructor and `DispatchAsync` arguments, and the existing contract suite (updated in PR A) runs the delegates against a recording `IEncina`; confirm each against the measured baseline at implementation (never lower) |
+| `Scheduling/ScheduledMessageProcessor.cs` (modified) | 80 | 50 | 0 | 60 | The manifest has no per-file target yet, so all four are new; the callback and its context are covered by processor unit tests and the cycle scenario, guard covers the constructor; targets are added to the manifest with PR A |
 | `Scheduling/SchedulerOrchestrator.cs` (modified) | 90 | 30 | 0 | 60 | The current unit 90 and guard 30 stay; detection is covered by unit tests with a store fake and by the integration scenario |
-| `Scheduling/SchedulingOptions.cs` (modified) | 100 | 0 | 0 | 0 | Defaults and setters, as the other options classes; no argument validation |
+| `Scheduling/SchedulingOptions.cs` (modified) | 100 | 0 | 0 | 0 | The manifest entry has `defaultTests` unit and no per-file target today, so unit 100 is new and set by this plan: defaults and setters, as the other options classes, all asserted; no argument validation, so guard 0 |
 | `Diagnostics/ScheduledDispatchIdempotencyMetrics.cs`, `ScheduledDispatchIdempotencyLog.cs` | 85 | 0 | 0 | 0 | Recorded through a `MeterListener` and a fake logger; internal static, no guard-reachable parameters |
 
 ### Estimated File Count
@@ -320,22 +343,22 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 |----------|-------|-------|
 | Production source, new | 4 | `ScheduledDispatchKey.cs`, `SchedulingDispatchStartupCheck.cs`, `ScheduledDispatchIdempotencyMetrics.cs`, `ScheduledDispatchIdempotencyLog.cs` |
 | Production source, modified | 7 | `IScheduledMessageDispatcher.cs`, `CompiledExpressionScheduledMessageDispatcher.cs`, `ScheduledMessageProcessor.cs`, `SchedulerOrchestrator.cs`, `SchedulingOptions.cs`, `MessagingServiceCollectionExtensions.cs`, `EventIdRanges.cs` |
-| Metadata | 7 | `PublicAPI.Unshipped.txt` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, changelog fragment, `docs/INVENTORY.md`, README of `Encina.Messaging` |
+| Metadata | 8 | `PublicAPI.Unshipped.txt` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, two changelog fragments (`changed` in PR B, `added` in PR E), `docs/INVENTORY.md`, README of `Encina.Messaging` |
 | Tests | 18 | unit (key, startup check, dispatcher rewritten, processor, detection), guard (dispatcher rewritten, check), contract updated, `ErrorMessageLeakTests` updated, integration (the shared scenario plus the provider test files extended: counted as 5 files: ADO.NET, Dapper, EF Core, MongoDB registrations and the scenario), DI test extended, allocation map, justification files (2) |
 | Documentation | 2 | scheduling guide, ADR-050 table row |
-| **Total** | **~38 distinct** | Five pull requests (the PR table below sums to 43 because the `PublicAPI` files and manifests are touched in several) |
+| **Total** | **~39 distinct** | Five pull requests (the PR table below sums to 43 because the `PublicAPI` files and manifests are touched in several) |
 
 ### Pull request split
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A | Phase 1: `ScheduledDispatchKey`, dispatcher contract, compiled dispatcher, processor callback, `PublicAPI` and manifest of `Encina.Messaging`, the key unit test, the rewritten dispatcher unit, guard and contract tests, `ErrorMessageLeakTests`, processor unit test | 12 |
-| B | Phase 2: `AcceptAtLeastOnceDispatch`, `SchedulingDispatchStartupCheck`, registration, `ScheduledDispatchIdempotencyLog` with its first two entries (7840, 7841), `EventIdRanges.cs`, the allocation test map, the startup check unit and guard tests, DI test extended, `PublicAPI` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json` | 13 |
+| B | Phase 2: `AcceptAtLeastOnceDispatch`, `SchedulingDispatchStartupCheck`, registration, `ScheduledDispatchIdempotencyLog` with its first two entries (7840, 7841), `EventIdRanges.cs`, the allocation test map, the startup check unit and guard tests, DI test extended, `PublicAPI` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, changelog fragment `changelog.d/735-scheduling-startup-check.changed.md` | 14 |
 | C | Phase 3: the metrics class, the third log entry (7842), `SchedulerOrchestrator` detection after [#1251](https://github.com/dlrivada/Encina/issues/1251), unit tests (metrics, detection), manifest `Encina.Messaging.json` | 6 |
 | D | Phase 4 integration: the shared scenario on the 10 providers (5 test files) | 5 |
-| E | Load and benchmark justification files, changelog fragment, README, scheduling guide, ADR-050 row, `docs/INVENTORY.md` | 7 |
+| E | Load and benchmark justification files, the `added` changelog fragment, README, scheduling guide, ADR-050 row, `docs/INVENTORY.md` | 7 |
 
-Order: A, B, C, D, E. A is independent of #1251 and #716; C starts after #1251. Each pull request builds alone: A changes the dispatcher contract together with its only implementer, caller and tests; B adds the check and the options (a host that does not enable the check keeps starting); C adds telemetry and a branch that is inactive without a claim result; D and E add tests and documentation. The check of PR B fails hosts that use Scheduling without a consumer, so B is the behavior-changing pull request and its changelog line goes in the `changed` section.
+Order: A, B, C, D, E. A is independent of #1251 and #716; C starts after #1251. Each pull request builds alone: A changes the dispatcher contract together with its only implementer, caller and tests; B adds the check and the options (a host that does not enable the check keeps starting); C adds telemetry and a branch that is inactive without a claim result; D and E add tests and documentation. The check of PR B fails hosts that use Scheduling without a consumer, so B is the behavior-changing pull request and carries its own fragment in the `changed` section (two bullets: a host with Scheduling and no deduplicating consumer or explicit opt-out fails to start; `IScheduledMessageDispatcher.DispatchAsync` takes the request context, which landed in PR A); PR E keeps only the `added` fragment (key propagation and the redispatch counter). Existing hosts broken by the check: none to edit. Grep of `UseScheduling` on `origin/main` over `src/`, `tests/` and `samples/` finds 27 sites in unit, guard and integration tests and in the provider registrations; the sites that start a real host (`DeadLetterSourcesEndToEndScenario.cs:83` and `DeadLetterSourcesEndToEndMongoDBTests.cs:56`) enable `UseInbox` as well, so the check passes, and the others (`MessagingConfigurationPatternFlagsTests`, `ServiceCollectionExtensionsTests` of EF Core, MongoDB and registration tests, `ScheduledMessageStoreMongoDBIntegrationTests.cs:29`) only build a provider or a store and never start the hosted services. PR B therefore edits no existing test host; if the implementer finds one the grep missed, the edit is counted in PR B (14 of 15 files today).
 
 ---
 
@@ -396,7 +419,7 @@ docs/plans/processor-row-claiming-implementation-plan-1251.md, src/Encina/Diagno
 | 7 | Distributed Locks | ❌ | Concurrent dispatch is prevented by row claiming ([#1251](https://github.com/dlrivada/Encina/issues/1251)) and by the lock plan of [#716](https://github.com/dlrivada/Encina/issues/716) |
 | 8 | Transactions | ❌ | The dispatch happens outside any store transaction and the window between dispatch and the processed mark stays at-least-once; the key is what makes it harmless |
 | 9 | Idempotency | ✅ | This is idempotent re-execution of scheduled dispatch |
-| 10 | Multi-Tenancy | ✅ | The dispatch context carries the tenant of the scheduled message once [#739](https://github.com/dlrivada/Encina/issues/739) adds it, and the consumer composes the tenant into its own key; the tenant tag follows ADR-054 D4 |
+| 10 | Multi-Tenancy | ✅ | The dispatch context carries the tenant of the scheduled message once [#739](https://github.com/dlrivada/Encina/issues/739) adds it, and the consumer composes the tenant into its own key; before #739 a marked consumer under multi-tenancy denies the tenant-less dispatch (fail closed, Design Choice 6); the tenant tag follows ADR-054 D4 |
 | 11 | Module Isolation | ❌ | Scheduled messages carry no module id |
 | 12 | Audit Trail | ❌ | A redispatch is an operational signal covered by telemetry and logs, not a compliance event |
 
@@ -410,7 +433,7 @@ docs/plans/processor-row-claiming-implementation-plan-1251.md, src/Encina/Diagno
 | [#716](https://github.com/dlrivada/Encina/issues/716) | Related (merged plan) | The cycle lock; reduces concurrent dispatch, does not close the crash window |
 | [#733](https://github.com/dlrivada/Encina/issues/733) | Related | The notification gate that deduplicates a scheduled notification by the key; the startup check lists it once it exists |
 | [#3441](https://github.com/dlrivada/Encina/issues/3441) and [#3439](https://github.com/dlrivada/Encina/issues/3439) | Related | A retry of one occurrence reuses the key; whether a failed attempt is retryable under it is decided by those two fixes (inbox and cache) |
-| [#739](https://github.com/dlrivada/Encina/issues/739) | Related | Tenant on scheduled messages |
+| [#739](https://github.com/dlrivada/Encina/issues/739) | Related | Tenant on scheduled messages; the interim before it is Design Choice 6 |
 | [#1220](https://github.com/dlrivada/Encina/issues/1220) | Sibling (merged plan) | Same principle for outbox dispatch (the outbox id is the key) |
 | [#2401](https://github.com/dlrivada/Encina/issues/2401) | Related | Atomic claim of the Inbox, which the key relies on for concurrent redeliveries |
 
@@ -419,6 +442,6 @@ docs/plans/processor-row-claiming-implementation-plan-1251.md, src/Encina/Diagno
 ## Next Steps
 
 1. Open PR A first; it needs nothing from #1251, #716 or #733.
-2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 3 and 5 (mechanism, the startup check and its opt-out, detection through the claim) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
+2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 3, 5 and 6 (mechanism, the startup check and its opt-out, detection through the claim, the tenant before #739) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
 3. Confirm the `MessagingScheduledIdempotency` range (7840-7849) is still free when PR B starts.
 4. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
