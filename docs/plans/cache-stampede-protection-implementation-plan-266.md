@@ -272,7 +272,7 @@ PR 1 holds exactly these 14 files:
 | 1 | `src/Encina.Caching/Patterns/CacheExpiration.cs` | new (internal static: `ApplyJitter`) |
 | 2 | `src/Encina.Caching/Patterns/CachePatternSettings.cs` | new (internal sealed record and `Resolve`) |
 | 3 | `src/Encina.Caching/Attributes/CacheAttribute.cs` | modify (`JitterPercent`) |
-| 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`DefaultJitterPercent`) |
+| 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`DefaultJitterPercent` and `DefaultEarlyExpirationBeta`) |
 | 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (`CacheEntry<T>` members, jittered TTL at store) |
 | 6 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (copy the new option; the option list at lines 53-72 is hand-written) |
 | 7 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
@@ -306,7 +306,7 @@ nextStep() on a miss and stores with SetAsync; CacheEntry<T> is internal with Va
 (src/Encina.Caching/ServiceCollectionExtensions.cs) copies every CachingOptions property by hand.
 
 TASK:
-1. Add CacheExpiration.ApplyJitter and CachePatternSettings.Resolve (internal); add DefaultJitterPercent and DefaultEarlyExpirationBeta (0, never negative or non-finite) to CachingOptions with their copy lines (Design Choice 11 as answered).
+1. Add CacheExpiration.ApplyJitter and CachePatternSettings.Resolve (internal); add DefaultJitterPercent and DefaultEarlyExpirationBeta (0, never negative or non-finite) to CachingOptions with their copy lines (Design Choice 11: recommended option A, unless the maintainer answers otherwise in your brief).
 2. Add JitterPercent to CacheAttribute and DefaultJitterPercent to CachingOptions; copy the option in AddEncinaCaching.
 3. Give CacheEntry<T> optional ExpiresAtUtc and ComputeMilliseconds; store with the jittered TTL and set ExpiresAtUtc.
 4. Write the unit tests of the plan; ask mechanical-fixer for PublicAPI.Unshipped.txt, the manifest entry and the changelog fragment.
@@ -529,7 +529,7 @@ REFERENCE FILES:
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 0 | The existing targets are never lowered; the new branches are covered by the unit tests of the same PR (guard tests only reach the constructor and argument checks, so the guard target is not raised) |
 | `Encina.Caching/Attributes/CacheAttribute.cs` | 100 | 0 | 0 | 0 | The manifest has no target today (default rules only); the new properties are initializers executed by the attribute and behavior tests; no validated parameter, so no guard lines |
 | `Encina.Caching/Configuration/CachingOptions.cs` | keeps | keeps 85 | 0 | 0 | Existing guard 85 is kept; the new properties are initializers executed by the same constructions |
-| `Encina.Caching/ServiceCollectionExtensions.cs` | 90 | 30 | 0 | 0 | The manifest has no target today (set in PR 1 and kept by PR 3); the DI tests run the option copy and the executor registration, the guard flag reaches the null-services check |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | 90 | 0 | 0 | 0 | The manifest has no target today (set in PR 1 and kept by PR 3); the DI tests run the option copy and the executor registration; no test in `Encina.GuardTests` calls `AddEncinaCaching` and PR 1 adds no guard test, so the guard target is 0 for that reason |
 
    The Redis integration test (Phase 4) adds an integration-flag measurement for `QueryCachingPipelineBehavior.cs` of at least 40, because only the lock path with a real provider runs there. The worker measures every flag with `coverage-report.cs` and records the numbers in the PR description; no target is lowered (`target-ratchet`).
 5. **Property, contract, load, benchmark**: the early-expiration monotonicity runs as a fixed grid in a unit test (Phase 4); a contract test of `ISingleFlightExecutor` runs against the real executor (PR 2, so the contract flag reaches its target for `InProcessSingleFlightExecutor.cs`: 80); no load test (the concurrency is covered by the gated unit tests and the Redis integration test); no benchmark in these PRs, because jitter and the miss path add one dictionary operation per miss (a follow-up benchmark of the behavior belongs to the existing `QueryCachingPipelineBenchmarks`).
