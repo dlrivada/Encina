@@ -80,6 +80,7 @@ public sealed class DurableSagaBuilder<TData>
         {
             return EncinaErrors.Create(
                 DurableSagaErrorCodes.NoSteps,
+                ErrorCategory.Internal,
                 "Saga must have at least one step.");
         }
 
@@ -193,6 +194,7 @@ public sealed class DurableSagaStepBuilder<TData>
         {
             return EncinaErrors.Create(
                 DurableSagaErrorCodes.StepNotConfigured,
+                ErrorCategory.Internal,
                 $"Step '{_stepName}' must have an Execute activity.");
         }
 
@@ -327,6 +329,7 @@ public sealed class DurableSaga<TData>
                 FailedStep = "Unknown (exception)",
                 OriginalError = EncinaErrors.Create(
                     "durable.saga_exception",
+                    ErrorCategory.Internal,
                     $"Saga failed with exception: {ex.Message}",
                     ex),
                 CompensationErrors = compensationResult,
@@ -373,6 +376,7 @@ public sealed class DurableSaga<TData>
             {
                 compensationErrors[step.StepName] = EncinaErrors.Create(
                     "durable.compensation_exception",
+                    ErrorCategory.Internal,
                     $"Compensation for step '{step.StepName}' threw exception: {ex.Message}",
                     ex);
             }

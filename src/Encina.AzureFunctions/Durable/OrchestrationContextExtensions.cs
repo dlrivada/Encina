@@ -66,6 +66,7 @@ public static class OrchestrationContextExtensions
         {
             return EncinaErrors.Create(
                 "durable.activity_failed",
+                ErrorCategory.Internal,
                 $"Activity '{activityName}' failed: {ex.Message}",
                 ex);
         }
@@ -121,6 +122,7 @@ public static class OrchestrationContextExtensions
         {
             return EncinaErrors.Create(
                 "durable.activity_failed",
+                ErrorCategory.Internal,
                 $"Activity '{activityName}' failed: {ex.Message}",
                 ex);
         }
@@ -154,6 +156,7 @@ public static class OrchestrationContextExtensions
         {
             return EncinaErrors.Create(
                 "durable.suborchestrator_failed",
+                ErrorCategory.Internal,
                 $"Sub-orchestrator '{orchestratorName}' failed: {ex.Message}",
                 ex);
         }
@@ -189,6 +192,7 @@ public static class OrchestrationContextExtensions
         {
             return EncinaErrors.Create(
                 "durable.suborchestrator_failed",
+                ErrorCategory.Internal,
                 $"Sub-orchestrator '{orchestratorName}' failed: {ex.Message}",
                 ex);
         }
@@ -226,6 +230,7 @@ public static class OrchestrationContextExtensions
                 {
                     return EncinaErrors.Create(
                         "durable.event_timeout",
+                        ErrorCategory.Timeout,
                         $"Timeout waiting for external event '{eventName}'");
                 }
 
@@ -242,12 +247,14 @@ public static class OrchestrationContextExtensions
         {
             return EncinaErrors.Create(
                 "durable.event_cancelled",
+                ErrorCategory.Cancelled,
                 $"Wait for external event '{eventName}' was cancelled");
         }
         catch (TaskFailedException ex)
         {
             return EncinaErrors.Create(
                 "durable.event_failed",
+                ErrorCategory.Internal,
                 $"Failed waiting for external event '{eventName}': {ex.Message}",
                 ex);
         }
