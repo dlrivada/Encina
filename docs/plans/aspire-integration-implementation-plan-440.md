@@ -10,7 +10,7 @@
 
 ## Summary
 
-#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`010d6f995`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
+#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`528f34f7e`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
 
 | #440 acceptance item | Owner | What the owner delivers |
 |----------------------|-------|-------------------------|
@@ -173,7 +173,7 @@ Both options satisfy GHSA-f7vh-h5g3-7jrh (#3491, closed: 13.6.5 is the first pat
 1. `tests/Encina.ContractTests/Aspire/EnvironmentContractTests.cs`: builds a real `DistributedApplication.CreateBuilder()` model, `AddEncina("encina", o => { o.UseOutbox = true; o.UseSagas = true; })`, a container resource with `WithEncina(encina)`, runs the `EnvironmentCallbackAnnotation` callbacks into a dictionary, maps `__` to `:` into an in-memory `IConfiguration` and passes it to `EncinaAspireConfiguration.Read` of #417: exactly the declared patterns come back, an undeclared pattern comes back false, and the five key names of the writer equal the five of the reader (both classes are `internal` and visible through `InternalsVisibleTo` for `Encina.ContractTests`). The project references of `Encina.ContractTests.csproj` to `Encina.Aspire.Hosting` (added by #416 pull request 2) and `Encina.Aspire.ServiceDefaults` (added by #417 pull request 1, which ships its own contract test) already exist, so this plan edits no csproj.
 2. `tests/Encina.UnitTests/Testing/Architecture/AspireNamingRulesTests.cs`: reflects the public extension methods of the assemblies whose name starts with `Encina.Aspire` (except `Encina.Aspire.Testing`, whose `WithEncinaTestSupport` is a test helper) and asserts the verb rules; a method that breaks a rule fails with its full name. A reflection test over an assembly the project does not reference would check nothing, so the test first asserts that the expected assemblies were found and loaded (`Encina.Aspire.Hosting`, `Encina.Aspire.ServiceDefaults`, `Encina.Aspire.Deployment`; and `Encina.Aspire.Deployment.Kubernetes` when its pull request has merged, listed in the test as an optional entry) and that each exposes at least one rule-checked method; a missing required assembly fails the test.
 3. `tests/Encina.UnitTests/Aspire/AspireQuickstartTests.cs`: one test per snippet of the quickstart (Design Choice 3), built from the same calls as the page.
-4. No `src/` file changes, so no per-file coverage target and no manifest entry are added; the changelog fragment of Phase 6 covers the user-visible documentation.
+4. No `src/` file changes, so no per-file coverage target and no new manifest entry are added (the one manifest edit of the split table only raises the existing Contract target of `EncinaAspireEnvironment.cs`); the changelog fragment of Phase 6 covers the user-visible documentation.
 
 </details>
 
@@ -182,7 +182,7 @@ Both options satisfy GHSA-f7vh-h5g3-7jrh (#3491, closed: 13.6.5 is the first pat
 
 ```text
 CONTEXT:
-- Issue #440; plan docs/plans/aspire-integration-implementation-plan-440.md. D1, D2, D4 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The packages of #416 (pull request 2) and #417 (pull request 1) are merged.
+- Issue #440; plan docs/plans/aspire-integration-implementation-plan-440.md. D1, D2, D4 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The packages of #416 (pull request 2) and #417 (pull requests 1 and 2: `AddEncinaDefaults` ships in pull request 2) are merged.
 
 TASK:
 Write the environment contract test, the naming architecture test and the quickstart snippet tests.
@@ -373,7 +373,7 @@ REFERENCE FILES:
 | 1 | `EnvironmentContractTests`, `AspireNamingRulesTests`, `AspireQuickstartTests`; the `Encina.Aspire.Hosting` manifest edit that raises the Contract target of `EncinaAspireEnvironment.cs` | 4 | 450 |
 | 2 | `docs/features/aspire.md`, root `README.md` edit, `docs/features/index.md` edit, `docs/INVENTORY.md` edit, `ROADMAP.md` edit, the ADR, `docs/architecture/adr/index.md` entry, changelog fragment | 8 | 760 |
 
-PR 1 needs #416 pull request 2 and #417 pull request 1 merged; PR 2 needs PR 1 and the maintainer's answers to D1 and D2. No production code and no interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
+PR 1 needs #416 pull request 2 and #417 pull requests 1 and 2 merged (`AddEncinaDefaults` and `EncinaDefaultsExtensions` ship in #417's pull request 2; the quickstart tests call it and the naming test needs a rule-checked ServiceDefaults method); PR 2 needs PR 1 and the maintainer's answers to D1 and D2. No production code and no interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -471,7 +471,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- Pull request 1 needs #416 pull request 2 (the writer), #417 pull request 1 (the reader and the `Encina.ContractTests.csproj` reference), #419 pull requests 1 and 2 (the quickstart includes the dashboard command) and #421 pull request 1 (the `Encina.UnitTests.csproj` reference to `Encina.Aspire.Deployment`; `Encina.Aspire.Deployment.Kubernetes` is optional in the naming test); pull request 2 needs the maintainer's answers to D1 and D2 (the ADR and the page state them).
+- Pull request 1 needs #416 pull request 2 (the writer), #417 pull requests 1 (the reader and the `Encina.ContractTests.csproj` reference) and 2 (`AddEncinaDefaults`), #419 pull requests 1 and 2 (the quickstart includes the dashboard command) and #421 pull request 1 (the `Encina.UnitTests.csproj` reference to `Encina.Aspire.Deployment`; `Encina.Aspire.Deployment.Kubernetes` is optional in the naming test); pull request 2 needs the maintainer's answers to D1 and D2 (the ADR and the page state them).
 - #440 can close when its acceptance items map to merged owners and the quickstart is merged; the aspire-2 issues (#424, #425, #382, #387, #391) do not block it.
 - #607, #423 and #188 are independent plans that the quickstart links by issue number.
 
