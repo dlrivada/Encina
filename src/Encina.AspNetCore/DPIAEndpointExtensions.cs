@@ -288,14 +288,8 @@ public static class DPIAEndpointExtensions
         }
 
         // Build assessment context
-        var context = new DPIAContext
-        {
-            RequestType = resolvedType,
-            ProcessingType = request?.ProcessingType,
-            DataCategories = request?.DataCategories ?? [],
-            HighRiskTriggers = request?.HighRiskTriggers ?? [],
-            Template = await FindTemplateAsync(templateProvider, request?.ProcessingType, cancellationToken),
-        };
+        var template = await FindTemplateAsync(templateProvider, request?.ProcessingType, cancellationToken);
+        var context = BuildContext(resolvedType, request, template);
 
         // Evaluate via IDPIAService (which calls engine internally and persists)
         var evalResult = await service.EvaluateAssessmentAsync((Guid)assessment, context, cancellationToken);
@@ -333,6 +327,15 @@ public static class DPIAEndpointExtensions
             tenantId, moduleId,
             cancellationToken);
     }
+
+    private static DPIAContext BuildContext(Type requestType, AssessDPIARequest? request, DPIATemplate? template) => new()
+    {
+        RequestType = requestType,
+        ProcessingType = request?.ProcessingType,
+        DataCategories = request?.DataCategories ?? [],
+        HighRiskTriggers = request?.HighRiskTriggers ?? [],
+        Template = template,
+    };
 
     /// <summary>
     /// Looks up the template of a processing type; a missing template is non-fatal and answers <see langword="null"/>.
