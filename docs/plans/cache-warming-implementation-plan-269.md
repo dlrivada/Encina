@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #269 asks for a cache warming system: `ICacheWarmer` implementations and a `[CacheWarmer]` attribute on query requests, priorities, sequential and parallel strategies, a timeout per slow warmer, a hosted service that runs on startup, progress logging, metrics and options. Re-checked against `origin/main` (b4da9e482):
+Issue #269 asks for a cache warming system: `ICacheWarmer` implementations and a `[CacheWarmer]` attribute on query requests, priorities, sequential and parallel strategies, a timeout per slow warmer, a hosted service that runs on startup, progress logging, metrics and options. Re-checked against `origin/main` (f484cdf4f):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -101,7 +101,7 @@ The plan adds `ICacheWarmer` (priority, name, `ValueTask<Either<EncinaError, Cac
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A request warmer for a request that varies by tenant (the default) is skipped, logged (EventId 477) and counted when `MultiTenancyMarker` is registered, because a request with no tenant bypasses the cache; tenants are warmed by a custom `ICacheWarmer` that supplies its own tenant context; tenant-scoped warming sets get their own issue** | Fails closed and never writes a tenant-less entry; no startup scan of every tenant's data | Multi-tenant applications warm only tenant-independent requests (`VaryByTenant = false`) or write a custom warmer |
+| **A) A request warmer for a request that varies by tenant (the default) is skipped, logged (EventId 476) and counted when `MultiTenancyMarker` is registered, because a request with no tenant bypasses the cache; tenants are warmed by a custom `ICacheWarmer` that supplies its own tenant context; tenant-scoped warming sets get their own issue** | Fails closed and never writes a tenant-less entry; no startup scan of every tenant's data | Multi-tenant applications warm only tenant-independent requests (`VaryByTenant = false`) or write a custom warmer |
 | **B) Warm every tenant from `ITenantStore` automatically** | Complete | Startup reads every tenant's data; cost and exposure grow with the tenant count |
 
 ### Chosen Option: **A - skip and report, tenants by custom warmer** (recommended, pending the maintainer)
@@ -159,7 +159,7 @@ The plan adds `ICacheWarmer` (priority, name, `ValueTask<Either<EncinaError, Cac
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `EnableCacheWarming` false by default; `WarmOnStartup` true; `WarmingStrategy` `Sequential` (default chosen in Design Choice 3); `WarmingConcurrency` 4 (at least 1) and `WarmingTimeout` 5 minutes (positive), the values of the configuration example in the issue; property setters throw `ArgumentOutOfRangeException`** | Nothing runs unless enabled; invalid values fail at configuration | None |
+| **A) `EnableCacheWarming` false by default; `WarmOnStartup` true (the `WarmingStrategy` option and its default belong to Design Choice 3, not to this entry); `WarmingConcurrency` 4 (at least 1) and `WarmingTimeout` 5 minutes (positive), the values of the configuration example in the issue; property setters throw `ArgumentOutOfRangeException`** | Nothing runs unless enabled; invalid values fail at configuration | None |
 | **B) Enabled by default** | Fewer lines in the application | Starts work nobody asked for |
 
 ### Chosen Option: **A - disabled by default**
@@ -369,10 +369,10 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-The three code PRs are merged.
+The three code PRs are merged; each carried its own per-flag targets.
 
 TASK:
-Measure per-flag coverage of the new and touched files with coverage-report.cs; record the targets above through mechanical-fixer; run
+Verify, with coverage-report.cs, that each PR's measured numbers reach the targets above; fix any gap through mechanical-fixer in a small PR; run
 --check-justifications.
 
 KEY RULES:
