@@ -268,19 +268,6 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Fact]
-    public async Task ToProblemDetailsResponse_NullRequest_Throws()
-    {
-        // Arrange
-        var error = EncinaErrors.Create("x", ErrorCategory.Internal, "m");
-
-        // Act
-        var act = async () => await error.ToProblemDetailsResponse(null!);
-
-        // Assert
-        await Should.ThrowAsync<ArgumentNullException>(act);
-    }
-
-    [Fact]
     public async Task ToHttpResponseData_Success_WritesTheValueWithTheSuccessStatus()
     {
         // Arrange
@@ -310,19 +297,6 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Fact]
-    public async Task ToHttpResponseData_NullRequest_Throws()
-    {
-        // Arrange
-        Either<EncinaError, string> result = "ok";
-
-        // Act
-        var act = async () => await result.ToHttpResponseData(null!);
-
-        // Assert
-        await Should.ThrowAsync<ArgumentNullException>(act);
-    }
-
-    [Fact]
     public async Task ToCreatedResponse_SuccessAndFailure_WriteLocationOrTheCategoryStatus()
     {
         // Arrange
@@ -340,21 +314,6 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Fact]
-    public async Task ToCreatedResponse_NullArguments_Throw()
-    {
-        // Arrange
-        Either<EncinaError, int> created = 7;
-
-        // Act
-        var nullRequest = async () => await created.ToCreatedResponse(null!, id => $"/orders/{id}");
-        var nullFactory = async () => await created.ToCreatedResponse(NewRequest(), null!);
-
-        // Assert
-        await Should.ThrowAsync<ArgumentNullException>(nullRequest);
-        await Should.ThrowAsync<ArgumentNullException>(nullFactory);
-    }
-
-    [Fact]
     public async Task ToNoContentResponse_SuccessAndFailure_WriteNoContentOrTheCategoryStatus()
     {
         // Arrange
@@ -368,19 +327,6 @@ public class HttpResponseDataExtensionsTests
         // Assert
         noContent.StatusCode.ShouldBe(HttpStatusCode.NoContent);
         notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task ToNoContentResponse_NullRequest_Throws()
-    {
-        // Arrange
-        Either<EncinaError, Unit> ok = Unit.Default;
-
-        // Act
-        var act = async () => await ok.ToNoContentResponse(null!);
-
-        // Assert
-        await Should.ThrowAsync<ArgumentNullException>(act);
     }
 
     private static TestRequest NewRequest() => new(new TestContext());

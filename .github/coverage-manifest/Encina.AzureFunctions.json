@@ -195,7 +195,7 @@
       "reason": "Error mapper converting EncinaError to HttpResponseData through the error category table (ErrorCategoryHttp); unit tests cover all code paths, guard tests cover null-parameter checks",
       "targets": { "unit": 100, "guard": 5, "integration": 100 },
       "justifications": {
-        "unit": "HttpResponseDataExtensionsTests build the real problem-details response for all 14 error categories (status, reason phrase), the 499, 429 and 503 Retry-After, 401 WWW-Authenticate, explicit status overrides, the correlation id and the success, created and no-content helpers with their null guards.",
+        "unit": "HttpResponseDataExtensionsTests build the real problem-details response for all 14 error categories (status, reason phrase), the 499, 429 and 503 Retry-After, 401 WWW-Authenticate, explicit status overrides, the correlation id and the success, created and no-content helpers; the null-argument checks belong to the guard flag.",
         "guard": "Guard tests reach only the null-request checks of the async response builders; building a response needs a full HttpResponseData double and is behaviour for the unit flag.",
         "integration": "Integration tests convert the results of a real Encina pipeline to concrete HTTP responses (success, created, no content, each error category, explicit status codes) and read the written headers and Problem Details body."
       }
