@@ -2,7 +2,7 @@
 
 > **Issue**: [#733](https://github.com/dlrivada/Encina/issues/733)
 > **Type**: Feature
-> **Verified against**: origin/main `d523eda92` (2026-11-18)
+> **Verified against**: origin/main `822c310c7` (2026-11-18)
 > **Complexity**: High (5 phases, tests on all 10 database providers, ~37 files in 5 pull requests)
 > **Estimated Scope**: ~450-600 lines of production code + ~1,100-1,400 lines of tests
 
@@ -12,7 +12,7 @@
 
 A notification fans out to several handlers. When the same notification is delivered twice (an at-least-once transport, a vendor retry, an outbox retry), every handler runs again and repeats its side effect (the second email, the second record). Issue #733 asks that a duplicate delivery be detected and skipped **per handler**, with the key `{notification-type}:{notification-id}:{handler-type}` stored in the inbox, behind an opt-in flag, on every database provider.
 
-**What the code does today (verified on `origin/main` `d523eda92`)**:
+**What the code does today (verified on `origin/main` `822c310c7`)**:
 
 - Notifications have no pipeline. `Encina.NotificationDispatcher` (`src/Encina/Dispatchers/Encina.NotificationDispatcher.cs`) resolves every `INotificationHandler<T>`, hands them to the configured dispatch strategy and states in its remarks "No behaviors or processors - notifications are simpler than requests". The issue's `NotificationIdempotencyPipelineBehavior<TNotification>` therefore has nothing to plug into; the dispatcher is the only place that sees one handler at a time.
 - `INotification` is a marker without an id (`src/Encina/Abstractions/INotification.cs`). The only delivery identity in flight is `IRequestContext.IdempotencyKey`, which a caller sets with `IEncina.Publish<TNotification>(notification, IRequestContext, CancellationToken)`; a notification published from inside another dispatch inherits no key (`RequestContextDispatchExtensions.IsNestedDispatch`).
