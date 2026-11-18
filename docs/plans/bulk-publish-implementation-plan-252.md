@@ -2,20 +2,20 @@
 
 > **Issue**: [#252](https://github.com/dlrivada/Encina/issues/252)
 > **Type**: Feature
-> **Complexity**: High (8 phases, 9 pull requests of 13, 13, 10, 10, 10, 10, 11, 11 and 13 files)
-> **Estimated Scope**: about 900 lines of production code and about 2,600 lines of tests, split over nine pull requests (one per transport, after the shared contract)
+> **Complexity**: High (8 phases, 10 pull requests of 14, 13, 7, 12, 10, 10, 10, 11, 11 and 13 files)
+> **Estimated Scope**: about 950 lines of production code and about 2,700 lines of tests, split over ten pull requests (the shared contract, then one per transport, with Kafka in two)
 > **Family**: msg-batching (#121, #252, #302, #339, #349). This plan is independent of the request-batching plans (#302, #349, #339); #121's batch notification handler is a typical caller of the contract defined here. #2385 (outbox-to-transport publisher) will call it. Ordering by partition key and FIFO group ids are #469 and #255.
 
 ---
 
 ## Summary
 
-The issue asks for an `IBatchPublisher` contract with partial-failure reporting and per-transport batch implementations for Kafka, SQS, Azure Service Bus and RabbitMQ. State of `origin/main` (`b50b8c981`), verified by reading the publishers:
+The issue asks for an `IBatchPublisher` contract with partial-failure reporting and per-transport batch implementations for Kafka, SQS, Azure Service Bus and RabbitMQ. State of `origin/main` (`822c310c7`), verified by reading the publishers:
 
 | Transport | Publisher interface | Batch support today | Defect or gap |
 |-----------|---------------------|---------------------|---------------|
-| Kafka | `IKafkaMessagePublisher` | `ProduceBatchAsync(messages, topic)` | Produces one message at a time and awaits each `ProduceAsync`, so the client never batches; stops at the first failure |
-| AmazonSQS | `IAmazonSQSMessagePublisher` | `SendBatchAsync(messages, queueUrl)` | One `SendMessageBatch` call: more than 10 messages or 256 KB fails the whole call; `response.Failed` entries are only logged (`Log.BatchPartiallyFailed`) and the caller gets only the successful ids, so a failed entry is swallowed; a FIFO queue cannot be used (no group id) |
+| Kafka | `IKafkaMessagePublisher` | `ProduceBatchAsync(IEnumerable<(TMessage Message, string? Key, string? MessageId)>, topic)` | Produces one message at a time and awaits each `ProduceAsync`, so the client never batches; stops at the first failure |
+| AmazonSQS | `IAmazonSQSMessagePublisher` | `SendBatchAsync(messages, queueUrl)` | One `SendMessageBatch` call: more than 10 messages or 256 KB fails the whole call; `response.Failed` entries are only logged (`Log.BatchPartiallyFailed`) and the caller gets only the successful ids, so a failed entry is swallowed (open bug #1604; the open bug #2799 reports `SQS_BATCH_SEND_FAILED` for a fully successful batch); a FIFO queue cannot be used (no group id) |
 | AzureServiceBus | `IAzureServiceBusMessagePublisher` | None (`SendMessageAsync` per message) | No `ServiceBusMessageBatch` |
 | RabbitMQ | `IRabbitMQMessagePublisher` | None (`BasicPublishAsync` per message) | `EncinaRabbitMQOptions.UsePublisherConfirms` (default `true`) is copied in `ServiceCollectionExtensions.cs:37` but the singleton channel is created at `:59` with a plain `CreateChannelAsync()` and the option is read nowhere else (`git grep UsePublisherConfirms`), so confirmations are off today; nothing acknowledges a batch. The single-publish defect is reported as an issue file, not fixed here |
 | NATS, MQTT, Redis.PubSub, InMemory | `INATSMessagePublisher`, `IMQTTMessagePublisher`, `IRedisPubSubMessagePublisher`, `IInMemoryMessageBus` | None | `AGENTS.md` section 5 requires a transport feature to be consistent across every transport: these four join the issue's four |
@@ -90,14 +90,14 @@ A wins when callers need only success or failure per message; B wins when caller
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ValueTask<Either<EncinaError, BatchPublishResult>> PublishBatchAsync<TMessage>(IReadOnlyList<TMessage> messages, BatchPublishOptions? options = null, CancellationToken cancellationToken = default) where TMessage : class`** | Same shape as the existing publisher methods (`ValueTask`, `Either`, `where TMessage : class`); a list has a count and an index | The issue's `IEnumerable<T> where T : INotification` is not used |
+| **A) `ValueTask<Either<EncinaError, BatchPublishResult>> PublishBatchAsync<TMessage>(IReadOnlyList<BatchPublishItem<TMessage>> items, BatchPublishOptions? options = null, CancellationToken cancellationToken = default) where TMessage : class` (the item type that carries the per-message key and id is Dilemma D8; this entry settles only the return type, the constraint and the list)** | Same shape as the existing publisher methods (`ValueTask`, `Either`, `where TMessage : class`); a list has a count and an index | The issue's `IEnumerable<T> where T : INotification` is not used |
 | **B) The issue's `IEnumerable<T> where T : INotification`** | Matches the issue text | Every existing publisher accepts any class (Kafka and SQS publish plain DTOs), so a notification constraint would exclude them; an `IEnumerable` has no stable index for failures |
 
-### Chosen Option: **A, the existing convention**
+### Chosen Option: **A, the existing convention for the return type and constraint, over an indexed list**
 
 ### Rationale
 
-`IKafkaMessagePublisher`, `IAmazonSQSMessagePublisher`, `IAzureServiceBusMessagePublisher` and `IRabbitMQMessagePublisher` all use `ValueTask`, `Either<EncinaError, ...>` and `where TMessage : class`.
+`IKafkaMessagePublisher`, `IAmazonSQSMessagePublisher`, `IAzureServiceBusMessagePublisher` and `IRabbitMQMessagePublisher` all use `ValueTask`, `Either<EncinaError, ...>` and `where TMessage : class`. The list parameter's element type is not decided here (D8), so this entry rests on no pending Dilemma: it names only the convention.
 
 **Class:** Trivial
 **Settled by:** the four existing publisher interfaces, for example `src/Encina.Kafka/IKafkaMessagePublisher.cs` (`ProduceAsync<TMessage> ... where TMessage : class`).
@@ -132,14 +132,14 @@ A wins when callers need only success or failure per message; B wins when caller
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Remove `IKafkaMessagePublisher.ProduceBatchAsync` and `IAmazonSQSMessagePublisher.SendBatchAsync`; their callers (only their own tests: `git grep` finds no other caller in `src`) move to `PublishBatchAsync`** | One batch method per transport; the swallowing SQS behavior disappears | The two tests files per transport change |
+| **A) Remove `IKafkaMessagePublisher.ProduceBatchAsync` and `IAmazonSQSMessagePublisher.SendBatchAsync`; their callers (`git grep` on `origin/main` finds no caller in `src` beyond the two interfaces and publishers; the callers are tests: Kafka `KafkaMessagePublisherBatchTests`, `KafkaMessagePublisherTests`, `KafkaPublisherMessageIdTests`, `KafkaGuardTests`; SQS `AmazonSQSMessagePublisherBatchTests`, `AmazonSQSMessagePublisherTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests`, `AmazonSQSPublisherIntegrationTests`; and the page `docs/messaging/transports.md`, lines 271 and 392) move to `PublishBatchAsync`** | One batch method per transport; the swallowing SQS behavior disappears | Nine test files and one page change |
 | **B) Keep them next to the new method** | Nothing to update | Two batch APIs with different failure semantics per transport |
 
 ### Chosen Option: **A, replace**
 
 ### Rationale
 
-`AGENTS.md` section 3 forbids compatibility aliases and layers.
+`AGENTS.md` section 3 forbids compatibility aliases and layers. The replacement must carry what the removed methods carried: the Kafka method takes a per-message key and message id (the id travels in the `MessageId` header so consumers can deduplicate, #1792); where that information lives in the new method is D8, which this entry does not decide.
 
 **Class:** Settled
 **Settled by:** `AGENTS.md` section 3 (no compatibility aliases or layers; pre-1.0, section 1).
@@ -167,24 +167,85 @@ A wins when callers already hold a list, as the outbox does (#121 hands runs of 
 </details>
 
 <details>
-<summary><strong>7. Chunking, order and the SQS FIFO case</strong></summary>
+<summary><strong>7. The SQS FIFO case: an explicit refusal</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Chunks are sent one after another in input order, each at most `min(MaxBatchSize, the transport's limit)`; SQS chunks by 10 entries and 256 KB and an Azure Service Bus batch fills by bytes; a batch to an SQS FIFO queue returns `Left` `SQS_FIFO_BATCH_UNSUPPORTED` (category `InvalidRequest`)** | Order is preserved across chunks; each limit is a transport fact handled where it lives; FIFO is not silently broken | FIFO bulk publishing waits for group ids |
-| **B) Send chunks concurrently** | Faster | Order across chunks is lost |
-| **C) Generate a group id for FIFO batches** | FIFO works | An invented group id defeats the ordering the queue was chosen for; keys come from the partition family (#469, #255) |
+| **A) A batch to an SQS FIFO queue (URL ends with `.fifo`) returns `Left` `SQS_FIFO_BATCH_UNSUPPORTED` (category `InvalidRequest`)** | FIFO is not silently broken; each limit stays a transport fact handled where it lives | FIFO bulk publishing waits for group ids |
+| **B) Generate a group id for FIFO batches** | FIFO works | An invented group id defeats the ordering the queue was chosen for; keys come from the partition family (#469, #255) |
 
-### Chosen Option: **A, sequential chunks and an explicit FIFO refusal**
+### Chosen Option: **A, an explicit FIFO refusal**
 
 ### Rationale
 
-`SendToFifoQueueAsync` in `src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs` already requires an explicit `messageGroupId`, so a batch without one cannot be valid on a FIFO queue.
+`SendToFifoQueueAsync` in `src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs` already requires an explicit `messageGroupId`, so a batch without one cannot be valid on a FIFO queue; B contradicts that rule.
 
 **Class:** Settled
-**Settled by:** `src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs` (`SendToFifoQueueAsync` requires a group id) and the AWS `SendMessageBatch` limits named by the issue (10 messages).
+**Settled by:** `src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs` (`SendToFifoQueueAsync` requires a group id).
+
+</details>
+
+<details>
+<summary><strong>8. Where a message's key and id come from (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `PublishBatchAsync<TMessage>(IReadOnlyList<BatchPublishItem<TMessage>> items, ...)` with `BatchPublishItem<TMessage>(TMessage Message, string? Key = null, string? MessageId = null)` (a readonly record struct in `Encina.Messaging`)** | Keeps exactly what `ProduceBatchAsync` carries today (key for the Kafka partition, message id for the `MessageId` header and consumer deduplication, #1792); NATS deduplication and SQS entry ids can use the id; one type for every transport | Callers wrap each message; a transport that ignores a key (SQS standard queue) documents it |
+| **B) `PublishBatchAsync<TMessage>(IReadOnlyList<TMessage> messages, ...)` with the key and id read from an optional interface the message implements (`IBatchMessageMetadata`)** | Plain lists of messages | A message type the application does not own cannot implement it; the outbox message id lives on the outbox row, not on the payload type |
+| **C) The list API takes only messages and key and id are dropped** | Smallest | Loses the consumer deduplication and partitioning that #1792 added; the outbox could not use the contract |
+
+### Chosen Option: **A, a per-item struct** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the caller is the outbox or a handler that holds the id next to the payload (#121, #2385); B wins when messages are the application's own types and a flat list reads better. C is rejected by #1792's behavior (it would regress). The interface, the options, the result and the contract test base use the item type; `BatchItemFailure.Index` is the item's index.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. How RabbitMQ gets a channel for confirmed batches (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `RabbitMQMessagePublisher` gets one more optional trailing constructor parameter `IConnection? connection = null` (DI supplies the registered `IConnection`, `ServiceCollectionExtensions.cs:58`); a batch with no connection returns `Left` `RABBITMQ_BATCH_UNSUPPORTED` (`Internal`, a wiring failure)** | The 15 `new RabbitMQMessagePublisher(` sites in `RabbitMQGuardTests.cs` (8), `RabbitMQMessagePublisherTests.cs` (6) and `RabbitMQPublisherTimeAndMessageIdTests.cs` (1) keep compiling; the single publish path is untouched | An optional constructor parameter that is null in some tests |
+| **B) A required `IConnection` parameter** | No null case | All 15 construction sites in 3 test files change, counted in the RabbitMQ pull request (13 files instead of 10) |
+| **C) A separate `RabbitMQBatchPublisher` class registered next to the publisher, with `IRabbitMQMessagePublisher` not inheriting the capability** | No constructor change | Contradicts D1 (each transport interface inherits the capability) |
+
+### Chosen Option: **A, an optional connection** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the diff should stay small and the single path unchanged; B wins when a null connection must be unrepresentable; C wins when the maintainer prefers separate classes over a capability interface (it reverses D1). The publisher does not own the connection (the container does).
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Chunk order and concurrency (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Chunks are sent one after another in input order, each at most `min(MaxBatchSize, the transport's limit)`; SQS chunks by 10 entries and 256 KB and an Azure Service Bus batch fills by bytes** | Order is preserved across chunks; one failure point at a time | Slower for many chunks |
+| **B) Chunks are sent concurrently up to a bound** | Faster | Order across chunks is lost |
+
+### Chosen Option: **A, sequential chunks** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when consumers rely on the order of the input (the outbox's fetch order); B wins for high-volume unordered streams where latency matters more. Within one chunk, the transports already publish together (Kafka pipelined, ASB one batch). The SQS limit (10 entries, 256 KB per `SendMessageBatch`) is the AWS limit named by the issue.
+
+**Class:** Dilemma
 
 </details>
 
@@ -197,9 +258,9 @@ A wins when callers already hold a list, as the outbox does (#121 hands runs of 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Messaging/Transport/IBatchPublisher.cs` (D1, D3): `ValueTask<Either<EncinaError, BatchPublishResult>> PublishBatchAsync<TMessage>(IReadOnlyList<TMessage> messages, BatchPublishOptions? options = null, CancellationToken cancellationToken = default) where TMessage : class`; XML docs state the partial-failure rule (D4), the chunk order rule and that cancellation propagates.
-2. `BatchPublishOptions` (sealed record: `MaxBatchSize` 100 validated 1 to 10,000, `PartitionByType` false, `Destination` null meaning the transport's default derived as for a single publish; `Validate()` returning `Either<EncinaError, Unit>`), `BatchPublishResult(SuccessCount, FailureCount, Failures)` with `AllSucceeded`, `BatchItemFailure(int Index, EncinaError Error)` (D2), and `BatchPublishErrorCodes` (`messaging.batch_null_item` category `InvalidRequest`, `messaging.batch_options_invalid` category `InvalidRequest`).
-3. `tests/Encina.ContractTests/MessageBrokers/BatchPublisherContractBase.cs` (abstract, real publisher instances built by each subclass over a faked SDK client): empty list gives `Right(0, 0)`, all accepted, one rejected message reported with its index and error, a null element gives `Left`, more messages than `MaxBatchSize` are published once each in input order, cancellation throws `OperationCanceledException`, `Destination` overrides the default.
+1. `src/Encina.Messaging/Transport/IBatchPublisher.cs` (D1, D3, D8): `ValueTask<Either<EncinaError, BatchPublishResult>> PublishBatchAsync<TMessage>(IReadOnlyList<BatchPublishItem<TMessage>> items, BatchPublishOptions? options = null, CancellationToken cancellationToken = default) where TMessage : class`; XML docs state the partial-failure rule (D4), the chunk order rule (D10) and that cancellation propagates.
+2. `BatchPublishItem<TMessage>(TMessage Message, string? Key = null, string? MessageId = null)` (D8), `BatchPublishOptions` (sealed record: `MaxBatchSize` 100 validated 1 to 10,000, `PartitionByType` false, `Destination` null meaning the transport's default derived as for a single publish; `Validate()` returning `Either<EncinaError, Unit>`), `BatchPublishResult(SuccessCount, FailureCount, Failures)` with `AllSucceeded`, `BatchItemFailure(int Index, EncinaError Error)` (D2), and `BatchPublishErrorCodes` (`messaging.batch_null_item` category `Internal`, ADR-062 R4: a null request; `messaging.batch_options_invalid` category `Validation`, R3: a field rule).
+3. `tests/Encina.ContractTests/MessageBrokers/BatchPublisherContractBase.cs` (abstract; each subclass builds the real publisher over the fake or emulator its transport's existing contract tests already use: the SQS and Azure Service Bus subclasses run against LocalStack and the Service Bus emulator as `AmazonSQSPublisherContractTests` and `AzureServiceBusPublisherContractTests` do, the others over a faked SDK client): empty list gives `Right(0, 0)`, all accepted, one rejected message reported with its index and error, a null element gives `Left`, more messages than `MaxBatchSize` are published once each in input order, the per-item key and message id reach the broker as in `ProduceAsync`, cancellation throws `OperationCanceledException`, `Destination` overrides the default.
 4. Tests: unit `BatchPublishResultTests` and `BatchPublishOptionsTests`, guard `BatchPublishOptionsGuardTests` (`Validate` rules); PublicAPI.Unshipped for `Encina.Messaging` (through `mechanical-fixer`), `Encina.Messaging.json` manifest entries, README edit (through `docs-writer`), changelog fragment `changelog.d/252-bulk-publish.added.md` (through `mechanical-fixer`).
 
 </details>
@@ -208,7 +269,7 @@ A wins when callers already hold a list, as the outbox does (#121 hands runs of 
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: No transport has a common batch contract. Each transport has its own publisher interface (IKafkaMessagePublisher, IAmazonSQSMessagePublisher, ...) with ValueTask and Either results. D1 (a capability interface inherited by each transport interface), D2 (counts plus failures) and D6 (no delay in the contract) apply as recommended until the maintainer answers.
+CONTEXT: No transport has a common batch contract. Each transport has its own publisher interface (IKafkaMessagePublisher, IAmazonSQSMessagePublisher, ...) with ValueTask and Either results. D1 (a capability interface inherited by each transport interface), D2 (counts plus failures), D6 (no delay in the contract), D8 (a per-item struct with key and id) and D10 (sequential chunks) apply as recommended until the maintainer answers.
 TASK: Add IBatchPublisher, BatchPublishOptions, BatchPublishResult, BatchItemFailure, the error codes and the shared contract test base with their tests.
 KEY RULES: Partial failure is Right with Failures, never swallowed; a null element is Left; cancellation propagates; XML docs with examples; ADR-062 category on every code; never log or return an exception message; the contract test base instantiates real publishers.
 REFERENCE FILES: src/Encina.Kafka/IKafkaMessagePublisher.cs, src/Encina.AmazonSQS/IAmazonSQSMessagePublisher.cs, tests/Encina.ContractTests/MessageBrokers/AmazonSQS/AmazonSQSPublisherContractTests.cs, .github/coverage-manifest/Encina.Messaging.json.
@@ -216,14 +277,14 @@ REFERENCE FILES: src/Encina.Kafka/IKafkaMessagePublisher.cs, src/Encina.AmazonSQ
 
 </details>
 
-### Phase 2: Kafka (pull request 2)
+### Phase 2: Kafka (pull requests 2 and 2b)
 
 <details>
 <summary>Tasks</summary>
 
-1. `IKafkaMessagePublisher : IBatchPublisher`; `ProduceBatchAsync` removed (D5). `KafkaMessagePublisher.PublishBatchAsync`: per chunk, start every `ProduceAsync` without awaiting each (the client batches by its linger and batch size), then await them together; each delivery report maps to a success or a `BatchItemFailure` (`KAFKA_BATCH_ITEM_FAILED`, category `UpstreamFailure`); a thrown `ProduceException` for one message fails that message only; `Destination` replaces the default topic. Key and message id are derived exactly as `ProduceAsync` derives them (the same private helper, no copy).
-2. `EncinaKafkaOptions.LingerMs`, `BatchSizeBytes`, `CompressionType` (all nullable, validated, applied to the producer configuration in `ServiceCollectionExtensions`); EventIds 4176 batch published (Debug, count) and 4177 batch partially failed (Warning, counts), inside the existing `Kafka` range 4150-4199 (4156-4175 are claimed by #587, 4176-4199 are free on `origin/main`).
-3. Tests: edit `KafkaMessagePublisherBatchTests` and `KafkaGuardTests` for the new method; new `KafkaBatchPublisherContractTests` (subclass of the contract base) and `KafkaPublisherBatchIntegrationTests` (Testcontainers Kafka, shared collection); PublicAPI.Unshipped (removal and additions, through `mechanical-fixer`), `Encina.Kafka.json`, README edit, changelog fragment `changelog.d/252-kafka-batch-publish.changed.md`.
+1. Pull request 2, the batch method: `IKafkaMessagePublisher : IBatchPublisher`; `ProduceBatchAsync` removed (D5). `KafkaMessagePublisher.PublishBatchAsync`: per chunk, start every `ProduceAsync` without awaiting each (the client batches by its linger and batch size), then await them together; each delivery report maps to a success or a `BatchItemFailure` (`KAFKA_BATCH_ITEM_FAILED`, category `UpstreamFailure`); a thrown `ProduceException` for one message fails that message only; `Destination` replaces the default topic. Each item's `Key` and `MessageId` (D8) are applied exactly as `ProduceAsync` applies its `key` and `messageId` (the same private helper, no copy), so the `MessageId` header and the partition key survive the replacement. EventIds 4176 batch published (Debug, count) and 4177 batch partially failed (Warning, counts), inside the existing `Kafka` range 4150-4199 (4156-4175 are claimed by #587, 4176-4199 are free on `origin/main`).
+2. Pull request 2b, the producer tuning: `EncinaKafkaOptions.LingerMs`, `BatchSizeBytes`, `CompressionType` (all nullable, validated, applied to the producer configuration in `ServiceCollectionExtensions`); it follows pull request 2 and builds alone with its own options test.
+3. Tests, pull request 2: edit `KafkaMessagePublisherBatchTests`, `KafkaMessagePublisherTests`, `KafkaPublisherMessageIdTests` and `KafkaGuardTests` (the four files that call `ProduceBatchAsync`); new `KafkaBatchPublisherContractTests` (subclass of the contract base) and `KafkaPublisherBatchIntegrationTests` (Testcontainers Kafka, shared collection); PublicAPI.Unshipped (removal and additions, through `mechanical-fixer`), `Encina.Kafka.json`, changelog fragment `changelog.d/252-kafka-batch-publish.changed.md`, and the Kafka line of `docs/messaging/transports.md` (271) through `docs-writer`. Pull request 2b: new `KafkaProducerTuningOptionsTests` (unit), edit of the Kafka registration test, PublicAPI.Unshipped, `Encina.Kafka.json`, README edit.
 
 </details>
 
@@ -232,7 +293,7 @@ REFERENCE FILES: src/Encina.Kafka/IKafkaMessagePublisher.cs, src/Encina.AmazonSQ
 
 ```text
 CONTEXT: IBatchPublisher exists in Encina.Messaging. The current Kafka ProduceBatchAsync awaits each message and stops at the first failure.
-TASK: Implement PublishBatchAsync for Kafka, remove ProduceBatchAsync, add the producer options and log messages, and update the tests.
+TASK: Implement PublishBatchAsync for Kafka (pull request 2), remove ProduceBatchAsync, add the log messages and update the tests; the producer options follow in pull request 2b.
 KEY RULES: Never await each produce inside the loop; one message's failure never aborts the others; exception type only in logs (ForLogging); EventIds 4176-4177 only inside the Kafka range; database-style async rules do not apply but cancellation must reach the awaits.
 REFERENCE FILES: src/Encina.Kafka/KafkaMessagePublisher.cs, src/Encina.Kafka/EncinaKafkaOptions.cs, src/Encina.Kafka/ServiceCollectionExtensions.cs, tests/Encina.UnitTests/Kafka/Publishing/KafkaMessagePublisherBatchTests.cs.
 ```
@@ -244,8 +305,8 @@ REFERENCE FILES: src/Encina.Kafka/KafkaMessagePublisher.cs, src/Encina.Kafka/Enc
 <details>
 <summary>Tasks</summary>
 
-1. `IAmazonSQSMessagePublisher : IBatchPublisher`; `SendBatchAsync` removed. `PublishBatchAsync`: chunks of at most 10 entries and 256 KB (the sum of each body and its attributes, measured before sending); entry ids are the global input index as text, so `Successful` and `Failed` entries map back to input indexes; every `Failed` entry becomes a `BatchItemFailure` (`SQS_BATCH_ENTRY_FAILED`, category `UpstreamFailure`, from the entry's code, never the SDK message); a thrown exception fails every message of that chunk (`SQS_BATCH_SEND_FAILED`, existing code); one message above 256 KB alone is a failure (`SQS_MESSAGE_TOO_LARGE`, `InvalidRequest`); a FIFO queue URL (ends with `.fifo`) returns `Left` `SQS_FIFO_BATCH_UNSUPPORTED` (D7). The existing log messages 4356-4359 are reused (4357 reports the partial failure counts); no new EventId.
-2. Tests: edit `AmazonSQSMessagePublisherBatchTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests` (subclass the base) and `AmazonSQSPublisherIntegrationTests` (LocalStack); PublicAPI.Unshipped, `Encina.AmazonSQS.json`, README edit, changelog fragment `changelog.d/252-sqs-batch-publish.changed.md` (the swallowed partial failure is now reported).
+1. `IAmazonSQSMessagePublisher : IBatchPublisher`; `SendBatchAsync` removed. `PublishBatchAsync`: chunks of at most 10 entries and 256 KB (the sum of each body and its attributes, measured before sending); entry ids are the global input index as text (an item's `Key` and `MessageId`, D8, are not used by a standard queue, which has no partition key; the XML docs say so), so `Successful` and `Failed` entries map back to input indexes; every `Failed` entry becomes a `BatchItemFailure` (`SQS_BATCH_ENTRY_FAILED`, category `UpstreamFailure`, from the entry's code, never the SDK message); a thrown exception fails every message of that chunk (`SQS_BATCH_SEND_FAILED`, existing code); one message above 256 KB alone is a failure (`SQS_MESSAGE_TOO_LARGE`, `InvalidRequest`); a FIFO queue URL (ends with `.fifo`) returns `Left` `SQS_FIFO_BATCH_UNSUPPORTED` (D7). The existing log messages 4356-4359 are reused (4357 reports the partial failure counts); no new EventId.
+2. Tests: edit `AmazonSQSMessagePublisherBatchTests`, `AmazonSQSMessagePublisherTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests` (subclass the base) and `AmazonSQSPublisherIntegrationTests` (LocalStack); PublicAPI.Unshipped, `Encina.AmazonSQS.json`, README edit, the SQS line of `docs/messaging/transports.md` (392) through `docs-writer`, changelog fragment `changelog.d/252-sqs-batch-publish.changed.md` (the swallowed partial failure is now reported). This pull request fixes the open bugs #1604 (failed entries reported as success) and #2799 (`SQS_BATCH_SEND_FAILED` for a fully successful batch) and carries `Fixes #1604` and `Fixes #2799` in its description.
 
 </details>
 
@@ -289,7 +350,7 @@ REFERENCE FILES: src/Encina.AzureServiceBus/AzureServiceBusMessagePublisher.cs, 
 <details>
 <summary>Tasks</summary>
 
-1. RabbitMQ: `IRabbitMQMessagePublisher : IBatchPublisher`; `PublishBatchAsync` publishes the chunk on a dedicated channel that the batch publisher creates itself from the injected `IConnection` with publisher confirmations enabled (the RabbitMQ.Client 7.2.1 channel options; the exact option names and the channel's concurrency rules are verified against the package at work start), honors `EncinaRabbitMQOptions.UsePublisherConfirms` (when it is `false`, a batch publishes without confirmations and reports success on handoff, stated in the XML docs), and awaits every confirmation; a nack or a returned message fails that message (`RABBITMQ_BATCH_ITEM_FAILED`, `UpstreamFailure`); the existing single publish path and its channel are unchanged. EventIds 4106 batch published, 4107 batch partially failed, 4108 confirmation timed out, inside the `RabbitMQ` range 4100-4149.
+1. RabbitMQ: `IRabbitMQMessagePublisher : IBatchPublisher`; `RabbitMQMessagePublisher` gains the optional trailing constructor parameter `IConnection? connection = null` (D9; the 15 construction sites in `RabbitMQGuardTests.cs`, `RabbitMQMessagePublisherTests.cs` and `RabbitMQPublisherTimeAndMessageIdTests.cs` keep compiling); `PublishBatchAsync` publishes the chunk on a dedicated channel that the publisher creates itself from that `IConnection` (a null connection returns `Left` `RABBITMQ_BATCH_UNSUPPORTED`, `Internal`) with publisher confirmations enabled (the RabbitMQ.Client 7.2.1 channel options; the exact option names and the channel's concurrency rules are verified against the package at work start), honors `EncinaRabbitMQOptions.UsePublisherConfirms` (when it is `false`, a batch publishes without confirmations and reports success on handoff, stated in the XML docs), and awaits every confirmation; a nack or a returned message fails that message (`RABBITMQ_BATCH_ITEM_FAILED`, `UpstreamFailure`); the existing single publish path and its channel are unchanged. EventIds 4106 batch published, 4107 batch partially failed, 4108 confirmation timed out, inside the `RabbitMQ` range 4100-4149.
 2. NATS: `INATSMessagePublisher : IBatchPublisher`; with JetStream registered, the chunk's `JetStreamPublishAsync` calls start together and each acknowledgement is awaited (a missing ack or a duplicate-rejected publish is a per-message failure `NATS_BATCH_ITEM_FAILED`); without JetStream the core publishes are pipelined. EventIds 4210 batch published, 4211 batch partially failed, 4212 JetStream unavailable for the batch, inside the `NATS` range 4200-4249.
 3. Tests per transport: new unit batch tests, guard edits, contract subclass, new integration class (Testcontainers RabbitMQ, NATS with JetStream), PublicAPI.Unshipped, manifest, README edit.
 
@@ -336,7 +397,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 <details>
 <summary>Tasks</summary>
 
-1. Errors (ADR-062): `messaging.batch_null_item` `InvalidRequest`, `messaging.batch_options_invalid` `InvalidRequest`, per transport `<T>_BATCH_ITEM_FAILED` `UpstreamFailure`, `SQS_BATCH_ENTRY_FAILED` `UpstreamFailure`, `SQS_FIFO_BATCH_UNSUPPORTED` `InvalidRequest`, `SQS_MESSAGE_TOO_LARGE` `InvalidRequest`, `ASB_MESSAGE_TOO_LARGE` `InvalidRequest`, `ASB_BATCH_SEND_FAILED` `UpstreamFailure` (each transport keeps its existing code naming style).
+1. Errors (ADR-062): `messaging.batch_null_item` `Internal` (R4), `messaging.batch_options_invalid` `Validation` (R3), `RABBITMQ_BATCH_UNSUPPORTED` `Internal`, per transport `<T>_BATCH_ITEM_FAILED` `UpstreamFailure`, `SQS_BATCH_ENTRY_FAILED` `UpstreamFailure`, `SQS_FIFO_BATCH_UNSUPPORTED` `InvalidRequest`, `SQS_MESSAGE_TOO_LARGE` `InvalidRequest`, `ASB_MESSAGE_TOO_LARGE` `InvalidRequest`, `ASB_BATCH_SEND_FAILED` `UpstreamFailure` (each transport keeps its existing code naming style).
 2. Logging (function 3): counts and error codes only; the exception type through `ForLogging()`; no `EncinaError.Message`.
 3. Issue files: `artifacts/issues/rabbitmq-publisher-confirms-not-applied.md` (the dead `UsePublisherConfirms` option and the confirmation-less single publish, found while reading the publisher) and `artifacts/issues/bulk-publish-planned-transports.md`: the six planned transports implement the contract and subclass the shared contract test when they land (#237, #238, #239, #241, Redis.Streams, Dapr), as `AGENTS.md` section 5 requires consistency across the category.
 4. Final verification as in Phase 8.
@@ -440,14 +501,15 @@ No new range and no block of `artifacts/decisions/plan-batch/eventid-blocks.md` 
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 33 | contract (4 types plus error codes), 8 interface edits, 8 publisher edits, 7 `Log` edits (SQS has none), `EncinaKafkaOptions`, `EncinaMQTTOptions`, Kafka `ServiceCollectionExtensions`, 2 csproj edits (Redis.PubSub, InMemory) |
+| Production code | 34 | contract (5 types plus error codes), 8 interface edits, 8 publisher edits, 7 `Log` edits (SQS has none), `EncinaKafkaOptions`, `EncinaMQTTOptions`, Kafka `ServiceCollectionExtensions`, 2 csproj edits (Redis.PubSub, InMemory) |
 | Public API and manifest | 18 | one PublicAPI.Unshipped and one manifest per package, nine packages |
 | Tests | 38 | contract base, 2 unit and 1 guard for the contract, 8 transport unit tests, 8 guard edits, 8 contract subclasses, 6 integration classes, edits of the existing Kafka and SQS tests |
 | Justification files | 2 | load, benchmark |
 | Documentation | 14 | 9 README edits, feature page, 4 changelog fragments |
-| **Pull request 1** | **13** | 4 types plus the error codes class, PublicAPI, manifest, contract base, 3 unit and guard tests, README edit, changelog fragment; about 600 lines |
-| **Pull request 2** | **13** | Kafka: 5 production (interface, publisher, options, `ServiceCollectionExtensions`, `Log`), PublicAPI, manifest, 4 tests, README, changelog fragment; about 700 lines |
-| **Pull request 3** | **10** | SQS: interface, publisher, PublicAPI, manifest, 4 test edits, README, changelog fragment |
+| **Pull request 1** | **14** | 6 files (`IBatchPublisher`, `BatchPublishItem`, `BatchPublishOptions`, `BatchPublishResult`, `BatchItemFailure`, `BatchPublishErrorCodes`), PublicAPI, manifest, contract base, 3 unit and guard tests, README edit, changelog fragment; about 650 lines |
+| **Pull request 2** | **13** | Kafka batch: interface, publisher, `Log`, PublicAPI, manifest, 4 edited tests (`KafkaMessagePublisherBatchTests`, `KafkaMessagePublisherTests`, `KafkaPublisherMessageIdTests`, `KafkaGuardTests`), 2 new tests (contract subclass, integration), changelog fragment, `docs/messaging/transports.md`; about 700 lines |
+| **Pull request 2b** | **7** | Kafka producer tuning: `EncinaKafkaOptions`, `ServiceCollectionExtensions`, options test, registration test edit, PublicAPI, manifest, README edit |
+| **Pull request 3** | **12** | SQS: interface, publisher, PublicAPI, manifest, 5 test edits (`AmazonSQSMessagePublisherBatchTests`, `AmazonSQSMessagePublisherTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests`, `AmazonSQSPublisherIntegrationTests`), README, `docs/messaging/transports.md`, changelog fragment |
 | **Pull request 4** | **10** | Azure Service Bus: interface, publisher, Log, PublicAPI, manifest, 4 tests, README |
 | **Pull request 5** | **10** | RabbitMQ: interface, publisher, Log, PublicAPI, manifest, 4 tests, README |
 | **Pull request 6** | **10** | NATS: same shape as pull request 5 |
@@ -455,7 +517,7 @@ No new range and no block of `artifacts/decisions/plan-batch/eventid-blocks.md` 
 | **Pull request 8** | **11** | Redis.PubSub: pull request 5's shape plus the csproj edit |
 | **Pull request 9** | **13** | InMemory: csproj, interface, bus, Log, PublicAPI, manifest, 3 tests (unit, guard, contract), README, feature page, 2 justification files (load, benchmark) |
 
-Callers and implementers, by grep on `origin/main` (2026-11-17): `ProduceBatchAsync` and `SendBatchAsync` are declared in their interfaces and publishers and called only by `KafkaMessagePublisherBatchTests`, `KafkaGuardTests`, `AmazonSQSMessagePublisherBatchTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests` and `AmazonSQSPublisherIntegrationTests`; each pull request removes the method and updates those files together. The eight publisher interfaces have one implementer each (the concrete publishers, listed by `git grep ": I<Name>"`); there are no test doubles that implement them in `src` or `tests` (the same grep finds no other class), so adding a base interface breaks nothing. Every pull request adds production code with its own tests and builds alone in the order 1 to 9; each of 2 to 9 needs pull request 1.
+Callers and implementers, by grep on `origin/main` (2026-11-18, `822c310c7`): `ProduceBatchAsync` and `SendBatchAsync` are declared in their interfaces and publishers and called only by `KafkaMessagePublisherBatchTests`, `KafkaMessagePublisherTests`, `KafkaPublisherMessageIdTests`, `KafkaGuardTests`, `AmazonSQSMessagePublisherBatchTests`, `AmazonSQSMessagePublisherTests`, `AmazonSQSGuardTests`, `AmazonSQSPublisherContractTests` and `AmazonSQSPublisherIntegrationTests`, and named in `docs/messaging/transports.md` (lines 271 and 392); each transport pull request removes the method and updates those files together. The eight publisher interfaces have one implementer each (the concrete publishers, listed by `git grep ": I<Name>"`); there are no test doubles that implement them in `src` or `tests` (the same grep finds no other class), so adding a base interface breaks nothing. `new RabbitMQMessagePublisher(` appears 15 times (`RabbitMQGuardTests.cs` 8, `RabbitMQMessagePublisherTests.cs` 6, `RabbitMQPublisherTimeAndMessageIdTests.cs` 1); the optional constructor parameter of D9 option A leaves all of them compiling, and option B would add three test files to the RabbitMQ pull request. Every pull request adds production code with its own tests and builds alone in the order 1, 2, 2b, 3 to 9; each of 2 to 9 needs pull request 1 and 2b needs 2.
 
 ---
 
@@ -467,7 +529,7 @@ Callers and implementers, by grep on `origin/main` (2026-11-17): `ProduceBatchAs
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Each transport has its own publisher interface; Kafka and SQS have partial batch methods (Kafka awaits each message; SQS drops failed entries into a log line); the other six have none.
 
-IMPLEMENTATION OVERVIEW: PR1 IBatchPublisher, BatchPublishOptions, BatchPublishResult, BatchItemFailure and a shared contract test base in Encina.Messaging and ContractTests; PR2 to PR9 one transport each (Kafka pipelined produce with linger and batch size options, SQS chunked batches with per-entry results and a FIFO refusal, Azure Service Bus message batches, RabbitMQ confirmed publishing, NATS JetStream publishes, MQTT bounded concurrency, Redis.PubSub pipelined publishes, InMemory loop), each inheriting the contract in its own publisher interface, replacing the old partial methods and logging inside its existing EventId range. Dilemmas D1, D2 and D6 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 IBatchPublisher, BatchPublishItem (message, key, message id), BatchPublishOptions, BatchPublishResult, BatchItemFailure and a shared contract test base in Encina.Messaging and ContractTests; PR2 to PR9 one transport each, Kafka in two (PR2 pipelined produce, PR2b linger, batch size and compression options), then SQS chunked batches with per-entry results and a FIFO refusal, Azure Service Bus message batches, RabbitMQ confirmed publishing, NATS JetStream publishes, MQTT bounded concurrency, Redis.PubSub pipelined publishes, InMemory loop), each inheriting the contract in its own publisher interface, replacing the old partial methods and logging inside its existing EventId range. Dilemmas D1, D2, D6, D8, D9 and D10 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: Partial failure is Right with Failures, never swallowed; Left only before the attempt; chunks sequential in input order; cancellation propagates; exception type only in logs and never EncinaError.Message; ADR-062 category on every code; each transport keeps its naming style; targets never go down; CRAP <= 10.
 
@@ -499,14 +561,14 @@ REFERENCE FILES: src/Encina.Kafka/KafkaMessagePublisher.cs, src/Encina.AmazonSQS
 
 ## Prerequisites & Dependencies
 
-- None blocking for pull request 1. Pull requests 2 to 9 depend on pull request 1 and are otherwise independent of each other, so they can be reviewed in any order; the recommended order is Kafka, SQS, Azure Service Bus (the issue's transports), then RabbitMQ, NATS, MQTT, Redis.PubSub and InMemory.
+- None blocking for pull request 1. Pull requests 2 to 9 depend on pull request 1 and are otherwise independent of each other (2b follows 2), so they can be reviewed in any order; the recommended order is Kafka, SQS, Azure Service Bus (the issue's transports), then RabbitMQ, NATS, MQTT, Redis.PubSub and InMemory.
 - **Related, not blocking**: #121 (a batch notification handler calls `PublishBatchAsync`), #2385 (outbox-to-transport publisher), #587 (claims Kafka EventIds 4156-4175), #725 (transport telemetry), #742 (transport resilience), #469 and #255 (partition keys and FIFO group ids), and the planned transports #237, #238, #239 and #241.
 
 ---
 
 ## Next Steps
 
-1. Ask the maintainer D1, D2 and D6 when work on #252 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: the contract and the shared contract test base (13 files).
-3. Pull requests 2 to 4: Kafka (13 files), SQS (10), Azure Service Bus (10).
+1. Ask the maintainer D1, D2, D6, D8, D9 and D10 when work on #252 starts; record the answers in `## Maintainer Decisions`.
+2. Pull request 1: the contract and the shared contract test base (14 files).
+3. Pull requests 2, 2b, 3 and 4: Kafka batch (13 files), Kafka producer tuning (7), SQS (12), Azure Service Bus (10).
 4. Pull requests 5 to 9: RabbitMQ (10), NATS (10), MQTT (11), Redis.PubSub (11), InMemory with the feature page and the justification files (13).
