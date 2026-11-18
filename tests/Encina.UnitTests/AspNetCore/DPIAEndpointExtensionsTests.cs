@@ -720,6 +720,55 @@ public sealed class DPIAEndpointExtensionsTests
         return service;
     }
 
+    // ── Telemetry status equals the response status ─────────────────────────
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    [Theory]
+    [InlineData(ErrorCategory.RateLimited, HttpStatusCode.TooManyRequests)]
+    [InlineData(ErrorCategory.UpstreamFailure, HttpStatusCode.BadGateway)]
+    public async Task ListFailure_RecordsTheCategoryStatus_AndAnswersTheSame(ErrorCategory category, HttpStatusCode expected)
+    {
+        var service = CreateService();
+        service.GetAllAssessmentsAsync(Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, IReadOnlyList<DPIAReadModel>>>(
+                Left<EncinaError, IReadOnlyList<DPIAReadModel>>(
+                    EncinaErrors.Create("test.categorized", category, "failure"))));
+        var recorded = new List<string>();
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, meterListener) =>
+        {
+            if (instrument.Meter.Name == "Encina.Compliance.DPIA")
+            {
+                meterListener.EnableMeasurementEvents(instrument);
+            }
+        };
+        listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+        {
+            foreach (var tag in tags)
+            {
+                if (tag.Key == "dpia.status_code")
+                {
+                    lock (recorded)
+                    {
+                        recorded.Add(tag.Value?.ToString() ?? string.Empty);
+                    }
+                }
+            }
+        });
+        listener.Start();
+        await using var harness = await CreateHarnessAsync(service);
+
+        using var response = await harness.Client.GetAsync(new Uri("/api/dpia/assessments", UriKind.Relative));
+
+        response.StatusCode.ShouldBe(expected);
+        lock (recorded)
+        {
+            recorded.ShouldContain(((int)expected).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+    }
+
     // ── Custom prefix ───────────────────────────────────────────────────────
 
     [Fact]

@@ -170,10 +170,8 @@ public static class ProblemDetailsExtensions
 
     private static string? GetErrorCode(EncinaError error)
     {
-        // Try to extract error code from error metadata
-        return error.GetCode().Match(
-            Some: code => code,
-            None: () => default(string));
+        // An error created without a code has none: the body omits the field and the status stays 500.
+        return error.GetCode().IfNoneUnsafe((string?)null);
     }
 
     /// <summary>
