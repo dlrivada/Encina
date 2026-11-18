@@ -2,8 +2,8 @@
 
 > **Issue**: [#136](https://github.com/dlrivada/Encina/issues/136)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, no database providers, 2 pull requests)
-> **Estimated Scope**: ~450 lines of production code + ~800 lines of tests (about 1,300 changed lines in total, two pull requests)
+> **Complexity**: Medium (7 phases, no database providers, 3 pull requests)
+> **Estimated Scope**: ~450 lines of production code + ~800 lines of tests (about 1,800 changed lines in total, three pull requests)
 
 ---
 
@@ -21,7 +21,7 @@ What this plan delivers, all in `Encina.Resilience` (ADR-055 R1): `HedgingAttrib
 
 - **Affected packages**: `Encina.Resilience` (planned by the foundation), `Encina` core (`EventIdRanges.cs` only). The issue also ticks `Encina` core and `Encina.AspNetCore`; neither needs code (hedging is a pipeline strategy, and `Encina.AspNetCore` hosts only map the resulting error).
 - **Provider category**: Resilience (AGENTS.md section 5, "Other categories"). No database, caching, transport, lock or validation matrix applies: hedging wraps whatever the handler calls, so it behaves the same on every provider.
-- **Estimated size**: 2 pull requests of at most 15 files and 1,500 lines each, split in "Implementation Phases".
+- **Estimated size**: 3 pull requests of at most 15 files and 1,500 lines each, split in "Implementation Phases".
 - **Prerequisites**: the foundation (package, pipeline compiler, options front-ends) and the R6 token change, both described in "Prerequisites & Dependencies" with the follow-up issue files that open them.
 
 ### Shared Pieces and Ownership (family resilience-patterns-1, then resilience-patterns-2 and resilience-otel-misc)
@@ -33,7 +33,7 @@ What this plan delivers, all in `Encina.Resilience` (ADR-055 R1): `HedgingAttrib
 | `HedgingAttribute`, `HedgingOptions`, `IHedgingActionGenerator<,>`, `HedgedAction` | This plan (#136) | #145 chaos tests may hedge a chaos-injected attempt (sibling plan, by number only) |
 | EventIds 900-905 (`ResilienceHedging`) | This plan | none |
 | The retry-or-hedging exclusivity check at startup | This plan registers the rule; the compiler of the foundation runs it | #136 only |
-| The `Meter("Encina.Resilience")` holder class | #728 (plan on main, its choice 1) | this plan reads it |
+| The `Meter("Encina.Resilience")` holder class and the instrument-name convention | #728 (plan on main, its choices 1 and 8, both pending) | this plan reads them (Design Choice 8) |
 
 ---
 
@@ -76,14 +76,14 @@ The issue asks for `HedgingPipelineBehavior<,>` and sketches a hand-written loop
 | **A) Polly's hedging strategy, added by the compiler in the retry slot of the one per-type pipeline** | Polly already implements delay, parallel attempts, cancellation of the losers and the `OnHedging` telemetry event; the order is guaranteed; the attribute is read once | The class named in the issue is not created |
 | **B) A `HedgingPipelineBehavior<,>` with its own loop** | Matches the issue text | R2 option 2b was rejected by the maintainer; a second pipeline per call; re-implements what Polly has |
 
-### Chosen Option: **A — Polly's `AddHedging` inside the per-type pipeline**
+### Chosen Option: **A — Polly's `AddHedging` inside the per-type pipeline** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The acceptance criterion "`HedgingPipelineBehavior` that executes hedged requests" is met by the Resilience-stage behavior that runs the compiled pipeline (R2); no class of that name exists.
-- The choice holds under every option of choice 1: where the code lives changes the package, never the strategy form (option B of choice 1 would still compile the strategy into a per-type pipeline, in the package that exists then).
-- **Class:** Settled
-- **Settled by:** ADR-055 R2 (option 2a chosen, 2b and 2c rejected) and the issue's own "Integration with Polly v8" section
+- This choice is a follow-on of choice 1 and is answered with it. Under choice 1 option A the strategy is compiled by the foundation's compiler (ADR-055 R2, 2a). Under option B there is no compiler in `Encina.Polly`, so hedging would be a standalone `HedgingPipelineBehavior<,>` over a Polly pipeline of its own (the option R2 rejected as 2b), replaced when R1 consolidates.
+- If the maintainer answers choice 1 with A, this choice is Settled by ADR-055 R2 (2a chosen, 2b and 2c rejected); the plan keeps it a Dilemma until then because it does not hold under B.
+- **Class:** Dilemma
 
 </details>
 
@@ -211,13 +211,14 @@ The issue asks for `IHedgingActionGenerator` "for custom strategies" (for exampl
 | **A) Rely on Polly's `OnHedging` event and instruments for attempts; add one Encina counter for the winning attempt index and span events** | Follows R5 ("only for what Polly does not measure"); no double counting with `Encina.Http`'s hedging | One extra counter |
 | **B) Encina counters for attempts and wins** | Self-contained | Duplicates `resilience.polly.*`, which ADR-054 D6.2 rules out |
 
-### Chosen Option: **A — Winner counter and span events only**
+### Chosen Option: **A — Winner counter and span events only** (recommended, pending the maintainer)
 
 ### Rationale
 
-- Polly reports that a hedge started but not which attempt won. The counter `encina.resilience.hedging.winner` (tags `request.type`, `hedging.attempt` = 0 for the primary, and the tenant only when multi-tenancy is on, ADR-054 D4) answers it with cardinality bounded by `MaxHedgedAttempts`.
-- **Class:** Settled
-- **Settled by:** ADR-055 R5 and ADR-054 D3, D4 and D6.2
+- Polly reports that a hedge started but not which attempt won. The proposed counter is `encina.resilience.hedging.winner` (tags `request.type`, `hedging.attempt` = 0 for the primary, and the tenant only when multi-tenancy is on, ADR-054 D4), with cardinality bounded by `MaxHedgedAttempts`.
+- ADR-055 R5 and ADR-054 D3 and D6.2 fix the rules (Encina measures only what Polly does not; names are lowercase and dotted) but not these names. The plan of #728 (on main) names the same family and leaves its choices 1 (who holds the `Meter("Encina.Resilience")` instance) and 8 (instrument names) pending, so the instrument name and the holder are follow-ons of those answers: if #728 answers differently, this counter takes its convention and its holder, and only the span events and the winner semantics remain here. This plan creates no `Meter` instance of its own.
+- Option A wins when the winning attempt index is operationally useful (replica tail latency); B wins when only Polly's attempt events are wanted.
+- **Class:** Dilemma
 
 </details>
 
@@ -225,18 +226,19 @@ The issue asks for `IHedgingActionGenerator` "for custom strategies" (for exampl
 
 ## Implementation Phases
 
-Two pull requests, each building and passing alone: **PR-1** (Phases 1 to 3 and their tests: model, strategy, registration) and **PR-2** (Phases 4 to 7: cross-cutting, observability, remaining tests, documentation). The file count of each is in "Estimated File Count".
+Three pull requests, each building and passing alone, in this order: **PR-1** (Phases 1 and 2 with their tests: model and strategy), **PR-2** (Phases 3 and 4: registration, builder extension, cross-cutting rules, contract and DI tests) and **PR-3** (Phases 5 to 7: observability, documentation). Every PR needs the `Encina.Resilience` project to exist (foundation merged); if the maintainer answers choice 1 with option C, creating the project and the `ProjectReference` edits of the test projects adds files to PR-1 and the split is recounted. The file count of each is in "Estimated File Count".
 
 ### Phase 1: Core Models and Contracts
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Hedging/HedgingAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class HedgingAttribute : Attribute` with `int MaxAttempts { get; init; } = 2` (total attempts including the primary, so `MaxHedgedAttempts = MaxAttempts - 1`), `int DelayMilliseconds { get; init; } = 1000` and `bool HedgeOnTimeout { get; init; } = true`. No constructor parameters: no guard.
-2. `src/Encina.Resilience/Hedging/HedgingOptions.cs`: `public sealed class HedgingOptions` with `int MaxHedgedAttempts` (1 to 9, default 1), `TimeSpan DelayBetweenAttempts` (default 1 s; zero hedges all attempts at once, `Timeout.InfiniteTimeSpan` hedges only after a failure), `bool HedgeOnTimeout`, `Func<EncinaError, bool>? ShouldHedge` (narrows the classifier, choice 5). Includes `static HedgingOptions From(HedgingAttribute attribute)` for the R3 precedence merge (options for a type > attribute > defaults).
+1. `src/Encina.Resilience/Hedging/HedgingAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class HedgingAttribute : Attribute` with `int MaxAttempts { get; init; } = 2` (total attempts including the primary, so `MaxHedgedAttempts = MaxAttempts - 1`), `int DelayMilliseconds { get; init; } = 1000` and `bool HedgeOnTimeout { get; init; } = true`. No constructor parameters: no guard. The defaults are the smallest that hedge at all (one extra attempt, after one second, the issue sample's delay); the issue sample's `MaxAttempts = 3` is a per-type choice, not a default. `HedgeOnTimeout = true` is the issue sample's value. Hedging stays opt-in: the attribute or `For<T>().Hedging(...)` must be present.
+2. `src/Encina.Resilience/Hedging/HedgingOptions.cs`: `public sealed class HedgingOptions` with `int MaxHedgedAttempts` (1 to 9, default 1), `TimeSpan DelayBetweenAttempts` (default 1 s; zero hedges all attempts at once, `Timeout.InfiniteTimeSpan` hedges only after a failure), `bool HedgeOnTimeout`, `Func<EncinaError, bool>? ShouldHedge` (narrows the classifier, choice 5). Includes `public static HedgingOptions From(HedgingAttribute attribute)` for the R3 precedence merge (options for a type > attribute > defaults); it rejects a null attribute with `ArgumentNullException.ThrowIfNull` and has a guard test.
 3. `src/Encina.Resilience/Hedging/IHedgingActionGenerator.cs`: `public interface IHedgingActionGenerator<TRequest, TResponse> where TRequest : IRequest<TResponse>` with `ValueTask<HedgedAction<TResponse>> GenerateAsync(HedgingActionContext<TRequest, TResponse> context, CancellationToken cancellationToken)`.
 4. `src/Encina.Resilience/Hedging/HedgingActionContext.cs`: `public sealed record HedgingActionContext<TRequest, TResponse>(TRequest Request, IRequestContext RequestContext, int AttemptNumber)` and `public readonly record struct HedgedAction<TResponse>` with `static HedgedAction<TResponse> UsePrimary` and `static HedgedAction<TResponse> Run(Func<CancellationToken, ValueTask<Either<EncinaError, TResponse>>> action)`. The constructor of the context validates `Request` and `RequestContext` (`ArgumentNullException.ThrowIfNull`).
 5. `src/Encina.Resilience/Hedging/HedgingOptionsValidator.cs`: `internal sealed class HedgingOptionsValidator` that returns the startup failures of choices 3 and 4 and the range checks (`MaxHedgedAttempts` in 1 to 9, `DelayBetweenAttempts` not negative unless infinite, a command type, a type that also has retry). It throws `InvalidOperationException` naming the request type and the rule, never the message of an error (registration errors, ADR-050).
+6. `src/Encina.Resilience/Encina.Resilience.csproj`: `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests` so the internal validator, factory and telemetry are tested directly. The foundation issue lists it as an acceptance item; if it is missing when PR-1 is implemented, PR-1 adds it (counted in the file table).
 
 </details>
 
@@ -293,7 +295,7 @@ REFERENCE FILES: src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina
 CONTEXT: Phases 1 and 2 are merged in the same pull request. The foundation exposes the For<T>() builder and a startup validation hook.
 TASK: Add HedgingBuilderExtensions, wire the validator into the startup validation and write the registration test that builds the provider with ValidateOnBuild and ValidateScopes (AGENTS.md section 3, registration completeness).
 KEY RULES: guards on every public parameter; precedence options for a type > attribute > defaults, covered by a test; no scoped service injected into a singleton; no AddEncina* method adds a service without its options.
-REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTests/Polly/ErrorClassifierRegistrationTests.cs
+REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTests/Recoverability/ErrorClassifierRegistrationTests.cs
 ```
 
 </details>
@@ -303,7 +305,7 @@ REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTe
 <details>
 <summary>Tasks</summary>
 
-1. Idempotency (function 9): the validator rejects `[Hedging]` on an `ICommand<>` (choice 4); an unprioritized request needs nothing else.
+1. Idempotency (function 9): the rule of choice 4 is implemented in `HedgingOptionsValidator` in Phase 1 (PR-1); this phase adds its integration test through the real compiler (an `ICommand<>` with `[Hedging]` fails `ValidateOnBuild`).
 2. Multi-tenancy (function 10): hedging is tenant-independent; the winner counter and span events add the tenant tag only when `MultiTenancyMarker` is registered (ADR-054 D4); no key carries a tenant segment, so the reserved `default` segment does not apply.
 3. A request without the Resilience-stage context (a direct pipeline run in a test) does not hedge and runs once (no context, no per-call generator).
 
@@ -314,7 +316,7 @@ REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTe
 
 ```text
 CONTEXT: The hedging strategy and registration are in place.
-TASK: Add the command rejection to HedgingOptionsValidator, the tenant tag rule to the telemetry calls and the no-context path.
+TASK: Add the integration test of the command rejection and the no-context path (single execution); the tenant tag rule is applied in Phase 5.
 KEY RULES: tenant tag only when MultiTenancyMarker is registered; never EncinaError.Message in logs or tags; fail toward a single execution, never toward duplicated side effects.
 REFERENCE FILES: src/Encina/Abstractions/MultiTenancyMarker.cs, src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs
 ```
@@ -326,9 +328,9 @@ REFERENCE FILES: src/Encina/Abstractions/MultiTenancyMarker.cs, src/Encina.Cachi
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: add `/// <summary>Encina.Resilience — hedging strategy.</summary> public static readonly (int Min, int Max) ResilienceHedging = (900, 905);` and map `["Encina.Resilience"]` to include `nameof(EventIdRanges.ResilienceHedging)` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (`AssemblyRanges`).
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: add `/// <summary>Encina.Resilience — hedging strategy.</summary> public static readonly (int Min, int Max) ResilienceHedging = (900, 905);`, its line in `src/Encina/PublicAPI.Unshipped.txt` (via `mechanical-fixer`), and in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (`AssemblyRanges`) create the `["Encina.Resilience"]` entry with `nameof(EventIdRanges.ResilienceHedging)`, or add the name to the entry another plan of the family created first (an entry holds several ranges). The ids are emitted only by the `Encina.Resilience` assembly.
 2. `src/Encina.Resilience/Diagnostics/HedgingLogMessages.cs`: `[LoggerMessage]` definitions 900 `HedgeStarted` (Debug: request type, attempt), 901 `HedgeWinner` (Debug: request type, winning attempt), 902 `HedgingSkippedNoContext` (Debug), 903 `HedgedAttemptFailed` (Debug: request type, error code only, never the message), 904 `HedgingGeneratorFailed` (Warning: request type, exception through `ForLogging()`). 905 stays spare. XML docs name the range.
-3. `HedgingTelemetry` (internal, uses the holder class of #728): `Counter<long>` `encina.resilience.hedging.winner`, an `Activity` event `hedging.winner` on the request span (`ActivitySource("Encina.Resilience")`), and the `OnHedging` callback that logs 900.
+3. `HedgingTelemetry` (internal; takes the `Meter` and `ActivitySource` from the holder that #728's choice 1 settles, never creating its own): the winner counter of choice 8 (name per that choice), an `Activity` event `hedging.winner` on the request span, and the `OnHedging` callback that logs 900 (this edits `HedgingStrategyFactory.cs`, a file of PR-1).
 
 </details>
 
@@ -350,7 +352,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <summary>Tasks</summary>
 
 1. Unit (`tests/Encina.UnitTests/Resilience/Hedging/`): `HedgingStrategyFactoryTests` with `FakeTimeProvider` and NSubstitute downstream: a slow primary starts a hedge after the delay and the faster hedge wins; a fast primary starts no hedge; a `Permanent` `Left` is returned once; a transient `Left` starts the next attempt at once; a timeout result hedges only with `HedgeOnTimeout`; `ShouldHedge = false` narrows; all attempts failing returns the last `Left`; the losing attempt's token is cancelled (assert `IsCancellationRequested`); the custom generator's alternative delegate runs for attempt 1 and `UsePrimary` re-runs the continuation. `HedgingOptionsValidatorTests`: command type, retry plus hedging, ranges. `HedgingOptionsTests`: attribute-to-options precedence.
-2. Guard (`tests/Encina.GuardTests/Resilience/Hedging/HedgingGuardTests.cs`): `HedgingBuilderExtensions` null builder and null `configure`; `HedgingActionContext` null request and null request context; `HedgedAction.Run` null action; a nullable `ShouldHedge` accepts null (valid result, not an exception).
+2. Guard (`tests/Encina.GuardTests/Resilience/Hedging/HedgingGuardTests.cs`, PR-1; the extension-method guards are added in PR-2): `HedgingOptions.From` null attribute; `HedgingBuilderExtensions` null builder and null `configure`; `HedgingActionContext` null request and null request context; `HedgedAction.Run` null action; a nullable `ShouldHedge` accepts null (valid result, not an exception).
 3. Contract (`tests/Encina.ContractTests/Resilience/HedgingActionGeneratorContractTests.cs`): `IHedgingActionGenerator<,>` implementations return `UsePrimary` or an action and never throw for a valid context; run against two real implementations (the test doubles of the unit tests).
 4. DI (`tests/Encina.UnitTests/Resilience/Hedging/HedgingRegistrationTests.cs`): a provider with `ValidateOnBuild` and `ValidateScopes` resolves a hedged request through the real compiler.
 5. Property: not applicable (Polly owns winner selection); justification in the PR description. Integration: not applicable beyond the DI test (no persistence or transport); the foundation owns the WireMock slice of `Encina.Http`. Load: `tests/Encina.LoadTests/Resilience/Hedging.md` justification (the strategy adds no shared mutable state; Polly owns concurrency). Benchmark: `tests/Encina.BenchmarkTests/Encina.Resilience.Benchmarks/Hedging.md` justification (the per-call allocation of the compiled pipeline is measured by the benchmark of #728, ADR-055 R5).
@@ -431,24 +433,26 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Resilience/README.md, .claude
 
 ### Estimated File Count
 
-| Category | PR-1 | PR-2 | Notes |
-|----------|------|------|-------|
-| Production | 7 | 3 | PR-1: attribute, options, generator interface, context and action, validator, factory, builder extensions. PR-2: `HedgingLogMessages.cs`, `HedgingTelemetry.cs`, `EventIdRanges.cs` |
-| Tests | 5 | 3 | PR-1: factory, validator and options, registration, guard, contract. PR-2: telemetry, log messages and EventId map (`EncinaEventIdAllocationTests.cs` modified), the load and benchmark justification files (2 `.md`) counted below |
-| Metadata and docs | 3 | 6 | PR-1: `PublicAPI.Unshipped.txt`, manifest, changelog fragment. PR-2: `PublicAPI.Unshipped.txt`, manifest, README, `docs/features/resilience-hedging.md`, 2 justification `.md` |
-| **Total** | **15** | **12** | PR-1 about 1,150 lines, PR-2 about 450 lines; no `ProjectReference`, DI test double or interface-implementer change |
+| Category | PR-1 | PR-2 | PR-3 | Files |
+|----------|------|------|------|-------|
+| Production | 7 | 1 | 5 | PR-1: `HedgingAttribute`, `HedgingOptions`, `IHedgingActionGenerator`, `HedgingActionContext`, `HedgingOptionsValidator`, `HedgingStrategyFactory`, `HedgingPropertyKeys`. PR-2: `HedgingBuilderExtensions`. PR-3: `HedgingLogMessages`, `HedgingTelemetry`, `HedgingStrategyFactory` (modified), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
+| Project edits | 1 | 0 | 0 | PR-1: `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if the foundation left it out) |
+| Tests | 4 | 2 | 2 | PR-1: factory, validator, options, guard. PR-2: registration (DI), contract. PR-3: telemetry and log messages test, `EncinaEventIdAllocationTests.cs` (modified) |
+| Metadata and docs | 2 | 3 | 6 | PR-1: `PublicAPI.Unshipped.txt`, manifest. PR-2: `PublicAPI.Unshipped.txt`, manifest, changelog fragment. PR-3: `PublicAPI.Unshipped.txt`, manifest, README, `docs/features/resilience-hedging.md`, 2 justification `.md` |
+| **Total** | **14** | **6** | **13** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or interface-implementer change |
 
-PR-1 sits exactly at the 15-file limit: if the foundation leaves a required project edit (a `ProjectReference` from a test project), move `HedgingActionGeneratorContractTests.cs` to PR-2.
+The manifest of each PR carries the rows of the files that PR adds, with the targets below, each reached by tests of the same PR.
 
 Per-file coverage targets (new files; baseline: none of the files exists on `origin/main`, `git grep -i hedg -- src` is empty):
 
 | File | Unit | Guard | Contract | Property | Integration | One-sentence justification |
 |------|------|-------|----------|----------|-------------|----------------------------|
 | `Hedging/HedgingAttribute.cs` | 95 | 0 | 0 | 0 | 0 | An attribute with init properties has no executable branch beyond the defaults, read by the options tests; no parameters to guard |
-| `Hedging/HedgingOptions.cs` | 95 | 0 | 0 | 0 | 0 | The merge and range logic is fully covered by value tests; no constructor parameters |
+| `Hedging/HedgingOptions.cs` | 95 | 100 | 0 | 0 | 0 | The merge and range logic is covered by value tests; the guard test sends a null attribute to `From` (PR-1) |
 | `Hedging/IHedgingActionGenerator.cs` | 0 | 0 | 0 | 0 | 0 | An interface has no executable code; the contract tests exercise implementations |
 | `Hedging/HedgingActionContext.cs` | 95 | 100 | 0 | 0 | 0 | Two guarded constructor parameters and two factory methods, all reached by unit and guard tests |
-| `Hedging/HedgingOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Each rule has one failing and one passing test; an internal type without `InternalsVisibleTo` for `Encina.GuardTests` cannot receive guard tests |
+| `Hedging/HedgingOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Each rule has one failing and one passing test; the type is internal and reached through the `InternalsVisibleTo` of Phase 1 task 6; it takes no validated public parameters, so no guard flag |
+| `Hedging/HedgingPropertyKeys.cs` | 90 | 0 | 0 | 0 | 0 | Static keys read by the factory tests (PR-1) |
 | `Hedging/HedgingStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Every predicate branch and the generator path are driven with a fake clock; internal, so no guard flag |
 | `Hedging/HedgingBuilderExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Public extension with two guarded parameters; the registration test reaches the body |
 | `Diagnostics/HedgingLogMessages.cs` | 80 | 0 | 0 | 0 | 0 | Generated partial methods run through the strategy tests with a capturing logger |
@@ -510,5 +514,5 @@ REFERENCE FILES: src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #136.
-2. When #136 is picked up, re-check the choices against today's code (whether the foundation and R6 landed) and ask the maintainer about the Dilemmas (choices 1, 3, 4, 5 and 7).
-3. Brief a worker for PR-1 (Phases 1 to 3 with their tests, 15 files), then PR-2, after the foundation and R6 are merged.
+2. When #136 is picked up, re-check the choices against today's code (whether the foundation and R6 landed) and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7 and 8).
+3. Brief a worker for PR-1 (Phases 1 and 2 with their tests, 14 files), then PR-2 and PR-3, after the foundation and R6 are merged.
