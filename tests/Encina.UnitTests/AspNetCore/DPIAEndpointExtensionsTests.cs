@@ -720,6 +720,118 @@ public sealed class DPIAEndpointExtensionsTests
         return service;
     }
 
+    // ── Assess: existing assessment, template lookup and evaluation ─────────
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    private static IDPIAService CreateExistingAssessmentService(Either<EncinaError, DPIAResult> evaluation)
+    {
+        var service = CreateService();
+        service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, DPIAReadModel>>(
+                Right<EncinaError, DPIAReadModel>(
+                    new DPIAReadModel { Id = Guid.NewGuid(), RequestTypeName = "System.String" })));
+        service.EvaluateAssessmentAsync(Arg.Any<Guid>(), Arg.Any<DPIAContext>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(evaluation));
+        return service;
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    private static IDPIATemplateProvider CreateTemplateProviderFor(Either<EncinaError, DPIATemplate> template)
+    {
+        var provider = CreateTemplateProvider();
+        provider.GetTemplateAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult(template));
+        return provider;
+    }
+
+    private static DPIAResult SampleResult() => new()
+    {
+        OverallRisk = RiskLevel.Low,
+        IdentifiedRisks = [],
+        ProposedMitigations = [],
+        RequiresPriorConsultation = false,
+        AssessedAtUtc = DateTimeOffset.UnixEpoch,
+    };
+
+    private static DPIATemplate SampleTemplate() => new()
+    {
+        Name = "Template",
+        Description = "Template",
+        ProcessingType = "Profiling",
+        Sections = [],
+        RiskCategories = [],
+        SuggestedMitigations = [],
+    };
+
+    [Fact]
+    public async Task Assess_ExistingAssessmentWithTemplate_EvaluatesAndReturns200()
+    {
+        var service = CreateExistingAssessmentService(Right<EncinaError, DPIAResult>(SampleResult()));
+        await using var harness = await CreateHarnessAsync(
+            service, CreateTemplateProviderFor(Right<EncinaError, DPIATemplate>(SampleTemplate())));
+
+        using var response = await harness.Client.PostAsJsonAsync(
+            new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative),
+            new AssessDPIARequest { ProcessingType = "Profiling", DataCategories = ["health"], HighRiskTriggers = ["scale"] });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        await service.DidNotReceive().CreateAssessmentAsync(
+            Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Assess_TemplateNotFound_IsNonFatal()
+    {
+        var service = CreateExistingAssessmentService(Right<EncinaError, DPIAResult>(SampleResult()));
+        await using var harness = await CreateHarnessAsync(
+            service, CreateTemplateProviderFor(Left<EncinaError, DPIATemplate>(EncinaErrors.Create("test.template", ErrorCategory.NotFound, "none"))));
+
+        using var response = await harness.Client.PostAsJsonAsync(
+            new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative),
+            new AssessDPIARequest { ProcessingType = "Profiling" });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Assess_EvaluationFailure_AnswersTheCategoryStatus()
+    {
+        var service = CreateExistingAssessmentService(
+            Left<EncinaError, DPIAResult>(EncinaErrors.Create("test.evaluation", ErrorCategory.RateLimited, "slow down")));
+        await using var harness = await CreateHarnessAsync(service);
+
+        using var response = await harness.Client.PostAsync(
+            new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative), content: null);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.TooManyRequests);
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Reliability", "CA2012:Use ValueTasks correctly",
+        Justification = "NSubstitute mock setup pattern for ValueTask-returning members.")]
+    [Fact]
+    public async Task Assess_CreateFailure_AnswersTheCategoryStatus()
+    {
+        var service = CreateService();
+        service.GetAssessmentByRequestTypeAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, DPIAReadModel>>(
+                Left<EncinaError, DPIAReadModel>(DPIAErrors.AssessmentNotFound(Guid.Empty))));
+        service.CreateAssessmentAsync(
+                Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(ValueTask.FromResult<Either<EncinaError, Guid>>(
+                Left<EncinaError, Guid>(EncinaErrors.Create("test.create", ErrorCategory.Unavailable, "down"))));
+        await using var harness = await CreateHarnessAsync(service);
+
+        using var response = await harness.Client.PostAsync(
+            new Uri("/api/dpia/assessments/System.String/assess", UriKind.Relative), content: null);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+    }
+
     // ── Telemetry status equals the response status ─────────────────────────
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
