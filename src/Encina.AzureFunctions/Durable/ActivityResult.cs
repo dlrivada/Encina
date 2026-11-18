@@ -52,7 +52,7 @@ public sealed class ActivityResult<T>
     public string? ErrorMessage { get; set; }
 
     /// <summary>
-    /// Gets or sets the category of the error (<see cref="ErrorCategory.Internal"/> when unset or succeeded),
+    /// Gets the category of the error (<see cref="ErrorCategory.Internal"/> when unset or succeeded),
     /// so a host reading the result at the other side of the Durable boundary answers the same status.
     /// </summary>
     [JsonPropertyName("errorCategory")]
