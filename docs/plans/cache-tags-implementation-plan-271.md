@@ -2,7 +2,7 @@
 
 > **Issue**: [#271](https://github.com/dlrivada/Encina/issues/271)
 > **Type**: Feature
-> **Complexity**: High (6 pull requests of 11, 7, 6, 15, 15 and 13 files)
+> **Complexity**: High (6 pull requests of 11, 7, 6, 15, 15 and 14 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (b4da9e482):
+Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (f484cdf4f):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -107,7 +107,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 ### Rationale
 
 - The worker verifies that Valkey, Dragonfly, Garnet and KeyDB each support `MULTI`/`EXEC`, `SADD`, `PEXPIRE ... GT`, `RENAME`, `SSCAN` and `UNLINK` against their documentation (and, where a container image is available, against the running server) before the PR and records the result; an unsupported command, notably `GT` on an older server, is a finding for a follow-up issue file, not a silent weaker fallback.
-- Option B wins if Memcached (#277) must be served by the same technique or tag fan-out is very large.
+- Option B wins if Memcached (#277) must be served by the same technique or tag fan-out is very large. Expected case under option A: KeyDB is based on Redis 6, which has no `PEXPIRE ... GT`, so KeyDB is the provider the verification is expected to flag (AGENTS.md section 5 asks for consistency across all 8 providers, so a flagged provider gets a follow-up issue file and the maintainer decides between option B for it and a minimum KeyDB version).
 - Class: Dilemma
 
 </details>
@@ -253,7 +253,7 @@ Encina is a .NET 10 / C# 14 library, pre-1.0. Issue #271 adds tags to the cache 
 (src/Encina.Caching.Memory) tracks keys in _keyTracker and cleans it in a post-eviction callback; its GlobToRegex is case-insensitive.
 
 TASK:
-Add CacheTag (internal, src/Encina.Caching/Tags) and the four tag methods as PUBLIC methods of MemoryCacheProvider (not on ICacheProvider yet);
+Add CacheTag (a PUBLIC static class, src/Encina.Caching/Tags) and the four tag methods as PUBLIC methods of MemoryCacheProvider (not on ICacheProvider yet);
 write the unit and guard tests; ask mechanical-fixer for PublicAPI.Unshipped.txt, both manifests and the changelog fragment.
 
 KEY RULES:
@@ -428,7 +428,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 5 holds exactly these 15 files (it needs #266 PR 3 for `CachePatternLog` and #266 PR 4 for `CachePatternMetrics`, which is created there):
+PR 5 holds exactly these 15 files (it needs #266 PR 3 for `CachePatternLog` and #266 PR 4 for `CachePatternMetrics`, which is created there; it edits `QueryCachingPipelineBehavior.cs`, `CacheAttribute.cs` and `CachingOptions.cs` like #266, #267 and #268, and merges last in that order, after #268 PR 2, because the store path composes with fail-safe):
 
 | # | File | Change |
 |---|------|--------|
@@ -450,7 +450,7 @@ PR 5 holds exactly these 15 files (it needs #266 PR 3 for `CachePatternLog` and 
 
 Tasks:
 
-1. **Attributes:** `CacheAttribute.Tags` (`string[]`, default empty) and `[CacheTag(template)]` (`AllowMultiple = true`, class target; the template accepts `{Name}` for a request property and `{Response.Name}` for a property of the response value). `CachingOptions`: `MaxTagsPerEntry` 16 (setter rejects below 1), `MaxTagLength` 128 (rejects below 1), `TagInvalidationChannel` `"sm:cache:invalidate:tags"`; all three copied in `AddEncinaCaching`.
+1. **Attributes:** `CacheAttribute.Tags` (`string[]`, default empty) and `[CacheTag(template)]` (`AllowMultiple = true`, class target; the constructor does `ArgumentException.ThrowIfNullOrWhiteSpace(template)`, so a guard test for null, empty and whitespace is owed and lives in the options guard file of this PR; the template accepts `{Name}` for a request property and `{Response.Name}` for a property of the response value). `CachingOptions`: `MaxTagsPerEntry` 16 (setter rejects below 1), `MaxTagLength` 128 (rejects below 1), `TagInvalidationChannel` `"sm:cache:invalidate:tags"`; all three copied in `AddEncinaCaching`.
 2. **`CacheTagResolver`:** per closed generic, a static table of compiled property accessors built once; `Resolve(request, response, tenantId, varyByTenant)` returns the qualified tags or a failure reason (unresolved placeholder, invalid name, too many) without any value in the reason; static tags are validated at the first use per type (Design Choice 5).
 3. **Behavior:** after a `Right`, resolve the tags (the response exists only now, so dynamic tags need the response); an empty tag list uses `SetAsync` exactly as today; a failure reason logs 478 or 479 (placeholder or limit only), counts it and returns the response uncached; otherwise `SetWithTagsAsync` with the same TTL logic (jitter and fail-safe from #266 and #268 compose by taking the same effective duration). The tenant used is the one already used for the key; a bypassed request never reaches the tag path.
 4. **Tests (unit):** static tags stored qualified by tenant; two tenants never share a tag; `VaryByTenant = false` gives `g:`; dynamic tags from the request and the response; a null or missing placeholder leaves the entry uncached and the response returned; more than `MaxTagsPerEntry`; a tag with a glob character; `SlidingExpiration` with tags throws at resolution; no tags keeps the old path (all existing behavior tests stay green); options defaults and DI copy. **Guard tests:** `CachingOptionsTagGuardTests` (file 12a): `MaxTagsPerEntry` and `MaxTagLength` below 1 throw `ArgumentOutOfRangeException`, valid values are stored, `TagInvalidationChannel` rejects null or whitespace; the attribute properties have no validation, and `CacheTagResolver` is internal without `InternalsVisibleTo` for `Encina.GuardTests`.
@@ -488,7 +488,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 6 holds exactly these 13 files (the contract test lands here, so the Memory and Hybrid manifests with the contract targets are edited here):
+PR 6 holds exactly these 14 files (the contract test lands here, so the Memory and Hybrid manifests with the contract targets are edited here):
 
 | # | File | Change |
 |---|------|--------|
@@ -505,6 +505,7 @@ PR 6 holds exactly these 13 files (the contract test lands here, so the Memory a
 | 11 | `tests/Encina.UnitTests/Caching/InvalidatesCacheAttributeTests.cs` | modify |
 | 12 | `.github/coverage-manifest/Encina.Caching.Memory.json` | modify (`mechanical-fixer`: contract 60) |
 | 13 | `.github/coverage-manifest/Encina.Caching.Hybrid.json` | modify (`mechanical-fixer`: contract 60) |
+| 14 | `tests/Encina.ContractTests/Encina.ContractTests.csproj` | modify (ProjectReference to `Encina.Caching.Memory` and `Encina.Caching.Hybrid`; today it references `Encina.Caching` and `Encina.Testing.Fakes` only) |
 
 Tasks:
 
@@ -546,24 +547,23 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **No new error code**: nothing returns a `Left` created here (invalid input on the public provider methods is `ArgumentException`; attribute errors are `InvalidOperationException`), so there is no ADR-062 category to name. **EventIds:** behavior 478-484 (`CachingPatterns`), providers 3556-3558, 3606-3608 and 3657-3659 (their own ranges, already registered).
+1. **No new error code**: nothing returns a `Left` created here (invalid input on the public provider methods is `ArgumentException`; attribute errors are `InvalidOperationException`), so there is no ADR-062 category to name. **EventIds:** behavior 478-484 (`CachingPatterns`), providers 3565-3567 (Memory), 3616-3618 (Redis) and 3657-3659 (Hybrid), in their own ranges, already registered; 3556-3558 and 3606-3608 belong to the lock providers of the same assemblies and are not used.
 2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR named in its justification, never later (#1762); existing targets are never lowered:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Caching/Tags/CacheTag.cs` | 100 | 0 | 0 | 0 | Pure helpers driven by a hostile-id table; internal without `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Tags/CacheTagResolver.cs` | 95 | 0 | 0 | 0 | Every failure reason and the accessor cache are unit tested; internal |
 | `Encina.Caching.Memory/MemoryCacheProvider.cs` | keeps 95 | keeps 20, set in PR 1 | 60 (set in PR 6) | 0 | PR 1 adds the unit and guard tests of the new methods and measures the guard value (the manifest guard value is raised only to what PR 1 measures); the contract flag is set by PR 6, which carries the contract test and the Memory manifest edit |
 | `Encina.Caching.Redis/RedisCacheProvider.cs` | keeps 95 | keeps 24, raise to what PR 2 measures | 0 | 50 | Commands are unit tested with mocks; the integration test of PR 2 runs the real server, so the integration target is set in PR 2 |
 | `Encina.Caching.Hybrid/HybridCacheProvider.cs` | keeps 98 | keeps 95 | 60 (set in PR 6) | 0 | Existing targets kept by PR 3's tagging and guard tests; the contract flag is set by PR 6 with the Hybrid manifest edit |
 | `Encina.Caching/Tags/CacheTag.cs` | 100 | 90 | 0 | 0 | Set in PR 1: public pure helpers driven by a hostile-id table and by `CacheTagGuardTests` |
 | `Encina.Caching/Configuration/CachingOptions.cs` | keeps | keeps 85, raise to 90 | 0 | 0 | Set in PR 5 with `CachingOptionsTagGuardTests` (three validated setters) |
-| `Encina.Caching/ServiceCollectionExtensions.cs` | keeps | keeps | 0 | 0 | Three copy lines executed by the DI test of PR 5 |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | 90 | 30 | 0 | 0 | The manifest has no target today (the first is set by #266 and kept here); the DI tests of PR 5 run the three copy lines and the guard flag reaches the null-services check |
 | `Encina.Caching/Attributes/CacheAttribute.cs`, `CacheTagAttribute.cs`, `InvalidatesCacheAttribute.cs` | 100 | 0 | 0 | 0 | Auto-properties and the `KeyPattern` accessor (PR 6) are executed by the attribute and behavior tests; no validated parameter |
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 0 | Never lowered; the tag path is unit tested |
 | `Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs` | keeps 100 | keeps 28 | 0 | 40 | Tag invalidation unit tested; the integration flag runs the end-to-end sequence |
 | `Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs` | keep | keep | 0 | 0 | Four forwarding methods covered by the decorator tests of PR 4; no new argument check |
-| `Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | keeps, plus 95 for the new members | keeps, plus 60 | 0 | 0 | Set in PR 4 with the new unit and guard test files of the fake |
+| `Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | set to the number PR 4 measures (expected near 25) | set to the number PR 4 measures (expected near 10) | 0 | 0 | The manifest has no target for the file today and targets are per whole file (about 422 lines and 20 public members); the PR 4 tests cover the four new members only, so the worker records the measured values with this reason and the later issue that tests the fake's other members raises them (an issue file is written at that point if none exists); the PR 6 contract test raises the unit flag further |
 | `Abstractions/ICacheProvider.cs`, attributes, `CachePatternLog.Tags.cs`, `CachePatternMetrics.Tags.cs` | 0 or 90 | 0 | 0 | 0 | Interface and attributes have no executable lines; generated log bodies run in the behavior tests |
 
    The worker measures each flag with `coverage-report.cs` and records the numbers in each PR description.
@@ -576,10 +576,10 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-The six code PRs are merged.
+The six code PRs are merged; each carried its own per-flag targets.
 
 TASK:
-Measure per-flag coverage of the new and touched files with coverage-report.cs; record the targets above through mechanical-fixer; run
+Verify, with coverage-report.cs, that each PR's measured numbers reach the targets above; fix any gap through mechanical-fixer in a small PR; run
 --check-justifications.
 
 KEY RULES:
@@ -630,11 +630,11 @@ REFERENCE FILES:
 
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
-| Production code | 6 | 12 | New: `CacheTag`, `CacheTagResolver`, `CacheTagAttribute`, two partial files; modified: three providers, interface, decorator, fake, two attributes, two behaviors, options, DI, csproj |
+| Production code | 6 | 12 | New: `CacheTag`, `CacheTagResolver`, `CacheTagAttribute`, two partial files; modified: three providers, interface, decorator, fake, two attributes, two behaviors, options, DI; the only csproj edit is the contract test project's references (PR 6) |
 | Tests | 10 | 12 | New: helper, resolver, provider, guard, contract, integration and behavior tests; modified: five doubles, hybrid, decorator, fake, options, attribute tests |
 | Documentation | 0 | 1 | `docs/features/query-caching.md` |
 | Configuration | 6 | 12 | Six changelog fragments; manifests of Caching, Memory, Redis, Hybrid, OpenTelemetry, Fakes; five `PublicAPI.Unshipped.txt` files |
-| **Total** | **22** | **37** | 6 pull requests: 11, 7, 6, 15, 15 and 13 files, each at most 15 files and 1500 lines |
+| **Total** | **22** | **37** | 6 pull requests: 11, 7, 6, 15, 15 and 14 files, each at most 15 files and 1500 lines |
 
 ---
 
