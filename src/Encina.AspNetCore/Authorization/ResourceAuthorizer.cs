@@ -77,7 +77,8 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
     private static EncinaError Unauthenticated(object resource, string policy) =>
         EncinaErrors.Create(
             EncinaErrorCodes.AuthorizationUnauthenticated,
-            "Resource authorization requires an authenticated request identity.",
+            category: ErrorCategory.Unauthenticated,
+            message: "Resource authorization requires an authenticated request identity.",
             details: new Dictionary<string, object?>
             {
                 ["resourceType"] = resource.GetType().FullName,
@@ -87,7 +88,8 @@ internal sealed class ResourceAuthorizer : IResourceAuthorizer
     private static EncinaError Denied(object resource, string policy, AuthorizationResult result) =>
         EncinaErrors.Create(
             EncinaErrorCodes.AuthorizationResourceDenied,
-            $"Resource authorization denied. Policy '{policy}' was not satisfied for resource of type '{resource.GetType().Name}'.",
+            category: ErrorCategory.Forbidden,
+            message: $"Resource authorization denied. Policy '{policy}' was not satisfied for resource of type '{resource.GetType().Name}'.",
             details: new Dictionary<string, object?>
             {
                 ["resourceType"] = resource.GetType().FullName,

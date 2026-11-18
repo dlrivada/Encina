@@ -200,8 +200,7 @@ public static class DPIAEndpointExtensions
             },
             Left: error =>
             {
-                RecordEndpointFailure(activity, startedAt, "list", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "list", error, httpContext, logger);
             });
     }
 
@@ -239,8 +238,7 @@ public static class DPIAEndpointExtensions
                     return AssessmentNotFound(id);
                 }
 
-                RecordEndpointFailure(activity, startedAt, "get", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "get", error, httpContext, logger);
             });
     }
 
@@ -306,8 +304,7 @@ public static class DPIAEndpointExtensions
 
             if (!createdOk)
             {
-                RecordEndpointFailure(activity, startedAt, "assess", StatusCodes.Status500InternalServerError, logger);
-                return ((EncinaError)createResult).ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "assess", (EncinaError)createResult, httpContext, logger);
             }
         }
 
@@ -343,8 +340,7 @@ public static class DPIAEndpointExtensions
             },
             Left: error =>
             {
-                RecordEndpointFailure(activity, startedAt, "assess", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "assess", error, httpContext, logger);
             });
     }
 
@@ -394,8 +390,7 @@ public static class DPIAEndpointExtensions
                     return AssessmentNotFound(id);
                 }
 
-                RecordEndpointFailure(activity, startedAt, "approve", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "approve", error, httpContext, logger);
             });
     }
 
@@ -443,8 +438,7 @@ public static class DPIAEndpointExtensions
                     return AssessmentNotFound(id);
                 }
 
-                RecordEndpointFailure(activity, startedAt, "reject", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "reject", error, httpContext, logger);
             });
     }
 
@@ -471,8 +465,7 @@ public static class DPIAEndpointExtensions
             },
             Left: error =>
             {
-                RecordEndpointFailure(activity, startedAt, "templates", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "templates", error, httpContext, logger);
             });
     }
 
@@ -499,8 +492,7 @@ public static class DPIAEndpointExtensions
             },
             Left: error =>
             {
-                RecordEndpointFailure(activity, startedAt, "expired", StatusCodes.Status500InternalServerError, logger);
-                return error.ToProblemDetails(httpContext);
+                return FailWith(activity, startedAt, "expired", error, httpContext, logger);
             });
     }
 
@@ -558,9 +550,23 @@ public static class DPIAEndpointExtensions
     private static IResult DenyUnauthenticated(
         Activity? activity, long startedAt, string endpointName, HttpContext httpContext, ILogger logger)
     {
-        RecordEndpointFailure(activity, startedAt, endpointName, StatusCodes.Status401Unauthorized, logger);
+        var error = EncinaErrors.Unauthenticated();
+        var statusCode = error.GetStatusCode();
+        RecordEndpointFailure(activity, startedAt, endpointName, statusCode, logger);
         logger.EndpointRequestDenied(endpointName, EncinaErrorCodes.AuthorizationUnauthenticated);
-        return EncinaErrors.Unauthenticated().ToProblemDetails(httpContext);
+        return error.ToProblemDetails(httpContext, statusCode);
+    }
+
+    /// <summary>
+    /// Answers a failed endpoint: the status comes from the error category once and feeds both the
+    /// failure telemetry and the Problem Details response, so the two cannot diverge.
+    /// </summary>
+    private static IResult FailWith(
+        Activity? activity, long startedAt, string endpointName, EncinaError error, HttpContext httpContext, ILogger logger)
+    {
+        var statusCode = error.GetStatusCode();
+        RecordEndpointFailure(activity, startedAt, endpointName, statusCode, logger);
+        return error.ToProblemDetails(httpContext, statusCode);
     }
 
     /// <summary>
