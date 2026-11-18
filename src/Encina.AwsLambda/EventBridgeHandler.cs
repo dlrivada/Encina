@@ -58,7 +58,10 @@ public static class EventBridgeHandler
         {
             if (eventBridgeEvent.Detail is null)
             {
-                var error = EncinaErrors.Create("eventbridge.detail_null", "EventBridge event detail is null");
+                var error = EncinaErrors.Create(
+                    "eventbridge.detail_null",
+                    category: ErrorCategory.InvalidRequest,
+                    "EventBridge event detail is null");
                 logger?.LogError("EventBridge event {Id} has null detail", eventBridgeEvent.Id);
                 return error;
             }
@@ -76,6 +79,21 @@ public static class EventBridgeHandler
 
             return result;
         }
+        catch (OperationCanceledException ex)
+        {
+            // A cancellation is never counted as a server fault (ADR-062).
+            logger?.LogWarning(
+                ex.ForLogging(),
+                "Processing of EventBridge event {Id} from source {Source} was cancelled",
+                eventBridgeEvent.Id,
+                eventBridgeEvent.Source);
+
+            return EncinaErrors.Create(
+                "eventbridge.processing_cancelled",
+                category: ErrorCategory.Cancelled,
+                "EventBridge event processing was cancelled",
+                ex);
+        }
         catch (Exception ex)
         {
             logger?.LogError(
@@ -86,6 +104,7 @@ public static class EventBridgeHandler
 
             return EncinaErrors.Create(
                 "eventbridge.processing_failed",
+                category: ErrorCategory.Internal,
                 $"Failed to process EventBridge event: {ex.Message}",
                 ex);
         }
@@ -131,7 +150,10 @@ public static class EventBridgeHandler
             var eventBridgeEvent = JsonSerializer.Deserialize<CloudWatchEvent<TDetail>>(eventJson, jsonOptions);
             if (eventBridgeEvent is null)
             {
-                return EncinaErrors.Create("eventbridge.deserialization_failed", "Failed to deserialize EventBridge event");
+                return EncinaErrors.Create(
+                    "eventbridge.deserialization_failed",
+                    category: ErrorCategory.InvalidRequest,
+                    "Failed to deserialize EventBridge event");
             }
 
             return await ProcessAsync(eventBridgeEvent, processEvent, logger);
@@ -139,7 +161,11 @@ public static class EventBridgeHandler
         catch (JsonException ex)
         {
             logger?.LogError(ex.ForLogging(), "Failed to deserialize EventBridge event JSON");
-            return EncinaErrors.Create("eventbridge.deserialization_failed", $"JSON deserialization failed: {ex.Message}", ex);
+            return EncinaErrors.Create(
+                "eventbridge.deserialization_failed",
+                category: ErrorCategory.InvalidRequest,
+                $"JSON deserialization failed: {ex.Message}",
+                ex);
         }
     }
 

@@ -43,7 +43,7 @@ public static class ApiGatewayResponseExtensions
     /// <typeparam name="T">The success value type.</typeparam>
     /// <param name="result">The Either result from an Encina operation.</param>
     /// <param name="successStatusCode">HTTP status code for success (default: 200).</param>
-    /// <param name="errorStatusCode">Optional HTTP status code for errors. If not provided, will be inferred from error code.</param>
+    /// <param name="errorStatusCode">Optional HTTP status code for errors. If not provided, the status of the error's category is used.</param>
     /// <returns>The API Gateway proxy response.</returns>
     /// <example>
     /// <code>
@@ -65,49 +65,31 @@ public static class ApiGatewayResponseExtensions
     /// Converts an EncinaError to an RFC 7807 Problem Details API Gateway response.
     /// </summary>
     /// <param name="error">The Encina error.</param>
-    /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
+    /// <param name="statusCode">Optional HTTP status code. If not provided, the status of the error's category is used.</param>
     /// <returns>The API Gateway proxy response with Problem Details.</returns>
     /// <remarks>
     /// <para>
-    /// Status codes are mapped from error codes:
+    /// The status is read from the error's <see cref="ErrorCategory"/> through <see cref="ErrorCategoryHttp"/> (ADR-062);
+    /// the error code text is never parsed. The title is the reason phrase of the status written. An explicit
+    /// <paramref name="statusCode"/> overrides the category's status.
     /// </para>
-    /// <list type="bullet">
-    /// <item><description><b>400 Bad Request</b>: validation.*, guard.validation_failed</description></item>
-    /// <item><description><b>401 Unauthorized</b>: encina.authorization.unauthenticated</description></item>
-    /// <item><description><b>403 Forbidden</b>: encina.authorization.* (every other authorization code)</description></item>
-    /// <item><description><b>404 Not Found</b>: *.not_found, encina.request.handler_missing</description></item>
-    /// <item><description><b>409 Conflict</b>: *.conflict, *.already_exists</description></item>
-    /// <item><description><b>500 Internal Server Error</b>: Default for unrecognized codes</description></item>
-    /// </list>
+    /// <para>
+    /// <c>Retry-After</c> is written for 429 and 503 when the error carries a retry delay, and
+    /// <c>WWW-Authenticate</c> for 401, as <see cref="ErrorCategoryHttp.GetResponseHeaders(EncinaError, int)"/> decides.
+    /// The error message is never written to the body.
+    /// </para>
     /// </remarks>
     public static APIGatewayProxyResponse ToProblemDetailsResponse(
         this EncinaError error,
         int? statusCode = null)
     {
-        var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
-
-        var problemDetails = new ProblemDetailsResponse
-        {
-            Status = effectiveStatusCode,
-            Title = GetTitle(effectiveStatusCode),
-            Detail = error.Message
-        };
-
-        // Add error code for client-side handling
-        var errorCode = error.GetCode().IfNone(string.Empty);
-        if (!string.IsNullOrEmpty(errorCode))
-        {
-            problemDetails.Extensions["errorCode"] = errorCode;
-        }
+        var (effectiveStatusCode, body, headers) = BuildProblemDetails(error, statusCode);
 
         return new APIGatewayProxyResponse
         {
             StatusCode = effectiveStatusCode,
-            Body = JsonSerializer.Serialize(problemDetails, JsonOptions),
-            Headers = new Dictionary<string, string>
-            {
-                [HeaderContentType] = MediaTypeProblemJson
-            }
+            Body = body,
+            Headers = headers
         };
     }
 
@@ -191,30 +173,49 @@ public static class ApiGatewayResponseExtensions
             },
             Left: error =>
             {
-                var effectiveStatusCode = errorStatusCode ?? MapErrorCodeToStatusCode(error);
-                var problemDetails = new ProblemDetailsResponse
-                {
-                    Status = effectiveStatusCode,
-                    Title = GetTitle(effectiveStatusCode),
-                    Detail = error.Message
-                };
-
-                var errorCode = error.GetCode().IfNone(string.Empty);
-                if (!string.IsNullOrEmpty(errorCode))
-                {
-                    problemDetails.Extensions["errorCode"] = errorCode;
-                }
+                var (effectiveStatusCode, body, headers) = BuildProblemDetails(error, errorStatusCode);
 
                 return new APIGatewayHttpApiV2ProxyResponse
                 {
                     StatusCode = effectiveStatusCode,
-                    Body = JsonSerializer.Serialize(problemDetails, JsonOptions),
-                    Headers = new Dictionary<string, string>
-                    {
-                        [HeaderContentType] = MediaTypeProblemJson
-                    }
+                    Body = body,
+                    Headers = headers
                 };
             });
+    }
+
+    // One builder for the v1 and v2 shapes: status, title, body and headers are decided once (ADR-062).
+    // The body never carries the error message (AGENTS.md section 3).
+    private static (int StatusCode, string Body, Dictionary<string, string> Headers) BuildProblemDetails(
+        EncinaError error,
+        int? statusCode)
+    {
+        var effectiveStatusCode = statusCode ?? error.GetStatusCode();
+
+        var problemDetails = new ProblemDetailsResponse
+        {
+            Status = effectiveStatusCode,
+            Title = ErrorCategoryHttp.GetReasonPhrase(effectiveStatusCode)
+        };
+
+        // Add error code for client-side handling
+        var errorCode = error.GetCode().IfNone(string.Empty);
+        if (!string.IsNullOrEmpty(errorCode))
+        {
+            problemDetails.Extensions["errorCode"] = errorCode;
+        }
+
+        var headers = new Dictionary<string, string>
+        {
+            [HeaderContentType] = MediaTypeProblemJson
+        };
+
+        foreach (var header in ErrorCategoryHttp.GetResponseHeaders(error, effectiveStatusCode))
+        {
+            headers[header.Key] = header.Value;
+        }
+
+        return (effectiveStatusCode, JsonSerializer.Serialize(problemDetails, JsonOptions), headers);
     }
 
     private static APIGatewayProxyResponse CreateSuccessResponse<T>(T value, int statusCode)
@@ -230,76 +231,14 @@ public static class ApiGatewayResponseExtensions
         };
     }
 
-    internal static int MapErrorCodeToStatusCode(EncinaError error)
-    {
-        var code = error.GetCode().IfNone(string.Empty).ToLowerInvariant();
-
-        // 400 Bad Request: Validation errors
-        if (IsValidationCode(code))
-        {
-            return (int)HttpStatusCode.BadRequest;
-        }
-
-        // 401 Unauthorized: Authentication required
-        if (code == EncinaErrorCodes.AuthorizationUnauthenticated)
-        {
-            return (int)HttpStatusCode.Unauthorized;
-        }
-
-        // 403 Forbidden: authenticated identity denied (every other encina.authorization.* code)
-        if (code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal))
-        {
-            return (int)HttpStatusCode.Forbidden;
-        }
-
-        // 404 Not Found
-        if (IsNotFoundCode(code))
-        {
-            return (int)HttpStatusCode.NotFound;
-        }
-
-        // 409 Conflict
-        if (IsConflictCode(code))
-        {
-            return (int)HttpStatusCode.Conflict;
-        }
-
-        // 500 Internal Server Error: Default for unknown/unhandled errors
-        return (int)HttpStatusCode.InternalServerError;
-    }
-
-    private static bool IsValidationCode(string code) =>
-        code.StartsWith("validation.", StringComparison.Ordinal) || code == "encina.guard.validation_failed";
-
-    private static bool IsNotFoundCode(string code) =>
-        code.EndsWith(".not_found", StringComparison.Ordinal) ||
-        code == "encina.request.handler_missing" ||
-        code.EndsWith(".missing", StringComparison.Ordinal);
-
-    private static bool IsConflictCode(string code) =>
-        code.EndsWith(".conflict", StringComparison.Ordinal) ||
-        code.EndsWith(".already_exists", StringComparison.Ordinal) ||
-        code.EndsWith(".duplicate", StringComparison.Ordinal);
-
-    internal static string GetTitle(int statusCode) => statusCode switch
-    {
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        409 => "Conflict",
-        500 => "Internal Server Error",
-        _ => "An error occurred"
-    };
-
     /// <summary>
-    /// Internal Problem Details response structure following RFC 7807.
+    /// Internal Problem Details response structure following RFC 7807. It has no detail member on purpose:
+    /// the error message never reaches a client.
     /// </summary>
     private sealed class ProblemDetailsResponse
     {
         public int Status { get; set; }
         public string Title { get; set; } = string.Empty;
-        public string? Detail { get; set; }
         public Dictionary<string, object?> Extensions { get; } = [];
     }
 }
