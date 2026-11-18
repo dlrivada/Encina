@@ -2,7 +2,7 @@
 
 > **Issue**: [#349](https://github.com/dlrivada/Encina/issues/349)
 > **Type**: Feature
-> **Complexity**: High (6 phases, 7 pull requests of 14, 14, 11, 10, 8, 9 and 6 files)
+> **Complexity**: High (7 phases, 7 pull requests of 14, 14, 9, 10, 10, 11 and 11 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 2,000 lines of tests, split over seven pull requests
 > **Family**: msg-batching (#121, #252, #302, #339, #349). This plan **owns** `BatchCommand<,>`, `BatchQuery<,>`, `BatchResult<>`, `BatchItemResult<>`, `BatchStrategy`, `IBatchExecutor`, the builder, the core seam `IScopedRequestSender`, `IBatchTransactionBoundary` and the EventIds 7758-7765. It builds on #302 (package `Encina.Batching`, `AddEncinaBatching`, the `Batching` EventId range). #339 adds deduplication on top of this plan.
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for wrappers that run many single-item commands or queries as one operation, strategies (all or nothing, partial success, stop on first error, parallel), a result with per-item outcomes, a fluent builder, transactional batching and parallel execution, reusing the existing single-item handlers. State of `origin/main` (`b50b8c981`): none of it exists (`git grep` for `BatchCommand`, `BatchQuery` and `BatchStrategy` in `src` finds nothing; the two `BatchCommand` hits in `tests` and `src/Encina.Quartz/README.md` are unrelated sample records).
+The issue asks for wrappers that run many single-item commands or queries as one operation, strategies (all or nothing, partial success, stop on first error, parallel), a result with per-item outcomes, a fluent builder, transactional batching and parallel execution, reusing the existing single-item handlers. State of `origin/main` (`822c310c7`): none of it exists (`git grep` for `BatchCommand`, `BatchQuery` and `BatchStrategy` in `src` finds nothing; the two `BatchCommand` hits in `tests` and `src/Encina.Quartz/README.md` are unrelated sample records).
 
 Two facts of today's code shape the plan:
 
@@ -55,7 +55,7 @@ A wins when the API should be small and each name unambiguous; B wins only if th
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Each item is sent with `IEncina.Send` (or `IScopedRequestSender` in an all-or-nothing batch) with the batch's context** | Validation, authorization, idempotency and domain events run per item; existing single-item handlers are reused unchanged | Cost of one pipeline per item (use `IBatchHandler` of #302 where a bulk handler exists) |
+| **A) Each item is sent with `IEncina.Send` (or `IScopedRequestSender` in an all-or-nothing batch) with the batch's context, minus its idempotency key (`context.WithIdempotencyKey(null)` per item)** | Validation, authorization, idempotency and domain events run per item; existing single-item handlers are reused unchanged; an explicit context keeps the wrapper's `IdempotencyKey` (only nested dispatch nulls it, `RequestContext.ForNestedDispatch`), so without the reset every item would share the wrapper's key and the inbox would deduplicate the items against each other | Cost of one pipeline per item (use `IBatchHandler` of #302 where a bulk handler exists) |
 | **B) Call the single-item handler directly** | Faster | Bypasses the pipeline: the issue's alternatives (#339, #349) reject it |
 
 ### Chosen Option: **A, through the pipeline**
@@ -83,7 +83,7 @@ Both issues list "bypasses the CQRS pipeline, validation and domain events" as t
 
 ### Rationale
 
-Only A satisfies both issues, and adding the fields later would change a public record. A skipped item (stop on first error) is `Left` with the code `batching.item_skipped` (category `FailedPrecondition`); a rolled-back success keeps its `Right` and sets `WasRolledBack`.
+Only A satisfies both issues, and adding the fields later would change a public record. A skipped item (stop on first error) is `Left` with the code `batching.item_skipped` (category `Conflict`, ADR-062 R2: the item conflicts with the state of the batch after an earlier failure; `FailedPrecondition` is not used before #3420); a rolled-back success keeps its `Right` and sets `WasRolledBack`.
 
 **Class:** Settled
 **Settled by:** #339 body (`BatchItemResult(int Index, Either<EncinaError, TResponse> Result, bool WasRolledBack)`) and #349 acceptance ("Clear error reporting per item").
@@ -97,7 +97,7 @@ Only A satisfies both issues, and adding the fields later would change a public 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A core seam `IScopedRequestSender.SendInScope(request, IServiceProvider scope, IRequestContext, ct)` runs an item's pipeline in the scope that already holds the batch's transaction; the executor begins the transaction through `IBatchTransactionBoundary` (adapter in `Encina.Messaging` over `ITransactionLeaseSource`) and commits only when every item is `Right`; items' `TransactionPipelineBehavior` instances join the lease** | Reuses existing single-item handlers and their pipelines inside one transaction on every provider that registers `ITransactionLeaseSource`; no provider-specific code | A core change (one interface, one refactor of the dispatcher's scope creation); AllOrNothing needs a registered boundary |
+| **A) A core seam `IScopedRequestSender.SendInScope(request, IServiceProvider scope, IRequestContext, ct)` runs an item's pipeline in the scope that already holds the batch's transaction; the executor begins or joins the transaction through `IBatchTransactionBoundary` (adapter in `Encina.Messaging` over `ITransactionLeaseSource.BeginOrJoinAsync`) and commits only when it owns the lease (D9) and every item is `Right`; items' `TransactionPipelineBehavior` instances join the lease** | Reuses existing single-item handlers and their pipelines inside one transaction on every provider that registers `ITransactionLeaseSource`; no provider-specific code | A core change (one interface, one refactor of the dispatcher's scope creation); AllOrNothing needs a registered boundary |
 | **B) All or nothing only through an `IBatchHandler` (#302) whose handler owns the transaction** | No core change | Does not reuse existing single-item handlers, which #349 requires |
 | **C) Per-item `Send` plus compensation (undo the earlier items on a failure)** | No shared scope | No handler has an undo; not atomic; failure of the compensation leaves partial state |
 
@@ -105,7 +105,7 @@ Only A satisfies both issues, and adding the fields later would change a public 
 
 ### Rationale
 
-A wins because it is the only option that is both atomic and reuses single-item handlers; B wins if the maintainer prefers no core change and accepts that atomic bulk work uses bulk handlers; C is rejected (no atomicity). Without a registered `IBatchTransactionBoundary`, a request for `AllOrNothing` fails with `batching.transaction_unavailable` (fail closed, category `FailedPrecondition`): it never silently degrades to partial success. The executor is the commit owner of this transaction: it calls the lease's commit once; nothing in the orchestration calls `SaveChangesAsync`, so a handler that writes through a `DbContext` calls it itself (or through its unit of work) and the commit makes those writes durable together.
+A wins because it is the only option that is both atomic and reuses single-item handlers; B wins if the maintainer prefers no core change and accepts that atomic bulk work uses bulk handlers; C is rejected (no atomicity). Without a registered `IBatchTransactionBoundary`, a request for `AllOrNothing` fails with `batching.transaction_unavailable` (fail closed, category `Internal`: a missing boundary is wiring, ADR-062 R1 and R4): it never silently degrades to partial success. Who commits is Dilemma D9; nothing in the orchestration calls `SaveChangesAsync`, so a handler that writes through a `DbContext` calls it itself (or through its unit of work) and the commit of the transaction owner makes those writes durable together.
 
 **Class:** Dilemma
 
@@ -125,7 +125,7 @@ A wins because it is the only option that is both atomic and reuses single-item 
 
 ### Rationale
 
-A wins when the caller must know the failing item; B wins when the caller only branches on success and failure. `Left` is reserved for failures of the batch itself (too large, no tenant when multi-tenancy is on, transaction unavailable, commit failed, cancellation). The XML docs of `BatchResult` state that `AllSucceeded` must be checked.
+A wins when the caller must know the failing item; B wins when the caller only branches on success and failure. `Left` is reserved for failures of the batch itself (too large, no tenant when multi-tenancy is on, transaction unavailable, commit failed, cancellation). The XML docs of `BatchResult` state that `AllSucceeded` must be checked. When the batch joined a transaction it does not own (D9), the owner's commit fails with `transaction.rollback_only` and the caller receives that `Left` instead of the per-item `BatchResult`; the per-item codes are then visible only through the batch log (error codes, EventId 7760).
 
 **Class:** Dilemma
 
@@ -138,7 +138,7 @@ A wins when the caller must know the failing item; B wins when the caller only b
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddEncinaBatching(params Assembly[])` scans the given assemblies for `ICommand<T>` and `IQuery<T>` implementations and registers the closed `ICommandHandler<BatchCommand<C,T>, BatchResult<T>>` and `IQueryHandler<...>` for each** | Zero ceremony; the same way `AddEncina(assembly)` finds handlers | A handler for every command type, used or not (small, generated lazily by DI) |
+| **A) The assembly scan of `AddEncinaBatching(configure, params Assembly[] assemblies)` (the overload of #302) also finds `ICommand<T>` and `IQuery<T>` implementations and registers, for each, the closed `IRequestHandler<BatchCommand<C,T>, BatchResult<T>>` or `IRequestHandler<BatchQuery<Q,T>, BatchResult<T>>` (the handler classes implement `ICommandHandler`/`IQueryHandler`, which extend `IRequestHandler<,>`)** | Zero ceremony; the same way `AddEncina(assembly)` finds handlers | A handler for every command type, used or not (small, generated lazily by DI) |
 | **B) An explicit `AddBatchCommand<TCommand, TResponse>()` per type** | Pay for what you use per type; no scan | A call per type |
 | **C) The builder calls `IBatchExecutor` directly, with no wrapper request** | No registration | The batch is not a request: no pipeline (authorization, transaction, logging) around the batch itself |
 
@@ -146,7 +146,7 @@ A wins when the caller must know the failing item; B wins when the caller only b
 
 ### Rationale
 
-DI cannot register an open `ICommandHandler<BatchCommand<,>, BatchResult<>>` (the service type is a constructed generic over the implementation's parameters, not an open generic definition), so a closed registration per command type is unavoidable. A wins when many commands are batchable; B wins when only a few are and an explicit list is preferred; C is rejected because the wrapper-as-request is what lets the batch pass the pipeline.
+The service type must be `IRequestHandler<,>`, because `RequestDispatcher` resolves `IRequestHandler<,>` (`MediatorAssemblyScanner.cs:43` registers handlers under it); a handler registered only as `ICommandHandler<,>` yields `HandlerMissing`. The container cannot register an open `IRequestHandler<BatchCommand<,>, BatchResult<>>` (it is a constructed generic, not an open generic definition), so a closed registration per command type is unavoidable. A wins when many commands are batchable; B wins when only a few are and an explicit list is preferred; C is rejected because the wrapper-as-request is what lets the batch pass the pipeline.
 
 **Class:** Dilemma
 
@@ -194,6 +194,27 @@ DI cannot register an open `ICommandHandler<BatchCommand<,>, BatchResult<>>` (th
 
 </details>
 
+<details>
+<summary><strong>9. Who owns the all-or-nothing transaction (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The executor commits only when its lease `IsOwner`; otherwise it joins the transaction that the wrapper's own `TransactionPipelineBehavior` (EF Core or Messaging, which wraps `BatchCommand` like any command) already started. On an item failure it calls the lease's `RollbackAsync` (a joiner's rollback marks the transaction rollback-only), so the owner's commit fails with `transaction.rollback_only`** | No change to the transaction behaviors; one rule for every provider; the owner is never bypassed | When joined, the caller gets the owner's `Left` instead of the per-item `BatchResult` (see D5) |
+| **B) The batch wrapper opts out of the transaction behaviors (a marker the behaviors honor), so the executor is always the owner and always returns the `BatchResult`** | The per-item result is always returned; one commit owner | A change in `TransactionPipelineBehavior` of EF Core and of Messaging (two production files, each with tests); an opt-out marker that other features may copy |
+| **C) The wrapper returns `Left` on an item failure so that the owner's behavior rolls back, carrying the per-item list in the error's details** | The owner rolls back by its own rule | The per-item list would travel as error details (a payload in an error, read through `EncinaError`, whose message never reaches logs); no shape is shared with `PartialSuccess`, where `Right` reports a partial failure |
+
+### Chosen Option: **A, join and mark rollback-only** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because the wrapper is a command and passes the transaction behavior like any other (ADR-048: one scoped accessor and lease per scope, the first caller owns it); when the wrapper is not transactional (no behavior registered) the executor begins the transaction and owns it, so the per-item `BatchResult` is returned. B wins when the maintainer wants the per-item result in every case and accepts two behavior edits; C is the weakest (two result shapes for one batch API). The plan never says "same transaction" about the orchestrator: the executor never calls `SaveChangesAsync`, and the commit owner is the lease owner.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -204,8 +225,8 @@ DI cannot register an open `ICommandHandler<BatchCommand<,>, BatchResult<>>` (th
 <summary>Tasks</summary>
 
 1. In `src/Encina.Batching/`: `BatchStrategy` (D1), `BatchItemResult<T>` and `BatchResult<T>` (D3), `BatchCommand<TCommand, TResponse>(IReadOnlyList<TCommand> Commands, BatchStrategy? Strategy = null) : ICommand<BatchResult<TResponse>>` (a null strategy means `BatchExecutionOptions.DefaultStrategy`; the constructor rejects a null list), `BatchExecutionOptions` (`DefaultStrategy` `PartialSuccess`, `MaxBatchSize` 100 validated 1 to 10,000, `MaxDegreeOfParallelism` 1 validated 1 to 64 (default `Environment.ProcessorCount` capped at 64 when parallelism is enabled by the caller), `TimeoutPerItem` default none, validated above zero).
-2. `IBatchExecutor.ExecuteAsync<TItem, TResponse>(IReadOnlyList<TItem> items, BatchStrategy strategy, IRequestContext context, CancellationToken)` where `TItem : IRequest<TResponse>`, and `BatchExecutor` (internal sealed, scoped; dependencies `IEncina`, `IOptions<BatchExecutionOptions>`, `TimeProvider`, `ILogger`): too large a list returns `Left` `batching.batch_too_large` (`InvalidRequest`); when the container holds `MultiTenancyMarker` and `context.TenantId` is null it returns `Left` `batching.tenant_required` (`FailedPrecondition`, fail closed); `PartialSuccess` runs every item with up to the configured degree of parallelism, `StopOnFirstError` runs in order and marks the rest `batching.item_skipped`; a per-item timeout (`TimeoutPerItem`, a `CancellationTokenSource` created with the injected `TimeProvider` and linked to the caller's token) yields `Left` `batching.item_timeout` (`Timeout`) for that item and does not fail the others; an item exception is caught as `Left` `batching.item_failed` (`Internal`, exception type through `ForLogging()` only); caller cancellation propagates as `OperationCanceledException`. Every item is sent with the batch's context, so no item can run under another tenant or identity.
-3. `BatchCommandHandler<TCommand, TResponse> : ICommandHandler<BatchCommand<TCommand, TResponse>, BatchResult<TResponse>>`: reads the strategy, calls the executor with `IRequestContext` from the dispatcher (the handler receives it through the ambient `IRequestContextAccessor`), and returns the `BatchResult` as `Right`; `AllOrNothing` is not implemented yet in this pull request and returns `Left` `batching.transaction_unavailable` until pull request 4 (D4).
+2. `IBatchExecutor.ExecuteAsync<TItem, TResponse>(IReadOnlyList<TItem> items, BatchStrategy strategy, IRequestContext context, CancellationToken)` where `TItem : IRequest<TResponse>`, and `BatchExecutor` (internal sealed, scoped; dependencies `IEncina`, `IOptions<BatchExecutionOptions>`, `TimeProvider`, `ILogger`): too large a list returns `Left` `batching.batch_too_large` (`InvalidRequest`); when the container holds `MultiTenancyMarker` and `context.TenantId` is null it returns `Left` `batching.tenant_required` (`InvalidRequest`, ADR-062 R3, fail closed); `PartialSuccess` runs every item with up to the configured degree of parallelism, `StopOnFirstError` runs in order and marks the rest `batching.item_skipped`; a per-item timeout (`TimeoutPerItem`, a `CancellationTokenSource` created with the injected `TimeProvider` and linked to the caller's token) yields `Left` `batching.item_timeout` (`Timeout`) for that item and does not fail the others; an item exception is caught as `Left` `batching.item_failed` (`Internal`, exception type through `ForLogging()` only); caller cancellation propagates as `OperationCanceledException`. Every item is sent with the batch's context through `context.WithIdempotencyKey(null)`, so no item can run under another tenant or identity and no item reuses the wrapper's idempotency key (the inbox would otherwise deduplicate the items against each other); a unit test asserts that the context each item receives has no key and the same tenant and identity.
+3. `BatchCommandHandler<TCommand, TResponse> : ICommandHandler<BatchCommand<TCommand, TResponse>, BatchResult<TResponse>>` (which is an `IRequestHandler<,>`; the registration of D6 uses that service type): reads the strategy, calls the executor with `IRequestContext` from the dispatcher (the handler receives it through the ambient `IRequestContextAccessor`), and returns the `BatchResult` as `Right`; `AllOrNothing` is not implemented yet in this pull request and returns `Left` `batching.transaction_unavailable` until pull request 4 (D4).
 4. `Diagnostics/BatchExecutionLog.cs` (`[LoggerMessage]`, EventIds 7758-7765: 7758 batch started, 7759 batch completed with counts, 7760 item failed by error code, 7761 stopped on first error, 7762 rolled back, 7763 batch rejected as too large, 7764 transaction unavailable, 7765 item timed out; pull request 1 uses 7758-7761, 7763 and 7765, the others arrive with their code), inside the `Batching` range registered by #302.
 5. Tests: unit `BatchExecutorTests` (each strategy, parallel degree respected with a gate, timeout with `FakeTimeProvider`, skipped items, a throwing item, tenant fail-closed, too large), `BatchCommandHandlerTests`, guard `BatchWrappersGuardTests` (null lists, null context); PublicAPI (through `mechanical-fixer`), manifest entries.
 
@@ -217,7 +238,7 @@ DI cannot register an open `ICommandHandler<BatchCommand<,>, BatchResult<>>` (th
 ```text
 CONTEXT: #302 created the Encina.Batching package, AddEncinaBatching and the Batching EventId range. Each IEncina.Send runs in its own DI scope. D1 (three strategies), D2 (items through the pipeline), D3 (BatchResult with items) and D7 (parallel only for partial success) apply; D4 and D5 arrive in pull request 4.
 TASK: Add the wrapper, result and strategy types, the executor for PartialSuccess and StopOnFirstError, the command handler and the log, with tests.
-KEY RULES: Items run with the batch's own IRequestContext; never log or return an exception message or EncinaError.Message; time from TimeProvider; ADR-062 category on every error code; method complexity 8 or less (CRAP <= 10); EventIds 7758-7765 only.
+KEY RULES: Items run with the batch's own IRequestContext minus its idempotency key (WithIdempotencyKey(null)); never log or return an exception message or EncinaError.Message; time from TimeProvider; ADR-062 category on every error code; method complexity 8 or less (CRAP <= 10); EventIds 7758-7765 only.
 REFERENCE FILES: src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Abstractions/IEncina.cs, src/Encina/Abstractions/MultiTenancyMarker.cs, src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs (batch loop style), .github/coverage-manifest/Encina.Batching.json.
 ```
 
@@ -229,7 +250,7 @@ REFERENCE FILES: src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Abstractio
 <summary>Tasks</summary>
 
 1. `BatchQuery<TQuery, TResponse>(IReadOnlyList<TQuery> Queries, BatchStrategy? Strategy = null) : IQuery<BatchResult<TResponse>>` and `BatchQueryHandler<,>`: `AllOrNothing` on a query batch returns `Left` `batching.strategy_not_supported` (`InvalidRequest`) because a read has nothing to roll back.
-2. `BatchHandlerRegistrar` (internal static) and `AddEncinaBatching(this IServiceCollection, params Assembly[] assemblies)` scan overload (D6); `BatchExecutionOptions` registered with `ValidateOnStart`; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` in both registration orders and proves a registered closed handler resolves.
+2. `BatchHandlerRegistrar` (internal static) called by the scan of #302's `AddEncinaBatching(this IServiceCollection, Action<BatchingOptions>? configure = null, params Assembly[] assemblies)` (D6; the one overload, so the options action and the assemblies are passed together); registrations added in the same edit, each with `TryAdd`: scoped `IBatchExecutor` to `BatchExecutor`, `BatchExecutionOptions` through `AddOptions<BatchExecutionOptions>().Validate(...).ValidateOnStart()`, and every closed `IRequestHandler<,>` of D6 (the DI test fails when one is missing); the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` in both registration orders and proves a registered closed handler resolves as `IRequestHandler<,>` and that `IEncina.Send` of a `BatchCommand` reaches it (not `HandlerMissing`).
 3. `BatchBuilder<TRequest, TResponse>` and the extension `encina.Batch<TCommand, TResponse>()` / `encina.Batch<TQuery, TResponse>()` (D8): `Add`, `AddRange`, `WithStrategy`, `WithParallelism`, `ExecuteAsync(ct)` (builds the wrapper and calls `IEncina.Send`).
 4. `Diagnostics/BatchExecutionTelemetry.cs`: counters `encina.batching.batch_executions` and `encina.batching.items_executed` (tags `batch.strategy`, `outcome`, the tenant tag only when multi-tenancy is on, ADR-054 D4) and an `Activity` per batch on the `Encina.Batching` source of #302.
 5. Tests: `BatchQueryHandlerTests`, `BatchBuilderTests`, `BatchRegistrationTests` (DI), guard tests for the builder and the extension; PublicAPI, manifest, README edit through `docs-writer`.
@@ -277,9 +298,9 @@ REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/
 <details>
 <summary>Tasks</summary>
 
-1. `IBatchTransactionBoundary` in `Encina.Batching`: `ValueTask<Either<EncinaError, IBatchTransaction>> BeginAsync(CancellationToken)`; `IBatchTransaction : IAsyncDisposable` with `CommitAsync` and `RollbackAsync` (a dispose without commit rolls back).
-2. `BatchExecutor` all-or-nothing path (D4, D5): resolve the optional boundary from the handler's scope (a null boundary returns `batching.transaction_unavailable`, EventId 7764); begin; run the items in order with `IScopedRequestSender.SendInScope(item, scopeProvider, context, ct)`; stop at the first `Left`, roll back, mark earlier successes `WasRolledBack`, later items `batching.item_skipped` (EventId 7762); commit once when all succeeded; a failed commit returns `Left` (the lease's `transaction.*` code) and marks every item rolled back. `BatchCommandHandler` passes its injected `IServiceProvider` (the handler's scope).
-3. Tests: unit `BatchExecutorAllOrNothingTests` with a fake boundary and fake sender (commit once; rollback on a failure; commit failure; missing boundary fails closed; items share one scope instance), guard, PublicAPI, manifest.
+1. `IBatchTransactionBoundary` in `Encina.Batching`: `ValueTask<Either<EncinaError, IBatchTransaction>> BeginAsync(CancellationToken)`; `IBatchTransaction : IAsyncDisposable` with `bool IsOwner`, `CommitAsync` and `RollbackAsync` (a dispose without commit rolls back when the transaction is owned).
+2. `BatchExecutor` all-or-nothing path (D4, D5, D9): resolve the optional boundary from the handler's scope (a null boundary returns `batching.transaction_unavailable`, `Internal`, EventId 7764); `BeginAsync` (begin or join); run the items in order with `IScopedRequestSender.SendInScope(item, scopeProvider, context.WithIdempotencyKey(null), ct)`; stop at the first `Left`, call `RollbackAsync` on the lease (the owner rolls back; a joiner marks the transaction rollback-only), mark earlier successes `WasRolledBack`, later items `batching.item_skipped` (EventId 7762); when every item succeeded, commit once only if `IsOwner` (a joiner leaves the commit to the owner); a failed commit returns `Left` (the lease's `transaction.*` code) and marks every item rolled back. `BatchCommandHandler` passes its injected `IServiceProvider` (the handler's scope). `IBatchTransaction` exposes `IsOwner` for this decision.
+3. Tests: unit `BatchExecutorAllOrNothingTests` with a fake boundary and fake sender (commit once when owner; no commit when joined; rollback on a failure; joined rollback marks rollback-only; commit failure; missing boundary fails closed; items share one scope instance), guard, PublicAPI, manifest.
 
 </details>
 
@@ -287,9 +308,9 @@ REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/
 <summary>Prompt for AI Agents — Phase 4</summary>
 
 ```text
-CONTEXT: The core seam exists. D4 and D5 apply: the executor begins a transaction through IBatchTransactionBoundary, sends the items in the handler's scope and commits only when all are Right; a failure returns Right(BatchResult) with WasRolledBack flags.
+CONTEXT: The core seam exists. D4, D5 and D9 apply: the executor begins or joins a transaction through IBatchTransactionBoundary, sends the items in the handler's scope and commits only when it owns the lease and all items are Right; a failure returns Right(BatchResult) with WasRolledBack flags, or the owner's rollback-only Left when the batch joined.
 TASK: Add the boundary contract and the all-or-nothing path with unit tests.
-KEY RULES: Never degrade silently to partial success; the executor is the single commit owner; never claim atomicity beyond the shared scope's transaction (the executor never calls SaveChangesAsync); exception type only in logs; AllOrNothing is always sequential.
+KEY RULES: Never degrade silently to partial success; only the lease owner commits (the wrapper's own transaction behavior is the owner when present); never claim atomicity beyond the shared scope's transaction (the executor never calls SaveChangesAsync); exception type only in logs; AllOrNothing is always sequential.
 REFERENCE FILES: src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs, src/Encina.Messaging/Transactions/ITransactionLease.cs, src/Encina.EntityFrameworkCore/TransactionPipelineBehavior.cs.
 ```
 
@@ -301,7 +322,7 @@ REFERENCE FILES: src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs, s
 <summary>Tasks</summary>
 
 1. `src/Encina.Messaging/Encina.Messaging.csproj`: a `ProjectReference` to `Encina.Batching` (the reverse direction does not exist, so there is no cycle; #302 states `Encina.Batching` depends on `Encina` only).
-2. `MessagingBatchTransactionBoundary` (internal sealed, scoped) implementing `IBatchTransactionBoundary` over `ITransactionLeaseSource.BeginOrJoinAsync`; its transaction commits only when the lease is the owner (a batch started inside an existing transaction joins and leaves the commit to the owner, which the XML docs state); registered with `TryAddScoped` in `MessagingServiceCollectionExtensions` next to the existing `ITransactionLeaseSource` registration (`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs:307`), and in the EF Core and MongoDB registrations that register the lease source (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:248`, `src/Encina.MongoDB/ServiceCollectionExtensions.cs:513`) so that every provider path has a boundary.
+2. `MessagingBatchTransactionBoundary` (internal sealed, scoped) implementing `IBatchTransactionBoundary` over `ITransactionLeaseSource.BeginOrJoinAsync`; its transaction exposes `IsOwner` and commits only when the lease is the owner (a batch started inside an existing transaction, such as the wrapper under the provider's transaction behavior, joins and leaves the commit to the owner, which the XML docs state; D9); registered with `TryAddScoped` in `MessagingServiceCollectionExtensions` next to the existing `ITransactionLeaseSource` registration (`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs:307`), and in the EF Core and MongoDB registrations that register the lease source (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:248`, `src/Encina.MongoDB/ServiceCollectionExtensions.cs:513`) so that every provider path has a boundary.
 3. Tests: unit `MessagingBatchTransactionBoundaryTests`, a DI test per registration site, guard test; PublicAPI for `Encina.Messaging`, manifest.
 
 </details>
@@ -323,7 +344,7 @@ REFERENCE FILES: src/Encina.Messaging/MessagingServiceCollectionExtensions.cs, s
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 6, ADO.NET and Dapper (SqlServer, PostgreSQL, MySQL): `tests/Encina.IntegrationTests/Batching/AllOrNothingBatchTestBase.cs` (shared scenarios) plus six classes, each `[Collection("<Family>-<Database>")]`, `[Trait("Category", "Integration")]` and `[Trait("Database", "<Db>")]`, injecting the shared fixture and calling `ClearAllDataAsync()` in `InitializeAsync()`: three items write rows, the third fails, then no row exists and the result flags the first two `WasRolledBack`; all succeed, then all rows exist; a batch inside an existing transaction joins and leaves the commit to the owner.
+1. Pull request 6, ADO.NET and Dapper (SqlServer, PostgreSQL, MySQL): `tests/Encina.IntegrationTests/Batching/AllOrNothingBatchTestBase.cs` (shared scenarios) plus six classes, each `[Collection("<Family>-<Database>")]`, `[Trait("Category", "Integration")]` and `[Trait("Database", "<Db>")]`, injecting the shared fixture and calling `ClearAllDataAsync()` in `InitializeAsync()`: three items write rows, the third fails, then no row exists and the result flags the first two `WasRolledBack`; all succeed, then all rows exist; a batch inside an existing transaction (the wrapper command under the provider's `TransactionPipelineBehavior`) joins and leaves the commit to the owner; a failing item in that joined batch ends with the owner's `transaction.rollback_only` and no row exists (D9).
 2. Pull request 7, EF Core (three providers) and MongoDB: the same scenarios on the `EFCore-*` collections and on `MongoDB` (replica set fixture; a standalone server returns `transaction.not_supported` and the batch fails closed, ADR-050).
 3. Load and benchmark: justification files `tests/Encina.LoadTests/Batching/RequestBatching.md` and `tests/Encina.BenchmarkTests/Batching/RequestBatching.md` (in pull request 6): the cost is one pipeline per item and is dominated by the handlers, which a micro-benchmark would not isolate; the concurrency (parallel partial success) is covered by the executor unit tests and property tests.
 4. Property tests `BatchExecutorPropertyTests` (every item appears exactly once in `Items` in input order; `SuccessCount + FailureCount` equals the item count; `StopOnFirstError` never runs an item after the first failure) in pull request 2 or 4 (pull request 4 here).
@@ -349,8 +370,8 @@ REFERENCE FILES: tests/Encina.IntegrationTests (an existing transaction behavior
 
 1. OpenTelemetry and logging: Phase 2 task 4 and Phase 1 task 4.
 2. Multi-tenancy (function 10): the batch's context, and therefore its tenant, is the context of every item (Phase 1 task 2); a missing tenant fails closed when the marker is present; the tenant tag only when multi-tenancy is on (ADR-054 D4); the reserved `default` segment is not composed into any identifier here.
-3. Errors (ADR-062): `batching.batch_too_large` `InvalidRequest`, `batching.tenant_required` `FailedPrecondition`, `batching.item_skipped` `FailedPrecondition`, `batching.item_timeout` `Timeout`, `batching.item_failed` `Internal`, `batching.strategy_not_supported` `InvalidRequest`, `batching.transaction_unavailable` `FailedPrecondition`.
-4. Documentation (pull request 6 or a final small pull request): `docs/features/request-batching.md`, `src/Encina.Batching/README.md` and a changelog fragment `changelog.d/349-request-batching.added.md`, `docs/INVENTORY.md` and `ROADMAP.md` lines (the page and README through `docs-writer`, the fragment through `mechanical-fixer`); an ADR for the scoped sender and the transaction boundary: ADR number assigned when the ADR pull request opens.
+3. Errors (ADR-062; `FailedPrecondition` is not used before #3420, R2): `batching.batch_too_large` `InvalidRequest`, `batching.tenant_required` `InvalidRequest` (R3), `batching.item_skipped` `Conflict`, `batching.item_timeout` `Timeout`, `batching.item_failed` `Internal`, `batching.strategy_not_supported` `InvalidRequest`, `batching.transaction_unavailable` `Internal` (R1, R4: a wiring failure).
+4. Documentation (pull request 7): `docs/features/request-batching.md`, `src/Encina.Batching/README.md` and a changelog fragment `changelog.d/349-request-batching.added.md`, `docs/INVENTORY.md` and `ROADMAP.md` lines (the page and README through `docs-writer`, the fragment through `mechanical-fixer`); an ADR for the scoped sender and the transaction boundary: ADR number assigned when the ADR pull request opens.
 5. Deferred: an ASP.NET Core batch endpoint (the issue lists `Encina.AspNetCore`, with no contract); issue file `artifacts/issues/aspnetcore-batch-endpoint.md` in this worktree.
 
 </details>
@@ -443,13 +464,13 @@ Targets are entered in `.github/coverage-manifest/Encina.Batching.json` (and `En
 | Documentation | 5 | feature page, README edit, changelog fragment, inventory, roadmap |
 | **Pull request 1** | **14** | 9 production, PublicAPI, manifest, 3 tests |
 | **Pull request 2** | **14** | 5 production (query, query handler, builder with extension, registrar, telemetry), the `ServiceCollectionExtensions` edit, PublicAPI, manifest, 4 tests, README edit |
-| **Pull request 3** | **11** | 4 core production, core PublicAPI, `Encina.json`, 3 tests (sender unit, sender guard, edited dispatcher test) |
+| **Pull request 3** | **9** | 4 core production, core PublicAPI, `Encina.json`, 3 tests (sender unit, sender guard, edited dispatcher test) |
 | **Pull request 4** | **10** | 2 contracts, executor edit, log edit, PublicAPI, manifest, 4 tests (all-or-nothing unit, guard, property, handler test edit) |
-| **Pull request 5** | **8** | Messaging csproj, adapter, 3 registration edits (Messaging, EF Core, MongoDB), PublicAPI for `Encina.Messaging`, manifest, 2 tests (unit and DI) |
-| **Pull request 6** | **9** | integration base, 6 ADO.NET and Dapper classes, 2 justification files |
-| **Pull request 7** | **6** | 4 EF Core and MongoDB classes, feature page, changelog fragment |
+| **Pull request 5** | **10** | Messaging csproj, adapter, 3 registration edits (Messaging, EF Core, MongoDB), PublicAPI for `Encina.Messaging`, manifest, 3 tests (unit, DI, guard) |
+| **Pull request 6** | **11** | integration base, 6 ADO.NET and Dapper classes, 2 justification files, 2 manifest edits (`Encina.Batching.json`, `Encina.Messaging.json`: integration targets) |
+| **Pull request 7** | **11** | 4 EF Core and MongoDB classes, feature page, `src/Encina.Batching/README.md` edit, changelog fragment, `docs/INVENTORY.md` and `ROADMAP.md` lines, 2 manifest edits |
 
-Callers and implementers, by grep on `origin/main` (2026-11-17): nothing implements or calls the new types. The seam is a new interface, so no `IEncina` implementer changes (the implementers are the `Encina` class and test doubles, found by `git grep ": IEncina"` at work start). Each pull request adds production code only with its own tests and builds alone in the order 1, 2, 3, 4, 5, 6, 7; pull request 1 depends on #302 pull request 2 (the `Batching` EventId range) and pull request 4 on pull request 3.
+Callers and implementers, by grep on `origin/main` (2026-11-18): nothing implements or calls the new types. The seam is a new interface, so no `IEncina` implementer changes: the only implementers of `IEncina` are `Encina` (`src/Encina/Core/Encina.cs`) and the test double `FakeEncina` (`src/Encina.Testing.Fakes/FakeEncina.cs`), and neither implements the new `IScopedRequestSender`; the builder uses only `IEncina`, so `FakeEncina` serves its tests. Each pull request adds production code only with its own tests and builds alone in the order 1, 2, 3, 4, 5, 6, 7; pull request 1 depends on #302 pull request 2 (the `Batching` EventId range), pull request 2 on #302 pull request 3 (`AddEncinaBatching`) and pull request 4 on pull request 3.
 
 ---
 
@@ -461,9 +482,9 @@ Callers and implementers, by grep on `origin/main` (2026-11-17): nothing impleme
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP. IEncina.Send creates a DI scope per request, IEncina has no service access, and transactions are leased per scope through ITransactionLeaseSource (ADR-048). #302 provides Encina.Batching, AddEncinaBatching and the Batching EventId range.
 
-IMPLEMENTATION OVERVIEW: PR1 wrappers, BatchStrategy (AllOrNothing, PartialSuccess, StopOnFirstError), BatchResult with BatchItemResult, BatchExecutor for partial success and stop on first error, BatchCommandHandler, log 7758-7765; PR2 queries, assembly-scan registration, the builder that sends the wrapper, telemetry; PR3 the core seam IScopedRequestSender; PR4 all-or-nothing through IBatchTransactionBoundary, items sent in the batch's scope, commit once; PR5 the Messaging adapter over ITransactionLeaseSource registered wherever the lease source is; PR6 and PR7 integration tests on all 10 providers. Dilemmas D1, D4, D5 and D6 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 wrappers, BatchStrategy (AllOrNothing, PartialSuccess, StopOnFirstError), BatchResult with BatchItemResult, BatchExecutor for partial success and stop on first error, BatchCommandHandler, log 7758-7765; PR2 queries, assembly-scan registration, the builder that sends the wrapper, telemetry; PR3 the core seam IScopedRequestSender; PR4 all-or-nothing through IBatchTransactionBoundary, items sent in the batch's scope, commit once and only by the lease owner (D9); PR5 the Messaging adapter over ITransactionLeaseSource registered wherever the lease source is; PR6 and PR7 integration tests on all 10 providers. Dilemmas D1, D4, D5, D6 and D9 are implemented as the maintainer answers, the recommended options until then.
 
-KEY PATTERNS: Items keep their pipelines and run with the batch's context; AllOrNothing is sequential and fails closed without a boundary; a failure of the all-or-nothing batch returns Right with WasRolledBack flags; never claim atomicity beyond the shared transaction (nothing here calls SaveChangesAsync); exception type only in logs; ADR-062 category on every code; targets never go down; CRAP <= 10.
+KEY PATTERNS: Handlers are registered as IRequestHandler<,>; items keep their pipelines and run with the batch's context minus its idempotency key; AllOrNothing is sequential and fails closed without a boundary; a failure of the all-or-nothing batch returns Right with WasRolledBack flags; never claim atomicity beyond the shared transaction (nothing here calls SaveChangesAsync); exception type only in logs; ADR-062 category on every code; targets never go down; CRAP <= 10.
 
 REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/Abstractions/IEncina.cs, src/Encina.Messaging/Transactions/ITransactionLeaseSource.cs, src/Encina.EntityFrameworkCore/TransactionPipelineBehavior.cs, .github/coverage-manifest/Encina.Batching.json, docs/testing/integration-tests.md.
 ```
@@ -483,7 +504,7 @@ REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/
 | 5 | Validation | ✅ | Each item runs through its own validation behaviors (D2); the batch size is validated by the executor and the options by `ValidateOnStart`. |
 | 6 | Resilience | ⏭️ | Per-item timeout is included; retry of failed items is a policy that belongs to the resilience family and is not added here. |
 | 7 | Distributed Locks | ❌ | A batch is one request in one process; locking batches across instances is not part of this feature. |
-| 8 | Transactions | ✅ | `AllOrNothing` through the scoped sender and `IBatchTransactionBoundary` (D4); the executor is the commit owner; proven on the 10 providers. |
+| 8 | Transactions | ✅ | `AllOrNothing` through the scoped sender and `IBatchTransactionBoundary` (D4); only the lease owner commits (the wrapper's own transaction behavior when present, otherwise the executor, D9); proven on the 10 providers. |
 | 9 | Idempotency | ⏭️ | Deduplication of items inside a batch is #339; batch-level idempotency keys go through the existing inbox behavior of the wrapper request. |
 | 10 | Multi-Tenancy | ✅ | Every item runs under the batch's tenant; a missing tenant fails closed when the marker is present; no identifier composes a tenant into a string. |
 | 11 | Module Isolation | ⏭️ | Module-scoped batch handlers need the module family's context (#747 covers messaging entities); no module identifier is used here. |
@@ -493,7 +514,7 @@ REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/
 
 ## Prerequisites & Dependencies
 
-- **#302, pull requests 1 and 2**: the `Encina.Batching` package, `AddEncinaBatching`, `BatchingOptions` conventions and the `Batching` EventId range (registered in #302 pull request 2). Pull request 1 of this plan waits for them; its placement follows #302's D1.
+- **#302, pull requests 1 to 3**: the `Encina.Batching` package (pull request 1), the `Batching` EventId range (pull request 2) and `AddEncinaBatching` with the scan overload (pull request 3). Pull request 1 of this plan waits for #302 pull request 2 and pull request 2 of this plan for #302 pull request 3; the placement follows #302's D1.
 - **Pull requests 4 to 7** depend on pull request 3 (the core seam) and, for the proofs, on `ITransactionLeaseSource` as registered today by Messaging, EF Core and MongoDB.
 - **Order inside the family**: #302, #349, #339, #121 (#252 is independent).
 - **Related, not blocking**: #339 (deduplication on top of the executor), the audit family (#749), the idempotency family (#733).
@@ -502,8 +523,8 @@ REFERENCE FILES: src/Encina/Dispatchers/Encina.RequestDispatcher.cs, src/Encina/
 
 ## Next Steps
 
-1. Ask the maintainer D1, D4, D5 and D6 when work on #349 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: types, executor and command handler (14 files), after #302 pull request 2.
-3. Pull requests 2 and 3: queries, registration and builder (14 files); the core seam (11 files).
-4. Pull requests 4 and 5: all or nothing (10 files) and the Messaging adapter (8 files).
-5. Pull requests 6 and 7: provider integration tests (9 and 6 files) with the documentation.
+1. Ask the maintainer D1, D4, D5, D6 and D9 when work on #349 starts; record the answers in `## Maintainer Decisions`.
+2. Pull request 1: types, executor and command handler (14 files), after #302 pull request 2; pull request 2 follows #302 pull request 3.
+3. Pull requests 2 and 3: queries, registration and builder (14 files); the core seam (9 files).
+4. Pull requests 4 and 5: all or nothing (10 files) and the Messaging adapter (10 files).
+5. Pull requests 6 and 7: provider integration tests (11 and 11 files) with the documentation in pull request 7; the ADR for the scoped sender and the transaction boundary is a separate documentation pull request.
