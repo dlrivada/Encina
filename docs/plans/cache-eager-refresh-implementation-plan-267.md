@@ -2,7 +2,7 @@
 
 > **Issue**: [#267](https://github.com/dlrivada/Encina/issues/267)
 > **Type**: Feature
-> **Complexity**: Medium (3 code phases, 3 pull requests of 12, 11 and 10 files)
+> **Complexity**: Medium (3 code phases, 3 pull requests of 13, 12 and 10 files)
 > **Estimated Scope**: about 450 lines of production code, about 1,000 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (b4da9e482):
+Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (f484cdf4f):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -162,7 +162,7 @@ The plan adds `EagerRefreshThreshold` (attribute and option), a pure age decisio
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 12 files:
+PR 1 holds exactly these 13 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -178,12 +178,13 @@ PR 1 holds exactly these 12 files:
 | 10 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify |
 | 11 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 12 | `changelog.d/267-cache-eager-refresh-options.added.md` | new (`mechanical-fixer`) |
+| 13 | `tests/Encina.GuardTests/Infrastructure/Caching/CachingOptionsEagerRefreshGuardTests.cs` | new (the two validated setters) |
 
 Tasks:
 
 1. **Create** `internal static class EagerRefreshPolicy` with `static bool ShouldRefresh(DateTime nowUtc, DateTime cachedAtUtc, DateTime expiresAtUtc, double threshold)`: false when `threshold <= 0`, when the lifetime `expiresAtUtc - cachedAtUtc` is not positive, or when `nowUtc >= expiresAtUtc` (an expired entry is #268's stale path or a miss); otherwise `(nowUtc - cachedAtUtc) / lifetime >= threshold`.
-2. **Modify** `CacheAttribute` (`public double EagerRefreshThreshold { get; init; }`, 0 disables, valid range 0 to under 1) and `CachingOptions` (`DefaultEagerRefreshThreshold` 0, `EnableEagerRefresh` false (opt-in: no hosted service, queue or workers unless asked, AGENTS.md section 1), `EagerRefreshMaxConcurrency` 4, `EagerRefreshQueueCapacity` 256); the attribute value wins when greater than 0. Extend `CachePatternSettings.Resolve` with the same range validation and failure mode as the maintainer's answer to #266 Design Choice 7. Copy every new option in `AddEncinaCaching` (the copy list is hand-written, lines 53-72).
-3. **Tests:** the policy at 0, below, at and above the threshold, at and after expiry, with a zero or negative lifetime; resolution takes the attribute over the option, rejects 1, -0.1 and NaN; DI proves the four options reach `IOptions<CachingOptions>`. **Guard tests:** none: the policy is internal without `InternalsVisibleTo` for `Encina.GuardTests`, and the new properties have no parameters.
+2. **Modify** `CacheAttribute` (`public double EagerRefreshThreshold { get; init; }`, 0 disables, valid range 0 to under 1) and `CachingOptions` (`DefaultEagerRefreshThreshold` 0, `EnableEagerRefresh` false (opt-in: no hosted service, queue or workers unless asked, AGENTS.md section 1), `EagerRefreshMaxConcurrency` 4, `EagerRefreshQueueCapacity` 256); the attribute value wins when greater than 0. `EagerRefreshMaxConcurrency` and `EagerRefreshQueueCapacity` have setters that throw `ArgumentOutOfRangeException` below 1 (a capacity below 1 would throw from `Channel.CreateBounded` at start and a concurrency of 0 would start no worker, so refreshes would silently never run; the convention is that of AGENTS.md section 9 guard tests, and PR 1 adds `CachingOptionsEagerRefreshGuardTests.cs`). Extend `CachePatternSettings.Resolve` with the same range validation and failure mode as the maintainer's answer to #266 Design Choice 7. Copy every new option in `AddEncinaCaching` (the copy list is hand-written, lines 53-72).
+3. **Tests:** the policy at 0, below, at and above the threshold, at and after expiry, with a zero or negative lifetime; resolution takes the attribute over the option, rejects 1, -0.1 and NaN; DI proves the four options reach `IOptions<CachingOptions>`. **Guard tests:** `CachingOptionsEagerRefreshGuardTests` (file 13): `EagerRefreshMaxConcurrency` and `EagerRefreshQueueCapacity` of 0 and -1 throw `ArgumentOutOfRangeException`, valid values are stored; the policy is internal without `InternalsVisibleTo` for `Encina.GuardTests`.
 
 </details>
 
@@ -218,7 +219,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 11 files:
+PR 2 holds exactly these 12 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -233,6 +234,7 @@ PR 2 holds exactly these 11 files:
 | 9 | `tests/Encina.ContractTests/Caching/BackgroundCacheRefresherContractTests.cs` | new (instantiates the real refresher; asserts the `IBackgroundCacheRefresher` contract and its argument checks) |
 | 10 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`: targets of this PR's files) |
 | 11 | `changelog.d/267-cache-eager-refresh-worker.added.md` | new (`mechanical-fixer`) |
+| 12 | `tests/Encina.GuardTests/Infrastructure/Caching/BackgroundCacheRefresherGuardTests.cs` | new (through DI, see task 6) |
 
 Tasks:
 
@@ -241,7 +243,7 @@ Tasks:
 3. **Log and metrics (EventIds 456-461, packed, registered by #266):** 456 scheduled, 457 completed (duration), 458 failed, 459 skipped because in flight, 460 rejected because the queue is full, 461 stopped with N dropped. Counter `encina.cache.eager_refresh` with tag `outcome` (`scheduled`, `completed`, `failed`, `skipped_in_flight`, `rejected_full`) and the tag `encina.tenant_id` only when `tenantId` is present and multi-tenancy is registered (ADR-054 D4); never a key or message. If the maintainer answers Design Choice 1 with option C, 456, 459, 460 and 461 are not emitted and are released back to the family.
 4. **Tests (unit):** a scheduled item runs once in a new scope (a counting scope factory); the same key twice runs once; a full queue returns false and counts; a `Left` and an exception are logged and counted and the worker keeps running; the stopping token ends the workers and logs 461; `MaxConcurrency` bounds parallelism (gate); the in-flight key is released after failure; DI builds with `ValidateOnBuild` and `ValidateScopes`, resolves `IBackgroundCacheRefresher` and the hosted service and asserts they are the same instance (`ReferenceEquals`), and `EnableEagerRefresh = false` (the default) registers neither.
 5. **Registration (opt-in):** only when `EnableQueryCaching` and `EnableEagerRefresh` are both true: `TryAddSingleton<BackgroundCacheRefresher>()`, `TryAddSingleton<IBackgroundCacheRefresher>(sp => sp.GetRequiredService<BackgroundCacheRefresher>())` and `AddHostedService(sp => sp.GetRequiredService<BackgroundCacheRefresher>())`, so there is one instance, one queue and one set of workers. Without the registration the behavior receives a null refresher and never schedules.
-6. **Contract and guard tests:** the contract test instantiates the real `BackgroundCacheRefresher` (the contract project has `InternalsVisibleTo`) and asserts: a first schedule returns true, the same key while in flight returns false, a full queue returns false, null `cacheKey` and null `refresh` throw `ArgumentNullException`. `Encina.GuardTests` has no `InternalsVisibleTo` for `Encina.Caching` and none is added, so the guard flag of the refresher is 0 (the argument checks are covered by the contract and unit flags).
+6. **Contract and guard tests:** the contract test instantiates the real `BackgroundCacheRefresher`, starts it (`StartAsync` with a real `IServiceScopeFactory`) and asserts: a first schedule returns true and the delegate runs once in a new scope, the same key while in flight returns false, a full queue returns false, a failing delegate does not stop later items, null `cacheKey` and null `refresh` throw `ArgumentNullException`; it runs the workers, which is why the contract target below is reachable. The guard test file `BackgroundCacheRefresherGuardTests.cs` (file 12) resolves `IBackgroundCacheRefresher` from a provider built with `AddEncinaCaching` and `EnableQueryCaching` plus `EnableEagerRefresh` (the interface is public, so no `InternalsVisibleTo` is needed) and asserts `TrySchedule` null `cacheKey` and null `refresh` throw `ArgumentNullException`, with a valid call returning true.
 
 </details>
 
@@ -250,7 +252,7 @@ Tasks:
 
 ```
 CONTEXT:
-Phase 1 is merged. #266 PR 3 registered the CachingPatterns range (450-499) and CachePatternLog; #267 owns ids 456-461.
+Phase 1 is merged. #266 PR 3 registered the CachingPatterns range (450-499) and CachePatternLog, and #266 PR 4 created CachePatternMetrics; #267 owns ids 456-461.
 
 TASK:
 Add IBackgroundCacheRefresher and BackgroundCacheRefresher (bounded Channel, MaxConcurrency workers, IServiceScopeFactory per item),
@@ -293,7 +295,7 @@ PR 3 holds exactly these 10 files:
 
 Tasks:
 
-1. **Behavior:** in the hit path, after the identity and tenant checks and after the entry is served as `found`, when the settings give a threshold above 0, the request is not `VaryByUser` (Design Choice 2) and `EagerRefreshPolicy.ShouldRefresh(_timeProvider.GetUtcNow().UtcDateTime, entry.CachedAtUtc, entry.ExpiresAtUtc, threshold)` is true, call `_refresher.TrySchedule(cacheKey, context.TenantId, refresh)`; the delegate resolves `IEncina` from the new scope's provider and calls `Send(request, refreshContext, token)` where `refreshContext = context.WithMetadata(CacheRefreshMarker.Key, true)` (the tenant, correlation and metadata are replayed by the copy; no identity). The served response is never delayed. A request that carries the marker skips the cache read, runs the miss path (handler, store with jitter) and never schedules. The entry's `ExpiresAtUtc` absent (an older build, or a sliding entry, which has no fixed lifetime) means not eligible. A null refresher means no eager refresh (direct construction, or `EnableEagerRefresh` false). **Ownership and order:** the hit path returns the whole entry since #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this PR builds on it. Merge order of the family PRs that edit `QueryCachingPipelineBehavior`: #266 PR 1, PR 3, PR 4, then this PR 3, then #268 PR 1 and PR 2 (the later PR rebases; the request-flow contract of #266 fixes the order of the checks: threshold, early draw, stale path).
+1. **Behavior:** in the hit path, after the identity and tenant checks and after the entry is served as `found`, when the settings give a threshold above 0, the request is not `VaryByUser` (Design Choice 2) and `EagerRefreshPolicy.ShouldRefresh(_timeProvider.GetUtcNow().UtcDateTime, entry.CachedAtUtc, entry.ExpiresAtUtc, threshold)` is true, call `_refresher.TrySchedule(cacheKey, context.TenantId, refresh)`; the delegate resolves `IEncina` from the new scope's provider and calls `Send(request, refreshContext, token)` where `refreshContext = context.WithMetadata(CacheRefreshMarker.Key, true)` (the tenant, correlation and metadata are replayed by the copy; no identity). The served response is never delayed. A request that carries the marker skips the cache read, runs the miss path (handler, store with jitter) and never schedules. The entry's `ExpiresAtUtc` absent (an older build, or a sliding entry, which has no fixed lifetime) means not eligible. A null refresher means no eager refresh (direct construction, or `EnableEagerRefresh` false). **Ownership and order:** the hit path returns the whole entry since #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this PR builds on it. Merge order of the family PRs that edit `QueryCachingPipelineBehavior`: #266 PR 1, PR 3, PR 4, then this PR 3, then #268 PR 1 and PR 2, then #271 PR 5 (the later PR rebases; the request-flow contract of #266 fixes the order of the checks: threshold, early draw, stale path).
 2. **Precedence (request-flow contract of #266):** the threshold is checked before #266's early-expiration draw; when it triggers, no early draw is made.
 3. **Tests (unit, real `MemoryCacheProvider` and a `HybridCacheProvider` built through DI):** below threshold nothing is scheduled; at the threshold the old value is served at once and one refresh runs; ten hits at the threshold schedule one refresh; the refresh stores a new entry with a reset TTL; a failing handler leaves the old entry and logs 458; `VaryByUser` never schedules; a request with the marker never schedules and always runs the handler; a missing tenant under multi-tenancy never reaches the trigger; two tenants refresh into their own keys. **Guard tests:** a null `refresher` is valid (a valid-result test, no refresh scheduled). **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`, a real `IEncina` with the caching behavior, two tenants and a handler that returns its context tenant: after the threshold, each tenant's refreshed entry holds its own tenant's value. The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares `RedisCacheProvider`, so this is their coverage; Memcached follows #277.
 4. **Docs:** `docs-writer` adds the "Eager refresh" section to `docs/features/query-caching.md` (threshold, what the refresh runs under, the `VaryByUser` exclusion, the ambient-tenant caveat), citing tests by name.
@@ -338,6 +340,10 @@ REFERENCE FILES:
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Patterns/EagerRefreshPolicy.cs` | 100 | 0 | 0 | 0 | One pure function fully unit tested; internal without `InternalsVisibleTo` for the guard project |
+| `Patterns/CachePatternSettings.cs` | keeps 100 | 0 | 0 | 0 | Owned by #266 (target 100 set there); the new threshold branches are covered by the settings tests of PR 1 |
+| `Attributes/CacheAttribute.cs` | keeps 100 | 0 | 0 | 0 | #266 sets the first target (the manifest has none today); `EagerRefreshThreshold` is an initializer executed by the behavior and settings tests |
+| `Configuration/CachingOptions.cs` | keeps | keeps 85, raise to 90 | 0 | 0 | The two validated setters are exercised by `CachingOptionsEagerRefreshGuardTests` in PR 1 |
+| `ServiceCollectionExtensions.cs` | keeps 90 | keeps 30 | 0 | 0 | #266 sets the first target; the four copy lines and the registration branch are executed by the DI tests of PR 1 and PR 2 |
 | `Patterns/BackgroundCacheRefresher.cs` | 95 | 0 | 70 | 0 | Workers, queue and failure paths are driven with gates and a counting scope factory; the contract test of PR 2 runs the schedule, in-flight, full-queue and argument-check paths; no `InternalsVisibleTo` for the guard project |
 | `Patterns/CacheRefreshMarker.cs` | 100 | 0 | 0 | 0 | Two trivial members covered by the behavior tests |
 | `Abstractions/IBackgroundCacheRefresher.cs` | 0 | 0 | 0 | 0 | An interface with no executable lines |
@@ -354,10 +360,10 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-The three code PRs are merged.
+The three code PRs are merged; each carried its own per-flag targets.
 
 TASK:
-Measure per-flag coverage of the new and touched files with coverage-report.cs; record the targets above through mechanical-fixer; run
+Verify, with coverage-report.cs, that each PR's measured numbers reach the targets above; fix any gap through mechanical-fixer in a small PR; run
 --check-justifications.
 
 KEY RULES:
@@ -408,7 +414,7 @@ REFERENCE FILES:
 | Tests | 4 | 7 | New: policy, refresher, eager-refresh and integration tests; modified: settings, options, DI, guard behavior tests |
 | Documentation | 0 | 1 | `docs/features/query-caching.md` |
 | Configuration | 3 | 2 | Three changelog fragments; the manifest and `PublicAPI.Unshipped.txt` |
-| **Total** | **13** | **14** | 3 pull requests: 12, 10 and 10 files, each at most 15 files and 1500 lines |
+| **Total** | **13** | **14** | 3 pull requests: 13, 12 and 10 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -468,7 +474,7 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
-| #266 PR 1 (`ExpiresAtUtc`, `CachePatternSettings`) and PR 3 (`CachePatternLog`, range 450-499) | Pending | Must be merged first |
+| #266 PR 1 (`ExpiresAtUtc`, `CachePatternSettings`, whole-entry hit path), PR 3 (`CachePatternLog`, range 450-499) and PR 4 (`CachePatternMetrics.cs`, created there) | Pending | PR 1 needs #266 PR 1; PR 2 needs #266 PR 3 and PR 4 (it adds a partial of the metrics class) |
 | `IServiceScopeFactory`, `IEncina.Send(request, context, token)` | ✅ Available | On `origin/main` |
 | Maintainer answers to Design Choices 1 to 6 | Pending | Asked when work starts |
 
