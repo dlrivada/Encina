@@ -222,9 +222,13 @@ function Split-CommandStatements {
         # subexpression, a Bash glob), so its Value is not the executed text. Unlike Literal it ignores plain
         # unquoted text, so `-Name:value` and a bare value can still tell whether they are trustworthy (#3896).
         $expanded = $false
+        # A token written right against a brace (`x{a,b}`, `{a,b}x`) is cut at the brace, but Bash brace expansion
+        # (and a PowerShell script block) makes the real argument something else: never trust its Value (#3896).
+        if ($i -gt 0 -and $Text[$i - 1] -in '{', '}') { $expanded = $true }
         while ($i -lt $n) {
             $c = $Text[$i]
-            if ($c -in ' ', "`t", ';', "`n", "`r", '|', '{', '}') { break }
+            if ($c -in '{', '}') { $expanded = $true; break }
+            if ($c -in ' ', "`t", ';', "`n", "`r", '|') { break }
             if ($c -eq '&' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '&') { break }
             if (Test-LineContinuation $Text $i $Bash) { break }
 
