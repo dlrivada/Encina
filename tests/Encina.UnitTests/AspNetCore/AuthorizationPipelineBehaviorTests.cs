@@ -49,12 +49,22 @@ public class AuthorizationPipelineBehaviorTests
         return (result, nextCalled);
     }
 
-    private static void ShouldBeDeniedWith<T>(Either<EncinaError, T> result, string code, string? messagePart = null)
+    private static void ShouldBeDeniedWith<T>(Either<EncinaError, T> result, string code, string? messagePart = null, bool producedByTheBehavior = true)
     {
         result.ShouldBeError();
         result.IfLeft(error =>
         {
             error.GetCode().IfNone("none").ShouldBe(code);
+            // Denials are Forbidden (403) and a missing identity is Unauthenticated (401), through the real HTTP table.
+            // An error returned by a gate is its own and keeps its own category.
+            if (producedByTheBehavior)
+            {
+                error.GetCategory().ShouldBe(
+                    code == EncinaErrorCodes.AuthorizationUnauthenticated ? ErrorCategory.Unauthenticated : ErrorCategory.Forbidden);
+                error.GetStatusCode().ShouldBe(
+                    code == EncinaErrorCodes.AuthorizationUnauthenticated ? 401 : 403);
+            }
+
             if (messagePart is not null)
             {
                 error.Message.ShouldContain(messagePart);
@@ -226,7 +236,7 @@ public class AuthorizationPipelineBehaviorTests
             new AdminOnlyRequest(), UserContext(roles: UserRole), elevationGate: gate);
 
         nextCalled.ShouldBeFalse();
-        ShouldBeDeniedWith(result, "break_glass.audit_failed");
+        ShouldBeDeniedWith(result, "break_glass.audit_failed", producedByTheBehavior: false);
     }
 
     [Fact]
