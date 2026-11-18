@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for dashboard "commands and metrics visualization" for the messaging patterns. State of `origin/main` (`010d6f995`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading, grep and the Aspire package:
+The issue asks for dashboard "commands and metrics visualization" for the messaging patterns. State of `origin/main` (`528f34f7e`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading, grep and the Aspire package:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -202,7 +202,7 @@ A wins while #2229 recommends the same prefix; B wins if #2229's answer is not t
 </details>
 
 <details>
-<summary><strong>9. Batch size cap of the replay command</strong></summary>
+<summary><strong>9. Batch size cap of the replay command (Dilemma D9, tied to D6 option A)</strong></summary>
 
 ### Options Considered
 
@@ -211,14 +211,13 @@ A wins while #2229 recommends the same prefix; B wins if #2229's answer is not t
 | **A) `AddRetryDeadLetters(int maxMessages = 100)`, validated from 1 up to `DeadLetterStoreLimits.MaxPageSize` (1000)** | The default is the manager's own; no number is invented: the manager rejects values below 1 and applies `Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize)` | The endpoint may cap lower (the #2229 plan recommends 100); the command then replays fewer rows than asked, and the outcome counts show it |
 | **B) Any positive number** | Flexible | The dashboard would promise more than the manager does |
 
-### Chosen Option: **A — default 100, 1 to 1000**
+### Chosen Option: **A — default 100, 1 to 1000** (recommended, pending the maintainer)
 
 ### Rationale
 
-The values are those of the manager signature and its page limit, not new numbers; the counts of D6 report what was actually replayed.
+This choice exists only if D6 keeps option A (the command calls the batch route): under D6 option B (replay one row at a time by id) there is no batch and no cap, and this entry disappears. With D6 A the values are those of the manager signature and its page limit, not new numbers, and the counts of D6 report what was actually replayed. A wins for that reason; B wins if the maintainer wants no promise of a batch size. Sources: `src/Encina.Messaging/DeadLetter/IDeadLetterManager.cs` (`ReplayAllAsync(DeadLetterFilter filter, int maxMessages = 100, ...)`) and `DeadLetterManager.cs` (`ThrowIfLessThan(maxMessages, 1)`, `Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize)`).
 
-**Class:** Trivial
-**Settled by:** `src/Encina.Messaging/DeadLetter/IDeadLetterManager.cs` (`ReplayAllAsync(DeadLetterFilter filter, int maxMessages = 100, ...)`) and `DeadLetterManager.cs` (`ThrowIfLessThan(maxMessages, 1)`, `Math.Min(maxMessages, DeadLetterStoreLimits.MaxPageSize)`).
+**Class:** Dilemma
 
 </details>
 
@@ -246,7 +245,7 @@ The values are those of the manager signature and its page limit, not new number
 
 ```text
 CONTEXT:
-- Issue #419; plan docs/plans/aspire-dashboard-commands-implementation-plan-419.md. D1 to D6 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (#416).
+- Issue #419; plan docs/plans/aspire-dashboard-commands-implementation-plan-419.md. D1 to D6, D8 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (#416).
 - Aspire.Hosting 13.6.5 offers WithHttpCommand and WithCommand with CommandOptions; confirm each member you use in Aspire.Hosting.xml before coding (HttpCommandOptions.PrepareRequest, GetCommandResult, ResultMode, CommandOptions.UpdateState, ConfirmationMessage, Arguments, ValidateArguments).
 
 TASK:
@@ -534,7 +533,7 @@ PR 1 needs #416 pull request 1; PR 3 edits the package README that #416 pull req
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #419: Aspire Dashboard commands, first the dead letter retry. Plan: docs/plans/aspire-dashboard-commands-implementation-plan-419.md; D1-D6 and D8 are recommended, pending the maintainer.
+- Issue #419: Aspire Dashboard commands, first the dead letter retry. Plan: docs/plans/aspire-dashboard-commands-implementation-plan-419.md; D1-D6, D8 and D9 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. WithEncinaCommands, options, the failure mapper, the log 820-824 and the EventId range (Phase 1).
@@ -587,5 +586,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1 to D6 and D8 when work on #419 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1 to D6, D8 and D9 when work on #419 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1 after #416 pull request 1; pull request 2; pull request 3 last.
