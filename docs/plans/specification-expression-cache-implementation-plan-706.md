@@ -10,7 +10,7 @@
 
 ## Summary
 
-`Specification<T>` (`src/Encina.DomainModeling/Specification.cs`) rebuilds work on every call, exactly as the issue says, and the code confirms each point on `origin/main` (d523eda92):
+`Specification<T>` (`src/Encina.DomainModeling/Specification.cs`) rebuilds work on every call, exactly as the issue says, and the code confirms each point on `origin/main` (822c310c7):
 
 - `ToFunc()` is `ToExpression().Compile()` (line 47) and `IsSatisfiedBy` calls it on every evaluation (lines 54-58), so a loop of N entities compiles N times.
 - `AndSpecification`, `OrSpecification` and `NotSpecification` (lines 99-172) call `ToExpression()` on their children and build a new `Expression.Lambda` each time.
@@ -157,8 +157,8 @@ No guard test file changes: the new member has no parameter, and the guard tests
 
 Tasks:
 
-1. **Modify `Specification<T>`**: add `protected internal virtual bool IsExpressionStable => true`; keep `ToExpression()` abstract; change `ToFunc()` to return the delegate cached in one nullable field published by compare-and-swap (`LazyInitializer.EnsureInitialized`, Design Choice 4) when `IsExpressionStable` is true, and to compile on every call when it is false. `IsSatisfiedBy` is unchanged (it calls `ToFunc()`).
-2. **Modify `AndSpecification<T>`, `OrSpecification<T>`, `NotSpecification<T>`**: each overrides `IsExpressionStable` as the conjunction of its children's flags and caches the built `Expression.Lambda` in one nullable field when stable; the parameter name stays `x`; the expression shape is unchanged so the SQL builders and EF translate exactly as today.
+1. **Modify `Specification<T>`**: add `protected internal virtual bool IsExpressionStable => true` and `internal virtual int ExpressionVersion => 0`; keep `ToExpression()` abstract; change `ToFunc()` to return the delegate cached in one nullable field, held together with the `ExpressionVersion` it was compiled for, published by compare-and-swap (`LazyInitializer.EnsureInitialized`, Design Choice 4) when `IsExpressionStable` is true, recompiling when the current version differs from the stored one, and to compile on every call when it is false. `IsSatisfiedBy` is unchanged (it calls `ToFunc()`).
+2. **Modify `AndSpecification<T>`, `OrSpecification<T>`, `NotSpecification<T>`**: each overrides `IsExpressionStable` as the conjunction of its children's flags and `ExpressionVersion` as the sum of theirs, and caches the built `Expression.Lambda` with the version tuple it was built for when stable, rebuilding on a difference; the parameter name stays `x`; the expression shape is unchanged so the SQL builders and EF translate exactly as today.
 3. **Modify `QuerySpecification<T>`**: cache the combined criteria in `ToExpression()`; add the private counter behind the `internal override int ExpressionVersion` and increment it in `AddCriteria` and `ClearCriteria` (Design Choice 3, option A: every cache, including the delegate of the base class and each composite lambda, stores the version tuple it was built for and rebuilds on a difference; no reset hook into the base class is needed); a derived class that overrides `ToExpression()` is covered by the same flag: it is stable by default, so its delegate is compiled once, and a derived class that returns a different expression after mutation declares itself unstable.
 4. **XML documentation**: `<remarks>` on `Specification<T>`, `ToFunc()` and `IsExpressionStable` state the contract (an expression that depends on mutable state or a value captured at build time must override the flag to `false`), with an example of each case; the existing sentence "Caching the compiled function is recommended" is replaced.
 5. **Unit tests** (execute the real classes): `ToFunc()` twice returns the same delegate instance for a stable specification and different instances for an unstable one; `And/Or/Not` return the same expression instance on repeated calls; a composite with one unstable child recompiles; `AddCriteria` after an evaluation changes the result (sequence: evaluate, add criterion, evaluate); `ClearCriteria` likewise; a composite built over a `QuerySpecification` (`q.And(o)`, `q.Or(o)`, `q.Not()`, and a composite of a composite) is evaluated, the query is mutated, and the composite evaluates the new criteria; `IsSatisfiedBy` is correct before and after caching for `And`, `Or`, `Not` over the specifications of `SpecificationPropertyTests`; concurrent first calls from 32 tasks return working delegates and one published instance afterwards (no sleeps, a barrier); a stable specification evaluated once costs no more than one compile.
@@ -177,11 +177,13 @@ Encina is a .NET 10 / C# 14 library, pre-1.0, no backward compatibility. Issue #
 And/Or/Not/QuerySpecification rebuild their expression on every ToExpression(). All of it is in src/Encina.DomainModeling/Specification.cs.
 
 TASK:
-1. Add protected internal virtual bool IsExpressionStable => true to Specification<T>; cache the compiled delegate and the composite
-   expressions only when it is true, publishing with compare-and-swap (no lock, no Lazy<T>).
-2. AndSpecification/OrSpecification/NotSpecification: stable only when every child is stable; keep the expression shape and the
-   parameter name unchanged.
-3. QuerySpecification<T>: cache the combined criteria; AddCriteria and ClearCriteria reset the cache.
+1. Add protected internal virtual bool IsExpressionStable => true and internal virtual int ExpressionVersion => 0 to Specification<T>;
+   cache the compiled delegate and the composite expressions only when IsExpressionStable is true, each together with the
+   ExpressionVersion it was built for, rebuilding when the version differs; publish with compare-and-swap (no lock, no Lazy<T>).
+2. AndSpecification/OrSpecification/NotSpecification: stable only when every child is stable; their ExpressionVersion is the sum of the
+   children's versions; keep the expression shape and the parameter name unchanged.
+3. QuerySpecification<T>: cache the combined criteria; override ExpressionVersion with a counter that AddCriteria and ClearCriteria
+   increment (no reset hook into the base class: every cache validates by version).
 4. Write the unit tests, the FsCheck property (cached equals uncached) and the benchmark; ask mechanical-fixer for the PublicAPI line,
    the manifest targets and the changelog fragment; ask docs-writer for the feature page.
 
@@ -328,9 +330,10 @@ Encina is a .NET 10 / C# 14 library, pre-1.0, no backward compatibility. Issue #
 the composed expressions of And/Or/Not/QuerySpecification inside Encina.DomainModeling, in memory only.
 
 IMPLEMENTATION OVERVIEW:
-1. Specification.cs: IsExpressionStable (protected internal virtual, default true); ToFunc() caches an immutable pair by compare-and-swap;
-   composites cache their lambda only when every child is stable; QuerySpecification caches its combined criteria and resets it in
-   AddCriteria and ClearCriteria.
+1. Specification.cs: IsExpressionStable (protected internal virtual, default true) and ExpressionVersion (internal virtual, default 0);
+   ToFunc() and each composite cache their result with the version it was built for, published by compare-and-swap, and rebuild when the
+   version differs; composites cache only when every child is stable and sum their children's versions; QuerySpecification caches its
+   combined criteria and increments its version in AddCriteria and ClearCriteria.
 2. Tests: unit (identity, mutation after evaluation, unstable child, concurrent first call), FsCheck (cached equals uncached), benchmark.
 3. PublicAPI line, manifest targets, changelog fragment and the feature page through the specialists.
 
