@@ -114,13 +114,13 @@ Provider category: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one impleme
 | **B) Keep the old method and add an overload with the context** | Old tests untouched | Two entry points for one operation; forbidden pre-1.0 |
 | **C) A nullable optional context parameter** | One method | A caller can forget the context and silently lose the key (fail open) |
 
-### Chosen Option: **A — replace the signature**
+### Chosen Option: **A — replace the signature** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A required context makes it impossible for a dispatch to lose its key without a compile error.
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (no compatibility layers or aliases: if something must change, change it completely) and `src/Encina/Abstractions/IEncina.cs` (the existing order is request, context, cancellation token)
+- AGENTS.md section 3 (no compatibility layers or aliases) excludes B, but not C: an optional nullable context is no compatibility layer, so more than one option complies with the rule. A wins when the maintainer prefers that a dispatch cannot lose its key without a compile error (a required context fails closed at build time); C wins when a smaller diff to the dispatcher's callers matters more than that guarantee, accepting that a caller can pass `null` and silently dispatch without a key (fail open).
+- The parameter order of A follows `src/Encina/Abstractions/IEncina.cs` (request, context, cancellation token).
+- **Class:** Dilemma
 
 </details>
 
@@ -209,7 +209,7 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.Messaging/Scheduling/SchedulingOptions.cs`** (modify): `AcceptAtLeastOnceDispatch` (bool, default `false`) with XML docs stating the delivery guarantee and that setting it is logged at every start.
-2. **`src/Encina.Messaging/Scheduling/SchedulingDispatchStartupCheck.cs`** (new, internal sealed `IHostedService`, same shape as `DelayedRetryStartupCheck`): at `StartAsync`, when Scheduling is registered, ask the built container (`IServiceProviderIsService`) whether the Inbox store, the `DistributedIdempotencyPipelineBehavior` registration or the #733 gate exist; if none and `AcceptAtLeastOnceDispatch` is false, fail the start with a message naming the three ways out (enable the Inbox, enable cache idempotency, set the option); when the option is set, log the opt-out (EventId 7840; the failure itself is 7841). The check needs no scoped service.
+2. **`src/Encina.Messaging/Scheduling/SchedulingDispatchStartupCheck.cs`** (new, internal sealed `IHostedService`, same shape as `DelayedRetryStartupCheck`): at `StartAsync`, when Scheduling is registered, ask the built container (`IServiceProviderIsService.IsService`) about **closed** service types only, because `IsService` answers false for an open generic: `IInboxStore` (registered closed by the Inbox registration, `MessagingServiceCollectionExtensions.cs:324`), the closed idempotency store type of [#334](https://github.com/dlrivada/Encina/issues/334) and the closed gate type of [#733](https://github.com/dlrivada/Encina/issues/733) once they ship (the cache behavior itself is registered as the open generic `IPipelineBehavior<,>` at `src/Encina.Caching/ServiceCollectionExtensions.cs:90` and `Encina.Messaging` does not reference `Encina.Caching`, so it cannot be probed; the seam to agree with #334 is the store type it registers); until #334 and #733 land the closed list holds only `IInboxStore`. If none is registered and `AcceptAtLeastOnceDispatch` is false, fail the start with a message naming the three ways out (enable the Inbox, enable cache idempotency, set the option); when the option is set, log the opt-out (EventId 7840; the failure itself is 7841). The check needs no scoped service.
 3. **`src/Encina.Messaging/MessagingServiceCollectionExtensions.cs`** (modify): register the check in `RegisterScheduling` as `TryAddEnumerable` hosted service; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 4. The check runs only with a generic host (as `DelayedRetryStartupCheck` does); a host without one is documented in the guide.
 
@@ -263,8 +263,8 @@ src/Encina/Diagnostics/EventIdRanges.cs, docs/plans/processor-row-claiming-imple
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Unit (`tests/Encina.UnitTests/Messaging/Scheduling/`): `ScheduledDispatchKeyTests` (distinct per occurrence, identical across retries, `Kind` independent), the dispatcher tests rewritten for the context (the compiled delegates pass the context and the key reaches a recording `IEncina`), processor tests (the callback sets the key; a recurring message's two occurrences get two keys), `SchedulingDispatchStartupCheckTests` (no consumer fails, each consumer passes, opt-out passes and logs), redispatch detection (counter and log).
-2. Guard (`Encina.GuardTests`): dispatcher `DispatchAsync` null context, startup check constructor, key composer is internal (no guard test reachable).
+1. Unit (`tests/Encina.UnitTests/Messaging/Scheduling/`): `ScheduledDispatchKeyTests` (distinct per occurrence, identical across retries, `Kind` independent), the dispatcher tests rewritten for the context (the compiled delegates pass the context and the key reaches a recording `IEncina`), processor tests (the callback sets the key; a recurring message's two occurrences get two keys), `SchedulingDispatchStartupCheckTests` (no consumer fails, each closed consumer type passes, opt-out passes and logs, and the constructor argument tests: `SchedulingDispatchStartupCheck` is `internal sealed` and `Encina.Messaging` grants no `InternalsVisibleTo` to `Encina.GuardTests`, so they live here, as an internal type's argument tests do), `SchedulingOptionsTests` (existing file, extended with the `AcceptAtLeastOnceDispatch` default and setter), `ScheduledMessageProcessorTests` (new file: no processor test file exists today), redispatch detection (counter and log).
+2. Guard (`Encina.GuardTests`): dispatcher `DispatchAsync` null context only; the key composer and the startup check are internal with no guard-reachable `InternalsVisibleTo` (their argument tests are in UnitTests, task 1).
 3. Contract: the existing `CompiledExpressionScheduledMessageDispatcherContractTests` updated for the context.
 4. Integration (`Encina.IntegrationTests`, shared `[Collection]` fixtures): one shared scenario `ScheduledDispatchKeyScenario` run on the 10 providers through the existing scheduling store and cycle test files (ADO.NET x3, Dapper x3, EF Core x3, MongoDB): schedule a recurring message, dispatch it twice without saving the outcome (the simulated crash) and assert the same key both times; save, reschedule, and assert the next occurrence has another key; with an Inbox-marked request the handler runs once.
 5. DI: the Messaging DI test extended with the startup check (`ValidateOnBuild`, `ValidateScopes`).
@@ -330,7 +330,7 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|-----:|------:|---------:|------------:|---------------|
 | `Scheduling/ScheduledDispatchKey.cs` | 100 | 0 | 0 | 70 | A pure function asserted exhaustively; internal static, no `InternalsVisibleTo` for `Encina.GuardTests`; the integration scenario exercises it on 10 providers |
-| `Scheduling/SchedulingDispatchStartupCheck.cs` | 92 | 70 | 0 | 0 | Every branch (each consumer present or absent, opt-out) is unit-testable with a built container; guard covers the constructor |
+| `Scheduling/SchedulingDispatchStartupCheck.cs` | 95 | 0 | 0 | 0 | Every branch (each closed consumer type present or absent, opt-out) and the constructor argument checks are unit-tested with a built container; internal sealed type and `Encina.Messaging` has no `InternalsVisibleTo` for `Encina.GuardTests`, so guard tests cannot reach it |
 | `Scheduling/CompiledExpressionScheduledMessageDispatcher.cs` (modified) | 95 | 60 | 60 | 0 | The `Encina.Messaging.json` manifest has no per-file target for it today (only `defaultTests` unit and guard), so these are new targets set by this plan: the compiled delegates and the null-context check are fully unit-asserted, guard covers the constructor and `DispatchAsync` arguments, and the existing contract suite (updated in PR A) runs the delegates against a recording `IEncina`; confirm each against the measured baseline at implementation (never lower) |
 | `Scheduling/ScheduledMessageProcessor.cs` (modified) | 80 | 50 | 0 | 60 | The manifest has no per-file target yet, so all four are new; the callback and its context are covered by processor unit tests and the cycle scenario, guard covers the constructor; targets are added to the manifest with PR A |
 | `Scheduling/SchedulerOrchestrator.cs` (modified) | 90 | 30 | 0 | 60 | The current unit 90 and guard 30 stay; detection is covered by unit tests with a store fake and by the integration scenario |
@@ -344,7 +344,7 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 | Production source, new | 4 | `ScheduledDispatchKey.cs`, `SchedulingDispatchStartupCheck.cs`, `ScheduledDispatchIdempotencyMetrics.cs`, `ScheduledDispatchIdempotencyLog.cs` |
 | Production source, modified | 7 | `IScheduledMessageDispatcher.cs`, `CompiledExpressionScheduledMessageDispatcher.cs`, `ScheduledMessageProcessor.cs`, `SchedulerOrchestrator.cs`, `SchedulingOptions.cs`, `MessagingServiceCollectionExtensions.cs`, `EventIdRanges.cs` |
 | Metadata | 8 | `PublicAPI.Unshipped.txt` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, two changelog fragments (`changed` in PR B, `added` in PR E), `docs/INVENTORY.md`, README of `Encina.Messaging` |
-| Tests | 18 | unit (key, startup check, dispatcher rewritten, processor, detection), guard (dispatcher rewritten, check), contract updated, `ErrorMessageLeakTests` updated, integration (the shared scenario plus the provider test files extended: counted as 5 files: ADO.NET, Dapper, EF Core, MongoDB registrations and the scenario), DI test extended, allocation map, justification files (2) |
+| Tests | 18 | unit (key, startup check, dispatcher rewritten, processor, detection), guard (dispatcher rewritten; none for the internal check), contract updated, `ErrorMessageLeakTests` updated, integration (the shared scenario plus the provider test files extended: counted as 5 files: ADO.NET, Dapper, EF Core, MongoDB registrations and the scenario), DI test extended, allocation map, justification files (2) |
 | Documentation | 2 | scheduling guide, ADR-050 table row |
 | **Total** | **~39 distinct** | Five pull requests (the PR table below sums to 43 because the `PublicAPI` files and manifests are touched in several) |
 
@@ -353,7 +353,7 @@ tests/Encina.UnitTests/Messaging/Scheduling/CompiledExpressionScheduledMessageDi
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A | Phase 1: `ScheduledDispatchKey`, dispatcher contract, compiled dispatcher, processor callback, `PublicAPI` and manifest of `Encina.Messaging`, the key unit test, the rewritten dispatcher unit, guard and contract tests, `ErrorMessageLeakTests`, processor unit test | 12 |
-| B | Phase 2: `AcceptAtLeastOnceDispatch`, `SchedulingDispatchStartupCheck`, registration, `ScheduledDispatchIdempotencyLog` with its first two entries (7840, 7841), `EventIdRanges.cs`, the allocation test map, the startup check unit and guard tests, DI test extended, `PublicAPI` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, changelog fragment `changelog.d/735-scheduling-startup-check.changed.md` | 14 |
+| B | Phase 2: `AcceptAtLeastOnceDispatch`, `SchedulingDispatchStartupCheck`, registration, `ScheduledDispatchIdempotencyLog` with its first two entries (7840, 7841), `EventIdRanges.cs`, the allocation test map, the startup check unit tests (constructor argument tests included, no guard test file), `SchedulingOptionsTests` extended, DI test extended, `PublicAPI` of `Encina.Messaging` and `Encina`, manifests `Encina.Messaging.json` and `Encina.json`, changelog fragment `changelog.d/735-scheduling-startup-check.changed.md` | 14 (no guard test file for the check, `SchedulingOptionsTests` added; 1 file of room left) |
 | C | Phase 3: the metrics class, the third log entry (7842), `SchedulerOrchestrator` detection after [#1251](https://github.com/dlrivada/Encina/issues/1251), unit tests (metrics, detection), manifest `Encina.Messaging.json` | 6 |
 | D | Phase 4 integration: the shared scenario on the 10 providers (5 test files) | 5 |
 | E | Load and benchmark justification files, the `added` changelog fragment, README, scheduling guide, ADR-050 row, `docs/INVENTORY.md` | 7 |
@@ -442,6 +442,6 @@ docs/plans/processor-row-claiming-implementation-plan-1251.md, src/Encina/Diagno
 ## Next Steps
 
 1. Open PR A first; it needs nothing from #1251, #716 or #733.
-2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 3, 5 and 6 (mechanism, the startup check and its opt-out, detection through the claim, the tenant before #739) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
+2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 3, 4, 5 and 6 (mechanism, the startup check and its opt-out, required or optional dispatch context, detection through the claim, the tenant before #739) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
 3. Confirm the `MessagingScheduledIdempotency` range (7840-7849) is still free when PR B starts.
 4. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
