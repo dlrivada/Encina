@@ -236,6 +236,38 @@ public class HttpResponseDataExtensionsTests
     }
 
     [Fact]
+    public async Task ToProblemDetailsResponse_WithACorrelationIdInTheContext_WritesTheCorrelationId()
+    {
+        // Arrange
+        var error = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "no order");
+        var context = new TestContext();
+        context.Items["Encina.CorrelationId"] = "corr-1";
+
+        // Act
+        var response = (TestResponse)await error.ToProblemDetailsResponse(new TestRequest(context));
+
+        // Assert
+        var extensions = JsonDocument.Parse(response.ReadBody()).RootElement.GetProperty("extensions");
+        extensions.GetProperty("correlationId").GetString().ShouldBe("corr-1");
+    }
+
+    [Fact]
+    public void GetCorrelationId_WithAnEmptyHeaderValue_FallsBackToTheContextItem()
+    {
+        // Arrange
+        var context = new TestContext();
+        context.Items["Encina.CorrelationId"] = "corr-2";
+        var request = new TestRequest(context);
+        request.Headers.Add("X-Correlation-ID", string.Empty);
+
+        // Act
+        var correlationId = context.GetCorrelationId(request);
+
+        // Assert
+        correlationId.ShouldBe("corr-2");
+    }
+
+    [Fact]
     public async Task ToProblemDetailsResponse_NullRequest_Throws()
     {
         // Arrange
