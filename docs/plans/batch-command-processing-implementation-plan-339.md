@@ -23,7 +23,7 @@
 | "Enforce single-tenant batch scope" (deferred in the issue's matrix) | Already provided by #349: every item runs under the batch's own context | Matrix row 10 |
 | **Deduplication of commands inside a batch** | **This plan** | `EnableDeduplication`, a key per command, `BatchDeduplicator` |
 
-State of `origin/main` (`b50b8c981`): no batching types exist yet (`git grep` of `BatchCommand` and `EnableDeduplication` in `src` finds nothing relevant), so the plan is written against #302 and #349 as planned.
+State of `origin/main` (`822c310c7`): no batching types exist yet (`git grep` of `BatchCommand` and `EnableDeduplication` in `src` finds nothing relevant), so the plan is written against #302 and #349 as planned.
 
 Delivered, in `Encina.Batching`: `IBatchDeduplicationKey` (a command exposes its identity), `BatchDeduplicator` (internal: finds the first index of each key, in input order, in one pass), `BatchExecutionOptions.EnableDeduplication` (default `false`), the executor change that runs only the first command of each key and copies its outcome to the duplicates, four log messages (EventIds 7766-7769) and the documentation.
 
@@ -69,7 +69,7 @@ A wins when the commands are the application's own (the common case of bulk impo
 
 ### Rationale
 
-A wins when the batch is an import where repetition is noise; B wins when the caller must be told about each repeated item and does not use `AllOrNothing`; C wins for strict APIs where a repeated command is a client bug. With A the first occurrence runs in input order, later ones are never executed, and `StopOnFirstError` treats the copies like the first occurrence (a stop before the first occurrence skips the duplicates with `batching.item_skipped`).
+A wins when the batch is an import where repetition is noise; B wins when the caller must be told about each repeated item and does not use `AllOrNothing`; C wins for strict APIs where a repeated command is a client bug. With A the first occurrence runs in input order, later ones are never executed, and `StopOnFirstError` treats the copies like the first occurrence (a stop before the first occurrence skips the duplicates with `batching.item_skipped`). Under `AllOrNothing` the executor copies once its own outcome is known (its item results and its own rollback); when the batch joined a transaction owned elsewhere (#349 D9), the owner's later commit failure replaces the whole `BatchResult` with the owner's `Left`, so a copy is never observable as a success for a rolled-back first occurrence. Every item, duplicates included, keeps the per-item context of #349 (no idempotency key of the wrapper).
 
 **Class:** Dilemma
 
@@ -103,7 +103,7 @@ A wins when the batch is an import where repetition is noise; B wins when the ca
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddEncinaBatching(configure)` of #302 binds `BatchExecutionOptions` including `EnableDeduplication`** | One registration entry per package, as every satellite package has | The issue's `config.UseBatchProcessing` name is not used |
+| **A) `AddEncinaBatching` of #302 and #349 registers `BatchExecutionOptions` with validation (`AddOptions<BatchExecutionOptions>()`), and `EnableDeduplication` is one of its properties, set with the standard options pattern (`services.Configure<BatchExecutionOptions>(...)`)** | One registration entry per package, as every satellite package has; no new configuration API | The issue's `config.UseBatchProcessing` name is not used |
 | **B) `EncinaConfiguration.UseBatchProcessing(...)` as in the issue** | Matches the issue text | A second way to register the same options; core `EncinaConfiguration` would reference or reflect a satellite package |
 
 ### Chosen Option: **A, the satellite registration**
@@ -118,7 +118,7 @@ The plan prompt's Encina rules require satellite registration as `AddEncina{Feat
 </details>
 
 <details>
-<summary><strong>5. Deduplication is per batch; cross-batch idempotency stays with the Inbox</strong></summary>
+<summary><strong>5. Deduplication is per batch; cross-batch idempotency stays with the Inbox (Dilemma D5)</strong></summary>
 
 ### Options Considered
 
@@ -127,14 +127,13 @@ The plan prompt's Encina rules require satellite registration as `AddEncina{Feat
 | **A) In-memory, inside one batch only** | No store, no new persistence; every provider behaves the same | A command repeated in a later batch runs again (that is what the inbox is for) |
 | **B) A persistent deduplication store across batches** | Catches repeats over time | A second idempotency store next to the Inbox, which already provides exactly-once processing keyed by the request's idempotency key |
 
-### Chosen Option: **A, per batch**
+### Chosen Option: **A, per batch** (recommended, pending the maintainer)
 
 ### Rationale
 
-`AGENTS.md` section 3 assigns idempotent exactly-once processing to the Inbox and says every pattern is optional; items sent by the executor go through the pipeline, so an application that configured the Inbox and sets an idempotency key on the item's context already deduplicates across batches.
+A wins because `AGENTS.md` section 3 assigns idempotent exactly-once processing to the Inbox and says every pattern is optional; items sent by the executor go through the pipeline and its Inbox behavior (`src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs`). The executor clears the wrapper's idempotency key from each item's context (#349 D2), so an item has no key today and cross-batch deduplication through the Inbox needs a per-item key source, which no plan of the family provides; that gap is the follow-up issue file `artifacts/issues/batch-per-item-idempotency-key.md` of this worktree. B wins when the maintainer wants cross-batch deduplication without an Inbox and accepts a second store with its 10-provider matrix.
 
-**Class:** Settled
-**Settled by:** `AGENTS.md` section 3 (Inbox: idempotent exactly-once processing; pattern choice) and `src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs`.
+**Class:** Dilemma
 
 </details>
 
@@ -191,7 +190,7 @@ REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/Batch
 <details>
 <summary>Tasks</summary>
 
-1. `BatchExecutor`: when `EnableDeduplication` is true, build the plan, execute only first occurrences (the batch size limit still counts every submitted item, so deduplication cannot be used to exceed it), then fill each duplicate's `BatchItemResult` with a copy of the first occurrence's `Result` and `WasRolledBack` at the duplicate's own `Index` (D2). For `AllOrNothing` the plan runs inside the transaction and the copies are made after the commit or rollback decision, so a copy never reports success for a rolled-back first occurrence.
+1. `BatchExecutor`: when `EnableDeduplication` is true, build the plan, execute only first occurrences (the batch size limit still counts every submitted item, so deduplication cannot be used to exceed it), then fill each duplicate's `BatchItemResult` with a copy of the first occurrence's `Result` and `WasRolledBack` at the duplicate's own `Index` (D2). For `AllOrNothing` the plan runs through #349's transaction path and the copies are made once the executor's own outcome (all items succeeded, or its rollback) is known, so a copy never reports success for a rolled-back first occurrence; the commit itself belongs to the lease owner (#349 D9), and the executor never calls `SaveChangesAsync`.
 2. `BatchExecutionLog` (EventIds 7766-7769 in the `Batching` range registered by #302, packed after #349's 7758-7765): 7766 duplicate collapsed (Debug, index and first index), 7767 no usable key for a type while deduplication is enabled (Warning, once per type through a static `ConcurrentDictionary<Type, byte>`), 7768 duplicate summary of a batch (Debug, counts), 7769 deduplication skipped because the batch has no commands with keys (Debug).
 3. Tests: unit `BatchDeduplicatorTests` (first occurrence order, empty and null keys, ordinal comparison, large lists), `BatchExecutorDeduplicationTests` (copies for each strategy, rollback copies, skipped duplicates under `StopOnFirstError`, the size limit counts duplicates), property `BatchDeduplicationPropertyTests` (every index has a result; a duplicate's result equals its first's; the executed count equals the number of distinct keys), guard for `BatchExecutionOptions` unchanged; PublicAPI.Unshipped (through `mechanical-fixer`), manifest entries.
 
@@ -203,7 +202,7 @@ REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/Batch
 ```text
 CONTEXT: The deduplicator exists. D2 (a duplicate is not executed and copies the first occurrence's outcome) applies as recommended until the maintainer answers.
 TASK: Wire the deduplicator into BatchExecutor and add the log messages and tests.
-KEY RULES: The batch size limit counts every submitted item; copies are made after the all-or-nothing commit or rollback decision; the executor remains the single commit owner and never calls SaveChangesAsync; exception type only in logs; EventIds 7766-7769 only.
+KEY RULES: The batch size limit counts every submitted item; copies are made once the executor's all-or-nothing outcome is known; the lease owner commits (#349 D9) and the executor never calls SaveChangesAsync; exception type only in logs; EventIds 7766-7769 only.
 REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/Diagnostics/BatchExecutionLog.cs, tests/Encina.UnitTests/Batching (from #349).
 ```
 
@@ -238,21 +237,21 @@ REFERENCE FILES: AGENTS.md sections 3 and 6, docs/architecture/adr/062-error-cat
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets, entered in `.github/coverage-manifest/Encina.Batching.json` in the same pull request; baselines of the edited files `BatchExecutor.cs`, `BatchExecutionOptions.cs` and `BatchExecutionLog.cs` are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`; each target is the measured value or higher.
+Per-flag targets, entered in `.github/coverage-manifest/Encina.Batching.json` in the same pull request; the edited files `BatchExecutor.cs`, `BatchExecutionOptions.cs` and `BatchExecutionLog.cs` do not exist on `origin/main` (they arrive with #349), so there is no baseline to measure: the targets are numeric and equal to the ones #349's plan sets for the same files, and the pull request measures them with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`.
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
 | `BatchDeduplicator.cs` | 100 | 0 | 0 | 85 | 0 |
-| `BatchExecutor.cs` (edited) | measured baseline or higher | 0 | 0 | measured baseline or higher | measured baseline or higher |
+| `BatchExecutor.cs` (edited) | 92 | 0 | 0 | 80 | 70 |
 | `BatchExecutionOptions.cs` (edited) | 100 | 0 | 0 | 0 | 0 |
-| `BatchExecutionLog.cs` (edited) | measured baseline or higher | 0 | 0 | 0 | 0 |
+| `BatchExecutionLog.cs` (edited) | 80 | 0 | 0 | 0 | 0 |
 | `IBatchDeduplicationKey.cs` | 0 | 0 | 0 | 0 | 0 |
 
 | File and flag | Justification |
 |---------------|---------------|
 | `BatchDeduplicator.cs` unit 100, property 85 | One pure pass over a list: every branch runs in unit tests and the property test checks the invariants over generated lists. Guard 0: internal static type, with no `InternalsVisibleTo` for `Encina.GuardTests` (verified at work start; raised if present). |
-| `BatchExecutor.cs` edited | The new branch is covered by the new tests; the file's other flags keep their measured baselines, because the deduplication path adds no database access. |
-| Options and log | Pure data and a generated log class, covered through the executor tests. |
+| `BatchExecutor.cs` edited, unit 92, property 80, integration 70 | The same targets as #349's plan for this file: the new branch is covered by the new unit and property tests, and the integration flag keeps #349's 70 because the deduplication path adds no database access. |
+| `BatchExecutionOptions.cs` unit 100, `BatchExecutionLog.cs` unit 80 | Pure data (one more property) and a generated log class covered through the executor tests, as #349 targets them. |
 | Interface 0 | No executable lines. |
 
 1. **Unit, Property** as above; **Integration**: the all-or-nothing deduplication scenario (a repeated command under `AllOrNothing` is not executed twice) is added to #349's provider classes where #349's integration base exists (one scenario method in the base, no new files); until then the unit test with the fake boundary covers it.
@@ -310,7 +309,7 @@ REFERENCE FILES: .github/coverage-manifest/Encina.Batching.json, docs/features/r
 | Documentation | 3 | feature page edit, README edit, changelog fragment (no inventory line: no new package or module) |
 | **Pull request 1** | **14** | 5 production, PublicAPI, manifest, 3 new tests, 1 existing test file edited (the options validation test of #349), feature page, README, changelog fragment; about 700 lines |
 
-Callers and implementers, by grep on `origin/main` (2026-11-17): the types this plan edits do not exist yet (they come from #349), so there are no callers; the only external contract change is a new optional property, `EnableDeduplication`, and a new interface nobody implements. The pull request adds production code together with its tests, builds alone, and needs #349 pull request 1 first.
+Callers and implementers, by grep on `origin/main` (2026-11-18, `822c310c7`): the types this plan edits do not exist yet (they come from #349), so there are no callers; the only external contract change is a new optional property, `EnableDeduplication`, and a new interface nobody implements. The pull request adds production code together with its tests, builds alone, and needs #349 pull request 1 first.
 
 ---
 
@@ -322,9 +321,9 @@ Callers and implementers, by grep on `origin/main` (2026-11-17): the types this 
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP. #302 provides Encina.Batching; #349 provides the batch wrapper, the executor, per-item results and strategies.
 
-IMPLEMENTATION OVERVIEW: One pull request adds IBatchDeduplicationKey, BatchDeduplicator, BatchExecutionOptions.EnableDeduplication (default false), the executor change (run first occurrences only, copy outcomes to duplicates after the commit or rollback decision) and log messages 7766-7769. Dilemmas D1 and D2 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: One pull request adds IBatchDeduplicationKey, BatchDeduplicator, BatchExecutionOptions.EnableDeduplication (default false), the executor change (run first occurrences only, copy outcomes to duplicates once the executor's all-or-nothing outcome is known) and log messages 7766-7769. Dilemmas D1, D2 and D5 are implemented as the maintainer answers, the recommended options until then.
 
-KEY PATTERNS: Ordinal keys inside one batch with one tenant; an empty key never deduplicates; the batch size limit counts every submitted item; the executor stays the single commit owner; exception type only in logs; targets never go down; CRAP <= 10.
+KEY PATTERNS: Ordinal keys inside one batch with one tenant; an empty key never deduplicates; the batch size limit counts every submitted item; the lease owner commits, never the deduplication code; exception type only in logs; targets never go down; CRAP <= 10.
 
 REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/BatchExecutionOptions.cs, src/Encina.Batching/Diagnostics/BatchExecutionLog.cs, .github/coverage-manifest/Encina.Batching.json.
 ```
@@ -344,7 +343,7 @@ REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/Batch
 | 5 | Validation | ❌ | Keys are the application's own data and an empty key is treated as no key; per-item validation is #349's. |
 | 6 | Resilience | ❌ | No external call. |
 | 7 | Distributed Locks | ❌ | Deduplication is inside one batch in one process. |
-| 8 | Transactions | ✅ | Under all or nothing the plan runs inside #349's transaction and the copies follow the commit or rollback decision. |
+| 8 | Transactions | ✅ | Under all or nothing the plan runs through #349's transaction path (the lease owner commits, #349 D9) and the copies follow the executor's own outcome. |
 | 9 | Idempotency | ✅ | This plan is within-batch idempotency; cross-batch idempotency stays with the Inbox (Design Choice 5). |
 | 10 | Multi-Tenancy | ✅ | A batch has one tenant (#349), so the key needs no tenant segment and no tenant-qualified identifier is built. |
 | 11 | Module Isolation | ❌ | No module-scoped state; the issue's module-scoped batches wait for the module family. |
@@ -354,12 +353,12 @@ REFERENCE FILES: src/Encina.Batching/BatchExecutor.cs, src/Encina.Batching/Batch
 
 ## Prerequisites & Dependencies
 
-- **#349, pull request 1** (executor, options, results, log) and, transitively, **#302, pull requests 1 and 2** (package, `Batching` range). The all-or-nothing scenario test needs #349 pull request 4.
+- **#349, pull request 1** (executor, options, results, log) and, transitively, **#302, pull requests 1 to 3** (package, `Batching` range, `AddEncinaBatching`). The all-or-nothing scenario test needs #349 pull request 4 and the options registration needs #349 pull request 2; the open Dilemmas of #349 (D1 strategies, D4 to D6 and D9 transaction ownership) apply here unchanged.
 - **Related, not blocking**: the Inbox (cross-batch idempotency), #749 (audit of bulk operations).
 
 ---
 
 ## Next Steps
 
-1. Ask the maintainer D1 and D2 when work on #339 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D1, D2 and D5 when work on #339 starts; record the answers in `## Maintainer Decisions`.
 2. Single pull request (14 files) after #349 pull request 1: key contract, deduplicator, executor integration, tests, documentation.
