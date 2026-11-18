@@ -10,18 +10,18 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-17, main `ec129cae5`)
+### What exists today (read on 2026-11-17, main `4ee4e0db9`)
 
 - The repository contracts live in `Encina.DomainModeling`: `IReadOnlyRepository<TEntity, TId>` declares `GetByIdAsync`, `GetAllAsync`, two `FindAsync` overloads, `FindOneAsync`, two `AnyAsync`, two `CountAsync` and two `GetPagedAsync` (`src/Encina.DomainModeling/Repository.cs:21-130`); `IRepository<TEntity, TId>` extends it with the write members (`:167`). The functional family has the same shape with `Either` results: `IFunctionalReadRepository<TEntity, TId>` (`ListAsync`, `FirstOrDefaultAsync`, `GetPagedAsync`, `FunctionalRepository.cs:57-236`). The issue's snippets name `IRepository<,>.FindAsync` and `IReadOnlyRepository<,>` equivalents; the methods are declared on the read-only interfaces.
 - `IQueryHandler<TQuery, TResponse> : IRequestHandler<TQuery, TResponse>` with `TQuery : IQuery<TResponse>` is in `Encina` (`src/Encina/Abstractions/CqrsContracts.cs:97`). `git grep "IQueryHandler<"` finds no query handler class in `src`: only the contract, a code-generator template (`src/Encina.Cli/Services/CodeGenerator.cs`), the existing architecture rule that asks handlers to implement it (`EncinaArchitectureRules.cs:419`) and three test files. The self-application the issue asks for will therefore find no violation in the shipped assemblies.
 - `Encina.Testing.Architecture` (`ArchUnitNET.xUnitV3`; project reference to `Encina` only) has `EncinaArchitectureRules` (static `IArchRule` factories), `EncinaArchitectureRulesBuilder` and `EventIdUniquenessRule`. The issue's `IEncinaArchitectureRule`, `ArchitectureViolations` and `EncinaArchitectureTestBase`-based wiring do not exist as written; the real precedent for a rule that scans assemblies and is not an `IArchRule` is `EventIdUniquenessRule` (a static class returning a list of violation strings), wired into the builder by a flag (`_enforceUniqueEventIds`, `EnforceUniqueEventIds()`, `EncinaArchitectureRulesBuilder.cs:34` and `:350`), and opt-in rule sets such as `ApplyAllSagaRules()` (`:263`).
 - Call-site detection by IL is already proven in two tests: `MessageSerializerCallSitesArchitectureTests` and `IdentityMintingArchitectureTests` (`tests/Encina.UnitTests/Testing/Architecture/`) read each method body's IL, resolve the called methods and cover the handler's nested compiler-generated types (closures, async state machines) and recover the source method name from the generated names (`MessageSerializerCallSitesArchitectureTests.cs:109-215`). `ArchUnitNET`'s fluent API in this package checks type and dependency relations, not which methods a method body calls.
 - There is no guide for the boundary: the documentation of the repository methods does not mention query handlers, `docs/features/cqrs-read-write-boundary.md` does not exist, and `Encina.DomainModeling` and `Encina.Testing.Architecture` have READMEs (`src/Encina.DomainModeling/README.md`, `src/Encina.Testing.Architecture/README.md`).
-- `Encina.Testing.Architecture` has no `InternalsVisibleTo` (its types are tested through the public API); `Encina.DomainModeling` has one for `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, `Encina.PropertyTests` and the provider packages, not for `Encina.GuardTests`. `tests/Encina.IntegrationTests` does not reference `Encina.Testing.Architecture` today.
+- `Encina.Testing.Architecture` grants `InternalsVisibleTo` to `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests` and `Encina.PropertyTests` (its csproj), not to `Encina.GuardTests`; `Encina.DomainModeling` grants it to the same four and the provider packages, not to `Encina.GuardTests`. `tests/Encina.IntegrationTests` does not reference `Encina.Testing.Architecture` today.
 
 ### What this plan delivers
 
-1. **`QueryHandlerReadBoundaryRule`** (`Encina.Testing.Architecture`): a static rule, shaped like `EventIdUniquenessRule`, that reads the IL of every query handler (and its nested compiler-generated types) in the given assemblies and reports each call to a multi-row materializing read of a repository (`GetAllAsync`, `FindAsync`, `GetPagedAsync` and the functional `ListAsync`); `GetByIdAsync`, `FindOneAsync`, `FirstOrDefaultAsync`, `AnyAsync` and `CountAsync` are allowed.
+1. **`QueryHandlerReadBoundaryRule`** (`Encina.Testing.Architecture`): a static rule, shaped like `EventIdUniquenessRule`, that reads the IL of every query handler (and its nested compiler-generated types) in the given assemblies and reports each call to a multi-row materializing read of a repository (`GetAllAsync`, `FindAsync`, `GetPagedAsync`, the functional `ListAsync`, and the multi-row reads of the soft-delete and temporal repositories: `ListWithDeletedAsync`, `GetHistoryAsync`, `GetChangedBetweenAsync`, `ListAsOfAsync`); `GetByIdAsync`, `FindOneAsync`, `FirstOrDefaultAsync`, `AnyAsync` and `CountAsync` are allowed.
 2. **`EncinaArchitectureRulesBuilder.EnforceQueryHandlerReadBoundary()`**: opt-in, not part of `ApplyAllStandardRules()`.
 3. **`ExpectedQueryHandlerRepositoryUseAttribute(reason)`** for justified exceptions on a handler class or its `Handle` method.
 4. **Self-application**: the rule runs over every shipped `Encina*` assembly in a unit test (a permanent gate in CI) and over a real test project in an integration test.
@@ -66,7 +66,7 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) The issue's literal list: `FindAsync`, `GetAllAsync`, `GetPagedAsync` on `IReadOnlyRepository<,>` and `IRepository<,>`** | Exactly what the issue names | The functional repositories (`IFunctionalReadRepository<,>`, `IFunctionalRepository<,>`) have the same problem under other names (`ListAsync`) and would pass |
-| **B) Every multi-row materializing read of both repository families: `GetAllAsync`, both `FindAsync`, both `GetPagedAsync` and the functional `ListAsync` overloads; single-row reads (`GetByIdAsync`, `FindOneAsync`, `FirstOrDefaultAsync`) and the non-materializing `AnyAsync` and `CountAsync` are allowed** | Covers the whole pattern the issue describes (materializing entities with their change tracking to map them to DTOs) in the two repository families Encina ships; consistent with the issue's own allowance of `GetByIdAsync` | A slightly larger forbidden set to document |
+| **B) Every multi-row materializing read of both repository families: `GetAllAsync`, both `FindAsync`, both `GetPagedAsync`, the functional `ListAsync` overloads, and the multi-row reads of `ISoftDeleteRepository` and `ITemporalRepository` (`ListWithDeletedAsync`, `GetHistoryAsync`, `GetChangedBetweenAsync`, `ListAsOfAsync`, `Repository.cs:286-475`); single-row reads (`GetByIdAsync`, `FindOneAsync`, `FirstOrDefaultAsync`) and the non-materializing `AnyAsync` and `CountAsync` are allowed** | Covers the whole pattern the issue describes (materializing entities with their change tracking to map them to DTOs) in the two repository families Encina ships; consistent with the issue's own allowance of `GetByIdAsync` | A slightly larger forbidden set to document |
 
 ### Chosen Option: **B — Multi-row materializing reads of both families** (recommended, pending the maintainer)
 
@@ -102,24 +102,24 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 </details>
 
 <details>
-<summary><strong>4. How the rule is wired and named</strong></summary>
+<summary><strong>4. How the rule is named and wired</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Opt-in builder method `EnforceQueryHandlerReadBoundary()` that sets a flag, like `EnforceUniqueEventIds()`; not part of `ApplyAllStandardRules()`** | Matches the issue's "opt-in so it does not break consumers that have not adopted the convention"; follows the builder's `Enforce*` naming and flag precedent | The issue's name `AddQueryHandlerDiscipline()` is not used |
-| **B) Add it to `ApplyAllStandardRules()`** | Everyone gets it | Breaks consumers that deliberately use repositories in query handlers |
-| **C) Name it `AddQueryHandlerDiscipline()`** | Matches the issue text | Every other method of the builder is `Enforce*` or `ApplyAll*` |
+| **A) The issue's names: the rule type `QueryHandlersDoNotUseFindAsyncRule` and the builder method `AddQueryHandlerDiscipline()`, opt-in, not part of `ApplyAllStandardRules()`** | Matches the issue's acceptance criterion ("`QueryHandlersDoNotUseFindAsyncRule` published") and its text | The type name says `FindAsync` while the recommended set of Design Choice 2 also flags `GetAllAsync`, `GetPagedAsync`, `ListAsync` and the history reads; `AddQueryHandlerDiscipline` does not follow the builder's `Enforce*` and `ApplyAll*` names |
+| **B) `QueryHandlerReadBoundaryRule` and `EnforceQueryHandlerReadBoundary()` (a flag, like `EnforceUniqueEventIds()`), opt-in, not part of `ApplyAllStandardRules()`** | Names describe what is checked (the boundary, not one method); follows the builder's naming and flag precedent (`EncinaArchitectureRulesBuilder.cs:34`, `:350`) | Differs from the issue's literal names |
+| **C) Add the rule to `ApplyAllStandardRules()`** | Everyone gets it | Breaks consumers that deliberately use repositories in query handlers; the issue requires the rule to be opt-in |
 
-### Chosen Option: **A — Opt-in `Enforce*` method with a flag**
+### Chosen Option: **B — Descriptive names, opt-in `Enforce*` method with a flag** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The issue requires the opt-in; the naming and the flag mechanism are the builder's existing conventions.
+- Every option except C is opt-in as the issue requires; the names are the open point: B keeps the type name true if Design Choice 2 widens the set and follows the builder's existing conventions.
+- A wins if the issue's acceptance criterion on the names is binding (for example because documentation already links to them) or if Design Choice 2 keeps the literal `FindAsync` set.
 
-**Class:** Settled
-**Settled by:** issue #1038 ("The rule is opt-in") and `src/Encina.Testing.Architecture/EncinaArchitectureRulesBuilder.cs:34` and `:350` (`EnforceUniqueEventIds()`, the flag precedent), `:263` (`ApplyAllSagaRules()` is opt-in); only A is opt-in and consistent with the builder
+**Class:** Dilemma
 
 </details>
 
@@ -129,13 +129,13 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 |----|--------|-------|-------|
 | C1 | A query handler is a non-abstract class that implements `IQueryHandler<,>` or `IRequestHandler<TRequest, TResponse>` where `TRequest` implements `IQuery<>`; a handler dispatched without `IQueryHandler` is still a query handler | Trivial | `CqrsContracts.cs:97` (`IQueryHandler` extends `IRequestHandler`; `IQuery<TResponse> : IRequest<TResponse>`) |
 | C2 | The scan covers every declared method and constructor of the handler type and, recursively, its nested types (closures, display classes and async state machines); a violation is reported against the source type and source method, recovered from the generated names | Trivial | `MessageSerializerCallSitesArchitectureTests.cs:109-140` (the same mapping) |
-| C3 | A call is flagged when its declaring type is, or implements, a repository read interface identified by full name (`Encina.DomainModeling.IReadOnlyRepository`2`, `IRepository`2`, `IFunctionalReadRepository`2`, `IFunctionalRepository`2`) and its method name is in the forbidden set of Design Choice 2; no reference to `Encina.DomainModeling` is added to `Encina.Testing.Architecture` | Trivial | `Encina.Testing.Architecture.csproj` (references `Encina` only) |
+| C3 | A call is flagged when its declaring type is, or implements, a repository read interface identified by full name (`Encina.DomainModeling.IReadOnlyRepository`2`, `IRepository`2`, `IFunctionalReadRepository`2`, `IFunctionalRepository`2`) and its method name is in the forbidden set of Design Choice 2; no reference to `Encina.DomainModeling` is added to `Encina.Testing.Architecture`; `ISoftDeleteRepository` and `ITemporalRepository` extend these interfaces, so their calls are matched through "implements" | Dilemma (follow-on of Design Choice 2 B, recommended, pending the maintainer) | `Encina.Testing.Architecture.csproj` (references `Encina` only); applies to whichever forbidden set the maintainer picks |
 | C4 | Known limit, documented: the scan sees direct calls in the handler type and its nested types; a call made by a helper class or an injected service the handler delegates to is not followed, and extension methods that take a repository are not flagged. It guards against the direct regression, not against every route | Trivial | `NoPostProcessorWritesToOutboxTests.cs` remarks (the same stated limit for the existing guard) |
 | C5 | A violation is a string with the namespace-qualified handler type, the source method and the called interface method, never a value or a message | Trivial | `EventIdUniquenessRule` returns plain strings of the same shape (`EventIdUniquenessRule.cs:55`) |
-| C6 | The attribute has `AttributeUsage(Class \| Method)`, a required non-blank `reason` (`ArgumentException` otherwise), and the rule honors it on the handler class or on the source method of the call; a suppressed use is not reported | Trivial | The issue's text ("justified exceptions on individual call sites"; an attribute cannot target a call site, so the source method is the finest target) |
+| C6 | The attribute has `AttributeUsage(Class \| Method)`, a required non-blank `reason` (`ArgumentException` otherwise), and the rule honors it on the handler class or on the source method of the call; a suppressed use is not reported | Dilemma (follow-on of Design Choice 3 B, recommended, pending the maintainer) | The issue's text ("justified exceptions on individual call sites"; an attribute cannot target a call site, so the source method is the finest target); applies only if the attribute exists as Design Choice 3 recommends (an allow-list option would replace it) |
 | C7 | The rule takes `IEnumerable<Assembly>` and throws `ArgumentNullException` for a null sequence or element; an assembly that cannot load some types is scanned for the types that load (the loadable-types helper of the existing tests) | Trivial | `EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(IReadOnlyList<Assembly>)` (`:55`) takes the assemblies to scan and returns violation strings; `MessageSerializerCallSitesArchitectureTests.cs:217` (loadable types) |
 | C8 | No telemetry, logging, EventIds, error codes or tenant data: the rule runs in a test process and returns strings; ADR-062 categories, ADR-054 D4 tags and the reserved `default` tenant segment do not arise | Trivial | `AGENTS.md` section 6 (the issue lists every function as N/A) |
-| C9 | Self-application: the rule runs over every shipped `Encina*` assembly in the unit test project (a permanent gate in CI, the pattern of `NoPostProcessorWritesToOutboxTests`) and over the `Encina.IntegrationTests` assembly in the integration test; any violation found is fixed in its package or recorded with the attribute and a reason; none is expected, because the shipped assemblies contain no query handler class | Trivial | The issue's self-application task; `git grep "IQueryHandler<"` on `ec129cae5` |
+| C9 | Self-application: the rule runs over every shipped `Encina*` assembly in the unit test project (a permanent gate in CI, the pattern of `NoPostProcessorWritesToOutboxTests`) and over the `Encina.IntegrationTests` assembly in the integration test; any violation found is fixed in its package or recorded with the attribute and a reason; none is expected, because the shipped assemblies contain no query handler class | Dilemma (follow-on of Design Choices 2 and 3, recommended, pending the maintainer) | The issue's self-application task; `git grep "IQueryHandler<"` on `4ee4e0db9` |
 | C10 | No ADR is created: the issue makes it optional "only if the rule semantics warrant one"; the semantics here are a guideline with an opt-in check, recorded by the guide | Trivial | Issue #1038 ("ADR in `docs/architecture/adr/` — only if the rule semantics warrant one") |
 
 ---
@@ -154,7 +154,7 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 3. **Create** `src/Encina.Testing.Architecture/QueryHandlerReadBoundaryRule.cs`: `public static class QueryHandlerReadBoundaryRule` with `public static IReadOnlyList<string> AssertQueryHandlersDoNotMaterializeAggregates(IEnumerable<Assembly> assemblies)` (register rows C1 to C7); the forbidden method names and the four interface full names are `static readonly` sets (Design Choice 2, row C3); the attribute is found by full name `Encina.DomainModeling.ExpectedQueryHandlerRepositoryUseAttribute` (Design Choice 3).
 4. **Modify** `src/Encina.Testing.Architecture/EncinaArchitectureRulesBuilder.cs`: `public EncinaArchitectureRulesBuilder EnforceQueryHandlerReadBoundary()` sets a flag; `ExecuteVerification` adds each violation as `new ArchitectureRuleViolation("QueryHandlerReadBoundary", message)` (the shape of `:396-410`); it is not added by `ApplyAllStandardRules()` (Design Choice 4).
 5. **Modify** `src/Encina.Testing.Architecture/PublicAPI.Unshipped.txt`, `src/Encina.DomainModeling/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.Testing.Architecture.json` and `.github/coverage-manifest/Encina.DomainModeling.json` through `mechanical-fixer`.
-6. Tests (new): `tests/Encina.UnitTests/Testing/Architecture/QueryHandlerReadBoundaryRuleTests.cs` (fixture handlers, each a real class: a violating `async` handler that calls `FindAsync`, `GetAllAsync` and `GetPagedAsync` on the read-only and full repository interfaces, the functional `ListAsync`, and a lambda inside `Handle`, each reported with its source method; a conforming handler that projects from a queryable, one that calls `GetByIdAsync`, `FindOneAsync`, `AnyAsync` and `CountAsync`; a handler dispatched through `IRequestHandler` with an `IQuery<>` request; an abstract handler and a command handler are ignored; the attribute on the class and on the method suppresses; a handler calling a concrete repository class that implements the interface is flagged) and `tests/Encina.GuardTests/Testing/Architecture/QueryHandlerReadBoundaryGuardTests.cs` (null assemblies, a null element; a null or blank attribute reason). (edited) `tests/Encina.UnitTests/Testing/Architecture/EncinaArchitectureRulesBuilderTests.cs` (the builder method adds the check, `ApplyAllStandardRules()` does not, `Verify()` throws with the violation and `VerifyWithResult()` reports it).
+6. Tests (new): `tests/Encina.UnitTests/Testing/Architecture/QueryHandlerReadBoundaryRuleTests.cs` (fixture handlers, each a real class: a violating `async` handler that calls `FindAsync`, `GetAllAsync` and `GetPagedAsync` on the read-only and full repository interfaces, the functional `ListAsync`, `ListWithDeletedAsync` and `GetHistoryAsync` through the soft-delete and temporal interfaces, and a lambda inside `Handle`, each reported with its source method; a conforming handler that projects from a queryable, one that calls `GetByIdAsync`, `FindOneAsync`, `AnyAsync` and `CountAsync`; a handler dispatched through `IRequestHandler` with an `IQuery<>` request; an abstract handler and a command handler are ignored; the attribute on the class and on the method suppresses; a handler calling a concrete repository class that implements the interface is flagged) and `tests/Encina.GuardTests/Testing/Architecture/QueryHandlerReadBoundaryGuardTests.cs` (null assemblies, a null element; a null or blank attribute reason). (edited) `tests/Encina.UnitTests/Testing/Architecture/EncinaArchitectureRulesBuilderTests.cs` (the builder method adds the check, `ApplyAllStandardRules()` does not, `Verify()` throws with the violation and `VerifyWithResult()` reports it).
 
 </details>
 
@@ -164,8 +164,8 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 ```text
 CONTEXT:
 Encina (.NET 10, C# 14, pre-1.0). Issue #1038 plan docs/plans/query-handler-read-boundary-implementation-plan-1038.md,
-phase 1 of 3. Encina.Testing.Architecture references only Encina (not Encina.DomainModeling) and has no
-InternalsVisibleTo. EventIdUniquenessRule is the model of a static rule class returning violation strings, wired into
+phase 1 of 3. Encina.Testing.Architecture references only Encina (not Encina.DomainModeling) and has
+InternalsVisibleTo for the unit, integration, contract and property test projects, not for the guard tests. EventIdUniquenessRule is the model of a static rule class returning violation strings, wired into
 EncinaArchitectureRulesBuilder by a flag.
 
 TASK:
@@ -201,7 +201,7 @@ REFERENCE FILES:
 1. **Create** `tests/Encina.UnitTests/Testing/Architecture/QueryHandlerReadBoundarySelfApplicationTests.cs`: loads every shipped `Encina*` assembly from the test output directory (the loader of `NoPostProcessorWritesToOutboxTests`), runs the rule and asserts no violation; a second test asserts the scan saw a minimum number of assemblies (so an empty scan cannot pass).
 2. **Modify** `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`: add `<ProjectReference Include="..\..\src\Encina.Testing.Architecture\Encina.Testing.Architecture.csproj" />` (the project does not reference it today; the file count of S2 includes it).
 3. **Create** `tests/Encina.IntegrationTests/Testing/Architecture/QueryHandlerReadBoundaryIntegrationTests.cs`: applies the rule to the `Encina.IntegrationTests` assembly (a real test project, per the issue) and to the shipped assemblies; any violation found is fixed or marked with the attribute and its reason in the same pull request, or recorded as a `[DEBT]` follow-up when the handler belongs to another package (none is expected; the measured baseline is zero query handler classes in `src`).
-4. No manifest or PublicAPI change: tests only.
+4. **Modify** `.github/coverage-manifest/Encina.Testing.Architecture.json` through `mechanical-fixer`: the integration targets of `QueryHandlerReadBoundaryRule.cs` and `CallSiteScanner.cs`, added here because the integration scan that reaches them is in this PR (S1 sets their unit and guard targets only; no existing target is lowered). No PublicAPI change: tests only.
 
 </details>
 
@@ -312,21 +312,21 @@ Every count includes tests, coverage manifest edits, PublicAPI files, READMEs an
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1 | Rule, scanner, attribute, builder method | 3 (`QueryHandlerReadBoundaryRule`, `CallSiteScanner`, `ExpectedQueryHandlerRepositoryUseAttribute`) | 3 (`EncinaArchitectureRulesBuilder`, the two PublicAPI files) | 2 (rule unit, guard) | 1 (`EncinaArchitectureRulesBuilderTests`) | 2 (`Encina.Testing.Architecture.json`, `Encina.DomainModeling.json`) | 0 | 11 | ~1,000 |
-| S2 | Self-application | 0 | 0 | 2 (unit self-application, integration) | 0 | 0 | 1 (`Encina.IntegrationTests.csproj`) | 3 | ~250 |
-| S3 | Guide, example, finalization | 0 | 2 (`Repository.cs`, `FunctionalRepository.cs`, XML docs only) | 1 (`ReadWriteBoundaryQueryShapeTests`) | 0 | 0 | 7 (guide, `docs/features/index.md`, two READMEs, changelog fragment, 2 justification `.md`) | 10 | ~1,050 |
-| **Total** | | **3** | **5** | **5** | **1** | **2** | **8** | **24** | **~2,300** |
+| S2 | Self-application | 0 | 0 | 2 (unit self-application, integration) | 0 | 1 (`Encina.Testing.Architecture.json`) | 1 (`Encina.IntegrationTests.csproj`) | 4 | ~280 |
+| S3 | Guide, example, finalization | 0 | 2 (`Repository.cs`, `FunctionalRepository.cs`, XML docs only) | 1 (`ReadWriteBoundaryQueryShapeTests`) | 0 | 1 (`Encina.DomainModeling.json`) | 7 (guide, `docs/features/index.md`, two READMEs, changelog fragment, 2 justification `.md`) | 11 | ~1,060 |
+| **Total** | | **3** | **5** | **5** | **1** | **4** | **8** | **26** | **~2,330** |
 
-The columns sum to the total (3 + 5 + 5 + 1 + 2 + 8 = 24) and the pull-request rows sum to 24 files (11 + 3 + 10). S3's line estimate includes about 650 lines of guide and README text; the code part stays under 400 lines. Caller counts verified with `git grep` on `ec129cae5`: `IQueryHandler<` appears in six files of `src` and `tests` and no query handler class exists in `src`; `EncinaArchitectureRulesBuilder` gains one method and no constructor parameter, so no caller changes. S2's csproj edit is the only project-level change.
+The columns sum to the total (3 + 5 + 5 + 1 + 4 + 8 = 26) and the pull-request rows sum to 26 files (11 + 4 + 11). S3's line estimate includes about 650 lines of guide and README text; the code part stays under 400 lines. Caller counts verified with `git grep` on `4ee4e0db9`: `IQueryHandler<` appears in six files of `src` and `tests` and no query handler class exists in `src`; `EncinaArchitectureRulesBuilder` gains one method and no constructor parameter, so no caller changes. S2's csproj edit is the only project-level change.
 
-Per-file coverage targets (per flag, with a one-sentence justification), written into the package manifests by the pull request that adds the file:
+Per-file coverage targets (per flag, with a one-sentence justification), written into the package manifests by the pull request whose tests reach them (unit and guard targets in S1, integration targets in S2). Manifest targets are whole-file and these files hold defaults only today, so each PR first measures the file's per-flag baseline and sets a whole-file target not below it; no existing target is lowered:
 
 | File | Unit | Guard | Property | Integration | Justification |
 |------|------|-------|----------|-------------|---------------|
-| `Encina.Testing.Architecture/QueryHandlerReadBoundaryRule.cs` | 95 | 90 | 0 | 80 | Every path (violation, allowed call, attribute on class and method, ignored types) runs on real fixture handlers; the guard tests reach the null checks; the integration test runs the full scan over real assemblies (the attribute and fixture paths are unit-only); the logic is deterministic scanning, so no property adds coverage |
-| `Encina.Testing.Architecture/CallSiteScanner.cs` | 90 | 0 | 0 | 80 | Internal type with no `InternalsVisibleTo` for the guard project, reached only through the public rule, so guard tests cannot reach it; the IL operand-size switch carries a `crap-exempt` marker; the unit tests exercise it through handlers with every call shape, and the integration scan runs it over real assemblies |
+| `Encina.Testing.Architecture/QueryHandlerReadBoundaryRule.cs` | 95 | 90 | 0 | 80 (added by S2) | Every path (violation, allowed call, attribute on class and method, ignored types) runs on real fixture handlers; the guard tests reach the null checks; the integration test runs the full scan over real assemblies (the attribute and fixture paths are unit-only); the logic is deterministic scanning, so no property adds coverage |
+| `Encina.Testing.Architecture/CallSiteScanner.cs` | 90 | 0 | 0 | 80 (added by S2) | Internal type with no `InternalsVisibleTo` for the guard project, reached only through the public rule, so guard tests cannot reach it; the IL operand-size switch carries a `crap-exempt` marker; the unit tests exercise it through handlers with every call shape, and the integration scan runs it over real assemblies |
 | `Encina.Testing.Architecture/EncinaArchitectureRulesBuilder.cs` (changed members) | 90 | 0 | 0 | 0 | The new method and the verification branch run in the builder tests; the method takes no parameter |
 | `Encina.DomainModeling/ExpectedQueryHandlerRepositoryUseAttribute.cs` | 100 | 100 | 0 | 0 | A constructor with one guarded parameter and a property, fully reached by unit and guard tests |
-| `Encina.DomainModeling/Repository.cs`, `FunctionalRepository.cs` (XML docs only) | 0 | 0 | 0 | 0 | Documentation comments only, no executable line changes; the existing targets of the files are unchanged |
+| `Encina.DomainModeling/Repository.cs`, `FunctionalRepository.cs` (XML docs only) | measured baseline | measured baseline | measured baseline | measured baseline | The two manifest entries hold defaults only, so S3 (which touches the files) measures each file's per-flag coverage first and records those figures as the targets (a floor that pins today's coverage), with the reason "documentation comments only; the target pins the measured coverage"; the manifest edit is counted in S3 |
 
 ---
 
@@ -340,8 +340,8 @@ You are implementing issue #1038 - the repository versus query-handler read boun
 
 PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library; pre-1.0, no backward compatibility, best solution always.
-- Encina.Testing.Architecture references only Encina (no project reference to Encina.DomainModeling) and has no
-  InternalsVisibleTo. EventIdUniquenessRule is the model of a static assembly rule returning violation strings, wired
+- Encina.Testing.Architecture references only Encina (no project reference to Encina.DomainModeling) and has
+  InternalsVisibleTo for the unit, integration, contract and property test projects, not the guard tests. EventIdUniquenessRule is the model of a static assembly rule returning violation strings, wired
   into EncinaArchitectureRulesBuilder by a flag (EnforceUniqueEventIds).
 - IL call-site scanning is already used by MessageSerializerCallSitesArchitectureTests and IdentityMintingArchitectureTests.
 - The repository is optional (AGENTS.md section 3); the rule is opt-in.
