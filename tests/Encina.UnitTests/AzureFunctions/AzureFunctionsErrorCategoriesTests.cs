@@ -75,6 +75,139 @@ public class AzureFunctionsErrorCategoriesTests
         error.GetCategory().ShouldBe(ErrorCategory.Internal);
     }
 
+    private static void Activity(TaskOrchestrationContext context, string name, ActivityResult<string> result) =>
+        context.CallActivityAsync<ActivityResult<string>>(
+                Arg.Is<TaskName>(n => n.Name == name), Arg.Any<object?>(), Arg.Any<TaskOptions?>())
+            .Returns(Task.FromResult(result));
+
+    private static void ActivityThrows(TaskOrchestrationContext context, string name, Exception exception) =>
+        context.CallActivityAsync<ActivityResult<string>>(
+                Arg.Is<TaskName>(n => n.Name == name), Arg.Any<object?>(), Arg.Any<TaskOptions?>())
+            .Returns(Task.FromException<ActivityResult<string>>(exception));
+
+    private static DurableSaga<string> TwoStepSaga() =>
+        new DurableSagaBuilder<string>()
+            .Step("first").Execute("First").Compensate("UndoFirst")
+            .Step("second").Execute("Second").Compensate("UndoSecond")
+            .Build()
+            .Match(Right: s => s, Left: e => throw new InvalidOperationException(e.GetCode().IfNone(string.Empty)));
+
+    [Fact]
+    public async Task SagaExecute_AllStepsSucceed_ReturnsTheData()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "First", ActivityResult<string>.Success("one"));
+        Activity(context, "Second", ActivityResult<string>.Success("two"));
+
+        // Act
+        var result = await TwoStepSaga().ExecuteAsync(context, "start");
+
+        // Assert
+        result.Match(Right: d => d, Left: _ => "<left>").ShouldBe("two");
+    }
+
+    [Fact]
+    public async Task SagaExecute_StepFailsWithACategory_KeepsItAndCompensatesThePreviousStep()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "First", ActivityResult<string>.Success("one"));
+        Activity(
+            context,
+            "Second",
+            ActivityResult<string>.Failure(EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "m")));
+        Activity(context, "UndoFirst", ActivityResult<string>.Success("undone"));
+
+        // Act
+        var result = await TwoStepSaga().ExecuteAsync(context, "start");
+
+        // Assert
+        var failure = result.Match(Right: _ => throw new InvalidOperationException(), Left: e => e);
+        failure.FailedStep.ShouldBe("second");
+        failure.OriginalError.GetStatusCode().ShouldBe(404);
+        failure.WasCompensated.ShouldBeTrue();
+        failure.CompensationErrors.Keys.ShouldBe(["first"]);
+    }
+
+    [Fact]
+    public async Task SagaExecute_CompensationReturnsAnError_IsNotCompensated()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "First", ActivityResult<string>.Success("one"));
+        Activity(context, "Second", ActivityResult<string>.Failure("order.rejected", "m"));
+        Activity(context, "UndoFirst", ActivityResult<string>.Failure("undo.failed", "m"));
+
+        // Act
+        var result = await TwoStepSaga().ExecuteAsync(context, "start");
+
+        // Assert
+        var failure = result.Match(Right: _ => throw new InvalidOperationException(), Left: e => e);
+        failure.WasCompensated.ShouldBeFalse();
+        failure.CompensationErrors["first"].ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SagaExecute_ActivityThrows_IsAnInternalSagaExceptionAndCompensates()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "First", ActivityResult<string>.Success("one"));
+        ActivityThrows(context, "Second", new InvalidOperationException("boom"));
+        Activity(context, "UndoFirst", ActivityResult<string>.Success("undone"));
+
+        // Act
+        var result = await TwoStepSaga().ExecuteAsync(context, "start");
+
+        // Assert
+        var failure = result.Match(Right: _ => throw new InvalidOperationException(), Left: e => e);
+        failure.FailedStep.ShouldBe("Unknown (exception)");
+        failure.OriginalError.GetCode().IfNone(string.Empty).ShouldBe("durable.saga_exception");
+        failure.OriginalError.GetCategory().ShouldBe(ErrorCategory.Internal);
+        failure.CompensationErrors.Keys.ShouldBe(["first"]);
+    }
+
+    [Fact]
+    public async Task SagaExecute_CompensationThrows_IsAnInternalCompensationException()
+    {
+        // Arrange
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "First", ActivityResult<string>.Success("one"));
+        Activity(context, "Second", ActivityResult<string>.Failure("order.rejected", "m"));
+        ActivityThrows(context, "UndoFirst", new InvalidOperationException("boom"));
+
+        // Act
+        var result = await TwoStepSaga().ExecuteAsync(context, "start");
+
+        // Assert
+        var failure = result.Match(Right: _ => throw new InvalidOperationException(), Left: e => e);
+        var compensation = failure.CompensationErrors["first"]!.Value;
+        compensation.GetCode().IfNone(string.Empty).ShouldBe("durable.compensation_exception");
+        compensation.GetCategory().ShouldBe(ErrorCategory.Internal);
+        failure.WasCompensated.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SagaExecute_StepWithoutCompensation_IsNotCompensated()
+    {
+        // Arrange
+        var saga = new DurableSagaBuilder<string>()
+            .Step("only").Execute("Only")
+            .Build()
+            .Match(Right: s => s, Left: e => throw new InvalidOperationException(e.GetCode().IfNone(string.Empty)));
+        var context = Substitute.For<TaskOrchestrationContext>();
+        Activity(context, "Only", ActivityResult<string>.Failure("order.rejected", "m"));
+
+        // Act
+        var result = await saga.ExecuteAsync(context, "start");
+
+        // Assert
+        var failure = result.Match(Right: _ => throw new InvalidOperationException(), Left: e => e);
+        failure.CompensationErrors.ShouldBeEmpty();
+        failure.WasCompensated.ShouldBeTrue();
+    }
+
     [Fact]
     public async Task WaitForEncinaExternalEventAsync_TimerWins_IsTimeout()
     {
