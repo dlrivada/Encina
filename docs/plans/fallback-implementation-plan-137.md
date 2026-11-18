@@ -2,8 +2,8 @@
 
 > **Issue**: [#137](https://github.com/dlrivada/Encina/issues/137)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, no database providers, 2 pull requests)
-> **Estimated Scope**: ~500 lines of production code + ~800 lines of tests (about 1,300 changed lines in total, two pull requests)
+> **Complexity**: Medium (7 phases, no database providers, 3 pull requests)
+> **Estimated Scope**: ~500 lines of production code + ~800 lines of tests (about 1,800 changed lines in total, three pull requests)
 
 ---
 
@@ -67,13 +67,13 @@ Deliverables, all in `Encina.Resilience`: `FallbackAttribute`, `FallbackStrategy
 | **A) Polly's fallback strategy in the per-type pipeline** | Order guaranteed, attributes read once, `OnFallback` telemetry from Polly | The class named in the issue does not exist |
 | **B) A `FallbackPipelineBehavior<,>`** | Matches the issue text | R2 option 2b was rejected |
 
-### Chosen Option: **A — Polly's fallback strategy**
+### Chosen Option: **A — Polly's fallback strategy** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The acceptance criterion "`FallbackPipelineBehavior` implementation" is met by the Resilience-stage behavior that runs the compiled pipeline.
-- **Class:** Settled
-- **Settled by:** ADR-055 R2 (2a chosen, 2b and 2c rejected)
+- This choice is a follow-on of choice 1 and is answered with it: under option A of choice 1 it is Settled by ADR-055 R2 (2a chosen, 2b and 2c rejected); under option B there is no compiler in `Encina.Polly`, so fallback would be a standalone `FallbackPipelineBehavior<,>`, replaced when R1 consolidates.
+- **Class:** Dilemma
 
 </details>
 
@@ -191,7 +191,7 @@ The issue lists `FallbackStrategy.CachedValue` ("last known good value from cach
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Return the original error with two added details: `encina.fallback.failed = true` and `encina.fallback.error_code` (a code, never a message)** | The caller sees the real cause; its category is kept (ADR-062); no new code | The error is rebuilt with `EncinaErrors.Create` using the original code and category |
+| **A) Return the original error with added details, for both a `Left` of the fallback and an exception thrown by the factory, the handler or the JSON parse: `encina.fallback.failed = true` and either `encina.fallback.error_code` (the fallback's code) or `encina.fallback.exception_type` (the exception's type name); never a message** | The caller sees the real cause; its category is kept (ADR-062); no new code; no exception ever leaves the pipeline | The error is rebuilt with `EncinaErrors.Create` using the original code and category |
 | **B) A new code `encina.fallback.failed`** | Distinguishable | Hides the original cause; needs an ADR-062 category (`Internal`) |
 | **C) Return the fallback's own `Left`** | Polly's default | The original failure is lost |
 
@@ -206,22 +206,62 @@ The issue lists `FallbackStrategy.CachedValue` ("last known good value from cach
 </details>
 
 <details>
-<summary><strong>9. Resolving the handler, factory and default value</strong></summary>
+<summary><strong>9. Resolving the handler</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The Resilience behavior resolves `IFallbackHandler<,>` from the request's service provider for each call and passes it in `ResilienceContext` properties; the factory method is bound by reflection once at startup into a delegate; a `DefaultValue` JSON string is parsed at startup to validate it and deserialized again for each fallback** | No scoped service captured by the singleton pipeline; a returned list is never shared between callers | A small parse per fallback |
-| **B) Capture handler and value at startup** | No per-call work | A scoped handler in a singleton fails `ValidateScopes`; a shared mutable default |
+| **A) The Resilience behavior resolves `IFallbackHandler<,>` from the request's service provider for each call and passes it in `ResilienceContext` properties** | No scoped service captured by the singleton pipeline | None |
+| **B) Capture the handler at startup** | No per-call work | A scoped handler in a singleton fails `ValidateScopes` |
 
-### Chosen Option: **A — Per-call resolution, startup validation**
+### Chosen Option: **A — Per-call resolution**
 
 ### Rationale
 
-- The compiled pipeline is a singleton in Polly's registry; the DI validation of AGENTS.md section 3 rejects a scoped dependency in it. A missing handler, a missing or non-static factory method, or an unparsable default is an `InvalidOperationException` at startup naming the type.
+- The compiled pipeline is a singleton in Polly's registry; the DI validation of AGENTS.md section 3 rejects a scoped dependency in it. A missing handler registration is an `InvalidOperationException` at startup naming the type.
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (registration completeness proven with `ValidateOnBuild` and `ValidateScopes`) and ADR-055 R2 (pipelines are built once at startup)
+- **Settled by:** AGENTS.md section 3 (registration completeness proven with `ValidateOnBuild` and `ValidateScopes`)
+
+</details>
+
+<details>
+<summary><strong>11. The attribute contract: default value format, factory binding and instance reuse</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) As the issue samples: `DefaultValue` is a JSON string (`"[]"`), `FallbackFactory = nameof(Method)` names a public static parameterless method of the request type, bound by reflection once at startup into a delegate; the JSON is parsed once at startup to validate it and deserialized again for each fallback, so no instance is shared between callers; a missing method, a non-static or wrongly typed method or unparsable JSON is an `InvalidOperationException` at startup naming the type** | Matches the issue; a returned list is never shared | A small parse per fallback |
+| **B) Parse once and share the instance** | No per-call work | A caller mutating a returned list changes the next response |
+
+### Chosen Option: **A — The issue's contract, deserialized per fallback**
+
+### Rationale
+
+- The property names `DefaultValue` and `FallbackFactory` are the issue's. Reflection binding happens once at startup, never per call.
+- **Class:** Trivial
+- **Settled by:** #137 "Attribute-based (Simple)" samples (`[Fallback(DefaultValue = "[]")]`, `[Fallback(FallbackFactory = nameof(GetDefaultUser))]`)
+
+</details>
+
+<details>
+<summary><strong>12. The handler's public signature</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The issue's signature: `Task<Either<EncinaError, TResponse>> HandleFallback(TRequest request, EncinaError originalError, CancellationToken ct)`** | Matches the issue and its handler sample | `Task` allocates where `ValueTask` would not |
+| **B) `ValueTask<...> HandleFallbackAsync(...)`, like `IPipelineBehavior.Handle`** | No allocation on a synchronous path; `Async` suffix convention | A public rename of the issue's interface |
+
+### Chosen Option: **A — The issue's signature** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on fidelity to the issue; B wins if the fallback is commonly answered synchronously from memory and the allocation matters. A fallback runs only after a failure, so the cost is off the hot path.
+
+- **Class:** Dilemma
 
 </details>
 
@@ -232,15 +272,15 @@ The issue lists `FallbackStrategy.CachedValue` ("last known good value from cach
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Polly's `OnFallback` event for the count; one Encina counter `encina.resilience.fallback.applied` with tags `request.type`, `fallback.strategy` (`default`, `factory`, `handler`) and the tenant only with multi-tenancy** | R5: Encina measures only what Polly does not; the strategy kind is unknown to Polly | One counter |
-| **B) Encina counters for every fallback event** | Self-contained | Double counting (ADR-054 D6.2) |
+| **A) Polly's `OnFallback` event for the count; one Encina counter named by the convention #728 settles (proposed `encina.resilience.fallback.applied`) with tags `request.type`, `fallback.strategy` (one value per strategy this plan implements: `default`, `factory`, `handler`; a value is added if choice 5 or 6 is answered with a new strategy) and the tenant only with multi-tenancy** | R5: Encina measures only what Polly does not; the strategy kind is unknown to Polly | One counter |
+| **B) Polly's events only, no Encina instrument** | No names to agree | The applied strategy kind is invisible |
 
-### Chosen Option: **A — One counter for the strategy kind**
+### Chosen Option: **A — One counter for the strategy kind** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** ADR-055 R5 and ADR-054 D3, D4, D6.2
+- ADR-055 R5 and ADR-054 D3 and D6.2 fix the rules, not these names. #728 (plan on main) leaves its choices 1 (who holds the `Meter("Encina.Resilience")` instance) and 8 (instrument names) pending, so this counter takes that holder and convention; this plan creates no `Meter` of its own and `FallbackTelemetry` only records through the holder. A wins when operators need the strategy kind; B wins if only the count matters.
+- **Class:** Dilemma
 
 </details>
 
@@ -248,7 +288,7 @@ The issue lists `FallbackStrategy.CachedValue` ("last known good value from cach
 
 ## Implementation Phases
 
-Two pull requests: **PR-1** Phases 1 to 3 with tests; **PR-2** Phases 4 to 7.
+Three pull requests, in order: **PR-1** Phases 1 and 2 with their tests; **PR-2** Phases 3 and 4 (registration, builder extension, contract and DI tests); **PR-3** Phases 5 to 7. Every PR needs the `Encina.Resilience` project to exist (foundation merged); under option C of choice 1 (creating the project in the first PR) the split is recounted.
 
 ### Phase 1: Core Models and Contracts
 
@@ -256,10 +296,11 @@ Two pull requests: **PR-1** Phases 1 to 3 with tests; **PR-2** Phases 4 to 7.
 <summary>Tasks</summary>
 
 1. `src/Encina.Resilience/Fallback/FallbackStrategy.cs`: `public enum FallbackStrategy { DefaultValue, FactoryMethod, AlternativeHandler }`.
-2. `FallbackAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class FallbackAttribute : Attribute` with `string? DefaultValue { get; init; }` (JSON), `string? FactoryMethod { get; init; }` (use `nameof`), `bool UseHandler { get; init; }` and `ErrorCategory[]? FallbackOn { get; init; }`; exactly one of the three sources.
-3. `FallbackOptions.cs`: the merged model (`Strategy`, `DefaultValueJson`, `FactoryMethodName`, `FallbackOn`) with `From(FallbackAttribute)` for the R3 precedence.
-4. `IFallbackHandler.cs`: `public interface IFallbackHandler<TRequest, TResponse> where TRequest : IRequest<TResponse>` with `ValueTask<Either<EncinaError, TResponse>> HandleFallbackAsync(TRequest request, EncinaError originalError, CancellationToken cancellationToken)`.
-5. `FallbackOptionsValidator.cs` (internal): the startup rules of choices 4 and 9.
+2. `FallbackAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class FallbackAttribute : Attribute` with `string? DefaultValue { get; init; }` (JSON), `string? FallbackFactory { get; init; }` (use `nameof`, choice 11), `bool UseHandler { get; init; }` and `ErrorCategory[]? FallbackOn { get; init; }`; exactly one of the three sources.
+3. `FallbackOptions.cs`: the merged model (`Strategy`, `DefaultValueJson`, `FactoryMethodName`, `FallbackOn`) with `public static FallbackOptions From(FallbackAttribute attribute)` for the R3 precedence (null attribute rejected with `ArgumentNullException.ThrowIfNull`, guard test).
+4. `IFallbackHandler.cs`: `public interface IFallbackHandler<TRequest, TResponse> where TRequest : IRequest<TResponse>` with `Task<Either<EncinaError, TResponse>> HandleFallback(TRequest request, EncinaError originalError, CancellationToken cancellationToken)` (choice 12).
+5. `FallbackOptionsValidator.cs` (internal): the startup rules of choices 4, 9 and 11.
+6. `src/Encina.Resilience/Encina.Resilience.csproj`: `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests` (internal validator, factory and telemetry are tested directly); a foundation acceptance item, added here only if missing (counted below).
 
 </details>
 
@@ -316,7 +357,7 @@ REFERENCE FILES: src/Encina/Results/EncinaErrors.cs, src/Encina/Errors/EncinaErr
 CONTEXT: Phases 1 and 2 done.
 TASK: Add FallbackBuilderExtensions, wire the validator, write the registration test.
 KEY RULES: no service added without its options; precedence options > attribute > defaults tested; guard tests for each public parameter.
-REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTests/Polly/ErrorClassifierRegistrationTests.cs
+REFERENCE FILES: src/Encina.Resilience (foundation builder), tests/Encina.UnitTests/Recoverability/ErrorClassifierRegistrationTests.cs
 ```
 
 </details>
@@ -349,8 +390,8 @@ REFERENCE FILES: src/Encina/Abstractions/MultiTenancyMarker.cs
 <details>
 <summary>Tasks</summary>
 
-1. `EventIdRanges.cs`: `ResilienceFallback = (906, 911)`; add it to the `Encina.Resilience` entry of `AssemblyRanges` in `EncinaEventIdAllocationTests.cs`. Ids 906-911 are free (`git grep` of `EventId = 90x` and of the registry returns nothing).
-2. `Diagnostics/FallbackLogMessages.cs`: 906 `FallbackApplied` (Warning: request type, strategy, original error code), 907 `FallbackFailed` (Warning: request type, fallback error code), 908 `FallbackSkippedNotEligible` (Debug), 909 `FallbackFactoryThrew` (Warning, exception through `ForLogging()`); 910-911 spare.
+1. `EventIdRanges.cs`: `ResilienceFallback = (906, 911)`; add its line to `src/Encina/PublicAPI.Unshipped.txt` (`mechanical-fixer`) and add its name to the `["Encina.Resilience"]` entry of `AssemblyRanges` in `EncinaEventIdAllocationTests.cs`, creating the entry if no earlier plan of the family did (an entry holds several ranges). Ids 906-911 are free (`git grep` of `EventId = 90x` and of the registry returns nothing) and are emitted only by the `Encina.Resilience` assembly.
+2. `Diagnostics/FallbackLogMessages.cs`: 906 `FallbackApplied` (Warning: request type, strategy, original error code), 907 `FallbackFailed` (Warning: request type, fallback error code), 908 `FallbackSkippedNotEligible` (Debug), 909 `FallbackActionThrew` (Warning, emitted when the factory, the handler or the JSON parse throws; the caller then gets the original error with the exception-type detail of choice 8; the exception goes through `ForLogging()`); 910-911 spare.
 3. `FallbackTelemetry.cs`: the counter of choice 10 and a span event `fallback.applied`.
 
 </details>
@@ -373,7 +414,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <summary>Tasks</summary>
 
 1. Unit (`tests/Encina.UnitTests/Resilience/Fallback/`): default value returned for a `Unavailable` error; factory method; handler resolved per call (two calls, two scoped instances); `Validation` error not masked; `FallbackOn = [NotFound]` widens; fallback `Left` returns the original error with details and the original category; a command type fails validation; unparsable default fails at startup; two calls get distinct deserialized instances.
-2. Guard (`tests/Encina.GuardTests/Resilience/Fallback/`): builder extension nulls; nullable `FallbackOn` null accepted (valid result).
+2. Guard (`tests/Encina.GuardTests/Resilience/Fallback/`): `FallbackOptions.From` null attribute (PR-1); builder extension nulls (PR-2); nullable `FallbackOn` null accepted (valid result). Unit also covers: a factory or handler that throws returns the original error with `encina.fallback.exception_type` and logs 909.
 3. Contract (`tests/Encina.ContractTests/Resilience/FallbackHandlerContractTests.cs`): real handlers return `Right` or `Left` and never throw.
 4. DI test (PR-1) and telemetry test with `MeterListener` (PR-2). Property, load, benchmark and integration: not applicable (stateless strategy over Polly); justification files in PR-2 as in #136.
 
@@ -447,12 +488,13 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 ### Estimated File Count
 
-| Category | PR-1 | PR-2 | Notes |
-|----------|------|------|-------|
-| Production | 7 | 3 | PR-1: strategy enum, attribute, options, handler interface, validator, factory plus property keys, builder extensions (7 counting keys inside the factory file); PR-2: log messages, telemetry, `EventIdRanges.cs` |
-| Tests | 5 | 3 | PR-1: factory, validator, registration, guard, contract; PR-2: telemetry, log messages, `EncinaEventIdAllocationTests.cs` |
-| Metadata and docs | 3 | 6 | PR-1: PublicAPI, manifest, changelog; PR-2: PublicAPI, manifest, README, feature page, 2 justification files |
-| **Total** | **15** | **12** | PR-1 about 1,200 lines, PR-2 about 450 |
+| Category | PR-1 | PR-2 | PR-3 | Files |
+|----------|------|------|------|-------|
+| Production | 7 | 1 | 5 | PR-1: `FallbackStrategy`, `FallbackAttribute`, `FallbackOptions`, `IFallbackHandler`, `FallbackOptionsValidator`, `FallbackStrategyFactory`, `FallbackPropertyKeys`. PR-2: `FallbackBuilderExtensions`. PR-3: `FallbackLogMessages`, `FallbackTelemetry`, `FallbackStrategyFactory` (modified, `OnFallback` hook), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
+| Project edits | 1 | 0 | 0 | PR-1: `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing) |
+| Tests | 4 | 2 | 2 | PR-1: factory, validator, options, guard. PR-2: registration (DI), contract. PR-3: telemetry and log messages, `EncinaEventIdAllocationTests.cs` |
+| Metadata and docs | 2 | 3 | 6 | PR-1: PublicAPI, manifest. PR-2: PublicAPI, manifest, changelog. PR-3: PublicAPI, manifest, README, feature page, 2 justification files |
+| **Total** | **14** | **6** | **13** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or implementer change |
 
 Per-file targets (new files; baseline: none exists on `origin/main`); each is reached by the tests of the PR that adds the file:
 
@@ -460,9 +502,10 @@ Per-file targets (new files; baseline: none exists on `origin/main`); each is re
 |------|------|-------|----------|----------|-------------|---------------|
 | `FallbackStrategy.cs` | 0 | 0 | 0 | 0 | 0 | An enum has no executable code |
 | `FallbackAttribute.cs` | 95 | 0 | 0 | 0 | 0 | Init properties only, read by options tests |
-| `FallbackOptions.cs` | 95 | 0 | 0 | 0 | 0 | Merge logic covered by value tests |
+| `FallbackOptions.cs` | 95 | 100 | 0 | 0 | 0 | Merge logic covered by value tests; the guard test sends a null attribute to `From` (PR-1) |
+| `FallbackPropertyKeys.cs` | 90 | 0 | 0 | 0 | 0 | Static keys read by the factory tests (PR-1) |
 | `IFallbackHandler.cs` | 0 | 0 | 0 | 0 | 0 | Interface; the contract tests run implementations |
-| `FallbackOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | One failing and one passing test per rule; internal, no `InternalsVisibleTo` for `Encina.GuardTests` |
+| `FallbackOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | One failing and one passing test per rule; internal, reached through the `InternalsVisibleTo` of Phase 1 task 6; no validated public parameters, so no guard flag |
 | `FallbackStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Each trigger and source path is driven through the real compiler; internal |
 | `FallbackBuilderExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Two guarded parameters |
 | `FallbackLogMessages.cs` | 80 | 0 | 0 | 0 | 0 | Generated methods reached through strategy tests with a capturing logger |
@@ -523,5 +566,5 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina/Resul
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #137.
-2. When #137 is picked up, re-check against today's code and ask the maintainer about the Dilemmas (choices 1, 3 to 8).
-3. Brief a worker for PR-1 (15 files), then PR-2, after the foundation and R6 are merged.
+2. When #137 is picked up, re-check against today's code and ask the maintainer about the Dilemmas (choices 1 to 8, 10 and 12).
+3. Brief a worker for PR-1 (14 files), then PR-2 and PR-3, after the foundation and R6 are merged.
