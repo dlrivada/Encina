@@ -175,17 +175,42 @@ var result = await encina.Send(query);
 return result.ToHttpApiResponse();
 ```
 
-## Error Code to HTTP Status Mapping
+## Error Category to HTTP Status Mapping
 
-| Error Code Pattern | HTTP Status |
-|-------------------|-------------|
-| `validation.*` | 400 Bad Request |
-| `encina.guard.validation_failed` | 400 Bad Request |
-| `encina.authorization.unauthenticated` | 401 Unauthorized |
-| `encina.authorization.*` | 403 Forbidden |
-| `*.not_found`, `*.missing` | 404 Not Found |
-| `*.conflict`, `*.already_exists`, `*.duplicate` | 409 Conflict |
-| (default) | 500 Internal Server Error |
+The API Gateway helpers (`ToApiGatewayResponse`, `ToProblemDetailsResponse`, `ToCreatedResponse`, `ToNoContentResponse`, `ToHttpApiResponse`) read the `ErrorCategory` of the error through `ErrorCategoryHttp` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)). They read only the category; core infers a category from the code only for errors created without one (see the first bullet below).
+
+| Error category | HTTP status |
+| --- | --- |
+| `Internal` | 500 |
+| `Validation` | 400 |
+| `InvalidRequest` | 400 |
+| `Unauthenticated` | 401 |
+| `Forbidden` | 403 |
+| `NotFound` | 404 |
+| `Conflict` | 409 |
+| `AlreadyExists` | 409 |
+| `FailedPrecondition` | 400 |
+| `RateLimited` | 429 |
+| `Unavailable` | 503 |
+| `Timeout` | 504 |
+| `UpstreamFailure` | 502 |
+| `Cancelled` | 499 |
+
+- An error with no category falls back to the legacy inference of core during the migration; an error with no code answers 500.
+- An explicit `statusCode` (or `errorStatusCode`) argument overrides the status of the category.
+- The problem `title` is the reason phrase of the status written.
+- `Retry-After` (delta-seconds) is written for 429 and 503 when the error carries `EncinaErrorMetadataKeys.RetryAfter` (a `TimeSpan`).
+- `WWW-Authenticate` is written on every 401, with the value of `EncinaErrorMetadataKeys.AuthenticateChallenge` or `Bearer`.
+- The body never carries the error message (no `detail` member): only `status`, `title` and an `extensions` object holding `errorCode` (omitted when the error has no code).
+
+Errors produced by the package helpers have these categories:
+
+| Error code | Category |
+| --- | --- |
+| `eventbridge.detail_null`, `eventbridge.deserialization_failed`, `sqs.deserialization_failed` | `InvalidRequest` |
+| `eventbridge.processing_failed` | `Internal` |
+| `eventbridge.processing_cancelled` (the delegate was cancelled) | `Cancelled` |
+| `tenancy.tenant_mismatch`, `tenancy.invalid_tenant_claim` | `Forbidden` |
 
 ## Lambda Context Extensions
 
@@ -241,7 +266,7 @@ var result = await SqsMessageHandler.ProcessAllAsync(
 
 result.Match(
     Right: _ => Console.WriteLine("All processed"),
-    Left: error => Console.WriteLine($"Failed: {error.Message}"));
+    Left: error => Console.WriteLine($"Failed: {error.GetCode().IfNone("unknown")}"));
 ```
 
 ## Health Checks
