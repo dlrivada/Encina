@@ -10,7 +10,7 @@
 
 ## Summary
 
-Create `Encina.Aspire.Hosting`, the AppHost-side package of the Aspire integration. State of `origin/main` (`ec129cae5`), verified by reading and grep:
+Create `Encina.Aspire.Hosting`, the AppHost-side package of the Aspire integration. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -174,6 +174,68 @@ A wins today because the template maps `/health` and `/alive` (the issue #417 li
 
 </details>
 
+<details>
+<summary><strong>7. A second `WithEncina` on one resource</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Throw `InvalidOperationException`** | Two declarations cannot disagree; the repository precedent | None found |
+| **B) Last call wins, silently** | Never throws | Hides a configuration mistake |
+
+### Chosen Option: **A — throw**
+
+### Rationale
+
+`WithEncinaTestSupport` throws on a second call and its registration test pins that behavior.
+
+**Class:** Trivial
+**Settled by:** `src/Encina.Aspire.Testing/DistributedApplicationTestingBuilderExtensions.cs` (`WithEncinaTestSupport`, second-call `InvalidOperationException`) and `tests/Encina.UnitTests/Aspire/Testing/WithEncinaTestSupportRegistrationTests.cs`.
+
+</details>
+
+<details>
+<summary><strong>8. Undeclared patterns are written as explicit `false` (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Write all five `Encina__Aspire__Patterns__*` values, `false` for an undeclared pattern** | An environment variable overrides a `true` left in `appsettings.json`, because environment variables are a later configuration source; the AppHost is then the single statement of what runs | Five variables on every resource |
+| **B) Write only the `true` values** | Fewer variables | An undeclared pattern keeps whatever a configuration file says, so the declaration can be contradicted silently |
+
+### Chosen Option: **A — explicit values** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the AppHost is meant to be authoritative; B wins when the variable list must stay short for readability in the dashboard. The choice affects the reader of #417, which treats an absent key as "not declared".
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. The key names are a public contract</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Encina__Aspire__Name` and `Encina__Aspire__Patterns__{Outbox,Inbox,Sagas,Scheduling,DeadLetterQueue}` are documented and tested as public; a change is a breaking change of the family** | Operators and other tools (#425, #382) can rely on them | The names cannot be changed lightly |
+| **B) Internal keys, free to change** | Freedom | The AppHost and the application are versioned and deployed separately, so an undocumented key breaks the pair silently |
+
+### Chosen Option: **A — public contract**
+
+### Rationale
+
+The double underscore is the .NET environment-variable form of the `:` configuration separator, and the pair is pinned by the writer-to-reader contract test of #440.
+
+**Class:** Trivial
+**Settled by:** the .NET configuration convention that an environment variable `A__B` binds to the key `A:B` (Microsoft.Extensions.Configuration environment variables provider); the Shared pieces table of this plan.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -199,7 +261,7 @@ A wins today because the template maps `/health` and `/alive` (the issue #417 li
 
 ```text
 CONTEXT:
-- Issue #416; plan docs/plans/aspire-hosting-implementation-plan-416.md. D1 to D4 and D6 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Aspire.Hosting is pinned at 13.6.5 (D5).
+- Issue #416; plan docs/plans/aspire-hosting-implementation-plan-416.md. D1 to D4, D6 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Aspire.Hosting is pinned at 13.6.5 (D5).
 - Encina.Aspire.Testing (src/Encina.Aspire.Testing) is the only Aspire package today; it shows the csproj conventions of the repository.
 
 TASK:
@@ -231,7 +293,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `EncinaResourceBuilderExtensions.WithEncina<T>(this IResourceBuilder<T> builder, IResourceBuilder<EncinaResource> encina)` with `where T : IResourceWithEnvironment, IResourceWithEndpoints`: guards; sets the environment `Encina__Aspire__Name` (the resource name) and the five `Encina__Aspire__Patterns__*` values, explicit `true` or `false` (so a `false` overrides a value from a configuration file); `WithRelationship(encina.Resource, "Encina")`; when `HealthCheckPath` is not null, `WithHttpHealthCheck(() => builder.GetEndpoint("http"), path)` using the overload that takes a `Func<EndpointReference>` so the endpoint is resolved when the resource starts, not when the extension is called. A second `WithEncina` on the same resource throws `InvalidOperationException` (the precedent is `WithEncinaTestSupport`, which throws on a second call, `src/Encina.Aspire.Testing/DistributedApplicationTestingBuilderExtensions.cs`).
-2. Tests: unit (environment values for each pattern combination, relationship present, health check annotation present with the default path and absent when the path is null, a container and an executable resource accepted, second call throws), guard, and contract `EncinaHostingOptionsParityTests` in `tests/Encina.ContractTests/Aspire/` (the five names of `EncinaHostingOptions` equal the five `Use*` members of `MessagingConfiguration`; `Encina.ContractTests.csproj` gains a reference to the new project, one csproj edit).
+2. Tests: unit (environment values for each pattern combination, relationship present, health check annotation present with the default path and absent when the path is null, a container and an executable resource accepted, second call throws), guard, and contract `EncinaHostingOptionsParityTests` in `tests/Encina.ContractTests/Aspire/`: for each of the five `bool Use*` members of `MessagingConfiguration` (found by reflection, so a sixth flag added there fails the test) the test sets the member of the same name on a real `EncinaHostingOptions` through `AddEncina`, attaches a real container resource with `WithEncina`, runs the environment callbacks and asserts that exactly that `Encina__Aspire__Patterns__*` value is `true`; this executes `EncinaHostingOptions` and `WithEncina`, so the Contract targets of the table are reachable in this plan's own pull request (`Encina.ContractTests.csproj` gains a reference to the new project, one csproj edit).
 3. `PublicAPI.Unshipped.txt` and the manifest entries through `mechanical-fixer`.
 
 </details>
@@ -301,7 +363,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. No `ActivitySource`, `Meter` or `[LoggerMessage]` class: an AppHost has no application logger at build time, and the package starts no work. The EventId ranges of the family are reserved by #417 (`AspireServiceDefaults = (800, 819)`) and #419 (`AspireHosting = (820, 839)`); this plan uses none.
+1. This plan adds no `ActivitySource`, `Meter` or `[LoggerMessage]` class: an AppHost has no application logger at build time, and these pull requests start no work (#419 later adds a log class to this package for command results, with its own range). The EventId ranges of the family are reserved by #417 (`AspireServiceDefaults = (800, 819)`) and #419 (`AspireHosting = (820, 839)`); this plan uses none.
 2. The resource appears in the dashboard through its relationship; its published state is verified in Phase 1.
 
 </details>
@@ -314,7 +376,7 @@ CONTEXT:
 - Issue #416. EventIds 800-849 are the block of the Aspire family; this package takes none.
 
 TASK:
-Confirm the package declares no log class and no instrument.
+Confirm these pull requests add no log class and no instrument (#419 adds its own to the same package later).
 
 KEY RULES:
 - Do not add a [LoggerMessage] without a registered range (ADR-021).
@@ -468,7 +530,7 @@ PR 2 needs PR 1; PR 3 is last. No interface changes, so no implementer is touche
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #416: the AppHost package Encina.Aspire.Hosting. Plan: docs/plans/aspire-hosting-implementation-plan-416.md; D1-D4 and D6 are recommended, pending the maintainer.
+- Issue #416: the AppHost package Encina.Aspire.Hosting. Plan: docs/plans/aspire-hosting-implementation-plan-416.md; D1-D4, D6 and D8 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. Package, Aspire.Hosting 13.6.5 pin, EncinaHostingOptions, EncinaResource, AddEncina (Phase 1).
@@ -498,7 +560,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: hosting configuration, nothing is read repeatedly |
 | 2 | OpenTelemetry | ⏭️ | Deferred as in the issue: the application's telemetry is #417 (open, planned); Aspire already injects the OTLP environment into every project |
-| 3 | Structured Logging | ❌ | Not applicable: an AppHost has no application logger at build time; failures are exceptions that carry the property name. Command logging is #419 |
+| 3 | Structured Logging | ❌ | Not applicable to these pull requests: an AppHost has no application logger at build time; failures are exceptions that carry the property name. Command logging is #419 (log class 820-824 in this same package) |
 | 4 | Health Checks | ✅ | Phase 2: one HTTP health check on the resource at `HealthCheckPath`; the application side is #417 and probes are #454 |
 | 5 | Validation | ✅ | Phase 1: name, options and health path are validated when the AppHost is built |
 | 6 | Resilience | ❌ | Not applicable: the package makes no external call |
@@ -520,5 +582,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3, D4 and D6 when work on #416 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D3, D4, D6 and D8 when work on #416 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1, then 2, then 3; #417 can start once the environment keys of pull request 2 are agreed.
