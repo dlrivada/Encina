@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-17, main `4ee4e0db9`)
+### What exists today (read on 2026-11-17, main `822c310c7`)
 
 - The repository contracts live in `Encina.DomainModeling`: `IReadOnlyRepository<TEntity, TId>` declares `GetByIdAsync`, `GetAllAsync`, two `FindAsync` overloads, `FindOneAsync`, two `AnyAsync`, two `CountAsync` and two `GetPagedAsync` (`src/Encina.DomainModeling/Repository.cs:21-130`); `IRepository<TEntity, TId>` extends it with the write members (`:167`). The functional family has the same shape with `Either` results: `IFunctionalReadRepository<TEntity, TId>` (`ListAsync`, `FirstOrDefaultAsync`, `GetPagedAsync`, `FunctionalRepository.cs:57-236`). The issue's snippets name `IRepository<,>.FindAsync` and `IReadOnlyRepository<,>` equivalents; the methods are declared on the read-only interfaces.
 - `IQueryHandler<TQuery, TResponse> : IRequestHandler<TQuery, TResponse>` with `TQuery : IQuery<TResponse>` is in `Encina` (`src/Encina/Abstractions/CqrsContracts.cs:97`). `git grep "IQueryHandler<"` finds no query handler class in `src`: only the contract, a code-generator template (`src/Encina.Cli/Services/CodeGenerator.cs`), the existing architecture rule that asks handlers to implement it (`EncinaArchitectureRules.cs:419`) and three test files. The self-application the issue asks for will therefore find no violation in the shipped assemblies.
@@ -135,7 +135,7 @@ Nothing runs in an application unless it calls `EnforceQueryHandlerReadBoundary(
 | C6 | The attribute has `AttributeUsage(Class \| Method)`, a required non-blank `reason` (`ArgumentException` otherwise), and the rule honors it on the handler class or on the source method of the call; a suppressed use is not reported | Dilemma (follow-on of Design Choice 3 B, recommended, pending the maintainer) | The issue's text ("justified exceptions on individual call sites"; an attribute cannot target a call site, so the source method is the finest target); applies only if the attribute exists as Design Choice 3 recommends (an allow-list option would replace it) |
 | C7 | The rule takes `IEnumerable<Assembly>` and throws `ArgumentNullException` for a null sequence or element; an assembly that cannot load some types is scanned for the types that load (the loadable-types helper of the existing tests) | Trivial | `EventIdUniquenessRule.AssertEveryLoggerMessageHasEventId(IReadOnlyList<Assembly>)` (`:55`) takes the assemblies to scan and returns violation strings; `MessageSerializerCallSitesArchitectureTests.cs:217` (loadable types) |
 | C8 | No telemetry, logging, EventIds, error codes or tenant data: the rule runs in a test process and returns strings; ADR-062 categories, ADR-054 D4 tags and the reserved `default` tenant segment do not arise | Trivial | `AGENTS.md` section 6 (the issue lists every function as N/A) |
-| C9 | Self-application: the rule runs over every shipped `Encina*` assembly in the unit test project (a permanent gate in CI, the pattern of `NoPostProcessorWritesToOutboxTests`) and over the `Encina.IntegrationTests` assembly in the integration test; any violation found is fixed in its package or recorded with the attribute and a reason; none is expected, because the shipped assemblies contain no query handler class | Dilemma (follow-on of Design Choices 2 and 3, recommended, pending the maintainer) | The issue's self-application task; `git grep "IQueryHandler<"` on `4ee4e0db9` |
+| C9 | Self-application: the rule runs over every shipped `Encina*` assembly in the unit test project (a permanent gate in CI, the pattern of `NoPostProcessorWritesToOutboxTests`) and over the `Encina.IntegrationTests` assembly in the integration test; any violation found is fixed in its package or recorded with the attribute and a reason; none is expected, because the shipped assemblies contain no query handler class | Dilemma (follow-on of Design Choices 2 and 3, recommended, pending the maintainer) | The issue's self-application task; `git grep "IQueryHandler<"` on `822c310c7` |
 | C10 | No ADR is created: the issue makes it optional "only if the rule semantics warrant one"; the semantics here are a guideline with an opt-in check, recorded by the guide | Trivial | Issue #1038 ("ADR in `docs/architecture/adr/` — only if the rule semantics warrant one") |
 
 ---
@@ -176,7 +176,8 @@ TASK:
 
 KEY RULES:
 - Identify repository interfaces by full name; do not add a project reference to Encina.DomainModeling.
-- Flag GetAllAsync, FindAsync, GetPagedAsync and the functional ListAsync; allow GetByIdAsync, FindOneAsync,
+- Flag GetAllAsync, FindAsync, GetPagedAsync, the functional ListAsync, ListWithDeletedAsync, GetHistoryAsync,
+  GetChangedBetweenAsync and ListAsOfAsync; allow GetByIdAsync, FindOneAsync,
   FirstOrDefaultAsync, AnyAsync, CountAsync. Cover async state machines and lambdas through nested types.
 - Violation strings name types and methods only. Tests run the real rule on real fixture classes.
 - PublicAPI.Unshipped.txt and the manifests through mechanical-fixer.
@@ -316,7 +317,7 @@ Every count includes tests, coverage manifest edits, PublicAPI files, READMEs an
 | S3 | Guide, example, finalization | 0 | 2 (`Repository.cs`, `FunctionalRepository.cs`, XML docs only) | 1 (`ReadWriteBoundaryQueryShapeTests`) | 0 | 1 (`Encina.DomainModeling.json`) | 7 (guide, `docs/features/index.md`, two READMEs, changelog fragment, 2 justification `.md`) | 11 | ~1,060 |
 | **Total** | | **3** | **5** | **5** | **1** | **4** | **8** | **26** | **~2,330** |
 
-The columns sum to the total (3 + 5 + 5 + 1 + 4 + 8 = 26) and the pull-request rows sum to 26 files (11 + 4 + 11). S3's line estimate includes about 650 lines of guide and README text; the code part stays under 400 lines. Caller counts verified with `git grep` on `4ee4e0db9`: `IQueryHandler<` appears in six files of `src` and `tests` and no query handler class exists in `src`; `EncinaArchitectureRulesBuilder` gains one method and no constructor parameter, so no caller changes. S2's csproj edit is the only project-level change.
+The columns sum to the total (3 + 5 + 5 + 1 + 4 + 8 = 26) and the pull-request rows sum to 26 files (11 + 4 + 11). S3's line estimate includes about 650 lines of guide and README text; the code part stays under 400 lines. Caller counts verified with `git grep` on `822c310c7`: `IQueryHandler<` appears in six files of `src` and `tests` and no query handler class exists in `src`; `EncinaArchitectureRulesBuilder` gains one method and no constructor parameter, so no caller changes. S2's csproj edit is the only project-level change.
 
 Per-file coverage targets (per flag, with a one-sentence justification), written into the package manifests by the pull request whose tests reach them (unit and guard targets in S1, integration targets in S2). Manifest targets are whole-file and these files hold defaults only today, so each PR first measures the file's per-flag baseline and sets a whole-file target not below it; no existing target is lowered:
 
@@ -355,7 +356,8 @@ IMPLEMENTATION OVERVIEW:
 Three pull requests, see the Estimated File Count table.
 
 KEY PATTERNS:
-- Flag GetAllAsync, FindAsync, GetPagedAsync and the functional ListAsync inside query handlers; allow GetByIdAsync,
+- Flag GetAllAsync, FindAsync, GetPagedAsync, the functional ListAsync, ListWithDeletedAsync, GetHistoryAsync,
+  GetChangedBetweenAsync and ListAsOfAsync inside query handlers; allow GetByIdAsync,
   FindOneAsync, FirstOrDefaultAsync, AnyAsync and CountAsync; cover async state machines and lambdas via nested types.
 - Repository interfaces are matched by full name; violations are strings naming types and methods only.
 - Tests run the real rule on real fixture classes; PublicAPI.Unshipped.txt, manifests and changelog through
