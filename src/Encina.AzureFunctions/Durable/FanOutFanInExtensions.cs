@@ -309,6 +309,7 @@ public static class FanOutFanInExtensions
             // deserializes to a null ActivityResult that the unwrapping helper cannot read.
             return EncinaErrors.Create(
                 "durable.activity_failed",
+                ErrorCategory.Internal,
                 $"Activity '{activityName}' did not return an ActivityResult.",
                 ex);
         }
@@ -327,6 +328,7 @@ public static class FanOutFanInExtensions
 
         return EncinaErrors.Create(
             FanOutFailedCode,
+            ErrorCategory.Internal,
             FanOutFailedMessage,
             details: new Dictionary<string, object?>
             {
