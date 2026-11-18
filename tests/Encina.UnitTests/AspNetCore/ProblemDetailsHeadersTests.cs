@@ -151,6 +151,19 @@ public sealed class ProblemDetailsHeadersTests
     }
 
     [Fact]
+    public async Task ToActionResult_WritesTheHeadersWhenExecuted()
+    {
+        var context = CreateHttpContext();
+        var error = WithDetails(ErrorCategory.RateLimited, EncinaErrorMetadataKeys.RetryAfter, TimeSpan.FromSeconds(12));
+
+        await error.ToActionResult(context).ExecuteResultAsync(
+            new Microsoft.AspNetCore.Mvc.ActionContext { HttpContext = context });
+
+        context.Response.StatusCode.ShouldBe(429);
+        context.Response.Headers["Retry-After"].ToString().ShouldBe("12");
+    }
+
+    [Fact]
     public void Building_TheResult_DoesNotTouchTheResponse()
     {
         var context = CreateHttpContext();
