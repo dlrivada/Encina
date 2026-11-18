@@ -2,7 +2,7 @@
 
 > **Issue**: [#355](https://github.com/dlrivada/Encina/issues/355)
 > **Type**: Feature
-> **Verified against**: origin/main `d523eda92` (2026-11-18)
+> **Verified against**: origin/main `822c310c7` (2026-11-18)
 > **Complexity**: Medium (4 phases, no database provider code, ~20 files in 3 pull requests)
 > **Estimated Scope**: ~250-350 lines of production code + ~600-800 lines of tests
 
@@ -12,7 +12,7 @@
 
 Issue #355 asks for Stripe-style API idempotency: a key from an HTTP header, a cached response returned for a duplicate with a clear `Idempotent-Replayed` marker, concurrent duplicates handled with a lock, a TTL, key format validation and distributed stores (Redis, SQL Server, in-memory). Most of its mechanism overlaps [#334](https://github.com/dlrivada/Encina/issues/334) (the store and the behavior) and the issue proposes a second `IIdempotencyStore`, a second `IdempotencyPipelineBehavior` and an `IIdempotentRequest` interface that already exists with another meaning. This plan therefore keeps only what is specific to HTTP and defers the rest to its owners (the disposition table is in Research).
 
-**What the code does today (verified on `origin/main` `d523eda92`)**:
+**What the code does today (verified on `origin/main` `822c310c7`)**:
 
 - The host already extracts the key: `EncinaAspNetCoreOptions.IdempotencyKeyHeader` (default `X-Idempotency-Key`, `src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs:50`) is read by `HttpContextInboundRequestExtensions.cs:100` into `InboundRequestInfo.IdempotencyKey`, and `EncinaContextMiddleware` runs the request inside the inbound scope. So the issue's `IdempotencyMiddleware` that "extracts the key from the header" would duplicate it.
 - `InboundRequestNormalizer.IdempotencyKey` (`src/Encina/Identity/InboundRequestNormalizer.cs`) never refuses: a key longer than 255 characters, blank or with control characters is silently dropped, so the request runs as if it had no key. A request marked idempotent then fails inside the behavior with `idempotency.missing_key`, which the status mapping answers 500 ([#3438](https://github.com/dlrivada/Encina/issues/3438) reports this).
