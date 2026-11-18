@@ -10,7 +10,7 @@
 
 ## Summary
 
-Create `Encina.Aspire.Hosting`, the AppHost-side package of the Aspire integration. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep:
+Create `Encina.Aspire.Hosting`, the AppHost-side package of the Aspire integration. State of `origin/main` (`010d6f995`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -120,7 +120,7 @@ A wins when the AppHost should document the architecture and catch drift between
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `EncinaHostingOptions` declares its own five booleans named as the members of `MessagingConfiguration` (`UseOutbox` at `:87`, `UseInbox` `:97`, `UseSagas` `:106`, `UseScheduling` `:131`, `UseDeadLetterQueue` `:176`); a unit test in a project that references both asserts the names are equal** | The AppHost does not load the application runtime; the names cannot drift unnoticed | Five properties are written twice |
+| **A) `EncinaHostingOptions` declares its own five booleans named as the members of `MessagingConfiguration` (`UseOutbox` at `:87`, `UseInbox` `:97`, `UseSagas` `:106`, `UseScheduling` `:131`, `UseDeadLetterQueue` `:176`); a contract test in a project that references both asserts the names are equal** | The AppHost does not load the application runtime; the names cannot drift unnoticed | Five properties are written twice |
 | **B) The package references `Encina.Messaging` and reuses `MessagingConfiguration`** | No duplication | An AppHost would load the messaging assembly and its dependencies (stores, `LanguageExt`) only to read five booleans; `MessagingConfiguration` has dozens of provider-specific members unrelated to the AppHost |
 
 ### Chosen Option: **A — own options, parity test** (recommended, pending the maintainer)
@@ -216,23 +216,22 @@ A wins when the AppHost is meant to be authoritative; B wins when the variable l
 </details>
 
 <details>
-<summary><strong>9. The key names are a public contract</strong></summary>
+<summary><strong>9. The key names are a public contract (Dilemma D9, tied to D3 option A)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `Encina__Aspire__Name` and `Encina__Aspire__Patterns__{Outbox,Inbox,Sagas,Scheduling,DeadLetterQueue}` are documented and tested as public; a change is a breaking change of the family** | Operators and other tools (#425, #382) can rely on them | The names cannot be changed lightly |
+| **A) Given D3 option A, `Encina__Aspire__Name` and `Encina__Aspire__Patterns__{Outbox,Inbox,Sagas,Scheduling,DeadLetterQueue}` are documented and tested as public; a change is a breaking change of the family** | Operators and other tools (#425, #382) can rely on them | The names cannot be changed lightly |
 | **B) Internal keys, free to change** | Freedom | The AppHost and the application are versioned and deployed separately, so an undocumented key breaks the pair silently |
 
-### Chosen Option: **A — public contract**
+### Chosen Option: **A — public contract** (recommended, pending the maintainer)
 
 ### Rationale
 
-The double underscore is the .NET environment-variable form of the `:` configuration separator, and the pair is pinned by the writer-to-reader contract test of #440.
+This choice exists only if D3 keeps option A (a declaration written as environment variables); under D3 options B or C other keys or none exist and this entry is replaced with them. The double underscore is the .NET environment-variable form of the `:` configuration separator (Microsoft.Extensions.Configuration environment variables provider), and the pair is pinned by the writer-to-reader contract test of #440. A wins because the AppHost and the application are deployed separately; B wins if the maintainer wants to keep the freedom to rename before 1.0.
 
-**Class:** Trivial
-**Settled by:** the .NET configuration convention that an environment variable `A__B` binds to the key `A:B` (Microsoft.Extensions.Configuration environment variables provider); the Shared pieces table of this plan.
+**Class:** Dilemma
 
 </details>
 
@@ -261,7 +260,7 @@ The double underscore is the .NET environment-variable form of the `:` configura
 
 ```text
 CONTEXT:
-- Issue #416; plan docs/plans/aspire-hosting-implementation-plan-416.md. D1 to D4, D6 and D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Aspire.Hosting is pinned at 13.6.5 (D5).
+- Issue #416; plan docs/plans/aspire-hosting-implementation-plan-416.md. D1 to D4, D6, D8 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Aspire.Hosting is pinned at 13.6.5 (D5).
 - Encina.Aspire.Testing (src/Encina.Aspire.Testing) is the only Aspire package today; it shows the csproj conventions of the repository.
 
 TASK:
@@ -530,7 +529,7 @@ PR 2 needs PR 1; PR 3 is last. No interface changes, so no implementer is touche
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #416: the AppHost package Encina.Aspire.Hosting. Plan: docs/plans/aspire-hosting-implementation-plan-416.md; D1-D4, D6 and D8 are recommended, pending the maintainer.
+- Issue #416: the AppHost package Encina.Aspire.Hosting. Plan: docs/plans/aspire-hosting-implementation-plan-416.md; D1-D4, D6, D8 and D9 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (3 pull requests, each builds alone):
 1. Package, Aspire.Hosting 13.6.5 pin, EncinaHostingOptions, EncinaResource, AddEncina (Phase 1).
@@ -582,5 +581,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3, D4, D6 and D8 when work on #416 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D3, D4, D6, D8 and D9 when work on #416 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1, then 2, then 3; #417 can start once the environment keys of pull request 2 are agreed.
