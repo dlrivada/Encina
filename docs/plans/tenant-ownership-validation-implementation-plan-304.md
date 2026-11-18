@@ -12,7 +12,7 @@
 
 #304 asks for marker interfaces for tenant-scoped queries and commands, a `TenantIsolationPipelineBehavior` that requires a tenant and validates ownership, an EF Core global filter, Dapper tenant parameters, a cross-tenant attribute and configuration. Most of it exists in another shape; what remains is **request-level ownership validation**: a command or query that names a resource (an order id, a document id) must be refused when the resource belongs to another tenant, including resources that the repository filter does not see.
 
-**State of the code on `ec129cae5` (current `origin/main`; the cited files were read on it).**
+**State of the code on `d523eda92` (current `origin/main`; the cited files were read on it; the plans #346, #338 and #385 are merged on it, their code is not).**
 
 | Item of #304 | State | Evidence or owner |
 |--------------|-------|-------------------|
@@ -46,12 +46,16 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) The issue's shape: `ITenantScopedQuery<T>` and `ITenantScopedCommand<T>` markers that extend `IQuery<T>` and `ICommand<T>`, and one non-generic-by-type validator `ValidateOwnershipAsync<TRequest>(request, tenantId, ct)`** | Matches the issue text | Two markers that mean the same; a request type can have only one base (a type that is both a command and needs the check must pick the marker); the generic method forces the one validator to switch over every request type |
-| **B) One marker `ITenantOwnedRequest` (any request, command or query) and a typed `ITenantOwnershipValidator<in TRequest>` resolved per request type from DI; every validator registered for the type must pass; none registered is a denial** | One marker; a validator per request type is small, testable and resolved by the container; an application adds a validator next to its handler | A validator class per request type that references a resource |
+| **B) One marker `ITenantOwnedRequest` (any request, command or query) and a typed `ITenantOwnershipValidator<TRequest>` resolved per exact request type from DI; every validator registered for the type must pass; none registered is a denial** | One marker; a validator per request type is small, testable and resolved by the container; an application adds a validator next to its handler | A validator class per request type that references a resource |
 | **C) No behavior: rely on the tenant-filtered repositories and on handler code** | No new API | The handler must remember; a resource outside a filtered repository is unchecked |
 
 ### Chosen Option: **B — One marker, a typed validator per request type** (recommended, pending the maintainer)
 
+The answer to this Dilemma decides the three sub-rules below together: the error semantics, the blank-tenant rule and the exact-type resolution.
+
 ### Rationale
+
+- **Resolution is by exact request type.** `Microsoft.Extensions.DependencyInjection` does not resolve contravariance: `IEnumerable<ITenantOwnershipValidator<Derived>>` returns only validators registered for exactly `Derived`. A validator registered for a base request type therefore does not apply to a derived request type; the documentation says so, and a validator for several request types is registered once per type with `AddTenantOwnershipValidator<TRequest, TValidator>()`. The interface is therefore invariant (`ITenantOwnershipValidator<TRequest>`, no `in`), so its shape does not suggest a resolution the container does not perform. A request type with no validator registered for its exact type is denied (Design Choice 3), so this never fails open.
 
 - B wins when the resources a request names live in more than one store or outside an Encina repository (blob keys, external ids), which is where the repository filter cannot help; A wins if the maintainer wants the issue's names exactly; C wins for an application whose every handler goes through a tenant-filtered repository, because there the filter already answers "not found".
 - **Error semantics (follow the chosen option).** A validator returns `Right(Unit)` when the tenant owns everything the request names. A `Left` of category `NotFound` or `Forbidden` from a validator is normalized by the behavior to `TenancyErrors.OwnershipDenied()` (`tenancy.ownership_denied`, `ErrorCategory.Forbidden`, ADR-062 R6: a denial), with a fixed message and no resource or tenant value, so a client cannot tell "does not exist" from "belongs to another tenant" (the wording of the existing `TenancyErrors.TenantNotFound()` message already ends "Access denied."). Any other `Left` (an `Internal` store failure) is returned unchanged: a failure is never turned into a denial and never into a pass.
@@ -153,7 +157,7 @@
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `src/Encina.Tenancy/Ownership/ITenantOwnedRequest.cs`**: `public interface ITenantOwnedRequest;` (namespace `Encina.Tenancy`), XML docs with an `<example>` of a command that names a document id.
-2. **Create `src/Encina.Tenancy/Ownership/ITenantOwnershipValidator.cs`**: `public interface ITenantOwnershipValidator<in TRequest> where TRequest : ITenantOwnedRequest { ValueTask<Either<EncinaError, Unit>> ValidateAsync(TRequest request, string tenantId, CancellationToken cancellationToken); }`; the XML docs state the contract of Design Choice 1 (return a `Left` for a missing or foreign resource, never distinguish them; an `Internal` `Left` for a store failure).
+2. **Create `src/Encina.Tenancy/Ownership/ITenantOwnershipValidator.cs`**: `public interface ITenantOwnershipValidator<TRequest> where TRequest : ITenantOwnedRequest { ValueTask<Either<EncinaError, Unit>> ValidateAsync(TRequest request, string tenantId, CancellationToken cancellationToken); }`; the XML docs state the contract of Design Choice 1 (return a `Left` for a missing or foreign resource, never distinguish them; an `Internal` `Left` for a store failure).
 3. **Modify `src/Encina.Tenancy/TenancyErrors.cs`**: `OwnershipDeniedCode = "tenancy.ownership_denied"` and `OwnershipDenied()` (`ErrorCategory.Forbidden`); `OwnershipValidatorMissingCode = "tenancy.ownership_validator_missing"` and `OwnershipValidatorMissing()` (`ErrorCategory.Internal`); fixed messages with no tenant or resource value.
 4. PublicAPI lines (mechanical-fixer).
 
@@ -177,20 +181,20 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Tenancy/TenancyErrors.cs
 - src/Encina.Tenancy/Abstractions/ITenantEntity.cs (style of the abstractions)
-- tests/Encina.UnitTests/Tenancy/ (TenancyErrorsTests)
+- tests/Encina.UnitTests/Tenancy/TenantConnectionFactoryBaseTests.cs (where the existing TenancyErrors factories are asserted today; `TenancyErrorsTests.cs` does not exist on main and is created by this PR)
 ```
 
 </details>
 
-### Phase 2: Pipeline Behavior and Registration (PR 304-A, stream twin in PR 304-B)
+### Phase 2: Pipeline Behavior and Registration (PR 304-A, stream twin included)
 
 > **Goal**: check ownership before the handler, fail closed.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create `src/Encina.Tenancy/Ownership/TenantOwnershipPipelineBehavior.cs`**: `[PipelineStage(PipelineStage.Authorization, Order = 7)] public sealed class TenantOwnershipPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(IServiceProvider services, ILogger<...> logger)` resolving `IEnumerable<ITenantOwnershipValidator<TRequest>>` only when the request type is marked: a `private static readonly bool IsOwned = typeof(ITenantOwnedRequest).IsAssignableFrom(typeof(TRequest))` per closed type makes every unmarked request a straight `nextStep()` with no resolution. Marked: blank `context.TenantId` returns `Left(TenancyErrors.TenantRequired())`; no validator returns `Left(TenancyErrors.OwnershipValidatorMissing())` (EventId 7856, counter outcome `validator_missing`); validators run in registration order and the first `Left` ends the check: `NotFound` or `Forbidden` becomes `TenancyErrors.OwnershipDenied()` (EventId 7855, counter outcome `denied`), any other `Left` is returned unchanged. The cast to the marker uses the closed type's validators, so a validator for a base request type also applies (contravariance of `in TRequest`).
-2. **Create `TenantOwnershipStreamPipelineBehavior<TRequest, TItem>`** (PR 304-B, same stage and order): a denied stream yields one `Left` and ends.
+1. **Create `src/Encina.Tenancy/Ownership/TenantOwnershipPipelineBehavior.cs`**: `[PipelineStage(PipelineStage.Authorization, Order = 7)] public sealed class TenantOwnershipPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(IServiceProvider services, ILogger<...> logger)` resolving `IEnumerable<ITenantOwnershipValidator<TRequest>>` only when the request type is marked: a `private static readonly bool IsOwned = typeof(ITenantOwnedRequest).IsAssignableFrom(typeof(TRequest))` per closed type makes every unmarked request a straight `nextStep()` with no resolution. Marked: blank `context.TenantId` returns `Left(TenancyErrors.TenantRequired())`; no validator returns `Left(TenancyErrors.OwnershipValidatorMissing())` (EventId 7856, counter outcome `validator_missing`); validators run in registration order and the first `Left` ends the check: `NotFound` or `Forbidden` becomes `TenancyErrors.OwnershipDenied()` (EventId 7855, counter outcome `denied`), any other `Left` is returned unchanged. Only validators registered for the exact closed request type run (Design Choice 1: the container does no variance resolution).
+2. **Create `TenantOwnershipStreamPipelineBehavior<TRequest, TItem>`** (PR 304-A with the behavior, so a marked stream request is never unchecked between pull requests; same stage and order): a denied stream yields one `Left` and ends.
 3. **Create `src/Encina.Tenancy/Diagnostics/TenantOwnershipMetrics.cs`** (`internal static`): counter `encina.tenancy.ownership.denied` on the shared `Encina` meter, tag `outcome` (`denied`, `validator_missing`); no tenant tag (ADR-054 D4, helper #2676).
 4. **Modify `src/Encina.Tenancy/Diagnostics/TenancyPipelineLog.cs`** (created by #346): EventIds 7855 (ownership denied, Warning, request type and code) and 7856 (validator missing, Error, request type and code).
 5. **Modify `src/Encina.Tenancy/ServiceCollectionExtensions.cs`**: `TryAddEnumerable` transient registration of the behavior; `AddTenantOwnershipValidator<TRequest, TValidator>(this IServiceCollection)` registering `ITenantOwnershipValidator<TRequest>` as transient (the validators are usually scoped consumers: transient avoids a scoped-in-singleton and works from a scope). DI test with `ValidateOnBuild` and `ValidateScopes`: a validator that takes a scoped `DbContext`-like dependency resolves from a scope.
@@ -206,7 +210,7 @@ CONTEXT:
 - Phase 1 is in the same pull request; PR 346-A (TenantAgnosticAttribute, the TenancyPipeline EventId range, TenancyPipelineLog) and PR 338-B (Order 6) are merged or in the same batch.
 
 TASK:
-Write TenantOwnershipPipelineBehavior (the stream twin goes in the follow-up pull request), the counter, the two log methods and the registrations.
+Write TenantOwnershipPipelineBehavior and its stream twin (same pull request: a marked stream request must never be unchecked), the counter, the two log methods and the registrations.
 
 KEY RULES:
 - Unmarked requests do no work (a static per-closed-type bool, no resolution, no allocation).
@@ -241,7 +245,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- ADR-021: EventIds come from the registered range TenancyPipeline (7850-7879); this plan's ids are 7855-7856, assigned in merge order after #346 (7850-7852) and #338 (7853-7854).
+- ADR-021: EventIds come from the registered range TenancyPipeline (7850-7879); this plan's ids are fixed at 7855-7856 by the registry, after #346 (7850-7852) and #338 (7853-7854); the merge order is #346, #338, #304, so the sequence has no gap.
 
 TASK:
 Add the two log methods and the counter; run the architecture tests that scan EventIds.
@@ -257,30 +261,30 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 4: Testing, Documentation & Finalization (tests in PR 304-A and 304-B; documentation in PR 304-C)
+### Phase 4: Testing, Documentation & Finalization (tests in PR 304-A and 304-B; documentation and the changelog fragment in PR 304-C)
 
 > **Goal**: every flag at its target; the guide shows how to write a validator.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Unit tests** `tests/Encina.UnitTests/Tenancy/Ownership/TenantOwnershipPipelineBehaviorTests.cs`: unmarked request passes with no validator resolved; marked and owned passes; marked and foreign denied with `tenancy.ownership_denied` and category `Forbidden`; `NotFound` and `Forbidden` from a validator both normalize to the same error; an `Internal` `Left` is returned unchanged; no validator returns `tenancy.ownership_validator_missing`; blank tenant returns `tenancy.tenant_required` even with `[TenantAgnostic]` on the type; two validators, the second not called after the first fails; a base-type validator applies (contravariance); the counter outcome tags; the log once per denial.
-2. **Guard tests** `tests/Encina.GuardTests/Tenancy/`: constructor, registration helper (`null` services) and the error factories' parameterless contract.
+1. **Unit tests** `tests/Encina.UnitTests/Tenancy/Ownership/TenantOwnershipPipelineBehaviorTests.cs`: unmarked request passes with no validator resolved; marked and owned passes; marked and foreign denied with `tenancy.ownership_denied` and category `Forbidden`; `NotFound` and `Forbidden` from a validator both normalize to the same error; an `Internal` `Left` is returned unchanged; no validator returns `tenancy.ownership_validator_missing`; blank tenant returns `tenancy.tenant_required` even with `[TenantAgnostic]` on the type; two validators, the second not called after the first fails; a validator registered only for a base request type does not apply to a derived marked request, which is denied with `tenancy.ownership_validator_missing` (exact-type resolution, real `ServiceProvider`); the counter outcome tags; the log once per denial. The same cases for the stream twin in `TenantOwnershipStreamPipelineBehaviorTests.cs` (denied stream yields one `Left` and ends; allowed stream passes every item). The errors are asserted in the new `tests/Encina.UnitTests/Tenancy/TenancyErrorsTests.cs` (it does not exist on main; the PR creates it).
+2. **Guard tests** `tests/Encina.GuardTests/Tenancy/TenantOwnershipGuardTests.cs` (new): both behavior constructors and the registration helper (`null` services); the error factories take no parameters, so they have no guard case.
 3. **Property test** (FsCheck): for any `ErrorCategory` the normalization returns `OwnershipDenied` exactly for `NotFound` and `Forbidden` and the identical error otherwise.
 4. **Integration**: justification in the unit test class comment: the behavior has no database dependency (a non-database feature, `AGENTS.md` section 9); the repository filters that make a foreign id "not found" are covered by the existing per-provider tenancy integration tests (`tests/Encina.IntegrationTests/.../Tenancy/`), and the two-tenant suite of #1257 adds the cross-store check.
 5. **Load and benchmark**: justification `.md` files (`tests/Encina.LoadTests/Tenancy/TenantOwnership.md`, `tests/Encina.BenchmarkTests/Tenancy/TenantOwnership.md`): no shared mutable state; the unmarked path is one static bool; the cost of a marked request is the application's validator.
-6. **Documentation (PR 304-C, docs-writer)**: `docs/features/multi-tenancy.md` gains "Ownership validation" (the marker, a validator example with a repository, the denial semantics, why a foreign id and a missing id look the same, what `[TenantAgnostic]` does not skip) and an FAQ answer for "How do I prevent cross-tenant data access?"; `src/Encina.Tenancy/README.md`.
-7. **Changelog fragments** `changelog.d/304-tenant-ownership-validation.added.md` (mechanical-fixer); manifests and PublicAPI through mechanical-fixer.
+6. **Documentation (PR 304-C, docs-writer)**: `docs/features/multi-tenancy.md` gains "Ownership validation" (the marker, a validator example with a repository, the denial semantics, why a foreign id and a missing id look the same, what `[TenantAgnostic]` does not skip) and an FAQ answer for "How do I prevent cross-tenant data access?"; `src/Encina.Tenancy/README.md` (a new file: it does not exist on main).
+7. **Changelog fragment** `changelog.d/304-tenant-ownership-validation.added.md` in PR 304-C (mechanical-fixer; the user-visible feature is complete only with the documentation); manifests and PublicAPI through mechanical-fixer.
 
 **Per-file targets** (proposed; measured values replace them and never go down; package default of `Encina.Tenancy.json`: guard 15, unit 60):
 
 | File | Baseline | Flags | Justification |
 |------|----------|-------|---------------|
 | `Ownership/TenantOwnershipPipelineBehavior.cs` (new) | new | unit 100, guard 90, property 80 | every branch is a unit case; guard reaches the constructor; the property test pins the normalization table. |
-| `Ownership/TenantOwnershipStreamPipelineBehavior.cs` (new) | new | unit 100, guard 90 | one denied and one allowed stream. |
+| `Ownership/TenantOwnershipStreamPipelineBehavior.cs` (new, PR 304-A) | new | unit 100, guard 90 | one denied and one allowed stream. |
 | `Ownership/ITenantOwnedRequest.cs`, `ITenantOwnershipValidator.cs` (new) | new | unit 0 | interfaces with no executable line; exercised through the behavior. |
 | `Diagnostics/TenantOwnershipMetrics.cs` (new) | new | unit 100 | counter read through an in-memory meter listener. |
-| `TenancyErrors.cs` | unit 100, guard 0 | unchanged | two more factories asserted for code, category and message; no guard clause exists. |
+| `TenancyErrors.cs` | unit 100, guard 0 | unchanged | two more factories asserted for code, category and message in the new `TenancyErrorsTests.cs`; no guard clause exists. |
 | `Diagnostics/TenancyPipelineLog.cs` | set by #346 | raised | two more generated methods exercised with a fake logger. |
 | `ServiceCollectionExtensions.cs` | unit 95, guard 70 | unchanged | the behavior registration and the helper are tested in a covered method; the guard test rejects null services. |
 
@@ -344,7 +348,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Tenancy` (pipeline) | 7855-7856 inside `TenancyPipeline` (7850-7879), registered by #346 | this plan reserves 7855-7856 (assigned in merge order after #346's 7850-7852 and #338's 7853-7854); 7857-7879 spare |
+| `Encina.Tenancy` (pipeline) | 7855-7856 inside `TenancyPipeline` (7850-7879), registered by #346 | this plan's ids are fixed at 7855-7856 by the registry, after #346's 7850-7852 and #338's 7853-7854 (merge order #346, #338, #304, so no gap); 7857-7879 spare |
 | `Encina.Tenancy` (existing) | none | `Tenancy = (1800, 1899)` is not touched |
 
 ### Estimated File Count
@@ -352,12 +356,12 @@ REFERENCE FILES:
 | Category | Files | Notes |
 | :--- | :--- | :--- |
 | Production, contracts and errors (marker, validator, `TenancyErrors`) | 3 | PR 304-A |
-| Production, behavior, metrics, log edit, registration edit | 4 | PR 304-A |
-| Production, stream twin and its registration edit | 2 | PR 304-B (the registration edit is the same file as in 304-A) |
-| Tests (behavior unit, guard, errors test edit, DI test edit) | 4 | PR 304-A |
-| Tests (stream unit, property) and justification files (load, benchmark) | 4 | PR 304-B |
-| Metadata (manifest, `PublicAPI.Unshipped.txt`, changelog fragment) | 3 | PR 304-A; 2 more in 304-B |
-| Documentation (`multi-tenancy.md`, Tenancy README) | 2 | PR 304-C |
+| Production, behavior, stream twin, metrics, log edit, registration edit | 5 | PR 304-A |
+| Tests (behavior unit, stream unit, new `TenancyErrorsTests.cs`, new guard test, DI test edit of `ServiceCollectionExtensionsExtendedTests.cs`) | 5 | PR 304-A |
+| Metadata (`Encina.Tenancy.json`, `PublicAPI.Unshipped.txt`) | 2 | PR 304-A (15 files in total) |
+| Property test and justification files (load, benchmark) | 3 | PR 304-B |
+| Metadata (`Encina.Tenancy.json`, property target) | 1 | PR 304-B (4 files in total) |
+| Documentation (`multi-tenancy.md`, new Tenancy README) and the changelog fragment | 3 | PR 304-C |
 | Total | 22 | three worker pull requests |
 
 ---
@@ -373,8 +377,8 @@ PROJECT CONTEXT:
 - The tenant is IRequestContext.TenantId; the gate (#346) runs at Authorization Order 5, existence and status (#338) at Order 6, this behavior at Order 7.
 
 IMPLEMENTATION OVERVIEW:
-1. ITenantOwnedRequest (marker), ITenantOwnershipValidator<in TRequest>, TenancyErrors.OwnershipDenied (Forbidden) and OwnershipValidatorMissing (Internal).
-2. TenantOwnershipPipelineBehavior (static per-type bool, validators resolved only for marked requests) and, in a second pull request, the stream twin.
+1. ITenantOwnedRequest (marker), ITenantOwnershipValidator<TRequest>, TenancyErrors.OwnershipDenied (Forbidden) and OwnershipValidatorMissing (Internal).
+2. TenantOwnershipPipelineBehavior (static per-type bool, validators resolved only for marked requests, exact request type) and its stream twin in the same pull request.
 3. AddTenantOwnershipValidator<TRequest, TValidator>() registers a transient validator; the behavior is registered with TryAddEnumerable.
 4. Counter encina.tenancy.ownership.denied; EventIds 7855-7856 of the TenancyPipeline range registered by #346.
 5. Tests of unit, guard and property types; load and benchmark justifications; documentation and fragments by specialists; the follow-up issue file for the audit event.
@@ -420,8 +424,9 @@ REFERENCE FILES:
 
 | Prerequisite | State | Effect on this plan |
 |--------------|-------|---------------------|
-| PR 346-A (`[TenantAgnostic]`, the EventId range and `TenancyPipelineLog`, the stage and order convention) | planned | PR 304-A builds on it |
-| PR 338-B (Order 6, EventIds 7853-7854) | planned | the order and the id sequence assume it; the code does not call it |
+| PR 346-A of #346 (`[TenantAgnostic]`, the EventId range and `TenancyPipelineLog`, the stage and order convention) | plan merged; code planned | PR 304-A builds on it; its tests that use `[TenantAgnostic]` need 346-A |
+| PR 338-B of #338 (Order 6, EventIds 7853-7854) | plan merged; code planned | the order and the id sequence assume it; the code does not call it |
+| #385 (EF filter for any context and the security guide) | plan merged; code planned | not a dependency; the guide it ships is linked from the documentation of PR 304-C |
 | #3189 to #3197 (removal of the optional tenant-isolation switches of the providers) | open | they make the repository filters unconditional; this plan does not depend on them |
 | #3748 (platform-operator path) | open, `needs-decision` | not a dependency: nothing cross-tenant is built |
 
@@ -433,7 +438,7 @@ REFERENCE FILES:
 
 1. Maintainer answers Design Choices 1, 2, 3 and 4 when work on the issue starts (recorded in `## Maintainer Decisions`).
 2. Worker pull requests (counts include tests, manifests, PublicAPI lines and fragments; recount by grep when the worker starts):
-   - **PR 304-A** (contracts, errors, behavior, registration): `ITenantOwnedRequest.cs`, `ITenantOwnershipValidator.cs`, `TenancyErrors.cs`, `TenantOwnershipPipelineBehavior.cs`, `TenantOwnershipMetrics.cs`, `TenancyPipelineLog.cs`, `ServiceCollectionExtensions.cs` (7); behavior unit test, guard test, errors test edit, DI test edit (4); `Encina.Tenancy.json`, `PublicAPI.Unshipped.txt`, `304-tenant-ownership-validation.added.md` (3): 14 files.
-   - **PR 304-B** (stream twin and the remaining tests): `TenantOwnershipStreamPipelineBehavior.cs`, `ServiceCollectionExtensions.cs` edit (2); stream unit test, property test (2); `TenantOwnership.md` for load and for benchmark (2); `Encina.Tenancy.json`, `PublicAPI.Unshipped.txt` (2): 8 files.
-   - **PR 304-C** (documentation): `docs/features/multi-tenancy.md`, `src/Encina.Tenancy/README.md`: 2 files.
+   - **PR 304-A** (contracts, errors, both behaviors, registration): `ITenantOwnedRequest.cs`, `ITenantOwnershipValidator.cs`, `TenancyErrors.cs`, `TenantOwnershipPipelineBehavior.cs`, `TenantOwnershipStreamPipelineBehavior.cs`, `TenantOwnershipMetrics.cs`, `TenancyPipelineLog.cs`, `ServiceCollectionExtensions.cs` (8); behavior unit test, stream unit test, new `TenancyErrorsTests.cs`, new guard test, DI test edit (`ServiceCollectionExtensionsExtendedTests.cs`) (5); `Encina.Tenancy.json`, `PublicAPI.Unshipped.txt` (2): 15 files.
+   - **PR 304-B** (the remaining tests): property test (1); `TenantOwnership.md` for load and for benchmark (2); `Encina.Tenancy.json` (1): 4 files.
+   - **PR 304-C** (documentation and fragment): `docs/features/multi-tenancy.md`, new `src/Encina.Tenancy/README.md`, `changelog.d/304-tenant-ownership-validation.added.md`: 3 files.
 3. Link this plan from #304; the note on the closed-out items of the issue goes in the same comment.
