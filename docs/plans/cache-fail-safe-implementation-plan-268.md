@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (528f34f7e):
+Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (b4da9e482):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -77,7 +77,7 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Race `nextStep()` against the timers: at the soft timeout with a stale entry, serve it and hand a background refresh to `IBackgroundCacheRefresher` (#267); at the hard timeout, serve stale if present else return `Left` `cache.hard_timeout` (category `Timeout`); the slow run is abandoned but observed (its result is discarded and its fault logged)** | No re-entry of the pipeline; reuses the #267 worker | The hard timeout stops waiting but does not cancel the handler; the slow run and the background refresh both load a slow backend |
+| **A) Race `nextStep()` against the timers: at the soft timeout with a stale entry, serve it and hand a background refresh to `IBackgroundCacheRefresher` (#267); at the hard timeout, serve stale if present else return `Left` `cache.hard_timeout` (category `Timeout`); the slow run is abandoned but observed (its result is discarded and its fault logged)** | No re-entry of the pipeline; reuses the #267 worker | The hard timeout stops waiting but does not cancel the handler; the slow run and the background refresh both load a slow backend; the abandoned `nextStep()` keeps running after the request ends and its scope is disposed, which is the very hazard #267 Design Choice 1 uses to reject capturing `nextStep()` (scoped services such as a `DbContext` throw `ObjectDisposedException` inside the abandoned run); the plan observes and logs that fault (468) but cannot prevent it |
 | **B) Re-dispatch the request through `IEncina` in the same scope with a token owned by the behavior** | A real cancellation at the hard timeout | The outer pipeline behaviors run twice; a marker and re-entry rules are needed |
 | **C) Ship the failure fallback and the throttle now; timeouts later in their own issue** | Smallest first release | Two acceptance criteria of the issue ("Soft and hard timeouts work correctly") are not met |
 
@@ -87,7 +87,9 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 - The behavior cannot cancel or outlive its scope-bound handler, so true cancellation needs B; A is honest about "stop waiting" and documents it.
 - The new error is created as `EncinaErrors.Create("cache.hard_timeout", category: ErrorCategory.Timeout, message: ...)` with a constant message: ADR-062 category `Timeout`. No exception message is copied.
-- Option B wins where releasing database resources at the hard timeout matters; option C wins to deliver the failure fallback first.
+- Option B wins where releasing database resources at the hard timeout matters; option C wins to deliver the failure fallback first, and wins outright where an abandoned handler touching a disposed scope is unacceptable (it is the only option with no abandoned run).
+- A request with `VaryByUser = true` is not eligible for the background refresh of #267 (its Design Choice 2): its soft timeout serves the stale entry and schedules nothing, and its abandoned run is observed as above.
+- Whole-entry access: the stale path needs `ExpiresAtUtc`, `FailSafeExpiresAtUtc` and `LastFailureAtUtc` of the entry read, so it relies on #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this plan does not change that method.
 - Class: Dilemma
 
 </details>
@@ -118,7 +120,7 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Throw `InvalidOperationException` at resolution (as #266 Design Choice 7 recommends) for: `FailSafeDurationSeconds` below `DurationSeconds`, a negative value, a soft timeout not below the hard timeout, a timeout without fail-safe, fail-safe with `SlidingExpiration = true`** | Deterministic, one place | The first request of the type fails |
+| **A) Throw `InvalidOperationException` at resolution (as #266 Design Choice 7 recommends) for: `FailSafeDurationSeconds` below `DurationSeconds`, a negative value, a soft timeout not below the hard timeout, fail-safe with `SlidingExpiration = true`; a soft or hard timeout set without `FailSafeDurationSeconds` is valid, as in the issue's own second example: the hard timeout then returns `cache.hard_timeout` (no stale entry exists) and the soft timeout is inert because there is never a stale entry to serve (documented)** | Deterministic, one place | The first request of the type fails |
 | **B) Ignore the unsupported setting and log a Warning once** | The request works | Silent loss of protection |
 
 ### Chosen Option: **A - throw at resolution** (recommended, pending the maintainer)
@@ -201,7 +203,7 @@ the physical-TTL store, the stale path (failure fallback, throttle), CachePatter
 the unit and Redis integration tests; ask mechanical-fixer for PublicAPI, manifest and changelog and docs-writer for the docs section.
 
 KEY RULES:
-- Stale data only for exceptions and Left categories Internal, Unavailable, Timeout, UpstreamFailure, RateLimited (as the Maintainer Decisions say);
+- Stale data only for exceptions and Left categories Internal, Unavailable, Timeout, UpstreamFailure, RateLimited (as the maintainer answered Design Choice 1, given in your brief);
   any other Left removes the stale entry and is returned unchanged.
 - Never serve stale data past FailSafeExpiresAtUtc; the bypass checks run before any read.
 - Never log EncinaError.Message; exceptions through ForLogging(); time from TimeProvider.
@@ -277,7 +279,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Error code:** `cache.hard_timeout`, ADR-062 category `Timeout`; the only new code. **EventIds** 462-468.
-2. **Coverage targets (per flag; each set in the PR that adds the file and its tests):**
+2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR that adds the file and its tests, never later (#1762): PR 1 sets `FailSafePolicy.cs`, the two partial files and the behavior row; PR 2 sets `FailSafeErrors.cs` and raises the behavior row for the timeout paths:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
@@ -299,7 +301,7 @@ CONTEXT:
 Both code PRs are merged.
 
 TASK:
-Measure per-flag coverage of the new and touched files with coverage-report.cs and record the targets above through mechanical-fixer;
+Verify each PR carried its own per-flag targets (table above, measured with coverage-report.cs) and fix any gap through mechanical-fixer;
 run --check-justifications.
 
 KEY RULES:
@@ -372,7 +374,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Stale only for exceptions and infrastructure categories; other Left removes the stale entry. Same key, same bypass checks.
 - Constant error messages; no EncinaError.Message in logs; the behavior stops waiting, it never cancels the handler.
-- Apply Design Choices 1 to 5 as the Maintainer Decisions section says.
+- Follow the maintainer's answers to Design Choices 1 to 5, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs
