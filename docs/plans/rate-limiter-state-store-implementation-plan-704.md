@@ -14,7 +14,7 @@
 
 The maintainer changed the design before this plan: SPIKE #2691 decision **R8, option 8b** (2026-10-24, ADR-055 section R8, recorded as a comment on #704): a new abstraction `IRateLimiterStateStore`, implemented in each cache package with its best atomic operation (Lua scripts in the Redis family, compare-and-swap in Memcached, local state in Memory and the Hybrid L1), `ICacheProvider` unchanged, a fall back to the local limiter with a log entry when the cache fails, counter keys that carry only type, tenant and client, and no personal data. The issue's own sketch is also wrong on its own terms: `GetOrSetAsync` followed by `SetAsync` loses updates between instances, which is exactly why R8 rejected option 8a.
 
-Re-checked against `origin/main` (822c310c7), the code and the decisions leave five facts that shape this plan:
+Re-checked against `origin/main` (010d6f995), the code and the decisions leave five facts that shape this plan:
 
 1. **The consumer does not exist yet.** `Encina.Resilience` and the partitioned rate-limiting core of #2414 (decisions D1 = 1a, D2 = 2a, D3 = 3a, 2026-10-23) are not in `src/`; `IRateLimiter` is still the `Encina.Polly` interface. This plan delivers the **state store**, its **fallback** and its **implementations** and proves them with a contract suite; wiring a limiter to the store belongs to the partitioned-core work of #2414 (the open issue #740, tenant-scoped rate limiting, applies its tenant partition) and is not planned here.
 2. **The store must not decide the partition.** The bucket partition (request type, tenant, principal) is the open SPIKE #3448 (`needs-decision`) and #2414 D3 (type by tenant, fail closed). The store therefore takes an opaque, already composed partition: an optional tenant id and a scope string. Whatever #3448 decides, the store does not change.
@@ -122,7 +122,7 @@ Re-checked against `origin/main` (822c310c7), the code and the decisions leave f
 | **B) Propagate the `Left`** | No hidden degradation | A cache outage turns into a request outage or, with a fail-closed consumer, a denial of every request |
 | **C) Fail open: admit every request while the cache is down** | Never blocks traffic | Disables the security control during an outage (#2414 D3 treats rate limiting as a security control) |
 
-### Chosen Option: **A - an in-process fallback with a probe interval**
+### Chosen Option: **A - an in-process fallback that recovers by probing the primary (the shape of the probe is Design Choice 11)**
 
 ### Rationale
 
@@ -218,7 +218,7 @@ Re-checked against `origin/main` (822c310c7), the code and the decisions leave f
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Counter `encina.ratelimit.state_store.operations` on a new `Meter` named `Encina.RateLimiting` (one `Encina.*` name per package, ADR-054 D3; it is not the plain `Encina` name that D3 retires) with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present; no scope, key hash or client identifier** | Lowercase dotted names under the existing `encina.ratelimit.*` family; the tenant tag only when multi-tenancy is on | The tenant tag raises cardinality (documented by #906) |
+| **A) Counter `encina.ratelimit.state_store.operations` on the one `Meter` of the package that holds the decorator (ADR-054 D3 and ADR-055: one meter per package named `Encina.<Package>`): the core package's meter under Design Choice 1 option A (the name D3 gives the core meter), `Encina.Caching` under option B, `Encina.Resilience` under option C (ADR-055 uses `Meter("Encina.Resilience")`), with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present; no scope, key hash or client identifier** | Lowercase dotted names under the existing `encina.ratelimit.*` family; the tenant tag only when multi-tenancy is on | The tenant tag raises cardinality (documented by #906) |
 | **B) No tenant tag at all** | No cardinality risk | Breaks the rule that the tenant is a tag when multi-tenancy is on |
 
 ### Chosen Option: **A - one counter, three tags**
@@ -527,7 +527,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Telemetry** (`RateLimiterStateTelemetry`, internal, on the `Encina.RateLimiting` meter and the existing `ActivitySource` "Encina" of `EncinaDiagnostics`): counter `encina.ratelimit.state_store.operations` with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present (ADR-054 D4, the cardinality is documented by #906); no scope, key hash or client identifier in a tag or span (ADR-054 D6). Only the decorator of PR 2 records it, so the Redis store needs no access to the internal class (Design Choices 8 and 10).
+1. **Telemetry** (`RateLimiterStateTelemetry`, internal, on the meter of the package that holds the decorator (Design Choice 10) and the existing `ActivitySource` "Encina" of `EncinaDiagnostics`): counter `encina.ratelimit.state_store.operations` with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present (ADR-054 D4, the cardinality is documented by #906); no scope, key hash or client identifier in a tag or span (ADR-054 D6). Only the decorator of PR 2 records it, so the Redis store needs no access to the internal class (Design Choices 8 and 10).
 2. **Logs**: ids 400-401 only (Design Choice 8); no scope or key in a message; exceptions through `ForLogging()`.
 3. **Error codes**: `encina.ratelimit.state_store_failed` (`ErrorCategory.Internal`) and `encina.ratelimit.partition_invalid` (`ErrorCategory.Validation`), both with the category passed explicitly (ADR-062). Nothing is added to the consumer's `encina.ratelimit.exceeded`.
 4. **Coverage targets** (per file, per flag; baseline: the new files do not exist; the manifest targets today are `Encina` unit 70, guard 20, contract 15, `Encina.Caching.Redis` guard 20, unit 60, integration 29, and Memory and Hybrid as in their manifests; measured values replace the estimates before each pull request opens, with the commands of AGENTS.md section 9):
