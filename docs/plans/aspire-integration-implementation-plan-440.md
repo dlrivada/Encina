@@ -2,7 +2,7 @@
 
 > **Issue**: [#440](https://github.com/dlrivada/Encina/issues/440)
 > **Type**: Feature (umbrella; tests and documentation only, no change under `src/`)
-> **Complexity**: Low (6 phases, 2 pull requests of 4 and 7 files)
+> **Complexity**: Low (6 phases, 2 pull requests of 4 and 8 files)
 > **Estimated Scope**: ~350 lines of tests + ~700 lines of documentation
 > **Family**: Aspire (aspire-1): #416 hosting package, #417 service defaults, #419 dashboard commands, #421 deployment; #607 (`Encina.ServiceDiscovery.Aspire`), #423 (modules in the AppHost) and #188 (dashboard guide) are related plans; the family continues in #424, #425, #382, #387 and #391. **This plan owns the family layout and naming rules, the answer to the entry-point name, the parity tests between the AppHost and the application sides, and the quickstart.**
 
@@ -10,14 +10,16 @@
 
 ## Summary
 
-#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`ec129cae5`), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
+#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
 
 | #440 acceptance item | Owner | What the owner delivers |
 |----------------------|-------|-------------------------|
 | `EncinaResource` as an Aspire resource | #416 | `AddEncina`, `WithEncina`, the model-only resource, the environment contract |
-| Dashboard panel for Encina status | #419 and #417 | Commands over HTTP endpoints; the metrics and traces arrive over OTLP. `Aspire.Hosting` 13.6.5 has no panel extension (the #419 plan, Design Choice 5), so "panel" is delivered as commands, resource relationships and telemetry |
-| Automatic health check registration | #417 | The checks of the declared patterns plus a start check |
-| OTLP configuration helpers | #417 | `WithEncina` telemetry; no exporter in the library (ADR-054 settled point 1); the template and the AppHost already provide the OTLP endpoint |
+| Dashboard panel for Encina status | #419 (its Design Choice 5, a Dilemma pending the maintainer) and #417 | `Aspire.Hosting` 13.6.5 has no panel extension, so what is delivered is commands over HTTP endpoints, resource relationships and the telemetry that arrives over OTLP; whether that meets "panel" and "metrics endpoint" is the maintainer's answer to #419 D5, not decided here |
+| Automatic health check registration: Outbox, Inbox, Saga | #417 | The checks of the declared patterns (plus the dead letter check and a start check) |
+| Automatic health check registration: Cache (`CacheHealthCheck`) | #754 (open, health checks for the caching providers; the query cache check `AddEncinaQueryCache` exists in `src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs`) | Not delivered by #417, which handles the five messaging patterns |
+| Automatic health check registration: `TransportHealthCheck` per configured transport | #622 (open, health checks for all components; the transport checks live in each transport package) | Not delivered by #417 |
+| OTLP configuration helpers | #1043 (open: the OTLP exporter as an opt-in option of `Encina.OpenTelemetry`) and #417 (`WithEncina` telemetry, no exporter in the library, ADR-054 settled point 1) | The template and the AppHost already provide the OTLP endpoint; an Encina exporter helper is #1043's decision |
 | Service discovery integration | #607 | `Encina.ServiceDiscovery.Aspire` with `AddEncinaServiceDiscoveryAspire`; the `config.UseAspireServiceDiscovery()` shape of the issue is not built (the satellite rule is `AddEncina{Feature}{Provider}`) |
 | Documentation with an Aspire quickstart | **This plan** | The quickstart page, the family section of the README and the executable examples |
 | Resilience defaults (deferred in the issue) | #417 (Design Choice 8, not delivered) and #1233 (outbound HTTP, open) | The Aspire template already adds the standard HTTP resilience handler |
@@ -144,17 +146,17 @@ A wins because the environment keys are written in one package and read in anoth
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One version, central in `Directory.Packages.props`, for `Aspire.Hosting`, `Aspire.Hosting.Docker`, `Aspire.Hosting.Kubernetes` (the matching preview), `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL`; 13.6.5 today** | The satellites depend on `Aspire.Hosting` at the same version (the nuspec of `Aspire.Hosting.Docker` 13.6.5 requires `Aspire.Hosting` 13.6.5); the advisory fix is kept | A bump moves every package together |
-| **B) Independent versions per package** | Each moves when it likes | Mixed Aspire versions break at restore (NU1605, NU1608) or at run time |
+| **A) One version, central in `Directory.Packages.props`, for every Aspire hosting package the family references (`Aspire.Hosting` and `Aspire.Hosting.Docker` pinned by #416 and #421, `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` pinned today); 13.6.5 today** | Every package carries the advisory fix; one place to bump | A bump moves every package together |
+| **B) Independent versions per package** | Each moves when it likes | A package left below 13.6.5 brings back the vulnerable `Aspire.Hosting` (GHSA-f7vh-h5g3-7jrh); the satellites require at least the same `Aspire.Hosting` version, so a lower pin is also raised or flagged at restore |
 
 ### Chosen Option: **A — one version**
 
 ### Rationale
 
-The satellites declare an exact `Aspire.Hosting` dependency and the repository already pins every Aspire package at 13.6.5 after GHSA-f7vh-h5g3-7jrh (#3491).
+The only compliant versions are those at or above the first patched release, 13.6.5 (the #3491 comment in `Directory.Packages.props`). Today `Directory.Packages.props` pins only `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` (lines 159-160); #416 adds `Aspire.Hosting` and #421 adds `Aspire.Hosting.Docker` (and the Kubernetes preview, only if its Design Choice 1 keeps that package). The nuspec of `Aspire.Hosting.Docker` 13.6.5 declares `Aspire.Hosting` 13.6.5 as a NuGet minimum version.
 
 **Class:** Settled
-**Settled by:** `Directory.Packages.props` (Aspire pins and the #3491 comment); the nuspec of `Aspire.Hosting.Docker` 13.6.5 (dependency `Aspire.Hosting` 13.6.5).
+**Settled by:** GHSA-f7vh-h5g3-7jrh and issue #3491 (closed: 13.6.5 is the first patched release), recorded in the comment of `Directory.Packages.props`; NuGet central package management (`Directory.Packages.props` is the single source of versions).
 
 </details>
 
@@ -169,8 +171,8 @@ The satellites declare an exact `Aspire.Hosting` dependency and the repository a
 <details>
 <summary>Tasks</summary>
 
-1. `tests/Encina.ContractTests/Aspire/EnvironmentContractTests.cs`: builds a real `DistributedApplication.CreateBuilder()` model, `AddEncina("encina", o => { o.UseOutbox = true; o.UseSagas = true; })`, a container resource with `WithEncina(encina)`, runs the `EnvironmentCallbackAnnotation` callbacks into a dictionary, maps `__` to `:` into an in-memory `IConfiguration` and passes it to `EncinaAspireConfiguration.Read` of #417: exactly the declared patterns come back, an undeclared pattern comes back false, and the five key names of the writer equal the five of the reader (both classes are `internal` and visible through `InternalsVisibleTo` for `Encina.ContractTests`). `Encina.ContractTests.csproj` gains the references to `Encina.Aspire.Hosting` and `Encina.Aspire.ServiceDefaults` (one csproj edit).
-2. `tests/Encina.UnitTests/Testing/Architecture/AspireNamingRulesTests.cs`: reflects the public extension methods of the assemblies whose name starts with `Encina.Aspire` (except `Encina.Aspire.Testing`, whose `WithEncinaTestSupport` is a test helper) and asserts the verb rules; a method that breaks a rule fails with its full name.
+1. `tests/Encina.ContractTests/Aspire/EnvironmentContractTests.cs`: builds a real `DistributedApplication.CreateBuilder()` model, `AddEncina("encina", o => { o.UseOutbox = true; o.UseSagas = true; })`, a container resource with `WithEncina(encina)`, runs the `EnvironmentCallbackAnnotation` callbacks into a dictionary, maps `__` to `:` into an in-memory `IConfiguration` and passes it to `EncinaAspireConfiguration.Read` of #417: exactly the declared patterns come back, an undeclared pattern comes back false, and the five key names of the writer equal the five of the reader (both classes are `internal` and visible through `InternalsVisibleTo` for `Encina.ContractTests`). The project references of `Encina.ContractTests.csproj` to `Encina.Aspire.Hosting` (added by #416 pull request 2) and `Encina.Aspire.ServiceDefaults` (added by #417 pull request 1, which ships its own contract test) already exist, so this plan edits no csproj.
+2. `tests/Encina.UnitTests/Testing/Architecture/AspireNamingRulesTests.cs`: reflects the public extension methods of the assemblies whose name starts with `Encina.Aspire` (except `Encina.Aspire.Testing`, whose `WithEncinaTestSupport` is a test helper) and asserts the verb rules; a method that breaks a rule fails with its full name. A reflection test over an assembly the project does not reference would check nothing, so the test first asserts that the expected assemblies were found and loaded (`Encina.Aspire.Hosting`, `Encina.Aspire.ServiceDefaults`, `Encina.Aspire.Deployment`; and `Encina.Aspire.Deployment.Kubernetes` when its pull request has merged, listed in the test as an optional entry) and that each exposes at least one rule-checked method; a missing required assembly fails the test.
 3. `tests/Encina.UnitTests/Aspire/AspireQuickstartTests.cs`: one test per snippet of the quickstart (Design Choice 3), built from the same calls as the page.
 4. No `src/` file changes, so no per-file coverage target and no manifest entry are added; the changelog fragment of Phase 6 covers the user-visible documentation.
 
@@ -305,7 +307,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. **Unit** (naming architecture test, quickstart tests) and **Contract** (environment contract) as in Phase 1. **Guard, Property, Integration, Load, Benchmark**: not applicable, no `src/` file is added; this is stated in the pull request instead of justification files, because the test folders for them hold no feature to justify.
-2. **Per-file targets**: none; the pull requests of the packages (#416, #417, #419, #421) carry the per-file targets of their `src/` files. The reference tests of this plan reach the package code through the real writer and reader, which raises the contract flag coverage of `EncinaAspireEnvironment.cs` and `EncinaAspireConfiguration.cs` beyond their own targets.
+2. **Per-file targets**: none; the pull requests of the packages (#416, #417, #419, #421) carry the per-file targets of their `src/` files. The reference tests of this plan reach the package code through the real writer and reader, which adds contract-flag coverage to `EncinaAspireEnvironment.cs`; the Contract target of `EncinaAspireConfiguration.cs` is carried by #417's own pull request 1 (its `DeclarationReaderContractTests`) and the Contract flag of `EncinaAspireEnvironment.cs` is set to 0 in #416 and raised by this plan's pull request 1, so no package pull request fails its target before this one merges.
 
 </details>
 
@@ -369,8 +371,8 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | `EnvironmentContractTests`, `AspireNamingRulesTests`, `AspireQuickstartTests`, `Encina.ContractTests.csproj` edit | 4 | 450 |
-| 2 | `docs/features/aspire.md`, root `README.md` edit, `docs/features/index.md` edit, `docs/INVENTORY.md` edit, `ROADMAP.md` edit, the ADR, changelog fragment | 7 | 750 |
+| 1 | `EnvironmentContractTests`, `AspireNamingRulesTests`, `AspireQuickstartTests`; the `Encina.Aspire.Hosting` manifest edit that raises the Contract target of `EncinaAspireEnvironment.cs` | 4 | 450 |
+| 2 | `docs/features/aspire.md`, root `README.md` edit, `docs/features/index.md` edit, `docs/INVENTORY.md` edit, `ROADMAP.md` edit, the ADR, `docs/architecture/adr/index.md` entry, changelog fragment | 8 | 760 |
 
 PR 1 needs #416 pull request 2 and #417 pull request 1 merged; PR 2 needs PR 1 and the maintainer's answers to D1 and D2. No production code and no interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
@@ -412,9 +414,9 @@ PR 1 needs #416 pull request 2 and #417 pull request 1 merged; PR 2 needs PR 1 a
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production code | 0 | None |
-| Tests and project files | 4 | Three test files and one csproj edit |
-| Documentation | 7 | Page, README, features index, inventory, roadmap, ADR, changelog fragment |
-| **Total** | **11 files in 2 pull requests** | The split table (4 + 7) is the authority |
+| Tests and manifests | 4 | Three test files and one manifest edit (no csproj edit) |
+| Documentation | 8 | Page, README, features index, inventory, roadmap, ADR, ADR index entry, changelog fragment |
+| **Total** | **12 files in 2 pull requests** | The split table (4 + 8) is the authority |
 
 ---
 
@@ -470,7 +472,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- Pull request 1 needs #416 pull request 2 (the writer) and #417 pull request 1 (the reader); pull request 2 needs the maintainer's answers to D1 and D2 (the ADR and the page state them).
+- Pull request 1 needs #416 pull request 2 (the writer), #417 pull request 1 (the reader and the `Encina.ContractTests.csproj` reference), #419 pull requests 1 and 2 (the quickstart includes the dashboard command) and #421 pull request 1 (the `Encina.UnitTests.csproj` reference to `Encina.Aspire.Deployment`; `Encina.Aspire.Deployment.Kubernetes` is optional in the naming test); pull request 2 needs the maintainer's answers to D1 and D2 (the ADR and the page state them).
 - #440 can close when its acceptance items map to merged owners and the quickstart is merged; the aspire-2 issues (#424, #425, #382, #387, #391) do not block it.
 - #607, #423 and #188 are independent plans that the quickstart links by issue number.
 
