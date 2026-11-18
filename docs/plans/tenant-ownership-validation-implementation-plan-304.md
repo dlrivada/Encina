@@ -12,7 +12,7 @@
 
 #304 asks for marker interfaces for tenant-scoped queries and commands, a `TenantIsolationPipelineBehavior` that requires a tenant and validates ownership, an EF Core global filter, Dapper tenant parameters, a cross-tenant attribute and configuration. Most of it exists in another shape; what remains is **request-level ownership validation**: a command or query that names a resource (an order id, a document id) must be refused when the resource belongs to another tenant, including resources that the repository filter does not see.
 
-**State of the code on `d523eda92` (current `origin/main`; the cited files were read on it; the plans #346, #338 and #385 are merged on it, their code is not).**
+**State of the code on `010d6f995` (current `origin/main`; the cited files were read on it; the plans #346, #338 and #385 are merged on it, their code is not).**
 
 | Item of #304 | State | Evidence or owner |
 |--------------|-------|-------------------|
@@ -157,7 +157,7 @@ The answer to this Dilemma decides the three sub-rules below together: the error
 <summary><strong>Tasks</strong></summary>
 
 1. **Create `src/Encina.Tenancy/Ownership/ITenantOwnedRequest.cs`**: `public interface ITenantOwnedRequest;` (namespace `Encina.Tenancy`), XML docs with an `<example>` of a command that names a document id.
-2. **Create `src/Encina.Tenancy/Ownership/ITenantOwnershipValidator.cs`**: `public interface ITenantOwnershipValidator<TRequest> where TRequest : ITenantOwnedRequest { ValueTask<Either<EncinaError, Unit>> ValidateAsync(TRequest request, string tenantId, CancellationToken cancellationToken); }`; the XML docs state the contract of Design Choice 1 (return a `Left` for a missing or foreign resource, never distinguish them; an `Internal` `Left` for a store failure).
+2. **Create `src/Encina.Tenancy/Ownership/ITenantOwnershipValidator.cs`**: `public interface ITenantOwnershipValidator<TRequest> { ValueTask<Either<EncinaError, Unit>> ValidateAsync(TRequest request, string tenantId, CancellationToken cancellationToken); }`; the interface carries no `where` constraint on `TRequest`: the behavior's `TRequest` is constrained by `IRequest<TResponse>`, not by `ITenantOwnedRequest`, so a constraint on the interface would not compile there (CS0452); the marker is checked at run time by the behavior's static `IsOwned` flag (Phase 2 task 1), and the registration helper may add the constraint `where TRequest : ITenantOwnedRequest` on its own type parameter, which is the compile-time guard for application code. The XML docs state the contract of Design Choice 1 (return a `Left` for a missing or foreign resource, never distinguish them; an `Internal` `Left` for a store failure).
 3. **Modify `src/Encina.Tenancy/TenancyErrors.cs`**: `OwnershipDeniedCode = "tenancy.ownership_denied"` and `OwnershipDenied()` (`ErrorCategory.Forbidden`); `OwnershipValidatorMissingCode = "tenancy.ownership_validator_missing"` and `OwnershipValidatorMissing()` (`ErrorCategory.Internal`); fixed messages with no tenant or resource value.
 4. PublicAPI lines (mechanical-fixer).
 
@@ -197,7 +197,7 @@ REFERENCE FILES:
 2. **Create `TenantOwnershipStreamPipelineBehavior<TRequest, TItem>`** (PR 304-A with the behavior, so a marked stream request is never unchecked between pull requests; same stage and order): a denied stream yields one `Left` and ends.
 3. **Create `src/Encina.Tenancy/Diagnostics/TenantOwnershipMetrics.cs`** (`internal static`): counter `encina.tenancy.ownership.denied` on the shared `Encina` meter, tag `outcome` (`denied`, `validator_missing`); no tenant tag (ADR-054 D4, helper #2676).
 4. **Modify `src/Encina.Tenancy/Diagnostics/TenancyPipelineLog.cs`** (created by #346): EventIds 7855 (ownership denied, Warning, request type and code) and 7856 (validator missing, Error, request type and code).
-5. **Modify `src/Encina.Tenancy/ServiceCollectionExtensions.cs`**: `TryAddEnumerable` transient registration of the behavior; `AddTenantOwnershipValidator<TRequest, TValidator>(this IServiceCollection)` registering `ITenantOwnershipValidator<TRequest>` as transient (the validators are usually scoped consumers: transient avoids a scoped-in-singleton and works from a scope). DI test with `ValidateOnBuild` and `ValidateScopes`: a validator that takes a scoped `DbContext`-like dependency resolves from a scope.
+5. **Modify `src/Encina.Tenancy/ServiceCollectionExtensions.cs`**: `TryAddEnumerable` transient registration of the behavior; `AddTenantOwnershipValidator<TRequest, TValidator>(this IServiceCollection)` (constraints `where TRequest : ITenantOwnedRequest where TValidator : class, ITenantOwnershipValidator<TRequest>`) registering `ITenantOwnershipValidator<TRequest>` as transient (the validators are usually scoped consumers: transient avoids a scoped-in-singleton and works from a scope). DI test with `ValidateOnBuild` and `ValidateScopes`: a validator that takes a scoped `DbContext`-like dependency resolves from a scope.
 6. PublicAPI lines (mechanical-fixer).
 
 </details>
