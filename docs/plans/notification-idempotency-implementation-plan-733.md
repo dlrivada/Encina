@@ -2,8 +2,8 @@
 
 > **Issue**: [#733](https://github.com/dlrivada/Encina/issues/733)
 > **Type**: Feature
-> **Verified against**: origin/main `ec129cae5` (2026-11-17)
-> **Complexity**: High (5 phases, tests on all 10 database providers, ~36 files in 5 pull requests)
+> **Verified against**: origin/main `d523eda92` (2026-11-18)
+> **Complexity**: High (5 phases, tests on all 10 database providers, ~37 files in 5 pull requests)
 > **Estimated Scope**: ~450-600 lines of production code + ~1,100-1,400 lines of tests
 
 ---
@@ -12,7 +12,7 @@
 
 A notification fans out to several handlers. When the same notification is delivered twice (an at-least-once transport, a vendor retry, an outbox retry), every handler runs again and repeats its side effect (the second email, the second record). Issue #733 asks that a duplicate delivery be detected and skipped **per handler**, with the key `{notification-type}:{notification-id}:{handler-type}` stored in the inbox, behind an opt-in flag, on every database provider.
 
-**What the code does today (verified on `origin/main` `ec129cae5`)**:
+**What the code does today (verified on `origin/main` `d523eda92`)**:
 
 - Notifications have no pipeline. `Encina.NotificationDispatcher` (`src/Encina/Dispatchers/Encina.NotificationDispatcher.cs`) resolves every `INotificationHandler<T>`, hands them to the configured dispatch strategy and states in its remarks "No behaviors or processors - notifications are simpler than requests". The issue's `NotificationIdempotencyPipelineBehavior<TNotification>` therefore has nothing to plug into; the dispatcher is the only place that sees one handler at a time.
 - `INotification` is a marker without an id (`src/Encina/Abstractions/INotification.cs`). The only delivery identity in flight is `IRequestContext.IdempotencyKey`, which a caller sets with `IEncina.Publish<TNotification>(notification, IRequestContext, CancellationToken)`; a notification published from inside another dispatch inherits no key (`RequestContextDispatchExtensions.IsNestedDispatch`).
@@ -31,7 +31,7 @@ What it implements:
 
 Standards and specifications: ADR-001 and ADR-006 (ROP); ADR-048 (inbox record versus business transaction); ADR-050 (Inbox row: the claim of #2401 is a condition of concurrent consumers); ADR-054 D3 and D4 (package-named meter, tenant tag when tenancy is on); ADR-062 (error category set where the error is created); ADR-021 (EventIds); the idempotent consumer pattern (comparable products: MassTransit's idempotent consumer and Wolverine's inbox deduplication, both per message and per consumer); AGENTS.md section 3 (a `Left` of a store or a handler is never reported as success; messaging patterns are opt-in).
 
-Estimated scope: about 36 distinct files (6 new and 5 modified production files, 7 metadata files, 17 test files, 1 documentation file), shipped as five pull requests (A to E; see "Pull request split").
+Estimated scope: about 37 distinct files (6 new and 5 modified production files, 7 metadata files, 18 test files, 1 documentation file), shipped as five pull requests (A to E; see "Pull request split").
 
 Affected packages: `Encina` (marker, dispatcher routing, `EventIdRanges.cs`), `Encina.Messaging` (gate, key, telemetry, configuration, registration). **No provider package changes**: the rows are inbox rows written through `IInboxStore`, so the existing stores on the 10 providers are reused (the issue says "all 13 database provider packages"; AGENTS.md section 5 has 10, Oracle and SQLite are out).
 
@@ -144,22 +144,23 @@ Provider category: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one impleme
 </details>
 
 <details>
-<summary><strong>6. A handler failure — release the claim so the redelivery re-runs it</strong></summary>
+<summary><strong>6. A handler failure — release the claim so the redelivery re-runs it, or hold it until the lease expires</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A handler `Left` or exception releases the claim (`MarkAsFailedAsync`, counting a retry); the next delivery re-runs only that handler; the processed handlers stay skipped** | At-least-once for the failed handler; exactly the per-handler behavior the issue asks for | A handler that fails permanently is retried until `InboxOptions.MaxRetries`, then the gate answers `Left` (dead letter through the existing capture is the inbox's behavior) |
-| **B) The claim stays until its lease expires** | No failure callback | A transient failure delays the retry by the lease; the redelivery is skipped as "in progress" |
+| **A) A handler `Left` or exception releases the claim (`MarkAsFailedAsync`, counting a retry); the next delivery re-runs only that handler; the processed handlers stay skipped** | At-least-once for the failed handler, retried at once; exactly the per-handler behavior the issue asks for | A handler that fails permanently is retried on every redelivery until `InboxOptions.MaxRetries`, then the gate answers `Left(RetriesExceeded)` (a retry storm bounded by the budget; dead letter through the existing capture is the inbox's behavior) |
+| **B) The claim stays until its lease expires** | No failure callback, no retry counting; a permanently failing handler is not hammered (one attempt per lease) | A transient failure delays the retry by the whole lease; the redelivery is skipped as "in progress" |
 
-### Chosen Option: **A — release on failure**
+### Chosen Option: **A — release on failure** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The in-flight duplicate rule: while a row is claimed and its lease has not expired, a duplicate delivery is skipped (the original delivery stays unacknowledged until it completes, so a crash redelivers it); after the lease expires the next delivery re-claims.
-- **Class:** Settled
-- **Settled by:** [#2401](https://github.com/dlrivada/Encina/issues/2401) (settled by elimination on 2026-10-17: atomic claim with a lease for crashed handlers, so an unfinished claim is re-run after expiry) and `src/Encina.Messaging/Inbox/IInboxStore.cs` (`MarkAsFailedAsync` is the existing release-with-retry operation)
+- [#2401](https://github.com/dlrivada/Encina/issues/2401) (settled by elimination on 2026-10-17) fixes only the atomic claim with a lease for crashed handlers, so an unfinished claim is re-run after expiry; it does not say what a handler `Left` does to the claim, and `IInboxStore.MarkAsFailedAsync` existing does not exclude B (B satisfies #2401 too). That is why this is a choice, not a citation.
+- A wins for transient failures (a mailbox that is briefly down: the next delivery retries at once and only that handler re-runs); B wins when a handler fails permanently and the transport redelivers quickly, so A would burn the retry budget in a burst and B would spread the attempts over leases.
+- The in-flight duplicate rule is the same in both: while a row is claimed and its lease has not expired, a duplicate delivery is skipped (the original delivery stays unacknowledged until it completes, so a crash redelivers it); after the lease expires the next delivery re-claims.
+- **Class:** Dilemma
 
 </details>
 
@@ -173,7 +174,7 @@ Provider category: Database (10): ADO.NET x3, Dapper x3, EF Core x3 (one impleme
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina.Messaging/Notifications/NotificationHandlerKey.cs`** (new, internal static): `string Compose(string tenant, string notificationType, string deliveryKey, string handlerType)` (length-prefixed UTF-8 segments, SHA-256, Base64Url, 43 characters).
-2. **`src/Encina.Messaging/Notifications/NotificationIdempotencyErrorCodes.cs`** (new, public static): `KeyMissing = "notification.idempotency_key_missing"` (`InvalidRequest`), `TenantMissing = "notification.idempotency_tenant_missing"` (`InvalidRequest`), `StoreFailed = "notification.idempotency_store_failed"` (`Unavailable`), `RetriesExceeded = "notification.idempotency_retries_exceeded"` (`UpstreamFailure`, the category of the aggregate handler failure); each created with its ADR-062 category and asserted by a unit test through `GetCategory()`.
+2. **`src/Encina.Messaging/Notifications/NotificationIdempotencyErrorCodes.cs`** (new, public static): `KeyMissing = "notification.idempotency_key_missing"` (`InvalidRequest`), `TenantMissing = "notification.idempotency_tenant_missing"` (`InvalidRequest`), `StoreFailed = "notification.idempotency_store_failed"` (`Unavailable`), `RetriesExceeded = "notification.idempotency_retries_exceeded"` (`Internal`: the handler runs in-process, so R7 of ADR-062 (`docs/architecture/adr/062-error-category-contract.md:72`), which gives `UpstreamFailure` to outbound calls and `Internal` to a local `unexpected`, points to `Internal`; the existing precedent `inbox.max_retries_exceeded` (`InboxOrchestrator.cs:234`) is created with no explicit category, so there is nothing to copy); each created with its ADR-062 category and asserted by a unit test through `GetCategory()`.
 3. **`src/Encina/Abstractions/NotificationIdempotencyMarker.cs`** (new, public static class): `Key = "encina.notification.idempotent"` and the extension `IRequestContext WithIdempotentNotificationDelivery(this IRequestContext context)` (sets the marker through `WithMetadata`).
 4. `PublicAPI.Unshipped.txt` of `Encina` and `Encina.Messaging` (via `mechanical-fixer`).
 
@@ -284,7 +285,7 @@ tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Unit (`tests/Encina.UnitTests/Messaging/Notifications/`): `NotificationHandlerKeyTests`, `InboxHandlerCompletionGateTests` (first delivery runs, second skips, in-flight skips, expired lease re-claims, `Left` releases, retries exceeded, missing key, missing tenant under tenancy, store `Left` fails closed), `NotificationIdempotencyMetricsTests`, a dispatcher test with two handlers (A succeeds, B fails: redelivery runs only B), and the two-tenant case (same key, two tenants, two runs).
+1. Unit (`tests/Encina.UnitTests/Messaging/Notifications/`): `NotificationIdempotencyMarkerTests` (the extension sets the metadata key and keeps the other metadata; the marker is in PR C with the marker), `NotificationHandlerKeyTests`, `InboxHandlerCompletionGateTests` (first delivery runs, second skips, in-flight skips, expired lease re-claims, `Left` releases, retries exceeded, missing key, missing tenant under tenancy, store `Left` fails closed), `NotificationIdempotencyMetricsTests`, a dispatcher test with two handlers (A succeeds, B fails: redelivery runs only B), and the two-tenant case (same key, two tenants, two runs).
 2. Property (`Encina.PropertyTests`): `NotificationHandlerKey` injectivity over arbitrary strings.
 3. Guard (`Encina.GuardTests`): the gate constructor and each method, `WithIdempotentNotificationDelivery(null)`.
 4. Contract: the gate against a real `IInboxStore` fake from `Encina.Testing.Fakes` (the claim, skip and release behavior).
@@ -323,7 +324,7 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineScenario.cs, .github/covera
 | ADR-001, ADR-006 | Operations return `Either<EncinaError, T>` | The gate answers `Either`; a store failure fails the handler |
 | ADR-048 | Inbox record versus business transaction | The delivery guarantee paragraph; the record is written after the handler in the dispatcher's scope |
 | ADR-050 (Inbox row) | The claim of #2401 is required when consumers run concurrently | Prerequisite; the flag requires `UseInbox` |
-| ADR-062 | Error category set where the error is created | Phase 1 codes carry `InvalidRequest`, `Unavailable`, `UpstreamFailure` |
+| ADR-062 | Error category set where the error is created | Phase 1 codes carry `InvalidRequest`, `Unavailable`, `Internal` |
 | ADR-054 D3, D4 | Package-named meter without `_total`; tenant tag when tenancy is on | `NotificationIdempotencyMetrics` |
 | ADR-021 | EventId ranges are registered before use | `MessagingNotificationIdempotency` 7830-7839 |
 | Idempotent consumer pattern (MassTransit, Wolverine) | Deduplicate per message and per consumer | One claim per (delivery, handler) |
@@ -355,8 +356,11 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineScenario.cs, .github/covera
 | `Notifications/NotificationIdempotencyErrorCodes.cs` | 0 | 0 | 0 | 0 | 0 | Constants only, no executable code; categories asserted in the gate tests |
 | `Diagnostics/NotificationIdempotencyMetrics.cs`, `NotificationIdempotencyLog.cs` | 85 | 0 | 0 | 0 | 0 | Recorded through a `MeterListener` and a fake logger; internal static, no guard-reachable parameters |
 | `Abstractions/NotificationIdempotencyMarker.cs` (Encina) | 100 | 90 | 0 | 0 | 0 | One extension method with a null guard, fully asserted |
-| `Dispatchers/Encina.NotificationDispatcher.cs` (modified) | current | current | 0 | 0 | 0 | Existing targets stay (they never go down); the marker branch is covered by the dispatcher unit test |
-| `MessagingConfiguration.cs`, `MessagingServiceCollectionExtensions.cs` (modified) | current | current | 0 | 0 | 0 | Existing targets stay; the flag and the registration error are covered by the DI test |
+| `Dispatchers/Encina.NotificationDispatcher.cs` (modified) | 95 | 60 | 0 | 0 | 0 | The `Encina.json` manifest has no per-file target for it today (only `defaultTests` unit and guard), so these are new targets set by this plan: the dispatcher is mockable, the new marker branch and the gate-missing `Left` are unit-asserted, and guard covers its constructor and argument checks; confirm against the measured baseline at implementation (they cannot be set lower than measured) |
+| `MessagingConfiguration.cs` (modified) | 95 | 0 | 0 | 0 | 0 | The manifest target is unit 95 (`Encina.Messaging.json`), which stays; it lists no guard flag because the class is a settings property bag with no guard-reachable parameter (the flag default and the active-pattern list are asserted by the configuration tests) |
+| `MessagingServiceCollectionExtensions.cs` (modified) | 95 | 60 | 0 | 0 | 70 | The manifest targets (unit 95, guard 60, integration 70) stay; the new flag branch and the registration error are covered by the DI test, the guard checks by the existing guard tests |
+
+Package level: `Encina.Messaging.json` has an integration flag target of 65 (measured 68.8% on 2026-11-16); re-read both manifests before each pull request, because they change between plan and implementation.
 
 ### Estimated File Count
 
@@ -365,9 +369,9 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineScenario.cs, .github/covera
 | Production source, new | 6 | key, error codes, gate, metrics, log (`Encina.Messaging`) and the marker (`Encina`) |
 | Production source, modified | 5 | `Encina.NotificationDispatcher.cs`, `MessagingConfiguration.cs`, `MessagingServiceCollectionExtensions.cs`, `EventIdRanges.cs`, the `INotificationHandler` remarks |
 | Metadata | 7 | `PublicAPI.Unshipped.txt` (Encina, Encina.Messaging), manifests `Encina.json`, `Encina.Messaging.json`, changelog fragment, `docs/INVENTORY.md`, README of `Encina.Messaging` |
-| Tests | 17 | unit (key, gate, metrics, dispatcher), property, guard (gate, marker), contract, integration scenario files (5: ADO.NET, Dapper, EF Core, MongoDB harness registrations and the shared scenario), DI test extended, allocation map, justification files (2) |
+| Tests | 18 | unit (marker, key, gate, metrics, dispatcher), property, guard (gate, marker), contract, integration scenario files (5: ADO.NET, Dapper, EF Core, MongoDB harness registrations and the shared scenario), DI test extended, allocation map, justification files (2) |
 | Documentation | 1 | inbox guide section |
-| **Total** | **~36 distinct** | Five pull requests (the table below sums to 42 because the `PublicAPI` files and manifests are touched in several) |
+| **Total** | **~37 distinct** | Five pull requests (the table below sums to 42 because the `PublicAPI` files and manifests are touched in several) |
 
 ### Pull request split
 
@@ -375,7 +379,7 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineScenario.cs, .github/covera
 |----|---------|-----------------|
 | A | Phase 4 classes: `NotificationIdempotencyMetrics`, `NotificationIdempotencyLog`, `EventIdRanges.cs`, allocation map, `PublicAPI` of `Encina` and `Encina.Messaging`, manifests `Encina.json` and `Encina.Messaging.json`, metrics unit test | 9 |
 | B | Phases 1 and 2: key, error codes, gate, `PublicAPI` and manifest of `Encina.Messaging`, unit tests (key, gate), property test, gate guard test, contract test; starts after [#1220](https://github.com/dlrivada/Encina/issues/1220) A1 (the gate contract), [#2401](https://github.com/dlrivada/Encina/issues/2401) (the claim) and A | 10 |
-| C | Phase 3: marker, dispatcher routing, configuration flag, registration, `PublicAPI` of `Encina` and `Encina.Messaging`, manifests `Encina.json` and `Encina.Messaging.json`, marker guard test, dispatcher unit test, DI test extended | 11 |
+| C | Phase 3: marker, dispatcher routing, configuration flag, registration, `PublicAPI` of `Encina` and `Encina.Messaging`, manifests `Encina.json` and `Encina.Messaging.json`, marker guard test, marker unit test (`NotificationIdempotencyMarkerTests`), dispatcher unit test, DI test extended | 12 |
 | D | Phase 5 integration: the scenario on the 10 providers (5 test files) | 5 |
 | E | Load and benchmark justification files, changelog fragment, README, guide section, `docs/INVENTORY.md`, `INotificationHandler` remarks | 7 |
 
@@ -448,8 +452,8 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineHarnesses.cs
 
 | Issue | Relation | Notes |
 |-------|----------|-------|
-| [#1220](https://github.com/dlrivada/Encina/issues/1220) | Blocks PR A | Owns `IHandlerCompletionGate`, the marked dispatch path and the outbox gate; the shape this plan needs is in Design Choice 1 |
-| [#2401](https://github.com/dlrivada/Encina/issues/2401) | Blocks PR A and the concurrency scenario | Atomic claim and lease on the 10 providers |
+| [#1220](https://github.com/dlrivada/Encina/issues/1220) | Blocks PR B (PR A is unused telemetry and needs neither #1220 nor #2401) | Owns `IHandlerCompletionGate`, the marked dispatch path and the outbox gate; the shape this plan needs is in Design Choice 1 |
+| [#2401](https://github.com/dlrivada/Encina/issues/2401) | Blocks PR B and the concurrency scenario of PR D | Atomic claim and lease on the 10 providers |
 | [#3441](https://github.com/dlrivada/Encina/issues/3441) | Related (`Left` cached permanently) | The reason Design Choice 1 prefers the gate over the orchestrator; revisit when it ships |
 | [#3437](https://github.com/dlrivada/Encina/issues/3437) | Related (`needs-decision`) | Inbox key shape; this plan hashes the tenant in, so it does not wait |
 | [#736](https://github.com/dlrivada/Encina/issues/736), [#3440](https://github.com/dlrivada/Encina/issues/3440), [#1221](https://github.com/dlrivada/Encina/issues/1221), [#2385](https://github.com/dlrivada/Encina/issues/2385) | Siblings (merged plans) | #2385 publishes integration events through the outbox and relies on #1220's gate; no shared type with this plan |
@@ -460,6 +464,6 @@ tests/Encina.IntegrationTests/Messaging/InboxPipelineHarnesses.cs
 ## Next Steps
 
 1. Before #1220's first pull request starts, agree the gate shape of Design Choice 1 with it (one comment on #1220); otherwise PR A takes the extension.
-2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 2, 3 and 4 (the hook, the record store, the key, the id source) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
+2. At pick-up: re-check the Design Choices against today's code, ask the maintainer Dilemmas 1, 2, 3, 4 and 6 (the hook, the record store, the key, the id source, release on handler failure or hold until the lease expires) and record the answers in `## Maintainer Decisions`; then run `check-plan.ps1` without `-Draft`.
 3. Confirm the `MessagingNotificationIdempotency` range (7830-7839) is still free when PR A starts.
 4. Measure per-flag coverage and the CRAP table for the touched files before each pull request.
