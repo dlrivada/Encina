@@ -10,7 +10,7 @@
 
 ## Summary
 
-#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
+#440 is the umbrella of the Aspire integration. Its body proposes one package, `Encina.Aspire`, with `EncinaResource`, an `AddEncina` fluent API, a dashboard panel, health checks, OTLP helpers and service discovery. The closed duplicate #449 added the name `AddEncinaAspireDefaults` and README examples (comment of 2026-10-06). Every item now has a dedicated issue. State of `origin/main` (`010d6f995`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and grep (the only Aspire project in `src/` is `Encina.Aspire.Testing`; nothing named `EncinaResource`, `AddEncinaDefaults` or `AddEncinaAspireDefaults` exists in `src` or `tests`):
 
 | #440 acceptance item | Owner | What the owner delivers |
 |----------------------|-------|-------------------------|
@@ -140,23 +140,22 @@ A wins because the environment keys are written in one package and read in anoth
 </details>
 
 <details>
-<summary><strong>5. One Aspire version across the family</strong></summary>
+<summary><strong>5. Version policy of the Aspire packages of the family (Dilemma D5)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One version, central in `Directory.Packages.props`, for every Aspire hosting package the family references (`Aspire.Hosting` and `Aspire.Hosting.Docker` pinned by #416 and #421, `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` pinned today); 13.6.5 today** | Every package carries the advisory fix; one place to bump | A bump moves every package together |
-| **B) Independent versions per package** | Each moves when it likes | A package left below 13.6.5 brings back the vulnerable `Aspire.Hosting` (GHSA-f7vh-h5g3-7jrh); the satellites require at least the same `Aspire.Hosting` version, so a lower pin is also raised or flagged at restore |
+| **A) The stable Aspire hosting packages move together: one version, central in `Directory.Packages.props`, for `Aspire.Hosting`, `Aspire.Hosting.Docker`, `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` (13.6.5 today); a preview satellite, if #421 keeps one, carries its own preview version of the same release line** | One place to bump; the satellites require at least the same `Aspire.Hosting`, so a mismatch cannot hide | A bump moves every package together |
+| **B) Independent versions per package, each at or above 13.6.5** | Each moves when it likes; still satisfies the advisory fix | Mixed versions are only caught at restore (NU1605, NU1608) or at run time |
 
-### Chosen Option: **A — one version**
+### Chosen Option: **A — stable packages together** (recommended, pending the maintainer)
 
 ### Rationale
 
-The only compliant versions are those at or above the first patched release, 13.6.5 (the #3491 comment in `Directory.Packages.props`). Today `Directory.Packages.props` pins only `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` (lines 159-160); #416 adds `Aspire.Hosting` and #421 adds `Aspire.Hosting.Docker` (and the Kubernetes preview, only if its Design Choice 1 keeps that package). The nuspec of `Aspire.Hosting.Docker` 13.6.5 declares `Aspire.Hosting` 13.6.5 as a NuGet minimum version.
+Both options satisfy GHSA-f7vh-h5g3-7jrh (#3491, closed: 13.6.5 is the first patched release, recorded in the comment of `Directory.Packages.props`), so this is a policy choice. A wins for a small family that bumps together; B wins if one package needs a newer Aspire feature before the others can move. Today `Directory.Packages.props` pins only `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL` (lines 159-160); #416 adds `Aspire.Hosting` and #421 adds `Aspire.Hosting.Docker`. The nuspec of `Aspire.Hosting.Docker` 13.6.5 declares `Aspire.Hosting` 13.6.5 as a NuGet minimum version. `Aspire.Hosting.Kubernetes` exists only as `13.6.5-preview.1.26559.7` and whether it is pinned depends on the answer to #421 D1.
 
-**Class:** Settled
-**Settled by:** GHSA-f7vh-h5g3-7jrh and issue #3491 (closed: 13.6.5 is the first patched release), recorded in the comment of `Directory.Packages.props`; NuGet central package management (`Directory.Packages.props` is the single source of versions).
+**Class:** Dilemma
 
 </details>
 
@@ -183,7 +182,7 @@ The only compliant versions are those at or above the first patched release, 13.
 
 ```text
 CONTEXT:
-- Issue #440; plan docs/plans/aspire-integration-implementation-plan-440.md. D1, D2 and D4 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The packages of #416 (pull request 2) and #417 (pull request 1) are merged.
+- Issue #440; plan docs/plans/aspire-integration-implementation-plan-440.md. D1, D2, D4 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The packages of #416 (pull request 2) and #417 (pull request 1) are merged.
 
 TASK:
 Write the environment contract test, the naming architecture test and the quickstart snippet tests.
@@ -210,7 +209,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. The snippets of the quickstart (an AppHost with a PostgreSQL resource, `AddEncina`, a project with `WithEncina`, the service defaults project calling `AddEncinaDefaults`, and the dashboard command of #419) are written first as tests (Phase 1 task 3) and copied into the page by `docs-writer`, so the page shows only compiled code.
+1. The snippets of the quickstart (an AppHost with a database container resource added with `AddContainer` (the PostgreSQL hosting package `Aspire.Hosting.PostgreSQL` is pinned in `Directory.Packages.props` but no test project references it, so the snippets use the core `Aspire.Hosting` API that `Encina.Aspire.Hosting` brings in; a snippet with `AddPostgres` is shown in the page text only if a test project gets the reference), `AddEncina`, a project with `WithEncina`, the service defaults project calling `AddEncinaDefaults`, and the dashboard command of #419) are written first as tests (Phase 1 task 3) and copied into the page by `docs-writer`, so the page shows only compiled code.
 2. Each snippet ends with what the dashboard shows (resources, health checks, the Encina traces and metrics) in words that match #188's guide, which owns the telemetry walkthrough.
 
 </details>
@@ -428,7 +427,7 @@ PR 1 needs #416 pull request 2 and #417 pull request 1 merged; PR 2 needs PR 1 a
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #440 (umbrella): the Aspire family has dedicated plans (#416 hosting, #417 service defaults, #419 commands, #421 deployment). Plan: docs/plans/aspire-integration-implementation-plan-440.md; D1, D2 and D4 are recommended, pending the maintainer.
+- Issue #440 (umbrella): the Aspire family has dedicated plans (#416 hosting, #417 service defaults, #419 commands, #421 deployment). Plan: docs/plans/aspire-integration-implementation-plan-440.md; D1, D2, D4 and D5 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (2 pull requests, each builds alone):
 1. The environment contract test (writer to reader), the naming architecture test and the quickstart snippet tests (Phases 1 and 2).
@@ -480,5 +479,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2 and D4 when work on #440 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D4 and D5 when work on #440 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1 once the writer and the reader exist; pull request 2 last.
