@@ -2,8 +2,8 @@
 
 > **Issue**: [#334](https://github.com/dlrivada/Encina/issues/334)
 > **Type**: Feature
-> **Verified against**: origin/main `245d86144` (2026-11-17)
-> **Complexity**: Medium (5 phases, no database provider code, ~38 files in 5 pull requests)
+> **Verified against**: origin/main `c4658222a` (2026-11-18)
+> **Complexity**: Medium (5 phases, no database provider code, ~39 files in 5 pull requests)
 > **Estimated Scope**: ~650-800 lines of production code + ~1,000-1,300 lines of tests
 
 ---
@@ -12,7 +12,7 @@
 
 Issue #334 asks for "a pipeline behavior that provides automatic idempotency checking at the mediator level, complementing the Inbox for simpler use cases", with an `IIdempotencyStore`, in-memory, Redis and database backends, attribute configuration, a TTL and duplicate-rate metrics. Most of the behavior already exists, so the issue text ("No simple check and skip if duplicate behavior") is stale. This plan records what exists today and plans only the gap.
 
-**What the code does today (verified on `origin/main` `245d86144`)**:
+**What the code does today (verified on `origin/main` `c4658222a`)**:
 
 - `IRequestContext.IdempotencyKey` (`src/Encina/Abstractions/IRequestContext.cs:116`) carries the key. The ASP.NET Core host fills it from the header `EncinaAspNetCoreOptions.IdempotencyKeyHeader` (default `X-Idempotency-Key`, `src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs:50`) through `HttpContextInboundRequestExtensions.cs:100`, bounded to 255 characters by `InboundRequestInfo.MaxIdempotencyKeyLength`.
 - `DistributedIdempotencyPipelineBehavior<TRequest, TResponse>` (`src/Encina.Caching/Behaviors/DistributedIdempotencyPipelineBehavior.cs`) is the lightweight behavior of the issue: it applies to requests marked `IDistributedIdempotentRequest`, keeps its state in `ICacheProvider` under `{IdempotencyKeyPrefix}:{TenantId}:{key}` (`CachingOptions.IdempotencyKeyPrefix = "sm:idempotency"`, `IdempotencyTtl = 24 h`, `EnableDistributedIdempotency = true`) and is registered by `AddEncinaCaching` (`ServiceCollectionExtensions.cs:88-90`).
@@ -31,7 +31,7 @@ What it implements:
 
 Standards and specifications: ADR-001 and ADR-006 (Railway Oriented Programming); ADR-062 (error category set where the error is created); ADR-054 D3 and D4 (package-named meter without `_total`; tenant tag when tenancy is on); ADR-050 (Caching row: tenant in the key when multi-tenant); the IETF "Idempotency-Key HTTP header field" draft (an in-flight duplicate is answered 409; a reused key with another payload is rejected); Stripe idempotent requests (named comparable product); AGENTS.md section 3 (a store `Left` fails the operation; `TimeProvider` for time; `EncinaError.Message` never reaches logs).
 
-Estimated scope: about 38 distinct files (10 new and 5 modified production files, 7 metadata files, 15 test files, 1 documentation file), shipped as five pull requests (A, B, B2, C, D; see "Pull request split").
+Estimated scope: about 39 distinct files (12 new and 5 modified production files, 7 metadata files, 15 test files, 1 documentation file), shipped as five pull requests (A, B, B2, C, D; see "Pull request split").
 
 Affected packages: `Encina` (outcome types, error codes, `EventIdRanges.cs`), `Encina.Caching` (store, behavior, metrics, log, DI). No change to `Encina.AspNetCore` here (that is [#355](https://github.com/dlrivada/Encina/issues/355)).
 
@@ -77,7 +77,7 @@ Provider category: Caching (8), consumed through `ICacheProvider` (the three imp
 
 ### Rationale
 
-- The mechanism belongs to [#3439](https://github.com/dlrivada/Encina/issues/3439) (its expected behavior: "the claim should be atomic"); this plan opens no second decision on it. The store contract of Phase 2 (`TryBeginAsync`) is written so that any of A or B satisfies it, and Phase 2 starts only after #3439 chose.
+- The mechanism belongs to [#3439](https://github.com/dlrivada/Encina/issues/3439) (its expected behavior: "the claim should be atomic"); this plan opens no second decision on it. Whatever it chooses must also give an atomic token-conditional replace and remove (the ownership check of `CompleteAsync` and `ReleaseAsync`: Redis compare-and-set through a script, memory under a per-key lock), not only set-if-absent; otherwise a stale owner could overwrite a newer claim. This is added to the requirements #3439 is asked to satisfy. The store contract of Phase 2 (`TryBeginAsync`) is written so that any of A or B satisfies it, and Phase 2 starts only after #3439 chose.
 - A wins when the cache providers can offer the primitive on all 8 backends; B wins when the maintainer does not want to widen `ICacheProvider`.
 - **Class:** Dilemma
 
@@ -163,7 +163,7 @@ Provider category: Caching (8), consumed through `ICacheProvider` (the three imp
 
 ### Rationale
 
-- A wins because it is the only option that both reaches the host and leaves `TResponse` alone; the holder rule "the first non-`None` recording of a holder wins" keeps a nested dispatch from overwriting the entry point's outcome. B wins when the maintainer prefers an explicit return value over ambient state and accepts the change of `TResponse`.
+- A wins because it is the only option that both reaches the host and leaves `TResponse` alone; the holder rule "the last non-`None` recording of a holder wins", together with the behavior recording `Executed` only after its `nextStep` returns, makes the entry-point dispatch (the outermost invocation, which always finishes last) decide the outcome: a nested dispatch that replays or reports in-progress while the outer request holds a claim records first and is overwritten by the outer `Executed`, so the host never emits a replay header for an outer request that actually ran. A "first recording wins" rule was rejected because it would keep the nested `Replayed`. B wins when the maintainer prefers an explicit return value over ambient state and accepts the change of `TResponse`.
 - The singleton holds no scoped dependency, so it can be injected into the transient behavior and the host without a captive dependency.
 - Precedent: `IRequestContextAccessor` is a singleton backed by an `AsyncLocal` (`src/Encina/Core/RequestContextAccessor.cs`), not a scoped holder.
 - **Class:** Dilemma
@@ -180,8 +180,8 @@ Provider category: Caching (8), consumed through `ICacheProvider` (the three imp
 <summary><strong>Tasks</strong></summary>
 
 1. **`src/Encina/Idempotency/IdempotencyOutcome.cs`** (new), namespace `Encina.Idempotency`: `public enum IdempotencyOutcome { None, Executed, Replayed, InProgress }` with XML docs (`None` = no idempotency decision was taken for the scope).
-2. **`src/Encina/Idempotency/IIdempotencyOutcomeAccessor.cs`** (new): `IdempotencyOutcomeScope BeginScope()` (the host opens it around the dispatch), `IdempotencyOutcome Outcome { get; }` (the ambient holder's value) and `void Record(IdempotencyOutcome outcome)`; **`IdempotencyOutcomeScope.cs`** (new, public sealed, `IDisposable`): keeps its holder by reference, exposes `IdempotencyOutcome Outcome { get; }` that stays readable after `Dispose` (so a response callback that fires after the host's code returned still reads the recorded value), and `Dispose` restores the previous ambient holder so no later write reaches it; and **`IdempotencyOutcomeAccessor.cs`** (new, public sealed, singleton): a static `AsyncLocal` of a mutable holder, as `RequestContextAccessor` does; the first non-`None` recording of a holder wins, so a nested dispatch cannot overwrite the entry point's outcome; with no open scope `Record` does nothing and `Outcome` is `None`; disposing the scope detaches the holder from the ambient slot.
-3. **`src/Encina/Idempotency/IdempotencyErrorCodes.cs`** (new): `MissingKey = "idempotency.missing_key"`, `InProgress = "idempotency.in_progress"` (the two codes the behavior already uses as literals), and `StoreFailed = "idempotency.store_failed"`. Categories per ADR-062, each asserted by a unit test through `GetCategory()`: `MissingKey` = `InvalidRequest` (the `ErrorCategory.InvalidRequest` remark names "an idempotency key"), `InProgress` = `Conflict` (decided in ADR-062), `StoreFailed` = `Unavailable`.
+2. **`src/Encina/Idempotency/IIdempotencyOutcomeAccessor.cs`** (new): `IdempotencyOutcomeScope BeginScope()` (the host opens it around the dispatch), `IdempotencyOutcome Outcome { get; }` (the ambient holder's value) and `void Record(IdempotencyOutcome outcome)`; **`IdempotencyOutcomeScope.cs`** (new, public sealed, `IDisposable`): keeps its holder by reference, exposes `IdempotencyOutcome Outcome { get; }` that stays readable after `Dispose` (so a response callback that fires after the host's code returned still reads the recorded value), and `Dispose` restores the previous ambient holder so no later write reaches it; and **`IdempotencyOutcomeAccessor.cs`** (new, public sealed, singleton): a static `AsyncLocal` of a mutable holder, as `RequestContextAccessor` does; the last non-`None` recording of a holder wins and the behavior records `Executed` only after its `nextStep` returns (in a `finally`, so a throwing handler still leaves it), so a nested dispatch that replays inside an outer request that holds a claim is overwritten by the outer request's `Executed` and only the entry-point dispatch decides what the host reads; with no open scope `Record` does nothing and `Outcome` is `None`; disposing the scope detaches the holder from the ambient slot.
+3. **`src/Encina/Idempotency/IdempotencyErrorCodes.cs`** (new): `MissingKey = "idempotency.missing_key"`, `InProgress = "idempotency.in_progress"` (the two codes the behavior already uses as literals), and `StoreFailed = "idempotency.store_failed"` and `ClaimLost = "idempotency.claim_lost"` (a stale owner's `CompleteAsync` or `ReleaseAsync`, Phase 2). Categories per ADR-062, each asserted by a unit test through `GetCategory()`: `MissingKey` = `InvalidRequest` (the `ErrorCategory.InvalidRequest` remark names "an idempotency key"), `InProgress` = `Conflict` (decided in ADR-062), `ClaimLost` = `Conflict`, `StoreFailed` = `Internal` (ADR-062 R4: "Store, serialization, crypto and provider failures ... are `Internal`"; a cache outage is a store failure, so it is not `Unavailable`).
 4. Register the accessor as a singleton (`TryAddSingleton`) in `src/Encina/Identity/RequestIdentityServiceCollectionExtensions.cs`, the file that registers `IRequestContextAccessor` (`:49`). Verification: a unit test sends a request through the real `Encina` dispatcher with a behavior that records `Replayed` inside the dispatcher's inner DI scope and reads `scope.Outcome` from the `IdempotencyOutcomeScope` the host opened (also after `Dispose`); a scoped accessor would read `None`.
 5. `PublicAPI.Unshipped.txt` of `Encina` (via `mechanical-fixer` at implementation).
 
@@ -195,7 +195,7 @@ CONTEXT: Encina is pre-1.0, .NET 10 / C# 14, nullable enabled, no backward compa
 (Either<EncinaError, T>). Issue #334 puts an idempotency store under the existing
 DistributedIdempotencyPipelineBehavior. Phase 1 adds only the core types the host needs.
 TASK: Create IdempotencyOutcome, IIdempotencyOutcomeAccessor, IdempotencyOutcomeScope, IdempotencyOutcomeAccessor (singleton over an
-AsyncLocal holder opened by BeginScope, which returns the scope object; first non-None recording wins; no scope means Record is a no-op) and
+AsyncLocal holder opened by BeginScope, which returns the scope object; last non-None recording wins and the behavior records Executed only after nextStep returns, so the outermost dispatch decides; no scope means Record is a no-op) and
 IdempotencyErrorCodes in src/Encina/Idempotency; create each error with its ADR-062 category; register the accessor
 with TryAddSingleton in RequestIdentityServiceCollectionExtensions next to IRequestContextAccessor. The dispatcher
 opens its own DI scope per Send, so never register a scoped accessor.
@@ -212,9 +212,9 @@ docs/architecture/adr/062-error-category-contract.md
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina.Caching/Abstractions/IIdempotencyStore.cs`** (new), namespace `Encina.Caching`: `Task<Either<EncinaError, IdempotencyClaim>> TryBeginAsync(string key, TimeSpan lease, CancellationToken cancellationToken)`, `Task<Either<EncinaError, Unit>> CompleteAsync(string key, IdempotencyRecord record, TimeSpan ttl, CancellationToken cancellationToken)`, `Task<Either<EncinaError, Unit>> ReleaseAsync(string key, CancellationToken cancellationToken)`.
-2. **`IdempotencyRecord.cs`** (new, sealed record): `ResponseType`, `ResponseJson`, `IsSuccess`, `ErrorCode`, `CompletedAtUtc` (the `AtUtc` suffix, from `TimeProvider`). **`IdempotencyClaim.cs`** (new, sealed): `Kind` (`Acquired`, `Completed`, `InProgress`; [#3438](https://github.com/dlrivada/Encina/issues/3438) adds the fingerprint and its mismatch kind), `Record` for `Completed`, `RetryAfter` (`TimeSpan?`) for `InProgress`; static factories, no public constructor with free state.
-3. **`CacheIdempotencyStore.cs`** (new, sealed): constructor `(ICacheProvider cacheProvider, IOptions<CachingOptions> options, TimeProvider? timeProvider = null)`; the claim uses the atomic primitive chosen in Design Choice 2; every cache exception becomes `Left(idempotency.store_failed)` (category `Unavailable`), never a swallowed success (fail closed, #3439).
+1. **`src/Encina.Caching/Abstractions/IIdempotencyStore.cs`** (new), namespace `Encina.Caching`: `Task<Either<EncinaError, IdempotencyClaim>> TryBeginAsync(string key, TimeSpan lease, CancellationToken cancellationToken)`, `Task<Either<EncinaError, Unit>> CompleteAsync(string key, IdempotencyClaimToken token, IdempotencyRecord record, TimeSpan ttl, CancellationToken cancellationToken)`, `Task<Either<EncinaError, Unit>> ReleaseAsync(string key, IdempotencyClaimToken token, CancellationToken cancellationToken)`. Claim ownership: an `Acquired` claim carries an opaque `IdempotencyClaimToken` (a random value generated by the store, stored with the in-progress entry); `CompleteAsync` and `ReleaseAsync` change the entry only if it still holds that token, checked atomically with the write (compare-and-swap or compare-and-delete). When A's lease expired and B acquired the same key, A's late `CompleteAsync` or `ReleaseAsync` finds B's token and returns `Left(idempotency.claim_lost)` without touching B's entry. The token is never logged or tagged.
+2. **`IdempotencyRecord.cs`** (new, sealed record): `ResponseType`, `ResponseJson`, `IsSuccess`, `ErrorCode`, `ErrorCategory` (the `ErrorCategory` value, ADR-062), `ErrorMetadata` (an `IReadOnlyDictionary<string, string>` limited to the allow-list below), `CompletedAtUtc` (the `AtUtc` suffix, from `TimeProvider`). Replayed failure contract: a record with `IsSuccess = false` stores the error code, the error category (so the replay keeps its ADR-062 category and the host maps the same status) and, of the metadata, only `EncinaErrorMetadataKeys.RetryAfter` (`encina.retry_after`, no free text); `EncinaError.Message` and every other metadata value are NOT stored (AGENTS.md section 3: the message never reaches plaintext storage). A replayed failure is rebuilt as an error with the stored code, the generic message of that code and the surviving metadata. Whether a given error is cached at all (a permanent `Left` versus a transient one) is the policy of [#3439](https://github.com/dlrivada/Encina/issues/3439) and the maintainer, not decided here; the store stores whatever `CompleteAsync` receives. **`IdempotencyClaimToken.cs`** (new, public readonly record struct over a string, no public parser). **`IdempotencyClaim.cs`** (new, sealed): `Kind` (`Acquired`, `Completed`, `InProgress`; [#3438](https://github.com/dlrivada/Encina/issues/3438) adds the fingerprint and its mismatch kind), `Token` for `Acquired`, `Record` for `Completed`, `RetryAfter` (`TimeSpan?`) for `InProgress`; static factories, no public constructor with free state.
+3. **`CacheIdempotencyStore.cs`** (new, sealed): constructor `(ICacheProvider cacheProvider, IOptions<CachingOptions> options, TimeProvider? timeProvider = null)`; the claim uses the atomic primitive chosen in Design Choice 2; every cache exception becomes `Left(idempotency.store_failed)` (category `Internal`, ADR-062 R4), never a swallowed success (fail closed, #3439); `CompleteAsync` and `ReleaseAsync` apply the token check atomically and return `Left(idempotency.claim_lost)` (category `Conflict`) when the entry no longer holds the caller's token (lease expired and another caller acquired it, or the entry is gone).
 4. Registration: `TryAddSingleton<IIdempotencyStore, CacheIdempotencyStore>` in `Encina.Caching` `ServiceCollectionExtensions.cs` (the store is stateless over the cache provider, which is registered as a singleton by the caching providers; the plan's DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`).
 5. `PublicAPI.Unshipped.txt` of `Encina.Caching`.
 
@@ -228,7 +228,8 @@ CONTEXT: Encina.Caching, issue #334. The atomic claim primitive is delivered by 
 start this phase after it merged and read what it added to ICacheProvider (or the lock-based claim).
 TASK: Add IIdempotencyStore, IdempotencyRecord, IdempotencyClaim and CacheIdempotencyStore as described in the plan.
 KEY RULES: Either<EncinaError,T> on every member; TimeProvider for every time value (no DateTime.UtcNow); a cache
-exception is Left(idempotency.store_failed), never a success; the key is opaque and never logged; XML docs; guard
+exception is Left(idempotency.store_failed, Internal), never a success; Complete and Release check the claim token atomically and
+answer Left(idempotency.claim_lost) for a stale owner; a replayed failure never restores EncinaError.Message; the key is opaque and never logged; XML docs; guard
 clauses on every public constructor and method parameter.
 REFERENCE FILES: src/Encina.Caching/Abstractions/ICacheProvider.cs,
 src/Encina.Caching/Behaviors/DistributedIdempotencyPipelineBehavior.cs, src/Encina.Messaging/Inbox/IInboxStore.cs
@@ -241,7 +242,7 @@ src/Encina.Caching/Behaviors/DistributedIdempotencyPipelineBehavior.cs, src/Enci
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina.Caching/Behaviors/DistributedIdempotencyPipelineBehavior.cs`** (modify): replace the `ICacheProvider` and `IdempotencyEntry<T>` plumbing with `IIdempotencyStore`; constructor `(IIdempotencyStore store, IOptions<CachingOptions> options, ILogger<...> logger, IIdempotencyOutcomeAccessor? outcome = null, TimeProvider? timeProvider = null)` (the accessor is a singleton, so injecting it into the transient behavior is not a captive dependency). The flow: marker and enable flag checks (unchanged), the nested-dispatch rule (unchanged), the key from `context.IdempotencyKey`, `TryBeginAsync`, then by claim kind: `Completed` returns the stored response and records `Replayed`; `InProgress` returns `Left(idempotency.in_progress)` with the remaining lease under `EncinaErrorMetadataKeys.RetryAfter` and records `InProgress`; `Acquired` runs `nextStep` and calls `CompleteAsync` (or `ReleaseAsync` when the policy of #3439 says the result must not be cached) and records `Executed`.
+1. **`src/Encina.Caching/Behaviors/DistributedIdempotencyPipelineBehavior.cs`** (modify): replace the `ICacheProvider` and `IdempotencyEntry<T>` plumbing with `IIdempotencyStore`; constructor `(IIdempotencyStore store, IOptions<CachingOptions> options, ILogger<...> logger, IIdempotencyOutcomeAccessor? outcome = null, TimeProvider? timeProvider = null)` (the accessor is a singleton, so injecting it into the transient behavior is not a captive dependency). The flow: marker and enable flag checks (unchanged), the nested-dispatch rule (unchanged), the key from `context.IdempotencyKey`, `TryBeginAsync`, then by claim kind: `Completed` returns the stored response (for a stored failure, the error rebuilt from the record under the replay contract of Phase 2: code, category and `RetryAfter`, never the message) and records `Replayed`; `InProgress` returns `Left(idempotency.in_progress)` with the remaining lease under `EncinaErrorMetadataKeys.RetryAfter` and records `InProgress`; `Acquired` runs `nextStep` and calls `CompleteAsync` with the claim's token (or `ReleaseAsync` with it when the policy of #3439 says the result must not be cached); a `claim_lost` answer fails the request with that `Left`, it is never reported as success; then it records `Executed`, always after `nextStep` returned (in a `finally`) so that an outer request's outcome overwrites any nested dispatch's recording (Design Choice 6).
 2. The in-process `IdempotencyEntry<TResponse>` class is deleted (no compatibility layer).
 3. CRAP: the claim switch is its own method; the behavior's `Handle` stays under complexity 10.
 4. `Encina.Caching` `PublicAPI.Unshipped.txt` and the manifest entry of the behavior (the "Per-file coverage targets" table in Research).
@@ -269,8 +270,8 @@ src/Encina/Core/RequestContextDispatchExtensions.cs, tests/Encina.UnitTests/Cach
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`src/Encina.Caching/Diagnostics/IdempotencyMetrics.cs`** (new, internal static): `Meter` named `Encina.Caching` (ADR-054 D3, no `_total`), counter `encina.caching.idempotency.requests` with tags `outcome` (`claimed`, `replayed`, `in_progress`, `mismatch`, `store_error`) and `tenant` only when the `MultiTenancyMarker` is registered (ADR-054 D4); the duplicate-detection rate is `replayed / (claimed + replayed)` computed by the metrics backend. Bounded dimensions: no key, no request type with an open set, no error text.
-2. The current activity gets the tag `encina.idempotency.outcome` (read from the accessor value just recorded).
+1. **`src/Encina.Caching/Diagnostics/IdempotencyMetrics.cs`** (new, internal static): `Meter` named `Encina.Caching` (ADR-054 D3, no `_total`), counter `encina.caching.idempotency.requests` with tags `outcome` (`claimed`, `replayed`, `in_progress`, `claim_lost`, `mismatch`, `store_error`) and `tenant` only when the `MultiTenancyMarker` is registered (ADR-054 D4); the duplicate-detection rate is `replayed / (claimed + replayed)` computed by the metrics backend. Bounded dimensions: no key, no request type with an open set, no error text.
+2. The current activity gets the tag `encina.idempotency.outcome`, set by the behavior from its own local decision (the claim kind it just handled: `claimed`, `replayed`, `in_progress`, `claim_lost` or `store_error`), never read back from the accessor: with no host scope open `Record` is a no-op and the accessor stays `None`, so the tag would be empty in the normal configuration. The same local decision feeds the counter's `outcome` tag.
 3. **`src/Encina.Caching/Diagnostics/IdempotencyLog.cs`** (new, `[LoggerMessage]`, internal static partial): EventIds 7800 (`DuplicateReplayed`), 7801 (`InProgress`), 7802 (`StoreFailed`, exception through `ForLogging()`), 7803 (`ClaimReleased`), registered first as `CachingIdempotency = (7800, 7819)` in `src/Encina/Diagnostics/EventIdRanges.cs`, mapped to `Encina.Caching` in the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`. The four ids `3504` to `3507` of the old behavior stay in the `Caching` range with the same ids and no gap, but PR C removes the `{IdempotencyKey}` placeholder from the messages of 3505, 3506 and 3507 (`DistributedIdempotencyPipelineBehavior.cs:243,253,263` print the client-chosen key today; 3504 prints none), because the key never reaches logs; their parameters lose the key, and the tests that assert those messages are updated in the same pull request. The new log entries replace none of them.
 4. Register `Encina.Caching` as a meter name with `Encina.OpenTelemetry` only if the package does not already add every `Encina.*` meter (check at implementation; recorded in the Phase 5 task list when a change is needed).
 
@@ -296,13 +297,13 @@ tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. Unit: `CacheIdempotencyStoreTests` (claim, completed, in-progress with remaining lease, release, cache exception becomes `Left`), `IdempotencyOutcomeAccessorTests` (first non-`None` wins, no scope means `None`, a record made inside the dispatcher's inner DI scope is read through the outer `IdempotencyOutcomeScope`, also after it is disposed), the existing behavior tests (`tests/Encina.UnitTests/Caching/DistributedIdempotencyPipelineBehaviorTests.cs`, `...PathsTests.cs`, `Base/DistributedIdempotencyPipelineBehaviorTests.cs`) rewritten over a fake store, and a two-tenant case (same key, two tenants, two entries) plus a tenant-less case under multi-tenancy (fails closed).
+1. Unit: `CacheIdempotencyStoreTests` (claim, completed, in-progress with remaining lease, release, cache exception becomes `Left`), `IdempotencyOutcomeAccessorTests` (last non-`None` wins, no scope means `None`, an outer request that acquired a claim and dispatched a nested replay reports `Executed`, a record made inside the dispatcher's inner DI scope is read through the outer `IdempotencyOutcomeScope`, also after it is disposed), the existing behavior tests (`tests/Encina.UnitTests/Caching/DistributedIdempotencyPipelineBehaviorTests.cs`, `...PathsTests.cs`, `Base/DistributedIdempotencyPipelineBehaviorTests.cs`) rewritten over a fake store, and a two-tenant case (same key, two tenants, two entries) plus a tenant-less case under multi-tenancy (fails closed).
 2. Guard: `CacheIdempotencyStoreGuardTests`, behavior constructor and `Handle` null checks (`Encina.GuardTests`).
 3. Contract: `IIdempotencyStoreContractTests` run against `CacheIdempotencyStore` over `MemoryCacheProvider` (real implementation).
 4. Integration: the store against the Redis provider through the Testcontainers `[Collection]` fixture (the Valkey, Dragonfly, Garnet and KeyDB packages register the same `RedisCacheProvider`).
 5. DI: the existing `ServiceCollectionExtensionsTests` extended: provider built with `ValidateOnBuild` and `ValidateScopes` resolves the store and the behavior.
 6. Load and benchmark: justification files (a cache round trip is the cost; no new concurrency primitive beyond #3439's).
-7. Documentation (through `docs-writer` and `mechanical-fixer` at implementation): XML docs, changelog fragment `changelog.d/334-idempotency-store.added.md`, the `Encina.Caching` README section, the behavior mention in `src/Encina.AspNetCore/README.md`, `docs/INVENTORY.md`, a "Choosing the Inbox or the cache store" section in the caching guide.
+7. Documentation (through `docs-writer` and `mechanical-fixer` at implementation): XML docs, changelog fragment `changelog.d/334-idempotency-store.added.md`, a new `src/Encina.Caching/README.md` (it does not exist on main today), a pointer to the behavior in the existing `src/Encina.AspNetCore/README.md` (it documents the idempotency key header today), `docs/INVENTORY.md`, and a new caching guide with the section "Choosing the Inbox or the cache store" (no caching guide exists under `docs/` on main today; the nearest page is `docs/features/query-caching.md`).
 8. Verification: `dotnet build --configuration Release` (0 warnings), `dotnet test`, per-flag coverage against the table below, `crap-gate` table for the changed methods.
 
 </details>
@@ -332,7 +333,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Caching/DistributedIdempotencyPipelineBe
 | Standard | Requirement | How this feature meets it |
 |----------|-------------|---------------------------|
 | ADR-001, ADR-006 | Operations return `Either<EncinaError, T>` | The store and the behavior return `Either`; a store failure is `Left` |
-| ADR-062 | The producer sets the error category | Codes of Phase 1 carry `InvalidRequest`, `Conflict`, `Unavailable` |
+| ADR-062 | The producer sets the error category | Codes of Phase 1 carry `InvalidRequest`, `Conflict` (in progress, claim lost) and `Internal` (store failure, R4) |
 | ADR-054 D3, D4 | Package-named meter, no `_total`; tenant tag when tenancy is on | `IdempotencyMetrics` (Phase 4) |
 | ADR-050 (Caching row) | Tenant in the key when multi-tenant; no query caching without a tenant | The tenant segment and the fail-closed case of Design Choice 3 |
 | ADR-021 | EventId ranges are registered before use | `CachingIdempotency` 7800-7819 |
@@ -365,7 +366,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Caching/DistributedIdempotencyPipelineBe
 | `Identity/RequestIdentityServiceCollectionExtensions.cs` (Encina, modified, one line) | 90 | 30 | 0 | 0 | The manifest's current targets stay (unit 90, guard 30); the new `TryAddSingleton` line is reached by the same DI tests with `ValidateOnBuild` and `ValidateScopes` |
 | `ServiceCollectionExtensions.cs` (Encina.Caching, modified) | 90 | 40 | 0 | 0 | The manifest has no per-file target today; the store registration is a conditional line reached by the DI test; guard covers the existing null `services` check |
 | `Idempotency/IdempotencyErrorCodes.cs` (Encina) | 0 | 0 | 0 | 0 | Constants only, no executable code; the categories are asserted in the accessor and behavior unit tests |
-| `Abstractions/IIdempotencyStore.cs`, `IdempotencyRecord.cs` | 0 | 0 | 0 | 0 | Interface and record without logic; covered through the store and the contract suite |
+| `Abstractions/IIdempotencyStore.cs`, `IdempotencyRecord.cs`, `IdempotencyClaimToken.cs` | 0 | 0 | 0 | 0 | Interface, record and token value type without logic; covered through the store and the contract suite |
 | `Abstractions/IdempotencyClaim.cs` (Encina.Caching) | 90 | 60 | 0 | 0 | Factories and the kind checks, all reached by the store tests |
 | `CacheIdempotencyStore.cs` | 92 | 70 | 85 | 80 | Every claim kind and the exception path are unit-testable with a fake cache; the contract suite runs it over `MemoryCacheProvider`; Redis integration proves the atomic claim |
 | `Behaviors/DistributedIdempotencyPipelineBehavior.cs` | 93 | 80 | 0 | 0 | Mockable next delegate and fake store; guard tests cover constructor and `Handle` arguments; the manifest default lists a contract flag but the behavior has no abstraction of its own to keep, and no pull request carries a contract test of it (its seam is covered by `IIdempotencyStoreContractTests`) |
@@ -375,22 +376,22 @@ REFERENCE FILES: tests/Encina.UnitTests/Caching/DistributedIdempotencyPipelineBe
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Production source, new | 11 | `IdempotencyOutcome`, accessor interface, accessor, `IdempotencyOutcomeScope`, `IdempotencyErrorCodes` (core); `IIdempotencyStore`, `IdempotencyRecord`, `IdempotencyClaim`, `CacheIdempotencyStore`, `IdempotencyMetrics`, `IdempotencyLog` (`Encina.Caching`) |
+| Production source, new | 12 | `IdempotencyOutcome`, accessor interface, accessor, `IdempotencyOutcomeScope`, `IdempotencyErrorCodes` (core); `IIdempotencyStore`, `IdempotencyRecord`, `IdempotencyClaimToken`, `IdempotencyClaim`, `CacheIdempotencyStore`, `IdempotencyMetrics`, `IdempotencyLog` (`Encina.Caching`) |
 | Production source, modified | 5 | behavior, `ServiceCollectionExtensions.cs` (Caching), the core registration file, `EventIdRanges.cs`, `CachingOptions.cs` only if #3439 does not add the lease option |
-| Metadata | 7 | `PublicAPI.Unshipped.txt` (Encina, Encina.Caching), manifests `Encina.json`, `Encina.Caching.json`, changelog fragment, `docs/INVENTORY.md`, README of `Encina.Caching` |
+| Metadata | 7 | `PublicAPI.Unshipped.txt` (Encina, Encina.Caching), manifests `Encina.json`, `Encina.Caching.json`, changelog fragment, `docs/INVENTORY.md`, new README of `Encina.Caching` |
 | Tests | 15 | unit (store, accessor and codes, metrics and log), the three existing behavior test files rewritten, `NestedDispatchContextTests`, guard (store, behavior), contract, integration, DI test extended, EventId allocation map, 2 justification files |
-| Documentation | 1 | caching guide section |
-| **Total** | **~38 distinct** | Five pull requests (the table below sums to 46 because the `PublicAPI` and manifest files of `Encina.Caching` and `Encina` are touched in several) |
+| Documentation | 1 | new caching guide (with the section) |
+| **Total** | **~39 distinct** | Five pull requests (the table below sums to 47 because the `PublicAPI` and manifest files of `Encina.Caching` and `Encina` are touched in several) |
 
 ### Pull request split
 
 | PR | Content | Files (approx.) |
 |----|---------|-----------------|
 | A | Phase 1: 5 outcome and error-code files (outcome, accessor interface, accessor, scope, error codes), the singleton registration in `RequestIdentityServiceCollectionExtensions.cs`, `PublicAPI` and manifest of `Encina`, accessor unit test, error-category unit test, the real-dispatcher unit test (inner scope write, outer read); no guard test (no argument to guard) | 11 |
-| B | Phase 2: store interface, record, claim, `CacheIdempotencyStore`, `PublicAPI` and manifest of `Encina.Caching`, store unit, guard and contract tests; starts after #3439 chose the claim primitive | 9 |
+| B | Phase 2: store interface, record, claim, claim token, `CacheIdempotencyStore`, `PublicAPI` and manifest of `Encina.Caching`, store unit, guard and contract tests; starts after #3439 chose the claim primitive | 10 |
 | B2 | Phase 4 classes: `IdempotencyMetrics`, `IdempotencyLog`, `EventIdRanges.cs`, allocation test map, `PublicAPI` of `Encina` and `Encina.Caching`, manifests `Encina.json` and `Encina.Caching.json`, metrics and log unit test | 9 |
 | C | Phase 3: the rewritten behavior, DI registration, the three existing behavior test files rewritten, `NestedDispatchContextTests`, DI test extended, behavior guard test, `PublicAPI` and manifest of `Encina.Caching`; the activity tag | 11 |
-| D | Redis integration test, load and benchmark justification files, changelog fragment, README of `Encina.Caching`, `src/Encina.AspNetCore/README.md` (it mentions the behavior), guide section, `docs/INVENTORY.md` | 8 |
+| D | Redis integration test, load and benchmark justification files, changelog fragment, new README of `Encina.Caching`, `src/Encina.AspNetCore/README.md` (pointer to the behavior), new caching guide with its section, `docs/INVENTORY.md` | 8 |
 
 Order: A, then B (after #3439), then B2, then C, then D. Each pull request builds alone: A adds types nothing references yet; B adds the store beside the old behavior; B2 adds the unused telemetry classes; C switches the behavior and removes its internal entry class in the same pull request; D adds only tests and documentation.
 
@@ -410,12 +411,13 @@ claim, release on failure, fail closed) merged; #2452 (tenant) decided or merged
 not awaited: it adds the mismatch kind and code later.
 
 IMPLEMENTATION OVERVIEW:
-1. Encina core: IdempotencyOutcome, IIdempotencyOutcomeAccessor (singleton over an AsyncLocal holder opened by BeginScope, first non-None wins), IdempotencyErrorCodes
-   (missing_key InvalidRequest, in_progress Conflict, store_failed Unavailable).
-2. Encina.Caching: IIdempotencyStore (TryBeginAsync, CompleteAsync, ReleaseAsync), IdempotencyRecord, IdempotencyClaim,
+1. Encina core: IdempotencyOutcome, IIdempotencyOutcomeAccessor (singleton over an AsyncLocal holder opened by BeginScope, last non-None wins, Executed recorded after nextStep so the outermost dispatch decides), IdempotencyErrorCodes
+   (missing_key InvalidRequest, in_progress Conflict, claim_lost Conflict, store_failed Internal per ADR-062 R4).
+2. Encina.Caching: IIdempotencyStore (TryBeginAsync returns a claim with an owner token; CompleteAsync and ReleaseAsync require
+   it and check it atomically), IdempotencyRecord (replayed failures keep code, category and RetryAfter only, never the message), IdempotencyClaimToken, IdempotencyClaim,
    CacheIdempotencyStore over ICacheProvider; the behavior rewritten onto the store (same class and marker names).
 3. Observability: IdempotencyMetrics (meter Encina.Caching, counter encina.caching.idempotency.requests, tenant tag only
-   when tenancy is on), activity tag encina.idempotency.outcome, IdempotencyLog EventIds 7800-7803 in the new range
+   when tenancy is on), activity tag encina.idempotency.outcome (set from the behavior's local decision, not read from the accessor), IdempotencyLog EventIds 7800-7803 in the new range
    CachingIdempotency (7800, 7819) registered first in EventIdRanges.cs.
 4. Tests: unit, guard, contract (store over MemoryCacheProvider), integration (Redis), DI with ValidateOnBuild and
    ValidateScopes; per-file targets from the plan.
