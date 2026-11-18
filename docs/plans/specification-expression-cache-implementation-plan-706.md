@@ -10,7 +10,7 @@
 
 ## Summary
 
-`Specification<T>` (`src/Encina.DomainModeling/Specification.cs`) rebuilds work on every call, exactly as the issue says, and the code confirms each point on `origin/main` (ec129cae5):
+`Specification<T>` (`src/Encina.DomainModeling/Specification.cs`) rebuilds work on every call, exactly as the issue says, and the code confirms each point on `origin/main` (d523eda92):
 
 - `ToFunc()` is `ToExpression().Compile()` (line 47) and `IsSatisfiedBy` calls it on every evaluation (lines 54-58), so a loop of N entities compiles N times.
 - `AndSpecification`, `OrSpecification` and `NotSpecification` (lines 99-172) call `ToExpression()` on their children and build a new `Expression.Lambda` each time.
@@ -67,26 +67,28 @@ The feature is a pure in-memory optimization inside `Encina.DomainModeling`; it 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** `SpecificationEvaluator.cs` lines 195-203 apply `Include` to the incoming `IQueryable`, and comparable products: the EF Core query cache keys a compiled query by the structure of the expression tree, so caching the tree instance saves allocation, not translation. The issue's "Encina.EntityFrameworkCore" package is therefore unchanged and the plan edits no file there.
+- **Settled by:** `SpecificationEvaluator.cs` lines 194-204 apply `Include` to the incoming `IQueryable` per call, which cannot be stored. The issue's "Encina.EntityFrameworkCore" package is therefore unchanged and the plan edits no file there.
 
 </details>
 
 <details>
-<summary><strong>3. Invalidating the combined criteria of `QuerySpecification` when it is mutated</strong></summary>
+<summary><strong>3. Staleness after `QuerySpecification` is mutated, alone or inside a composite</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddCriteria` and `ClearCriteria` set the cached combined expression and the cached delegate to null** | The two methods are the only writers of `_criteria`; the cache can never be stale | Two assignments in two methods |
-| **B) Leave the cache as is and document "do not add criteria after the first evaluation"** | No code | A derived class that adds a criterion conditionally after a first `IsSatisfiedBy` gets a wrong result with no error |
+| **A) A mutation version: `Specification<T>` gets `internal virtual int ExpressionVersion => 0`; `QuerySpecification<T>` overrides it with a counter that `AddCriteria` and `ClearCriteria` (the only writers of `_criteria`, `Specification.cs` lines 350-354 and 493-496) increment; every cache (the base-class delegate, the `QuerySpecification` combined criteria, and each `And`, `Or`, `Not` lambda) stores the version tuple it was built for (the composite stores both children's versions, a composite's own version is the sum of theirs) and rebuilds when the tuple differs** | A mutation of a child is seen through any depth of composition; the cache stays active for specifications that are not mutated; no hook is needed on the base class because the delegate is validated by version, not cleared | One integer compare per call; one internal member |
+| **B) `QuerySpecification` reports `IsExpressionStable` false from its first mutation after an evaluation on, so nothing above or below it is cached** | Simplest rule; no version | A mutated specification loses the optimization for the rest of its life, and the flag flips at run time, which the composites must read on every call anyway |
+| **C) Document "do not add criteria after the first evaluation"** | No code | `var c = q.And(o); c.IsSatisfiedBy(x);` then a derived class calls `AddCriteria` and `c.IsSatisfiedBy(x)` returns the old result with no error, which breaks the issue's "no behavioral change" |
 
-### Chosen Option: **A - invalidate in the two mutators**
+### Chosen Option: **A - a mutation version checked by every cache** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** #706 acceptance criterion "No behavioral change - cached results must be identical" and `Specification.cs` lines 350-354 and 493-496 (`_criteria.Add` and `_criteria.Clear` are the only writers, both protected). B violates the criterion in a concrete sequence (evaluate, add a criterion, evaluate), so A is the only option that complies.
+- B wins when the maintainer wants no version bookkeeping and accepts that a specification mutated after use is simply uncached; A wins because mutation after use is the case that makes a cache wrong and the version keeps the gain for everything else. C is rejected: it fails the cited criterion in a concrete sequence. Both A and B are correct for the composite-over-mutated-query sequence, which a unit test pins (evaluate the composite, mutate the query, evaluate again).
+- The delegate cached in the private field of `Specification<T>` is validated by `ExpressionVersion`, so `AddCriteria` and `ClearCriteria` need no reset hook into the base class; `ExpressionVersion` is the only new internal member besides `IsExpressionStable`.
+- Class: Dilemma
 
 </details>
 
@@ -117,15 +119,15 @@ The feature is a pure in-memory optimization inside `Encina.DomainModeling`; it 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) None: no counter, no log, no span** | `IsSatisfiedBy` is a hot path; a counter increment per call costs more than the dictionary lookup it would count | No hit-rate visibility |
-| **B) A hit and miss counter on the existing `SpecificationActivitySource` meter** | Visibility | Per-call cost on the path the feature optimizes; the hit rate is a property of the application's specification lifetime, not a runtime signal anyone acts on |
+| **A) None: no counter, no log, no span** | `IsSatisfiedBy` is a hot path; an instrument call per evaluation is a cost on the path the feature optimizes | No hit-rate visibility |
+| **B) A hit and miss counter guarded by `HasListeners()`-style checks, as ADR-054 rule 7 asks for instrumentation** | Visibility when a listener is attached; no cost without one beyond the guard | A guard check per call on the hot path; the hit rate depends on the application's specification lifetime |
 
-### Chosen Option: **A - none**
+### Chosen Option: **A - none** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** ADR-054 (telemetry follows the rule "no cost without a listener", and a per-call instrument on a hot path is a cost the optimization exists to remove) and #706 ("In-memory optimization only"). The gain is measured by the benchmark of PR 1, not by a production counter.
+- B wins when operators want to see the hit rate in production to decide whether to mark specifications stable; A wins by default because the gain is measured by the benchmark of PR 1 and the issue says "in-memory optimization only". ADR-054 rule 7 permits B (instrumentation costs nothing without a listener) but does not require it.
+- Class: Dilemma
 
 </details>
 
@@ -157,9 +159,9 @@ Tasks:
 
 1. **Modify `Specification<T>`**: add `protected internal virtual bool IsExpressionStable => true`; keep `ToExpression()` abstract; change `ToFunc()` to return the delegate cached in one nullable field published by compare-and-swap (`LazyInitializer.EnsureInitialized`, Design Choice 4) when `IsExpressionStable` is true, and to compile on every call when it is false. `IsSatisfiedBy` is unchanged (it calls `ToFunc()`).
 2. **Modify `AndSpecification<T>`, `OrSpecification<T>`, `NotSpecification<T>`**: each overrides `IsExpressionStable` as the conjunction of its children's flags and caches the built `Expression.Lambda` in one nullable field when stable; the parameter name stays `x`; the expression shape is unchanged so the SQL builders and EF translate exactly as today.
-3. **Modify `QuerySpecification<T>`**: cache the combined criteria in `ToExpression()`; `AddCriteria` and `ClearCriteria` reset the cached expression and delegate (Design Choice 3); a derived class that overrides `ToExpression()` is covered by the same flag: it is stable by default, so its delegate is compiled once, and a derived class that returns a different expression after mutation declares itself unstable.
+3. **Modify `QuerySpecification<T>`**: cache the combined criteria in `ToExpression()`; add the private counter behind the `internal override int ExpressionVersion` and increment it in `AddCriteria` and `ClearCriteria` (Design Choice 3, option A: every cache, including the delegate of the base class and each composite lambda, stores the version tuple it was built for and rebuilds on a difference; no reset hook into the base class is needed); a derived class that overrides `ToExpression()` is covered by the same flag: it is stable by default, so its delegate is compiled once, and a derived class that returns a different expression after mutation declares itself unstable.
 4. **XML documentation**: `<remarks>` on `Specification<T>`, `ToFunc()` and `IsExpressionStable` state the contract (an expression that depends on mutable state or a value captured at build time must override the flag to `false`), with an example of each case; the existing sentence "Caching the compiled function is recommended" is replaced.
-5. **Unit tests** (execute the real classes): `ToFunc()` twice returns the same delegate instance for a stable specification and different instances for an unstable one; `And/Or/Not` return the same expression instance on repeated calls; a composite with one unstable child recompiles; `AddCriteria` after an evaluation changes the result (sequence: evaluate, add criterion, evaluate); `ClearCriteria` likewise; `IsSatisfiedBy` is correct before and after caching for `And`, `Or`, `Not` over the specifications of `SpecificationPropertyTests`; concurrent first calls from 32 tasks return working delegates and one published instance afterwards (no sleeps, a barrier); a stable specification evaluated once costs no more than one compile.
+5. **Unit tests** (execute the real classes): `ToFunc()` twice returns the same delegate instance for a stable specification and different instances for an unstable one; `And/Or/Not` return the same expression instance on repeated calls; a composite with one unstable child recompiles; `AddCriteria` after an evaluation changes the result (sequence: evaluate, add criterion, evaluate); `ClearCriteria` likewise; a composite built over a `QuerySpecification` (`q.And(o)`, `q.Or(o)`, `q.Not()`, and a composite of a composite) is evaluated, the query is mutated, and the composite evaluates the new criteria; `IsSatisfiedBy` is correct before and after caching for `And`, `Or`, `Not` over the specifications of `SpecificationPropertyTests`; concurrent first calls from 32 tasks return working delegates and one published instance afterwards (no sleeps, a barrier); a stable specification evaluated once costs no more than one compile.
 6. **Property tests** (FsCheck): for random trees of `And/Or/Not` over the three property-test specifications and random entities, `IsSatisfiedBy` equals the result of compiling a freshly built equal tree (cached equals uncached), and the result is stable across repeated calls.
 7. **Benchmark**: `SpecificationCachingBenchmarks` compares N evaluations of `IsSatisfiedBy` on one specification instance before and after (a baseline method that calls `ToExpression().Compile()` each time versus `ToFunc()`), for a simple specification, an `And` of three and a `QuerySpecification` with four criteria; it also reports the first-call cost. `BenchmarkSwitcher` already runs the project; verify the filter with `--list flat`.
 8. **Manifest, changelog and documentation** through the specialists: `docs-writer` writes `docs/features/specification-expression-caching.md` (the contract, the opt-out, the measured gain by benchmark reference, no hand-typed figures); `mechanical-fixer` writes the changelog fragment ("`Specification<T>` now caches its compiled delegate and the expressions of `And`, `Or`, `Not` and `QuerySpecification`; a specification whose expression depends on mutable state overrides the new `IsExpressionStable`") and the manifest targets of the coverage table below.
@@ -207,7 +209,7 @@ Baseline (from the manifest on `origin/main`, measured values in its justificati
 
 | File | unit | guard | property | Justification |
 |------|------|-------|----------|---------------|
-| `Specification.cs` | 90 | 14 | 80 | The new branches (stable and unstable, cached and fresh, concurrent first call, mutation after evaluation) are all unit tested; the guard target stays because the new member has no parameter; the property test over random `And/Or/Not` trees reaches the cached composite paths |
+| `Specification.cs` | 90 | 14 | 80 | The new branches (stable and unstable, cached and fresh, concurrent first call, mutation after evaluation) are all unit tested; the guard target stays because the new member has no parameter; the property test reaches the composite paths with named cases: random `And/Or/Not` trees over the three property-test specifications, cached equals uncached on repeated calls, and random sequences of `AddCriteria` and `ClearCriteria` interleaved with evaluations of a composite over the query (the version-change rebuild); unit 90 is above the measured 85.47 and property 80 above 76.07 because those cases add the new branches |
 
 The ratchet forbids lowering a target, so the three values only go up. The measured values replace the estimates before the pull request opens.
 
@@ -335,7 +337,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - No behavior change: stable specifications return equal results cached or not; unstable ones are never cached.
 - The EF evaluator, SQL builders and MongoDB builder are not edited; includes are not cached (they act on an IQueryable).
-- Apply Design Choices 1 and 4 as the maintainer answers them; until then build the recommended option of each.
+- Apply Design Choices 1, 3, 4 and 5 as the maintainer answers them; until then build the recommended option of each.
 - No telemetry, no logs; zero warnings; CRAP of every method at most 10.
 
 REFERENCE FILES:
@@ -376,7 +378,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | `Encina.DomainModeling` `Specification<T>` | ✅ Available | Single file edited |
 | Benchmark project `Encina.Benchmarks` | ✅ Available | References `Encina.DomainModeling` (the EF benchmarks in the same project use specifications) |
-| Maintainer answers to Design Choices 1 and 4 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1, 3, 4 and 5 | Pending | Asked when work starts |
 
 No blocking prerequisites.
 
@@ -384,5 +386,5 @@ No blocking prerequisites.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 and 4) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs one worker for the single pull request.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 3, 4 and 5) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs one worker for the single pull request.
 2. After the pull request merges, comment on #706 with the measured benchmark so the maintainer can judge the gain for a specification created once and one evaluated in a loop.
