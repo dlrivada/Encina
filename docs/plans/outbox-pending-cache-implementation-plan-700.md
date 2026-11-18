@@ -12,7 +12,7 @@
 
 The outbox processor of every provider derives from `OutboxProcessorBase` (`src/Encina.Messaging/Outbox/OutboxProcessorBase.cs`). Each cycle creates a scope, resolves `IOutboxStore`, and `OutboxBatchProcessor.ProcessAsync` calls `GetPendingMessagesAsync(BatchSize, MaxRetries)` once (the only production caller; the other sites are `InstrumentedOutboxStore` and the fake). The loop then waits `OutboxOptions.ProcessingInterval` (default 30 seconds, `OutboxOptions.cs` line 16; the wait is the `Task.Delay` at `OutboxProcessorBase.cs` line 109). The issue asks for a cache decorator with a short TTL in front of that read.
 
-Re-checked against `origin/main` (d523eda92), the issue text does not fit the code in five places, and the plan resolves each one:
+Re-checked against `origin/main` (822c310c7), the issue text does not fit the code in five places, and the plan resolves each one:
 
 1. **The sketch is not the interface.** Every method returns `Task<Either<EncinaError, ...>>` and the batch is `IEnumerable<IOutboxMessage>`; the sketch returns `IReadOnlyList<IOutboxMessage>` and uses `GetOrSetAsync`, which cannot return a `Left`.
 2. **`Encina.Messaging` cannot host the decorator.** `Encina.Caching` references `Encina.Messaging` (`Encina.Caching.csproj`), so the decorator and its options live in `Encina.Caching` (the placement of the family, as in #695). There is no per-provider registration to write: `RegisterOutbox` (`MessagingServiceCollectionExtensions.cs` line 281) registers `IOutboxStore` once for all providers, so the acceptance criterion "Opt-in registration across all 13 providers" is met by that single registration, and the "13" is a leftover count: the matrix of AGENTS.md section 5 is the 10 database providers, all covered by the one call.
@@ -140,7 +140,7 @@ Re-checked against `origin/main` (d523eda92), the issue text does not fit the co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `StoreCacheKey.Build(prefix, null, "outbox", "empty", maxRetries)` (no tenant segment); the shared `StoreCacheTelemetry` with `store=outbox` and outcomes `hit`, `miss`, `skipped`, `failure`, plus the evictions counter; the shared log ids 350-353 of #695** | Injective by construction; nothing new to register; no key, id or content in a tag or log | The log lines cannot tell the outbox from the inbox beyond the `store` argument |
+| **A) `StoreCacheKey.Build(prefix, null, "outbox", ...)` with no tenant segment, whatever Design Choice 2 decides (under its option B the segments are `"empty", maxRetries` and the skipped-entry reason code is `not_empty`; under its option A they are `"pending", maxRetries, batchSize` and the reason codes are the ones of #695); the shared `StoreCacheTelemetry` with `store=outbox` and outcomes `hit`, `miss`, `skipped`, `failure`, plus the evictions counter; the shared log ids 350-353 of #695** | Injective by construction; nothing new to register; no key, id or content in a tag or log | The log lines cannot tell the outbox from the inbox beyond the `store` argument |
 | **B) New EventIds and a meter of its own** | More precise | Ids that duplicate the shared meaning; a second meter for the same concept |
 
 ### Chosen Option: **A - shared builder, shared telemetry, shared ids**
