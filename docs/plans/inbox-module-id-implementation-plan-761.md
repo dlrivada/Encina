@@ -12,7 +12,7 @@
 
 Make inbox idempotency per module: the same external message id handled by two modules is processed once by each, instead of module A's processing hiding it from module B. `IInboxMessage` gains a nullable `ModuleId`; the inbox key (the existing `MessageId` column) becomes module-qualified for a module row; the module is filled from the request that creates the row; every one of the 10 database providers persists it; `IInboxStore` gains one strict module-filtered query.
 
-**State of `origin/main` (`ec129cae5`), verified by reading and grep (corrects the issue text).**
+**State of `origin/main` (`02b88ba5b`), verified by reading and grep (corrects the issue text).**
 
 - The issue says "13 database providers" and `IModuleContext`. The matrix is 10 providers (`AGENTS.md` section 5): ADO.NET x3, Dapper x3, EF Core (one `Encina.EntityFrameworkCore` store class serves SQL Server, PostgreSQL and MySQL), MongoDB. There is no `IModuleContext`; the ambient module is `IModuleExecutionContext.CurrentModule` and #2442 adds the typed `IRequestContext.ModuleId`.
 - **The inbox is keyed by `MessageId` alone.** `IInboxStore` has eight members, five of them addressed by `messageId` (`GetMessageAsync`, `MarkAsProcessedAsync`, `CacheHandlerErrorAsync`, `MarkAsFailedAsync`, `RemoveExpiredMessagesAsync(ids)`); the table has `MessageId` as primary key (`NVARCHAR(255)` SQL Server, `VARCHAR(255)` MySQL, `TEXT` PostgreSQL with lower-case unquoted names such as `messageid`, `HasKey(x => x.MessageId)` with `HasMaxLength(255)` in EF Core, `[BsonId]` in MongoDB). There is no tenant, module or other dimension on the row (a `Metadata` JSON column holds the `InboxMetadata`, except in MongoDB, whose `InboxMessage` has no such field).
@@ -58,7 +58,7 @@ A wins when the module must be the module that really handles the request and no
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A module-qualified key in the existing `MessageId` column: `module:<length>:<module>:<messageId>` (the length is the decimal number of characters of the normalized module, so the key parses uniquely); a row without a module keeps the plain `MessageId`; a plain id that starts with `module:` is rejected (reserved prefix); the whole key must fit 255 characters (`encina.inbox.message_id_too_long` otherwise)** | Injective by construction (no two `(module, id)` pairs, and no host id, produce one key); no primary key change; all eight store members, the cache of #695, the locks of #714 and the claims of #2401 keep working with the key as their identity; dead letters fit their 256 limit; the raw id stays readable in the key | A host id starting with `module:` is refused; module rows accept a shorter external id (at least 115 characters with the longest module) |
+| **A) A module-qualified key in the existing `MessageId` column: `module:<length>:<module>:<messageId>` (the length is the decimal number of characters of the normalized module, so the key parses uniquely); a row without a module keeps the plain `MessageId`; a plain id that starts with `module:` is rejected (reserved prefix); the whole key must fit 255 characters (`inbox.message_id_too_long` otherwise)** | Injective by construction (no two `(module, id)` pairs, and no host id, produce one key); no primary key change; all eight store members, the cache of #695, the locks of #714 and the claims of #2401 keep working with the key as their identity; dead letters fit their 256 limit; the raw id stays readable in the key | A host id starting with `module:` is refused; module rows accept a shorter external id (at least 115 characters with the longest module) |
 | **B) A fixed-width key: `module:` plus the base64url SHA-256 of the same tuple** | No length limit; short keys | The raw id is no longer in the key (MongoDB has no `Metadata` field to keep it); only collision resistant, not injective by construction |
 | **C) A composite primary key `(MessageId, ModuleId)` with `ModuleId` stored as an empty string for host rows and `moduleId` parameters on the five keyed store members** | The relational design | Changes five members of `IInboxStore` on 12 implementers while #695, #714, #3440 and #2401 edit the same interface; `ModuleId` null versus empty differs per provider (NULLs in unique indexes); the issue asks for a nullable column |
 
@@ -66,7 +66,7 @@ A wins when the module must be the module that really handles the request and no
 
 ### Rationale
 
-A wins when the store contract must not move: it gives per-module idempotency by changing the key, one public helper, `InboxMessageKey.Create(moduleId, messageId)`, used by the orchestrator for every store call and for the dead letter `SourceMessageId`. B wins when external ids can be long and a length limit is unacceptable. C wins when a single query by the raw id across modules is required of the store itself. The `ModuleId` column is still stored (nullable, `VARCHAR(128)`) for the module-filtered query and operations. The reserved-prefix rejection returns `encina.inbox.reserved_message_id_prefix`, ADR-062 category `Validation`, and the length rejection `encina.inbox.message_id_too_long`, category `Validation`; neither carries the id. The tenant sibling #760 would add a tenant segment in the same helper with the same length-prefix rule, so two tenants or two modules can never map to one key; the reserved `default` tenant segment of tenant-qualified ids is #760's, and no tenant segment is built here.
+A wins when the store contract must not move: it gives per-module idempotency by changing the key, one public helper, `InboxMessageKey.Create(moduleId, messageId)`, used by the orchestrator for every store call and for the dead letter `SourceMessageId`. B wins when external ids can be long and a length limit is unacceptable. C wins when a single query by the raw id across modules is required of the store itself. The `ModuleId` column is still stored (nullable, `VARCHAR(128)`) for the module-filtered query and operations. The reserved-prefix rejection returns `inbox.reserved_message_id_prefix`, ADR-062 category `Validation`, and the length rejection `inbox.message_id_too_long`, category `Validation` (both follow the existing `inbox.*` codes of `InboxErrorCodes`, for example `inbox.missing_message_id`, and are added to `PublicAPI.Unshipped.txt` as the `const` lines `InboxErrorCodes.ReservedMessageIdPrefix` and `InboxErrorCodes.MessageIdTooLong`); neither carries the id. The tenant sibling #760 would add a tenant segment in the same helper with the same length-prefix rule, so two tenants or two modules can never map to one key; the reserved `default` tenant segment of tenant-qualified ids is #760's, and no tenant segment is built here.
 
 **Class:** Dilemma
 
@@ -209,7 +209,7 @@ Encina is pre-1.0 with no existing user and no migration support.
 <summary>Tasks</summary>
 
 1. `src/Encina.Messaging/Inbox/InboxMessageKey.cs` (public static): `const int MaxLength = 255`, `const string ReservedPrefix = "module:"`; `Either<EncinaError, string> Create(string? moduleId, string messageId)` (a null or blank module returns `messageId` after checking it does not start with the prefix; otherwise `module:<length>:<module>:<messageId>` with `moduleId` normalized through `MessagingModuleId.Normalize`; a key over `MaxLength` returns `inbox.message_id_too_long`); `bool TryParse(string key, out string? moduleId, out string messageId)` for tests and diagnostics.
-2. `src/Encina.Messaging/Inbox/InboxOrchestrator.cs`: `InboxMetadata.ModuleId` (`string?`), `InboxErrorCodes.ReservedMessageIdPrefix` and `InboxErrorCodes.MessageIdTooLong` (both `ErrorCategory.Validation`, set where the error is created with the categorized overload).
+2. `src/Encina.Messaging/Inbox/InboxOrchestrator.cs`: `InboxMetadata.ModuleId` (`string?`), `InboxErrorCodes.ReservedMessageIdPrefix` and `InboxErrorCodes.MessageIdTooLong` (both `ErrorCategory.Validation`, set where the error is created with the categorized overload; the values are `inbox.reserved_message_id_prefix` and `inbox.message_id_too_long`, and both constants get a `const` line in `src/Encina.Messaging/PublicAPI.Unshipped.txt`).
 3. Tests: unit (`InboxMessageKeyTests`: host id unchanged, module key shape, length prefix, reserved prefix rejected, 255 and 256 boundaries, `TryParse` round trip), guard (`Create` blank message id and null message id; a null module is a valid-result test), property (injective: for any two different `(module, id)` pairs the keys differ, `TryParse(Create(m, id)) == (normalize(m), id)`, and no plain id equals a module key).
 4. `PublicAPI.Unshipped.txt` and the `Encina.Messaging.json` manifest through `mechanical-fixer`.
 
@@ -522,7 +522,7 @@ REFERENCE FILES:
 
 ### Proposed split into pull requests (limit 15 files and 1500 lines each)
 
-Order rule (D5 option A): implementers first, interfaces last; every pull request builds, carries its own tests, `PublicAPI.Unshipped.txt` and manifest entries.
+Order rule (D5 option A): implementers first, interfaces last; every pull request builds, carries its own tests, `PublicAPI.Unshipped.txt` and manifest entries. Prerequisites outside this plan: pull request 1 needs #747 pull request 1 (`MessagingModuleId`, whose source Dilemma D3 is still pending there) and pull request 12 needs #2442 pull requests 1 and 2, so the chain is unbuildable until those land.
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
@@ -532,11 +532,11 @@ Order rule (D5 option A): implementers first, interfaces last; every pull reques
 | 9 | `Encina.MongoDB`: row, factory, store, index creator, PublicAPI, manifest, integration test, guard edit, factory test edit | 9 | 430 |
 | 10 | Fakes (2), Bogus faker, FsCheck arbitraries, 2 benchmark states, 1 unit test double, PublicAPI x2, manifests x3, 2 test edits | 14 | 520 |
 | 11 | `IInboxMessage`, `IInboxStore`, `InstrumentedInboxStore`, 2 store doubles, PublicAPI x2, manifests x2, 2 decorator test edits, contract test | 12 | 560 |
-| 12 | `InboxPipelineBehavior`, `InboxOrchestrator`, `InboxModuleLog`, `InboxActivitySource`, `EventIdRanges`, allocation map, PublicAPI, manifest, orchestrator and behavior unit tests, DI test, property test, behavior contract edit | 13 | 1,000 |
+| 12 | `InboxPipelineBehavior`, `InboxOrchestrator`, `InboxModuleLog`, `InboxActivitySource`, `EventIdRanges`, allocation map, PublicAPI of `Encina.Messaging` and PublicAPI of `Encina` (the `EventIdRanges.MessagingInboxModule` field line, AGENTS section 7), manifest, orchestrator and behavior unit tests, DI test, property test, behavior contract edit | 14 | 1,000 |
 | 13 | End-to-end integration test on 10 providers (4 files holding 10 classes, one `[Collection]` per class: ADO 3, Dapper 3, EF Core 3, MongoDB 1), 2 justification files | 6 | 600 |
 | 14 | Documentation: messaging guide, inventory line, changelog fragment | 3 | 200 |
 
-The recount: PRs 2 to 7 are one per package (6 pull requests, 11 files each = 66 file touches); the sequence is 1 to 14 (14 pull requests, 7 + 66 + 11 + 9 + 14 + 12 + 13 + 6 + 3 = 141 file touches; a file edited in several pull requests counts in each). PR 8 = 4 production + 1 PublicAPI + 1 manifest + 3 integration classes + 1 guard edit + 1 factory-test edit = 11; PR 12 = 6 production and registry files + 1 PublicAPI + 1 manifest + 2 unit test files + 1 DI test + 1 property test + 1 contract edit = 13. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again. The six providers of PRs 2 to 7 are independent and can be reviewed in parallel; PR 2 to 9 need PR 1; PR 11 needs PR 2 to 10; PR 12 needs PR 11 and #2442 pull requests 1 and 2.
+The recount: PRs 2 to 7 are one per package (6 pull requests, 11 files each = 66 file touches); the sequence is 1 to 14 (14 pull requests, 7 + 66 + 11 + 9 + 14 + 12 + 14 + 6 + 3 = 142 file touches; a file edited in several pull requests counts in each). PR 8 = 4 production + 1 PublicAPI + 1 manifest + 3 integration classes + 1 guard edit + 1 factory-test edit = 11; PR 12 = 6 production and registry files + 2 PublicAPI (`Encina.Messaging` and `Encina`) + 1 manifest + 2 unit test files + 1 DI test + 1 property test + 1 contract edit = 14. The 14-pull-request chain cannot be built until its prerequisites are on `main`: #747 pull request 1 (`MessagingModuleId`; its source Dilemma D3 is still pending there) before pull request 1 of this plan, and #2442 pull requests 1 and 2 before pull request 12; if either answer changes, the pull requests that call the prerequisite wait. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again. The six providers of PRs 2 to 7 are independent and can be reviewed in parallel; PR 2 to 9 need PR 1; PR 11 needs PR 2 to 10; PR 12 needs PR 11 and #2442 pull requests 1 and 2.
 
 ---
 
@@ -580,12 +580,12 @@ The recount: PRs 2 to 7 are one per package (6 pull requests, 11 files each = 66
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Messaging core, interfaces, decorator, behavior (PR 1, 11, 12) | 32 | 7 + 12 + 13, with their tests, PublicAPI and manifests |
+| Messaging core, interfaces, decorator, behavior (PR 1, 11, 12) | 33 | 7 + 12 + 14, with their tests, PublicAPI and manifests |
 | ADO.NET x3 and Dapper x3 (PR 2-7) | 66 | 6 x 11: row, factory, store, scripts, PublicAPI, manifest, integration, guard and factory-test edits |
 | EF Core and MongoDB (PR 8, 9) | 20 | 11 + 9 |
 | Fakes, fakers, doubles (PR 10) | 14 | |
 | End-to-end tests and documentation (PR 13, 14) | 9 | 6 + 3 |
-| **Total** | **141 file touches across 14 pull requests** | The sum of the rows of the split table is the authority |
+| **Total** | **142 file touches across 14 pull requests** | The sum of the rows of the split table is the authority |
 
 ### Provider Matrix
 
