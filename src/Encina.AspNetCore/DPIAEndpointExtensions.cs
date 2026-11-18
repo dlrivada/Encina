@@ -280,57 +280,25 @@ public static class DPIAEndpointExtensions
         // Resolve tenant/module context from HTTP headers
         var (tenantId, moduleId) = ResolveTenantModule(httpContext);
 
-        // Check if an assessment already exists for this request type
-        var existingResult = await service.GetAssessmentByRequestTypeAsync(decodedTypeName, cancellationToken);
-        var assessmentId = Guid.Empty;
-
-        var isExisting = existingResult.Match(
-            Right: existing => { assessmentId = existing.Id; return true; },
-            Left: _ => false);
-
-        if (!isExisting)
+        var assessment = await EnsureAssessmentAsync(
+            service, decodedTypeName, request?.ProcessingType, tenantId, moduleId, cancellationToken);
+        if (assessment.IsLeft)
         {
-            // Create a new assessment
-            var createResult = await service.CreateAssessmentAsync(
-                decodedTypeName,
-                request?.ProcessingType,
-                "Assessment triggered via REST endpoint.",
-                tenantId, moduleId,
-                cancellationToken);
-
-            var createdOk = createResult.Match(
-                Right: id => { assessmentId = id; return true; },
-                Left: _ => false);
-
-            if (!createdOk)
-            {
-                return FailWith(activity, startedAt, "assess", (EncinaError)createResult, httpContext, logger);
-            }
+            return FailWith(activity, startedAt, "assess", (EncinaError)assessment, httpContext, logger);
         }
 
         // Build assessment context
-        DPIATemplate? template = null;
-        if (request?.ProcessingType is not null)
-        {
-            var templateResult = await templateProvider
-                .GetTemplateAsync(request.ProcessingType, cancellationToken);
-
-            templateResult.Match(
-                Right: t => template = t,
-                Left: _ => { }); // Template not found is non-fatal
-        }
-
         var context = new DPIAContext
         {
             RequestType = resolvedType,
             ProcessingType = request?.ProcessingType,
             DataCategories = request?.DataCategories ?? [],
             HighRiskTriggers = request?.HighRiskTriggers ?? [],
-            Template = template,
+            Template = await FindTemplateAsync(templateProvider, request?.ProcessingType, cancellationToken),
         };
 
         // Evaluate via IDPIAService (which calls engine internally and persists)
-        var evalResult = await service.EvaluateAssessmentAsync(assessmentId, context, cancellationToken);
+        var evalResult = await service.EvaluateAssessmentAsync((Guid)assessment, context, cancellationToken);
 
         return evalResult.Match(
             Right: dpiaResult =>
@@ -338,10 +306,48 @@ public static class DPIAEndpointExtensions
                 RecordEndpointSuccess(activity, startedAt, "assess", logger);
                 return Results.Ok(dpiaResult);
             },
-            Left: error =>
-            {
-                return FailWith(activity, startedAt, "assess", error, httpContext, logger);
-            });
+            Left: error => FailWith(activity, startedAt, "assess", error, httpContext, logger));
+    }
+
+    /// <summary>
+    /// Returns the id of the assessment of a request type, creating it when none exists.
+    /// </summary>
+    private static async Task<Either<EncinaError, Guid>> EnsureAssessmentAsync(
+        IDPIAService service,
+        string requestTypeName,
+        string? processingType,
+        string? tenantId,
+        string? moduleId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await service.GetAssessmentByRequestTypeAsync(requestTypeName, cancellationToken);
+        if (existing.IsRight)
+        {
+            return ((DPIAReadModel)existing).Id;
+        }
+
+        return await service.CreateAssessmentAsync(
+            requestTypeName,
+            processingType,
+            "Assessment triggered via REST endpoint.",
+            tenantId, moduleId,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Looks up the template of a processing type; a missing template is non-fatal and answers <see langword="null"/>.
+    /// </summary>
+    private static async Task<DPIATemplate?> FindTemplateAsync(
+        IDPIATemplateProvider templateProvider, string? processingType, CancellationToken cancellationToken)
+    {
+        if (processingType is null)
+        {
+            return null;
+        }
+
+        var templateResult = await templateProvider.GetTemplateAsync(processingType, cancellationToken);
+
+        return templateResult.IsRight ? (DPIATemplate)templateResult : null;
     }
 
     /// <summary>
