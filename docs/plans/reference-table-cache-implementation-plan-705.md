@@ -12,7 +12,7 @@
 
 Reference tables (ADR-013, `src/Encina/Sharding/ReferenceTables`) are replicated from one primary shard to every other shard. The issue asks for a `CachedReferenceTableStore` decorator over `IReferenceTableStore.GetAllAsync` with a long TTL, invalidated through the CDC cache handler and broadcast through pub/sub.
 
-Re-checked against `origin/main` (d523eda92), the issue text does not fit the code in five places, and the plan resolves each one:
+Re-checked against `origin/main` (822c310c7), the issue text does not fit the code in five places, and the plan resolves each one:
 
 1. **The sketch is not the interface.** `IReferenceTableStore.GetAllAsync<TEntity>(CancellationToken)` takes no `shardId`, returns `Task<Either<EncinaError, IReadOnlyList<TEntity>>>` and operates on one shard connection; a store is created per shard by `IReferenceTableStoreFactory.CreateForShard(connectionString)`.
 2. **Decorating the store would serve stale data to the replicator.** The only production callers of the store reads are the replication path: `ReferenceTableReplicator.ReplicateEntityAsync` reads the primary with `GetAllAsync` (line 158) and `PollingRefreshDetector` compares `GetHashAsync` (line 82). A cached `GetAllAsync` would replicate stale rows to every shard, and a cached `GetHashAsync` can never detect a change inside the TTL. No other component reads reference data through `IReferenceTableStore`; applications read their local replica with ordinary repositories. The cache that has value is a new read API for application reads (Design Choice 1).
@@ -130,7 +130,7 @@ Re-checked against `origin/main` (d523eda92), the issue text does not fit the co
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** `PollingRefreshDetector.cs` (the hash of the primary store is read through `GetHashAsync`, invoked by reflection at line 145, to compare with the stored state, so the hash must be fresh), `EntityMetadataCache.cs` (a `ConcurrentDictionary` of reflection metadata), #705 acceptance criterion "Long default TTL (configurable, default 1 hour)", and AGENTS.md section 3 (errors never swallowed: the inner `Left` is returned as it is and never cached). The range 1 minute to 7 days is the plan's own bound, enforced by the setter (invalid values throw `ArgumentOutOfRangeException`).
+- **Settled by:** `PollingRefreshDetector.cs` (the hash of the primary store is read through `GetHashAsync`, invoked by reflection at line 145, to compare with the stored state, so the hash must be fresh), `EntityMetadataCache.cs` (a `ConcurrentDictionary` of reflection metadata), #705 acceptance criterion "Long default TTL (configurable, default 1 hour)", and AGENTS.md section 3 (errors never swallowed: the inner `Left` is returned as it is and never cached). The valid range of `Duration` is decided in Design Choice 7.
 - The TTL bound: `Duration` is the worst-case staleness for an instance that misses both the replicator hook and the broadcast (a direct database change that no strategy sees, or a manual table); the documentation says so.
 
 </details>
@@ -142,7 +142,7 @@ Re-checked against `origin/main` (d523eda92), the issue text does not fit the co
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The shared `StoreCacheLog` ids 350-353 for read, write and eviction failures with `store=ref_table`; a new range `CachingReferenceTables = (420, 434)` from the family block 400-449 with ids 420-424 for the broadcast and the subscriber; the shared `StoreCacheTelemetry` counters with `store=ref_table` (local) and `store=ref_table_broadcast` (received)** | No duplicated ids; the new range holds only what is new | One registry entry and an allocation-test mapping |
+| **A) The shared `StoreCacheLog` ids 350-353 for read, write and eviction failures with `store=ref_table`; a new range `CachingReferenceTables = (420, 434)` from the family block 400-449 with ids 420-424 for the broadcast and the subscriber, registered only if Design Choice 3 keeps option A (under its option B only id 420, publish failed, exists, and under option C no id and no range are registered; the tag value `ref_table_broadcast` exists only under option A); the shared `StoreCacheTelemetry` counters with `store=ref_table` (local) and `store=ref_table_broadcast` (received)** | No duplicated ids; the new range holds only what is new | One registry entry and an allocation-test mapping |
 | **B) A separate range and meter for everything** | Self-contained | Duplicates the shared failure ids and a second meter for the same concept |
 
 ### Chosen Option: **A - shared ids plus a small new range**
@@ -156,7 +156,7 @@ Re-checked against `origin/main` (d523eda92), the issue text does not fit the co
 </details>
 
 <details>
-<summary><strong>7. Cache failure semantics</strong></summary>
+<summary><strong>7. Cache failure semantics and the TTL range</strong></summary>
 
 ### Options Considered
 
@@ -170,6 +170,7 @@ Re-checked against `origin/main` (d523eda92), the issue text does not fit the co
 ### Rationale
 
 - The same question is Design Choice 6 of #695, a Dilemma there too; this plan records its own entry so that it does not depend on that answer, and the maintainer's answers should match. A wins for availability; B wins in deployments that prefer a loud failure to a silent loss of the optimization. A `Left` from the store is never swallowed or cached under either option.
+- The valid range of `ReferenceTableCachingOptions.Duration`, 1 minute to 7 days (default 1 hour from the issue), is the plan's own bound and is asked here with the same answer: a narrower range (1 minute to 24 hours) wins where a day is the longest staleness an operator accepts; the wider range wins for lists that change a few times a year.
 - Class: Dilemma
 
 </details>
