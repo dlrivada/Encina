@@ -2,7 +2,7 @@
 
 > **Issue**: [#704](https://github.com/dlrivada/Encina/issues/704)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 6 pull requests of 9, 13, 9, 6, 13 and 4 files)
+> **Complexity**: High (7 phases, 6 pull requests of 9, 13, 9, 6, 12 and 4 files)
 > **Estimated Scope**: about 900 lines of production code (about 150 lines of Lua and script glue), about 1800 lines of tests
 > **Milestone**: v0.18.0 - Integration & Platform Capabilities (caching, resilience)
 
@@ -14,7 +14,7 @@
 
 The maintainer changed the design before this plan: SPIKE #2691 decision **R8, option 8b** (2026-10-24, ADR-055 section R8, recorded as a comment on #704): a new abstraction `IRateLimiterStateStore`, implemented in each cache package with its best atomic operation (Lua scripts in the Redis family, compare-and-swap in Memcached, local state in Memory and the Hybrid L1), `ICacheProvider` unchanged, a fall back to the local limiter with a log entry when the cache fails, counter keys that carry only type, tenant and client, and no personal data. The issue's own sketch is also wrong on its own terms: `GetOrSetAsync` followed by `SetAsync` loses updates between instances, which is exactly why R8 rejected option 8a.
 
-Re-checked against `origin/main` (ec129cae5), the code and the decisions leave five facts that shape this plan:
+Re-checked against `origin/main` (d523eda92), the code and the decisions leave five facts that shape this plan:
 
 1. **The consumer does not exist yet.** `Encina.Resilience` and the partitioned rate-limiting core of #2414 (decisions D1 = 1a, D2 = 2a, D3 = 3a, 2026-10-23) are not in `src/`; `IRateLimiter` is still the `Encina.Polly` interface. This plan delivers the **state store**, its **fallback** and its **implementations** and proves them with a contract suite; wiring a limiter to the store belongs to the partitioned-core work of #2414 (the open issue #740, tenant-scoped rate limiting, applies its tenant partition) and is not planned here.
 2. **The store must not decide the partition.** The bucket partition (request type, tenant, principal) is the open SPIKE #3448 (`needs-decision`) and #2414 D3 (type by tenant, fail closed). The store therefore takes an opaque, already composed partition: an optional tenant id and a scope string. Whatever #3448 decides, the store does not change.
@@ -118,7 +118,7 @@ Re-checked against `origin/main` (ec129cae5), the code and the decisions leave f
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ResilientRateLimiterStateStore` decorator: on a `Left` or an exception from the primary store it serves the call from an `InProcessRateLimiterStateStore` and logs once on the switch (event 400); it probes the primary again after `RetryPrimaryAfter` (default 5 seconds) and logs the recovery (event 401); the failure is counted every time** | The requirement of R8 and of #704 ("falls back to the local limiter and logs it"); a dead cache is not called on every request (no added latency); the same algorithm runs locally, so the semantics do not change, only the scope (per instance) | While on the fallback the effective limit is N times the configured one again, which is the documented price |
+| **A) `ResilientRateLimiterStateStore` decorator: on an infrastructure failure of the primary store (a `Left` with `encina.ratelimit.state_store_failed`, or an exception other than cancellation) it serves the call from an `InProcessRateLimiterStateStore`; a `Left` with `encina.ratelimit.partition_invalid` is a caller error, is returned as it is and never switches the decorator and logs once on the switch (event 400); it probes the primary again after `RetryPrimaryAfter` (default 5 seconds) and logs the recovery (event 401); the failure is counted every time** | The requirement of R8 and of #704 ("falls back to the local limiter and logs it"); a dead cache is not called on every request (no added latency); the same algorithm runs locally, so the semantics do not change, only the scope (per instance) | While on the fallback the effective limit is N times the configured one again, which is the documented price |
 | **B) Propagate the `Left`** | No hidden degradation | A cache outage turns into a request outage or, with a fail-closed consumer, a denial of every request |
 | **C) Fail open: admit every request while the cache is down** | Never blocks traffic | Disables the security control during an outage (#2414 D3 treats rate limiting as a security control) |
 
@@ -171,22 +171,62 @@ Re-checked against `origin/main` (ec129cae5), the code and the decisions leave f
 </details>
 
 <details>
-<summary><strong>8. Errors, telemetry and EventIds</strong></summary>
+<summary><strong>8. Error codes, EventIds and where they are emitted</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Two codes in the core: `encina.ratelimit.state_store_failed` (`ErrorCategory.Internal`, ADR-062 rule R4: a provider failure or an unexpected script reply) and `encina.ratelimit.partition_invalid` (`ErrorCategory.Validation`); a new range `RateLimiterState = (400, 419)` from the family block 400-449 with ids 400-402; counter `encina.ratelimit.state_store.operations` with `operation`, `outcome` and `store` tags on the core `Encina` meter; the tenant id is a tag only when a tenant is present** | Categorised codes (ADR-062); ids registered first and packed (ADR-021); the tenant tag follows ADR-054 D4 | The tenant tag raises cardinality (documented by #906) |
-| **B) Reuse `store_cache.failed` of #695** | No new code | That code lives in `Encina.Caching`, which the core cannot reference; it would also mislabel a limiter failure as a messaging store failure |
+| **A) Two codes in the core: `encina.ratelimit.state_store_failed` (`ErrorCategory.Internal`, ADR-062 rule R4: a provider failure or an unexpected script reply) and `encina.ratelimit.partition_invalid` (`ErrorCategory.Validation`), built by a **public** static `RateLimiterStateStoreErrors` so `Encina.Caching.Redis` can return them; a new range `RateLimiterState = (400, 419)` from the family block 400-449 with ids 400 and 401, both emitted by the decorator in the core assembly, so the allocation-test mapping of `Encina` covers them; the Redis store logs nothing and records no metric, it returns `Left` and the decorator logs and counts** | Categorised codes (ADR-062); ids registered first and packed (ADR-021); no `InternalsVisibleTo` entry and no event emitted from an assembly outside the mapping | One public static class (PublicAPI lines) |
+| **B) Keep the errors, log and telemetry `internal` and add `InternalsVisibleTo` for `Encina.Caching.Redis` plus a mapping of that assembly to the range** | Nothing public | A new IVT of the core for one package, and an allocation-test mapping of a second assembly to a core range |
+| **C) Reuse `store_cache.failed` of #695** | No new code | That code lives in `Encina.Caching`, which the core cannot reference; it would also mislabel a limiter failure as a messaging store failure |
 
-### Chosen Option: **A - two core codes, a small new range**
+### Chosen Option: **A - public error factory, ids emitted only by the core decorator**
 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** ADR-062 (every new error code states its `ErrorCategory`, rule R4 for provider failures), AGENTS.md section 7 and ADR-021 (a range is registered in `EventIdRanges.cs` before use, ids packed), the family block 400-449 of the plan batch registry, and ADR-054 D4 and D6 (the tenant tag only when multi-tenancy is on; no scope, key or client identifier in a tag, log or span). B is impossible (the core cannot reference `Encina.Caching`).
-- Event ids: 400 primary store failed and the decorator switched to the fallback (Warning), 401 primary store recovered (Information), 402 unexpected script reply (Error, by exception type or reply shape, never the reply text). Exceptions through `ForLogging()`.
+- **Settled by:** ADR-062 (every new error code states its `ErrorCategory`, rule R4 for provider failures), AGENTS.md section 7 and ADR-021 (a range is registered in `EventIdRanges.cs` before use, ids packed, each id emitted by the assembly the range is mapped to), and the family block 400-449 of the plan batch registry. `src/Encina/Encina.csproj` has no `InternalsVisibleTo` for `Encina.Caching.Redis`, so an internal type cannot be used by the Redis store, and C is impossible (the core cannot reference `Encina.Caching`). B is possible but adds a core IVT and a second mapped assembly for the sake of three internal types, so A is the option that needs neither.
+- Event ids: 400 primary store failed and the decorator switched to the fallback (Warning), 401 primary store recovered (Information). Exceptions through `ForLogging()`; an unexpected script reply is a `Left` with the code, counted by the decorator.
+
+</details>
+
+<details>
+<summary><strong>9. Scope of this issue: the store, or also the limiter that uses it</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The store, its fallback and its implementations only; the limiter that consumes them (coordinated counting end to end, the opt-in over the local limiter, the adaptive state machine or SRE rejection, the shared error rate) is a follow-up issue to be opened (draft: `artifacts/issues/distributed-rate-limiter-on-state-store.md`)** | Buildable and testable today (the consumer package and the #2414 decisions on the core are not in `src/`); the partition is still open (#3448, `needs-decision`); one pull request series per concern | The issue's `DistributedAdaptiveRateLimiter`, three-state machine, shared error-rate and "local limiter stays the default" criteria are met only when the follow-up lands; the issue closes only with it |
+| **B) Also wire the existing `Encina.Polly` `AdaptiveRateLimiter` to the store now (a `DistributedAdaptiveRateLimiter : IRateLimiter` with the state machine over the shared counters)** | Meets the issue's criteria as written | Builds on a limiter that #2414 D1 and ADR-055 R1 replace completely (`Encina.Polly` is removed), and on a partition (#3448) that is undecided; the work would be discarded |
+| **C) A, plus the state machine as a decorator over the store inside this issue** | Delivers the shared error-rate and the three states without waiting for the core | The issue's three-state machine conflicts with #2414 D2 (SRE-style probabilistic rejection counting transient errors only); building it first fixes a design the decision replaces |
+
+### Chosen Option: **A - the store and its implementations, with the consumer as a follow-up issue** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins only if the maintainer wants a working distributed limiter on `Encina.Polly` before the resilience consolidation lands and accepts discarding it; C wins if the maintainer decides the adaptive rule now and wants it inside this issue; A wins because everything the store provides is needed by any of the other designs and nothing is discarded. The issue's acceptance criteria that A defers are listed in the follow-up draft, so none is dropped silently; #704 stays open until that follow-up (or the maintainer's decision to split the issue) is recorded.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Metric names and tags</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Counter `encina.ratelimit.state_store.operations` on a new `Meter` named `Encina` with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present; no scope, key hash or client identifier** | Lowercase dotted names under the existing `encina.ratelimit.*` family; the tenant tag only when multi-tenancy is on | The tenant tag raises cardinality (documented by #906) |
+| **B) No tenant tag at all** | No cardinality risk | Breaks the rule that the tenant is a tag when multi-tenancy is on |
+
+### Chosen Option: **A - one counter, three tags**
+
+### Rationale
+
+- **Class:** Trivial
+- **Settled by:** ADR-055 settled-points table (telemetry follows ADR-054: one `Meter` named `Encina.<Package>`, lowercase dotted instrument names, tenant tag only when multi-tenancy is on, error code or exception type only) and ADR-054 D4 and D6 (no key, scope or client identifier in a tag, log or span); the instrument name extends the `encina.ratelimit.exceeded` family of #2414. The tag values are fixed sets, so cardinality is bounded except for the tenant tag.
 
 </details>
 
@@ -205,7 +245,7 @@ PR 1 holds exactly these 9 files:
 |---|------|--------|
 | 1 | `src/Encina/RateLimiting/IRateLimiterStateStore.cs` | new (public interface and its records: `RateLimiterPartition`, `SlidingWindowResult`, `OutcomeCounts`, `RateLimiterOutcome`) |
 | 2 | `src/Encina/RateLimiting/InProcessRateLimiterStateStore.cs` | new (public sealed) |
-| 3 | `src/Encina/RateLimiting/RateLimiterStateStoreErrors.cs` | new (internal; the two codes with their categories) |
+| 3 | `src/Encina/RateLimiting/RateLimiterStateStoreErrors.cs` | new (public static; the two codes with their categories, so `Encina.Caching.Redis` can return them, Design Choice 8) |
 | 4 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 5 | `tests/Encina.UnitTests/RateLimiting/InProcessRateLimiterStateStoreTests.cs` | new |
 | 6 | `tests/Encina.GuardTests/Core/RateLimiting/RateLimiterStateStoreGuardTests.cs` | new |
@@ -263,7 +303,7 @@ PR 2 holds exactly these 13 files:
 |---|------|--------|
 | 1 | `src/Encina/RateLimiting/ResilientRateLimiterStateStore.cs` | new (public sealed decorator) |
 | 2 | `src/Encina/RateLimiting/RateLimiterStateStoreOptions.cs` | new (public: `RetryPrimaryAfter`) |
-| 3 | `src/Encina/RateLimiting/RateLimiterStateStoreLog.cs` | new (internal; ids 400-402) |
+| 3 | `src/Encina/RateLimiting/RateLimiterStateStoreLog.cs` | new (internal; ids 400-401) |
 | 4 | `src/Encina/RateLimiting/RateLimiterStateTelemetry.cs` | new (internal; the counter of Phase 6) |
 | 5 | `src/Encina/RateLimiting/RateLimiterStateServiceCollectionExtensions.cs` | new (public `AddEncinaRateLimiterStateFallback`) |
 | 6 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`RateLimiterState = (400, 419)`) |
@@ -277,10 +317,10 @@ PR 2 holds exactly these 13 files:
 
 Tasks:
 
-1. **Register** `RateLimiterState = (400, 419)` first and map `Encina` to it in the allocation test; ids packed: 400, 401, 402 (Design Choice 8).
+1. **Register** `RateLimiterState = (400, 419)` first and map `Encina` to it in the allocation test; ids packed: 400, 401 (Design Choice 8).
 2. **Create** `ResilientRateLimiterStateStore(IRateLimiterStateStore primary, IRateLimiterStateStore fallback, IOptions<RateLimiterStateStoreOptions> options, TimeProvider timeProvider, ILogger<ResilientRateLimiterStateStore> logger)`: every call goes to the primary unless the decorator is in the fallback state and the probe time has not arrived; a `Left` or an exception from the primary (cancellation excepted: it propagates) switches to the fallback, logs event 400 once, counts the failure and serves the call from the fallback; after `RetryPrimaryAfter` the next call probes the primary and, on success, logs 401. State is two fields (`Volatile`), no timer, no lock on the hot path.
 3. **Create** `AddEncinaRateLimiterStateFallback(this IServiceCollection services, Action<RateLimiterStateStoreOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; registers `InProcessRateLimiterStateStore` as the fallback (keyed internally, never as the public `IRateLimiterStateStore`), `Configure<RateLimiterStateStoreOptions>`, `TryAddSingleton(TimeProvider.System)`, and decorates the registered `IRateLimiterStateStore` with the resilient store; it throws `InvalidOperationException` at registration when no store is registered (call it after the cache package registration). All services are singletons, so no scoped service is captured.
-4. **Tests (unit)**: primary success never touches the fallback; a `Left` and a throwing primary switch and log once; further calls inside the probe interval do not call the primary; after the interval the probe succeeds and logs recovery; a failing probe stays on the fallback and resets the interval; cancellation propagates and does not switch; a request over the limit is still denied on the fallback; the logs never contain the scope.
+4. **Tests (unit)**: primary success never touches the fallback; a `Left` with `state_store_failed` and a throwing primary switch and log once; a `Left` with `partition_invalid` is returned as it is, does not switch, does not log and is not counted as a failure; further calls inside the probe interval do not call the primary; after the interval the probe succeeds and logs recovery; a failing probe stays on the fallback and resets the interval; cancellation propagates and does not switch; a request over the limit is still denied on the fallback; the logs never contain the scope.
 5. **Tests (guard)** and the **DI test**: the registration builds with `ValidateOnBuild` and `ValidateScopes`, the missing-store case throws at registration, and calling it twice decorates once.
 6. **Manifest, PublicAPI and changelog** through `mechanical-fixer` (fragment: "Added `IRateLimiterStateStore`, an in-process implementation and `AddEncinaRateLimiterStateFallback`, the shared state abstraction for distributed rate limiting").
 
@@ -295,14 +335,14 @@ PR 1 of issue #704 is merged: IRateLimiterStateStore, InProcessRateLimiterStateS
 failure falls back to the local limiter and is logged.
 
 TASK:
-1. Register EventIdRanges.RateLimiterState = (400, 419) first and map it in EncinaEventIdAllocationTests; write RateLimiterStateStoreLog (400-402).
+1. Register EventIdRanges.RateLimiterState = (400, 419) first and map it in EncinaEventIdAllocationTests; write RateLimiterStateStoreLog (400-401).
 2. Create ResilientRateLimiterStateStore, its options and AddEncinaRateLimiterStateFallback as described in the plan.
 3. Write the unit, guard and DI tests; ask mechanical-fixer for the PublicAPI lines, the manifest and the changelog fragment.
 
 KEY RULES:
 - No timer and no background loop: the probe is a timestamp comparison, so nothing can throw on a background thread.
 - Cancellation propagates; every other failure is counted, logged by exception type through ForLogging(), and served by the fallback.
-- No scope, tenant value or client identifier in a log or tag. Ids 400-402 only, packed.
+- No scope, tenant value or client identifier in a log or tag. Ids 400-401 only, packed.
 - Singletons only. Zero warnings; CRAP of every method at most 10.
 
 REFERENCE FILES:
@@ -334,7 +374,7 @@ PR 3 holds exactly these 9 files:
 
 Tasks:
 
-1. **Create** `RedisRateLimiterStateStore(IConnectionMultiplexer connection, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider, ILogger<...> logger)`. Each operation is one `IDatabase.ScriptEvaluateAsync` of a prepared script with **one key** (so a Redis Cluster slot is never crossed): the sliding-window acquire (sorted set of admitted permits scored by the caller's millisecond clock; remove entries older than the window, count, admit all permits or none, set the key expiry to the window, return admitted flag, count and retry-after), the outcome counter (a hash of window buckets, increments and removes expired buckets in one script), the counts read and the reset. Keys from `StoreCacheKey.Build(KeyPrefix, tenantId, "rate-limit", hash)`, the hash from Design Choice 4. A reply that is not the expected shape returns `Left` `state_store_failed` and logs event 402 by shape, never by content.
+1. **Create** `RedisRateLimiterStateStore(IConnectionMultiplexer connection, IOptions<CachingOptions> cachingOptions, TimeProvider timeProvider)` (no logger and no telemetry: the decorator in the core logs and counts, Design Choice 8). Each operation is one `IDatabase.ScriptEvaluateAsync` of a prepared script with **one key** (so a Redis Cluster slot is never crossed): the sliding-window acquire (sorted set of admitted permits scored by the caller's millisecond clock; remove entries older than the window, count, admit all permits or none, set the key expiry to the window, return admitted flag, count and retry-after), the outcome counter (a hash of window buckets, increments and removes expired buckets in one script), the counts read and the reset. Keys from `StoreCacheKey.Build(KeyPrefix, tenantId, "rate-limit", hash)`, the hash from Design Choice 4. A reply that is not the expected shape returns `Left` `state_store_failed` (built by the public `RateLimiterStateStoreErrors`); the decorator logs it by error code, never by content.
 2. **Registration**: the existing `AddEncinaRedisCache` path registers it with `TryAdd`, so an application's own store wins and `AddEncinaValkeyCache`, `AddEncinaDragonflyCache`, `AddEncinaGarnetCache` and `AddEncinaKeyDbCache` (which call it) need no change.
 3. **Tests (unit)**: with a substitute `IDatabase`, the arguments passed to the script (one key, millisecond clock from the fake time provider, window, limit, permits), parsing of each reply shape, an unexpected reply, a throwing database returns `Left` and never throws, cancellation propagates, keys of a tenant, no tenant and the tenant `default` differ, and two scopes hash to different keys. The Lua text itself is exercised by the integration run of PR 5 (the unit flag cannot execute Lua; the manifest justification says so).
 4. **Guard tests**: constructor null checks, `partition` and option validation returning `Left`.
@@ -419,7 +459,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 5 holds exactly these 13 files:
+PR 5 holds exactly these 12 files (the existing `RedisFixture.Connection` is already public, so that fixture is not edited):
 
 | # | File | Change |
 |---|------|--------|
@@ -428,8 +468,7 @@ PR 5 holds exactly these 13 files:
 | 3-6 | `tests/Encina.IntegrationTests/Infrastructure/Caching/{Valkey,Dragonfly,Garnet,KeyDb}RateLimiterStateStoreTests.cs` | new (4) |
 | 7-10 | `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/{Valkey,Dragonfly,Garnet,KeyDb}Fixture.cs` | new (4: a Testcontainers generic container of the vendor image with the Redis wire port, tag pinned in the fixture) |
 | 11 | `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisCompatibleCollections.cs` | new (the four collection definitions) |
-| 12 | `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisFixture.cs` | modify (exposes the connection for the shared suite; no behavior change) |
-| 13 | `.github/coverage-manifest/Encina.Caching.Redis.json` | modify (`mechanical-fixer`: the integration targets) |
+| 12 | `.github/coverage-manifest/Encina.Caching.Redis.json` | modify (`mechanical-fixer`: the integration targets) |
 
 Scenarios, run once per product (Redis, Valkey, Dragonfly, Garnet, KeyDB): the PR 1 contract behaviors; two independent `RedisRateLimiterStateStore` instances over two connections admit at most the limit in total (the multi-instance coordination the issue asks for); the key expires with the window; `ResetAsync` clears; a killed connection makes the resilient decorator fall back and recover when the container is back (decorator over the real store). `Encina.IntegrationTests` already references `Encina.Caching.Redis`, `Encina.Caching.Valkey` and the other wrapper packages are not needed: the wrappers only call `AddEncinaRedisCache`, so the tests construct the store against each product's container.
 
@@ -468,8 +507,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Telemetry** (`RateLimiterStateTelemetry`, internal, in the core `Encina` meter and the existing `ActivitySource` "Encina" of `EncinaDiagnostics`): counter `encina.ratelimit.state_store.operations` with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (a fixed set: `in_process`, `redis`); the tenant id is a tag only when a tenant is present (ADR-054 D4, the cardinality is documented by #906); no scope, key hash or client identifier in a tag or span (ADR-054 D6). The recording class is part of PR 2 (its decorator is the first caller) and PR 3 (the Redis store).
-2. **Logs**: ids 400-402 only (Design Choice 8); no scope or key in a message; exceptions through `ForLogging()`.
+1. **Telemetry** (`RateLimiterStateTelemetry`, internal, in the core `Encina` meter and the existing `ActivitySource` "Encina" of `EncinaDiagnostics`): counter `encina.ratelimit.state_store.operations` with tags `operation` (`acquire`, `record`, `read`, `reset`), `outcome` (`ok`, `denied`, `failure`, `fallback`) and `store` (the primary store's type name); the tenant id is a tag only when a tenant is present (ADR-054 D4, the cardinality is documented by #906); no scope, key hash or client identifier in a tag or span (ADR-054 D6). Only the decorator of PR 2 records it, so the Redis store needs no access to the internal class (Design Choices 8 and 10).
+2. **Logs**: ids 400-401 only (Design Choice 8); no scope or key in a message; exceptions through `ForLogging()`.
 3. **Error codes**: `encina.ratelimit.state_store_failed` (`ErrorCategory.Internal`) and `encina.ratelimit.partition_invalid` (`ErrorCategory.Validation`), both with the category passed explicitly (ADR-062). Nothing is added to the consumer's `encina.ratelimit.exceeded`.
 4. **Coverage targets** (per file, per flag; baseline: the new files do not exist; the manifest targets today are `Encina` unit 70, guard 20, contract 15, `Encina.Caching.Redis` guard 20, unit 60, integration 29, and Memory and Hybrid as in their manifests; measured values replace the estimates before each pull request opens, with the commands of AGENTS.md section 9):
 
@@ -479,7 +518,11 @@ REFERENCE FILES:
 | `RateLimiting/IRateLimiterStateStore.cs` | 1 | 90 | 50 | 0 | 0 | 0 | Records and their equality and validation; the interface has no executable code |
 | `RateLimiting/ResilientRateLimiterStateStore.cs` | 2 | 95 | 70 | 0 | 0 | 40 | Switch, probe, recovery and cancellation unit tested; guard tests reach the constructor checks; the PR 5 run reaches a real failure and recovery |
 | `RateLimiting/RateLimiterStateServiceCollectionExtensions.cs` | 2 | 95 | 90 | 0 | 0 | 0 | DI test and guard tests reach every line |
-| `RateLimiting/RateLimiterStateStoreLog.cs`, `RateLimiterStateStoreErrors.cs` | 2 | 90 | 0 | 0 | 0 | 0 | Asserted through the decorator tests; internal types without `InternalsVisibleTo` for `Encina.GuardTests` |
+| `RateLimiting/RateLimiterStateStoreLog.cs`, `RateLimiterStateTelemetry.cs` | 2 | 90 | 0 | 0 | 0 | 0 | Asserted through the decorator tests with a fake logger and a meter listener; internal types without `InternalsVisibleTo` for `Encina.GuardTests` |
+| `RateLimiting/RateLimiterStateStoreErrors.cs` | 1 | 100 | 0 | 0 | 0 | 0 | Two factories asserted by the in-process store and decorator tests; the guard flag has no parameter to check |
+| `RateLimiting/RateLimiterStateStoreOptions.cs` | 2 | 100 | 100 | 0 | 0 | 0 | The setter validation of `RetryPrimaryAfter` is reachable from both flags |
+| `ServiceCollectionExtensions.cs` of `Encina.Caching.Redis` (the added registration) | 3 | 90 | 0 | 0 | 0 | 40 | The registration test resolves the store through the five wrapper extensions; the guard flag already covers the existing method; the PR 5 run builds the store through it |
+| `ServiceCollectionExtensions.cs` of `Encina.Caching.Memory` and of `Encina.Caching.Hybrid` (the added registration) | 4 | 90 | 0 | 0 | 0 | 0 | The registration tests resolve the in-process store with `ValidateOnBuild` and run the contract suite; no new parameter |
 | `RateLimiting/RedisRateLimiterStateStore.cs` (`Encina.Caching.Redis`) | 3 (integration in 5) | 85 | 60 | 0 | 0 | 80 | Argument building and reply parsing unit tested with a substitute database; the Lua text is executable only against a server, which the PR 5 run does for five products |
 | `RateLimiting/RateLimiterScripts.cs` (`Encina.Caching.Redis`) | 3 (integration in 5) | 0 | 0 | 0 | 0 | 80 | Constants only: no unit-executable code; the integration run executes every script |
 
@@ -496,11 +539,11 @@ The state store of issue #704 exists in PR 1 to PR 5. Telemetry, logs, error cod
 introduces each caller and are measured per flag.
 
 TASK:
-Add RateLimiterStateTelemetry in PR 2 and its use in PR 3; run each flag's test project with coverage, compare with the plan's targets, and
+Add RateLimiterStateTelemetry in PR 2 (only the decorator records it); run each flag's test project with coverage, compare with the plan's targets, and
 record the targets and one-sentence justifications through mechanical-fixer.
 
 KEY RULES:
-- EventIds only 400-402, registered first. Both error codes name their ErrorCategory with the category: argument.
+- EventIds only 400-401, registered first. Both error codes name their ErrorCategory with the category: argument.
 - No scope, key, hash, client identifier or tenant value in a log, tag or span except the tenant tag when a tenant is present.
 - Documentation never types coverage figures.
 
@@ -587,17 +630,17 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (new range `RateLimiterState`) | 400-419 (from the family block 400-449) | 400-402 used by this plan; 403-419 free; 420-434 are #705 |
+| `Encina` (new range `RateLimiterState`) | 400-419 (from the family block 400-449) | 400-401 used by this plan; 402-419 free; 420-434 are #705 |
 
 ### Estimated File Count
 
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 10 | 4 | New: interface and records, in-process store, errors, decorator, options, log, telemetry, extension, Redis store, scripts; modified: `EventIdRanges.cs`, and the `ServiceCollectionExtensions.cs` of `Encina.Caching.Redis`, `.Memory` and `.Hybrid` |
-| Tests | 24 | 3 | New: unit, guard, contract, property (PR 1); decorator unit and DI (PR 2); Redis unit, guard and registration (PR 3); two registration tests (PR 4); suite, five product classes, four fixtures, collections (PR 5); benchmark and load test (PR 6); modified: the allocation test, the Guard file of PR 1 (PR 2), `RedisFixture.cs` |
+| Tests | 24 | 2 | New: unit, guard, contract, property (PR 1); decorator unit and DI (PR 2); Redis unit, guard and registration (PR 3); two registration tests (PR 4); suite, five product classes, four fixtures, collections (PR 5); benchmark and load test (PR 6); modified: the allocation test, the Guard file of PR 1 (PR 2) |
 | Documentation | 1 | 1 | feature page; `INVENTORY.md` |
 | Configuration | 2 | 6 | Changelog fragments (2); manifests (`Encina`, `Encina.Caching.Redis`, `.Memory`, `.Hybrid`), PublicAPI (`Encina`, `Encina.Caching.Redis`) |
-| **Total** | **37** | **14** | 6 pull requests: 9, 13, 9, 6, 13 and 4 files (54 file touches: 51 distinct files, because the `Encina` manifest and PublicAPI file and the Redis manifest are touched in two pull requests each), each at most 15 files and about 900 lines |
+| **Total** | **37** | **13** | 6 pull requests: 9, 13, 9, 6, 12 and 4 files (53 file touches: 50 distinct files, because the `Encina` manifest and PublicAPI file and the Redis manifest are touched in two pull requests each), each at most 15 files and about 900 lines |
 
 ---
 
@@ -615,7 +658,7 @@ IRateLimiterStateStore implemented per cache, with a fallback to a local store o
 IMPLEMENTATION OVERVIEW:
 1. PR 1: IRateLimiterStateStore (sliding window acquire, outcome counters, reset) in the core, InProcessRateLimiterStateStore, the abstract
    contract suite, unit, guard and property tests.
-2. PR 2: ResilientRateLimiterStateStore (fallback with a probe interval), options, logs 400-402 and the range 400-419,
+2. PR 2: ResilientRateLimiterStateStore (fallback with a probe interval), options, logs 400-401 and the range 400-419,
    AddEncinaRateLimiterStateFallback, telemetry.
 3. PR 3: RedisRateLimiterStateStore with one Lua script per operation and one key per script, registered by AddEncinaRedisCache.
 4. PR 4: Memory and Hybrid register the in-process store.
@@ -627,8 +670,8 @@ KEY PATTERNS:
 - The scope is hashed before it enters a key; the tenant segment is readable and separately encoded (StoreCacheKey).
 - A cache failure falls back to the in-process store with a log entry; cancellation propagates; no timer, no background loop.
 - The clock comes from TimeProvider and is passed to the script; every script touches exactly one key.
-- Two error codes with categories (Internal, Validation); EventIds 400-402 only; no scope, key or client identifier in telemetry or logs.
-- Apply Design Choices 1 to 4, 6 and 7 as the maintainer answers them; until then build the recommended option of each.
+- Two error codes with categories (Internal, Validation); EventIds 400-401 only; no scope, key or client identifier in telemetry or logs.
+- Apply Design Choices 1 to 4, 6, 7 and 9 as the maintainer answers them; until then build the recommended option of each.
 
 REFERENCE FILES:
 - docs/architecture/adr/055-resilience-family.md (R8)
@@ -649,7 +692,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ Include | The feature is cache-backed shared state for a limiter, through a dedicated abstraction because `ICacheProvider` has no atomic primitive (R8); five products through Lua, two local, Memcached as a follow-up. |
 | 2 | OpenTelemetry | ✅ Include | Counter `encina.ratelimit.state_store.operations` with `operation`, `outcome` and `store` tags; tenant tag only when a tenant is present (ADR-054 D4); no scope or key (D6). |
-| 3 | Structured Logging | ✅ Include | New range `RateLimiterState` 400-419, ids 400-402, exceptions through `ForLogging()`. |
+| 3 | Structured Logging | ✅ Include | New range `RateLimiterState` 400-419, ids 400-401, exceptions through `ForLogging()`. |
 | 4 | Health Checks | ❌ N/A | The fallback is the availability mechanism and is visible as a metric; the cache packages have their own health checks. |
 | 5 | Validation | ✅ Include | Window, limit, permits and scope validated on every call, returned as `Left` with `partition_invalid` (Validation). |
 | 6 | Resilience | ✅ Include | The fallback decorator with a probe interval; a cache outage never blocks requests and never silently disables the limit (the in-process store still enforces it). |
@@ -660,7 +703,7 @@ REFERENCE FILES:
 | 11 | Module Isolation | ❌ N/A | Not module scoped; a module id, if the core wants one, is part of the opaque scope. |
 | 12 | Audit Trail | ❌ N/A | A rate limit decision is not an audit event of this component; the consumer records `encina.ratelimit.exceeded`. |
 
-**Deferred items:** one follow-up issue to be opened, drafted: the Memcached implementation of the store with compare-and-swap, which needs the Memcached provider of #277 (draft: `artifacts/issues/memcached-rate-limiter-state-store.md`). The wiring of a limiter to the store (the partitioned core, the adaptive decorator) belongs to #740 and the #2414 work (open), and the partition decision to #3448 (open); neither is a gap of this plan.
+**Deferred items:** one follow-up issue to be opened, drafted: the Memcached implementation of the store with compare-and-swap, which needs the Memcached provider of #277 (draft: `artifacts/issues/memcached-rate-limiter-state-store.md`). A second follow-up issue is drafted for what Design Choice 9 option A defers from the issue's acceptance criteria (draft: `artifacts/issues/distributed-rate-limiter-on-state-store.md`): a limiter that counts across instances end to end through the store, stays opt-in with the local limiter as the default, and shares the error rate for the adaptive rule (the issue's `DistributedAdaptiveRateLimiter`, three-state machine and shared error-rate criteria, reconciled with #2414 D2). It depends on the partitioned core of #2414 (the open SPIKE; #740, tenant-scoped rate limiting, is the open issue that applies its tenant partition) and on the partition decision of #3448 (open, `needs-decision`).
 
 ---
 
@@ -674,7 +717,7 @@ REFERENCE FILES:
 | `RedisFixture` and Testcontainers | ✅ Available | The four product fixtures are added by PR 5 |
 | #277 (Memcached provider) | ⏭️ Sibling | Not required; the follow-up issue waits for it |
 | #740 and #3448 (consumer and partition) | ⏭️ Sibling | Not required; the store works with any partition and ships without a consumer |
-| Maintainer answers to Design Choices 1 to 4, 6 and 7 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 4, 6, 7 and 9 | Pending | Asked when work starts |
 
 One real prerequisite: #695 PR 1 before PR 3 of this plan.
 
@@ -682,5 +725,5 @@ One real prerequisite: #695 PR 1 before PR 3 of this plan.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 4, 6 and 7) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs six workers in the phase order (PR 1 and PR 2 may start at once).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 4, 6, 7 and 9) when work starts, records the answers in a `## Maintainer Decisions` section, then briefs six workers in the phase order (PR 1 and PR 2 may start at once).
 2. After PR 5, open the Memcached follow-up issue from its draft once #277 has a provider to build on, and comment on #740 that `IRateLimiterStateStore` is available to the partitioned core.
