@@ -298,28 +298,39 @@ public sealed class DurableSaga<TData>
     {
         foreach (var step in _steps)
         {
-            var result = await context.CallEncinaActivityWithResultAsync<TData, TData>(
-                step.ExecuteActivityName,
-                run.CurrentData,
-                step.RetryOptions ?? _defaultRetryOptions);
+            var failure = await RunStepAsync(context, run, step);
 
-            if (result.IsLeft)
+            if (failure is not null)
             {
-                var error = result.Match(Left: e => e, Right: _ => default!);
-
-                // Step failed - begin compensation
-                return await FailStepAsync(context, run, step.StepName, error);
-            }
-
-            run.CurrentData = result.Match(Right: d => d, Left: _ => run.CurrentData);
-
-            if (!step.SkipCompensationOnFailure && step.CompensateActivityName != null)
-            {
-                run.ExecutedSteps.Push(step);
+                return failure;
             }
         }
 
         return run.CurrentData;
+    }
+
+    private async Task<DurableSagaError?> RunStepAsync(
+        TaskOrchestrationContext context,
+        SagaRun run,
+        DurableSagaStep<TData> step)
+    {
+        var result = await context.CallEncinaActivityWithResultAsync<TData, TData>(
+            step.ExecuteActivityName,
+            run.CurrentData,
+            step.RetryOptions ?? _defaultRetryOptions);
+
+        if (result.IsLeft)
+        {
+            var error = result.Match(Left: e => e, Right: _ => default!);
+
+            // Step failed - begin compensation
+            return await FailStepAsync(context, run, step.StepName, error);
+        }
+
+        run.CurrentData = result.Match(Right: d => d, Left: _ => run.CurrentData);
+        run.Track(step);
+
+        return null;
     }
 
     private async Task<DurableSagaError> FailStepAsync(
@@ -414,6 +425,14 @@ public sealed class DurableSaga<TData>
         public Stack<DurableSagaStep<TData>> ExecutedSteps { get; } = new();
 
         public TData CurrentData { get; set; } = initialData;
+
+        public void Track(DurableSagaStep<TData> step)
+        {
+            if (!step.SkipCompensationOnFailure && step.CompensateActivityName != null)
+            {
+                ExecutedSteps.Push(step);
+            }
+        }
     }
 }
 
