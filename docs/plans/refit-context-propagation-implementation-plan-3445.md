@@ -3,7 +3,7 @@
 > **Issue**: [#3445](https://github.com/dlrivada/Encina/issues/3445)
 > **Type**: Feature
 > **Complexity**: Medium (6 phases, no provider matrix, 2 pull requests)
-> **Estimated Scope**: ~520 lines of production code + ~1,000 lines of tests, manifests and documentation (about 1,500 lines in total over 2 pull requests of 15 and 6 files; the split table is the authority)
+> **Estimated Scope**: ~520 lines of production code + ~1,000 lines of tests, manifests and documentation (about 1,500 lines in total over 2 pull requests of 15 and 9 files; the split table is the authority)
 > **Family**: modules-3 (this plan has no module dimension; it ships with the family because the issue was routed there). Related by number: #3438 (the inbound idempotency header default), #1164 (persisted request context), #3440 (inbox outcome)
 
 ---
@@ -12,7 +12,7 @@
 
 Add an optional `DelegatingHandler` to the `Encina.Refit` client pipeline that copies three facts of the ambient request context onto the outgoing HTTP request, each behind its own switch: the correlation id (`IRequestContext.CorrelationId`), the tenant (`IRequestContext.TenantId`, off by default) and an idempotency key for `POST` and `PATCH` (`IRequestContext.IdempotencyKey` when present, otherwise generated). Nothing is added unless an application calls the new extension for a client.
 
-**State of `origin/main` (`ec129cae5`), verified by reading and grep.**
+**State of `origin/main` (`d523eda92`), verified by reading and grep.**
 
 - `Encina.Refit` has three overloads of `AddEncinaRefitClient<TApiClient>` (`src/Encina.Refit/ServiceCollectionExtensions.cs`), each returning the `IHttpClientBuilder` through the private `WithMethodCapture`, which does `services.TryAddTransient<OutboundMethodCaptureHandler>()` and `AddHttpMessageHandler<OutboundMethodCaptureHandler>()` (line 134). A delegating handler already exists in the package, so the pipeline mechanism is proven; the new handler is a sibling.
 - The ambient context is read in exactly one place, `RestApiRequestHandler.AmbientContext()` (line 136), through the optional `IRequestContextAccessor? _contextAccessor`, and only for logs and telemetry (`OutboundTelemetry.Start`/`Complete`, tag `encina.tenant_id`). Nothing in the package writes a header.
@@ -23,7 +23,7 @@ Add an optional `DelegatingHandler` to the `Encina.Refit` client pipeline that c
 - `Encina.Refit` EventIds 4650-4656 are used (`RestApiRequestHandler`, range `Refit = (4650, 4699)` in `src/Encina/Diagnostics/EventIdRanges.cs`); 4657-4699 are free.
 - Tests today: `tests/Encina.UnitTests/Refit/` (5 files), `tests/Encina.GuardTests/Web/Refit/RestApiRequestHandlerGuardsTests.cs`, `tests/Encina.IntegrationTests/Web/Refit/` (3 files, WireMock), `tests/Encina.PropertyTests/Web/Refit/` (2 files). The manifest `.github/coverage-manifest/Encina.Refit.json` has per-file targets for three of its six files.
 
-**Not in scope**: propagating W3C `traceparent`/`tracestate` (the .NET HTTP stack does it when an `Activity` is current, ADR-054 D4 allows only those two); OpenTelemetry baggage (ADR-054 D4 forbids it); module identity over HTTP (the issue's function 11 is not applicable); the ambiguous-failure retry policy (issue file above); the inbound header default decision (#3438).
+**Not in scope**: propagating W3C `traceparent`/`tracestate` (the .NET HTTP stack does it when an `Activity` is current; ADR-054 D4 has Encina propagate only those two as trace context); OpenTelemetry baggage (ADR-054 D4 forbids it); module identity over HTTP (the issue's function 11 is not applicable); the ambiguous-failure retry policy (issue file above); the inbound header default decision (#3438).
 
 **Affected packages**: `Encina.Refit` (handler, options, extension, telemetry), `Encina` (one new `OutboundErrorCodes` constant). **Provider category**: none.
 
@@ -163,7 +163,7 @@ A wins when the downstream is multi-tenant and a request without a tenant is a d
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Extend `OutboundTelemetry` with one counter `encina.outbound.context_propagation_total` (tags `header` = `correlation`/`tenant`/`idempotency`, `outcome` = `added`/`already_present`/`skipped_invalid`/`skipped_missing`) on the existing `Encina` meter, and no new span; the `Encina.Outbound.Send` activity keeps its tags** | One meter and one naming family; bounded tag values; the issue's optional span adds nothing the existing client span lacks | The counter has no tenant tag (the header is a closed set, the tenant is not a dimension of this counter) |
+| **A) Extend `OutboundTelemetry` with one counter `encina.outbound.context_propagation` (no `_total` suffix, ADR-054 rule 4; tags `header` = `correlation`/`tenant`/`idempotency`, `outcome` = `added`/`already_present`/`skipped_invalid`/`skipped_missing`) on the existing `Encina` meter, and no new span; the `Encina.Outbound.Send` activity keeps its tags** | One meter and one naming family; bounded tag values; the issue's optional span `encina.refit.context_propagation` is replaced by this counter (a deviation from the issue text) because it adds nothing the existing client span lacks | The counter has no tenant tag (the header is a closed set, the tenant is not a dimension of this counter) |
 | **B) A new span `encina.refit.context_propagation` as sketched in the issue** | Matches the issue sketch | A span per call for three header writes; another source name |
 
 ### Chosen Option: **A — one counter on the existing meter**
@@ -173,7 +173,7 @@ A wins when the downstream is multi-tenant and a request without a tenant is a d
 Meter and activity source of the package are `"Encina"` (`src/Encina.Refit/Diagnostics/OutboundTelemetry.cs`); the existing tags never carry a URL, a message or a data-subject identifier, and neither does the new counter. The tenant is a tag only on the existing request counter, where `OutboundTelemetry` already adds `encina.tenant_id` when a tenant exists.
 
 **Class:** Trivial
-**Settled by:** `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` (the `Encina` source and meter, tags without URL or message) and [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 (tenant tag only where a tenant exists).
+**Settled by:** `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` (the `Encina` source and meter, tags without URL or message) and [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) rule 4 of its decision list (instrument names are lowercase and dot-separated with no `_total` suffix on counters, which gives the name `encina.outbound.context_propagation`) and D4 (tenant tag only where a tenant exists).
 
 </details>
 
@@ -191,7 +191,7 @@ Meter and activity source of the package are `"Encina"` (`src/Encina.Refit/Diagn
 
 ### Rationale
 
-The issue records both as settled. The tenant id is a personal-data-adjacent identifier of the application's customer and data minimisation (GDPR Art. 5(1)(c) and Art. 25, the measure of ADR-054 D4 for baggage) is the reason it is never forwarded by default.
+The issue records both as settled. The tenant id is a personal-data-adjacent identifier of the application's customer and data minimisation (GDPR Art. 5(1)(c) and Art. 25, the measure of ADR-054 D4 for baggage) is the reason it is never forwarded by default. ADR-054 D4 ("Encina propagates and persists only `traceparent` and `tracestate`") governs OpenTelemetry baggage and the trace context that Encina itself propagates and stores; it does not govern application headers (`X-Tenant-ID`, `X-Correlation-ID`, `X-Idempotency-Key`) that a client opts into per call chain. The authority for sending those headers is the issue's Settled decisions 1 and 2 (opt-in, and the tenant switch off by default), which keep the tenant out unless the application writes `PropagateTenantId = true`.
 
 **Class:** Settled
 **Settled by:** `AGENTS.md` section 1 (pay-for-what-you-use, every feature opt-in), [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 (data minimisation, GDPR Art. 5(1)(c) and Art. 25) and the Settled choices 1 and 2 of #3445.
@@ -251,7 +251,7 @@ REFERENCE FILES:
 
 1. `src/Encina.Refit/Handlers/ContextPropagationHandler.cs` (internal sealed, `DelegatingHandler`): constructor `(IRequestContextAccessor? accessor, ContextPropagationOptions options, ILogger<ContextPropagationHandler> logger)` (the handler reads no time, so it takes no `TimeProvider`); `SendAsync` reads `accessor?.RequestContext` once, then: (a) correlation id: add `options.CorrelationIdHeader` when enabled, the value is non-blank, valid and the request has no such header; (b) tenant: when `PropagateTenantId`, a missing or invalid tenant throws `ContextPropagationException` (D6); otherwise the same add rule; (c) idempotency key: only for `HttpMethod.Post` and `HttpMethod.Patch` when enabled: reuse the key cached in `request.Options` (D2), else derive it from the ambient key (D3) or generate a GUID, add it and cache it.
 2. `src/Encina.Refit/Handlers/RestApiRequestHandler.cs`: one new `catch (ContextPropagationException)` before the general catch that returns `Failure(OutboundErrorCodes.ContextMissing, ErrorCategory.FailedPrecondition, "Required request context is missing", transient: false)` (a categorized variant of the private `Failure`), and counts it through `OutboundTelemetry`; the error carries no tenant value.
-3. Tests: unit (each header on and off, existing header kept, invalid value skipped, tenant missing throws, derived key stable for equal inputs and different for different method or path, a `GET` gets no key, no accessor means nothing added and no failure unless the tenant switch is on), property (the derived key is deterministic, 43 characters of base64url, and differs when the ambient key, method or path differs).
+3. Tests: unit (each header on and off, existing header kept, invalid value skipped, tenant missing throws, derived key stable for equal inputs and different for different method or path, a `GET` gets no key, no accessor means nothing added and no failure unless the tenant switch is on); the property test `tests/Encina.PropertyTests/Web/Refit/ContextPropagationPropertyTests.cs` (the derived key is deterministic, 43 characters of base64url, and differs when the ambient key, method or path differs) ships in pull request 2.
 
 </details>
 
@@ -324,7 +324,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Observability: `OutboundTelemetry.ContextPropagated(string header, string outcome)` adds the counter of Design Choice 7 (bounded tag values; `header` and `outcome` are closed sets, no value is ever a tag).
+1. Observability: `OutboundTelemetry.ContextPropagated(string header, string outcome)` adds the counter `encina.outbound.context_propagation` of Design Choice 7 (bounded tag values; `header` and `outcome` are closed sets, no value is ever a tag).
 2. Logging: three `[LoggerMessage]` methods on the handler (partial class), EventIds 4657 header added (Debug, header name only), 4658 value skipped as invalid (Debug, header name only), 4659 tenant missing for a tenant-propagating client (Warning, header name only), all inside the existing `Refit = (4650, 4699)` range and packed after 4656; no new range is needed.
 3. Multi-tenancy (function 10): the tenant switch of Design Choices 6 and 8.
 4. Idempotency (function 9): the key of Design Choice 3; the retry-with-key policy is the follow-up issue file.
@@ -361,10 +361,10 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit, Guard, Property**: pull request 1 (Phases 1-4).
+1. **Unit, Guard**: pull request 1 (Phases 1-4). **Property**: pull request 2 (file budget of pull request 1: 15 files).
 2. **Integration** (pull request 2): `tests/Encina.IntegrationTests/Web/Refit/ContextPropagationIntegrationTests.cs` on the existing WireMock fixture: a `POST` carries the correlation id and a key, a `GET` carries no key, the tenant header appears only with the switch, a missing tenant with the switch returns `Left(encina.outbound.context_missing)` without a request reaching WireMock, a retrying handler registered after the extension sees one key across attempts, an explicit `[Headers]` value is kept. Real HTTP through `HttpClient`; no database is involved, so the 10-provider rule does not apply.
 3. **Contract**: not applicable (no new abstraction with several implementers). **Load** and **Benchmark**: justification files `tests/Encina.LoadTests/Web/Refit/ContextPropagation.md` (the folder is created by the file; `tests/Encina.LoadTests` has no Refit folder today) and `tests/Encina.BenchmarkTests/Encina.Refit.Benchmarks/ContextPropagation.md` (three header writes and one SHA-256 over a short string per `POST`; the hot path of the package is the HTTP call).
-4. **Per-file targets** (written into `.github/coverage-manifest/Encina.Refit.json` and `Encina.json` with one-sentence justifications; baselines of edited files are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`; a target is the measured value or higher):
+4. **Per-file targets** (the unit and guard targets are written into `.github/coverage-manifest/Encina.Refit.json` and `Encina.json` by pull request 1; the property and integration targets of the table are written by the manifest edit of pull request 2, because each flag reaches its target only with its own test files; each has a one-sentence justification; baselines of edited files are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"` and `.github/scripts/coverage-report.cs`; a target is the measured value or higher):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
    |---|---|---|---|---|---|---|
@@ -442,10 +442,10 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | Options, exception, handler, builder extension, `RestApiRequestHandler` catch, `OutboundTelemetry` counter, `OutboundErrorCodes`, `PublicAPI.Unshipped.txt` x2, manifests x2 (`Encina.json`, `Encina.Refit.json`), unit tests of the handler, DI test, guard tests, property test, the existing `RestApiRequestHandlerOutboundTests.cs` (edited) | 15 | 1,250 |
-| 2 | Integration test, README, changelog fragment, configuration guide page, 2 justification files, manifest (`Encina.Refit.json`, integration targets) | 7 | 450 |
+| 1 | Options, exception, handler, builder extension, `RestApiRequestHandler` catch, `OutboundTelemetry` counter, `OutboundErrorCodes`, `PublicAPI.Unshipped.txt` x2, manifests x2 (`Encina.json`, `Encina.Refit.json`; unit and guard targets), unit tests of the handler, DI test, guard tests, the existing `RestApiRequestHandlerOutboundTests.cs` (edited) | 15 | 1,150 |
+| 2 | Property test, integration test, README, changelog fragment, configuration guide page, `docs/INVENTORY.md` line, 2 justification files, manifest (`Encina.Refit.json`, property and integration targets) | 9 | 550 |
 
-PR 1 builds and passes alone (the extension is public but nothing calls it until an application does); PR 2 only adds tests and documentation. The recount: PR 1 = 7 production files (handler, options, exception, builder extension, `RestApiRequestHandler`, `OutboundTelemetry`, `OutboundErrorCodes`) + 2 PublicAPI + 2 manifests + 4 test files (handler unit, DI, guard, property) + 1 edited test = 15 (the sum of the rows is the authority; when a measured PR passes 15 files or 1,500 lines it is split again, with the property test moving to PR 2).
+PR 1 builds and passes alone (the extension is public but nothing calls it until an application does); PR 2 only adds tests and documentation. The recount: PR 1 = 7 production files (handler, options, exception, builder extension, `RestApiRequestHandler`, `OutboundTelemetry`, `OutboundErrorCodes`) + 2 PublicAPI + 2 manifests + 3 test files (handler unit, DI, guard) + 1 edited test = 15; PR 2 = property test, integration test, README, changelog fragment, configuration guide, `INVENTORY.md`, 2 justification files, manifest = 9 (the sum of the rows is the authority; the property test already sits in PR 2, so there is no further fallback: a PR 1 that measures over 15 files or 1,500 lines moves the `RestApiRequestHandlerOutboundTests.cs` edit to PR 2).
 
 ---
 
@@ -488,9 +488,9 @@ PR 1 builds and passes alone (the extension is public but nothing calls it until
 |----------|------:|-------|
 | Production (`Encina.Refit`, `Encina`) | 7 | 3 new in `Encina.Refit` plus the extension, 3 edits |
 | PublicAPI and manifests | 4 | `Encina`, `Encina.Refit`; `Encina.json`, `Encina.Refit.json` |
-| Tests | 7 | unit handler, DI, guard, property, 1 edited unit, integration, 2 justification files counted with PR 2 |
-| Documentation and changelog | 3 | README, configuration guide, changelog fragment |
-| **Total** | **21 across 2 pull requests** | `Encina.Refit.json` is edited in both pull requests and counts in each |
+| Tests | 7 | unit handler, DI, guard, 1 edited unit (PR 1); property, integration (PR 2); the 2 justification files count with PR 2 |
+| Documentation and changelog | 4 | README, configuration guide, `docs/INVENTORY.md` line, changelog fragment (PR 2) |
+| **Total** | **24 across 2 pull requests** (15 and 9) | `Encina.Refit.json` is edited in both pull requests and counts in each |
 
 ---
 
@@ -505,8 +505,8 @@ PROJECT CONTEXT:
 - Issue #3445: an opt-in DelegatingHandler in Encina.Refit that propagates the correlation id, the tenant (separate switch, off by default) and an idempotency key (POST and PATCH) to the downstream API. Plan: docs/plans/refit-context-propagation-implementation-plan-3445.md; Dilemmas D1-D6 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (2 pull requests):
-1. Options, error code, exception, handler, builder extension, telemetry, logs, unit, DI, guard and property tests (Phases 1-4, 5 partly).
-2. WireMock integration test, README, configuration guide, changelog, justification files (Phases 5-6).
+1. Options, error code, exception, handler, builder extension, telemetry, logs, unit, DI and guard tests (Phases 1-4, 5 partly).
+2. Property test, WireMock integration test, README, configuration guide, changelog, justification files (Phases 5-6).
 
 KEY PATTERNS:
 - A per-client extension on IHttpClientBuilder with named options; the handler is outermost by registration order and caches the generated key in HttpRequestMessage.Options.
@@ -531,7 +531,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: header propagation reads no cacheable data |
-| 2 | OpenTelemetry | ✅ | Phase 4: counter `encina.outbound.context_propagation_total`, no new span, no baggage (ADR-054 D4) |
+| 2 | OpenTelemetry | ✅ | Phase 4: counter `encina.outbound.context_propagation` (no `_total` suffix, ADR-054 rule 4), no new span, no baggage (ADR-054 D4) |
 | 3 | Structured Logging | ✅ | Phase 4: EventIds 4657-4659 inside the existing Refit range, header names only |
 | 4 | Health Checks | ❌ | Not applicable: no new dependency to check |
 | 5 | Validation | ✅ | Header names are validated as tokens at registration; values are validated per call (control characters, length) |
