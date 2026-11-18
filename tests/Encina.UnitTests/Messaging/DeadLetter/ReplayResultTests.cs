@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Encina.UnitTests.Messaging.DeadLetter;
@@ -8,6 +9,8 @@ namespace Encina.UnitTests.Messaging.DeadLetter;
 /// </summary>
 public sealed class ReplayResultTests
 {
+    private static readonly DateTimeOffset FixedTime = new(2026, 4, 10, 15, 30, 0, TimeSpan.Zero);
+
     #region ReplayResult Tests
 
     [Fact]
@@ -29,6 +32,50 @@ public sealed class ReplayResultTests
     }
 
     [Fact]
+    public void Succeeded_WithTimeProvider_UsesProvidedClock()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+        var clock = new FakeTimeProvider(FixedTime);
+
+        // Act
+        var result = ReplayResult.Succeeded(messageId, clock);
+
+        // Assert
+        result.MessageId.ShouldBe(messageId);
+        result.Success.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeNull();
+        result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
+    }
+
+    [Fact]
+    public void Succeeded_WithExplicitTimestamp_UsesTimestamp()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+        var replayedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        // Act
+        var result = ReplayResult.Succeeded(messageId, replayedAt);
+
+        // Assert
+        result.MessageId.ShouldBe(messageId);
+        result.Success.ShouldBeTrue();
+        result.ErrorMessage.ShouldBeNull();
+        result.ReplayedAtUtc.ShouldBe(replayedAt);
+    }
+
+    [Fact]
+    public void Succeeded_WithNullTimeProvider_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => ReplayResult.Succeeded(messageId, (TimeProvider)null!));
+    }
+
+    [Fact]
     public void Failed_ReturnsFailedResult()
     {
         // Arrange
@@ -45,6 +92,52 @@ public sealed class ReplayResultTests
         result.ReplayedAtUtc.ShouldBeInRange(
             DateTime.UtcNow.AddSeconds(-5),
             DateTime.UtcNow.AddSeconds(5));
+    }
+
+    [Fact]
+    public void Failed_WithTimeProvider_UsesProvidedClock()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+        const string errorMessage = "Something went wrong";
+        var clock = new FakeTimeProvider(FixedTime);
+
+        // Act
+        var result = ReplayResult.Failed(messageId, errorMessage, clock);
+
+        // Assert
+        result.MessageId.ShouldBe(messageId);
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldBe(errorMessage);
+        result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
+    }
+
+    [Fact]
+    public void Failed_WithExplicitTimestamp_UsesTimestamp()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+        const string errorMessage = "Something went wrong";
+        var replayedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        // Act
+        var result = ReplayResult.Failed(messageId, errorMessage, replayedAt);
+
+        // Assert
+        result.MessageId.ShouldBe(messageId);
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldBe(errorMessage);
+        result.ReplayedAtUtc.ShouldBe(replayedAt);
+    }
+
+    [Fact]
+    public void Failed_WithNullTimeProvider_ThrowsArgumentNullException()
+    {
+        // Arrange
+        var messageId = Guid.NewGuid();
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() => ReplayResult.Failed(messageId, "err", (TimeProvider)null!));
     }
 
     [Fact]

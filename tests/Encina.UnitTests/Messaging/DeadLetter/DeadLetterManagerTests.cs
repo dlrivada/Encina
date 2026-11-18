@@ -228,6 +228,7 @@ public sealed class DeadLetterManagerTests
         var replay = result.ShouldBeRight();
         replay.ErrorMessage.ShouldBeNull();
         replay.Success.ShouldBeTrue();
+        replay.ReplayedAtUtc.ShouldBe(FixedUtcNow);
         await encina.Received(1).Send(Arg.Is<IRequest<int>>(r => r is ReplayedCommand && ((ReplayedCommand)r).Value == 5), Arg.Any<CancellationToken>());
         await store.Received(1).MarkAsReplayedAsync(messageId, DeadLetterErrorCodes.ReplaySucceeded, Arg.Any<CancellationToken>());
         await store.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
@@ -266,6 +267,7 @@ public sealed class DeadLetterManagerTests
         var replay = result.ShouldBeRight();
         replay.Success.ShouldBeFalse();
         replay.ErrorMessage.ShouldBe(DeadLetterErrorCodes.ReplayInProgress);
+        replay.ReplayedAtUtc.ShouldBe(FixedUtcNow);
         await encina.DidNotReceive().Send(Arg.Any<IRequest<int>>(), Arg.Any<CancellationToken>());
         await store.DidNotReceive().MarkAsReplayedAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
