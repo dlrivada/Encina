@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (b50b8c981):
+Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (528f34f7e):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -305,7 +305,7 @@ PR 2 holds exactly these 9 files:
 | 4 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 5 | `tests/Encina.UnitTests/Caching/InProcessSingleFlightExecutorTests.cs` | new |
 | 6 | `tests/Encina.GuardTests/Infrastructure/Caching/InProcessSingleFlightExecutorGuardTests.cs` | new |
-| 7 | `tests/Encina.ContractTests/Database/Caching/StampedeProtection.md` | new (justification file: one implementation, no provider-implemented contract; `docs-writer` is not needed, it is a test justification) |
+| 7 | `tests/Encina.ContractTests/Caching/SingleFlightExecutorContractTests.cs` | new (instantiates `InProcessSingleFlightExecutor` and asserts the `ISingleFlightExecutor` contract: one factory run per key, results shared, nothing retained, cancelled leader re-elected; a justification file is never allowed for a contract test, AGENTS.md section 9) |
 | 8 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 9 | `changelog.d/266-cache-single-flight-executor.added.md` | new (`mechanical-fixer`) |
 
@@ -484,15 +484,15 @@ REFERENCE FILES:
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Patterns/CacheExpiration.cs` | 100 | 0 | 0 | 0 | Two pure functions fully driven by unit tests; internal, no `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Patterns/CachePatternSettings.cs` | 100 | 0 | 0 | 0 | Every validation branch and the attribute-over-option rule are unit tested; internal |
-| `Encina.Caching/Patterns/InProcessSingleFlightExecutor.cs` | 100 | 85 | 0 | 0 | The concurrency paths are unit tested with gates; the guard flag reaches the argument checks and the pre-cancelled token |
+| `Encina.Caching/Patterns/InProcessSingleFlightExecutor.cs` | 100 | 85 | 80 | 0 | The concurrency paths are unit tested with gates; the guard flag reaches the argument checks and the pre-cancelled token |
 | `Encina.Caching/Abstractions/ISingleFlightExecutor.cs`, `Configuration/StampedeProtectionMode.cs` | 0 | 0 | 0 | 0 | An interface, a record struct and an enum: no executable lines of their own |
 | `Encina.Caching/Diagnostics/CachePatternLog.cs`, `CachePatternLog.Stampede.cs` | 90 | 0 | 0 | 0 | Source-generated `[LoggerMessage]` bodies run when the unit tests of the behavior hit each path; internal |
 | `Encina.Caching/Diagnostics/CachePatternMetrics.cs` | 95 | 0 | 0 | 0 | The counter calls are driven by `MeterListener` unit tests |
-| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20, raises to 40 | 0 | 0 | The existing targets are never lowered; the new optional-parameter guard tests and the new branches are covered by the PR's own tests |
+| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 0 | The existing targets are never lowered; the new branches are covered by the unit tests of the same PR (guard tests only reach the constructor and argument checks, so the guard target is not raised) |
 | `Encina.Caching/Attributes/CacheAttribute.cs`, `Configuration/CachingOptions.cs`, `ServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | New properties are initializers and one copy line each, executed by the DI and options tests |
 
    The Redis integration test (Phase 4) adds an integration-flag measurement for `QueryCachingPipelineBehavior.cs` of at least 40, because only the lock path with a real provider runs there. The worker measures every flag with `coverage-report.cs` and records the numbers in the PR description; no target is lowered (`target-ratchet`).
-5. **Property, contract, load, benchmark**: the early-expiration monotonicity runs as a fixed grid in a unit test (Phase 4); no contract test (no new provider-implemented contract: `ISingleFlightExecutor` has one implementation, and the justification file is `tests/Encina.ContractTests/Database/Caching/StampedeProtection.md`, PR 2); no load test (the concurrency is covered by the gated unit tests and the Redis integration test); no benchmark in these PRs, because jitter and the miss path add one dictionary operation per miss (a follow-up benchmark of the behavior belongs to the existing `QueryCachingPipelineBenchmarks`).
+5. **Property, contract, load, benchmark**: the early-expiration monotonicity runs as a fixed grid in a unit test (Phase 4); a contract test of `ISingleFlightExecutor` runs against the real executor (PR 2, so the contract flag reaches its target for `InProcessSingleFlightExecutor.cs`: 80); no load test (the concurrency is covered by the gated unit tests and the Redis integration test); no benchmark in these PRs, because jitter and the miss path add one dictionary operation per miss (a follow-up benchmark of the behavior belongs to the existing `QueryCachingPipelineBenchmarks`).
 
 </details>
 
