@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (528f34f7e):
+Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (b4da9e482):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -218,6 +218,44 @@ The plan puts all three protections in `QueryCachingPipelineBehavior`, so the 8 
 
 </details>
 
+<details>
+<summary><strong>10. Return shape of `ISingleFlightExecutor.ExecuteAsync` (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Task<SingleFlightResult<TResult>>` with `WasCoalesced`** | The behavior can log and count a follower without a second channel | Differs from the issue's `Task<TResult> ExecuteAsync<TResult>(key, factory, ct)` |
+| **B) The issue's `Task<TResult>`; coalescing is reported through an optional callback or not at all** | Matches the issue text | No clean way to count followers (an `out` is impossible in async) |
+
+### Chosen Option: **A - result with a flag** (recommended, pending the maintainer)
+
+### Rationale
+
+- Metrics and logs of AC "Metrics track stampede prevention" need to know a follower from a leader. Option B wins if the public signature of the issue is a requirement.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>11. The default for early expiration (Dilemma D11)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `CachingOptions.DefaultEarlyExpirationBeta` (0 disables), attribute value wins when above 0, as for jitter** | Parity with the issue's `DefaultEarlyExpirationProbability` and `DefaultJitterPercent` | One more option and copy line (PR 4) |
+| **B) Attribute only** | Smaller | The issue's third configuration member has no counterpart |
+
+### Chosen Option: **A - an option with the same shape as jitter** (recommended, pending the maintainer)
+
+### Rationale
+
+- The name follows Design Choice 6 (XFetch, `Beta`); if option B of Design Choice 6 is chosen the option is `DefaultEarlyExpirationProbability`. Option B here wins when per-type tuning is enough.
+- Class: Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -251,7 +289,7 @@ Tasks:
 1. **Create** `internal static class CacheExpiration` with `static TimeSpan ApplyJitter(TimeSpan duration, double jitterPercent, Func<double> nextDouble)`: returns `duration * (1 + jitterPercent / 100 * (2 * nextDouble() - 1))`, never below one millisecond; `jitterPercent == 0` returns `duration` untouched without calling the random source.
 2. **Create** `internal sealed record CachePatternSettings(double JitterPercent)` with `static CachePatternSettings Resolve(CacheAttribute attribute, CachingOptions options, Type requestType)`: the attribute value is used when it is greater than 0, else `options.DefaultJitterPercent`; validation per Design Choice 7 (throws `InvalidOperationException`). The record is extended by PR 3 and PR 4 and by #267 and #268.
 3. **Modify** `CacheAttribute`: `public double JitterPercent { get; init; }` (default 0, XML docs with the 0 to under 100 range and the rule that jitter applies to `Duration`, and to the sliding window when `SlidingExpiration` is on). **Modify** `CachingOptions`: `public double DefaultJitterPercent { get; set; }` (default 0; pay-for-what-you-use).
-4. **Modify** `QueryCachingPipelineBehavior`: a `private static readonly` settings resolved lazily per closed generic from the attribute and the options (a `Lazy<CachePatternSettings>` field, so the first request of a type throws once per Design Choice 7 and later requests reuse it); `CacheEntry<T>` gets `public DateTime? ExpiresAtUtc { get; init; }` and `public long? ComputeMilliseconds { get; init; }` (Design Choice 8); `TryCacheResultAsync` computes the effective duration with `CacheExpiration.ApplyJitter`, sets `ExpiresAtUtc = CachedAtUtc + effectiveDuration` and passes `effectiveDuration` to `StoreCacheEntryAsync` (both the absolute and the sliding branch; the absolute maximum of the sliding branch is not jittered). `ComputeMilliseconds` is measured with `TimeProvider.GetTimestamp` around `nextStep()` in PR 4; PR 1 leaves it null.
+4. **Modify** `QueryCachingPipelineBehavior`: settings resolved in the constructor from the static attribute (read once per closed generic, as today) and the instance's `CachingOptions` (the behavior is registered transient, `ServiceCollectionExtensions.cs` line 80, and options differ per instance, so a static `Lazy` cannot hold them): an invalid value throws `InvalidOperationException` when the behavior is constructed, that is on every request of that type, which is deterministic and visible at the first request (Design Choice 7); `TryGetFromCacheAsync` and `TryGetForCallerAsync` now return `(bool Found, CacheEntry<TResponse>? Entry)` instead of `(Found, Value)`: PR 1 owns this change, because the hit path of #267 and #268 needs `CachedAtUtc`, `ExpiresAtUtc` and the later fields, and the served value is `Entry.Value`; an entry with no `ExpiresAtUtc` (sliding entries, entries of an older build, and every entry when no pattern feature is on) is fresh and governed by the provider TTL exactly as today; `CacheEntry<T>` gets `public DateTime? ExpiresAtUtc { get; init; }` and `public long? ComputeMilliseconds { get; init; }` (Design Choice 8); `TryCacheResultAsync` computes the effective duration with `CacheExpiration.ApplyJitter`, sets `ExpiresAtUtc = CachedAtUtc + effectiveDuration` and passes `effectiveDuration` to `StoreCacheEntryAsync` (both the absolute and the sliding branch; the absolute maximum of the sliding branch is not jittered). `ComputeMilliseconds` is measured with `TimeProvider.GetTimestamp` around `nextStep()` in PR 4; PR 1 leaves it null.
 5. **Modify** `AddEncinaCaching`: add `opt.DefaultJitterPercent = options.DefaultJitterPercent;` to the copy list (a missing line would silently drop the option).
 6. **Tests (unit)**: `ApplyJitter` returns the duration for 0, stays inside the band for the seam values 0, 0.5 and 1, never goes below one millisecond; `Resolve` takes the attribute over the option, rejects -1, 100, NaN and infinity with a message that names the request type and not the value of any request; the behavior stores a different TTL for two requests when the seam differs and sets `ExpiresAtUtc`; with `JitterPercent` 0 the provider receives exactly `Duration` (today's behavior) and an entry written without the new members still hits (Design Choice 8); the options test asserts the default 0 and the DI test asserts `AddEncinaCaching(o => o.DefaultJitterPercent = 10)` reaches `IOptions<CachingOptions>`. **Guard tests:** `CachePatternSettings` and `CacheExpiration` are internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests`, and the attribute and options have no constructor parameters, so no guard test is added; the manifest reason says so.
 
@@ -478,13 +516,13 @@ REFERENCE FILES:
 1. **EventIds** are those of Phases 3 and 4 only (450-455); no other id is used.
 2. **Telemetry** is the `Meter` of Phase 4; no `ActivitySource` is added (a span per coalesced request would cost more than it explains; spans of the cache operations belong to #723).
 3. **No new error code**: nothing returns a `Left` that the pattern creates, so there is no ADR-062 `ErrorCategory` to name; the `Left` values that flow through are the handler's own.
-4. **Coverage targets (per flag, new or touched files)**, entered by `mechanical-fixer` in the PR that adds each file:
+4. **Coverage targets (per flag, new or touched files)** are part of the PR that adds the file and its tests, never of a later PR (#1762): each of PR 1 to PR 4 lists the rows of the table below for its own files in its manifest edit (`mechanical-fixer`), measured with `coverage-report.cs` in that PR. Provisional EventIds: 452 to 455 depend on Design Choices 4 and 6 (lock timeout, lock error, double-check hit and early refresh exist only under the recommended options); a different answer releases the unused ids to the family:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Patterns/CacheExpiration.cs` | 100 | 0 | 0 | 0 | Two pure functions fully driven by unit tests; internal, no `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Patterns/CachePatternSettings.cs` | 100 | 0 | 0 | 0 | Every validation branch and the attribute-over-option rule are unit tested; internal |
-| `Encina.Caching/Patterns/InProcessSingleFlightExecutor.cs` | 100 | 85 | 80 | 0 | The concurrency paths are unit tested with gates; the guard flag reaches the argument checks and the pre-cancelled token |
+| `Encina.Caching/Patterns/InProcessSingleFlightExecutor.cs` | 100 | 25 | 80 | 0 | The concurrency paths are unit tested with gates and by the contract test; the guard tests throw before the flight starts (null key, null factory, whitespace key, pre-cancelled token), so they reach only the argument checks, a quarter of the file |
 | `Encina.Caching/Abstractions/ISingleFlightExecutor.cs`, `Configuration/StampedeProtectionMode.cs` | 0 | 0 | 0 | 0 | An interface, a record struct and an enum: no executable lines of their own |
 | `Encina.Caching/Diagnostics/CachePatternLog.cs`, `CachePatternLog.Stampede.cs` | 90 | 0 | 0 | 0 | Source-generated `[LoggerMessage]` bodies run when the unit tests of the behavior hit each path; internal |
 | `Encina.Caching/Diagnostics/CachePatternMetrics.cs` | 95 | 0 | 0 | 0 | The counter calls are driven by `MeterListener` unit tests |
@@ -504,8 +542,8 @@ CONTEXT:
 The four code PRs are merged. Measurement and finalization remain.
 
 TASK:
-Measure per-flag coverage of every new and touched file with coverage-report.cs and record the targets above with one-sentence
-justifications through mechanical-fixer; run --check-justifications; write the contract-test justification file.
+Verify that each PR carried its own per-flag targets (table above) and that nothing was deferred; if a PR missed one, add it in a small PR, with one-sentence
+justifications through mechanical-fixer; run --check-justifications.
 
 KEY RULES:
 - Never lower an existing target (target-ratchet).
@@ -591,7 +629,7 @@ REFERENCE FILES:
 | Category | New Files | Modified Files | Notes |
 |----------|-----------|----------------|-------|
 | Production code | 8 | 5 | New: executor, interface (with `SingleFlightResult`), enum, settings, expiration, two log files, metrics; modified: attribute, options, behavior, DI, `EventIdRanges.cs` |
-| Tests | 11 | 4 | New: unit (7), guard (1), integration (1), one contract justification file; no property test; modified: options, DI, guard behavior tests, event-id architecture test |
+| Tests | 11 | 4 | New: unit (7), guard (1), integration (1), contract (1); no property test; modified: options, DI, guard behavior tests, event-id architecture test |
 | Documentation | 0 | 1 | `docs/features/query-caching.md` |
 | Configuration | 4 | 3 | Four changelog fragments; the manifest (edited in each PR); two `PublicAPI.Unshipped.txt` files |
 | **Total** | **23** | **13** | 4 pull requests: 14, 9, 15 and 14 files, each at most 15 files and 1500 lines |
@@ -622,7 +660,7 @@ KEY PATTERNS:
 - Followers share the leader's whole Either; a Left is never cached; the shared run uses the leader's token.
 - Time from TimeProvider, randomness from a seam; logs carry redacted keys only; tag encina.tenant_id only with multi-tenancy on.
 - No new EncinaError code; no new public symbol without PublicAPI.Unshipped.txt and guard tests.
-- Apply Design Choices 1, 3, 4, 5, 6, 7 and 8 as the Maintainer Decisions section says.
+- Follow the maintainer's answers to Design Choices 1, 3, 4, 5, 6, 7, 8, 10 and 11, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs
@@ -664,7 +702,7 @@ REFERENCE FILES:
 | `QueryCachingPipelineBehavior`, `CachingOptions`, `IDistributedLockProvider` | ✅ Available | On `origin/main` |
 | Block 450-499 of the EventId registry | ✅ Assigned | Plan batch registry |
 | #3419 / ADR-062 error categories | ✅ Not needed | No error code is created |
-| Maintainer answers to Design Choices 1, 3, 4, 5, 6, 7 and 8 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1, 3, 4, 5, 6, 7, 8, 10 and 11 | Pending | Asked when work starts |
 
 #267, #268, #269 and #271 start after PR 1 and PR 3 of this plan are merged. #277 (Memcached) needs nothing from this plan.
 
@@ -672,5 +710,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 3, 4, 5, 6, 7 and 8) when work starts, records the answers under `## Maintainer Decisions`, then briefs four workers in the PR order (PR 1, PR 2, PR 3, PR 4).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1, 3, 4, 5, 6, 7, 8, 10 and 11) when work starts, records the answers under `## Maintainer Decisions`, then briefs four workers in the PR order (PR 1, PR 2, PR 3, PR 4).
 2. After PR 3 merges, comment on #267, #268, #269 and #271 that the shared types and the EventId range are on `main`.
