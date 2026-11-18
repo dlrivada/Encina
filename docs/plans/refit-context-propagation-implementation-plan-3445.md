@@ -12,7 +12,7 @@
 
 Add an optional `DelegatingHandler` to the `Encina.Refit` client pipeline that copies three facts of the ambient request context onto the outgoing HTTP request, each behind its own switch: the correlation id (`IRequestContext.CorrelationId`), the tenant (`IRequestContext.TenantId`, off by default) and an idempotency key for `POST` and `PATCH` (`IRequestContext.IdempotencyKey` when present, otherwise generated). Nothing is added unless an application calls the new extension for a client.
 
-**State of `origin/main` (`d523eda92`), verified by reading and grep.**
+**State of `origin/main` (`010d6f995`), verified by reading and grep.**
 
 - `Encina.Refit` has three overloads of `AddEncinaRefitClient<TApiClient>` (`src/Encina.Refit/ServiceCollectionExtensions.cs`), each returning the `IHttpClientBuilder` through the private `WithMethodCapture`, which does `services.TryAddTransient<OutboundMethodCaptureHandler>()` and `AddHttpMessageHandler<OutboundMethodCaptureHandler>()` (line 134). A delegating handler already exists in the package, so the pipeline mechanism is proven; the new handler is a sibling.
 - The ambient context is read in exactly one place, `RestApiRequestHandler.AmbientContext()` (line 136), through the optional `IRequestContextAccessor? _contextAccessor`, and only for logs and telemetry (`OutboundTelemetry.Start`/`Complete`, tag `encina.tenant_id`). Nothing in the package writes a header.
@@ -211,8 +211,8 @@ The issue records both as settled. The tenant id is a personal-data-adjacent ide
 
 1. `src/Encina.Refit/ContextPropagationOptions.cs` (public sealed): `string CorrelationIdHeader = "X-Correlation-ID"`, `string TenantIdHeader = "X-Tenant-ID"`, `string IdempotencyKeyHeader = "X-Idempotency-Key"`, `bool PropagateCorrelationId = true`, `bool PropagateTenantId = false`, `bool PropagateIdempotencyKey = true`, `int MaxValueLength = 256`; the methods that get a key are fixed to `POST` and `PATCH` (a list option would be a second switch with no demand). `Validate()` throws `ArgumentException` for a blank or non-token header name and `ArgumentOutOfRangeException` for `MaxValueLength` below 1 (registration time, never per request).
 2. `src/Encina/Recoverability/OutboundErrorCodes.cs`: `public const string ContextMissing = "encina.outbound.context_missing";` with XML docs (the tenant switch is on and the ambient tenant is missing or invalid). ADR-062 category of the code: `FailedPrecondition`, set where the error is created with the categorized `EncinaErrors.Create` overload (Phase 2).
-3. `src/Encina.Refit/Handlers/ContextPropagationException.cs` (internal sealed): carries only the header name; its message is fixed text.
-4. `PublicAPI.Unshipped.txt` of `Encina` (one line) and `Encina.Refit` (options type, members, extension), manifest entries (through `mechanical-fixer`).
+3. `src/Encina.Refit/Handlers/ContextPropagationException.cs` (public sealed, with XML docs; `Encina.Refit.csproj` has no `InternalsVisibleTo`, so an internal type could not be constructed by `Encina.UnitTests` or `Encina.GuardTests`): carries only the header name; its message is fixed text.
+4. `PublicAPI.Unshipped.txt` of `Encina` (one line) and `Encina.Refit` (options type, members, extension, and, because both are public, `ContextPropagationHandler` with its constructor and `ContextPropagationException` with its constructor and header-name member; the same two files, so the file counts do not change), manifest entries (through `mechanical-fixer`).
 
 </details>
 
@@ -225,7 +225,7 @@ CONTEXT:
 - Encina is pre-1.0: no compatibility overloads, no [Obsolete].
 
 TASK:
-Add ContextPropagationOptions with Validate(), OutboundErrorCodes.ContextMissing and the internal exception, with unit and guard tests.
+Add ContextPropagationOptions with Validate(), OutboundErrorCodes.ContextMissing and the public exception, with unit and guard tests.
 
 KEY RULES:
 - Header names are validated as HTTP tokens at registration, never per request.
@@ -249,7 +249,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Refit/Handlers/ContextPropagationHandler.cs` (internal sealed, `DelegatingHandler`): constructor `(IRequestContextAccessor? accessor, ContextPropagationOptions options, ILogger<ContextPropagationHandler> logger)` (the handler reads no time, so it takes no `TimeProvider`); `SendAsync` reads `accessor?.RequestContext` once, then: (a) correlation id: add `options.CorrelationIdHeader` when enabled, the value is non-blank, valid and the request has no such header; (b) tenant: when `PropagateTenantId`, a missing or invalid tenant throws `ContextPropagationException` (D6); otherwise the same add rule; (c) idempotency key: only for `HttpMethod.Post` and `HttpMethod.Patch` when enabled: reuse the key cached in `request.Options` (D2), else derive it from the ambient key (D3) or generate a GUID, add it and cache it.
+1. `src/Encina.Refit/Handlers/ContextPropagationHandler.cs` (public sealed, `DelegatingHandler`, with XML docs; public because `Encina.Refit.csproj` has no `InternalsVisibleTo` and the unit and guard tests construct it, as the sibling `OutboundMethodCaptureHandler` is internal and untested directly): constructor `(IRequestContextAccessor? accessor, ContextPropagationOptions options, ILogger<ContextPropagationHandler> logger)` (the handler reads no time, so it takes no `TimeProvider`); `SendAsync` reads `accessor?.RequestContext` once, then: (a) correlation id: add `options.CorrelationIdHeader` when enabled, the value is non-blank, valid and the request has no such header; (b) tenant: when `PropagateTenantId`, a missing or invalid tenant throws `ContextPropagationException` (D6); otherwise the same add rule; (c) idempotency key: only for `HttpMethod.Post` and `HttpMethod.Patch` when enabled: reuse the key cached in `request.Options` (D2), else derive it from the ambient key (D3) or generate a GUID, add it and cache it.
 2. `src/Encina.Refit/Handlers/RestApiRequestHandler.cs`: one new `catch (ContextPropagationException)` before the general catch that returns `Failure(OutboundErrorCodes.ContextMissing, ErrorCategory.FailedPrecondition, "Required request context is missing", transient: false)` (a categorized variant of the private `Failure`), and counts it through `OutboundTelemetry`; the error carries no tenant value.
 3. Tests: unit (each header on and off, existing header kept, invalid value skipped, tenant missing throws, derived key stable for equal inputs and different for different method or path, a `GET` gets no key, no accessor means nothing added and no failure unless the tenant switch is on); the property test `tests/Encina.PropertyTests/Web/Refit/ContextPropagationPropertyTests.cs` (the derived key is deterministic, 43 characters of base64url, and differs when the ambient key, method or path differs) ships in pull request 2.
 
@@ -267,7 +267,7 @@ Implement ContextPropagationHandler, the catch in RestApiRequestHandler and thei
 
 KEY RULES:
 - Read the accessor once per call; never log a header value, only the header name and the outcome.
-- A Left is returned, never an exception to the caller: the catch maps the internal exception to the categorized error.
+- A Left is returned, never an exception to the caller: the catch maps the handler's exception to the categorized error.
 - No synchronous blocking; propagate the CancellationToken.
 
 REFERENCE FILES:
@@ -371,7 +371,7 @@ REFERENCE FILES:
    | `Handlers/ContextPropagationHandler.cs` | 95 | 70 | 0 | 80 | 85 | Every branch is a unit test against a stub inner handler; guard reaches the constructor checks; the property test proves the derived key; the WireMock scenarios run the real pipeline; contract 0 because there is no abstraction |
    | `ContextPropagationOptions.cs` | 95 | 90 | 0 | 0 | 0 | Defaults and `Validate()` are pure; guard covers blank and non-token names; no property or integration flag adds lines |
    | `HttpClientBuilderExtensions.cs` | 90 | 90 | 0 | 0 | 60 | Registration asserted through the client builder; the WireMock fixture registers real clients |
-   | `Handlers/ContextPropagationException.cs` | 100 | 0 | 0 | 0 | 0 | One constructor; guard 0 because the type is internal without `InternalsVisibleTo` for `Encina.GuardTests` and its only parameter is a fixed header name |
+   | `Handlers/ContextPropagationException.cs` | 100 | 0 | 0 | 0 | 0 | One constructor; guard 0 because its only parameter is a fixed header name that is not validated, so there is no argument check to reach |
    | `Handlers/RestApiRequestHandler.cs` (edit) | 95 | 5 | 0 | 70 | 85 | Existing targets are kept; the new catch is covered by a unit test and the WireMock scenario |
    | `Diagnostics/OutboundTelemetry.cs` (edit) | 95 | 0 | 0 | 60 | 60 | Existing targets are kept; the counter is asserted with a `MeterListener` |
    | `Encina/Recoverability/OutboundErrorCodes.cs` (edit) | 100 | 0 | 0 | 0 | 0 | A constant; asserted with the category test of ADR-062 |
