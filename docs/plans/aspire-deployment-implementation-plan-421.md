@@ -2,7 +2,7 @@
 
 > **Issue**: [#421](https://github.com/dlrivada/Encina/issues/421)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 4 pull requests of 13, 10, 15 and 7 files)
+> **Complexity**: High (7 phases, 4 pull requests of 13, 10, 14 and 10 files)
 > **Estimated Scope**: ~600 lines of production code + ~1,300 lines of tests
 > **Family**: Aspire (aspire-1): #416 hosting package (not referenced by this package), #417 service defaults, #419 dashboard commands, #440 umbrella; the Azure Container Apps half of the issue is #2698 (outside 1.0, SPEC-000 section 6) and reuses the processor model defined here; the family continues in #424, #425, #382, #387 and #391. **This plan owns the processor model (`EncinaProcessorOptions`, `EncinaProcessorAnnotation`, `WithEncinaProcessor`) and the Compose and Kubernetes customizations.**
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for deployment publishers that generate Kubernetes and Docker Compose manifests for the Encina processors, with ConfigMaps, Secrets, Helm, HPA and KEDA. State of `origin/main` (`ec129cae5`), verified by reading and by reading the Aspire 13.6.5 packages:
+The issue asks for deployment publishers that generate Kubernetes and Docker Compose manifests for the Encina processors, with ConfigMaps, Secrets, Helm, HPA and KEDA. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and by reading the Aspire 13.6.5 packages:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -101,7 +101,7 @@ A wins today because the lock integration is open and planned (#713, #715) and `
 </details>
 
 <details>
-<summary><strong>4. A processor is a resource of the solution, not an image Encina ships</strong></summary>
+<summary><strong>4. A processor is a resource of the solution, not an image Encina ships (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
@@ -110,14 +110,13 @@ A wins today because the lock integration is open and planned (#713, #715) and `
 | **A) `WithEncinaProcessor` marks the solution's own project or container as the one running the processors, and the publishers customize its output** | Matches how Encina works: processors are hosted services of the application | A solution that wants a dedicated worker writes a worker project (one line of host code) |
 | **B) Encina ships a generic processor host executable and image** | A ready-made `outbox-processor` image as in the issue sketch | A new product: the host would need the application's stores, options and handlers, which only the application can supply |
 
-### Chosen Option: **A — mark the solution's resource**
+### Chosen Option: **A — mark the solution's resource** (recommended, pending the maintainer)
 
 ### Rationale
 
-The processors are `BackgroundService` classes registered by the application's own `AddEncina*` calls (`OutboxProcessorBase : BackgroundService`, `ScheduledMessageProcessor : BackgroundService`, the per-provider `OutboxProcessor`); there is no host project among the packages of `src/` (`Encina.Cli` is a tool).
+The processors are `BackgroundService` classes registered by the application's own `AddEncina*` calls (`OutboxProcessorBase : BackgroundService`, `ScheduledMessageProcessor : BackgroundService`, the per-provider `OutboxProcessor`); there is no host project among the packages of `src/` (`Encina.Cli` is a tool). A wins today for that reason. B is what the issue sketches (separate `outbox-processor` and saga processor deployments from an Encina image) and wins when the maintainer wants separately scaled, ready-made processor deployments and accepts a new product: a generic host would have to load the application's stores, options and handlers, so it would need a plugin or configuration model of its own and its own plan. The issue's acceptance item "Kubernetes manifest generation" is met in the form of A: Aspire's publisher generates the manifests and Encina customizes the resource that runs the processors.
 
-**Class:** Settled
-**Settled by:** `src/Encina.Messaging/Outbox/OutboxProcessorBase.cs` and `src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs` (both `BackgroundService`); the package list of `src/` (no worker host).
+**Class:** Dilemma
 
 </details>
 
@@ -136,14 +135,56 @@ The processors are `BackgroundService` classes registered by the application's o
 
 ### Rationale
 
-A wins because a killed processor leaves rows claimed and delays them until the retry. B wins when rollout speed matters more. The value is a property of `EncinaProcessorOptions` and the same in Compose and Kubernetes.
+A wins because a killed processor leaves rows claimed and delays them until the retry. B wins when rollout speed matters more. The value is a property of `EncinaProcessorOptions` and the same in Compose and Kubernetes. The platform defaults are those of the Kubernetes Pod lifecycle documentation (`terminationGracePeriodSeconds`, 30 seconds), the Compose Specification (`stop_grace_period`, 10 seconds) and the .NET Generic Host documentation (`HostOptions.ShutdownTimeout`, 30 seconds). The accepted ranges (1 to 100 replicas, 1 second to 1 hour of grace) are not platform limits: they only catch typos and are part of this choice.
 
 **Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Use Aspire's publishers; write no secrets and no YAML of our own</strong></summary>
+<summary><strong>7. Kubernetes probes: off, the template's paths, or the paths of #454 (Dilemma D7)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) No probes by default; `EncinaKubernetesProcessorOptions` has `LivenessPath`, `ReadinessPath` and `StartupPath`, all null, and a probe is added only for a path that is set** | A pod can never be stuck not-Ready because of a path the application does not serve; a worker without an HTTP endpoint is correct; the solution states the paths it really maps | One more line to get probes |
+| **B) The Aspire template paths: readiness `/health`, liveness `/alive`** | Works with an unmodified template project in development | The template maps them only in the Development environment, so a published (production) pod answers 404 and is never Ready |
+| **C) The paths recommended by #454: `/health/live`, `/health/ready`, `/health/startup`** | One probe family for Encina | They exist only after the application calls `MapEncinaHealthChecks` (#454, open, with its own pending choices); without it the readiness probe never passes |
+
+### Chosen Option: **A — probes only when a path is set** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because every default path is wrong for some application today (B in production, C without #454) and a wrong readiness path takes the whole deployment down. C wins once #454 is the standard of the family and the maintainer accepts changing the default to it; that is one constant.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Docker Compose restart policy and healthcheck (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `restart: unless-stopped`, no `healthcheck`** | A processor that crashes comes back; a healthcheck needs a command inside the image (`curl` or `wget`) that Encina cannot assume | A crash loop restarts for ever |
+| **B) `restart: on-failure`** | A clean stop stays stopped; a crash loop is visible | After a host reboot the service does not start |
+| **C) Leave the Aspire default** | Nothing to decide | A background processor that exits is not restarted |
+
+### Chosen Option: **A — `unless-stopped`, no healthcheck** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins for a long-running background service on a single host; B wins when a crash loop should be seen rather than hidden. The `Service.Restart` and `Service.Healthcheck` members exist in `Aspire.Hosting.Docker.xml` 13.6.5.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>6. Use Aspire's publishers; write no secrets and no YAML of our own (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
@@ -152,14 +193,13 @@ A wins because a killed processor leaves rows claimed and delays them until the 
 | **A) Customize the output of `Aspire.Hosting.Docker` and `Aspire.Hosting.Kubernetes` through `PublishAsDockerComposeService` and `PublishAsKubernetesService`; Aspire's publishers keep producing the ConfigMap, Secret, Helm chart and connection strings** | Follows the platform; typed model; one source of truth | Bound to the publishers' API (a preview for Kubernetes) |
 | **B) Generate our own YAML (or use Aspir8) and add it next to the publisher's output** | Independent of the preview | Two writers of the same files; our YAML would hold connection strings, so Encina would handle secrets |
 
-### Chosen Option: **A — customize Aspire's publishers**
+### Chosen Option: **A — customize Aspire's publishers** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue's technical considerations say to "follow Aspire publisher extension patterns" and that the manifests are verified locally; the extension points above exist. Encina adds no ConfigMap or Secret: options with a connection string are not part of this feature, and nothing in the processor options holds a secret.
+The issue's technical considerations say to "follow Aspire publisher extension patterns" and that the manifests are verified locally; the extension points above exist (`Aspire.Hosting.Docker.xml` and `Aspire.Hosting.Kubernetes.xml` 13.6.5: `PublishAsDockerComposeService`, `PublishAsKubernetesService`, `WithHelm`). A wins because Aspire's publishers already produce the ConfigMap, Secret and Helm output the issue lists ("ConfigMap/Secret generation", "Helm chart generation"), so those acceptance items are met by the platform and Encina writes no secret: nothing in the processor options holds one. B wins if the Kubernetes publisher stays a preview for so long that the maintainer prefers manifests Encina generates itself (then Encina would handle connection strings and secrets, which needs its own plan and the secrets rule of `AGENTS.md` section 3).
 
-**Class:** Settled
-**Settled by:** issue #421 Technical Considerations (follow Aspire publisher extension patterns; no cloud deployment); `Aspire.Hosting.Docker.xml` and `Aspire.Hosting.Kubernetes.xml` 13.6.5 (`PublishAsDockerComposeService`, `PublishAsKubernetesService`, `WithHelm`).
+**Class:** Dilemma
 
 </details>
 
@@ -186,7 +226,7 @@ The issue's technical considerations say to "follow Aspire publisher extension p
 
 ```text
 CONTEXT:
-- Issue #421; plan docs/plans/aspire-deployment-implementation-plan-421.md. D1, D2, D3 and D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Only the Docker Compose and local Kubernetes targets are in scope; Azure Container Apps is #2698.
+- Issue #421; plan docs/plans/aspire-deployment-implementation-plan-421.md. D1 to D8 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. Only the Docker Compose and local Kubernetes targets are in scope; Azure Container Apps is #2698.
 - Aspire.Hosting.Docker 13.6.5 is stable; confirm every member you use in its Aspire.Hosting.Docker.xml before coding.
 
 TASK:
@@ -215,7 +255,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `Compose/ComposeProcessorCustomizer.cs` (internal static): applies, to the Compose `Service` of a resource that has an `EncinaProcessorAnnotation`, `Restart = "unless-stopped"`, `StopGracePeriod` from the options (a Compose duration string) and the replica count through `Service.Deploy`; `WithEncinaProcessor` registers the callback through `PublishAsDockerComposeService` so it runs only when a Compose environment publishes the resource.
+1. `Compose/ComposeProcessorCustomizer.cs` (internal static): applies, to the Compose `Service` of a resource that has an `EncinaProcessorAnnotation`, `Restart = "unless-stopped"` and no healthcheck (Design Choice 8), `StopGracePeriod` from the options (a Compose duration string) and the replica count through `Service.Deploy`; `WithEncinaProcessor` registers the callback through `PublishAsDockerComposeService` so it runs only when a Compose environment publishes the resource.
 2. Tests: unit that publishes a model with `AddDockerComposeEnvironment` into a temporary directory and snapshot-checks the generated file with `Encina.Testing.Verify`, and one case without a Compose environment (the callback never runs); the technique for running the publish operation in a test is confirmed at work start (when it is not possible, the callback is invoked directly on a `Service`); property test (random option sets validate exactly when the rules of Phase 1 hold) and the contract test of Phase 6 with the `Encina.PropertyTests.csproj` and `Encina.ContractTests.csproj` references; the manifest and `PublicAPI.Unshipped.txt` edits through `mechanical-fixer`.
 
 </details>
@@ -252,8 +292,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `src/Encina.Aspire.Deployment.Kubernetes/Encina.Aspire.Deployment.Kubernetes.csproj` (`PackageReference Aspire.Hosting.Kubernetes` at `13.6.5-preview.1.26559.7`, the only version on NuGet, pinned in `Directory.Packages.props`; `ProjectReference` to `Encina.Aspire.Deployment`), the slnx entry, `PublicAPI` files and manifest.
-2. `KubernetesProcessorCustomizer.cs` (internal static) and the public `WithEncinaProcessorKubernetes<T>(this IResourceBuilder<T>, Action<EncinaKubernetesProcessorOptions>? configure = null)` extension that registers `PublishAsKubernetesService(resource => ...)`: sets `Deployment.Spec.Replicas`, `Strategy` to `Recreate` unless scaling is allowed, the pod's termination grace period, the container's liveness, readiness and startup probes (`ProbeV1.HttpGet`) on `/health/live`, `/health/ready` and `/health/startup` (the defaults of #454, overridable and removable, because a worker without an HTTP endpoint has none), and, when `AllowHorizontalScaling` and `Autoscaling` are set, a `HorizontalPodAutoscaler` added to `AdditionalResources` with `MinReplicas`, `MaxReplicas` and `TargetCPUUtilizationPercentage`.
-3. Tests: unit and snapshot tests over a model with `AddKubernetesEnvironment` published to a temporary directory (Verify snapshots of the Deployment, probes and HPA; the HPA absent by default); integration test (`Category=Integration`) that validates the generated manifests with `kubectl apply --dry-run=client` when the tool is on the path and is skipped with a visible reason otherwise (a local `kind` cluster is the maintainer's manual check, as the issue states, never a CI requirement); guard; manifest and `PublicAPI.Unshipped.txt` through `mechanical-fixer`.
+2. `KubernetesProcessorCustomizer.cs` (internal static) and the public `WithEncinaProcessorKubernetes<T>(this IResourceBuilder<T>, Action<EncinaKubernetesProcessorOptions>? configure = null)` extension that registers `PublishAsKubernetesService(resource => ...)`: sets `Deployment.Spec.Replicas`, `Strategy` to `Recreate` unless scaling is allowed, the pod's termination grace period, the container's liveness, readiness and startup probes (`ProbeV1.HttpGet`) only for the paths set in the public `EncinaKubernetesProcessorOptions` (`LivenessPath`, `ReadinessPath`, `StartupPath`, all null by default: Design Choice 7), and, when `AllowHorizontalScaling` and `Autoscaling` are set, a `HorizontalPodAutoscaler` added to `AdditionalResources` with `MinReplicas`, `MaxReplicas` and `TargetCPUUtilizationPercentage`.
+3. Tests: unit and snapshot tests over a model with `AddKubernetesEnvironment` published to a temporary directory (Verify snapshots of the Deployment, probes and HPA; the HPA absent by default); guard; manifest and `PublicAPI.Unshipped.txt` through `mechanical-fixer`. The integration test (`Category=Integration`) that validates the generated manifests with `kubectl apply --dry-run=client` when the tool is on the path, and is skipped with a visible reason otherwise (a local `kind` cluster is the maintainer's manual check, as the issue states, never a CI requirement), ships in pull request 4 with the `Encina.IntegrationTests.csproj` reference, so pull request 3 stays within 15 files; the Integration target of the Kubernetes customizer is 0 in pull request 3 and raised in pull request 4.
 
 </details>
 
@@ -269,7 +309,7 @@ Create the Kubernetes package, the customizer and its tests.
 
 KEY RULES:
 - The HPA is added only when AllowHorizontalScaling and Autoscaling are both set; the default output has one replica and Recreate.
-- Probe paths are options; a resource without an HTTP endpoint gets none.
+- Probe paths are options and null by default (D7); a probe is added only for a path that is set, so a resource without an HTTP endpoint gets none.
 - No KEDA, no raw custom resource, no secret and no connection string from this package.
 - The preview version is pinned in Directory.Packages.props with a comment naming this issue.
 
@@ -352,17 +392,18 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit, Guard, Property, snapshot** as in Phases 1 to 3. **Contract**: `tests/Encina.ContractTests/Aspire/EncinaProcessorContractTests.cs` pins the option defaults (1 replica, scaling off, 60 seconds) because #2698 and the Kubernetes package reuse the model. **Integration**: `tests/Encina.IntegrationTests/Aspire/KubernetesManifestDryRunTests.cs` (Phase 3). **Load** and **Benchmark**: justification files (publish-time logic).
+1. **Unit, Guard, Property, snapshot** as in Phases 1 to 3. The property test goes through the public path (`WithEncinaProcessor` with generated option sets, asserting that it throws exactly when the rules of Phase 1 are broken), which executes the internal `Validate()`, so no `InternalsVisibleTo` for the property project is needed. **Contract**: `tests/Encina.ContractTests/Aspire/EncinaProcessorContractTests.cs` builds a real model, calls `WithEncinaProcessor` with defaults and with a valid custom set, and pins the defaults of the annotation's `Options` (1 replica, scaling off, 60 seconds) because #2698 and the Kubernetes package reuse the model; it runs the valid paths of `Validate()` but not its throwing lines. **Integration**: `tests/Encina.IntegrationTests/Aspire/KubernetesManifestDryRunTests.cs` (Phase 3). **Load** and **Benchmark**: justification files (publish-time logic).
 2. **Per-file targets** (measured at work start; new files have no baseline):
 
    | File | Unit | Guard | Contract | Property | Integration | Justification |
    |------|:---:|:---:|:---:|:---:|:---:|---------------|
-   | `EncinaProcessorOptions.cs` | 100 | 0 | 100 | 90 | 0 | Validation is pure and property-tested; the contract test pins the defaults; no parameterized public member |
+   | `EncinaProcessorOptions.cs` | 100 | 0 | 70 | 90 | 0 | Validation runs in unit tests and, through `WithEncinaProcessor`, in the property test; the contract test pins the defaults and runs only the valid paths of `Validate()`, so its target is 70 and not 100; no parameterized public member |
    | `EncinaProcessorAnnotation.cs` | 95 | 70 | 0 | 0 | 0 | Real annotation on the model; guard reaches the constructor check |
    | `EncinaProcessorBuilderExtensions.cs` | 95 | 90 | 0 | 0 | 0 | Run over the real `DistributedApplication.CreateBuilder()` model |
    | `Compose/ComposeProcessorCustomizer.cs` | 90 | 0 | 0 | 0 | 0 | Run by the publish snapshot tests; internal, no public parameterized member |
    | `Encina.Aspire.Deployment.Kubernetes/KubernetesProcessorCustomizer.cs` | 90 | 0 | 0 | 0 | 60 | Publish snapshots in unit tests; the dry-run test covers the valid-manifest path when `kubectl` is available |
    | `Encina.Aspire.Deployment.Kubernetes/WithEncinaProcessorKubernetes` extension | 95 | 90 | 0 | 0 | 0 | Real model and publish |
+   | `Encina.Aspire.Deployment.Kubernetes/EncinaKubernetesProcessorOptions.cs` | 100 | 0 | 0 | 0 | 0 | Auto-properties and path validation run by the publish snapshot tests; no parameterized public member |
 
 </details>
 
@@ -431,10 +472,10 @@ REFERENCE FILES:
 |----|---------|------:|--------------:|
 | 1 | csproj, `Directory.Packages.props` edit, `Encina.slnx` edit, `EncinaProcessorOptions`, `EncinaProcessorAnnotation`, `EncinaProcessorBuilderExtensions`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, unit and guard test files, two test csproj edits (Unit, Guard) | 13 | 800 |
 | 2 | `ComposeProcessorCustomizer`, `WithEncinaProcessor` edit, `PublicAPI.Unshipped.txt` and manifest edits, unit snapshot test file and its verified snapshot, contract and property test files, `Encina.ContractTests.csproj` and `Encina.PropertyTests.csproj` edits | 10 | 800 |
-| 3 | Kubernetes csproj, `Directory.Packages.props` edit, `Encina.slnx` edit, `KubernetesProcessorCustomizer`, the extension, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, unit snapshot test and snapshot, guard test, dry-run integration test, `Encina.UnitTests.csproj`, `Encina.GuardTests.csproj` and `Encina.IntegrationTests.csproj` edits | 15 | 1,200 |
-| 4 | Two READMEs, usage page, `docs/INVENTORY.md` lines, changelog fragment, two justification files (load, benchmark) | 7 | 380 |
+| 3 | Kubernetes csproj, `Directory.Packages.props` edit, `Encina.slnx` edit, `KubernetesProcessorCustomizer`, `EncinaKubernetesProcessorOptions`, the extension, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, unit snapshot test and snapshot, guard test, `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj` edits | 14 | 1,100 |
+| 4 | Dry-run integration test, `Encina.IntegrationTests.csproj` edit, Kubernetes manifest edit (Integration target), two READMEs, usage page, `docs/INVENTORY.md` lines, changelog fragment, two justification files (load, benchmark) | 10 | 560 |
 
-PR 2 needs PR 1; PR 3 needs PR 1 and the maintainer's answer to D1; PR 4 is last. No interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again (PR 3 is the first candidate: the dry-run test moves to a PR 3b).
+PR 2 needs PR 1; PR 3 needs PR 1 and the maintainer's answer to D1; PR 4 is last. No interface changes, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -458,7 +499,7 @@ PR 2 needs PR 1; PR 3 needs PR 1 and the maintainer's answer to D1; PR 4 is last
 | Component | Location | Usage in this feature |
 |-----------|----------|-----------------------|
 | `OutboxProcessorBase`, `ScheduledMessageProcessor`, per-provider `OutboxProcessor` | `src/Encina.Messaging/Outbox/`, `src/Encina.Messaging/Scheduling/`, `src/Encina.ADO.*`, `src/Encina.Dapper.*` | The processors the annotation refers to (they are `BackgroundService` instances) |
-| Probe paths and tags | #454 | The defaults of the Kubernetes probes |
+| Probe paths and tags | #454 | One possible source of the probe paths a solution sets (D7) |
 | Distributed locks for processors | #713 (outbox), #715 (saga) | The condition for raising the replica default |
 | `WithEncinaTestSupport` | `src/Encina.Aspire.Testing/DistributedApplicationTestingBuilderExtensions.cs` | Second-call convention |
 | `Encina.Aspire.Hosting` | #416 | Independent: this package does not reference it |
@@ -474,12 +515,12 @@ PR 2 needs PR 1; PR 3 needs PR 1 and the maintainer's answer to D1; PR 4 is last
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production code | 8 | Two csproj, options, annotation, builder extension, Compose customizer, Kubernetes customizer and extension |
+| Production code | 9 | Two csproj, options, annotation, builder extension, Compose customizer, Kubernetes customizer, extension and options |
 | Public API and manifests | 6 | Two Shipped, two Unshipped, two manifests (edited again in later pull requests) |
 | Tests and project files | 21 | Ten test files and snapshots (unit, guard, two snapshot tests with two snapshots, contract, property, Kubernetes guard, dry-run integration), 7 test csproj edits, props edits (2), slnx edits (2) |
 | Justification files | 2 | Load, benchmark |
 | Documentation | 5 | Two READMEs, usage page, inventory lines, changelog fragment |
-| **Total** | **42 distinct files; 45 file touches across 4 pull requests** | `PublicAPI.Unshipped.txt`, the Compose-side manifest and the builder extension are edited in pull requests 1 and 2; the sum of the split table (13 + 10 + 15 + 7) is the authority (45) |
+| **Total** | **43 distinct files; 47 file touches across 4 pull requests** | `PublicAPI.Unshipped.txt`, the Compose-side manifest and the builder extension are edited in pull requests 1 and 2, and the Kubernetes manifest in 3 and 4; the sum of the split table (13 + 10 + 14 + 10) is the authority (47) |
 
 ---
 
@@ -491,7 +532,7 @@ PR 2 needs PR 1; PR 3 needs PR 1 and the maintainer's answer to D1; PR 4 is last
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #421: processor settings for the Docker Compose and Kubernetes publishers. Plan: docs/plans/aspire-deployment-implementation-plan-421.md; D1, D2, D3 and D5 are recommended, pending the maintainer.
+- Issue #421: processor settings for the Docker Compose and Kubernetes publishers. Plan: docs/plans/aspire-deployment-implementation-plan-421.md; D1 to D8 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (4 pull requests, each builds alone):
 1. Package, EncinaProcessorOptions, EncinaProcessorAnnotation, WithEncinaProcessor (Phase 1).
@@ -523,7 +564,7 @@ REFERENCE FILES:
 | 1 | Caching | ❌ | Not applicable: publish-time configuration |
 | 2 | OpenTelemetry | ❌ | Not applicable as the issue's "pipeline tracing": publishing is reported by the Aspire pipeline; the deployed processors' telemetry is #417's, delivered through the OTLP environment Aspire injects |
 | 3 | Structured Logging | ❌ | Not applicable: no application logger exists when the AppHost publishes; failures are exceptions naming the property |
-| 4 | Health Checks | ✅ | Phase 3: Kubernetes probes on the probe paths of #454; a Compose service gets none because the base image may lack a probe tool |
+| 4 | Health Checks | ✅ | Phase 3: Kubernetes probes on the paths the solution sets (off by default, D7; #454 is one possible source of the paths); a Compose service gets none because the base image may lack a probe tool (D8) |
 | 5 | Validation | ✅ | Phase 1: replicas, grace period and autoscaling are validated when the AppHost is built |
 | 6 | Resilience | ❌ | Not applicable: retry of publish steps belongs to the Aspire pipeline; processors keep their own retry (`OutboxRetryBackoff`) |
 | 7 | Distributed Locks | ⏭️ | Deferred: scaling out waits for #713 and #715 (open, planned); until then the default is one replica (D3) |
@@ -537,7 +578,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- None to compile: the Docker package is stable and pinned here. Pull request 3 needs the maintainer's answer to D1 and uses the preview Kubernetes package, the only version on NuGet. The probes of #454 are the source of the default probe paths; #713 and #715 are the condition for raising the replica default.
+- None to compile: the Docker package is stable and pinned here. Pull request 3 needs the maintainer's answer to D1 and uses the preview Kubernetes package, the only version on NuGet. #454 is one possible source of the probe paths a solution sets; #713 and #715 are the condition for raising the replica default.
 - #2698 (Azure Container Apps, outside 1.0) reuses the processor model; #416 is independent of this package.
 - The KEDA spike issue file is opened by the orchestrator with this plan.
 
@@ -545,5 +586,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3 and D5 when work on #421 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1 to D8 when work on #421 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull request 1, then 2; pull request 3 after D1; pull request 4 last.
