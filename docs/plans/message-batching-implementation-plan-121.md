@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for handlers that receive many messages in one call, configurable by count, time, payload size or the first of them, integrated with the outbox (batch publishing) and the inbox (batch consuming), with the batch wrapped by the pipeline. What exists on `origin/main` (`b50b8c981`) and what this plan adds:
+The issue asks for handlers that receive many messages in one call, configurable by count, time, payload size or the first of them, integrated with the outbox (batch publishing) and the inbox (batch consuming), with the batch wrapped by the pipeline. What exists on `origin/main` (`822c310c7`) and what this plan adds:
 
 | Issue item | Today | Owner |
 |------------|-------|-------|
@@ -177,7 +177,7 @@ A wins when relative order of messages matters to consumers, which the outbox do
 </details>
 
 <details>
-<summary><strong>8. The inbox composes by pipeline order, with no new inbox code</strong></summary>
+<summary><strong>8. The inbox composes by pipeline order, with no new inbox code (Dilemma D8)</strong></summary>
 
 ### Options Considered
 
@@ -186,14 +186,13 @@ A wins when relative order of messages matters to consumers, which the outbox do
 | **A) `InboxPipelineBehavior` stays an outer per-item behavior and the batching behavior of #302 is innermost, so each item is deduplicated and recorded individually before and after its batch is flushed; a test proves it** | No change to the inbox store or to its 10 providers; reuses ADR-048's behavior | The inbox claim of an item stays open while the item waits for its batch (bounded by `MaxDelay`) |
 | **B) A batch-aware inbox that registers a whole batch at once** | One store round trip per batch | New methods on `IInboxStore` and its implementations in all 10 providers for a marginal gain |
 
-### Chosen Option: **A, composition by order**
+### Chosen Option: **A, composition by order** (recommended, pending the maintainer)
 
 ### Rationale
 
-#302 places per-item outer behaviors before the collector by design (its Design Choice 3), and `InboxPipelineBehavior` keys deduplication on `IRequestContext.IdempotencyKey` per request.
+A wins because #302 places per-item outer behaviors before the collector by design (its Design Choice 3), and `InboxPipelineBehavior` keys deduplication on `IRequestContext.IdempotencyKey` per request (`src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs`), so no store changes; B also satisfies those citations and wins for high-volume consumers where the per-item store round trip dominates and a batch-aware inbox (new `IInboxStore` methods in all 10 providers) pays for itself.
 
-**Class:** Settled
-**Settled by:** #302 Design Choice 3 and `src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs` (per-request idempotency key).
+**Class:** Dilemma
 
 </details>
 
@@ -231,7 +230,7 @@ REFERENCE FILES: src/Encina.Batching/BatchCollector.cs, src/Encina.Batching/Batc
 
 1. `src/Encina.Batching/IBatchNotificationHandler.cs` (D5).
 2. `src/Encina.Messaging/Encina.Messaging.csproj`: `ProjectReference` to `Encina.Batching` (D4; skip if #349 pull request 5 already added it).
-3. `src/Encina.Messaging/Outbox/BatchNotificationDispatcher.cs` (internal sealed, scoped; constructor `(IServiceProvider)` resolving the scope's handlers): `bool HasHandler(Type notificationType)` and `ValueTask<IReadOnlyList<Either<EncinaError, Unit>>> DispatchAsync(Type notificationType, IReadOnlyList<object> notifications, CancellationToken)`; the closed-generic invoker is created once per notification type and cached in a static `ConcurrentDictionary<Type, ...>` (the same technique as the request dispatcher's handler cache). A handler that throws returns one `Left` `outbox.batch_publish_failed` (`UpstreamFailure`, exception type only) per message; a wrong result count returns `outbox.batch_result_mismatch` (`Internal`) per message.
+3. `src/Encina.Messaging/Outbox/BatchNotificationDispatcher.cs` (internal sealed, scoped; constructor `(IServiceProvider)` resolving the scope's handlers): `bool HasHandler(Type notificationType)` and `ValueTask<IReadOnlyList<Either<EncinaError, Unit>>> DispatchAsync(Type notificationType, IReadOnlyList<object> notifications, CancellationToken)`; the closed-generic invoker is created once per notification type and cached in a static `ConcurrentDictionary<Type, ...>` (the same technique as the request dispatcher's handler cache). A handler that throws returns one `Left` `outbox.batch_publish_failed` (`Internal`: the failure is a local handler exception, ADR-062 R4 and R7; exception type only) per message; a wrong result count returns `outbox.batch_result_mismatch` (`Internal`) per message.
 4. Registration: `TryAddScoped<BatchNotificationDispatcher>()` in `MessagingServiceCollectionExtensions` next to the existing outbox registrations; handlers are registered by the application (`IBatchNotificationHandler<T>` as scoped) or found by `AddEncinaBatching(assemblies)` scanning (#349's registrar extends to `IBatchNotificationHandler<>` in this pull request, one added scan clause).
 5. Tests: unit `BatchNotificationDispatcherTests` (has handler, dispatch, throwing handler, count mismatch, invoker cache), DI `BatchNotificationRegistrationTests` with `ValidateOnBuild` and `ValidateScopes` in both registration orders, guard `BatchNotificationDispatcherGuardTests`; PublicAPI for `Encina.Batching` and `Encina.Messaging` (through `mechanical-fixer`), both manifests.
 
@@ -256,7 +255,7 @@ REFERENCE FILES: src/Encina/Abstractions/INotificationHandler.cs, src/Encina/Dis
 
 1. `OutboxOptions.BatchDispatch` (default `false`, D7) and `OutboxOptions.MaxBatchDispatchSize` (default 100; at most `BatchSize` is meaningful, validated above zero).
 2. `OutboxBatchProcessor.ProcessAsync` gains an optional parameter `Func<Type, IReadOnlyList<object>, CancellationToken, ValueTask<IReadOnlyList<Either<EncinaError, Unit>>>>? publishBatch = null` and `Func<Type, bool>? hasBatchHandler = null` (an optional default keeps the `OutboxOrchestrator` and `OutboxProcessorBase` call sites and the four test files that call the processor compiling; callers found by `git grep -n OutboxBatchProcessor`: `OutboxProcessorBase`, `OutboxOrchestrator`, and the tests `OutboxBatchProcessorTests`, `OutboxRetryAfterCeilingTests`, `ErrorMessageLeakTests`, `RetryAfterCeilingProperties`). With the callbacks present and `BatchDispatch` on, the processor deserializes the fetched messages, splits them into runs (D6, at most `MaxBatchDispatchSize` per run), sends each run of two or more of a handled type through `publishBatch`, and feeds every returned result through the existing post-publish path (`MarkAsProcessedAsync`, `PublishFailedAsync`, exhausted, dead letter, store-error accounting); `ProcessMessageAsync` is split into a deserialize step and a completion step so that the batch and single paths share the completion code, each method at complexity 8 or less. A cancelled token stops without marking the interrupted run failed (the existing cancellation rule).
-3. `OutboxProcessorBase.ProcessPendingMessagesAsync` and `OutboxOrchestrator.ProcessPendingMessagesAsync` pass the dispatcher callbacks when `BatchDispatch` is on and a `BatchNotificationDispatcher` is registered; with no dispatcher registered the option has no effect and a warning is logged once (EventId 2976 is reserved for it); the processor still saves after the whole batch with the existing `SaveChangesAsync` call (the batch dispatch does not change the save point and claims no atomicity).
+3. `OutboxProcessorBase.ProcessPendingMessagesAsync` and `OutboxOrchestrator.ProcessPendingMessagesAsync` pass the dispatcher callbacks when `BatchDispatch` is on and a `BatchNotificationDispatcher` is registered; with no dispatcher registered the option has no effect and a warning is logged once (EventId 2976 is reserved for it); the batch dispatch changes no save point and claims no atomicity, and the commit owner differs by caller: `OutboxProcessorBase` still saves after the whole batch with its existing `SaveChangesAsync` call (`OutboxProcessorBase.cs:157`), while `OutboxOrchestrator.ProcessPendingMessagesAsync` never calls `SaveChangesAsync` (its remarks, `OutboxOrchestrator.cs:141`: the caller commits the batch), so for the orchestrator the commit owner is its caller, such as `SagaOrchestrator.CommitAsync` of the #720 plan, and the plan makes no "after save" claim about it.
 4. `MessagingLog` (EventIds 2973-2976 in the existing `Messaging` range, free on `origin/main`): 2973 run dispatched as a batch (Debug, type and size), 2974 result count mismatch (Error), 2975 batch handler threw (Error, exception type through `ForLogging()`), 2976 `BatchDispatch` on without a registered dispatcher (Warning).
 5. Tests: unit `OutboxBatchProcessorBatchDispatchTests` (runs cut at type changes, a run of one uses the per-message path, per-message success and failure feed retry, exhausted and dead letter exactly as before, count mismatch, throwing handler, cancellation, off by default leaves the existing tests unchanged), property `OutboxBatchRunsProperties` (runs preserve fetch order and cover every message exactly once), edit `OutboxBatchProcessorTests` only if a signature assertion needs it; PublicAPI.Unshipped for `Encina.Messaging` (`OutboxOptions` members), manifest, README edit, changelog fragment `changelog.d/121-outbox-batch-dispatch.added.md`.
 
@@ -268,7 +267,7 @@ REFERENCE FILES: src/Encina/Abstractions/INotificationHandler.cs, src/Encina/Dis
 ```text
 CONTEXT: OutboxBatchProcessor is the single implementation of one outbox cycle and is shared by every provider's processor and by OutboxOrchestrator. D6 (consecutive same-type runs, only for types with a batch handler) and D7 (per-message outcomes, opt-in) apply; D6 as recommended until the maintainer answers.
 TASK: Add the options, the optional batch callbacks, the run splitter, the shared completion path, the log messages and the tests.
-KEY RULES: Every message keeps its success, retry, exhausted, dead-letter and store-error accounting; a Left or a count mismatch never reports success; the cycle's SaveChangesAsync stays where it is and no atomicity is claimed; cancellation does not consume a retry; method complexity 8 or less (CRAP <= 10); EventIds 2973-2976 only; optional parameters so existing callers compile.
+KEY RULES: Every message keeps its success, retry, exhausted, dead-letter and store-error accounting; a Left or a count mismatch never reports success; save points stay where they are (OutboxProcessorBase saves after the batch; OutboxOrchestrator never calls SaveChangesAsync, its caller commits) and no atomicity is claimed; cancellation does not consume a retry; method complexity 8 or less (CRAP <= 10); EventIds 2973-2976 only; optional parameters so existing callers compile.
 REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, src/Encina.Messaging/Outbox/OutboxOrchestrator.cs, src/Encina.Messaging/MessagingLog.cs, tests/Encina.UnitTests/Messaging/Outbox/OutboxBatchProcessorTests.cs.
 ```
 
@@ -304,15 +303,16 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/Outbox/OutboxAtomicityS
 <summary>Tasks</summary>
 
 1. Multi-tenancy (function 10): the outbox message has no `TenantId` today; #737 adds it and the run key gains the tenant there (D6). The collector's tenant-separated key (#302) applies to the byte trigger unchanged.
-2. Errors (ADR-062): `outbox.batch_result_mismatch` `Internal`, `outbox.batch_publish_failed` `UpstreamFailure`; no `EncinaError.Message` or exception message reaches a log, tag or result.
-3. Per-flag targets, entered in `.github/coverage-manifest/Encina.Batching.json` and `Encina.Messaging.json` in the pull request that adds each file; baselines of the edited files (`BatchCollector.cs`, `BatchingOptions.cs`, `OutboxBatchProcessor.cs`, `OutboxOptions.cs`, `OutboxProcessorBase.cs`, `OutboxOrchestrator.cs`, `MessagingLog.cs`) are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`; each target is the measured value or higher.
+2. Errors (ADR-062): `outbox.batch_result_mismatch` `Internal`, `outbox.batch_publish_failed` `Internal` (a local handler exception, not an upstream response, R7); no `EncinaError.Message` or exception message reaches a log, tag or result.
+3. Per-flag targets, entered in `.github/coverage-manifest/Encina.Batching.json` and `Encina.Messaging.json` in the pull request that adds each file; the edited `Encina.Batching` files (`BatchCollector.cs`, `BatchingOptions.cs`, `BatchOptionsAttribute.cs`) do not exist on `origin/main` (they come from #302), so their targets are numeric and equal to #302's; baselines of the existing edited files (`OutboxBatchProcessor.cs`, `OutboxOptions.cs`, `OutboxProcessorBase.cs`, `OutboxOrchestrator.cs`, `MessagingLog.cs`) are measured at work start with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`; each target is the measured value or higher.
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
 | `BatchNotificationDispatcher.cs` | 95 | 0 | 0 | 0 | 0 |
 | `OutboxBatchProcessor.cs` (edited) | measured baseline or higher | 0 | 0 | measured baseline or higher | 70 |
-| `OutboxOptions.cs`, `BatchingOptions.cs`, `BatchOptionsAttribute.cs` (edited) | 100 | measured baseline or higher | 0 | 0 | 0 |
-| `BatchCollector.cs` (edited) | measured baseline or higher | 0 | 0 | measured baseline or higher | 0 |
+| `OutboxOptions.cs` (edited) | 100 | measured baseline or higher | 0 | 0 | 0 |
+| `BatchingOptions.cs`, `BatchOptionsAttribute.cs` (edited) | 100 | 0 | 0 | 0 | 0 |
+| `BatchCollector.cs` (edited) | 92 | 0 | 0 | 80 | 0 |
 | `OutboxProcessorBase.cs`, `OutboxOrchestrator.cs`, `MessagingLog.cs` (edited) | measured baseline or higher | measured baseline or higher | 0 | 0 | 0 |
 | `BatchingMode.cs`, `IBatchItemSize.cs`, `IBatchNotificationHandler.cs` | 0 | 0 | 0 | 0 | 0 |
 
@@ -320,8 +320,9 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/Outbox/OutboxAtomicityS
 |---------------|---------------|
 | `BatchNotificationDispatcher.cs` unit 95 | Handler lookup, dispatch, exception and mismatch paths run with fakes; guard 0: internal type, with no `InternalsVisibleTo` for `Encina.GuardTests` (verified at work start; raised if present). |
 | `OutboxBatchProcessor.cs` integration 70 | The 10-provider scenario reaches the batch path with real stores; the remaining lines are defensive store-error branches that need fault injection. |
-| Options and attribute unit 100 | Pure data and validation. |
-| Edited collector and messaging files | The new branches are covered by the new tests; other flags keep their measured baselines because no provider code changes. |
+| Options and attribute unit 100 | Pure data and validation; `BatchingOptions.cs` and `BatchOptionsAttribute.cs` keep #302's guard 0 (no parameters to guard). |
+| `BatchCollector.cs` unit 92, property 80 | The same targets as #302 for this file: the byte trigger is covered by the new mode tests and the property test, and guard stays 0 as in #302 (internal type). |
+| Edited existing messaging files | The new branches are covered by the new tests; other flags keep their measured baselines because no provider code changes. |
 | Interfaces and enum 0 | No executable lines; contract tests of `IBatchNotificationHandler` arrive with its first implementer outside the tests. |
 
 4. Documentation: `src/Encina.Messaging/README.md` (it names `OutboxBatchProcessor`) and `src/Encina.Batching/README.md` through `docs-writer`; the feature page `docs/features/request-batching.md` is owned by #349; changelog fragments `changelog.d/121-batching-modes.added.md` (pull request 1) and `changelog.d/121-outbox-batch-dispatch.added.md` (pull request 3) through `mechanical-fixer`.
@@ -388,7 +389,7 @@ REFERENCE FILES: .github/coverage-manifest/Encina.Messaging.json, src/Encina.Mes
 | **Pull request 3** | **11** | `OutboxOptions`, `OutboxBatchProcessor`, `OutboxProcessorBase`, `OutboxOrchestrator`, `MessagingLog`, PublicAPI, manifest, 2 tests (unit, property), README edit, changelog fragment; about 900 lines |
 | **Pull request 4** | **14** | composition test, shared scenario, 10 provider test edits, 2 justification files; about 600 lines |
 
-Callers and implementers, by grep on `origin/main` (2026-11-17): `OutboxBatchProcessor` is constructed in `OutboxProcessorBase.cs` and `OutboxOrchestrator.cs`, and used in the tests listed in Phase 3 task 2; the new callback parameters are optional, so none of them changes. `IBatchNotificationHandler` has no implementer yet. Every pull request adds production code together with its own tests and builds alone in the order 1, 2, 3, 4; pull request 1 needs #302 pull request 2, pull request 2 needs #302 and, for the scan clause, #349 pull request 2.
+Callers and implementers, by grep on `origin/main` (2026-11-18, `822c310c7`): `OutboxBatchProcessor` is constructed in `OutboxProcessorBase.cs` and `OutboxOrchestrator.cs`, and used in the tests listed in Phase 3 task 2; the new callback parameters are optional, so none of them changes. `IBatchNotificationHandler` has no implementer yet. Every pull request adds production code together with its own tests and builds alone in the order 1, 2, 3, 4; pull request 1 needs #302 pull request 2, pull request 2 needs #302 and, for the scan clause, #349 pull request 2.
 
 ---
 
@@ -400,9 +401,9 @@ Callers and implementers, by grep on `origin/main` (2026-11-17): `OutboxBatchPro
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP. #302 provides Encina.Batching with a collector (count and delay triggers); the outbox cycle is OutboxBatchProcessor (shared by every provider's processor and by OutboxOrchestrator), which publishes one message at a time; the inbox deduplicates per request through InboxPipelineBehavior.
 
-IMPLEMENTATION OVERVIEW: PR1 BatchingMode, IBatchItemSize and the byte trigger in the collector with options validation; PR2 IBatchNotificationHandler, the Messaging-to-Batching project reference, BatchNotificationDispatcher with a cached invoker and registration; PR3 OutboxOptions.BatchDispatch and the optional batch callbacks in OutboxBatchProcessor (runs of consecutive same-type messages, per-message outcomes through the existing completion path), log 2973-2976; PR4 the inbox composition test, a shared integration scenario and one added test method in each of the 10 provider outbox test classes. Dilemmas D2, D4 and D6 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 BatchingMode, IBatchItemSize and the byte trigger in the collector with options validation; PR2 IBatchNotificationHandler, the Messaging-to-Batching project reference, BatchNotificationDispatcher with a cached invoker and registration; PR3 OutboxOptions.BatchDispatch and the optional batch callbacks in OutboxBatchProcessor (runs of consecutive same-type messages, per-message outcomes through the existing completion path), log 2973-2976; PR4 the inbox composition test, a shared integration scenario and one added test method in each of the 10 provider outbox test classes. Dilemmas D2, D4, D6 and D8 are implemented as the maintainer answers, the recommended options until then.
 
-KEY PATTERNS: Opt-in, off by default; a Left or a count mismatch never reports success; per-message retry, exhausted and dead-letter accounting unchanged; the cycle's SaveChangesAsync stays where it is and no atomicity is claimed; no scoped service in a singleton; exception type only in logs; ADR-062 category on every error code; targets never go down; CRAP <= 10.
+KEY PATTERNS: Opt-in, off by default; a Left or a count mismatch never reports success; per-message retry, exhausted and dead-letter accounting unchanged; save points stay where they are (OutboxProcessorBase saves, the orchestrator's caller commits) and no atomicity is claimed; no scoped service in a singleton; exception type only in logs; ADR-062 category on every error code; targets never go down; CRAP <= 10.
 
 REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina.Messaging/Outbox/OutboxProcessorBase.cs, src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs, src/Encina.Batching/BatchCollector.cs, tests/Encina.IntegrationTests/Messaging/Outbox/OutboxAtomicityScenario.cs, .github/coverage-manifest/Encina.Messaging.json.
 ```
@@ -422,7 +423,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina
 | 5 | Validation | ❌ | Outbox payloads were validated when they were produced; options are validated at startup, which is configuration validation. |
 | 6 | Resilience | ⏭️ | Retry, backoff and dead letter stay per message in the existing outbox code; a policy around a batch handler's own external calls is the resilience family's work (#742 for transports). |
 | 7 | Distributed Locks | ⏭️ | Several processors competing for the same pending rows is #713's work (locks in outbox processing); batching changes no row ownership. |
-| 8 | Transactions | ✅ | The cycle still saves once after the batch (`SaveChangesAsync`), unchanged, and a batch handler may use the cycle's scope; nothing here claims atomicity across messages. |
+| 8 | Transactions | ✅ | Save points are unchanged: `OutboxProcessorBase` saves once after the batch (`SaveChangesAsync`, line 157); `OutboxOrchestrator` never calls `SaveChangesAsync` and its caller is the commit owner (the #720 plan's `SagaOrchestrator.CommitAsync` where used). A batch handler may use the cycle's scope; nothing here claims atomicity across messages. |
 | 9 | Idempotency | ✅ | The inbox deduplicates each item before its batch is queued (Design Choice 8); outbox delivery stays at least once. |
 | 10 | Multi-Tenancy | ⏭️ | Outbox messages have no `TenantId` yet (#737); runs are cut by tenant there. The collector's tenant-separated key (#302) covers the request path. |
 | 11 | Module Isolation | ⏭️ | Module identifiers on messaging entities are #747's work; runs are cut by module there if it adds one to the message. |
@@ -432,7 +433,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina
 
 ## Prerequisites & Dependencies
 
-- **#302, pull requests 1 and 2** (package, collector, options, `AddEncinaBatching`) before pull request 1 of this plan; **#349, pull request 2** (the registrar) for the notification handler scan in pull request 2.
+- **#302, pull requests 1 and 2** (package, collector, options) before pull request 1 of this plan, and **#302 pull request 3** (`AddEncinaBatching` and the single-item adapter) plus **#349, pull request 2** (the registrar) before the notification handler scan in pull request 2. The open Dilemmas and the review findings of #302 (error categories, registration through `services.AddScoped`, the single-item handler, D5 timers) apply here unchanged: this plan builds on the corrected #302 plan and its PRs 1 and 2 wait for those corrections.
 - **Reference direction (D4)**: whichever of this plan's pull request 2 and #349 pull request 5 lands first adds the `Encina.Messaging` reference to `Encina.Batching`.
 - **Related, not blocking**: #252 (bulk publish: a batch notification handler typically calls the transport's `PublishBatchAsync`), #737 and #747 (tenant and module on outbox messages), #713 (locks in outbox processing), #469 (ordering by partition key; D6's consecutive runs never reorder messages).
 - **Order inside the family**: #302, #349, #339, #121; #252 is independent.
@@ -441,7 +442,7 @@ REFERENCE FILES: src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina
 
 ## Next Steps
 
-1. Ask the maintainer D2, D4 and D6 when work on #121 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D4, D6 and D8 when work on #121 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: modes and the byte trigger (12 files), after #302 pull request 2.
 3. Pull request 2: the notification handler contract and dispatcher (12 files).
 4. Pull request 3: outbox batch dispatch (11 files).
