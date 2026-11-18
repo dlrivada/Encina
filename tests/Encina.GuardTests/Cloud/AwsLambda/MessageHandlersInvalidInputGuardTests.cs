@@ -274,6 +274,22 @@ public sealed class MessageHandlersInvalidInputGuardTests
     }
 
     [Fact]
+    public async Task ProcessAsync_CancelledProcessor_ReturnsLeftWithCancelledCategoryNotAServerFault()
+    {
+        var result = await EventBridgeHandler.ProcessAsync<Msg, int>(
+            Event(new Msg(1)),
+            _ => throw new OperationCanceledException(),
+            NullLogger.Instance);
+
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(e =>
+        {
+            e.GetCode().IfNone(string.Empty).ShouldBe("eventbridge.processing_cancelled");
+            e.GetCategory().ShouldBe(ErrorCategory.Cancelled);
+        });
+    }
+
+    [Fact]
     public async Task ProcessAsync_ThrowingProcessor_ReturnsLeftWithProcessingFailedCode()
     {
         var result = await EventBridgeHandler.ProcessAsync<Msg, int>(

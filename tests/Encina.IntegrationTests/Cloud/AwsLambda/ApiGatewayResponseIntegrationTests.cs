@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
+using Amazon.Lambda.CloudWatchEvents;
 using Encina.AwsLambda;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -194,6 +195,27 @@ public sealed class ApiGatewayResponseIntegrationTests
 
         // Assert
         response.StatusCode.ShouldBe(expectedStatus);
+    }
+
+    [Fact]
+    public async Task ToApiGatewayResponse_ForACancelledEventBridgeEvent_Answers499AndNeverTheExceptionMessage()
+    {
+        // Arrange
+        var cloudWatchEvent = new CloudWatchEvent<string> { Id = "evt-1", Source = "orders", Detail = "payload" };
+
+        // Act
+        var result = await EventBridgeHandler.ProcessAsync<string, Unit>(
+            cloudWatchEvent,
+            _ => throw new OperationCanceledException("cancelled-secret"));
+        var response = result.ToApiGatewayResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(499);
+        response.Body.ShouldNotContain("cancelled-secret");
+        using var body = JsonDocument.Parse(response.Body);
+        body.RootElement.GetProperty("title").GetString().ShouldBe("Client Closed Request");
+        body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
+            .ShouldBe("eventbridge.processing_cancelled");
     }
 
     [Fact]
