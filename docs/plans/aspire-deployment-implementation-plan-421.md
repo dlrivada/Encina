@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for deployment publishers that generate Kubernetes and Docker Compose manifests for the Encina processors, with ConfigMaps, Secrets, Helm, HPA and KEDA. State of `origin/main` (`4ee4e0db9`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and by reading the Aspire 13.6.5 packages:
+The issue asks for deployment publishers that generate Kubernetes and Docker Compose manifests for the Encina processors, with ConfigMaps, Secrets, Helm, HPA and KEDA. State of `origin/main` (`010d6f995`, re-checked on 2026-11-18; the commits since `ec129cae5` change none of the facts below), verified by reading and by reading the Aspire 13.6.5 packages:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -27,7 +27,7 @@ The issue asks for deployment publishers that generate Kubernetes and Docker Com
 
 Differences from the issue text: the sketched `WithEncinaManifests(...)`, `GenerateOutboxProcessorDeployment()` and `WithEncinaServices(...)` assume Encina generates manifests for processor images. What a solution actually has is its own project (or projects) that run the processors, and the Aspire publisher already turns each project into a Deployment or a Compose service; what Encina adds is what the publisher cannot know: that this resource runs background processors and must therefore not be scaled out or killed abruptly by default.
 
-**Delivered**: `EncinaProcessorOptions` (`Replicas` = 1, `AllowHorizontalScaling` = false, `ShutdownGracePeriod`, `Autoscaling` min, max and CPU target); `WithEncinaProcessor<T>(this IResourceBuilder<T>, Action<EncinaProcessorOptions>? configure = null)` for a compute resource, which records an `EncinaProcessorAnnotation`; the Docker Compose customization (restart policy, stop grace period, replica count) in `Encina.Aspire.Deployment`; the Kubernetes customization (replicas, `Recreate` strategy, termination grace period, probes on the probe paths of #454, a gated HPA) in `Encina.Aspire.Deployment.Kubernetes`.
+**Delivered**: `EncinaProcessorOptions` (`Replicas` = 1, `AllowHorizontalScaling` = false, `ShutdownGracePeriod`, `Autoscaling` min, max and CPU target); `WithEncinaProcessor<T>(this IResourceBuilder<T>, Action<EncinaProcessorOptions>? configure = null)` for a compute resource, which records an `EncinaProcessorAnnotation`; the Docker Compose customization (restart policy, stop grace period, replica count) in `Encina.Aspire.Deployment`; the Kubernetes customization (replicas, `Recreate` strategy, termination grace period, probes on the paths the solution sets, off by default (Design Choice 7), a gated HPA) in `Encina.Aspire.Deployment.Kubernetes`.
 
 **Not in scope**: KEDA (Design Choice 2), Azure Container Apps (#2698), Terraform and Pulumi, generating images, secrets and connection strings (Aspire's), the application-side probes (#454).
 
@@ -327,7 +327,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Health checks (function 4): the probes of Phase 3 on the paths of #454. Validation (function 5): the option rules of Phase 1. Idempotency (function 9): the output is deterministic and a second `WithEncinaProcessor` is rejected.
+1. Health checks (function 4): the probes of Phase 3, only for the paths the solution sets (Design Choice 7). Validation (function 5): the option rules of Phase 1. Idempotency (function 9): the output is deterministic and a second `WithEncinaProcessor` is rejected.
 2. Locks (function 7): the default of one replica exists because #713 and #715 are open; the plan names them as the condition for raising the default.
 3. Failure codes: this package creates no `EncinaError` (an AppHost has no Encina runtime); every failure is an exception at AppHost build time naming the property, so ADR-062 has nothing to categorize.
 4. Tenancy and telemetry (ADR-054 D4): no span, metric or tenant data is emitted; the reserved `default` tenant segment does not apply.
@@ -401,7 +401,7 @@ REFERENCE FILES:
    | `EncinaProcessorAnnotation.cs` | 95 | 70 | 0 | 0 | 0 | Real annotation on the model; guard reaches the constructor check |
    | `EncinaProcessorBuilderExtensions.cs` | 95 | 90 | 0 | 0 | 0 | Run over the real `DistributedApplication.CreateBuilder()` model |
    | `Compose/ComposeProcessorCustomizer.cs` | 90 | 0 | 0 | 0 | 0 | Run by the publish snapshot tests; internal, no public parameterized member |
-   | `Encina.Aspire.Deployment.Kubernetes/KubernetesProcessorCustomizer.cs` | 90 | 0 | 0 | 0 | 60 | Publish snapshots in unit tests; the dry-run test covers the valid-manifest path when `kubectl` is available |
+   | `Encina.Aspire.Deployment.Kubernetes/KubernetesProcessorCustomizer.cs` | 90 | 0 | 0 | 0 | 0 | Publish snapshots in unit tests; the integration flag stays 0 because the dry-run test needs `kubectl` on the runner, which this plan does not assume (a skipped test measures 0); if the CI image provides `kubectl` and a cluster-free `--dry-run=client --validate=false` run is confirmed at work start, pull request 4 raises the target to 60 together with the test |
    | `Encina.Aspire.Deployment.Kubernetes/WithEncinaProcessorKubernetes` extension | 95 | 90 | 0 | 0 | 0 | Real model and publish |
    | `Encina.Aspire.Deployment.Kubernetes/EncinaKubernetesProcessorOptions.cs` | 100 | 0 | 0 | 0 | 0 | Auto-properties and path validation run by the publish snapshot tests; no parameterized public member |
 
