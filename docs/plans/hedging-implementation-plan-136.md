@@ -11,7 +11,7 @@
 
 Add `[Hedging]` to Encina: when the first attempt of a request is slow, or fails with a retryable error, a second attempt starts in parallel, the first acceptable result wins and the losing attempts are cancelled. The strategy is Polly v8's `AddHedging` (the maintainer decisions of [ADR-055](../architecture/adr/055-resilience-family.md) R2 and R3), configured by the `[Hedging]` attribute and by the options front-end, and compiled once per request type at startup into the single per-type pipeline. The comment of 2026-10-23 on #136 moves it into the 1.0 scope; its design follows ADR-055.
 
-What exists today (read in `origin/main` at `245d8614`):
+What exists today (read in `origin/main` at `f484cdf4f`; `src/Encina.Resilience` is not on main):
 
 - Nothing of hedging: `git grep -i hedg -- src` returns no match. `Encina.Polly` has `[Retry]`, `[CircuitBreaker]`, `[RateLimit]` and `[Bulkhead]`; `Encina.Extensions.Resilience` has one standard pipeline. Both are removed by ADR-055 R1.
 - The package that ADR-055 R1 names for every new resilience capability, `Encina.Resilience`, **does not exist in `src/`**, and no open issue creates it (the foundation, ADR-055 and the spike report section 8, steps 1 to 3). The pipeline continuation `RequestHandlerCallback<TResponse>()` in `src/Encina/Abstractions/RequestHandlerDelegate.cs` has no `CancellationToken`, so a hedged attempt cannot be cancelled (R6, planned, no issue yet).
@@ -81,6 +81,7 @@ The issue asks for `HedgingPipelineBehavior<,>` and sketches a hand-written loop
 ### Rationale
 
 - The acceptance criterion "`HedgingPipelineBehavior` that executes hedged requests" is met by the Resilience-stage behavior that runs the compiled pipeline (R2); no class of that name exists.
+- The choice holds under every option of choice 1: where the code lives changes the package, never the strategy form (option B of choice 1 would still compile the strategy into a per-type pipeline, in the package that exists then).
 - **Class:** Settled
 - **Settled by:** ADR-055 R2 (option 2a chosen, 2b and 2c rejected) and the issue's own "Integration with Polly v8" section
 
@@ -244,7 +245,7 @@ Two pull requests, each building and passing alone: **PR-1** (Phases 1 to 3 and 
 
 ```text
 CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #136 plan docs/plans/hedging-implementation-plan-136.md. Package src/Encina.Resilience exists (foundation merged, ADR-055 R1) with the per-type pipeline compiler and the options front-ends; the pipeline continuation takes a CancellationToken (R6).
-TASK: Create the Phase 1 types of the plan in src/Encina.Resilience/Hedging/: HedgingAttribute, HedgingOptions, IHedgingActionGenerator<,>, HedgingActionContext<,> with HedgedAction<>, HedgingOptionsValidator. Apply the Chosen Option of every Design Choice as the maintainer answered it (re-read the Maintainer Decisions section if it exists).
+TASK: Create the Phase 1 types of the plan in src/Encina.Resilience/Hedging/: HedgingAttribute, HedgingOptions, IHedgingActionGenerator<,>, HedgingActionContext<,> with HedgedAction<>, HedgingOptionsValidator. Apply the Chosen Option of every Design Choice of the plan.
 KEY RULES: no [Obsolete]; XML docs with <example> on every public type; nullable enabled; no DateTime.UtcNow (TimeProvider only); the validator throws InvalidOperationException at startup, never returns an EncinaError; PublicAPI.Unshipped.txt lines through mechanical-fixer.
 REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina/Abstractions/CqrsContracts.cs
 ```
