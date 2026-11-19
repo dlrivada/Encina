@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-19, main `89303f1e8`)
+### What exists today (read on 2026-11-19, main `8727c5cc3`)
 
 - Four startup checks, each with its own shape and message, no shared contract: `ABACDecisionAuditStartupCheck` (`src/Encina.Security.ABAC/DecisionAudit/ABACDecisionAuditStartupCheck.cs`, an `IHostedService`; no store is a `Critical` log 9087 and a failed start, an in-memory store is the warning 9086, `BestEffort` is the warning 9084), `DelayedRetryStartupCheck` (`src/Encina.Messaging/Recoverability/DelayedRetryStartupCheck.cs`, `IServiceProviderIsService`, EventId 5457), `CryptoShreddingStartupValidationHostedService` (`src/Encina.Marten.GDPR/`, an `IHostedLifecycleService` that runs in `StartingAsync` so it stops the host before Marten's daemon starts; its `WarnInMemoryKeyStore` only warns) and `OperationAuditMaskingStartupValidator` (`src/Encina.Security.Audit/`). `BreakTheGlassStartupValidator` (`src/Encina.Security.BreakTheGlass/Services/`) is a fifth, outside ADR-050's table.
 - The silent in-memory and first-registration-wins defaults named by the issue still exist: `TryAddSingleton<IDistributedLockProvider, MemoryDistributedLockProvider>()` (`src/Encina.Caching.Memory/ServiceCollectionExtensions.cs:67`); in-memory key, token and audit stores (`src/Encina.Compliance.Anonymization/ServiceCollectionExtensions.cs:91-93`); `InMemoryNonceStore` and `InMemoryKeyProvider` (`src/Encina.Security.AntiTampering/ServiceCollectionExtensions.cs:82-83`); `AddEncinaFakes` registers its fakes with `TryAddSingleton` (`src/Encina.Testing.Fakes/ServiceCollectionExtensions.cs:69-138`), so it can block real services registered later; `AddEncinaFluentValidation` uses `TryAddScoped<IValidationProvider, ...>` and `AddDataAnnotationsValidation` and `AddMiniValidation` use `TryAddSingleton<IValidationProvider, ...>` (`src/Encina.DataAnnotations/ServiceCollectionExtensions.cs:67,72`, `src/Encina.MiniValidator/ServiceCollectionExtensions.cs:60,65`), so the first registered provider silently wins.
@@ -533,9 +533,9 @@ Every count includes tests, the coverage manifest, PublicAPI, changelog fragment
 | L1 | Caching.Memory lock row | 1 | 4 (extensions class, attribute on `MemoryDistributedLockProvider.cs`, README, `Encina.Caching.Memory.csproj` for `InternalsVisibleTo`) | 2 | 0 | 1 | 1 | 9 | ~320 |
 | T1 | Testing.Fakes row | 1 | 2 (extensions class, `Encina.Testing.Fakes.csproj` for `InternalsVisibleTo`) | 2 | 0 | 1 | 1 | 7 | ~270 |
 | D1 | Documentation | 0 | 0 | 0 | 0 | 0 | 3 (feature page, ADR note, `module-dependency-matrix.md`) | 3 | ~250 |
-| **Total** | | **18** | **19** | **20** | **9** | **11** | **14** | **91** | **~4,500** |
+| **Total** | | **18** | **21** | **21** | **9** | **11** | **21** | **101** | **~5,000** |
 
-The 11 rows sum to the total (12 + 13 + 10 + 10 + 10 + 10 + 5 + 5 + 8 + 6 + 2 = 91 files). Every pull request is at most 15 files and 900 lines. The S1 pull request adds public types with no consumer in the same pull request; they are executed by its own unit, guard and property tests, so the crap-gate and the per-flag targets are met by S1 alone.
+The 11 rows sum to the total (14 + 13 + 14 + 11 + 10 + 10 + 5 + 5 + 9 + 7 + 3 = 101 files). Every pull request is at most 15 files and 1,500 lines (the largest is S1 at about 1,000). The S1 pull request adds public types with no consumer in the same pull request; they are executed by its own unit, guard, property and contract tests, so the crap-gate and the per-flag targets are met by S1 alone.
 
 Per-file coverage targets (per flag, one sentence each), written to `.github/coverage-manifest/Encina.json` by the pull request that adds the file:
 
@@ -546,6 +546,7 @@ Per-file coverage targets (per flag, one sentence each), written to `.github/cov
 | `Startup/EncinaStartupServiceCollectionExtensions.cs` | 90 | 90 | 0 | 0 | The DI test and null checks reach every line; no contract or property applies to registration |
 | `Startup/ModuleRequirement.cs`, `ModuleProhibition.cs`, `StartupViolation.cs`, `EncinaStartupOptions.cs` | 85 | 80 | 80 | 0 | Records and options with validated members; the contract test executes the real records |
 | `Startup/EncinaStartupValidationException.cs`, `StartupValidationLog.cs`, `TestOnlyImplementationAttribute.cs` | 80 | 0 | 0 | 0 | Exception and generated log code are executed by the validator tests; no parameters worth a guard test (attribute has none, the exception takes a validated list covered by the S2 unit test) |
+| Requirement classes of M1-M3, V1 (`ValidationModuleRequirements`, `EncinaValidationRegistration`), L1 (`MemoryCacheModuleRequirements`) and T1 (the Fakes requirements class) | 90 | 70 | 0 | 0 | Each is a list of entries evaluated by the S1 evaluator; the migration, registration-order and startup tests execute every entry in both pass and fail directions; guard reaches the public `EnsureSingleProvider` argument checks only (V1), the other classes are `internal` with no validated parameters; no contract or property applies to a fixed list of rows |
 
 ---
 
@@ -625,12 +626,12 @@ REFERENCE FILES:
 | In-memory defaults of Anonymization, AntiTampering, Attestation use this contract | #2412 | Opens after S2; a second consumer of `[TestOnlyImplementation]` |
 | Processor liveness health | #2396 | Pairs with the deferred health entry |
 | Marten.GDPR persistent key store | #1191 | M3 turns the warning into an error; the persistent store is #1191 |
-| Stage-order contract and row claiming | #2184, #1251 | ADR-050 sub-decision 8: they precede the rows that depend on them, not the mechanism |
+| Stage-order contract and row claiming | #2184, #1251 | ADR-050 sub-decision 8 puts them before #2382; whether that blocks S1 is Design Choice 10 (recommended: not blocking, pending the maintainer) |
 
 ---
 
 ## Next Steps
 
 1. Link this plan from #2382 and ask the maintainer to answer Design Choices 3 and 9 and register row C6 when work starts.
-2. Open S1, then S2; M1, M2, M3 and V1 to V3, L1, T1 are independent of each other after S2 and can run in parallel lanes.
+2. Open S1, then S2; M1, M2, M3, V1, L1 and T1 are independent of each other after S2 and can run in parallel lanes; V2 and V3 open only after V1 merges, because V1 creates the helper they call. Whether S1 may start before #2184 and #1251 close is Design Choice 10 (pending the maintainer).
 3. Open the follow-up issue files when S2 opens: `startup-validator-observability-and-health` and `startup-validator-remaining-rows` (drafts in `artifacts/issues/` of the planning worktree).
