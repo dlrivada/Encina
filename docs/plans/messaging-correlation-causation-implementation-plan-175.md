@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-19, main `89303f1e8`)
+### What exists today (read on 2026-11-19, main `8727c5cc3`)
 
 - `IRequestContext` already has both ids, as strings: `string CorrelationId` ("Always present", taken from `Activity.Current?.Id` or a new id) and `string? CausationId` ("The id of the message or request that caused this request", `src/Encina/Abstractions/IRequestContext.cs`, properties documented at lines 60-75). `RequestContext.CausationId` is set only through the internal `WithCausationId` (`src/Encina/Core/RequestContext.cs:303`); copies and nested dispatches keep it (`ForNestedDispatch`). The issue's `Guid` and "Add `CausationId` to `IRequestContext`" are therefore obsolete.
 - The persisted form exists: `PersistedRequestIdentity(Kind, ActorId, TenantId, CorrelationId, CausationId)` (`src/Encina/Identity/PersistedRequestIdentity.cs`), produced by `RequestIdentity.ToPersisted(tenantId, correlationId, causationId)` (`RequestIdentity.cs:201`, argument check at :203) and validated and restored by `RequestContextScopeFactory.RunRestoredAsync`, which applies `.WithCausationId(persisted.CausationId)` (`RequestContextScopeFactory.Restore.cs:50`). A search of `src` finds no caller of `ToPersisted` or `RunRestoredAsync` outside the identity folder: no store writes or reads the envelope yet (#1164, open).
