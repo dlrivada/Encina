@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (f484cdf4f):
+Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -203,7 +203,7 @@ PR 1 holds exactly these 15 files:
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching/Serialization/ICacheSerializer.cs` | new (public) |
+| 1 | `src/Encina.Caching/Serialization/ICacheSerializer.cs` | new (public `ICacheSerializer` and the public `ICacheValueCodec` that the internal `CacheValueCodec` implements: provider constructors are public, so they cannot take an internal type) |
 | 2 | `src/Encina.Caching/Serialization/ICacheCompressor.cs` | new (public) |
 | 3 | `src/Encina.Caching/Serialization/SystemTextJsonCacheSerializer.cs` | new (public sealed) |
 | 4 | `src/Encina.Caching/Serialization/BrotliCacheCompressor.cs` | new (public sealed, `System.IO.Compression`) |
@@ -330,7 +330,7 @@ PR 3 holds exactly these 10 files:
 
 Tasks:
 
-1. `RedisCacheProvider` takes the internal `CacheValueCodec` of PR 1 (visible to `Encina.Caching.Redis` through the existing `InternalsVisibleTo`) as an optional trailing constructor parameter defaulting to a codec with the STJ serializer and no compression (the existing call sites keep compiling; DI always supplies the configured one). `GetAsync<T>` reads `RedisValue` bytes and calls `Decode`; a `Left` is a miss; `SetAsync` and the sliding variant call `Encode`; a `Left` from `Encode` is logged and the write is skipped (the value cannot be stored; never throws a message). The sliding metadata key keeps its small STJ JSON (it is not a cached value).
+1. `RedisCacheProvider` takes the public `ICacheValueCodec` of PR 1 as an optional trailing constructor parameter defaulting to a codec with the STJ serializer and no compression (the existing call sites keep compiling; DI always supplies the configured one; when the parameter is null the provider creates the internal `CacheValueCodec` itself, which the existing `InternalsVisibleTo` for `Encina.Caching.Redis` allows). A cancelled token throws `OperationCanceledException` and is never turned into a miss or a `Left`; a `Right` from `Send` never confirms that a value was cached, because the behavior swallows write failures when `ThrowOnCacheErrors` is off. `GetAsync<T>` reads `RedisValue` bytes and calls `Decode`; a `Left` is a miss; `SetAsync` and the sliding variant call `Encode`; a `Left` from `Encode` is logged and the write is skipped (the value cannot be stored; never throws a message). The sliding metadata key keeps its small STJ JSON (it is not a cached value).
 2. Valkey, Dragonfly, Garnet and KeyDB reuse `AddEncinaRedisCache` and need no change; the Redis registration test of each wrapper proves it picks the configured codec (the four wrapper test files are not edited when the Redis registration test already builds each wrapper; the worker counts them and adds them to the PR only if they fail).
 3. **Tests:** unit with a fake `IDatabase`, integration with `RedisFixture` (`[Collection("Redis")]`-style shared fixture): STJ default, Brotli tier, a stored legacy JSON string is a miss and is overwritten.
 
@@ -569,7 +569,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Caching` (new range `CachingSerialization`, block 500-549 of the plan batch registry) | 508-513 | This plan: 508 serialization failed, 509 deserialization failed, 510 decompression limit exceeded, 511 unknown format header, 512 unsupported type fallback, 513 compressed payload not smaller. Family: #272 500-507, #275 514-521, #278 522-533, #276 534-538; 539-549 free. The existing `Caching` range 3500-3549 is untouched |
+| `Encina.Caching` (new range `CachingSerialization`, block 500-549 of the plan batch registry) | 508-513 | This plan: 508 serialization failed, 509 deserialization failed, 510 decompression limit exceeded, 511 unknown format header, 512 unsupported type fallback, 513 compressed payload not smaller. Family: #272 500-507, #275 514-519, #278 520-531, #276 532-536; 537-549 free. The existing `Caching` range 3500-3549 is untouched |
 
 ### Estimated File Count
 
