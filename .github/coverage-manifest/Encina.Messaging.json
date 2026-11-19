@@ -182,12 +182,12 @@
       "reason": "Input rules (UTC instants, trimmed identity values) the orchestrator and manager apply before any store call",
       "targets": {
         "unit": 95,
-        "guard": 0,
+        "guard": 75,
         "integration": 60
       },
       "justifications": {
         "unit": "Unit tests drive every accepted and rejected input of both rules and the filter validation.",
-        "guard": "Internal static helper with no public surface; its argument handling is exercised through the unit tests.",
+        "guard": "Guard tests assert the ArgumentException and parameter name of RequireUtc, RequireTrimmed and ValidateFilter; the AsUtc kind mapping is covered by the unit flag (measured 77%).",
         "integration": "The store contract facts run the rules through the orchestrator against the ten real stores."
       }
     },
@@ -1047,11 +1047,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Internal ambient marker for a delayed-retry re-dispatch",
-      "targets": { "unit": 95, "property": 95, "guard": 0, "contract": 0 },
+      "targets": { "unit": 95, "property": 95, "guard": 85, "contract": 0 },
       "justifications": {
         "unit": "Chain and marker tests execute every line (measured 100%).",
         "property": "FsCheck properties cover marker binding, reporting and disposal (measured 100%).",
-        "guard": "Internal type; GuardTests has no InternalsVisibleTo for this package and Begin's null check is exercised by the unit tests.",
+        "guard": "Guard tests cover Begin's null check and the marker scope; Report, the struct-value match and the Attempt accessors are covered by the unit and property flags (measured 85%).",
         "contract": "Internal type with no public contract."
       }
     },
@@ -1062,10 +1062,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 100, "guard": 0, "contract": 0, "property": 0, "integration": 0 },
+      "targets": { "unit": 100, "guard": 20, "contract": 0, "property": 0, "integration": 0 },
       "justifications": {
         "unit": "Store/factory scheduling and saturation paths are all covered by DelayedRetrySchedulerTests (measured 100%).",
-        "guard": "GuardTests measure 0% on this file: the scheduler's public methods are exercised only through unit tests (measured 0%).",
+        "guard": "Guard tests cover the constructor and ScheduleRetryAsync null checks; the scheduling, serialization and cancel paths need a store and are covered by the unit flag (measured 23%).",
         "contract": "No public contract test for this implementation; the IDelayedRetryScheduler contract is exercised via unit tests.",
         "property": "DelayedRetryChainProperties covers the chain, not this thin scheduler.",
         "integration": "Store persistence is covered per provider by the delayed-retry store integration tests."
@@ -1126,12 +1126,12 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 95, "contract": 70, "property": 45, "guard": 0 },
+      "targets": { "unit": 95, "contract": 70, "property": 45, "guard": 45 },
       "justifications": {
         "unit": "Every line runs through the behavior, processor and chain tests (measured 100%).",
         "contract": "Contract tests exercise the public surface (measured 74%).",
         "property": "A property covers RestoreChain and the delayed counter; the rest is unit-tested (measured 48%).",
-        "guard": "The only public constructor parameter is an optional TimeProvider; RestoreChain is internal, so no guard applies."
+        "guard": "Guard tests cover CreateFailedMessage and AbsorbRedispatch null checks and the optional TimeProvider; the retry counters and history are covered by the unit, contract and property flags (measured 48%)."
       }
     },
     "Recoverability/RecoverabilityOptions.cs": {
@@ -1371,12 +1371,12 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 95,
-        "guard": 0,
+        "guard": 20,
         "integration": 65
       },
       "justifications": {
         "unit": "Unit tests drive pass-through without a handler, handler failure and cancellation, and the dead letter wiring with the flag on and off (measured 100%).",
-        "guard": "The dispatcher is internal and only resolved through DI, so guard tests cannot reach it (measured 0%).",
+        "guard": "Guard tests cover the constructor and DispatchAsync null checks (the grant of InternalsVisibleTo makes the internal type reachable); handler invocation, dead letter wiring and failure branches are covered by the unit and integration flags (measured 24%).",
         "integration": "The ten-provider saga-not-found scenario dispatches through the registered dispatcher; the failure and cancellation branches are unit-only (measured 70%)."
       }
     },
