@@ -1,0 +1,6 @@
+- Encina.AzureFunctions now reads the HTTP status of an error response from its ErrorCategory through the core ErrorCategoryHttp table (ADR-062) instead of parsing the error code text; MapErrorCodeToStatusCode and its code-suffix rules are removed.
+- Tenancy errors `tenancy.invalid_tenant_claim` and `tenancy.tenant_mismatch` now answer 403 Forbidden instead of 500.
+- `durable.event_cancelled` is now Cancelled and answers 499 instead of 500; `durable.event_timeout` is now Timeout and answers 504 instead of 500.
+- The problem-details title is now the reason phrase of the status written, so 429, 499, 502, 503 and 504 get "Too Many Requests", "Client Closed Request", "Bad Gateway", "Service Unavailable" and "Gateway Timeout" instead of "An error occurred".
+- Responses now carry `Retry-After` (429 and 503, when the error holds a retry delay) and `WWW-Authenticate` (401) headers.
+- `ActivityResult<T>` has a new `ErrorCategory` property that survives the Durable serialization boundary, so a not-found or conflict error keeps its 404 or 409 after `ToEither()`.

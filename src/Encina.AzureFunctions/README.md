@@ -206,18 +206,30 @@ if (result.IsLeft)
 }
 ```
 
-## Error Code to HTTP Status Mapping
+## Error category to HTTP status mapping
 
-| Error Code Pattern | HTTP Status |
-|--------------------|-------------|
-| `validation.*` | 400 Bad Request |
-| `encina.guard.validation_failed` | 400 Bad Request |
-| `encina.authorization.unauthenticated` | 401 Unauthorized |
-| `encina.authorization.*` | 403 Forbidden |
-| `*.not_found`, `*.missing` | 404 Not Found |
-| `encina.request.handler_missing` | 404 Not Found |
-| `*.conflict`, `*.already_exists`, `*.duplicate` | 409 Conflict |
-| Other errors | 500 Internal Server Error |
+The host does not parse error code text. The status comes from the error's `ErrorCategory` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)) through the core `ErrorCategoryHttp` table, and an explicit `statusCode` or `errorStatusCode` argument overrides it. The `title` of the problem body is the reason phrase of the status written. An error created without a category is read with the transitional legacy inference and, when nothing matches, answers 500.
+
+| ErrorCategory | HTTP status |
+| --- | --- |
+| `Internal` | 500 Internal Server Error |
+| `Validation` | 400 Bad Request |
+| `InvalidRequest` | 400 Bad Request |
+| `Unauthenticated` | 401 Unauthorized |
+| `Forbidden` | 403 Forbidden |
+| `NotFound` | 404 Not Found |
+| `Conflict` | 409 Conflict |
+| `AlreadyExists` | 409 Conflict |
+| `FailedPrecondition` | 400 Bad Request (provisional) |
+| `RateLimited` | 429 Too Many Requests |
+| `Unavailable` | 503 Service Unavailable |
+| `Timeout` | 504 Gateway Timeout |
+| `UpstreamFailure` | 502 Bad Gateway |
+| `Cancelled` | 499 Client Closed Request |
+
+A 401 response carries `WWW-Authenticate` (`Bearer` unless the error's details hold `encina.authenticate_challenge`), and a 429 or 503 response carries `Retry-After` in seconds when the details hold `encina.retry_after` (`EncinaErrorMetadataKeys.RetryAfter`).
+
+Durable activity results carry the category across the Durable boundary in `ActivityResult<T>.ErrorCategory`. The tenancy errors `tenancy.invalid_tenant_claim` and `tenancy.tenant_mismatch` are `Forbidden` (403), `durable.event_timeout` is `Timeout` (504) and `durable.event_cancelled` is `Cancelled` (499).
 
 ## Context Extraction
 

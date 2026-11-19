@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -16,7 +17,7 @@ public static class ProblemDetailsExtensions
     /// </summary>
     /// <param name="error">The Encina error.</param>
     /// <param name="httpContext">The HTTP context.</param>
-    /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
+    /// <param name="statusCode">Optional HTTP status code that overrides the status of the error category.</param>
     /// <returns>An <see cref="IResult"/> containing RFC 7807 Problem Details.</returns>
     /// <remarks>
     /// <para>
@@ -29,15 +30,10 @@ public static class ProblemDetailsExtensions
     /// is true and the host environment is Development.
     /// </para>
     /// <para>
-    /// Status codes are mapped from error codes:
-    /// <list type="bullet">
-    /// <item><description><b>400 Bad Request</b>: validation.*, guard.validation_failed</description></item>
-    /// <item><description><b>401 Unauthorized</b>: encina.authorization.unauthenticated</description></item>
-    /// <item><description><b>403 Forbidden</b>: encina.authorization.* (every other authorization code)</description></item>
-    /// <item><description><b>404 Not Found</b>: *.not_found, encina.request.handler_missing</description></item>
-    /// <item><description><b>409 Conflict</b>: *.conflict, *.already_exists</description></item>
-    /// <item><description><b>500 Internal Server Error</b>: Default for unrecognized codes</description></item>
-    /// </list>
+    /// The status comes from the <see cref="ErrorCategory"/> of the error through the core HTTP table
+    /// (<see cref="ErrorCategoryHttp"/>, ADR-062); the host never parses the error code. The title is the reason
+    /// phrase of the status. <c>Retry-After</c> (429 and 503) and <c>WWW-Authenticate</c> (401) are written when
+    /// the result is executed.
     /// </para>
     /// </remarks>
     /// <example>
@@ -72,7 +68,7 @@ public static class ProblemDetailsExtensions
         ArgumentNullException.ThrowIfNull(httpContext);
 
         var options = ResolveOptions(httpContext);
-        var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
+        var effectiveStatusCode = statusCode ?? error.GetStatusCode();
 
         var exposeMessage = ShouldExposeErrorMessage(
             options,
@@ -81,7 +77,7 @@ public static class ProblemDetailsExtensions
         var problemDetails = new ProblemDetails
         {
             Status = effectiveStatusCode,
-            Title = GetTitle(effectiveStatusCode),
+            Title = ErrorCategoryHttp.GetReasonPhrase(effectiveStatusCode),
             Detail = exposeMessage ? error.Message : null,
             Instance = options.IncludeRequestPathInProblemDetails
                 ? httpContext.Request.Path
@@ -97,7 +93,9 @@ public static class ProblemDetailsExtensions
             AddExceptionExtension(problemDetails, error);
         }
 
-        return Results.Problem(problemDetails);
+        return new ProblemResult(
+            TypedResults.Problem(problemDetails),
+            ErrorCategoryHttp.GetResponseHeaders(error, effectiveStatusCode));
     }
 
     private static EncinaAspNetCoreOptions ResolveOptions(HttpContext httpContext) =>
@@ -157,7 +155,7 @@ public static class ProblemDetailsExtensions
     /// </summary>
     /// <param name="error">The Encina error.</param>
     /// <param name="httpContext">The HTTP context.</param>
-    /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
+    /// <param name="statusCode">Optional HTTP status code that overrides the status of the error category.</param>
     /// <returns>An <see cref="IActionResult"/> containing Problem Details.</returns>
     public static IActionResult ToActionResult(
         this EncinaError error,
@@ -170,77 +168,48 @@ public static class ProblemDetailsExtensions
         return new ProblemDetailsActionResult(result);
     }
 
-    private static int MapErrorCodeToStatusCode(EncinaError error)
-    {
-        var code = error.GetCode().IfNone(string.Empty).ToLowerInvariant();
-
-        // 400 Bad Request: Validation errors
-        if (IsValidationCode(code))
-        {
-            return StatusCodes.Status400BadRequest;
-        }
-
-        // 401 Unauthorized: Authentication required
-        if (code == EncinaErrorCodes.AuthorizationUnauthenticated)
-        {
-            return StatusCodes.Status401Unauthorized;
-        }
-
-        // 403 Forbidden: authenticated identity denied (every other encina.authorization.* code)
-        if (code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal))
-        {
-            return StatusCodes.Status403Forbidden;
-        }
-
-        // 404 Not Found
-        if (IsNotFoundCode(code))
-        {
-            return StatusCodes.Status404NotFound;
-        }
-
-        // 409 Conflict
-        if (IsConflictCode(code))
-        {
-            return StatusCodes.Status409Conflict;
-        }
-
-        // 500 Internal Server Error: Default for unknown/unhandled errors
-        return StatusCodes.Status500InternalServerError;
-    }
-
-    private static bool IsValidationCode(string code) =>
-        code.StartsWith("validation.", StringComparison.Ordinal) || code == "encina.guard.validation_failed";
-
-    private static bool IsNotFoundCode(string code) =>
-        code.EndsWith(".not_found", StringComparison.Ordinal) ||
-        code == "encina.request.handler_missing" ||
-        code.EndsWith(".missing", StringComparison.Ordinal);
-
-    private static bool IsConflictCode(string code) =>
-        code.EndsWith(".conflict", StringComparison.Ordinal) ||
-        code.EndsWith(".already_exists", StringComparison.Ordinal) ||
-        code.EndsWith(".duplicate", StringComparison.Ordinal);
-
-    private static string GetTitle(int statusCode)
-    {
-        return statusCode switch
-        {
-            400 => "Bad Request",
-            401 => "Unauthorized",
-            403 => "Forbidden",
-            404 => "Not Found",
-            409 => "Conflict",
-            500 => "Internal Server Error",
-            _ => "An error occurred"
-        };
-    }
-
     private static string? GetErrorCode(EncinaError error)
     {
-        // Try to extract error code from error metadata
-        return error.GetCode().Match(
-            Some: code => code,
-            None: () => default(string));
+        // An error created without a code has none: the body omits the field and the status stays 500.
+        return error.GetCode().IfNoneUnsafe((string?)null);
+    }
+
+    /// <summary>
+    /// A problem result that writes the response headers of the error (<c>Retry-After</c>,
+    /// <c>WWW-Authenticate</c>) when it is executed, so building the result never touches the response.
+    /// </summary>
+    internal sealed class ProblemResult : IResult, IStatusCodeHttpResult
+    {
+        private const string RetryAfterHeader = "Retry-After";
+
+        private readonly IReadOnlyList<KeyValuePair<string, string>> _headers;
+
+        public ProblemResult(ProblemHttpResult inner, IReadOnlyList<KeyValuePair<string, string>> headers)
+        {
+            Inner = inner;
+            _headers = headers;
+        }
+
+        public ProblemHttpResult Inner { get; }
+
+        public int? StatusCode => Inner.StatusCode;
+
+        public Task ExecuteAsync(HttpContext httpContext)
+        {
+            var responseHeaders = httpContext.Response.Headers;
+
+            foreach (var header in _headers)
+            {
+                // Retry-After comes from the error and is the authority; a challenge already written by the
+                // authentication handler is more specific than the default one, so it stays.
+                if (header.Key == RetryAfterHeader || !responseHeaders.ContainsKey(header.Key))
+                {
+                    responseHeaders[header.Key] = header.Value;
+                }
+            }
+
+            return Inner.ExecuteAsync(httpContext);
+        }
     }
 
     /// <summary>
