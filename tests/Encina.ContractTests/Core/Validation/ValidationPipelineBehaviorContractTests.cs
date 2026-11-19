@@ -76,7 +76,12 @@ public sealed class ValidationPipelineBehaviorContractTests
         nextCalled.ShouldBeFalse();
         result.Match(
             Right: _ => throw new InvalidOperationException("Expected Left"),
-            Left: e => e.Message.ShouldContain("Validation failed"));
+            Left: e =>
+            {
+                e.Message.ShouldContain("Validation failed");
+                e.GetCategory().ShouldBe(ErrorCategory.Validation);
+                e.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.ValidationFailed);
+            });
     }
 
     [Fact]
@@ -110,6 +115,8 @@ public sealed class ValidationPipelineBehaviorContractTests
                 e.Message.ShouldContain("2 error(s)");
                 e.Message.ShouldContain("Name is required");
                 e.Message.ShouldContain("Email is invalid");
+                e.GetCategory().ShouldBe(ErrorCategory.Validation);
+                e.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.ValidationFailed);
             });
     }
 
