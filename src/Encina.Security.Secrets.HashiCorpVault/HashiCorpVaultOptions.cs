@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using VaultSharp.V1.AuthMethods;
 
 namespace Encina.Security.Secrets.HashiCorpVault;
@@ -48,6 +50,10 @@ public sealed class HashiCorpVaultOptions
     /// <c>AppRoleAuthMethodInfo</c>, or <c>KubernetesAuthMethodInfo</c>.
     /// This property is <b>required</b>.
     /// </value>
+    /// <remarks>
+    /// WARNING: Contains sensitive authentication secrets (e.g. Vault token). Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public IAuthMethodInfo? AuthMethod { get; set; }
 
     /// <summary>
@@ -77,4 +83,13 @@ public sealed class HashiCorpVaultOptions
     /// unspecified addresses are always rejected.
     /// </value>
     public bool AllowLocalEndpoints { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"HashiCorpVaultOptions {{ VaultAddress={GetSanitizedVaultAddress()}, MountPoint={MountPoint}, AuthMethod={(AuthMethod is null ? "null" : $"*** ({AuthMethod.GetType().Name})")}, AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints} }}";
+
+    private string GetSanitizedVaultAddress() =>
+        Uri.TryCreate(VaultAddress, UriKind.Absolute, out var uri)
+            ? (uri.IsDefaultPort ? $"{uri.Scheme}://{uri.Host}" : $"{uri.Scheme}://{uri.Host}:{uri.Port}")
+            : "null";
 }

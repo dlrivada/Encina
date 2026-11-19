@@ -1,0 +1,1 @@
+- `ReplayResult.Succeeded` and `ReplayResult.Failed` now accept a `TimeProvider` rather than reading only the system clock; `DeadLetterManager` passes its configured `TimeProvider` across all replay paths so `ReplayedAtUtc` reflects test and ambient clocks.

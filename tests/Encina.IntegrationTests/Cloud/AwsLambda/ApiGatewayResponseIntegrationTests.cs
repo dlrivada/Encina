@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Amazon.Lambda.APIGatewayEvents;
+using Amazon.Lambda.CloudWatchEvents;
 using Encina.AwsLambda;
 using LanguageExt;
 using Microsoft.Extensions.DependencyInjection;
@@ -90,7 +91,7 @@ public sealed class ApiGatewayResponseIntegrationTests
 
         // Assert
         response.StatusCode.ShouldBe(422);
-        JsonDocument.Parse(response.Body).RootElement.GetProperty("title").GetString().ShouldBe("An error occurred");
+        JsonDocument.Parse(response.Body).RootElement.GetProperty("title").GetString().ShouldBe("Unprocessable Entity");
     }
 
     [Fact]
@@ -178,22 +179,46 @@ public sealed class ApiGatewayResponseIntegrationTests
     }
 
     [Theory]
-    [InlineData("encina.authorization.unauthenticated", 401)]
-    [InlineData("encina.authorization.denied", 403)]
-    [InlineData("encina.guard.validation_failed", 400)]
-    [InlineData("order.missing", 404)]
-    [InlineData("order.duplicate", 409)]
-    [InlineData("anything.else", 500)]
-    public void ToProblemDetailsResponse_MapsEveryErrorFamilyToItsStatus(string code, int expectedStatus)
+    [InlineData(ErrorCategory.Unauthenticated, 401)]
+    [InlineData(ErrorCategory.Forbidden, 403)]
+    [InlineData(ErrorCategory.Validation, 400)]
+    [InlineData(ErrorCategory.NotFound, 404)]
+    [InlineData(ErrorCategory.Conflict, 409)]
+    [InlineData(ErrorCategory.Internal, 500)]
+    public void ToProblemDetailsResponse_MapsEveryErrorCategoryToItsStatus(ErrorCategory category, int expectedStatus)
     {
         // Arrange
-        var error = EncinaErrors.Create(code, "message");
+        var error = EncinaErrors.Create("order.anything", category: category, "message");
 
         // Act
         var response = error.ToProblemDetailsResponse();
 
         // Assert
         response.StatusCode.ShouldBe(expectedStatus);
+    }
+
+    [Fact]
+    public async Task ToApiGatewayResponse_ForACancelledEventBridgeEvent_Answers499AndNeverTheExceptionMessage()
+    {
+        // Arrange
+        var cloudWatchEvent = new CloudWatchEvent<string> { Id = "evt-1", Source = "orders", Detail = "payload" };
+
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var result = await EventBridgeHandler.ProcessAsync<string, Unit>(
+            cloudWatchEvent,
+            _ => throw new OperationCanceledException("cancelled-secret", cts.Token));
+        var response = result.ToApiGatewayResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(499);
+        response.Body.ShouldNotContain("cancelled-secret");
+        using var body = JsonDocument.Parse(response.Body);
+        body.RootElement.GetProperty("title").GetString().ShouldBe("Client Closed Request");
+        body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
+            .ShouldBe("eventbridge.processing_cancelled");
     }
 
     [Fact]

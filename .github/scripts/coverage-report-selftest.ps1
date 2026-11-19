@@ -8,6 +8,8 @@ Runs coverage-report.cs against the hand-computed fixtures under
 
   1. --check-justifications exits 0 on manifest-ok (every per-file target has a justification).
   2. --check-justifications exits 1 on manifest-unjustified (a target without a justification).
+  2b. (#2876) --check-justifications exits 1 naming the pair when a copy of manifest-ok loses its package
+     "targets" key while two files still expect that flag.
   3. --check-stale-manifest exits 1 on manifest-stale (a key names a file that does not exist) and
      exits 0 on manifest-ok.
   4. --check-missing-manifest exits 1 when a src file has no manifest entry (an extra source file is
@@ -203,11 +205,17 @@ try {
     $unjustified = New-Scenario -Name 'unjustified' -ManifestFixture 'manifest-unjustified'
     $stale = New-Scenario -Name 'stale' -ManifestFixture 'manifest-stale'
     $missing = New-Scenario -Name 'missing' -ManifestFixture 'manifest-ok' -ExtraSourceFiles @('Extra.cs')
+    $noPackageTarget = New-Scenario -Name 'no-package-target' -ManifestFixture 'manifest-ok'
+    $noTargetFile = Join-Path $noPackageTarget 'Pkg.json'
+    $noTargetManifest = Get-Content $noTargetFile -Raw | ConvertFrom-Json
+    $noTargetManifest.PSObject.Properties.Remove('targets')
+    $noTargetManifest | ConvertTo-Json -Depth 10 | Set-Content $noTargetFile
     $empty = Join-Path $fixtureDir 'manifest-empty'
     $nonexistent = Join-Path $stagingRoot 'does-not-exist'
 
     Assert-Run '1. --check-justifications on manifest-ok' @('--check-justifications', '--manifest', $ok) 0 'per-file targets are justified'
     Assert-Run '2. --check-justifications on manifest-unjustified' @('--check-justifications', '--manifest', $unjustified) 1 "target 'unit' has no justification"
+    Assert-Run '2b. --check-justifications with the package unit target removed (#2876)' @('--check-justifications', '--manifest', $noPackageTarget) 1 "Pkg: flag 'unit' is expected by 2 file\(s\) and the package has no target for it"
     Assert-Run '3a. --check-stale-manifest on manifest-ok' @('--check-stale-manifest', '--manifest', $ok) 0 'No stale manifest keys'
     Assert-Run '3b. --check-stale-manifest on manifest-stale' @('--check-stale-manifest', '--manifest', $stale) 1 'Pkg: Gone\.cs'
     Assert-Run '4a. --check-missing-manifest on manifest-ok' @('--check-missing-manifest', '--manifest', $ok) 0 'No missing manifest entries'
