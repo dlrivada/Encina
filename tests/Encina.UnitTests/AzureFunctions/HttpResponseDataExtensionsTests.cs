@@ -1,334 +1,389 @@
 using System.Net;
+using System.Security.Claims;
+using System.Text.Json;
 using Encina.AzureFunctions;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
 
 namespace Encina.UnitTests.AzureFunctions;
 
+/// <summary>
+/// Unit tests of the response helpers: the status, the title and the headers come from the error category
+/// through <see cref="ErrorCategoryHttp"/>, never from the text of the error code.
+/// </summary>
 public class HttpResponseDataExtensionsTests
 {
-    [Fact]
-    public void MapErrorCodeToStatusCode_ValidationError_Returns400()
+    private static readonly (ErrorCategory Category, int Status, string Title)[] Rows =
+    [
+        (ErrorCategory.Internal, 500, "Internal Server Error"),
+        (ErrorCategory.Validation, 400, "Bad Request"),
+        (ErrorCategory.InvalidRequest, 400, "Bad Request"),
+        (ErrorCategory.Unauthenticated, 401, "Unauthorized"),
+        (ErrorCategory.Forbidden, 403, "Forbidden"),
+        (ErrorCategory.NotFound, 404, "Not Found"),
+        (ErrorCategory.Conflict, 409, "Conflict"),
+        (ErrorCategory.AlreadyExists, 409, "Conflict"),
+        (ErrorCategory.FailedPrecondition, 400, "Bad Request"),
+        (ErrorCategory.RateLimited, 429, "Too Many Requests"),
+        (ErrorCategory.Unavailable, 503, "Service Unavailable"),
+        (ErrorCategory.Timeout, 504, "Gateway Timeout"),
+        (ErrorCategory.UpstreamFailure, 502, "Bad Gateway"),
+        (ErrorCategory.Cancelled, 499, "Client Closed Request"),
+    ];
+
+    public static TheoryData<ErrorCategory, int, string> CategoryRows
     {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "validation.invalid_input",
-            message: "The input is invalid");
+        get
+        {
+            var data = new TheoryData<ErrorCategory, int, string>();
+            foreach (var (category, status, title) in Rows)
+            {
+                data.Add(category, status, title);
+            }
 
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
+            return data;
+        }
     }
 
     [Fact]
-    public void MapErrorCodeToStatusCode_GuardValidationFailed_Returns400()
+    public void CategoryRows_CoverEveryCategory()
     {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "encina.guard.validation_failed",
-            message: "Guard validation failed");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
         // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_UnauthenticatedError_Returns401()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: EncinaErrorCodes.AuthorizationUnauthenticated,
-            message: "Authentication required");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_AuthorizationError_Returns403()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: EncinaErrorCodes.AuthorizationForbidden,
-            message: "Insufficient permissions");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_NotFoundError_Returns404()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "user.not_found",
-            message: "User not found");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_HandlerMissingError_Returns404()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "encina.request.handler_missing",
-            message: "No handler found");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_MissingError_Returns404()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "resource.missing",
-            message: "Resource is missing");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_ConflictError_Returns409()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "user.conflict",
-            message: "User conflict");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_AlreadyExistsError_Returns409()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "email.already_exists",
-            message: "Email already exists");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_DuplicateError_Returns409()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "username.duplicate",
-            message: "Username is duplicate");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_UnknownError_Returns500()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(
-            code: "unknown.error",
-            message: "Something went wrong");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.InternalServerError);
-    }
-
-    [Fact]
-    public void MapErrorCodeToStatusCode_ErrorWithNoCode_Returns500()
-    {
-        // Arrange
-        var error = EncinaErrors.Create(code: "", message: "Something went wrong");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.InternalServerError);
+        Rows.Select(row => row.Category).ToHashSet().ShouldBe(Enum.GetValues<ErrorCategory>().ToHashSet());
     }
 
     [Theory]
-    [InlineData("validation.email")]
-    [InlineData("validation.required_field")]
-    [InlineData("validation.invalid_format")]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode)]
-    public void MapErrorCodeToStatusCode_ValidationErrors_Return400(string errorCode)
+    [MemberData(nameof(CategoryRows))]
+    public async Task ToProblemDetailsResponse_EveryCategory_WritesItsStatusAndReasonPhrase(
+        ErrorCategory category,
+        int expectedStatus,
+        string expectedTitle)
     {
         // Arrange
-        var error = EncinaErrors.Create(code: errorCode, message: "Validation failed");
+        var error = EncinaErrors.Create("any.code", category, "message");
 
         // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.BadRequest);
+        ((int)response.StatusCode).ShouldBe(expectedStatus);
+        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        body.GetProperty("status").GetInt32().ShouldBe(expectedStatus);
+        body.GetProperty("title").GetString().ShouldBe(expectedTitle);
+        response.Headers.GetValues("Content-Type").ShouldBe(["application/problem+json"]);
     }
 
     [Theory]
-    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
-    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
-    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
-    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
-    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
-    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
-    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
-    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
-    [InlineData("encina.authorization.some_future_denial")]
-    public void MapErrorCodeToStatusCode_AuthorizationErrors_Return403(string errorCode)
-    {
-        // Arrange
-        var error = EncinaErrors.Create(code: errorCode, message: "Authorization failed");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Forbidden);
-    }
-
-    [Theory]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
-    [InlineData("order.not_found")]
-    [InlineData("product.not_found")]
-    [InlineData("customer.not_found")]
-    public void MapErrorCodeToStatusCode_NotFoundErrors_Return404(string errorCode)
-    {
-        // Arrange
-        var error = EncinaErrors.Create(code: errorCode, message: "Not found");
-
-        // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
-
-        // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.NotFound);
-    }
-
-    [Theory]
+    [InlineData("validation.invalid_input")]
+    [InlineData("user.not_found")]
+    [InlineData("email.already_exists")]
     [InlineData("order.conflict")]
-    [InlineData("product.already_exists")]
-    [InlineData("customer.duplicate")]
-    public void MapErrorCodeToStatusCode_ConflictErrors_Return409(string errorCode)
+    [InlineData("encina.authorization.forbidden")]
+    public async Task ToProblemDetailsResponse_CategorizedInternal_IgnoresTheCodeText(string code)
     {
         // Arrange
-        var error = EncinaErrors.Create(code: errorCode, message: "Conflict");
+        var error = EncinaErrors.Create(code, ErrorCategory.Internal, "message");
 
         // Act
-        var statusCode = HttpResponseDataExtensions.MapErrorCodeToStatusCode(error);
+        var response = await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        statusCode.ShouldBe((int)HttpStatusCode.Conflict);
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
     }
 
     [Fact]
-    public void GetTitle_Returns400Title()
+    public async Task ToProblemDetailsResponse_ErrorWithoutCode_Answers500()
     {
+        // Arrange
+        var error = EncinaErrors.Create(code: "x", message: "Something went wrong");
+        var codeless = EncinaError.New("Something went wrong");
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(400);
+        var first = await error.ToProblemDetailsResponse(NewRequest());
+        var second = await codeless.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Bad Request");
+        first.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        second.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
     }
 
     [Fact]
-    public void GetTitle_Returns401Title()
+    public async Task ToProblemDetailsResponse_RateLimitedWithRetryAfter_WritesRetryAfterSeconds()
     {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "rate.limited",
+            ErrorCategory.RateLimited,
+            "slow down",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromSeconds(30) });
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(401);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Unauthorized");
+        response.StatusCode.ShouldBe((HttpStatusCode)429);
+        response.Headers.GetValues("Retry-After").ShouldBe(["30"]);
     }
 
     [Fact]
-    public void GetTitle_Returns403Title()
+    public async Task ToProblemDetailsResponse_UnavailableWithRetryAfter_WritesRetryAfterSeconds()
     {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "service.unavailable",
+            ErrorCategory.Unavailable,
+            "down",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromMilliseconds(1500) });
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(403);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Forbidden");
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        response.Headers.GetValues("Retry-After").ShouldBe(["2"]);
     }
 
     [Fact]
-    public void GetTitle_Returns404Title()
+    public async Task ToProblemDetailsResponse_RateLimitedWithoutRetryAfter_WritesNoRetryAfter()
     {
+        // Arrange
+        var error = EncinaErrors.Create("rate.limited", ErrorCategory.RateLimited, "slow down");
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(404);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Not Found");
+        response.Headers.TryGetValues("Retry-After", out _).ShouldBeFalse();
     }
 
     [Fact]
-    public void GetTitle_Returns409Title()
+    public async Task ToProblemDetailsResponse_Unauthenticated_WritesBearerChallenge()
     {
+        // Arrange
+        var error = EncinaErrors.Create("auth.missing", ErrorCategory.Unauthenticated, "sign in");
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(409);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Conflict");
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        response.Headers.GetValues("WWW-Authenticate").ShouldBe(["Bearer"]);
     }
 
     [Fact]
-    public void GetTitle_Returns500Title()
+    public async Task ToProblemDetailsResponse_UnauthenticatedWithChallenge_WritesTheChallenge()
     {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "auth.missing",
+            ErrorCategory.Unauthenticated,
+            "sign in",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.AuthenticateChallenge] = "Basic realm=\"orders\"" });
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(500);
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        title.ShouldBe("Internal Server Error");
+        response.Headers.GetValues("WWW-Authenticate").ShouldBe(["Basic realm=\"orders\""]);
     }
 
     [Fact]
-    public void GetTitle_ReturnsDefaultTitle_ForUnknownStatusCode()
+    public async Task ToProblemDetailsResponse_ExplicitStatus_OverridesTheCategoryAndKeepsItsTitle()
     {
+        // Arrange
+        var error = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "no order");
+
         // Act
-        var title = HttpResponseDataExtensions.GetTitle(418); // I'm a teapot
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest(), statusCode: 418);
 
         // Assert
-        title.ShouldBe("An error occurred");
+        ((int)response.StatusCode).ShouldBe(418);
+        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        body.GetProperty("status").GetInt32().ShouldBe(418);
+        body.GetProperty("title").GetString().ShouldBe("An error occurred");
+    }
+
+    [Fact]
+    public async Task ToProblemDetailsResponse_OverrideTo503_WritesRetryAfterOfTheEffectiveStatus()
+    {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "order.not_found",
+            ErrorCategory.NotFound,
+            "no order",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromSeconds(5) });
+
+        // Act
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest(), statusCode: 503);
+
+        // Assert
+        response.Headers.GetValues("Retry-After").ShouldBe(["5"]);
+    }
+
+    [Fact]
+    public async Task ToProblemDetailsResponse_WritesErrorCodeTraceIdAndDetail()
+    {
+        // Arrange
+        var error = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "no order");
+
+        // Act
+        var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
+
+        // Assert
+        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        body.GetProperty("extensions").GetProperty("errorCode").GetString().ShouldBe("order.not_found");
+        body.GetProperty("extensions").GetProperty("traceId").GetString().ShouldBe("invocation-1");
+    }
+
+    [Fact]
+    public async Task ToProblemDetailsResponse_WithACorrelationIdInTheContext_WritesTheCorrelationId()
+    {
+        // Arrange
+        var error = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "no order");
+        var context = new TestContext();
+        context.Items["Encina.CorrelationId"] = "corr-1";
+
+        // Act
+        var response = (TestResponse)await error.ToProblemDetailsResponse(new TestRequest(context));
+
+        // Assert
+        var extensions = JsonDocument.Parse(response.ReadBody()).RootElement.GetProperty("extensions");
+        extensions.GetProperty("correlationId").GetString().ShouldBe("corr-1");
+    }
+
+    [Fact]
+    public void GetCorrelationId_WithAnEmptyHeaderValue_FallsBackToTheContextItem()
+    {
+        // Arrange
+        var context = new TestContext();
+        context.Items["Encina.CorrelationId"] = "corr-2";
+        var request = new TestRequest(context);
+        request.Headers.Add("X-Correlation-ID", string.Empty);
+
+        // Act
+        var correlationId = context.GetCorrelationId(request);
+
+        // Assert
+        correlationId.ShouldBe("corr-2");
+    }
+
+    [Fact]
+    public async Task ToHttpResponseData_Success_WritesTheValueWithTheSuccessStatus()
+    {
+        // Arrange
+        Either<EncinaError, string> result = "ok";
+
+        // Act
+        var response = (TestResponse)await result.ToHttpResponseData(NewRequest(), successStatusCode: 202);
+
+        // Assert
+        ((int)response.StatusCode).ShouldBe(202);
+        response.ReadBody().ShouldBe("\"ok\"");
+    }
+
+    [Fact]
+    public async Task ToHttpResponseData_FailureWithOverride_UsesTheOverride()
+    {
+        // Arrange
+        Either<EncinaError, string> result = EncinaErrors.Create("a.b", ErrorCategory.Conflict, "m");
+
+        // Act
+        var plain = await result.ToHttpResponseData(NewRequest());
+        var overridden = await result.ToHttpResponseData(NewRequest(), errorStatusCode: 422);
+
+        // Assert
+        plain.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        ((int)overridden.StatusCode).ShouldBe(422);
+    }
+
+    [Fact]
+    public async Task ToCreatedResponse_SuccessAndFailure_WriteLocationOrTheCategoryStatus()
+    {
+        // Arrange
+        Either<EncinaError, int> created = 7;
+        Either<EncinaError, int> failed = EncinaErrors.Create("o.exists", ErrorCategory.AlreadyExists, "m");
+
+        // Act
+        var ok = (TestResponse)await created.ToCreatedResponse(NewRequest(), id => $"/orders/{id}");
+        var conflict = await failed.ToCreatedResponse(NewRequest(), id => $"/orders/{id}");
+
+        // Assert
+        ok.StatusCode.ShouldBe(HttpStatusCode.Created);
+        ok.Headers.GetValues("Location").ShouldBe(["/orders/7"]);
+        conflict.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task ToNoContentResponse_SuccessAndFailure_WriteNoContentOrTheCategoryStatus()
+    {
+        // Arrange
+        Either<EncinaError, Unit> ok = Unit.Default;
+        Either<EncinaError, Unit> failed = EncinaErrors.Create("o.gone", ErrorCategory.NotFound, "m");
+
+        // Act
+        var noContent = await ok.ToNoContentResponse(NewRequest());
+        var notFound = await failed.ToNoContentResponse(NewRequest());
+
+        // Assert
+        noContent.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        notFound.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    private static TestRequest NewRequest() => new(new TestContext());
+
+    private sealed class TestContext : FunctionContext
+    {
+        public override string InvocationId => "invocation-1";
+
+        public override string FunctionId => "function-1";
+
+        public override TraceContext TraceContext => null!;
+
+        public override BindingContext BindingContext => null!;
+
+        public override RetryContext RetryContext => null!;
+
+        public override IServiceProvider InstanceServices { get; set; } = null!;
+
+        public override FunctionDefinition FunctionDefinition => null!;
+
+        public override IDictionary<object, object> Items { get; set; } = new Dictionary<object, object>();
+
+        public override IInvocationFeatures Features => null!;
+    }
+
+    private sealed class TestRequest(FunctionContext context) : HttpRequestData(context)
+    {
+        public override Stream Body { get; } = new MemoryStream();
+
+        public override HttpHeadersCollection Headers { get; } = [];
+
+        public override IReadOnlyCollection<IHttpCookie> Cookies { get; } = [];
+
+        public override Uri Url { get; } = new("https://functions.local/api/orders?x=1");
+
+        public override IEnumerable<ClaimsIdentity> Identities { get; } = [];
+
+        public override string Method => "POST";
+
+        public override HttpResponseData CreateResponse() => new TestResponse(FunctionContext);
+    }
+
+    private sealed class TestResponse(FunctionContext context) : HttpResponseData(context)
+    {
+        public override HttpStatusCode StatusCode { get; set; }
+
+        public override HttpHeadersCollection Headers { get; set; } = [];
+
+        public override Stream Body { get; set; } = new MemoryStream();
+
+        public override HttpCookies Cookies => null!;
+
+        public string ReadBody()
+        {
+            Body.Position = 0;
+            using var reader = new StreamReader(Body, leaveOpen: true);
+            return reader.ReadToEnd();
+        }
     }
 }
