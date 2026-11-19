@@ -430,7 +430,7 @@ builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 
 ### Domain Event Dispatcher
 
-Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected only from tracked entries that implement `IAggregateRoot` (subclasses of `AggregateRoot<TId>`); an entity that derives from `Entity<TId>` but is not an aggregate root is not read, so raise its events on the aggregate root that owns it. Events are dispatched via MediatR's `IPublisher`.
+Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected only from tracked entries that implement `IAggregateRoot` (subclasses of `AggregateRoot<TId>`); an entity that derives from `Entity<TId>` but is not an aggregate root is not read, so raise its events on the aggregate root that owns it. Events are published through `IEncina.Publish`.
 
 **Use cases:**
 
@@ -464,7 +464,9 @@ builder.Services.AddDbContext<AppDbContext>((sp, options) =>
 **Usage with Aggregate Roots:**
 
 ```csharp
+using Encina;
 using Encina.DomainModeling;
+using LanguageExt;
 
 public class Order : AggregateRoot<Guid>
 {
@@ -487,7 +489,7 @@ public class Order : AggregateRoot<Guid>
     }
 }
 
-// Domain event implementing INotification for MediatR dispatch
+// Domain event implementing Encina's INotification, so IEncina.Publish can dispatch it
 public sealed record OrderPlacedEvent(Guid OrderId) : IDomainEvent, INotification
 {
     public Guid EventId { get; init; } = Guid.NewGuid();
@@ -495,11 +497,14 @@ public sealed record OrderPlacedEvent(Guid OrderId) : IDomainEvent, INotificatio
 }
 
 // Handler receives events after SaveChanges succeeds
-public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
+public sealed class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 {
-    public async Task Handle(OrderPlacedEvent notification, CancellationToken ct)
+    public Task<Either<EncinaError, Unit>> Handle(
+        OrderPlacedEvent notification,
+        CancellationToken cancellationToken)
     {
         // Send email, update read model, log audit entry, etc.
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }
 ```
@@ -509,7 +514,7 @@ public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 1. `DomainEventDispatcherInterceptor` intercepts `SaveChangesAsync`
 2. Collects all pending domain events from tracked `IAggregateRoot` instances
 3. Calls `SaveChanges` on the DbContext
-4. If successful, dispatches each event via `IPublisher.Publish()`
+4. If successful, publishes each event via `IEncina.Publish()`
 5. Clears domain events from the aggregate roots after dispatch
 
 **Configuration Options:**
@@ -558,6 +563,10 @@ catch (DomainEventDispatchException ex)
 For reliable event publishing with at-least-once delivery, combine domain events with the Outbox pattern:
 
 ```csharp
+using Encina;
+using Encina.Messaging.Outbox;
+using LanguageExt;
+
 // Option 1: Use Outbox for external events, domain dispatcher for internal
 builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 {
@@ -568,14 +577,15 @@ builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 builder.Services.AddDomainEventDispatcher();
 
 // Option 2: Configure domain events to go through Outbox
-public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
+public sealed class OrderPlacedEventHandler(OutboxOrchestrator outbox)
+    : INotificationHandler<OrderPlacedEvent>
 {
-    private readonly OutboxOrchestrator _outbox;
-
-    public async Task Handle(OrderPlacedEvent notification, CancellationToken ct)
+    public Task<Either<EncinaError, Unit>> Handle(
+        OrderPlacedEvent notification,
+        CancellationToken cancellationToken)
     {
-        // Store in outbox for reliable async delivery
-        await _outbox.AddAsync(new OrderPlacedExternalEvent(notification.OrderId), ct);
+        // Store in outbox for reliable async delivery; a Left here is reported like any handler failure
+        return outbox.AddAsync(new OrderPlacedExternalEvent(notification.OrderId), cancellationToken);
     }
 }
 ```
