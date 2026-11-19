@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `89303f1e8`)
+### What exists today (read on 2026-11-18, main `8727c5cc3`)
 
 - `MessagingActivityEnricher` (`src/Encina.OpenTelemetry/Enrichers/MessagingActivityEnricher.cs`, public static) has `EnrichWithOutboxMessage`, `EnrichWithInboxMessage`, `EnrichWithSagaState` and `EnrichWithScheduledMessage`. It sets `messaging.system`, `messaging.operation.name`, `messaging.message.id`, `messaging.message.type` and the Encina-specific `messaging.message.processed`, `.processed_at`, `.retry_count`, `.error`, and for scheduled messages `.scheduled_at`, `.is_recurring`, `.cron_expression`. It returns at once when the activity is `null`.
 - The keys live in `Encina.OpenTelemetry.ActivityTagNames` (`src/Encina.OpenTelemetry/ActivityTagNames.cs`: nested `Messaging`, `Systems`, `Operations`); the enricher is the only consumer in `src`. A second, `internal` class of the same name exists in core (`src/Encina/Diagnostics/ActivityTagNames.cs`) for request, sharding and exception keys. `Encina.Messaging` has no access to the OpenTelemetry package, so the two live spans of the stores use string literals: `outbox.notification_count` on `encina.outbox.enqueue` (`OutboxActivitySource.StartEnqueue`, called from `TransactionalOutboxPipelineBehavior.cs:173`) and `scheduling.batch_size` on `encina.scheduling.process_due` (`SchedulingActivitySource.StartProcessDue`/`StartProcessingCycle`, called from `ScheduledMessageProcessor.cs:147`; the cycle is completed with the real count at `:166`). The Inbox, Saga and `OutboxActivitySource` batch spans have no caller (issue #1790).
