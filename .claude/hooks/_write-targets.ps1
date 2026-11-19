@@ -131,7 +131,11 @@ function Get-LaunchArguments($Tokens, $FileToken) {
             $trusted = -not $t.Expanded
             $name = $name.Substring(0, $colon)
         }
-        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) { $valueToken = $Tokens[$i + 1]; $trusted = -not $valueToken.Expanded; $i++ }
+        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) {
+            # A background `&` is never a value: it ends this command, so nothing after it binds.
+            if (-not $Tokens[$i + 1].Quoted -and [string]$Tokens[$i + 1].Value -match '(?<!>)&') { break }
+            $valueToken = $Tokens[$i + 1]; $trusted = -not $valueToken.Expanded; $i++
+        }
         $name = $name.ToLowerInvariant()
         # #3896: a value the shell expands (an escape, `$$`, `$?`, `$^` in double quotes) is not what the script receives,
         # so it never binds.

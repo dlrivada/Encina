@@ -524,7 +524,8 @@ $ps1Scripts = [ordered]@{
     # A script whose text names tests/ legitimately and whose only target is bound to -Sp.
     ParamSpMention      = "param([string]`$Sp)`n# Output is written next to the board, never under src/ or tests/.`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     ParamSpAmbiguous    = "param([string]`$Sp, [string]`$Sq)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
-    ParamSpSwitch       = "param([switch]`$Sp)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    ParamSpFlag         = "param([switch]`$Flag, [string]`$Sp = 'src')`nSet-Content -Path `"`$Sp/out.txt`" -Value '1'`n"
+    ParamSpSwitch       ="param([switch]`$Sp)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
     # A URL with a /tests/ segment and a hyphenated name are not repository paths.
     UrlTestsSegment     = "param([string]`$Sp = `$PSScriptRoot)`n`$r = Invoke-RestMethod -Uri 'https://example.com/tests/data.json'`n`$r | ConvertTo-Json | Set-Content `"`$Sp\data.json`"`n"
     # Review of #3896: an [Alias] makes -Sp bind to $Target, not to the prefix match $Spec; a drive path written with
@@ -1211,6 +1212,8 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "bash -c `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp '`$X'`"" }, $main, $null, 2, 'main session (#3896): bash -c wrapper, -Sp ''$X'' expanded by the outer shell: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' & Write-Output -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a background & ends the launch arguments, the next command''s -Sp binds nothing: denied'),
     @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' & echo -Sp $($main -replace '\\', '/')/artifacts" }, $main, $null, 2, 'main session (#3896): Bash tool, a background & ends the launch arguments: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpFlag -replace '\\', '/')' -Flag & echo -Sp artifacts; wait" }, $main, $null, 2, 'main session (#3896): Bash tool, a background & after a parameter is not its value, nothing after it binds: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpFlag)' -Flag & Write-Output -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): PowerShell, a background & after a parameter is not its value: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'artifacts\board' &" }, $main, $null, 0, 'main session (#3896): a trailing background & after the -Sp value still binds it: allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'board' -WorkingDirectory '$outside'" }, ($main + '\src'), $null, 2, 'main session (#3896): -WorkingDirectory after the script file is a script argument, not the host option: denied'),
     @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' -Sp artifacts/{../src,board}" }, $main, $null, 2, 'main session (#3896): Bash tool, brace expansion inside the -Sp value: denied'),
