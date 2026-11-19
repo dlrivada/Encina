@@ -32,12 +32,6 @@ function Test-CommandWhitespace([char]$Char) {
     return [char]::IsWhiteSpace($Char)
 }
 
-# `;`, a line break, `|`, `{` or `}`: a one-character statement separator.
-function Test-CommandSeparator([char]$Char) {
-    $code = [int]$Char
-    return $code -eq 59 -or $code -eq 10 -or $code -eq 13 -or $code -eq 124 -or $code -eq 123 -or $code -eq 125
-}
-
 # Whether $Text[$At] is a single background `&` that ends a statement: not half of `&&`, not part of a
 # redirection (`2>&1`, `*>&1`, `>&2`, `<&3`, Bash `&>file`, `&>>file`).
 function Test-BackgroundAmpersand([string]$Text, [int]$At) {
