@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (f484cdf4f):
+Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -88,7 +88,7 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 
 - **Class:** Trivial
 - **Settled by:** the interface's own contract (`IRequestPostCommitProcessor.cs`: runs after the transaction committed and the request succeeded, never when the inner pipeline returned `Left`) and `PipelineBuilder.WrapProcessors` (`src/Encina/Pipeline/PipelineBuilder.cs`, which resolves the registered processors); AGENTS.md section 3 (a cache write that precedes the commit would be untrue after a rollback).
-- The processor does not claim atomicity: the orchestrator never calls `SaveChangesAsync` (the handler or the transaction behavior owns the commit). A failure to write the cache cannot fail the request (a `Left` from a post-commit processor fails a request that already committed), so the processor returns `Right` always, logs the exception type (EventId 501) and, when `CachingOptions.ThrowOnCacheErrors` is on, throws as the existing behavior does. After a failed set it tries `RemoveAsync` of the key, so a stale value does not outlive the update.
+- The processor does not claim atomicity: the orchestrator never calls `SaveChangesAsync` (the handler or the transaction behavior owns the commit). A failure to write the cache cannot fail the request (a `Left` from a post-commit processor fails a request that already committed), so the processor returns `Right` always, logs the exception type (EventId 501) and, when `CachingOptions.ThrowOnCacheErrors` is on, throws as the existing behavior does. An `OperationCanceledException` from the caller's token always propagates (never a `Right`, never a `Left`). Because the failure is swallowed when `ThrowOnCacheErrors` is off, a `Right` from `Send` does not confirm that the cache was written; the documentation says so. After a failed set it tries `RemoveAsync` of the key, so a stale value does not outlive the update; that removal is unconditional, so a concurrent newer write of the same key can be removed too, which costs one miss.
 
 </details>
 
@@ -108,7 +108,7 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 ("Every messaging pattern ... is optional and disabled by default") and the pay-for-what-you-use principle of section 1; `PipelineBuilder.WrapProcessors` allocates a step per registered processor type for every request.
-- The misconfiguration (an attribute on a type while the feature is not registered) is reported by Design Choice 9.
+- The misconfiguration (an attribute on a type while the feature is not registered) is reported when the type's settings are resolved, in whatever form the maintainer chooses for invalid configuration.
 
 </details>
 
@@ -446,7 +446,7 @@ PR 4 holds exactly these 14 files:
 
 Tasks:
 
-1. **Create** `WriteBehindFlushService : BackgroundService`: a `PeriodicTimer` at the smallest `FlushIntervalSeconds` of the registered request types (per-type intervals are honored by a per-type due time), flush also when a type reaches its `BatchSize`; each iteration catches its failures (never lets an exception escape; log EventId 506 by exception type, keep running); a `Left` or exception from the batch handler is retried `FlushRetryCount` times with `FlushRetryDelay` and then handed to `IWriteBehindDeadLetterSink` (EventIds 503 retry, 504 dead-lettered); on `StopAsync` it drains for `ShutdownDrainTimeout` and logs EventId 505 with the number of undrained items.
+1. **Create** `WriteBehindFlushService : BackgroundService`: a `PeriodicTimer` at the smallest `FlushIntervalSeconds` of the registered request types (per-type intervals are honored by a per-type due time), flush also when a type reaches its `BatchSize`; each iteration catches its failures (never lets an exception escape; log EventId 506 by exception type, keep running); a `Left` or exception from the batch handler is retried `FlushRetryCount` times with `FlushRetryDelay` and then handed to `IWriteBehindDeadLetterSink` (EventIds 503 retry, 504 dead-lettered); on `StopAsync` it drains for `ShutdownDrainTimeout` and logs EventId 505 with the number of undrained items. The service starts no work from an ambient request: it is created at host start with no `RequestContextAccessor` holder, and each batch runs in a new `IServiceScopeFactory` scope whose context carries only the batch's tenant id, so no request identity (an `AsyncLocal` flows into any work started from a request) can leak into the flush. Stopping cancels the loop with `OperationCanceledException`, which is not an error and not a dead-letter cause.
 2. **Create** `AddEncinaWriteBehind(this IServiceCollection)` (public, `ArgumentNullException.ThrowIfNull`): registers the queue, the behavior as an open generic `IPipelineBehavior<,>`, the flush service, the default sink with `TryAdd` and the health check; it is the only way to switch write-behind on.
 3. **Create** `WriteBehindHealthCheck` (DefaultName const, static tags): Degraded at 80 percent of `QueueCapacity`, Unhealthy while the flush service is faulted; `Healthy` otherwise. Provider health of the cache itself stays with #754.
 4. **Create** `CachePatternMetrics.Strategies.cs`: counters `encina.cache.write_through` (tag `outcome`), `encina.cache.write_behind.enqueued`, `.flushed`, `.dead_lettered`, and an observable gauge `encina.cache.write_behind.queue_depth`; the tag `encina.tenant_id` only when multi-tenancy is on (ADR-054 D4).
@@ -595,7 +595,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Caching` (new range `CachingStrategies`, block 500-549 of the plan batch registry) | 500-507 | This plan: 500 write-through applied, 501 failed, 502 queue full, 503 flush retry, 504 batch dead-lettered, 505 stopped with undrained items, 506 flush iteration faulted, 507 write-through skipped for no tenant. Family: #274 508-513, #275 514-521, #278 522-533, #276 534-538 (each registers its own range); 539-549 free. The existing `Caching` range 3500-3549 is untouched |
+| `Encina.Caching` (new range `CachingStrategies`, block 500-549 of the plan batch registry) | 500-507 | This plan: 500 write-through applied, 501 failed, 502 queue full, 503 flush retry, 504 batch dead-lettered, 505 stopped with undrained items, 506 flush iteration faulted, 507 write-through skipped for no tenant. Family: #274 508-513, #275 514-519, #278 520-531, #276 532-536 (each registers its own range); 537-549 free. The existing `Caching` range 3500-3549 is untouched |
 
 ### Estimated File Count
 
