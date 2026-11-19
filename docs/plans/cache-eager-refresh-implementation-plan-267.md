@@ -2,7 +2,7 @@
 
 > **Issue**: [#267](https://github.com/dlrivada/Encina/issues/267)
 > **Type**: Feature
-> **Complexity**: Medium (3 code phases, 3 pull requests of 13, 12 and 10 files)
+> **Complexity**: Medium (3 code phases, 3 pull requests of 13, 12 and 9 files)
 > **Estimated Scope**: about 450 lines of production code, about 1,000 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (8727c5cc3):
+Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (098caa920):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -278,7 +278,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 10 files:
+PR 3 holds exactly these 9 files (threshold resolution is tested in PR 1, where `Resolve` changes; the `VaryByUser` eligibility rule lives in the behavior and is tested in `QueryCachingEagerRefreshTests`). `CacheRefreshMarker` is distinct from #268's inner-run marker (`CacheInnerRunMarker`), which makes the cache behavior pass straight to the handler; the refresh marker runs the miss path, and the two are never combined:
 
 | # | File | Change |
 |---|------|--------|
@@ -288,10 +288,9 @@ PR 3 holds exactly these 10 files:
 | 4 | `tests/Encina.UnitTests/Caching/QueryCachingEagerRefreshTests.cs` | new |
 | 5 | `tests/Encina.GuardTests/Infrastructure/Caching/QueryCachingPipelineBehaviorGuardTests.cs` | modify |
 | 6 | `tests/Encina.IntegrationTests/Infrastructure/Caching/EagerRefreshIntegrationTests.cs` | new |
-| 7 | `docs/features/handler-caching.md` | new or modified (`docs-writer`; `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one named with the #84 documentation plan; the first family PR that needs it creates it) |
+| 7 | `docs/features/handler-caching.md` | new or modified (`docs-writer`; `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one; this family owns it (the first family PR that needs it creates it) and the #84 documentation plan's `docs/features/caching/overview.md`, which covers handler-level caching, links to it) |
 | 8 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 9 | `changelog.d/267-cache-eager-refresh.added.md` | new (`mechanical-fixer`) |
-| 10 | `tests/Encina.UnitTests/Caching/CachePatternSettingsTests.cs` | modify (threshold resolution: -1 inherit, explicit 0; the `VaryByUser` eligibility rule is tested in `QueryCachingEagerRefreshTests`) |
 
 Tasks:
 
@@ -414,7 +413,7 @@ REFERENCE FILES:
 | Tests | 4 | 7 | New: policy, refresher, eager-refresh and integration tests; modified: settings, options, DI, guard behavior tests |
 | Documentation | 0 | 1 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 3 | 2 | Three changelog fragments; the manifest and `PublicAPI.Unshipped.txt` |
-| **Total** | **13** | **14** | 3 pull requests: 13, 12 and 10 files, each at most 15 files and 1500 lines |
+| **Total** | **13** | **14** | 3 pull requests: 13, 12 and 9 files, each at most 15 files and 1500 lines |
 
 ---
 
