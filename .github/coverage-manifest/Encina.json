@@ -805,10 +805,10 @@
       ],
       "defaultRule": "*Factory.cs",
       "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract",
-      "targets": { "unit": 95, "guard": 0, "contract": 70 },
+      "targets": { "unit": 95, "guard": 70, "contract": 70 },
       "justifications": {
         "unit": "Every validation branch and the Internal/External rules have unit tests (measured 100%).",
-        "guard": "The two null guards sit in the member body shared with the main file's guard run; the measured share is 3%, so no target is set.",
+        "guard": "Guard tests cover the null guards, the undefined-source refusal and an anonymous restore (measured 72.41%); the user and service identity construction and external-source rules are left uncovered and are covered by the unit and contract flags.",
         "contract": "The contract restores a user and refuses a reserved subject (measured 78%)."
       }
     },
@@ -1813,10 +1813,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 70, "guard": 0 },
+      "targets": { "unit": 70, "guard": 20 },
       "justifications": {
         "unit": "Routing and the instrumentation of each shard lookup are driven by the unit tests (measured 81.08%).",
-        "guard": "Guard tests do not reach the internal decorator; its constructor guards are unit tested."
+        "guard": "Guard tests cover the constructor guards of both decorators (measured 20.27%); the routing, tracing and metrics paths are left uncovered and are covered by the unit flag."
       }
     },
     "Sharding/Diagnostics/ShardedDatabasePoolMetrics.cs": {
