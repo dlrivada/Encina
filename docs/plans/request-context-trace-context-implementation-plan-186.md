@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `bcba62843`)
+### What exists today (read on 2026-11-18, main `8727c5cc3`)
 
 - `IRequestContext` (`src/Encina/Abstractions/IRequestContext.cs`) has `CorrelationId` (a `string`), `CausationId` (`string?`), `Identity`, `IdempotencyKey`, `TenantId`, `Timestamp` and `Metadata`. It has no trace members. The issue's snippet shows `Guid CorrelationId`; the real contract is a bounded string (`InboundRequestNormalizer.Id`, `InboundRequestInfo.MaxIdLength = 128`).
 - A context is built in one place: `RequestContext.Build(...)` (`src/Encina/Core/RequestContext.cs:156`), reached by `Create`, `CreateAnonymousAt` and the internal `CreateAt`; copies go through the private copy constructor, `CopyOf` and `ForNestedDispatch`. A context created without an id takes `Activity.Current?.Id ?? Guid.NewGuid().ToString("N")` as its correlation id (`NewCorrelationId`, `RequestContext.cs:194`); the HTTP entry does the same through `HttpContextInboundRequestExtensions.cs:98` (`Header(headers, CorrelationIdHeader) ?? Activity.Current?.Id`). With W3C ids, that `Activity.Id` is the whole `traceparent` string.
