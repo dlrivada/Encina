@@ -2,8 +2,8 @@
 
 > **Issue**: [#138](https://github.com/dlrivada/Encina/issues/138)
 > **Type**: Feature
-> **Complexity**: High (7 phases, no database providers, 3 pull requests)
-> **Estimated Scope**: ~800 lines of production code + ~1,300 lines of tests (about 2,200 changed lines in total, three pull requests)
+> **Complexity**: High (7 phases, no database providers, 4 pull requests)
+> **Estimated Scope**: ~800 lines of production code + ~1,300 lines of tests (about 2,200 changed lines in total, four pull requests)
 
 ---
 
@@ -50,7 +50,7 @@ What exists today (read in `origin/main` at `f484cdf4f`):
 
 ### Rationale
 
-- A follows the spike report order (overload strategies are step 6, after the foundation); B wins if shedding must ship first. Asked once for the family (#136 choice 1). PR-1 (pure model and calculator) has no dependency on the foundation.
+- A follows the spike report order (overload strategies are step 6, after the foundation); B wins if shedding must ship first. Asked once for the family (#136 choice 1). Every PR needs the `Encina.Resilience` project to exist: even PR-1's pure model files live in it, so PR-1 is not independent of the foundation (under option C of this choice, creating the project and the test `ProjectReference` edits adds files to PR-1).
 
 - **Class:** Dilemma
 
@@ -133,6 +133,7 @@ R2 lists the rate limiter and the bulkhead in the Admission behavior and does no
 ### Rationale
 
 - A wins when most traffic is ordinary; B wins for a gradual rollout; C wins where unclassified traffic is mostly background. The `EnablePrioritization` switch of the issue's sample is not created (without priorities, the default priority applies to everything): a dead option is not added (AGENTS.md section 1).
+- Trust: the instance priority is read from the request object, so a request bound from client input could carry `Critical` and avoid shedding. The rule is that `IPrioritizedRequest.Priority` must be computed by the application from trusted data (the request type, the authenticated identity), never copied from a client field; the documentation says so, and a per-type option can pin a type's priority and take precedence over an instance value for types that bind client input (`For<T>().LoadShedding(o => o.PinPriority = true)`). A is therefore the recommendation only when the application owns its priorities; where requests deserialize a priority from the wire, the pinned option is the safe variant.
 
 - **Class:** Dilemma
 
@@ -225,16 +226,17 @@ R2 lists the rate limiter and the bulkhead in the Admission behavior and does no
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `Left`: code `encina.loadshedding.rejected`, `ErrorCategory.Unavailable` (503 over HTTP, `UNAVAILABLE` over gRPC), constant message, details `loadshedding.priority` and, when `RetryAfterHint` is configured, `EncinaErrorMetadataKeys.RetryAfter`** | Coded `Left`; hosts map the category without parsing the code | None |
-| **B) An exception** | None | Violates ROP |
+| **A) A `Left` with a new code `encina.loadshedding.rejected`, `ErrorCategory.Unavailable` (503 over HTTP, `UNAVAILABLE` over gRPC), constant message, details `loadshedding.priority` and, when `RetryAfterHint` is configured, `EncinaErrorMetadataKeys.RetryAfter`** | Hosts map the category without parsing the code; consistent with the #139 rejection | Public names ADR-055 does not fix |
+| **B) A `Left` with `ErrorCategory.RateLimited` (429)** | Reuses the rate-limit meaning | The server is overloaded, not the caller over a quota; 429 invites a client to slow down only itself |
+| **C) The rejection codes and categories wait for #3424** | One decision for every rejection (bulkhead, timeout, breaker, shed) | #3424 is an open bug about other codes; shedding would block on it |
 
-### Chosen Option: **A — Coded `Left` with category `Unavailable`**
+### Chosen Option: **A — New code with category `Unavailable`** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The error is built with `EncinaErrors.Create(code, category: ErrorCategory.Unavailable, message, details: ...)`. The rejected request has not run, so a caller may retry it.
-- **Class:** Settled
-- **Settled by:** ADR-055 settled points ("Every rejection is a coded `Left` ... shed load; delays travel as metadata") and ADR-062 (category table: `Unavailable` is 503 with `Retry-After` from `EncinaErrorMetadataKeys.RetryAfter` when known)
+- That a rejection is a coded `Left`, never an exception, is Settled by AGENTS.md section 3 (ROP) and the ADR-055 settled point "Every rejection is a coded `Left` ... shed load; delays travel as metadata"; the code name, category and detail keys are what this choice decides. ADR-062's table has no shed-load row. The error is built with `EncinaErrors.Create(code, category: ErrorCategory.Unavailable, message, details: ...)` and the message is a constant. The rejected request has not run, so a caller may retry it.
+- A wins when shedding must be distinguishable and map to 503; B wins if shed requests should look like rate limits to clients; C wins if the maintainer wants one naming decision for all rejections first.
+- **Class:** Dilemma
 
 </details>
 
@@ -286,15 +288,56 @@ The issue marks Health Checks as included ("report current load/shedding state")
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Gauge `encina.resilience.loadshedding.utilization` (0-1), counters `encina.resilience.loadshedding.shed` (tag `request.priority`, `request.type`) and `.admitted`, span event `loadshedding.rejected`; tenant tag only with multi-tenancy** | R5 names shed load as Encina-owned | Per-priority series (4) and per-type |
+| **A) A utilization gauge, a shed counter (tags `request.priority`, `request.type`) and an admitted counter, plus a span event `loadshedding.rejected`, named by the convention #728 settles (proposed `encina.resilience.loadshedding.utilization`, `.shed`, `.admitted`); tenant tag only with multi-tenancy** | R5 names shed load as Encina-owned | Per-priority series (4) and per-type |
 | **B) Logs only** | Smallest | No metrics |
 
-### Chosen Option: **A — Gauge and counters**
+### Chosen Option: **A — Gauge and counters** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** ADR-055 R5 ("Encina creates its own instruments ... shed load") and ADR-054 D3, D4
+- ADR-055 R5 says Encina creates instruments for "shed load" and ADR-054 D3 fixes the rules, not the names. #728 (plan on main) already proposes a shed-load counter `encina.resilience.shed_load` (its choice 8, pending) and leaves its choice 1 (who holds the `Meter("Encina.Resilience")` instance) pending: the two names collide in meaning, so this plan takes the holder and the name that #728's answers settle, and creates no `Meter` of its own. A wins when operators need shed counts per priority; B wins if logs suffice.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>14. Built-in utilization providers</strong></summary>
+
+The acceptance criterion reads "`IUtilizationProvider` abstraction with built-in implementations" (plural).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) One built-in `ProcessUtilizationProvider` (CPU, memory, and latency and error rate from the window); applications supply their own `IUtilizationProvider` and it wins in any registration order** | Smallest; covers the pattern | One implementation where the criterion says several |
+| **B) Also a provider over `Microsoft.Extensions.Diagnostics.ResourceMonitoring`** | Container-aware CPU and memory from a maintained source | A new package dependency not pinned in `Directory.Packages.props` (no `ResourceMonitoring` entry) |
+
+### Chosen Option: **A — One built-in provider** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on dependencies; B wins if cgroup accuracy matters and the dependency is accepted. The omission of a second built-in implementation is recorded here.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>15. Defaults of the options</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `Thresholds` Bulk 60, BestEffort 70, Degraded 80, Critical 90; `Metric` = `Cpu | Latency`; `SampleInterval` 1 s; `EnableGradualShedding` true; `LatencyTarget` has no default and a configuration that selects `Latency` without one fails at startup; `RetryAfterHint` null** | The first three are the values of the issue samples (`CpuAndLatency`, thresholds), the interval is the issue's #139 sample cadence (1000 ms); invalid or missing input fails at startup instead of defaulting silently; opt-in | None |
+| **B) Silent defaults for every value** | Easiest to adopt | A missing latency target would hide a misconfiguration |
+
+### Chosen Option: **A — Cited defaults, startup failure for the rest**
+
+### Rationale
+
+- The feature stays opt-in: nothing applies without `LoadShedding(...)`.
+- **Class:** Trivial
+- **Settled by:** #138 "Configuration" sample (thresholds, `CpuAndLatency`) and AGENTS.md section 1 (every feature opt-in)
 
 </details>
 
@@ -302,7 +345,7 @@ The issue marks Health Checks as included ("report current load/shedding state")
 
 ## Implementation Phases
 
-Three pull requests: **PR-1** Phase 1 (model and calculator, no dependency on the foundation); **PR-2** Phases 2 and 3 (providers, manager, strategy, configuration); **PR-3** Phases 4 to 7.
+Four pull requests, in order: **PR-1** Phase 1 (model and calculator); **PR-2** Phase 2 (providers, manager, strategy; needs `RollingOutcomeWindow` from #139 PR-1 merged first, choice 8); **PR-3** Phases 3 and 4 (configuration, health check); **PR-4** Phases 5 to 7 (observability, load tests, docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-4 also need the foundation compiler and R6.
 
 ### Phase 1: Core Models and Calculator
 
@@ -310,7 +353,7 @@ Three pull requests: **PR-1** Phase 1 (model and calculator, no dependency on th
 <summary>Tasks</summary>
 
 1. `src/Encina.Resilience/LoadShedding/RequestPriority.cs` (choice 4) with a `Compare` helper that orders by importance; `IPrioritizedRequest.cs` (`RequestPriority Priority { get; }`); `UtilizationMetric.cs` (`[Flags] enum`).
-2. `LoadSheddingOptions.cs`: `Thresholds` (default `Bulk 60, BestEffort 70, Degraded 80, Critical 90`), `UtilizationMetric Metric`, `RequestPriority DefaultPriority = Degraded`, `bool EnableGradualShedding = true`, `TimeSpan? RetryAfterHint`, `TimeSpan LatencyTarget`, `TimeSpan SampleInterval`; `LoadSheddingOptionsValidator.cs` (internal: thresholds in 1 to 100 and not decreasing with importance).
+2. `LoadSheddingOptions.cs`: `Thresholds` (default `Bulk 60, BestEffort 70, Degraded 80, Critical 90`), `UtilizationMetric Metric` (default `Cpu | Latency`), `RequestPriority DefaultPriority = Degraded`, `bool EnableGradualShedding = true`, `TimeSpan? RetryAfterHint`, `TimeSpan? LatencyTarget` (no default; required when `Latency` is selected, failing at startup), `TimeSpan SampleInterval` (1 s), `bool PinPriority` per type (choice 5); the defaults are choice 15; `LoadSheddingOptionsValidator.cs` (internal: thresholds in 1 to 100 and not decreasing with importance).
 3. `IUtilizationProvider.cs` (`double GetCpuUtilization()`, `GetMemoryUtilization()`, `GetLatencyP99()`, `GetErrorRate()` as in the issue, documented in 0-1 or milliseconds), `ILoadSheddingManager.cs` (`bool ShouldShed(RequestPriority priority)` and `double Utilization`).
 4. `SheddingCalculator.cs`: the pure rejection probability (choice 11).
 
@@ -401,7 +444,7 @@ REFERENCE FILES: src/Encina.Messaging/Health/, src/Encina/Abstractions/MultiTena
 <details>
 <summary>Tasks</summary>
 
-1. `EventIdRanges.cs`: `ResilienceLoadShedding = (912, 923)`, mapped in the `Encina.Resilience` entry of `AssemblyRanges`. Ids 912-923 are free in the repository.
+1. `EventIdRanges.cs`: `ResilienceLoadShedding = (912, 923)`, its line in `src/Encina/PublicAPI.Unshipped.txt` (`mechanical-fixer`), and its name in the `["Encina.Resilience"]` entry of `AssemblyRanges` (create the entry if no earlier plan of the family did; an entry holds several ranges). Ids 912-923 are free in the repository and emitted only by `Encina.Resilience`.
 2. `Diagnostics/LoadSheddingLogMessages.cs`: 912 `SheddingStarted` (Information, at the transition of a priority), 913 `SheddingStopped` (Information), 914 `RequestShed` (Debug: type, priority, utilization), 915 `UtilizationUnavailable` (Warning: signal name, exception through `ForLogging()`), 916 `PriorityDefaulted` (Debug); 917-923 spare.
 3. `LoadSheddingTelemetry.cs`: instruments of choice 13.
 
@@ -501,21 +544,23 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 14 | 8 production (priority, interface, flags, options, validator, provider and manager interfaces, calculator), PublicAPI, 3 tests (calculator, options and validator, guard), manifest, changelog |
-| PR-2 | 11 | provider, manager, strategy factory, builder extensions (4 production), PublicAPI, 5 tests (provider, manager, strategy, registration, contract), manifest |
-| PR-3 | 14 | log messages, telemetry, health check, `EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs`, 3 tests (telemetry, health check, property), 2 load test files, 2 justification `.md`, README, feature page |
+| PR-1 | 15 | 8 production (`RequestPriority`, `IPrioritizedRequest`, `UtilizationMetric`, options, validator, `IUtilizationProvider`, `ILoadSheddingManager`, calculator), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if the foundation left it out), `PublicAPI.Unshipped.txt`, 4 tests (calculator, options and validator, guard, property), manifest |
+| PR-2 | 10 | 3 production (provider, manager, strategy factory), `PublicAPI.Unshipped.txt`, 5 tests (provider, manager, strategy, contract, guard), manifest |
+| PR-3 | 8 | 2 production (builder extensions, `LoadSheddingHealthCheck`), `PublicAPI.Unshipped.txt`, 3 tests (registration, health check, guard for the extensions), manifest, changelog fragment |
+| PR-4 | 14 | log messages, telemetry, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, Resilience `PublicAPI.Unshipped.txt`, manifest, 2 load test files, 2 justification `.md`, README, feature page |
 
-Each PR is within 15 files and 1,500 lines; PR-3 sits near the file limit, so the property test moves to PR-2 if needed.
+Each PR is within 15 files and 1,500 lines; PR-1 sits at the file limit (move the property test to PR-2 if the foundation adds a project edit). The property test of `SheddingCalculator` is in PR-1, the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds.
 
 Per-file targets (new files; baseline: none exists on `origin/main`):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
-| `RequestPriority.cs`, `UtilizationMetric.cs`, `IPrioritizedRequest.cs`, `IUtilizationProvider.cs`, `ILoadSheddingManager.cs` | 0 | 0 | 0 | 0 | 0 | Enums and interfaces; the helper in `RequestPriority.cs` is reached by calculator tests (target 90 unit on that file) |
+| `RequestPriority.cs` | 90 | 0 | 0 | 0 | 0 | The enum file holds the importance `Compare` helper, reached by the calculator and orientation tests of PR-1 |
+| `UtilizationMetric.cs`, `IPrioritizedRequest.cs`, `IUtilizationProvider.cs`, `ILoadSheddingManager.cs` | 0 | 0 | 0 | 0 | 0 | A flags enum and interfaces have no executable code |
 | `LoadSheddingOptions.cs` | 95 | 0 | 0 | 0 | 0 | Defaults and properties |
 | `LoadSheddingOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | One test per rule; internal |
 | `SheddingCalculator.cs` | 100 | 0 | 0 | 90 | 0 | Pure function, all branches and monotonicity property |
-| `ProcessUtilizationProvider.cs` | 85 | 100 | 90 | 0 | 0 | Real process reads are non-deterministic; fake clock covers the arithmetic; contract runs the real provider |
+| `ProcessUtilizationProvider.cs` | 85 | 100 | 90 | 0 | 0 | Real process reads are non-deterministic; fake clock covers the arithmetic; contract runs the real provider; the guard test file of PR-2 sends null arguments to the public constructors |
 | `LoadSheddingManager.cs` | 90 | 100 | 0 | 0 | 0 | Every branch with a fixed random source |
 | `LoadSheddingStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Through the real compiler; internal |
 | `LoadSheddingBuilderExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Guarded public methods |
@@ -531,7 +576,7 @@ CRAP of each method is at most 10 (signal normalization split into one small met
 <summary>Combined prompt for all phases</summary>
 
 ```text
-PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #138: priority load shedding in Encina.Resilience (ADR-055 R1, R2, R5). AGENTS.md rules apply. PR-1 has no dependency on the foundation; PR-2 and PR-3 need it and R6.
+PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #138: priority load shedding in Encina.Resilience (ADR-055 R1, R2, R5). AGENTS.md rules apply. Every PR needs the Encina.Resilience project; PR-2 to PR-4 also need the foundation compiler and R6, and PR-2 needs RollingOutcomeWindow from the #139 plan merged first.
 
 IMPLEMENTATION OVERVIEW: (1) RequestPriority, IPrioritizedRequest, options, calculator; (2) process utilization provider, manager, Admission strategy; (3) builder extensions and DI; (4) health check, tenant tag; (5) EventIds 912-923, gauge and counters; (6) unit, guard, contract, property and load tests; (7) docs and fragments.
 
@@ -567,7 +612,7 @@ REFERENCE FILES: src/Encina.Polly/RateLimiting/AdaptiveRateLimiter.cs, src/Encin
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| Foundation and R6 (issue files `resilience-foundation-encina-resilience.md`, `resilience-r6-pipeline-token-and-deadline.md`) | Not on main | Block PR-2 and PR-3 (Dilemma 1, #136); PR-1 is free of them |
+| Foundation and R6 (issue files `resilience-foundation-encina-resilience.md`, `resilience-r6-pipeline-token-and-deadline.md`) | Not on main | Block every PR (Dilemma 1, #136): even PR-1's files live in the `Encina.Resilience` project, which does not exist on main |
 | #139 `RollingOutcomeWindow` | Plan not on main | Choice 8 |
 | #728 choice 3 | Plan on main, pending | Choice 12 |
 | #123 priority plan | On main | Choice 4 |
@@ -577,5 +622,5 @@ REFERENCE FILES: src/Encina.Polly/RateLimiting/AdaptiveRateLimiter.cs, src/Encin
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #138.
-2. When #138 is picked up, ask the maintainer about the Dilemmas (choices 1, 3 to 9 and 12).
-3. Brief a worker for PR-1, then PR-2 and PR-3 once the foundation and R6 are merged.
+2. When #138 is picked up, ask the maintainer about the Dilemmas (choices 1, 3 to 10, 12, 13 and 14).
+3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 (after #139 PR-1), PR-3 and PR-4 once the foundation and R6 are merged.
