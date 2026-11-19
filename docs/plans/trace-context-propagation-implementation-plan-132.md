@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `89303f1e8`)
+### What exists today (read on 2026-11-18, main `8727c5cc3`)
 
 - No code propagates a trace context: a search of `src` for `traceparent`, `TraceParent`, `TextMapPropagator`, `Propagators.` and `Baggage` finds nothing. ADR-054 (Context) records the same finding: no persisted message carries a trace context and none of the 10 transports injects or extracts W3C headers.
 - Core has `EncinaDiagnostics.ActivitySource` (`"Encina"`, `src/Encina/Diagnostics/EncinaDiagnostics.cs:10`) and the command and query activity behaviors (`CommandActivityPipelineBehavior`, `QueryActivityPipelineBehavior`). The messaging stores each own an `ActivitySource` (`OutboxActivitySource`, `InboxActivitySource`, `SchedulingActivitySource`, `SagaActivitySource` in `src/Encina.Messaging/Diagnostics/`). No consumer-side span is parented or linked to a producer.
