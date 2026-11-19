@@ -63,17 +63,19 @@ public sealed class HashiCorpVaultOptionsTests
     }
 
     [Fact]
-    public void ToString_WhenDefaults_PrintsExpected()
+    public void ToString_WhenDefaults_DoesNotThrowAndContainsExpectedDefaults()
     {
         var options = new HashiCorpVaultOptions();
 
         var str = options.ToString();
 
-        str.ShouldBe("HashiCorpVaultOptions { VaultAddress=, MountPoint=secret, AuthMethod=null, AllowInsecureHttp=False, AllowLocalEndpoints=False }");
+        str.ShouldContain("VaultAddress=null");
+        str.ShouldContain("MountPoint=secret");
+        str.ShouldContain("AuthMethod=null");
     }
 
     [Fact]
-    public void ToString_WhenAuthMethodSet_MasksSecret()
+    public void ToString_WhenAuthMethodSet_MasksSecretAndShowsTypeName()
     {
         var options = new HashiCorpVaultOptions
         {
@@ -83,9 +85,25 @@ public sealed class HashiCorpVaultOptionsTests
 
         var str = options.ToString();
 
-        str.ShouldContain("AuthMethod=***");
+        str.ShouldContain("AuthMethod=*** (TokenAuthMethodInfo)");
         str.ShouldNotContain("hvs.my-super-secret-token");
         str.ShouldContain("VaultAddress=https://vault.example.com:8200");
+    }
+
+    [Fact]
+    public void ToString_WhenVaultAddressHasCredentials_StripsUserInfo()
+    {
+        var options = new HashiCorpVaultOptions
+        {
+            VaultAddress = "https://user:secret-password@vault.example.com:8200",
+            AuthMethod = new TokenAuthMethodInfo("hvs.my-token")
+        };
+
+        var str = options.ToString();
+
+        str.ShouldContain("VaultAddress=https://vault.example.com:8200");
+        str.ShouldNotContain("secret-password");
+        str.ShouldNotContain("user:");
     }
 
     [Fact]

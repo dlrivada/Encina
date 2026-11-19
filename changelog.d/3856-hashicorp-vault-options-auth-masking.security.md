@@ -1,1 +1,1 @@
-- **HashiCorpVaultOptions authentication method masking** (#3856). `HashiCorpVaultOptions.AuthMethod` is now marked `[JsonIgnore]` and `ToString()` masks auth credentials to prevent Vault token leakage in logs and serialization.
+- **HashiCorpVaultOptions authentication method masking** (#3856). `ToString()` masks `AuthMethod` (and strips credentials from `VaultAddress`) and default System.Text.Json serialization omits `AuthMethod` to prevent secret exposure in logs and serialization.

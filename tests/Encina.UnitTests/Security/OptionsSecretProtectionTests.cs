@@ -215,7 +215,7 @@ public sealed class OptionsSecretProtectionTests
 
         result.ShouldNotContain("super-secret");
         result.ShouldContain("HashiCorpVaultOptions");
-        result.ShouldContain("AuthMethod=***");
+        result.ShouldContain("AuthMethod=*** (TokenAuthMethodInfo)");
     }
 
     // ── JsonSerializer must NOT include [JsonIgnore] properties ──

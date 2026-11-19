@@ -86,5 +86,10 @@ public sealed class HashiCorpVaultOptions
 
     /// <inheritdoc/>
     public override string ToString() =>
-        $"HashiCorpVaultOptions {{ VaultAddress={VaultAddress}, MountPoint={MountPoint}, AuthMethod={(AuthMethod is null ? "null" : "***")}, AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints} }}";
+        $"HashiCorpVaultOptions {{ VaultAddress={GetSanitizedVaultAddress()}, MountPoint={MountPoint}, AuthMethod={(AuthMethod is null ? "null" : $"*** ({AuthMethod.GetType().Name})")}, AllowInsecureHttp={AllowInsecureHttp}, AllowLocalEndpoints={AllowLocalEndpoints} }}";
+
+    private string GetSanitizedVaultAddress() =>
+        Uri.TryCreate(VaultAddress, UriKind.Absolute, out var uri)
+            ? (uri.IsDefaultPort ? $"{uri.Scheme}://{uri.Host}" : $"{uri.Scheme}://{uri.Host}:{uri.Port}")
+            : "null";
 }
