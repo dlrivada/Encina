@@ -499,12 +499,12 @@ public sealed record OrderPlacedEvent(Guid OrderId) : IDomainEvent, INotificatio
 // Handler receives events after SaveChanges succeeds
 public sealed class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 {
-    public async Task<Either<EncinaError, Unit>> Handle(
+    public Task<Either<EncinaError, Unit>> Handle(
         OrderPlacedEvent notification,
         CancellationToken cancellationToken)
     {
         // Send email, update read model, log audit entry, etc.
-        return Unit.Default;
+        return Task.FromResult<Either<EncinaError, Unit>>(Unit.Default);
     }
 }
 ```
@@ -563,6 +563,10 @@ catch (DomainEventDispatchException ex)
 For reliable event publishing with at-least-once delivery, combine domain events with the Outbox pattern:
 
 ```csharp
+using Encina;
+using Encina.Messaging.Outbox;
+using LanguageExt;
+
 // Option 1: Use Outbox for external events, domain dispatcher for internal
 builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 {
