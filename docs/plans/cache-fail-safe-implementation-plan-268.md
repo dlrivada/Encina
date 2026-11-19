@@ -2,7 +2,7 @@
 
 > **Issue**: [#268](https://github.com/dlrivada/Encina/issues/268)
 > **Type**: Feature
-> **Complexity**: Medium (3 code phases and a prerequisite PR 0, pull requests of 4, 15, 13 and 7 files)
+> **Complexity**: Medium (3 code phases and a prerequisite PR 0, pull requests of 4, 15, 14 and 7 files)
 > **Estimated Scope**: about 500 lines of production code, about 1,100 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (8727c5cc3):
+Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (098caa920):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -102,7 +102,7 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) In-process tracker (internal `FailSafeTracker`: a bounded dictionary of cache key to last failure time and "answered definitively" marks, each expiring with `TimeProvider` at the entry's `FailSafeExpiresAtUtc`; capacity 10,000 keys, the oldest dropped when full); the cache entry is never rewritten or removed by the fail-safe path** | No read-modify-write: no restoring of an invalidated value, no overwriting of a concurrent refresh, no deleting of a newer entry; nothing to coordinate with `InvalidatesCache` | Each node throttles and suppresses stale on its own; lost on restart; a node that has not seen the definitive answer may serve stale once |
+| **A) In-process tracker (internal `FailSafeTracker`: a bounded dictionary of cache key to last failure time and "answered definitively" marks, each expiring with `TimeProvider` at the entry's `FailSafeExpiresAtUtc`; two separate bounded stores of 10,000 keys each: throttle entries, where the oldest is dropped when full (a dropped throttle only allows one extra handler call), and "answered definitively" marks, which are never evicted before they expire and, when that store is full, make stale serving refuse every untracked key (fail closed, AGENTS.md section 3: dropping a mark would re-enable stale data for a key whose denial was already seen); the constructor is `FailSafeTracker(TimeProvider? timeProvider = null)`, so the guard file also holds a valid-result test for a null `timeProvider`); the cache entry is never rewritten or removed by the fail-safe path** | No read-modify-write: no restoring of an invalidated value, no overwriting of a concurrent refresh, no deleting of a newer entry; nothing to coordinate with `InvalidatesCache` | Each node throttles and suppresses stale on its own; lost on restart; a node that has not seen the definitive answer may serve stale once |
 | **B) In the entry (`LastFailureAtUtc`, rewritten on a failure with the remaining physical TTL; stale entry removed on a definitive answer)** | Shared by every node through the cache; the issue's own design | Unconditional writes and removals race with invalidation and with refreshes (`ICacheProvider` has no compare-and-set), so they can restore an invalidated value or delete a newer entry |
 
 ### Chosen Option: **A - in-process tracker** (recommended, pending the maintainer)
@@ -149,7 +149,7 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the existing order in `QueryCachingPipelineBehavior.Handle` (`ShouldUseCache` at line 103 precedes key generation and every read) and AGENTS.md section 3 (gates fail closed when context is missing). This holds under every option of Design Choices 1 to 5, which change what is served, not whether the checks run. Stale serving adds no access path beyond the existing cache hit, which already returns a cached value without running the behaviors inside `nextStep()`; therefore a security or compliance gate (authorization, `ProcessingRestrictionPipelineBehavior`) must be registered OUTSIDE (before) the cache behavior for hits and stale hits alike. `Encina.Caching` declares no pipeline stage today, so this ordering is a documented prerequisite of the docs section of PR 1 and is tested with a gate registered before the cache behavior that denies while a stale entry exists (the denial is returned and the cache is never read); declaring a stage that enforces it is the follow-up issue file `artifacts/issues/cache-gate-before-cache-pipeline-stage.md`.
+- **Settled by:** the existing order in `QueryCachingPipelineBehavior.Handle` (`ShouldUseCache` at line 103 precedes key generation and every read) and AGENTS.md section 3 (gates fail closed when context is missing). This holds under every option of Design Choices 1 to 5, which change what is served, not whether the checks run. Stale serving adds no access path beyond the existing cache hit, which already returns a cached value without running the behaviors inside `nextStep()`; therefore a security or compliance gate (authorization, `ProcessingRestrictionPipelineBehavior`) must be registered OUTSIDE (before) the cache behavior for hits and stale hits alike. `Encina.Caching` declares no pipeline stage today, so this ordering is a documented prerequisite of the docs section of PR 3 and is tested (in PR 1) with a gate registered before the cache behavior that denies while a stale entry exists (the denial is returned and the cache is never read); declaring a stage that enforces it is the follow-up issue file `artifacts/issues/cache-gate-before-cache-pipeline-stage.md`.
 
 </details>
 
@@ -231,13 +231,14 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 13 files and, under the recommended Design Choice 3 option B, depends on #267 PR 2 and PR 3 (the refresher, the refresh marker and the optional behavior parameter; under option A it needs only the refresher, under option C nothing); it adds the optional trailing constructor parameter `IServiceProvider? services = null` (used to resolve `IEncina` lazily), so `QueryCachingPipelineBehaviorGuardTests.cs` (file 11) gets a valid-result test for a null `services` (the timeouts are then NOT applied, with no abandoned run, documented) and `PublicAPI.Unshipped.txt` changes the constructor line:
+PR 2 holds exactly these 14 files and, under the recommended Design Choice 3 option B, depends on #267 PR 2 and PR 3 (the refresher and the optional behavior parameter, for the soft-timeout refresh; under option A it needs only the refresher, under option C nothing); it adds the optional trailing constructor parameter `IServiceProvider? services = null` (used to resolve `IEncina` lazily), so `QueryCachingPipelineBehaviorGuardTests.cs` (file 11) gets a valid-result test for a null `services` (the timeouts are then NOT applied, with no abandoned run, documented) and `PublicAPI.Unshipped.txt` changes the constructor line:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Attributes/CacheAttribute.cs` | modify (`SoftTimeoutMs`, `HardTimeoutMs`) |
 | 2 | `src/Encina.Caching/Patterns/CachePatternSettings.cs` | modify (timeouts and validation) |
 | 3 | `src/Encina.Caching/Patterns/FailSafeErrors.cs` | new (internal static: `HardTimeout()`) |
+| 3b | `src/Encina.Caching/Patterns/CacheInnerRunMarker.cs` | new (internal static: the metadata key and the check; covered by the timeout tests) |
 | 4 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (owned re-dispatch with cancellation) |
 | 5 | `src/Encina.Caching/Diagnostics/CachePatternLog.FailSafe.cs` | modify (ids 463 and 464; 467 and 468 only under option A) |
 | 6 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
@@ -252,7 +253,7 @@ PR 2 holds exactly these 13 files and, under the recommended Design Choice 3 opt
 Tasks:
 
 1. **Create** `FailSafeErrors.HardTimeout()` returning `EncinaErrors.Create(code: "cache.hard_timeout", category: ErrorCategory.Timeout, message: "The cache hard timeout elapsed before the handler completed.")` (named `category:`, constant message, no exception copied; ADR-062 category `Timeout`).
-2. **Behavior** (Design Choice 3, recommended option B): when timeouts are configured, the behavior runs the handler through `IEncina.Send(request, innerContext, linked.Token)` in the same scope (`IEncina` resolved lazily from the request-scope `IServiceProvider`), where `innerContext` is `context.WithMetadata(CacheRefreshMarker.Key, true).WithIdempotencyKey(null)`: the marker is #267's, the identity and tenant are kept because it is the same live request in the same scope, and the idempotency key is cleared so an idempotency behavior does not treat the inner call as a duplicate; a request implementing `IDistributedIdempotentRequest` is not eligible for timeouts. The inner dispatch re-runs the whole pipeline, including the behaviors outside the cache behavior (validation, authorization, logging), once more, which the docs state. `linked` is a `CancellationTokenSource` cancelled at the hard timeout and the behavior awaits the run in every case, so the scope stays valid until the handler has finished or been cancelled. Hard elapsed: cancel, await, then serve stale if allowed (log 464), else return `FailSafeErrors.HardTimeout()`. Soft elapsed with a stale entry and a safe refresh available (not `VaryByUser`, a refresher registered): cancel and await the run, serve the stale entry (log 463) after the `IsSameCaller` check, and call `_refresher.TrySchedule(...)` with #267's re-dispatch delegate so the refresh runs in its own new scope; when no safe refresh exists the soft timeout is inert. Logs 467 (abandoned run completed) and 468 (abandoned run faulted, `ex.ForLogging()`) exist only if the maintainer answers option A, where the abandoned run is observed instead; with a null `services` no timeout is applied. Without a stale entry the soft timeout does nothing and only the hard timeout applies.
+2. **Behavior** (Design Choice 3, recommended option B): when timeouts are configured, the behavior runs the handler through `IEncina.Send(request, innerContext, linked.Token)` in the same scope (`IEncina` resolved lazily from the request-scope `IServiceProvider`), where `innerContext` is `context.WithMetadata(CacheInnerRunMarker.Key, true).WithIdempotencyKey(null)`: the marker is a DISTINCT inner-run marker owned by this plan (file 3b, internal static `CacheInnerRunMarker`), not #267's refresh marker, because the refresh marker runs the cache behavior's miss path, which would join the outer call's single-flight on the same key (a deadlock whenever `StampedeProtection` is not `None`), store the result a second time and rethrow store failures; a cache behavior that sees the inner-run marker passes straight to the handler: no read, no single-flight, no lock, no store, no refresh scheduling and no fail-safe logic, and the outer call does the store; a test runs a hard timeout with `StampedeProtection = SingleFlight` and asserts it neither hangs nor stores twice (and #267 PR 3, which owns `CacheRefreshMarker`, is told that the two markers are distinct and must never be combined); the identity and tenant are kept because it is the same live request in the same scope, and the idempotency key is cleared so an idempotency behavior does not treat the inner call as a duplicate; a request implementing `IDistributedIdempotentRequest` is not eligible for timeouts. The inner dispatch re-runs the whole pipeline, including the behaviors outside the cache behavior (validation, authorization, logging), once more, which the docs state. `linked` is a `CancellationTokenSource` cancelled at the hard timeout and the behavior awaits the run in every case, so the scope stays valid until the handler has finished or been cancelled. Hard elapsed: cancel, await, then serve stale if allowed (log 464), else return `FailSafeErrors.HardTimeout()`. Soft elapsed with a stale entry and a safe refresh available (not `VaryByUser`, a refresher registered): cancel and await the run, serve the stale entry (log 463) after the `IsSameCaller` check, and call `_refresher.TrySchedule(...)` with #267's re-dispatch delegate so the refresh runs in its own new scope; when no safe refresh exists the soft timeout is inert. Logs 467 (abandoned run completed) and 468 (abandoned run faulted, `ex.ForLogging()`) exist only if the maintainer answers option A, where the abandoned run is observed instead; with a null `services` no timeout is applied. Without a stale entry the soft timeout does nothing and only the hard timeout applies.
 3. **Tests (unit, `FakeTimeProvider`, `TaskCompletionSource` gates):** soft timeout serves stale and schedules one refresh; repeated slow successes with a refresher refresh the entry, and with a `VaryByUser` request or a null refresher the soft timeout is inert and the success is stored; hard timeout cancels the handler (its token is cancelled and the run is awaited before the response) with and without a stale entry (the `Left` code and category `Timeout`); a handler finishing before the soft timeout is returned normally; a `VaryByUser` identity scope that ends during the wait gets no stale serve; a delayed denial from a gate registered before the cache behavior is returned; the constant error message equals the expected text and contains no request data; validation errors of Design Choice 5. **Guard tests:** internal types only: none.
 
 </details>
@@ -262,7 +263,7 @@ Tasks:
 
 ```
 CONTEXT:
-Phase 1 is merged. #267 PR 2 and PR 3 are merged: IBackgroundCacheRefresher and the refresh marker exist and the behavior takes the refresher as an optional parameter.
+Phase 1 is merged. #267 PR 2 and PR 3 are merged: IBackgroundCacheRefresher exists and the behavior takes the refresher as an optional parameter.
 
 TASK:
 Add SoftTimeoutMs and HardTimeoutMs, FailSafeErrors.HardTimeout (ADR-062 category Timeout, named category: argument, constant message), the
@@ -270,7 +271,7 @@ owned, awaited re-dispatch of the handler with a cancellable token (Design Choic
 and 464 (467 and 468 only if the answer is option A), and the unit tests; ask mechanical-fixer for PublicAPI, manifest and changelog.
 
 KEY RULES:
-- RequestHandlerCallback has no token: under option B the behavior runs the handler through IEncina.Send in the same scope with a marker context,
+- RequestHandlerCallback has no token: under option B the behavior runs the handler through IEncina.Send in the same scope with a context carrying the DISTINCT CacheInnerRunMarker (never #267's refresh marker),
   a cleared idempotency key and a token it owns, and always awaits it, so no run outlives the scope; null services means no timeout.
 - Under option A only: observe every abandoned run (no unobserved exception). Never log EncinaError.Message.
 - Soft timeout without a stale entry does nothing; time from TimeProvider; no Thread.Sleep.
@@ -296,7 +297,7 @@ PR 3 holds exactly these 7 files:
 | 2 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (the counter calls) |
 | 3 | `tests/Encina.UnitTests/Caching/CachePatternMetricsFailSafeTests.cs` | new (`MeterListener`) |
 | 4 | `tests/Encina.IntegrationTests/Infrastructure/Caching/FailSafeIntegrationTests.cs` | new (shared `RedisCollection`: an entry survives its logical expiry for the fail-safe lifetime and disappears after the physical TTL) |
-| 5 | `docs/features/handler-caching.md` | new or modified (`docs-writer`: the existing `query-caching.md` documents the EF Core `QueryCacheInterceptor`, not the `[Cache]` request behavior; the name is coordinated with the #84 documentation plan and the first family PR that needs it creates it; the ordering prerequisite for gates, the transient-failure rule and the timeouts are documented here) |
+| 5 | `docs/features/handler-caching.md` | new or modified (`docs-writer`: the existing `query-caching.md` documents the EF Core `QueryCacheInterceptor`, not the `[Cache]` request behavior; this family owns the page (the first family PR that needs it creates it) and the #84 documentation plan's `docs/features/caching/overview.md`, which covers handler-level caching, links to it; the ordering prerequisite for gates, the transient-failure rule and the timeouts are documented here) |
 | 6 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 7 | `changelog.d/268-cache-fail-safe-metrics.added.md` | new (`mechanical-fixer`) |
 
@@ -346,7 +347,7 @@ REFERENCE FILES:
 | `Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 40 | Never lowered; the stale and timeout paths are unit tested; the integration flag runs the Redis retention test |
 
    The contract flag stays 0 for the new files: they implement no public contract (the contract flag of `QueryCachingPipelineBehavior.cs` is 0 in the manifest); a contract justification file is not allowed, so the manifest reason states that the observable rules are asserted by unit tests. The worker records measured numbers in each PR description and never lowers a target.
-3. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests`, and for PR 1 `Encina.IntegrationTests` (Redis collection); per-flag coverage and the CRAP table of changed methods.
+3. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests`, and for PR 3 `Encina.IntegrationTests` (Redis collection); per-flag coverage and the CRAP table of changed methods.
 
 </details>
 
@@ -408,7 +409,7 @@ REFERENCE FILES:
 | Tests | 6 | 4 | New: fail-safe (policy and tracker), behavior, timeout, errors, metrics tests plus the integration test; modified: settings tests, DI tests, guard tests, the fail-safe tests (PR 2) |
 | Documentation | 1 | 0 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 2 | 1 | Two changelog fragments; the manifest |
-| **Total** | **10** | **9** | pull requests: PR 0 4 files, PR 1 15, PR 2 13 and PR 3 7 files, each at most 15 files and 1500 lines |
+| **Total** | **10** | **9** | pull requests: PR 0 4 files, PR 1 15, PR 2 14 and PR 3 7 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -432,7 +433,7 @@ IMPLEMENTATION OVERVIEW:
 3. PR 3: metrics, Redis retention integration test, handler-caching docs page.
 
 KEY PATTERNS:
-- Stale only for exceptions and infrastructure categories; other Left removes the stale entry. Same key, same bypass checks.
+- Stale only for exceptions and infrastructure categories; any other Left or exception fails closed and marks the key "answered definitively" in the tracker (the cache entry is never rewritten or removed). Same key, same bypass checks.
 - Constant error messages; no EncinaError.Message in logs; under the recommended option B the behavior owns, cancels and awaits the handler run.
 - Follow the maintainer's answers to Design Choices 1 to 5, given in your brief.
 
@@ -472,7 +473,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
 | #266 PR 1 (`ExpiresAtUtc`, settings, whole-entry hit path), PR 3 (log class, EventId range) and PR 4 (`CachePatternMetrics.cs`, created there) | Pending | PR 1 needs #266 PR 1 and PR 3; PR 3 of this plan needs #266 PR 4 (its file 1 is a partial of the metrics class) |
-| #267 PR 2 and PR 3 (`IBackgroundCacheRefresher`) | Pending | Needed by PR 2 of this plan under the recommended Design Choice 3 option B (refresher and marker) and under option A (refresher only); not needed under option C |
+| #267 PR 2 and PR 3 (`IBackgroundCacheRefresher`) | Pending | Needed by PR 2 of this plan under the recommended Design Choice 3 option B (the refresher, for the soft-timeout refresh; the inner-run marker is this plan's own) and under option A (refresher only); not needed under option C |
 | ADR-062 error categories (`GetCategory`, `Create` with category) | ✅ Available | On `origin/main` |
 | Maintainer answers to Design Choices 1 to 5 | Pending | Asked when work starts |
 
