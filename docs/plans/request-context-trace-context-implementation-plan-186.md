@@ -2,7 +2,7 @@
 
 > **Issue**: [#186](https://github.com/dlrivada/Encina/issues/186)
 > **Type**: Feature (observability core)
-> **Related**: ADR-054 (D1 envelope, D3 W3C wire format, D5 release scope), #132 (the propagation API that consumes the type of this plan), #176 (store-side capture and restore), #175 (correlation and causation), #177 (semantic-convention keys), #1164 (the persisted envelope), #2442 (also adds a member to `IRequestContext`), #725 (transports), ADR-035 (request identity model), ADR-062
+> **Related**: ADR-054 (settled point 3 W3C wire format, D1 envelope, D5 release scope), #132 (the propagation API that consumes the type of this plan), #176 (store-side capture and restore), #175 (correlation and causation), #177 (semantic-convention keys), #1164 (the persisted envelope), #2442 (also adds a member to `IRequestContext`), #725 (transports), ADR-035 (request identity model), ADR-062
 > **Complexity**: Low-Medium (one small value type and one interface member, but the interface has 8 implementers that change in the same pull request)
 > **Estimated Scope**: ~160 lines of production code + ~420 lines of tests, in three pull requests of at most 15 files and 900 lines each (the third only if Design Choice 3 picks option B)
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `f484cdf4f`)
+### What exists today (read on 2026-11-18, main `89303f1e8`)
 
 - `IRequestContext` (`src/Encina/Abstractions/IRequestContext.cs`) has `CorrelationId` (a `string`), `CausationId` (`string?`), `Identity`, `IdempotencyKey`, `TenantId`, `Timestamp` and `Metadata`. It has no trace members. The issue's snippet shows `Guid CorrelationId`; the real contract is a bounded string (`InboundRequestNormalizer.Id`, `InboundRequestInfo.MaxIdLength = 128`).
 - A context is built in one place: `RequestContext.Build(...)` (`src/Encina/Core/RequestContext.cs:156`), reached by `Create`, `CreateAnonymousAt` and the internal `CreateAt`; copies go through the private copy constructor, `CopyOf` and `ForNestedDispatch`. A context created without an id takes `Activity.Current?.Id ?? Guid.NewGuid().ToString("N")` as its correlation id (`NewCorrelationId`, `RequestContext.cs:194`); the HTTP entry does the same through `HttpContextInboundRequestExtensions.cs:98` (`Header(headers, CorrelationIdHeader) ?? Activity.Current?.Id`). With W3C ids, that `Activity.Id` is the whole `traceparent` string.
@@ -38,7 +38,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Five flat members `TraceId`, `SpanId`, `ParentSpanId`, `TraceFlags`, `TraceState` (the issue's text)** | Matches the issue and the acceptance criteria literally; `context.TraceId` reads directly | Five members for 8 implementers and 437 mock sites to reason about; `ParentSpanId` and `TraceFlags` are not wire fields, so a restored message could not rebuild them; ADR-054 D3 says `traceparent` and `tracestate` are the only propagation fields |
+| **A) Five flat members `TraceId`, `SpanId`, `ParentSpanId`, `TraceFlags`, `TraceState` (the issue's text)** | Matches the issue and the acceptance criteria literally; `context.TraceId` reads directly | Five members for 8 implementers and 437 mock sites to reason about; `ParentSpanId` and `TraceFlags` are not wire fields, so a restored message could not rebuild them; ADR-054 settled point 3 says `traceparent` and `tracestate` are the only propagation fields |
 | **B) One member `RequestTraceContext TraceContext` (`TraceParent`, `TraceState`; `TraceId`, `SpanId`, `IsSampled` derived), plus extension properties `TraceId` and `SpanId` on `IRequestContext`** | One member to implement; the value is exactly the two wire fields, so persisting and restoring it is lossless; `ParentSpanId` stays available as `Activity.ParentSpanId` for the code that needs it | `ParentSpanId` and `TraceFlags` as named in the issue are not on the context (the sampled bit is `IsSampled`) |
 | **C) B plus a captured `ParentSpanId`** | Satisfies the issue's `ParentSpanId` item | The parent is a property of the span, not of the request: it changes on every nested span and cannot be rebuilt from `traceparent`, so the value would be wrong after a restore |
 
@@ -144,7 +144,7 @@
 3. **Modify** `src/Encina/Core/RequestContext.cs`: `public RequestTraceContext TraceContext { get; init; }`; set in `Build` from `RequestTraceContext.FromActivity(Activity.Current)`; copied by the private copy constructor and `CopyOf`; kept by `ForNestedDispatch`. **Modify** `src/Encina.Caching/Behaviors/IdentityPinnedRequestContext.cs`: `public RequestTraceContext TraceContext => _inner.TraceContext;`.
 4. **Modify** the 6 test implementers listed in Summary (one property each; the property returns `default` or a fixed value).
 5. **Modify** `src/Encina/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.json` and add `changelog.d/186-request-context-trace-context.added.md`, all through `mechanical-fixer`.
-6. Tests (new files): `tests/Encina.UnitTests/Core/RequestTraceContextTests.cs` (valid and invalid `traceparent`, all-zero ids, version `ff`, over-long `tracestate`, control characters, W3C and hierarchical activities, copies and nested dispatch keep the snapshot, a context created inside an activity carries its ids, a context created outside carries none); `tests/Encina.GuardTests/Core/RequestTraceContextGuardTests.cs` (`TryParse(null, null)` is a valid `false` result, not an exception; `FromActivity(null)` returns `default`).
+6. Tests (new files): `tests/Encina.UnitTests/Core/RequestTraceContextTests.cs` (valid and invalid `traceparent`, all-zero ids, version `ff`, over-long `tracestate`, control characters, W3C and hierarchical activities, copies and nested dispatch keep the snapshot, a context created inside an activity carries its ids, a context created outside carries none; and a case that wraps a context carrying a trace in `IdentityPinnedRequestContext` (internal, reachable through the existing InternalsVisibleTo) and reads `TraceContext`, so the forwarding member keeps that file at its manifest target of 100 without a sixteenth file); `tests/Encina.GuardTests/Core/RequestTraceContextGuardTests.cs` (`TryParse(null, null)` is a valid `false` result, not an exception; `FromActivity(null)` returns `default`).
 
 </details>
 
@@ -186,7 +186,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina/Core/RequestContextTraceExtensions.cs` with C# 14 extension members `string? TraceId` and `string? SpanId` on `IRequestContext` (null-tolerant: a `null` context returns `null`, as `UserId` does).
+1. **Create** `src/Encina/Core/RequestContextTraceExtensions.cs` with C# 14 extension members `string? TraceId` and `string? SpanId` on `IRequestContext` (they use `context?.`, so a `null` context returns `null`; this is a new decision of the plan, not the `UserId` precedent, which is null-tolerant only of `Identity` and throws on a null context).
 2. **Modify** `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.json` and the changelog fragment `changelog.d/186-request-context-trace-extensions.added.md` through `mechanical-fixer`.
 3. Tests: `tests/Encina.UnitTests/Core/RequestContextTraceExtensionsTests.cs`; `tests/Encina.GuardTests/Core/RequestContextTraceExtensionsGuardTests.cs` (a `null` context is a valid `null` result).
 
@@ -258,7 +258,7 @@ REFERENCE FILES:
 | Source | Provision | Use in this feature |
 |--------|-----------|---------------------|
 | W3C Trace Context (Recommendation) | `traceparent` version-trace-id-parent-id-flags; `tracestate` list grammar and size limits | Format and validation of `RequestTraceContext` |
-| ADR-054 | D1 envelope, D3 W3C wire format only, D4 tenant tag, D5 scope | The type holds only the two wire fields |
+| ADR-054 | Settled point 3 (W3C wire format, only `traceparent` and `tracestate`), D1 envelope, D4 tenant tag, D5 scope | The type holds only the two wire fields |
 | ADR-035 | Request identity model (immutable context) | Snapshot semantics (Design Choice 2) |
 | ADR-062 | Error category contract | No error is created (register row C1) |
 | `AGENTS.md` section 3 | Gates fail closed; no compatibility layers | Invalid input becomes `default`; no default interface member |
@@ -299,6 +299,9 @@ Per-file coverage targets (per flag, one sentence each):
 | `Core/RequestTraceContext.cs` | 95 | 70 | 0 | 0 | Every parse and derivation branch is reachable with plain strings and real activities; the guard run reaches the null-tolerant `TryParse` and `FromActivity(null)`; no interface contract applies to a struct |
 | `Core/RequestContext.cs` (existing 95 unit, 60 guard) | 95 | 60 | 0 | 0 | The new property, copy and capture lines are covered by the unit tests of T1; targets do not go down |
 | `Core/RequestContextTraceExtensions.cs` | 95 | 80 | 0 | 0 | Two expression-bodied members, both driven with real contexts; the guard run covers the null context |
+| `Caching/Behaviors/IdentityPinnedRequestContext.cs` (existing 100 unit) | 100 | 0 | 0 | 0 | The forwarding `TraceContext` member is read by the wrapped-context case of `RequestTraceContextTests`; the target of 100 does not go down |
+
+Documentation: this plan has no docs task; the new public API carries XML docs only, and the propagation page belongs to #132.
 
 ---
 
@@ -362,7 +365,7 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |-------------|--------|-------|
-| ADR-054 accepted | ✅ On `main` | D1, D3 and D5 define the scope |
+| ADR-054 accepted | ✅ On `main` | Settled point 3, D1 and D5 define the scope |
 
 ### Recommended (Not Blocking)
 
