@@ -2,8 +2,8 @@
 
 > **Issue**: [#139](https://github.com/dlrivada/Encina/issues/139)
 > **Type**: Feature
-> **Complexity**: High (7 phases, no database providers, 3 pull requests)
-> **Estimated Scope**: ~800 lines of production code + ~1,400 lines of tests (about 2,300 changed lines in total, three pull requests)
+> **Complexity**: High (7 phases, no database providers, 4 pull requests)
+> **Estimated Scope**: ~800 lines of production code + ~1,400 lines of tests (about 2,300 changed lines in total, four pull requests)
 
 ---
 
@@ -50,7 +50,7 @@ What exists today (read in `origin/main` at `f484cdf4f`):
 
 ### Rationale
 
-- A follows the spike report order; B wins if adaptive limiting must ship first. Asked once for the family (#136 choice 1). The algorithms and the window (PR-1) have no dependency on the foundation and could land first in either case.
+- A follows the spike report order; B wins if adaptive limiting must ship first. Asked once for the family (#136 choice 1). Under B the paths, namespaces, the EventId assembly map and the project differ; every PR needs the project to exist (foundation merged, or option C of choice 1 creating it in PR-1 with the `ProjectReference` edits of the test projects, which would add files to PR-1).
 
 - **Class:** Dilemma
 
@@ -89,15 +89,15 @@ The issue enum lists Gradient, AIMD, Vegas and FixedWindow; the acceptance crite
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Gradient and AIMD; the enum has exactly those two members; `IConcurrencyAlgorithm` stays public for custom algorithms** | Meets the criterion; no dead enum members | Vegas and FixedWindow are not offered |
-| **B) All four** | Matches the enum | Two untested-by-need algorithms, dead options |
+| **A) Gradient and AIMD; the enum has exactly those two members; `IConcurrencyAlgorithm` stays public for custom algorithms** | Meets the criterion; no dead enum members | Vegas and FixedWindow (named in the issue's enum and task list) are not offered |
+| **B) All four** | Matches the enum and the whole task list | Two algorithms nobody asked to ship first; more tests and options |
 
-### Chosen Option: **A — Gradient and AIMD**
+### Chosen Option: **A — Gradient and AIMD** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 1 (every line serves a current purpose) and the acceptance criteria of #139 ("at least 2 algorithm implementations (Gradient, AIMD)")
+- A wins when the acceptance criteria ("at least 2 algorithm implementations (Gradient, AIMD)") are the scope and a custom `IConcurrencyAlgorithm` covers the rest; B wins if the maintainer wants the issue's full enum at 1.0. Omitting Vegas and FixedWindow is recorded here, not silently dropped.
+- **Class:** Dilemma
 
 </details>
 
@@ -188,7 +188,7 @@ The issue enum lists Gradient, AIMD, Vegas and FixedWindow; the acceptance crite
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `[AdaptiveConcurrency]` (`LatencyTargetMs`, `ErrorThresholdPercent`, `MinConcurrency`, `MaxConcurrency`, `Algorithm`) plus `For<T>().AdaptiveConcurrency(...)`; precedence options > attribute > defaults; defaults of `AddEncinaResilience` carry `InitialConcurrency`, `SmoothingFactor`, `SampleWindow`** | Both front-ends feed one model | None |
+| **A) `[AdaptiveConcurrency]` (`LatencyTargetMs`, `ErrorThresholdPercent`, `MinConcurrency`, `MaxConcurrency`, `Algorithm`) plus `For<T>().AdaptiveConcurrency(...)`; precedence options > attribute > defaults; the global defaults carry `InitialConcurrency` 50, `MinConcurrency` 10, `MaxConcurrency` 200, `LatencyTargetMs` 100, `ErrorThresholdPercent` 5, `SmoothingFactor` 0.2 and `SampleWindow` 1 s (the values of the issue's samples), AIMD backoff 0.9 and the Gradient clamp 0.5 to 1.0 (Netflix `AIMDLimit` and `Gradient2Limit` defaults); the feature stays opt-in (nothing applies without the attribute or `For<T>()`); an invalid value fails at startup, never defaults silently** | Both front-ends feed one model; the defaults are cited | None |
 | **B) Attribute only** | Smaller | Rejected by R3 (3c) |
 
 ### Chosen Option: **A — Both front-ends**
@@ -207,15 +207,15 @@ The issue enum lists Gradient, AIMD, Vegas and FixedWindow; the acceptance crite
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Observable gauges `encina.resilience.concurrency.limit` and `encina.resilience.concurrency.in_flight`, counter `encina.resilience.concurrency.rejected`, span event `concurrency.limit_changed`; tag `request.type`; tenant tag only with multi-tenancy** | R5 names adaptive concurrency state as Encina-owned; Polly measures none of it | Per-type series |
+| **A) Observable gauges for the limit and the in-flight count, a rejected counter and a span event `concurrency.limit_changed`, named by the convention #728 settles (proposed `encina.resilience.concurrency.limit`, `.in_flight`, `.rejected`); tag `request.type`; tenant tag only with multi-tenancy** | R5 names adaptive concurrency state as Encina-owned; Polly measures none of it | Per-type series |
 | **B) Logs only** | Smallest | No state visibility |
 
-### Chosen Option: **A — Gauges, counter and span event**
+### Chosen Option: **A — Gauges, counter and span event** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** ADR-055 R5 ("Encina creates its own instruments ... adaptive concurrency state, shed load and partition count") and ADR-054 D3, D4
+- ADR-055 R5 says Encina creates instruments for "adaptive concurrency state, shed load and partition count" and ADR-054 D3 fixes the rules, but not the names; #728 (plan on main) names an overlapping family (`encina.resilience.bulkhead.concurrency`, `shed_load`) and leaves its choices 1 (who holds the `Meter("Encina.Resilience")` instance) and 8 (names) pending. This plan creates no `Meter` of its own and takes that holder and convention. A wins when operators need the limit over time; B wins if logs suffice.
+- **Class:** Dilemma
 
 </details>
 
@@ -223,7 +223,7 @@ The issue enum lists Gradient, AIMD, Vegas and FixedWindow; the acceptance crite
 
 ## Implementation Phases
 
-Three pull requests: **PR-1** Phase 1 (models, algorithms, window), independent of the foundation; **PR-2** Phases 2 and 3 (limiter, strategy, configuration); **PR-3** Phases 4 to 7 (cross-cutting, observability, load tests, docs).
+Four pull requests, in order: **PR-1** Phase 1 (models, algorithms, window); **PR-2** Phase 2 (limiter and strategy); **PR-3** Phases 3 and 4 (configuration, cross-cutting rules); **PR-4** Phases 5 to 7 (observability, load tests, docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-4 also need the foundation compiler and R6.
 
 ### Phase 1: Core Models and Algorithms
 
@@ -231,7 +231,8 @@ Three pull requests: **PR-1** Phase 1 (models, algorithms, window), independent 
 <summary>Tasks</summary>
 
 1. `src/Encina.Resilience/Concurrency/ConcurrencyMetrics.cs`: `public sealed record ConcurrencyMetrics(double AverageLatencyMs, double P99LatencyMs, double ErrorRate, int InFlightRequests, int QueuedRequests, TimeSpan SampleWindow)`; constructor guards (non-negative, `ErrorRate` 0 to 1).
-2. `IConcurrencyAlgorithm.cs`: `int CalculateNewLimit(ConcurrencyMetrics metrics, int currentLimit)` and `ConcurrencyAlgorithm.cs` enum `{ Gradient, Aimd }`.
+2. `IConcurrencyAlgorithm.cs`: `int CalculateNewLimit(ConcurrencyMetrics metrics, int currentLimit)` and `ConcurrencyAlgorithm.cs` enum `{ Gradient, Aimd }`. Both built-in implementations are public and call `ArgumentNullException.ThrowIfNull(metrics)`; their guard tests live in `Encina.GuardTests` (a custom implementation never receives null from the limiter, which always passes a built record).
+2b. `src/Encina.Resilience/Encina.Resilience.csproj`: `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests`, a foundation acceptance item, added here only if missing (counted below).
 3. `GradientConcurrencyAlgorithm.cs`, `AimdConcurrencyAlgorithm.cs` (choice 4), pure and deterministic.
 4. `RollingOutcomeWindow.cs`: ring of time buckets (by `TimeProvider.GetTimestamp`) with a fixed log-scale latency histogram per bucket (p99 from the merged histogram), success and failure counts; `Record(TimeSpan latency, bool failed)`, `Snapshot()`; thread-safe with `Interlocked`.
 
@@ -323,7 +324,7 @@ REFERENCE FILES: src/Encina/Abstractions/MultiTenancyMarker.cs
 <details>
 <summary>Tasks</summary>
 
-1. `EventIdRanges.cs`: `ResilienceAdaptiveConcurrency = (924, 935)`; map it in the `Encina.Resilience` entry of `AssemblyRanges`. Ids 924-935 are free in the repository.
+1. `EventIdRanges.cs`: `ResilienceAdaptiveConcurrency = (924, 935)`, its line in `src/Encina/PublicAPI.Unshipped.txt` (`mechanical-fixer`), and its name in the `["Encina.Resilience"]` entry of `AssemblyRanges` (create the entry if no earlier plan of the family did; an entry holds several ranges). Ids 924-935 are free in the repository and emitted only by `Encina.Resilience`.
 2. `Diagnostics/AdaptiveConcurrencyLogMessages.cs`: 924 `LimitChanged` (Information: request type, old, new, algorithm), 925 `PermitRejected` (Debug: request type, limit), 926 `AlgorithmFailed` (Warning, exception through `ForLogging()`), 927 `LimiterCreated` (Debug); 928-935 spare.
 3. `AdaptiveConcurrencyTelemetry.cs`: the gauges, counter and span event of choice 9.
 
@@ -424,9 +425,12 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 12 | metrics, algorithm interface and enum, two algorithms, window (6 production), PublicAPI, 4 tests (algorithms, window, guard, contract), manifest, changelog |
-| PR-2 | 15 | limiter interface and permit, limiter, strategy factory, attribute, options, validator, builder extensions (7 production), PublicAPI, 5 tests (limiter, strategy, validator, registration, guard), manifest, and the property test |
-| PR-3 | 12 | log messages, telemetry, `EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs`, telemetry test, 2 load test files, 2 justification `.md`, README, feature page |
+| PR-1 | 14 | 6 production (metrics, algorithm interface, algorithm enum, Gradient, AIMD, window), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing), `PublicAPI.Unshipped.txt`, 5 tests (algorithms, window, guard, contract, algorithm property), manifest |
+| PR-2 | 10 | 4 production (limiter interface, `ConcurrencyPermit`, limiter, strategy factory), `PublicAPI.Unshipped.txt`, 4 tests (limiter, strategy, guard, limiter property), manifest |
+| PR-3 | 10 | 4 production (attribute, options, validator, builder extensions), `PublicAPI.Unshipped.txt`, 3 tests (validator and options, registration, guard), manifest, changelog fragment |
+| PR-4 | 14 | log messages, telemetry, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, Resilience `PublicAPI.Unshipped.txt`, manifest, 2 load test files, 2 justification `.md`, README, feature page |
+
+Each PR is within 15 files and 1,500 lines (PR-1 about 1,100 lines); the property test of each file is in the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds.
 
 Each PR is within 15 files and 1,500 lines (PR-2 about 1,300 lines); PR-2 is at the file limit, so the property test moves to PR-3 if the foundation adds a project edit. No interface of an existing type changes.
 
@@ -436,7 +440,7 @@ Per-file targets (new files; baseline: none exists on `origin/main`):
 |------|------|-------|----------|----------|-------------|---------------|
 | `ConcurrencyMetrics.cs` | 95 | 100 | 0 | 0 | 0 | Guards and values reached in PR-1 |
 | `IConcurrencyAlgorithm.cs`, `ConcurrencyAlgorithm.cs` | 0 | 0 | 0 | 0 | 0 | Interface and enum, no executable code |
-| `GradientConcurrencyAlgorithm.cs`, `AimdConcurrencyAlgorithm.cs` | 95 | 0 | 90 | 90 | 0 | Pure functions; the contract and FsCheck tests execute them; no guarded parameters |
+| `GradientConcurrencyAlgorithm.cs`, `AimdConcurrencyAlgorithm.cs` | 95 | 100 | 90 | 90 | 0 | Pure functions; the null-metrics guard test, the contract test and the FsCheck test of PR-1 execute them |
 | `RollingOutcomeWindow.cs` | 90 | 100 | 0 | 0 | 0 | Bucket rollover driven by a fake clock; guarded constructor |
 | `AdaptiveConcurrencyLimiter.cs` | 90 | 100 | 0 | 80 | 0 | Acquire, release, adjust paths in unit tests; property keeps bounds |
 | `AdaptiveConcurrencyStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Run through the real compiler; internal |
@@ -491,7 +495,7 @@ REFERENCE FILES: src/Encina.Polly/Bulkhead/BulkheadManager.cs, src/Encina.Polly/
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| Foundation and R6 (issue files `resilience-foundation-encina-resilience.md`, `resilience-r6-pipeline-token-and-deadline.md`) | Not on main | Block PR-2 and PR-3 (Dilemma 1, #136); PR-1 is free of them |
+| Foundation and R6 (issue files `resilience-foundation-encina-resilience.md`, `resilience-r6-pipeline-token-and-deadline.md`) | Not on main | Block every PR (Dilemma 1, #136): even PR-1's files live in the `Encina.Resilience` project, which does not exist on main |
 | #2414 core | Open, not planned | Adopts the limiter as a partition (choice 2) |
 | #138 | Sibling plan | Consumes `RollingOutcomeWindow` after PR-1 |
 
@@ -500,5 +504,5 @@ REFERENCE FILES: src/Encina.Polly/Bulkhead/BulkheadManager.cs, src/Encina.Polly/
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #139.
-2. When #139 is picked up, ask the maintainer about the Dilemmas (choices 1, 2, 5, 6, 7).
-3. Brief a worker for PR-1, then PR-2 and PR-3 once the foundation and R6 are merged.
+2. When #139 is picked up, ask the maintainer about the Dilemmas (choices 1, 2, 3, 5, 6, 7 and 9).
+3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 to PR-4 once the foundation and R6 are merged.
