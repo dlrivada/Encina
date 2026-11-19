@@ -351,11 +351,11 @@ REFERENCE FILES:
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 3</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 4</strong></summary>
 
 ```
 CONTEXT:
-Both code PRs are merged.
+All code PRs are merged.
 
 TASK:
 Verify each PR carried its own per-flag targets (table above, measured with coverage-report.cs) and fix any gap through mechanical-fixer;
