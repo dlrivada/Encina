@@ -2041,6 +2041,7 @@ exit 1
         }
         try {
             if ($null -eq (Wait-Job $job -Timeout 10)) { Stop-Job $job; return $null }
+            if ($job.State -ne 'Completed') { return $null }
             return [string](Receive-Job $job)
         }
         finally { Remove-Job $job -Force -ErrorAction SilentlyContinue }
@@ -2060,6 +2061,9 @@ exit 1
             @('a &', $true, 'a', 'a trailing background & only ends the statement'),
             @('a&b', $true, 'a;b', 'a background & right against the words splits'),
             @('a && b', $true, 'a;b', '&& is still one separator'),
+            @('a&&b', $true, 'a;b', 'unspaced && is still one separator'),
+            @('a <&3 b', $true, 'a|<&3|b', '<&3 is not a separator'),
+            @(('git add ' + ('src/Some/Path/File.cs ' * 1000)), $true, ('git|add|' + ((@('src/Some/Path/File.cs') * 1000) -join '|')), 'a 22 KB ordinary command stays inside the default budget'),
             @('a 2>&1 b', $false, 'a|2>&1|b', '2>&1 is not a separator'),
             @('a *>&1 b', $false, 'a|*>&1|b', '*>&1 is not a separator'),
             @('a >&2 b', $true, 'a|>&2|b', '>&2 is not a separator'),

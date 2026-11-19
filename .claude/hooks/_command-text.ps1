@@ -102,7 +102,9 @@ function Remove-CommandComments {
     $sb = [System.Text.StringBuilder]::new()
     $n = $Text.Length
     $i = 0
+    $tick = 0
     while ($i -lt $n) {
+        if ((++$tick -band 63) -eq 0) { Assert-CommandBudget }
         $c = $Text[$i]
 
         if (-not $Bash -and $c -eq '@' -and $i + 2 -lt $n -and $Text[$i + 1] -in '"', "'" -and $Text[$i + 2] -in "`r", "`n") {
@@ -191,8 +193,10 @@ function Skip-Subexpression([string]$Text, [int]$Open, [System.Text.StringBuilde
     $depth = 1
     $i = $Open + 1
     while ($i -lt $n -and $depth -gt 0) {
+        Assert-CommandBudget
         $c = $Text[$i]
-        $heredoc = [regex]::Match($Text.Substring($i), '^<<-?\s*[''"]?(?<d>[A-Za-z_][A-Za-z0-9_]*)[''"]?')
+        # Only a `<` can start a heredoc: matching against Text.Substring($i) at every character made this quadratic.
+        $heredoc = if ([int]$c -eq 60) { [regex]::Match($Text.Substring($i), '^<<-?\s*[''"]?(?<d>[A-Za-z_][A-Za-z0-9_]*)[''"]?') } else { [regex]::Match('', 'x') }
         if ($heredoc.Success) {
             $delimiter = [regex]::Match($Text.Substring($i), "(?m)^\s*$([regex]::Escape($heredoc.Groups['d'].Value))\s*$")
             if ($delimiter.Success -and $delimiter.Index -gt 0) {
@@ -232,14 +236,16 @@ function Split-CommandStatements {
     $inner = [System.Collections.Generic.List[string]]::new()
     $n = $Text.Length
     $i = 0
+    $tick = 0
     # The statement that ended right at a single `|` (null after any other separator, or after `}` then `|`):
     # the first token of the next statement carries it as PipeSource, so a hook can tell what feeds a pipeline.
     $pipeSource = $null
 
     while ($i -lt $n) {
-        Assert-CommandBudget
+        if ((++$tick -band 63) -eq 0) { Assert-CommandBudget }
         $c = $Text[$i]
-        if (Test-CommandWhitespace $c) { $i++; continue }
+        $code = [int]$c
+        if (($code -le 32 -or $code -ge 127) -and (Test-CommandWhitespace $c)) { $i++; continue }
         if (Test-LineContinuation $Text $i $Bash) {
             $i += 2
             if ($i -lt $n -and [int]$Text[$i - 1] -eq 13 -and [int]$Text[$i] -eq 10) { $i++ }
@@ -247,10 +253,9 @@ function Split-CommandStatements {
         }
 
         $sep = 0
-        $code = [int]$c
         if (($code -eq 38 -or $code -eq 124) -and $i + 1 -lt $n -and [int]$Text[$i + 1] -eq $code) { $sep = 2 }
-        elseif (Test-CommandSeparator $c) { $sep = 1 }
-        elseif ($current.Count -gt 0 -and (Test-BackgroundAmpersand $Text $i)) { $sep = 1 }
+        elseif ($code -eq 59 -or $code -eq 10 -or $code -eq 13 -or $code -eq 124 -or $code -eq 123 -or $code -eq 125) { $sep = 1 }
+        elseif ($code -eq 38 -and $current.Count -gt 0 -and (Test-BackgroundAmpersand $Text $i)) { $sep = 1 }
         if ($sep -gt 0) {
             $pipeSource = $null
             if ($current.Count -gt 0) {
@@ -276,19 +281,22 @@ function Split-CommandStatements {
         $expanded = $false
         # A token written right against a brace (`x{a,b}`, `{a,b}x`) is cut at the brace, but Bash brace expansion
         # (and a PowerShell script block) makes the real argument something else: never trust its Value (#3896).
-        if ($i -gt 0 -and $Text[$i - 1] -in '{', '}') { $expanded = $true }
+        if ($i -gt 0 -and ([int]$Text[$i - 1] -eq 123 -or [int]$Text[$i - 1] -eq 125)) { $expanded = $true }
         $tokenStart = $i
         while ($i -lt $n) {
-            Assert-CommandBudget
+            if ((++$tick -band 63) -eq 0) { Assert-CommandBudget }
             $c = $Text[$i]
             $code = [int]$c
             if ($code -eq 123 -or $code -eq 125) { $expanded = $true; break }
-            if ((Test-CommandWhitespace $c) -or (Test-CommandSeparator $c)) { break }
-            if ($code -eq 38 -and $i + 1 -lt $n -and [int]$Text[$i + 1] -eq 38) { break }
-            # A background & inside a word ends the token, but the first character of a token stays (a leading
-            # `&` is the call operator, `&>file` a redirection).
-            if (($sb.Length -gt 0 -or $segments -gt 0) -and (Test-BackgroundAmpersand $Text $i)) { break }
-            if (Test-LineContinuation $Text $i $Bash) { break }
+            if ($code -eq 59 -or $code -eq 10 -or $code -eq 13 -or $code -eq 124) { break }
+            if (($code -le 32 -or $code -ge 127) -and (Test-CommandWhitespace $c)) { break }
+            if ($code -eq 38) {
+                if ($i + 1 -lt $n -and [int]$Text[$i + 1] -eq 38) { break }
+                # A background & inside a word ends the token, but the first character of a token stays (a leading
+                # `&` is the call operator, `&>file` a redirection).
+                if (($sb.Length -gt 0 -or $segments -gt 0) -and (Test-BackgroundAmpersand $Text $i)) { break }
+            }
+            if (($code -eq 92 -or $code -eq 96) -and (Test-LineContinuation $Text $i $Bash)) { break }
 
             # PowerShell here-string: @" or @' followed by a newline, closed by "@ or '@ at the start of a line.
             if ($c -eq '@' -and $i + 2 -lt $n -and $Text[$i + 1] -in '"', "'" -and $Text[$i + 2] -in "`r", "`n") {
@@ -402,7 +410,7 @@ function Split-CommandStatements {
             if ($c -eq '$') { $dynamic = $true; $expanded = $true }
             # Bash: a backtick is a command substitution; `*`, `?`, `[` and `~` are expanded against the file system
             # and $HOME. PowerShell: `@name` splats a variable. Their Value is not what the command receives.
-            if ($Bash -and $c -in '`', '*', '?', '[', '~') { $expanded = $true; if ($c -eq '`') { $dynamic = $true } }
+            if ($Bash -and $code -in 96, 42, 63, 91, 126) { $expanded = $true; if ($code -eq 96) { $dynamic = $true } }
             if (-not $Bash -and $c -eq '@' -and $sb.Length -eq 0 -and $i + 1 -lt $n -and $Text[$i + 1] -match '[\w{]') { $dynamic = $true; $expanded = $true }
             $bare = $true
             [void]$sb.Append($c)
@@ -446,6 +454,8 @@ function Split-CommandStatements {
             foreach ($s in (Split-CommandStatements -Text $text -Bash:$Bash -Depth ($Depth + 1))) { $statements.Add($s) }
         }
     }
+    # The budget belongs to this call: a later direct Remove-CommandComments must not trip on a stale watch.
+    if ($Depth -eq 0) { $script:CommandBudget = $null }
     return , $statements
 }
 
