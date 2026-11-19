@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #276 asks for development-time diagnostics of the query cache: response headers (`X-Cache-Status`, `X-Cache-Key`, `X-Cache-Age`, `X-Cache-TTL`, `X-Cache-Level`, `X-Cache-Stale`), diagnostic endpoints (stats, key search, key details, key deletion) mapped by `MapEncinaCacheDiagnostics`, an `ICacheDiagnostics` inspection API, authorization on the endpoints and a switch to disable them. Re-checked against `origin/main` (f484cdf4f):
+Issue #276 asks for development-time diagnostics of the query cache: response headers (`X-Cache-Status`, `X-Cache-Key`, `X-Cache-Age`, `X-Cache-TTL`, `X-Cache-Level`, `X-Cache-Stale`), diagnostic endpoints (stats, key search, key details, key deletion) mapped by `MapEncinaCacheDiagnostics`, an `ICacheDiagnostics` inspection API, authorization on the endpoints and a switch to disable them. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -165,10 +165,10 @@ PR 1 holds exactly these 11 files:
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Diagnostics/CacheKeyRegistry.cs` | new (internal sealed, bounded, instance-level) |
-| 2 | `src/Encina.Caching/Diagnostics/CacheOutcomeAccessor.cs` | new (public sealed: the `AsyncLocal` holder, `CacheOutcome` record) |
+| 2 | `src/Encina.Caching/Diagnostics/CacheOutcomeAccessor.cs` | new (public sealed: the `AsyncLocal` holder, `CacheOutcome` record, and the public interface `ICacheKeyRecorder` that the internal registry implements) |
 | 3 | `src/Encina.Caching/Configuration/CacheDiagnosticsOptions.cs` | new (public: `Enabled`, `MaxTrackedKeys`, `MaxDeleteBatch`, `IncludeKey`, `HeaderPrefix`) |
 | 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`Diagnostics`) |
-| 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (optional trailing `CacheKeyRegistry?` and `CacheOutcomeAccessor?`; record on hit, miss, bypass and write) |
+| 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (optional trailing `ICacheKeyRecorder?` and `CacheOutcomeAccessor?`, both public types because the behavior's constructor is public and an internal parameter type would not compile; record on hit, miss, bypass and write) |
 | 6 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 7 | `tests/Encina.UnitTests/Caching/CacheKeyRegistryTests.cs` | new |
 | 8 | `tests/Encina.UnitTests/Caching/QueryCachingDiagnosticsTests.cs` | new |
@@ -240,7 +240,7 @@ PR 2 holds exactly these 13 files:
 Tasks:
 
 1. **Create** `ICacheDiagnostics`: `ValueTask<Either<EncinaError, CacheStats>> GetStatsAsync(string? tenantId, CancellationToken)`, `ValueTask<Either<EncinaError, IReadOnlyList<CacheKeyInfo>>> SearchKeysAsync(string? tenantId, string pattern, int limit, CancellationToken)`, `ValueTask<Either<EncinaError, CacheKeyDetails>> GetKeyDetailsAsync(string? tenantId, string id, CancellationToken)` and `ValueTask<Either<EncinaError, int>> DeleteKeysAsync(string? tenantId, string pattern, CancellationToken)`; entries are addressed by an opaque `id` (a hash of the key) and shown with the redacted key, so a caller never receives a raw key. The tenant is a parameter, not an ambient read: the endpoint passes the request's tenant.
-2. **Create** `CacheDiagnostics`: glob matcher with `*` and `?` and a 200-character limit, results capped at 1,000, a missing entry returns `cache.diagnostics_key_not_found`, a longer pattern `cache.diagnostics_invalid_pattern`; delete follows Design Choice 4 and logs the count only (EventId 532... see Event ID Allocation: 532 delete executed, 533 registry eviction).
+2. **Create** `CacheDiagnostics`: glob matcher with `*` and `?` and a 200-character limit, results capped at 1,000, a missing entry returns `cache.diagnostics_key_not_found`, a longer pattern `cache.diagnostics_invalid_pattern`; delete follows Design Choice 4 and logs the count only (EventId 532 keys deleted); the registry logs 533 when it evicts at the bound. Cancellation propagates: a cancelled token throws `OperationCanceledException` and is never turned into a `Left`. A delete removes keys with an unconditional `RemoveAsync`, so a concurrent newer write of the same key can be removed; that costs one miss and is accepted for a diagnostic tool.
 3. **Create** `AddEncinaCacheDiagnostics(this IServiceCollection, Action<CacheDiagnosticsOptions>? = null)` (public, `ArgumentNullException.ThrowIfNull(services)`): sets `Enabled`, registers the registry, the accessor and `ICacheDiagnostics` as singletons with `TryAdd`; without this call nothing is registered (pay-for-what-you-use).
 4. **Tests:** statistics counters per node, tenant isolation of search, details and delete (tenant A never sees or removes tenant B's id), the matcher with `*` and `?` and an adversarial long pattern, the limit, the not-found code, DI built with `ValidateOnBuild` and `ValidateScopes`, guard test for `AddEncinaCacheDiagnostics` (null services; a null configure delegate is valid and gets a valid-result test).
 
