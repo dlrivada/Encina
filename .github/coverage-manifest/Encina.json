@@ -1209,7 +1209,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 80, "contract": 65 },
+      "justifications": {
+        "unit": "Metric recording and the Cancelled/Internal error mapping of the behavior are driven by the unit tests (measured 100%).",
+        "guard": "Guard tests reach the argument checks (measured 85.7%-100%).",
+        "contract": "Contract tests dispatch through the behavior; the target mirrors the sibling activity behaviors (no contract data yet)."
+      }
     },
     "Pipeline/Behaviors/QueryActivityPipelineBehavior.cs": {
       "defaultTests": [
@@ -1233,7 +1239,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 80, "contract": 65 },
+      "justifications": {
+        "unit": "Metric recording and the Cancelled/Internal error mapping of the behavior are driven by the unit tests (measured 100%).",
+        "guard": "Guard tests reach the argument checks (measured 85.7%-100%).",
+        "contract": "Contract tests dispatch through the behavior; the target mirrors the sibling activity behaviors (no contract data yet)."
+      }
     },
     "Pipeline/EncinaBehaviorGuards.cs": {
       "defaultTests": [
@@ -1241,7 +1253,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "Every guard branch is driven through the real pipeline producers (measured 100%).",
+        "guard": "Guard tests drive the guard methods directly (measured 100%)."
+      }
     },
     "Pipeline/EncinaNotificationGuards.cs": {
       "defaultTests": [
@@ -1249,7 +1266,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 0 },
+      "justifications": {
+        "unit": "Every notification guard branch is driven by the unit tests (measured 100%).",
+        "guard": "The guard tests do not reach this internal static guard, it is exercised through Publish in the unit tests (measured 0%)."
+      }
     },
     "Pipeline/EncinaRequestGuards.cs": {
       "defaultTests": [
@@ -1257,7 +1279,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "Every guard branch is driven through the real pipeline producers (measured 100%).",
+        "guard": "Guard tests drive the guard methods directly (measured 100%)."
+      }
     },
     "Pipeline/Ordering/IEncinaPipelineInspector.cs": {
       "defaultTests": [],
