@@ -510,7 +510,7 @@ public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 2. Collects all pending domain events from tracked `IAggregateRoot` instances
 3. Calls `SaveChanges` on the DbContext
 4. If successful, dispatches each event via `IPublisher.Publish()`
-5. Clears domain events from entities after dispatch
+5. Clears domain events from the aggregate roots after dispatch
 
 **Configuration Options:**
 

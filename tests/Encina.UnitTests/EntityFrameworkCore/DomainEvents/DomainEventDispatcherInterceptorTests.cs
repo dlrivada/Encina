@@ -30,6 +30,13 @@ public class DomainEventDispatcherInterceptorTests
         public void RaiseEvent(IDomainEvent domainEvent) => RaiseDomainEvent(domainEvent);
     }
 
+    private sealed class TestPlainEntity : Entity<Guid>
+    {
+        public TestPlainEntity() : base(Guid.NewGuid()) { }
+
+        public void RaiseEvent(IDomainEvent domainEvent) => AddDomainEvent(domainEvent);
+    }
+
     private sealed record TestNotificationEvent(Guid EntityId) : IDomainEvent, INotification
     {
         public Guid EventId { get; init; } = Guid.NewGuid();
@@ -48,6 +55,8 @@ public class DomainEventDispatcherInterceptorTests
 
         public DbSet<TestAggregate> TestAggregates => Set<TestAggregate>();
 
+        public DbSet<TestPlainEntity> TestPlainEntities => Set<TestPlainEntity>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<TestAggregate>(entity =>
@@ -57,6 +66,13 @@ public class DomainEventDispatcherInterceptorTests
                 entity.Property(e => e.Name).HasMaxLength(200);
                 entity.Ignore(e => e.DomainEvents);
                 entity.Ignore(e => e.RowVersion);
+            });
+
+            modelBuilder.Entity<TestPlainEntity>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedNever();
+                entity.Ignore(e => e.DomainEvents);
             });
         }
     }
@@ -356,6 +372,58 @@ public class DomainEventDispatcherInterceptorTests
 
         // Assert
         aggregate.DomainEvents.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SavedChangesAsync_PlainEntityThatIsNotAnAggregateRoot_IsNotDispatchedOrCleared(bool collectEventsBeforeSave)
+    {
+        // Arrange
+        var encina = Substitute.For<IEncina>();
+        encina.Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>())
+            .Returns(new ValueTask<Either<EncinaError, Unit>>(Unit.Default));
+
+        var services = new ServiceCollection();
+        services.AddSingleton(encina);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var options = new DomainEventDispatcherOptions
+        {
+            Enabled = true,
+            ClearEventsAfterDispatch = true,
+            CollectEventsBeforeSave = collectEventsBeforeSave
+        };
+        var logger = Substitute.For<ILogger<DomainEventDispatcherInterceptor>>();
+        var interceptor = new DomainEventDispatcherInterceptor(serviceProvider, options, logger);
+
+        var dbOptions = new DbContextOptionsBuilder<TestDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
+            .Options;
+
+        await using var context = new TestDbContext(dbOptions);
+
+        var aggregate = new TestAggregate();
+        var aggregateEvent = new TestNotificationEvent(aggregate.Id);
+        aggregate.RaiseEvent(aggregateEvent);
+
+        var plainEntity = new TestPlainEntity();
+        var plainEntityEvent = new TestNotificationEvent(plainEntity.Id);
+        plainEntity.RaiseEvent(plainEntityEvent);
+
+        context.TestAggregates.Add(aggregate);
+        context.TestPlainEntities.Add(plainEntity);
+
+        // Act
+        await context.SaveChangesAsync();
+
+        // Assert: only the aggregate root's event is published and cleared
+        await encina.Received(1).Publish(Arg.Any<INotification>(), Arg.Any<CancellationToken>());
+        await encina.Received(1).Publish(aggregateEvent, Arg.Any<CancellationToken>());
+        await encina.DidNotReceive().Publish(plainEntityEvent, Arg.Any<CancellationToken>());
+        aggregate.DomainEvents.ShouldBeEmpty();
+        plainEntity.DomainEvents.ShouldHaveSingleItem().ShouldBe(plainEntityEvent);
     }
 
     [Fact]
