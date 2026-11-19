@@ -2,7 +2,7 @@
 
 > **Issue**: [#271](https://github.com/dlrivada/Encina/issues/271)
 > **Type**: Feature
-> **Complexity**: High (6 pull requests of 11, 7, 6, 15, 15 and 14 files)
+> **Complexity**: High (7 pull requests of 11, 7, 6, 15, 15, 14 and 8 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (f484cdf4f):
+Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -79,7 +79,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Invalidate the tag in every tenant (a tag pattern `t:*:{name}`) and log it (EventId 484)** | Never leaves stale data; over-invalidation costs only cache misses | One caller with no tenant clears all tenants' entries of that tag |
+| **A) Invalidate the tag in every tenant and in the global scope, by removing the all-tenants alias tag `*:{name}` that every tagged entry also carries (Design Choice 10), and log it (EventId 484)** | Never leaves stale data; over-invalidation costs only cache misses | One caller with no tenant clears all tenants' entries of that tag |
 | **B) Skip the invalidation and log it** | Never clears another tenant's data | Leaves stale entries the command meant to remove |
 
 ### Chosen Option: **A - invalidate all tenants** (recommended, pending the maintainer)
@@ -99,7 +99,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One set per tag (`SADD`), written with the entry in a `MULTI`/`EXEC` transaction; the set's TTL is extended to the longest member TTL with `PEXPIRE key ttl GT` (an atomic "only when larger", Redis 7.0 and later; a read-then-write `PEXPIRE` inside `MULTI` would race and could shorten the set below a member's TTL, so the entry would survive an invalidation); invalidation renames the set to a draining key (`RENAME`), reads its members (`SSCAN`), deletes them (`UNLINK`) and the draining key; pattern removal enumerates tag-set keys with the existing server scan** | The issue's design; no Lua; the rename isolates concurrent adds; works for the five Redis-protocol providers if each supports the commands | Stale members stay until the set expires (a delete of an absent key is harmless); no cluster support (as today) |
+| **A) One set per tag (`SADD`), written with the entry in a `MULTI`/`EXEC` transaction; the set's TTL is extended to the longest member TTL with `PEXPIRE key ttl GT` (an atomic "only when larger", Redis 7.0 and later; a read-then-write `PEXPIRE` inside `MULTI` would race and could shorten the set below a member's TTL, so the entry would survive an invalidation); the TTL of a new set is initialized in the same transaction with `PEXPIRE key ttl NX` (`GT` alone does not initialize a key that has no expiry, so the set would live forever); every entry gets a generation id (a GUID in "N" format) stored in a companion key `{prefix}:gen:{key}` with the entry's TTL, and the set member is `{gen}{key}` (32 hex characters then the key); invalidation uses a recoverable drain with a FIXED draining key `{prefix}:tag-drain:{qualified}`: (1) if the draining key exists (an earlier invalidation was interrupted) drain it first, (2) `RENAME` the live set to the draining key, treating "no such key" as an absent tag (a no-op, which also covers a concurrent invalidation or an expired set), (3) for each member (`SSCAN`) run a conditional transaction that deletes the entry and its generation key only when the generation key still equals the member's generation (`Condition.StringEqual`), so an entry rewritten meanwhile by `SetWithTagsAsync` (new generation) or a key reused with other tags is never deleted, (4) delete the draining key; a retry after any interruption starts at (1); no pattern enumeration exists (Design Choice 10)** | The issue's design with the races closed; no Lua; works for the five Redis-protocol providers if each supports the commands | Two keys per entry and a conditional transaction per member; stale members stay until the set expires (a conditional delete of a superseded member is a no-op); no cluster support (as today) |
 | **B) A version counter per tag embedded in each entry; invalidation is one `INCR` and every read compares versions** | O(1) invalidation; works for providers without sets (Memcached) | Every read costs an extra read of the tag versions; the read path of the behavior and of each provider changes |
 
 ### Chosen Option: **A - tag sets** (recommended, pending the maintainer)
@@ -119,7 +119,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A tag that cannot be built (a `{Response.X}` or `{X}` placeholder with no property or a null value), a name that violates the tag rules, or more than `MaxTagsPerEntry` (default 16) tags: the entry is not cached, EventId 478 or 479 is logged (placeholder text only, never a value), the request still returns its response; a tags-with-sliding-expiration configuration throws `InvalidOperationException` at resolution** | An entry that cannot be invalidated is never stored | A typo disables caching for that request type (visible in logs and a counter) |
+| **A) A tag that cannot be built (a `{Response.X}` or `{X}` placeholder with no property or a null value), a name that violates the tag rules, or more than `MaxTagsPerEntry` (default 32, counting the registered ancestors and the alias of Design Choice 10) tags: the entry is not cached, EventId 478 or 479 is logged (placeholder text only, never a value), the request still returns its response; a tags-with-sliding-expiration configuration throws `InvalidOperationException` at resolution** | An entry that cannot be invalidated is never stored | A typo disables caching for that request type (visible in logs and a counter) |
 | **B) Cache the entry without the missing tag** | The request stays cached | The entry survives invalidations meant for it: stale data |
 
 ### Chosen Option: **A - do not cache** (recommended, pending the maintainer)
@@ -139,7 +139,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A separate channel option `TagInvalidationChannel` (default `sm:cache:invalidate:tags`); the message is the qualified tag (or tag pattern) with a one-character kind prefix** | A subscriber of the pattern channel never mistakes a tag for a glob | One more option; the moved subscriber of #2408 must subscribe to both |
+| **A) A separate channel option `TagInvalidationChannel` (default `sm:cache:invalidate:tags`); the message is the qualified tag (or the hierarchy-prefix tag of Design Choice 10) with a one-character kind prefix; this plan ships the subscriber (a `BackgroundService` in `Encina.Caching` that subscribes to the channel through `IPubSubProvider` and calls `RemoveByTagAsync` locally; PR 7)** | A subscriber of the pattern channel never mistakes a tag for a glob; a second Memory or Hybrid instance really drops its entry; no dependency on #2408 | One more option and a hosted service (registered only when pub/sub invalidation is on) |
 | **B) The same channel with a `tag:` prefix inside the message** | One channel | A subscriber that treats every message as a glob would run `tag:...` as a pattern (a harmless no-op today because no subscriber exists, but a trap) |
 
 ### Chosen Option: **A - separate channel** (recommended, pending the maintainer)
@@ -159,7 +159,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A name is non-empty, at most `MaxTagLength` (128) characters, has no control character and none of `* ? [ ] \`; `:` is allowed (the hierarchy separator)** | A pattern never matches a literal name by accident; bounded keys | Names with glob characters are rejected |
+| **A) A raw name (what an application writes) is non-empty, at most `MaxTagLength` (128 by default) characters, has no control character and none of `* ? [ ] \`; `:` is allowed (the hierarchy separator); a qualified tag (what providers receive: `t:{encoded tenant}:{name}` or `g:{name}`, plus the system forms of Design Choice 10, the suffix `:*` and the prefix `*:`) is validated separately by the providers: at most 512 characters, no control character, `*` only in the two system forms** | Raw names are bounded and unambiguous, and the qualification prefix and tenant encoding cannot push a valid name over a raw limit | Two validators (`CacheTag.ValidateName` and `CacheTag.ValidateQualified`) |
 | **B) Any string** | No rule | `a*` as a name equals the pattern `a*`; unbounded key sizes |
 
 ### Chosen Option: **A - validated names**
@@ -167,7 +167,7 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the glob semantics already in the providers (`MemoryCacheProvider.GlobToRegex` treats `* ? [ ]` as metacharacters, `MemoryCacheProvider.cs` lines 232-240) and AGENTS.md section 3 (no widening of a namespace). Violations throw `ArgumentException` on the public provider methods (what happens to an attribute tag is Design Choice 5). This holds under every option of Design Choices 1 to 6 and 9.
+- **Settled by:** the glob semantics already in the providers (`MemoryCacheProvider.GlobToRegex` treats `* ? [ ]` as metacharacters, `MemoryCacheProvider.cs` lines 232-240) and AGENTS.md section 3 (no widening of a namespace). Violations throw `ArgumentException` on the public provider methods (what happens to an attribute tag is Design Choice 5); the 128 limit applies to the raw name and follows `MaxTagLength`, never to the qualified tag. This holds under every option of Design Choices 1 to 6 and 9.
 
 </details>
 
@@ -211,6 +211,28 @@ The plan adds four tag methods to `ICacheProvider` and implements them on every 
 
 </details>
 
+<details>
+<summary><strong>10. Hierarchies and cross-tenant removal without enumeration (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Registered ancestors and aliases: `CacheTag.WithAncestors` makes the writer register, besides the entry's tag `t:{T}:a:b:c`, the ancestor tags `t:{T}:a:b:*` and `t:{T}:a:*` and the all-tenants alias `*:a:b:c` with its ancestors; `RemoveByTagPatternAsync` accepts only a hierarchy prefix (`{prefix}:*`) and removes that registered ancestor by an exact tag removal; the same applies to a tenant-less invalidation (Design Choice 3 option A) and to `g:` entries, which carry the alias too; every provider, including Hybrid and Memcached, implements it with exact tag removal** | No provider enumerates tags or keys; works across nodes and restarts; the same on all 8 providers | A general glob over tag names is not supported (only a trailing `:*` prefix); each entry carries about two tags per hierarchy level plus the alias, so `MaxTagsPerEntry` counts them (default raised to 32) |
+| **B) Provider-side enumeration: Memory regex over tag names, Redis server scan of tag-set keys, Hybrid over its local `_tagToKeys`** | Supports a general glob | Hybrid sees only the tags this instance wrote since it started; Memcached cannot enumerate; so the feature is not consistent across the 8 providers |
+| **C) A shared tag-name index per tenant stored in the provider's own store** | General glob; works across nodes | A read-modify-write index with eviction and races, and a new storage item to keep consistent on every provider |
+
+### Chosen Option: **A - registered ancestors and aliases** (recommended, pending the maintainer)
+
+### Rationale
+
+- AGENTS.md section 5 asks for the same behavior on all 8 caching providers; only A and C reach Hybrid across nodes and Memcached, and A needs no index.
+- The tenant segment is percent-encoded (`*` included) so a tenant never forms an alias or a prefix by accident; the alias `*:name` cannot equal a qualified tag because the first segment of a qualified tag is `t` or `g`.
+- Option B wins if a general glob is a requirement and Hybrid and Memcached may stay partial; option C wins if a general glob must work on every provider.
+- Class: Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -238,9 +260,9 @@ PR 1 holds exactly these 11 files:
 
 Tasks:
 
-1. **Create** `public static class CacheTag` (XML docs; because it is public, `Encina.GuardTests` reaches it and no `InternalsVisibleTo` entry is needed for the providers): `Validate(string name)` (Design Choice 7), `Qualify(string name, string? tenantId, bool varyByTenant)` (`t:{encoded}:{name}` or `g:{name}`, Design Choice 2), `QualifyPattern(string pattern, string? tenantId, bool varyByTenant)` and `AllTenantsPattern(string name)` (`t:*:{name}`), `EncodeTenant(string tenantId)` (percent-encodes `% : * ? [ ] \`). Providers never qualify: they validate tag names and take tags as given; the callers (the two behaviors, applications) qualify with `CacheTag`.
-2. **Modify** `MemoryCacheProvider`: `ConcurrentDictionary<string, HashSet<string>>` tag to keys and key to tags, updated under one lock per set; `SetWithTagsAsync` stores the value (as `SetAsync` does, with the same post-eviction callback also removing the key from both maps); `RemoveByTagAsync` removes the tag's keys from the cache and the maps; `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` matches tag names with a case-sensitive glob (the existing `GlobToRegex` is case-insensitive and is not reused for tags). `RemoveAsync` and `RemoveByPatternAsync` clean the maps. Each public method checks its arguments (`ArgumentNullException`, `ArgumentException` for an invalid tag, pre-cancelled token) as the neighbours do. Logs 3565 tags set, 3566 removed by tag, 3567 removed by tag pattern (counts only; the tag text is never logged because a qualified tag carries the tenant).
-3. **Tests (unit):** set with two tags then remove by each; remove by tags; pattern `products:*` and `t:a:*`; expiry removes the key from the maps (a `FakeTimeProvider`-driven `MemoryCache` clock); case sensitivity; concurrent set and remove (`Parallel.For`, no exception, no orphan); `CacheTag` encodes `a:b`, `a*`, `%3A` distinctly and two (tenant, name) pairs never give one result (a table of hostile ids). **Guard tests:** null key, null tags, null tag, empty and whitespace tag, tag with a glob character, tag longer than 128, pre-cancelled token (Memory file); null and invalid arguments of `CacheTag.Validate`, `Qualify`, `QualifyPattern` and `AllTenantsPattern` (`CacheTagGuardTests`).
+1. **Create** `public static class CacheTag` (XML docs; because it is public, `Encina.GuardTests` reaches it and no `InternalsVisibleTo` entry is needed for the providers): `ValidateName(string name, int maxLength)` (raw names, Design Choice 7) and `ValidateQualified(string tag)` (what providers check: at most 512 characters, no control character, `*` only in the system forms), `Qualify(string name, string? tenantId, bool varyByTenant)` (`t:{encoded}:{name}` or `g:{name}`, Design Choice 2), `WithAncestors(string qualifiedTag)` (the tag plus its hierarchy ancestors `t:{encoded}:a:b:*`, `t:{encoded}:a:*` and the all-tenants alias `*:{name}` and its ancestors, Design Choice 10) and `AllTenantsAlias(string name)` (`*:{name}`), `EncodeTenant(string tenantId)` (percent-encodes `% : * ? [ ] \`). Providers never qualify: they validate tag names and take tags as given; the callers (the two behaviors, applications) qualify with `CacheTag`.
+2. **Modify** `MemoryCacheProvider`: `ConcurrentDictionary<string, HashSet<string>>` tag to keys and key to tags, updated under one lock per set; `SetWithTagsAsync` stores the value (as `SetAsync` does, with the same post-eviction callback also removing the key from both maps); `RemoveByTagAsync` removes the tag's keys from the cache and the maps; `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` takes a hierarchy-prefix pattern (`{prefix}:*`, Design Choice 10) and removes the exact registered ancestor tag, so no enumeration or glob is needed. Every `SetWithTagsAsync` assigns the entry a generation id; the maps hold `(tag, key, generation)` and the post-eviction callback captures the generation of the entry it belongs to and removes memberships only while the stored generation is still its own, so an old entry's callback that runs after a replacement registered its tags removes nothing of the replacement; a key reused with other tags first drops all of its previous memberships. `RemoveAsync` and `RemoveByPatternAsync` clean the maps with the same generation check. Each public method checks its arguments (`ArgumentNullException`, `ArgumentException` for an invalid tag, pre-cancelled token) as the neighbours do. Logs 3565 tags set, 3566 removed by tag, 3567 removed by tag pattern (counts only; the tag text is never logged because a qualified tag carries the tenant).
+3. **Tests (unit):** set with two tags then remove by each; remove by tags; hierarchy prefix `products:*` and `t:a:products:*` (an entry tagged `products:cat:5` is removed through its ancestor, an entry tagged `products:other` is not removed by `products:cat:*`); key reuse: an entry tagged A and B, invalidated through A, then the same key cached with only A, then invalidation of B must NOT remove the new entry; replacement: the old entry's eviction callback runs after the new registration and the new memberships survive, so a later invalidation still removes the new entry; expiry removes the key from the maps (a `FakeTimeProvider`-driven `MemoryCache` clock); case sensitivity; concurrent set and remove (`Parallel.For`, no exception, no orphan); `CacheTag` encodes `a:b`, `a*`, `%3A` distinctly and two (tenant, name) pairs never give one result (a table of hostile ids). **Guard tests:** null key, null tags, null tag, empty and whitespace tag, tag with a glob character, tag longer than 128, pre-cancelled token (Memory file); null and invalid arguments of `CacheTag.ValidateName`, `ValidateQualified`, `Qualify`, `WithAncestors` and `AllTenantsAlias` (`CacheTagGuardTests`).
 
 </details>
 
@@ -290,8 +312,8 @@ PR 2 holds exactly these 7 files:
 
 Tasks:
 
-1. **Modify** `RedisCacheProvider` (Design Choice 4 option A): `SetWithTagsAsync` writes the value with its TTL and, for each qualified tag, `SADD {prefix}:tag:{qualified} key` and `PEXPIRE {set} {entry ttl} GT` (the set TTL only grows, atomically; Redis 7.0 and later, verified per provider as Design Choice 4 says), all in one `ITransaction`; `RemoveByTagAsync` renames the set to `{prefix}:tag-drain:{qualified}:{guid}`, enumerates it with `SetScanAsync`, `KeyDeleteAsync` with `CommandFlags.FireAndForget` replaced by awaited `UNLINK` batches, then deletes the draining key; `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` enumerates tag-set keys with the existing server scan (`GetServer`, `KeysAsync(pattern)` under `{prefix}:tag:`) and removes each. A tag set stores prefixed keys, never raw tag names or tenant ids in logs; logs 3616-3618 (tags set, removed by tag, removed by tag pattern) carry counts. The key prefix of `RedisCacheOptions` applies to the tag keys.
-2. **Tests (unit, mocked `IConnectionMultiplexer`/`IDatabase` as `RedisCacheProviderTests` does):** the commands issued per call; tag-set TTL extension; pattern enumeration. **Guard tests:** as PR 1. **Integration (shared `RedisCollection`):** set with tags, remove by tag removes the keys and the set, a key added during a removal survives or is removed consistently (the rename isolates it), a pattern removal over two tenants clears only the matching tenant, TTL expiry of the set. The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares this provider; the worker records the command-support check of Design Choice 4 for each in the PR description.
+1. **Modify** `RedisCacheProvider` (Design Choice 4 option A): `SetWithTagsAsync` writes the value with its TTL and, for each qualified tag, `SADD {prefix}:tag:{qualified} key` and `PEXPIRE {set} {entry ttl} GT` (the set TTL only grows, atomically; Redis 7.0 and later, verified per provider as Design Choice 4 says), all in one `ITransaction`; `RemoveByTagAsync` follows the recoverable drain protocol of Design Choice 4 (fixed draining key, `RENAME` with "no such key" treated as a no-op, `SSCAN`, a conditional transaction per member keyed on the generation key, then the draining key is deleted; a retry first drains a leftover draining key); `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` takes a hierarchy-prefix pattern and calls `RemoveByTagAsync` on the registered ancestor tag (no server scan, no enumeration). The new set's TTL is initialized with `PEXPIRE ... NX` and extended with `PEXPIRE ... GT` in the same transaction. Logs never contain tag names or tenant ids; logs 3616-3618 (tags set, removed by tag, removed by tag pattern) carry counts. The key prefix of `RedisCacheOptions` applies to the tag keys.
+2. **Tests (unit, mocked `IConnectionMultiplexer`/`IDatabase` as `RedisCacheProviderTests` does):** the commands issued per call; the `NX` then `GT` expiry; the unknown tag no-op. **Guard tests:** as PR 1. **Integration (shared `RedisCollection`):** set with tags, remove by tag removes the keys and the set; a NEW set has a TTL (not infinite) and a second entry with a longer TTL extends it; an unknown tag is a no-op and two concurrent invalidations of one tag both complete; a failure injected after the `RENAME` leaves a draining key that the retry drains; a key rewritten with `SetWithTagsAsync` while its old membership is being drained is NOT deleted (same-key interleaving, gated); key reuse across different tag sets; a hierarchy-prefix removal over two tenants clears only the matching tenant. The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares this provider; the worker records the command-support check of Design Choice 4 for each in the PR description.
 
 </details>
 
@@ -338,8 +360,8 @@ PR 3 holds exactly these 6 files:
 
 Tasks:
 
-1. **Modify** `HybridCacheProvider`: `SetWithTagsAsync` calls `HybridCache.SetAsync(key, value, options, tags: qualifiedTags, ...)` (native tags) and updates the existing `_tagToKeys` and `_keyToTags` maps; `RemoveByTagAsync` (existing, line 172) now validates the tag name but does not qualify it (providers never qualify; callers do, as PR 1 states), and its log `LogCacheRemoveByTag` (line 198 today logs the raw `{Tag}`, which after tenant qualification would put the tenant id into logs) passes the tag through `CacheKeyRedactor.Redact` (it masks the `t:` segment) or logs a count only; `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` matches `_tagToKeys` names with a case-sensitive glob and calls `RemoveByTagAsync` per match (HybridCache has no pattern removal); the existing `IsTagPattern` convention of `RemoveByPatternAsync` is left unchanged. Native tags invalidate every node's L2 entries; L1 on other nodes follows the HybridCache backplane behavior, which the XML docs state.
-2. **Tests:** the existing tagging tests keep passing (a test asserts the redacted log carries no tenant id); new cases for pattern removal, tags set through the new method, and the maps after removal; guard tests as PR 1 for the three new methods.
+1. **Modify** `HybridCacheProvider`: `SetWithTagsAsync` calls `HybridCache.SetAsync(key, value, options, tags: qualifiedTags, ...)` (native tags) and updates the existing `_tagToKeys` and `_keyToTags` maps; `RemoveByTagAsync` (existing, line 172) now validates the tag name but does not qualify it (providers never qualify; callers do, as PR 1 states), and its log `LogCacheRemoveByTag` (line 198 today logs the raw `{Tag}`, which after tenant qualification would put the tenant id into logs) logs a count only (the redactor masks only the tenant and user segments, so a dynamic tag such as `product:patient-123` would still reach the log; no tag text is logged); `RemoveByTagsAsync` loops; `RemoveByTagPatternAsync` takes a hierarchy-prefix pattern and calls the native `RemoveByTagAsync` on the registered ancestor tag, so it works for tags written by another node or before a restart and needs no local tag index (the local `_tagToKeys` and `_keyToTags` maps are not used for it); the existing `IsTagPattern` convention of `RemoveByPatternAsync` is left unchanged. Native tags invalidate every node's L2 entries; L1 on other nodes follows the HybridCache backplane behavior, which the XML docs state.
+2. **Tests:** the existing tagging tests keep passing (a test asserts the redacted log carries no tenant id); new cases for hierarchy-prefix removal, tags set through the new method, and the maps after removal; pattern removal from a SECOND `HybridCacheProvider` instance sharing the same L2 clears an entry written by the first; guard tests as PR 1 for the three new methods.
 
 </details>
 
@@ -395,7 +417,7 @@ Tasks:
 1. **Modify** `ICacheProvider` with the four members and their XML docs (the contract: tag names are validated by the provider, qualification is the caller's job through `CacheTag` and never the provider's, an unknown tag is a no-op, never an exception). `MemoryCacheProvider`, `RedisCacheProvider` and `HybridCacheProvider` already have them, so they implement the interface with no further change; the `PublicAPI.Unshipped.txt` lines of PR 1 to PR 3 already cover them.
 2. **Modify** `InstrumentedCacheProvider` (spans per method with the existing `Start...`/`Complete`/`Failed` helpers, no tag names or tenant in attributes), `FakeCacheProvider` (a dictionary-based implementation sharing semantics with the Memory provider) and the five test doubles (a minimal implementation each: the recording and failing doubles record or throw like their existing methods).
 3. **Tests:** the decorator forwards each call and records a failed span on an exception (file 11); the fake's behavior is asserted against the Memory provider by the contract test of PR 6, which instantiates `FakeCacheProvider`. The decorator forwards each call and lets the inner provider validate the arguments, so it adds no new argument check; `InstrumentedCacheProvider.cs` keeps its existing targets and PR 4 edits no OpenTelemetry manifest. **Guard tests:** the public `FakeCacheProvider` validates its new method arguments, so files 12 and 13 test it (unit and guard); both files are in this PR so its targets are reachable here.
-4. **Memcached (#277):** Memcached has no tag primitive, so its implementation uses the technique the maintainer chooses in Design Choice 4 (option B fits it). Whichever of this PR 4 and #277 merges second implements the four members for Memcached: the interface makes the build fail otherwise. The orchestrator comments on #277 when this PR merges.
+4. **Memcached (#277):** Memcached has no tag primitive, so its implementation uses a per-tag version counter (Design Choice 4 option B); because hierarchy removal is an exact removal of a registered ancestor tag (Design Choice 10 option A), the counter technique covers `RemoveByTagPatternAsync` too and needs no key or tag enumeration. Whichever of this PR 4 and #277 merges second implements the four members for Memcached with a real Memcached integration test of tag, hierarchy-prefix and all-tenants removal: the interface makes the build fail otherwise. The orchestrator comments on #277 when this PR merges.
 
 </details>
 
@@ -450,7 +472,7 @@ PR 5 holds exactly these 15 files (it needs #266 PR 3 for `CachePatternLog` and 
 
 Tasks:
 
-1. **Attributes:** `CacheAttribute.Tags` (`string[]`, default empty) and `[CacheTag(template)]` (`AllowMultiple = true`, class target; the constructor does `ArgumentException.ThrowIfNullOrWhiteSpace(template)`, so a guard test for null, empty and whitespace is owed and lives in the options guard file of this PR; the template accepts `{Name}` for a request property and `{Response.Name}` for a property of the response value). `CachingOptions`: `MaxTagsPerEntry` 16 (setter rejects below 1), `MaxTagLength` 128 (rejects below 1), `TagInvalidationChannel` `"sm:cache:invalidate:tags"`; all three copied in `AddEncinaCaching`.
+1. **Attributes:** `CacheAttribute.Tags` (`string[]`, default empty) and `[CacheTag(template)]` (`AllowMultiple = true`, class target; the constructor does `ArgumentException.ThrowIfNullOrWhiteSpace(template)`, so a guard test for null, empty and whitespace is owed and lives in the options guard file of this PR; the template accepts `{Name}` for a request property and `{Response.Name}` for a property of the response value). `CachingOptions`: `MaxTagsPerEntry` 32 (setter rejects below 1), `MaxTagLength` 128 (rejects below 1), `TagInvalidationChannel` `"sm:cache:invalidate:tags"`; all three copied in `AddEncinaCaching`.
 2. **`CacheTagResolver`:** per closed generic, a static table of compiled property accessors built once; `Resolve(request, response, tenantId, varyByTenant)` returns the qualified tags or a failure reason (unresolved placeholder, invalid name, too many) without any value in the reason; static tags are validated at the first use per type (Design Choice 5).
 3. **Behavior:** after a `Right`, resolve the tags (the response exists only now, so dynamic tags need the response); an empty tag list uses `SetAsync` exactly as today; a failure reason logs 478 or 479 (placeholder or limit only), counts it and returns the response uncached; otherwise `SetWithTagsAsync` with the same TTL logic (jitter and fail-safe from #266 and #268 compose by taking the same effective duration). The tenant used is the one already used for the key; a bypassed request never reaches the tag path.
 4. **Tests (unit):** static tags stored qualified by tenant; two tenants never share a tag; `VaryByTenant = false` gives `g:`; dynamic tags from the request and the response; a null or missing placeholder leaves the entry uncached and the response returned; more than `MaxTagsPerEntry`; a tag with a glob character; `SlidingExpiration` with tags throws at resolution; no tags keeps the old path (all existing behavior tests stay green); options defaults and DI copy. **Guard tests:** `CachingOptionsTagGuardTests` (file 12a): `MaxTagsPerEntry` and `MaxTagLength` below 1 throw `ArgumentOutOfRangeException`, valid values are stored, `TagInvalidationChannel` rejects null or whitespace; the attribute properties have no validation, and `CacheTagResolver` is internal without `InternalsVisibleTo` for `Encina.GuardTests`.
@@ -509,9 +531,9 @@ PR 6 holds exactly these 14 files (the contract test lands here, so the Memory a
 
 Tasks:
 
-1. **Attribute and behavior:** `InvalidatesCache.Tags` (exact tags) and `TagPatterns` (globs over names); how `KeyPattern`, `Tags` and `TagPatterns` combine is Design Choice 9 (recommended: `KeyPattern` keeps its public type and its `"*"` meaning when nothing else is given, and is ignored when only tags are given; an explicit `KeyPattern` is detected with an internal flag set by the `init` accessor; a worker test proves bare, pattern-only, tag-only and combined attributes). After a successful command, for each tag: qualify with the context tenant (`CacheTag.Qualify`) and call `RemoveByTagAsync`/`RemoveByTagPatternAsync`; with no tenant under multi-tenancy follow Design Choice 3 (EventId 484); broadcast on `TagInvalidationChannel` when `BroadcastInvalidation` and pub/sub are on (480 applied, 481 failed, 482 broadcast, 483 broadcast failed); failures follow `ThrowOnCacheErrors` exactly as the pattern path does. Tag values are redacted in every log.
+1. **Attribute and behavior:** `InvalidatesCache.Tags` (exact tags) and `TagPatterns` (hierarchy prefixes ending in `:*` only, Design Choice 10); how `KeyPattern`, `Tags` and `TagPatterns` combine is Design Choice 9 (recommended: `KeyPattern` keeps its public type and its `"*"` meaning when nothing else is given, and is ignored when only tags are given; an explicit `KeyPattern` is detected with an internal flag set by the `init` accessor; a worker test proves bare, pattern-only, tag-only and combined attributes). After a successful command, for each tag: qualify with the context tenant (`CacheTag.Qualify`) and call `RemoveByTagAsync`/`RemoveByTagPatternAsync` for BOTH applicable scopes: the tenant scope `t:{tenant}:{name}` and the global scope `g:{name}` (a command in a tenant also invalidates the global entries of that tag, which `VaryByTenant = false` writes under `g:`, and no `InvalidatesCache` property selects a scope; the unit tests cover a tenant command against a `g:` entry and against a tenant entry of another tenant); with no tenant under multi-tenancy follow Design Choice 3 (EventId 484); broadcast on `TagInvalidationChannel` when `BroadcastInvalidation` and pub/sub are on (480 applied, 481 failed, 482 broadcast, 483 broadcast failed); failures follow `ThrowOnCacheErrors` exactly as the pattern path does. Tag values are redacted in every log.
 2. **Contract test** (`Encina.ContractTests`, instantiates the real `MemoryCacheProvider`, `HybridCacheProvider` (built through DI) and `FakeCacheProvider`): the same sequence gives the same result on each: set with tags, remove by tag, by tags, by pattern, unknown tag no-op, key removal cleans tag membership. Redis runs the same sequence in the integration test.
-3. **Integration (shared `RedisCollection`):** a real `IEncina` with both behaviors: a query cached with static and dynamic tags, a command invalidating by tag clears it for the caller's tenant and not for another tenant; the pattern form; the broadcast message appears on the tag channel. The Redis family shares the provider; Memory and Hybrid are covered by the contract test; Memcached by its own PR (Phase 4 task 4).
+3. **Integration (shared `RedisCollection`):** a real `IEncina` with both behaviors: a query cached with static and dynamic tags, a command invalidating by tag clears it for the caller's tenant and not for another tenant; the hierarchy-prefix form; the broadcast message appears on the tag channel and the tag subscriber of PR 7 makes a SECOND provider instance drop its entry (that cross-instance assertion is in PR 7's integration test, not here). The Redis family shares the provider; Memory and Hybrid are covered by the contract test; Memcached by its own PR (Phase 4 task 4).
 4. **Docs:** `docs-writer` adds a "Tags" section to `docs/features/query-caching.md`: tags, tenant qualification, hierarchies, the not-cached rule, citing tests by name.
 
 </details>
@@ -542,7 +564,56 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Coverage targets and finalization
+### Phase 7: The tag invalidation subscriber (pull request 7)
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+PR 7 holds exactly these 8 files (it follows PR 6 and needs `IPubSubProvider`, already in `Encina.Caching`):
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.Caching/Tags/CacheTagInvalidationSubscriber.cs` | new (internal sealed `BackgroundService`) |
+| 2 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (`AddHostedService` only when `EnableCacheInvalidation` and `EnablePubSubInvalidation` are on and an `IPubSubProvider` is registered) |
+| 3 | `src/Encina.Caching/Diagnostics/CachePatternLog.Tags.cs` | modify (ids 485-487) |
+| 4 | `tests/Encina.UnitTests/Caching/CacheTagInvalidationSubscriberTests.cs` | new |
+| 5 | `tests/Encina.IntegrationTests/Infrastructure/Caching/CacheTagBroadcastIntegrationTests.cs` | new (shared `RedisCollection`) |
+| 6 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (`ValidateOnBuild` and `ValidateScopes`, single registration) |
+| 7 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+| 8 | `changelog.d/271-cache-tag-broadcast-subscriber.added.md` | new (`mechanical-fixer`) |
+
+Tasks:
+
+1. **Subscriber:** `ExecuteAsync` subscribes to `CachingOptions.TagInvalidationChannel` through `IPubSubProvider.SubscribeAsync`; each message (kind prefix plus the qualified tag or hierarchy-prefix tag) is validated with `CacheTag.ValidateQualified` and applied with `ICacheProvider.RemoveByTagAsync`; a malformed message is ignored and logged (486, no message text), a failing removal is logged with `ex.ForLogging()` and the loop continues (a background loop never lets an exception escape; `OperationCanceledException` of the stopping token ends it). Ids: 485 message applied (count only), 486 message ignored, 487 subscriber failed (inside the family spare 485-499; the family block stays packed). The #2408 subscriber of the glob channel is separate and unaffected.
+2. **Tests:** a valid message removes the tag, a malformed one is ignored, a failure does not stop the loop, cancellation ends it; DI registers one hosted service and none when pub/sub invalidation is off. **Integration:** two `MemoryCacheProvider` instances (a second node) and a real `RedisPubSubProvider`: a command on the first node publishes, and the second instance drops its own entry. Guard tests: the class is internal and no public constructor is added: none.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 7</strong></summary>
+
+```
+CONTEXT:
+Phase 6 is merged: the invalidation behavior publishes tag invalidations on TagInvalidationChannel. Nothing subscribes to that channel yet.
+
+TASK:
+Add CacheTagInvalidationSubscriber (BackgroundService) that applies each valid message with ICacheProvider.RemoveByTagAsync, register it only
+when pub/sub invalidation is on, add ids 485-487 to CachePatternLog.Tags.cs, write the unit and Redis integration tests; ask mechanical-fixer
+for the manifest and the changelog fragment.
+
+KEY RULES:
+- No exception escapes the loop; cancellation ends it; messages are validated and never logged.
+- A second provider instance must really drop its entry (integration test).
+
+REFERENCE FILES:
+- src/Encina.Caching/Abstractions/IPubSubProvider.cs
+- src/Encina.Caching/Sharding/Services/TopologyRefreshHostedService.cs
+- src/Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs
+```
+
+</details>
+
+### Phase 8: Coverage targets and finalization
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -572,11 +643,11 @@ REFERENCE FILES:
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 7</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 8</strong></summary>
 
 ```
 CONTEXT:
-The six code PRs are merged; each carried its own per-flag targets.
+The seven code PRs are merged; each carried its own per-flag targets.
 
 TASK:
 Verify, with coverage-report.cs, that each PR's measured numbers reach the targets above; fix any gap through mechanical-fixer in a small PR; run
@@ -621,7 +692,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Caching` (`CachingPatterns`, registered by #266) | 478-484 | 478 tags unresolved (entry not cached), 479 tag limit or rule violated (entry not cached), 480 tag invalidation applied, 481 tag invalidation failed, 482 tag invalidation broadcast, 483 broadcast failed, 484 invalidation with no tenant applied to all tenants |
+| `Encina.Caching` (`CachingPatterns`, registered by #266) | 478-487 (485 subscriber applied a message, 486 message ignored, 487 subscriber failed: PR 7) | 478 tags unresolved (entry not cached), 479 tag limit or rule violated (entry not cached), 480 tag invalidation applied, 481 tag invalidation failed, 482 tag invalidation broadcast, 483 broadcast failed, 484 invalidation with no tenant applied to all tenants |
 | `Encina.Caching.Memory` (`CachingMemory`) | 3565-3567 | tags set, removed by tag, removed by tag pattern (3550-3564 are used by the cache, lock and pub/sub providers of the assembly; checked with a grep of `src/Encina.Caching.Memory`) |
 | `Encina.Caching.Redis` (`CachingRedis`) | 3616-3618 | same three (3600-3615 are used; checked with a grep of `src/Encina.Caching.Redis`) |
 | `Encina.Caching.Hybrid` (`CachingHybrid`) | 3657-3659 | same three |
@@ -634,7 +705,7 @@ REFERENCE FILES:
 | Tests | 10 | 12 | New: helper, resolver, provider, guard, contract, integration and behavior tests; modified: five doubles, hybrid, decorator, fake, options, attribute tests |
 | Documentation | 0 | 1 | `docs/features/query-caching.md` |
 | Configuration | 6 | 12 | Six changelog fragments; manifests of Caching, Memory, Redis, Hybrid, OpenTelemetry, Fakes; five `PublicAPI.Unshipped.txt` files |
-| **Total** | **22** | **37** | 6 pull requests: 11, 7, 6, 15, 15 and 14 files, each at most 15 files and 1500 lines |
+| **Total** | **22** | **37** | 7 pull requests: 11, 7, 6, 15, 15, 14 and 8 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -657,7 +728,7 @@ KEY PATTERNS:
 - Tags qualified per tenant (t:{encoded}:{name} / g:{name}); names validated; an entry whose tags cannot be built is not cached.
 - Providers first, interface last, so no build breaks; grep every implementer.
 - No tag value, tenant or key unredacted in logs or spans; EventIds only in the emitting assembly's range.
-- Follow the maintainer's answers to Design Choices 1 to 6 and 9, given in your brief.
+- Follow the maintainer's answers to Design Choices 1 to 6, 9 and 10, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Abstractions/ICacheProvider.cs
@@ -697,12 +768,12 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | #266 PR 3 (`CachePatternLog`, range 450-499) and PR 4 (`CachePatternMetrics`, created there) | Pending | Needed by PR 5 only; PR 1 to PR 4 have no dependency |
 | #277 (Memcached provider) | Pending | The later-merging PR of #271 PR 4 and #277 implements Memcached tags (Phase 4 task 4) |
-| #2408 (generic invalidation subscriber) | Open | Must also subscribe to `TagInvalidationChannel` |
-| Maintainer answers to Design Choices 1 to 6 and 9 | Pending | Asked when work starts |
+| #2408 (generic invalidation subscriber, glob channel) | Open | No dependency: PR 7 ships the tag-channel subscriber; #2408 keeps the glob channel |
+| Maintainer answers to Design Choices 1 to 6, 9 and 10 | Pending | Asked when work starts |
 
 ---
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 6 and 9) when work starts, records the answers under `## Maintainer Decisions`, then briefs six workers in PR order.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 6, 9 and 10) when work starts, records the answers under `## Maintainer Decisions`, then briefs seven workers in PR order.
 2. After PR 4 merges, comment on #277 that its provider must implement the four tag members; after PR 6 merges, comment on #2408 about the tag channel.
