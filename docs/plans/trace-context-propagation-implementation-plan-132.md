@@ -2,7 +2,7 @@
 
 > **Issue**: [#132](https://github.com/dlrivada/Encina/issues/132)
 > **Type**: Feature (observability core)
-> **Related**: ADR-054 (D2 parent or link rule, D3 wire format, D4 no baggage, D5 release scope), #186 (owns `RequestTraceContext`, which this API carries), #176 (store-side use), #725 (the 10 transports adopt this API), #184 (request tracing behavior, sibling plan, not duplicated here), #265 (overlapping issue the ADR reconciles with #132 and #725), #1164 (envelope), ADR-062
+> **Related**: ADR-054 (D2 parent or link rule, settled point 3 wire format, D4 no baggage, D5 release scope), #186 (owns `RequestTraceContext`, which this API carries), #176 (store-side use), #725 (the 10 transports adopt this API), #184 (request tracing behavior, sibling plan, not duplicated here), #265 (overlapping issue the ADR reconciles with #132 and #725), #1164 (envelope), ADR-062
 > **Complexity**: Low-Medium (a small, transport-agnostic API and one rule, no persistence; the work is making it correct for 10 different header models)
 > **Estimated Scope**: ~330 lines of production code + ~650 lines of tests + 2 documentation files, in three pull requests of at most 15 files and 900 lines each
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `f484cdf4f`)
+### What exists today (read on 2026-11-18, main `89303f1e8`)
 
 - No code propagates a trace context: a search of `src` for `traceparent`, `TraceParent`, `TextMapPropagator`, `Propagators.` and `Baggage` finds nothing. ADR-054 (Context) records the same finding: no persisted message carries a trace context and none of the 10 transports injects or extracts W3C headers.
 - Core has `EncinaDiagnostics.ActivitySource` (`"Encina"`, `src/Encina/Diagnostics/EncinaDiagnostics.cs:10`) and the command and query activity behaviors (`CommandActivityPipelineBehavior`, `QueryActivityPipelineBehavior`). The messaging stores each own an `ActivitySource` (`OutboxActivitySource`, `InboxActivitySource`, `SchedulingActivitySource`, `SagaActivitySource` in `src/Encina.Messaging/Diagnostics/`). No consumer-side span is parented or linked to a producer.
@@ -155,8 +155,8 @@ The API every transport and store uses to carry the context, in core and with no
 | C1 | `Extract` never throws: a missing, malformed or all-zero `traceparent` returns `default(RequestTraceContext)` and logs event 184 with a reason code (never the value); an invalid `tracestate` alone keeps the trace and drops the state, event 185 | Settled | `AGENTS.md` section 3 (logs carry codes, never values; a processor must not fail on foreign input) and #186 Design Choice 4 |
 | C2 | No new `EncinaError` code: parsing foreign input is not a business operation that returns `Either`, so there is no ADR-062 `ErrorCategory` to assign | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C3 | `Inject` writes nothing for an invalid or absent context, and never writes `baggage` | Settled | ADR-054 D4 |
-| C4 | No tenant tag and no tenant-qualified id: the API carries only `traceparent` and `tracestate`; tenant telemetry tags are emitted where spans are created (ADR-054 D4); the reserved `default` tenant segment does not apply | Settled | ADR-054 D4 |
-| C5 | `ContextPropagator` is a singleton with an `ILogger`; it holds no per-request state, so no scoped service is injected into a singleton | Settled | `AGENTS.md` section 3 (Registration completeness) |
+| C4 | No tenant tag and no tenant-qualified id: the API carries only `traceparent` and `tracestate`; the tenant telemetry tag required by ADR-054 D4 on the consumer span is added by the caller of `StartConsumer` (the store processors of #176 and the transports of #725) on the returned `Activity` through `TenancyActivityEnricher` (`src/Encina.OpenTelemetry/Enrichers/TenancyActivityEnricher.cs`), because `StartConsumer` takes no tenant; the reserved `default` tenant segment does not apply | Settled | ADR-054 D4 |
+| C5 | `ContextPropagator` is a singleton with an `ILogger` that falls back to `NullLogger` when none is registered (the same fallback as `PipelineOrderResolver` in `AddEncina`); it holds no per-request state, so no scoped service is injected into a singleton | Settled | `AGENTS.md` section 3 (Registration completeness) |
 | C6 | Public names: `IContextPropagator`, `TraceContextHeaders`, `TraceContextConsumer`, `TraceDispatchKind { Send, Publish, Scheduled, Batch }` in namespace `Encina.Tracing` | Dilemma (recommended, pending the maintainer) | public surface; alternatives are the namespace `Encina` or splitting `Batch` into a flag |
 
 ---
@@ -171,8 +171,8 @@ The API every transport and store uses to carry the context, in core and with no
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina/Tracing/IContextPropagator.cs` (`void Inject<TCarrier>(RequestTraceContext context, TCarrier carrier, Action<TCarrier, string, string> setter)`; `RequestTraceContext Extract<TCarrier>(TCarrier carrier, Func<TCarrier, string, string?> getter)`) and the constants `TraceContextHeaders.TraceParent = "traceparent"` and `TraceState = "tracestate"` in the same file.
-2. **Create** `src/Encina/Tracing/ContextPropagator.cs` (`internal sealed`, constructor `(ILogger<ContextPropagator> logger)`; `Extract` reads both headers through the getter and validates with `RequestTraceContext.TryParse`; `Inject` skips an invalid context and never writes `baggage`), `src/Encina/Tracing/ContextPropagatorExtensions.cs` (`InjectCurrent<TCarrier>(this IContextPropagator, TCarrier, setter)` = `Inject(RequestTraceContext.FromActivity(Activity.Current), ...)`) and `src/Encina/Tracing/TraceContextLog.cs` (`[LoggerMessage]` EventIds 184 invalid `traceparent` ignored with a reason code, 185 `tracestate` dropped; XML text "Event IDs: 184-185 (see EventIdRanges.Core)").
-3. **Modify** `src/Encina/Core/ServiceCollectionExtensions.cs` (`AddEncina`, near `:33,43`): `services.TryAddSingleton<IContextPropagator, ContextPropagator>()`.
+2. **Create** `src/Encina/Tracing/ContextPropagator.cs` (`internal sealed`, constructor `(ILogger<ContextPropagator> logger)`; `Extract` reads both headers through the getter and validates with `RequestTraceContext.TryParse`; `Inject` skips an invalid context and never writes `baggage`), `src/Encina/Tracing/ContextPropagatorExtensions.cs` (`InjectCurrent<TCarrier>(this IContextPropagator, TCarrier, setter)` = `Inject(RequestTraceContext.FromActivity(Activity.Current), ...)`) and `src/Encina/Diagnostics/TraceContextLog.cs` (beside `RequestIdentityLog.cs`, AGENTS.md section 7; `[LoggerMessage]` EventIds 184 invalid `traceparent` ignored with a reason code, 185 `tracestate` dropped; XML text "Event IDs: 184-185 (see EventIdRanges.Core)").
+3. **Modify** `src/Encina/Core/ServiceCollectionExtensions.cs` (`AddEncina`, near `:33,43`): `services.TryAddSingleton<IContextPropagator>(static provider => new ContextPropagator(provider.GetService<ILogger<ContextPropagator>>() ?? NullLogger<ContextPropagator>.Instance))`, so the DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` after `AddEncina` alone resolves it without `AddLogging`.
 4. **Modify** `src/Encina/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.json` and add `changelog.d/132-trace-context-propagator.added.md` through `mechanical-fixer`.
 5. Tests (new files): `tests/Encina.UnitTests/Tracing/ContextPropagatorTests.cs` (round trip through a dictionary and through a `List<KeyValuePair<string, byte[]>>`-style carrier; an invalid, all-zero, version `ff` and oversize `traceparent`; a null header; invalid `tracestate` alone; no `baggage` header is ever written even when `Baggage.Current`-style data exists on the activity); `tests/Encina.GuardTests/Tracing/ContextPropagatorGuardTests.cs` (null carrier, null setter, null getter, null logger; an invalid context is a valid no-op, not an exception); `tests/Encina.PropertyTests/Tracing/ContextPropagatorProperties.cs` (FsCheck: `Extract(Inject(x)) == x` for every valid context); `tests/Encina.ContractTests/Tracing/ContextPropagatorContractTests.cs` (the real implementation keeps the `IContextPropagator` contract: `Extract` of an empty carrier is `default`, `Inject` of `default` writes no header); `tests/Encina.UnitTests/Tracing/ContextPropagatorRegistrationTests.cs` (a provider built with `ValidateOnBuild` and `ValidateScopes` resolves `IContextPropagator` after `AddEncina`).
 
@@ -185,11 +185,11 @@ The API every transport and store uses to carry the context, in core and with no
 CONTEXT:
 Encina (.NET 10, C# 14, pre-1.0). Issue #132, plan docs/plans/trace-context-propagation-implementation-plan-132.md,
 phase 1. RequestTraceContext (readonly record struct with TraceParent and TraceState) comes from the plan of #186 and
-must be merged first. ADR-054 D3: traceparent and tracestate are the only propagation fields; D4: never baggage.
+must be merged first. ADR-054 settled point 3: traceparent and tracestate are the only propagation fields; D4: never baggage.
 
 TASK:
 1. Create IContextPropagator (generic setter/getter), TraceContextHeaders, ContextPropagator (internal sealed, logging
-   184-185), ContextPropagatorExtensions.InjectCurrent and TraceContextLog under src/Encina/Tracing/.
+   184-185), ContextPropagatorExtensions.InjectCurrent under src/Encina/Tracing/ and TraceContextLog under src/Encina/Diagnostics/.
 2. Register IContextPropagator with TryAddSingleton in AddEncina.
 3. Tests: unit, guard, property (round trip), contract and the DI test; PublicAPI, manifest and changelog through
    mechanical-fixer.
@@ -289,7 +289,7 @@ REFERENCE FILES:
 | W3C Trace Context | `traceparent` and `tracestate` headers; a receiver that finds an invalid `traceparent` starts a new trace | `Extract` behavior; header names |
 | W3C Baggage | `baggage` header | Explicitly not used (ADR-054 D4) |
 | OpenTelemetry messaging semantic conventions | Consumer spans are children for a single message and link to the producer for batches and fan-out | The D2 table |
-| ADR-054 | D1 envelope, D2 relation rule, D3 wire format, D4 no baggage, D5 scope | Scope and behavior |
+| ADR-054 | Settled point 3 wire format, D1 envelope, D2 relation rule, D4 no baggage, D5 scope | Scope and behavior |
 | ADR-062 | Error category contract | No error is created (register row C2) |
 | `AGENTS.md` section 3 | Logs carry codes, never values | Events 184-185 |
 
@@ -332,7 +332,7 @@ Per-file coverage targets (per flag, one sentence each), written to `.github/cov
 | `Tracing/ContextPropagator.cs` | 95 | 75 | 80 | 80 | Every branch (valid, invalid, missing, tracestate only) is reachable with plain carriers; guard reaches the constructor and parameter checks; the contract test executes the real implementation; the round-trip property drives random valid contexts |
 | `Tracing/ContextPropagatorExtensions.cs` | 95 | 70 | 0 | 0 | One expression body, covered with and without an activity; the guard run covers the null arguments; no contract or property applies to an extension |
 | `Tracing/TraceContextConsumer.cs` | 95 | 70 | 0 | 0 | Every kind and the invalid-incoming and no-listener paths are driven with a real listener; guard covers the null and out-of-range arguments |
-| `Tracing/TraceContextLog.cs`, `IContextPropagator.cs` | 0 | 0 | 0 | 0 | Generated log code and an interface with constants have no coverable lines of their own; both are executed through `ContextPropagator.cs` |
+| `Diagnostics/TraceContextLog.cs`, `Tracing/IContextPropagator.cs` | 0 | 0 | 0 | 0 | Generated log code and an interface with constants have no coverable lines of their own; both are executed through `ContextPropagator.cs` |
 
 ---
 
@@ -384,7 +384,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | No shared state |
 | 8 | Transactions | ⏭️ #176 | Writing the trace with the message in the same write is #176 on the #1164 envelope |
 | 9 | Idempotency | ❌ N/A | Trace ids are not part of any idempotency key |
-| 10 | Multi-Tenancy | ❌ N/A | No tenant data is carried; tenant tags on spans follow ADR-054 D4 where spans are created |
+| 10 | Multi-Tenancy | ❌ N/A | No tenant data is carried; the tenant tag on the consumer span (ADR-054 D4) is added by the caller of `StartConsumer` through `TenancyActivityEnricher` (C4) |
 | 11 | Module Isolation | ❌ N/A | Cross-module by design |
 | 12 | Audit Trail | ❌ N/A | Infrastructure metadata, not a security-relevant state |
 
