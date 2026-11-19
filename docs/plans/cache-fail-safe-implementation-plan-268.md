@@ -2,7 +2,7 @@
 
 > **Issue**: [#268](https://github.com/dlrivada/Encina/issues/268)
 > **Type**: Feature
-> **Complexity**: Medium (2 code phases, 2 pull requests of 14 and 13 files)
+> **Complexity**: Medium (2 code phases and a prerequisite PR 0, pull requests of 4, 15 and 14 files)
 > **Estimated Scope**: about 500 lines of production code, about 1,100 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,14 +10,15 @@
 
 ## Summary
 
-Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (f484cdf4f):
+Issue #268 asks that a `[Cache]` request serves a stale entry when the handler fails or is slow: `FailSafeDurationSeconds` (how long a stale entry may be served), `SoftTimeoutMs` (serve stale if the handler is slower), `HardTimeoutMs` (stop waiting for the handler) and `FailSafeThrottleDurationSeconds` (do not call the handler again for a while after a failure), with metrics. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
 | `CachePipelineBehavior` catches the factory exception and serves `entry.Value` | The class is `QueryCachingPipelineBehavior` (`src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`). It does not catch handler exceptions, and a handler failure is normally a `Left` (ROP), not an exception: the issue's `catch (Exception)` sketch covers only half of the failure shapes. |
 | Stale data is served for any failure | Serving stale data for a `Left` of category `Forbidden`, `Unauthenticated` or `NotFound` would hide a definitive answer (Design Choice 1). `EncinaErrors.GetCategory` exists (`src/Encina/Results/EncinaErrors.cs`, line 211; ADR-062). |
-| The behavior can cancel the factory at `HardTimeoutMs` | `RequestHandlerCallback<TResponse>` takes no token (`src/Encina/Abstractions/RequestHandlerDelegate.cs`, line 9) and is bound to the request scope, so the behavior can stop waiting but cannot cancel the handler or keep it running after the response (Design Choice 3). |
-| `CacheEntry<T>` can get `ExpiresAtUtc`, `FailSafeExpiresAtUtc`, `LastFailureAtUtc` | The entry is internal with `Value` and `CachedAtUtc` only (line 353); `ExpiresAtUtc` comes from #266 PR 1; this plan adds the other two. The provider TTL is the physical lifetime, so a stale entry survives only if the store TTL is the fail-safe lifetime. |
+| The behavior can cancel the factory at `HardTimeoutMs` | `RequestHandlerCallback<TResponse>` takes no token (`src/Encina/Abstractions/RequestHandlerDelegate.cs`, line 9) and is bound to the request scope, so through `nextStep()` the behavior can stop waiting but cannot cancel the handler or keep it running after the response; real cancellation needs an owned, awaited re-dispatch (Design Choice 3). |
+| `CacheEntry<T>` can get `ExpiresAtUtc`, `FailSafeExpiresAtUtc`, `LastFailureAtUtc` | The entry is internal with `Value` and `CachedAtUtc` only (line 353); `ExpiresAtUtc` comes from #266 PR 1; this plan adds `FailSafeExpiresAtUtc`; `LastFailureAtUtc` becomes an in-process tracker under the recommended Design Choice 4 (a rewrite of the entry races with invalidation). The provider TTL is the physical lifetime, so a stale entry survives only if the store TTL is the fail-safe lifetime. |
+| Replacing an entry is safe on every provider | `MemoryCacheProvider.SetAsync` adds the key to its tracker and registers a post-eviction callback; when a key is replaced, the old entry's callback removes the key from the tracker, so the new entry stays readable but invisible to `RemoveByPatternAsync` (`MemoryCacheProvider.cs`, lines 79-90). Fail-safe makes replacing a live entry the normal case, so a PR 0 fixes the tracker first (Phase 1). |
 | The issue lists no option class members | Only attribute properties are listed; this plan adds no `CachingOptions` member. |
 
 The plan stores entries with a physical TTL equal to the fail-safe lifetime and a logical expiry (`ExpiresAtUtc`); on a stale hit it runs the miss path and falls back to the stale value for eligible failures, applies the throttle through `LastFailureAtUtc`, and adds the two timeouts. All 8 providers (Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB, and the planned Memcached of #277) are served by the behavior through `SetAsync` with a longer TTL; none changes.
@@ -37,14 +38,14 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Stale data only for infrastructure failures: an exception (other than the caller's cancellation) or a `Left` of category `Internal`, `Unavailable`, `Timeout`, `UpstreamFailure` or `RateLimited`; any other `Left` is returned as is and removes the stale entry (the handler gave a definitive answer)** | A `Forbidden`, `Unauthenticated`, `NotFound` or `Validation` answer is never masked by old data; deleted data is not served again | A handler that reports an outage with another category gets no fail-safe (it must use the right category) |
+| **A) Stale data only for explicitly identified transient failures: a `Left` of category `Unavailable`, `Timeout`, `UpstreamFailure` or `RateLimited`, or a thrown `TimeoutException`, `HttpRequestException`, `IOException`, `SocketException` or `System.Data.Common.DbException`; everything else fails closed: any other `Left` (including `Internal`, which is the category an uncategorized error such as `dsr.restriction_active` or `abac.indeterminate` maps to), any other exception (including `UnauthorizedAccessException`) and any cancellation is returned or rethrown unchanged; a non-transient `Left` also stops the stale entry from being served on a later failure, by the mechanism Design Choice 4 chooses (a mark in the in-process tracker under its option A, a removal of the entry under its option B)** | An access denial, a deletion or a permission change is never masked by old data; an unknown failure never serves stale | A handler that reports an outage as an uncategorized error gets no fail-safe (it must use the right category) |
 | **B) Any `Left` or exception serves stale data (the issue's sketch)** | Simple | A permission change or a deletion is hidden for up to the fail-safe lifetime, which is a security and correctness defect |
 
 ### Chosen Option: **A - infrastructure categories only** (recommended, pending the maintainer)
 
 ### Rationale
 
-- ADR-062 defines the category contract; `Cancelled` is never a trigger (the caller left).
+- ADR-062 defines the category contract; `GetCategory()` returns `Internal` for an uncategorized error, so `Internal` cannot mean "transient" and is excluded. Cancellation is checked first: `PipelineBuilder.ExecuteHandlerAsync` turns a caller cancellation into an uncategorized `encina.handler.cancelled` `Left`, so before looking at any `Left` the behavior tests the caller's token (`cancellationToken.IsCancellationRequested`) and that code, and returns the `Left` unchanged; a test goes through the real pipeline wrapper, and further tests use the real denial factories (`dsr.restriction_active`, `abac.indeterminate`, `Forbidden`) and assert stale is never served.
 - Option B wins when every handler in the application reports all failures uniformly and the maintainer wants no category dependence.
 - Class: Dilemma
 
@@ -77,19 +78,19 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Race `nextStep()` against the timers: at the soft timeout with a stale entry, serve it and hand a background refresh to `IBackgroundCacheRefresher` (#267); at the hard timeout, serve stale if present else return `Left` `cache.hard_timeout` (category `Timeout`); the slow run is abandoned but observed (its result is discarded and its fault logged)** | No re-entry of the pipeline; reuses the #267 worker | The hard timeout stops waiting but does not cancel the handler; the slow run and the background refresh both load a slow backend; the abandoned `nextStep()` keeps running after the request ends and its scope is disposed, which is the very hazard #267 Design Choice 1 uses to reject capturing `nextStep()` (scoped services such as a `DbContext` throw `ObjectDisposedException` inside the abandoned run); the plan observes and logs that fault (468) but cannot prevent it |
-| **B) Re-dispatch the request through `IEncina` in the same scope with a token owned by the behavior** | A real cancellation at the hard timeout | The outer pipeline behaviors run twice; a marker and re-entry rules are needed |
+| **A) Race `nextStep()` against the timers and abandon the slow run; at the soft timeout with a stale entry serve it and hand a background refresh to `IBackgroundCacheRefresher` (#267); at the hard timeout serve stale if present else return `Left` `cache.hard_timeout`** | No re-entry of the pipeline; reuses the #267 worker | The hard timeout stops waiting but does not cancel the handler (the issue requires cancelling the factory); the abandoned `nextStep()` keeps running after the request ends and its scope is disposed, which is the very hazard #267 Design Choice 1 uses to reject capturing `nextStep()`; observing its fault (468) neither cancels database work nor prevents side effects |
+| **B) Run the handler through a re-dispatch of the request via `IEncina` in the same scope with a token owned by the behavior (a linked source cancelled at the hard timeout); the behavior always awaits that run, cancelled or complete, before returning, so the scope stays valid until the handler has finished; the soft timeout cancels and awaits the run, serves the stale entry and hands the refresh to #267's refresher, which re-dispatches in its own new scope** | The hard timeout really cancels the factory; no run outlives its scope; no abandoned run | The pipeline behaviors outside the cache behavior run once and the inner dispatch runs the inner behaviors once more (a marker of #267 makes the cache behavior run its miss path without scheduling); a soft timeout restarts the work in the refresher; `IEncina` is resolved lazily from the request-scope `IServiceProvider` to avoid a constructor cycle |
 | **C) Ship the failure fallback and the throttle now; timeouts later in their own issue** | Smallest first release | Two acceptance criteria of the issue ("Soft and hard timeouts work correctly") are not met |
 
-### Chosen Option: **A - race and background refresh** (recommended, pending the maintainer)
+### Chosen Option: **B - owned, awaited re-dispatch** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The behavior cannot cancel or outlive its scope-bound handler, so true cancellation needs B; A is honest about "stop waiting" and documents it.
+- The behavior cannot cancel `nextStep()` or let it outlive its scope (`RequestHandlerCallback` has no token), so only B meets "cancel factory execution at the hard timeout" with a scope that stays valid; A only stops waiting and leaves an abandoned run on a scope that is being disposed.
+- Soft timeout is only taken when a safe refresh exists: for a `VaryByUser` request (not eligible for #267's refresh) or with no refresher registered, the soft timeout is inert (the behavior waits for the handler up to the hard timeout), because serving stale and discarding a slow success would never refresh the entry; a test repeats slow successes with and without a refresher.
 - The new error is created as `EncinaErrors.Create("cache.hard_timeout", category: ErrorCategory.Timeout, message: ...)` with a constant message: ADR-062 category `Timeout`. No exception message is copied.
-- Option B wins where releasing database resources at the hard timeout matters; option C wins to deliver the failure fallback first, and wins outright where an abandoned handler touching a disposed scope is unacceptable (it is the only option with no abandoned run).
-- A request with `VaryByUser = true` is not eligible for the background refresh of #267 (its Design Choice 2): its soft timeout serves the stale entry and schedules nothing, and its abandoned run is observed as above.
-- Whole-entry access: the stale path needs `ExpiresAtUtc`, `FailSafeExpiresAtUtc` and `LastFailureAtUtc` of the entry read, so it relies on #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this plan does not change that method.
+- Option A wins where pipeline re-entry is unacceptable and a stop-waiting timeout is enough (the maintainer then accepts the abandoned run and records it); option C wins to deliver the failure fallback first, with no timeouts and no abandoned run.
+- Whole-entry access: the stale path needs `ExpiresAtUtc` and `FailSafeExpiresAtUtc` of the entry read, so it relies on #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this plan does not change that method.
 - Class: Dilemma
 
 </details>
@@ -101,14 +102,15 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) In the entry (`LastFailureAtUtc`, rewritten on a failure with the remaining physical TTL)** | Shared by every node through the cache; the issue's own design | One cache write per failure |
-| **B) In-process dictionary of key to last failure time** | No write | Each node retries on its own; lost on restart |
+| **A) In-process tracker (internal `FailSafeTracker`: a bounded dictionary of cache key to last failure time and "answered definitively" marks, each expiring with `TimeProvider` at the entry's `FailSafeExpiresAtUtc`; capacity 10,000 keys, the oldest dropped when full); the cache entry is never rewritten or removed by the fail-safe path** | No read-modify-write: no restoring of an invalidated value, no overwriting of a concurrent refresh, no deleting of a newer entry; nothing to coordinate with `InvalidatesCache` | Each node throttles and suppresses stale on its own; lost on restart; a node that has not seen the definitive answer may serve stale once |
+| **B) In the entry (`LastFailureAtUtc`, rewritten on a failure with the remaining physical TTL; stale entry removed on a definitive answer)** | Shared by every node through the cache; the issue's own design | Unconditional writes and removals race with invalidation and with refreshes (`ICacheProvider` has no compare-and-set), so they can restore an invalidated value or delete a newer entry |
 
-### Chosen Option: **A - in the entry** (recommended, pending the maintainer)
+### Chosen Option: **A - in-process tracker** (recommended, pending the maintainer)
 
 ### Rationale
 
-- During an outage the extra write is small compared with the handler calls it prevents. Option B wins when writes to the cache are expensive or the cache itself is the failing part.
+- `ICacheProvider` offers no version-checked write, so any rewrite of the stale snapshot is racy; the tracker removes the need. Option B wins when cross-node throttling matters more than the race, and the maintainer then also chooses the coordination (for example a lock per key).
+- Only a successful store ever writes the entry (a fresh value replaces the old one), so the Memory provider's replacement-safe key tracking (PR 0) is the one provider prerequisite.
 - Class: Dilemma
 
 </details>
@@ -147,7 +149,7 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the existing order in `QueryCachingPipelineBehavior.Handle` (`ShouldUseCache` at line 103 precedes key generation and every read) and AGENTS.md section 3 (gates fail closed when context is missing). This holds under every option of Design Choices 1 to 5, which change what is served, not whether the checks run.
+- **Settled by:** the existing order in `QueryCachingPipelineBehavior.Handle` (`ShouldUseCache` at line 103 precedes key generation and every read) and AGENTS.md section 3 (gates fail closed when context is missing). This holds under every option of Design Choices 1 to 5, which change what is served, not whether the checks run. Stale serving adds no access path beyond the existing cache hit, which already returns a cached value without running the behaviors inside `nextStep()`; therefore a security or compliance gate (authorization, `ProcessingRestrictionPipelineBehavior`) must be registered OUTSIDE (before) the cache behavior for hits and stale hits alike. `Encina.Caching` declares no pipeline stage today, so this ordering is a documented prerequisite of the docs section of PR 1 and is tested with a gate registered before the cache behavior that denies while a stale entry exists (the denial is returned and the cache is never read); declaring a stage that enforces it is the follow-up issue file `artifacts/issues/cache-gate-before-cache-pipeline-stage.md`.
 
 </details>
 
@@ -160,11 +162,14 @@ The plan stores entries with a physical TTL equal to the fail-safe lifetime and 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 14 files:
+**PR 0 (prerequisite, 4 files, merged before PR 1):** `src/Encina.Caching.Memory/MemoryCacheProvider.cs` (the post-eviction callback removes the key from `_keyTracker` only when the eviction reason is not `Replaced`, or when the evicted entry is the tracked one, in `SetAsync`, `GetOrSetAsync` and `SetWithSlidingExpirationAsync`), `tests/Encina.UnitTests/Caching/Memory/MemoryCacheProviderTests.cs` (overwrite a key, then `RemoveByPatternAsync` removes the new entry; overwrite then expire the old one still tracks the new one), `.github/coverage-manifest/Encina.Caching.Memory.json` (`mechanical-fixer`, existing unit 95 kept) and `changelog.d/268-cache-memory-replace-tracking.fixed.md` (`mechanical-fixer`). No public API changes and no new EventId.
+
+PR 1 holds exactly these 15 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Attributes/CacheAttribute.cs` | modify (`FailSafeDurationSeconds`, `FailSafeThrottleDurationSeconds`) |
+| 1a | `src/Encina.Caching/Patterns/FailSafeTracker.cs` | new (internal sealed, registered as a singleton by `TryAddSingleton`; covered by the DI test of PR 1) |
 | 2 | `src/Encina.Caching/Patterns/CachePatternSettings.cs` | modify (fail-safe fields and validation; owned by #266) |
 | 3 | `src/Encina.Caching/Patterns/FailSafePolicy.cs` | new (internal static) |
 | 4 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (envelope fields, physical TTL, stale path) |
@@ -175,17 +180,17 @@ PR 1 holds exactly these 14 files:
 | 9 | `tests/Encina.UnitTests/Caching/QueryCachingFailSafeTests.cs` | new |
 | 10 | `tests/Encina.UnitTests/Caching/CachePatternSettingsTests.cs` | modify |
 | 11 | `tests/Encina.IntegrationTests/Infrastructure/Caching/FailSafeIntegrationTests.cs` | new |
-| 12 | `docs/features/query-caching.md` | modify (`docs-writer`) |
+| 12 | `docs/features/handler-caching.md` | new or modified (`docs-writer`: the existing `query-caching.md` documents the EF Core `QueryCacheInterceptor`, not the `[Cache]` request behavior; the page name is coordinated with the #84 documentation plan, and the first PR of the family that needs it creates it) |
 | 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 14 | `changelog.d/268-cache-fail-safe.added.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
-1. **Create** `internal static class FailSafePolicy`: `bool IsStale(DateTime nowUtc, DateTime expiresAtUtc)`; `bool CanServeStale(DateTime nowUtc, DateTime? failSafeExpiresAtUtc)`; `bool IsInfrastructureFailure(EncinaError error)` (Design Choice 1: `error.GetCategory()` in the five categories); `bool IsThrottled(DateTime nowUtc, DateTime? lastFailureAtUtc, TimeSpan throttle)`; `TimeSpan PhysicalTtl(TimeSpan failSafe, TimeSpan logicalDuration)`.
+1. **Create** `internal static class FailSafePolicy`: `bool IsStale(DateTime nowUtc, DateTime expiresAtUtc)`; `bool CanServeStale(DateTime nowUtc, DateTime? failSafeExpiresAtUtc)`; `bool IsTransientFailure(EncinaError error)` (Design Choice 1: `error.GetCategory()` in `Unavailable`, `Timeout`, `UpstreamFailure`, `RateLimited`, and never the `encina.handler.cancelled` code) and `bool IsTransientException(Exception exception)` (the listed exception types only); `bool IsThrottled(DateTime nowUtc, DateTime? lastFailureAtUtc, TimeSpan throttle)`; `FailSafeTracker` (file 1a) holds the per-key last failure and "answered definitively" marks of Design Choice 4; `TimeSpan PhysicalTtl(TimeSpan failSafe, TimeSpan logicalDuration)`.
 2. **Modify** `CacheAttribute` (`FailSafeDurationSeconds` 0 disables, `FailSafeThrottleDurationSeconds` 0 disables) and `CachePatternSettings.Resolve` (validation of Design Choice 5).
-3. **Modify** the behavior. Store: when fail-safe is on, `SetAsync` receives `PhysicalTtl`, and the entry holds `ExpiresAtUtc` (logical) and `FailSafeExpiresAtUtc = CachedAtUtc + FailSafeDurationSeconds`. Read: this PR uses the entry that `TryGetFromCacheAsync` and `TryGetForCallerAsync` return since #266 PR 1 (it does not change those methods). Fresh (`now < ExpiresAtUtc`): served as today. Stale and fail-safe on: if throttled, serve it (log 465); else run the miss path (single-flight of #266 when its mode is on, so the stale decision is made once per flight and shared): on `Right`, store and return; on an eligible failure or an exception (not `OperationCanceledException` from the caller's token) and `CanServeStale`, serve the stale value, log 462 with the error code or `ex.ForLogging()`, and rewrite the entry with `LastFailureAtUtc = now` and the remaining physical TTL; on a non-eligible `Left`, remove the stale entry and return the `Left`; when stale data is no longer allowed, log 466 and return the failure unchanged (the exception is rethrown). An entry without `ExpiresAtUtc` (older build) is fresh.
+3. **Modify** the behavior. Store: when fail-safe is on, `SetAsync` receives `PhysicalTtl`, and the entry holds `ExpiresAtUtc` (logical) and `FailSafeExpiresAtUtc = CachedAtUtc + FailSafeDurationSeconds`. Read: this PR uses the entry that `TryGetFromCacheAsync` and `TryGetForCallerAsync` return since #266 PR 1 (it does not change those methods). Fresh (`now < ExpiresAtUtc`): served as today. Stale and fail-safe on: if throttled, serve it (log 465); else run the miss path (single-flight of #266 when its mode is on, so the stale decision is made once per flight and shared): on `Right`, store and return; before looking at any outcome the behavior checks the caller's token and the `encina.handler.cancelled` code and returns the cancellation unchanged; on a transient failure and `CanServeStale`, and only when the key is not marked "answered definitively", serve the stale value, log 462 with the error code or `ex.ForLogging()`, and record the failure time in the `FailSafeTracker` (no cache write); on any other `Left` or exception, mark the key "answered definitively" in the tracker until the entry's `FailSafeExpiresAtUtc` (no cache removal) and return the `Left` unchanged (the exception is rethrown); when stale data is no longer allowed, log 466 and return the failure unchanged. For a `VaryByUser` request the identity check `IsSameCaller` runs again immediately before every delayed stale return (after the handler or timer wait), and a failed check runs no stale serve and no tracker write (a test ends the identity scope during the wait). An entry without `ExpiresAtUtc` (a sliding entry) is fresh. Only a successful store writes the entry.
 4. **EventIds (packed, from #266's block):** 462 stale served on failure, 463 stale served on soft timeout, 464 hard timeout elapsed, 465 throttle active, 466 fail-safe exhausted, 467 abandoned run completed, 468 abandoned run faulted. PR 1 emits 462, 465, 466; PR 2 emits 463, 464, 467, 468. Counter `encina.cache.failsafe` with tag `outcome` (`stale_on_failure`, `stale_on_soft_timeout`, `hard_timeout`, `throttled`, `exhausted`) and the tag `encina.tenant_id` only with multi-tenancy on and a tenant present (ADR-054 D4). Logs carry the error code or exception type and the redacted key, never a message.
-5. **Tests (unit):** fresh hit unchanged; with fail-safe off every existing behavior test passes; stale entry plus `Left` of each of the five categories serves stale, `Forbidden` / `Unauthenticated` / `NotFound` / `Validation` returns the `Left` and removes the entry; an exception serves stale, a caller cancellation propagates; beyond `FailSafeExpiresAtUtc` the failure is returned; the throttle skips the handler for the throttle period and resumes after it (`FakeTimeProvider`); the provider receives the physical TTL; a bypassed request (no tenant under multi-tenancy, anonymous with `VaryByUser`) never reads a stale entry; two tenants never see each other's stale entry; settings validation per Design Choice 5. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`: an entry survives its logical expiry for the fail-safe lifetime and disappears after the physical TTL. **Guard tests:** no new public member has parameters (attribute properties only), and the internal types have no `InternalsVisibleTo` for `Encina.GuardTests`: none added.
+5. **Tests (unit):** fresh hit unchanged; with fail-safe off every existing behavior test passes; stale entry plus `Left` of each of the four transient categories serves stale, `Forbidden` / `Unauthenticated` / `NotFound` / `Validation` / `Internal` and the real denial factories (`dsr.restriction_active`, `abac.indeterminate`) return the `Left` and the key is marked, so a later failure does not serve the old entry; a listed transient exception serves stale and `UnauthorizedAccessException` is rethrown; a caller cancellation, through the real pipeline wrapper that turns it into `encina.handler.cancelled`, propagates; a gate registered before the cache behavior that denies while a stale entry exists never reaches the cache; beyond `FailSafeExpiresAtUtc` the failure is returned; the throttle skips the handler for the throttle period and resumes after it (`FakeTimeProvider`); the provider receives the physical TTL; a bypassed request (no tenant under multi-tenancy, anonymous with `VaryByUser`) never reads a stale entry; two tenants never see each other's stale entry; settings validation per Design Choice 5. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`: an entry survives its logical expiry for the fail-safe lifetime and disappears after the physical TTL. **Guard tests:** no new public member has parameters (attribute properties only), and the internal types have no `InternalsVisibleTo` for `Encina.GuardTests`: none added.
 
 </details>
 
@@ -198,7 +203,7 @@ Encina is a .NET 10 / C# 14 library, pre-1.0. Issue #268 adds fail-safe caching 
 CacheEntry<T>.ExpiresAtUtc, CachePatternSettings, CachePatternLog/Metrics partial classes and the CachingPatterns range 450-499.
 
 TASK:
-Add FailSafeDurationSeconds and FailSafeThrottleDurationSeconds, FailSafePolicy, the entry fields FailSafeExpiresAtUtc and LastFailureAtUtc,
+Add FailSafeDurationSeconds and FailSafeThrottleDurationSeconds, FailSafePolicy, the entry field FailSafeExpiresAtUtc, the in-process FailSafeTracker (no entry rewrite), the Memory tracker fix of PR 0,
 the physical-TTL store, the stale path (failure fallback, throttle), CachePatternLog.FailSafe.cs (462, 465, 466) and the metrics file; write
 the unit and Redis integration tests; ask mechanical-fixer for PublicAPI, manifest and changelog and docs-writer for the docs section.
 
@@ -223,7 +228,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 13 files and depends on #267 PR 2 and PR 3 (the refresher and the optional behavior parameter):
+PR 2 holds exactly these 14 files and depends on #267 PR 2 and PR 3 (the refresher, the refresh marker and the optional behavior parameter); it adds the optional trailing constructor parameter `IServiceProvider? services = null` (used to resolve `IEncina` lazily), so `QueryCachingPipelineBehaviorGuardTests.cs` (file 14) gets a valid-result test for a null `services` (timeouts then follow the `nextStep()` fallback of option A, documented) and `PublicAPI.Unshipped.txt` changes the constructor line:
 
 | # | File | Change |
 |---|------|--------|
@@ -237,15 +242,16 @@ PR 2 holds exactly these 13 files and depends on #267 PR 2 and PR 3 (the refresh
 | 8 | `tests/Encina.UnitTests/Caching/FailSafeErrorsTests.cs` | new |
 | 9 | `tests/Encina.UnitTests/Caching/CachePatternSettingsTests.cs` | modify |
 | 10 | `tests/Encina.UnitTests/Caching/QueryCachingFailSafeTests.cs` | modify (timeouts with a stale entry) |
-| 11 | `docs/features/query-caching.md` | modify (`docs-writer`) |
+| 11 | `docs/features/handler-caching.md` | modify (`docs-writer`; the page PR 1 created or the first family PR created) |
+| 14 | `tests/Encina.GuardTests/Infrastructure/Caching/QueryCachingPipelineBehaviorGuardTests.cs` | modify (valid-result test for a null `services`) |
 | 12 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 13 | `changelog.d/268-cache-fail-safe-timeouts.added.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
 1. **Create** `FailSafeErrors.HardTimeout()` returning `EncinaErrors.Create(code: "cache.hard_timeout", category: ErrorCategory.Timeout, message: "The cache hard timeout elapsed before the handler completed.")` (named `category:`, constant message, no exception copied; ADR-062 category `Timeout`).
-2. **Behavior** (Design Choice 3 option A): on the stale path with timeouts configured, start `nextStep()` and race it with `Task.Delay(soft, _timeProvider, token)` and the hard timer. Soft elapsed with a stale entry: serve it (log 463), call `_refresher.TrySchedule(...)` with the #267 re-dispatch delegate so the cache is refreshed in a live scope, and observe the abandoned run (`ContinueWith` that logs 467 when it completes and 468 with `ex.ForLogging()` when it faults; its result is discarded). Hard elapsed: serve stale if allowed, else return `FailSafeErrors.HardTimeout()` and log 464. Without a stale entry the soft timeout does nothing (there is nothing to serve) and only the hard timeout applies. With a null refresher the soft timeout serves stale and schedules nothing.
-3. **Tests (unit, `FakeTimeProvider`, `TaskCompletionSource` gates):** soft timeout serves stale and schedules one refresh; hard timeout with and without a stale entry (the `Left` code and category `Timeout`); a handler finishing before the soft timeout is returned normally; the abandoned run's fault is logged and never unobserved; the constant error message equals the expected text and contains no request data; validation errors of Design Choice 5. **Guard tests:** internal types only: none.
+2. **Behavior** (Design Choice 3, recommended option B): when timeouts are configured, the behavior runs the handler through `IEncina.Send(request, context.WithMetadata(CacheRefreshMarker.Key, true), linked.Token)` in the same scope (`IEncina` resolved lazily from the request-scope `IServiceProvider`; the marker is #267's), with `linked` a `CancellationTokenSource` cancelled at the hard timeout and awaits the run in every case, so the scope stays valid until the handler has finished or been cancelled. Hard elapsed: cancel, await, then serve stale if allowed (log 464), else return `FailSafeErrors.HardTimeout()`. Soft elapsed with a stale entry and a safe refresh available (not `VaryByUser`, a refresher registered): cancel and await the run, serve the stale entry (log 463) after the `IsSameCaller` check, and call `_refresher.TrySchedule(...)` with #267's re-dispatch delegate so the refresh runs in its own new scope; when no safe refresh exists the soft timeout is inert. Logs 467 (inner run completed after a soft cancel was requested) and 468 (inner run faulted, `ex.ForLogging()`) apply only if the maintainer answers option A, where the abandoned run is observed instead. Without a stale entry the soft timeout does nothing and only the hard timeout applies.
+3. **Tests (unit, `FakeTimeProvider`, `TaskCompletionSource` gates):** soft timeout serves stale and schedules one refresh; repeated slow successes with a refresher refresh the entry, and with a `VaryByUser` request or a null refresher the soft timeout is inert and the success is stored; hard timeout cancels the handler (its token is cancelled and the run is awaited before the response) with and without a stale entry (the `Left` code and category `Timeout`); a handler finishing before the soft timeout is returned normally; a `VaryByUser` identity scope that ends during the wait gets no stale serve; a delayed denial from a gate registered before the cache behavior is returned; the constant error message equals the expected text and contains no request data; validation errors of Design Choice 5. **Guard tests:** internal types only: none.
 
 </details>
 
@@ -285,7 +291,9 @@ REFERENCE FILES:
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Attributes/CacheAttribute.cs` | keeps 100 | 0 | 0 | 0 | #266 sets the first target (the manifest has none today); the four new properties are initializers executed by the behavior and settings tests, no validated parameter |
 | `Patterns/CachePatternSettings.cs` | keeps 100 | 0 | 0 | 0 | Owned by #266; the fail-safe and timeout validation branches are covered by the settings tests of PR 1 and PR 2 |
-| `Patterns/FailSafePolicy.cs` | 100 | 0 | 0 | 0 | Five pure functions fully unit tested; internal without `InternalsVisibleTo` for the guard project |
+| `Patterns/FailSafePolicy.cs` | 100 | 0 | 0 | 0 | Pure functions fully unit tested; internal without `InternalsVisibleTo` for the guard project |
+| `Patterns/FailSafeTracker.cs` | 95 | 0 | 0 | 0 | Expiry, capacity eviction and the definitive-answer marks are unit tested with `FakeTimeProvider`; internal |
+| `Encina.Caching.Memory/MemoryCacheProvider.cs` | keeps 95 | keeps 20 | 0 | 0 | PR 0: the replacement-safe tracking is covered by the new overwrite tests; existing targets are not lowered |
 | `Patterns/FailSafeErrors.cs` | 100 | 0 | 0 | 0 | One factory asserted in a unit test; internal |
 | `Diagnostics/CachePatternLog.FailSafe.cs`, `CachePatternMetrics.FailSafe.cs` | 90 | 0 | 0 | 0 | Generated log bodies and counter calls run in the behavior tests |
 | `Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 40 | Never lowered; the stale and timeout paths are unit tested; the integration flag runs the Redis retention test |
@@ -351,9 +359,9 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 4 | 4 | New: policy, errors, two partial files; modified: attribute, settings, behavior, `PublicAPI.Unshipped.txt` |
 | Tests | 5 | 2 | New: policy, fail-safe, timeout and errors tests plus the integration test; modified: the settings tests (both PRs) and the fail-safe tests (PR 2) |
-| Documentation | 0 | 1 | `docs/features/query-caching.md` |
+| Documentation | 1 | 0 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 2 | 1 | Two changelog fragments; the manifest |
-| **Total** | **10** | **9** | 2 pull requests: 14 and 13 files, each at most 15 files and 1500 lines |
+| **Total** | **10** | **9** | pull requests: PR 0 4 files, PR 1 15 and PR 2 14 files, each at most 15 files and 1500 lines |
 
 ---
 
