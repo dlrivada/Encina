@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #269 asks for a cache warming system: `ICacheWarmer` implementations and a `[CacheWarmer]` attribute on query requests, priorities, sequential and parallel strategies, a timeout per slow warmer, a hosted service that runs on startup, progress logging, metrics and options. Re-checked against `origin/main` (f484cdf4f):
+Issue #269 asks for a cache warming system: `ICacheWarmer` implementations and a `[CacheWarmer]` attribute on query requests, priorities, sequential and parallel strategies, a timeout per slow warmer, a hosted service that runs on startup, progress logging, metrics and options. Re-checked against `origin/main` (89303f1e8):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -60,7 +60,7 @@ The plan adds `ICacheWarmer` (priority, name, `ValueTask<Either<EncinaError, Cac
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ValueTask<Either<EncinaError, CacheWarmerResult>>` with `CacheWarmerResult(int Warmed, int Skipped)`** | ROP (AGENTS.md section 3); a failure carries a code; the report can count entries | Differs from the issue's `Task WarmAsync` |
+| **A) `ValueTask<Either<EncinaError, CacheWarmerResult>>` with `CacheWarmerResult(int Dispatched, int Skipped)` (what a result counts is Design Choice 8)** | ROP (AGENTS.md section 3); a failure carries a code; the report can count dispatches | Differs from the issue's `Task WarmAsync` |
 | **B) `Task WarmAsync(CancellationToken)` as in the issue; an exception means failure** | Matches the issue | No code, no counts; failures are exceptions the engine must catch by type |
 
 ### Chosen Option: **A - Either with a result** (recommended, pending the maintainer)
@@ -171,6 +171,44 @@ The plan adds `ICacheWarmer` (priority, name, `ValueTask<Either<EncinaError, Cac
 
 </details>
 
+<details>
+<summary><strong>8. What a warming run reports (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Report successful dispatches: `CacheWarmerResult(int Dispatched, int Skipped)`; a `Right` from `IEncina.Send` means "the handler ran and returned", not "an entry was stored"; cache write failures stay visible in the caching behavior's own logs (EventId 3511, `ThrowOnCacheErrors` false swallows them by design)** | Honest and cheap; no extra reads | The report cannot prove the cache was filled |
+| **B) Verify each fill with `ICacheProvider.ExistsAsync` on the key `ICacheKeyGenerator` builds for the request and the warming context** | The report counts real entries | One extra read per request, a second key computation that must equal the behavior's, and it fails for requests whose key depends on a context the warmer does not have |
+
+### Chosen Option: **A - report dispatches** (recommended, pending the maintainer)
+
+### Rationale
+
+- A test with a cache provider that rejects every write asserts the report still says dispatched and the behavior logs the cache error; the XML docs and the guide say "dispatched", never "warmed entries". Option B wins when the report is used as a readiness signal (the health-check follow-up issue).
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Context and identity warming runs under (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Both entry points (the hosted service and a manual `ICacheWarmingService.RunAsync` call) dispatch with an explicit anonymous, tenant-less `IRequestContext` and with the ambient request context suppressed for the duration of each warmer (`ExecutionContext.SuppressFlow` around the start of the warmer's task, so the static `AsyncLocal` of `RequestContextAccessor` of an HTTP request does not flow in); a request that needs a user or tenant returns its own `Left` (for example unauthenticated), which counts as failed and writes nothing (fail closed)** | One behavior for both entry points; no tenant or user data ever warmed by accident; matching keys (the keys of anonymous, tenant-less requests) | Requests that need an identity cannot be warmed this way |
+| **B) A manual run inherits the caller's ambient context (an administrator's tenant and user) and the startup run uses the anonymous context** | A manual run can warm one tenant | The two entry points fill different keys; the administrator's identity reaches handlers and may fill a user's key; behavior depends on where the call was made |
+
+### Chosen Option: **A - explicit anonymous context, ambient suppressed** (recommended, pending the maintainer)
+
+### Rationale
+
+- A test runs a manual `RunAsync` inside an active user and tenant (ambient context set) and asserts the dispatched context is anonymous and tenant-less and the key is the tenant-less key. Option B wins when manual per-tenant warming is wanted before the tenant-scoped warming issue is delivered.
+- Class: Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -200,7 +238,7 @@ PR 1 holds exactly these 13 files:
 
 Tasks:
 
-1. **Create** `ICacheWarmer { int Priority { get; } string Name => GetType().Name; ValueTask<Either<EncinaError, CacheWarmerResult>> WarmAsync(CancellationToken cancellationToken); }`, `readonly record struct CacheWarmerResult(int Warmed, int Skipped)`, `ICacheWarmingService { Task<CacheWarmingReport> RunAsync(CancellationToken cancellationToken); }` and `sealed record CacheWarmingReport(int Succeeded, int Failed, int TimedOut, int Skipped, TimeSpan Duration)`.
+1. **Create** `ICacheWarmer { int Priority { get; } string Name => GetType().Name; ValueTask<Either<EncinaError, CacheWarmerResult>> WarmAsync(CancellationToken cancellationToken); }`, `readonly record struct CacheWarmerResult(int Dispatched, int Skipped)`, `ICacheWarmingService { Task<CacheWarmingReport> RunAsync(CancellationToken cancellationToken); }` and `sealed record CacheWarmingReport(int Succeeded, int Failed, int TimedOut, int Skipped, TimeSpan Duration)`.
 2. **Create** `[CacheWarmer]` (`Priority` int, `WarmingInstances` int default 10, positive; `AttributeUsage` class, not inherited) and the enum.
 3. **Modify** `CachingOptions`: `EnableCacheWarming` (false), `WarmOnStartup` (true), `WarmingStrategy` (`Sequential`), `WarmingConcurrency` (4, setter rejects below 1), `WarmingTimeout` (5 minutes, setter rejects zero or negative); copy all five in `AddEncinaCaching` (the copy list at lines 53-72 is hand-written).
 4. **Tests:** the defaults; the DI copy; **guard tests:** `WarmingConcurrency = 0` and `-1`, `WarmingTimeout = TimeSpan.Zero` and negative throw `ArgumentOutOfRangeException`, valid values are stored; the attribute's `WarmingInstances` below 1 throws.
@@ -251,7 +289,7 @@ PR 2 holds exactly these 6 files:
 
 Tasks:
 
-1. **Create** `CacheWarmingService(IEnumerable<ICacheWarmer> warmers, IOptions<CachingOptions> options, ILogger<CacheWarmingService> logger, TimeProvider? timeProvider = null)`. `RunAsync`: logs 474 and returns an empty report when warming is disabled or there are no warmers; groups warmers by `Priority` ascending; per group, `Sequential` runs them one by one and `Parallel` runs them with `Parallel.ForEachAsync` bounded by `WarmingConcurrency`; each warmer runs under a linked token: `using var timeout = new CancellationTokenSource(WarmingTimeout, timeProvider)` linked to the caller's token with `CancellationTokenSource.CreateLinkedTokenSource` (`CancelAfter` has no `TimeProvider` overload, the constructor does); outcomes: `Right` (logs 470 with counts, which is the per-warmer progress line), `Left` (471, error code only), exception other than cancellation (471 with `ex.ForLogging()`), the warmer's own timeout (472), the caller's cancellation (475 once, the run ends). Logs 469 and 473 bracket the run with the warmer count, strategy and duration. Never an `EncinaError.Message` in a log.
+1. **Create** `CacheWarmingService(IServiceScopeFactory scopeFactory, IOptions<CachingOptions> options, ILogger<CacheWarmingService> logger, TimeProvider? timeProvider = null)`. Warmers are registered scoped (PR 3), so the singleton engine never holds one: `RunAsync` opens a short planning scope (`CreateAsyncScope`) to resolve `IEnumerable<ICacheWarmer>` and read each `Priority` and `Name` (both must depend only on construction), disposes it, and then runs each warmer inside ITS OWN async scope created for that warmer, re-resolving that implementation type there, so a warmer can take a scoped repository or `DbContext`; the scope stays alive until the warmer has completed or its cancellation has completed, and is disposed afterwards (a test with a scoped dependency under `ValidateScopes` and a disposal assertion). `RunAsync` logs 474 and returns an empty report when warming is disabled or there are no warmers; groups warmers by `Priority` ascending; per group, `Sequential` runs them one by one and `Parallel` runs them with `Parallel.ForEachAsync` bounded by `WarmingConcurrency`; each warmer runs under a linked token: `using var timeout = new CancellationTokenSource(WarmingTimeout, timeProvider)` linked to the caller's token with `CancellationTokenSource.CreateLinkedTokenSource` (`CancelAfter` has no `TimeProvider` overload, the constructor does); before classifying a returned `Either` the engine checks the caller's token first (cancellation: 475 once, the run ends) and then the warmer's timeout token (472), because `RequestDispatcher` turns cooperative cancellation into a `Left` instead of throwing, and a `Left` returned after either token fired is never counted as a failure; only then: `Right` (logs 470 with counts, the per-warmer progress line), `Left` (471, error code only), exception other than cancellation (471 with `ex.ForLogging()`). Context policy (Design Choice 9): the engine suppresses the ambient request context while starting each warmer; the contexts the request warmer dispatches are built in Phase 3. Logs 469 and 473 bracket the run with the warmer count, strategy and duration. Never an `EncinaError.Message` in a log.
 2. **Metrics:** `Counter<long> encina.cache.warming` (tag `outcome`: `succeeded`, `failed`, `timed_out`, `skipped`; no warmer name, key or tenant is a tag) on the `Encina.Caching` meter of #266; no tenant tag, because the engine runs without a request context (the request warmer of Phase 3 counts skips by reason only). Histogram `encina.cache.warming.duration` in seconds.
 3. **Tests (unit, `FakeTimeProvider`, gates):** priority order (a lower number starts first and a group waits for the previous one); `Parallel` never exceeds `WarmingConcurrency` (gate counter); `Sequential` runs one at a time; a `Left`, an exception and a timeout are counted without stopping the others; the caller's cancellation ends the run and logs 475; the per-warmer timeout fires with `FakeTimeProvider.Advance` and logs 472; disabled and empty cases; the report counts equal the outcomes. **Guard tests:** the class is internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests`; the null checks of the constructor are asserted in the unit tests and the manifest reason says so.
 
@@ -294,7 +332,7 @@ PR 3 holds exactly these 14 files:
 | 2 | `src/Encina.Caching/Warming/RequestCacheWarmer.cs` | new (internal sealed generic `ICacheWarmer`) |
 | 2a | `src/Encina.Caching/Diagnostics/CachePatternLog.Warming.cs` | modify (add 476 and 477) |
 | 3 | `src/Encina.Caching/Abstractions/IWarmingRequestSource.cs` | new |
-| 4 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (`AddEncinaCacheWarmer<TWarmer>`, `AddEncinaRequestCacheWarmer<TRequest, TSource>`, engine and hosted service registration) |
+| 4 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (`AddEncinaCacheWarmer<TWarmer>`, `AddEncinaRequestCacheWarmer<TRequest, TResponse, TSource>`, scoped warmers, engine and hosted service registration) |
 | 5 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 6 | `tests/Encina.UnitTests/Caching/CacheWarmingHostedServiceTests.cs` | new |
 | 7 | `tests/Encina.UnitTests/Caching/RequestCacheWarmerTests.cs` | new |
@@ -308,9 +346,9 @@ PR 3 holds exactly these 14 files:
 Tasks:
 
 1. **Hosted service** (Design Choice 5 option A): `ExecuteAsync` waits for `ApplicationStarted` (through `IHostApplicationLifetime`), then calls `ICacheWarmingService.RunAsync(stoppingToken)` once when `EnableCacheWarming` and `WarmOnStartup`; any exception is caught and logged with EventId 477 and `ex.ForLogging()` (a background loop never lets an exception escape); `OperationCanceledException` of the stopping token ends it. PR 3 therefore also modifies `CachePatternLog.Warming.cs` to add 476 and 477 (PR 2 declares 469-475).
-2. **`RequestCacheWarmer<TRequest>`:** `Priority` from the `[CacheWarmer]` attribute; `WarmAsync` enumerates `IWarmingRequestSource<TRequest>` up to `WarmingInstances`, and for each request creates a scope with `IServiceScopeFactory` and calls `IEncina.Send(request, ct)`. A request that would not be cached is skipped before dispatch (log 476, counted skipped, no handler run): when `EnableQueryCaching` is false, when `VaryByUser` is true (there is no user at startup, so the behavior would bypass the cache), and when the request varies by tenant (the `[Cache]` default) while `MultiTenancyMarker` is registered (Design Choice 4); a `Left` counts as failed for that request and is returned as the warmer's `Left` after the loop (the first error code); entries warmed are the `Right` results. A `[CacheWarmer]` request without `[Cache]` is rejected at registration with `InvalidOperationException` (nothing would be cached).
-3. **Registration:** `AddEncinaCacheWarmer<TWarmer>()` adds `ICacheWarmer` (singleton, `TryAddEnumerable`); `AddEncinaRequestCacheWarmer<TRequest, TSource>()` registers the source and the generic warmer; `AddEncinaCaching` registers `ICacheWarmingService` (singleton) and the hosted service only when `EnableCacheWarming` is true. The DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`, resolves the engine and the hosted service, and proves a registered warmer is found and that with warming disabled no hosted service exists.
-4. **Tests:** the hosted service runs once after start, never throws out of `ExecuteAsync`, stops on cancellation; the request warmer caps at `WarmingInstances`, dispatches through a fake `IEncina`, skips under multi-tenancy for a tenant-varying request and warms a `VaryByTenant = false` request, rejects a request without `[Cache]`. **Guard tests:** both extension methods throw `ArgumentNullException` for a null `IServiceCollection`; `AddEncinaRequestCacheWarmer` for a type without the attribute throws. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`, a real `IEncina` and a counting handler: after `RunAsync` the first real request is served from the cache (the handler ran once, during warming). The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares `RedisCacheProvider`; Memory is covered by unit tests with `MemoryCacheProvider`; Hybrid by a unit test with a `HybridCacheProvider` built through DI; Memcached follows #277.
+2. **`RequestCacheWarmer<TRequest, TResponse>`** (`where TRequest : IQuery<TResponse>`, so `IEncina.Send<TResponse>` compiles and a cache-attributed command cannot be warmed automatically; the registration methods and the source carry `TResponse`: `IWarmingRequestSource<TRequest>` stays keyed by the request): `Priority` from the `[CacheWarmer]` attribute; `WarmAsync` enumerates `IWarmingRequestSource<TRequest>` (resolved from the warmer's own scope) up to `WarmingInstances`, stops enumerating and dispatching as soon as its token is cancelled, and calls `IEncina.Send(request, anonymousContext, ct)` with the explicit anonymous, tenant-less context of Design Choice 9; a `Left` that comes back after its token was cancelled is a cancellation, not a failure; a `Right` counts as dispatched (Design Choice 8). A request that would not be cached is skipped before dispatch (log 476, counted skipped, no handler run): when `EnableQueryCaching` is false, when `VaryByUser` is true (there is no user at startup, so the behavior would bypass the cache), and when the request varies by tenant (the `[Cache]` default) while `MultiTenancyMarker` is registered (Design Choice 4); a `Left` counts as failed for that request and is returned as the warmer's `Left` after the loop (the first error code); requests dispatched are the `Right` results. A `[CacheWarmer]` request without `[Cache]` is rejected at registration with `InvalidOperationException` (nothing would be cached).
+3. **Registration:** `AddEncinaCacheWarmer<TWarmer>()` adds `ICacheWarmer` as SCOPED (`TryAddEnumerable`), so a warmer may take scoped dependencies; `AddEncinaRequestCacheWarmer<TRequest, TResponse, TSource>() where TRequest : IQuery<TResponse>` registers the source (scoped) and the generic warmer (scoped); `AddEncinaCaching` registers `ICacheWarmingService` (singleton) and the hosted service only when `EnableCacheWarming` is true. The DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`, resolves the engine and the hosted service, and proves a registered warmer is found and that with warming disabled no hosted service exists.
+4. **Tests:** the hosted service runs once after start, never throws out of `ExecuteAsync`, stops on cancellation; the request warmer caps at `WarmingInstances`, dispatches a parameterized query through the REAL dispatcher (and a command marked `[Cache]` cannot be registered), stops at cancellation including a dispatch that returns a cancellation `Left`, a cache provider that rejects every write still yields a dispatched count (Design Choice 8), a manual `RunAsync` inside an active user and tenant dispatches the anonymous tenant-less context (Design Choice 9), a warmer with a scoped dependency resolves under `ValidateScopes` and its scope is disposed after completion, skips under multi-tenancy for a tenant-varying request and warms a `VaryByTenant = false` request, rejects a request without `[Cache]`. **Guard tests:** both extension methods throw `ArgumentNullException` for a null `IServiceCollection`; `AddEncinaRequestCacheWarmer` for a type without the attribute throws. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`, a real `IEncina` and a counting handler: after `RunAsync` the first real request is served from the cache (the handler ran once, during warming). The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares `RedisCacheProvider`; Memory is covered by unit tests with `MemoryCacheProvider`; Hybrid by a unit test with a `HybridCacheProvider` built through DI; Memcached follows #277.
 5. **Docs:** `docs-writer` adds a "Cache warming" section to `docs/features/query-caching.md`: the model, the strategies, the tenant rule and the readiness limit, citing tests by name.
 
 </details>
@@ -323,7 +361,7 @@ CONTEXT:
 Phases 1 and 2 are merged: abstractions, options, CacheWarmingService.
 
 TASK:
-Add CacheWarmingHostedService, RequestCacheWarmer<TRequest>, IWarmingRequestSource<TRequest>, the registration methods and the tests of the
+Add CacheWarmingHostedService, RequestCacheWarmer<TRequest, TResponse> (where TRequest : IQuery<TResponse>), IWarmingRequestSource<TRequest>, the registration methods and the tests of the
 plan (unit, guard, Redis integration); ask mechanical-fixer for PublicAPI, manifest and changelog and docs-writer for the docs section.
 
 KEY RULES:
@@ -445,7 +483,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Warm through IEncina.Send in a new scope; skip tenant-varying requests under multi-tenancy; disabled by default.
 - One warmer's failure never stops the others; no exception escapes the hosted service.
-- Follow the maintainer's answers to Design Choices 1 to 5, given in your brief.
+- Follow the maintainer's answers to Design Choices 1 to 5, 8 and 9, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/ServiceCollectionExtensions.cs
@@ -484,7 +522,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | #266 PR 3 (`CachePatternLog`, range 450-499) and PR 4 (`CachePatternMetrics`, created there) | Pending | Both needed by PR 2, which uses the log class and the meter |
 | `IEncina.Send`, `IServiceScopeFactory`, `IHostApplicationLifetime` | ✅ Available | On `origin/main` |
-| Maintainer answers to Design Choices 1 to 5 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 5, 8 and 9 | Pending | Asked when work starts |
 
 PR 1 has no dependency on #266.
 
@@ -492,5 +530,5 @@ PR 1 has no dependency on #266.
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 5) when work starts, records the answers under `## Maintainer Decisions`, then briefs three workers in PR order.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 5, 8 and 9) when work starts, records the answers under `## Maintainer Decisions`, then briefs three workers in PR order.
 2. Open the three follow-up issues of the deferred items (files under `artifacts/issues/` of the planning worktree).
