@@ -2,7 +2,7 @@
 
 > **Issue**: [#271](https://github.com/dlrivada/Encina/issues/271)
 > **Type**: Feature
-> **Complexity**: High (7 pull requests of 11, 7, 6, 15, 15, 15 and 8 files)
+> **Complexity**: High (7 pull requests of 11, 7, 12, 12, 15, 15 and 8 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (8727c5cc3):
+Issue #271 asks for tags on cache entries: `[Cache(Tags = [...])]`, dynamic `[CacheTag("product:{Response.Id}")]`, `[InvalidatesCache(Tags = [...])]`, programmatic `SetWithTagsAsync`, `RemoveByTagAsync`, `RemoveByTagsAsync`, tag hierarchies with pattern removal (`RemoveByTagPatternAsync`), Redis tag sets and a memory implementation. Re-checked against `origin/main` (098caa920):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -343,12 +343,12 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 3: The Hybrid provider (pull request 3)
+### Phase 3: The Hybrid provider and the fake (pull request 3)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 6 files:
+PR 3 holds exactly these 12 files (the fake gets its four tag methods here as public methods, providers first, so PR 4 stays small; `FakeCacheProvider` is public, so its new methods have unit and guard tests and manifest targets in this PR):
 
 | # | File | Change |
 |---|------|--------|
@@ -358,6 +358,12 @@ PR 3 holds exactly these 6 files:
 | 4 | `tests/Encina.GuardTests/Infrastructure/Caching/HybridCacheProviderGuardTests.cs` | modify |
 | 5 | `.github/coverage-manifest/Encina.Caching.Hybrid.json` | modify (`mechanical-fixer`) |
 | 6 | `changelog.d/271-cache-tags-hybrid.added.md` | new (`mechanical-fixer`) |
+| 7 | `src/Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | modify (in-memory tags: four public methods with the generation rule of the Memory provider) |
+| 8 | `src/Encina.Testing.Fakes/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 9 | `tests/Encina.UnitTests/Testing/Fakes/FakeCacheProviderTagTests.cs` | new (the fake's tag semantics; the folder is the one of the existing Fakes unit tests, located with `Get-ChildItem tests -Recurse -Filter *Fake*`) |
+| 10 | `tests/Encina.GuardTests/Testing/Fakes/FakeCacheProviderTagGuardTests.cs` | new (null key, null tags, invalid tag, pre-cancelled token on the four new public methods) |
+| 11 | `.github/coverage-manifest/Encina.Testing.Fakes.json` | modify (`mechanical-fixer`: the measured values of `FakeCacheProvider.cs`, see Phase 8) |
+| 12 | `changelog.d/271-cache-tags-fake.added.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
@@ -393,31 +399,27 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 4 holds exactly these 15 files:
+PR 4 holds exactly these 12 files (the fake already has its methods since PR 3):
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Abstractions/ICacheProvider.cs` | modify (four members) |
 | 2 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 3 | `src/Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs` | modify (four decorated methods with spans) |
-| 4 | `src/Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | modify (in-memory tags) |
-| 5 | `src/Encina.Testing.Fakes/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 6 | `tests/Encina.ContractTests/Cdc/Caching/QueryCacheInvalidationCdcHandlerContractTests.cs` | modify (`NoOpCacheProvider`) |
 | 7 | `tests/Encina.GuardTests/Infrastructure/Caching/QueryCachingPipelineBehaviorBoundaryGuardTests.cs` | modify (`FakeCache`) |
 | 8 | `tests/Encina.IntegrationTests/Compliance/DataSubjectRights/DSRTenantScopingIntegrationTests.cs` | modify (`SharedCache`) |
 | 9 | `tests/Encina.UnitTests/Caching/CacheLogRedactionTests.cs` | modify (`FailingCacheProvider`) |
 | 10 | `tests/Encina.UnitTests/Caching/QueryCachingVaryByUserTests.cs` | modify (`RecordingCacheProvider`) |
 | 11 | `tests/Encina.UnitTests/OpenTelemetry/QueryCache/InstrumentedCacheProviderTests.cs` | modify |
-| 12 | `tests/Encina.UnitTests/Testing/Fakes/FakeCacheProviderTagTests.cs` | new (the fake's tag semantics; the folder is the one of the existing Fakes unit tests, located with `Get-ChildItem tests -Recurse -Filter *Fake*`) |
-| 13 | `tests/Encina.GuardTests/Testing/Fakes/FakeCacheProviderTagGuardTests.cs` | new (null key, null tags, invalid tag, pre-cancelled token on the four new public methods of the public fake) |
-| 14 | `.github/coverage-manifest/Encina.Testing.Fakes.json` | modify (`mechanical-fixer`: unit 95 and guard 60 for the new members of `FakeCacheProvider.cs`, existing targets kept) |
+| 12 | `tests/Encina.GuardTests/Infrastructure/OpenTelemetry/InstrumentedCacheProviderMethodGuardTests.cs` | modify (null-argument and pre-cancelled-token tests of the four decorated methods: that file exercises every public method of the decorator, which is why its guard target is 77, so the new methods must be added to keep it) |
 | 15 | `changelog.d/271-cache-tags-interface.changed.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
 1. **Modify** `ICacheProvider` with the four members and their XML docs (the contract: tag names are validated by the provider, qualification is the caller's job through `CacheTag` and never the provider's, an unknown tag is a no-op, never an exception). `MemoryCacheProvider`, `RedisCacheProvider` and `HybridCacheProvider` already have them, so they implement the interface with no further change; the `PublicAPI.Unshipped.txt` lines of PR 1 to PR 3 already cover them.
-2. **Modify** `InstrumentedCacheProvider` (spans per method with the existing `Start...`/`Complete`/`Failed` helpers, no tag names or tenant in attributes), `FakeCacheProvider` (a dictionary-based implementation sharing semantics with the Memory provider) and the five test doubles (a minimal implementation each: the recording and failing doubles record or throw like their existing methods).
-3. **Tests:** the decorator forwards each call and records a failed span on an exception (file 11); the fake's behavior is asserted against the Memory provider by the contract test of PR 6, which instantiates `FakeCacheProvider`. The decorator forwards each call and lets the inner provider validate the arguments, so it adds no new argument check; `InstrumentedCacheProvider.cs` keeps its existing targets and PR 4 edits no OpenTelemetry manifest. **Guard tests:** the public `FakeCacheProvider` validates its new method arguments, so files 12 and 13 test it (unit and guard); both files are in this PR so its targets are reachable here.
+2. **Modify** `InstrumentedCacheProvider` (spans per method with the existing `Start...`/`Complete`/`Failed` helpers, no tag names or tenant in attributes), and the five test doubles (a minimal implementation each: the recording and failing doubles record or throw like their existing methods).
+3. **Tests:** the decorator forwards each call and records a failed span on an exception (file 11); the fake's behavior is asserted against the Memory provider by the contract test of PR 6, which instantiates `FakeCacheProvider` (its unit and guard tests are in PR 3). **Guard tests:** the guard file of the decorator exercises every public method (guard target 77), so file 12 adds the four new methods to it (null and pre-cancelled-token cases against the decorated inner provider); with that the measured guard value of `InstrumentedCacheProvider.cs` does not fall below its current target, and PR 4 edits no OpenTelemetry manifest.
 4. **Memcached (#277):** Memcached has no tag primitive, so its technique is chosen by the later-merging PR with the maintainer (a per-tag version counter is the candidate, which is Design Choice 4 option B, an option this plan does not recommend for Redis; no technique is decided here); if a per-tag counter is chosen, because hierarchy removal is an exact removal of a registered ancestor tag (Design Choice 10 option A), the counter technique covers `RemoveByTagPatternAsync` too and needs no key or tag enumeration. Whichever of this PR 4 and #277 merges second implements the four members for Memcached with a real Memcached integration test of tag, hierarchy-prefix and all-tenants removal: the interface makes the build fail otherwise. The orchestrator comments on #277 when this PR merges.
 
 </details>
@@ -523,7 +525,7 @@ PR 6 holds exactly these 15 files (file 3 is the log declaration of ids 480-484,
 | 5 | `tests/Encina.UnitTests/Caching/CacheInvalidationTagTests.cs` | new |
 | 6 | `tests/Encina.ContractTests/Caching/CacheProviderTagContractTests.cs` | new |
 | 7 | `tests/Encina.IntegrationTests/Infrastructure/Caching/CacheTagInvalidationIntegrationTests.cs` | new |
-| 8 | `docs/features/handler-caching.md` | new or modified (`docs-writer`; `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one, coordinated with the #84 documentation plan; the first family PR that needs it creates it) |
+| 8 | `docs/features/handler-caching.md` | new or modified (`docs-writer`; `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one; this family owns it (the first family PR that needs it creates it) and the #84 documentation plan's `docs/features/caching/overview.md`, which covers handler-level caching, links to it) |
 | 9 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 10 | `changelog.d/271-cache-tag-invalidation.added.md` | new (`mechanical-fixer`) |
 | 11 | `tests/Encina.UnitTests/Caching/InvalidatesCacheAttributeTests.cs` | modify |
@@ -620,24 +622,24 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **No new error code**: nothing returns a `Left` created here (invalid input on the public provider methods is `ArgumentException`; attribute errors are `InvalidOperationException`), so there is no ADR-062 category to name. **EventIds:** behavior 478-484 (`CachingPatterns`), providers 3565-3567 (Memory), 3616-3618 (Redis) and 3657-3659 (Hybrid), in their own ranges, already registered; 3556-3558 and 3606-3608 belong to the lock providers of the same assemblies and are not used.
+1. **No new error code**: nothing returns a `Left` created here (invalid input on the public provider methods is `ArgumentException`; attribute errors are `InvalidOperationException`), so there is no ADR-062 category to name. **EventIds:** behavior 478-487 (`CachingPatterns`), providers 3565-3567 (Memory), 3616-3618 (Redis) and 3657-3659 (Hybrid), in their own ranges, already registered; 3556-3558 and 3606-3608 belong to the lock providers of the same assemblies and are not used.
 2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR named in its justification, never later (#1762); existing targets are never lowered:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Tags/CacheTagResolver.cs` | 95 | 0 | 0 | 0 | Every failure reason and the accessor cache are unit tested; internal |
 | `Encina.Caching/Tags/CacheTagInvalidationSubscriber.cs` | 90 | 0 | 0 | 40 | Set in PR 7: message handling, failure and cancellation paths are unit tested; the Redis integration test runs the real subscription; internal |
-| `Encina.Caching.Memory/MemoryCacheProvider.cs` | keeps 95 | keeps 20, set in PR 1 | measured by PR 6 (a one-sequence contract test; the worker records the measured value, expected 30 to 50, rather than a guessed 60) | 0 | PR 1 adds the unit and guard tests of the new methods and measures the guard value (the manifest guard value is raised only to what PR 1 measures); the contract flag is set by PR 6, which carries the contract test and the Memory manifest edit |
-| `Encina.Caching.Redis/RedisCacheProvider.cs` | keeps 95 | keeps 24, raise to what PR 2 measures | 0 | 50 | Commands are unit tested with mocks; the integration test of PR 2 runs the real server, so the integration target is set in PR 2 |
+| `Encina.Caching.Memory/MemoryCacheProvider.cs` | keeps 95 | keeps 20 (never below the current value; add argument-check tests if the measurement falls under it) | measured by PR 6 (a one-sequence contract test; the worker records the measured value, expected 30 to 50, rather than a guessed 60) | 0 | PR 1 adds the unit and guard tests of the new methods and measures the guard value (the manifest guard value is raised only to what PR 1 measures); the contract flag is set by PR 6, which carries the contract test and the Memory manifest edit |
+| `Encina.Caching.Redis/RedisCacheProvider.cs` | keeps 95 | keeps 24: never below the current value; if the measurement falls under it, add the argument-check tests that restore it | 0 | 50 | Commands are unit tested with mocks; the integration test of PR 2 runs the real server, so the integration target is set in PR 2 |
 | `Encina.Caching.Hybrid/HybridCacheProvider.cs` | keeps 98 | keeps 95 | measured by PR 6 (same rule as Memory) | 0 | Existing targets kept by PR 3's tagging and guard tests; the contract flag is set by PR 6 with the Hybrid manifest edit |
 | `Encina.Caching/Tags/CacheTag.cs` | 100 | 90 | 0 | 0 | Set in PR 1: public pure helpers driven by a hostile-id table and by `CacheTagGuardTests` |
 | `Encina.Caching/Configuration/CachingOptions.cs` | keeps | keeps 85, raise to 90 | 0 | 0 | Set in PR 5 with `CachingOptionsTagGuardTests` (three validated setters) |
-| `Encina.Caching/ServiceCollectionExtensions.cs` | 90 | 30 | 0 | 0 | The manifest has no target today (the first is set by #266 and kept here); the DI tests of PR 5 run the three copy lines and the guard flag reaches the null-services check |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | 90 | 0 | 0 | 0 | Merged #266 sets the first target (unit 90, guard 0), kept here; the DI tests of PR 5 run the three copy lines; no guard test calls `AddEncinaCaching` (PR 5's guard file tests option setters and the attribute constructor), so guard stays 0 |
 | `Encina.Caching/Attributes/CacheAttribute.cs`, `CacheTagAttribute.cs`, `InvalidatesCacheAttribute.cs` | 100 | 0 | 0 | 0 | Auto-properties and the `KeyPattern` accessor (PR 6) are executed by the attribute and behavior tests; no validated parameter |
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keeps 98 | keeps 20 | 0 | 0 | Never lowered; the tag path is unit tested |
-| `Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs` | keeps 100 | keeps 28 | 0 | 40 | Tag invalidation unit tested; the integration flag runs the end-to-end sequence |
+| `Encina.Caching/Behaviors/CacheInvalidationPipelineBehavior.cs` | keeps 100 | keeps 28 (never below the current value) | 0 | 40 | Tag invalidation unit tested; the integration flag runs the end-to-end sequence |
 | `Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs` | keep | keep | 0 | 0 | Four forwarding methods covered by the decorator tests of PR 4; no new argument check |
-| `Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | set to the number PR 4 measures (expected near 25) | set to the number PR 4 measures (expected near 10) | 0 | 0 | The manifest has no target for the file today and targets are per whole file (about 422 lines and 20 public members); the PR 4 tests cover the four new members only, so the worker records the measured values with this reason and the later issue that tests the fake's other members raises them (an issue file is written at that point if none exists); the PR 6 contract test raises the unit flag further |
+| `Encina.Testing.Fakes/Providers/FakeCacheProvider.cs` | set to the number PR 3 measures (expected near 25) | set to the number PR 3 measures (expected near 10) | 0 | 0 | The manifest has no target for the file today and targets are per whole file (about 422 lines and 20 public members); the PR 4 tests cover the four new members only, so the worker records the measured values with this reason and the later issue that tests the fake's other members raises them (an issue file is written at that point if none exists); the PR 6 contract test raises the unit flag further |
 | `Abstractions/ICacheProvider.cs`, attributes, `CachePatternLog.Tags.cs`, `CachePatternMetrics.Tags.cs` | 0 or 90 | 0 | 0 | 0 | Interface and attributes have no executable lines; generated log bodies run in the behavior tests |
 
    The worker measures each flag with `coverage-report.cs` and records the numbers in each PR description.
@@ -708,7 +710,7 @@ REFERENCE FILES:
 | Tests | 10 | 12 | New: helper, resolver, provider, guard, contract, integration and behavior tests; modified: five doubles, hybrid, decorator, fake, options, attribute tests |
 | Documentation | 0 | 1 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 6 | 12 | Six changelog fragments; manifests of Caching, Memory, Redis, Hybrid, OpenTelemetry, Fakes; five `PublicAPI.Unshipped.txt` files |
-| **Total** | **22** | **37** | 7 pull requests: 11, 7, 6, 15, 15, 15 and 8 files, each at most 15 files and 1500 lines |
+| **Total** | **22** | **37** | 7 pull requests: 11, 7, 12, 12, 15, 15 and 8 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -770,6 +772,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
 | #266 PR 3 (`CachePatternLog`, range 450-499) and PR 4 (`CachePatternMetrics`, created there) | Pending | Needed by PR 5 only; PR 1 to PR 4 have no dependency |
+| #268 PR 0 (Memory key tracking safe under replacement) | Pending | Merges BEFORE PR 1 of this plan: both edit the `MemoryCacheProvider` post-eviction callbacks |
 | #277 (Memcached provider) | Pending | The later-merging PR of #271 PR 4 and #277 implements Memcached tags (Phase 4 task 4) |
 | #2408 (generic invalidation subscriber, glob channel) | Open | No dependency: PR 7 ships the tag-channel subscriber; #2408 keeps the glob channel |
 | Maintainer answers to Design Choices 1 to 6, 9 and 10 | Pending | Asked when work starts |
