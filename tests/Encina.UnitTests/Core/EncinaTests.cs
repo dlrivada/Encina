@@ -122,8 +122,9 @@ public sealed class EncinaTests
     [Fact]
     public async Task Send_WithValidationFailureEchoingSubmittedValue_NeverExposesItInLogsOrActivity()
     {
-        // Mirrors ValidationOrchestrator.ValidateAsync (line ~70-71): on an invalid request it builds
-        // EncinaError.New(errorMessage), and that message conventionally echoes the submitted value
+        // Mirrors ValidationOrchestrator.ValidateAsync: on an invalid request it builds a categorized
+        // EncinaErrors.Create(EncinaErrorCodes.ValidationFailed, ErrorCategory.Validation, errorMessage),
+        // and that message conventionally echoes the submitted value
         // (e.g. "'juan@example.com' is not a valid email"). Neither the logged entry nor the Activity
         // status description may contain that value (#1319).
         using var activityCollector = new ActivityCollector();
@@ -1838,9 +1839,9 @@ public sealed class EncinaTests
     {
         public const string SubmittedValue = "juan@example.com";
 
-        // Same construction ValidationOrchestrator.ValidateAsync uses on an invalid request:
-        // EncinaError.New(errorMessage), with no code and no exception, where the message echoes
-        // the submitted value.
+        // An uncoded EncinaError.New(errorMessage) with no exception, whose message echoes the
+        // submitted value, as a validation failure carries. (ValidationOrchestrator.ValidateAsync now
+        // also adds the ValidationFailed code and the Validation category; neither carries the value.)
         public Task<Either<EncinaError, string>> Handle(ValidationFailureRequest request, CancellationToken cancellationToken)
             => Task.FromResult(Left<EncinaError, string>(EncinaError.New($"'{SubmittedValue}' is not a valid email")));
     }

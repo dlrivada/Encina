@@ -17,12 +17,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Error mapper converting EncinaError to ApiGatewayResponse; unit tests cover all code paths, guard tests cover null-parameter checks",
+      "reason": "Response builder converting EncinaError to ApiGatewayResponse through ErrorCategoryHttp; unit tests cover all code paths, guard tests cover null-parameter checks",
       "targets": { "unit": 100, "guard": 95, "integration": 100 },
       "justifications": {
-        "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
-        "guard": "Guard tests pass null, default (bottom-state) and boundary arguments to every public method and convert each error-code family, so every line runs; the margin covers future branches.",
-        "integration": "Integration tests convert the results of a real Encina pipeline (success, validation, conflict, missing handler and each error family) to REST, HTTP API v2, created and no-content responses and read the wire JSON back, so every line runs."
+        "unit": "Unit tests build errors of all 14 categories and read the status, title and headers of the real REST API and HTTP API v2 helpers, including Retry-After, WWW-Authenticate, explicit overrides and the check that the message never reaches the body, so every line runs.",
+        "guard": "Guard tests pass null, default (bottom-state) and boundary arguments to every public method and convert each error category and a code-less error, so every line runs; the margin covers future branches.",
+        "integration": "Integration tests convert the results of a real Encina pipeline and of the EventBridge handler (success, validation, conflict, missing handler, each error category and a cancellation answering 499) to REST, HTTP API v2, created and no-content responses and read the wire JSON back, so every line runs."
       }
     },
     "EncinaAwsLambdaOptions.cs": {
@@ -47,12 +47,14 @@
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies",
       "targets": {
+        "unit": 95,
         "guard": 95,
         "integration": 100
       },
       "justifications": {
-        "guard": "Guard tests pass null events, null detail, malformed or null raw JSON and throwing delegates to every public method, so every line runs.",
-        "integration": "Integration tests process EventBridge events deserialized by the Lambda serializer through a real handler, covering success, error, null detail, a throwing delegate, raw JSON and metadata."
+        "unit": "Unit tests process events with success, null detail, a throwing delegate, a cancelled delegate, raw JSON and metadata and read the category of every error, so every line runs; the margin covers future branches.",
+        "guard": "Guard tests pass null events, null detail, malformed or null raw JSON, throwing and cancelled delegates to every public method, so every line runs.",
+        "integration": "Integration tests process EventBridge events deserialized by the Lambda serializer through a real handler, covering success, error, null detail, a throwing delegate, a cancelled delegate answering 499, raw JSON and metadata."
       }
     },
     "GlobalSuppressions.cs": {
@@ -85,7 +87,7 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": { "unit": 94, "guard": 95, "integration": 95 },
       "justifications": {
-        "unit": "Every ResolveTenantId rule is unit-tested, with the logger asserted through a fake.",
+        "unit": "Every ResolveTenantId rule is unit-tested, with the logger asserted through a fake. The tenant-mismatch and invalid-tenant-claim errors are asserted as Forbidden.",
         "guard": "Guard tests pass null contexts, null or empty headers, empty, non-string and mismatching tenant claims and absent authorizer entries, so nearly every line runs; the successful JSON-element user-id claim path is left to the unit flag (#3075).",
         "integration": "Integration tests resolve correlation, tenant and user ids from API Gateway requests deserialized by the Lambda serializer; the remaining lines are the absent-claim-property branch, string-valued authorizer entries and the plain string claim and principalId paths of GetUserId, left to the unit flag."
       }
@@ -125,10 +127,12 @@
       "defaultRule": "*Handler.cs",
       "reason": "Handler with mockeable dependencies",
       "targets": {
+        "unit": 90,
         "guard": 95,
         "integration": 95
       },
       "justifications": {
+        "unit": "Unit tests process batches and single messages with valid, invalid and null bodies and read the category of the deserialization error; the unreached lines are the unreachable Right branch inside ProcessAllAsync and defensive exception paths covered by the guard and integration flags.",
         "guard": "Guard tests pass null events and processors, null records, empty and malformed bodies, throwing delegates and cancelled tokens to every public method; the one unreached line is the unreachable Right branch inside ProcessAllAsync.",
         "integration": "Integration tests process SQS events deserialized by the Lambda serializer with a real handler, covering partial batch failures, malformed bodies, a throwing delegate, cancellation, ProcessAllAsync and DeserializeMessage; the one unreached line is the unreachable Right branch inside ProcessAllAsync."
       }

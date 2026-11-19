@@ -1,0 +1,1 @@
+- **AwsSecretsManagerOptions credentials masking** (#3855). `AwsSecretsManagerOptions.Credentials` is now marked `[JsonIgnore]` and `ToString()` masks credential details to prevent secret leakage in logs and serialization.

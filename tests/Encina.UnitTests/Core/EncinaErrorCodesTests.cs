@@ -57,6 +57,12 @@ public sealed class EncinaErrorCodesTests
     }
 
     [Fact]
+    public void ValidationFailed_HasCorrectValue()
+    {
+        EncinaErrorCodes.ValidationFailed.ShouldBe("encina.validation.failed");
+    }
+
+    [Fact]
     public void AllErrorCodes_StartWithEncinaPrefix()
     {
         var fields = typeof(EncinaErrorCodes)
