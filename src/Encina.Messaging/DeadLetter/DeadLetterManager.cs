@@ -235,7 +235,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
         // Another replay holds the claim: do not dispatch a second time.
         if (!claim.RightToArray()[0])
         {
-            return new ReplayStep(ReplayResult.Failed(messageId, DeadLetterErrorCodes.ReplayInProgress));
+            return new ReplayStep(ReplayResult.Failed(messageId, DeadLetterErrorCodes.ReplayInProgress, _timeProvider));
         }
 
         DeadLetterLog.ReplayingMessage(_logger, messageId, message.RequestType);
@@ -303,7 +303,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             return recorded.LeftToArray()[0];
 
         if (!recorded.RightToArray()[0])
-            return ReplayResult.Failed(messageId, DeadLetterErrorCodes.AlreadyReplayed);
+            return ReplayResult.Failed(messageId, DeadLetterErrorCodes.AlreadyReplayed, _timeProvider);
 
         DeadLetterMetrics.RecordReplayed(result.Success);
         return result;
@@ -400,7 +400,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             }
 
             DeadLetterLog.MessageReplayedSuccessfully(_logger, messageId);
-            return new ReplayAttempt(ReplayResult.Succeeded(messageId), DeadLetterErrorCodes.ReplaySucceeded);
+            return new ReplayAttempt(ReplayResult.Succeeded(messageId, _timeProvider), DeadLetterErrorCodes.ReplaySucceeded);
         }
         catch (Exception ex) when (!IsCallerCancellation(ex, cancellationToken))
         {
@@ -418,7 +418,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     private ReplayAttempt FailedAttempt(Guid messageId, string error, string outcomeCode)
     {
         DeadLetterLog.MessageReplayFailed(_logger, messageId, error);
-        return new ReplayAttempt(ReplayResult.Failed(messageId, error), Truncate(outcomeCode));
+        return new ReplayAttempt(ReplayResult.Failed(messageId, error, _timeProvider), Truncate(outcomeCode));
     }
 
     private static string Truncate(string outcomeCode)
@@ -475,7 +475,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
             results.Add(step.Outcome.Match(
                 Right: r => r,
                 // Only the error code: EncinaError.Message can carry personal data (#1259 review).
-                Left: error => ReplayResult.Failed(message.Id, error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed))));
+                Left: error => ReplayResult.Failed(message.Id, error.GetCode().IfNone(DeadLetterErrorCodes.ReplayFailed), _timeProvider)));
         }
 
         var batchResult = new BatchReplayResult

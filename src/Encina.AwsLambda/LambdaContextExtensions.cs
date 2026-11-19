@@ -155,6 +155,7 @@ public static class LambdaContextExtensions
         Log.InvalidTenantClaim(logger, InvalidTenantClaimErrorCode);
         return EncinaErrors.Create(
             InvalidTenantClaimErrorCode,
+            category: ErrorCategory.Forbidden,
             "The authenticated tenant claim is present but is not a non-empty string.");
     }
 
@@ -163,6 +164,7 @@ public static class LambdaContextExtensions
         Log.TenantMismatch(logger, TenantMismatchErrorCode);
         return EncinaErrors.Create(
             TenantMismatchErrorCode,
+            category: ErrorCategory.Forbidden,
             "The tenant supplied by the request does not match the authenticated tenant.");
     }
 

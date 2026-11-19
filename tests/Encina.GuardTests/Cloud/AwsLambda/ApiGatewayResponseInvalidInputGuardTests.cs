@@ -111,24 +111,26 @@ public sealed class ApiGatewayResponseInvalidInputGuardTests
     }
 
     [Theory]
-    [InlineData("validation.failed", 400)]
-    [InlineData("VALIDATION.FAILED", 400)]
-    [InlineData("encina.guard.validation_failed", 400)]
-    [InlineData("encina.authorization.unauthenticated", 401)]
-    [InlineData("encina.authorization.denied", 403)]
-    [InlineData("order.not_found", 404)]
-    [InlineData("order.missing", 404)]
-    [InlineData("encina.request.handler_missing", 404)]
-    [InlineData("order.conflict", 409)]
-    [InlineData("order.already_exists", 409)]
-    [InlineData("order.duplicate", 409)]
-    [InlineData("", 500)]
-    [InlineData("something.else", 500)]
-    public void ToProblemDetailsResponse_ErrorCode_MapsToExpectedStatus(string code, int expectedStatus)
+    [InlineData(ErrorCategory.Validation, 400)]
+    [InlineData(ErrorCategory.Unauthenticated, 401)]
+    [InlineData(ErrorCategory.Forbidden, 403)]
+    [InlineData(ErrorCategory.NotFound, 404)]
+    [InlineData(ErrorCategory.Conflict, 409)]
+    [InlineData(ErrorCategory.AlreadyExists, 409)]
+    [InlineData(ErrorCategory.Internal, 500)]
+    public void ToProblemDetailsResponse_ErrorCategory_MapsToExpectedStatus(ErrorCategory category, int expectedStatus)
     {
-        var error = EncinaErrors.Create(code, "m");
+        var error = EncinaErrors.Create("order.anything", category: category, "m");
 
         ApiGatewayResponseExtensions.ToProblemDetailsResponse(error).StatusCode.ShouldBe(expectedStatus);
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_ErrorWithoutCode_AnswersInternalServerError()
+    {
+        var error = EncinaErrors.Create(string.Empty, "m");
+
+        ApiGatewayResponseExtensions.ToProblemDetailsResponse(error).StatusCode.ShouldBe(500);
     }
 
     [Fact]

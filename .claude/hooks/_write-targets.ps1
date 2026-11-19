@@ -101,6 +101,54 @@ function Get-BoundArgument($Tokens, [int]$From, [object[]]$Positions, [int]$Want
 }
 
 # The value token of a named-only parameter (-Name value, -Name:value, or a prefix of five letters or more).
+# #3896: the named arguments that follow a launched script (`pwsh -File s.ps1 -Sp 'D:\x'`): name (lower case, no
+# dash) -> literal value. A name given twice, or whose value is a variable, a subexpression or missing, maps to
+# $null (unresolved), so the analysis never trusts an argument it cannot read. Positional arguments are ignored.
+function Get-LaunchArguments($Tokens, $FileToken) {
+    $result = @{}
+    # PowerShell reads U+2018..U+201F as quotes but this tokenizer does not: the argument list cannot be trusted.
+    $curly = '[' + [char]0x2018 + '-' + [char]0x201F + ']'
+    foreach ($tk in $Tokens) { if ([regex]::IsMatch([string]$tk.Value, $curly)) { return $result } }
+    # The stop-parsing token `--%` passes the rest of the line with %VAR% expanded, before or after the file: no
+    # argument can be trusted.
+    foreach ($tk in $Tokens) { if (-not $tk.Quoted -and [string]$tk.Value -ceq '--%') { return $result } }
+    $at = -1
+    for ($i = 0; $i -lt $Tokens.Count; $i++) { if ([object]::ReferenceEquals($Tokens[$i], $FileToken)) { $at = $i; break } }
+    if ($at -lt 0) { return $result }
+    for ($i = $at + 1; $i -lt $Tokens.Count; $i++) {
+        $t = $Tokens[$i]
+        # A background `&` (not part of `2>&1` / `*>&1`) ends this command: what follows belongs to the next one.
+        if (-not $t.Quoted -and [string]$t.Value -match '(?<!>)&') { break }
+        if ($t.Quoted -or -not $t.Value.StartsWith('-') -or $t.Value.Length -lt 2) { continue }
+        $name = $t.Value.Substring(1)
+        $valueToken = $null
+        $trusted = $false
+        $colon = $name.IndexOf(':')
+        if ($colon -gt 0) {
+            $valueToken = New-CommandToken $name.Substring($colon + 1) $t.Quoted $t.Dynamic $t.Subexpression $t.Bash
+            # Only an unquoted `-Name:value` reaches here (a quoted token was skipped above, so `-Name:'v'` binds
+            # nothing). Expanded says whether the shell rewrites any part of it (an escape, `$$`, `$?`, a subexpression).
+            $trusted = -not $t.Expanded
+            $name = $name.Substring(0, $colon)
+        }
+        elseif ($i + 1 -lt $Tokens.Count -and ($Tokens[$i + 1].Quoted -or -not $Tokens[$i + 1].Value.StartsWith('-'))) {
+            # A background `&` is never a value: it ends this command, so nothing after it binds.
+            if (-not $Tokens[$i + 1].Quoted -and [string]$Tokens[$i + 1].Value -match '(?<!>)&') { break }
+            $valueToken = $Tokens[$i + 1]; $trusted = -not $valueToken.Expanded; $i++
+        }
+        $name = $name.ToLowerInvariant()
+        # #3896: a value the shell expands (an escape, `$$`, `$?`, `$^` in double quotes) is not what the script receives,
+        # so it never binds.
+        # A whitelist: only a value made of simple path characters (letters, digits, space, `\ / : . _ -`) binds. Any
+        # other character (`$`, a backtick, `%`, `@`, a quote, a wildcard) may be expanded by an outer shell wrapper
+        # (`pwsh -Command "..."`, `bash -c "..."`), so the parameter stays unresolved.
+        # A drive-relative value (`D:src`) resolves against the hook's own current directory, so it stays unresolved too.
+        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression -and [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z0-9 \\/:._-]*\z') -and -not [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z]:(?![\\/])')) { [string]$valueToken.Value } else { $null }
+        $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
+    }
+    return $result
+}
+
 function Get-NamedArgument($Tokens, [int]$From, [string[]]$Names) {
     for ($i = $From; $i -lt $Tokens.Count; $i++) {
         $t = $Tokens[$i]
@@ -157,12 +205,44 @@ function Expand-KnownVariables([string]$Value, [bool]$Bash, [string]$Base) {
 
 # Whether a script's own source text writes files: the file-write APIs a `dotnet run <file>.cs` /
 # `pwsh -File <file>.ps1` script could use to bypass the shell-level write-target analysis (#1181).
-$script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replace)\s*\(|\b(New-Object\s+)?(System\.IO\.)?(Stream|File)Writer\b|\bnew\s+(System\.IO\.)?FileStream\s*\([^)]*FileAccess\.(Write|ReadWrite)|(?im)^\s*(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item)\b|\bNew-Item\b[^\r\n]*-Value\b|(?m)^[^#\r\n]*[^><]>>?(?!=|&)\S'
+$script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replace)\s*\(|\b(New-Object\s+)?(System\.IO\.)?(Stream|File)Writer\b|\bnew\s+(System\.IO\.)?FileStream\s*\([^)]*FileAccess\.(Write|ReadWrite)|(?im)^[ \t]*(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item)\b|\bNew-Item\b[^\r\n]*-Value\b|(?m)^[^#\r\n]*[^><]>>?(?!=|&)\S'
 
 # Whether a script's own source text mentions any of the given guarded-path tokens (case-insensitive literal
 # match; a crude but conservative signal, since the script is not tokenised the way a shell statement is).
+#
+# #3896: a token counts only as a whole path segment: a URL is blanked first (`https://host/tests/x` is not a
+# repository path; a `file:` URL is kept, it names a local path) and the token must not continue a longer name
+# on its left (`load-tests/`, `Foo.Tests/` and `mysrc/` are other names, `\src\`, `'src/'` and `$root/src/` are
+# the folder).
+#
+# A text that names a drive-creating command (`New-PSDrive`, `ndr`, `mount`) outside a comment can name any scheme
+# (`git://src/x` may be a drive path), so no URL is blanked in it. The word counts wherever it appears (an
+# assignment, a string handed to `iex`, an alias definition); a whole-line comment is dropped first, so
+# "# mount point" does not count (a trailing comment is kept: a `#` inside a string must not hide a drive command).
+# Known limits: building the name from pieces, a wildcard command lookup (`gcm New-PSD*`) and the SessionState API;
+# the words `mount`/`ndr` in prose also keep URLs (a fail-safe false positive).
+function Remove-UrlText([string]$Text) {
+    $code = [regex]::Replace($Text, '(?m)^[ \t]*#.*$', '')
+    if ($code -match '(?i)(?<![\w-])(?:New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
+    return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
+}
+
+# Whether a text names src or tests as a path segment (the word on its own, outside a URL and a longer name).
+function Test-PathWordMention([string]$Text) {
+    return (Remove-UrlText $Text) -match '(?i)(^|[^A-Za-z0-9_.-])(src|tests)($|[^A-Za-z0-9_-])'
+}
+
 function Test-ScriptReferencesPath([string]$Text, [string[]]$Tokens) {
-    foreach ($t in $Tokens) { if ($Text.IndexOf($t, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true } }
+    $clean = Remove-UrlText $Text
+    foreach ($t in $Tokens) {
+        $from = 0
+        while ($from -lt $clean.Length) {
+            $i = $clean.IndexOf($t, $from, [StringComparison]::OrdinalIgnoreCase)
+            if ($i -lt 0) { break }
+            if ($i -eq 0 -or $clean[$i - 1] -notmatch '[A-Za-z0-9_.-]') { return $true }
+            $from = $i + 1
+        }
+    }
     return $false
 }
 
@@ -190,7 +270,7 @@ function Test-ScriptHasWriteApi([string]$Text) {
 #            longer than 8192 characters is unresolved (SwEval), so a doubling chain cannot stall the hook.
 # A text mention of src/ or tests/ inside a string, comment or here-string is never a target by itself.
 function Test-ScriptWritesAreSafe {
-    param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout)
+    param([string]$Text, [string]$ScriptFull, [string]$Base, $Layout, $LaunchArgs = $null)
 
     $opaque = [System.Collections.Generic.List[string]]::new()
     $guarded = [System.Collections.Generic.List[string]]::new()
@@ -705,7 +785,40 @@ function Test-ScriptWritesAreSafe {
                 if (-not $ok) { foreach ($p in $params) { SwAdd (SwKey $p.Name) $null } }
             }
         }
-        foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) { if (-not $functionParams.Contains($p)) { SwAdd (SwKey $p.Name) $null } }
+        # #3896: a parameter of the script itself that the launching command passes a literal (`-Sp 'D:\x'`) takes
+        # that literal; an unsupplied, non-literal or ambiguous one stays tainted. Only a string or untyped parameter
+        # is bound (a switch or an array does not hold one literal).
+        $scriptParams = @(if ($null -ne $root.ParamBlock) { $root.ParamBlock.Parameters })
+        # An [Alias()] changes which parameter a name or prefix binds (aliases win before prefixes): bind nothing then.
+        $anyAlias = @($scriptParams | Where-Object { @($_.Attributes | Where-Object { $_.TypeName.FullName -match '(?i)(^|\.)Alias(Attribute)?$' }).Count -gt 0 }).Count -gt 0
+        foreach ($p in @($nodes | Where-Object { $_.GetType().Name -eq 'ParameterAst' })) {
+            if ($functionParams.Contains($p)) { continue }
+            $literal = $null
+            $bindings = 0
+            if ($null -ne $LaunchArgs -and $scriptParams -contains $p -and $p.StaticType -in [string], [object]) {
+                $pkey = SwKey $p.Name
+                foreach ($argName in @($LaunchArgs.Keys)) {
+                    $an = ([string]$argName).ToLowerInvariant()
+                    if ($an -eq '') { continue }
+                    # Exact names only: a prefix could be a common parameter or an alias PowerShell binds instead.
+                    $owners = @($scriptParams | Where-Object { (SwKey $_.Name) -eq $an })
+                    if ($owners.Count -eq 1 -and $owners[0] -eq $p -and $pkey -ne '') { $literal = $LaunchArgs[$argName]; $bindings++ }
+                }
+            }
+            # The literal becomes a string node through the parser; any mismatch (a Unicode quote that ends the string
+            # early, a control character) means the value is not what the command line carries: unresolved.
+            $literalAst = $null
+            if ($bindings -eq 1 -and $null -ne $literal -and [string]$literal -ne '' -and -not $anyAlias) {
+                $parseErr = $null
+                $literalRoot = [System.Management.Automation.Language.Parser]::ParseInput("'" + ([string]$literal).Replace("'", "''") + "'", [ref]$null, [ref]$parseErr)
+                $stmts = @($literalRoot.EndBlock.Statements)
+                if ($parseErr.Count -eq 0 -and $stmts.Count -eq 1 -and $stmts[0].PipelineElements.Count -eq 1) {
+                    $candidateAst = $stmts[0].PipelineElements[0].Expression
+                    if ((SwKind $candidateAst 'StringConstantExpressionAst') -and [string]::Equals([string]$candidateAst.Value, [string]$literal, [StringComparison]::Ordinal)) { $literalAst = $candidateAst }
+                }
+            }
+            SwAdd (SwKey $p.Name) $literalAst
+        }
 
         # Write sites.
         foreach ($c in $commands) {
@@ -1281,9 +1394,13 @@ function Get-ShellWrites {
             if ($null -ne $fileToken) {
                 # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
                 $scriptBase = if ($baseUnsure) { $null } else { $current }
-                $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
+                # Only the host options before the script file count: what follows is handed to the script.
+                $fileAt = $tokens.Count
+                for ($fi = 0; $fi -lt $tokens.Count; $fi++) { if ([object]::ReferenceEquals($tokens[$fi], $fileToken)) { $fileAt = $fi; break } }
+                $hostTokens = @($tokens | Select-Object -First $fileAt)
+                $wdToken = Get-NamedArgument $hostTokens ($k + 1) @('-workingdirectory', '-wd')
                 if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
-                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase })
+                $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase; LaunchArgs = (Get-LaunchArguments $tokens $fileToken) })
             }
         }
         elseif ($name -eq 'git') {
