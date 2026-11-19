@@ -4,16 +4,16 @@
 > **Type**: Feature (cross-cutting, fail-closed startup gate)
 > **Related**: ADR-050 (the closed list of module requirements this validator enforces), #2381 (the ADR issue, closed), #2239 (the decision that allows required modules), #2412 (Anonymization, AntiTampering, Attestation in-memory defaults: first consumers of this mechanism), #1191 (Marten.GDPR key store), #2248 (the interim `DelayedRetryStartupCheck`), #2396 (processor liveness health), #1251 and #2184 (ADR-050 build order), ADR-021, ADR-054, ADR-062, SPEC-002 DEC-006
 > **Complexity**: Medium (a small public contract and one validator, but 11 pull requests across 9 packages because each requirement row lives in its own package)
-> **Estimated Scope**: ~650 lines of production code in core + ~120 lines per requirement row + ~2,600 lines of tests, in 11 pull requests of at most 15 files and 900 lines each
+> **Estimated Scope**: ~650 lines of production code in core + ~120 lines per requirement row + ~2,600 lines of tests, in 11 pull requests of at most 15 files and 1,500 lines each (the estimates below stay under 1,000)
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `f484cdf4f`)
+### What exists today (read on 2026-11-19, main `89303f1e8`)
 
 - Four startup checks, each with its own shape and message, no shared contract: `ABACDecisionAuditStartupCheck` (`src/Encina.Security.ABAC/DecisionAudit/ABACDecisionAuditStartupCheck.cs`, an `IHostedService`; no store is a `Critical` log 9087 and a failed start, an in-memory store is the warning 9086, `BestEffort` is the warning 9084), `DelayedRetryStartupCheck` (`src/Encina.Messaging/Recoverability/DelayedRetryStartupCheck.cs`, `IServiceProviderIsService`, EventId 5457), `CryptoShreddingStartupValidationHostedService` (`src/Encina.Marten.GDPR/`, an `IHostedLifecycleService` that runs in `StartingAsync` so it stops the host before Marten's daemon starts; its `WarnInMemoryKeyStore` only warns) and `OperationAuditMaskingStartupValidator` (`src/Encina.Security.Audit/`). `BreakTheGlassStartupValidator` (`src/Encina.Security.BreakTheGlass/Services/`) is a fifth, outside ADR-050's table.
-- The silent in-memory and first-registration-wins defaults named by the issue still exist: `TryAddSingleton<IDistributedLockProvider, MemoryDistributedLockProvider>()` (`src/Encina.Caching.Memory/ServiceCollectionExtensions.cs:67`); in-memory key, token and audit stores (`src/Encina.Compliance.Anonymization/ServiceCollectionExtensions.cs:91-93`); `InMemoryNonceStore` and `InMemoryKeyProvider` (`src/Encina.Security.AntiTampering/ServiceCollectionExtensions.cs:82-83`); `AddEncinaFakes` registers its fakes with `TryAddSingleton` (`src/Encina.Testing.Fakes/ServiceCollectionExtensions.cs:69-138`), so it can block real services registered later; `AddEncinaFluentValidation` uses `TryAddScoped<IValidationProvider, ...>` and `AddEncinaDataAnnotations` and `AddEncinaMiniValidation` use `TryAddSingleton<IValidationProvider, ...>` (`src/Encina.DataAnnotations/ServiceCollectionExtensions.cs:72`, `src/Encina.MiniValidator/ServiceCollectionExtensions.cs:65`), so the first registered provider silently wins.
+- The silent in-memory and first-registration-wins defaults named by the issue still exist: `TryAddSingleton<IDistributedLockProvider, MemoryDistributedLockProvider>()` (`src/Encina.Caching.Memory/ServiceCollectionExtensions.cs:67`); in-memory key, token and audit stores (`src/Encina.Compliance.Anonymization/ServiceCollectionExtensions.cs:91-93`); `InMemoryNonceStore` and `InMemoryKeyProvider` (`src/Encina.Security.AntiTampering/ServiceCollectionExtensions.cs:82-83`); `AddEncinaFakes` registers its fakes with `TryAddSingleton` (`src/Encina.Testing.Fakes/ServiceCollectionExtensions.cs:69-138`), so it can block real services registered later; `AddEncinaFluentValidation` uses `TryAddScoped<IValidationProvider, ...>` and `AddDataAnnotationsValidation` and `AddMiniValidation` use `TryAddSingleton<IValidationProvider, ...>` (`src/Encina.DataAnnotations/ServiceCollectionExtensions.cs:67,72`, `src/Encina.MiniValidator/ServiceCollectionExtensions.cs:60,65`), so the first registered provider silently wins.
 - Not in `src`: `IEncinaModuleRequirements`, an `EncinaStartupValidator`, a test-only marker, any environment-based rule. `Encina` core already references `Microsoft.Extensions.Hosting.Abstractions` (`src/Encina/Encina.csproj`), so core can host the validator without a new package. The core EventId range `EventIdRanges.Core = (100, 199)` has 100-176 used (`Encina.cs`, `Encina.Stream.cs`, `RequestIdentityLog.cs`, `Sharding/**`) and 177-199 free on main.
 
 ### What this plan delivers
@@ -88,7 +88,7 @@ The mechanism of ADR-050 "Enforcement mechanism per row", Option A: a declarativ
 
 ### Rationale
 
-- A wins when most in-memory types are `internal` or already carry a public contract (the stores of #2412 do): an attribute adds no member to a contract and one rule serves every module.
+- A wins when most in-memory types are `internal` or already carry a public contract (the stores of #2412 do): an attribute adds no member to a contract and one rule serves every module. The evaluator learns which service to inspect from the `ServiceType` field of the requirement (Phase 1, register row C8), so no per-module code is needed.
 - B wins when the application code itself must branch on "is this test-only" without reflection (for example a diagnostics endpoint); C wins when a module cannot edit the type it requires (a third-party store).
 - The marker's name and shape are public API; the attribute is `sealed`, `AttributeUsage(Class, Inherited = false)`.
 
@@ -125,7 +125,7 @@ The mechanism of ADR-050 "Enforcement mechanism per row", Option A: a declarativ
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `EncinaStartupOptions.TestOnlyEnvironments` defaulting to `["Development"]`, a per-requirement override (the Fakes row adds `Test`), `AllowTestOnlyImplementations` as the explicit opt-out, and `Deployment` defaulting to `MultiInstance`** | Matches ADR-050 sub-decisions 2 and 3 and the Fakes row text | Four option values |
+| **A) `EncinaStartupOptions.TestOnlyEnvironments` defaulting to `["Development"]`, a per-entry override carried by the `TestOnlyEnvironments` field of `ModuleRequirement`/`ModuleProhibition` (the Fakes row sets `Development` and `Test`), a `MultiInstanceOnly` flag on the entry for rows that only apply with several instances, `AllowTestOnlyImplementations` as the explicit opt-out, and `Deployment` defaulting to `MultiInstance`** | Matches ADR-050 sub-decisions 2 and 3 and the Fakes row text; the evaluator reads every value from the entry or the options | Four option values and three entry fields |
 | **B) A single `IsProduction` boolean** | Simplest | Cannot express "Development or Test" for Fakes, and a custom environment such as `Staging` would count as non-production |
 
 ### Chosen Option: **A — Environment set, opt-out flag and deployment default**
@@ -227,6 +227,26 @@ The mechanism of ADR-050 "Enforcement mechanism per row", Option A: a declarativ
 
 </details>
 
+<details>
+<summary><strong>10. Build order of ADR-050 sub-decision 8</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Start S1 and S2 now and treat #2184 (stages) and #1251 (row claiming) as not blocking, because they precede the rows that depend on them, not the mechanism** | The mechanism and the rows of this plan do not use stages or claiming; work starts now | Reads ADR-050 sub-decision 8 ("#2184 and #1251 first, then the requirements validator #2382") more loosely than its words |
+| **B) List #2184 and #1251 as prerequisites and open S1 only after both close** | Follows the ADR literally | Both are open; the whole plan waits for work it does not use |
+
+### Chosen Option: **A — Mechanism now, ordering as an ADR reading** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins because no row of this plan needs a stage contract or row claiming; B wins if the maintainer wants the ADR order kept to the letter. Both issues are open on 2026-11-19.
+
+**Class:** Dilemma
+
+</details>
+
 ### Register of defaults and semantics
 
 | Id | Choice | Class | Basis |
@@ -238,6 +258,7 @@ The mechanism of ADR-050 "Enforcement mechanism per row", Option A: a declarativ
 | C5 | A tenant-qualified id is never produced: the validator's keys are module names and requirement ids (strings of the code), so no tenant/key pair maps to one id and the reserved `default` tenant segment does not apply | Settled | the validator has no tenant input; ADR-054 D4 (no tenant tag when nothing tenant-scoped is emitted) |
 | C6 | Public names: `IEncinaModuleRequirements`, `ModuleRequirement`, `ModuleProhibition`, `StartupViolation`, `StartupSeverity`, `EncinaStartupOptions`, `EncinaDeployment`, `EncinaStartupValidationException`, `TestOnlyImplementationAttribute`, `AddEncinaStartupValidation`, `AddEncinaModuleRequirements<T>` in namespace `Encina.Startup` | Dilemma (recommended, pending the maintainer) | public surface; alternatives are the namespace `Encina` or a shorter `Requirement` family; recorded here because every later row depends on the names |
 | C7 | The `Module` string of a requirements class is the name of the ADR-050 row ("Distributed locks (5)" is `DistributedLocks`) so the docs table and the failure message use the same word | Trivial | ADR-050 closed list column "Module" |
+| C8 | The evaluator reads every rule from the entry, never from a module: `ServiceType` (the service whose resolved implementation is checked for `[TestOnlyImplementation]`), `MultiInstanceOnly` (skipped when `Deployment` is `SingleInstance`) and `TestOnlyEnvironments` (the entry's own environment set, overriding the options default). All three are optional parameters after the required ones | Trivial | follows from Design Choices 3 and 5; without these fields the evaluator would see only opaque predicates |
 
 ---
 
@@ -250,10 +271,10 @@ The mechanism of ADR-050 "Enforcement mechanism per row", Option A: a declarativ
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** in `src/Encina/Startup/`: `IEncinaModuleRequirements.cs` (`string Module { get; }`, `string Adr { get; }`, `IReadOnlyCollection<ModuleRequirement> Requires { get; }`, `IReadOnlyCollection<ModuleProhibition> Forbids { get; }`); `ModuleRequirement.cs` (`sealed record ModuleRequirement(string Id, string Description, string Fix, Func<IServiceProvider, bool> IsSatisfied, Func<IServiceProvider, bool>? AppliesWhen = null, StartupSeverity Severity = StartupSeverity.Error)`; optional parameters after required ones, CS1737); `ModuleProhibition.cs` (same shape, true means violated); `StartupViolation.cs` (`sealed record StartupViolation(string Module, string Id, string Description, string Fix, string Adr, StartupSeverity Severity)`) with `StartupSeverity` in the same file; `EncinaStartupOptions.cs` (`EncinaDeployment Deployment = MultiInstance`, `bool AllowTestOnlyImplementations`, `IReadOnlyCollection<string> TestOnlyEnvironments` default `["Development"]`); `TestOnlyImplementationAttribute.cs`; `StartupRequirementEvaluator.cs` (internal static: `Evaluate(IEnumerable<IEncinaModuleRequirements>, IServiceProvider, EncinaStartupOptions, string? environmentName)` returns `IReadOnlyList<StartupViolation>`).
-2. The evaluator applies, in order: the requirement's `AppliesWhen`; `Deployment` (a requirement flagged multi-instance-only is skipped for `SingleInstance`); the test-only rule (a resolved implementation whose type carries the attribute is a violation unless the environment is in `TestOnlyEnvironments` or `AllowTestOnlyImplementations` is set; an unknown environment, `null`, denies); a predicate that throws becomes a violation (register row C2).
-3. **Modify** `src/Encina/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.json` through `mechanical-fixer` (targets in Research).
-4. Tests (new files): `tests/Encina.UnitTests/Startup/StartupRequirementEvaluatorTests.cs`; `tests/Encina.GuardTests/Startup/StartupGuardTests.cs` (null module, empty id, null predicate, null options collections); `tests/Encina.PropertyTests/Startup/StartupEvaluatorProperties.cs` (FsCheck: the violation set does not depend on the order of the requirements classes or of the requirements inside one).
+1. **Create** in `src/Encina/Startup/`: `IEncinaModuleRequirements.cs` (`string Module { get; }`, `string Adr { get; }`, `IReadOnlyCollection<ModuleRequirement> Requires { get; }`, `IReadOnlyCollection<ModuleProhibition> Forbids { get; }`); `ModuleRequirement.cs` (`sealed record ModuleRequirement(string Id, string Description, string Fix, Func<IServiceProvider, bool> IsSatisfied, Func<IServiceProvider, bool>? AppliesWhen = null, StartupSeverity Severity = StartupSeverity.Error, Type? ServiceType = null, bool MultiInstanceOnly = false, IReadOnlyCollection<string>? TestOnlyEnvironments = null)`; optional parameters after required ones, CS1737; the last three are the fields the evaluator rules below read, register row C8); `ModuleProhibition.cs` (same shape, true means violated); `StartupViolation.cs` (`sealed record StartupViolation(string Module, string Id, string Description, string Fix, string Adr, StartupSeverity Severity)`) with `StartupSeverity` in the same file; `EncinaStartupOptions.cs` (also declares the `EncinaDeployment` enum: `EncinaDeployment Deployment = MultiInstance`, `bool AllowTestOnlyImplementations`, `IReadOnlyCollection<string> TestOnlyEnvironments` default `["Development"]`); `TestOnlyImplementationAttribute.cs`; `StartupRequirementEvaluator.cs` (internal static: `Evaluate(IEnumerable<IEncinaModuleRequirements>, IServiceProvider, EncinaStartupOptions, string? environmentName)` returns `IReadOnlyList<StartupViolation>`).
+2. The evaluator applies, in order, to every requirement and prohibition: its `AppliesWhen`; `MultiInstanceOnly` (an entry flagged true is skipped when `Deployment` is `SingleInstance`); the effective environment set (the entry's `TestOnlyEnvironments` when not null, else the options value); the test-only rule (when `ServiceType` is not null, the service is resolved and, if the resolved implementation's type carries the attribute, that is a violation unless the environment is in the effective set or `AllowTestOnlyImplementations` is set; an unknown environment, `null`, denies); the predicate (`IsSatisfied`, or `IsViolated` for a prohibition without `ServiceType`; an entry without `ServiceType` and with `TestOnlyEnvironments` is evaluated only outside the effective set); a predicate or resolution that throws becomes a violation (register row C2).
+3. **Modify** `src/Encina/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.json`, and add `changelog.d/2382-startup-requirements-model.added.md`, through `mechanical-fixer` (targets in Research).
+4. Tests (new files): `tests/Encina.UnitTests/Startup/StartupRequirementEvaluatorTests.cs` (each field of C8: a `ServiceType` whose implementation carries the attribute is a violation outside the environment set and inside it when the opt-out is set; `MultiInstanceOnly` skipped for `SingleInstance`; an entry-level environment set overrides the options one); `tests/Encina.GuardTests/Startup/StartupGuardTests.cs` (null module, empty id, null predicate, null options collections); `tests/Encina.PropertyTests/Startup/StartupEvaluatorProperties.cs` (FsCheck: the violation set does not depend on the order of the requirements classes or of the requirements inside one); `tests/Encina.ContractTests/Startup/ModuleRequirementsContractTests.cs` (moved here from S2 so the S1 contract targets are met by S1: a sample implementation keeps the contract, non-empty module and ADR id, unique requirement ids, the records keep their members including the three fields of C8).
 
 </details>
 
@@ -270,8 +291,10 @@ TASK:
 1. Create the types listed in the plan under src/Encina/Startup/ (namespace Encina.Startup), with XML docs and examples.
 2. StartupRequirementEvaluator.Evaluate returns every violation, never throws for a predicate failure (a failing
    predicate is a violation), applies AppliesWhen, Deployment and the test-only rule with an unknown environment denied.
-3. Add PublicAPI entries and the per-file coverage targets through mechanical-fixer.
-4. Write unit, guard and property tests that execute the real evaluator.
+   ModuleRequirement and ModuleProhibition carry ServiceType, MultiInstanceOnly and TestOnlyEnvironments (optional, last);
+   the evaluator reads them: no rule may depend on anything the record does not hold.
+3. Add PublicAPI entries, the per-file coverage targets and the changelog fragment through mechanical-fixer.
+4. Write unit, guard, property and contract tests that execute the real evaluator and records.
 
 KEY RULES:
 - Optional parameters after required ones. No EncinaError code is created. No logging in this phase.
@@ -300,7 +323,7 @@ REFERENCE FILES:
 3. **Create** `src/Encina/Startup/StartupValidationLog.cs` (`[LoggerMessage]` with EventIds 177-183 of `EventIdRanges.Core`; XML text "Event IDs: 177-183 (see EventIdRanges.Core)"): 177 passed (Debug), 178 requirement violated (Error), 179 test-only implementation allowed by the opt-out (Warning, one per implementation), 180 environment unresolved, denied (Error), 181 a requirement threw (Error, exception type through `ForLogging()`), 182 single-instance declared (Information), 183 requirement warning (Warning).
 4. **Create** `src/Encina/Startup/EncinaStartupServiceCollectionExtensions.cs`: `AddEncinaStartupValidation(this IServiceCollection, Action<EncinaStartupOptions>? configure = null)` and `AddEncinaModuleRequirements<TRequirements>(this IServiceCollection)` (registers the requirements with `TryAddEnumerable`, the validator with `TryAddEnumerable<IHostedService, EncinaStartupValidator>`, and the options with `AddOptions`; both idempotent).
 5. **Modify** `PublicAPI.Unshipped.txt` (the new public types), `.github/coverage-manifest/Encina.json` (targets in Research) and add `changelog.d/2382-startup-requirements-validator.added.md`, all through `mechanical-fixer`.
-6. Tests: `tests/Encina.UnitTests/Startup/EncinaStartupValidatorTests.cs` (a real `HostBuilder`: a violation stops `StartAsync`, a warning does not, the opt-out starts the host and logs 179, no `IHostEnvironment` denies, the validator runs before a hosted service registered earlier); `tests/Encina.UnitTests/Startup/EncinaStartupRegistrationTests.cs` (builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves the validator and the options; calling `AddEncinaModuleRequirements` twice registers one validator); `tests/Encina.ContractTests/Startup/ModuleRequirementsContractTests.cs` (a sample implementation keeps the contract: non-empty module, ADR id, unique requirement ids, no predicate resolves a value into a message). Justification files for the non-database test types: `tests/Encina.IntegrationTests/Startup/EncinaStartupValidator.md`, `tests/Encina.LoadTests/Startup/EncinaStartupValidator.md`, `tests/Encina.BenchmarkTests/Startup/EncinaStartupValidator.md` (startup-only, no database, no concurrency).
+6. Tests: `tests/Encina.UnitTests/Startup/EncinaStartupValidatorTests.cs` (a real `HostBuilder`: a violation stops `StartAsync`, a warning does not, the opt-out starts the host and logs 179, no `IHostEnvironment` denies, the validator runs before a hosted service registered earlier); `tests/Encina.UnitTests/Startup/EncinaStartupRegistrationTests.cs` (builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves the validator and the options; calling `AddEncinaModuleRequirements` twice registers one validator); `tests/Encina.GuardTests/Startup/EncinaStartupRegistrationGuardTests.cs` (null `services` for `AddEncinaStartupValidation` and `AddEncinaModuleRequirements<T>`; the validator constructor with a null requirements collection, scope factory, options, environment lookup and logger; the `EncinaStartupValidationException` constructor with a null violations list; a null `configure` is valid and gets a test of the valid result). The contract test of the requirements records is in S1. Justification files for the non-database test types: `tests/Encina.IntegrationTests/Startup/EncinaStartupValidator.md`, `tests/Encina.LoadTests/Startup/EncinaStartupValidator.md`, `tests/Encina.BenchmarkTests/Startup/EncinaStartupValidator.md` (startup-only, no database, no concurrency).
 
 </details>
 
@@ -343,10 +366,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **M1, `Encina.Security.ABAC`**: create `src/Encina.Security.ABAC/DecisionAudit/ABACModuleRequirements.cs` (requirement "an `IOperationAuditStore` is registered" applying when `ABACOptions.DecisionAudit.Enabled`; prohibition "the resolved store is `InMemoryOperationAuditStore`" (a direct type test, as the check does today at `ABACDecisionAuditStartupCheck.cs:67`; the generic marker for the audit stores belongs to the remaining-rows issue, so this pull request touches no second package); warning "`FailureMode` is `BestEffort`"); delete `ABACDecisionAuditStartupCheck.cs`; remove the three log methods 9084, 9086 and 9087 from `ABACLogMessages.cs` (their ids stay unassigned); edit `ServiceCollectionExtensions.cs` to call `AddEncinaModuleRequirements`. Tests: replace `ABACDecisionAuditStartupCheckTests.cs` and `ABACDecisionAuditStartupCheckGuardTests.cs` with `ABACModuleRequirementsTests.cs`, edit `ABACDecisionAuditServiceGraphTests.cs`.
-2. **M2, `Encina.Messaging`**: create `src/Encina.Messaging/Recoverability/RecoverabilityModuleRequirements.cs` (store and `IDelayedRetryMessageFactory` present when `EnableDelayedRetries`; `IEncina` present for the processor); delete `DelayedRetryStartupCheck.cs` and its log class (5457), keep the registration-time `DescribeMissing` call (a statically detectable case, `RecoverabilityServiceCollectionExtensions.cs:141-147`) by moving the helper into the requirements class; edit `RecoverabilityServiceCollectionExtensions.cs:113,122`. Tests edited: `DelayedRetryRegistrationTests.cs`, `MessagingServiceCollectionExtensionsRecoverabilityTests.cs`, `MessagingServiceCollectionExtensionsCoreEquivalenceTests.cs`, `ServiceCollectionExtensionsRecoverabilityRoutersTests.cs` (the EF Core one).
+1. **M1, `Encina.Security.ABAC`**: create `src/Encina.Security.ABAC/DecisionAudit/ABACModuleRequirements.cs` (requirement "an `IOperationAuditStore` is registered" applying when `ABACOptions.DecisionAudit.Enabled`; prohibition "the resolved store is `InMemoryOperationAuditStore`" (a direct type test, as the check does today at `ABACDecisionAuditStartupCheck.cs:67`; the generic marker for the audit stores belongs to the remaining-rows issue, so this pull request touches no second package); warning "`FailureMode` is `BestEffort`"); delete `ABACDecisionAuditStartupCheck.cs`; remove the three log methods 9084, 9086 and 9087 from `ABACLogMessages.cs` (their ids stay unassigned); edit `ServiceCollectionExtensions.cs` to call `AddEncinaModuleRequirements`. Tests: replace `ABACDecisionAuditStartupCheckTests.cs` and `ABACDecisionAuditStartupCheckGuardTests.cs` with `ABACModuleRequirementsTests.cs`, edit `ABACDecisionAuditServiceGraphTests.cs`. Documentation through `docs-writer` (these pages name the removed check and ids): `docs/features/abac/reference/decision-audit.md` (the startup-check table, lines 190-197), `docs/features/abac/reference/observability.md` (the 9084, 9086 and 9087 rows), `docs/features/abac/reference/configuration.md` (lines 47 and 78) and `src/Encina.Security.ABAC/README.md` (line 210).
+2. **M2, `Encina.Messaging`**: create `src/Encina.Messaging/Recoverability/RecoverabilityModuleRequirements.cs` (store and `IDelayedRetryMessageFactory` present when `EnableDelayedRetries`; `IEncina` present for the processor); delete `DelayedRetryStartupCheck.cs` and its log class (5457), keep the registration-time `DescribeMissing` call (a statically detectable case, `RecoverabilityServiceCollectionExtensions.cs:141-147`) by moving the helper into the requirements class; edit `RecoverabilityServiceCollectionExtensions.cs:113,122`. Tests edited: `DelayedRetryRegistrationTests.cs`, `MessagingServiceCollectionExtensionsRecoverabilityTests.cs`, `MessagingServiceCollectionExtensionsCoreEquivalenceTests.cs`, `ServiceCollectionExtensionsRecoverabilityRoutersTests.cs` (the EF Core one). Documentation through `docs-writer`: `src/Encina.EntityFrameworkCore/README.md` (line 427 names `DelayedRetryStartupCheck`).
 3. **M3, `Encina.Marten.GDPR`**: create `CryptoShreddingModuleRequirements.cs` (prohibition: the resolved `ISubjectKeyProvider` is `InMemorySubjectKeyProvider` outside the test-only environments, marked with the attribute); remove `WarnInMemoryKeyStore` and its log method from the hosted service (the serializer, contract-modifier and `[CryptoShredded]` classification stay there: they validate the configuration of the module, not a dependency); edit `ServiceCollectionExtensions.cs`. Tests: `CryptoShreddingStartupValidationHostedServiceTests.cs` and `StartupValidationHost.cs` edited, one new requirements test. The in-memory key store changes from a warning to a startup error outside Development (ADR-050 row "Crypto-shredding", #1191).
-4. Each pull request edits its package manifest and adds a changelog fragment (`changelog.d/2382-<slug>.changed.md`) through `mechanical-fixer`; none changes a `PublicAPI` file because the deleted types are `internal`.
+4. Each pull request edits its package manifest and adds a changelog fragment (`changelog.d/2382-<slug>.changed.md`) through `mechanical-fixer`; none changes a `PublicAPI` file because the deleted types are `internal`. `docs/architecture/module-dependency-matrix.md` (lines 58 and 69 name the interim checks) and the ADR-050 text that names them are updated once, in D1.
 
 </details>
 
@@ -379,16 +402,16 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: Rows of the Closed List (pull requests V1, V2, V3, L1, T1)
+### Phase 4: Rows of the Closed List (pull requests V1, then V2 and V3, L1, T1)
 
 > **Goal**: The rows whose source is #2382 and that fit one package.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **V1, V2, V3 (Validation)**: V1 creates `src/Encina/Validation/EncinaValidationRegistration.cs` (public static `EnsureSingleProvider(this IServiceCollection services, Type providerType)`: throws `InvalidOperationException` naming both providers and ADR-050 when an `IValidationProvider` descriptor of another implementation type exists; idempotent for the same type; it also registers the internal `ValidationModuleRequirements`, created in the same pull request in `src/Encina/Validation/`, through `AddEncinaModuleRequirements`: the safety net that the resolved `IValidationProvider` is exactly one) and calls it from `AddEncinaFluentValidation` (both overloads, `src/Encina.FluentValidation/ServiceCollectionExtensions.cs:62,104`); V2 and V3 call it from `AddEncinaDataAnnotations` (`:72`) and `AddEncinaMiniValidation` (`:65`). Tests per package: registration-order tests in both orders, a DI test, guard tests for the helper (V1).
-2. **L1 (Locks)**: `src/Encina.Caching.Memory/MemoryCacheModuleRequirements.cs`: the resolved `IDistributedLockProvider` is `MemoryDistributedLockProvider` (marked `[TestOnlyImplementation]`) is a violation when `Deployment` is `MultiInstance` and the environment is not in `TestOnlyEnvironments`; an application with one instance declares `Deployment = SingleInstance`. Edit `ServiceCollectionExtensions.cs:67` area and the README of the package through `docs-writer`.
-3. **T1 (Testing)**: `src/Encina.Testing.Fakes/FakesModuleRequirements.cs`: a prohibition "`AddEncinaFakes` was called" (the registration records a marker service) outside the environments `Development` and `Test`; the requirement's own environment set overrides the options default (register row in Design Choice 5).
+1. **V1, V2, V3 (Validation)**: V1 creates `src/Encina/Validation/EncinaValidationRegistration.cs` (public static `EnsureSingleProvider(this IServiceCollection services, Type providerType)`: throws `InvalidOperationException` naming both providers and ADR-050 when an `IValidationProvider` descriptor of another implementation type exists; idempotent for the same type; it also registers the internal `ValidationModuleRequirements`, created in the same pull request in `src/Encina/Validation/`, through `AddEncinaModuleRequirements`: the safety net with two requirements, "exactly one `IValidationProvider` is resolved" and, as ADR-050's Validation row requires, "an `IValidationProvider` is registered when validators exist", where validators exist means an `IValidationProvider` or `ValidationOrchestrator` descriptor is present or `ValidationPipelineBehavior<,>` is registered, so a pipeline with no provider fails startup) and calls it from `AddEncinaFluentValidation` (both overloads, `src/Encina.FluentValidation/ServiceCollectionExtensions.cs:62,104`); V2 and V3 call it from `AddDataAnnotationsValidation` (`src/Encina.DataAnnotations/ServiceCollectionExtensions.cs:67`, `TryAdd` at :72) and `AddMiniValidation` (`src/Encina.MiniValidator/ServiceCollectionExtensions.cs:60`, `TryAdd` at :65). **Ordering**: V2 and V3 open only after V1 merges, because the helper is created in V1. Tests per package: registration-order tests in both orders, a DI test, guard tests for the helper (V1), and a startup test with a pipeline behavior registered and no provider (V1).
+2. **L1 (Locks)**: `src/Encina.Caching.Memory/MemoryCacheModuleRequirements.cs`: one requirement with `ServiceType = typeof(IDistributedLockProvider)` and `MultiInstanceOnly = true`; the resolved `MemoryDistributedLockProvider` is marked `[TestOnlyImplementation]`, so it is a violation when `Deployment` is `MultiInstance` and the environment is not in the effective set; an application with one instance declares `Deployment = SingleInstance`. Edit `ServiceCollectionExtensions.cs:67` area and the README of the package through `docs-writer`. The package has no `InternalsVisibleTo` today, so L1 also edits `src/Encina.Caching.Memory/Encina.Caching.Memory.csproj` to add `InternalsVisibleTo` for `Encina.UnitTests` (counted below), because the requirements class is `internal` and tested in `Encina.UnitTests`.
+3. **T1 (Testing)**: `src/Encina.Testing.Fakes/FakesModuleRequirements.cs`: a prohibition "`AddEncinaFakes` was called" (the registration records a marker service) with `TestOnlyEnvironments = ["Development", "Test"]`, so it is evaluated, and violated, only outside those two environments (register row C8). The package has no `InternalsVisibleTo` either: T1 edits `src/Encina.Testing.Fakes/Encina.Testing.Fakes.csproj` to add it for `Encina.UnitTests` (counted below).
 4. Each pull request adds its manifest entry and a `changelog.d/2382-<slug>.added.md` fragment through `mechanical-fixer`; `PublicAPI.Unshipped.txt` lines only where a public type is added (V1 in core; L1 and T1 requirements classes are `internal`).
 
 </details>
@@ -403,8 +426,8 @@ source #2382 that fit one package: Validation (3 providers, exactly one), Distri
 AddEncinaMemoryCache), Testing (Encina.Testing.Fakes outside Development or Test).
 
 TASK:
-1. V1: add EncinaValidationRegistration.EnsureSingleProvider in core and call it from the three AddEncina* validation
-   methods (one pull request per provider package; V1 also adds the helper). Whichever call runs second throws.
+1. V1: add EncinaValidationRegistration.EnsureSingleProvider in core and call it from AddEncinaFluentValidation;
+   V2 and V3 (after V1) call it from AddDataAnnotationsValidation and AddMiniValidation. Whichever call runs second throws.
 2. L1 and T1: add one internal IEncinaModuleRequirements class each and register it with AddEncinaModuleRequirements.
 3. Tests: both registration orders, DI with ValidateOnBuild and ValidateScopes, a startup test with a real host.
 
@@ -432,7 +455,8 @@ REFERENCE FILES:
 
 1. `docs/features/startup-requirements.md` through `docs-writer`: how to declare single-instance, how to opt out (and that the opt-out is logged), how a module adds requirements, the decorator limitation (register row C3).
 2. `docs/architecture/adr/050-modules-may-require-modules.md` through `docs-writer`: a dated amendment note naming the rows that are enforced by this validator and linking the follow-up issue.
-3. `ROADMAP.md` is not edited (no milestone changes); `docs/INVENTORY.md` is edited only if it lists core namespaces (checked when the pull request opens).
+3. `docs/architecture/module-dependency-matrix.md` through `docs-writer`: the Delayed retries and ABAC rows (lines 58 and 69) name interim checks that M1 and M2 removed.
+4. `ROADMAP.md` is not edited (no milestone changes); `docs/INVENTORY.md` is edited only if it lists core namespaces (checked when the pull request opens).
 
 </details>
 
@@ -498,17 +522,17 @@ Every count includes tests, the coverage manifest, PublicAPI, changelog fragment
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| S1 | Core model and evaluator | 7 | 1 (PublicAPI) | 3 | 0 | 1 | 0 | 12 | ~850 |
-| S2 | Validator, registration, log | 4 | 1 (PublicAPI) | 3 | 0 | 1 | 4 (changelog, 3 `.md` justifications) | 13 | ~850 |
-| M1 | ABAC migration | 1 | 3 (`ServiceCollectionExtensions.cs`, `ABACLogMessages.cs` and the deleted `ABACDecisionAuditStartupCheck.cs`) | 1 | 3 (2 replaced, 1 edited) | 1 | 1 | 10 | ~500 |
-| M2 | Messaging migration | 1 | 2 (the extensions class and the deleted `DelayedRetryStartupCheck.cs`) | 1 | 4 | 1 | 1 | 10 | ~450 |
+| S1 | Core model and evaluator | 7 | 1 (PublicAPI) | 4 (unit, guard, property, contract) | 0 | 1 | 1 (changelog) | 14 | ~1,000 |
+| S2 | Validator, registration, log | 4 | 1 (PublicAPI) | 3 (2 unit, 1 guard) | 0 | 1 | 4 (changelog, 3 `.md` justifications) | 13 | ~850 |
+| M1 | ABAC migration | 1 | 3 (`ServiceCollectionExtensions.cs`, `ABACLogMessages.cs` and the deleted `ABACDecisionAuditStartupCheck.cs`) | 1 | 3 (2 replaced, 1 edited) | 1 | 5 (changelog, `decision-audit.md`, `observability.md`, `configuration.md`, ABAC README) | 14 | ~600 |
+| M2 | Messaging migration | 1 | 2 (the extensions class and the deleted `DelayedRetryStartupCheck.cs`) | 1 | 4 | 1 | 2 (changelog, `Encina.EntityFrameworkCore/README.md`) | 11 | ~480 |
 | M3 | Marten.GDPR migration | 1 | 4 (hosted service, log class, extensions, `InMemorySubjectKeyProvider.cs` attribute) | 1 | 2 | 1 | 1 | 10 | ~400 |
 | V1 | Validation helper and FluentValidation | 2 | 2 (`ServiceCollectionExtensions.cs`, core PublicAPI) | 3 | 0 | 2 | 1 | 10 | ~450 |
 | V2 | DataAnnotations | 0 | 1 | 2 | 0 | 1 | 1 | 5 | ~200 |
 | V3 | MiniValidator | 0 | 1 | 2 | 0 | 1 | 1 | 5 | ~200 |
-| L1 | Caching.Memory lock row | 1 | 3 (extensions class, attribute on `MemoryDistributedLockProvider.cs`, README) | 2 | 0 | 1 | 1 | 8 | ~300 |
-| T1 | Testing.Fakes row | 1 | 1 | 2 | 0 | 1 | 1 | 6 | ~250 |
-| D1 | Documentation | 0 | 0 | 0 | 0 | 0 | 2 (feature page, ADR note) | 2 | ~200 |
+| L1 | Caching.Memory lock row | 1 | 4 (extensions class, attribute on `MemoryDistributedLockProvider.cs`, README, `Encina.Caching.Memory.csproj` for `InternalsVisibleTo`) | 2 | 0 | 1 | 1 | 9 | ~320 |
+| T1 | Testing.Fakes row | 1 | 2 (extensions class, `Encina.Testing.Fakes.csproj` for `InternalsVisibleTo`) | 2 | 0 | 1 | 1 | 7 | ~270 |
+| D1 | Documentation | 0 | 0 | 0 | 0 | 0 | 3 (feature page, ADR note, `module-dependency-matrix.md`) | 3 | ~250 |
 | **Total** | | **18** | **19** | **20** | **9** | **11** | **14** | **91** | **~4,500** |
 
 The 11 rows sum to the total (12 + 13 + 10 + 10 + 10 + 10 + 5 + 5 + 8 + 6 + 2 = 91 files). Every pull request is at most 15 files and 900 lines. The S1 pull request adds public types with no consumer in the same pull request; they are executed by its own unit, guard and property tests, so the crap-gate and the per-flag targets are met by S1 alone.
