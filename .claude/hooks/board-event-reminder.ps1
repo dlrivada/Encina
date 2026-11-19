@@ -3,8 +3,8 @@
 # collections now (no scheduled reconciler runs; tools/ai/board/reconcile-board.ps1 is a manual tool).
 #
 # Events: a shell command that ran `gh pr create`, `gh pr merge`, `audit-done.ps1` or `audit-commit-stage.ps1`;
-# an Agent spawn of issue-worker or docs-writer. The hook NEVER blocks: it always exits 0, and a malformed
-# payload or any failure of the hook itself produces no output.
+# an Agent spawn of issue-worker or docs-writer. The hook exits 0, and a malformed payload or any failure of
+# the hook itself produces no output; the one exception is an exceeded analysis budget (#3984), which exits 2.
 
 param()
 
@@ -44,5 +44,11 @@ try {
         @{ hookSpecificOutput = @{ hookEventName = 'PostToolUse'; additionalContext = $context } } | ConvertTo-Json -Compress
     }
 }
-catch { }
+catch {
+    # The analysis budget (#3984) is the one failure that denies: exit 2 shows stderr to Claude.
+    if ("$($_.Exception.Message)".StartsWith('ENCINA_HOOK_BUDGET_EXCEEDED', [StringComparison]::Ordinal)) {
+        [Console]::Error.WriteLine('board-event-reminder analysis budget exceeded, so this command was not checked for board events (#3984).')
+        exit 2
+    }
+}
 exit 0

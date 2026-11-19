@@ -129,4 +129,11 @@ public static class EncinaErrorCodes
 
     /// <summary>An authenticated user is not the owner of the requested resource (a denial, 403).</summary>
     public const string AuthorizationNotOwner = "encina.authorization.not_owner";
+
+    // ── Validation ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generic validation failure produced when request validation fails.
+    /// </summary>
+    public const string ValidationFailed = "encina.validation.failed";
 }

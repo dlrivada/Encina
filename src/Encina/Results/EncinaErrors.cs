@@ -102,6 +102,15 @@ public static class EncinaErrors
         => Create(EncinaErrorCodes.AuthorizationUnauthenticated, ErrorCategory.Unauthenticated, "Authentication is required.", details: details);
 
     /// <summary>
+    /// Creates a validation error with code <see cref="EncinaErrorCodes.ValidationFailed"/> and category <see cref="ErrorCategory.Validation"/>.
+    /// </summary>
+    /// <param name="message">The error message.</param>
+    /// <param name="details">Optional structured metadata as a dictionary.</param>
+    /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.ValidationFailed"/> and category <see cref="ErrorCategory.Validation"/>.</returns>
+    public static EncinaError Validation(string message, IReadOnlyDictionary<string, object?>? details = null)
+        => Create(EncinaErrorCodes.ValidationFailed, ErrorCategory.Validation, message, details: details);
+
+    /// <summary>
     /// Wraps an exception inside a typed error with no category.
     /// </summary>
     /// <param name="code">The error code.</param>

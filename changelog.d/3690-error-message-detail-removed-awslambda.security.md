@@ -1,0 +1,1 @@
+- `Encina.AwsLambda`: the API Gateway problem-details body no longer carries the error message in `detail`, in the REST API and HTTP API v2 shapes; `EncinaError.Message` and exception messages never reach HTTP clients. The `errorCode` extension is unchanged (#3690, part of #2913).

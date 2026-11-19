@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using Encina.AwsLambda;
 using LanguageExt;
 
@@ -51,7 +52,7 @@ public class ApiGatewayResponseExtensionsTests
         response.Headers["Content-Type"].ShouldBe("application/problem+json");
         response.Body.ShouldContain("\"status\":400");
         response.Body.ShouldContain("\"title\":\"Bad Request\"");
-        response.Body.ShouldContain("Invalid input provided");
+        response.Body.ShouldNotContain("Invalid input provided");
     }
 
     [Fact]
@@ -235,46 +236,207 @@ public class ApiGatewayResponseExtensionsTests
         response.Headers["Content-Type"].ShouldBe("application/problem+json");
     }
 
+    // The 14 categories of ADR-062 and the status each one answers.
+    public static TheoryData<ErrorCategory, int, string> CategoryStatuses => new()
+    {
+        { ErrorCategory.Internal, 500, "Internal Server Error" },
+        { ErrorCategory.Validation, 400, "Bad Request" },
+        { ErrorCategory.InvalidRequest, 400, "Bad Request" },
+        { ErrorCategory.Unauthenticated, 401, "Unauthorized" },
+        { ErrorCategory.Forbidden, 403, "Forbidden" },
+        { ErrorCategory.NotFound, 404, "Not Found" },
+        { ErrorCategory.Conflict, 409, "Conflict" },
+        { ErrorCategory.AlreadyExists, 409, "Conflict" },
+        { ErrorCategory.FailedPrecondition, 400, "Bad Request" },
+        { ErrorCategory.RateLimited, 429, "Too Many Requests" },
+        { ErrorCategory.Unavailable, 503, "Service Unavailable" },
+        { ErrorCategory.Timeout, 504, "Gateway Timeout" },
+        { ErrorCategory.UpstreamFailure, 502, "Bad Gateway" },
+        { ErrorCategory.Cancelled, 499, "Client Closed Request" },
+    };
+
     [Theory]
-    [InlineData("validation.field_required", 400)]
-    [InlineData("encina.guard.validation_failed", 400)]
-    [InlineData(EncinaErrorCodes.AuthorizationUnauthenticated, 401)]
-    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationForbidden, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing, 403)]
-    [InlineData(EncinaErrorCodes.AuthorizationNotOwner, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode, 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQueryCode, 400)]
-    [InlineData("encina.authorization.some_future_denial", 403)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode, 404)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode, 404)]
-    [InlineData("entity.not_found", 404)]
-    [InlineData("entity.missing", 404)]
-    [InlineData("encina.request.handler_missing", 404)]
-    [InlineData("entity.conflict", 409)]
-    [InlineData("entity.already_exists", 409)]
-    [InlineData("entity.duplicate", 409)]
-    [InlineData("random.error", 500)]
-    public void ErrorCodeMapping_MapsCorrectly(string errorCode, int expectedStatus)
+    [MemberData(nameof(CategoryStatuses))]
+    public void ToApiGatewayResponse_ForEveryCategory_AnswersTheCategoryStatusAndTitle(
+        ErrorCategory category, int expectedStatus, string expectedTitle)
     {
         // Arrange
-        var error = EncinaErrors.Create(errorCode, "Test message");
-        var result = Either<EncinaError, TestOrder>.Left(error);
+        var result = Either<EncinaError, TestOrder>.Left(EncinaErrors.Create("test.failure", category: category, "Test message"));
 
         // Act
         var response = result.ToApiGatewayResponse();
 
         // Assert
         response.StatusCode.ShouldBe(expectedStatus);
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
+        using var body = JsonDocument.Parse(response.Body);
+        body.RootElement.GetProperty("status").GetInt32().ShouldBe(expectedStatus);
+        body.RootElement.GetProperty("title").GetString().ShouldBe(expectedTitle);
+    }
+
+    [Theory]
+    [MemberData(nameof(CategoryStatuses))]
+    public void ToHttpApiResponse_ForEveryCategory_AnswersTheCategoryStatusAndTitle(
+        ErrorCategory category, int expectedStatus, string expectedTitle)
+    {
+        // Arrange
+        var result = Either<EncinaError, TestOrder>.Left(EncinaErrors.Create("test.failure", category: category, "Test message"));
+
+        // Act
+        var response = result.ToHttpApiResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(expectedStatus);
+        response.Headers["Content-Type"].ShouldBe("application/problem+json");
+        using var body = JsonDocument.Parse(response.Body);
+        body.RootElement.GetProperty("status").GetInt32().ShouldBe(expectedStatus);
+        body.RootElement.GetProperty("title").GetString().ShouldBe(expectedTitle);
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_ErrorWithoutCode_Returns500()
+    {
+        // Arrange
+        var error = EncinaErrors.Create(string.Empty, "Test message");
+
+        // Act
+        var response = error.ToProblemDetailsResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(500);
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_ErrorCodeText_IsNeverParsedToChooseTheStatus()
+    {
+        // Arrange: the code looks like a not-found suffix but the category is Conflict
+        var error = EncinaErrors.Create("order.not_found", category: ErrorCategory.Conflict, "Test message");
+
+        // Act
+        var response = error.ToProblemDetailsResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(409);
+        response.Body.ShouldContain("\"errorCode\":\"order.not_found\"");
+    }
+
+    [Theory]
+    [InlineData(ErrorCategory.RateLimited, 429)]
+    [InlineData(ErrorCategory.Unavailable, 503)]
+    public void ToProblemDetailsResponse_RetryAfterDetail_IsWrittenAsHeaderForBothShapes(ErrorCategory category, int status)
+    {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "test.busy",
+            category,
+            "Busy",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromSeconds(30) });
+
+        // Act
+        var v1 = error.ToProblemDetailsResponse();
+        var v2 = Either<EncinaError, TestOrder>.Left(error).ToHttpApiResponse();
+
+        // Assert
+        v1.StatusCode.ShouldBe(status);
+        v1.Headers["Retry-After"].ShouldBe("30");
+        v1.Headers["Content-Type"].ShouldBe("application/problem+json");
+        v2.StatusCode.ShouldBe(status);
+        v2.Headers["Retry-After"].ShouldBe("30");
+        v2.Headers["Content-Type"].ShouldBe("application/problem+json");
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_RateLimitedWithoutRetryAfter_WritesNoRetryAfterHeader()
+    {
+        // Arrange
+        var error = EncinaErrors.Create("test.busy", ErrorCategory.RateLimited, "Busy");
+
+        // Act
+        var response = error.ToProblemDetailsResponse();
+
+        // Assert
+        response.StatusCode.ShouldBe(429);
+        response.Headers.ShouldNotContainKey("Retry-After");
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_Unauthenticated_WritesDefaultBearerChallengeForBothShapes()
+    {
+        // Arrange
+        var error = EncinaErrors.Create("test.no_identity", ErrorCategory.Unauthenticated, "No identity");
+
+        // Act
+        var v1 = error.ToProblemDetailsResponse();
+        var v2 = Either<EncinaError, TestOrder>.Left(error).ToHttpApiResponse();
+
+        // Assert
+        v1.Headers["WWW-Authenticate"].ShouldBe("Bearer");
+        v2.Headers["WWW-Authenticate"].ShouldBe("Bearer");
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_Unauthenticated_WritesTheChallengeOfTheDetails()
+    {
+        // Arrange
+        var error = EncinaErrors.Create(
+            "test.no_identity",
+            ErrorCategory.Unauthenticated,
+            "No identity",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.AuthenticateChallenge] = "Basic realm=\"orders\"" });
+
+        // Act
+        var response = error.ToProblemDetailsResponse();
+
+        // Assert
+        response.Headers["WWW-Authenticate"].ShouldBe("Basic realm=\"orders\"");
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_ExplicitStatusOverride_PassesThroughAndHeadersFollowTheEffectiveStatus()
+    {
+        // Arrange: a Validation error overridden to 503 gets the headers of 503, not those of 400
+        var error = EncinaErrors.Create(
+            "test.override",
+            ErrorCategory.Validation,
+            "Override",
+            details: new Dictionary<string, object?> { [EncinaErrorMetadataKeys.RetryAfter] = TimeSpan.FromSeconds(5) });
+
+        // Act
+        var response = error.ToProblemDetailsResponse(statusCode: 503);
+        var v2 = Either<EncinaError, TestOrder>.Left(error).ToHttpApiResponse(errorStatusCode: 401);
+
+        // Assert
+        response.StatusCode.ShouldBe(503);
+        response.Headers["Retry-After"].ShouldBe("5");
+        v2.StatusCode.ShouldBe(401);
+        v2.Headers["WWW-Authenticate"].ShouldBe("Bearer");
+        v2.Headers.ShouldNotContainKey("Retry-After");
+    }
+
+    [Fact]
+    public void ToProblemDetailsResponse_NeverWritesTheErrorMessageOrAnExceptionMessage()
+    {
+        // Arrange
+        const string Secret = "secret-connection-string-in-message";
+        const string ExceptionSecret = "secret-in-exception-message";
+        var error = EncinaErrors.Create(
+            "test.failure",
+            ErrorCategory.Internal,
+            Secret,
+            new InvalidOperationException(ExceptionSecret));
+
+        // Act
+        var v1 = error.ToProblemDetailsResponse();
+        var v2 = Either<EncinaError, TestOrder>.Left(error).ToHttpApiResponse();
+
+        // Assert
+        foreach (var body in new[] { v1.Body, v2.Body })
+        {
+            body.ShouldNotContain(Secret);
+            body.ShouldNotContain(ExceptionSecret);
+            using var json = JsonDocument.Parse(body);
+            json.RootElement.TryGetProperty("detail", out _).ShouldBeFalse();
+        }
     }
 
     private sealed class TestOrder

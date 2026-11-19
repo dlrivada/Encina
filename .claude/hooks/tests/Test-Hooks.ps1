@@ -464,6 +464,15 @@ Set-Content $scriptWritesSrc 'File.WriteAllText("src/x.cs", "y");'
 Set-Content $scriptWritesDocs 'File.WriteAllText("docs/x.md", "y");'
 Set-Content $scriptWritesTestsPs1 "Set-Content 'tests/x.cs' 'y'"
 Set-Content $scriptWritesDocsPs1 "Set-Content 'docs/x.md' 'y'"
+# #3896: Test-ScriptReferencesPath is segment- and URL-aware.
+$scriptUrlTestsDocsPs1 = Join-Path $work 'script-url-tests-docs.ps1'
+$scriptUrlTestsWritesTestsPs1 = Join-Path $work 'script-url-tests-writes-tests.ps1'
+$scriptFileUriTestsPs1 = Join-Path $work 'script-file-uri-tests.ps1'
+Set-Content $scriptUrlTestsDocsPs1 "Invoke-RestMethod 'https://example.com/tests/data.json' | Set-Content 'docs/x.md'"
+Set-Content $scriptUrlTestsWritesTestsPs1 "`$u = 'https://example.com/tests/data.json'`nSet-Content 'tests/x.cs' 'y'"
+Set-Content $scriptFileUriTestsPs1 "Set-Content 'file:///tests/x.cs' 'y'"
+$scriptCommaUrlSrcPs1 = Join-Path $work 'script-comma-url-src.ps1'
+Set-Content $scriptCommaUrlSrcPs1 "Set-Content https://x,src/a 1"
 
 # #2892: a .ps1 is judged by where it writes, not by the src/ and tests/ words in its text. Each script is the
 # text of one scenario; $main is interpolated, every script variable is escaped with a backtick.
@@ -509,6 +518,34 @@ $ps1Scripts = [ordered]@{
     ParamDrivenTool     = "param([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'), [string]`$Repo = 'dlrivada/Encina')`n`$outDir = Split-Path -Parent `$Out`nif (-not (Test-Path `$outDir)) { New-Item -ItemType Directory -Force -Path `$outDir | Out-Null }`n[ordered]@{ repo = `$Repo } | ConvertTo-Json | Set-Content -Path `$Out -Encoding utf8`n"
     ParamDrivenMention  = "# Output goes next to the tests of the board.`nparam([string]`$Out = (Join-Path (git rev-parse --show-toplevel) 'artifacts/priority/issues.json'))`nSet-Content -Path `$Out -Value 'x' -Encoding utf8`n"
     WorkingDirectoryRel = "Set-Content 'x.cs' 'y'`n"
+    # #3896: modelled on the board refresh script (artifacts/board/refresh-dash.ps1): an -Sp param, a call-operator
+    # script block, URLs with a `load-tests` segment and writes only under "$Sp\...".
+    BoardRefresh        = "param([string]`$Sp = `$PSScriptRoot)`n`$base = 'https://dlrivada.github.io/Encina'`nfunction Get-J(`$u) { Invoke-RestMethod -Uri `$u -TimeoutSec 30 }`n`$iso = { param(`$t) ([datetime]`$t).ToUniversalTime().ToString('o') }`n`$load = Get-J `"`$base/load-tests/data/latest.json`"`n[ordered]@{ asOf = (& `$iso `$load.timestamp); url = `"`$base/load-tests/dashboard/`" } | ConvertTo-Json -Compress | Set-Content -Encoding utf8 `"`$Sp\loadtests.json`"`n"
+    # A script whose text names tests/ legitimately and whose only target is bound to -Sp.
+    ParamSpMention      = "param([string]`$Sp)`n# Output is written next to the board, never under src/ or tests/.`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    ParamSpAmbiguous    = "param([string]`$Sp, [string]`$Sq)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    ParamSpFlag         = "param([switch]`$Flag, [string]`$Sp = 'src')`nSet-Content -Path `"`$Sp/out.txt`" -Value '1'`n"
+    ParamSpSwitch       ="param([switch]`$Sp)`n# never under src/ or tests/`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    # A URL with a /tests/ segment and a hyphenated name are not repository paths.
+    UrlTestsSegment     = "param([string]`$Sp = `$PSScriptRoot)`n`$r = Invoke-RestMethod -Uri 'https://example.com/tests/data.json'`n`$r | ConvertTo-Json | Set-Content `"`$Sp\data.json`"`n"
+    # Review of #3896: an [Alias] makes -Sp bind to $Target, not to the prefix match $Spec; a drive path written with
+    # `//` is no URL.
+    AliasPrefix         = "param([string]`$Spec = '$main\src', [Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
+    IexDriveSlashes     = "Invoke-Expression `"Set-Content '$($main.Replace(':\', '://').Replace('\', '/'))/src/x.txt' 1`"`n"
+    # A write to tests/ through a variable, next to a URL.
+    CommaUrlSrc         = "Invoke-Expression `"Set-Content https://x,src/y 1`"`n"
+    PsDriveUrlSrc       = "Invoke-Expression `"Set-Content 'ab://src/x.txt' 1`"`n"
+    # Review of #3896: a script that creates a drive keeps `git://src/...` as a path mention; without a drive-creating command an https URL naming src is not one.
+    GitDriveSrc         = "New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts' | Out-Null`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
+    MountCommentUrl     = "param([string]`$Sp)`n# mount point of the share`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    # The drive is created by an assignment, and the write goes through a string handed to Invoke-Expression.
+    GitDriveAssigned    = "`$null = New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts'`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
+    GitDriveHashString  = "Write-Host `"Step # 1`"; `$null = New-PSDrive -Name git -PSProvider FileSystem -Root '$main\artifacts'`nInvoke-Expression `"Set-Content 'git://src/x.cs' 1`"`n"
+    HttpsSrcUrl         = "param([string]`$Sp)`n`$r = Invoke-RestMethod -Uri 'https://github.com/x/src/y'`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`n"
+    QualifiedAlias      = "param([string]`$Spec = '$main\src', [System.Management.Automation.Alias('Sp')][string]`$Target)`n# never under src/ or tests/`nSet-Content -Path `"`$Spec\o.txt`" -Value 'y'`n"
+    CommonPrefix        = "[CmdletBinding()]param([string]`$VerboseLevel = '$main\src')`n# never under src/ or tests/`nSet-Content -Path `"`$VerboseLevel\o.txt`" -Value 'y'`n"
+    FileUriSrc          ="Invoke-Expression `"Set-Content 'file:///$($main.Replace('\', '/'))/src/x.txt' 1`"`n"
+    TestsViaVariable    ="`$url = 'https://example.com/tests/data.json'`n`$t = Join-Path '$main' 'tests'`nSet-Content -Path `"`$t\X.cs`" -Value 'y'`n"
 }
 # B2: a chain of reused variables (each doubling the previous) writing under src/ must be judged quickly and denied.
 $expLines = @('$v0 = "x"') + @(1..14 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v14) -Value 1")
@@ -529,6 +566,7 @@ $ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
+$ps1Scripts['ParamSpBlankLines'] = "param([string]`$Sp)`r`n# never under src/ or tests/`r`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`r`n" + ("`r`n" * 130000)
 $env:ENCINA_HOOK_TEST_OUT = "$main\artifacts\env-out.txt"
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
@@ -624,6 +662,10 @@ $writeCases = @(
     @('PowerShell', @{ command = "& '$scriptWritesTestsPs1'" }, $main, 2, 'call operator of a script that writes tests/, from the main checkout'),
     @('PowerShell', @{ command = ". '$scriptWritesTestsPs1'" }, $main, 2, 'dot-source of a script that writes tests/, from the main checkout'),
     @('PowerShell', @{ command = "& '$scriptWritesDocsPs1'" }, $main, 0, 'call operator of a script that writes only docs/, from the main checkout'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsDocsPs1'" }, $main, 0, '#3896: a script with a URL that has a /tests/ segment and writes only docs/: allowed'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptUrlTestsWritesTestsPs1'" }, $main, 2, '#3896: a script with a /tests/ URL that also writes tests/: blocked'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptCommaUrlSrcPs1'" }, $main, 2, '#3896: https://x,src/a writes src/ through the comma array: blocked'),
+    @('PowerShell', @{ command = "pwsh -File '$scriptFileUriTestsPs1'" }, $main, 2, '#3896: a file: URI naming tests/ is still a path mention: blocked'),
     @('PowerShell', @{ command = "`$f = '$wt\src\x.json'; `$t = (Get-Content `$f -Raw).Replace('a', 'b'); [IO.File]::WriteAllText(`$f, `$t)" }, $wt, 2, '.Replace( with [IO.File] to a variable, repo .json named'),
     @('PowerShell', @{ command = "Set-Content '$wt\artifacts\issues\x.md' y" }, $wt, 0, 'artifacts are not repo files'),
     @('PowerShell', @{ command = "Set-Content '$outside\body.md' y" }, $wt, 0, 'source extension outside the project'),
@@ -1111,7 +1153,74 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Repo x" }, $main, $null, 0, 'main session (#2892): the same tool with an unrelated argument is allowed'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenMention)'" }, $main, $null, 2, 'main session (#2892): a param()-driven tool whose text names tests and whose target is unresolved: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\src\Encina\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as src/: denied'),
-    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied')
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamDrivenTool)' -Out '$main\tests\X.json'" }, $main, $null, 2, 'main session (#2892): the same tool with its output parameter supplied as tests/: denied'),
+    # #3896: a param-bound target takes the literal the launching command passes; a URL or a hyphenated name is no path.
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\artifacts\board'" }, $main, $null, 0, 'main session (#3896): board refresh script with -Sp under artifacts/ and load-tests URLs: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\artifacts\board'" }, $main, 'a1b2', 0, 'site-steward (#3896): board refresh script with -Sp under artifacts/: allowed', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$outside\scratchpad'" }, $main, $null, 0, 'main session (#3896): board refresh script with -Sp in the scratchpad: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$outside\scratchpad'" }, $main, 'a1b2', 0, 'site-steward (#3896): board refresh script with -Sp in the scratchpad: allowed', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)'" }, $main, $null, 0, 'main session (#3896): board refresh script with no -Sp and no src/tests word: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): board refresh script with -Sp under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp '$main\tests\board'" }, $main, 'a1b2', 2, 'site-steward (#3896): board refresh script with -Sp under tests/: denied', 'site-steward'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.BoardRefresh)' -Sp:'$main\src\board'" }, $main, $null, 2, 'main session (#3896): -Sp:value form under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'artifacts\board'" }, $main, $null, 0, 'main session (#3896): a script that names tests/ in a comment, -Sp under artifacts/: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S (a prefix of -Sp) binds nothing, exact names only: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CommaUrlSrc)'" }, $main, $null, 2, 'main session (#3896): https://x,src/y writes src/ through the comma array: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.PsDriveUrlSrc)'" }, $main, $null, 2, 'main session (#3896): a PSDrive-style ab://src/ path is not blanked as a URL: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.QualifiedAlias)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a namespace-qualified [Alias] binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CommonPrefix)' -Verbose:false" }, $main, $null, 2, 'main session (#3896): -Verbose is not a prefix match for -VerboseLevel: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' $([char]0x2018) -Sp `"$main\artifacts`" $([char]0x2019)" }, $main, $null, 2, 'main session (#3896): curly quotes in the launch arguments bind nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): a script that names tests/, -Sp under src/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'tests\board'" }, $main, $null, 2, 'main session (#3896): -Sp a relative tests/ path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'D:src'" }, $main, $null, 2, 'main session (#3896): a drive-relative -Sp value (D:src) stays unresolved: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)'" }, $main, $null, 2, 'main session (#3896): a script that names tests/ with -Sp not passed (unresolved): denied'),
+    @('PowerShell', @{ command = "`$d = '$main\artifacts\board'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `$d" }, $main, $null, 2, 'main session (#3896): -Sp passed through a variable (unresolved) to a script naming tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\a' -Sp '$main\src\b'" }, $main, $null, 2, 'main session (#3896): -Sp passed twice is not trusted: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpAmbiguous)' -S '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -S is an ambiguous prefix of -Sp and -Sq, so it binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpSwitch)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): -Sp is a switch parameter, so no literal is bound: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.AliasPrefix)' -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a script with an [Alias] binds nothing from the command line: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.FileUriSrc)'" }, $main, $null, 2, 'main session (#3896): a file: URI naming src/ is still a path mention (not blanked as a URL): denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.IexDriveSlashes)'" }, $main, $null, 2, 'main session (#3896): a drive path written with // is not a URL: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts$([char]0x2019)\..\src\x'" }, $main, $null, 2, 'main session (#3896): a -Sp literal with a Unicode quote does not parse back to itself: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `"$main\artifacts\``u{73}rc`"" }, $main, $null, 2, 'main session (#3896): a double-quoted -Sp with a `u{..} escape is expanded by PowerShell, so it binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `"`$`$`"" }, $main, $null, 2, 'main session (#3896): -Sp "$$" binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `"`$^`"" }, $main, $null, 2, 'main session (#3896): -Sp "$^" binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:`"$main\artifacts\``u{73}rc`"" }, $main, $null, 2, 'main session (#3896): -Sp:"..`u{..}" inline escape binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:$main\artifacts\``u{73}rc" }, $main, $null, 2, 'main session (#3896): an unquoted -Sp:value with a `u{..} escape binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp:`$`$" }, $main, $null, 2, 'main session (#3896): an unquoted -Sp:$$ binds nothing: denied'),
+    @('PowerShell', @{ command = "`$a = '$main\src'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp @a" }, $main, $null, 2, 'main session (#3896): -Sp @a (splat) binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp artifacts\board" }, $main, $null, 0, 'main session (#3896): an unquoted literal -Sp value still binds: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.GitDriveSrc)'" }, $main, $null, 2, 'main session (#3896): git://src/ next to New-PSDrive stays a path mention: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.GitDriveAssigned)'" }, $main, $null, 2, 'main session (#3896): $null = New-PSDrive (assignment, not statement start) still keeps git://src/ a path mention: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.GitDriveHashString)'" }, $main, $null, 2, 'main session (#3896): a # inside a string does not hide a New-PSDrive on the same line: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.MountCommentUrl)' -Sp 'artifacts\board'" }, $main, $null, 0, 'main session (#3896): the word mount in a comment is not drive creation, so an https URL naming src stays a non-mention: allowed'),
+    @('PowerShell', @{ command = "`$env:Q = '$main\src'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' --% -Sp %Q%" }, $main, $null, 2, 'main session (#3896): --% after the file expands %Q%, so -Sp binds nothing: denied'),
+    @('PowerShell', @{ command = "`$env:Q = '$main\src'; pwsh -NoProfile --% -File $($ps1ScriptPath.ParamSpMention) -Sp %Q%" }, $main, $null, 2, 'main session (#3896): --% before -File binds nothing: denied'),
+    @('PowerShell', @{ command = "`$env:Q = '$main\src'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' --% -Sp:%Q%" }, $main, $null, 2, 'main session (#3896): --% with -Sp:%Q% binds nothing: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.HttpsSrcUrl)' -Sp 'artifacts\board'" }, $main, $null, 0, 'main session (#3896): an https URL naming src/ is not a path mention: allowed'),
+    @('PowerShell', @{ command = "`$env:Q = '$main\src'; pwsh -Command `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp '`$env:Q'`"" }, $main, $null, 2, 'main session (#3896): -Command wrapper, -Sp ''$env:Q'' expanded by the outer shell: denied'),
+    @('PowerShell', @{ command = "`$q = '$main\src'; pwsh -Command `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp '`$q'`"" }, $main, $null, 2, 'main session (#3896): -Command wrapper, -Sp ''$q'' expanded by the outer shell: denied'),
+    @('PowerShell', @{ command = "pwsh -Command `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp '`$HOME'`"" }, $main, $null, 2, 'main session (#3896): -Command wrapper, -Sp ''$HOME'' expanded by the outer shell: denied'),
+    @('PowerShell', @{ command = "pwsh -Command `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp artifacts\board`"" }, $main, $null, 0, 'main session (#3896): -Command wrapper, a plain artifacts path still binds: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\a+b'" }, $main, $null, 2, 'main session (#3896): a -Sp value with + is outside the whitelist, unresolved: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\informe-a$([char]0xF1)o'" }, $main, $null, 2, 'main session (#3896): a -Sp value with an accented character is outside the whitelist, unresolved: denied'),
+    @('PowerShell', @{ command = "bash -c `"pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' -Sp $($main -replace '\\', '/')/artifacts/../{src,docs}`"" }, $main, $null, 2, 'main session (#3896): bash -c wrapper, brace expansion right after the -Sp value: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' -Sp $($main -replace '\\', '/')/artifacts/../{src,docs}" }, $main, $null, 2, 'main session (#3896): Bash tool, brace expansion right after the -Sp value: denied'),
+    @('PowerShell', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp $main\artifacts\..\{src,docs}" }, $main, $null, 2, 'main session (#3896): PowerShell, a brace right after the -Sp value: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' -Sp $($main -replace '\\', '/')/artifacts/a\ b" }, $main, $null, 2, 'main session (#3896): Bash unquoted backslash in the -Sp value stays unbound: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '\\.\$($main.Substring(0,2))\artifacts'" }, $main, $null, 2, 'main session (#3896): a \\.\ device path in -Sp fails closed: denied'),
+    @('PowerShell', @{ command = "bash -c `"pwsh -File '$($ps1ScriptPath.ParamSpMention)' -Sp '`$X'`"" }, $main, $null, 2, 'main session (#3896): bash -c wrapper, -Sp ''$X'' expanded by the outer shell: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' & Write-Output -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): a background & ends the launch arguments, the next command''s -Sp binds nothing: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' & echo -Sp $($main -replace '\\', '/')/artifacts" }, $main, $null, 2, 'main session (#3896): Bash tool, a background & ends the launch arguments: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpFlag -replace '\\', '/')' -Flag & echo -Sp artifacts; wait" }, $main, $null, 2, 'main session (#3896): Bash tool, a background & after a parameter is not its value, nothing after it binds: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpFlag)' -Flag & Write-Output -Sp '$main\artifacts\board'" }, $main, $null, 2, 'main session (#3896): PowerShell, a background & after a parameter is not its value: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'artifacts\board' &" }, $main, $null, 0, 'main session (#3896): a trailing background & after the -Sp value still binds it: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'board' -WorkingDirectory '$outside'" }, ($main + '\src'), $null, 2, 'main session (#3896): -WorkingDirectory after the script file is a script argument, not the host option: denied'),
+    @('Bash', @{ command = "pwsh -File '$($ps1ScriptPath.ParamSpMention -replace '\\', '/')' -Sp artifacts/{../src,board}" }, $main, $null, 2, 'main session (#3896): Bash tool, brace expansion inside the -Sp value: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)'" }, $main, $null, 0,'main session (#3896): a URL with a /tests/ segment is not a repository path: allowed'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.UrlTestsSegment)' -Sp '$main\tests\x'" }, $main, $null, 2, 'main session (#3896): the same script with -Sp under tests/: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.TestsViaVariable)'" }, $main, $null, 2, 'main session (#3896): a write to tests/ through a variable, next to a URL: denied'),
+    @('PowerShell', @{ command = "Invoke-RestMethod -Uri 'https://example.com/tests/data.json' | Set-Content '$main\artifacts\data.json'" }, $main, $null, 0, 'main session (#3896): a URL with a /tests/ segment in a command is not a repository path: allowed')
 ) + @(
     # The real parameter-driven repository tools that never name src/ or tests/ keep running (review of PR #3236).
     foreach ($realTool in 'tools\ai\priority\collect-issues.ps1', 'tools\ai\board\build-board-stats.ps1', 'tools\ai\board\reconcile-board.ps1', '.github\scripts\link-health-report.ps1', '.github\scripts\sonar-issues.ps1', '.github\scripts\crap-gate-selftest.ps1', 'tools\ai\priority\Test-Priority.ps1') {
@@ -1908,6 +2017,115 @@ exit 1
     }
     $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CapProofNoWord)'" } } | ConvertTo-Json -Compress
     Invoke-HookCase $orchestrator $json 0 "main session (#2892): a >8192-character target built from 's'+'rc' with no src/tests word anywhere is unresolved and ALLOWED (known B1 limit, pinned)"
+
+    # #3896 round 5 F1: 130000 blank CRLF lines must not make the comment stripping quadratic; the deny has to land
+    # well inside the 15 s hook timeout (a timeout is a fail-open).
+    $json = @{ tool_name = 'PowerShell'; cwd = $main; agent_id = 'a1b2'; agent_type = 'adversarial-reviewer'; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpBlankLines)' -Sp '$main\src\board'" } } | ConvertTo-Json -Compress
+    Invoke-HookCase $orchestrator $json 2 'adversarial-reviewer (#3896): 130000 blank CRLF lines still reach the deny within 5 s (no quadratic regex)' $null $null 5
+
+    # #3984: the tokenizer must terminate for every Unicode space (U+00A0 used to spin forever with growing memory),
+    # and a Unicode space separates arguments like a plain space. #4056: a single background & splits statements,
+    # a redirection (2>&1, *>&1, >&2, &>file, &>>file), && and a leading call operator do not.
+    function Write-CaseResult([bool]$Ok, [string]$Label, [string]$Detail) {
+        $script:total++
+        if (-not $Ok) { $script:failed++ }
+        "{0} {1}{2}" -f ($(if ($Ok) { 'PASS' } else { 'FAIL' })), $Label, $(if (-not $Ok -and $Detail) { " ($Detail)" } else { '' })
+    }
+    # Runs Split-CommandStatements in a child process; $null when it does not finish in 10 s (a hang is a failure).
+    function Get-TokenizerOutput([string]$Text, [bool]$Bash = $false) {
+        $job = Start-Job -ArgumentList (Join-Path $hooks '_command-text.ps1'), $Text, $Bash -ScriptBlock {
+            param($File, $Text, $Bash)
+            . $File
+            $statements = Split-CommandStatements -Text $Text -Bash:$Bash
+            (@(foreach ($statement in $statements) { (@(foreach ($token in $statement) { $token.Value })) -join '|' }) -join ';')
+        }
+        try {
+            if ($null -eq (Wait-Job $job -Timeout 10)) { Stop-Job $job; return $null }
+            if ($job.State -ne 'Completed') { return $null }
+            return [string](Receive-Job $job)
+        }
+        finally { Remove-Job $job -Force -ErrorAction SilentlyContinue }
+    }
+    $plainSpaceTokens = Get-TokenizerOutput 'git status foo'
+    foreach ($code in 0x00A0, 0x0085, 0x2003, 0x3000) {
+        $ch = [string][char]$code
+        $label = 'U+{0:X4}' -f $code
+        $got = Get-TokenizerOutput "git status${ch}foo"
+        Write-CaseResult ($null -ne $got -and $got -ceq $plainSpaceTokens -and $plainSpaceTokens -ceq 'git|status|foo') "tokenizer (#3984): $label between arguments terminates and splits like a plain space" "got '$got', expected '$plainSpaceTokens'"
+        $only = Get-TokenizerOutput ($ch * 5)
+        Write-CaseResult ($null -ne $only -and $only -ceq '') "tokenizer (#3984): a command made only of $label terminates with no statements" "got '$only'"
+    }
+    foreach ($case in @(
+            @('a & b', $false, 'a;b', 'a single background & splits statements (PowerShell)'),
+            @('a & b', $true, 'a;b', 'a single background & splits statements (Bash)'),
+            @('a &', $true, 'a', 'a trailing background & only ends the statement'),
+            @('a&b', $true, 'a;b', 'a background & right against the words splits'),
+            @('a && b', $true, 'a;b', '&& is still one separator'),
+            @('a&&b', $true, 'a;b', 'unspaced && is still one separator'),
+            @('a <&3 b', $true, 'a|<&3|b', '<&3 is not a separator'),
+            @(('git add ' + ('src/Some/Path/File.cs ' * 1000)), $true, ('git|add|' + ((@('src/Some/Path/File.cs') * 1000) -join '|')), 'a 22 KB ordinary command stays inside the default budget'),
+            @('a 2>&1 b', $false, 'a|2>&1|b', '2>&1 is not a separator'),
+            @('a *>&1 b', $false, 'a|*>&1|b', '*>&1 is not a separator'),
+            @('a >&2 b', $true, 'a|>&2|b', '>&2 is not a separator'),
+            @('a &>file b', $true, 'a|&>file|b', 'Bash &>file is not a separator'),
+            @('a &>>file b', $true, 'a|&>>file|b', 'Bash &>>file is not a separator'),
+            @('& script.ps1 x', $false, '&|script.ps1|x', 'a leading call operator is a token, not a separator'),
+            @('a; & script.ps1 x', $false, 'a;&|script.ps1|x', 'a call operator after a separator is a token'),
+            @('a & & b', $false, 'a;&|b', 'a call operator after a background & is a token'),
+            # An & after an assignment is read as a background separator; the call operator's target is then analysed as its own statement, same verdict as before.
+            @('$x = & foo args', $false, '$x|=;foo|args', 'an & after an assignment is a background separator and the target is its own statement'))) {
+        $got = Get-TokenizerOutput $case[0] $case[1]
+        Write-CaseResult ($null -ne $got -and $got -ceq $case[2]) "tokenizer (#4056): $($case[3])" "got '$got', expected '$($case[2])'"
+    }
+
+    # #4056: the second statement after a background & is judged on its own (PowerShell and Bash tool forms).
+    foreach ($case in @(
+            @('PowerShell', 'Set-Content a.txt y & Set-Content src\x.txt y', 2, 'Set-Content a.txt y & Set-Content src\x.txt y: the src write is denied'),
+            @('PowerShell', 'pwsh -File s.ps1 & Set-Content src\x.txt y', 2, 'pwsh -File s.ps1 & Set-Content src\x.txt y: the src write is denied'),
+            @('Bash', 'echo y > a.txt & echo y > src/x.txt', 2, 'echo y > a.txt & echo y > src/x.txt: the src write is denied'),
+            @('Bash', 'bash s.sh & echo y > src/x.txt', 2, 'bash s.sh & echo y > src/x.txt: the src write is denied'),
+            @('PowerShell', "Set-Content '$main\artifacts\a.txt' y 2>&1", 0, '2>&1 after a write is allowed'),
+            @('PowerShell', "Set-Content '$main\artifacts\a.txt' y *>&1", 0, '*>&1 after a write is allowed'),
+            @('Bash', "echo y > '$($main -replace '\\', '/')/artifacts/a.txt' 2>&1", 0, 'Bash 2>&1 after a redirect is allowed'),
+            @('Bash', 'echo y >&2', 0, 'Bash >&2 is allowed'),
+            @('Bash', "echo y &> '$($main -replace '\\', '/')/artifacts/a.txt'", 0, 'Bash &>file to artifacts is allowed'),
+            @('Bash', 'git status && echo ok', 0, '&& is allowed'),
+            @('PowerShell', "& '$scriptWritesDocsPs1'", 0, 'a leading & call operator of a harmless script is allowed'),
+            @('PowerShell', "& '$scriptWritesTestsPs1'", 2, 'a leading & call operator still reaches the script analysis: denied'),
+            @('PowerShell', "Write-Output a & & '$scriptWritesTestsPs1'", 2, 'a call operator after a background & still reaches the script analysis: denied'))) {
+        $json = @{ tool_name = $case[0]; cwd = $main; tool_input = @{ command = $case[1] } } | ConvertTo-Json -Compress
+        Invoke-HookCase $orchestrator $json $case[2] "main session (#4056, $($case[0]) tool): $($case[3])"
+    }
+
+    # #3984: a hook whose tokenizing exceeds its budget denies (exit 2) instead of failing open, names itself and
+    # never prints the command text. ENCINA_HOOK_BUDGET_MS=1 makes any long command exceed it.
+    function Invoke-BudgetCase([string]$Hook, [string]$Json, [string]$HookAgent) {
+        $name = (Split-Path -Leaf $Hook) -replace '\.ps1$', ''
+        $arguments = @('-NoProfile', '-File', $Hook)
+        if ($HookAgent) { $arguments += @('-Agent', $HookAgent) }
+        $env:ENCINA_HOOK_BUDGET_MS = '1'
+        try { $output = $Json | pwsh @arguments 2>&1; $code = $LASTEXITCODE }
+        finally { Remove-Item Env:ENCINA_HOOK_BUDGET_MS -ErrorAction SilentlyContinue }
+        $text = Get-FlatOutput $output
+        $ok = $code -eq 2 -and $text -match [regex]::Escape($name) -and $text -match 'analysis budget exceeded' -and $text -notmatch 'zzmarker'
+        Write-CaseResult $ok "budget (#3984): $name denies with exit 2 when its analysis budget is exceeded, naming itself and not the command" "exit $code, output: $text"
+    }
+    $budgetCommand = 'git status gh zzmarker ' + ('arg ' * 700)
+    foreach ($tool in 'PowerShell', 'Bash') {
+        $budgetJson = @{ tool_name = $tool; cwd = $main; tool_input = @{ command = $budgetCommand } } | ConvertTo-Json -Compress
+        foreach ($budgetHook in $attribution, $issue, $publish, $prohibited, $mainCheckout, $orchestrator, (Join-Path $hooks 'board-event-reminder.ps1')) {
+            Invoke-BudgetCase $budgetHook $budgetJson $null
+        }
+        Invoke-BudgetCase $ownership (@{ tool_name = $tool; cwd = $main; agent_id = 'a1'; agent_type = 'issue-worker'; tool_input = @{ command = $budgetCommand } } | ConvertTo-Json -Compress) 'issue-worker'
+    }
+
+    # #3984: Remove-CommandComments called directly by a hook (before any Split-CommandStatements) starts its own
+    # budget; a long Bash command with many `<` characters (each copies the rest of the text) is denied.
+    $budgetLtCommand = 'git status zzmarker ' + ('a < b ' * 700)
+    $budgetLtJson = @{ tool_name = 'Bash'; cwd = $main; tool_input = @{ command = $budgetLtCommand } } | ConvertTo-Json -Compress
+    foreach ($budgetHook in $mainCheckout, $prohibited) {
+        Invoke-BudgetCase $budgetHook $budgetLtJson $null
+    }
 
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -5848,6 +6066,9 @@ The fluent builder chain described in the documentation is fictional. The parame
         $offsetNow = & pwsh -NoProfile -NonInteractive -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00+01:00 -SessionId 'sess-off' -StateRoot $orchState 2>&1
         $script:total++
         if ($LASTEXITCODE -ne 0 -and "$offsetNow" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-off.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc with an offset instead of Z is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc with an offset was accepted: $offsetNow" }
+
+        # #3984: the marked session's guard denies when its tokenizing budget is exceeded.
+        Invoke-BudgetCase $orchGuard (New-OrchPayload 'sess-marked' 'PowerShell' @{ command = $budgetCommand } '') $null
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
