@@ -2,8 +2,8 @@
 
 > **Issue**: [#138](https://github.com/dlrivada/Encina/issues/138)
 > **Type**: Feature
-> **Complexity**: High (7 phases, no database providers, 4 pull requests)
-> **Estimated Scope**: ~800 lines of production code + ~1,300 lines of tests (about 2,200 changed lines in total, four pull requests)
+> **Complexity**: High (7 phases, no database providers, 5 pull requests)
+> **Estimated Scope**: ~800 lines of production code + ~1,300 lines of tests (about 2,200 changed lines in total, five pull requests)
 
 ---
 
@@ -11,7 +11,7 @@
 
 When the process is overloaded, drop the least important requests first so the important ones keep their capacity: a request has a priority, a utilization provider measures CPU, memory, p99 latency and error rate, each priority has a threshold, and above it requests are rejected with a probability that grows with the excess (the Netflix and Uber pattern). The comment of 2026-10-23 on #138 moves it into the 1.0 scope; [ADR-055](../architecture/adr/055-resilience-family.md) decided that load shedding lives in `Encina.Resilience` and that there is no `Encina.LoadShedding` package (R1, which overrides the `new-package` label and the "Other: `Encina.LoadShedding` (new package)" line of the issue).
 
-What exists today (read in `origin/main` at `f484cdf4f`):
+What exists today (read in `origin/main` at `8727c5cc3`):
 
 - Nothing: `git grep -E "LoadShed|IPrioritizedRequest|IUtilizationProvider|RequestPriority" -- src` has no match. `Encina.Resilience`, the per-type compiler (R2) and R6 are not on main.
 - The plan of #123 (on main) proposes `MessagePriority` and `IPrioritizedMessage` in `Encina.Messaging` (five levels, higher is more urgent) and notes that `IPrioritizedRequest` and `[Priority]` do not exist in the tree. The issue's own enum is `Critical = 0 ... Bulk = 3`, where a lower number is more important. Design Choice 4 settles the relation.
@@ -331,13 +331,13 @@ The acceptance criterion reads "`IUtilizationProvider` abstraction with built-in
 | **A) `Thresholds` Bulk 60, BestEffort 70, Degraded 80, Critical 90; `Metric` = `Cpu | Latency`; `SampleInterval` 1 s; `EnableGradualShedding` true; `LatencyTarget` has no default and a configuration that selects `Latency` without one fails at startup; `RetryAfterHint` null** | The first three are the values of the issue samples (`CpuAndLatency`, thresholds), the interval is the issue's #139 sample cadence (1000 ms); invalid or missing input fails at startup instead of defaulting silently; opt-in | None |
 | **B) Silent defaults for every value** | Easiest to adopt | A missing latency target would hide a misconfiguration |
 
-### Chosen Option: **A — Cited defaults, startup failure for the rest**
+### Chosen Option: **A — Cited defaults, startup failure for the rest** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The feature stays opt-in: nothing applies without `LoadShedding(...)`.
-- **Class:** Trivial
-- **Settled by:** #138 "Configuration" sample (thresholds, `CpuAndLatency`) and AGENTS.md section 1 (every feature opt-in)
+- The defaults are written for the recommended options of choices 4 (the four `RequestPriority` names), 5 (`Degraded`, `PinPriority`), 6 (the `Cpu | Latency` flags, normalization by `LatencyTarget`) and 7 (a 1 s lazy sampling interval). Under another answer they follow it: five `MessagePriority` levels need five thresholds, a timer sampler keeps the interval, a weighted average needs weights. The values taken from the issue's sample (`60, 70, 80, 90`, `CpuAndLatency`) and the opt-in rule hold under every option.
+- **Class:** Dilemma
 
 </details>
 
@@ -345,7 +345,7 @@ The acceptance criterion reads "`IUtilizationProvider` abstraction with built-in
 
 ## Implementation Phases
 
-Four pull requests, in order: **PR-1** Phase 1 (model and calculator); **PR-2** Phase 2 (providers, manager, strategy; needs `RollingOutcomeWindow` from #139 PR-1 merged first, choice 8); **PR-3** Phases 3 and 4 (configuration, health check); **PR-4** Phases 5 to 7 (observability, load tests, docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-4 also need the foundation compiler and R6.
+Five pull requests, in order: **PR-1** Phase 1 (model and calculator); **PR-2** Phase 2 (providers, manager, strategy; needs `RollingOutcomeWindow` from #139 PR-1 merged first, choice 8; they log and record nothing yet); **PR-3** Phases 3 and 4 (configuration, health check); **PR-4** Phase 5 (observability; it modifies the three PR-2 emitters and their tests); **PR-5** the load tests of Phase 6 and Phase 7 (docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-5 also need the foundation compiler and R6.
 
 ### Phase 1: Core Models and Calculator
 
@@ -376,9 +376,9 @@ REFERENCE FILES: docs/plans/message-priority-implementation-plan-123.md, src/Enc
 <details>
 <summary>Tasks</summary>
 
-1. `ProcessUtilizationProvider.cs` (choice 7), constructed with `TimeProvider` and the latency window (choice 8); a failed signal is reported through the manager (choice 9).
-2. `LoadSheddingManager.cs`: singleton; combines the selected signals by maximum (choice 6), draws from the injectable random source and keeps the per-priority shedding state for the transition logs.
-3. `LoadSheddingStrategyFactory.cs`: a Polly `ResilienceStrategy<Either<EncinaError, TResponse>>` first in the Admission pipeline (choice 3): resolves the priority (choice 5), asks the manager, returns the rejection `Left` (choice 10) or runs the callback and records latency and failure into the window.
+1. `ProcessUtilizationProvider.cs` (choice 7), constructed with `TimeProvider` and the latency window (choice 8); a failed signal is reported through the manager (choice 9). Thread-safety: the provider is a singleton read concurrently; the "at most once per `SampleInterval`" gate is a compare-and-swap on the last-sample timestamp (`Interlocked.CompareExchange`), so two concurrent reads cannot both sample.
+2. `LoadSheddingManager.cs`: singleton; combines the selected signals by maximum (choice 6), draws from the injectable random source and keeps the per-priority shedding state for the transition logs. Thread-safety: the per-priority state is an `int` flag changed with `Interlocked.Exchange`, so exactly one caller sees (and logs, in PR-4) a transition; the random source contract is `Func<double>` returning a value in `[0, 1)` that must be thread-safe (the default wraps `Random.Shared`); a concurrent test drives the manager from many tasks.
+3. `LoadSheddingStrategyFactory.cs`: a Polly `ResilienceStrategy<Either<EncinaError, TResponse>>` first in the Admission pipeline (choice 3): resolves the priority (choice 5), asks the manager, returns the rejection `Left` (choice 10) or runs the callback and records latency and failure into the window. A cancellation (an `OperationCanceledException` or a `Left` of category `Cancelled`) records nothing: it is neither a failure nor a latency sample (ADR-062 rule R5), so the error rate that drives shedding is not raised by callers that left; a unit test pins it.
 
 </details>
 
@@ -544,12 +544,13 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 15 | 8 production (`RequestPriority`, `IPrioritizedRequest`, `UtilizationMetric`, options, validator, `IUtilizationProvider`, `ILoadSheddingManager`, calculator), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if the foundation left it out), `PublicAPI.Unshipped.txt`, 4 tests (calculator, options and validator, guard, property), manifest |
+| PR-1 | 14 | 8 production (`RequestPriority`, `IPrioritizedRequest`, `UtilizationMetric`, options, validator, `IUtilizationProvider`, `ILoadSheddingManager`, calculator), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if the foundation left it out), `PublicAPI.Unshipped.txt`, 3 tests (calculator, options and validator, property), manifest. No guard test file: no public API of PR-1 takes a validated parameter (the validator is internal; options and the calculator take values and have range rules tested by unit tests) |
 | PR-2 | 10 | 3 production (provider, manager, strategy factory), `PublicAPI.Unshipped.txt`, 5 tests (provider, manager, strategy, contract, guard), manifest |
 | PR-3 | 8 | 2 production (builder extensions, `LoadSheddingHealthCheck`), `PublicAPI.Unshipped.txt`, 3 tests (registration, health check, guard for the extensions), manifest, changelog fragment |
-| PR-4 | 14 | log messages, telemetry, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, Resilience `PublicAPI.Unshipped.txt`, manifest, 2 load test files, 2 justification `.md`, README, feature page |
+| PR-4 | 14 | log messages, telemetry, `ProcessUtilizationProvider.cs`, `LoadSheddingManager.cs` and `LoadSheddingStrategyFactory.cs` (the three PR-2 emitters, modified to log and record), `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, provider, manager and strategy tests (modified: log and counter assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
+| PR-5 | 6 | 2 load test files, 2 justification `.md`, README, feature page |
 
-Each PR is within 15 files and 1,500 lines; PR-1 sits at the file limit (move the property test to PR-2 if the foundation adds a project edit). The property test of `SheddingCalculator` is in PR-1, the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds.
+Each PR is within 15 files and 1,500 lines; PR-1 is 14 with the csproj line (the project edits of option C of choice 1 would be recounted). The property test of `SheddingCalculator` is in PR-1, the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds.
 
 Per-file targets (new files; baseline: none exists on `origin/main`):
 
@@ -622,5 +623,5 @@ REFERENCE FILES: src/Encina.Polly/RateLimiting/AdaptiveRateLimiter.cs, src/Encin
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #138.
-2. When #138 is picked up, ask the maintainer about the Dilemmas (choices 1, 3 to 10, 12, 13 and 14).
-3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 (after #139 PR-1), PR-3 and PR-4 once the foundation and R6 are merged.
+2. When #138 is picked up, ask the maintainer about the Dilemmas (choices 1, 3 to 10, 12, 13, 14 and 15).
+3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 (after #139 PR-1), PR-3 to PR-5 once the foundation and R6 are merged.
