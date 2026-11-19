@@ -2,8 +2,8 @@
 
 > **Issue**: [#139](https://github.com/dlrivada/Encina/issues/139)
 > **Type**: Feature
-> **Complexity**: High (7 phases, no database providers, 4 pull requests)
-> **Estimated Scope**: ~800 lines of production code + ~1,400 lines of tests (about 2,300 changed lines in total, four pull requests)
+> **Complexity**: High (7 phases, no database providers, 5 pull requests)
+> **Estimated Scope**: ~800 lines of production code + ~1,400 lines of tests (about 2,300 changed lines in total, five pull requests)
 
 ---
 
@@ -11,7 +11,7 @@
 
 A concurrency limit that tunes itself: instead of a fixed bulkhead size, the limit of a request type moves with the latency and error rate the type shows, as in Netflix's `concurrency-limits`. This plan delivers `[AdaptiveConcurrency]`, two algorithms (Gradient and AIMD, the two the acceptance criteria require), a limiter that rejects work above the current limit with a coded `Left`, rolling latency and error tracking, and instruments for the limit. The comment of 2026-10-23 on #139 moves it into the 1.0 scope; [ADR-055](../architecture/adr/055-resilience-family.md) places the work in `Encina.Resilience` (R1), as a strategy of the per-type pipeline (R2), configured by attribute and options (R3).
 
-What exists today (read in `origin/main` at `f484cdf4f`):
+What exists today (read in `origin/main` at `8727c5cc3`):
 
 - Nothing adaptive: `git grep -E "AdaptiveConcurrency|ConcurrencyAlgorithm" -- src` has no match. `Encina.Polly` has a hand-written `BulkheadManager` (`src/Encina.Polly/Bulkhead/BulkheadManager.cs`) with a fixed limit and open defects (#2628-#2634). ADR-055 R2 deletes it and turns the bulkhead into a concurrency partition of the #2414 rate-limiting core; neither the core nor `Encina.Resilience` exists in `src/`, and R6 has no issue.
 - `AdaptiveRateLimiter` (`src/Encina.Polly/RateLimiting/AdaptiveRateLimiter.cs`) is a different thing (it adapts a request rate after failures) and is rebuilt by #2414 D2; this plan does not touch it.
@@ -223,7 +223,7 @@ The issue enum lists Gradient, AIMD, Vegas and FixedWindow; the acceptance crite
 
 ## Implementation Phases
 
-Four pull requests, in order: **PR-1** Phase 1 (models, algorithms, window); **PR-2** Phase 2 (limiter and strategy); **PR-3** Phases 3 and 4 (configuration, cross-cutting rules); **PR-4** Phases 5 to 7 (observability, load tests, docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-4 also need the foundation compiler and R6.
+Five pull requests, in order: **PR-1** Phase 1 (models, algorithms, window); **PR-2** Phase 2 and the attribute, options and validator of Phase 3 (limiter, strategy, the options the limiter reads); **PR-3** the registration half of Phase 3 and Phase 4 (builder extensions, cross-cutting rules); **PR-4** Phase 5 (observability; it modifies the PR-2 emitters); **PR-5** the load tests of Phase 6 and Phase 7 (docs). Each needs the `Encina.Resilience` project to exist; PR-2 to PR-5 also need the foundation compiler and R6.
 
 ### Phase 1: Core Models and Algorithms
 
@@ -255,10 +255,10 @@ REFERENCE FILES: src/Encina.Polly/RateLimiting/AdaptiveRateLimiter.cs, src/Encin
 <details>
 <summary>Tasks</summary>
 
-1. `IAdaptiveConcurrencyLimiter.cs`: `ConcurrencyPermit? TryAcquire()`, `int CurrentLimit`, `int InFlight`. `ConcurrencyPermit` is a readonly struct with `Complete(bool failed)` that records latency (from `TimeProvider.GetTimestamp`) into the window and triggers the inline evaluation of choice 5.
-2. `AdaptiveConcurrencyLimiter.cs`: derives from `System.Threading.RateLimiting.RateLimiter` and implements `IAdaptiveConcurrencyLimiter`; the limit is an `int` changed by compare-and-swap; the algorithm comes from `IConcurrencyAlgorithm`; an algorithm exception keeps the previous limit and logs 926.
-3. `AdaptiveConcurrencyStrategyFactory.cs`: a Polly `ResilienceStrategy<Either<EncinaError, TResponse>>` that acquires a permit (a `Left` with code `encina.concurrency.limit_exceeded` and category `Unavailable` when none), runs the callback, and completes the permit with the outcome (failure = transient `Left`, exception, or timeout category). It sits in the concurrency slot of the Admission pipeline, after the rate limiter (R2).
-4. A registry of limiters keyed by request type (singleton, no scoped dependency).
+1. `IAdaptiveConcurrencyLimiter.cs`: `ConcurrencyPermit? TryAcquire()`, `int CurrentLimit`, `int InFlight`. `ConcurrencyPermit` (own file `ConcurrencyPermit.cs`) is a sealed class, not a struct, with a one-shot `Interlocked` flag: `Complete(PermitOutcome outcome)` releases the slot exactly once, so a second call (or a copy) cannot release two slots; `PermitOutcome` is `Success`, `Failure` or `Cancelled`. A `Success` or `Failure` records latency (from `TimeProvider.GetTimestamp`) into the window and triggers the inline evaluation of choice 5; `Cancelled` releases the slot and records no sample.
+2. `AdaptiveConcurrencyLimiter.cs`: derives from `System.Threading.RateLimiting.RateLimiter` and implements `IAdaptiveConcurrencyLimiter`; the limit is an `int` changed by compare-and-swap; the algorithm comes from `IConcurrencyAlgorithm`; an algorithm exception keeps the previous limit (it is logged with 926 in PR-4, when the log class exists; PR-2 keeps the limit silently).
+3. `AdaptiveConcurrencyStrategyFactory.cs`: a Polly `ResilienceStrategy<Either<EncinaError, TResponse>>` that acquires a permit (a `Left` with code `encina.concurrency.limit_exceeded` and category `Unavailable` when none), runs the callback, and completes the permit with the outcome: `Failure` for a transient `Left`, a non-cancellation exception or a `Left` of category `Timeout`; `Cancelled` for an `OperationCanceledException` or a `Left` of category `Cancelled` (a caller that left is never a drop: it does not shrink the limit or enter the window, ADR-062 rule R5); the exception is rethrown after the permit is completed in `finally`. It sits in the concurrency slot of the Admission pipeline, after the rate limiter (R2).
+4. `AdaptiveConcurrencyLimiterRegistry.cs` (internal, public interface not needed): a singleton registry of limiters keyed by request type, created from the merged options; no scoped dependency; read by the gauges in PR-4.
 
 </details>
 
@@ -279,8 +279,8 @@ REFERENCE FILES: src/Encina.Polly/Behaviors/BulkheadPipelineBehavior.cs, src/Enc
 <details>
 <summary>Tasks</summary>
 
-1. `AdaptiveConcurrencyAttribute.cs` and `AdaptiveConcurrencyOptions.cs` (choice 8), `AdaptiveConcurrencyOptionsValidator.cs` (internal; ranges, `Min <= Initial <= Max`, a type with `[Bulkhead]` fails).
-2. `AdaptiveConcurrencyBuilderExtensions.cs`: `For<T>().AdaptiveConcurrency(Action<AdaptiveConcurrencyOptions>)`; registration test with `ValidateOnBuild` and `ValidateScopes`.
+1. (PR-2, because the limiter reads the options) `AdaptiveConcurrencyAttribute.cs` and `AdaptiveConcurrencyOptions.cs` (choice 8), `AdaptiveConcurrencyOptionsValidator.cs` (internal; ranges, `Min <= Initial <= Max`, a type with `[Bulkhead]` fails).
+2. (PR-3) `AdaptiveConcurrencyBuilderExtensions.cs`: `For<T>().AdaptiveConcurrency(Action<AdaptiveConcurrencyOptions>)`; the foundation's startup validation registration joins the validator; registration test with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
 
@@ -347,7 +347,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/Resilience/Concurrency/`): each algorithm (healthy, slow, errors, clamp at Min and Max, smoothing); the window (percentile, rollover with `FakeTimeProvider`); limiter (acquire up to the limit, reject above, release on exception and cancellation, one adjustment per window, algorithm failure keeps the limit); strategy through the real compiler; validator rules.
+1. Unit (`tests/Encina.UnitTests/Resilience/Concurrency/`): each algorithm (healthy, slow, errors, clamp at Min and Max, smoothing); the window (percentile, rollover with `FakeTimeProvider`); limiter (acquire up to the limit, reject above, release on exception and cancellation, a cancellation (exception or `Cancelled` `Left`) neither shrinks the limit nor enters the window, a double `Complete` releases once, one adjustment per window, algorithm failure keeps the limit); strategy through the real compiler; validator rules.
 2. Guard (`tests/Encina.GuardTests/Resilience/Concurrency/`): `ConcurrencyMetrics` constructor, window constructor, builder extension.
 3. Contract (`tests/Encina.ContractTests/Resilience/ConcurrencyAlgorithmContractTests.cs`): both algorithms stay within `[1, int.MaxValue]` for any metrics and never throw.
 4. Property (`tests/Encina.PropertyTests/Resilience/ConcurrencyProperties.cs`): FsCheck: the limit always stays in `[Min, Max]`; with no failures and low latency it never decreases.
@@ -426,13 +426,12 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | PR | Files | Content |
 |----|-------|---------|
 | PR-1 | 14 | 6 production (metrics, algorithm interface, algorithm enum, Gradient, AIMD, window), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing), `PublicAPI.Unshipped.txt`, 5 tests (algorithms, window, guard, contract, algorithm property), manifest |
-| PR-2 | 10 | 4 production (limiter interface, `ConcurrencyPermit`, limiter, strategy factory), `PublicAPI.Unshipped.txt`, 4 tests (limiter, strategy, guard, limiter property), manifest |
-| PR-3 | 10 | 4 production (attribute, options, validator, builder extensions), `PublicAPI.Unshipped.txt`, 3 tests (validator and options, registration, guard), manifest, changelog fragment |
-| PR-4 | 14 | log messages, telemetry, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, Resilience `PublicAPI.Unshipped.txt`, manifest, 2 load test files, 2 justification `.md`, README, feature page |
+| PR-2 | 15 | 8 production (attribute, options, validator, limiter interface, `ConcurrencyPermit`, limiter, limiter registry, strategy factory), `PublicAPI.Unshipped.txt`, 5 tests (limiter, strategy, options and validator, guard, limiter property), manifest. The limiter and the strategy log nothing in this PR |
+| PR-3 | 8 | builder extensions, the foundation's startup-validation registration (a modified file of `Encina.Resilience`), `PublicAPI.Unshipped.txt`, 2 tests (registration, guard file modified), manifest, changelog fragment |
+| PR-4 | 12 | log messages, telemetry, the limiter, the strategy factory and the registry (all three modified to log and expose the gauges), `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, limiter tests (modified: log assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
+| PR-5 | 6 | 2 load test files, 2 justification `.md`, README, feature page |
 
-Each PR is within 15 files and 1,500 lines (PR-1 about 1,100 lines); the property test of each file is in the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds.
-
-Each PR is within 15 files and 1,500 lines (PR-2 about 1,300 lines); PR-2 is at the file limit, so the property test moves to PR-3 if the foundation adds a project edit. No interface of an existing type changes.
+Each PR is within 15 files and 1,500 lines (PR-1 about 1,100, PR-2 about 1,400); PR-2 sits at the file limit and defines the options type the limiter reads, so it builds alone (the attribute, options and validator moved from the earlier PR-3 into PR-2). The property test of each file is in the PR that adds the file, so its property target is reached there. The manifest of each PR carries the rows of the files it adds. Under option C of choice 1 the project creation adds files to PR-1 and the split is recounted. No interface of an existing type changes.
 
 Per-file targets (new files; baseline: none exists on `origin/main`):
 
@@ -443,7 +442,10 @@ Per-file targets (new files; baseline: none exists on `origin/main`):
 | `GradientConcurrencyAlgorithm.cs`, `AimdConcurrencyAlgorithm.cs` | 95 | 100 | 90 | 90 | 0 | Pure functions; the null-metrics guard test, the contract test and the FsCheck test of PR-1 execute them |
 | `RollingOutcomeWindow.cs` | 90 | 100 | 0 | 0 | 0 | Bucket rollover driven by a fake clock; guarded constructor |
 | `AdaptiveConcurrencyLimiter.cs` | 90 | 100 | 0 | 80 | 0 | Acquire, release, adjust paths in unit tests; property keeps bounds |
-| `AdaptiveConcurrencyStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Run through the real compiler; internal |
+| `AdaptiveConcurrencyStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Run through the real compiler, including the cancellation outcome; internal |
+| `IAdaptiveConcurrencyLimiter.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code |
+| `ConcurrencyPermit.cs` | 95 | 0 | 0 | 0 | 0 | One-shot release: a double `Complete` releases once, `Cancelled` records no sample (PR-2 limiter tests); no validated parameters |
+| `AdaptiveConcurrencyLimiterRegistry.cs` | 90 | 0 | 0 | 0 | 0 | One limiter per type, created from the options; internal, reached through the `InternalsVisibleTo` of Phase 1 |
 | `AdaptiveConcurrencyAttribute.cs`, `AdaptiveConcurrencyOptions.cs` | 95 | 0 | 0 | 0 | 0 | Properties and merge, no parameters |
 | `AdaptiveConcurrencyOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | One test per rule; internal |
 | `AdaptiveConcurrencyBuilderExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Guarded public method |
@@ -459,7 +461,7 @@ CRAP of each method is at most 10: the evaluation is split into small methods (w
 <summary>Combined prompt for all phases</summary>
 
 ```text
-PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #139: adaptive concurrency in Encina.Resilience (ADR-055). AGENTS.md rules apply. PR-1 has no dependency on the foundation; PR-2 and PR-3 need it and R6.
+PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #139: adaptive concurrency in Encina.Resilience (ADR-055). AGENTS.md rules apply. Every PR needs the Encina.Resilience project; PR-2 to PR-5 also need the foundation compiler and R6.
 
 IMPLEMENTATION OVERVIEW: (1) metrics, algorithms (Gradient, AIMD), rolling window; (2) limiter on RateLimiter, strategy in the Admission concurrency slot; (3) attribute, options, validator, builder extension; (4) exclusivity with [Bulkhead], tenant tag rule; (5) EventIds 924-935 and gauges; (6) unit, guard, contract, property, load tests; (7) docs and fragments.
 
@@ -505,4 +507,4 @@ REFERENCE FILES: src/Encina.Polly/Bulkhead/BulkheadManager.cs, src/Encina.Polly/
 
 1. Commit this plan, open its PR and link it from #139.
 2. When #139 is picked up, ask the maintainer about the Dilemmas (choices 1, 2, 3, 5, 6, 7 and 9).
-3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 to PR-4 once the foundation and R6 are merged.
+3. Brief a worker for PR-1 once the `Encina.Resilience` project exists, then PR-2 to PR-5 once the foundation and R6 are merged.
