@@ -155,7 +155,7 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 5900-5949 | Security and compliance | compliance-consent: ComplianceDSRExtensions (#1195 5900-5905, #2700 5906-5913) Note: assigned 2026-11-11 (was 9800-9849, which collided with NIS2) | reserved-pre-zone |
 | 5950-5969 | Security and compliance | ComplianceAIActGPAI (#845 ids 5950-5957; no ids left in ComplianceAIAct; the assembly Encina.Compliance.AIAct maps to both ranges; name is misleading for core tenant logs, rename to ComplianceAIActTenancy proposed in the #845 plan) Note: assigned 2026-11-11; plan fixed and armed 2026-11-12 | reserved-pre-zone |
 | 6000-6249 | Security and compliance | claim-check family: MessagingClaimCheck 6000-6049 (#599 6000-6024, #122 6025-6049), StorageCore 6050-6099 and StorageProviders 6100-6149 (#1239), ClaimCheckProviders 6150-6199 (#122), SecurityColumnEncryption 6200-6249 (#1250) Note: assigned 2026-11-11 (was 5500-5749, which collided with platform-spec002) | reserved-pre-zone |
-| 6250-6299 | Core and messaging | lock family: DistributedLock assembly (#741 6250-6269, #717 6270-6299) Note: assigned 2026-11-11 (was 5500-5549, collided with platform-spec002) | reserved-pre-zone |
+| 6250-6299 | Caching | lock family: DistributedLock assembly (#741 6250-6269, #717 6270-6299) Note: assigned 2026-11-11 (was 5500-5549, collided with platform-spec002) | reserved-pre-zone |
 | 6300-6349 | Core and messaging | lock family: Encina.Http (#1233) Note: assigned 2026-11-11 (was 5600-5649, collided with platform-spec002) | reserved-pre-zone |
 | 6350-6359 | Security and compliance | ComplianceDPIALock (#763: 6350 skipped, 6351 lock-provider presence) Note: proposed in PR #3534 | reserved-pre-zone |
 | 6360-6369 | Security and compliance | AuditMartenErasure (new range, Encina.Audit.Marten): #2847 recorder 6360-6364 Note: claimed 2026-11-12 (AuditMarten 2550-2599 is full) | reserved-pre-zone |
@@ -176,17 +176,17 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 7250-7299 | Core and messaging | wave 2: es-snapshots-projections (28) Note: assigned | reserved-pre-zone |
 | 7300-7349 | Observability and platform | wave 2: feature-flags (29) Note: assigned | reserved-pre-zone |
 | 7350-7399 | Observability and platform | wave 2: health-checks-1 (30) Note: assigned | reserved-pre-zone |
-| 7400-7419 | Security and compliance | multitenancy-3: ABAC tenancy (#798) Note: assigned 2026-11-11 | reserved-pre-zone |
-| 7420-7469 | Security and compliance | multitenancy-3: TenantIsolation (#1257) Note: assigned 2026-11-11 | reserved-pre-zone |
-| 7500-7549 | Core and messaging | wave 3: lock-messaging-integration (31): MessagingLocking 7500-7539 (#713 7500-7503, #714 7504, #715 7505, 7506-7539 free), MachineIdLease 7540-7549 (#2394 7540-7546) Note: assigned 2026-11-15; plans written locally (branches docs/plan-713/714/715/716/2394 in worktree pg-a, not pushed) | reserved-pre-zone |
-| 7550-7599 | Core and messaging | wave 3: lock-providers-1 (32): DistributedLockPostgreSQL 7550-7559 (#207 uses 7550-7557), DistributedLockMySQL 7560-7569, DistributedLockAzureBlob 7570-7579, DistributedLockDynamoDB 7580-7589, 7590-7599 spare; #609 MongoDB uses 3190-3198 inside the existing MongoDB range 3100-3199 (3199 spare; 3167-3189 left to the #594/#590 plans) Note: assigned 2026-11-15; plans written locally (pg-a) | reserved-pre-zone |
+| 7400-7419 | Core and messaging | multitenancy-3: ABAC tenancy (#798) Note: assigned 2026-11-11 | reserved-pre-zone |
+| 7420-7469 | Core and messaging | multitenancy-3: TenantIsolation (#1257) Note: assigned 2026-11-11 | reserved-pre-zone |
+| 7500-7549 | Caching | wave 3: lock-messaging-integration (31): MessagingLocking 7500-7539 (#713 7500-7503, #714 7504, #715 7505, 7506-7539 free), MachineIdLease 7540-7549 (#2394 7540-7546) Note: assigned 2026-11-15; plans written locally (branches docs/plan-713/714/715/716/2394 in worktree pg-a, not pushed) | reserved-pre-zone |
+| 7550-7599 | Caching | wave 3: lock-providers-1 (32): DistributedLockPostgreSQL 7550-7559 (#207 uses 7550-7557), DistributedLockMySQL 7560-7569, DistributedLockAzureBlob 7570-7579, DistributedLockDynamoDB 7580-7589, 7590-7599 spare; #609 MongoDB uses 3190-3198 inside the existing MongoDB range 3100-3199 (3199 spare; 3167-3189 left to the #594/#590 plans) Note: assigned 2026-11-15; plans written locally (pg-a) | reserved-pre-zone |
 | 7600-7649 | Core and messaging | wave 3: modules-1 (34) Note: assigned 2026-11-15 | reserved-pre-zone |
 | 7650-7699 | Core and messaging | wave 3: modules-2 (35) Note: assigned 2026-11-15 | reserved-pre-zone |
 | 7700-7749 | Core and messaging | wave 3: modules-3 (36): #761 7700-7702, #2442 7710-7712, #753 7720-7725; #3445 uses Refit 4657-4659 Note: plans written 2026-11-17 | reserved-pre-zone |
 | 7750-7799 | Core and messaging | wave 3: msg-batching (37): Batching 7750-7779 (#302 7750-7757, #349 7758-7765, #339 7766-7769, 7770-7779 spare); 7780-7799 free Note: plans written 2026-11-17 | reserved-pre-zone |
 | 7800-7849 | Caching | wave 3: msg-idempotency-pipeline (38): CachingIdempotency 7800-7819 (#334 7800-7803), 7820-7829 unused, MessagingNotificationIdempotency 7830-7839 (#733 7830-7835), MessagingScheduledIdempotency 7840-7849 (#735 7840-7842) Note: plans written 2026-11-17 | reserved-pre-zone |
-| 7850-7899 | Security and compliance | wave 3: multitenancy-1 (39): TenancyPipeline 7850-7879 (#346 7850-7852, #338 7853-7854, #304 7855-7856), MessagingTenancy 7880-7899 (#125 7880-7882) Note: plans written 2026-11-17 | reserved-pre-zone |
-| 7900-7949 | Security and compliance | wave 3: multitenancy-2 (40) Note: assigned 2026-11-15 | reserved-pre-zone |
+| 7850-7899 | Core and messaging | wave 3: multitenancy-1 (39): TenancyPipeline 7850-7879 (#346 7850-7852, #338 7853-7854, #304 7855-7856), MessagingTenancy 7880-7899 (#125 7880-7882) Note: plans written 2026-11-17 | reserved-pre-zone |
+| 7900-7949 | Core and messaging | wave 3: multitenancy-2 (40) Note: assigned 2026-11-15 | reserved-pre-zone |
 | 9700-9749 | Security and compliance | #812 incident reporting Note: existing claim (from the #812 plan) | reserved-pre-zone |
 | 9750-9799 | Transports | wave 3 (plan-batch-2): transport-new-2 Note: assigned Conflict: 9750-9799 is registered as SecurityBreakTheGlass; the plan must take a block in the 10000+ zone. | superseded |
 | 9800-9899 | Security and compliance | compliance-nis2-1 (#822 owns the range) Note: proposed in PR #3509 | reserved-pre-zone |

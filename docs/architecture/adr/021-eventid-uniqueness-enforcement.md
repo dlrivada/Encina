@@ -114,7 +114,7 @@ EventIds are not a stable contract before 1.0; dashboards or alerts that filter 
 
 ## Amendment (2026-11-20, #4006): the 10000+ zone
 
-The ids 1-9999 are nearly exhausted: 91 ranges are registered in `EventIdRanges.cs`, about 230 ids are left once the blocks that plans already reserved are counted, and the plan batch estimated that the plans written for the 1.0 scope need about 2500-3000. The maintainer chose on 2026-11-18 (option D) to open a second id space instead of squeezing blocks into the gaps. From this amendment on, every new EventId block is born in a 10000+ zone, one base per area, in blocks of 1000 ids, in the style of EF Core's [`CoreEventId`](https://github.com/dotnet/efcore/blob/main/src/EFCore/Diagnostics/CoreEventId.cs).
+The ids 1-9999 are nearly exhausted: 91 ranges are registered in `EventIdRanges.cs`, the five free blocks below 10000 that are not in the registry (5970-5999, 6380-6399, 7950-7999, 8950-8999, 9950-9999) sum to 200 ids, and the estimate that the plans written for the 1.0 scope need about 2500-3000 comes from the #3387 plan batch, not from the registry. The registry covers reserved and registered blocks, so free space below 10000 is not read from it. The maintainer chose on 2026-11-18 (option D) to open a second id space instead of squeezing blocks into the gaps. From this amendment on, every new EventId block is born in a 10000+ zone, one base per area, in blocks of 1000 ids, in the style of EF Core's [`CoreEventId`](https://github.com/dotnet/efcore/blob/main/src/EFCore/Diagnostics/CoreEventId.cs).
 
 ### Areas
 
@@ -137,7 +137,7 @@ Each area owns ten 1000-id blocks (`base` to `base + 9999`). The "Current block"
 - **One pull request.** Registering the range in `EventIdRanges.cs` and adding the row to [the block registry](../../engineering/eventid-block-registry.md) happen together.
 - **New area.** A new area takes the next free base (90000) by amending the area table above.
 - **Historical ranges stay.** The ranges registered below 10000 stay where they are, and so do the blocks that plans reserved there before this amendment (status `reserved-pre-zone` in the registry); none is rewritten. Moving them into the scheme is the separate refactoring issue #4007, which this amendment blocks. After this amendment no new block may be created below 10000.
-- **Enforcement.** `EventIdUniquenessRule` has no upper bound: ids above 9999 are extracted, checked for uniqueness and checked against the registered ranges like any other, and `EventIdRegistryAgreementTests` includes a test that proves it with an id in the zone. The assembly map of `EncinaEventIdAllocationTests` works unchanged.
+- **Enforcement.** `EventIdUniquenessRule` has no upper bound: the rule has no upper bound, and `EventIdRegistryAgreementTests` includes a test that shows an id such as 10001 is extracted and is not flagged by the uniqueness rule. The assembly map of `EncinaEventIdAllocationTests` works unchanged.
 
 ### The block registry
 
