@@ -2071,7 +2071,9 @@ exit 1
             @('a &>>file b', $true, 'a|&>>file|b', 'Bash &>>file is not a separator'),
             @('& script.ps1 x', $false, '&|script.ps1|x', 'a leading call operator is a token, not a separator'),
             @('a; & script.ps1 x', $false, 'a;&|script.ps1|x', 'a call operator after a separator is a token'),
-            @('a & & b', $false, 'a;&|b', 'a call operator after a background & is a token'))) {
+            @('a & & b', $false, 'a;&|b', 'a call operator after a background & is a token'),
+            # An & after an assignment is read as a background separator; the call operator's target is then analysed as its own statement, same verdict as before.
+            @('$x = & foo args', $false, '$x|=;foo|args', 'an & after an assignment is a background separator and the target is its own statement'))) {
         $got = Get-TokenizerOutput $case[0] $case[1]
         Write-CaseResult ($null -ne $got -and $got -ceq $case[2]) "tokenizer (#4056): $($case[3])" "got '$got', expected '$($case[2])'"
     }
