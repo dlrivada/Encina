@@ -1,0 +1,1 @@
+- `.github/scripts/perf-report.cs` now scopes `stabilityOverrides` lookup keys using each manifest's `classes[].fullName`, preventing benchmark overrides from colliding across projects that share class and method names.
