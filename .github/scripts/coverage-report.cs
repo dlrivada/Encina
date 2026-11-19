@@ -165,6 +165,7 @@ if (Directory.Exists(manifestDir))
             if (mJson?.Package is null || mJson.Files is null) continue;
 
             var pkgFiles = new Dictionary<string, TestType>(StringComparer.OrdinalIgnoreCase);
+            var pkgExpected = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
             foreach (var (filePath, entry) in mJson.Files)
             {
                 // Override takes precedence over defaultTests
@@ -183,7 +184,7 @@ if (Directory.Exists(manifestDir))
                     };
                 }
                 pkgFiles[filePath] = testType;
-                CountExpectedFlags(entry, expectedFlags, mJson.Package);
+                CountExpectedFlags(entry, pkgExpected, mJson.Package);
 
                 if (entry.Targets is { Count: > 0 } || entry.Justifications is { Count: > 0 })
                 {
@@ -193,6 +194,8 @@ if (Directory.Exists(manifestDir))
                 }
             }
             manifest[mJson.Package] = pkgFiles;
+            // Merged only after the whole file parsed, so a parse failure adds no spurious "no target" lines.
+            foreach (var (pkg, counts) in pkgExpected) expectedFlags[pkg] = counts;
 
             // Store per-flag targets if present
             if (mJson.Targets is { Count: > 0 })
