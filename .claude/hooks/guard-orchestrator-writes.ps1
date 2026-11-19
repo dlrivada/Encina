@@ -436,5 +436,10 @@ try {
     exit 0
 }
 catch {
+    # The analysis budget (#3984) denies here too; every other failure of the hook allows the call (#3243).
+    if ("$($_.Exception.Message)".StartsWith('ENCINA_HOOK_BUDGET_EXCEEDED', [StringComparison]::Ordinal)) {
+        [Console]::Error.WriteLine('Blocked: guard-orchestrator-writes analysis budget exceeded, so this command cannot be checked. Split it into smaller commands (#3984).')
+        exit 2
+    }
     exit 0
 }

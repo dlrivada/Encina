@@ -19,6 +19,52 @@
 # cannot be read; Get-WrappedCommand reports it as Encoded so a hook can block it. `pwsh -File` and a Bash
 # script file are not read.
 
+# Character classes of the tokenizer, all by code point. PowerShell `-eq` / `-in` compare a [char] with a string
+# culture-insensitively, so `[char]0xA0 -in ' ', "`t"` is true: a set test written with them lets a Unicode space
+# pass the outer loop yet match the token loop's break set, and the loop spins forever (#3984). Never use `-eq` or
+# `-in` on a character against these sets.
+
+# A space, tab or any other Unicode white space (U+00A0, U+0085, U+2003, U+3000, ...) that separates arguments.
+# A line break is not one: `\r` and `\n` end a statement.
+function Test-CommandWhitespace([char]$Char) {
+    $code = [int]$Char
+    if ($code -eq 10 -or $code -eq 13) { return $false }
+    return [char]::IsWhiteSpace($Char)
+}
+
+# `;`, a line break, `|`, `{` or `}`: a one-character statement separator.
+function Test-CommandSeparator([char]$Char) {
+    $code = [int]$Char
+    return $code -eq 59 -or $code -eq 10 -or $code -eq 13 -or $code -eq 124 -or $code -eq 123 -or $code -eq 125
+}
+
+# Whether $Text[$At] is a single background `&` that ends a statement: not half of `&&`, not part of a
+# redirection (`2>&1`, `*>&1`, `>&2`, `<&3`, Bash `&>file`, `&>>file`).
+function Test-BackgroundAmpersand([string]$Text, [int]$At) {
+    if ([int]$Text[$At] -ne 38) { return $false }
+    if ($At + 1 -lt $Text.Length) { $next = [int]$Text[$At + 1]; if ($next -eq 38 -or $next -eq 62) { return $false } }
+    if ($At -gt 0) { $prev = [int]$Text[$At - 1]; if ($prev -eq 38 -or $prev -eq 62 -or $prev -eq 60) { return $false } }
+    return $true
+}
+
+# The analysis budget (#3984). Split-CommandStatements starts it at depth 0 (5000 ms, or ENCINA_HOOK_BUDGET_MS,
+# which the tests use) and every loop iteration checks it; the hooks catch the exception before their generic
+# catch and deny. The message never holds command text.
+$script:CommandBudget = $null
+
+function Start-CommandBudget {
+    $limit = 5000
+    $parsed = 0
+    if ([int]::TryParse([string]$env:ENCINA_HOOK_BUDGET_MS, [ref]$parsed) -and $parsed -gt 0) { $limit = $parsed }
+    $script:CommandBudget = [pscustomobject]@{ Watch = [System.Diagnostics.Stopwatch]::StartNew(); Limit = $limit }
+}
+
+function Assert-CommandBudget {
+    if ($null -ne $script:CommandBudget -and $script:CommandBudget.Watch.ElapsedMilliseconds -gt $script:CommandBudget.Limit) {
+        throw [System.TimeoutException]::new('ENCINA_HOOK_BUDGET_EXCEEDED')
+    }
+}
+
 function New-CommandToken([string]$Value, [bool]$Quoted, [bool]$Dynamic, [bool]$Subexpression = $false, [bool]$Bash = $false) {
     [pscustomobject]@{ Value = $Value; Quoted = $Quoted; Dynamic = $Dynamic; Subexpression = $Subexpression; Bash = $Bash }
 }
@@ -124,7 +170,8 @@ function Remove-CommandComments {
 
         if ($c -eq '#') {
             $prev = if ($i -gt 0) { $Text[$i - 1] } else { ' ' }
-            $wordStart = $prev -in ' ', "`t", "`r", "`n", ';', '|', '&', '(', ')', '{', '}'
+            $prevCode = [int]$prev
+            $wordStart = (Test-CommandWhitespace $prev) -or $prevCode -in 10, 13, 59, 124, 38, 40, 41, 123, 125
             if ($prev -eq '{' -and $i -ge 2 -and $Text[$i - 2] -eq '$') { $wordStart = $false }
             if ($wordStart) {
                 while ($i -lt $n -and $Text[$i] -notin "`r", "`n") { $i++ }
@@ -170,14 +217,16 @@ function Skip-Subexpression([string]$Text, [int]$Open, [System.Text.StringBuilde
 }
 
 function Test-LineContinuation([string]$Text, [int]$At, [bool]$Bash) {
-    $escape = if ($Bash) { '\' } else { '`' }
-    return $Text[$At] -eq $escape -and $At + 1 -lt $Text.Length -and $Text[$At + 1] -in "`r", "`n"
+    $escape = if ($Bash) { 92 } else { 96 }
+    if ([int]$Text[$At] -ne $escape -or $At + 1 -ge $Text.Length) { return $false }
+    $next = [int]$Text[$At + 1]
+    return $next -eq 13 -or $next -eq 10
 }
 
 function Split-CommandStatements {
     param([string]$Text, [switch]$Bash, [int]$Depth = 0)
 
-    if ($Depth -eq 0) { $Text = Remove-CommandComments -Text $Text -Bash:$Bash }
+    if ($Depth -eq 0) { Start-CommandBudget; $Text = Remove-CommandComments -Text $Text -Bash:$Bash }
     $statements = [System.Collections.Generic.List[object]]::new()
     $current = [System.Collections.Generic.List[object]]::new()
     $inner = [System.Collections.Generic.List[string]]::new()
@@ -188,22 +237,25 @@ function Split-CommandStatements {
     $pipeSource = $null
 
     while ($i -lt $n) {
+        Assert-CommandBudget
         $c = $Text[$i]
-        if ($c -eq ' ' -or $c -eq "`t") { $i++; continue }
+        if (Test-CommandWhitespace $c) { $i++; continue }
         if (Test-LineContinuation $Text $i $Bash) {
             $i += 2
-            if ($i -lt $n -and $Text[$i - 1] -eq "`r" -and $Text[$i] -eq "`n") { $i++ }
+            if ($i -lt $n -and [int]$Text[$i - 1] -eq 13 -and [int]$Text[$i] -eq 10) { $i++ }
             continue
         }
 
         $sep = 0
-        if (($c -eq '&' -or $c -eq '|') -and $i + 1 -lt $n -and $Text[$i + 1] -eq $c) { $sep = 2 }
-        elseif ($c -in ';', "`n", "`r", '|', '{', '}') { $sep = 1 }
+        $code = [int]$c
+        if (($code -eq 38 -or $code -eq 124) -and $i + 1 -lt $n -and [int]$Text[$i + 1] -eq $code) { $sep = 2 }
+        elseif (Test-CommandSeparator $c) { $sep = 1 }
+        elseif ($current.Count -gt 0 -and (Test-BackgroundAmpersand $Text $i)) { $sep = 1 }
         if ($sep -gt 0) {
             $pipeSource = $null
             if ($current.Count -gt 0) {
                 $statements.Add($current)
-                if ($c -eq '|' -and $sep -eq 1) { $pipeSource = $current }
+                if ($code -eq 124 -and $sep -eq 1) { $pipeSource = $current }
                 $current = [System.Collections.Generic.List[object]]::new()
             }
             $i += $sep
@@ -225,11 +277,17 @@ function Split-CommandStatements {
         # A token written right against a brace (`x{a,b}`, `{a,b}x`) is cut at the brace, but Bash brace expansion
         # (and a PowerShell script block) makes the real argument something else: never trust its Value (#3896).
         if ($i -gt 0 -and $Text[$i - 1] -in '{', '}') { $expanded = $true }
+        $tokenStart = $i
         while ($i -lt $n) {
+            Assert-CommandBudget
             $c = $Text[$i]
-            if ($c -in '{', '}') { $expanded = $true; break }
-            if ($c -in ' ', "`t", ';', "`n", "`r", '|') { break }
-            if ($c -eq '&' -and $i + 1 -lt $n -and $Text[$i + 1] -eq '&') { break }
+            $code = [int]$c
+            if ($code -eq 123 -or $code -eq 125) { $expanded = $true; break }
+            if ((Test-CommandWhitespace $c) -or (Test-CommandSeparator $c)) { break }
+            if ($code -eq 38 -and $i + 1 -lt $n -and [int]$Text[$i + 1] -eq 38) { break }
+            # A background & inside a word ends the token, but the first character of a token stays (a leading
+            # `&` is the call operator, `&>file` a redirection).
+            if (($sb.Length -gt 0 -or $segments -gt 0) -and (Test-BackgroundAmpersand $Text $i)) { break }
             if (Test-LineContinuation $Text $i $Bash) { break }
 
             # PowerShell here-string: @" or @' followed by a newline, closed by "@ or '@ at the start of a line.
@@ -349,6 +407,14 @@ function Split-CommandStatements {
             $bare = $true
             [void]$sb.Append($c)
             $i++
+        }
+        # Progress guarantee (#3984): every pass consumes at least one character. A character no rule above
+        # accepted or broke on is taken as part of an opaque token, so the loop can never spin on it.
+        if ($i -le $tokenStart -and $i -lt $n) {
+            [void]$sb.Append($Text[$i])
+            $i++
+            $dynamic = $true
+            $expanded = $true
         }
         $token = New-CommandToken $sb.ToString() $quoted $dynamic $subexpression $Bash.IsPresent
         Add-Member -InputObject $token -NotePropertyName Literal -NotePropertyValue ($segments -eq 1 -and -not $bare -and -not $dynamic -and $sb.ToString().IndexOfAny([char[]](0x2018..0x201E)) -lt 0)

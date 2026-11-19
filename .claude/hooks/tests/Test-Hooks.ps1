@@ -2023,6 +2023,96 @@ exit 1
     $json = @{ tool_name = 'PowerShell'; cwd = $main; agent_id = 'a1b2'; agent_type = 'adversarial-reviewer'; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpBlankLines)' -Sp '$main\src\board'" } } | ConvertTo-Json -Compress
     Invoke-HookCase $orchestrator $json 2 'adversarial-reviewer (#3896): 130000 blank CRLF lines still reach the deny within 5 s (no quadratic regex)' $null $null 5
 
+    # #3984: the tokenizer must terminate for every Unicode space (U+00A0 used to spin forever with growing memory),
+    # and a Unicode space separates arguments like a plain space. #4056: a single background & splits statements,
+    # a redirection (2>&1, *>&1, >&2, &>file, &>>file), && and a leading call operator do not.
+    function Write-CaseResult([bool]$Ok, [string]$Label, [string]$Detail) {
+        $script:total++
+        if (-not $Ok) { $script:failed++ }
+        "{0} {1}{2}" -f ($(if ($Ok) { 'PASS' } else { 'FAIL' })), $Label, $(if (-not $Ok -and $Detail) { " ($Detail)" } else { '' })
+    }
+    # Runs Split-CommandStatements in a child process; $null when it does not finish in 10 s (a hang is a failure).
+    function Get-TokenizerOutput([string]$Text, [bool]$Bash = $false) {
+        $job = Start-Job -ArgumentList (Join-Path $hooks '_command-text.ps1'), $Text, $Bash -ScriptBlock {
+            param($File, $Text, $Bash)
+            . $File
+            $statements = Split-CommandStatements -Text $Text -Bash:$Bash
+            (@(foreach ($statement in $statements) { (@(foreach ($token in $statement) { $token.Value })) -join '|' }) -join ';')
+        }
+        try {
+            if ($null -eq (Wait-Job $job -Timeout 10)) { Stop-Job $job; return $null }
+            return [string](Receive-Job $job)
+        }
+        finally { Remove-Job $job -Force -ErrorAction SilentlyContinue }
+    }
+    $plainSpaceTokens = Get-TokenizerOutput 'git status foo'
+    foreach ($code in 0x00A0, 0x0085, 0x2003, 0x3000) {
+        $ch = [string][char]$code
+        $label = 'U+{0:X4}' -f $code
+        $got = Get-TokenizerOutput "git status${ch}foo"
+        Write-CaseResult ($null -ne $got -and $got -ceq $plainSpaceTokens -and $plainSpaceTokens -ceq 'git|status|foo') "tokenizer (#3984): $label between arguments terminates and splits like a plain space" "got '$got', expected '$plainSpaceTokens'"
+        $only = Get-TokenizerOutput ($ch * 5)
+        Write-CaseResult ($null -ne $only -and $only -ceq '') "tokenizer (#3984): a command made only of $label terminates with no statements" "got '$only'"
+    }
+    foreach ($case in @(
+            @('a & b', $false, 'a;b', 'a single background & splits statements (PowerShell)'),
+            @('a & b', $true, 'a;b', 'a single background & splits statements (Bash)'),
+            @('a &', $true, 'a', 'a trailing background & only ends the statement'),
+            @('a&b', $true, 'a;b', 'a background & right against the words splits'),
+            @('a && b', $true, 'a;b', '&& is still one separator'),
+            @('a 2>&1 b', $false, 'a|2>&1|b', '2>&1 is not a separator'),
+            @('a *>&1 b', $false, 'a|*>&1|b', '*>&1 is not a separator'),
+            @('a >&2 b', $true, 'a|>&2|b', '>&2 is not a separator'),
+            @('a &>file b', $true, 'a|&>file|b', 'Bash &>file is not a separator'),
+            @('a &>>file b', $true, 'a|&>>file|b', 'Bash &>>file is not a separator'),
+            @('& script.ps1 x', $false, '&|script.ps1|x', 'a leading call operator is a token, not a separator'),
+            @('a; & script.ps1 x', $false, 'a;&|script.ps1|x', 'a call operator after a separator is a token'),
+            @('a & & b', $false, 'a;&|b', 'a call operator after a background & is a token'))) {
+        $got = Get-TokenizerOutput $case[0] $case[1]
+        Write-CaseResult ($null -ne $got -and $got -ceq $case[2]) "tokenizer (#4056): $($case[3])" "got '$got', expected '$($case[2])'"
+    }
+
+    # #4056: the second statement after a background & is judged on its own (PowerShell and Bash tool forms).
+    foreach ($case in @(
+            @('PowerShell', 'Set-Content a.txt y & Set-Content src\x.txt y', 2, 'Set-Content a.txt y & Set-Content src\x.txt y: the src write is denied'),
+            @('PowerShell', 'pwsh -File s.ps1 & Set-Content src\x.txt y', 2, 'pwsh -File s.ps1 & Set-Content src\x.txt y: the src write is denied'),
+            @('Bash', 'echo y > a.txt & echo y > src/x.txt', 2, 'echo y > a.txt & echo y > src/x.txt: the src write is denied'),
+            @('Bash', 'bash s.sh & echo y > src/x.txt', 2, 'bash s.sh & echo y > src/x.txt: the src write is denied'),
+            @('PowerShell', "Set-Content '$main\artifacts\a.txt' y 2>&1", 0, '2>&1 after a write is allowed'),
+            @('PowerShell', "Set-Content '$main\artifacts\a.txt' y *>&1", 0, '*>&1 after a write is allowed'),
+            @('Bash', "echo y > '$($main -replace '\\', '/')/artifacts/a.txt' 2>&1", 0, 'Bash 2>&1 after a redirect is allowed'),
+            @('Bash', 'echo y >&2', 0, 'Bash >&2 is allowed'),
+            @('Bash', "echo y &> '$($main -replace '\\', '/')/artifacts/a.txt'", 0, 'Bash &>file to artifacts is allowed'),
+            @('Bash', 'git status && echo ok', 0, '&& is allowed'),
+            @('PowerShell', "& '$scriptWritesDocsPs1'", 0, 'a leading & call operator of a harmless script is allowed'),
+            @('PowerShell', "& '$scriptWritesTestsPs1'", 2, 'a leading & call operator still reaches the script analysis: denied'),
+            @('PowerShell', "Write-Output a & & '$scriptWritesTestsPs1'", 2, 'a call operator after a background & still reaches the script analysis: denied'))) {
+        $json = @{ tool_name = $case[0]; cwd = $main; tool_input = @{ command = $case[1] } } | ConvertTo-Json -Compress
+        Invoke-HookCase $orchestrator $json $case[2] "main session (#4056, $($case[0]) tool): $($case[3])"
+    }
+
+    # #3984: a hook whose tokenizing exceeds its budget denies (exit 2) instead of failing open, names itself and
+    # never prints the command text. ENCINA_HOOK_BUDGET_MS=1 makes any long command exceed it.
+    function Invoke-BudgetCase([string]$Hook, [string]$Json, [string]$HookAgent) {
+        $name = (Split-Path -Leaf $Hook) -replace '\.ps1$', ''
+        $arguments = @('-NoProfile', '-File', $Hook)
+        if ($HookAgent) { $arguments += @('-Agent', $HookAgent) }
+        $env:ENCINA_HOOK_BUDGET_MS = '1'
+        try { $output = $Json | pwsh @arguments 2>&1; $code = $LASTEXITCODE }
+        finally { Remove-Item Env:ENCINA_HOOK_BUDGET_MS -ErrorAction SilentlyContinue }
+        $text = Get-FlatOutput $output
+        $ok = $code -eq 2 -and $text -match [regex]::Escape($name) -and $text -match 'analysis budget exceeded' -and $text -notmatch 'zzmarker'
+        Write-CaseResult $ok "budget (#3984): $name denies with exit 2 when its analysis budget is exceeded, naming itself and not the command" "exit $code, output: $text"
+    }
+    $budgetCommand = 'git status gh zzmarker ' + ('arg ' * 700)
+    foreach ($tool in 'PowerShell', 'Bash') {
+        $budgetJson = @{ tool_name = $tool; cwd = $main; tool_input = @{ command = $budgetCommand } } | ConvertTo-Json -Compress
+        foreach ($budgetHook in $attribution, $issue, $publish, $prohibited, $mainCheckout, $orchestrator, (Join-Path $hooks 'board-event-reminder.ps1')) {
+            Invoke-BudgetCase $budgetHook $budgetJson $null
+        }
+        Invoke-BudgetCase $ownership (@{ tool_name = $tool; cwd = $main; agent_id = 'a1'; agent_type = 'issue-worker'; tool_input = @{ command = $budgetCommand } } | ConvertTo-Json -Compress) 'issue-worker'
+    }
+
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $env:CLAUDE_PROJECT_DIR = $gateMain
@@ -5962,6 +6052,9 @@ The fluent builder chain described in the documentation is fictional. The parame
         $offsetNow = & pwsh -NoProfile -NonInteractive -File $orchMode -On -StartPercent 53 -NowUtc 2026-11-04T15:00:00+01:00 -SessionId 'sess-off' -StateRoot $orchState 2>&1
         $script:total++
         if ($LASTEXITCODE -ne 0 -and "$offsetNow" -match 'must end in Z' -and -not (Test-Path (Join-Path $orchState 'sess-off.json'))) { 'PASS orchestrator-mode.ps1 -NowUtc with an offset instead of Z is rejected' } else { $script:failed++; "FAIL orchestrator-mode.ps1 -NowUtc with an offset was accepted: $offsetNow" }
+
+        # #3984: the marked session's guard denies when its tokenizing budget is exceeded.
+        Invoke-BudgetCase $orchGuard (New-OrchPayload 'sess-marked' 'PowerShell' @{ command = $budgetCommand } '') $null
 
         # -Off unmarks: the same deny input is allowed afterwards, and -Off is idempotent.
         $offOut = & pwsh -NoProfile -File $orchMode -Off -SessionId 'sess-marked' -StateRoot $orchState 2>&1
