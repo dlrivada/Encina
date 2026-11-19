@@ -1,0 +1,1 @@
+- Validation failures from `ValidationOrchestrator` are now categorized (`ErrorCategory.Validation`, code `EncinaErrorCodes.ValidationFailed`), so hosts answer 400 instead of treating them as uncategorized errors (#1922).
