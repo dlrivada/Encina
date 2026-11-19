@@ -239,7 +239,7 @@ The issue lists `FallbackStrategy.CachedValue` ("last known good value from cach
 
 ### Rationale
 
-- The property names `DefaultValue` and `FallbackFactory` and their shapes are the issue's. How the JSON is turned into a value (per call or shared, with which serializer options) is choice 13.
+- The property names `DefaultValue` and `FallbackFactory` and their shapes are the issue's; the issue's samples fix only `nameof(Method)` and a JSON string. The extra rules (a public static parameterless method of the request type, binding once at startup, the startup `InvalidOperationException` for a missing method or invalid JSON) are validator rules implemented in Phase 1 task 5, not decisions of the attribute contract. How the JSON is turned into a value (per call or shared, with which serializer options) is choice 13.
 - **Class:** Trivial
 - **Settled by:** #137 "Attribute-based (Simple)" samples (`[Fallback(DefaultValue = "[]")]`, `[Fallback(FallbackFactory = nameof(GetDefaultUser))]`)
 
@@ -342,7 +342,7 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina/Abstr
 <summary>Tasks</summary>
 
 1. `FallbackStrategyFactory.cs` (internal): builds `FallbackStrategyOptions<Either<EncinaError, TResponse>>`: `ShouldHandle` (choice 7), `FallbackAction` (default value parsed with `System.Text.Json`, factory delegate, or the per-call handler read from `ResilienceContext` properties; a `Left` from the fallback becomes the enriched original error of choice 8), `OnFallback` (Phase 5 hook).
-2. `FallbackPropertyKeys.cs` (internal): the per-call handler key.
+2. `FallbackPropertyKeys.cs` (internal): the per-call handler key. `FallbackCallContributor.cs` (internal, PR-2): the foundation's per-call hook; it resolves `IFallbackHandler<TRequest, TResponse>` from the request's `IServiceProvider` (a missing registration is caught at startup by the validator) and writes it into the `ResilienceContext`; without a context in the properties the factory's `ShouldHandle` returns false and the primary result is returned unchanged.
 3. The strategy is the outermost slot of the Resilience-stage pipeline (choice 3).
 
 </details>
@@ -434,9 +434,9 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <summary>Tasks</summary>
 
 1. Unit (`tests/Encina.UnitTests/Resilience/Fallback/`): default value returned for a `Unavailable` error; factory method; handler resolved per call (two calls, two scoped instances); `Validation` error not masked; `FallbackOn = [NotFound]` widens; fallback `Left` returns the original error with details and the original category; a command type fails validation; unparsable default fails at startup; two calls get distinct deserialized instances.
-2. Guard (`tests/Encina.GuardTests/Resilience/Fallback/`): `FallbackOptions.From` null attribute (PR-1); builder extension nulls (PR-2); nullable `FallbackOn` null accepted (valid result). Unit also covers: a factory or handler that throws returns the original error with `encina.fallback.exception_type` and logs 909.
+2. Guard (`tests/Encina.GuardTests/Resilience/Fallback/`): `FallbackOptions.From` null attribute (PR-1); builder extension nulls (PR-2); nullable `FallbackOn` null accepted (valid result). Unit also covers: a factory or handler that throws returns the original error with `encina.fallback.exception_type` (PR-1); the assertion that 909 is logged for it, and not logged for a cancellation, is in the PR-3 factory tests (the log messages land in PR-3).
 3. Contract (`tests/Encina.ContractTests/Resilience/FallbackHandlerContractTests.cs`): real handlers return `Right` or `Left` and never throw.
-4. DI test (PR-2, with the end-to-end startup-rule tests) and telemetry test with `MeterListener` (PR-3). Cancellation: a caller `OperationCanceledException` from the handler or factory propagates, is not converted and does not log 909 (unit test, PR-1). Property, load, benchmark and integration: not applicable (stateless strategy over Polly); justification files in PR-3 as in #136.
+4. DI test (PR-2, with the end-to-end startup-rule tests) and telemetry test with `MeterListener` (PR-3). Cancellation: a caller `OperationCanceledException` from the handler or factory propagates, is not converted (unit test, PR-1; the no-909-log assertion is in the PR-3 factory tests). Property, load, benchmark and integration: not applicable (stateless strategy over Polly); justification files in PR-3 as in #136.
 
 </details>
 
@@ -510,11 +510,11 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Category | PR-1 | PR-2 | PR-3 | Files |
 |----------|------|------|------|-------|
-| Production | 7 | 2 | 5 | PR-1: `FallbackStrategy`, `FallbackAttribute`, `FallbackOptions`, `IFallbackHandler`, `FallbackOptionsValidator`, `FallbackStrategyFactory`, `FallbackPropertyKeys`. PR-2: `FallbackBuilderExtensions` and the foundation's startup-validation registration (a modified file of `Encina.Resilience`). PR-3: `FallbackLogMessages`, `FallbackTelemetry`, `FallbackStrategyFactory` (modified, `OnFallback` hook), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
+| Production | 7 | 3 | 5 | PR-1: `FallbackStrategy`, `FallbackAttribute`, `FallbackOptions`, `IFallbackHandler`, `FallbackOptionsValidator`, `FallbackStrategyFactory`, `FallbackPropertyKeys`. PR-2: `FallbackBuilderExtensions`, `FallbackCallContributor` (the per-call hook of the foundation contract: it resolves `IFallbackHandler<,>` from the request's service provider and writes it into the `ResilienceContext` through `FallbackPropertyKeys`) and the foundation's startup-validation registration (a modified file of `Encina.Resilience`). PR-3: `FallbackLogMessages`, `FallbackTelemetry`, `FallbackStrategyFactory` (modified, `OnFallback` hook), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
 | Project edits | 1 | 0 | 0 | PR-1: `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing) |
 | Tests | 4 | 3 | 3 | PR-1: factory, validator, options, guard. PR-2: registration (DI), contract, the guard file (modified, extension-method guards). PR-3: telemetry and log messages, the factory tests (modified, `OnFallback` hook), `EncinaEventIdAllocationTests.cs` |
 | Metadata and docs | 2 | 3 | 6 | PR-1: PublicAPI, manifest. PR-2: PublicAPI, manifest, changelog. PR-3: PublicAPI, manifest, README, feature page, 2 justification files |
-| **Total** | **14** | **8** | **14** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or implementer change |
+| **Total** | **14** | **9** | **14** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or implementer change |
 
 Per-file targets (new files; baseline: none exists on `origin/main`); each is reached by the tests of the PR that adds the file:
 
@@ -524,6 +524,7 @@ Per-file targets (new files; baseline: none exists on `origin/main`); each is re
 | `FallbackAttribute.cs` | 95 | 0 | 0 | 0 | 0 | Init properties only, read by options tests |
 | `FallbackOptions.cs` | 95 | 100 | 0 | 0 | 0 | Merge logic covered by value tests; the guard test sends a null attribute to `From` (PR-1) |
 | `FallbackPropertyKeys.cs` | 90 | 0 | 0 | 0 | 0 | Static keys read by the factory tests (PR-1) |
+| `FallbackCallContributor.cs` | 90 | 0 | 0 | 0 | 0 | With a scoped handler registered and without, through the real compiler in the PR-2 registration test; internal |
 | `IFallbackHandler.cs` | 0 | 0 | 0 | 0 | 0 | Interface; the contract tests run implementations |
 | `FallbackOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | One failing and one passing test per rule; internal, reached through the `InternalsVisibleTo` of Phase 1 task 6; no validated public parameters, so no guard flag |
 | `FallbackStrategyFactory.cs` | 90 | 0 | 0 | 0 | 0 | Each trigger and source path is driven through the real compiler; internal |
@@ -577,7 +578,7 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina/Resul
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| Foundation (`Encina.Resilience`, compiler, options front-ends) | Not on main; issue file `resilience-foundation-encina-resilience.md` | Blocks implementation (Dilemma 1, answered once in the #136 plan) |
+| Foundation (`Encina.Resilience`, compiler, options front-ends) | Not on main; issue file `resilience-foundation-encina-resilience.md` | Blocks implementation (Dilemma 1, answered once in the #136 plan). The plan assumes the foundation's per-call contributor hook (the Resilience-stage behavior calls every registered contributor with the request's `IServiceProvider` and the `ResilienceContext` before running the pipeline); this plan's contributor is `FallbackCallContributor` (PR-2), the same mechanism as #136 |
 | R6 token and deadline | Not on main; issue file `resilience-r6-pipeline-token-and-deadline.md` | The fallback action receives the continuation token |
 | #268 fail-safe cache | Open | The deferred cached-value strategy |
 
