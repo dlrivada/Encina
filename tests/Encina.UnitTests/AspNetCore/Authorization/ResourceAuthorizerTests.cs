@@ -67,6 +67,8 @@ public class ResourceAuthorizerTests
                 None: () => Assert.Fail("Expected error code"));
             error.Message.ShouldContain("Resource authorization denied");
             error.Message.ShouldContain("CanEdit");
+            error.GetCategory().ShouldBe(ErrorCategory.Forbidden);
+            error.GetStatusCode().ShouldBe(403);
         });
     }
 
@@ -89,7 +91,12 @@ public class ResourceAuthorizerTests
 
         // Assert
         result.IsLeft.ShouldBeTrue();
-        result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated));
+        result.IfLeft(error =>
+        {
+            error.GetCode().IfNone("none").ShouldBe(EncinaErrorCodes.AuthorizationUnauthenticated);
+            error.GetCategory().ShouldBe(ErrorCategory.Unauthenticated);
+            error.GetStatusCode().ShouldBe(401);
+        });
         await _authorizationService.DidNotReceiveWithAnyArgs().AuthorizeAsync(default!, default, default(string)!);
     }
 

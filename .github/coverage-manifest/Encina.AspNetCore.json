@@ -4,7 +4,13 @@
   "totalFiles": 28,
   "targets": {
     "unit": 60,
-    "guard": 15
+    "guard": 15,
+    "contract": 0,
+    "property": 0
+  },
+  "justifications": {
+    "contract": "The only file expecting contract tests is the source-generated AuthorizationElevatedLog.cs, which has no coverable lines (per-file target 0).",
+    "property": "The only file expecting property tests is the source-generated AuthorizationElevatedLog.cs, which has no coverable lines (per-file target 0)."
   },
   "files": {
     "ApplicationBuilderExtensions.cs": {
@@ -67,8 +73,8 @@
       "reason": "Facade with ThrowIfNull and ThrowIfNullOrWhiteSpace on public methods",
       "targets": { "unit": 95, "guard": 45 },
       "justifications": {
-        "unit": "Unauthenticated, null-identity, principal-less, success and denial paths have unit tests (measured 100%).",
-        "guard": "Constructor and argument guards plus one anonymous call (measured 52%)."
+        "unit": "Unauthenticated, null-identity, principal-less, success and denial paths are categorized and asserted in unit tests.",
+        "guard": "Constructor and argument guards plus the anonymous call are exercised by the guard flag, which is the only flag that reaches the argument checks."
       }
     },
     "AuthorizationPipelineBehavior.cs": {
@@ -79,7 +85,7 @@
       "reason": "Pipeline behavior — no constructor null guards; contract is IPipelineBehavior which is tested at core level. ContractTests project lacks ASP.NET Core FrameworkReference.",
       "targets": { "unit": 95 },
       "justifications": {
-        "unit": "Every requirement kind, the unauthenticated denial and the log and detail contents have unit tests (measured 100%)."
+        "unit": "Every denial is categorized and asserted (roles, policy, resource and unauthenticated), including the log and detail contents, in unit tests."
       }
     },
     "ConnectionRequestDetector.cs": {
@@ -102,7 +108,7 @@
       "reason": "Endpoint mapping extensions with ThrowIfNull(endpoints)",
       "targets": { "unit": 80, "guard": 4 },
       "justifications": {
-        "unit": "Every handler path, the policy and authorization startup checks, the 401 denial of approve and reject without an authenticated request identity, and the recorded actor have TestServer tests; the remaining lines are error branches of the other handlers (measured 85%).",
+        "unit": "The failure helper that records and answers one category status is exercised by every handler path through TestServer, so each category maps to its status and telemetry tag in one place.",
         "guard": "Guard tests cover the null-endpoints, null/blank policy and null-prefix checks of MapDPIAEndpoints and a successful mapping; the handlers take no guarded arguments, so the flag cannot reach them (measured 6.2%)."
       }
     },
@@ -227,8 +233,8 @@
       "reason": "Error mapper converting EncinaError to ProblemDetails; unit tests cover all code paths, guard tests cover null-parameter checks",
       "targets": { "unit": 100, "guard": 25 },
       "justifications": {
-        "unit": "Every status mapping, the message and exception-extension matrix (option on or off, Development, Production, Staging, no environment) and ToActionResult have unit tests (measured 100%).",
-        "guard": "Only the httpContext null guards of ToProblemDetails and ToActionResult need guard tests (measured 62%)."
+        "unit": "Status, title, Retry-After and WWW-Authenticate headers and the ToActionResult wrapper all come from the category table, and every branch is executed through the real ToProblemDetails in unit tests.",
+        "guard": "Only the httpContext null guards of ToProblemDetails and ToActionResult need guard tests, since the rest of the mapping is covered by the unit flag."
       }
     },
     "ProblemDetailsStartupLog.cs": {

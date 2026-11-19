@@ -1,0 +1,7 @@
+- Encina.AspNetCore now reads the HTTP status of `ToProblemDetails`/`ToActionResult` from the error's `ErrorCategory` through the core table `ErrorCategoryHttp` and no longer parses error codes (#3688); an explicit `statusCode` argument still overrides.
+- The Problem Details `title` is now the reason phrase of the status: 429, 499, 502, 503 and 504 get "Too Many Requests", "Client Closed Request", "Bad Gateway", "Service Unavailable" and "Gateway Timeout" instead of "An error occurred".
+- Responses carry `Retry-After` (429 and 503, when the error holds a retry-after value) and `WWW-Authenticate` on every 401 (default `Bearer`), written when the result executes; a challenge already on the response is kept.
+- A cancellation answers 499.
+- The three authorization denials (roles, policy, resource) are now `Forbidden` (403) and the two no-identity errors are `Unauthenticated` (401) by category.
+- The DPIA endpoints record the same status in telemetry (`dpia.status_code`) as they answer, taken from the error category.
+- `ToProblemDetails` no longer throws for an error that has no code; it answers 500 and omits `errorCode`.

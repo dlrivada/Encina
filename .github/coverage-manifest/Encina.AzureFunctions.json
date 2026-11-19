@@ -4,7 +4,11 @@
   "totalFiles": 17,
   "targets": {
     "guard": 15,
-    "unit": 55
+    "unit": 55,
+    "integration": 94
+  },
+  "justifications": {
+    "integration": "Integration tests run the Functions bindings and durable helpers through an in-process test worker (94.6 % on the 2026-11-16 dashboard); the remainder is a few defensive lines."
   },
   "files": {
     "Durable/ActivityResult.cs": {
@@ -16,7 +20,7 @@
       "reason": "Result type",
       "targets": { "unit": 100, "guard": 25, "integration": 100 },
       "justifications": {
-        "unit": "Success, both Failure overloads, ToEither and both ToActivityResult extensions are executed by ActivityResultTests.",
+        "unit": "Success, both Failure overloads, ToEither, both ToActivityResult extensions and the round trip of the error category (NotFound stays 404, Conflict stays 409, JSON included) are executed by ActivityResultTests and AzureFunctionsErrorCategoriesTests.",
         "guard": "DurableGuardTests run ToActivityResult on a Right value, which executes the success mapping; the null check in Failure(EncinaError) is unreachable because EncinaError is a struct, and the remaining members are left to the unit flag.",
         "integration": "DurableFunctionsInProcessIntegrationTests round-trip the success and failure shapes through System.Text.Json and ToEither, including the default error fallback and the Unit overload."
       }
@@ -55,9 +59,9 @@
       ],
       "defaultRule": "*Builder.cs",
       "reason": "Fluent builder with validation",
-      "targets": { "unit": 50, "guard": 38, "integration": 78 },
+      "targets": { "unit": 95, "guard": 38, "integration": 78 },
       "justifications": {
-        "unit": "DurableSagaBuilderTests build and configure sagas; the ExecuteAsync and compensation paths need an orchestration context double and are still partly unmeasured.",
+        "unit": "DurableSagaBuilderTests build and configure sagas and AzureFunctionsErrorCategoriesTests run ExecuteAsync on an orchestration context double: success, failing step with compensation, compensation error, activity exception and compensation exception; the target leaves room for line attribution noise.",
         "guard": "DurableGuardTests call Step, WithTimeout, Execute and Compensate with invalid arguments, the step builder Step and Build finalisation errors, and ExecuteAsync with a null context, plus the minimum valid calls that reach each check.",
         "integration": "DurableSagaOnTestHostIntegrationTests run success, compensation in reverse order, a compensation error, an activity that throws, steps without compensation on the Durable Task in-process test host, and build a saga with retry options and a timeout configured (neither is exercised: no activity retries and WithTimeout binds nothing, #3212); the durable.saga_exception and durable.compensation_exception catch blocks are not exercised by any flag because a failing activity is converted to Left and no other exception was shown to reach them, and the remaining uncovered lines are argument-validation throws and Left returns covered by the guard flag."
       }
@@ -105,9 +109,9 @@
       ],
       "defaultRule": "*Extensions.cs",
       "reason": "ServiceCollection extensions with conditional registration",
-      "targets": { "unit": 26, "guard": 22, "integration": 92 },
+      "targets": { "unit": 50, "guard": 22, "integration": 92 },
       "justifications": {
-        "unit": "OrchestrationContextExtensionsTests run the activity, sub-orchestrator and retry-option helpers; the external-event paths still lack unit coverage.",
+        "unit": "OrchestrationContextExtensionsTests run the activity, sub-orchestrator and retry-option helpers and AzureFunctionsErrorCategoriesTests run the external-event timeout and cancellation paths; the event-first and event_failed paths stay with the integration flag.",
         "guard": "DurableGuardTests call every extension with a null context, null or empty name and out-of-range retry parameters, plus the zero-retry valid call.",
         "integration": "OrchestrationContextExtensionsOnTestHostIntegrationTests run every helper (activity and sub-orchestrator, with and without the Either wrapper, success, failure, throwing and retry, external events with timeout, event first, no timeout and a cancelled token, GetCorrelationId) on the Durable Task in-process test host; the uncovered lines are the durable.event_failed catch of WaitForEncinaExternalEventAsync, which no test reaches."
       }
@@ -192,12 +196,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "Error mapper converting EncinaError to HttpResponseData; unit tests cover all code paths, guard tests cover null-parameter checks",
+      "reason": "Error mapper converting EncinaError to HttpResponseData through the error category table (ErrorCategoryHttp); unit tests cover all code paths, guard tests cover null-parameter checks",
       "targets": { "unit": 100, "guard": 5, "integration": 100 },
       "justifications": {
-        "unit": "Every error code and HTTP status mapping, including each encina.authorization.* code, has a unit test.",
+        "unit": "HttpResponseDataExtensionsTests build the real problem-details response for all 14 error categories (status, reason phrase), the 499, 429 and 503 Retry-After, 401 WWW-Authenticate, explicit status overrides, the correlation id and the success, created and no-content helpers; the null-argument checks belong to the guard flag.",
         "guard": "Guard tests reach only the null-request checks of the async response builders; building a response needs a full HttpResponseData double and is behaviour for the unit flag.",
-        "integration": "Integration tests convert the results of a real Encina pipeline to concrete HTTP responses (success, created, no content, each error family, explicit status codes) and read the written headers and Problem Details body."
+        "integration": "Integration tests convert the results of a real Encina pipeline to concrete HTTP responses (success, created, no content, each error category, explicit status codes) and read the written headers and Problem Details body."
       }
     },
     "Log.cs": {

@@ -42,7 +42,7 @@ public static class HttpResponseDataExtensions
     /// <param name="result">The Either result from an Encina operation.</param>
     /// <param name="request">The HTTP request data.</param>
     /// <param name="successStatusCode">HTTP status code for success (default: 200).</param>
-    /// <param name="errorStatusCode">Optional HTTP status code for errors. If not provided, will be inferred from error code.</param>
+    /// <param name="errorStatusCode">Optional HTTP status code for errors. If not provided, the status of the error's category is used.</param>
     /// <returns>The HTTP response.</returns>
     /// <example>
     /// <code>
@@ -68,20 +68,18 @@ public static class HttpResponseDataExtensions
     /// </summary>
     /// <param name="error">The Encina error.</param>
     /// <param name="request">The HTTP request data.</param>
-    /// <param name="statusCode">Optional HTTP status code. If not provided, will be inferred from error code.</param>
+    /// <param name="statusCode">Optional HTTP status code. If not provided, the status of the error's category is used.</param>
     /// <returns>The HTTP response with Problem Details.</returns>
     /// <remarks>
     /// <para>
-    /// Status codes are mapped from error codes:
+    /// The status is read from the error's <see cref="ErrorCategory"/> through <see cref="ErrorCategoryHttp"/> (ADR-062);
+    /// the error code text is never parsed. The title is the reason phrase of the status written. An explicit
+    /// <paramref name="statusCode"/> overrides the category's status.
     /// </para>
-    /// <list type="bullet">
-    /// <item><description><b>400 Bad Request</b>: validation.*, guard.validation_failed</description></item>
-    /// <item><description><b>401 Unauthorized</b>: encina.authorization.unauthenticated</description></item>
-    /// <item><description><b>403 Forbidden</b>: encina.authorization.* (every other authorization code)</description></item>
-    /// <item><description><b>404 Not Found</b>: *.not_found, encina.request.handler_missing</description></item>
-    /// <item><description><b>409 Conflict</b>: *.conflict, *.already_exists</description></item>
-    /// <item><description><b>500 Internal Server Error</b>: Default for unrecognized codes</description></item>
-    /// </list>
+    /// <para>
+    /// <c>Retry-After</c> is written for 429 and 503 when the error carries a retry delay, and
+    /// <c>WWW-Authenticate</c> for 401, as <see cref="ErrorCategoryHttp.GetResponseHeaders(EncinaError, int)"/> decides.
+    /// </para>
     /// </remarks>
     public static async ValueTask<HttpResponseData> ToProblemDetailsResponse(
         this EncinaError error,
@@ -90,13 +88,13 @@ public static class HttpResponseDataExtensions
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var effectiveStatusCode = statusCode ?? MapErrorCodeToStatusCode(error);
+        var effectiveStatusCode = statusCode ?? error.GetStatusCode();
         var response = request.CreateResponse((HttpStatusCode)effectiveStatusCode);
 
         var problemDetails = new ProblemDetailsResponse
         {
             Status = effectiveStatusCode,
-            Title = GetTitle(effectiveStatusCode),
+            Title = ErrorCategoryHttp.GetReasonPhrase(effectiveStatusCode),
             Detail = error.Message,
             Instance = request.Url.PathAndQuery
         };
@@ -122,6 +120,11 @@ public static class HttpResponseDataExtensions
         }
 
         response.Headers.Add("Content-Type", "application/problem+json");
+        foreach (var header in ErrorCategoryHttp.GetResponseHeaders(error, effectiveStatusCode))
+        {
+            response.Headers.Add(header.Key, header.Value);
+        }
+
         var json = JsonSerializer.Serialize(problemDetails, JsonOptions);
         await response.WriteStringAsync(json);
 
@@ -197,68 +200,6 @@ public static class HttpResponseDataExtensions
         await response.WriteStringAsync(json);
         return response;
     }
-
-    internal static int MapErrorCodeToStatusCode(EncinaError error)
-    {
-        var code = error.GetCode().IfNone(string.Empty).ToLowerInvariant();
-
-        // 400 Bad Request: Validation errors
-        if (IsValidationCode(code))
-        {
-            return (int)HttpStatusCode.BadRequest;
-        }
-
-        // 401 Unauthorized: Authentication required
-        if (code == EncinaErrorCodes.AuthorizationUnauthenticated)
-        {
-            return (int)HttpStatusCode.Unauthorized;
-        }
-
-        // 403 Forbidden: authenticated identity denied (every other encina.authorization.* code)
-        if (code.StartsWith(EncinaErrorCodes.AuthorizationPrefix, StringComparison.Ordinal))
-        {
-            return (int)HttpStatusCode.Forbidden;
-        }
-
-        // 404 Not Found
-        if (IsNotFoundCode(code))
-        {
-            return (int)HttpStatusCode.NotFound;
-        }
-
-        // 409 Conflict
-        if (IsConflictCode(code))
-        {
-            return (int)HttpStatusCode.Conflict;
-        }
-
-        // 500 Internal Server Error: Default for unknown/unhandled errors
-        return (int)HttpStatusCode.InternalServerError;
-    }
-
-    private static bool IsValidationCode(string code) =>
-        code.StartsWith("validation.", StringComparison.Ordinal) || code == "encina.guard.validation_failed";
-
-    private static bool IsNotFoundCode(string code) =>
-        code.EndsWith(".not_found", StringComparison.Ordinal) ||
-        code == "encina.request.handler_missing" ||
-        code.EndsWith(".missing", StringComparison.Ordinal);
-
-    private static bool IsConflictCode(string code) =>
-        code.EndsWith(".conflict", StringComparison.Ordinal) ||
-        code.EndsWith(".already_exists", StringComparison.Ordinal) ||
-        code.EndsWith(".duplicate", StringComparison.Ordinal);
-
-    internal static string GetTitle(int statusCode) => statusCode switch
-    {
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        409 => "Conflict",
-        500 => "Internal Server Error",
-        _ => "An error occurred"
-    };
 
     /// <summary>
     /// Internal Problem Details response structure following RFC 7807.
