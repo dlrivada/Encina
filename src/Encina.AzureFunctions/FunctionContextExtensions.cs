@@ -181,6 +181,7 @@ public static class FunctionContextExtensions
         Log.InvalidTenantClaim(logger, InvalidTenantClaimErrorCode);
         return EncinaErrors.Create(
             InvalidTenantClaimErrorCode,
+            ErrorCategory.Forbidden,
             "The authenticated tenant claim is present but is not a non-empty string.");
     }
 
@@ -200,6 +201,7 @@ public static class FunctionContextExtensions
         Log.TenantMismatch(logger, TenantMismatchErrorCode);
         return EncinaErrors.Create(
             TenantMismatchErrorCode,
+            ErrorCategory.Forbidden,
             "The tenant supplied by the request does not match the authenticated tenant.");
     }
 

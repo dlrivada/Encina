@@ -52,6 +52,13 @@ public sealed class ActivityResult<T>
     public string? ErrorMessage { get; set; }
 
     /// <summary>
+    /// Gets the category of the error (<see cref="ErrorCategory.Internal"/> when unset or succeeded),
+    /// so a host reading the result at the other side of the Durable boundary answers the same status.
+    /// </summary>
+    [JsonPropertyName("errorCategory")]
+    public ErrorCategory ErrorCategory { get; init; }
+
+    /// <summary>
     /// Creates a successful activity result.
     /// </summary>
     /// <param name="value">The success value.</param>
@@ -78,7 +85,8 @@ public sealed class ActivityResult<T>
         {
             IsSuccess = false,
             ErrorCode = error.GetCode().IfNone(string.Empty),
-            ErrorMessage = error.Message
+            ErrorMessage = error.Message,
+            ErrorCategory = error.GetCategory()
         };
     }
 
@@ -111,7 +119,8 @@ public sealed class ActivityResult<T>
 
         var error = EncinaErrors.Create(
             ErrorCode ?? "durable.activity_failed",
-            ErrorMessage ?? "Activity failed");
+            category: ErrorCategory,
+            message: ErrorMessage ?? "Activity failed");
 
         return error;
     }

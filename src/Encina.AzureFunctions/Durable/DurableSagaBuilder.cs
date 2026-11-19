@@ -80,6 +80,7 @@ public sealed class DurableSagaBuilder<TData>
         {
             return EncinaErrors.Create(
                 DurableSagaErrorCodes.NoSteps,
+                ErrorCategory.Internal,
                 "Saga must have at least one step.");
         }
 
@@ -193,6 +194,7 @@ public sealed class DurableSagaStepBuilder<TData>
         {
             return EncinaErrors.Create(
                 DurableSagaErrorCodes.StepNotConfigured,
+                ErrorCategory.Internal,
                 $"Step '{_stepName}' must have an Execute activity.");
         }
 
@@ -279,106 +281,158 @@ public sealed class DurableSaga<TData>
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        var executedSteps = new Stack<DurableSagaStep<TData>>();
-        var currentData = initialData;
+        var run = new SagaRun(initialData);
 
         try
         {
-            foreach (var step in _steps)
-            {
-                var result = await context.CallEncinaActivityWithResultAsync<TData, TData>(
-                    step.ExecuteActivityName,
-                    currentData,
-                    step.RetryOptions ?? _defaultRetryOptions);
-
-                if (result.IsLeft)
-                {
-                    var error = result.Match(Left: e => e, Right: _ => default!);
-
-                    // Step failed - begin compensation
-                    var compensationResult = await CompensateAsync(context, executedSteps, currentData);
-
-                    return new DurableSagaError
-                    {
-                        FailedStep = step.StepName,
-                        OriginalError = error,
-                        CompensationErrors = compensationResult,
-                        WasCompensated = compensationResult.Count == 0 || compensationResult.All(c => c.Value == null)
-                    };
-                }
-
-                currentData = result.Match(Right: d => d, Left: _ => currentData);
-
-                if (!step.SkipCompensationOnFailure && step.CompensateActivityName != null)
-                {
-                    executedSteps.Push(step);
-                }
-            }
-
-            return currentData;
+            return await RunStepsAsync(context, run);
         }
         catch (Exception ex)
         {
             // Unexpected error - try to compensate
-            var compensationResult = await CompensateAsync(context, executedSteps, currentData);
-
-            return new DurableSagaError
-            {
-                FailedStep = "Unknown (exception)",
-                OriginalError = EncinaErrors.Create(
-                    "durable.saga_exception",
-                    $"Saga failed with exception: {ex.Message}",
-                    ex),
-                CompensationErrors = compensationResult,
-                WasCompensated = false
-            };
+            return await FailWithExceptionAsync(context, run, ex);
         }
     }
 
-    private async Task<Dictionary<string, EncinaError?>> CompensateAsync(
+    private async Task<Either<DurableSagaError, TData>> RunStepsAsync(TaskOrchestrationContext context, SagaRun run)
+    {
+        foreach (var step in _steps)
+        {
+            var failure = await RunStepAsync(context, run, step);
+
+            if (failure is not null)
+            {
+                return failure;
+            }
+        }
+
+        return run.CurrentData;
+    }
+
+    private async Task<DurableSagaError?> RunStepAsync(
         TaskOrchestrationContext context,
-        Stack<DurableSagaStep<TData>> executedSteps,
-        TData currentData)
+        SagaRun run,
+        DurableSagaStep<TData> step)
+    {
+        var result = await context.CallEncinaActivityWithResultAsync<TData, TData>(
+            step.ExecuteActivityName,
+            run.CurrentData,
+            step.RetryOptions ?? _defaultRetryOptions);
+
+        if (result.IsLeft)
+        {
+            var error = result.Match(Left: e => e, Right: _ => default!);
+
+            // Step failed - begin compensation
+            return await FailStepAsync(context, run, step.StepName, error);
+        }
+
+        run.CurrentData = result.Match(Right: d => d, Left: _ => run.CurrentData);
+        run.Track(step);
+
+        return null;
+    }
+
+    private async Task<DurableSagaError> FailStepAsync(
+        TaskOrchestrationContext context,
+        SagaRun run,
+        string stepName,
+        EncinaError error)
+    {
+        var compensationResult = await CompensateAsync(context, run);
+
+        return new DurableSagaError
+        {
+            FailedStep = stepName,
+            OriginalError = error,
+            CompensationErrors = compensationResult,
+            WasCompensated = compensationResult.Count == 0 || compensationResult.All(c => c.Value == null)
+        };
+    }
+
+    private async Task<DurableSagaError> FailWithExceptionAsync(
+        TaskOrchestrationContext context,
+        SagaRun run,
+        Exception ex)
+    {
+        var compensationResult = await CompensateAsync(context, run);
+
+        return new DurableSagaError
+        {
+            FailedStep = "Unknown (exception)",
+            OriginalError = EncinaErrors.Create(
+                "durable.saga_exception",
+                ErrorCategory.Internal,
+                $"Saga failed with exception: {ex.Message}",
+                ex),
+            CompensationErrors = compensationResult,
+            WasCompensated = false
+        };
+    }
+
+    private async Task<Dictionary<string, EncinaError?>> CompensateAsync(TaskOrchestrationContext context, SagaRun run)
     {
         var compensationErrors = new Dictionary<string, EncinaError?>();
 
-        while (executedSteps.Count > 0)
+        while (run.ExecutedSteps.Count > 0)
         {
-            var step = executedSteps.Pop();
+            var step = run.ExecutedSteps.Pop();
 
             if (step.CompensateActivityName is null)
             {
                 continue;
             }
 
-            try
-            {
-                var compensateResult = await context.CallEncinaActivityWithResultAsync<TData, TData>(
-                    step.CompensateActivityName,
-                    currentData,
-                    step.RetryOptions ?? _defaultRetryOptions);
-
-                if (compensateResult.IsLeft)
-                {
-                    var error = compensateResult.Match(Left: e => e, Right: _ => default!);
-                    compensationErrors[step.StepName] = error;
-                }
-                else
-                {
-                    compensationErrors[step.StepName] = null; // Success
-                    currentData = compensateResult.Match(Right: d => d, Left: _ => currentData);
-                }
-            }
-            catch (Exception ex)
-            {
-                compensationErrors[step.StepName] = EncinaErrors.Create(
-                    "durable.compensation_exception",
-                    $"Compensation for step '{step.StepName}' threw exception: {ex.Message}",
-                    ex);
-            }
+            compensationErrors[step.StepName] = await CompensateStepAsync(context, run, step, step.CompensateActivityName);
         }
 
         return compensationErrors;
+    }
+
+    private async Task<EncinaError?> CompensateStepAsync(
+        TaskOrchestrationContext context,
+        SagaRun run,
+        DurableSagaStep<TData> step,
+        string compensateActivityName)
+    {
+        try
+        {
+            var compensateResult = await context.CallEncinaActivityWithResultAsync<TData, TData>(
+                compensateActivityName,
+                run.CurrentData,
+                step.RetryOptions ?? _defaultRetryOptions);
+
+            if (compensateResult.IsLeft)
+            {
+                return compensateResult.Match(Left: e => (EncinaError?)e, Right: _ => null);
+            }
+
+            run.CurrentData = compensateResult.Match(Right: d => d, Left: _ => run.CurrentData);
+            return null; // Success
+        }
+        catch (Exception ex)
+        {
+            return EncinaErrors.Create(
+                "durable.compensation_exception",
+                ErrorCategory.Internal,
+                $"Compensation for step '{step.StepName}' threw exception: {ex.Message}",
+                ex);
+        }
+    }
+
+    private sealed class SagaRun(TData initialData)
+    {
+        public Stack<DurableSagaStep<TData>> ExecutedSteps { get; } = new();
+
+        public TData CurrentData { get; set; } = initialData;
+
+        public void Track(DurableSagaStep<TData> step)
+        {
+            if (!step.SkipCompensationOnFailure && step.CompensateActivityName != null)
+            {
+                ExecutedSteps.Push(step);
+            }
+        }
     }
 }
 

@@ -348,7 +348,7 @@ public record GetPublicStatusQuery : IQuery<ServiceStatus>;
 | Policy failed | `encina.authorization.policy_failed` |
 | Resource authorization denied | `encina.authorization.resource_denied` |
 
-`ToProblemDetails` and `ToActionResult` choose the HTTP status from the error code (next section): `encina.authorization.unauthenticated` maps to 401 and every other `encina.authorization.*` code maps to 403.
+`ToProblemDetails` and `ToActionResult` choose the HTTP status from the error category (next section): an unauthenticated error answers 401 and the other authorization errors answer 403.
 
 > For full documentation including `IResourceAuthorizer`, policy helpers, and testing patterns, see [Authorization Feature Docs](../../docs/features/authorization.md).
 
@@ -356,21 +356,39 @@ public record GetPublicStatusQuery : IQuery<ServiceStatus>;
 
 Convert `EncinaError` to standardized RFC 7807 Problem Details responses:
 
-**Intelligent Error Mapping:**
+**Category-based status mapping:**
 
-| Error Code Pattern | HTTP Status | Title |
-|-------------------|-------------|-------|
-| `validation.*` | 400 | Bad Request |
-| `Encina.guard.validation_failed` | 400 | Bad Request |
-| `encina.authorization.unauthenticated` | 401 | Unauthorized |
-| `encina.authorization.*` | 403 | Forbidden |
-| `*.not_found` | 404 | Not Found |
-| `*.missing` | 404 | Not Found |
-| `Encina.request.handler_missing` | 404 | Not Found |
-| `*.conflict` | 409 | Conflict |
-| `*.already_exists` | 409 | Conflict |
-| `*.duplicate` | 409 | Conflict |
-| Default | 500 | Internal Server Error |
+The host does not parse error codes. `ToProblemDetails` reads `error.GetCategory()` and looks the status up in the core table `ErrorCategoryHttp` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)), so every REST host answers the same status for the same category.
+
+| `ErrorCategory` | HTTP Status | Title |
+|-----------------|-------------|-------|
+| `Internal` | 500 | Internal Server Error |
+| `Validation` | 400 | Bad Request |
+| `InvalidRequest` | 400 | Bad Request |
+| `Unauthenticated` | 401 | Unauthorized |
+| `Forbidden` | 403 | Forbidden |
+| `NotFound` | 404 | Not Found |
+| `Conflict` | 409 | Conflict |
+| `AlreadyExists` | 409 | Conflict |
+| `FailedPrecondition` | 400 | Bad Request |
+| `RateLimited` | 429 | Too Many Requests |
+| `Unavailable` | 503 | Service Unavailable |
+| `Timeout` | 504 | Gateway Timeout |
+| `UpstreamFailure` | 502 | Bad Gateway |
+| `Cancelled` | 499 | Client Closed Request |
+
+- An error without a code answers 500.
+- The title is the reason phrase of the effective status.
+- `errorCode` stays in the body; the error message is never published, except through the Development-only option described under [EncinaAspNetCoreOptions](#encinaaspnetcoreoptions).
+
+**Response headers:**
+
+| Header | Status | Value |
+|--------|--------|-------|
+| `Retry-After` | 429, 503 | Delta-seconds, written only when the error carries `EncinaErrorMetadataKeys.RetryAfter` as a `TimeSpan`. It overwrites a `Retry-After` already on the response. |
+| `WWW-Authenticate` | 401 | `Bearer` by default, or the value of `EncinaErrorMetadataKeys.AuthenticateChallenge`. A `WWW-Authenticate` already set by the authentication handler is kept. |
+
+The headers are written when the result is executed, not when `ToProblemDetails` returns it.
 
 **Example:**
 
@@ -553,7 +571,7 @@ Claim types are not configured here; see [Request identity](#2-request-identity)
 
 ## Custom Status Codes
 
-Override the intelligent mapping for specific errors:
+Override the category's status for specific errors with the `statusCode` parameter. The title and the headers follow the effective status (a status without a known reason phrase, such as 410, gets the generic title `An error occurred`):
 
 ```csharp
 app.MapDelete("/api/users/{id}", async (int id, IEncina Encina, HttpContext ctx) =>
