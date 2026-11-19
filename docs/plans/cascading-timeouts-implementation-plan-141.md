@@ -95,6 +95,7 @@ R6 says "the timeout behavior shortens" the deadline; #335 owns `[Timeout]` and 
 
 ### Rationale
 
+- The choice holds under both options of choice 1: it concerns where the deadline is stored (the context), not which package hosts the budget. Reading the accessor from a background continuation sees the identity of the request that started it; the budget reads only the deadline from it, never the identity.
 - **Class:** Settled
 - **Settled by:** ADR-055 R6 ("`IRequestContext` gains an absolute deadline"; outbound clients propagate it, the earliest wins) and `src/Encina/Abstractions/IRequestContextAccessor.cs`
 
@@ -107,15 +108,16 @@ R6 says "the timeout behavior shortens" the deadline; #335 owns `[Timeout]` and 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `Left` with the existing code `encina.timeout` (category `Timeout`) and a constant message; details `timeout.reason` = `budget_below_minimum` or `budget_expired`; time from `TimeProvider` (`GetUtcNow`, `CreateCancellationTokenSource`)** | ROP; no new code, so no new ADR-062 row; testable with `FakeTimeProvider` | The issue's exception type does not exist |
+| **A) A `Left` with the existing code `encina.timeout` (category `Timeout`) and a constant message; details key `encina.timeout.reason` with the values `budget_below_minimum` or `budget_expired`, declared as constants in a `TimeoutBudgetDetailKeys` class (the style of `EncinaErrorMetadataKeys`); time from `TimeProvider` (`GetUtcNow`, `CreateCancellationTokenSource`)** | ROP; no new code, so no new ADR-062 row; testable with `FakeTimeProvider` | The issue's exception type does not exist |
 | **B) `TimeoutBudgetExceededException` and `DateTime.UtcNow`** | Matches the issue sketch | Exceptions for business flow; untestable clock |
 
 ### Chosen Option: **A — `Left` and `TimeProvider`**
 
 ### Rationale
 
+- The `Left` is for the budget's own fail-fast and expiry. A caller's cancellation is never reported as a timeout: it keeps its own result (`encina.request.cancelled`, category `Cancelled`, ADR-062 rule R5) and is not counted as a server fault. The choice holds under both options of choice 1 (the package changes, the contract does not).
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (ROP; time comes from `TimeProvider`), ADR-055 R6 (`encina.timeout`) and ADR-062 (category `Timeout`)
+- **Settled by:** AGENTS.md section 3 (ROP; time comes from `TimeProvider`), ADR-055 R6 (`encina.timeout`) and ADR-062 (category `Timeout`; rule R5 for cancellation)
 
 </details>
 
@@ -134,6 +136,7 @@ R6 says "the timeout behavior shortens" the deadline; #335 owns `[Timeout]` and 
 ### Rationale
 
 - **Class:** Settled
+- The choice holds under both options of choice 1. No default hides a validation: an invalid option fails at startup (`ValidateOnStart`), never silently defaults.
 - **Settled by:** AGENTS.md section 1 (every feature opt-in) and ADR-055 settled points ("Every capability is opt-in")
 
 </details>
@@ -169,7 +172,7 @@ The criterion "database command timeout integration" is not the same as cancelli
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `DeadlinePropagationHandler` in `Encina.Resilience`, header `X-Encina-Timeout-Ms` carrying the remaining milliseconds** | Works before `Encina.Http` exists; relative time has no clock-skew problem (gRPC `grpc-timeout` and Envoy `x-envoy-expected-rq-timeout-ms` are relative too) | A non-standard header name |
-| **B) The handler in `Encina.Http` (#1233)** | One place for outbound handlers | Package not on main |
+| **B) The handler in `Encina.Http` (#1233)** | One place for outbound handlers; `Encina.Resilience` takes no `Microsoft.Extensions.Http` reference | Package not on main |
 | **C) Absolute UTC deadline header** | Exact | Sensitive to clock skew between services |
 
 ### Chosen Option: **A — Handler in `Encina.Resilience`, relative milliseconds** (recommended, pending the maintainer)
@@ -177,7 +180,8 @@ The criterion "database command timeout integration" is not the same as cancelli
 ### Rationale
 
 - A wins when services run on different clocks or before #1233; B wins once #1233 owns every outbound handler; C wins in a single-clock datacenter.
-- The inbound side (`Encina.AspNetCore`) reads the same header and can only shorten the deadline, never extend it (the earliest deadline wins, R6); a malformed or non-positive value is ignored and logged without the value.
+- Option A adds the package reference `Microsoft.Extensions.Http` to `Encina.Resilience.csproj` (already pinned centrally at 10.0.12 in `Directory.Packages.props`), so every user of `Encina.Resilience` takes it transitively; B avoids that cost. This dependency is part of the choice.
+- The inbound side reads the same header and can only shorten the deadline, never extend it (the earliest deadline wins, R6); a malformed or non-positive value is ignored and logged without the value. A header may create a deadline where none exists (a finite deadline is shorter than none), so no upper cap option exists (`MaxInboundBudget` is not created). Where the parse lives is choice 9.
 
 - **Class:** Dilemma
 
@@ -190,15 +194,58 @@ The criterion "database command timeout integration" is not the same as cancelli
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Span tags on the request span; `encina.resilience.timeout.budget.remaining` histogram (seconds, unit `s`) and `encina.resilience.timeout.budget.expired` counter under `Meter("Encina.Resilience")`; tenant tag only with multi-tenancy** | Polly does not measure a budget; ADR-054 naming | Two instruments |
+| **A) Span tags on the request span; a remaining-budget histogram (seconds, unit `s`) and an expired counter named by the convention #728 settles (proposed `encina.resilience.timeout.budget.remaining` and `encina.resilience.timeout.budget.expired`); tenant tag only with multi-tenancy** | Polly does not measure a budget; ADR-054 naming | Two instruments |
 | **B) Logs only** | Smallest | No metrics |
 
-### Chosen Option: **A — Two instruments and span tags**
+### Chosen Option: **A — Two instruments and span tags** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** ADR-055 R5 (Encina instruments only for what Polly does not measure) and ADR-054 D3 and D4
+- ADR-055 R5 and ADR-054 D3 and D4 fix the rules, not these names. #728 (plan on main) leaves its choices 1 (who holds the `Meter("Encina.Resilience")` instance) and 8 (instrument names) pending: this plan creates no `Meter` of its own and takes that holder and convention. A wins when operators need the remaining budget at handler entry; B wins if span tags are enough.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Where the inbound header is parsed</strong></summary>
+
+The parse must run in the ASP.NET Core request path (`EncinaContextMiddleware`, `src/Encina.AspNetCore/EncinaContextMiddleware.cs`). `Encina.AspNetCore.csproj` references Encina, Caching, IdGeneration, Messaging and three Compliance and Security projects, not `Encina.Resilience` (verified).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A small `DeadlineHeaderOptions` type and the header name constant in core `Encina`; the middleware reads them; the budget behavior in `Encina.Resilience` only consumes the context deadline** | No new ProjectReference for any ASP.NET host (pay-for-what-you-use); the host stays free of Polly | A resilience-flavoured type in core |
+| **B) `Encina.AspNetCore` gets a ProjectReference to `Encina.Resilience`** | Options type stays with the budget | Every ASP.NET host takes Polly and the resilience package |
+| **C) A separate opt-in middleware in `Encina.Resilience` with a `Microsoft.AspNetCore.App` framework reference** | `Encina.AspNetCore` untouched | Framework reference for every non-web user of the package |
+
+### Chosen Option: **A — Options in core** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on dependencies; B wins if the maintainer accepts Polly in every host for one options type; C wins if the host must stay untouched. The middleware logs through its own `EncinaContextMiddlewareLog` with EventId 232 (`InboundDeadlineIgnored`, claimed inside the existing `AspNetCore` range 200-249, which is free from 232 in the registry of the batch and in the repository; the orchestrator registers the claim), so the id is emitted by the assembly that owns the range.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Stage of the budget behavior and its name</strong></summary>
+
+ADR-055 reserves `PipelineStage.Admission` for limiters and bulkhead and `Resilience` for retry, timeout and breaker. The issue names the class `TimeoutBudgetBehavior<,>`.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `TimeoutBudgetBehavior<,>` at `PipelineStage.Resilience`, the outermost behavior of that stage (a negative `Order`)** | Follows the stage ADR-055 assigns to timeouts; the issue's class name | The rate limiter in Admission runs before the fail-fast check |
+| **B) At `PipelineStage.Admission`, first of its stage** | A request with no budget left is refused before consuming a rate-limit permit | Puts a timeout concern in the stage reserved for limiters |
+
+### Chosen Option: **A — Resilience stage, outermost** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on fidelity to ADR-055 and the issue; B wins when doomed requests must not consume limiter capacity. The class keeps the issue's name `TimeoutBudgetBehavior<,>` (the earlier name `DeadlineBudgetBehavior` is dropped).
+- **Class:** Dilemma
 
 </details>
 
@@ -206,16 +253,18 @@ The criterion "database command timeout integration" is not the same as cancelli
 
 ## Implementation Phases
 
-Four pull requests: **PR-1** Phases 1 to 3 (budget, behavior, registration); **PR-2** Phase 5 (observability) and the unit tests of Phase 6 for it; **PR-3** Phase 4 (HTTP handler and inbound parsing); **PR-4** the database integration tests of Phase 6.
+Four pull requests, in order: **PR-1** Phases 1 to 3 (budget, behavior, registration, with their tests); **PR-2** Phase 5 (observability) and the unit tests of Phase 6 for it; **PR-3** Phase 4 (HTTP handler and inbound parsing); **PR-4** the database integration tests of Phase 6 and the documentation page. Every PR needs the `Encina.Resilience` project and R6 to exist (foundation merged); under option C of the shared Dilemma 1 of the #136 plan (creating the project in the first PR) the split is recounted.
 
 ### Phase 1: Core Models
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Timeouts/TimeoutBudget.cs`: `public readonly struct TimeoutBudget` built by `TimeoutBudget.FromContext(IRequestContext context, TimeProvider timeProvider)` (null when the context has no deadline): `TimeSpan Remaining`, `bool IsExpired`, `TimeoutBudget CreateChild(TimeSpan? maxChildTimeout = null)` (never longer than `Remaining`), `CancellationToken GetCancellationToken()` through `timeProvider.CreateCancellationTokenSource(Remaining)`. Guards on both parameters.
-2. `TimeoutBudgetOptions.cs`: `TimeSpan? DefaultTimeout` (null), `TimeSpan MinimumBudget` (default 100 ms), `TimeSpan MaxInboundBudget` (upper cap for an inbound header), `bool PropagateToHttpClients` is not an option (propagation is added per client by the handler, opt-in).
-3. `TimeoutBudgetOptionsValidator.cs` (internal): positive values, `MinimumBudget` below `DefaultTimeout`.
+1. `src/Encina.Resilience/Timeouts/TimeoutBudget.cs`: `public readonly struct TimeoutBudget` built by `TimeoutBudget.FromContext(IRequestContext context, TimeProvider timeProvider)` (null when the context has no deadline): `TimeSpan Remaining`, `bool IsExpired`, `TimeoutBudget CreateChild(TimeSpan? maxChildTimeout = null)` (never longer than `Remaining`), `TimeoutBudgetScope CreateScope()` where `TimeoutBudgetScope` is a disposable that owns the `CancellationTokenSource` created through `timeProvider.CreateCancellationTokenSource(Remaining)` and exposes `Token`; disposing it releases the timer, so a call never leaks a timer until expiry (a bare `GetCancellationToken()` would). Guards on both parameters of `FromContext` and on `maxChildTimeout` (negative rejected).
+2. `TimeoutBudgetOptions.cs`: `TimeSpan? DefaultTimeout` (null: opt-in, choice 5) and `TimeSpan MinimumBudget` (default 100 ms, the issue sample's value). There is no `MaxInboundBudget` and no `PropagateToHttpClients` (propagation is added per client by the handler, opt-in).
+3. `TimeoutBudgetOptionsValidator.cs` (internal): positive values, `MinimumBudget` below `DefaultTimeout`; an invalid value fails at startup.
+4. `TimeoutBudgetDetailKeys.cs`: the constants of choice 4 (`encina.timeout.reason` and its two values).
+5. `src/Encina.Resilience/Encina.Resilience.csproj`: `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests`, a foundation acceptance item, added here only if missing (counted below).
 
 </details>
 
@@ -236,7 +285,7 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs, src/Encina/Abstract
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Timeouts/DeadlineBudgetBehavior.cs`: `IPipelineBehavior<,>` at `PipelineStage.Admission` (first of its stage): when the context has no deadline and `DefaultTimeout` is set, passes `context.WithDeadline(now + DefaultTimeout)` down; when `Remaining < MinimumBudget`, returns `Left` `EncinaErrors.Create(EncinaErrorCodes.Timeout, category: ErrorCategory.Timeout, "The request has no time budget left.", details: reason)` without running the handler; tags the span. Enforcement stays with #335 (choice 2). Constructor: `TimeoutBudgetOptions` through `IOptions`, `TimeProvider? timeProvider = null`.
+1. `src/Encina.Resilience/Timeouts/TimeoutBudgetBehavior.cs`: `IPipelineBehavior<,>` at `PipelineStage.Resilience`, outermost of the stage (choice 10): when the context has no deadline and `DefaultTimeout` is set, passes `context.WithDeadline(now + DefaultTimeout)` down; when `Remaining < MinimumBudget`, returns `Left` `EncinaErrors.Create(EncinaErrorCodes.Timeout, category: ErrorCategory.Timeout, "The request has no time budget left.", details: reason)` without running the handler; tags the span. Enforcement stays with #335 (choice 2). Constructor: `TimeoutBudgetOptions` through `IOptions`, `TimeProvider? timeProvider = null`.
 
 </details>
 
@@ -245,8 +294,8 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs, src/Encina/Abstract
 
 ```text
 CONTEXT: Phase 1 types exist.
-TASK: Implement DeadlineBudgetBehavior.
-KEY RULES: Left with a literal ErrorCategory.Timeout through the named category: argument and a constant message; never ex.Message; the behavior holds no scoped service (options and TimeProvider are singletons); declare PipelineStage.Admission.
+TASK: Implement TimeoutBudgetBehavior.
+KEY RULES: Left with a literal ErrorCategory.Timeout through the named category: argument and a constant message; never ex.Message; a caller cancellation is never reported as a timeout; the behavior holds no scoped service (options and TimeProvider are singletons); declare the stage chosen in choice 10.
 REFERENCE FILES: src/Encina/Results/EncinaErrors.cs, src/Encina/Pipeline/Ordering/PipelineStageAttribute.cs
 ```
 
@@ -281,7 +330,8 @@ REFERENCE FILES: src/Encina.Polly/ServiceCollectionExtensions.cs
 
 1. `Http/DeadlinePropagationHandler.cs` (`DelegatingHandler`): reads the deadline from `IRequestContextAccessor`, sets `X-Encina-Timeout-Ms` to the remaining whole milliseconds (never above an existing header: the smaller wins), links the request token to the remaining time through `TimeProvider`; no context means no header and no change (nothing is denied: propagation is not an access gate).
 2. `Http/HttpClientBuilderExtensions.cs`: `AddEncinaDeadlinePropagation(this IHttpClientBuilder)`; `Microsoft.Extensions.Http` package reference in `Encina.Resilience.csproj`.
-3. `src/Encina.AspNetCore/EncinaContextMiddleware.cs` and its options: when `TimeoutBudgetOptions` is registered, parse `X-Encina-Timeout-Ms` into a deadline capped at `MaxInboundBudget`; shorten only; malformed ignored.
+3. Inbound (choice 9, option A): `src/Encina/Abstractions/DeadlineHeaderOptions.cs` (the header name constant and an opt-in flag, public, with `src/Encina/PublicAPI.Unshipped.txt` line), and `src/Encina.AspNetCore/EncinaContextMiddleware.cs` plus `EncinaContextMiddlewareLog.cs`: when `DeadlineHeaderOptions` is registered, parse `X-Encina-Timeout-Ms` into a deadline through `context.WithDeadline`; shorten only; malformed or non-positive ignored and logged by EventId 232 without the value. No ProjectReference to `Encina.Resilience` is added.
+4. `DeadlinePropagationHandler`: when the deadline has passed it cancels the outbound request; the resulting `OperationCanceledException` is converted into a `Left` by the outbound layer (`Encina.Http`, #1233), never by this handler; a caller cancellation keeps its own category.
 
 </details>
 
@@ -302,8 +352,8 @@ REFERENCE FILES: src/Encina.AspNetCore/EncinaContextMiddleware.cs, docs/plans/ht
 <details>
 <summary>Tasks</summary>
 
-1. `EventIdRanges.cs`: `ResilienceTimeoutBudget = (936, 945)`; add to the `Encina.Resilience` entry of `AssemblyRanges` and, for ids emitted by the host, none (all ids are emitted by `Encina.Resilience`; the middleware logs through its existing `EncinaContextMiddlewareLog`).
-2. `Diagnostics/TimeoutBudgetLogMessages.cs`: 936 `DeadlineAssigned` (Debug), 937 `BudgetBelowMinimum` (Warning: request type, remaining ms), 938 `InboundDeadlineIgnored` (Debug: reason only), 939 `DeadlinePropagated` (Debug); 940-945 spare. Ids 936-945 are free in the repository.
+1. `EventIdRanges.cs`: `ResilienceTimeoutBudget = (936, 945)`, its line in `src/Encina/PublicAPI.Unshipped.txt` (`mechanical-fixer`), and its name in the `["Encina.Resilience"]` entry of `AssemblyRanges` (create the entry if no earlier plan of the family did; an entry holds several ranges). All ids of this range are emitted by `Encina.Resilience`; the inbound log of the middleware is EventId 232 inside the `AspNetCore` range (choice 9).
+2. `Diagnostics/TimeoutBudgetLogMessages.cs`: 936 `DeadlineAssigned` (Debug), 937 `BudgetBelowMinimum` (Warning: request type, remaining ms), 938 `DeadlinePropagated` (Debug); 939-945 spare. Ids 936-945 are free in the repository.
 3. `TimeoutBudgetTelemetry.cs`: the histogram and counter of choice 8.
 
 </details>
@@ -328,7 +378,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 1. Unit (`tests/Encina.UnitTests/Resilience/Timeouts/`): remaining, child never longer, expiry with `FakeTimeProvider`, default assigned only when configured, fail-fast below minimum with `Timeout` category, earliest deadline wins, inbound parse (valid, malformed, oversized, longer than existing).
 2. Guard (`tests/Encina.GuardTests/Resilience/Timeouts/`): `FromContext` null context and null time provider; `CreateChild` negative; `AddEncinaTimeoutBudget` null services; null `configure` accepted.
 3. Contract: not applicable beyond the unit tests (no new public interface); justification in the PR.
-4. Integration (PR-4, `tests/Encina.IntegrationTests/Resilience/Timeouts/`): a base class plus one class per provider using the collections `ADO-SqlServer`, `ADO-PostgreSQL`, `ADO-MySQL`, `Dapper-*` (3), `EFCore-*` (3) and the MongoDB fixture; each runs a long command (`WAITFOR`, `pg_sleep`, `SLEEP`, a long Mongo operation) with a short deadline token and asserts cancellation. Load and benchmark: justification files (the budget is arithmetic on a struct).
+4. Integration (PR-4, `tests/Encina.IntegrationTests/Resilience/Timeouts/`): a base class plus one class per provider using the collections `ADO-SqlServer`, `ADO-PostgreSQL`, `ADO-MySQL`, `Dapper-*` (3), `EFCore-*` (3) and the MongoDB fixture; each sends a real request through `IEncina` with `AddEncinaTimeoutBudget` (a short `DefaultTimeout`), whose handler takes `TimeoutBudget.FromContext(context, timeProvider).CreateScope()` and passes the scope's token to a long provider command (`WAITFOR`, `pg_sleep`, `SLEEP`, a long Mongo operation), then asserts the cancellation; the test executes `TimeoutBudgetBehavior` and `TimeoutBudget`, not a raw command with a hand-made token. Load and benchmark: justification files (the budget is arithmetic on a struct).
 
 </details>
 
@@ -401,10 +451,10 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 12 | 5 production (budget, options, validator, behavior, registration), PublicAPI, 4 tests (budget, behavior, registration, guard), manifest, changelog |
-| PR-2 | 9 | log messages, telemetry, `EventIdRanges.cs`, `EncinaEventIdAllocationTests.cs`, 2 tests, PublicAPI, manifest, README |
-| PR-3 | 13 | handler, builder extension, `Encina.Resilience.csproj`, middleware, AspNetCore options, 3 tests, 2 PublicAPI, 2 manifests, feature page |
-| PR-4 | 12 | base class, 10 provider classes, 2 justification `.md` |
+| PR-1 | 14 | 6 production (`TimeoutBudget`, options, validator, `TimeoutBudgetDetailKeys`, `TimeoutBudgetBehavior`, registration), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing), `PublicAPI.Unshipped.txt`, 5 tests (budget, behavior, validator, registration, guard), manifest |
+| PR-2 | 9 | log messages, telemetry, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, telemetry test, Resilience `PublicAPI.Unshipped.txt`, manifest, README |
+| PR-3 | 15 | handler, builder extension, `Encina.Resilience.csproj` (`Microsoft.Extensions.Http`), `DeadlineHeaderOptions.cs` (core), core `PublicAPI.Unshipped.txt`, `EncinaContextMiddleware.cs`, `EncinaContextMiddlewareLog.cs`, 3 tests (handler, middleware in the AspNetCore unit tests, guard), Resilience `PublicAPI.Unshipped.txt`, 3 manifests (Resilience, AspNetCore, Encina core), changelog fragment |
+| PR-4 | 14 | base class, 10 provider classes (ADO.NET x3, Dapper x3, EF Core x3, MongoDB), 2 justification `.md` (load and benchmark), feature page `docs/features/resilience-timeout-budget.md` |
 
 Each PR is within 15 files and 1,500 lines; no test double changes belong to this plan (the `IRequestContext` implementers are updated by R6).
 
@@ -414,11 +464,14 @@ Per-file targets (new files; baseline: none exists on `origin/main`):
 |------|------|-------|----------|----------|-------------|---------------|
 | `TimeoutBudget.cs` | 95 | 100 | 0 | 0 | 0 | Arithmetic and guards fully reached by unit and guard tests in PR-1 |
 | `TimeoutBudgetOptions.cs` | 95 | 0 | 0 | 0 | 0 | Properties and defaults; no parameters |
-| `TimeoutBudgetOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Internal, one test per rule |
-| `DeadlineBudgetBehavior.cs` | 90 | 0 | 0 | 0 | 0 | Every branch driven with a fake clock; guards of the constructor covered by unit |
+| `TimeoutBudgetDetailKeys.cs` | 0 | 0 | 0 | 0 | 0 | Constants only, no executable code |
+| `TimeoutBudgetOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Internal, reached through the `InternalsVisibleTo` of Phase 1 task 5; one test per rule |
+| `TimeoutBudgetBehavior.cs` | 90 | 100 | 0 | 0 | 0 | Every branch driven with a fake clock; the guard test sends null options and null services to the public constructor (PR-1) |
 | `TimeoutBudgetServiceCollectionExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Guarded public method plus DI test |
-| `DeadlinePropagationHandler.cs` | 90 | 0 | 0 | 0 | 0 | A fake inner handler observes the header |
+| `DeadlinePropagationHandler.cs` | 90 | 100 | 0 | 0 | 0 | A fake inner handler observes the header; the guard test sends null arguments to the public constructor (PR-3) |
 | `HttpClientBuilderExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Guarded public method |
+| `Encina/Abstractions/DeadlineHeaderOptions.cs` (core) | 95 | 0 | 0 | 0 | 0 | Constant and flag, read by the middleware tests (PR-3) |
+| `Encina.AspNetCore/EncinaContextMiddleware.cs` and `EncinaContextMiddlewareLog.cs` (modified) | no lowering of the existing targets; the new branch is covered by the new middleware tests | 0 | 0 | 0 | 0 | Existing per-file targets in the AspNetCore manifest stay; the new parse branch has valid, malformed, non-positive and longer-than-existing cases |
 | `TimeoutBudgetTelemetry.cs`, `TimeoutBudgetLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Listener-based tests |
 
 CRAP of each added method is at most 10 (inbound parsing split into small methods).
@@ -433,7 +486,7 @@ CRAP of each added method is at most 10 (inbound parsing split into small method
 ```text
 PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #141: timeout budget in Encina.Resilience (ADR-055 R6). AGENTS.md rules apply. The foundation, R6 and #335 are merged first; if missing, stop and report.
 
-IMPLEMENTATION OVERVIEW: (1) TimeoutBudget over IRequestContext.Deadline; (2) DeadlineBudgetBehavior (default deadline when configured, fail-fast Left encina.timeout); (3) AddEncinaTimeoutBudget; (4) DeadlinePropagationHandler and inbound header parsing in Encina.AspNetCore; (5) EventIds 936-945, histogram and counter; (6) unit, guard and per-provider integration tests (token cancels the command); (7) docs and fragments.
+IMPLEMENTATION OVERVIEW: (1) TimeoutBudget over IRequestContext.Deadline; (2) TimeoutBudgetBehavior (default deadline when configured, fail-fast Left encina.timeout); (3) AddEncinaTimeoutBudget; (4) DeadlinePropagationHandler and inbound header parsing in Encina.AspNetCore; (5) EventIds 936-945, histogram and counter; (6) unit, guard and per-provider integration tests (token cancels the command); (7) docs and fragments.
 
 KEY PATTERNS: no second AsyncLocal; earliest deadline wins, inbound can only shorten; opt-in; time through TimeProvider; Left with ErrorCategory.Timeout and a constant message; specialists for PublicAPI, changelog, manifest, docs.
 
@@ -477,5 +530,5 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContextAccessor.cs, src/Encina.
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #141.
-2. When #141 is picked up, ask the maintainer about the Dilemmas (choices 1, 2, 6, 7).
+2. When #141 is picked up, ask the maintainer about the Dilemmas (choices 1, 2, 6, 7, 8, 9 and 10).
 3. Brief workers for PR-1 to PR-4 in order, after the foundation, R6 and #335 are merged.
