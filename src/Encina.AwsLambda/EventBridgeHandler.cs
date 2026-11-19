@@ -79,9 +79,10 @@ public static class EventBridgeHandler
 
             return result;
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException ex) when (ex.CancellationToken.IsCancellationRequested)
         {
-            // A cancellation is never counted as a server fault (ADR-062).
+            // A real cancellation (its token was cancelled) is never counted as a server fault (ADR-062);
+            // a timeout such as an HttpClient one carries no cancelled token and stays processing_failed.
             logger?.LogWarning(
                 ex.ForLogging(),
                 "Processing of EventBridge event {Id} from source {Source} was cancelled",

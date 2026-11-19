@@ -276,9 +276,12 @@ public sealed class MessageHandlersInvalidInputGuardTests
     [Fact]
     public async Task ProcessAsync_CancelledProcessor_ReturnsLeftWithCancelledCategoryNotAServerFault()
     {
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
         var result = await EventBridgeHandler.ProcessAsync<Msg, int>(
             Event(new Msg(1)),
-            _ => throw new OperationCanceledException(),
+            _ => throw new OperationCanceledException(cts.Token),
             NullLogger.Instance);
 
         result.IsLeft.ShouldBeTrue();

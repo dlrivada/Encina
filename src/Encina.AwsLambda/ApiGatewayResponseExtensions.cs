@@ -70,8 +70,11 @@ public static class ApiGatewayResponseExtensions
     /// <remarks>
     /// <para>
     /// The status is read from the error's <see cref="ErrorCategory"/> through <see cref="ErrorCategoryHttp"/> (ADR-062);
-    /// the error code text is never parsed. The title is the reason phrase of the status written. An explicit
-    /// <paramref name="statusCode"/> overrides the category's status.
+    /// the helper never parses the error code text. An error created without a category still gets one from the
+    /// legacy inference of core (<c>LegacyErrorCategoryInference</c>) until F2 (#3740) removes it. The title is the
+    /// reason phrase of the status written, taken from the core table only when it has an entry (otherwise
+    /// <c>An error occurred</c>). An explicit <paramref name="statusCode"/> overrides the category's status and is
+    /// kept as given, even outside the table (for example 418).
     /// </para>
     /// <para>
     /// <c>Retry-After</c> is written for 429 and 503 when the error carries a retry delay, and

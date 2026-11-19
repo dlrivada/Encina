@@ -203,10 +203,13 @@ public sealed class ApiGatewayResponseIntegrationTests
         // Arrange
         var cloudWatchEvent = new CloudWatchEvent<string> { Id = "evt-1", Source = "orders", Detail = "payload" };
 
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
         // Act
         var result = await EventBridgeHandler.ProcessAsync<string, Unit>(
             cloudWatchEvent,
-            _ => throw new OperationCanceledException("cancelled-secret"));
+            _ => throw new OperationCanceledException("cancelled-secret", cts.Token));
         var response = result.ToApiGatewayResponse();
 
         // Assert

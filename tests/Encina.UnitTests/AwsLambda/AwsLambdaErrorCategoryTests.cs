@@ -59,9 +59,11 @@ public class AwsLambdaErrorCategoryTests
     [Theory]
     [InlineData(typeof(OperationCanceledException))]
     [InlineData(typeof(TaskCanceledException))]
-    public async Task EventBridge_DelegateCancelled_IsCancelledAndNotAServerFault(Type exceptionType)
+    public async Task EventBridge_DelegateCancelledByARealToken_IsCancelledAndNotAServerFault(Type exceptionType)
     {
-        var exception = (Exception)Activator.CreateInstance(exceptionType)!;
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var exception = (Exception)Activator.CreateInstance(exceptionType, "cancelled", (Exception?)null, cts.Token)!;
 
         var result = await EventBridgeHandler.ProcessAsync<TestEvent, string>(
             Event(new TestEvent { OrderId = "o-1" }),
@@ -72,6 +74,45 @@ public class AwsLambdaErrorCategoryTests
         error.GetCode().IfNone(string.Empty).ShouldBe("eventbridge.processing_cancelled");
         error.GetCategory().ShouldBe(ErrorCategory.Cancelled);
         error.GetStatusCode().ShouldBe(499);
+    }
+
+    [Theory]
+    [InlineData(typeof(OperationCanceledException))]
+    [InlineData(typeof(TaskCanceledException))]
+    public async Task EventBridge_DelegateTimeoutWithoutACancelledToken_IsInternalNotCancelled(Type exceptionType)
+    {
+        // An HttpClient timeout surfaces as a TaskCanceledException whose token was never cancelled.
+        var exception = (Exception)Activator.CreateInstance(exceptionType, "timeout")!;
+
+        var result = await EventBridgeHandler.ProcessAsync<TestEvent, string>(
+            Event(new TestEvent { OrderId = "o-1" }),
+            _ => throw exception,
+            new FakeLogger());
+
+        var error = Left(result);
+        error.GetCode().IfNone(string.Empty).ShouldBe("eventbridge.processing_failed");
+        error.GetCategory().ShouldBe(ErrorCategory.Internal);
+        error.GetStatusCode().ShouldBe(500);
+    }
+
+    [Fact]
+    public async Task Sqs_ProcessorThrowingJsonException_IsNotReportedAsADeserializationFailure()
+    {
+        var logger = new FakeLogger();
+        var sqsEvent = new SQSEvent
+        {
+            Records = [new SQSEvent.SQSMessage { MessageId = "m-1", Body = "{\"OrderId\":\"o-1\"}" }]
+        };
+
+        var response = await SqsMessageHandler.ProcessBatchAsync<TestEvent, string>(
+            sqsEvent,
+            _ => throw new JsonException("raised by the processor"),
+            logger);
+
+        response.BatchItemFailures.ShouldHaveSingleItem().ItemIdentifier.ShouldBe("m-1");
+        var messages = logger.Collector.GetSnapshot().Select(r => r.Message).ToList();
+        messages.ShouldContain(m => m.StartsWith("Exception while processing SQS message", StringComparison.Ordinal));
+        messages.ShouldNotContain(m => m.StartsWith("Failed to deserialize", StringComparison.Ordinal));
     }
 
     [Fact]

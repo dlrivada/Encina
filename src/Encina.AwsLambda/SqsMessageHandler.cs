@@ -127,18 +127,10 @@ public static class SqsMessageHandler
             sqsEvent,
             async record =>
             {
+                TMessage? message;
                 try
                 {
-                    var message = JsonSerializer.Deserialize<TMessage>(record.Body, jsonOptions);
-                    if (message is null)
-                    {
-                        return EncinaErrors.Create(
-                            SqsDeserializationFailedCode,
-                            category: ErrorCategory.InvalidRequest,
-                            "Failed to deserialize SQS message body");
-                    }
-
-                    return await processMessage(message);
+                    message = JsonSerializer.Deserialize<TMessage>(record.Body, jsonOptions);
                 }
                 catch (JsonException ex)
                 {
@@ -149,6 +141,16 @@ public static class SqsMessageHandler
                         $"JSON deserialization failed: {ex.Message}",
                         ex);
                 }
+
+                if (message is null)
+                {
+                    return EncinaErrors.Create(
+                        SqsDeserializationFailedCode,
+                        category: ErrorCategory.InvalidRequest,
+                        "Failed to deserialize SQS message body");
+                }
+
+                return await processMessage(message);
             },
             logger,
             cancellationToken);
