@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.Sharding.ShardRoutingBenchmarks-20261119-121056</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                    </th><th>ShardCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Hash routing&#39;</td><td>3</td><td>2.467 &mu;s</td><td>10.025 &mu;s</td><td>0.5495 &mu;s</td><td>1.03</td><td>0.27</td><td>2</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>3</td><td>1.535 &mu;s</td><td>1.780 &mu;s</td><td>0.0976 &mu;s</td><td>0.64</td><td>0.12</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>3</td><td>2.037 &mu;s</td><td>5.185 &mu;s</td><td>0.2842 &mu;s</td><td>0.85</td><td>0.18</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>3</td><td>3.555 &mu;s</td><td>3.490 &mu;s</td><td>0.1913 &mu;s</td><td>1.49</td><td>0.27</td><td>3</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>3</td><td>4.198 &mu;s</td><td>12.336 &mu;s</td><td>0.6762 &mu;s</td><td>1.75</td><td>0.39</td><td>3</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>3</td><td>2.910 &mu;s</td><td>5.537 &mu;s</td><td>0.3035 &mu;s</td><td>1.22</td><td>0.24</td><td>3</td><td>104 B</td><td>1.86</td>
+</tr><tr><td>GetShardConnectionString</td><td>3</td><td>3.172 &mu;s</td><td>12.226 &mu;s</td><td>0.6701 &mu;s</td><td>1.33</td><td>0.34</td><td>3</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>3</td><td>4.648 &mu;s</td><td>13.611 &mu;s</td><td>0.7461 &mu;s</td><td>1.94</td><td>0.43</td><td>3</td><td>152 B</td><td>2.71</td>
+</tr><tr><td>&#39;Hash routing&#39;</td><td>50</td><td>2.814 &mu;s</td><td>2.659 &mu;s</td><td>0.1458 &mu;s</td><td>1.00</td><td>0.06</td><td>2</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>&#39;Range routing&#39;</td><td>50</td><td>1.856 &mu;s</td><td>2.001 &mu;s</td><td>0.1097 &mu;s</td><td>0.66</td><td>0.04</td><td>1</td><td>48 B</td><td>0.86</td>
+</tr><tr><td>&#39;Directory routing&#39;</td><td>50</td><td>3.156 &mu;s</td><td>9.001 &mu;s</td><td>0.4934 &mu;s</td><td>1.12</td><td>0.16</td><td>2</td><td>24 B</td><td>0.43</td>
+</tr><tr><td>&#39;Geo routing&#39;</td><td>50</td><td>3.489 &mu;s</td><td>11.994 &mu;s</td><td>0.6574 &mu;s</td><td>1.24</td><td>0.21</td><td>2</td><td>96 B</td><td>1.71</td>
+</tr><tr><td>&#39;Hash routing (miss → re-route)&#39;</td><td>50</td><td>5.912 &mu;s</td><td>2.608 &mu;s</td><td>0.1429 &mu;s</td><td>2.10</td><td>0.10</td><td>4</td><td>416 B</td><td>7.43</td>
+</tr><tr><td>GetAllShardIds</td><td>50</td><td>2.978 &mu;s</td><td>6.302 &mu;s</td><td>0.3454 &mu;s</td><td>1.06</td><td>0.12</td><td>2</td><td>480 B</td><td>8.57</td>
+</tr><tr><td>GetShardConnectionString</td><td>50</td><td>3.336 &mu;s</td><td>8.269 &mu;s</td><td>0.4533 &mu;s</td><td>1.19</td><td>0.15</td><td>2</td><td>64 B</td><td>1.14</td>
+</tr><tr><td>&#39;Directory add + lookup&#39;</td><td>50</td><td>4.928 &mu;s</td><td>10.494 &mu;s</td><td>0.5752 &mu;s</td><td>1.75</td><td>0.19</td><td>3</td><td>152 B</td><td>2.71</td>
+</tr></tbody></table>
+</body>
+</html>
