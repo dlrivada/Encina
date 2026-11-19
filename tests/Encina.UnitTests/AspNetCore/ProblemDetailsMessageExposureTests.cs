@@ -1,6 +1,5 @@
 using Encina.AspNetCore;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -61,7 +60,7 @@ public sealed class ProblemDetailsMessageExposureTests
         EncinaErrors.FromException("test.exception", new InvalidOperationException(Secret));
 
     private static ProblemDetails Details(IResult result) =>
-        result.ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+        result.ShouldBeOfType<ProblemDetailsExtensions.ProblemResult>().Inner.ProblemDetails;
 
     [Fact]
     public void ToProblemDetails_Default_OmitsDetailAndNeverCarriesTheMessage()
