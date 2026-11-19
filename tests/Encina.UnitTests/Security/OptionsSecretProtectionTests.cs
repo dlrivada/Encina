@@ -1,5 +1,8 @@
 using System.Text.Json;
 
+using Amazon;
+using Amazon.Runtime;
+
 using Encina.AzureServiceBus;
 using Encina.Cdc.Debezium;
 using Encina.Cdc.Debezium.Kafka;
@@ -9,10 +12,13 @@ using Encina.MongoDB;
 using Encina.MQTT;
 using Encina.RabbitMQ;
 using Encina.Security.AntiTampering;
+using Encina.Security.Secrets.AwsSecretsManager;
+using Encina.Security.Secrets.HashiCorpVault;
 using Encina.Sharding.Configuration;
 using Encina.Tenancy;
 
 using Shouldly;
+using VaultSharp.V1.AuthMethods.Token;
 
 namespace Encina.UnitTests.Security;
 
@@ -181,6 +187,37 @@ public sealed class OptionsSecretProtectionTests
         result.ShouldContain("Keys=1");
     }
 
+    [Fact]
+    public void AwsSecretsManagerOptions_ToString_ExcludesCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", SecretPassword)
+        };
+        var result = options.ToString();
+
+        result.ShouldNotContain("AKIA1234567890");
+        result.ShouldNotContain(SecretPassword);
+        result.ShouldContain("AwsSecretsManagerOptions");
+        result.ShouldContain("us-east-1");
+    }
+
+    [Fact]
+    public void HashiCorpVaultOptions_ToString_ExcludesAuthMethod()
+    {
+        var options = new HashiCorpVaultOptions
+        {
+            VaultAddress = "https://vault.example.com:8200",
+            AuthMethod = new TokenAuthMethodInfo("hvs.super-secret-token")
+        };
+        var result = options.ToString();
+
+        result.ShouldNotContain("super-secret");
+        result.ShouldContain("HashiCorpVaultOptions");
+        result.ShouldContain("AuthMethod=*** (TokenAuthMethodInfo)");
+    }
+
     // ── JsonSerializer must NOT include [JsonIgnore] properties ──
 
     [Fact]
@@ -250,5 +287,36 @@ public sealed class OptionsSecretProtectionTests
         json.ShouldNotContain("ConnectionString");
         json.ShouldNotContain("secret-host");
         json.ShouldContain("DatabaseName"); // safe property is present
+    }
+
+    [Fact]
+    public void AwsSecretsManagerOptions_JsonSerialize_ExcludesCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", SecretPassword)
+        };
+        var json = JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("Credentials");
+        json.ShouldNotContain("AKIA1234567890");
+        json.ShouldNotContain(SecretPassword);
+        json.ShouldContain("Region");
+    }
+
+    [Fact]
+    public void HashiCorpVaultOptions_JsonSerialize_ExcludesAuthMethod()
+    {
+        var options = new HashiCorpVaultOptions
+        {
+            VaultAddress = "https://vault.example.com:8200",
+            AuthMethod = new TokenAuthMethodInfo("hvs.super-secret-token")
+        };
+        var json = JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("AuthMethod");
+        json.ShouldNotContain("super-secret");
+        json.ShouldContain("VaultAddress");
     }
 }

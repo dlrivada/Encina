@@ -1,4 +1,5 @@
 using Encina.Messaging.DeadLetter;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Encina.UnitTests.Messaging.DeadLetter;
@@ -8,43 +9,43 @@ namespace Encina.UnitTests.Messaging.DeadLetter;
 /// </summary>
 public sealed class ReplayResultTests
 {
+    private static readonly DateTimeOffset FixedTime = new(2026, 4, 10, 15, 30, 0, TimeSpan.Zero);
+
     #region ReplayResult Tests
 
     [Fact]
-    public void Succeeded_ReturnsSuccessfulResult()
+    public void Succeeded_WithTimeProvider_UsesProvidedClock()
     {
         // Arrange
         var messageId = Guid.NewGuid();
+        var clock = new FakeTimeProvider(FixedTime);
 
         // Act
-        var result = ReplayResult.Succeeded(messageId);
+        var result = ReplayResult.Succeeded(messageId, clock);
 
         // Assert
         result.MessageId.ShouldBe(messageId);
         result.Success.ShouldBeTrue();
         result.ErrorMessage.ShouldBeNull();
-        result.ReplayedAtUtc.ShouldBeInRange(
-            DateTime.UtcNow.AddSeconds(-5),
-            DateTime.UtcNow.AddSeconds(5));
+        result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
     }
 
     [Fact]
-    public void Failed_ReturnsFailedResult()
+    public void Failed_WithTimeProvider_UsesProvidedClock()
     {
         // Arrange
         var messageId = Guid.NewGuid();
         const string errorMessage = "Something went wrong";
+        var clock = new FakeTimeProvider(FixedTime);
 
         // Act
-        var result = ReplayResult.Failed(messageId, errorMessage);
+        var result = ReplayResult.Failed(messageId, errorMessage, clock);
 
         // Assert
         result.MessageId.ShouldBe(messageId);
         result.Success.ShouldBeFalse();
         result.ErrorMessage.ShouldBe(errorMessage);
-        result.ReplayedAtUtc.ShouldBeInRange(
-            DateTime.UtcNow.AddSeconds(-5),
-            DateTime.UtcNow.AddSeconds(5));
+        result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
     }
 
     [Fact]
@@ -78,11 +79,12 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_AllSucceeded_ReturnsTrueWhenNoFailures()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act
@@ -102,11 +104,12 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_AllSucceeded_ReturnsFalseWhenFailuresExist()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Failed(Guid.NewGuid(), "Error"),
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Failed(Guid.NewGuid(), "Error", clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act
@@ -142,9 +145,10 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_RequiredProperties_CanBeSet()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act

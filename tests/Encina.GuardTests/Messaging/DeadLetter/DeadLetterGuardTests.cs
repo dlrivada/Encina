@@ -437,6 +437,26 @@ public class DeadLetterGuardTests
 
     #endregion
 
+    #region ReplayResult Factory Guard Tests
+
+    [Fact]
+    public void ReplayResult_Succeeded_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => ReplayResult.Succeeded(Guid.NewGuid(), (TimeProvider)null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
+    }
+
+    [Fact]
+    public void ReplayResult_Failed_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => ReplayResult.Failed(Guid.NewGuid(), "error", (TimeProvider)null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
+    }
+
+    #endregion
+
     #region Helpers
 
     private static DeadLetterOrchestrator CreateOrchestrator()

@@ -1,0 +1,1 @@
+- Canonical error code `EncinaErrorCodes.ValidationFailed` and the factory `EncinaErrors.Validation` in the core `Encina` package (#1922).

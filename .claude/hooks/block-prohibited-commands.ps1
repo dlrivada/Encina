@@ -118,5 +118,10 @@ try {
     exit 0
 }
 catch {
+    # The analysis budget (#3984) denies; every other failure of the hook allows the call.
+    if ("$($_.Exception.Message)".StartsWith('ENCINA_HOOK_BUDGET_EXCEEDED', [StringComparison]::Ordinal)) {
+        [Console]::Error.WriteLine('Blocked: block-prohibited-commands analysis budget exceeded, so this command cannot be checked. Split it into smaller commands (#3984).')
+        exit 2
+    }
     exit 0
 }
