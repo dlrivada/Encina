@@ -177,7 +177,7 @@ return result.ToHttpApiResponse();
 
 ## Error Category to HTTP Status Mapping
 
-The API Gateway helpers (`ToApiGatewayResponse`, `ToProblemDetailsResponse`, `ToCreatedResponse`, `ToNoContentResponse`, `ToHttpApiResponse`) read the `ErrorCategory` of the error through `ErrorCategoryHttp` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)). They read only the category; core infers a category from the code only for errors created without one (see the first bullet below).
+The API Gateway helpers (`ToApiGatewayResponse`, `ToProblemDetailsResponse`, `ToCreatedResponse`, `ToNoContentResponse`, `ToHttpApiResponse`) read the `ErrorCategory` of the error through `ErrorCategoryHttp` ([ADR-062](../../docs/architecture/adr/062-error-category-contract.md)). The helpers themselves never parse the error code; only core infers a category from the code, and only for errors created without one (see the first bullet below).
 
 | Error category | HTTP status |
 | --- | --- |
@@ -196,11 +196,11 @@ The API Gateway helpers (`ToApiGatewayResponse`, `ToProblemDetailsResponse`, `To
 | `UpstreamFailure` | 502 |
 | `Cancelled` | 499 |
 
-- An error with no category falls back to the legacy inference of core during the migration; an error with no code answers 500.
-- An explicit `statusCode` (or `errorStatusCode`) argument overrides the status of the category.
-- The problem `title` is the reason phrase of the status written.
-- `Retry-After` (delta-seconds) is written for 429 and 503 when the error carries `EncinaErrorMetadataKeys.RetryAfter` (a `TimeSpan`).
-- `WWW-Authenticate` is written on every 401, with the value of `EncinaErrorMetadataKeys.AuthenticateChallenge` or `Bearer`.
+- The Lambda helpers do not parse the error code. An error created without a category still gets one from the legacy inference of core (`LegacyErrorCategoryInference`) until F2 ([#3740](https://github.com/dlrivada/Encina/issues/3740)) removes it; an error with neither a category nor a recognised code answers 500.
+- An explicit `statusCode` (or `errorStatusCode`) argument overrides the status of the category and is written as given, even outside the table above (for example 418).
+- The problem `title` is the reason phrase of the status written when core's table has an entry for that status (for example 422 is `Unprocessable Entity`); for a status without an entry, such as 418, the status is kept and the title is `An error occurred`.
+- `Retry-After` is written for a 429 or 503 status only when the error carries `EncinaErrorMetadataKeys.RetryAfter` holding a non-negative `TimeSpan`; the value is in delta-seconds and fractional seconds are rounded up (1.2 seconds is written as `2`). Any other value, or none, writes no header.
+- `WWW-Authenticate` is written on every 401. A challenge configured under `EncinaErrorMetadataKeys.AuthenticateChallenge` is forwarded only when it is a non-blank string of printable ASCII (0x20-0x7E); otherwise `Bearer` is written.
 - The body never carries the error message (no `detail` member): only `status`, `title` and an `extensions` object holding `errorCode` (omitted when the error has no code).
 
 Errors produced by the package helpers have these categories:
