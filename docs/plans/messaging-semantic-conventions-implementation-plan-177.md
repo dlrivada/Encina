@@ -10,10 +10,10 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `f484cdf4f`)
+### What exists today (read on 2026-11-18, main `89303f1e8`)
 
 - `MessagingActivityEnricher` (`src/Encina.OpenTelemetry/Enrichers/MessagingActivityEnricher.cs`, public static) has `EnrichWithOutboxMessage`, `EnrichWithInboxMessage`, `EnrichWithSagaState` and `EnrichWithScheduledMessage`. It sets `messaging.system`, `messaging.operation.name`, `messaging.message.id`, `messaging.message.type` and the Encina-specific `messaging.message.processed`, `.processed_at`, `.retry_count`, `.error`, and for scheduled messages `.scheduled_at`, `.is_recurring`, `.cron_expression`. It returns at once when the activity is `null`.
-- The keys live in `Encina.OpenTelemetry.ActivityTagNames` (`src/Encina.OpenTelemetry/ActivityTagNames.cs`: nested `Messaging`, `Systems`, `Operations`); the enricher is the only consumer in `src`. A second, `internal` class of the same name exists in core (`src/Encina/Diagnostics/ActivityTagNames.cs`) for request, sharding and exception keys. `Encina.Messaging` has no access to the OpenTelemetry package, so the two live spans of the stores use string literals: `outbox.notification_count` on `encina.outbox.enqueue` (`OutboxActivitySource.StartEnqueue`, called from `TransactionalOutboxPipelineBehavior.cs:173`) and `scheduling.batch_size` on `encina.scheduling.process_due` (`SchedulingActivitySource.StartProcessDue`/`StartProcessingCycle`, called from `ScheduledMessageProcessor.cs:147`; the cycle is completed with the real count at `:164`). The Inbox, Saga and `OutboxActivitySource` batch spans have no caller (issue #1790).
+- The keys live in `Encina.OpenTelemetry.ActivityTagNames` (`src/Encina.OpenTelemetry/ActivityTagNames.cs`: nested `Messaging`, `Systems`, `Operations`); the enricher is the only consumer in `src`. A second, `internal` class of the same name exists in core (`src/Encina/Diagnostics/ActivityTagNames.cs`) for request, sharding and exception keys. `Encina.Messaging` has no access to the OpenTelemetry package, so the two live spans of the stores use string literals: `outbox.notification_count` on `encina.outbox.enqueue` (`OutboxActivitySource.StartEnqueue`, called from `TransactionalOutboxPipelineBehavior.cs:173`) and `scheduling.batch_size` on `encina.scheduling.process_due` (`SchedulingActivitySource.StartProcessDue`/`StartProcessingCycle`, called from `ScheduledMessageProcessor.cs:147`; the cycle is completed with the real count at `:166`). The Inbox, Saga and `OutboxActivitySource` batch spans have no caller (issue #1790).
 - Not in `src`: `messaging.destination.name`, `messaging.message.body.size`, `messaging.batch.message_count`, `messaging.client.id`, `messaging.destination.partition.id`; a `DestinationName` property on any message interface. `IOutboxMessage` has `Content` (the issue's text says `Payload`, which does not exist), `NotificationType`, `IsProcessed`-style state and no destination; `IScheduledMessage` has `Content` and `RequestType`; `IInboxMessage` stores no payload at all (only `Response`).
 - ADR-054 D3: attributes follow the latest OpenTelemetry messaging semantic conventions, every key lives in one constants class, and `OTEL_SEMCONV_STABILITY_OPT_IN` support follows when messaging is declared stable. ADR-054 D5 puts transport instrumentation, including these attributes, on the 10 transports (#725 and #177).
 
@@ -50,7 +50,7 @@ One public constants class reachable from every package that emits messaging att
 
 ### Rationale
 
-- A wins when the transports (10 now, 6 planned) must emit the same keys without referencing the OpenTelemetry package, which ADR-054 settled point 1 keeps out of libraries; B wins if the maintainer wants the constants to ship only with the OpenTelemetry package and accepts literals in the stores; C wins only for a small, closed set of consumers.
+- A wins when the transports (10 now, 6 planned) must emit the same keys without referencing the OpenTelemetry package, because ADR-054 settled point 1 makes a library depend on the OpenTelemetry API only and leaves the SDK to the application; B wins if the maintainer wants the constants to ship only with the OpenTelemetry package and accepts literals in the stores; C wins only for a small, closed set of consumers.
 - The class is organised in three groups (semantic-convention keys, their value sets, Encina-specific keys); a unit test pins every key string so a rename is a visible change.
 
 **Class:** Dilemma
@@ -68,15 +68,16 @@ One public constants class reachable from every package that emits messaging att
 | **B) The transport sets the attributes where it publishes or consumes (it knows the queue, topic, partition and client id), using the constants of Design Choice 1** | No schema change; the value is the real one; the same place that owns the span (#725) | The enrichers of the stores do not show a destination until a transport is in the path |
 | **C) A destination derived from `NotificationType`** | No schema change | A type name is not a destination; it would emit a wrong attribute |
 
-### Chosen Option: **B — Transports set destination, partition and client id**
+### Chosen Option: **B — Transports set destination, partition and client id** (recommended, pending the maintainer)
 
 ### Rationale
 
 - ADR-054 D5 assigns "transport instrumentation on all 10 transports" to #725 and #177, and D2 is defined on the consumer span the transport starts; the attributes are properties of that span.
 - A scenario where A wins: an application that routes outbox rows to a destination chosen at write time. No such flow exists on `main`; when #2385 delivers the transport publisher it records the destination there.
 
-**Class:** Settled
-**Settled by:** ADR-054 D5 and the interfaces on `main` (`src/Encina.Messaging/Outbox/IOutboxMessage.cs`, `Inbox/IInboxMessage.cs`, `Scheduling/IScheduledMessage.cs`: no destination, no transport in the path); option C emits a wrong value and option A adds a column that nothing fills
+- Evidence on `main`: ADR-054 D5 assigns transport instrumentation to #725 and #177, and the three interfaces (`src/Encina.Messaging/Outbox/IOutboxMessage.cs`, `Inbox/IInboxMessage.cs`, `Scheduling/IScheduledMessage.cs`) carry no destination and no transport is in the path. Option C emits a wrong value; the maintainer chooses between A and B because A wins in the scenario above.
+
+**Class:** Dilemma
 
 </details>
 
@@ -169,8 +170,8 @@ One public constants class reachable from every package that emits messaging att
 
 1. **Create** `src/Encina/Diagnostics/MessagingSemanticConventions.cs`: public static class with the semantic-convention keys (`System = "messaging.system"`, `OperationName`, `MessageId`, `MessageType`, `BodySize = "messaging.message.body.size"`, `BatchMessageCount = "messaging.batch.message_count"`, `DestinationName = "messaging.destination.name"`, `DestinationPartitionId = "messaging.destination.partition.id"`, `ClientId = "messaging.client.id"`, `ConversationId = "messaging.message.conversation_id"`), the value sets moved from `ActivityTagNames.Systems` and `Operations`, and the Encina-specific group moved from `ActivityTagNames.Messaging` (`Processed`, `ProcessedAt`, `RetryCount`, `Error`, `ScheduledAt`, `IsRecurring`, `CronExpression`). XML docs name the semantic-convention stability.
 2. **Modify** `src/Encina.OpenTelemetry/ActivityTagNames.cs` (remove nested `Messaging`, `Systems`, `Operations`) and `src/Encina.OpenTelemetry/Enrichers/MessagingActivityEnricher.cs` (use the new class; add `TagBodySize(activity, content)` after the null checks of `EnrichWithOutboxMessage` and `EnrichWithScheduledMessage`).
-3. **Modify** `src/Encina/PublicAPI.Unshipped.txt` (new class and members) and `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt` (RS0017: remove the roughly 25 lines of the deleted nested `Messaging`, `Systems` and `Operations` members, which are listed in Unshipped only: the Shipped file has no `ActivityTagNames` line), `.github/coverage-manifest/Encina.json`, `.github/coverage-manifest/Encina.OpenTelemetry.json` and add `changelog.d/177-messaging-semantic-conventions.changed.md`, all through `mechanical-fixer`.
-4. Tests: `tests/Encina.UnitTests/Diagnostics/MessagingSemanticConventionsTests.cs` (pins every key string, so a rename shows in review); `tests/Encina.UnitTests/OpenTelemetry/MessagingActivityEnricherBodySizeTests.cs` (outbox and scheduled body size equals the UTF-8 byte count for ASCII and multi-byte `Content`; empty `Content` gives 0; inbox and saga add no body size; a `null` activity does nothing; no `ErrorMessage` reaches a tag); edit `tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs` (its `Messaging` region, the only test that references the removed nested classes, is deleted; its assertions move to the key-pinning test).
+3. **Modify** `src/Encina/PublicAPI.Unshipped.txt` (new class and members) and `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt` (RS0017: remove the 20 lines of the deleted nested `Messaging`, `Systems` and `Operations` members, which are listed in Unshipped only: the Shipped file has no `ActivityTagNames` line), `.github/coverage-manifest/Encina.json`, `.github/coverage-manifest/Encina.OpenTelemetry.json` and add `changelog.d/177-messaging-semantic-conventions.changed.md`, all through `mechanical-fixer`.
+4. Tests: `tests/Encina.UnitTests/Diagnostics/MessagingSemanticConventionsTests.cs` (pins every key string, so a rename shows in review); `tests/Encina.UnitTests/OpenTelemetry/MessagingActivityEnricherBodySizeTests.cs` (outbox and scheduled body size equals the UTF-8 byte count for ASCII and multi-byte `Content`; empty `Content` gives 0; inbox and saga add no body size; a `null` activity does nothing; no `ErrorMessage` reaches a tag); edit `tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs` (its `Messaging` region, 9 uses of the removed nested classes, is deleted; its assertions move to the key-pinning test); edit `tests/Encina.UnitTests/OpenTelemetry/MessagingActivityStatusTests.cs` (alias `using OtelTagNames = Encina.OpenTelemetry.ActivityTagNames`; `OtelTagNames.Messaging.Error` at lines 174, 189, 219 and 233 becomes `MessagingSemanticConventions.Error`, otherwise `Encina.UnitTests` does not build). The worker re-greps every alias of `Encina.OpenTelemetry.ActivityTagNames` (`Tags`, `OtelTagNames`, `OtelTags`) for `.Messaging`, `.Systems` and `.Operations` before editing; on origin/main the only consumers are `MessagingActivityEnricher.cs`, `ActivityTagNamesTests.cs` and `MessagingActivityStatusTests.cs`.
 
 </details>
 
@@ -199,7 +200,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.OpenTelemetry/ActivityTagNames.cs, src/Encina.OpenTelemetry/Enrichers/MessagingActivityEnricher.cs
-- tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs
+- tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs, tests/Encina.UnitTests/OpenTelemetry/MessagingActivityStatusTests.cs
 - docs/architecture/adr/054-observability-conventions-and-trace-propagation.md (D3)
 ```
 
@@ -278,11 +279,11 @@ Every count includes tests, the coverage manifest, PublicAPI and the changelog f
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| S1 | Constants class, body size | 1 | 4 (`ActivityTagNames.cs`, `MessagingActivityEnricher.cs`, 2 PublicAPI) | 2 | 1 | 2 | 1 (changelog) | 11 | ~520 |
+| S1 | Constants class, body size | 1 | 4 (`ActivityTagNames.cs`, `MessagingActivityEnricher.cs`, 2 PublicAPI) | 2 | 2 (`ActivityTagNamesTests.cs`, `MessagingActivityStatusTests.cs`) | 2 | 1 (changelog) | 12 | ~540 |
 | S2 | Batch count on live spans | 0 | 2 (`OutboxActivitySource.cs`, `SchedulingActivitySource.cs`) | 1 | 0 | 1 | 1 | 5 | ~200 |
-| **Total** | | **1** | **6** | **3** | **1** | **3** | **2** | **16** | **~720** |
+| **Total** | | **1** | **6** | **3** | **2** | **3** | **2** | **17** | **~740** |
 
-The columns sum to the total (1 + 6 + 3 + 1 + 3 + 2 = 16; 11 + 5 = 16). Guard tests: the new public class has no methods or parameters; the existing `MessagingActivityEnricherGuardTests` files already cover the enricher arguments and are unchanged.
+The columns sum to the total (1 + 6 + 3 + 2 + 3 + 2 = 17; 12 + 5 = 17). Guard tests: the new public class has no methods or parameters; the existing `MessagingActivityEnricherGuardTests` files already cover the enricher arguments and are unchanged.
 
 Per-file coverage targets (per flag, one sentence each):
 
