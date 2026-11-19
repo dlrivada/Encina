@@ -2119,6 +2119,14 @@ exit 1
         Invoke-BudgetCase $ownership (@{ tool_name = $tool; cwd = $main; agent_id = 'a1'; agent_type = 'issue-worker'; tool_input = @{ command = $budgetCommand } } | ConvertTo-Json -Compress) 'issue-worker'
     }
 
+    # #3984: Remove-CommandComments called directly by a hook (before any Split-CommandStatements) starts its own
+    # budget; a long Bash command with many `<` characters (each copies the rest of the text) is denied.
+    $budgetLtCommand = 'git status zzmarker ' + ('a < b ' * 700)
+    $budgetLtJson = @{ tool_name = 'Bash'; cwd = $main; tool_input = @{ command = $budgetLtCommand } } | ConvertTo-Json -Compress
+    foreach ($budgetHook in $mainCheckout, $prohibited) {
+        Invoke-BudgetCase $budgetHook $budgetLtJson $null
+    }
+
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {
         $env:CLAUDE_PROJECT_DIR = $gateMain

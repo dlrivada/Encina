@@ -93,6 +93,12 @@ function Read-AnsiCString([string]$Text, [int]$Start) {
 function Remove-CommandComments {
     param([string]$Text, [switch]$Bash)
 
+    # A hook that calls this directly (no Split-CommandStatements before it) has no budget yet: start one here and
+    # clear it on return, so a huge command cannot run past the hook timeout (#3984). A call nested under
+    # Split-CommandStatements keeps using that call's budget.
+    $ownsBudget = $null -eq $script:CommandBudget
+    if ($ownsBudget) { Start-CommandBudget }
+    try {
     $sb = [System.Text.StringBuilder]::new()
     $n = $Text.Length
     $i = 0
@@ -179,6 +185,10 @@ function Remove-CommandComments {
         $i++
     }
     return $sb.ToString()
+    }
+    finally {
+        if ($ownsBudget) { $script:CommandBudget = $null }
+    }
 }
 
 # Returns the index just past the ')' that closes the '(' at $Open, appending the text in between to $Sb.
