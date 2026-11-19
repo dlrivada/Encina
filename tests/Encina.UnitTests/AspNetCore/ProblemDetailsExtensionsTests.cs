@@ -1,14 +1,13 @@
 using Encina.AspNetCore;
 using Encina.UnitTests.Core.Identity;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Logging.Testing;
 
 namespace Encina.UnitTests.AspNetCore;
 
 /// <summary>
-/// Comprehensive unit tests for <see cref="ProblemDetailsExtensions"/>.
-/// Covers all error code → HTTP status code mappings.
+/// Unit tests for <see cref="ProblemDetailsExtensions"/>: the status, title and extensions come from the
+/// <see cref="ErrorCategory"/> of the error through the core HTTP table (ADR-062), never from the error code.
 /// </summary>
 public sealed class ProblemDetailsExtensionsTests
 {
@@ -21,164 +20,125 @@ public sealed class ProblemDetailsExtensionsTests
         return context;
     }
 
+    private static ProblemDetailsExtensions.ProblemResult Problem(IResult result) =>
+        result.ShouldBeOfType<ProblemDetailsExtensions.ProblemResult>();
+
     #region ToProblemDetails — Status Code Mapping
 
-    [Fact]
-    public void ToProblemDetails_ValidationError_Returns400()
+    public static TheoryData<ErrorCategory, int> AllCategories => new()
     {
-        var error = EncinaErrors.Create("validation.field_required", "Field is required");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_GuardValidationFailed_Returns400()
-    {
-        var error = EncinaErrors.Create("encina.guard.validation_failed", "Guard validation failed");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_Unauthenticated_Returns401()
-    {
-        var error = EncinaErrors.Create(EncinaErrorCodes.AuthorizationUnauthenticated, "Not authenticated");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
-    }
+        { ErrorCategory.Internal, 500 },
+        { ErrorCategory.Validation, 400 },
+        { ErrorCategory.InvalidRequest, 400 },
+        { ErrorCategory.Unauthenticated, 401 },
+        { ErrorCategory.Forbidden, 403 },
+        { ErrorCategory.NotFound, 404 },
+        { ErrorCategory.Conflict, 409 },
+        { ErrorCategory.AlreadyExists, 409 },
+        { ErrorCategory.FailedPrecondition, 400 },
+        { ErrorCategory.RateLimited, 429 },
+        { ErrorCategory.Unavailable, 503 },
+        { ErrorCategory.Timeout, 504 },
+        { ErrorCategory.UpstreamFailure, 502 },
+        { ErrorCategory.Cancelled, 499 },
+    };
 
     [Theory]
-    [InlineData(EncinaErrorCodes.AuthorizationUnauthorized)]
-    [InlineData(EncinaErrorCodes.AuthorizationForbidden)]
-    [InlineData(EncinaErrorCodes.AuthorizationPolicyFailed)]
-    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied)]
-    [InlineData(EncinaErrorCodes.AuthorizationInsufficientRoles)]
-    [InlineData(EncinaErrorCodes.AuthorizationPermissionDenied)]
-    [InlineData(EncinaErrorCodes.AuthorizationClaimMissing)]
-    [InlineData(EncinaErrorCodes.AuthorizationNotOwner)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.AccessDeniedCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ConditionNotMetCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.ObligationFailedCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.RequiredPolicyNotFoundCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantRequiredCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.DecisionAuditTenantMismatchCode)]
-    [InlineData("encina.authorization.some_future_denial")]
-    public void ToProblemDetails_AuthorizationDenial_Returns403(string code)
+    [MemberData(nameof(AllCategories))]
+    public void ToProblemDetails_EveryCategory_AnswersTheStatusOfTheCoreTable(ErrorCategory category, int expected)
     {
-        var error = EncinaErrors.Create(code, "Forbidden");
-        var context = CreateHttpContext();
+        var error = EncinaErrors.Create("test.categorized", category, "message");
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        var result = Problem(error.ToProblemDetails(CreateHttpContext()));
+
+        result.StatusCode.ShouldBe(expected);
+        result.Inner.ProblemDetails.Status.ShouldBe(expected);
+        result.Inner.ProblemDetails.Title.ShouldBe(ErrorCategoryHttp.GetReasonPhrase(expected));
     }
 
     [Fact]
-    public void ToProblemDetails_InvalidDecisionAuditQuery_Returns400()
-    {
-        var error = global::Encina.Security.ABAC.ABACErrors.InvalidDecisionAuditQuery("pageSize");
-        var context = CreateHttpContext();
+    public void ToProblemDetails_CoversEveryCategoryOfTheEnum() =>
+        AllCategories.Select(row => row.Data.Item1).ShouldBe(Enum.GetValues<ErrorCategory>(), ignoreOrder: true);
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
-    }
-
+    // One row per rule of the legacy code mapping: the code text no longer decides, the category does.
     [Theory]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicyNotFoundCode)]
-    [InlineData(global::Encina.Security.ABAC.ABACErrors.PolicySetNotFoundCode)]
-    public void ToProblemDetails_AbacAdministrativeNotFound_Returns404(string code)
+    [InlineData("validation.field_required", ErrorCategory.Validation, 400)]
+    [InlineData("encina.guard.validation_failed", ErrorCategory.Validation, 400)]
+    [InlineData(EncinaErrorCodes.AuthorizationUnauthenticated, ErrorCategory.Unauthenticated, 401)]
+    [InlineData(EncinaErrorCodes.AuthorizationForbidden, ErrorCategory.Forbidden, 403)]
+    [InlineData(EncinaErrorCodes.AuthorizationResourceDenied, ErrorCategory.Forbidden, 403)]
+    [InlineData("entity.not_found", ErrorCategory.NotFound, 404)]
+    [InlineData("encina.request.handler_missing", ErrorCategory.NotFound, 404)]
+    [InlineData("resource.missing", ErrorCategory.NotFound, 404)]
+    [InlineData("entity.conflict", ErrorCategory.Conflict, 409)]
+    [InlineData("user.already_exists", ErrorCategory.AlreadyExists, 409)]
+    [InlineData("order.duplicate", ErrorCategory.Conflict, 409)]
+    public void ToProblemDetails_CategorizedCodeFamilies_AnswerTheStatusOfTheirCategory(
+        string code, ErrorCategory category, int expected)
     {
-        var error = EncinaErrors.Create(code, "Not found");
-        var context = CreateHttpContext();
+        var error = EncinaErrors.Create(code, category, "message");
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldBeOfType<ProblemHttpResult>().StatusCode.ShouldBe(StatusCodes.Status404NotFound);
+        Problem(error.ToProblemDetails(CreateHttpContext())).StatusCode.ShouldBe(expected);
     }
 
     [Fact]
-    public void ToProblemDetails_NotFound_Returns404()
+    public void ToProblemDetails_CategoryDecidesNotTheCodeText()
     {
-        var error = EncinaErrors.Create("entity.not_found", "Not found");
-        var context = CreateHttpContext();
+        // A "not_found" code under the Forbidden category answers 403.
+        var error = EncinaErrors.Create("entity.not_found", ErrorCategory.Forbidden, "message");
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        Problem(error.ToProblemDetails(CreateHttpContext())).StatusCode.ShouldBe(403);
     }
 
     [Fact]
-    public void ToProblemDetails_HandlerMissing_Returns404()
+    public void ToProblemDetails_ErrorWithoutCode_Answers500()
     {
-        var error = EncinaErrors.Create("encina.request.handler_missing", "No handler");
-        var context = CreateHttpContext();
+        var error = EncinaError.New("no code");
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        var result = Problem(error.ToProblemDetails(CreateHttpContext()));
+
+        result.StatusCode.ShouldBe(500);
+        result.Inner.ProblemDetails.Title.ShouldBe("Internal Server Error");
     }
 
     [Fact]
-    public void ToProblemDetails_Missing_Returns404()
-    {
-        var error = EncinaErrors.Create("resource.missing", "Resource missing");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_Conflict_Returns409()
-    {
-        var error = EncinaErrors.Create("entity.conflict", "Conflict");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_AlreadyExists_Returns409()
-    {
-        var error = EncinaErrors.Create("user.already_exists", "Duplicate");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_Duplicate_Returns409()
-    {
-        var error = EncinaErrors.Create("order.duplicate", "Duplicate order");
-        var context = CreateHttpContext();
-
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
-    }
-
-    [Fact]
-    public void ToProblemDetails_UnknownError_Returns500()
+    public void ToProblemDetails_UncategorizedUnknownCode_Answers500()
     {
         var error = EncinaErrors.Create("unknown.error", "Something went wrong");
-        var context = CreateHttpContext();
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        Problem(error.ToProblemDetails(CreateHttpContext())).StatusCode.ShouldBe(500);
     }
 
     [Fact]
-    public void ToProblemDetails_ExplicitStatusCode_OverridesMapping()
+    public void ToProblemDetails_ExplicitStatusCode_OverridesTheCategory()
     {
-        var error = EncinaErrors.Create("test.error", "test");
-        var context = CreateHttpContext();
+        var error = EncinaErrors.Create("test.error", ErrorCategory.NotFound, "test");
 
-        var result = error.ToProblemDetails(context, 422);
-        result.ShouldNotBeNull();
+        var result = Problem(error.ToProblemDetails(CreateHttpContext(), 422));
+
+        result.StatusCode.ShouldBe(422);
+        result.Inner.ProblemDetails.Title.ShouldBe("Unprocessable Entity");
+    }
+
+    [Fact]
+    public void ToProblemDetails_ExplicitStatusCodeOutsideTheTable_PassesThroughWithTheGenericTitle()
+    {
+        var error = EncinaErrors.Create("test.error", ErrorCategory.NotFound, "test");
+
+        var result = Problem(error.ToProblemDetails(CreateHttpContext(), 410));
+
+        result.StatusCode.ShouldBe(410);
+        result.Inner.ProblemDetails.Title.ShouldBe("An error occurred");
+    }
+
+    [Fact]
+    public void ToProblemDetails_KeepsTheErrorCodeInTheBody()
+    {
+        var error = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "message");
+
+        var problem = Problem(error.ToProblemDetails(CreateHttpContext())).Inner.ProblemDetails;
+
+        problem.Extensions["errorCode"].ShouldBe("order.not_found");
     }
 
     #endregion
@@ -207,8 +167,7 @@ public sealed class ProblemDetailsExtensionsTests
         var middleware = new EncinaContextMiddleware(
             ctx =>
             {
-                var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(ctx)
-                    .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+                var problem = Problem(EncinaErrors.Create("test.error", "test").ToProblemDetails(ctx)).Inner.ProblemDetails;
                 body = problem.Extensions.TryGetValue("correlationId", out var value) ? (string?)value : null;
                 return Task.CompletedTask;
             },
@@ -276,8 +235,7 @@ public sealed class ProblemDetailsExtensionsTests
         };
         context.Request.Headers[CorrelationHeader] = "client-supplied";
 
-        var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(context)
-            .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+        var problem = Problem(EncinaErrors.Create("test.error", "test").ToProblemDetails(context)).Inner.ProblemDetails;
 
         problem.Extensions.ContainsKey("correlationId").ShouldBeFalse();
     }
@@ -288,8 +246,7 @@ public sealed class ProblemDetailsExtensionsTests
         var context = CreateHttpContext();
         context.Request.Headers[CorrelationHeader] = "client-supplied";
 
-        var problem = EncinaErrors.Create("test.error", "test").ToProblemDetails(context)
-            .ShouldBeOfType<ProblemHttpResult>().ProblemDetails;
+        var problem = Problem(EncinaErrors.Create("test.error", "test").ToProblemDetails(context)).Inner.ProblemDetails;
 
         problem.Extensions.ContainsKey("correlationId").ShouldBeFalse();
     }
@@ -301,8 +258,9 @@ public sealed class ProblemDetailsExtensionsTests
         var context = CreateHttpContext();
         context.TraceIdentifier = "trace-abc";
 
-        var result = error.ToProblemDetails(context);
-        result.ShouldNotBeNull();
+        var problem = Problem(error.ToProblemDetails(context)).Inner.ProblemDetails;
+
+        problem.Extensions["traceId"].ShouldBe("trace-abc");
     }
 
     #endregion

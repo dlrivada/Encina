@@ -147,7 +147,7 @@ public sealed class HttpResponseDataIntegrationTests
         await using var scope = provider.CreateAsyncScope();
         var encina = scope.ServiceProvider.GetRequiredService<IEncina>();
         var request = NewRequest(scope.ServiceProvider);
-        Either<EncinaError, Unit> failed = EncinaErrors.Create("order.not_found", "No such order.");
+        Either<EncinaError, Unit> failed = EncinaErrors.Create("order.not_found", ErrorCategory.NotFound, "No such order.");
 
         // Act
         var ok = await (await encina.Send(new CancelOrder("o-1"))).ToNoContentResponse(request);
@@ -159,19 +159,22 @@ public sealed class HttpResponseDataIntegrationTests
     }
 
     [Theory]
-    [InlineData("encina.authorization.unauthenticated", 401)]
-    [InlineData("encina.authorization.denied", 403)]
-    [InlineData("encina.guard.validation_failed", 400)]
-    [InlineData("order.missing", 404)]
-    [InlineData("order.duplicate", 409)]
-    [InlineData("anything.else", 500)]
-    public async Task ToProblemDetailsResponse_MapsEveryErrorFamilyToItsStatus(string code, int expectedStatus)
+    [InlineData("encina.authorization.unauthenticated", ErrorCategory.Unauthenticated, 401)]
+    [InlineData("encina.authorization.denied", ErrorCategory.Forbidden, 403)]
+    [InlineData("encina.guard.validation_failed", ErrorCategory.Validation, 400)]
+    [InlineData("order.missing", ErrorCategory.NotFound, 404)]
+    [InlineData("order.duplicate", ErrorCategory.Conflict, 409)]
+    [InlineData("anything.else", ErrorCategory.Internal, 500)]
+    public async Task ToProblemDetailsResponse_MapsEveryErrorCategoryToItsStatus(
+        string code,
+        ErrorCategory category,
+        int expectedStatus)
     {
         // Arrange
         await using var provider = CreateServiceProvider();
         await using var scope = provider.CreateAsyncScope();
         var request = NewRequest(scope.ServiceProvider);
-        var error = EncinaErrors.Create(code, "message");
+        var error = EncinaErrors.Create(code, category, "message");
 
         // Act
         var response = await error.ToProblemDetailsResponse(request);
