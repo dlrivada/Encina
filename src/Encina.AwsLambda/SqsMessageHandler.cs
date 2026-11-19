@@ -127,21 +127,30 @@ public static class SqsMessageHandler
             sqsEvent,
             async record =>
             {
+                TMessage? message;
                 try
                 {
-                    var message = JsonSerializer.Deserialize<TMessage>(record.Body, jsonOptions);
-                    if (message is null)
-                    {
-                        return EncinaErrors.Create(SqsDeserializationFailedCode, "Failed to deserialize SQS message body");
-                    }
-
-                    return await processMessage(message);
+                    message = JsonSerializer.Deserialize<TMessage>(record.Body, jsonOptions);
                 }
                 catch (JsonException ex)
                 {
                     logger?.LogError(ex.ForLogging(), "Failed to deserialize SQS message {MessageId}", record.MessageId);
-                    return EncinaErrors.Create(SqsDeserializationFailedCode, $"JSON deserialization failed: {ex.Message}", ex);
+                    return EncinaErrors.Create(
+                        SqsDeserializationFailedCode,
+                        category: ErrorCategory.InvalidRequest,
+                        $"JSON deserialization failed: {ex.Message}",
+                        ex);
                 }
+
+                if (message is null)
+                {
+                    return EncinaErrors.Create(
+                        SqsDeserializationFailedCode,
+                        category: ErrorCategory.InvalidRequest,
+                        "Failed to deserialize SQS message body");
+                }
+
+                return await processMessage(message);
             },
             logger,
             cancellationToken);
@@ -197,14 +206,21 @@ public static class SqsMessageHandler
             var message = JsonSerializer.Deserialize<T>(record.Body, jsonOptions);
             if (message is null)
             {
-                return EncinaErrors.Create(SqsDeserializationFailedCode, "Deserialized message was null");
+                return EncinaErrors.Create(
+                    SqsDeserializationFailedCode,
+                    category: ErrorCategory.InvalidRequest,
+                    "Deserialized message was null");
             }
 
             return message;
         }
         catch (JsonException ex)
         {
-            return EncinaErrors.Create(SqsDeserializationFailedCode, $"JSON deserialization failed: {ex.Message}", ex);
+            return EncinaErrors.Create(
+                SqsDeserializationFailedCode,
+                category: ErrorCategory.InvalidRequest,
+                $"JSON deserialization failed: {ex.Message}",
+                ex);
         }
     }
 }

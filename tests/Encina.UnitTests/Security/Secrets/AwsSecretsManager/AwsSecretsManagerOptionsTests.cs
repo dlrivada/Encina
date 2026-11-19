@@ -64,4 +64,47 @@ public sealed class AwsSecretsManagerOptionsTests
 
         options.ClientConfig.ShouldBeSameAs(config);
     }
+
+    [Fact]
+    public void ToString_WhenDefaults_PrintsNull()
+    {
+        var options = new AwsSecretsManagerOptions();
+
+        var str = options.ToString();
+
+        str.ShouldBe("AwsSecretsManagerOptions { Region=null, Credentials=null }");
+    }
+
+    [Fact]
+    public void ToString_WhenRegionAndCredentialsSet_MasksCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", "super-secret-key")
+        };
+
+        var str = options.ToString();
+
+        str.ShouldBe("AwsSecretsManagerOptions { Region=us-east-1, Credentials=*** }");
+        str.ShouldNotContain("AKIA1234567890");
+        str.ShouldNotContain("super-secret-key");
+    }
+
+    [Fact]
+    public void JsonSerialize_ExcludesCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", "super-secret-key")
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("Credentials");
+        json.ShouldNotContain("AKIA1234567890");
+        json.ShouldNotContain("super-secret-key");
+        json.ShouldContain("Region");
+    }
 }

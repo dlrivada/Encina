@@ -118,6 +118,8 @@ var manifestParseFailures = new List<string>();
 // Per-file obligations (#1762): fileObligations[package][manifestKey] = (targets, justifications),
 // only for entries that carry at least one of the two.
 var fileObligations = new Dictionary<string, Dictionary<string, ManifestFileEntry>>(StringComparer.OrdinalIgnoreCase);
+// Per package: flag (lower case) -> number of files expecting it (#2876).
+var expectedFlags = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
 
 // Try to find manifest directory. An explicitly passed --manifest that does not exist is a
 // caller error, not a hint to go looking elsewhere: silently falling back to the ancestor
@@ -163,6 +165,7 @@ if (Directory.Exists(manifestDir))
             if (mJson?.Package is null || mJson.Files is null) continue;
 
             var pkgFiles = new Dictionary<string, TestType>(StringComparer.OrdinalIgnoreCase);
+            var pkgExpected = new Dictionary<string, Dictionary<string, int>>(StringComparer.OrdinalIgnoreCase);
             foreach (var (filePath, entry) in mJson.Files)
             {
                 // Override takes precedence over defaultTests
@@ -181,6 +184,7 @@ if (Directory.Exists(manifestDir))
                     };
                 }
                 pkgFiles[filePath] = testType;
+                CountExpectedFlags(entry, pkgExpected, mJson.Package);
 
                 if (entry.Targets is { Count: > 0 } || entry.Justifications is { Count: > 0 })
                 {
@@ -190,6 +194,8 @@ if (Directory.Exists(manifestDir))
                 }
             }
             manifest[mJson.Package] = pkgFiles;
+            // Merged only after the whole file parsed, so a parse failure adds no spurious "no target" lines.
+            foreach (var (pkg, counts) in pkgExpected) expectedFlags[pkg] = counts;
 
             // Store per-flag targets if present
             if (mJson.Targets is { Count: > 0 })
@@ -273,7 +279,7 @@ if (checkStaleManifest || checkMissingManifest || checkJustifications)
     if (checkMissingManifest)
         failed |= RunCheckMissingManifest(manifest, manifestParseFailures, repoRoot, manifestDirFull);
     if (checkJustifications)
-        failed |= RunCheckJustifications(fileObligations, manifestParseFailures);
+        failed |= RunCheckJustifications(fileObligations, manifestParseFailures, expectedFlags, manifestTargets);
 
     if (failed)
         Environment.Exit(1);
@@ -286,9 +292,12 @@ if (checkStaleManifest || checkMissingManifest || checkJustifications)
 // 0-100. Returns true (failed) when there is anything to report.
 bool RunCheckJustifications(
     Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations,
-    List<string> manifestParseFailures)
+    List<string> manifestParseFailures,
+    Dictionary<string, Dictionary<string, int>> expectedFlags,
+    Dictionary<string, Dictionary<string, double>> packageTargets)
 {
     var (problems, checkedTargets) = FindJustificationProblems(fileObligations);
+    problems.AddRange(FindMissingPackageTargets(expectedFlags, packageTargets));
 
     if (manifestParseFailures.Count > 0)
     {
@@ -335,6 +344,39 @@ static Dictionary<string, T> NormaliseFlagKeys<T>(Dictionary<string, T>? source,
         if (!result.TryAdd(folded, v)) duplicates.Add(folded);
     }
     return result;
+}
+
+// Adds one to the package's count of every flag this file expects: override ?? defaultTests, plus every
+// per-file target key (a target is an obligation of its own). Flags fold to lower case; a flag counts once per file.
+static void CountExpectedFlags(
+    ManifestFileEntry entry, Dictionary<string, Dictionary<string, int>> expectedFlags, string package)
+{
+    var flags = (entry.Override ?? entry.DefaultTests ?? [])
+        .Concat(entry.Targets?.Keys ?? Enumerable.Empty<string>())
+        .Select(f => f.ToLowerInvariant())
+        .Distinct();
+    if (!expectedFlags.TryGetValue(package, out var counts))
+        expectedFlags[package] = counts = new Dictionary<string, int>(StringComparer.Ordinal);
+    foreach (var flag in flags)
+        counts[flag] = counts.GetValueOrDefault(flag) + 1;
+}
+
+// The closed-world check (#2876): a package with a file expecting a flag must have a package target for
+// it. A package target for a flag no file expects is fine. Manifest data only.
+static List<string> FindMissingPackageTargets(
+    Dictionary<string, Dictionary<string, int>> expectedFlags,
+    Dictionary<string, Dictionary<string, double>> packageTargets)
+{
+    var problems = new List<string>();
+    foreach (var (package, counts) in expectedFlags.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+    {
+        var keys = (packageTargets.TryGetValue(package, out var t) ? t.Keys : Enumerable.Empty<string>())
+            .Select(k => k.ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
+        foreach (var (flag, count) in counts.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            if (!keys.Contains(flag))
+                problems.Add($"{package}: flag '{flag}' is expected by {count} file(s) and the package has no target for it");
+    }
+    return problems;
 }
 
 // Every per-file target needs a justification and the reverse; flags are the five known ones (compared
@@ -880,6 +922,23 @@ int RunSelfTest()
     Check(Reports(caseDuplicates, "justifications name flag 'unit' more than once"), "case-duplicate justification keys are reported");
     var duplicateRows = BuildFileTargetRows(One(caseDuplicates), new());
     Check(duplicateRows.Count == 1, "case-duplicate keys give one report row, not two");
+
+    // --- closed-world package targets (#2876) ---
+    static List<string> Missing(ManifestFileEntry[] files, Dictionary<string, double>? pkgTargets)
+    {
+        var expected = new Dictionary<string, Dictionary<string, int>>();
+        foreach (var f in files) CountExpectedFlags(f, expected, "Pkg");
+        var targetsByPkg = new Dictionary<string, Dictionary<string, double>>();
+        if (pkgTargets is not null) targetsByPkg["Pkg"] = pkgTargets;
+        return FindMissingPackageTargets(expected, targetsByPkg);
+    }
+    var missingIntegration = Missing([new() { DefaultTests = ["unit", "integration"] }, new() { Override = ["Integration"], DefaultTests = ["guard"] }], new() { ["unit"] = 80 });
+    Check(missingIntegration.Count == 1 && missingIntegration[0] == "Pkg: flag 'integration' is expected by 2 file(s) and the package has no target for it",
+        "a flag expected by files with no package target is reported with its file count (override wins over defaultTests)");
+    Check(Missing([new() { DefaultTests = ["unit", "integration"] }], new() { ["UNIT"] = 80, ["Integration"] = 70 }).Count == 0, "package keys match flags case-insensitively");
+    Check(Missing([new() { DefaultTests = ["unit"], Targets = new() { ["Property"] = 50 } }], new() { ["unit"] = 80 }).SingleOrDefault()?.Contains("flag 'property' is expected by 1 file(s)") == true, "a per-file target key alone makes the flag expected");
+    Check(Missing([new() { DefaultTests = ["unit"] }], new() { ["unit"] = 80, ["contract"] = 60 }).Count == 0, "a package key for a flag no file expects is not an error");
+    Check(Missing([new() { DefaultTests = ["unit"] }], null).Count == 1, "a package with no targets at all is reported");
 
     // --- measured against target ---
     var lines = new Dictionary<int, int>();

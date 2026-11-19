@@ -147,25 +147,44 @@ public sealed record ReplayResult
     public required DateTime ReplayedAtUtc { get; init; }
 
     /// <summary>
-    /// Creates a successful replay result.
+    /// Creates a successful replay result using the specified time provider.
     /// </summary>
-    public static ReplayResult Succeeded(Guid messageId) => new()
+    /// <param name="messageId">The message ID that was replayed.</param>
+    /// <param name="timeProvider">The time provider to read the current time from.</param>
+    /// <returns>A successful replay result.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="timeProvider"/> is null.</exception>
+    public static ReplayResult Succeeded(Guid messageId, TimeProvider timeProvider)
     {
-        MessageId = messageId,
-        Success = true,
-        ReplayedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime
-    };
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        return new()
+        {
+            MessageId = messageId,
+            Success = true,
+            ReplayedAtUtc = timeProvider.GetUtcNow().UtcDateTime
+        };
+    }
 
     /// <summary>
-    /// Creates a failed replay result.
+    /// Creates a failed replay result using the specified time provider.
     /// </summary>
-    public static ReplayResult Failed(Guid messageId, string errorMessage) => new()
+    /// <param name="messageId">The message ID that was replayed.</param>
+    /// <param name="errorMessage">The error message describing the failure.</param>
+    /// <param name="timeProvider">The time provider to read the current time from.</param>
+    /// <returns>A failed replay result.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="timeProvider"/> is null.</exception>
+    public static ReplayResult Failed(Guid messageId, string errorMessage, TimeProvider timeProvider)
     {
-        MessageId = messageId,
-        Success = false,
-        ErrorMessage = errorMessage,
-        ReplayedAtUtc = TimeProvider.System.GetUtcNow().UtcDateTime
-    };
+        ArgumentNullException.ThrowIfNull(timeProvider);
+
+        return new()
+        {
+            MessageId = messageId,
+            Success = false,
+            ErrorMessage = errorMessage,
+            ReplayedAtUtc = timeProvider.GetUtcNow().UtcDateTime
+        };
+    }
 }
 
 /// <summary>
