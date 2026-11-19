@@ -12,7 +12,7 @@
 
 Add the two nullable members `string? TenantId { get; set; }` and `string? ModuleId { get; set; }` to the persisted-state interfaces of the two messaging patterns that have no implementation yet: `IChoreographyState` (`src/Encina.Messaging/Choreography/IChoreographyState.cs`) and `IRoutingSlipState` (`src/Encina.Messaging/RoutingSlip/IRoutingSlipState.cs`). The motivation of the issue holds: an interface member added before any implementer exists costs nothing, and one added after the 10 providers exist is a breaking change across all of them. SPEC-002 DEC-009 (b) makes multi-tenancy required in 1.0 for every capability SPEC-002 adds or changes.
 
-**State of `origin/main` (`f484cdf4f`), verified by reading and grep (corrects the issue text).**
+**State of `origin/main` (`8727c5cc3`), verified by reading and grep (corrects the issue text).**
 
 - **No implementer exists, in `src` or in `tests`.** A grep of class and record declarations for `IChoreographyState` and `IRoutingSlipState` finds none; the only users are the store interfaces (`IChoreographyStateStore`, `IChoreographyEventBus.GetSagaStateAsync`, `IRoutingSlipStore`). Mocks (NSubstitute) of the two interfaces would not break. Nothing builds on `IChoreographyStateStore` either: no class implements it, and the choreography feature has no registration (open debt #1467, #1472).
 - `IChoreographyState` has nine members (`CorrelationId`, `SagaType`, `StateData`, `Status`, `StartedAtUtc`, `LastUpdatedAtUtc`, `CompletedAtUtc`, `ErrorMessage`, `EventCount`) and is tracked in `src/Encina.Messaging/PublicAPI.Unshipped.txt` (lines for `Encina.Messaging.Choreography.IChoreographyState.*`). `IRoutingSlipState` has `RoutingSlipId`, `SlipType`, `Data`, `Itinerary`, `ActivityLog`, `Status`, `CurrentStep`, `CreatedAtUtc`, `LastUpdatedAtUtc`, `CompletedAtUtc`, `TimeoutAtUtc` and `ErrorMessage`; a grep finds no `IRoutingSlipState` line in any `PublicAPI*.txt` on `main` although RS0016 is an error (`.editorconfig` line 145), so the first build of the pull request decides exactly which lines are needed (Phase 1 task 3).
@@ -148,7 +148,7 @@ Add the two nullable members `string? TenantId { get; set; }` and `string? Modul
 <summary>Tasks</summary>
 
 1. `src/Encina.Messaging/Choreography/IChoreographyState.cs`: add `string? TenantId { get; set; }` and `string? ModuleId { get; set; }` after `EventCount`, each with `<summary>` and `<remarks>` (Design Choice 2: null means not scoped, never an empty string; limits of 128 characters; the tenant is the resolved `TenantScope.TenantId`; the module is the normalized name; readers filter strictly).
-2. `src/Encina.Messaging/RoutingSlip/IRoutingSlipState.cs`: the same two members after `ErrorMessage`, same documentation.
+2. `src/Encina.Messaging/RoutingSlip/IRoutingSlipState.cs` (under D1 option A, the recommendation; under option B this task and its PublicAPI lines are skipped and #590 owns them): first check whether `TenantId` and `ModuleId` already exist on the interface (the P1 of #590 may have landed first); add only the members that are missing, after `ErrorMessage`, with the same documentation, so no duplicate declaration is produced in either merge order. When #590 landed first, keep its declarations and only align the XML documentation with Design Choice 2.
 3. `src/Encina.Messaging/PublicAPI.Unshipped.txt`: four lines per tracked interface (`...TenantId.get -> string?`, `...TenantId.set -> void`, `...ModuleId.get -> string?`, `...ModuleId.set -> void`) for `Encina.Messaging.Choreography.IChoreographyState`; for `IRoutingSlipState` build once and add exactly the lines RS0016 reports (a grep on `main` finds no line for the type, Summary), in the same pull request. Zero warnings.
 
 </details>
@@ -162,7 +162,7 @@ CONTEXT:
 - Encina is pre-1.0: no [Obsolete], no default interface members, no compatibility layers. Neither interface has an implementer in src or tests (re-grep before editing).
 
 TASK:
-Add string? TenantId and string? ModuleId (get and set) to IChoreographyState and IRoutingSlipState with XML documentation, and update PublicAPI.Unshipped.txt.
+Add string? TenantId and string? ModuleId (get and set) to IChoreographyState and, per the recorded D1 decision (option A: also to IRoutingSlipState; option B: only IChoreographyState, #590 owns the routing slip members), with XML documentation, and update PublicAPI.Unshipped.txt. Before editing IRoutingSlipState, check whether either member already exists (#590 P1 may have landed first) and add only the missing ones.
 
 KEY RULES:
 - Nullable strings; null means not scoped, never an empty string; at most 128 characters; no validation logic in the interface.
@@ -224,7 +224,7 @@ REFERENCE FILES:
 1. XML docs of Phase 1 (`<summary>`, `<remarks>`).
 2. `changelog.d/762-choreography-routing-slip-tenant.added.md`: one bullet naming the two interface members (written by `mechanical-fixer`).
 3. No guide page: the interfaces are not user-facing yet; the messaging guide is updated by the plans that implement the stores (#590, #592). No ADR: no architectural decision beyond Design Choice 1.
-4. `dotnet build --configuration Release` with 0 warnings; `dotnet test tests\Encina.UnitTests` passes.
+4. `dotnet build --configuration Release` with 0 warnings; `dotnet test` passes for the full solution; each coverage flag (unit, guard, contract, property, integration) reaches its target in `.github/coverage-manifest/Encina.Messaging.json` (the interface-only change keeps the existing 0 targets, so this confirms the result and adds no test).
 
 </details>
 
@@ -309,7 +309,7 @@ PROJECT CONTEXT:
 - Issue #762: TenantId and ModuleId on IChoreographyState and IRoutingSlipState (SPEC-002 DEC-009 (b)). Plan: docs/plans/choreography-routing-slip-tenant-implementation-plan-762.md; D1 is recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (one pull request, 4 files):
-1. Add the two nullable members to both interfaces with XML documentation (Phase 1).
+1. Add the two nullable members to IChoreographyState, and to IRoutingSlipState only when the recorded D1 decision is option A (option B: #590 owns them) and only the members not already present on main, with XML documentation (Phase 1).
 2. Update PublicAPI.Unshipped.txt from the RS0016 build output (Phase 1).
 3. Verify the build and the manifest entries; no new test (Phase 2).
 4. The changelog fragment (Phase 3).
