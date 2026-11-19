@@ -147,13 +147,6 @@ public sealed record ReplayResult
     public required DateTime ReplayedAtUtc { get; init; }
 
     /// <summary>
-    /// Creates a successful replay result using the system clock.
-    /// </summary>
-    /// <param name="messageId">The message ID that was replayed.</param>
-    /// <returns>A successful replay result.</returns>
-    public static ReplayResult Succeeded(Guid messageId) => Succeeded(messageId, TimeProvider.System);
-
-    /// <summary>
     /// Creates a successful replay result using the specified time provider.
     /// </summary>
     /// <param name="messageId">The message ID that was replayed.</param>
@@ -171,27 +164,6 @@ public sealed record ReplayResult
             ReplayedAtUtc = timeProvider.GetUtcNow().UtcDateTime
         };
     }
-
-    /// <summary>
-    /// Creates a successful replay result with an explicit timestamp.
-    /// </summary>
-    /// <param name="messageId">The message ID that was replayed.</param>
-    /// <param name="replayedAtUtc">The timestamp when replay completed (UTC).</param>
-    /// <returns>A successful replay result.</returns>
-    public static ReplayResult Succeeded(Guid messageId, DateTime replayedAtUtc) => new()
-    {
-        MessageId = messageId,
-        Success = true,
-        ReplayedAtUtc = replayedAtUtc
-    };
-
-    /// <summary>
-    /// Creates a failed replay result using the system clock.
-    /// </summary>
-    /// <param name="messageId">The message ID that was replayed.</param>
-    /// <param name="errorMessage">The error message describing the failure.</param>
-    /// <returns>A failed replay result.</returns>
-    public static ReplayResult Failed(Guid messageId, string errorMessage) => Failed(messageId, errorMessage, TimeProvider.System);
 
     /// <summary>
     /// Creates a failed replay result using the specified time provider.
@@ -213,21 +185,6 @@ public sealed record ReplayResult
             ReplayedAtUtc = timeProvider.GetUtcNow().UtcDateTime
         };
     }
-
-    /// <summary>
-    /// Creates a failed replay result with an explicit timestamp.
-    /// </summary>
-    /// <param name="messageId">The message ID that was replayed.</param>
-    /// <param name="errorMessage">The error message describing the failure.</param>
-    /// <param name="replayedAtUtc">The timestamp when replay completed (UTC).</param>
-    /// <returns>A failed replay result.</returns>
-    public static ReplayResult Failed(Guid messageId, string errorMessage, DateTime replayedAtUtc) => new()
-    {
-        MessageId = messageId,
-        Success = false,
-        ErrorMessage = errorMessage,
-        ReplayedAtUtc = replayedAtUtc
-    };
 }
 
 /// <summary>

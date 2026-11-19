@@ -394,7 +394,9 @@ public sealed class DeadLetterManagerTests
 
         var result = await manager.ReplayAsync(messageId);
 
-        result.ShouldBeRight().Success.ShouldBeFalse();
+        var replay = result.ShouldBeRight();
+        replay.Success.ShouldBeFalse();
+        replay.ReplayedAtUtc.ShouldBe(FixedUtcNow);
         await store.Received(1).MarkAsReplayedAsync(
             messageId, DeadLetterErrorCodes.ReplayFailed, Arg.Any<CancellationToken>());
     }
@@ -466,6 +468,7 @@ public sealed class DeadLetterManagerTests
         var replay = result.ShouldBeRight();
         replay.Success.ShouldBeFalse();
         replay.ErrorMessage.ShouldBe(DeadLetterErrorCodes.AlreadyReplayed);
+        replay.ReplayedAtUtc.ShouldBe(FixedUtcNow);
     }
 
     #endregion
@@ -936,7 +939,9 @@ public sealed class DeadLetterManagerTests
         batch.TotalProcessed.ShouldBe(2);
         batch.SuccessCount.ShouldBe(1);
         batch.FailureCount.ShouldBe(1);
-        batch.Results.Single(r => r.MessageId == expiredId).ErrorMessage.ShouldBe(DeadLetterErrorCodes.Expired);
+        var expiredResult = batch.Results.Single(r => r.MessageId == expiredId);
+        expiredResult.ErrorMessage.ShouldBe(DeadLetterErrorCodes.Expired);
+        expiredResult.ReplayedAtUtc.ShouldBe(FixedUtcNow);
     }
 
     [Fact]

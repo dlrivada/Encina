@@ -14,24 +14,6 @@ public sealed class ReplayResultTests
     #region ReplayResult Tests
 
     [Fact]
-    public void Succeeded_ReturnsSuccessfulResult()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-
-        // Act
-        var result = ReplayResult.Succeeded(messageId);
-
-        // Assert
-        result.MessageId.ShouldBe(messageId);
-        result.Success.ShouldBeTrue();
-        result.ErrorMessage.ShouldBeNull();
-        result.ReplayedAtUtc.ShouldBeInRange(
-            DateTime.UtcNow.AddSeconds(-5),
-            DateTime.UtcNow.AddSeconds(5));
-    }
-
-    [Fact]
     public void Succeeded_WithTimeProvider_UsesProvidedClock()
     {
         // Arrange
@@ -46,52 +28,6 @@ public sealed class ReplayResultTests
         result.Success.ShouldBeTrue();
         result.ErrorMessage.ShouldBeNull();
         result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
-    }
-
-    [Fact]
-    public void Succeeded_WithExplicitTimestamp_UsesTimestamp()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-        var replayedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-
-        // Act
-        var result = ReplayResult.Succeeded(messageId, replayedAt);
-
-        // Assert
-        result.MessageId.ShouldBe(messageId);
-        result.Success.ShouldBeTrue();
-        result.ErrorMessage.ShouldBeNull();
-        result.ReplayedAtUtc.ShouldBe(replayedAt);
-    }
-
-    [Fact]
-    public void Succeeded_WithNullTimeProvider_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-
-        // Act & Assert
-        Should.Throw<ArgumentNullException>(() => ReplayResult.Succeeded(messageId, (TimeProvider)null!));
-    }
-
-    [Fact]
-    public void Failed_ReturnsFailedResult()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-        const string errorMessage = "Something went wrong";
-
-        // Act
-        var result = ReplayResult.Failed(messageId, errorMessage);
-
-        // Assert
-        result.MessageId.ShouldBe(messageId);
-        result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldBe(errorMessage);
-        result.ReplayedAtUtc.ShouldBeInRange(
-            DateTime.UtcNow.AddSeconds(-5),
-            DateTime.UtcNow.AddSeconds(5));
     }
 
     [Fact]
@@ -110,34 +46,6 @@ public sealed class ReplayResultTests
         result.Success.ShouldBeFalse();
         result.ErrorMessage.ShouldBe(errorMessage);
         result.ReplayedAtUtc.ShouldBe(FixedTime.UtcDateTime);
-    }
-
-    [Fact]
-    public void Failed_WithExplicitTimestamp_UsesTimestamp()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-        const string errorMessage = "Something went wrong";
-        var replayedAt = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
-
-        // Act
-        var result = ReplayResult.Failed(messageId, errorMessage, replayedAt);
-
-        // Assert
-        result.MessageId.ShouldBe(messageId);
-        result.Success.ShouldBeFalse();
-        result.ErrorMessage.ShouldBe(errorMessage);
-        result.ReplayedAtUtc.ShouldBe(replayedAt);
-    }
-
-    [Fact]
-    public void Failed_WithNullTimeProvider_ThrowsArgumentNullException()
-    {
-        // Arrange
-        var messageId = Guid.NewGuid();
-
-        // Act & Assert
-        Should.Throw<ArgumentNullException>(() => ReplayResult.Failed(messageId, "err", (TimeProvider)null!));
     }
 
     [Fact]
@@ -171,11 +79,12 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_AllSucceeded_ReturnsTrueWhenNoFailures()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act
@@ -195,11 +104,12 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_AllSucceeded_ReturnsFalseWhenFailuresExist()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid()),
-            ReplayResult.Failed(Guid.NewGuid(), "Error"),
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock),
+            ReplayResult.Failed(Guid.NewGuid(), "Error", clock),
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act
@@ -235,9 +145,10 @@ public sealed class ReplayResultTests
     public void BatchReplayResult_RequiredProperties_CanBeSet()
     {
         // Arrange
+        var clock = new FakeTimeProvider(FixedTime);
         var results = new[]
         {
-            ReplayResult.Succeeded(Guid.NewGuid())
+            ReplayResult.Succeeded(Guid.NewGuid(), clock)
         };
 
         // Act
