@@ -933,7 +933,7 @@ int RunSelfTest()
     Check(missingIntegration.Count == 1 && missingIntegration[0] == "Pkg: flag 'integration' is expected by 2 file(s) and the package has no target for it",
         "a flag expected by files with no package target is reported with its file count (override wins over defaultTests)");
     Check(Missing([new() { DefaultTests = ["unit", "integration"] }], new() { ["UNIT"] = 80, ["Integration"] = 70 }).Count == 0, "package keys match flags case-insensitively");
-    Check(Missing([new() { DefaultTests = ["unit"], Targets = new() { ["Property"] = 50 } }], new() { ["unit"] = 80 }).Single().Contains("flag 'property' is expected by 1 file(s)"), "a per-file target key alone makes the flag expected");
+    Check(Missing([new() { DefaultTests = ["unit"], Targets = new() { ["Property"] = 50 } }], new() { ["unit"] = 80 }).SingleOrDefault()?.Contains("flag 'property' is expected by 1 file(s)") == true, "a per-file target key alone makes the flag expected");
     Check(Missing([new() { DefaultTests = ["unit"] }], new() { ["unit"] = 80, ["contract"] = 60 }).Count == 0, "a package key for a flag no file expects is not an error");
     Check(Missing([new() { DefaultTests = ["unit"] }], null).Count == 1, "a package with no targets at all is reported");
 
