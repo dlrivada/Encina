@@ -430,7 +430,7 @@ builder.Services.AddEncinaEntityFrameworkCore<AppDbContext>(config =>
 
 ### Domain Event Dispatcher
 
-Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected from all tracked entities implementing `Entity<TId>` and dispatched via MediatR's `IPublisher`.
+Automatically dispatches domain events from aggregate roots after `SaveChanges()` succeeds. Events are collected only from tracked entries that implement `IAggregateRoot` (subclasses of `AggregateRoot<TId>`); an entity that derives from `Entity<TId>` but is not an aggregate root is not read, so raise its events on the aggregate root that owns it. Events are dispatched via MediatR's `IPublisher`.
 
 **Use cases:**
 
@@ -507,7 +507,7 @@ public class OrderPlacedEventHandler : INotificationHandler<OrderPlacedEvent>
 **How it works:**
 
 1. `DomainEventDispatcherInterceptor` intercepts `SaveChangesAsync`
-2. Collects all pending domain events from tracked `Entity<TId>` instances
+2. Collects all pending domain events from tracked `IAggregateRoot` instances
 3. Calls `SaveChanges` on the DbContext
 4. If successful, dispatches each event via `IPublisher.Publish()`
 5. Clears domain events from entities after dispatch

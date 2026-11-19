@@ -12,9 +12,13 @@ namespace Encina.EntityFrameworkCore.DomainEvents;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interceptor collects domain events from all tracked entities that inherit from
-/// <see cref="Entity{TId}"/> and dispatches them through <see cref="IEncina"/> after
-/// <c>SaveChanges</c> has persisted the changes.
+/// This interceptor collects domain events from the tracked entries that implement
+/// <see cref="IAggregateRoot"/> (in practice, subclasses of <see cref="AggregateRoot{TId}"/>) and dispatches them
+/// through <see cref="IEncina"/> after <c>SaveChanges</c> has persisted the changes.
+/// </para>
+/// <para>
+/// An entity that derives from <see cref="Entity{TId}"/> but is not an aggregate root is not read, so events it
+/// raises are never dispatched. Raise them on the aggregate root that owns the entity.
 /// </para>
 /// <para>
 /// <b>Limit</b>: the dispatch happens in <c>SavedChangesAsync</c>, which runs before an explicit transaction
@@ -28,9 +32,9 @@ namespace Encina.EntityFrameworkCore.DomainEvents;
 /// <item><description>SaveChanges is called on the DbContext</description></item>
 /// <item><description>Database changes are persisted</description></item>
 /// <item><description>This interceptor is invoked in <c>SavedChangesAsync</c></description></item>
-/// <item><description>Domain events are collected from all tracked entities</description></item>
+/// <item><description>Domain events are collected from all tracked aggregate roots</description></item>
 /// <item><description>Each event is published via <see cref="IEncina.Publish{TNotification}(TNotification, CancellationToken)"/></description></item>
-/// <item><description>Events are cleared from entities (if <see cref="DomainEventDispatcherOptions.ClearEventsAfterDispatch"/> is true)</description></item>
+/// <item><description>Events are cleared from the aggregate roots (if <see cref="DomainEventDispatcherOptions.ClearEventsAfterDispatch"/> is true)</description></item>
 /// </list>
 /// </para>
 /// <para>
