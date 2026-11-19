@@ -11,7 +11,7 @@
 
 Add `[Hedging]` to Encina: when the first attempt of a request is slow, or fails with a retryable error, a second attempt starts in parallel, the first acceptable result wins and the losing attempts are cancelled. The strategy is Polly v8's `AddHedging` (the maintainer decisions of [ADR-055](../architecture/adr/055-resilience-family.md) R2 and R3), configured by the `[Hedging]` attribute and by the options front-end, and compiled once per request type at startup into the single per-type pipeline. The comment of 2026-10-23 on #136 moves it into the 1.0 scope; its design follows ADR-055.
 
-What exists today (read in `origin/main` at `f484cdf4f`; `src/Encina.Resilience` is not on main):
+What exists today (read in `origin/main` at `89303f1e8`; `src/Encina.Resilience` is not on main):
 
 - Nothing of hedging: `git grep -i hedg -- src` returns no match. `Encina.Polly` has `[Retry]`, `[CircuitBreaker]`, `[RateLimit]` and `[Bulkhead]`; `Encina.Extensions.Resilience` has one standard pipeline. Both are removed by ADR-055 R1.
 - The package that ADR-055 R1 names for every new resilience capability, `Encina.Resilience`, **does not exist in `src/`**, and no open issue creates it (the foundation, ADR-055 and the spike report section 8, steps 1 to 3). The pipeline continuation `RequestHandlerCallback<TResponse>()` in `src/Encina/Abstractions/RequestHandlerDelegate.cs` has no `CancellationToken`, so a hedged attempt cannot be cancelled (R6, planned, no issue yet).
@@ -222,6 +222,47 @@ The issue asks for `IHedgingActionGenerator` "for custom strategies" (for exampl
 
 </details>
 
+<details>
+<summary><strong>9. Concurrent attempts share one DI scope</strong></summary>
+
+A hedge re-runs the downstream pipeline and handler while the primary attempt may still run, and both close over the request's single DI scope. A scoped service that is not thread-safe (an EF Core `DbContext`, `IUnitOfWork`, a scoped cache, the request context) is then used by two attempts at once; two concurrent queries on one `DbContext` throw. "Queries only" (choice 4) does not remove this. ADR-055 does not address it.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A new DI scope per attempt: the behavior creates the scope with `IServiceScopeFactory` and re-resolves the handler chain in it** | Each attempt gets its own `DbContext` | The continuation cannot be re-bound to another scope without the foundation resolving the downstream behaviors per scope; invasive for the compiler |
+| **B) An explicit acknowledgement: `[Hedging(ConcurrencySafe = true)]` (and `HedgingOptions.ConcurrencySafe`) is required; the validator fails startup without it; the documentation lists what is unsafe (`DbContext`-based handlers)** | No change to the compiler; the unsafe case cannot be adopted by accident; fits hedging of calls to replicas through `IHedgingActionGenerator` (the alternative action owns its client) | The author carries the responsibility; a `DbContext` handler cannot be hedged until A exists |
+| **C) Only alternative actions may run concurrently: `UsePrimary` is rejected, so a hedge always runs the generator's own delegate** | Safe by construction | The primary handler path cannot be hedged against itself, which is the common slow-replica case |
+
+### Chosen Option: **B — Explicit acknowledgement, validated at startup** (recommended, pending the maintainer)
+
+### Rationale
+
+- B wins when hedged handlers call external replicas through thread-safe clients; A wins if hedged handlers use scoped persistence and the compiler can resolve per scope; C wins when only the generator path is wanted. `ConcurrencySafe` is a property of the attribute (default `false`) and of `HedgingOptions` (precedence options > attribute > defaults).
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Defaults of the attribute and options</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `MaxAttempts` 2 (Polly's own default is one hedge: `MaxHedgedAttempts` = 1), `DelayMilliseconds` 1000 and `HedgeOnTimeout` true (the issue sample's values), `ConcurrencySafe` false, `MaxHedgedAttempts` valid range 1 to 9; an out-of-range value fails at startup, never clamps silently; hedging is opt-in** | Cited defaults; nothing hidden | The issue sample uses `MaxAttempts` 3, a per-type value |
+| **B) `MaxAttempts` 3 as in the sample** | Matches the sample | Two extra attempts by default doubles load against a slow dependency |
+
+### Chosen Option: **A — Polly's default of one hedge, the sample's delay**
+
+### Rationale
+
+- **Class:** Trivial
+- **Settled by:** Polly v8 `HedgingStrategyOptions<T>` defaults (`MaxHedgedAttempts` 1) and the #136 "Attribute-based Configuration" sample (`DelayMilliseconds = 1000`, `HedgeOnTimeout = true`)
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -233,11 +274,11 @@ Three pull requests, each building and passing alone, in this order: **PR-1** (P
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Hedging/HedgingAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class HedgingAttribute : Attribute` with `int MaxAttempts { get; init; } = 2` (total attempts including the primary, so `MaxHedgedAttempts = MaxAttempts - 1`), `int DelayMilliseconds { get; init; } = 1000` and `bool HedgeOnTimeout { get; init; } = true`. No constructor parameters: no guard. The defaults are the smallest that hedge at all (one extra attempt, after one second, the issue sample's delay); the issue sample's `MaxAttempts = 3` is a per-type choice, not a default. `HedgeOnTimeout = true` is the issue sample's value. Hedging stays opt-in: the attribute or `For<T>().Hedging(...)` must be present.
+1. `src/Encina.Resilience/Hedging/HedgingAttribute.cs`: `[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)] public sealed class HedgingAttribute : Attribute` with `int MaxAttempts { get; init; } = 2` (total attempts including the primary, so `MaxHedgedAttempts = MaxAttempts - 1`), `int DelayMilliseconds { get; init; } = 1000` and `bool HedgeOnTimeout { get; init; } = true` and `bool ConcurrencySafe { get; init; }` (choice 9). No constructor parameters: no guard. The defaults are the smallest that hedge at all (one extra attempt, after one second, the issue sample's delay); the issue sample's `MaxAttempts = 3` is a per-type choice, not a default. `HedgeOnTimeout = true` is the issue sample's value. Hedging stays opt-in: the attribute or `For<T>().Hedging(...)` must be present.
 2. `src/Encina.Resilience/Hedging/HedgingOptions.cs`: `public sealed class HedgingOptions` with `int MaxHedgedAttempts` (1 to 9, default 1), `TimeSpan DelayBetweenAttempts` (default 1 s; zero hedges all attempts at once, `Timeout.InfiniteTimeSpan` hedges only after a failure), `bool HedgeOnTimeout`, `Func<EncinaError, bool>? ShouldHedge` (narrows the classifier, choice 5). Includes `public static HedgingOptions From(HedgingAttribute attribute)` for the R3 precedence merge (options for a type > attribute > defaults); it rejects a null attribute with `ArgumentNullException.ThrowIfNull` and has a guard test.
 3. `src/Encina.Resilience/Hedging/IHedgingActionGenerator.cs`: `public interface IHedgingActionGenerator<TRequest, TResponse> where TRequest : IRequest<TResponse>` with `ValueTask<HedgedAction<TResponse>> GenerateAsync(HedgingActionContext<TRequest, TResponse> context, CancellationToken cancellationToken)`.
 4. `src/Encina.Resilience/Hedging/HedgingActionContext.cs`: `public sealed record HedgingActionContext<TRequest, TResponse>(TRequest Request, IRequestContext RequestContext, int AttemptNumber)` and `public readonly record struct HedgedAction<TResponse>` with `static HedgedAction<TResponse> UsePrimary` and `static HedgedAction<TResponse> Run(Func<CancellationToken, ValueTask<Either<EncinaError, TResponse>>> action)`. The constructor of the context validates `Request` and `RequestContext` (`ArgumentNullException.ThrowIfNull`).
-5. `src/Encina.Resilience/Hedging/HedgingOptionsValidator.cs`: `internal sealed class HedgingOptionsValidator` that returns the startup failures of choices 3 and 4 and the range checks (`MaxHedgedAttempts` in 1 to 9, `DelayBetweenAttempts` not negative unless infinite, a command type, a type that also has retry). It throws `InvalidOperationException` naming the request type and the rule, never the message of an error (registration errors, ADR-050).
+5. `src/Encina.Resilience/Hedging/HedgingOptionsValidator.cs`: `internal sealed class HedgingOptionsValidator` that returns the startup failures of choices 3, 4 and 9 and the range checks (`MaxHedgedAttempts` in 1 to 9, `DelayBetweenAttempts` not negative unless infinite, a command type, a type that also has retry). It throws `InvalidOperationException` naming the request type and the rule, never the message of an error (registration errors, ADR-050).
 6. `src/Encina.Resilience/Encina.Resilience.csproj`: `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests` so the internal validator, factory and telemetry are tested directly. The foundation issue lists it as an acceptance item; if it is missing when PR-1 is implemented, PR-1 adds it (counted in the file table).
 
 </details>
@@ -262,6 +303,8 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina.Polly
 1. `src/Encina.Resilience/Hedging/HedgingStrategyFactory.cs`: `internal static` factory that, from the merged `HedgingOptions` and the singleton `IErrorClassifier`, builds `HedgingStrategyOptions<Either<EncinaError, TResponse>>`: `MaxHedgedAttempts`, `Delay = DelayBetweenAttempts`, `ShouldHandle` (a thrown exception classified by `IErrorClassifier`, or a `Left` that is not `Permanent`, or, with `HedgeOnTimeout`, an `ErrorCategory.Timeout` result; then AND `ShouldHedge`), `ActionGenerator` (reads the `IHedgingActionGenerator` and the `IRequestContext` from `ResilienceContext.Properties` and returns the alternative delegate or the primary callback) and `OnHedging` (Phase 5 hook). The factory is the entry the foundation's compiler calls for the retry slot.
 2. A `ResiliencePropertyKey` holder `HedgingPropertyKeys` (internal) for the per-call generator and request context, so no scoped service is ever captured by the compiled pipeline.
 3. The all-attempts-fail result is the last completed attempt's `Left` (Polly's behavior, the issue's "return last error"); a test pins it.
+4. Cancellation: an `OperationCanceledException` is never classified, never triggers a hedge and never becomes a `Left`. The caller's cancellation (the request token) propagates out of the pipeline; the cancellation of a losing attempt (Polly cancels it after a winner) is silent: it does not log 903 `HedgedAttemptFailed` and is never taken as the "last completed attempt". Two unit tests pin this (caller cancellation propagates; a cancelled loser leaves no log and does not become the result).
+5. Concurrency of attempts: see choice 9; the validator rejects `[Hedging]` without `ConcurrencySafe = true`, and a test runs two attempts against one scoped counter service to show that the guard matters.
 
 </details>
 
@@ -435,11 +478,11 @@ REFERENCE FILES: changelog.d/README.md, src/Encina.Resilience/README.md, .claude
 
 | Category | PR-1 | PR-2 | PR-3 | Files |
 |----------|------|------|------|-------|
-| Production | 7 | 1 | 5 | PR-1: `HedgingAttribute`, `HedgingOptions`, `IHedgingActionGenerator`, `HedgingActionContext`, `HedgingOptionsValidator`, `HedgingStrategyFactory`, `HedgingPropertyKeys`. PR-2: `HedgingBuilderExtensions`. PR-3: `HedgingLogMessages`, `HedgingTelemetry`, `HedgingStrategyFactory` (modified), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
+| Production | 7 | 2 | 5 | PR-1: `HedgingAttribute`, `HedgingOptions`, `IHedgingActionGenerator`, `HedgingActionContext`, `HedgingOptionsValidator`, `HedgingStrategyFactory`, `HedgingPropertyKeys`. PR-2: `HedgingBuilderExtensions`, and the foundation's startup-validation registration (a modified file of `Encina.Resilience` that adds the hedging validator). PR-3: `HedgingLogMessages`, `HedgingTelemetry`, `HedgingStrategyFactory` (modified), `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` |
 | Project edits | 1 | 0 | 0 | PR-1: `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if the foundation left it out) |
-| Tests | 4 | 2 | 2 | PR-1: factory, validator, options, guard. PR-2: registration (DI), contract. PR-3: telemetry and log messages test, `EncinaEventIdAllocationTests.cs` (modified) |
+| Tests | 4 | 3 | 3 | PR-1: factory, validator, options, guard. PR-2: registration (DI, which also holds the Phase 4 integration test of the command rejection and the no-context path), contract, `HedgingGuardTests.cs` (modified, the extension-method guards). PR-3: telemetry and log messages test, the factory tests (modified, the `OnHedging` hook), `EncinaEventIdAllocationTests.cs` (modified) |
 | Metadata and docs | 2 | 3 | 6 | PR-1: `PublicAPI.Unshipped.txt`, manifest. PR-2: `PublicAPI.Unshipped.txt`, manifest, changelog fragment. PR-3: `PublicAPI.Unshipped.txt`, manifest, README, `docs/features/resilience-hedging.md`, 2 justification `.md` |
-| **Total** | **14** | **6** | **13** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or interface-implementer change |
+| **Total** | **14** | **8** | **14** | PR-1 about 1,000 lines, PR-2 about 300, PR-3 about 500; no test double or interface-implementer change |
 
 The manifest of each PR carries the rows of the files that PR adds, with the targets below, each reached by tests of the same PR.
 
@@ -514,5 +557,5 @@ REFERENCE FILES: src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #136.
-2. When #136 is picked up, re-check the choices against today's code (whether the foundation and R6 landed) and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7 and 8).
+2. When #136 is picked up, re-check the choices against today's code (whether the foundation and R6 landed) and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7, 8 and 9).
 3. Brief a worker for PR-1 (Phases 1 and 2 with their tests, 14 files), then PR-2 and PR-3, after the foundation and R6 are merged.
