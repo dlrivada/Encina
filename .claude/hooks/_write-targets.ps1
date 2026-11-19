@@ -136,7 +136,8 @@ function Get-LaunchArguments($Tokens, $FileToken) {
         # A whitelist: only a value made of simple path characters (letters, digits, space, `\ / : . _ -`) binds. Any
         # other character (`$`, a backtick, `%`, `@`, a quote, a wildcard) may be expanded by an outer shell wrapper
         # (`pwsh -Command "..."`, `bash -c "..."`), so the parameter stays unresolved.
-        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression -and [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z0-9 \\/:._-]*\z')) { [string]$valueToken.Value } else { $null }
+        # A drive-relative value (`D:src`) resolves against the hook's own current directory, so it stays unresolved too.
+        $value = if ($null -ne $valueToken -and $trusted -and -not $valueToken.Dynamic -and -not $valueToken.Subexpression -and [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z0-9 \\/:._-]*\z') -and -not [regex]::IsMatch([string]$valueToken.Value, '\A[A-Za-z]:(?![\\/])')) { [string]$valueToken.Value } else { $null }
         $result[$name] = if ($result.ContainsKey($name)) { $null } else { $value }
     }
     return $result
@@ -198,7 +199,7 @@ function Expand-KnownVariables([string]$Value, [bool]$Bash, [string]$Base) {
 
 # Whether a script's own source text writes files: the file-write APIs a `dotnet run <file>.cs` /
 # `pwsh -File <file>.ps1` script could use to bypass the shell-level write-target analysis (#1181).
-$script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replace)\s*\(|\b(New-Object\s+)?(System\.IO\.)?(Stream|File)Writer\b|\bnew\s+(System\.IO\.)?FileStream\s*\([^)]*FileAccess\.(Write|ReadWrite)|(?im)^\s*(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item)\b|\bNew-Item\b[^\r\n]*-Value\b|(?m)^[^#\r\n]*[^><]>>?(?!=|&)\S'
+$script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replace)\s*\(|\b(New-Object\s+)?(System\.IO\.)?(Stream|File)Writer\b|\bnew\s+(System\.IO\.)?FileStream\s*\([^)]*FileAccess\.(Write|ReadWrite)|(?im)^[ \t]*(Set-Content|Add-Content|Out-File|Copy-Item|Move-Item)\b|\bNew-Item\b[^\r\n]*-Value\b|(?m)^[^#\r\n]*[^><]>>?(?!=|&)\S'
 
 # Whether a script's own source text mentions any of the given guarded-path tokens (case-insensitive literal
 # match; a crude but conservative signal, since the script is not tokenised the way a shell statement is).
@@ -215,7 +216,7 @@ $script:ScriptWriteApiPattern = '\bFile\.(Write\w*|AppendAll\w*|Copy|Move|Replac
 # Known limits: building the name from pieces, a wildcard command lookup (`gcm New-PSD*`) and the SessionState API;
 # the words `mount`/`ndr` in prose also keep URLs (a fail-safe false positive).
 function Remove-UrlText([string]$Text) {
-    $code = [regex]::Replace($Text, '(?m)^\s*#.*$', '')
+    $code = [regex]::Replace($Text, '(?m)^[ \t]*#.*$', '')
     if ($code -match '(?i)(?<![\w-])(?:New-PSDrive|ndr|mount)(?![\w-])') { return $Text }
     return [regex]::Replace($Text, '(?i)(?<![a-z0-9+.\-])(?:https?|ftps?|wss?|ssh|git)://[^\s''"`<>(),;|&{}$]*', ' ')
 }

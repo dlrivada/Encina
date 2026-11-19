@@ -565,6 +565,7 @@ $ps1Scripts['CapProofNoWord'] = (@('$v0 = "x"') + @(1..14 | ForEach-Object { "`$
 $ps1Scripts['ExpChainLongSrc'] = (@('$v0 = "x"') + @(1..26 | ForEach-Object { "`$v$_ = `$v$($_ - 1) + `$v$($_ - 1)" }) + @("Set-Content -Path ('$main\src\' + `$v26) -Value 1")) -join "`n"
 $ps1Scripts['TypedArraySrc'] = "[string[]]`$a = '$main\artifacts\'`nSet-Content -Path (`$a + 'src\q') -Value 1`n"
 $ps1Scripts['ExpChainCycleSrc'] = (@('$v0 = "x"', '$v0 = $v0 + "y"') + $expLines[1..($expLines.Count - 1)] -join "`n") + "`n"
+$ps1Scripts['ParamSpBlankLines'] = "param([string]`$Sp)`r`n# never under src/ or tests/`r`nSet-Content -Path `"`$Sp\out.json`" -Value 'y'`r`n" + ("`r`n" * 130000)
 $env:ENCINA_HOOK_TEST_OUT = "$main\artifacts\env-out.txt"
 $ps1ScriptPath = @{}
 foreach ($name in $ps1Scripts.Keys) {
@@ -1170,6 +1171,7 @@ $orchestratorCases = @(
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' $([char]0x2018) -Sp `"$main\artifacts`" $([char]0x2019)" }, $main, $null, 2, 'main session (#3896): curly quotes in the launch arguments bind nothing: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\src\board'" }, $main, $null, 2, 'main session (#3896): a script that names tests/, -Sp under src/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'tests\board'" }, $main, $null, 2, 'main session (#3896): -Sp a relative tests/ path: denied'),
+    @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp 'D:src'" }, $main, $null, 2, 'main session (#3896): a drive-relative -Sp value (D:src) stays unresolved: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)'" }, $main, $null, 2, 'main session (#3896): a script that names tests/ with -Sp not passed (unresolved): denied'),
     @('PowerShell', @{ command = "`$d = '$main\artifacts\board'; pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp `$d" }, $main, $null, 2, 'main session (#3896): -Sp passed through a variable (unresolved) to a script naming tests/: denied'),
     @('PowerShell', @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpMention)' -Sp '$main\artifacts\a' -Sp '$main\src\b'" }, $main, $null, 2, 'main session (#3896): -Sp passed twice is not trusted: denied'),
@@ -2007,6 +2009,11 @@ exit 1
     }
     $json = @{ tool_name = 'PowerShell'; cwd = $main; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.CapProofNoWord)'" } } | ConvertTo-Json -Compress
     Invoke-HookCase $orchestrator $json 0 "main session (#2892): a >8192-character target built from 's'+'rc' with no src/tests word anywhere is unresolved and ALLOWED (known B1 limit, pinned)"
+
+    # #3896 round 5 F1: 130000 blank CRLF lines must not make the comment stripping quadratic; the deny has to land
+    # well inside the 15 s hook timeout (a timeout is a fail-open).
+    $json = @{ tool_name = 'PowerShell'; cwd = $main; agent_id = 'a1b2'; agent_type = 'adversarial-reviewer'; tool_input = @{ command = "pwsh -NoProfile -File '$($ps1ScriptPath.ParamSpBlankLines)' -Sp '$main\src\board'" } } | ConvertTo-Json -Compress
+    Invoke-HookCase $orchestrator $json 2 'adversarial-reviewer (#3896): 130000 blank CRLF lines still reach the deny within 5 s (no quadratic regex)' $null $null 5
 
     # The Stop gate needs git; a machine without git skips these cases.
     if (Get-Command git -ErrorAction SilentlyContinue) {
