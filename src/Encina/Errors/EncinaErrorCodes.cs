@@ -133,24 +133,7 @@ public static class EncinaErrorCodes
     // ── Validation ─────────────────────────────────────────────────
 
     /// <summary>
-    /// Prefix shared by every <c>encina.validation.*</c> code.
-    /// </summary>
-    public const string ValidationPrefix = "encina.validation.";
-
-    /// <summary>
     /// Generic validation failure produced when request validation fails.
     /// </summary>
     public const string ValidationFailed = "encina.validation.failed";
-
-    // ── Not Found ──────────────────────────────────────────────────
-
-    /// <summary>
-    /// Prefix shared by every <c>encina.notfound.*</c> code.
-    /// </summary>
-    public const string NotFoundPrefix = "encina.notfound.";
-
-    /// <summary>
-    /// Canonical error code emitted when a requested resource is not found.
-    /// </summary>
-    public const string NotFound = "encina.notfound";
 }

@@ -57,27 +57,9 @@ public sealed class EncinaErrorCodesTests
     }
 
     [Fact]
-    public void ValidationPrefix_HasCorrectValue()
-    {
-        EncinaErrorCodes.ValidationPrefix.ShouldBe("encina.validation.");
-    }
-
-    [Fact]
     public void ValidationFailed_HasCorrectValue()
     {
         EncinaErrorCodes.ValidationFailed.ShouldBe("encina.validation.failed");
-    }
-
-    [Fact]
-    public void NotFoundPrefix_HasCorrectValue()
-    {
-        EncinaErrorCodes.NotFoundPrefix.ShouldBe("encina.notfound.");
-    }
-
-    [Fact]
-    public void NotFound_HasCorrectValue()
-    {
-        EncinaErrorCodes.NotFound.ShouldBe("encina.notfound");
     }
 
     [Fact]

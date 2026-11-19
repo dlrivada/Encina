@@ -94,16 +94,4 @@ public class EncinaErrorsGuardTests
     }
 
     #endregion
-
-    #region NotFound(message, details)
-
-    [Fact]
-    public void NotFound_NullMessage_ThrowsArgumentNullException()
-    {
-        Action act = () => _ = EncinaErrors.NotFound(null!);
-
-        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("message");
-    }
-
-    #endregion
 }

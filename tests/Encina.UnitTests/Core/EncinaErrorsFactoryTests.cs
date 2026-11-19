@@ -1,5 +1,3 @@
-using LanguageExt;
-using Shouldly;
 using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Core;
@@ -15,18 +13,6 @@ public sealed class EncinaErrorsFactoryTests
         error.Message.ShouldBe("Validation failed");
         error.GetCategory().ShouldBe(ErrorCategory.Validation);
         error.GetCode().ShouldBe(Some(EncinaErrorCodes.ValidationFailed));
-        error.GetDetails().ShouldBe(details);
-    }
-
-    [Fact]
-    public void NotFound_CreatesErrorWithNotFoundCategoryAndCode()
-    {
-        var details = new Dictionary<string, object?> { ["id"] = 123 };
-        var error = EncinaErrors.NotFound("Order not found", details);
-
-        error.Message.ShouldBe("Order not found");
-        error.GetCategory().ShouldBe(ErrorCategory.NotFound);
-        error.GetCode().ShouldBe(Some(EncinaErrorCodes.NotFound));
         error.GetDetails().ShouldBe(details);
     }
 }

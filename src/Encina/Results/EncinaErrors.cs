@@ -102,15 +102,6 @@ public static class EncinaErrors
         => Create(EncinaErrorCodes.AuthorizationUnauthenticated, ErrorCategory.Unauthenticated, "Authentication is required.", details: details);
 
     /// <summary>
-    /// Creates a not found error with code <see cref="EncinaErrorCodes.NotFound"/> and category <see cref="ErrorCategory.NotFound"/>.
-    /// </summary>
-    /// <param name="message">The error message.</param>
-    /// <param name="details">Optional structured metadata as a dictionary.</param>
-    /// <returns>An <see cref="EncinaError"/> with code <see cref="EncinaErrorCodes.NotFound"/> and category <see cref="ErrorCategory.NotFound"/>.</returns>
-    public static EncinaError NotFound(string message, IReadOnlyDictionary<string, object?>? details = null)
-        => Create(EncinaErrorCodes.NotFound, ErrorCategory.NotFound, message, details: details);
-
-    /// <summary>
     /// Creates a validation error with code <see cref="EncinaErrorCodes.ValidationFailed"/> and category <see cref="ErrorCategory.Validation"/>.
     /// </summary>
     /// <param name="message">The error message.</param>
