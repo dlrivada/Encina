@@ -4,26 +4,28 @@
 > **Type**: Feature (observability core)
 > **Related**: #1164 (the persisted envelope that already lists `CorrelationId` and `CausationId`, SPEC-002 REQ-015), #177 (owns the constants class this plan adds one key to), #132 and #186 (trace context), #1237 (saga correlation by external key, a different concept), ADR-054, ADR-062, ADR-028
 > **Complexity**: Low-Medium (most of the issue's text is already done or belongs to #1164; what is left is a causation rule, a helper and the span tags)
-> **Estimated Scope**: ~120 lines of production code + ~380 lines of tests + 1 documentation file, in three pull requests of at most 15 files and 900 lines each (the third opens after #1164)
+> **Estimated Scope**: ~120 lines of production code + ~380 lines of tests + 1 documentation file, in four pull requests of at most 15 files and 900 lines each (the third and, as recommended, the second and fourth open after #1164)
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-18, main `f484cdf4f`)
+### What exists today (read on 2026-11-19, main `89303f1e8`)
 
-- `IRequestContext` already has both ids, as strings: `string CorrelationId` ("Always present", taken from `Activity.Current?.Id` or a new id) and `string? CausationId` ("The id of the message or request that caused this request", `src/Encina/Abstractions/IRequestContext.cs`, properties documented at lines 60-75). `RequestContext.CausationId` is set only through the internal `WithCausationId` (`RequestContext.cs:301`); copies and nested dispatches keep it (`ForNestedDispatch`). The issue's `Guid` and "Add `CausationId` to `IRequestContext`" are therefore obsolete.
-- The persisted form exists: `PersistedRequestIdentity(Kind, ActorId, TenantId, CorrelationId, CausationId)` (`src/Encina/Identity/PersistedRequestIdentity.cs`), produced by `RequestIdentity.ToPersisted(tenantId, correlationId, causationId)` (`RequestIdentity.cs:201`) and validated and restored by `RequestContextScopeFactory.RunRestoredAsync`, which applies `.WithCausationId(persisted.CausationId)` (`RequestContextScopeFactory.Restore.cs:50`). A search of `src` finds no caller of `ToPersisted` or `RunRestoredAsync` outside the identity folder: no store writes or reads the envelope yet (#1164, open).
+- `IRequestContext` already has both ids, as strings: `string CorrelationId` ("Always present", taken from `Activity.Current?.Id` or a new id) and `string? CausationId` ("The id of the message or request that caused this request", `src/Encina/Abstractions/IRequestContext.cs`, properties documented at lines 60-75). `RequestContext.CausationId` is set only through the internal `WithCausationId` (`src/Encina/Core/RequestContext.cs:303`); copies and nested dispatches keep it (`ForNestedDispatch`). The issue's `Guid` and "Add `CausationId` to `IRequestContext`" are therefore obsolete.
+- The persisted form exists: `PersistedRequestIdentity(Kind, ActorId, TenantId, CorrelationId, CausationId)` (`src/Encina/Identity/PersistedRequestIdentity.cs`), produced by `RequestIdentity.ToPersisted(tenantId, correlationId, causationId)` (`RequestIdentity.cs:201`, argument check at :203) and validated and restored by `RequestContextScopeFactory.RunRestoredAsync`, which applies `.WithCausationId(persisted.CausationId)` (`RequestContextScopeFactory.Restore.cs:50`). A search of `src` finds no caller of `ToPersisted` or `RunRestoredAsync` outside the identity folder: no store writes or reads the envelope yet (#1164, open).
 - The messaging row interfaces (`IOutboxMessage`, `IInboxMessage`, `IScheduledMessage`, 31 implementers in `src`) have no correlation or causation member. The issue asks for `Guid CorrelationId` and `Guid? CausationId` on all three, with columns on 10 providers; #1164 (SPEC-002 REQ-015, "Settled by elimination 2026-10-17: implement as written") already specifies the envelope `UserId`, `TenantId`, `CorrelationId`, `CausationId` on the outbox, inbox and scheduled rows, written in the same transaction.
-- Consumers of the context ids today: Marten event metadata (`src/Encina.Marten/EventMetadataEnrichmentService.cs:62-70`, `ConfigureMartenEventMetadata.cs:56-66`), `DomainEventEnvelope` (`src/Encina.DomainModeling/DomainEventEnvelope.cs`) and the event tags `event.correlation_id` and `event.causation_id` (`ActivityTagNames.EventMetadata`). No messaging span carries either id: `MessagingActivityEnricher` and `MessagingEnricherPipelineBehavior` (`src/Encina.OpenTelemetry/`) tag message id, type, retry count and state only.
+- Consumers of the context ids today: Marten event metadata (`src/Encina.Marten/EventMetadataEnrichmentService.cs:54-72`, `ConfigureMartenEventMetadata.cs:56-66`), `DomainEventEnvelope` (`src/Encina.DomainModeling/DomainEventEnvelope.cs`) and the event tags `event.correlation_id` and `event.causation_id` (`ActivityTagNames.EventMetadata`). No messaging span carries either id: `MessagingActivityEnricher` and `MessagingEnricherPipelineBehavior` (`src/Encina.OpenTelemetry/`) tag message id, type, retry count and state only.
+- The Marten service does **not** read `IRequestContext.CausationId`: it sets the session causation from `Metadata["CausationId"]` and otherwise falls back to `context.CorrelationId` (`GetCausationId`, `EventMetadataEnrichmentService.cs:81-93`). A search of `src` for `.CausationId` finds no writer that reads the context property (only copies, the restore at `RequestContextScopeFactory.Restore.cs:50` and read-side event metadata). Restoring a context with a cause therefore changes nothing for Marten events today, and for messages it depends on the writer #1164 adds.
 
 ### What this plan delivers
 
 The parts of #175 that are neither done nor #1164's:
 
-1. **The causation rule** (Arkency pattern, the issue's "Correlation Pattern"): work done inside the dispatch of a message is caused by that message. `PersistedRequestIdentity.ForHandling(string messageId)` returns the identity with `CausationId = messageId` (the correlation id is kept), so a processor restores the context with the message under dispatch as the cause; every message or event written in that context then persists the right cause with no change to `ToPersisted`.
+1. **The causation rule** (Arkency pattern, the issue's "Correlation Pattern"): work done inside the dispatch of a message is caused by that message. `PersistedRequestIdentity.ForHandling(string messageId)` returns the identity with `CausationId = messageId` (the correlation id is kept), so a processor restores the context with the message under dispatch as the cause. A message written in that context persists the right cause through the existing `ToPersisted` once #1164's writer reads the context. Marten events do not benefit until pull request C4 makes `EventMetadataEnrichmentService` read `context.CausationId` (Design Choice 6, a Dilemma).
 2. **Span tags** for correlation and causation on messaging spans: `messaging.message.conversation_id` (the semantic-convention key for a correlation id) and `encina.messaging.causation_id`, set by `MessagingEnricherPipelineBehavior` from the context.
 3. After #1164 lands, the store enrichers read the same ids from the envelope (third pull request).
+4. Optionally (Design Choice 6), Marten events appended in a restored dispatch take the context cause (fourth pull request).
 
 - Shared pieces and owner: the persisted envelope is #1164's; the constants class `MessagingSemanticConventions` is #177's (this plan adds `ConversationId` use and one Encina-specific key to it; #177 creates `ConversationId` itself); the trace context is #186's and #132's.
 - Affected packages: `Encina` (core), `Encina.OpenTelemetry`.
@@ -84,7 +86,7 @@ The parts of #175 that are neither done nor #1164's:
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The restore uses the message id as the context's causation: `RunRestoredAsync(persisted.ForHandling(message.Id.ToString()), ...)`; everything written in that context persists it through the existing `ToPersisted(tenant, context.CorrelationId, context.CausationId)`** | No change to `IRequestContext`, `ToPersisted` or the writer; Marten events appended in the handler get the right cause; the correlation id is untouched | The context no longer carries the message's own cause (it stays in the row) |
+| **A) The restore uses the message id as the context's causation: `RunRestoredAsync(persisted.ForHandling(message.Id.ToString()), ...)`; everything written in that context persists it through the existing `ToPersisted(tenant, context.CorrelationId, context.CausationId)`** | No change to `IRequestContext` or `ToPersisted`; messages written in the handler get the right cause once #1164's writer reads the context; the correlation id is untouched (Marten events need Design Choice 6) | The context no longer carries the message's own cause (it stays in the row) |
 | **B) Keep `persisted.CausationId` on the context and put the message id in `Metadata` under a reserved key; the writer reads the key** | The context keeps the message's own cause | A reserved metadata key every writer must know; an untyped `object?` read; events would still get the message's cause, not the message |
 | **C) A new `IRequestContext.MessageId` member** | Typed and explicit | A second interface change on the 8 implementers (shared with #186 and #2442) for one value |
 
@@ -92,7 +94,7 @@ The parts of #175 that are neither done nor #1164's:
 
 ### Rationale
 
-- A wins when events and messages written by a handler must name the message that triggered them (the convention the issue cites); the message's own cause is still stored in its row and in the audit of the dispatch. B wins if audit needs the cause of the dispatched message itself from the context at handling time; C wins if the maintainer wants the message id readable by every behavior.
+- A wins when events and messages written by a handler must name the message that triggered them (the convention the issue cites); the message's own cause is still stored in its row and in the audit of the dispatch. B wins if audit needs the cause of the dispatched message itself from the context at handling time; C wins if the maintainer wants the message id readable by every behavior. Whatever is chosen only takes effect where a writer reads the context property: that is #1164's writer for messages and Design Choice 6 for Marten events.
 - The documentation on `CausationId` ("the message or request that caused this request") is amended to say that inside a restored dispatch it is the message being dispatched.
 
 **Class:** Dilemma
@@ -115,7 +117,7 @@ The parts of #175 that are neither done nor #1164's:
 ### Rationale
 
 - ADR-054 D3: attributes follow the latest messaging conventions and every key lives in one constants class (#177); settled point 4: lowercase, dot-separated names. Existing Encina-specific keys already use the `encina.` prefix (`encina.identity.kind` and `encina.sharding.*` in `src/Encina/Diagnostics/ActivityTagNames.cs`).
-- Ids are span attributes only, never metric tags: they have unbounded cardinality (ADR-054 D4 allows only the tenant as a metric tag).
+- Ids are span attributes only, never metric tags: they have unbounded cardinality (ADR-054 D4 makes the tenant a metric tag when multi-tenancy is on; this plan adds no id as a metric tag).
 
 **Class:** Trivial
 **Settled by:** ADR-054 D3 and settled point 4; `src/Encina/Diagnostics/ActivityTagNames.cs` (`encina.identity.kind`)
@@ -144,15 +146,37 @@ The parts of #175 that are neither done nor #1164's:
 
 </details>
 
+<details>
+<summary><strong>6. Whether Marten events take the cause from the context</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `EventMetadataEnrichmentService.GetCausationId` reads `context.CausationId` after the `Metadata["CausationId"]` override and before the `CorrelationId` fallback (pull request C4)** | Events appended in a restored dispatch name the message as their cause; one small change, no new API; HTTP requests keep today's result because their `CausationId` is null | A Marten package change the issue did not ask for; the fallback order becomes metadata, then context cause, then correlation id |
+| **B) State the gap and do nothing for Marten here; events keep `Metadata["CausationId"]` or the correlation id** | No change outside messaging; no new Marten PR | Events written by a handler restored by `ForHandling` still name the correlation id, not the message |
+| **C) The processor writes `Metadata["CausationId"]` itself** | No Marten change | Every processor must know the reserved key; the untyped override becomes the normal path |
+
+### Chosen Option: **A — The service reads the context cause** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when events must name the message that triggered them, which is the point of the causation rule. B wins if the maintainer wants this plan limited to messaging telemetry; C wins if the Marten package must not change. Verified: `EventMetadataEnrichmentService.cs:81-93` is the only place that picks the session causation and it never reads the context property.
+
+**Class:** Dilemma
+
+</details>
+
 ### Register of defaults and semantics
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
 | C1 | No new `EncinaError` code and no logging: `ForHandling` and the tags cannot fail, so there is no ADR-062 `ErrorCategory` and no EventId | Settled | ADR-062 (a category is chosen where an `EncinaError` is created) |
-| C2 | `ForHandling` throws `ArgumentException` for a null, empty or whitespace `messageId` (a programming error at a call site, like `ToPersisted`'s `correlationId` check at `RequestIdentity.cs:199`) | Trivial | `RequestIdentity.ToPersisted` |
+| C2 | `ForHandling` throws `ArgumentException` for a null, empty or whitespace `messageId` (a programming error at a call site, like `ToPersisted`'s `correlationId` check at `RequestIdentity.cs:203`) | Trivial | `RequestIdentity.ToPersisted` |
 | C3 | The correlation id is client-controlled but bounded and sanitised on entry; it is never a metric tag; no tenant tag or tenant-qualified id is added here (ADR-054 D4), so the reserved `default` tenant segment does not apply | Settled | `InboundRequestNormalizer.Id`; ADR-054 D4 |
 | C4 | A restored context built from an `External` source keeps the existing rule (anonymous, inbound, trusted tenant); `ForHandling` changes only the causation id | Settled | `RequestContextScopeFactory.Restore.cs:42-50` (external rows are not trusted); `AGENTS.md` section 3 (fail closed) |
 | C5 | Public name: `PersistedRequestIdentity.ForHandling(string messageId)` | Dilemma (recommended, pending the maintainer) | public surface; alternatives are `WithCause` or an extension method |
+| C6 | When `ForHandling` ships: it has no caller in `src` until #1164 wires the processors, and the sibling plan of #177 rejects `EnrichWithBatch` for the same reason ("every line serves a current purpose"). Recommended: C2 and C4 open after #1164's processor PR, so the method lands with its first caller; the alternative is to ship it now as the contract #1164 calls, exercised only by tests | Dilemma (recommended, pending the maintainer) | AGENTS.md section 3 (every line serves a current purpose); one standard across the batch |
 
 ---
 
@@ -200,7 +224,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: The Causation Rule (pull request C2)
+### Phase 2: The Causation Rule (pull request C2, after #1164 as recommended by register row C6)
 
 > **Goal**: A processor can restore a context whose cause is the message it dispatches.
 
@@ -233,6 +257,43 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina/Identity/PersistedRequestIdentity.cs, RequestContextScopeFactory.Restore.cs, RequestIdentity.cs (:201)
 - tests/Encina.UnitTests/Identity/
+```
+
+</details>
+
+---
+
+### Phase 4: Marten Events Take the Context Cause (pull request C4, only if Design Choice 6 option A is chosen)
+
+> **Goal**: Events appended in a restored dispatch name the message under dispatch as their cause.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. **Modify** `GetCausationId` in `src/Encina.Marten/EventMetadataEnrichmentService.cs`: return the `Metadata["CausationId"]` override when present, else `context.CausationId` when not null or whitespace, else `context.CorrelationId` (today's fallback). Update the comment at lines 62-63.
+2. **Modify** `tests/Encina.UnitTests/Marten/EventMetadataEnrichmentServiceTests.cs`: a context with `CausationId` set (built through the real restore path with `ForHandling`) sets the session causation to it; the metadata override still wins; a null context cause keeps the correlation id (the existing `EnrichSession_WithCausationId_SetsOnSession` stays green).
+3. **Modify** `.github/coverage-manifest/Encina.Marten.json` and add `changelog.d/175-marten-event-causation-from-context.changed.md` through `mechanical-fixer`. No public API changes (no PublicAPI line); the existing guard tests (`tests/Encina.GuardTests/Marten/Core/EventMetadataEnrichmentServiceGuardTests.cs`) already cover the arguments and stay unchanged.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 4</strong></summary>
+
+```text
+CONTEXT:
+Issue #175 plan docs/plans/messaging-correlation-causation-implementation-plan-175.md, phase 4. Only if the maintainer chose
+option A of Design Choice 6; otherwise stop and report.
+
+TASK:
+1. In EventMetadataEnrichmentService.GetCausationId prefer Metadata["CausationId"], then context.CausationId, then context.CorrelationId.
+2. Extend the unit tests; manifest and changelog through mechanical-fixer.
+
+KEY RULES:
+- Keep the existing metadata override and the correlation fallback; no new public API.
+
+REFERENCE FILES:
+- src/Encina.Marten/EventMetadataEnrichmentService.cs (:81-93)
+- tests/Encina.UnitTests/Marten/EventMetadataEnrichmentServiceTests.cs
 ```
 
 </details>
@@ -293,7 +354,7 @@ REFERENCE FILES:
 | `PersistedRequestIdentity`, `ToPersisted`, `RunRestoredAsync` | `src/Encina/Identity/` | The persisted form and restore path that #1164 wires |
 | `MessagingEnricherPipelineBehavior` | `src/Encina.OpenTelemetry/Behaviors/` | Where the tags are set |
 | `MessagingSemanticConventions` | `src/Encina/Diagnostics/` (plan #177) | The keys |
-| `EventMetadataEnrichmentService` | `src/Encina.Marten/EventMetadataEnrichmentService.cs:62-70` | The existing consumer that benefits from the rule |
+| `EventMetadataEnrichmentService` | `src/Encina.Marten/EventMetadataEnrichmentService.cs:54-93` | Reads `Metadata["CausationId"]` and the correlation id, not the context cause; changed in C4 only if Design Choice 6 option A is chosen |
 
 ### Event ID Allocation
 
@@ -310,9 +371,10 @@ Every count includes tests, the coverage manifest, PublicAPI, the changelog frag
 | C1 | Span tags from the context | 0 | 3 (`MessagingEnricherPipelineBehavior.cs`, `MessagingSemanticConventions.cs`, PublicAPI) | 1 | 1 | 1 | 1 (changelog) | 7 | ~300 |
 | C2 | The causation rule | 0 | 3 (`PersistedRequestIdentity.cs`, `IRequestContext.cs`, PublicAPI) | 2 | 0 | 1 | 2 (changelog, feature page) | 8 | ~350 |
 | C3 | Store enrichers (after #1164) | 0 | 1 | 0 | 3 | 1 | 1 | 6 | ~250 |
-| **Total** | | **0** | **7** | **3** | **4** | **3** | **4** | **21** | **~900** |
+| C4 | Marten events take the context cause (Design Choice 6 option A) | 0 | 1 (`EventMetadataEnrichmentService.cs`) | 0 | 1 | 1 (`Encina.Marten.json`) | 1 (changelog) | 4 | ~120 |
+| **Total** | | **0** | **8** | **3** | **5** | **4** | **5** | **25** | **~1020** |
 
-The columns sum to the total (0 + 7 + 3 + 4 + 3 + 4 = 21; 7 + 8 + 6 = 21).
+The columns sum to the total (0 + 8 + 3 + 5 + 4 + 5 = 25; 7 + 8 + 6 + 4 = 25).
 
 Per-file coverage targets (per flag, one sentence each):
 
@@ -320,7 +382,8 @@ Per-file coverage targets (per flag, one sentence each):
 |------|------|-------|----------|----------|---------------|
 | `Behaviors/MessagingEnricherPipelineBehavior.cs` | 90 | 70 | 70 | 0 | The tag branches are driven with a real listener for the four message kinds; the existing guard and contract tests execute the real behavior |
 | `Identity/PersistedRequestIdentity.cs` | 95 | 80 | 0 | 0 | One new method and the record; unit tests drive the restore path and the guard run reaches the argument checks |
-| `Core`/`Abstractions/IRequestContext.cs` | 0 | 0 | 0 | 0 | Only XML remarks change in an interface with no coverable lines; `RequestContext` carries the targets |
+| `Abstractions/IRequestContext.cs` | 0 | 0 | 0 | 0 | Only XML remarks change in an interface with no coverable lines (no executable code); `RequestContext` carries the targets |
+| `EventMetadataEnrichmentService.cs` (`Encina.Marten`, C4) | 90 | 85 | 0 | 0 | The new branch is driven by unit tests through the real restore path; the existing guard tests reach the argument checks; contract and property add nothing for a three-way fallback |
 
 ---
 
@@ -347,6 +410,8 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Ids are span attributes, never metric tags; strings, not Guids; no member added to the message interfaces.
 - Tests use a real ActivityListener and the real restore path.
+- C4 (only if Design Choice 6 option A is chosen): EventMetadataEnrichmentService prefers Metadata["CausationId"], then
+  context.CausationId, then context.CorrelationId.
 
 REFERENCE FILES:
 - src/Encina/Identity/PersistedRequestIdentity.cs, src/Encina/Identity/RequestContextScopeFactory.Restore.cs
@@ -398,5 +463,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #175 and ask the maintainer to answer Design Choices 3 and 5 and register row C5 when work starts.
-2. Implement #177 S1 first, then C1 and C2; open C3 only after #1164 merges and the maintainer chose option B of Design Choice 5. Amend the acceptance criteria of #175 (interfaces, stores, schemas, log scope) to the outcome of Design Choices 1 and 5 when it is picked up.
+1. Link this plan from #175 and ask the maintainer to answer Design Choices 3, 5 and 6 and register rows C5 and C6 when work starts.
+2. Implement #177 S1 first, then C1; open C2 and C4 as register row C6 and Design Choice 6 decide; open C3 only after #1164 merges and the maintainer chose option B of Design Choice 5. Amend the acceptance criteria of #175 (interfaces, stores, schemas, log scope) to the outcome of Design Choices 1 and 5 when it is picked up.
