@@ -1,6 +1,6 @@
 using LanguageExt;
-using static LanguageExt.Prelude;
 using Shouldly;
+using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Core;
 

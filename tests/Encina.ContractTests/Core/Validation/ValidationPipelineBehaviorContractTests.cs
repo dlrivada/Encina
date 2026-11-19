@@ -81,6 +81,7 @@ public sealed class ValidationPipelineBehaviorContractTests
                 e.Message.ShouldContain("Validation failed");
                 e.GetCategory().ShouldBe(ErrorCategory.Validation);
                 e.GetCode().IfNone(string.Empty).ShouldBe(EncinaErrorCodes.ValidationFailed);
+                ErrorCategoryHttp.GetStatusCode(e).ShouldBe(400);
             });
     }
 

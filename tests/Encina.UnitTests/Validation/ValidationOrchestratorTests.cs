@@ -73,4 +73,49 @@ public sealed class ValidationOrchestratorTests
         var error = result.ShouldBeValidationErrorForProperty("Name");
         error.GetCategory().ShouldBe(ErrorCategory.Validation);
     }
+
+    [Fact]
+    public async Task ValidateAsync_WhenTokenIsAlreadyCancelled_ReturnsLeftWithoutCallingProvider()
+    {
+        // Arrange
+        var provider = Substitute.For<IValidationProvider>();
+        var orchestrator = new ValidationOrchestrator(provider);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var result = await orchestrator.ValidateAsync<TestRequest, string>(new TestRequest("valid"), RequestContext.Create(), cts.Token);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error => error.Message.ShouldBe("Operation was cancelled before validation."));
+        await provider.DidNotReceiveWithAnyArgs().ValidateAsync<TestRequest>(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_WhenProviderThrowsOperationCanceledWithCancelledToken_ReturnsLeft()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        var provider = Substitute.For<IValidationProvider>();
+        provider.ValidateAsync<TestRequest>(Arg.Any<TestRequest>(), Arg.Any<IRequestContext>(), Arg.Any<CancellationToken>())
+            .Returns<ValueTask<ValidationResult>>(_ =>
+            {
+                cts.Cancel();
+                throw new OperationCanceledException(cts.Token);
+            });
+
+        var orchestrator = new ValidationOrchestrator(provider);
+
+        // Act
+        var result = await orchestrator.ValidateAsync<TestRequest, string>(new TestRequest("valid"), RequestContext.Create(), cts.Token);
+
+        // Assert
+        result.IsLeft.ShouldBeTrue();
+        result.IfLeft(error =>
+        {
+            error.Message.ShouldBe($"Validation cancelled for {nameof(TestRequest)}.");
+            error.Exception.IsSome.ShouldBeTrue();
+        });
+    }
 }
