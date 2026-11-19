@@ -259,7 +259,7 @@ An interpretation of the numbers above, not a decision.
 
 | Criterion | Favours | Evidence |
 | --- | --- | --- |
-| Speed on success, chains and async | (B1) and (B2), the 16 B structs; (C) falls between custom inline and B | Success int 2.57 and 2.80 ns against 8.81 ns (custom inline) and 7.83 ns (C); chain success 10.81 and 7.57 ns against 30.34 and 26.07 ns; async success 28.59 and 31.76 ns against 65.98 and 50.79 ns. In async failure, (B2) at 29.29 ns is close to the hierarchy at 28.87 ns, and (B1) is 39.71 ns. |
+| Speed on success, chains and async | Among the zero-allocation-on-success options (custom inline, (B1), (B2), (C)), (B1) and (B2), the 16 B structs; (C) falls between custom inline and B | Success int 2.57 and 2.80 ns against 8.81 ns (custom inline) and 7.83 ns (C); chain success 10.81 and 7.57 ns against 30.34 and 26.07 ns; async success 28.59 and 31.76 ns against 65.98 and 50.79 ns. In async success, the standard union (20.67 ns) and the hierarchy (16.07 ns) are faster than (B1) and (B2), but they allocate 24 B per result. In async failure, the standard union (30.88 ns) and the hierarchy (28.87 ns) allocate 56 B per result and are within a few ns of (B2) at 29.29 ns (B2 reuses a preallocated error; creating it costs about 5 ns and 56 B, see the fresh-error row); (B1) is 39.71 ns. |
 | Allocation on success | (B1), (B2), (C) and custom inline, all 0 B | The standard union and the hierarchy allocate on value-type success (24 B). |
 | Allocation per failure | (C) and custom inline, 0 B | (B2) is 0 B only when the error instance is reused and 56 B when it is created per failure; (B1) is 56 B per failure, made once per chain. |
 | Struct size | (B1) and (B2), 16 B for `int` | (C) is 24 B; custom inline is 48 B. |
