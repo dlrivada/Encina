@@ -93,5 +93,15 @@ public class EncinaErrorsGuardTests
         Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("message");
     }
 
+    [Fact]
+    public void Validation_NullDetails_ReturnsValidationErrorWithEmptyDetails()
+    {
+        var error = EncinaErrors.Validation("invalid", details: null);
+
+        error.GetCode().ShouldBe(Prelude.Some(EncinaErrorCodes.ValidationFailed));
+        error.GetCategory().ShouldBe(ErrorCategory.Validation);
+        error.GetDetails().ShouldBeEmpty();
+    }
+
     #endregion
 }
