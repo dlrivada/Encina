@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (89303f1e8):
+Issue #267 asks that a `[Cache]` entry past a fraction of its TTL (`EagerRefreshThreshold`, for example 0.8) is served immediately while the value is recomputed in the background, with at most one refresh per key, configuration per handler and globally, and metrics. Re-checked against `origin/main` (8727c5cc3):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -288,17 +288,17 @@ PR 3 holds exactly these 10 files:
 | 4 | `tests/Encina.UnitTests/Caching/QueryCachingEagerRefreshTests.cs` | new |
 | 5 | `tests/Encina.GuardTests/Infrastructure/Caching/QueryCachingPipelineBehaviorGuardTests.cs` | modify |
 | 6 | `tests/Encina.IntegrationTests/Infrastructure/Caching/EagerRefreshIntegrationTests.cs` | new |
-| 7 | `docs/features/query-caching.md` | modify (`docs-writer`) |
+| 7 | `docs/features/handler-caching.md` | new or modified (`docs-writer`; `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one named with the #84 documentation plan; the first family PR that needs it creates it) |
 | 8 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 9 | `changelog.d/267-cache-eager-refresh.added.md` | new (`mechanical-fixer`) |
-| 10 | `tests/Encina.UnitTests/Caching/CachePatternSettingsTests.cs` | modify (the eligibility rule for `VaryByUser`) |
+| 10 | `tests/Encina.UnitTests/Caching/CachePatternSettingsTests.cs` | modify (threshold resolution: -1 inherit, explicit 0; the `VaryByUser` eligibility rule is tested in `QueryCachingEagerRefreshTests`) |
 
 Tasks:
 
 1. **Behavior:** in the hit path, after the identity and tenant checks and after the entry is served as `found`, when the settings give a threshold above 0, the request is not `VaryByUser` (Design Choice 2) and `EagerRefreshPolicy.ShouldRefresh(_timeProvider.GetUtcNow().UtcDateTime, entry.CachedAtUtc, entry.ExpiresAtUtc, threshold)` is true, call `_refresher.TrySchedule(cacheKey, context.TenantId, refresh)`; the delegate resolves `IEncina` from the new scope's provider and calls `Send(request, refreshContext, token)` where `refreshContext` is a NEW context built for the refresh (the worker confirms the factory on `RequestContext` and uses `WithTenantId` and `WithMetadata` on that new instance only, never on the original): tenant, correlation id, causation id and metadata copied, the marker `CacheRefreshMarker.Key` set, no identity and no idempotency key (so a closed identity scope cannot make the dequeued refresh fail with `ScopeConflict`, and an idempotency behavior has nothing to deduplicate). A request implementing `IDistributedIdempotentRequest` is not eligible. A refresh-marked dispatch reports cache-write failures independently of `ThrowOnCacheErrors`: for a marker request `TryCacheResultAsync` rethrows a store failure, the worker logs it as failed (EventId 458) and never records `completed`, so a successful handler followed by a throwing cache write is a failed refresh. Tests added to this PR: a refresh dequeued after the originating identity scope closed still runs; an authentication-requiring handler yields a failed refresh and keeps the entry; a pipeline with the real idempotency behavior runs the refresh handler; a throwing cache write is counted failed. The served response is never delayed. A request that carries the marker skips the cache read, runs the miss path (handler, store with jitter) and never schedules. The entry's `ExpiresAtUtc` absent (an older build, or a sliding entry, which has no fixed lifetime) means not eligible. A null refresher means no eager refresh (direct construction, or `EnableEagerRefresh` false). **Ownership and order:** the hit path returns the whole entry since #266 PR 1 (`TryGetForCallerAsync` returns `(Found, Entry)`); this PR builds on it. Merge order of the family PRs that edit `QueryCachingPipelineBehavior`: #266 PR 1, PR 3, PR 4, then this PR 3, then #268 PR 1 and PR 2, then #271 PR 5 (the later PR rebases; the request-flow contract of #266 fixes the order of the checks: threshold, early draw, stale path).
 2. **Precedence (request-flow contract of #266):** the threshold is checked before #266's early-expiration draw; when it triggers, no early draw is made.
 3. **Tests (unit, real `MemoryCacheProvider` and a `HybridCacheProvider` built through DI):** below threshold nothing is scheduled; at the threshold the old value is served at once and one refresh runs; ten hits at the threshold schedule one refresh; the refresh stores a new entry with a reset TTL; a failing handler leaves the old entry and logs 458; `VaryByUser` never schedules; a request with the marker never schedules and always runs the handler; a missing tenant under multi-tenancy never reaches the trigger; two tenants refresh into their own keys. **Guard tests:** a null `refresher` is valid (a valid-result test, no refresh scheduled). **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`, a real `IEncina` with the caching behavior, two tenants and a handler that returns its context tenant: after the threshold, each tenant's refreshed entry holds its own tenant's value. The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares `RedisCacheProvider`, so this is their coverage; Memcached follows #277.
-4. **Docs:** `docs-writer` adds the "Eager refresh" section to `docs/features/query-caching.md` (threshold, what the refresh runs under, the `VaryByUser` exclusion, the ambient-tenant caveat), citing tests by name.
+4. **Docs:** `docs-writer` adds the "Eager refresh" section to `docs/features/handler-caching.md` (threshold, what the refresh runs under, the `VaryByUser` exclusion, the ambient-tenant caveat), citing tests by name.
 
 </details>
 
@@ -343,8 +343,8 @@ REFERENCE FILES:
 | `Patterns/CachePatternSettings.cs` | keeps 100 | 0 | 0 | 0 | Owned by #266 (target 100 set there); the new threshold branches are covered by the settings tests of PR 1 |
 | `Attributes/CacheAttribute.cs` | keeps 100 | 0 | 0 | 0 | #266 sets the first target (the manifest has none today); `EagerRefreshThreshold` is an initializer executed by the behavior and settings tests |
 | `Configuration/CachingOptions.cs` | keeps | keeps 85, raise to 90 | 0 | 0 | The two validated setters are exercised by `CachingOptionsEagerRefreshGuardTests` in PR 1 |
-| `ServiceCollectionExtensions.cs` | keeps 90 | keeps 30 | 0 | 0 | #266 sets the first target; the four copy lines and the registration branch are executed by the DI tests of PR 1 and PR 2 |
-| `Patterns/BackgroundCacheRefresher.cs` | 95 | 0 | 70 | 0 | Workers, queue and failure paths are driven with gates and a counting scope factory; the contract test of PR 2 runs the schedule, in-flight, full-queue and argument-check paths; no `InternalsVisibleTo` for the guard project |
+| `ServiceCollectionExtensions.cs` | keeps 90 | 0 | 0 | 0 | #266 sets the first target (guard 0: no guard test calls `AddEncinaCaching`); the four copy lines and the registration branch are executed by the DI tests of PR 1 and PR 2 |
+| `Patterns/BackgroundCacheRefresher.cs` | 95 | 25 | 70 | 0 | Workers, queue and failure paths are driven with gates and a counting scope factory; the contract test of PR 2 runs the schedule, in-flight, full-queue and argument-check paths; no `InternalsVisibleTo` for the guard project |
 | `Patterns/CacheRefreshMarker.cs` | 100 | 0 | 0 | 0 | Two trivial members covered by the behavior tests |
 | `Abstractions/IBackgroundCacheRefresher.cs` | 0 | 0 | 0 | 0 | An interface with no executable lines |
 | `Diagnostics/CachePatternLog.EagerRefresh.cs`, `CachePatternMetrics.EagerRefresh.cs` | 90 | 0 | 0 | 0 | Generated log bodies and counter calls run in the refresher tests |
@@ -412,7 +412,7 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 6 | 4 | New: policy, refresher interface, refresher, marker, two partial files; modified: settings, attribute, options, DI, behavior |
 | Tests | 4 | 7 | New: policy, refresher, eager-refresh and integration tests; modified: settings, options, DI, guard behavior tests |
-| Documentation | 0 | 1 | `docs/features/query-caching.md` |
+| Documentation | 0 | 1 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 3 | 2 | Three changelog fragments; the manifest and `PublicAPI.Unshipped.txt` |
 | **Total** | **13** | **14** | 3 pull requests: 13, 12 and 10 files, each at most 15 files and 1500 lines |
 
@@ -461,7 +461,7 @@ REFERENCE FILES:
 | 6 | Resilience | ✅ Include | The issue deferred refresh-failure handling; it is included here: bounded queue, keep-entry-on-failure, visible failure. |
 | 7 | Distributed Locks | ❌ N/A | With Design Choice 3 option A the in-flight set replaces the flag; option C would add the lock mode of #266. |
 | 8 | Transactions | ❌ N/A | A refresh is a read; the dispatch never calls `SaveChangesAsync` itself. |
-| 9 | Idempotency | ❌ N/A | A refresh recomputes and overwrites an idempotent cache value. |
+| 9 | Idempotency | ✅ Include | The refresh context carries no `IdempotencyKey` and a request implementing `IDistributedIdempotentRequest` is not eligible, so the idempotency behavior never deduplicates a refresh (Design Choice 2, with a pipeline-composition test). |
 | 10 | Multi-Tenancy | ✅ Include | The refresh replays the tenant and writes under that tenant's key; no tenant-less refresh exists (existing bypass); the issue's deferral to #746 covers the module dimension only. |
 | 11 | Module Isolation | ⏭️ Defer | Module-scoped refresh keys follow the module dimension of #746 (open). |
 | 12 | Audit Trail | ❌ N/A | Infrastructure with no compliance event. |
