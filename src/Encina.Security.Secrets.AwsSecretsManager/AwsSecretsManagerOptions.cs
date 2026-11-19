@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using Amazon;
 using Amazon.Runtime;
 using Amazon.SecretsManager;
@@ -50,6 +52,10 @@ public sealed class AwsSecretsManagerOptions
     /// When <c>null</c> (default), the AWS SDK default credential chain is used,
     /// which automatically discovers credentials from the environment.
     /// </value>
+    /// <remarks>
+    /// WARNING: Contains sensitive credential data. Never log or serialize.
+    /// </remarks>
+    [JsonIgnore]
     public AWSCredentials? Credentials { get; set; }
 
     /// <summary>
@@ -60,4 +66,8 @@ public sealed class AwsSecretsManagerOptions
     /// When <c>null</c> (default), the AWS SDK default configuration is used.
     /// </value>
     public AmazonSecretsManagerConfig? ClientConfig { get; set; }
+
+    /// <inheritdoc/>
+    public override string ToString() =>
+        $"AwsSecretsManagerOptions {{ Region={Region?.SystemName ?? "null"}, Credentials={(Credentials is null ? "null" : "***")} }}";
 }

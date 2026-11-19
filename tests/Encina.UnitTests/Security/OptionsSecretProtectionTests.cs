@@ -1,5 +1,8 @@
 using System.Text.Json;
 
+using Amazon;
+using Amazon.Runtime;
+
 using Encina.AzureServiceBus;
 using Encina.Cdc.Debezium;
 using Encina.Cdc.Debezium.Kafka;
@@ -9,6 +12,7 @@ using Encina.MongoDB;
 using Encina.MQTT;
 using Encina.RabbitMQ;
 using Encina.Security.AntiTampering;
+using Encina.Security.Secrets.AwsSecretsManager;
 using Encina.Sharding.Configuration;
 using Encina.Tenancy;
 
@@ -181,6 +185,22 @@ public sealed class OptionsSecretProtectionTests
         result.ShouldContain("Keys=1");
     }
 
+    [Fact]
+    public void AwsSecretsManagerOptions_ToString_ExcludesCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", SecretPassword)
+        };
+        var result = options.ToString();
+
+        result.ShouldNotContain("AKIA1234567890");
+        result.ShouldNotContain(SecretPassword);
+        result.ShouldContain("AwsSecretsManagerOptions");
+        result.ShouldContain("us-east-1");
+    }
+
     // ── JsonSerializer must NOT include [JsonIgnore] properties ──
 
     [Fact]
@@ -250,5 +270,21 @@ public sealed class OptionsSecretProtectionTests
         json.ShouldNotContain("ConnectionString");
         json.ShouldNotContain("secret-host");
         json.ShouldContain("DatabaseName"); // safe property is present
+    }
+
+    [Fact]
+    public void AwsSecretsManagerOptions_JsonSerialize_ExcludesCredentials()
+    {
+        var options = new AwsSecretsManagerOptions
+        {
+            Region = RegionEndpoint.USEast1,
+            Credentials = new BasicAWSCredentials("AKIA1234567890", SecretPassword)
+        };
+        var json = JsonSerializer.Serialize(options);
+
+        json.ShouldNotContain("Credentials");
+        json.ShouldNotContain("AKIA1234567890");
+        json.ShouldNotContain(SecretPassword);
+        json.ShouldContain("Region");
     }
 }
