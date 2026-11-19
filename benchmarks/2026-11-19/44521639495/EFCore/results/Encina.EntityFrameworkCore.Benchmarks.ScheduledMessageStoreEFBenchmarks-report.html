@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.EntityFrameworkCore.Benchmarks.ScheduledMessageStoreEFBenchmarks-20261119-131643</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.68GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  InvocationCount=1  IterationCount=3  
+LaunchCount=1  UnrollFactor=1  WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method             </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetDueMessagesAsync</td><td>1,064.48 &mu;s</td><td>194.86 &mu;s</td><td>10.681 &mu;s</td><td>1.00</td><td>349.05 KB</td><td>1.000</td>
+</tr><tr><td>AddAsync</td><td>53.51 &mu;s</td><td>142.91 &mu;s</td><td>7.833 &mu;s</td><td>0.05</td><td>3.42 KB</td><td>0.010</td>
+</tr><tr><td>RescheduleRecurringAsync</td><td>139.79 &mu;s</td><td>89.89 &mu;s</td><td>4.927 &mu;s</td><td>0.13</td><td>13.13 KB</td><td>0.038</td>
+</tr><tr><td>MarkAsFailedAsync</td><td>146.79 &mu;s</td><td>115.78 &mu;s</td><td>6.346 &mu;s</td><td>0.14</td><td>13.03 KB</td><td>0.037</td>
+</tr><tr><td>GetRecurringMessagesAsync</td><td>623.49 &mu;s</td><td>305.42 &mu;s</td><td>16.741 &mu;s</td><td>0.59</td><td>166.55 KB</td><td>0.477</td>
+</tr></tbody></table>
+</body>
+</html>
