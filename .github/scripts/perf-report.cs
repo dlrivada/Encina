@@ -612,17 +612,26 @@ static int RunSelfTest()
     Directory.CreateDirectory(dir);
     try
     {
-        static string Manifest(string ns, string docRef, string? overrideKey = null, string? overrideReason = null)
+        static string Manifest(string ns, string docRef, Dictionary<string, string>? overrides = null)
         {
-            var overridesJson = overrideKey is not null
-                ? $"\"stabilityOverrides\":{{\"{overrideKey}\":\"{overrideReason}\"}},"
+            var overridesJson = overrides is not null && overrides.Count > 0
+                ? "\"stabilityOverrides\":{" + string.Join(",", overrides.Select(kv => $"\"{kv.Key}\":\"{kv.Value}\"")) + "},"
                 : "\"stabilityOverrides\":{},";
             return "{" + overridesJson +
                    "\"classes\":[{\"name\":\"ConnectorBenchmarks\",\"fullName\":\"" + ns + ".ConnectorBenchmarks\"," +
-                   "\"methods\":[{\"name\":\"GetCurrentPositionAsync\",\"docRef\":\"" + docRef + "\"}]}]}";
+                   "\"methods\":[" +
+                   "{\"name\":\"GetCurrentPositionAsync\",\"docRef\":\"" + docRef + "\"}," +
+                   "{\"name\":\"ProcessBatchAsync\",\"docRef\":\"" + docRef + "-batch\"}" +
+                   "]}]}";
         }
 
-        File.WriteAllText(Path.Combine(dir, "A.json"), Manifest("Encina.Cdc.MySql.Benchmarks.Benchmarks", "bench:cdc-mysql/get-current-position", "ConnectorBenchmarks.GetCurrentPositionAsync", "MySQL CDC stream latency jitter"));
+        var mysqlOverrides = new Dictionary<string, string>
+        {
+            ["ConnectorBenchmarks.GetCurrentPositionAsync"] = "MySQL CDC stream latency jitter",
+            ["ConnectorBenchmarks.ProcessBatchAsync(ThreadCount=4)"] = "MySQL high thread contention",
+            ["NonExistentClass.SomeMethod"] = "stale override"
+        };
+        File.WriteAllText(Path.Combine(dir, "A.json"), Manifest("Encina.Cdc.MySql.Benchmarks.Benchmarks", "bench:cdc-mysql/get-current-position", mysqlOverrides));
         File.WriteAllText(Path.Combine(dir, "B.json"), Manifest("Encina.Cdc.SqlServer.Benchmarks.Benchmarks", "bench:cdc-sqlserver/get-current-position"));
 
         var module = new BenchmarkModule { Name = "selftest" };
@@ -635,6 +644,11 @@ static int RunSelfTest()
         foreach (var ns in namespaces)
             module.Benchmarks.Add(new BenchmarkEntry { Namespace = ns, Class = "ConnectorBenchmarks", Method = "GetCurrentPositionAsync" });
 
+        // Parameterized benchmarks: ThreadCount=4 (overridden only in MySQL), ThreadCount=1 (not overridden anywhere)
+        module.Benchmarks.Add(new BenchmarkEntry { Namespace = "Encina.Cdc.MySql.Benchmarks.Benchmarks", Class = "ConnectorBenchmarks", Method = "ProcessBatchAsync", Parameters = "ThreadCount=4" });
+        module.Benchmarks.Add(new BenchmarkEntry { Namespace = "Encina.Cdc.SqlServer.Benchmarks.Benchmarks", Class = "ConnectorBenchmarks", Method = "ProcessBatchAsync", Parameters = "ThreadCount=4" });
+        module.Benchmarks.Add(new BenchmarkEntry { Namespace = "Encina.Cdc.MySql.Benchmarks.Benchmarks", Class = "ConnectorBenchmarks", Method = "ProcessBatchAsync", Parameters = "ThreadCount=1" });
+
         var modulesDict = new SortedDictionary<string, BenchmarkModule> { ["selftest"] = module };
         InjectDocRefsFromManifests(modulesDict, dir);
         ApplyStabilityOverridesFromManifests(modulesDict, dir);
@@ -643,10 +657,21 @@ static int RunSelfTest()
         {
             "bench:cdc-mysql/get-current-position",
             "bench:cdc-sqlserver/get-current-position",
+            null,
+            "bench:cdc-mysql/get-current-position-batch",
+            "bench:cdc-sqlserver/get-current-position-batch",
+            "bench:cdc-mysql/get-current-position-batch"
+        };
+        var expectedUnstable = new bool[] { true, false, false, true, false, false };
+        var expectedReasons = new string?[]
+        {
+            "MySQL CDC stream latency jitter",
+            null,
+            null,
+            "MySQL high thread contention",
+            null,
             null
         };
-        var expectedUnstable = new bool[] { true, false, false };
-        var expectedReasons = new string?[] { "MySQL CDC stream latency jitter", null, null };
 
         var failures = 0;
         for (int i = 0; i < expectedDocRefs.Length; i++)
@@ -655,19 +680,19 @@ static int RunSelfTest()
             if (actual != expectedDocRefs[i])
             {
                 failures++;
-                Console.Error.WriteLine($"SELF-TEST FAILED: {namespaces[i]} expected docRef '{expectedDocRefs[i] ?? "<none>"}' got '{actual ?? "<none>"}'");
+                Console.Error.WriteLine($"SELF-TEST FAILED: [{i}] expected docRef '{expectedDocRefs[i] ?? "<none>"}' got '{actual ?? "<none>"}'");
             }
 
             if (module.Benchmarks[i].ExpectedUnstable != expectedUnstable[i])
             {
                 failures++;
-                Console.Error.WriteLine($"SELF-TEST FAILED: {namespaces[i]} expected ExpectedUnstable={expectedUnstable[i]} got {module.Benchmarks[i].ExpectedUnstable}");
+                Console.Error.WriteLine($"SELF-TEST FAILED: [{i}] expected ExpectedUnstable={expectedUnstable[i]} got {module.Benchmarks[i].ExpectedUnstable}");
             }
 
             if (module.Benchmarks[i].ExpectedUnstableReason != expectedReasons[i])
             {
                 failures++;
-                Console.Error.WriteLine($"SELF-TEST FAILED: {namespaces[i]} expected reason '{expectedReasons[i] ?? "<none>"}' got '{module.Benchmarks[i].ExpectedUnstableReason ?? "<none>"}'");
+                Console.Error.WriteLine($"SELF-TEST FAILED: [{i}] expected reason '{expectedReasons[i] ?? "<none>"}' got '{module.Benchmarks[i].ExpectedUnstableReason ?? "<none>"}'");
             }
         }
         Console.WriteLine(failures == 0 ? "Self-test OK." : $"{failures} self-test case(s) failed.");
@@ -728,11 +753,17 @@ static void ApplyStabilityOverridesFromManifests(
                 var reason = kv.Value?.GetValue<string>() ?? "expected-unstable";
 
                 var firstDot = kv.Key.IndexOf('.');
-                var fullKey = firstDot > 0 && classFullNameByName.TryGetValue(kv.Key[..firstDot], out var fullName)
-                    ? fullName + kv.Key[firstDot..]
-                    : kv.Key;
-
-                overrideLookup[fullKey] = reason;
+                var className = firstDot > 0 ? kv.Key[..firstDot] : kv.Key;
+                if (firstDot > 0 && classFullNameByName.TryGetValue(className, out var fullName))
+                {
+                    var fullKey = fullName + kv.Key[firstDot..];
+                    overrideLookup[fullKey] = reason;
+                }
+                else
+                {
+                    var manifestName = Path.GetFileName(file);
+                    Console.Error.WriteLine($"WARN: Manifest '{manifestName}' stabilityOverride '{kv.Key}' could not be resolved to a class in classes[]; skipping.");
+                }
             }
         }
         catch { /* skip malformed */ }
@@ -746,7 +777,6 @@ static void ApplyStabilityOverridesFromManifests(
         foreach (var b in module.Benchmarks)
         {
             // Try most specific first: FullName.Method(Parameters), then FullName.Method.
-            // Fall back to Class.Method[(Parameters)] for manifests without classes metadata.
             var prefix = string.IsNullOrEmpty(b.Namespace) ? b.Class : $"{b.Namespace}.{b.Class}";
             var keyWithParams = string.IsNullOrEmpty(b.Parameters)
                 ? null
@@ -764,26 +794,6 @@ static void ApplyStabilityOverridesFromManifests(
                 b.ExpectedUnstable = true;
                 b.ExpectedUnstableReason = reason;
                 applied++;
-            }
-            else if (!string.IsNullOrEmpty(b.Namespace))
-            {
-                var unqualifiedWithParams = string.IsNullOrEmpty(b.Parameters)
-                    ? null
-                    : $"{b.Class}.{b.Method}({b.Parameters})";
-                var unqualifiedPlain = $"{b.Class}.{b.Method}";
-
-                if (unqualifiedWithParams is not null && overrideLookup.TryGetValue(unqualifiedWithParams, out var reasonUnP))
-                {
-                    b.ExpectedUnstable = true;
-                    b.ExpectedUnstableReason = reasonUnP;
-                    applied++;
-                }
-                else if (overrideLookup.TryGetValue(unqualifiedPlain, out var reasonUn))
-                {
-                    b.ExpectedUnstable = true;
-                    b.ExpectedUnstableReason = reasonUn;
-                    applied++;
-                }
             }
         }
     }
