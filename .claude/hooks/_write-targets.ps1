@@ -117,6 +117,8 @@ function Get-LaunchArguments($Tokens, $FileToken) {
     if ($at -lt 0) { return $result }
     for ($i = $at + 1; $i -lt $Tokens.Count; $i++) {
         $t = $Tokens[$i]
+        # A background `&` (not part of `2>&1` / `*>&1`) ends this command: what follows belongs to the next one.
+        if (-not $t.Quoted -and [string]$t.Value -match '(?<!>)&') { break }
         if ($t.Quoted -or -not $t.Value.StartsWith('-') -or $t.Value.Length -lt 2) { continue }
         $name = $t.Value.Substring(1)
         $valueToken = $null
@@ -1388,7 +1390,11 @@ function Get-ShellWrites {
             if ($null -ne $fileToken) {
                 # #2892: -WorkingDirectory changes where the script's relative targets resolve; an unresolvable one leaves Base unknown.
                 $scriptBase = if ($baseUnsure) { $null } else { $current }
-                $wdToken = Get-NamedArgument $tokens ($k + 1) @('-workingdirectory', '-wd')
+                # Only the host options before the script file count: what follows is handed to the script.
+                $fileAt = $tokens.Count
+                for ($fi = 0; $fi -lt $tokens.Count; $fi++) { if ([object]::ReferenceEquals($tokens[$fi], $fileToken)) { $fileAt = $fi; break } }
+                $hostTokens = @($tokens | Select-Object -First $fileAt)
+                $wdToken = Get-NamedArgument $hostTokens ($k + 1) @('-workingdirectory', '-wd')
                 if ($null -ne $wdToken) { $scriptBase = Resolve-TargetPath $wdToken $current $Bash }
                 $scripts.Add([pscustomobject]@{ Full = (Resolve-TargetPath $fileToken $current $Bash); Raw = $fileToken.Value; Kind = 'pwsh -File'; Base = $scriptBase; LaunchArgs = (Get-LaunchArguments $tokens $fileToken) })
             }
