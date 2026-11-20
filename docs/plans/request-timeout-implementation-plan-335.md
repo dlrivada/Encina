@@ -11,7 +11,7 @@
 
 Give every request type a configurable timeout that stops the work it abandons and answers a coded `Left`: a `[Timeout]` attribute, an `IHasTimeout` interface for a per-instance value, and the options front-end, all compiled once per request type into the single resilience pipeline of [ADR-055](../architecture/adr/055-resilience-family.md) R2 and R3. The comment of 2026-10-23 on #141 and the table of ADR-055 move #335 into the design of the family: its work is in `Encina.Resilience`, and it depends on the R6 continuation token and context deadline, because without them a timed-out handler keeps running and sending.
 
-What exists today (read in `origin/main` at `098caa920`):
+What exists today (read in `origin/main` at `277402987`):
 
 - No timeout behavior: `git grep -i "TimeoutAttribute\|IHasTimeout"` over `src`, `tests` and `docs/plans` returns no match. The code `EncinaErrorCodes.Timeout = "encina.timeout"` exists (`src/Encina/Errors/EncinaErrorCodes.cs:63`); `ErrorCategory.Timeout = 11` exists (`src/Encina/Errors/ErrorCategory.cs`) and every host already maps that category to 504 (ADR-062 table; `src/Encina.AwsLambda/README.md:195`). `IErrorClassifier` already treats `encina.timeout` as transient (`src/Encina/Recoverability/IErrorClassifier.cs:174`).
 - The continuation `RequestHandlerCallback<TResponse>()` (`src/Encina/Abstractions/RequestHandlerDelegate.cs`) takes no `CancellationToken` and `IRequestContext` (`src/Encina/Abstractions/IRequestContext.cs`) has no deadline: R6 adds both and has no issue yet (the sibling plan #141 and #136 name the same gap).
@@ -106,7 +106,7 @@ R2 fixes the order "rate limiter, total timeout, retry (or hedging), circuit bre
 ### Rationale
 
 - A wins when requests have `[Retry]` or `[Hedging]`; B wins if the maintainer wants the per-attempt slot as its own later issue.
-- Both timeouts end in the same mapper (choice 6), so the error is the same; the span event carries the kind (`total` or `attempt`).
+- Both timeouts yield the same code `encina.timeout`; the detail key `encina.timeout.kind` takes the value `total` under both options and `attempt` only under A; `encina.timeout.limit_ms` is the configured limit. The constants live in `TimeoutDetailKeys` in the style of `EncinaErrorMetadataKeys`, and the span event carries the kind. Under B the value `attempt` and its row do not exist.
 
 - **Class:** Dilemma
 
@@ -175,8 +175,8 @@ Polly's timeout strategy signals expiry with `TimeoutRejectedException` inside t
 
 ### Rationale
 
-- B does not comply, so A is the only option; it holds under every option of choices 1 to 5 (the mapper is the same code wherever the pipeline lives, and the total and per-attempt timeouts share it). The per-attempt `Left` category is `Timeout`, which `IErrorClassifier` treats as transient, so the retry layer may retry an attempt that timed out (and only an idempotent command, ADR-029).
-- The error carries `EncinaErrorCodes.Timeout`, an existing code: no new code and no new ADR-062 row; the detail keys are `encina.timeout.kind` (`total` or `attempt`) and `encina.timeout.limit_ms`, constants in `TimeoutDetailKeys` in the style of `EncinaErrorMetadataKeys`. A timeout never carries `Retry-After`.
+- B does not comply, so A is the only option; it holds under every option of choices 1 to 5 and 7 to 10 (the mapper is the same code wherever the pipeline lives, and it concerns only the total timeout's rejection, the one that every option of choice 3 contains; what the retry strategy sees for a per-attempt timeout is choice 10).
+- The error carries `EncinaErrorCodes.Timeout`, an existing code: no new code and no new ADR-062 row; its detail keys (`encina.timeout.kind`, `encina.timeout.limit_ms`) and the kind values are fixed by choice 3, not here. A timeout never carries `Retry-After`.
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 (ROP, no exception for business flow); ADR-055 settled points ("every rejection is a coded `Left`", timeout `encina.timeout`); ADR-062 (category `Timeout`; rule R5 for cancellation)
 
@@ -250,6 +250,28 @@ Polly's timeout is optimistic: it cancels the token and waits for the callback t
 
 </details>
 
+<details>
+<summary><strong>10. What the retry strategy sees when a per-attempt timeout fires (applies only under choice 3 option A)</strong></summary>
+
+Inside the pipeline Polly's per-attempt timeout raises `TimeoutRejectedException`; the retry strategy is configured to react to results (`Left` classified by `IErrorClassifier`, where `encina.timeout` is transient, `IErrorClassifier.cs:174`) and classification applies only to a `Left`.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A small strategy placed directly outside the per-attempt timeout converts `TimeoutRejectedException` to the coded `Left` (category `Timeout`) inside the pipeline, so retry, breaker and hedging all see a `Left` and classification (ADR-029) decides; the total timeout is still mapped at the boundary (choice 6)** | One failure shape for every strategy; the classifier decides retryability | One more internal strategy (`TimeoutOutcomeStrategy`) in the slot order |
+| **B) The retry strategy's `ShouldHandle` also handles `TimeoutRejectedException` as transient** | No extra strategy | A second shape (exception) that every strategy after retry must handle; the classifier is bypassed for it |
+
+### Chosen Option: **A — Convert inside the pipeline** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on one failure shape and ADR-029 classification; B wins if the foundation's strategies already handle the exception and one fewer strategy is preferred. A command is retried after a timed-out attempt only when idempotent (ADR-029). Under choice 3 option B this choice does not exist.
+
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -285,7 +307,7 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina/Error
 <details>
 <summary>Tasks</summary>
 
-1. `Timeouts/TimeoutStrategyFactory.cs` (internal): implements the foundation's strategy-factory contract; for a request type with a resolved timeout it adds `AddTimeout(new TimeoutStrategyOptions { TimeoutGenerator = ... })` in the total slot and, when `Attempt` is set, in the per-attempt slot; the generator reads the request from the `ResilienceContext`, and when it implements `IHasTimeout` returns its value (choice 4), else the compiled value. Precedence: options for the type, `IHasTimeout`, attribute, default.
+1. `Timeouts/TimeoutStrategyFactory.cs` (internal; it holds the private nested strategy of choice 10 that converts a per-attempt `TimeoutRejectedException` to the coded `Left`, so no extra file is counted): implements the foundation's strategy-factory contract; for a request type with a resolved timeout it adds `AddTimeout(new TimeoutStrategyOptions { TimeoutGenerator = ... })` in the total slot and, when `Attempt` is set, in the per-attempt slot; the generator reads the request from the `ResilienceContext`, and when it implements `IHasTimeout` returns its value (choice 4), else the compiled value. Precedence: options for the type, `IHasTimeout`, attribute, default.
 2. `Timeouts/TimeoutRejectionMapper.cs` (internal): `Either<EncinaError, T> Map<T>(Exception ex, CancellationToken callerToken)`: `TimeoutRejectedException` to the coded `Left` of choice 6; `OperationCanceledException` with `callerToken.IsCancellationRequested` is left to the caller (cancellation propagates, never a `Left` of this mapper). The foundation's behavior calls the mapper through its rejection-mapper hook (assumed contract).
 3. Both internal; `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests` in `Encina.Resilience.csproj` (a foundation acceptance item; added in PR-1 only if missing, counted as a file there).
 
@@ -354,8 +376,8 @@ REFERENCE FILES: docs/architecture/adr/062-error-category-contract.md, docs/arch
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceTimeout = (950, 959)`; the core `PublicAPI.Unshipped.txt` line; the `AssemblyRanges` entry for `Encina.Resilience` in `EncinaEventIdAllocationTests.cs` (the entry exists after the foundation; this PR adds the new range name to it).
-2. `Timeouts/TimeoutLogMessages.cs`: `[LoggerMessage]` 950 `TimeoutElapsed` (Warning; request type, kind, limit ms), 951 `TimeoutDeadlineShortened` (Debug), 952 `TimeoutIgnoredBecauseCallerCancelled` (Debug), 953 `TimeoutOptionsInvalid` (Error, at startup), 954 `TimeoutInstanceValueInvalid` (Warning: `IHasTimeout` returned a non-positive value, the compiled value is used); 955 to 959 spare. No error message, no request data.
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceTimeout = (950, 959)`; the core `PublicAPI.Unshipped.txt` line; `EncinaEventIdAllocationTests.cs`: create the `Encina.Resilience` entry of `AssemblyRanges` if absent, otherwise add the range name to it (an entry for an assembly that declares no EventIds fails `AssemblyRanges_HasNoStaleEntries`, so the entry exists only once some plan registers ids). The block 950-999 stays valid after the 10000+ zone of AGENTS.md section 7 (`reserved-pre-zone` in `docs/engineering/eventid-block-registry.md`).
+2. `Diagnostics/TimeoutLogMessages.cs` (AGENTS.md section 7 places log classes in `Diagnostics/`): `[LoggerMessage]` 950 `TimeoutElapsed` (Warning; request type, kind, limit ms), 951 `TimeoutDeadlineShortened` (Debug), 952 `TimeoutIgnoredBecauseCallerCancelled` (Debug), 953 `TimeoutOptionsInvalid` (Error, at startup), 954 `TimeoutInstanceValueInvalid` (Warning: `IHasTimeout` returned a non-positive value, the compiled value is used); 955 to 959 spare. No error message, no request data.
 3. `TimeoutStrategyFactory.cs` and `TimeoutRejectionMapper.cs` (modified): emit 950 to 954; the `timeout` span event through the #728 event path.
 
 </details>
@@ -448,7 +470,7 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` (`ResilienceTimeout`) | 950-959 | New range from the block 950-999; 950-954 used, 955-959 spare; verified free by repository-wide search on `098caa920` |
+| `Encina.Resilience` (`ResilienceTimeout`) | 950-959 | New range from the block 950-999; 950-954 used, 955-959 spare; verified free by repository-wide search on `277402987` |
 
 ### Estimated File Count
 
@@ -458,17 +480,17 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | PR-2 | 14 | `TimeoutDeadlineContributor.cs`, `ResilienceServiceCollectionExtensions.cs` and the DI test (modified), the contributor test, `TimeoutLogMessages.cs`, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `TimeoutStrategyFactory.cs` and `TimeoutRejectionMapper.cs` (modified, they emit the logs), their two tests (modified, log and span-event assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
 | PR-3 | 7 | the contract test, 2 justification `.md` (load, benchmark), feature page, README section, changelog fragment, manifest row |
 
-Each PR is within 15 files and 1,500 lines. No test double changes belong to this plan (the `IRequestContext` implementers are updated by R6).
+Each PR is within 15 files and 1,500 lines (PR-1 is 15 only when the conditional `Encina.Resilience.csproj` edit is needed; the `ProjectReference` of `Encina.UnitTests`, `Encina.GuardTests` and `Encina.ContractTests` to `Encina.Resilience` and the pinned Polly version are acceptance items of the foundation, so no `Directory.Packages.props` or test-project edit belongs to this plan; if the foundation lacks the `Encina.ContractTests` reference, PR-3 adds it and stays at 8 files). No test double changes belong to this plan (the `IRequestContext` implementers are updated by R6).
 
 Per-file targets (new files; baseline: none exists on `origin/main`):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
 | `TimeoutAttribute.cs` | 90 | 0 | 0 | 0 | 0 | Property bag read by the factory tests; no parameters, so no guard test can reach it |
-| `IHasTimeout.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code; its behavior is covered through the contract test of PR-2 on the factory |
+| `IHasTimeout.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code; its behavior is covered through the contract test of PR-3 on the factory |
 | `TimeoutOptions.cs`, `TimeoutDetailKeys.cs` | 90 | 0 | 0 | 0 | 0 | Property bags and constants, read by the validator and mapper tests |
 | `TimeoutOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Internal; one test per rule through the `InternalsVisibleTo` of Phase 2 |
-| `TimeoutStrategyFactory.cs` | 90 | 0 | 80 | 0 | 0 | Every branch (total, per-attempt, instance value, precedence) with a fake clock; the contract test runs a real compiled pipeline; internal, no public parameters |
+| `TimeoutStrategyFactory.cs` | 90 (PR-1) | 0 | 80 (PR-3) | 0 | 0 | Every branch (total, per-attempt, instance value, precedence, the nested outcome strategy of choice 10) with a fake clock in PR-1; the contract row is written in the manifest of PR-3, which adds the contract test that runs a real compiled pipeline; internal, no public parameters |
 | `TimeoutRejectionMapper.cs` | 95 | 0 | 0 | 0 | 0 | Three branches (rejection, caller cancellation, other exception) driven directly |
 | `TimeoutDeadlineContributor.cs` | 90 | 0 | 0 | 0 | 0 | Set, restore on exception, not-shorter case; internal, constructor reached through DI |
 | `TimeoutLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions in PR-2 with a fake logger |
@@ -531,5 +553,5 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Erro
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #335.
-2. When #335 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7, 8 and 9).
+2. When #335 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7, 8, 9 and 10).
 3. Brief workers for PR-1 to PR-3 in order, after the foundation and R6 are merged.
