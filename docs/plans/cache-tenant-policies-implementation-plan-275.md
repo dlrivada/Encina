@@ -2,7 +2,7 @@
 
 > **Issue**: [#275](https://github.com/dlrivada/Encina/issues/275)
 > **Type**: Feature
-> **Complexity**: Medium (3 code phases, 3 pull requests of 15, 15 and 11 files)
+> **Complexity**: Medium (3 code phases, 3 pull requests of 15, 15 and 13 files)
 > **Estimated Scope**: about 800 lines of production code, about 1,700 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (89303f1e8):
+Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (e31de98cb):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -126,13 +126,13 @@ The plan implements the part that every provider can honor with the same behavio
 ### Rationale
 
 - The limit is documented as per node. Option C wins for a single shared Redis where the exact figure matters; it needs an `ICacheProvider` member for atomic increments, outside this plan.
-- The accounting table is keyed by the tenant id verbatim; the implicit single-tenant case (no multi-tenancy) uses the reserved segment `default`, and because a missing tenant under multi-tenancy bypasses before accounting, the two modes never share a table (injective). The number of tracked tenants is bounded by `MaxTrackedTenants` (default 10,000): at the bound a new tenant is not governed by a quota and the event is logged (EventId 518), never an unbounded dictionary.
+- The accounting table is keyed by the tenant id verbatim; the implicit single-tenant case (no multi-tenancy) uses the reserved segment `default`, and because a missing tenant under multi-tenancy bypasses before accounting, the two modes never share a table (injective). The number of tracked tenants is bounded by `MaxTrackedTenants` (default 10,000): at the bound a tenant that is not yet tracked is denied admission, so its requests bypass the cache (fail closed, never an ungoverned tenant), the event is logged (EventId 518), and the same bound applies to the policy resolver and the rate limiter tables; a unit test per table covers the bound. Entries of tenants already tracked keep working, and idle tenants (no live entry and no recent operation) are purged lazily so the bound frees up.
 - Class: Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Reaction to the rate limit (Dilemma D6)</strong></summary>
+<summary><strong>6. Reaction when the governor denies: rate limit and failed policy lookup (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
@@ -145,6 +145,7 @@ The plan implements the part that every provider can honor with the same behavio
 
 ### Rationale
 
+- The same reaction applies to a failed or empty policy lookup and to the `MaxTrackedTenants` bound: option A bypasses the cache for that request, option B returns the `Left`. Either way the gate denies (AGENTS.md section 3); Design Choice 8 settles only that it denies.
 - Option B wins for a multi-tenant platform whose database must be protected from a noisy tenant. A request-level limit on handlers is the job of `RateLimitAttribute` in `Encina.Polly`, not of the cache.
 - The limiter is an internal token bucket (`TenantCacheRateLimiter`: `MaxOperationsPerSecond` refill, `MaxBurstSize` capacity, `TimeProvider`, idle buckets purged lazily, bounded by `MaxTrackedTenants`); its state is per node.
 - Class: Dilemma
@@ -158,14 +159,14 @@ The plan implements the part that every provider can honor with the same behavio
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A small internal token bucket in `Encina.Caching`** | No new package reference; about 60 lines | Two rate limiters exist in the repository |
+| **A) A small internal token bucket in `Encina.Caching`** | No new package reference | Two rate limiters exist in the repository |
 | **B) Reference `Encina.Polly` and reuse `IRateLimiter`** | One implementation | `Encina.Caching` would take a Polly dependency for everyone; `IRateLimiter` is keyed by `RateLimitAttribute` configuration, not by a policy record |
 
 ### Chosen Option: **A - internal bucket**
 
 ### Rationale
 
-- **Class:** Trivial
+- **Class:** Settled
 - **Settled by:** AGENTS.md section 1 (pay-for-what-you-use); `Encina.Caching.csproj` references `Encina`, `Encina.DistributedLock` and `Encina.Messaging` and no Polly package.
 
 </details>
@@ -177,16 +178,16 @@ The plan implements the part that every provider can honor with the same behavio
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A failed or empty policy lookup (a `Left`, an exception, `Right(null)` with no default) bypasses the cache for that request and logs the code; tenant policies are off unless `CacheTenantPolicyOptions.Enabled` is set; the tenant tag is added to metrics only when multi-tenancy is on** | Missing context never grants unlimited cache; no cost when off; one telemetry convention | A lookup outage disables caching for the affected tenants until it recovers |
+| **A) A failed or empty policy lookup (a `Left`, an exception, `Right(null)` with no default) denies the cache for that request (how the denial surfaces is Design Choice 6) and logs the code; tenant policies are off unless `CacheTenantPolicyOptions.Enabled` is set; the tenant tag is added to metrics only when multi-tenancy is on** | Missing context never grants unlimited cache; no cost when off; one telemetry convention | A lookup outage denies caching for the affected tenants until it recovers |
 | **B) Fall back to unlimited caching on a failed lookup** | The cache keeps working | A tenant's missing policy becomes an unbounded quota: the gate opens when its context is missing |
 
-### Chosen Option: **A - fail closed, opt-in, ADR-054 D4**
+### Chosen Option: **A - deny on failure, opt-in, ADR-054 D4**
 
 ### Rationale
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed: when context is missing ... or a lookup fails, the gate denies"), AGENTS.md section 1 (pay-for-what-you-use) and ADR-054 D4 (the tenant is a tag when multi-tenancy is on).
-- Error codes: none are returned to callers (a lookup `Left` is logged by its code and the request continues without the cache); the provider's own `Left` codes are the application's.
+- Error codes: none are created by this plan under option A of Design Choice 6; if the maintainer answers option B there, the `Left` carries a new code `cache.tenant_policy_denied` (ADR-062 `ErrorCategory.Unavailable` for a failed lookup, `RateLimited` for the rate limit), created with `EncinaErrors.Create` and a constant message. The provider's own `Left` codes are the application's.
 
 </details>
 
@@ -311,7 +312,7 @@ KEY RULES:
 - Quota state is node-local, bounded by MaxTrackedTenants; the implicit single-tenant case uses the reserved segment default.
 - Logs carry redacted keys and error codes only; the tenant tag appears only with multi-tenancy on (ADR-054 D4).
 - Keep QueryCachingPipelineBehavior.Handle at CRAP 10 or below: extract the hooks into private methods.
-- Follow the maintainer's answers to Design Choices 1, 4 and 5, given in your brief.
+- Follow the maintainer's answers to Design Choices 1, 5 and 6, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs
@@ -391,6 +392,7 @@ REFERENCE FILES:
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Tenancy/CacheTenantPolicy.cs` | 100 | 0 | 0 | 0 | Validation branches are unit tested; the records have no method with a validated parameter, so there is no guard surface |
+| `Encina.Caching/Tenancy/ITenantCacheGovernor.cs` (interface and the public `TenantCacheDecision` result type) | 100 | 0 | 0 | 0 | The decision type is a readonly record struct built by the governor and covered by its tests; it has no validated parameter, so there is no guard surface (a default value is a valid "deny" decision, covered by a valid-result test) |
 | `Encina.Caching/Tenancy/CacheTenantPolicyOptions.cs` | 100 | 85 | 0 | 0 | Property setters with null guards, covered by unit and guard tests |
 | `Encina.Caching/Tenancy/TenantCachePolicyResolver.cs`, `ConfiguredTenantCachePolicyProvider.cs` | 95 | 0 | 0 | 0 | Internal types: no `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Tenancy/TenantCacheUsageTracker.cs`, `TenantCacheRateLimiter.cs` | 100 | 0 | 0 | 0 | Pure logic with `FakeTimeProvider`; internal |
@@ -400,7 +402,7 @@ REFERENCE FILES:
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`, `ServiceCollectionExtensions.cs`, `Configuration/CachingOptions.cs`, `Attributes/CacheAttribute.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; new branches are tested in the same PRs |
 
    The worker measures every flag per PR with `coverage-report.cs`; no target is lowered (`target-ratchet`).
-4. **Property, load, benchmark:** no property test (the token bucket and the tracker are covered by a unit grid); no load test (state is node-local and lock-free per tenant; a load test of the governor is a follow-up inside `Encina.LoadTests`); no benchmark in these PRs (the governor adds one dictionary lookup per governed request).
+4. **Property, load, benchmark:** no property test (the token bucket and the tracker are covered by a unit grid); no load test in these PRs: admission takes a per-tenant lock on the request path, so contention under high concurrency for one tenant is a named risk, tracked by `artifacts/issues/cache-tenant-governor-load-test.md` (a load test of the governor in `Encina.LoadTests`); no benchmark in these PRs (the governor adds one dictionary lookup per governed request).
 
 </details>
 
@@ -432,7 +434,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation with `<example>` on every public type; the remarks state that limits are per node, that direct `ICacheProvider` use is not governed and that `[Cache(VaryByTenant = false)]` entries are global.
-2. `docs-writer`: a "Multi-tenant policies" section in `docs/features/query-caching.md` with SaaS tier patterns (the issue's documentation criterion), citing tests by name and no typed figure.
+2. `docs-writer`: a "Multi-tenant policies" section in `docs/features/handler-caching.md` (the handler-caching page owned by the #266 family; `query-caching.md` is the EF Core page and is not touched) with SaaS tier patterns (the issue's documentation criterion), citing tests by name and no typed figure.
 3. `PublicAPI.Unshipped.txt` lines are written by `mechanical-fixer` per PR; no ROADMAP, INVENTORY or ADR change (ADR number assigned when the ADR pull request opens, if the maintainer asks for one).
 4. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests` and, for PR 3, `Encina.IntegrationTests` (Redis); per-flag coverage and the CRAP table of changed methods.
 
@@ -446,14 +448,14 @@ CONTEXT:
 All code PRs are merged. Documentation remains.
 
 TASK:
-Confirm the XML docs and the three changelog fragments; ask docs-writer for the query-caching.md section.
+Confirm the XML docs and the three changelog fragments; ask docs-writer for the handler-caching.md section.
 
 KEY RULES:
 - No hand-typed figures; cite tests by name.
 - Fragment section is added; never edit CHANGELOG.md.
 
 REFERENCE FILES:
-- docs/features/query-caching.md
+- docs/features/handler-caching.md
 - changelog.d/README.md
 ```
 
@@ -497,9 +499,9 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 10 | 6 | New: policy types, provider, options, resolver, tracker, governor, limiter, log, metrics partial; modified: options, DI, behavior, attribute, `EventIdRanges.cs`, PublicAPI |
 | Tests | 8 | 5 | Unit (6), guard (1), integration (1); modified: options, DI, allocation test, behavior tests |
-| Documentation | 0 | 1 | `docs/features/query-caching.md` |
+| Documentation | 0 | 1 | `docs/features/handler-caching.md` |
 | Configuration | 3 | 3 | Three changelog fragments; manifest edited in each PR |
-| **Total** | **21** | **15** | 3 pull requests of 15, 15 and 11 files, each at most 15 files and 1500 lines |
+| **Total** | **21** | **15** | 3 pull requests of 15, 15 and 13 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -516,7 +518,7 @@ no tenant. All 8 cache providers behave the same because everything lives at the
 
 IMPLEMENTATION OVERVIEW:
 1. PR 1: CacheTenantPolicy, ITenantCachePolicyProvider, options, resolver, DI (off by default).
-2. PR 2: usage tracker, governor, policy duration, entry quota, metrics, EventIds 514-519 range.
+2. PR 2: usage tracker, governor, entry quota, metrics, governor registration, EventIds 514-519 range. PR 3 adds the policy duration with the rate limiter.
 3. PR 3: TenantCacheRateLimiter and the Redis integration test.
 
 KEY PATTERNS:
