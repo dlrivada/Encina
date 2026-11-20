@@ -67,7 +67,7 @@ public sealed class HttpResponseDataIntegrationTests
     }
 
     [Fact]
-    public async Task ToHttpResponseData_ForACommandWithoutAHandler_ReturnsNotFound()
+    public async Task ToHttpResponseData_ForACommandWithoutAHandler_ReturnsInternalServerError()
     {
         // Arrange
         await using var provider = CreateServiceProvider();
@@ -79,7 +79,7 @@ public sealed class HttpResponseDataIntegrationTests
         var response = await (await encina.Send(new UnhandledCommand())).ToHttpResponseData(request);
 
         // Assert
-        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.NotFound);
+        response.StatusCode.ShouldBe(System.Net.HttpStatusCode.InternalServerError);
         using var body = JsonDocument.Parse(((TestHttpResponseData)response).ReadBody());
         body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
             .ShouldBe(global::Encina.EncinaErrorCodes.RequestHandlerMissing);

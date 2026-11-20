@@ -57,7 +57,7 @@ internal sealed class PostProcessorStep<TRequest, TResponse>(IRequestPostProcess
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "postprocessor"
             };
-            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, message, ex, metadata));
+            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PostProcessorCancelled, ErrorCategory.Cancelled, message, ex, metadata));
         }
         // Pure ROP: any other exception is a bug in the processor and propagates (fail-fast)
     }

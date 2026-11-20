@@ -287,7 +287,7 @@
       },
       "justifications": {
         "unit": "Unit tests run the healthy and unhealthy paths (measured 95%).",
-        "guard": "No guard test executes this class yet; its constructor null checks are asserted by unit tests."
+        "guard": "Guard tests assert the constructor null check (4.76% measured); the CheckHealthAsync health outcomes are executed by the unit flag."
       }
     },
     "MartenAuditErrors.cs": {
@@ -347,11 +347,11 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 40,
-        "guard": 0
+        "guard": 25
       },
       "justifications": {
         "unit": "Unit tests run the purge cycle with a mocked store (measured 42%); the timer loop needs a running host.",
-        "guard": "The existing guard tests use reflection and execute no package code."
+        "guard": "Guard tests run the four constructor null checks and the valid construction (28.57% measured); the purge cycle is partly covered by the unit flag and the timer loop needs a running host."
       }
     },
     "MartenOperationAuditStore.cs": {
@@ -469,12 +469,12 @@
       "reason": "Default: assume testable with mocks",
       "targets": {
         "unit": 95,
-        "guard": 0,
+        "guard": 100,
         "integration": 100
       },
       "justifications": {
         "unit": "Unit tests run the registration of every projection.",
-        "guard": "No guard test executes this class; its null checks are asserted by unit tests.",
+        "guard": "Guard tests execute the constructor and Configure null checks and a full Configure on a real StoreOptions (100% measured); no code is left for another flag.",
         "integration": "Every integration test builds a store through this configuration, including the fail-closed error policy (measured 100%)."
       }
     },
