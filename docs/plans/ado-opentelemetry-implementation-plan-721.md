@@ -4,13 +4,13 @@
 > **Type**: Feature (observability)
 > **Related**: ADR-054 (D3 names, D4 tenant tag, D6 database stores at Encina operation level and never `db.query.text`), ADR-062, #722 (Dapper, same mechanism, uses this plan's shared pieces), #2676 (shared tenant tag helper), #1787 (every source and meter subscribed), #1790 (dead and duplicate sources), #1788 (error text in spans), #906 (observability guide, owns the cardinality note), #177 (messaging attribute constants)
 > **Complexity**: Medium (the decorators already exist; the work is provider identity, store metrics and proof on real databases)
-> **Estimated Scope**: ~330 lines of production code + ~900 lines of tests, in four pull requests of at most 15 files each
+> **Estimated Scope**: ~330 lines of production code + ~900 lines of tests, in five pull requests of at most 15 files each
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `098caa920`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - No ADO.NET package emits telemetry: a search of `src/Encina.ADO.SqlServer`, `src/Encina.ADO.PostgreSQL` and `src/Encina.ADO.MySQL` for `new ActivitySource(` and `new Meter(` finds nothing. `Encina.ADO.Sqlite` does not exist in `src` (SQLite is outside the provider matrix, ADR-024), so the issue's "4 providers" are 3.
 - The tracing the issue asks for already exists, provider-agnostic. `AddEncinaOpenTelemetry` (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`) calls `DecorateService` eight times: `IUnitOfWork`, `IOutboxStore`, `IInboxStore`, `ISagaStore`, `IScheduledMessageStore`, `IDeadLetterStore`, `IOperationAuditStore` and `ICacheProvider`. Each `Instrumented*Store` (internal sealed, folder `MessagingStores/`) owns an `ActivitySource` (`Encina.Messaging.Outbox`, `.Inbox`, `.Saga`, `.Scheduling`, `.DeadLetter`), guards every span with `HasListeners()`, marks an error with the `EncinaError` code only (`ActivityStatusDescriptions.ForError`) and passes the count queries through. The ADO, Dapper, EF Core and MongoDB stores all implement those interfaces, so an ADO store is traced when the decorator is applied.
@@ -267,16 +267,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Saga, Scheduled, Dead Letter and Unit of Work (pull request S2)
+### Phase 3: Saga, Scheduled, Dead Letter (pull request S2) and Unit of Work (pull request S2b)
 
-> **Goal**: the remaining decorators follow the same pattern, and a contract test proves they emit the same instruments and keys.
+> **Goal**: the remaining decorators follow the same pattern, and a contract test proves they emit the same instruments and keys. The unit of work is its own small pull request (S2b) so that S2 stays within 15 files.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `InstrumentedSagaStore.cs`, `InstrumentedScheduledMessageStore.cs`, `InstrumentedDeadLetterStore.cs` (same constructor and calls as Phase 2) and `UnitOfWork/InstrumentedUnitOfWork.cs` (only the provider tags on its spans: `UnitOfWorkMetrics` already measures it, so no new instrument and no double count), and their registrations.
-2. Tests: edit the four matching unit tests and the four guard tests; **create** `tests/Encina.ContractTests/Infrastructure/OpenTelemetry/StoreTelemetryContractTests.cs` (for each of the five message stores, the same operation produces the same instrument names, the same tag keys and `encina.store.type` value set; a provider-coherence check that the eight provider names map to the documented identities).
-3. `.github/coverage-manifest/Encina.OpenTelemetry.json` through `mechanical-fixer`.
+1. S2: **Modify** `InstrumentedSagaStore.cs`, `InstrumentedScheduledMessageStore.cs` and `InstrumentedDeadLetterStore.cs` (same constructor and calls as Phase 2) and their three registrations in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` (that file is counted in S2).
+2. S2 tests: edit the three matching unit tests, the three matching guard tests (`InstrumentedSagaStoreGuardTests.cs`, `InstrumentedScheduledMessageStoreGuardTests.cs`, `InstrumentedDeadLetterStoreGuardTests.cs`, all existing) and `ServiceCollectionExtensionsTests.cs` (DI test with `ValidateOnBuild` and `ValidateScopes` for the three stores); **create** `tests/Encina.ContractTests/Infrastructure/OpenTelemetry/StoreTelemetryContractTests.cs` (for each of the five message stores, the same operation produces the same instrument names, the same tag keys and `encina.store.type` value set; a provider-coherence check that the eight provider names map to the documented identities, including a cross-access case: the same operation on an ADO identity and a Dapper identity differs only in `encina.db.access` and the system value; #722 relies on this test and adds no coherence test of its own).
+3. S2b: **Modify** `UnitOfWork/InstrumentedUnitOfWork.cs` (constructor `(IUnitOfWork inner, DatabaseIdentity? identity = null)` with a new `ArgumentNullException.ThrowIfNull(inner)`; only the provider tags on its spans: `UnitOfWorkMetrics` already measures it, so no new instrument and no double count) and its registration in `ServiceCollectionExtensions.cs`. Tests: edit `InstrumentedUnitOfWorkTests.cs` and `ServiceCollectionExtensionsTests.cs`; **create** `tests/Encina.GuardTests/Infrastructure/OpenTelemetry/InstrumentedUnitOfWorkGuardTests.cs` (it does not exist on main; the constructor gains an optional parameter, so a `null` identity is a valid-result test).
+4. `.github/coverage-manifest/Encina.OpenTelemetry.json` through `mechanical-fixer`, in S2 and again in S2b.
 
 </details>
 
@@ -290,7 +291,8 @@ DatabaseIdentity, outbox and inbox decorators done).
 
 TASK:
 1. Apply the phase 2 pattern to InstrumentedSagaStore, InstrumentedScheduledMessageStore and InstrumentedDeadLetterStore.
-2. In InstrumentedUnitOfWork add only db.system.name and encina.db.access to the existing spans; no new instrument.
+2. In InstrumentedUnitOfWork (separate pull request S2b) add only db.system.name and encina.db.access to the existing spans;
+   no new instrument; create its guard test file (it does not exist yet).
 3. Add the contract test and update the unit and guard tests.
 
 KEY RULES:
@@ -411,12 +413,13 @@ Every count includes tests, manifest, PublicAPI and the changelog fragment; each
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1 | Phases 1-2: shared telemetry, outbox and inbox | 2 | 3 | 2 | 5 | 1 | 1 (changelog) | 14 | ~700 |
-| S2 | Phase 3: saga, scheduled, dead letter, unit of work | 0 | 4 | 1 | 8 | 1 | 0 | 14 | ~650 |
+| S2 | Phase 3: saga, scheduled, dead letter (the three stores and `ServiceCollectionExtensions.cs`) | 0 | 4 | 1 (contract) | 7 (3 unit, 3 guard, DI test) | 1 | 0 | 13 | ~550 |
+| S2b | Phase 3: unit of work | 0 | 2 (decorator, `ServiceCollectionExtensions.cs`) | 1 (guard) | 2 (unit, DI test) | 1 | 0 | 6 | ~200 |
 | S3 | Phase 4: tenant tag (after #2676) | 0 | 1 | 0 | 1 | 0 | 1 (changelog) | 3 | ~80 |
 | S4 | Phase 5: proof on SqlServer, PostgreSQL, MySQL | 0 | 0 | 3 | 0 | 1 | 1 (README) | 5 | ~420 |
-| **Total** | | **2** | **8** | **6** | **14** | **3** | **3** | **36** | **~1,850** |
+| **Total** | | **2** | **10** | **7** | **15** | **4** | **3** | **41** | **~1,950** |
 
-Columns sum: 2 + 8 + 6 + 14 + 3 + 3 = 36 = 14 + 14 + 3 + 5. Test doubles: no interface changes, so no fake changes; the `new Instrumented*Store(inner)` call sites in tests (counted with grep before each PR) keep compiling because the new parameters are optional and trailing.
+Columns sum: 2 + 10 + 7 + 15 + 4 + 3 = 41 = 14 + 13 + 6 + 3 + 5. The integration test project already references `Encina.OpenTelemetry`, so S4 needs no csproj edit. Test doubles: no interface changes, so no fake changes; the `new Instrumented*Store(inner)` call sites in tests (counted with grep before each PR) keep compiling because the new parameters are optional and trailing.
 
 Per-file coverage targets (per flag, one sentence each; none lowers an existing target):
 
@@ -429,7 +432,7 @@ Per-file coverage targets (per flag, one sentence each; none lowers an existing 
 | `MessagingStores/InstrumentedSagaStore.cs` (existing 76, 73) | 80 | 75 | 0 | 0 | 0 | Same pattern; the rest is the no-listener fast path |
 | `MessagingStores/InstrumentedScheduledMessageStore.cs` (existing 76, 71) | 80 | 73 | 0 | 0 | 0 | Same pattern |
 | `MessagingStores/InstrumentedDeadLetterStore.cs` (existing 95, 8) | 95 | 8 | 0 | 0 | 0 | Targets stay: the existing guard target is low because the file is mostly delegation and the added lines are unit-driven |
-| `UnitOfWork/InstrumentedUnitOfWork.cs` (existing 90 unit, 0 integration) | 90 | 0 | 0 | 0 | 0 | Only two tags are added to existing spans; targets stay |
+| `UnitOfWork/InstrumentedUnitOfWork.cs` (existing 90 unit, 0 integration) | 90 | 50 | 0 | 0 | 0 | Only two tags are added to existing spans; the unit target stays; the new guard test file (S2b) runs the constructor with a `null` identity as a valid result and adds the inner check (`ArgumentNullException.ThrowIfNull(inner)`, absent today) with its exception test, so a guard target of 50 is realistic |
 | `ServiceCollectionExtensions.cs` (existing 90, 35) | 90 | 35 | 0 | 0 | 0 | The new overload is driven by the DI tests; targets stay |
 
 ---
@@ -440,7 +443,7 @@ Per-file coverage targets (per flag, one sentence each; none lowers an existing 
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-You are implementing issue #721 - OpenTelemetry for the ADO.NET store providers - in four small pull requests.
+You are implementing issue #721 - OpenTelemetry for the ADO.NET store providers - in five small pull requests (S1, S2, S2b, S3, S4).
 
 PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library; pre-1.0, no compatibility layers; edit source only with the Edit/Write tools; manifests,
@@ -452,7 +455,7 @@ IMPLEMENTATION OVERVIEW:
 1. S1: DatabaseIdentity and StoreTelemetry (internal), a DecorateService overload with the IServiceProvider, the meter
    "Encina.Messaging" subscribed in WithEncina, outbox and inbox decorators record encina.store.operations and
    encina.store.operation.duration with db.system.name and encina.db.access.
-2. S2: the same for saga, scheduled, dead letter; provider tags on the unit of work spans; a contract test across the five stores.
+2. S2: the same for saga, scheduled, dead letter and a contract test across the five stores; S2b: provider tags on the unit of work spans.
 3. S3 (after #2676): the tenant tag through the shared helper.
 4. S4: integration tests for ADO SqlServer, PostgreSQL and MySQL with the shared collection fixtures.
 
@@ -513,6 +516,6 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #721 and ask the maintainer to answer Design Choices 1 to 5 and register row C6 when work starts.
-2. Implement S1, S2 and S4; S3 after #2676. Pull request order inside the family: this plan first, then #722.
+2. Implement S1, S2, S2b and S4; S3 after #2676. Pull request order inside the family: this plan first, then #722.
 3. Follow-up issue files written in `artifacts/issues/` of the planning worktree, to open with this plan: `db-system-attribute-spelling` (the three legacy `db.system` sites), `repository-bulk-instrumentation-wiring` (Design Choice 5), `otel-decoration-order` (register row C6).
 4. Maintainer action: amend the acceptance criteria of #721 that name SQLite, `db.operation` and a separate error counter to the outcome of Design Choices 3 and 4 (this plan never comments on an issue).
