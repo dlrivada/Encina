@@ -2,15 +2,15 @@
 
 > **Issue**: [#382](https://github.com/dlrivada/Encina/issues/382)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 6 pull requests of 15, 14, 12, 15, 14 and 7 files)
+> **Complexity**: Medium (8 phases, 7 pull requests of 15, 15, 13, 15, 6, 14 and 8 files)
 > **Estimated Scope**: ~900 lines of production code + ~2,300 lines of tests
-> **Family**: Aspire (aspire-2): #424, #425, #387, #391. Related and merged on `main`: #607 (`Encina.ServiceDiscovery`: `IServiceDiscoveryProvider`, `IServiceRegistry`, selector, cache, health check, Consul, Eureka, Kubernetes DNS, Aspire providers), #416/#417/#440 (Aspire packages). The closed duplicate #453 was carried into this issue (load balancing strategies, `SendToService`). **This plan owns the new `Encina.Configuration` and `Encina.Configuration.Consul` packages, the registration lifecycle folder of `Encina.ServiceDiscovery` and the EventId ranges 865-877.**
+> **Family**: Aspire (aspire-2): #424, #425, #387, #391. Related, with their plans merged on `main` (no code of them is on `main` yet): #607 (`Encina.ServiceDiscovery`: `IServiceDiscoveryProvider`, `IServiceRegistry`, selector, cache, health check, Consul, Eureka, Kubernetes DNS, Aspire providers), #416/#417/#440 (Aspire packages). The closed duplicate #453 was carried into this issue (load balancing strategies, `SendToService`). **This plan owns the new `Encina.Configuration` and `Encina.Configuration.Consul` packages, the registration lifecycle folder of `Encina.ServiceDiscovery` and the EventId ranges 865-877.**
 
 ---
 
 ## Summary
 
-The issue asks for a service-discovery abstraction (`IServiceDiscovery`), provider packages (Consul, Kubernetes, Aspire), a configuration abstraction (`IConfigurationProvider`), client-side load balancing, health check integration and automatic registration on startup. State of `origin/main` (`098caa920`), verified by reading and grep:
+The issue asks for a service-discovery abstraction (`IServiceDiscovery`), provider packages (Consul, Kubernetes, Aspire), a configuration abstraction (`IConfigurationProvider`), client-side load balancing, health check integration and automatic registration on startup. State of `origin/main` (`1dd3cab4c`), verified by reading and grep:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -112,48 +112,47 @@ A wins when most deployments are Aspire or Kubernetes with mounted configuration
 
 ### Rationale
 
-A wins when an unregistered instance is useless or harmful (clients cannot find it) and the orchestrator restarts a failed start; B wins for services that must stay up for their own work during a registry outage. Under both, an invalid address is rejected before any call (`EndpointValidator.ValidateHost`: link-local, metadata and unspecified hosts have no opt-out; loopback only with `AllowLocalEndpoints`), the instance id is generated, never taken from a request, and no instance id is logged. A cancellation of the stop token ends deregistration and is neither a `Left` nor an error.
+A wins when an unregistered instance is useless or harmful (clients cannot find it) and the orchestrator restarts a failed start; B wins for services that must stay up for their own work during a registry outage. Under both, an invalid address is rejected before any call (`EndpointValidator.ValidateHost`: link-local, metadata and unspecified hosts have no opt-out; loopback only with `AllowLocalEndpoints`), the instance id is never taken from a request and no instance id is logged. The id is `ServiceRegistrationOptions.InstanceId` when set (a stable id, so a restarted instance replaces its own registration) and otherwise `{service}-{random}` generated at start; with a generated id a crashed instance leaves a stale registration until the registry's own health check removes it (for Consul, the check's `DeregisterCriticalServiceAfter` of #607's `HealthCheckConfig`), which the README states. A cancellation of the stop token ends deregistration and is neither a `Left` nor an error.
 
 **Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>5. `SendToService` and further load balancing strategies (Dilemma D5)</strong></summary>
+<summary><strong>5. `SendToService` (acceptance bullet carried from #453, Dilemma D5)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Not delivered here: an issue file for `SendToService` once a remote invocation protocol exists (it needs a defined wire format, endpoint mapping and authentication, a decision the transports and #1233 own); other strategies (`Random`, `LeastConnections`, `Weighted`) are `IEndpointSelector` implementations that #607's contract already allows** | The plan stays on what can be built correctly now | Two acceptance bullets carried from #453 stay open as issues |
+| **A) Not delivered here: an issue file for `SendToService` once a remote invocation protocol exists (it needs a defined wire format, endpoint mapping and authentication, a decision the transports and #1233 own)** | The plan stays on what can be built correctly now | The acceptance bullet carried from #453 stays open as an issue |
 | **B) A thin `SendToService` over `Encina.Refit`'s `IRestApiRequest` after resolving an endpoint** | Delivers the bullet | Invents a protocol: a request is sent by HTTP to a peer that has no matching endpoint in Encina today |
-| **C) Add the strategies to #607's selector in this plan** | Delivers the bullet | Edits #607's package from a plan about configuration |
 
-### Chosen Option: **A — record and open issues** (recommended, pending the maintainer)
+### Chosen Option: **A — record and open an issue** (recommended, pending the maintainer)
 
 ### Rationale
 
-A wins because both bullets belong to other owners (the transports and #1233 for the protocol, #607 for the selector) and building them here would duplicate or pre-empt them; B wins if the maintainer wants a convenience method before the protocol exists; C if one plan should own all strategies. The issue files of this run carry `SendToService` and the extra strategies.
+A wins because the bullet belongs to other owners (the transports and #1233 for the protocol) and building it here would pre-empt them; B wins if the maintainer wants a convenience method before the protocol exists. The issue file of this run carries `SendToService`; the balancing strategies are Design Choice 10.
 
 **Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>6. Results and errors of the configuration contract</strong></summary>
+<summary><strong>6. Error handling rules of every operation</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ValueTask<Either<EncinaError, T>>` for `GetAsync<T>` (a missing key is a `Left` with category `NotFound`); `IAsyncEnumerable<Either<EncinaError, ConfigurationChange<T>>>` for `WatchAsync<T>`; every code is created with `EncinaErrors.Create(code, category: ErrorCategory.X, message: <constant text>)`; cancellation ends the enumeration or propagates `OperationCanceledException`, never a `Left`** | Failure is explicit and categorized; the same shape as #607 | Callers unwrap an `Either` |
-| **B) `Option<T>` for a missing key and exceptions for failures** | A missing key is not an error | Exceptions for business flow break AGENTS.md section 3 |
+| **A) Operations return `Either<EncinaError, T>` rather than throwing for business outcomes; every error is created with `EncinaErrors.Create(code, category: ErrorCategory.X, message: <constant text>)`, one category per code; messages are constant text with no key, value or address; cancellation propagates `OperationCanceledException` (or ends an enumeration) and is never a `Left`** | Failure is explicit and categorized; the completeness scan passes | Callers unwrap an `Either` |
+| **B) Exceptions for failures and `null` for a missing key** | Plain call sites | Exceptions for business flow break AGENTS.md section 3 |
 
 ### Chosen Option: **A — `Either` with named categories**
 
 ### Rationale
 
-AGENTS.md section 3 (ROP) and ADR-062 fix the shape; the codes are `encina.configuration.not_found` (`ErrorCategory.NotFound`), `encina.configuration.invalid_key` (`ErrorCategory.Validation`), `encina.configuration.invalid_value` (`ErrorCategory.Validation`: the stored text cannot be bound to `T`), `encina.configuration.provider_failed` (`ErrorCategory.UpstreamFailure`), and for the lifecycle `encina.servicediscovery.registration_invalid_address` (`ErrorCategory.Validation`) and `encina.servicediscovery.registration_requires_registry` (`ErrorCategory.FailedPrecondition`). A code has one category (the completeness scan fails otherwise); messages are constant text with no key, value or address in them.
+AGENTS.md section 3 (ROP, `EncinaError.Message` rule) and ADR-062 (a named category per code, one category per code) fix these rules. The concrete result shapes (a missing key as `Left` or as an empty `Right`, the watch element type) and the code list are not settled by them and are Design Choice 8.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 3 (Railway Oriented Programming, `EncinaError.Message` rule); ADR-001; ADR-062 (error category contract)
@@ -167,17 +166,77 @@ AGENTS.md section 3 (ROP) and ADR-062 fix the shape; the codes are `encina.confi
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Keys are validated (non-blank, at most 512 characters, no control characters, no `..` segment); values are bound with `System.Text.Json`; a value never appears in a log, tag or `EncinaError.Message`; the Consul options carry a token that is `[JsonIgnore]` with a `ToString()` override; the Consul address goes through `EndpointValidator`** | A configuration value can hold a secret and must not leak; the token cannot be printed | Operators of secrets use the secrets providers of `Encina.Security.Secrets`, not this feature |
-| **B) No validation, values logged for diagnostics** | Easier debugging | A value read from a store can be a connection string or a key |
+| **A) A configuration value never appears in a log, tag or `EncinaError.Message`; the Consul options carry a token that is `[JsonIgnore]` with a `ToString()` override; the Consul address goes through `EndpointValidator` (the token travels in plain text over `http`, so `AllowInsecureHttp` is for loopback agents only, and the README says so)** | A configuration value can hold a secret and must not leak; the token cannot be printed | Operators of secrets use the secrets providers of `Encina.Security.Secrets`, not this feature |
+| **B) Values logged for diagnostics** | Easier debugging | A value read from a store can be a connection string or a key |
 
-### Chosen Option: **A — validate keys, never log values, hide the token**
+### Chosen Option: **A — never log values, hide the token, validate the address**
 
 ### Rationale
 
-AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an options class with a token, and forbids `EncinaError.Message` in logs; Consul tokens are credentials, and values may carry secrets.
+AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an options class with a token, and forbids `EncinaError.Message` in logs; Consul tokens are credentials, and values may carry secrets. The key syntax and the value binding are not settled by these rules; they are Design Choice 9.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 3 (options with a token or key; `EncinaError.Message` never reaches logs); `src/Encina/Validation/EndpointPolicy.cs` (link-local, metadata and unspecified hosts have no opt-out)
+
+</details>
+
+<details>
+<summary><strong>8. Result shapes and error codes of the configuration contract (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `GetAsync<T>` returns `ValueTask<Either<EncinaError, T>>` and a missing key is a `Left` with category `NotFound` (`encina.configuration.not_found`); `WatchAsync<T>` yields `Either<EncinaError, ConfigurationChange<T>>`; the other codes are `encina.configuration.invalid_key` (`ErrorCategory.Validation`), `encina.configuration.invalid_value` (`ErrorCategory.Validation`: the stored text cannot be bound to `T`), `encina.configuration.provider_failed` (`ErrorCategory.UpstreamFailure`)** | A missing key is explicit; the watch can report a backend failure | Callers handle a `Left` for an ordinary absent key |
+| **B) `Either<EncinaError, Option<T>>`, a missing key is `Right(None)`** | A missing key is not an error (as ADR-052 treats contention) | One more wrapper at every call site |
+
+### Chosen Option: **A — a missing key is `NotFound`** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when callers treat a missing key as a configuration mistake to surface; B wins when optional keys are common and a missing key is normal. The element shape of `WatchAsync` follows the one #607 recommends for its watch (its Design Choice 12 is a pending Dilemma); this plan does not rely on that answer: whichever #607 picks, the configuration contract is decided here, and only the shared helper types would be aligned afterwards. The lifecycle codes `encina.servicediscovery.registration_invalid_address` (`ErrorCategory.Validation`) and `encina.servicediscovery.registration_requires_registry` (`ErrorCategory.FailedPrecondition`) belong to Design Choice 4's behavior and change with it.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Key syntax, value binding and defaults (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Keys: non-blank, at most 512 characters, no control characters, no `..` segment; values bound with `System.Text.Json`; Consul `WatchWaitTime` default 5 minutes (the documented default of Consul blocking queries) and `KeyPrefix` optional** | One JSON model for every backend, the same as the message serializers; keys cannot traverse | A JSON model for plain strings is slightly verbose |
+| **B) Values bound with `Microsoft.Extensions.Configuration.Binder` for the `IConfiguration` adapter and JSON for Consul** | Native binding for the adapter | Two binding models behind one interface |
+
+### Chosen Option: **A — one JSON binding and the key rules above** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when a value read through any backend must bind the same way; B wins when the adapter should bind `IConfiguration` sections natively. The limits (512, no `..`) are this plan's, not a repository rule, and are validated at the contract boundary.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Further endpoint selection strategies (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Not delivered here: `Random`, `LeastConnections` and `Weighted` are `IEndpointSelector` implementations in #607's contract, requested as an issue file** | The selector contract has one owner | The carried acceptance bullet of #453 stays open as an issue |
+| **B) Add them to #607's selector from this plan** | Delivers the bullet | Edits another plan's package from a configuration plan |
+
+### Chosen Option: **A — an issue file** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because #607 owns the selector and its tests; B wins if one plan should own every strategy. `SendToService` is Design Choice 5, so each carried bullet has its own entry.
+
+**Class:** Dilemma
 
 </details>
 
@@ -193,7 +252,7 @@ AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an o
 <summary>Tasks</summary>
 
 1. `src/Encina.Configuration/Encina.Configuration.csproj` (`PackageId`, XML docs, `Microsoft.Extensions.Configuration.Abstractions` reference, `InternalsVisibleTo` for the unit, guard and contract test projects, PublicAPI analyzer), `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, the entry in `Encina.slnx`.
-2. `IEncinaConfigurationProvider.cs` (`GetAsync<T>(string key, CancellationToken)` and `WatchAsync<T>(string key, CancellationToken)`; Design Choice 6), `ConfigurationChange.cs` (record `ConfigurationChange<T>(string Key, T? Value, ConfigurationChangeType Type, DateTimeOffset ObservedAtUtc)`), `ConfigurationChangeType.cs` (`Added`, `Updated`, `Removed`).
+2. `IEncinaConfigurationProvider.cs` (`GetAsync<T>(string key, CancellationToken)` and `WatchAsync<T>(string key, CancellationToken)`; Design Choice 6), `ConfigurationChange.cs` (record `ConfigurationChange<T>(string Key, T? Value, ConfigurationChangeType Type, DateTimeOffset ObservedAtUtc)` and, in the same file, the enum `ConfigurationChangeType` with `Added`, `Updated`, `Removed`; one file, as the split table counts it).
 3. `ConfigurationErrors.cs` (internal static): the four codes of Design Choice 6 with their categories (named `category:` argument, constant messages); `ConfigurationKey.cs` (internal static): `Validate(string?)`.
 4. `InMemoryConfigurationProvider.cs`: a dictionary of JSON strings, `SetAsync`/`RemoveAsync` for tests, change streams through `System.Threading.Channels` per watcher; time from `TimeProvider`.
 5. Tests: unit (get, missing key, invalid key, invalid value, watch of add, update and remove, cancellation ends the stream and is not an error), guard (null and blank arguments of the public members; a nullable `TimeProvider` accepted), manifest entries and PublicAPI through `mechanical-fixer`; the project references of `Encina.UnitTests`, `Encina.GuardTests` and `Encina.ContractTests`.
@@ -205,7 +264,7 @@ AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an o
 
 ```text
 CONTEXT:
-- Issue #382; plan docs/plans/service-configuration-implementation-plan-382.md. D1 to D5 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #382; plan docs/plans/service-configuration-implementation-plan-382.md. D1 to D5 and D8 to D10 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - #607's package Encina.ServiceDiscovery is the sibling for the Either watch shape.
 
 TASK:
@@ -235,7 +294,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `ConfigurationBackedProvider.cs`: reads `IConfiguration` (a section or a flat key), binds with `System.Text.Json` over the key's text or subtree, and watches with `IConfiguration.GetReloadToken()` (re-registering after each signal); on a signal it compares the previous and new text per watched key and yields one change when it differs.
-2. `EncinaConfigurationOptions.cs` (`KeyPrefix` `string?`, validated) and `ServiceCollectionExtensions.AddEncinaConfiguration(this IServiceCollection, Action<EncinaConfigurationOptions>? = null)`: registers the options with validation on start, `TimeProvider` with `TryAdd`, the provider with `TryAddSingleton<IEncinaConfigurationProvider, ConfigurationBackedProvider>` (a satellite provider registered before wins, as the satellite DI rule says).
+2. `EncinaConfigurationOptions.cs` (`KeyPrefix` `string?`, validated) and `ServiceCollectionExtensions.AddEncinaConfiguration(this IServiceCollection, Action<EncinaConfigurationOptions>? = null)`: registers the options with validation on start, `TimeProvider` with `TryAdd`, the provider with `TryAddSingleton<IEncinaConfigurationProvider, ConfigurationBackedProvider>`, so an application's own registration or a backend registered earlier is kept. A backend registered **after** it (Phase 4) must also win: see the any-order rule of Phase 4.
 3. `Diagnostics/ConfigurationLog.cs` (`[LoggerMessage]`): 865 watch ended after a failure (Warning: exception through `ForLogging()`), 866 value could not be bound (Warning: the code only), 867 reload signal handled (Debug: changed key count). `EventIdRanges.ConfigurationCore = (865, 869)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI lines; ids 865-867 are packed, 868-869 spare.
 4. Tests: unit (a reload with one changed key yields one change, a reload with none yields none), guard, a DI test with `ValidateOnBuild` and `ValidateScopes`, a contract suite `IEncinaConfigurationProviderContractTests` that runs against the in-memory and the backed provider; manifests and PublicAPI through `mechanical-fixer`.
 
@@ -275,8 +334,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `src/Encina.Configuration.Consul/Encina.Configuration.Consul.csproj`, PublicAPI files, the `Encina.slnx` entry, the project references of the test projects. The `Consul` client package is the one #607 pins in `Directory.Packages.props` (#607 pull request 5a); if this pull request lands first it pins the same package and version, and #607 reuses it.
-2. `ConsulConfigurationOptions.cs`: `Address` (validated with `EndpointValidator` and `EndpointPolicy.ForHttps(allowInsecureHttp, allowLocalEndpoints)`, a local Consul agent is loopback so `AllowLocalEndpoints` is explicit), `Token` (`[JsonIgnore]`, `ToString()` override printing no value), `Datacenter`, `KeyPrefix`, `WatchWaitTime` (default 5 minutes, the Consul blocking-query wait), `ProviderHealthCheck`.
-3. `ConsulConfigurationOptionsValidator.cs` (internal): the endpoint and ranges; a warning once when `AllowLocalEndpoints` is set, as the NATS validator does.
+2. `ConsulConfigurationOptions.cs`: `Address` (validated with `EndpointValidator` and `EndpointPolicy.ForHttps(allowInsecureHttp, allowLocalEndpoints)`, a local Consul agent is loopback so `AllowLocalEndpoints` is explicit), `Token` (`[JsonIgnore]`, `ToString()` override printing no value), `Datacenter`, `KeyPrefix`, `WatchWaitTime` (default 5 minutes, Design Choice 9), `AllowLocalEndpoints` and `AllowInsecureHttp` (both false by default; the token travels in plain text over `http`, so the insecure flag is for loopback agents only), `ProviderHealthCheck`.
+3. `ConsulConfigurationOptionsValidator.cs` (internal): the endpoint and ranges. It emits no warning for `AllowLocalEndpoints` (the NATS validator's warning has its own EventId, and this package has none to spare for a validator that lands before its log class).
 4. Tests: options and validator unit tests, guard tests; the shared `ConsulFixture` and collection of #607 are reused.
 
 </details>
@@ -313,11 +372,11 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `ConsulConfigurationProvider.cs`: `GetAsync<T>` reads one key (404 is `not_found`); `WatchAsync<T>` runs blocking queries with the index and yields one `Either` per observed change; a request failure after the resilience pipeline is `provider_failed` (`ErrorCategory.UpstreamFailure`); the pipeline is the one #607 uses for Consul (timeout and retry from `Microsoft.Extensions.Http.Resilience`/Polly, already pinned), so the retry never turns a cancellation into a `Left`.
-2. `ConsulConfigurationHealthCheck.cs` (`IEncinaHealthCheck`; `DefaultName` const, `Tags` static array, as the other provider checks) probing the agent leader endpoint; registered when `ProviderHealthCheck.Enabled`.
-3. `ServiceCollectionExtensions.AddEncinaConfigurationConsul(this IServiceCollection, Action<ConsulConfigurationOptions>?)`: registers options, validator, the Consul client factory and the provider with `TryAddSingleton` called before `AddEncinaConfiguration` (a database or remote provider wins over the `IConfiguration` default in any order).
+1. `ConsulConfigurationProvider.cs`: `GetAsync<T>` reads one key (404 is `not_found`); `WatchAsync<T>` runs blocking queries with the index and yields one `Either` per observed change; a request failure after the resilience pipeline is `provider_failed` (`ErrorCategory.UpstreamFailure`); plain reads (`GetAsync<T>`) use the same Consul pipeline as #607 (timeout and retry from `Microsoft.Extensions.Http.Resilience`/Polly, already pinned); **blocking queries use their own pipeline** whose total timeout is `WatchWaitTime` plus a fixed margin (30 seconds) and whose retry applies only to connection failures, because the standard resilience handler's attempt and total timeouts (about 10 and 30 seconds) are far below a 5 minute wait and would turn every long poll into a failure. A wait that ends with an unchanged index (HTTP 200, same `X-Consul-Index`) is "no change": the loop issues the next query and yields nothing; only a transport failure or an error status is a `Left` (`provider_failed`). The retry never turns a cancellation into a `Left`.
+2. (pull request 4b) `ConsulConfigurationHealthCheck.cs` (`IEncinaHealthCheck`; `DefaultName` const, `Tags` static array, as the other provider checks) probing the agent leader endpoint; registered when `ProviderHealthCheck.Enabled`. It emits no log; failures are its result's code.
+3. `ServiceCollectionExtensions.AddEncinaConfigurationConsul(this IServiceCollection, Action<ConsulConfigurationOptions>?)`: registers options, validator and the Consul client factory, and makes the Consul provider win **in any registration order without overriding the application's own registration**: `AddEncinaConfiguration` registers its default with a marker (`ConfigurationDefaultMarker`, an internal singleton) and the Consul registration replaces the `IEncinaConfigurationProvider` descriptor only when that descriptor is the one carrying the marker (the default), and adds its own when none exists; an application's explicit registration is never replaced. Both orders (`AddEncinaConfiguration` then `AddEncinaConfigurationConsul`, and the reverse) and the application-registered case are proven by a DI test with `ValidateOnBuild` and `ValidateScopes`.
 4. `Diagnostics/ConsulConfigurationLog.cs`: 870 watch request failed (Warning), 871 request failed after the pipeline (Error), 872 blocking query index reset (Debug). `EventIdRanges.ConfigurationConsul = (870, 873)` registered first; ids 870-872 packed, 873 spare; the allocation test map and the `Encina` PublicAPI lines.
-5. Tests: unit (a fake Consul HTTP handler), guard, DI, the contract suite of Phase 2 run against this provider, an integration test on the `ConsulFixture` collection (`[Collection("Consul")]`, `[Trait("Category", "Integration")]`); manifests and PublicAPI through `mechanical-fixer`.
+5. Tests: unit (a fake Consul HTTP handler, with the blocking-query cases: unchanged index, changed index, failure, cancellation), guard, DI (three registration orders), the contract suite of Phase 2 run against this provider, an integration test on the `ConsulFixture` collection (`[Collection("Consul")]`, `[Trait("Category", "Integration")]`); manifests and PublicAPI through `mechanical-fixer`.
 
 </details>
 
@@ -354,7 +413,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.ServiceDiscovery/Registration/ServiceRegistrationOptions.cs`: `Enabled` (false), `ServiceName`, `Address`, `Port`, `Metadata` (read-only copy), `HealthCheck` (the `HealthCheckConfig` of #607), `AllowLocalEndpoints` (false); validated on start; `InstanceId` is generated (`{service}-{random}` with a GUID segment), never configured.
+1. `src/Encina.ServiceDiscovery/Registration/ServiceRegistrationOptions.cs`: `Enabled` (false), `ServiceName`, `Address`, `Port`, `Metadata` (read-only copy), `HealthCheck` (the `HealthCheckConfig` of #607), `AllowLocalEndpoints` (false), `InstanceId` (`string?`, null generates `{service}-{guid}` at start); validated on start.
 2. `ServiceRegistrationHostedService.cs` (internal sealed): `StartAsync` validates the address with `EndpointValidator.ValidateHost`, requires an `IServiceRegistry` (`registration_requires_registry`, `ErrorCategory.FailedPrecondition`), registers through it; a `Left` makes `StartAsync` throw `InvalidOperationException` with the code only (Design Choice 4 option A); `StopAsync` deregisters, logs and never throws on a `Left`; the stop token's cancellation is neither logged as an error nor turned into a `Left`.
 3. `ServiceCollectionExtensions.AddEncinaServiceRegistration(this IServiceCollection, Action<ServiceRegistrationOptions>)`: registers the options and `AddHostedService`; registering without a configure action is not allowed (the service name is required), so the parameter is not nullable.
 4. `Registration/Diagnostics/ServiceRegistrationLog.cs`: 874 registered (Information: service name), 875 registration failed (Error: error code), 876 deregistered (Information), 877 deregistration failed (Warning: error code); no instance id and no address in any message. `EventIdRanges.ServiceDiscoveryRegistration = (874, 877)` registered first (the assembly `Encina.ServiceDiscovery` then maps to two ranges, the other being #607's 7340-7343), the allocation map, the `Encina` PublicAPI lines.
@@ -442,9 +501,10 @@ REFERENCE FILES:
    | `ConfigurationBackedProvider.cs` (2) | 92 | 85 | 90 | 0 | 0 | Real `ConfigurationBuilder` with in-memory sources and reload; the contract suite runs it |
    | `EncinaConfigurationOptions.cs`, `ServiceCollectionExtensions.cs` (2) | 95 | 90 | 0 | 0 | 0 | Validation and DI test with `ValidateOnBuild` |
    | `ConfigurationLog.cs` (2) | 90 | 0 | 0 | 0 | 0 | Generated methods called by the provider tests |
+   | `EventIdRanges.cs` (2, 4, 5, edits) | existing kept | 0 | 0 | 0 | 0 | One new field per pull request, read by the allocation architecture test; no target is lowered |
    | `ConsulConfigurationOptions.cs`, validator (3) | 95 | 90 | 0 | 0 | 0 | Every rule and the token hiding asserted |
    | `ConsulConfigurationProvider.cs` (4) | 90 | 85 | 90 | 0 | 70 | A fake HTTP handler for the branches; the contract suite and a Consul container for the real path |
-   | `ConsulConfigurationHealthCheck.cs` (4) | 95 | 85 | 0 | 0 | 0 | Healthy, unhealthy and exception branches |
+   | `ConsulConfigurationHealthCheck.cs` (4b) | 95 | 85 | 0 | 0 | 0 | Healthy, unhealthy and exception branches |
    | `ServiceRegistrationOptions.cs`, `ServiceRegistrationHostedService.cs` (5) | 92 | 85 | 0 | 0 | 60 | Fake registry for every branch; the integration case needs the Consul registry of #607 |
    | `ServiceRegistrationLog.cs`, `ConsulConfigurationLog.cs` (4, 5) | 90 | 0 | 0 | 0 | 0 | Generated methods called by the provider and hosted service tests |
 
@@ -515,13 +575,14 @@ REFERENCE FILES:
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
 | 1 | Project file, two PublicAPI files, `Encina.slnx` edit, contract interface, `ConfigurationChange` (with the type enum), `ConfigurationErrors`, `ConfigurationKey`, `InMemoryConfigurationProvider`, manifest, test project references (one csproj edit each for Unit, Guard, Contract), unit and guard test files | 15 | 1,200 |
-| 2 | Backed provider, options, extension class, `ConfigurationLog`, `EventIdRanges.cs` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, Configuration PublicAPI edit and manifest edit, unit, guard, DI and contract-suite test files | 14 | 1,200 |
+| 2 | Backed provider, options, extension class, `ConfigurationLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (registered-ranges row and the split of the reserved 850-899 row), `Encina` PublicAPI, `Encina.json`, allocation map edit, Configuration PublicAPI edit and manifest edit, unit, guard, DI and contract-suite test files | 15 | 1,250 |
 | 3 | Consul project file, two PublicAPI files, `Encina.slnx` edit, options, validator, manifest, test project references (Unit, Guard, Integration csproj edits), options and validator unit tests, guard test | 13 | 800 |
-| 4 | Provider, health check, extension class, `ConsulConfigurationLog`, `EventIdRanges.cs` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, Consul PublicAPI edit and manifest edit, unit, guard and DI tests, contract-suite edit, integration test | 15 | 1,300 |
-| 5 | `ServiceRegistrationOptions`, hosted service, extension class, `ServiceRegistrationLog`, `EventIdRanges.cs` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, ServiceDiscovery PublicAPI edit and manifest edit, unit, guard and DI tests | 13 | 1,000 |
+| 4 | `ConsulConfigurationProvider`, extension class, `ConsulConfigurationLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, Consul PublicAPI edit, Consul manifest edit, provider unit test file, guard test, DI test (three registration orders), contract-suite edit, integration test | 15 | 1,250 |
+| 4b | `ConsulConfigurationHealthCheck`, extension class edit (registration), Consul PublicAPI edit, Consul manifest edit, health check unit test, guard test edit | 6 | 350 |
+| 5 | `ServiceRegistrationOptions`, hosted service, extension class, `ServiceRegistrationLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, ServiceDiscovery PublicAPI edit and manifest edit, unit, guard and DI tests | 14 | 1,050 |
 | 6 | Three READMEs (two new, one section), guide page, inventory lines, changelog fragment, two justification files | 8 | 420 |
 
-PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the `Consul` pin and fixture of #607 pull request 5a (or pins the same version first); PR 4 needs PR 2 and PR 3; PR 5 needs #607 pull requests 1a, 1b and 2a; PR 6 is last. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when briefed is split again; PRs 1 and 4 are the closest to the limit.
+PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the `Consul` pin and fixture of #607 pull request 5a (or pins the same version first); PR 4 needs PR 2 and PR 3; PR 4b needs PR 4; PR 5 needs #607 pull requests 1a, 1b and 2a, and 5c (the Consul registry the integration case of the hosted service runs against); PR 6 is last. All of #607 is a plan on `main`, not code: every "#607 pull request" above means its code pull request. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when briefed is split again; PR 1 is exactly at 15 files, counted by name (the `ConfigurationChange` enum lives in the same file). Pull requests 2, 4 and 5 each register an EventId range and therefore also edit `docs/engineering/eventid-block-registry.md` (a "Registered ranges" row for `ConfigurationCore`, `ConfigurationConsul` and `ServiceDiscoveryRegistration` respectively, and the split of the reserved 850-899 row so it does not overlap): `EventIdRegistryAgreementTests` fails otherwise; PRs 2 and 4 are therefore exactly at 15 files.
 
 ---
 
@@ -566,7 +627,7 @@ PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the 
 | Public API and manifests | 10 | Three packages' PublicAPI and manifests, `Encina` PublicAPI, `Encina.json` |
 | Tests and project files | 16 | Unit, guard, DI, contract, integration, csproj references, allocation map |
 | Documentation | 8 | Three READMEs, guide, inventory, fragment, two justification files |
-| **Total** | **by the split table: 15 + 14 + 13 + 15 + 13 + 8 = 78 file touches over 6 pull requests** | The split table is the authority |
+| **Total** | **by the split table: 15 + 15 + 13 + 15 + 6 + 14 + 8 = 86 file touches over 7 pull requests** | The split table is the authority |
 
 ---
 
@@ -578,7 +639,7 @@ PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the 
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #382: configuration management and the registration lifecycle; discovery itself is #607. Plan: docs/plans/service-configuration-implementation-plan-382.md; D1 to D5 are recommended, pending the maintainer.
+- Issue #382: configuration management and the registration lifecycle; discovery itself is #607. Plan: docs/plans/service-configuration-implementation-plan-382.md; D1 to D5 and D8 to D10 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (6 pull requests, each builds alone):
 1. Encina.Configuration: contract, models, errors, in-memory provider (Phase 1).
@@ -614,7 +675,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ⏭️ | Deferred: configuration reads need no span now; discovery tracing is #607's `Encina.ServiceDiscovery` source; a watch span is a follow-up named in the pull request when measured need appears (an issue is opened if the maintainer wants it earlier) |
 | 3 | Structured Logging | ✅ | Phases 2, 4, 5: EventIds 865-867, 870-872, 874-877 |
 | 4 | Health Checks | ✅ | Phase 4: `ConsulConfigurationHealthCheck`; the registry health is #607's |
-| 5 | Validation | ✅ | Keys, options, addresses (Design Choice 7) |
+| 5 | Validation | ✅ | Keys, options, addresses (Design Choices 7 and 9) |
 | 6 | Resilience | ✅ | Phase 4: the Consul pipeline (timeout, retry) shared with #607 |
 | 7 | Distributed Locks | ❌ | Not applicable: leader election was deferred by the issue itself; registration is per instance |
 | 8 | Transactions | ❌ | Not applicable: no transactional state |
@@ -635,5 +696,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D3, D4 and D5 when work on #382 starts, together with #607's Design Choices 1 and 3; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D3, D4, D5, D8, D9 and D10 when work on #382 starts, together with #607's Design Choices 1 and 3; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull requests 1 and 2 first (independent of #607); pull request 3 after #607 5a; pull request 4; pull request 5 after #607 2a; pull request 6 last.
