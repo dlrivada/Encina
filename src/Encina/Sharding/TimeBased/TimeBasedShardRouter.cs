@@ -221,13 +221,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
 
         foreach (var entry in _sortedEntries)
         {
-            var startsWithPrefix = entry.Range.StartKey.StartsWith(prefix, StringComparison.Ordinal);
-            var prefixInRange = StringComparer.Ordinal.Compare(prefix, entry.Range.StartKey) >= 0
-                && (entry.Range.EndKey is null || StringComparer.Ordinal.Compare(prefix, entry.Range.EndKey) < 0);
-            var endOverlaps = entry.Range.EndKey is not null
-                && entry.Range.EndKey.StartsWith(prefix, StringComparison.Ordinal);
-
-            if (startsWithPrefix || prefixInRange || endOverlaps)
+            if (OverlapsPrefix(entry.Range, prefix))
             {
                 matchingShards.Add(entry.Range.ShardId);
             }
@@ -242,6 +236,17 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         }
 
         return Either<EncinaError, IReadOnlyList<string>>.Right(matchingShards);
+    }
+
+    private static bool OverlapsPrefix(ShardRange range, string prefix)
+    {
+        var startsWithPrefix = range.StartKey.StartsWith(prefix, StringComparison.Ordinal);
+        var prefixInRange = StringComparer.Ordinal.Compare(prefix, range.StartKey) >= 0
+            && (range.EndKey is null || StringComparer.Ordinal.Compare(prefix, range.EndKey) < 0);
+        var endOverlaps = range.EndKey is not null
+            && range.EndKey.StartsWith(prefix, StringComparison.Ordinal);
+
+        return startsWithPrefix || prefixInRange || endOverlaps;
     }
 
     /// <inheritdoc />

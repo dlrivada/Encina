@@ -132,16 +132,7 @@ public sealed class RangeShardRouter : IShardRouter
 
         foreach (var range in _sortedRanges)
         {
-            // A range overlaps with the prefix if:
-            // - The range's start key begins with the prefix, OR
-            // - The prefix falls within the range [StartKey, EndKey)
-            var startsWithPrefix = range.StartKey.StartsWith(prefix, StringComparison.Ordinal);
-            var prefixInRange = _comparer.Compare(prefix, range.StartKey) >= 0
-                && (range.EndKey is null || _comparer.Compare(prefix, range.EndKey) < 0);
-            var endOverlaps = range.EndKey is not null
-                && range.EndKey.StartsWith(prefix, StringComparison.Ordinal);
-
-            if (startsWithPrefix || prefixInRange || endOverlaps)
+            if (OverlapsPrefix(range, prefix))
             {
                 matchingShards.Add(range.ShardId);
             }
@@ -156,6 +147,21 @@ public sealed class RangeShardRouter : IShardRouter
         }
 
         return Either<EncinaError, IReadOnlyList<string>>.Right(matchingShards);
+    }
+
+    // A range overlaps with the prefix if:
+    // - The range's start key begins with the prefix, OR
+    // - The prefix falls within the range [StartKey, EndKey), OR
+    // - The range's end key begins with the prefix
+    private bool OverlapsPrefix(ShardRange range, string prefix)
+    {
+        var startsWithPrefix = range.StartKey.StartsWith(prefix, StringComparison.Ordinal);
+        var prefixInRange = _comparer.Compare(prefix, range.StartKey) >= 0
+            && (range.EndKey is null || _comparer.Compare(prefix, range.EndKey) < 0);
+        var endOverlaps = range.EndKey is not null
+            && range.EndKey.StartsWith(prefix, StringComparison.Ordinal);
+
+        return startsWithPrefix || prefixInRange || endOverlaps;
     }
 
     /// <summary>
