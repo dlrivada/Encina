@@ -1,0 +1,22 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+```
+| Method                                  | Mean       | Error      | StdDev    | Ratio | RatioSD | Gen0    | Gen1   | Allocated | Alloc Ratio |
+|---------------------------------------- |-----------:|-----------:|----------:|------:|--------:|--------:|-------:|----------:|------------:|
+| Stream_SmallDataset_10Items             |   9.594 μs |  2.1587 μs | 0.1183 μs |  1.00 |    0.02 |  0.7629 |      - |   12864 B |        1.00 |
+| Stream_MediumDataset_100Items           |  64.921 μs | 41.0060 μs | 2.2477 μs |  6.77 |    0.22 |  5.1270 |      - |   87025 B |        6.77 |
+| Stream_LargeDataset_1000Items           | 602.654 μs | 86.3488 μs | 4.7331 μs | 62.82 |    0.80 | 48.8281 |      - |  828636 B |       64.42 |
+| Stream_WithPipelineBehaviors            |  51.085 μs |  6.9505 μs | 0.3810 μs |  5.33 |    0.07 |  3.0518 |      - |   51553 B |        4.01 |
+| Stream_MaterializeToList_100Items       |  68.220 μs |  6.8811 μs | 0.3772 μs |  7.11 |    0.08 |  5.7373 |      - |   96841 B |        7.53 |
+| Stream_CountOnly_NoMaterialization      |  64.885 μs | 16.9525 μs | 0.9292 μs |  6.76 |    0.11 |  5.1270 |      - |   87025 B |        6.77 |
+| Stream_WithCancellation_EarlyExit       |  96.186 μs |  6.8752 μs | 0.3769 μs | 10.03 |    0.11 |  6.1035 | 0.1221 |  102801 B |        7.99 |
+| Stream_DirectHandlerInvocation_NoEncina |   3.384 μs |  0.5017 μs | 0.0275 μs |  0.35 |    0.00 |  0.0229 |      - |     400 B |        0.03 |
