@@ -21,7 +21,7 @@ internal static class EncinaNotificationGuards
                 ["handleMethod"] = method.Name,
                 ["parameterCount"] = parameters.Length
             };
-            failure = EncinaErrors.FromException(EncinaErrorCodes.NotificationInvokeException, exception, $"Error invoking {handlerType.Name}.Handle.", metadata);
+            failure = EncinaErrors.FromException(EncinaErrorCodes.NotificationInvokeException, ErrorCategory.Internal, exception, $"Error invoking {handlerType.Name}.Handle.", metadata);
             return false;
         }
 
@@ -37,7 +37,7 @@ internal static class EncinaNotificationGuards
                 ["expectedReturnType"] = expectedReturnType.FullName,
                 ["actualReturnType"] = method.ReturnType.FullName
             };
-            failure = EncinaErrors.Create(EncinaErrorCodes.NotificationInvalidReturn, message, details: metadata);
+            failure = EncinaErrors.Create(EncinaErrorCodes.NotificationInvalidReturn, ErrorCategory.Internal, message, details: metadata);
             return false;
         }
 

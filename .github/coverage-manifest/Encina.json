@@ -805,10 +805,10 @@
       ],
       "defaultRule": "*Factory.cs",
       "reason": "RunRestoredAsync validation and Internal/External rules (unit), guards, restored-identity contract",
-      "targets": { "unit": 95, "guard": 0, "contract": 70 },
+      "targets": { "unit": 95, "guard": 70, "contract": 70 },
       "justifications": {
         "unit": "Every validation branch and the Internal/External rules have unit tests (measured 100%).",
-        "guard": "The two null guards sit in the member body shared with the main file's guard run; the measured share is 3%, so no target is set.",
+        "guard": "Guard tests cover the null guards, the undefined-source refusal and an anonymous restore (measured 72.41%); the user and service identity construction and external-source rules are left uncovered and are covered by the unit and contract flags.",
         "contract": "The contract restores a user and refuses a reserved subject (measured 78%)."
       }
     },
@@ -1209,7 +1209,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 80, "contract": 65 },
+      "justifications": {
+        "unit": "Metric recording and the Cancelled/Internal error mapping of the behavior are driven by the unit tests (measured 100%).",
+        "guard": "Guard tests reach the argument checks (measured 85.7%-100%).",
+        "contract": "Contract tests dispatch through the behavior; the target mirrors the sibling command activity behavior's contract target and has not been measured locally."
+      }
     },
     "Pipeline/Behaviors/QueryActivityPipelineBehavior.cs": {
       "defaultTests": [
@@ -1233,7 +1239,13 @@
         "contract"
       ],
       "defaultRule": "*PipelineBehavior.cs",
-      "reason": "Mediator pipeline with mockeable next delegate"
+      "reason": "Mediator pipeline with mockeable next delegate",
+      "targets": { "unit": 95, "guard": 80, "contract": 65 },
+      "justifications": {
+        "unit": "Metric recording and the Cancelled/Internal error mapping of the behavior are driven by the unit tests (measured 100%).",
+        "guard": "Guard tests reach the argument checks (measured 85.7%-100%).",
+        "contract": "Contract tests dispatch through the behavior; the target mirrors the sibling query activity behavior's contract target and has not been measured locally."
+      }
     },
     "Pipeline/EncinaBehaviorGuards.cs": {
       "defaultTests": [
@@ -1241,7 +1253,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "Every guard branch is driven through the real pipeline producers (measured 100%).",
+        "guard": "The guard methods are reached through the pipeline behaviors exercised by the guard tests (measured 100%)."
+      }
     },
     "Pipeline/EncinaNotificationGuards.cs": {
       "defaultTests": [
@@ -1249,7 +1266,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 0 },
+      "justifications": {
+        "unit": "Every notification guard branch is driven by the unit tests (measured 100%).",
+        "guard": "The guard tests do not reach this internal static guard, it is exercised through Publish in the unit tests (measured 0%)."
+      }
     },
     "Pipeline/EncinaRequestGuards.cs": {
       "defaultTests": [
@@ -1257,7 +1279,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 95 },
+      "justifications": {
+        "unit": "Every guard branch is driven through the real pipeline producers (measured 100%).",
+        "guard": "Guard tests drive the guard methods directly (measured 100%)."
+      }
     },
     "Pipeline/Ordering/IEncinaPipelineInspector.cs": {
       "defaultTests": [],
@@ -1813,10 +1840,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 70, "guard": 0 },
+      "targets": { "unit": 70, "guard": 20 },
       "justifications": {
         "unit": "Routing and the instrumentation of each shard lookup are driven by the unit tests (measured 81.08%).",
-        "guard": "Guard tests do not reach the internal decorator; its constructor guards are unit tested."
+        "guard": "Guard tests cover the constructor guards of both decorators (measured 20.27%); the routing, tracing and metrics paths are left uncovered and are covered by the unit flag."
       }
     },
     "Sharding/Diagnostics/ShardedDatabasePoolMetrics.cs": {
