@@ -327,7 +327,7 @@ internal static class EventIdBlockRegistry
         "ComplianceProcessorAgreements", "ComplianceAIAct", "ComplianceAttestation", "SecurityBreakTheGlass",
     };
 
-    private static readonly string[] RegisteredHeader =["Name", "Block", "Area", "Zone"];
+    private static readonly string[] RegisteredHeader = ["Name", "Block", "Area", "Zone"];
     private static readonly string[] BlocksHeader = ["Block", "Area", "Owner", "Status"];
     private static readonly string[] Statuses = ["registered", "reserved", "reserved-pre-zone", "superseded", "free"];
 
