@@ -57,14 +57,14 @@ public sealed class QueryMetricsPipelineBehavior<TQuery, TResponse>(IEncinaMetri
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             _metrics.TrackFailure(requestKind, requestName, elapsed, "cancelled");
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex)); // NOSONAR S6966: LanguageExt Left is a pure function
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, ErrorCategory.Cancelled, $"Behavior {GetType().Name} cancelled the {typeof(TQuery).Name} request.", ex)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         catch (Exception ex)
         {
             var elapsed = Stopwatch.GetElapsedTime(startedAt);
             var reason = ex.GetType().Name;
             _metrics.TrackFailure(requestKind, requestName, elapsed, reason);
-            var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
+            var error = EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ErrorCategory.Internal, ex, $"Error running {GetType().Name} for {typeof(TQuery).Name}.");
             return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
         }
 

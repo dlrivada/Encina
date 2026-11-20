@@ -53,7 +53,7 @@ internal sealed class PreProcessorStep<TRequest, TResponse>(IRequestPreProcessor
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "preprocessor"
             };
-            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PreProcessorCancelled, message, ex, metadata));
+            return Either<EncinaError, Unit>.Left(EncinaErrors.Create(EncinaErrorCodes.PreProcessorCancelled, ErrorCategory.Cancelled, message, ex, metadata));
         }
         // Pure ROP: any other exception is a bug in the processor and propagates (fail-fast)
     }
