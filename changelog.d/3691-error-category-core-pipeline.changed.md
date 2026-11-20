@@ -1,0 +1,2 @@
+- Every error the core pipeline produces now declares an `ErrorCategory`; `encina.request.handler_missing` now answers `Internal` (HTTP 500) instead of `NotFound` (HTTP 404).
+- The nine `*.cancelled` pipeline codes (handler, behavior x5, pre/post/post-commit processor) now answer `Cancelled` (HTTP 499) instead of 500, including `PostCommitProcessorCancelled` per ADR-062 R5.
