@@ -81,7 +81,7 @@ public sealed class BreakTheGlassAuthorizerAndGateContractTests
     [Fact]
     public async Task Authorizer_OpenAsServiceIdentity_RefusesAsNotEligible()
     {
-        var result = await Authorizer().AuthorizeOpenAsync(TestIdentity.Service("worker"), Scope);
+        var result = await Authorizer().AuthorizeOpenAsync(TestIdentity.Service("worker", roles: ["clinician"]), Scope);
 
         CodeOf(result).ShouldBe(BreakTheGlassErrors.NotEligible().GetCode().IfNone(string.Empty));
     }
