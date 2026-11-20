@@ -163,7 +163,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "handler"
             };
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.HandlerCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.HandlerCancelled, ErrorCategory.Cancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         // Any other exception (e.g., NullReferenceException, InvalidOperationException) indicates
         // a bug in the handler and will propagate to let the application crash (fail-fast)
@@ -189,7 +189,7 @@ internal sealed class PipelineBuilder<TRequest, TResponse> : IPipelineBuilder<TR
                 ["request"] = typeof(TRequest).FullName,
                 ["stage"] = "behavior"
             };
-            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
+            return Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, ErrorCategory.Cancelled, message, ex, metadata)); // NOSONAR S6966: LanguageExt Left is a pure function
         }
         // Pure ROP: Any other exception indicates a bug in the behavior and will propagate (fail-fast)
     }

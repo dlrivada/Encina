@@ -11,25 +11,45 @@ public class MartenOperationAuditRetentionServiceGuardTests
     private static readonly IServiceProvider ServiceProvider = Substitute.For<IServiceProvider>();
     private static readonly IOptions<MartenOperationAuditOptions> Options = Microsoft.Extensions.Options.Options.Create(new MartenOperationAuditOptions());
     private static readonly TimeProvider TimeProviderInstance = TimeProvider.System;
-
-    // Note: MartenOperationAuditRetentionService is internal, so we test via reflection or confirm
-    // the type exists and has the expected guards. Since it's internal, we verify constructor behavior
-    // at the boundary by confirming the type constraints.
+    private static readonly NullLogger<MartenOperationAuditRetentionService> Logger = NullLogger<MartenOperationAuditRetentionService>.Instance;
 
     [Fact]
-    public void MartenOperationAuditRetentionService_Exists_And_InheritsBackgroundService()
+    public void Constructor_NullServiceProvider_ThrowsArgumentNullException()
     {
-        var type = typeof(MartenOperationAuditOptions).Assembly.GetType("Encina.Audit.Marten.MartenOperationAuditRetentionService");
-        type.ShouldNotBeNull();
-        type.BaseType!.Name.ShouldBe("BackgroundService");
+        var act = () => new MartenOperationAuditRetentionService(null!, Options, TimeProviderInstance, Logger);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("serviceProvider");
     }
 
     [Fact]
-    public void MartenOperationAuditRetentionService_HasFourParameterConstructor()
+    public void Constructor_NullOptions_ThrowsArgumentNullException()
     {
-        var type = typeof(MartenOperationAuditOptions).Assembly.GetType("Encina.Audit.Marten.MartenOperationAuditRetentionService")!;
-        var ctors = type.GetConstructors(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-        ctors.Length.ShouldBe(1);
-        ctors[0].GetParameters().Length.ShouldBe(4);
+        var act = () => new MartenOperationAuditRetentionService(ServiceProvider, null!, TimeProviderInstance, Logger);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("options");
+    }
+
+    [Fact]
+    public void Constructor_NullTimeProvider_ThrowsArgumentNullException()
+    {
+        var act = () => new MartenOperationAuditRetentionService(ServiceProvider, Options, null!, Logger);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("timeProvider");
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        var act = () => new MartenOperationAuditRetentionService(ServiceProvider, Options, TimeProviderInstance, null!);
+
+        Should.Throw<ArgumentNullException>(act).ParamName.ShouldBe("logger");
+    }
+
+    [Fact]
+    public void Constructor_ValidArguments_DoesNotThrow()
+    {
+        using var sut = new MartenOperationAuditRetentionService(ServiceProvider, Options, TimeProviderInstance, Logger);
+
+        sut.ShouldNotBeNull();
     }
 }

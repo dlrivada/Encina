@@ -36,17 +36,33 @@ Manages EventId allocation for Encina's structured logging system. Prevents coll
 | Compliance | 8100-8949 | GDPR, Consent, DSR, LawfulBasis, Anonymization, CryptoShredding, Retention, DataResidency, BreachNotification, DPIA, PrivacyByDesign |
 | Security Extensions | 9000-9199 | ABAC, AntiTampering |
 | Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
-| Free | 300-1099, 5500-6999, 7100-7999, 8950-8999, 9700-9999 | Future modules |
+| Later additions | 3850-3899, 5400-5499, 9750-9799 and others | Registered after this table was written; verify each against `EventIdRanges.cs` before naming it. [The block registry](../../../docs/engineering/eventid-block-registry.md) lists every range |
+
+The ranges below 10000 are historical: this table is the original allocation, there is no free-range list, and the registry file is the place to check free space. New blocks are born in the 10000+ zone (ADR-021 amendment, #4006), one base per area, 1000 ids per block, each area owning ten blocks (base to base+9999):
+
+| Area | Base | Current block |
+|------|------|---------------|
+| Core and messaging | 10000 | 10000-10999 |
+| Database | 20000 | 20000-20999 |
+| Caching (and distributed locks) | 30000 | 30000-30999 |
+| Transports | 40000 | 40000-40999 |
+| Security and compliance | 50000 | 50000-50999 |
+| Observability and platform | 60000 | 60000-60999 |
+| Testing and tooling | 70000 | 70000-70999 |
+| Cloud and integration | 80000 | 80000-80999 |
+
+A new area takes the next base (90000) by amending the ADR table.
 
 ## Allocation Workflow
 
 When adding structured logging to a feature:
 
-1. **Check** `EventIdRanges.cs` for next free range in the appropriate area
-2. **Register** a new `public static readonly (int Min, int Max) RangeName = (min, max);` with appropriate size (typically 50-100 slots)
+1. **Pick** the next free 50 or 100 id slot in the area's current 1000 block (open the next block when it is full); read free space from `docs/engineering/eventid-block-registry.md`
+2. **Register** a new `public static readonly (int Min, int Max) RangeName = (min, max);` in `EventIdRanges.cs` and add its row to the registry file (Registered ranges and Blocks tables) in the same pull request
 3. **Create** `Diagnostics/*LogMessages.cs` with EventIds **within** the registered range
 4. **Update** `PublicAPI.Unshipped.txt` for the new public field
 5. **Add** the assembly to `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`. **Run** architecture tests (`EventIdUniquenessRule` via `EncinaEventIdAllocationTests`); every `[LoggerMessage]` needs an explicit EventId
+6. **Run** `dotnet test tests\Encina.UnitTests --filter "FullyQualifiedName~EventIdRegistryAgreementTests"`
 
 ## Rules
 

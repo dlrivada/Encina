@@ -1,0 +1,1 @@
+- New EventId blocks are allocated in a documented 10000+ zone with one base per area (ADR-021 amendment); the block registry is now the tracked file `docs/engineering/eventid-block-registry.md`, kept in agreement with `EventIdRanges.cs` by `EventIdRegistryAgreementTests` (#4006).

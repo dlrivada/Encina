@@ -18,7 +18,7 @@ This page is for the maintainer and for contributors who have to decide what typ
 | (b) Standard union | `public union StdResult<T>(EncinaError, T);`, compiler-generated; the case value is boxed |
 | (c) Custom non-boxing union | `[Union] readonly struct Result<T> : IUnion` with typed fields, `HasValue` and two `TryGetValue` overloads; Encina writes the combinators |
 | (d) Closed hierarchy | `abstract record HResult<T>` with sealed `Ok` and `Fail` cases and a private constructor |
-| (c') Custom union with a reference error | Option (c) holding `T` inline and the error by reference. Designed, **not measured** |
+| (c') Custom union with a reference error | Option (c) holding `T` inline and the error by reference. Designed in #3662, measured in #3672 in [section 11](#11-error-by-reference-3672) as options B1, B2 and C |
 
 ## 2. Method and caveat
 
@@ -185,14 +185,95 @@ If (b) or (c) is chosen, a Roslyn-based codemod (a C# file-based app) can do the
 | (b) Standard union | Results are mostly reference types and errors are rare: fastest success for a reference `T` (0.73 ns, 0 B) and 3 to 5 times faster async. | Every value-type success allocates 24 B, every error 56 B, chains 96 to 224 B. Needs .NET 11. |
 | (c) Custom union | Zero allocation on every path is the rule (hot path, error-heavy flows such as validation): 0 B everywhere, fastest failure among the structs, compiler exhaustiveness through `TryGetValue`. | Within about 3 ns of Either per call because of the struct size. Encina owns the combinators. Needs .NET 11. |
 | (d) Hierarchy | The wire shape matters (tagged JSON with `[JsonDerivedType]`) and chains short-circuit. | Always allocates 24 to 112 B; no language exhaustiveness until closed hierarchies ship. |
-| (c') Reference-error custom union | Likely the best of both: a small struct (8 B plus `T` plus a tag), 0 B on success, one allocation on error. | Unmeasured; needs one more benchmark run before any decision. |
+| (c') Reference-error custom union | Likely the best of both: a small struct (8 B plus `T` plus a tag), 0 B on success, one allocation on error. | Unmeasured when this section was written; now measured in [section 11](#11-error-by-reference-3672). |
 
 ## 10. Recommendation (recommended, pending the maintainer)
 
-Option (c), a custom non-boxing `[Union]` struct, preceded by a follow-up benchmark of the (c') layout before the ADR is written. The reason is the hot-path rule of Encina: (c) is the only measured option with 0 B on every path, it gives compiler exhaustiveness, and it removes LanguageExt from the public surface.
+Note: the statements in sections 9 and 10 such as "the only measured option with 0 B on every path" and "fastest failure among the structs" describe the #3662 options (a) to (d) only. [Section 11](#11-error-by-reference-3672) later measured (B2) and (C), which also show 0 B on every path (B2 when the error instance is reused) and faster failure rows; the recommendation below was not revised against them.
+
+Option (c), a custom non-boxing `[Union]` struct, preceded by a follow-up benchmark of the (c') layout before the ADR is written (that benchmark is now measured in [section 11](#11-error-by-reference-3672)). The reason is the hot-path rule of Encina: (c) is the only measured option with 0 B on every path, it gives compiler exhaustiveness, and it removes LanguageExt from the public surface.
 
 Option (c) is not meaningfully faster than Either: it is 1 to 3 ns faster on five of the seven measured rows (failure 6.63 vs 9.49 ns, reference success 6.10 vs 7.26 ns, chain success 29.55 vs 32.05 ns, async success 61.11 vs 62.20 ns, async failure 64.18 vs 66.03 ns) and slower on two (int success 7.19 vs 6.48 ns, chain failure 48.55 vs 45.89 ns). It saves 24 B only in the two chain rows. The case for (c) rests on exhaustiveness and on dropping the LanguageExt dependency, not on speed.
 
 Option (d), closed hierarchies, was measured for completeness although the issue scoped it out.
 
 **D1 is the maintainer's decision.** The migration is large (2568 public signatures, about 5000 type uses, plus the `Option` and `Unit` replacements) and, if D1 goes this way, must be decomposed into per-package issues after the decision. No ADR records D1 yet; the decision would be recorded as one.
+
+## 11. Error by reference (#3672)
+
+This section records what was measured for the (c') layout of section 1, which section 9 listed as unmeasured. It states facts and a per-criterion reading; it decides nothing, and D1 stays with the maintainer. **Issue:** [#3672](https://github.com/dlrivada/Encina/issues/3672).
+
+### Options evaluated
+
+Three layouts were measured beside the #3662 options (the sources are `Types.cs` and `SendPathBenchmarks.cs` in [`artifacts/spikes/3662/`](../../artifacts/spikes/3662/)).
+
+| Option | Layout |
+| --- | --- |
+| (B1) `BoxResult<T>` | `T` inline plus a reference to a non-generic sealed class `ErrorBox` that holds the 40-byte `EncinaError`. The box is allocated only on failure and is reused when the failure crosses Bind or Map. Call sites still match on `EncinaError`. |
+| (B2) `RefResult<T>` | `EncinaError` becomes a sealed class (`EncinaErrorRef`, same fields); the union holds `T` plus a class reference. |
+| (C) `SlimResult<T>` | An inline `SlimError`: a string plus one nullable object reference (16 B), instead of a string plus two `Option<Exception>`. |
+
+### Method
+
+Same toolchain as section 2: SDK 11.0.100 builds the project, run from outside the repository directory because its `global.json` pins 10.0.100 (the BenchmarkDotNet report header prints `.NET SDK 10.0.404`, the host default it detects, with the .NET 11 runtime), BenchmarkDotNet 0.15.8, `InProcessEmitToolchain`, `Job.ShortRun`, 50 benchmarks, about 8 minutes, on a 13th Gen Intel Core i9-13900KS. This was a fresh run of the whole class, so the #3662 columns here differ from section 3 (machine noise; for example Either async success is 73.19 ns here and 62.20 ns there). Read ratios between options inside one run, never across runs; the table below therefore gives this run's numbers for every column. Short-run error intervals are wide, so treat times as indicative; allocated bytes are exact. Full output: [report](../../artifacts/spikes/3662/results-3672/RopUnions.Spike.SendPathBenchmarks-report-github.md) and [CSV](../../artifacts/spikes/3662/results-3672/RopUnions.Spike.SendPathBenchmarks-report.csv).
+
+### Struct sizes and construction cost
+
+Measured with `Unsafe.SizeOf` and an allocation probe.
+
+| Type | Size |
+| --- | --- |
+| `EncinaError` | 40 B |
+| `SlimError` | 16 B |
+| `BoxResult<int>` / `<string>` | 16 B / 24 B |
+| `RefResult<int>` / `<string>` | 16 B / 24 B |
+| `SlimResult<int>` / `<string>` | 24 B / 32 B |
+| For comparison (section 4): custom inline `Result<int>` / `<string>`, Either | 48 B / 56 B |
+| For comparison (section 4): `StdResult<T>`, `HResult<T>` | 8 B |
+
+Allocation of one construction: `BoxResult` failure 56 B (the box: 16 B object header plus the 40-byte error), success 0 B; `RefResult` with a freshly created `EncinaErrorRef` 56 B (the error object itself); `SlimResult` failure 0 B.
+
+### Results
+
+Mean time in ns and allocated bytes per operation, from this run only.
+
+| Scenario | (a) Either | (b) std union | (c) custom inline | (d) hierarchy | (B1) box | (B2) class | (C) slim |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Success, int | 9.14 / 0 B | 5.38 / 24 B | 8.81 / 0 B | 4.81 / 24 B | 2.57 / 0 B | 2.80 / 0 B | 7.83 / 0 B |
+| Success, reference T | 8.45 / 0 B | 0.88 / 0 B | 5.54 / 0 B | 4.23 / 24 B | 0.77 / 0 B | 0.54 / 0 B | 5.97 / 0 B |
+| Failure | 10.87 / 0 B | 9.97 / 56 B | 9.31 / 0 B | 13.90 / 56 B | 9.74 / 56 B | 1.18 / 0 B (preallocated error instance); 6.29 / 56 B (fresh error instance per failure) | 1.78 / 0 B |
+| Bind-Map-Bind, success | 34.17 / 24 B | 17.62 / 96 B | 30.34 / 0 B | 18.50 / 96 B | 10.81 / 0 B | 7.57 / 0 B | 26.07 / 0 B |
+| Bind-Map-Bind, failure at step 1 | 48.68 / 24 B | 50.06 / 224 B | 59.43 / 0 B | 32.09 / 168 B | 19.41 / 56 B | 18.00 / 0 B | 36.67 / 0 B |
+| async ValueTask, success | 73.19 / 0 B | 20.67 / 24 B | 65.98 / 0 B | 16.07 / 24 B | 28.59 / 0 B | 31.76 / 0 B | 50.79 / 0 B |
+| async ValueTask, failure | 77.55 / 0 B | 30.88 / 56 B | 71.13 / 0 B | 28.87 / 56 B | 39.71 / 56 B | 29.29 / 0 B | 51.64 / 0 B |
+
+Notes on the allocation columns:
+
+- The 0 B failure rows of (B2) reuse one preallocated error instance, as the other options reuse a static `EncinaError` struct. The carrier does not allocate, but creating the error instance does (56 B); that is the extra "fresh error instance" figure in the Failure row.
+- In the Bind-Map-Bind failure row, (B2) allocates nothing further. (B1) allocates nothing beyond the single 56 B box made at the handler, because the box is reused across the chain.
+- `default(BoxResult<T>)`, `default(RefResult<T>)` and `default(SlimResult<T>)` behave like the custom union of section 4: state 0, no case.
+
+### Reading per criterion
+
+An interpretation of the numbers above, not a decision.
+
+| Criterion | Favours | Evidence |
+| --- | --- | --- |
+| Speed on success, chains and async | Among the zero-allocation-on-success options (custom inline, (B1), (B2), (C)), (B1) and (B2), the 16 B structs; (C) falls between custom inline and B | Success int 2.57 and 2.80 ns against 8.81 ns (custom inline) and 7.83 ns (C); chain success 10.81 and 7.57 ns against 30.34 and 26.07 ns; async success 28.59 and 31.76 ns against 65.98 and 50.79 ns. In async success, the standard union (20.67 ns) and the hierarchy (16.07 ns) are faster than (B1) and (B2), but they allocate 24 B per result. In async failure, the standard union (30.88 ns) and the hierarchy (28.87 ns) allocate 56 B per result and are within a few ns of (B2) at 29.29 ns (B2 reuses a preallocated error; creating it costs about 5 ns and 56 B, see the fresh-error row); (B1) is 39.71 ns. |
+| Allocation on success | (B1), (B2), (C) and custom inline, all 0 B | The standard union and the hierarchy allocate on value-type success (24 B). |
+| Allocation per failure | (C) and custom inline, 0 B | (B2) is 0 B only when the error instance is reused and 56 B when it is created per failure; (B1) is 56 B per failure, made once per chain. |
+| Struct size | (B1) and (B2), 16 B for `int` | (C) is 24 B; custom inline is 48 B. |
+| Breaking-change impact | (B1) | (B1) keeps `EncinaError` a struct and its call-site pattern. (B2) changes `EncinaError` from struct to class, so every `EncinaError` pattern, record equality and default value changes. (C) changes the error shape: it drops the two `Option<Exception>` fields, so the `Exception` and metadata-exception accessors must move into the single reference. |
+| Complexity | (C), the plain layout | (B1) needs a box type and a factory instead of a public constructor: a public single-argument constructor over the box would become a union case type, and the compiler reported CS8509 until the constructor was made private. |
+| Interaction with #3419 error category | Not settled by the data | The category lives in the error metadata (section 8). With (B1) and (B2) the metadata is read through the reference: one more indirection, no layout change in the union. With (C) the metadata must fit in the single nullable reference together with the exception, so the #3419 metadata representation constrains the shrink; this spike cannot decide it. |
+| Error-heavy flows such as validation (many failures per request) | (C) and custom inline | Neither allocates per failure; (B1) allocates 56 B per failure. |
+
+### Reproduce
+
+Run from a directory outside the repository, so `global.json` does not select SDK 10:
+
+```powershell
+dotnet run -c Release --project <repo>\artifacts\spikes\3662 -- --filter "*SendPathBenchmarks*"
+```
+
+BenchmarkDotNet overwrites the tracked files under `artifacts/performance/spike-3662/results`; restore them with `git checkout`. The #3672 copies of this run are in `artifacts/spikes/3662/results-3672/`.
