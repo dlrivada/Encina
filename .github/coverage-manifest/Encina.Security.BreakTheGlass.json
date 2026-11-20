@@ -35,13 +35,13 @@
         "unit": 100,
         "guard": 50,
         "property": 0,
-        "contract": 0
+        "contract": 100
       },
       "justifications": {
         "unit": "Role eligibility decisions are asserted for every branch of the authorizer (measured 100%).",
         "guard": "Guard tests reject the null arguments of the authorizer constructor and open check (measured 50%).",
         "property": "No invariant beyond the gate expiry property; behaviour is covered by example-based unit tests (measured 0%).",
-        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this authorizer (measured 0%)."
+        "contract": "Contract tests run the authorizer through IBreakTheGlassOpenAuthorizer: open and review are allowed or refused with the typed error codes, including the service identity and self-review cases (measured 100%)."
       }
     },
     "Attributes/BreakTheGlassEligibleAttribute.cs": {
@@ -62,7 +62,7 @@
         "unit": "The attribute properties and defaults are asserted directly and read by the eligibility tests (measured 100%).",
         "guard": "Guard tests (Attribute_BlankScope) reject a null or blank scope in the attribute constructor, the only argument it validates (measured 33.33%).",
         "property": "Covered incidentally by BreakTheGlassGateProperties, whose request type carries the attribute and is read by the gate on every generated case; no property targets the attribute itself (measured 100%).",
-        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not the attribute (measured 0%)."
+        "contract": "No contract to test: the sealed attribute is a concrete class that implements no Encina-owned interface or abstract class; its properties are asserted by unit tests."
       }
     },
     "BreakTheGlassErrors.cs": {
@@ -217,13 +217,13 @@
         "unit": 100,
         "guard": 28,
         "property": 95,
-        "contract": 0
+        "contract": 90
       },
       "justifications": {
         "unit": "Every grant, refusal and fail-closed branch of the gate, including the single read of the request identity and the RequireTenant refusal before any store call, is asserted by the unit tests (measured 100%).",
         "guard": "Guard tests (Gate_Constructor_RejectsEachNullDependency and Gate_Methods) reject the null constructor and method arguments of the gate (measured 28.09%). The guard flag can reach no more because the gate's other lines are decisions, not argument checks.",
         "property": "FsCheck properties cover the expiry window, closed elevations, a required tenant that is missing, a failing store lookup and the reuse of a held grant; the audit-failure branch is driven by the unit tests only (measured 97.75%).",
-        "contract": "Contract tests exercise the store and the no-op gate interfaces only, not this gate (measured 0%)."
+        "contract": "Contract tests run the gate through IAccessElevationGate: an effective elevation is granted, and a missing elevation, a disabled feature, a non-overridable denial and a service identity keep the denial (measured 92.13%); the audit-failure and grant-reuse branches are covered by the unit and property tests."
       }
     },
     "Gate/BreakTheGlassTenant.cs": {
