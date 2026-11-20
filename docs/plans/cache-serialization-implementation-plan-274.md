@@ -2,7 +2,7 @@
 
 > **Issue**: [#274](https://github.com/dlrivada/Encina/issues/274)
 > **Type**: Feature
-> **Complexity**: High (9 pull requests of 15, 7, 13, 8, 13, 9, 14, 14 and 4 files)
+> **Complexity**: High (9 pull requests of 15, 10, 13, 8, 13, 9, 14, 14 and 4 files)
 > **Estimated Scope**: about 1,100 lines of production code, about 2,300 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (e31de98cb):
+Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (0336d31c7):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -206,7 +206,7 @@ PR 1 holds exactly these 15 files:
 | 1 | `src/Encina.Caching/Serialization/ICacheSerializer.cs` | new (public `ICacheSerializer` and the public `ICacheValueCodec` that the internal `CacheValueCodec` implements: provider constructors are public, so they cannot take an internal type) |
 | 2 | `src/Encina.Caching/Serialization/ICacheCompressor.cs` | new (public) |
 | 3 | `src/Encina.Caching/Serialization/SystemTextJsonCacheSerializer.cs` | new (public sealed) |
-| 4 | `src/Encina.Caching/Serialization/BrotliCacheCompressor.cs` | new (public sealed, `System.IO.Compression`) |
+| 4 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingSerialization \| 508-513 \| Caching \| historical` in the "Registered ranges" table and the `500-549 reserved-pre-zone` block row split so `508-513` is `registered`; `EventIdRegistryAgreementTests` fails when a range of `EventIdRanges.cs` has no row or overlaps a reserved block; read the test and the document first). `BrotliCacheCompressor` moved to PR 2 to keep this PR at 15 files; PR 1's codec tests use a fake `ICacheCompressor` |
 | 5 | `src/Encina.Caching/Serialization/CacheValueCodec.cs` | new (internal sealed: header, tiers, limits, envelope) |
 | 6 | `src/Encina.Caching/Serialization/CacheSerializationOptions.cs` | new (public: default serializer, per-type map, compression tiers, limits, `ApplyToHybridCache` default false, `Validate()`) |
 | 7 | `src/Encina.Caching/Diagnostics/CacheSerializationLog.cs` | new (EventIds 508-513) |
@@ -242,7 +242,7 @@ hard-codes System.Text.Json and stores a JSON string; CachingOptions.SerializerO
 CacheEntry<TResponse> (internal, QueryCachingPipelineBehavior.cs).
 
 TASK:
-1. Create ICacheSerializer, ICacheCompressor, SystemTextJsonCacheSerializer, BrotliCacheCompressor and the internal CacheValueCodec.
+1. Create ICacheSerializer, ICacheCompressor, SystemTextJsonCacheSerializer and the internal CacheValueCodec (BrotliCacheCompressor is PR 2); add the registry row of CachingSerialization.
 2. Create CacheSerializationOptions (default serializer, per-type map, compression tiers, limits, Validate()); nothing else reads it yet.
 3. Create CacheSerializationLog (508-513) and register CachingSerialization = (508, 513) in EventIdRanges.cs and the assembly map.
 4. Write the unit and guard tests; ask mechanical-fixer for the PublicAPI files, the manifest rows and the changelog fragment.
@@ -268,7 +268,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 7 files:
+PR 2 holds exactly these 10 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -279,6 +279,11 @@ PR 2 holds exactly these 7 files:
 | 5 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (the option reaches `IOptions<CachingOptions>`; an invalid tier list fails host start in both registration orders; DI built with `ValidateOnBuild` and `ValidateScopes`) |
 | 6 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 7 | `changelog.d/274-cache-serialization-options.changed.md` | new (`mechanical-fixer`) |
+| 8 | `src/Encina.Caching/Serialization/BrotliCacheCompressor.cs` | new (public sealed, `System.IO.Compression`; id 1) |
+| 9 | `tests/Encina.UnitTests/Caching/BrotliCacheCompressorTests.cs` | new (round trips through the real codec, the bound, random bytes never throw) |
+| 10 | `tests/Encina.GuardTests/Infrastructure/Caching/CacheSerializationGuardTests.cs` | modify (the guard cases of `BrotliCacheCompressor`: null buffer writer) |
+
+Registration in this PR: `AddEncinaCaching` registers `BrotliCacheCompressor` as an `ICacheCompressor` with `TryAddEnumerable` (and `AddEncinaRedisCache` does the same in PR 3, so the Redis provider is complete without `AddEncinaCaching`), so the rule "a tier needs a registered compressor" holds for the built-in algorithm without any package. The options binding: because the settings are a property of `CachingOptions`, `AddEncinaCaching` registers `services.AddOptions<CacheSerializationOptions>().Configure<IOptions<CachingOptions>>((o, c) => ...copy from c.Value.Serialization...).ValidateOnStart()` together with the `IValidateOptions<CacheSerializationOptions>` that takes `IEnumerable<ICacheCompressor>`; the PR 2 DI test fails when this binding is missing (an invalid tier list must stop the host).
 
 This PR closes the open debt #3615 ("`CachingOptions.SerializerOptions` is configured but no cache provider reads it"): its description says `Fixes #3615`, and the options reference page of #84 (which documents the two removed option tables) is updated by that plan's owner after this merge.
 
@@ -404,7 +409,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 5 (the package and LZ4) holds exactly these 13 files: `src/Encina.Caching.Compression/Encina.Caching.Compression.csproj`, `Lz4CacheCompressor.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaCachingCompression()` registers the compressors with `TryAddEnumerable`), `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (`mechanical-fixer`), `Directory.Packages.props` (the LZ4 version), `Encina.slnx`, `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` (a `ProjectReference` to the new package in each, as both reference `Encina.Caching.Memory` today), `tests/Encina.UnitTests/Caching/Compression/CompressorTests.cs`, `tests/Encina.GuardTests/Caching/Compression/CompressionGuardTests.cs`, `.github/coverage-manifest/Encina.Caching.Compression.json` (`mechanical-fixer`) and `changelog.d/274-cache-compression-package.added.md`; the package README comes with PR 6 (`docs-writer`).
+PR 5 (the package and LZ4) holds exactly these 13 files: `src/Encina.Caching.Compression/Encina.Caching.Compression.csproj`, `Lz4CacheCompressor.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaCachingCompression()` registers the compressors with `TryAddEnumerable`), `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (`mechanical-fixer`), `Directory.Packages.props` (the LZ4 version), `Encina.slnx`, `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` (a `ProjectReference` to the new package in each, as both reference `Encina.Caching.Memory` today), `tests/Encina.UnitTests/Caching/Compression/CompressorTests.cs` (it also holds the DI test of `AddEncinaCachingCompression()` built with `ValidateOnBuild` and `ValidateScopes`), `tests/Encina.GuardTests/Caching/Compression/CompressionGuardTests.cs`, `.github/coverage-manifest/Encina.Caching.Compression.json` (`mechanical-fixer`) and `changelog.d/274-cache-compression-package.added.md`; the package README comes with PR 6 (`docs-writer`).
 
 PR 6 (Zstd and Snappy) holds exactly these 9 files: `ZstdCacheCompressor.cs`, `SnappyCacheCompressor.cs`, `ServiceCollectionExtensions.cs` (modify), `README.md` (`docs-writer`, new), `PublicAPI.Unshipped.txt`, `Directory.Packages.props`, the two test files (modify) and the manifest.
 
@@ -513,7 +518,12 @@ REFERENCE FILES:
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Serialization/CacheValueCodec.cs` | 95 | 0 | 0 | 0 | Every header, tier and limit path is unit tested; internal, no `InternalsVisibleTo` for the guard project |
-| `Encina.Caching/Serialization/SystemTextJsonCacheSerializer.cs`, `BrotliCacheCompressor.cs` | 100 | 60 | 0 | 0 | Small classes; guard tests reach the argument checks |
+| `Encina.Caching/Serialization/SystemTextJsonCacheSerializer.cs`, `BrotliCacheCompressor.cs` | 100 | 60 | 0 | 0 | Small classes; guard tests reach the argument checks (Brotli arrives in PR 2 with its tests) |
+| `Encina.Caching/Serialization/CacheSerializationOptions.cs` | 95 | 70 | 0 | 0 | `Validate()` branches are unit tested; the `AddSerializer` null guard is reached by guard tests (PR 1) |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | at least 90 | 0 | 0 | 0 | The value on main after #266 (90 unit, 0 guard) is never lowered; PR 2's DI tests run the option copy, the validator binding and the Brotli registration; no guard test calls `AddEncinaCaching` |
+| `Encina.Caching/Configuration/CachingOptions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; the new property is an initializer run by every construction |
+| `Encina.Caching.Redis/ServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; PR 3's registration test runs the codec and Brotli registrations |
+| `Encina.Caching.Hybrid/ServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; PR 4's registration test runs the factory registration |
 | `Encina.Caching/Diagnostics/CacheSerializationLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the codec tests; internal |
 | `Encina.Caching/Serialization/ICacheSerializer.cs`, `ICacheCompressor.cs` | 0 | 0 | 0 | 0 | Interfaces have no executable lines |
 | `Encina.Caching.Redis/RedisCacheProvider.cs` | keep | keep | 0 | 60 | Existing targets are never lowered; the integration flag runs the byte path against a real Redis |
@@ -586,7 +596,7 @@ REFERENCE FILES:
 | Tests | 10 | 8 | Unit, guard and benchmarks; Redis integration tests modified |
 | Documentation | 5 | 2 | Three READMEs, two feature pages, `handler-caching.md` modified |
 | Configuration | 12 | 8 | Fragments, manifests, PublicAPI files, `Directory.Packages.props`, `Encina.slnx`, csproj files |
-| **Total** | **47** | **26** | 9 pull requests of 15, 7, 13, 8, 13, 9, 14, 14 and 4 files, each at most 15 files and 1500 lines |
+| **Total** | **47** | **26** | 9 pull requests of 15, 10, 13, 8, 13, 9, 14, 14 and 4 files, each at most 15 files and 1500 lines |
 
 ---
 
