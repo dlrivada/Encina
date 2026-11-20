@@ -4,13 +4,13 @@
 > **Type**: Feature (observability)
 > **Related**: ADR-054 (D3 names, D4 tenant tag, D6 caches at Encina operation level, never data-bearing keys), #273 (cache metrics catalog, planned separately: boundary in Design Choice 4), #266 (single-flight, owns `CachePatternMetrics` on `Meter("Encina.Caching")`), #277 (Memcached provider), #2676 (tenant tag helper), #1788 (static scan), #1790 (duplicate sources), #906, ADR-062
 > **Complexity**: Medium (one decorator extended, one added; the main change is removing a privacy defect)
-> **Estimated Scope**: ~330 lines of production code + ~850 lines of tests, in three pull requests of at most 15 files
+> **Estimated Scope**: ~330 lines of production code + ~850 lines of tests, in four pull requests of at most 15 files
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `e31de98cb`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - `AddEncinaOpenTelemetry` already decorates `ICacheProvider` with `InstrumentedCacheProvider` (`src/Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs`): spans `encina.querycache.get|set|remove|remove_by_pattern|exists|get_or_set|set_sliding|refresh`, a hit or miss outcome on `get`, no metric. Because it wraps the interface, all 8 cache providers are traced when the decorator is applied: Memory, Hybrid, Redis, and Valkey, Dragonfly, Garnet and KeyDB, which call `AddEncinaRedisCache` and so use `RedisCacheProvider` (`src/Encina.Caching.Valkey/ServiceCollectionExtensions.cs`). Memcached (#277) is not in `src`.
 - **The spans carry the raw cache key**: `querycache.key` is set from the `key` argument on seven spans and `querycache.pattern` on one. Keys built by `DefaultCacheKeyGenerator` contain `t:{tenantId}` and `u:{userId}` (`src/Encina.Caching/KeyGeneration/CacheKeyRedactor.cs` documents both as personal data that no log may contain). This breaks ADR-054 D6.3 and `AGENTS.md` section 3.
@@ -25,8 +25,8 @@
 - Removes the key and pattern tags; replaces them with `encina.cache.key_prefix` (the segment before the first `:`, only when a `:` exists, at most 32 characters) (Design Choice 3).
 - Moves the decorator's source to `Encina.Caching` and the span names to `encina.cache.*` (Design Choice 2).
 - Two instruments: `encina.cache.operations` (counter; tags `encina.cache.operation`, `encina.cache.outcome` = `hit`, `miss`, `success`, `error`, `encina.cache.system`, `error.type` on errors) and `encina.cache.operation.duration` (histogram, unit `s`) on `Meter("Encina.Caching")`.
-- `InstrumentedPubSubProvider`: spans for publish, subscribe and unsubscribe and a consumer span per delivered message (the subscription handler is wrapped), and counter `encina.cache.pubsub.messages` (tag `direction` = `publish`, `receive`). The channel name is never emitted.
-- Tenant tag through the helper of #2676 (the providers are singletons, so no scoped service is injected).
+- `InstrumentedPubSubProvider`, over all eight members of `IPubSubProvider`: both `PublishAsync` overloads get span `encina.cache.pubsub.publish`; `SubscribeAsync` (both overloads) and `SubscribePatternAsync` get `encina.cache.pubsub.subscribe` and their handler is wrapped so each delivered message gets a consumer span `encina.cache.pubsub.receive`; `UnsubscribeAsync` and `UnsubscribePatternAsync` get `encina.cache.pubsub.unsubscribe`; `GetSubscriberCountAsync` is a pass-through with no span and no count (register row C5). Counter `encina.cache.pubsub.messages` (tag `encina.cache.pubsub.direction` = `publish`, `receive`). The channel name and the pattern are never emitted.
+- Tenant tag through the helper of #2676 in its own pull request C2b (the providers are singletons, so no scoped service is injected).
 - Shared pieces and owner: this plan owns the decorators and the instruments named above; #273 adds the rest of its catalog (sets, removals, evictions, sizes, stampede, stale served, backplane actions) in its own file; #266 owns `CachePatternMetrics`.
 - Affected packages: `Encina.OpenTelemetry`. Provider category: Caching (8): all 8 by interface; proof by contract test over Memory, Hybrid and Redis implementations plus the identity mapping of the four Redis-protocol providers.
 
@@ -147,6 +147,7 @@
 | C2 | A failing cache call is recorded and rethrown unchanged; telemetry never changes a result or swallows an error | Settled | `AGENTS.md` section 3 |
 | C3 | No key, value or channel is emitted; no tenant-qualified id is built, so the reserved `default` segment does not apply | Settled | ADR-054 D6.3, D4 |
 | C4 | Hybrid L1/L2 detail is not emitted; it is a provider internal | Dilemma (recommended, pending the maintainer) | #273 (`cache_level`) decides it |
+| C5 | `GetSubscriberCountAsync` passes through the decorator with no span and no counter (it is a read of broker state, not a backplane operation); the other seven members are instrumented | Dilemma (recommended, pending the maintainer) | the alternative, a span per count query, adds a hot-path allocation for a diagnostic call; scenario that flips it: an operator who wants to alert on the cost of subscriber-count polling |
 
 ---
 
@@ -191,14 +192,14 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: Pub/Sub Decorator and Tenant Tag (pull request C2, tenant part after #2676)
+### Phase 2: Pub/Sub Decorator (pull request C2) and Tenant Tag (pull request C2b, after #2676)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.OpenTelemetry/QueryCache/InstrumentedPubSubProvider.cs` (`internal sealed`, `IPubSubProvider`): spans `encina.cache.pubsub.publish|subscribe|unsubscribe`, a consumer span `encina.cache.pubsub.receive` around the wrapped handler, counter `encina.cache.pubsub.messages`; the handler wrapper preserves exceptions; no channel is emitted. Register with `DecorateService<IPubSubProvider>`.
-2. Tenant tag through the helper of #2676 in `CacheTelemetry` (separate small commit; this part waits for #2676).
-3. Tests: new `tests/Encina.UnitTests/OpenTelemetry/QueryCache/InstrumentedPubSubProviderTests.cs` (real `MemoryPubSubProvider`: publish then receive emits both counters and spans; handler exception still propagates), `tests/Encina.GuardTests/Infrastructure/OpenTelemetry/InstrumentedPubSubProviderGuardTests.cs` (null inner, channel, handler, null time provider valid); edit `ServiceCollectionExtensionsTests.cs` (provider built with `ValidateOnBuild` and `ValidateScopes` resolves both decorated singletons); manifest and changelog through `mechanical-fixer`.
+1. **Create** `src/Encina.OpenTelemetry/QueryCache/InstrumentedPubSubProvider.cs` (`internal sealed`, `IPubSubProvider`) covering all eight members: `PublishAsync(string, string)` and `PublishAsync<T>` (span `encina.cache.pubsub.publish`, counter direction `publish`); `SubscribeAsync(string, Func<string, Task>)`, `SubscribeAsync<T>` and `SubscribePatternAsync` (span `encina.cache.pubsub.subscribe`; the handler is wrapped so each delivery gets a consumer span `encina.cache.pubsub.receive` and counts direction `receive`; the returned `IAsyncDisposable` is returned unchanged); `UnsubscribeAsync` and `UnsubscribePatternAsync` (span `encina.cache.pubsub.unsubscribe`); `GetSubscriberCountAsync` (pass-through, register row C5). The handler wrapper preserves exceptions; no channel or pattern is emitted. Register with `DecorateService<IPubSubProvider>` in `ServiceCollectionExtensions.cs`.
+2. C2b (after #2676, own pull request): **Modify** `Telemetry/CacheTelemetry.cs` (tenant tag through the helper of #2676 on the instruments and spans of both decorators); edit `tests/Encina.UnitTests/OpenTelemetry/Telemetry/CacheTelemetryTests.cs` (tenant on, off and blank); changelog fragment `changelog.d/723-cache-telemetry-tenant.added.md` through `mechanical-fixer`.
+3. C2 tests: new `tests/Encina.UnitTests/OpenTelemetry/QueryCache/InstrumentedPubSubProviderTests.cs` (real `MemoryPubSubProvider`: publish then receive emits both counters and spans; all eight members delegate to the inner provider; handler exception still propagates), `tests/Encina.GuardTests/Infrastructure/OpenTelemetry/InstrumentedPubSubProviderGuardTests.cs` (null inner, channel, pattern, handler, null time provider valid); edit `ServiceCollectionExtensionsTests.cs` (provider built with `ValidateOnBuild` and `ValidateScopes` resolves both decorated singletons); manifest and changelog `changelog.d/723-cache-pubsub-telemetry.added.md` through `mechanical-fixer`.
 
 </details>
 
@@ -210,9 +211,10 @@ CONTEXT:
 Issue #723 plan docs/plans/caching-opentelemetry-implementation-plan-723.md, phase 2. Phase 1 merged (CacheTelemetry exists).
 
 TASK:
-1. Add InstrumentedPubSubProvider and register it in AddEncinaOpenTelemetry.
-2. Wrap subscription handlers so each delivery gets a consumer span and counts one message.
-3. Tests with the real MemoryPubSubProvider; guard and DI tests.
+1. Add InstrumentedPubSubProvider over all eight IPubSubProvider members (GetSubscriberCountAsync is a pass-through) and register it
+   in AddEncinaOpenTelemetry.
+2. Wrap subscription handlers (string, typed and pattern) so each delivery gets a consumer span and counts one message.
+3. Tests with the real MemoryPubSubProvider; guard and DI tests. The tenant tag is the separate pull request C2b, after #2676.
 
 KEY RULES:
 - No channel name, payload or tenant text in any tag; singletons only, never inject a scoped service.
@@ -232,6 +234,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
+0. **Modify** `tests/Encina.ContractTests/Encina.ContractTests.csproj`: add ProjectReferences to `Encina.Caching.Memory`, `Encina.Caching.Hybrid` and `Encina.Caching.Redis` (the project references only `Encina.Caching` and `Encina.OpenTelemetry` today; counted in C3). `Encina.IntegrationTests` already references all three.
 1. **Create** `tests/Encina.ContractTests/Infrastructure/OpenTelemetry/CacheTelemetryContractTests.cs`: Memory and Hybrid and a Redis-backed provider (fake multiplexer) emit the same instrument names, tag keys and outcomes for the same call sequence; the four Redis-protocol registrations report `redis`.
 2. **Create** `tests/Encina.IntegrationTests/Observability/OpenTelemetry/CacheTelemetryRedisIntegrationTests.cs` with the Redis fixture of the caching tests (shared collection, `ClearAllDataAsync()` equivalent): real Redis get, set, pub/sub delivery and the absence of the key in every tag.
 3. `.github/coverage-manifest/Encina.OpenTelemetry.json` through `mechanical-fixer`; README section through `docs-writer`.
@@ -289,12 +292,13 @@ REFERENCE FILES:
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| C1 | Phase 1 | 1 | 2 | 1 | 3 | 1 | 1 (changelog) | 9 | ~520 |
-| C2 | Phase 2 | 1 | 1 | 2 | 1 | 1 | 1 (changelog) | 7 | ~480 |
-| C3 | Phase 3 | 0 | 0 | 2 | 0 | 1 | 1 (README) | 4 | ~330 |
-| **Total** | | **2** | **3** | **5** | **4** | **3** | **3** | **20** | **~1,330** |
+| C1 | Phase 1 | 1 | 2 (`InstrumentedCacheProvider.cs`, `ServiceCollectionExtensions.cs`) | 1 | 3 | 1 | 1 (changelog) | 9 | ~520 |
+| C2 | Phase 2: pub/sub decorator | 1 | 1 (`ServiceCollectionExtensions.cs`) | 2 | 1 | 1 | 1 (changelog) | 7 | ~480 |
+| C2b | Phase 2: tenant tag (after #2676) | 0 | 1 (`CacheTelemetry.cs`) | 0 | 1 (`CacheTelemetryTests.cs`) | 0 | 1 (changelog) | 3 | ~100 |
+| C3 | Phase 3 | 0 | 0 | 2 | 0 | 1 | 2 (README, ContractTests csproj) | 5 | ~380 |
+| **Total** | | **2** | **4** | **5** | **5** | **3** | **5** | **24** | **~1,480** |
 
-Columns sum: 2 + 3 + 5 + 4 + 3 + 3 = 20 = 9 + 7 + 4. All new types are `internal`, so no PublicAPI change; no interface changes, so no fake changes (`FakeCacheProvider` and `FakePubSubProvider` untouched). `Encina.OpenTelemetry` has `InternalsVisibleTo` for UnitTests, GuardTests, ContractTests and IntegrationTests, so internal decorators are testable by all four.
+Columns sum: 2 + 4 + 5 + 5 + 3 + 5 = 24 = 9 + 7 + 3 + 5. All new types are `internal`, so no PublicAPI change; no interface changes, so no fake changes (`FakeCacheProvider` and `FakePubSubProvider` untouched). `Encina.OpenTelemetry` has `InternalsVisibleTo` for UnitTests, GuardTests, ContractTests and IntegrationTests, so internal decorators are testable by all four.
 
 Per-file coverage targets:
 
@@ -302,7 +306,7 @@ Per-file coverage targets:
 |------|------|-------|----------|----------|-------------|---------------|
 | `Telemetry/CacheTelemetry.cs` | 95 | 40 | 0 | 0 | 0 | Prefix rules, system mapping and instruments are table-driven; guard covers null inputs as valid results; internal static, no contract |
 | `QueryCache/InstrumentedCacheProvider.cs` (existing 65 unit, 77 guard) | 85 | 77 | 20 | 0 | 40 | Every method's hit, miss, error and no-listener path is driven; guard stays; contract and integration newly cover three providers and real Redis |
-| `QueryCache/InstrumentedPubSubProvider.cs` | 85 | 70 | 20 | 0 | 40 | Publish, subscribe, receive and handler-exception paths with the real memory provider; guard covers constructor and argument checks |
+| `QueryCache/InstrumentedPubSubProvider.cs` | 85 | 70 | 20 | 0 | 40 | All eight members (seven instrumented, one pass-through), the receive wrapper and handler-exception paths with the real memory provider; guard covers constructor and argument checks of every member |
 | `ServiceCollectionExtensions.cs` (existing 90, 35) | 90 | 35 | 0 | 0 | 0 | Targets stay; the new registrations are driven by the DI test |
 
 ---
@@ -313,7 +317,7 @@ Per-file coverage targets:
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-You are implementing issue #723 - OpenTelemetry for the caching providers - in three small pull requests.
+You are implementing issue #723 - OpenTelemetry for the caching providers - in four small pull requests (C1, C2, C2b, C3).
 
 PROJECT CONTEXT:
 - Encina .NET 10 / C# 14, pre-1.0, no compatibility layers. Edit with Edit/Write only; manifests, changelog and PublicAPI through
@@ -324,8 +328,8 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. C1: remove the raw key tags from InstrumentedCacheProvider, add encina.cache.* spans, outcome and the two instruments,
    source and meter Encina.Caching.
-2. C2: InstrumentedPubSubProvider with consumer span per delivered message.
-3. C3: contract test over Memory, Hybrid and Redis; integration test on real Redis.
+2. C2: InstrumentedPubSubProvider (all eight members) with consumer span per delivered message; C2b (after #2676): tenant tag.
+3. C3: contract test over Memory, Hybrid and Redis (with the ContractTests ProjectReference edits); integration test on real Redis.
 
 KEY PATTERNS:
 - Never emit a key, pattern, value, channel or message text. No scoped service in a singleton decorator.
@@ -353,7 +357,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | Acquires no lock |
 | 8 | Transactions | ❌ N/A | Never commits or rolls back |
 | 9 | Idempotency | ❌ N/A | A redelivered pub/sub message is counted again, which is correct |
-| 10 | Multi-Tenancy | ✅ Phase 2 | Tenant tag only when multi-tenancy is on, through the helper of #2676; keys are never emitted |
+| 10 | Multi-Tenancy | ✅ Phase 2 (C2b) | Tenant tag only when multi-tenancy is on, through the helper of #2676; keys are never emitted |
 | 11 | Module Isolation | ❌ N/A | No module data |
 | 12 | Audit Trail | ❌ N/A | No personal data may reach telemetry; this plan removes an existing leak |
 
@@ -366,7 +370,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |-------------|--------|-------|
 | ADR-054 accepted | ✅ On `main` | D3, D4, D6 |
-| #2676 tenant helper | Open | Only the tenant part of Phase 2 waits |
+| #2676 tenant helper | Open | Only the tenant pull request C2b waits |
 
 ### Recommended (Not Blocking)
 
@@ -381,6 +385,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #723 and ask the maintainer to answer Design Choices 1 to 4 and register row C4 when work starts.
-2. Implement C1 first (it removes the key leak), then C2 and C3.
+1. Link this plan from #723 and ask the maintainer to answer Design Choices 1 to 4 and register rows C4 and C5 when work starts.
+2. Implement C1 first (it removes the key leak), then C2 and C3; C2b after #2676.
 3. Maintainer action: amend the acceptance criteria of #723 that name `cache.key_prefix`, `cache.type` and a "hit/miss ratio metric" to the outcome of Design Choices 3 and 4 (this plan never comments on an issue).
