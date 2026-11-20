@@ -2,7 +2,7 @@
 
 > **Issue**: [#272](https://github.com/dlrivada/Encina/issues/272)
 > **Type**: Feature
-> **Complexity**: High (4 code phases, 4 pull requests of 9, 13, 14 and 14 files)
+> **Complexity**: High (4 code phases, 4 pull requests of 13, 12, 15 and 15 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,900 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (89303f1e8):
+Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (e31de98cb):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -67,7 +67,7 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 ### Rationale
 
 - The issue's example has no key at all (`[Cache(Strategy = WriteThrough)]` on `UpdateProductCommand`), so a mechanism is required. Option A fails at startup when the pair does not match; option B wins for a modular monolith where the command's module cannot reference the query's.
-- With A, the placeholders of the template must exist as properties of the command; the check runs when the processor is built for the type, using the same `SubstitutePlaceholders` rules as `DefaultCacheKeyGenerator`.
+- Mechanism: the key is built by the existing `ICacheKeyGenerator.GeneratePatternFromTemplate(template, command, context)`, which gives `{prefix}:t:{tenant}:{template with the command's properties}`, the exact string `GenerateKey` gives the query when the query has `VaryByTenant = true` and `VaryByUser = false`. Those two flags are therefore validated on the named query at resolution (a query varying by user or not by tenant is rejected), the placeholders must exist as properties of the command, and a unit test asserts the two generators agree. No interface change and no test double changes. A custom `ICacheKeyGenerator` must keep that agreement; the documentation says so.
 - Class: Dilemma
 
 </details>
@@ -106,8 +106,8 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 ("Every messaging pattern ... is optional and disabled by default") and the pay-for-what-you-use principle of section 1; `PipelineBuilder.WrapProcessors` allocates a step per registered processor type for every request.
+- **Class:** Settled (that each strategy is opt-in and off by default); Trivial (the two shapes, an option flag for write-through and a registration method for write-behind)
+- **Settled by:** AGENTS.md section 3 ("Every messaging pattern ... is optional and disabled by default") and the pay-for-what-you-use principle of section 1; `PipelineBuilder.WrapProcessors` allocates a step per registered processor type for every request. The shapes follow existing precedent: boolean `Enable*` options of `CachingOptions` that `AddEncinaCaching` turns into behavior registrations (`EnableQueryCaching`, `EnableCacheInvalidation`), and a separate extension that registers a hosted service and its options (`ShardingCacheServiceCollectionExtensions.cs`, `TopologyRefreshHostedService`).
 - The misconfiguration (an attribute on a type while the feature is not registered) is reported when the type's settings are resolved, in whatever form the maintainer chooses for invalid configuration.
 
 </details>
@@ -222,15 +222,35 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `TimeProvider` for every timestamp and delay (the flush loop uses `new PeriodicTimer(period, timeProvider)`); new dependencies of existing constructors are optional trailing parameters** | Deterministic tests; the existing `new QueryCachingPipelineBehavior<` call sites keep compiling | None |
-| **B) Required parameters and `Task.Delay`** | Explicit | Breaks the existing call sites; real time in tests |
+| **A) `TimeProvider` for every timestamp and delay (the flush loop uses `new PeriodicTimer(period, timeProvider)`); every parameter of a NEW class is required, and a dependency added to an EXISTING constructor is an optional trailing parameter** | Deterministic tests; the existing `new QueryCachingPipelineBehavior<` call sites keep compiling; a new class has no call sites, so an optional parameter there would only hide a missing registration (an absent `MultiTenancyMarker` would read as single-tenant) | None |
+| **B) Optional parameters everywhere** | Uniform | A forgotten registration silently degrades to a default (fail open for tenancy) |
+| **C) Required parameters and `Task.Delay`** | Explicit | Breaks the existing call sites; real time in tests |
 
 ### Chosen Option: **A - `TimeProvider` and optional parameters**
 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** AGENTS.md section 3 (time comes from `TimeProvider`) and the precedent in `QueryCachingPipelineBehavior`'s constructor (`TimeProvider? timeProvider = null`).
+- **Settled by:** AGENTS.md section 3 (time comes from `TimeProvider`) and the precedent in `QueryCachingPipelineBehavior`'s constructor (`TimeProvider? timeProvider = null`, kept because that constructor exists).
+
+</details>
+
+<details>
+<summary><strong>11. Integration tests (Dilemma D11, the issue's "unit and integration tests")</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Unit and contract tests in every PR, plus one Redis integration test file in PR 4 (shared Redis fixture) that runs write-through and a write-behind flush against a real provider** | Meets the acceptance criterion; proves the serialization round trip of a written-through `CacheEntry` and a real flush | Needs the Redis container on CI (the integration job already runs it) |
+| **B) Unit and contract tests only** | No container | The criterion "integration tests" is not met; the behavior-level code has no provider-specific path, which is the argument for skipping |
+
+### Chosen Option: **A - one Redis integration test file** (recommended, pending the maintainer)
+
+### Rationale
+
+- A written-through value must deserialize through a real provider into the type the query reads, which no unit test with a mocked provider shows. Option B wins when the maintainer treats the contract tests as sufficient for behavior-level code.
+- Class: Dilemma
 
 </details>
 
@@ -243,27 +263,32 @@ The plan keeps everything at the behavior level, so the 8 cache providers (Memor
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 9 files:
+PR 1 holds exactly these 13 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Configuration/CacheStrategy.cs` | new (public enum: `ReadThrough`, `WriteThrough`, `WriteBehind`) |
 | 2 | `src/Encina.Caching/Attributes/CacheAttribute.cs` | modify (`Strategy`, `WriteThroughQuery`, `FlushIntervalSeconds`, `BatchSize`) |
-| 3 | `src/Encina.Caching/Patterns/CachePatternSettings.cs` | modify (strategy members and validation, owned by #266 PR 1) |
+| 3 | `src/Encina.Caching/Patterns/CachePatternSettings.cs` | modify (strategy members and all validation rules, including the options-dependent ones; owned by #266 PR 1) |
 | 4 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (a request whose strategy is not `ReadThrough` skips the read-through path) |
-| 5 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
-| 6 | `tests/Encina.UnitTests/Caching/CacheStrategySettingsTests.cs` | new |
-| 7 | `tests/Encina.UnitTests/Caching/CacheAttributeTests.cs` | modify |
-| 8 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 9 | `changelog.d/272-cache-strategy-attribute.added.md` | new (`mechanical-fixer`) |
+| 5 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`EnableWriteThrough`, default false) |
+| 6 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (the hand-written copy line `opt.EnableWriteThrough = options.EnableWriteThrough;`) |
+| 7 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 8 | `tests/Encina.UnitTests/Caching/CacheStrategySettingsTests.cs` | new |
+| 9 | `tests/Encina.UnitTests/Caching/CacheAttributeTests.cs` | modify |
+| 10 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (default false) |
+| 11 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (the option reaches `IOptions<CachingOptions>`: a missing copy line fails this test) |
+| 12 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+| 13 | `changelog.d/272-cache-strategy-attribute.added.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
 1. **Create** `public enum CacheStrategy` with XML docs and a strategy comparison table in the remarks (consistency, latency, complexity, from the issue).
 2. **Modify** `CacheAttribute`: `public CacheStrategy Strategy { get; init; } = CacheStrategy.ReadThrough;`, `public Type? WriteThroughQuery { get; init; }`, `public int FlushIntervalSeconds { get; init; } = 30;`, `public int BatchSize { get; init; } = 100;` (the defaults of the issue's example).
-3. **Modify** `CachePatternSettings`: carry `Strategy`, `WriteThroughQuery`, `FlushInterval`, `BatchSize`; `Resolve` applies Design Choice 9 rules that need only the attribute (the options-dependent rules land in PR 2 and PR 4 where the option exists). A request type without `[Cache]` resolves nothing and throws nothing.
+3. **Modify** `CachePatternSettings`: carry `Strategy`, `WriteThroughQuery`, `FlushInterval`, `BatchSize`; `Resolve` applies every Design Choice 9 rule that PR 1 can check: the attribute-only rules, `WriteThrough` while `EnableWriteThrough` is off, and the query validation of Design Choice 2 (the named query must carry `[Cache]` with a `KeyTemplate`, `VaryByUser = false` and `VaryByTenant = true`, because the write-through key is built by `ICacheKeyGenerator.GeneratePatternFromTemplate`, which always adds the tenant segment and never a user segment; a query with other flags would read a key the command never writes). The write-behind option rules arrive with their options in PR 3. A request type without `[Cache]` resolves nothing and throws nothing.
 4. **Modify** `QueryCachingPipelineBehavior`: `ShouldUseCache` returns false when the static attribute's strategy is `WriteThrough` or `WriteBehind` (a command is never cached under its own key); `ReadThrough` is unchanged.
-5. **Tests (unit):** every rule of Design Choice 9 that is attribute-only, the attribute defaults, and "a `WriteThrough` command goes straight to `nextStep()` with no cache read or write". No guard test: the settings type is internal (no `InternalsVisibleTo` for `Encina.GuardTests` in `Encina.Caching.csproj`) and the attribute has no constructor parameters.
+5. **Modify** `CachingOptions` (`public bool EnableWriteThrough { get; set; }`, default false) and add the copy line in `AddEncinaCaching` (the option list is hand-written: a missing line silently drops the option); `ServiceCollectionExtensions.cs` keeps at least the unit target it has on main.
+6. **Tests (unit):** every rule of Design Choice 9 that PR 1 can check, the attribute defaults, an equality test that `DefaultCacheKeyGenerator.GenerateKey` of the query and `GeneratePatternFromTemplate` of the command give the same string for the same properties and tenant, and "a `WriteThrough` command goes straight to `nextStep()` with no cache read or write". No guard test: the settings type is internal (no `InternalsVisibleTo` for `Encina.GuardTests` in `Encina.Caching.csproj`) and the attribute has no constructor parameters.
 
 </details>
 
@@ -278,8 +303,8 @@ read-through. CachePatternSettings (src/Encina.Caching/Patterns/CachePatternSett
 
 TASK:
 1. Add the public enum CacheStrategy (ReadThrough, WriteThrough, WriteBehind) and the four CacheAttribute properties of the plan.
-2. Extend CachePatternSettings with the strategy members and the attribute-only validation of Design Choice 9 (the maintainer's answer to it is in your brief).
-3. Make QueryCachingPipelineBehavior skip the cache for WriteThrough and WriteBehind request types.
+2. Extend CachePatternSettings with the strategy members and the validation of Design Choice 9 that PR 1 can check (the maintainer's answer to it is in your brief).
+3. Make QueryCachingPipelineBehavior skip the cache for WriteThrough and WriteBehind request types; add EnableWriteThrough with its copy line.
 4. Write the unit tests; ask mechanical-fixer for PublicAPI.Unshipped.txt, the manifest entry and the changelog fragment.
 
 KEY RULES:
@@ -301,31 +326,32 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 13 files:
+PR 2 holds exactly these 12 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Patterns/CacheWriteThroughPostCommitProcessor.cs` | new (internal sealed) |
-| 2 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`EnableWriteThrough`) |
-| 3 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (copy the option; register the open generic processor when on) |
-| 4 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | new (EventIds 500-501 here; 502-507 added in PR 3 and PR 4) |
+| 2 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (register the open generic processor when `EnableWriteThrough` is on) |
+| 3 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | new (EventIds 500, 501 and 507 here; 502 in PR 3, 503-506 in PR 4) |
+| 4 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` | new (partial of #266's class; the `encina.cache.write_through` counter, emitted by the processor of this PR) |
 | 5 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingStrategies = (500, 507)`) |
 | 6 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (`Encina.Caching` maps to `Caching` and `CachingStrategies`) |
 | 7 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
 | 8 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
-| 9 | `tests/Encina.UnitTests/Caching/CacheWriteThroughPostCommitProcessorTests.cs` | new |
-| 10 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify |
-| 11 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (DI test with `ValidateOnBuild` and `ValidateScopes`) |
-| 12 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 13 | `changelog.d/272-cache-write-through.added.md` | new (`mechanical-fixer`) |
+| 9 | `tests/Encina.UnitTests/Caching/CacheWriteThroughPostCommitProcessorTests.cs` | new (includes the `MeterListener` test of the counter) |
+| 10 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (DI test with `ValidateOnBuild` and `ValidateScopes`; the processor is registered only when the option is on) |
+| 11 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+| 12 | `changelog.d/272-cache-write-through.added.md` | new (`mechanical-fixer`) |
+
+PR 2 needs #266 PR 4 (`CachePatternMetrics.cs`) merged first.
 
 Tasks:
 
-1. **Create** `internal sealed partial class CacheWriteThroughPostCommitProcessor<TRequest, TResponse> : IRequestPostCommitProcessor<TRequest, TResponse> where TRequest : IRequest<TResponse>` with constructor `(ICacheProvider, ICacheKeyGenerator, IOptions<CachingOptions>, ILogger<...>, TimeProvider? = null, MultiTenancyMarker? = null)` and `ValueTask<Either<EncinaError, Unit>> Process(TRequest, IRequestContext, TResponse, CancellationToken)`.
-2. Flow of `Process`: no `[Cache(Strategy = WriteThrough)]` on the type, or `EnableQueryCaching` off: return `Right`; with multi-tenancy on and no tenant on the context: return `Right` without writing (fail closed for the cache, as `QueryCachingPipelineBehavior` does with EventId 3513; log Debug, not a new id); build the key from the query's template and the command (Design Choice 2) with the tenant segment of `DefaultCacheKeyGenerator`; write `CacheEntry<TResponse>` (with `CachedAtUtc` and, from #266's envelope, `ExpiresAtUtc`) with `SetAsync` and the attribute duration; on any exception log EventId 501 with `ex.ForLogging()`, try `RemoveAsync`, rethrow only when `ThrowOnCacheErrors` is on; always return `Right`.
+1. **Create** `internal sealed partial class CacheWriteThroughPostCommitProcessor<TRequest, TResponse> : IRequestPostCommitProcessor<TRequest, TResponse> where TRequest : IRequest<TResponse>` with a constructor whose parameters are all required, because a new class has no call sites to keep compiling and an optional parameter would hide a missing registration: `(ICacheProvider, ICacheKeyGenerator, IOptions<CachingOptions>, ILogger<...>, TimeProvider, IEnumerable<MultiTenancyMarker>)` (an empty sequence means multi-tenancy is off, which DI supplies explicitly) and `ValueTask<Either<EncinaError, Unit>> Process(TRequest, IRequestContext, TResponse, CancellationToken)`.
+2. Flow of `Process`: no `[Cache(Strategy = WriteThrough)]` on the type, or `EnableQueryCaching` off: return `Right`; with multi-tenancy on and no tenant on the context: return `Right` without writing (fail closed for the cache, as `QueryCachingPipelineBehavior` does with EventId 3513; log Debug with EventId 507; an existing entry of the key is not touched, so it stays until it expires, and the documentation says so); build the key with `ICacheKeyGenerator.GeneratePatternFromTemplate(queryTemplate, command, context)` (Design Choice 2); write `CacheEntry<TResponse>` (with `CachedAtUtc` and, from #266's envelope, `ExpiresAtUtc`) with `SetAsync` and the attribute duration; on any exception log EventId 501 with `ex.ForLogging()`, try `RemoveAsync`, rethrow only when `ThrowOnCacheErrors` is on; always return `Right`.
 3. The key is tenant-qualified by the same generator as the query's key, so a write for tenant A can never be read by tenant B; the processor never logs the raw key (it goes through `CacheKeyRedactor`).
-4. **Modify** `CachingOptions`: `public bool EnableWriteThrough { get; set; }` (default false) and the copy line in `AddEncinaCaching` (the option list at `ServiceCollectionExtensions.cs` is hand-written: a missing line silently drops the option); register `services.AddTransient(typeof(IRequestPostCommitProcessor<,>), typeof(CacheWriteThroughPostCommitProcessor<,>))` only when the option is on. The options-dependent rules of Design Choice 9 (`WriteThrough` while the option is off) are added to `CachePatternSettings.Resolve`.
-5. **Register** the range in `EventIdRanges.cs` and the assembly map; EventIds: 500 write-through applied (Debug), 501 write-through failed (Warning). `[LoggerMessage]` source generator, XML docs naming the range.
+4. **Modify** `AddEncinaCaching`: register `services.AddTransient(typeof(IRequestPostCommitProcessor<,>), typeof(CacheWriteThroughPostCommitProcessor<,>))` only when `EnableWriteThrough` is on (the option and its copy line came with PR 1).
+5. **Register** the range in `EventIdRanges.cs` and the assembly map; EventIds: 500 write-through applied (Debug), 501 write-through failed (Warning), 507 write-through skipped for no tenant (Debug); the counter `encina.cache.write_through` (tag `outcome`: applied, failed, skipped) is emitted by the processor, so the metrics partial is created here. `[LoggerMessage]` source generator, XML docs naming the range.
 6. **Tests (unit):** applied on `Right` for the matching key, tenant-qualified key for two tenants, no write without tenant under multi-tenancy, set failure returns `Right` and removes the key, `ThrowOnCacheErrors` rethrows, a `Left` handler result never reaches the processor (pipeline-level test with `PipelineBuilder`), the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`. Targets in Research.
 
 </details>
@@ -339,8 +365,8 @@ Phase 1 is merged: CacheStrategy and the CacheAttribute properties exist. IReque
 (src/Encina/Abstractions/IRequestPostCommitProcessor.cs) runs after the commit; PipelineBuilder wraps registered processors.
 
 TASK:
-1. Create CacheWriteThroughPostCommitProcessor, EnableWriteThrough with its copy line in AddEncinaCaching, and the opt-in registration.
-2. Create CacheStrategyLog (EventIds 500-501), register CachingStrategies = (500, 507) in EventIdRanges.cs and the assembly map.
+1. Create CacheWriteThroughPostCommitProcessor (required constructor parameters) and the opt-in registration; EnableWriteThrough exists from PR 1.
+2. Create CacheStrategyLog (EventIds 500, 501 and 507) and the CachePatternMetrics.Strategies.cs partial, register CachingStrategies = (500, 507) in EventIdRanges.cs and the assembly map.
 3. Write the unit tests and the DI test; ask mechanical-fixer for the two PublicAPI files, the manifest rows and the changelog fragment.
 
 KEY RULES:
@@ -363,24 +389,25 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 14 files:
+PR 3 holds exactly these 15 files: the 13 rows below and the two settings files named after the table. It carries no changelog fragment: a queue and a behavior nothing registers have no user-visible effect, and PR 4's fragment covers write-behind.
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching/Abstractions/IWriteBehindBatchHandler.cs` | new (public) |
-| 2 | `src/Encina.Caching/Abstractions/IWriteBehindCacheProjection.cs` | new (public, optional, Design Choice 5) |
-| 3 | `src/Encina.Caching/Abstractions/IWriteBehindDeadLetterSink.cs` | new (public) |
-| 4 | `src/Encina.Caching/Patterns/WriteBehindQueue.cs` | new (internal sealed, bounded `Channel`) |
-| 5 | `src/Encina.Caching/Behaviors/WriteBehindPipelineBehavior.cs` | new (internal sealed) |
-| 6 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`WriteBehind` sub-options: `QueueCapacity`, `FlushRetryCount`, `FlushRetryDelay`, `ShutdownDrainTimeout`) |
-| 7 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | modify (EventId 502) |
+| 1 | `src/Encina.Caching/Abstractions/WriteBehindAbstractions.cs` | new (public `IWriteBehindBatchHandler<TRequest>`, `WriteBehindBatchContext`, optional `IWriteBehindCacheProjection<TRequest>`, `IWriteBehindDeadLetterSink`: one file for the four small contracts) |
+| 2 | `src/Encina.Caching/Patterns/WriteBehindQueue.cs` | new (internal sealed, bounded `Channel`) |
+| 3 | `src/Encina.Caching/Behaviors/WriteBehindPipelineBehavior.cs` | new (internal sealed) |
+| 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`WriteBehind` sub-options: `QueueCapacity`, `FlushRetryCount`, `FlushRetryDelay`, `ShutdownDrainTimeout`) |
+| 5 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (the hand-written copy line for the `WriteBehind` sub-options object) |
+| 6 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | modify (EventId 502, emitted by the behavior) |
+| 7 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` | modify (the `encina.cache.write_behind.enqueued` counter, emitted by the behavior) |
 | 8 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 9 | `tests/Encina.UnitTests/Caching/WriteBehindQueueTests.cs` | new |
-| 10 | `tests/Encina.UnitTests/Caching/WriteBehindPipelineBehaviorTests.cs` | new |
-| 11 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify |
+| 10 | `tests/Encina.UnitTests/Caching/WriteBehindPipelineBehaviorTests.cs` | new (includes the `MeterListener` test of the counter) |
+| 11 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (defaults and the copy line through `AddEncinaCaching`; the rule tests are in `CacheStrategySettingsTests.cs`) |
 | 12 | `tests/Encina.ContractTests/Caching/WriteBehindContractTests.cs` | new (executes the real queue and behavior) |
 | 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 14 | `changelog.d/272-cache-write-behind-queue.added.md` | new (`mechanical-fixer`) |
+
+`src/Encina.Caching/Patterns/CachePatternSettings.cs` and `tests/Encina.UnitTests/Caching/CacheStrategySettingsTests.cs` also change here (the write-behind option rules of Design Choice 9).
 
 Tasks:
 
@@ -401,8 +428,8 @@ Phases 1 and 2 are merged. Write-behind returns to the caller as soon as the req
 batches through IWriteBehindBatchHandler<TRequest>.
 
 TASK:
-1. Create the three public abstractions, WriteBehindQueue and WriteBehindPipelineBehavior; add the WriteBehind sub-options to CachingOptions.
-2. Add EventId 502 to CacheStrategyLog (range 500-507 already registered).
+1. Create the public abstractions file, WriteBehindQueue and WriteBehindPipelineBehavior (required constructor parameters); add the WriteBehind sub-options to CachingOptions with their copy line in AddEncinaCaching and their rules in CachePatternSettings.
+2. Add EventId 502 to CacheStrategyLog (range 500-507 already registered) and the enqueued counter to the metrics partial.
 3. Write the unit and contract tests; ask mechanical-fixer for PublicAPI.Unshipped.txt, the manifest rows and the changelog fragment.
 
 KEY RULES:
@@ -425,7 +452,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 4 holds exactly these 14 files:
+PR 4 holds exactly these 15 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -433,23 +460,24 @@ PR 4 holds exactly these 14 files:
 | 2 | `src/Encina.Caching/Services/LoggingWriteBehindDeadLetterSink.cs` | new (internal, default sink) |
 | 3 | `src/Encina.Caching/Health/WriteBehindHealthCheck.cs` | new (`EncinaHealthCheck`) |
 | 4 | `src/Encina.Caching/WriteBehindServiceCollectionExtensions.cs` | new (public `AddEncinaWriteBehind`) |
-| 5 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` | new (partial of #266's class) |
-| 6 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | modify (EventIds 503-507) |
+| 5 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` | modify (flushed, dead-lettered and queue-depth instruments, emitted by the flush service) |
+| 6 | `src/Encina.Caching/Diagnostics/CacheStrategyLog.cs` | modify (EventIds 503-506, emitted by the flush service) |
 | 7 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 8 | `tests/Encina.UnitTests/Caching/WriteBehindFlushServiceTests.cs` | new (`FakeTimeProvider`) |
 | 9 | `tests/Encina.UnitTests/Caching/WriteBehindHealthCheckTests.cs` | new |
 | 10 | `tests/Encina.UnitTests/Caching/WriteBehindRegistrationTests.cs` | new (`ValidateOnBuild`, `ValidateScopes`) |
 | 11 | `tests/Encina.GuardTests/Caching/WriteBehindServiceCollectionExtensionsGuardTests.cs` | new |
-| 12 | `tests/Encina.UnitTests/Caching/CachePatternMetricsStrategiesTests.cs` | new (`MeterListener`) |
-| 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 14 | `changelog.d/272-cache-write-behind-flush.added.md` | new (`mechanical-fixer`) |
+| 12 | `tests/Encina.UnitTests/Caching/CachePatternMetricsStrategiesTests.cs` | new (`MeterListener`: flush instruments) |
+| 13 | `tests/Encina.IntegrationTests/Infrastructure/Caching/CacheStrategiesIntegrationTests.cs` | new (shared Redis fixture: write-through and a write-behind flush against a real provider, Design Choice 11) |
+| 14 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+| 15 | `changelog.d/272-cache-write-behind.added.md` | new (`mechanical-fixer`: covers PR 3 and PR 4) |
 
 Tasks:
 
 1. **Create** `WriteBehindFlushService : BackgroundService`: a `PeriodicTimer` at the smallest `FlushIntervalSeconds` of the registered request types (per-type intervals are honored by a per-type due time), flush also when a type reaches its `BatchSize`; each iteration catches its failures (never lets an exception escape; log EventId 506 by exception type, keep running); a `Left` or exception from the batch handler is retried `FlushRetryCount` times with `FlushRetryDelay` and then handed to `IWriteBehindDeadLetterSink` (EventIds 503 retry, 504 dead-lettered); on `StopAsync` it drains for `ShutdownDrainTimeout` and logs EventId 505 with the number of undrained items. The service starts no work from an ambient request: it is created at host start with no `RequestContextAccessor` holder, and each batch runs in a new `IServiceScopeFactory` scope whose context carries only the batch's tenant id, so no request identity (an `AsyncLocal` flows into any work started from a request) can leak into the flush. Stopping cancels the loop with `OperationCanceledException`, which is not an error and not a dead-letter cause.
 2. **Create** `AddEncinaWriteBehind(this IServiceCollection)` (public, `ArgumentNullException.ThrowIfNull`): registers the queue, the behavior as an open generic `IPipelineBehavior<,>`, the flush service, the default sink with `TryAdd` and the health check; it is the only way to switch write-behind on.
 3. **Create** `WriteBehindHealthCheck` (DefaultName const, static tags): Degraded at 80 percent of `QueueCapacity`, Unhealthy while the flush service is faulted; `Healthy` otherwise. Provider health of the cache itself stays with #754.
-4. **Create** `CachePatternMetrics.Strategies.cs`: counters `encina.cache.write_through` (tag `outcome`), `encina.cache.write_behind.enqueued`, `.flushed`, `.dead_lettered`, and an observable gauge `encina.cache.write_behind.queue_depth`; the tag `encina.tenant_id` only when multi-tenancy is on (ADR-054 D4).
+4. **Modify** `CachePatternMetrics.Strategies.cs` (created in PR 2, extended in PR 3): the counters `.flushed` and `.dead_lettered` and an observable gauge `encina.cache.write_behind.queue_depth`; the tag `encina.tenant_id` only when multi-tenancy is on (ADR-054 D4).
 5. **Tests:** retry then dead-letter with `FakeTimeProvider`, a throwing handler does not stop the loop, shutdown drain, a tenant-split batch, health thresholds, DI built with `ValidateOnBuild` and `ValidateScopes` (no scoped service injected into a singleton: the flush service resolves the handler from an `IServiceScopeFactory` scope per batch), the guard test for `AddEncinaWriteBehind` (null services).
 
 </details>
@@ -463,7 +491,7 @@ Phases 1-3 are merged: the queue, the behavior and the abstractions exist but no
 
 TASK:
 1. Create WriteBehindFlushService, the default dead-letter sink, WriteBehindHealthCheck and AddEncinaWriteBehind.
-2. Add EventIds 503-507 to CacheStrategyLog and the metrics partial CachePatternMetrics.Strategies.cs.
+2. Add EventIds 503-506 to CacheStrategyLog and the flush instruments to the metrics partial CachePatternMetrics.Strategies.cs; add the Redis integration test.
 3. Write the unit, DI and guard tests; ask mechanical-fixer for PublicAPI.Unshipped.txt, the manifest rows and the changelog fragment.
 
 KEY RULES:
@@ -536,7 +564,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation with `<example>` on `CacheStrategy`, the three abstractions, `AddEncinaWriteBehind` and the new `CacheAttribute` and `CachingOptions` members; the remarks state the loss window of write-behind and that a bypassed request is never queued.
-2. `docs-writer`: a "Cache strategies" section in `docs/features/query-caching.md` with the strategy comparison and use-case guidance (the issue's acceptance criterion), citing tests by name and no typed figure.
+2. `docs-writer`: a "Cache strategies" section in `docs/features/handler-caching.md` (the handler-caching page owned by the #266 family; `docs/features/query-caching.md` is the EF Core query-cache page and is not touched; the #84 overview links to the handler page) with the strategy comparison and use-case guidance (the issue's acceptance criterion), citing tests by name and no typed figure.
 3. `PublicAPI.Unshipped.txt` lines are written by `mechanical-fixer` per PR.
 4. No ROADMAP, INVENTORY or ADR change: no architectural decision beyond this plan; ADR number assigned when the ADR pull request opens, if the maintainer asks for one.
 5. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests` and `Encina.ContractTests`; per-flag coverage and the CRAP table of the changed methods.
@@ -551,14 +579,14 @@ CONTEXT:
 All code PRs are merged. Documentation remains.
 
 TASK:
-Confirm the XML docs and the four changelog fragments; ask docs-writer for the query-caching.md section.
+Confirm the XML docs and the four changelog fragments; ask docs-writer for the handler-caching.md section.
 
 KEY RULES:
 - No hand-typed figures; cite tests by name.
 - Fragment section is added; never edit CHANGELOG.md.
 
 REFERENCE FILES:
-- docs/features/query-caching.md
+- docs/features/handler-caching.md
 - changelog.d/README.md
 ```
 
@@ -589,7 +617,7 @@ REFERENCE FILES:
 | `CachePatternSettings`, `CachePatternMetrics` (#266) | `src/Encina.Caching/Patterns/`, `Diagnostics/` | Extended, not redefined |
 | `EncinaHealthCheck` | `src/Encina.Messaging/Health/EncinaHealthCheck.cs` | Health check base |
 | `TopologyRefreshHostedService` | `src/Encina.Caching/Sharding/Services/` | Precedent for a `PeriodicTimer` loop in this package |
-| `RedisFixture` | `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisFixture.cs` | Not needed: no provider code changes |
+| `RedisFixture` | `tests/Encina.IntegrationTests/Infrastructure/Caching/Fixtures/RedisFixture.cs` | Shared container of the integration test of PR 4 (Design Choice 11) |
 
 ### Event ID Allocation
 
@@ -603,9 +631,9 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 12 | 8 | New: enum, processor, three abstractions, queue, behavior, flush service, sink, health check, registration, log, metrics partial; modified: attribute, options, settings, behavior, DI, `EventIdRanges.cs`, two PublicAPI files |
 | Tests | 10 | 5 | New: unit (7), guard (1), contract (1), plus the metrics test; modified: attribute, options, DI, allocation test |
-| Documentation | 0 | 1 | `docs/features/query-caching.md` |
+| Documentation | 0 | 1 | `docs/features/handler-caching.md` |
 | Configuration | 4 | 4 | Four changelog fragments; manifest edited in each PR |
-| **Total** | **26** | **18** | 4 pull requests: 9, 13, 14 and 14 files, each at most 15 files and 1500 lines |
+| **Total** | **26** | **18** | 4 pull requests: 13, 12, 15 and 15 files, each at most 15 files and 1500 lines |
 
 ---
 
