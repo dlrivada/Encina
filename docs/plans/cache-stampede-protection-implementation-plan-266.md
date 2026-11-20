@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (89303f1e8):
+Issue #266 asks for three protections against a cache stampede on a `[Cache]` request: single-flight (concurrent identical misses share one handler execution), probabilistic early expiration (PER) and automatic TTL jitter, plus a distributed-lock mode, metrics and a configuration surface. Re-checked against `origin/main` (8727c5cc3):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -123,7 +123,7 @@ The plan puts all three protections in `QueryCachingPipelineBehavior`, so the 8 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Throw `InvalidOperationException` naming the request type and the missing service, on the first request of that type** | The attribute is an explicit requirement; a misconfiguration shows at the first test | A request fails for a protection that is an optimization |
+| **A) Throw `InvalidOperationException` naming the request type and the missing service, when the behavior of that type is constructed (every request of the type, deterministic from the first one)** | The attribute is an explicit requirement; a misconfiguration shows at the first test | A request fails for a protection that is an optimization |
 | **B) Degrade to `SingleFlight` and log a Warning once per request type** | The request still works | A deployment believes it has cross-node protection and does not |
 
 ### Chosen Option: **A - throw** (recommended, pending the maintainer)
@@ -164,7 +164,7 @@ The plan puts all three protections in `QueryCachingPipelineBehavior`, so the 8 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `CachePatternSettings.Resolve` throws `InvalidOperationException` (request type, property, value) on the first request of a type when `JitterPercent` is outside 0 to under 100, `EarlyExpirationBeta` is negative or not finite, or a mode needs a missing service** | Fail-fast, one place, deterministic | The first request of that type fails; there is no startup scan of request types |
+| **A) `CachePatternSettings.Resolve` throws `InvalidOperationException` (request type, property, value) when the behavior of a `[Cache]` type is constructed (every request of that type, since the behavior is transient) and `JitterPercent` is outside 0 to under 100, `EarlyExpirationBeta` is negative or not finite, or a mode needs a missing service** | Fail-fast, one place, deterministic | The first request of that type fails; there is no startup scan of request types |
 | **B) Clamp to the nearest valid value and log a Warning once** | The request works | A typo (`JitterPercent = 1000`) silently becomes 99 |
 
 ### Chosen Option: **A - throw at resolution** (recommended, pending the maintainer)
@@ -292,7 +292,7 @@ Tasks:
 3. **Modify** `CacheAttribute`: `public double JitterPercent { get; init; }` (default 0, XML docs with the 0 to under 100 range and the rule that jitter applies to `Duration`, and to the sliding window when `SlidingExpiration` is on). **Modify** `CachingOptions`: `public double DefaultJitterPercent { get; set; }` (default 0; pay-for-what-you-use).
 4. **Modify** `QueryCachingPipelineBehavior`: settings resolved in the constructor from the static attribute (read once per closed generic, as today) and the instance's `CachingOptions` (the behavior is registered transient, `ServiceCollectionExtensions.cs` line 80, and options differ per instance, so a static `Lazy` cannot hold them): an invalid value throws `InvalidOperationException` when the behavior is constructed, that is on every request of that type, which is deterministic and visible at the first request (Design Choice 7); `TryGetFromCacheAsync` and `TryGetForCallerAsync` now return `(bool Found, CacheEntry<TResponse>? Entry)` instead of `(Found, Value)`: PR 1 owns this change, because the hit path of #267 and #268 needs `CachedAtUtc`, `ExpiresAtUtc` and the later fields, and the served value is `Entry.Value`; an entry with no `ExpiresAtUtc` (sliding entries only; there is no fallback for entries of an earlier build, AGENTS.md section 3) is fresh and governed by the provider TTL exactly as today; the sliding branch of the store never writes `ExpiresAtUtc`, because `RefreshAsync` (`QueryCachingPipelineBehavior.cs`, lines 187-190) keeps a sliding entry alive past any fixed instant and a fixed expiry would make a live entry look stale (#267 treats an absent `ExpiresAtUtc` as not eligible and #268 rejects fail-safe with sliding, both consistent with this); the constructor resolves settings only when the type has `[Cache]` (the behavior is built for every request type, and `CacheAttribute` is null for most), so `Resolve` takes a non-null attribute and a request type without `[Cache]` resolves nothing and throws nothing (a unit test builds the behavior for a type without the attribute); `CacheEntry<T>` gets `public DateTime? ExpiresAtUtc { get; init; }` and `public long? ComputeMilliseconds { get; init; }` (Design Choice 8); `TryCacheResultAsync` computes the effective duration with `CacheExpiration.ApplyJitter`, sets `ExpiresAtUtc = CachedAtUtc + effectiveDuration` in the absolute branch only and passes `effectiveDuration` to `StoreCacheEntryAsync` (both branches: the jittered value is the sliding window in the sliding branch; the absolute maximum of the sliding branch is not jittered). `ComputeMilliseconds` is measured with `TimeProvider.GetTimestamp` around `nextStep()` in PR 4; PR 1 leaves it null.
 5. **Modify** `AddEncinaCaching`: add `opt.DefaultJitterPercent = options.DefaultJitterPercent;` to the copy list (a missing line would silently drop the option).
-6. **Tests (unit)**: `ApplyJitter` returns the duration for 0, stays inside the band for the seam values 0, 0.5 and 1, never goes below one millisecond; `Resolve` takes the attribute over the option, rejects -1, 100, NaN and infinity for the attribute with a VALID option default (the raw value is rejected, not hidden by the default) and for the option, with a message that names the request type and not the value of any request; the behavior stores a different TTL for two requests when the seam differs and sets `ExpiresAtUtc`; with `JitterPercent` 0 the provider receives exactly `Duration` (today's behavior) and a sliding entry (no `ExpiresAtUtc`) is served as fresh (Design Choice 8); the options test asserts the default 0 and the DI test asserts `AddEncinaCaching(o => o.DefaultJitterPercent = 10)` reaches `IOptions<CachingOptions>`. **Guard tests:** `CachePatternSettings` and `CacheExpiration` are internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests`, and the attribute and options have no constructor parameters, so no guard test is added; the manifest reason says so.
+6. **Tests (unit)**: `ApplyJitter` returns the duration for 0, stays inside the band for the seam values 0, 0.5 and 1, never goes below one millisecond; `Resolve` takes the attribute over the option, rejects -1, 100, NaN and infinity for the attribute with a VALID option default (the raw value is rejected, not hidden by the default) and for the option, with a message that names the request type and not the value of any request; the behavior stores a different TTL for two requests when the seam differs and sets `ExpiresAtUtc`; with `JitterPercent` 0 the provider receives exactly `Duration` (today's behavior) and a sliding entry (no `ExpiresAtUtc`) is served as fresh (Design Choice 8); the options test asserts the default 0 of `DefaultJitterPercent` and of `DefaultEarlyExpirationBeta`, and the DI test asserts `AddEncinaCaching(o => { o.DefaultJitterPercent = 10; o.DefaultEarlyExpirationBeta = 1.5; })` reaches `IOptions<CachingOptions>` for both. **Guard tests:** `CachePatternSettings` and `CacheExpiration` are internal and `Encina.Caching` has no `InternalsVisibleTo` for `Encina.GuardTests`, and the attribute and options have no constructor parameters, so no guard test is added; the manifest reason says so.
 
 </details>
 
@@ -565,7 +565,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation with `<example>` on `StampedeProtectionMode`, `ISingleFlightExecutor`, `SingleFlightResult<TResult>`, `InProcessSingleFlightExecutor` and the new `CacheAttribute` and `CachingOptions` members; each remark states the tenant and user isolation of the flight key and that a bypassed request is never coalesced.
-2. `docs-writer`: add a "Stampede protection" section to `docs/features/query-caching.md` (modes, jitter, XFetch, the lock mode and the Hybrid limitation) citing the unit tests by name and no typed figure. The `Encina.Caching` package has no README today; creating it is outside this plan.
+2. `docs-writer`: add a "Stampede protection" section to `docs/features/handler-caching.md` (new or shared with the family: `query-caching.md` documents the EF Core `QueryCacheInterceptor`, so the `[Cache]` handler page is a separate one named with the #84 documentation plan; the first family PR that needs it creates it) (modes, jitter, XFetch, the lock mode and the Hybrid limitation) citing the unit tests by name and no typed figure. The `Encina.Caching` package has no README today; creating it is outside this plan.
 3. `PublicAPI.Unshipped.txt` lines are written by `mechanical-fixer` per PR (the old `QueryCachingPipelineBehavior` constructor line is removed in PR 3 and PR 4: RS0017).
 4. No ROADMAP, INVENTORY or ADR change: no architectural decision beyond this plan; ADR number assigned when the ADR pull request opens, if the maintainer asks for one for the request-flow contract.
 5. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching namespaces), `Encina.GuardTests` and, for PR 4, `Encina.IntegrationTests` (Redis collection); per-flag coverage and the CRAP table of the changed methods (`QueryCachingPipelineBehavior.Handle` must stay at CRAP 10 or below: extract the miss path into private methods in PR 3 before adding branches).
@@ -580,14 +580,14 @@ CONTEXT:
 All code PRs are merged. Documentation remains.
 
 TASK:
-Confirm the XML docs and the four changelog fragments; ask docs-writer for the query-caching.md section.
+Confirm the XML docs and the four changelog fragments; ask docs-writer for the handler-caching.md section.
 
 KEY RULES:
 - No hand-typed figures; cite tests by name.
 - Fragment section is added; never edit CHANGELOG.md.
 
 REFERENCE FILES:
-- docs/features/query-caching.md
+- docs/features/handler-caching.md (created by the first family PR that needs it)
 - changelog.d/README.md
 ```
 
@@ -633,7 +633,7 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 8 | 5 | New: executor, interface (with `SingleFlightResult`), enum, settings, expiration, two log files, metrics; modified: attribute, options, behavior, DI, `EventIdRanges.cs` |
 | Tests | 11 | 4 | New: unit (8), guard (1), integration (1), contract (1); no property test; modified: options, DI, guard behavior tests, event-id architecture test |
-| Documentation | 0 | 1 | `docs/features/query-caching.md` |
+| Documentation | 0 | 1 | `docs/features/handler-caching.md` (new or shared with the family) |
 | Configuration | 4 | 3 | Four changelog fragments; the manifest (edited in each PR); two `PublicAPI.Unshipped.txt` files |
 | **Total** | **23** | **13** | 4 pull requests: 14, 9, 15 and 14 files, each at most 15 files and 1500 lines |
 
