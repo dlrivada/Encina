@@ -9,11 +9,11 @@ has_children: true
 # Architecture Decision Records
 
 | ADR | Title |
-|-----|-------|
-| [001](001-railway-oriented-programming.md) | Railway Oriented Programming |
+| --- | --- |
+| [001](001-railway-oriented-programming.md) | Railway Oriented Programming - amended by [064](064-rop-result-union.md) |
 | [002](002-dependency-injection-strategy.md) | Dependency Injection Strategy |
 | [003](003-caching-strategy.md) | Caching Strategy |
-| [004](004-reject-mediator-result.md) | Reject Mediator Result |
+| [004](004-reject-mediator-result.md) | Reject Mediator Result - amended by [064](064-rop-result-union.md) |
 | [005](005-reject-source-generators.md) | Reject Source Generators |
 | [006](006-pure-rop-exception-handling.md) | Pure ROP Exception Handling |
 | [007](007-extensibility-strategy-v2.md) | Extensibility Strategy v2 |
@@ -59,6 +59,7 @@ has_children: true
 | [060](060-cpm-transitive-pinning-non-packable.md) | Central Package Management Transitive Pinning Only in Non-Packable Projects (Accepted) |
 | [062](062-error-category-contract.md) | Error Category Contract on EncinaError (Accepted) |
 | [063](063-in-repo-coverage-comment-replaces-codecov.md) | An In-Repository Coverage Comment Replaces Codecov (Accepted, supersedes 023) |
+| [064](064-rop-result-union.md) | An Encina-Owned Result Union Replaces LanguageExt Either as the ROP Carrier (Accepted, amends 001 and 004) |
 
 ## Reserved numbers
 
