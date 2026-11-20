@@ -2,21 +2,21 @@
 
 > **Issue**: [#425](https://github.com/dlrivada/Encina/issues/425)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 5 pull requests of 8, 12, 5, 12 and 5 files)
+> **Complexity**: Medium (8 phases, 5 pull requests of 8, 14, 5, 13 and 5 files)
 > **Estimated Scope**: ~450 lines of production code + ~1,100 lines of tests
-> **Family**: Aspire (aspire-2): #424 external services, #382 service discovery and configuration, #387 Dapr, #391 sidecar. Merged aspire-1 plans: #416 (`Encina.Aspire.Hosting`, `EncinaHostingOptions`, the `Encina__Aspire__*` contract), #417 (`Encina.Aspire.ServiceDefaults`, `AddEncinaDefaults`), #440 (naming rules and parity tests). The closed duplicate #442 carried into this issue "state preservation" and "dashboard integration". **This plan owns the `HotReload` folder of the core package, the `UseHotReload` declaration and the `AspireHotReload` EventId range.**
+> **Family**: Aspire (aspire-2): #424 external services, #382 service discovery and configuration, #387 Dapr, #391 sidecar. Aspire-1 plans merged on `main` (the plans only: `src/Encina.Aspire.Hosting` and `src/Encina.Aspire.ServiceDefaults` do not exist yet, so pull request 4 starts after their code pull requests merge): #416 (`Encina.Aspire.Hosting`, `EncinaHostingOptions`, the `Encina__Aspire__*` contract), #417 (`Encina.Aspire.ServiceDefaults`, `AddEncinaDefaults`), #440 (naming rules and parity tests). The closed duplicate #442 carried into this issue "state preservation" and "dashboard integration". **This plan owns the `HotReload` folder of the core package, the `UseHotReload` declaration and the `AspireHotReload` EventId range.**
 
 ---
 
 ## Summary
 
-The issue asks for hot reload of handlers, validators and pipeline behaviors, state preservation, dashboard visibility and development-only activation. State of `origin/main` (`098caa920`), verified by reading and grep, and the .NET hot reload contract:
+The issue asks for hot reload of handlers, validators and pipeline behaviors, state preservation, dashboard visibility and development-only activation. State of `origin/main` (`e31de98cb`), verified by reading and grep, and the .NET hot reload contract:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
 | `[assembly: MetadataUpdateHandler]` and `ClearCache`/`UpdateApplication` | Nothing in `src/` (grep for `MetadataUpdateHandler` finds no match) | **This plan** |
 | `EncinaHandlerCache.Clear()`, `EncinaHandlerRegistry`, `EncinaHotReloadNotifier` of the sketch | Do not exist. The real caches are private statics: `Encina.RequestHandlerCache` and `NotificationHandlerInvokerCache` (`src/Encina/Core/Encina.cs:43-44`), `StreamDispatcher.StreamHandlerCache` (`src/Encina/Core/StreamDispatcher.cs:18`), `RequestKindCache` (`src/Encina/Dispatchers/Encina.RequestDispatcher.cs:39`) | **This plan** clears them |
-| Pipeline behavior attribute caches | `AuthorizationPipelineBehavior<TRequest,TResponse>` keeps four static caches (`CommandTypeCache`, `AllowAnonymousCache`, `AuthorizeAttributeCache`, `ResourceAuthorizeCache`, `src/Encina.AspNetCore/AuthorizationPipelineBehavior.cs:91-94`); statics of a generic class are per closed type, so they cannot be cleared from outside | **This plan** moves them to a non-generic holder (Design Choice 4) |
+| Pipeline behavior attribute caches | `AuthorizationPipelineBehavior<TRequest,TResponse>` keeps four static caches (`CommandTypeCache`, `AllowAnonymousCache`, `AuthorizeAttributeCache`, `ResourceAuthorizeCache`, `src/Encina.AspNetCore/AuthorizationPipelineBehavior.cs:91-94`); statics of a generic class are per closed type, so they cannot be cleared from outside. `git grep` of `static readonly` `ConcurrentDictionary` or `ConditionalWeakTable` declarations in `src` finds 59, 50 of them outside the five handled here (`MediatorAssemblyScanner.Cache`, `src/Encina/Dispatchers/MediatorAssemblyScanner.cs:11`, is one: it is read at registration only, so a metadata update does not need it cleared; recorded in Design Choice 3) | **This plan** moves the authorization caches to a non-generic holder (Design Choices 4 and 9) |
 | Validator reload | `AddEncinaFluentValidation` registers validators as singletons by default and already has an overload with a `ServiceLifetime` (`src/Encina.FluentValidation/ServiceCollectionExtensions.cs:93`) | Design Choice 5 |
 | File watcher on `*.dll` | A loaded assembly cannot be replaced in the default load context | Design Choice 2 (not built) |
 | State preservation (`Preserve(...)`) | Stores are DI services; a metadata update never recreates them | Design Choice 6 |
@@ -95,7 +95,7 @@ The handler is the documented extension point of .NET hot reload (the issue's ow
 
 ### Rationale
 
-A wins while body edits dominate hot reload sessions, which is what the issue's "handler logic changes frequently" describes; B wins if teams add handler classes constantly and accept a dispatcher change plus its tests. The warning names the type only.
+A wins while body edits dominate hot reload sessions, which is what the issue's "handler logic changes frequently" describes; B wins if teams add handler classes constantly and accept a dispatcher change plus its tests. The warning names the type only. `MediatorAssemblyScanner.Cache` (assembly scan results, read only while services are registered) is not cleared under A, because nothing rescans after the container is built; under B it would have to be, since a late-registration table needs a rescan of the updated assembly.
 
 **Class:** Dilemma
 
@@ -115,7 +115,7 @@ A wins while body edits dominate hot reload sessions, which is what the issue's 
 
 ### Rationale
 
-A wins because the only time the handler runs is a development hot reload and a stale authorization cache is a security defect, so correctness must not depend on a call being present; B wins if the maintainer reads "every feature opt-in" as covering even an inert handler. The caches are moved to a non-generic holder in `Encina.AspNetCore` because the statics of `AuthorizationPipelineBehavior<TRequest,TResponse>` exist once per closed generic and cannot be reached to clear them. Clearing never throws: the handler catches its own failure, logs 860 and returns, because an exception here would surface in the developer's session.
+A wins because the only time the handler runs is a development hot reload and a stale authorization cache is a security defect, so correctness must not depend on a call being present; B wins if the maintainer reads "every feature opt-in" as covering even an inert handler. The caches are moved to a non-generic holder in `Encina.AspNetCore` because the statics of `AuthorizationPipelineBehavior<TRequest,TResponse>` exist once per closed generic and cannot be reached to clear them. The handlers are not gated by the environment: the runtime calls them only inside a hot reload session (a development agent), and a gate that could be wrong would reintroduce the stale-decision risk. Clearing is `ConcurrentDictionary.Clear()`, which does not throw for these dictionaries, so the handlers carry no `catch`: nothing is swallowed, and an unexpected exception reaches the runtime's own reporting in the developer's session instead of leaving a stale authorization entry silently (fail closed, AGENTS.md section 3).
 
 **Class:** Dilemma
 
@@ -199,10 +199,31 @@ A wins because the information is an event with a duration, which a log carries 
 
 ### Rationale
 
-The issue states "development only"; AGENTS.md section 3 requires gates to fail closed when context is missing, so an unknown environment disables the coordinator, and section 1 makes every feature opt-in. These hold whichever option the Dilemmas above take, because they concern only the coordinator.
+The issue states "development only"; AGENTS.md section 3 requires gates to fail closed when context is missing, so an unknown environment disables the coordinator, and section 1 makes every feature opt-in. This choice covers only the **coordinator and the AppHost declaration** (logging, warnings, the `OnReload` callback): they are off unless declared or enabled and the host is Development. The cache-clearing handlers are a separate matter, decided in Design Choice 4 (always present, not environment gated). The statement holds under every option of Design Choices 3 to 7 because those change what the coordinator reports, not when it is enabled.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 1 (pay-for-what-you-use, every feature opt-in) and section 3 (gates fail closed); issue #425 acceptance criterion "Development-only activation"
+
+</details>
+
+<details>
+<summary><strong>9. Pipeline behaviors beyond authorization (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Only the authorization behavior's caches (a security gate) and the dispatcher caches are cleared here; the other static caches are a follow-up issue (59 declarations in `src`, 50 outside the five handled, per `git grep`)** | A bounded plan and the one security-relevant cache covered | The issue's "reload custom pipeline behaviors" criterion is met for the behaviors that cache security decisions only |
+| **B) Clear every static cache of every package in this plan** | Meets the criterion fully | About 50 sites over many packages, far over one worker pull request; each package needs its own handler |
+| **C) A registry that each cache registers into** | One clear call | Changes every cache site and gives core a registry other packages must call |
+
+### Chosen Option: **A — authorization and dispatcher caches now, the rest by issue** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the first delivery must be correct for decisions that gate access and small enough to review; B wins if the maintainer wants full coverage in one program of work; C if one registry is preferred to many handlers. Behavior ordering is preserved without Encina code: a metadata update does not rebuild the pipeline, which the container composed at start.
+
+**Class:** Dilemma
 
 </details>
 
@@ -218,8 +239,8 @@ The issue states "development only"; AGENTS.md section 3 requires gates to fail 
 <summary>Tasks</summary>
 
 1. `src/Encina/Core/Encina.cs`, `src/Encina/Core/StreamDispatcher.cs`, `src/Encina/Dispatchers/Encina.RequestDispatcher.cs` (edited): an `internal static void ClearHotReloadCaches()` next to each cache (`RequestHandlerCache` and `NotificationHandlerInvokerCache` are in the partial class `Encina`; `RequestKindCache` is in its dispatcher partial; `StreamHandlerCache` in `StreamDispatcher`); nothing else changes.
-2. `src/Encina/HotReload/EncinaHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(typeof(EncinaHotReloadHandler))]`, `ClearCache(Type[]? updatedTypes)` calls the four clearers inside a `try`/`catch (Exception)` that never rethrows, and `UpdateApplication(Type[]? updatedTypes)` raises the notifier. A cancellation is not an error here; the methods take no token.
-3. `src/Encina/HotReload/HotReloadNotifier.cs` (internal static): `event Action<IReadOnlyList<Type>>? Updated`; `Raise(Type[]? types)` invokes subscribers one by one inside `try`/`catch` (a failing subscriber never stops the others or the runtime).
+2. `src/Encina/HotReload/EncinaHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(typeof(EncinaHotReloadHandler))]`, `ClearCache(Type[]? updatedTypes)` records `Stopwatch.GetTimestamp()` in a static field and calls the four clearers (each is `ConcurrentDictionary.Clear()`, which does not throw, so there is no `catch` and nothing is swallowed), and `UpdateApplication(Type[]? updatedTypes)` raises the notifier with the recorded start timestamp. The runtime calls `ClearCache` and then `UpdateApplication` as separate callbacks, so the duration of event 855 runs from the timestamp taken in `ClearCache` to the end of the coordinator's handling. The methods take no token.
+3. `src/Encina/HotReload/HotReloadNotifier.cs` (internal static): `event Action<HotReloadUpdate>? Updated` (a readonly struct carrying the updated types and the start timestamp); `Raise(Type[]? types, long startTimestamp)` invokes the event. The only subscriber is the coordinator, which catches and logs its own failures (event 860), so the notifier needs no `catch` and no static logger sink exists. The event is process-global: unit tests that subscribe do so through a coordinator instance that unsubscribes on dispose, and the tests of one class never run in parallel with another that raises it (a collection attribute); this limitation is stated in the pull request.
 4. `src/Encina/HotReload/CoreHotReloadCaches.cs` (internal static): `Clear()` calling the three clearers, so the handler has one call.
 5. Tests: unit tests call `ClearCache` and `UpdateApplication` directly (the runtime contract is two static methods, so a test can run them without a hot reload agent): after one dispatch fills each cache, `ClearCache` empties it and a second dispatch works; a throwing subscriber does not stop the others; `Encina.json` manifest entries through `mechanical-fixer`. No public API, so no PublicAPI lines and no guard test.
 
@@ -230,14 +251,14 @@ The issue states "development only"; AGENTS.md section 3 requires gates to fail 
 
 ```text
 CONTEXT:
-- Issue #425; plan docs/plans/aspire-hot-reload-implementation-plan-425.md. D1, D3, D4, D5, D6 and D7 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #425; plan docs/plans/aspire-hot-reload-implementation-plan-425.md. D1, D3, D4, D5, D6, D7 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - The caches are private statics in src/Encina/Core/Encina.cs (:43-44), src/Encina/Core/StreamDispatcher.cs (:18) and src/Encina/Dispatchers/Encina.RequestDispatcher.cs (:39).
 
 TASK:
 Add the four internal clearers, the assembly MetadataUpdateHandler, the notifier and their unit tests.
 
 KEY RULES:
-- The handler never throws; ClearCache and UpdateApplication are called by the runtime inside the developer's session.
+- ClearCache and UpdateApplication are called by the runtime inside the developer's session; they contain no catch (the clears do not throw) and log nothing.
 - All new types are internal; no public API change.
 - Tests call the two static methods directly; never rely on a real hot reload agent.
 
@@ -260,8 +281,8 @@ REFERENCE FILES:
 
 1. `src/Encina/HotReload/EncinaHotReloadOptions.cs` (public sealed): `Enabled` (bool, default `false`: the call alone does not enable it), `WarnOnUnregisteredHandlers` (bool, default `true`), `OnReload` (`Action<EncinaHotReloadEvent>?`), `WatchAssemblies(params Assembly[])` (restricts the warning to those assemblies; null elements rejected). `EncinaHotReloadEvent` (public sealed record): `UpdatedTypeCount`, `DurationMilliseconds`.
 2. `src/Encina/HotReload/ServiceCollectionExtensions.cs` (the folder's extension class, `EncinaHotReloadServiceCollectionExtensions`): `ConfigureEncinaHotReload(this IServiceCollection services, Action<EncinaHotReloadOptions>? configure = null)`: guards; registers the options with `AddOptions` and a `TryAddEnumerable` `IHostedService` coordinator; the coordinator does nothing unless `Enabled` is true and `IHostEnvironment.IsDevelopment()` (an unresolved environment counts as not Development: fail closed).
-3. `src/Encina/HotReload/HotReloadCoordinator.cs` (internal sealed, `IHostedService`): subscribes to `HotReloadNotifier.Updated` on `StartAsync`, unsubscribes on `StopAsync` and `Dispose`; on an update measures the duration with the injected `TimeProvider`, logs 855 (updated type count, duration), invokes `OnReload` inside `try`/`catch` (a failing callback logs 860 and never escapes), and, when `WarnOnUnregisteredHandlers` is true, resolves `IServiceProviderIsService` and logs 857 for each updated type that implements `IRequestHandler<,>`, `INotificationHandler<>` or the stream handler interface and is not registered.
-4. `src/Encina/HotReload/Diagnostics/HotReloadLog.cs` (`[LoggerMessage]`): 855 update applied (Information: count, milliseconds), 856 caches cleared (Debug), 857 new handler type needs a restart (Warning: the type name), 858 coordinator started (Information), 859 coordinator disabled because the environment is not Development (Debug), 860 hot reload step failed (Error: exception through `ForLogging()`). `EventIdRanges.AspireHotReload = (855, 864)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI lines. Ids 855-860 are packed; 861-864 spare. The handler of Phase 1 calls 856 and 860 through a static logger sink set by the coordinator (a no-op when absent), so Phase 1 stays internal and log-free.
+3. `src/Encina/HotReload/HotReloadCoordinator.cs` (internal sealed, `IHostedService`): subscribes to `HotReloadNotifier.Updated` on `StartAsync`, unsubscribes on `StopAsync` and `Dispose`; on an update computes the duration with `Stopwatch.GetElapsedTime(update.StartTimestamp)` (a monotonic interval, not a date, so `TimeProvider` is not involved; the timestamp was taken in `ClearCache`), logs 855 (updated type count, duration), invokes `OnReload` inside `try`/`catch` (a failing callback logs 860 and never escapes), and, when `WarnOnUnregisteredHandlers` is true, resolves `IServiceProviderIsService` and logs 857 for each updated type that implements `IRequestHandler<,>`, `INotificationHandler<>` or the stream handler interface and is not registered.
+4. `src/Encina/HotReload/Diagnostics/HotReloadLog.cs` (`[LoggerMessage]`): 855 update applied (Information: count, milliseconds), 856 caches cleared (Debug), 857 new handler type needs a restart (Warning: the type name), 858 coordinator started (Information), 859 coordinator disabled because the environment is not Development (Debug), 860 hot reload step failed (Error: exception through `ForLogging()`). `EventIdRanges.AspireHotReload = (855, 864)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI lines. `docs/engineering/eventid-block-registry.md` is edited in the same pull request: a row for `AspireHotReload` 855-864 in the "Registered ranges" table and the reserved 850-899 row split so it does not overlap (`EventIdRegistryAgreementTests` fails otherwise). Ids 855-860 are packed; 861-864 spare. Every log call is made by the coordinator (856 when the notification arrives, 860 for any failure of its own steps), so the Phase 1 handler and notifier stay internal and log-free, and the log file's methods all have an emitter in the pull request that declares them.
 5. No scoped service is injected into the coordinator (a singleton): it takes `IOptions<EncinaHotReloadOptions>`, `IHostEnvironment`, `IServiceProviderIsService`, `ILogger<>` and `TimeProvider` (registered with `TryAddSingleton(TimeProvider.System)`).
 6. Tests: unit (disabled outside Development, disabled when `Enabled` is false, enabled path logs and calls `OnReload`, a throwing callback is contained, the warning for an unregistered handler and not for a registered one, unsubscribe on stop); guard (null arguments, null assembly element); a DI test building the provider with `ValidateOnBuild` and `ValidateScopes`; PublicAPI and manifest through `mechanical-fixer`.
 
@@ -303,7 +324,7 @@ REFERENCE FILES:
 
 1. `src/Encina.AspNetCore/AuthorizationAttributeCaches.cs` (internal static): the four dictionaries moved from `AuthorizationPipelineBehavior<TRequest,TResponse>` (`CommandTypeCache`, `AllowAnonymousCache`, `AuthorizeAttributeCache`, `ResourceAuthorizeCache`) and `Clear()`.
 2. `AuthorizationPipelineBehavior.cs` (edited): the behavior reads the caches through the holder; its logic is unchanged.
-3. `src/Encina.AspNetCore/HotReload/AspNetCoreHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(...)]`, `ClearCache` calls `AuthorizationAttributeCaches.Clear()` and never throws.
+3. `src/Encina.AspNetCore/HotReload/AspNetCoreHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(...)]`, `ClearCache` calls `AuthorizationAttributeCaches.Clear()` (four `ConcurrentDictionary.Clear()` calls, which do not throw), with no `catch`: nothing is swallowed, and an unexpected exception reaches the runtime instead of leaving a stale authorization entry unnoticed (Design Choice 4).
 4. Tests: unit (the caches fill, `ClearCache` empties them, an attribute added to a request type is seen after the clear: the test uses two request types to simulate the before and after, since a real edit is not possible in a test); the existing authorization behavior tests must pass unchanged; the AspNetCore manifest entry through `mechanical-fixer`.
 
 </details>
@@ -320,7 +341,7 @@ Move the caches, add the AspNetCore handler and the tests.
 
 KEY RULES:
 - No behavior change in AuthorizationPipelineBehavior: run its existing tests.
-- The handler never throws; a failed clear is not logged here (no logger in a static handler), the next dispatch rebuilds the cache anyway.
+- No catch in the handler: ConcurrentDictionary.Clear does not throw, and an exception must never be swallowed in a security-relevant clear (fail closed).
 - Fail closed: an empty cache means the attributes are read again, never that a request is allowed.
 
 REFERENCE FILES:
@@ -342,7 +363,7 @@ REFERENCE FILES:
 1. `EncinaHostingOptions.cs` (#416, edited): `UseHotReload` (bool, default false). `EncinaAspireEnvironment.cs` (#416, edited): the key `Encina__Aspire__HotReload`. `WithEncina` (edited) writes `true` only when `builder.ExecutionContext.IsRunMode` and `UseHotReload` is set; in publish mode the variable is never written.
 2. `Encina.Aspire.ServiceDefaults` (#417): `EncinaAspireConfiguration` (edited) reads `Encina:Aspire:HotReload` (an invalid value is an `Either` `Left` with `encina.aspire.defaults.invalid_declaration` of the reader's existing category; the value is never echoed); `AddEncinaDefaults` (edited) calls `ConfigureEncinaHotReload(o => o.Enabled = true)` when the declaration is true; the coordinator itself still requires `IsDevelopment()`.
 3. `EnvironmentContractTests` (#440, edited): the writer-reader parity case for the new key, and for the publish-mode absence.
-4. Tests: unit for the writer (run and publish mode) and the reader; guard test edit; PublicAPI of Hosting (the new property) and manifests through `mechanical-fixer`.
+4. Tests: unit for the writer (run and publish mode) and the reader; guard test edit; a DI test of `AddEncinaDefaults` with the declaration true (the coordinator hosted service and options are registered; the provider builds with `ValidateOnBuild` and `ValidateScopes`) and with it false (nothing registered); PublicAPI of Hosting (the new property) and manifests through `mechanical-fixer`.
 
 </details>
 
@@ -351,7 +372,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #425, Phase 4 (pull request 4). #416, #417 and #440 are merged; pull request 2 is merged.
+- Issue #425, Phase 4 (pull request 4). The plans of #416, #417 and #440 are merged and their code pull requests are merged before this one starts (`src/Encina.Aspire.Hosting` and `src/Encina.Aspire.ServiceDefaults` do not exist on `main` today); pull request 2 is merged.
 
 TASK:
 Add UseHotReload, its environment key, the reader branch in the service defaults and the parity test.
@@ -465,6 +486,11 @@ REFERENCE FILES:
    | `AspNetCoreHotReloadHandler.cs` (3) | 95 | 0 | 0 | 0 | 0 | One static method run directly |
    | `EncinaHostingOptions.cs` (4, edit) | 100 | 0 | 90 | 0 | 0 | The new property read by the writer tests and the parity case; no manifest target is lowered |
    | `EncinaAspireConfiguration.cs` (4, edit) | 100 | 0 | 90 | 0 | 0 | The new branch is read by unit tests and the parity case; existing targets are kept or raised |
+   | `Encina.cs`, `StreamDispatcher.cs`, `Encina.RequestDispatcher.cs` (1, edits) | existing targets kept | existing kept | existing kept | existing kept | existing kept | Each gains one internal `ClearHotReloadCaches()` called by the unit tests of the handler; no target is lowered; CRAP of the touched dispatch methods is unchanged because only a new method is added |
+   | `AuthorizationPipelineBehavior.cs` (3, edit) | existing kept, raised if the measured value rose | existing kept | existing kept | existing kept | existing kept | The caches move to the holder; the existing behavior tests run unchanged; the touched members only read the holder |
+   | `EncinaAspireEnvironment.cs`, `EncinaResourceBuilderExtensions.cs` (4, edits) | 100 | existing kept | 90 | 0 | 0 | The new key and the run-mode-only write are covered by the writer tests and the parity case |
+   | `EncinaDefaultsExtensions.cs` (4, edit) | 95 | existing kept | 0 | 0 | 0 | The new branch is covered by the DI test with the declaration true and false |
+   | `EventIdRanges.cs` (2, edit) | existing kept | 0 | 0 | 0 | 0 | One new field read by the allocation architecture test |
 
 3. Measure per flag from the repository root and run `crap-gate` and `coverage-report.cs --check-justifications`; every touched method CRAP <= 10 (the coordinator's handler is split into small methods).
 
@@ -534,12 +560,12 @@ REFERENCE FILES:
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
 | 1 | Three clearer edits (`Encina.cs`, `StreamDispatcher.cs`, `Encina.RequestDispatcher.cs`), `EncinaHotReloadHandler`, `HotReloadNotifier`, `CoreHotReloadCaches`, `Encina.json` manifest, unit test file | 8 | 450 |
-| 2 | Options, event record, extension class, coordinator, `HotReloadLog`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` edit, allocation test map edit, handler edit (logs through the sink), unit tests (2), guard test, DI test | 14 | 1,050 |
+| 2 | Options, event record, extension class, coordinator, `HotReloadLog`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` edit, allocation test map edit, `docs/engineering/eventid-block-registry.md` edit, unit tests (2), guard test, DI test | 14 | 1,050 |
 | 3 | `AuthorizationAttributeCaches`, `AuthorizationPipelineBehavior.cs` edit, `AspNetCoreHotReloadHandler`, AspNetCore manifest, unit test | 5 | 300 |
-| 4 | `EncinaHostingOptions`, `EncinaAspireEnvironment`, `EncinaResourceBuilderExtensions`, `EncinaAspireConfiguration`, `EncinaDefaultsExtensions` edits, Hosting `PublicAPI.Unshipped.txt`, two manifests, two unit test files, guard test edit, `EnvironmentContractTests.cs` edit | 12 | 700 |
+| 4 | `EncinaHostingOptions`, `EncinaAspireEnvironment`, `EncinaResourceBuilderExtensions`, `EncinaAspireConfiguration`, `EncinaDefaultsExtensions` edits, Hosting `PublicAPI.Unshipped.txt`, two manifests, two unit test files, a DI test file, guard test edit, `EnvironmentContractTests.cs` edit | 13 | 800 |
 | 5 | Guide page, two README sections, inventory line, changelog fragment | 5 | 260 |
 
-PR 2 counts the Phase 1 handler as modified because its logging sink lands there. PR 1 needs nothing; PR 2 needs PR 1; PR 3 is independent; PR 4 needs #416, #417 and #440 (merged) and PR 2; PR 5 is last. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
+PR 1 needs nothing (the handler and notifier log nothing; the coordinator of PR 2 does); PR 2 needs PR 1; PR 3 is independent; PR 4 needs the code of #416, #417 and #440 (their plans are merged, their packages are not on `main` yet) and PR 2; PR 5 is last. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again.
 
 ---
 
@@ -584,7 +610,7 @@ PR 2 counts the Phase 1 handler as modified because its logging sink lands there
 | Public API and manifests | 5 | `Encina` and Hosting PublicAPI, `Encina.json`, AspNetCore and the two Aspire manifests |
 | Tests | 9 | Unit (5), guard (2), DI (1), contract edit (1), allocation map edit |
 | Documentation | 5 | Guide, two README sections, inventory line, changelog fragment |
-| **Total** | **by the split table: 8 + 14 + 5 + 12 + 5 = 44 file touches over 5 pull requests** | The split table is the authority |
+| **Total** | **by the split table: 8 + 14 + 5 + 13 + 5 = 45 file touches over 5 pull requests** | The split table is the authority |
 
 ---
 
@@ -596,7 +622,7 @@ PR 2 counts the Phase 1 handler as modified because its logging sink lands there
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #425: hot reload support. Plan: docs/plans/aspire-hot-reload-implementation-plan-425.md; the Dilemmas D1, D3, D4, D5, D6 and D7 are recommended, pending the maintainer.
+- Issue #425: hot reload support. Plan: docs/plans/aspire-hot-reload-implementation-plan-425.md; the Dilemmas D1, D3, D4, D5, D6, D7 and D9 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (5 pull requests, each builds alone):
 1. Core: four cache clearers, the assembly MetadataUpdateHandler, the notifier (Phase 1).
@@ -643,7 +669,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- #416, #417 and #440 are merged on `main`; pull requests 1 to 3 need none of them, pull request 4 needs all three.
+- The plans of #416, #417 and #440 are merged on `main`, their code is not; pull requests 1 to 3 need none of it, pull request 4 needs all three packages.
 - `Microsoft.Extensions.Hosting.Abstractions` is already referenced by core; no package is added.
 - The follow-up issue file for the remaining static caches (Messaging, Security, Compliance, SignalR and others) is opened by the orchestrator with this plan.
 
@@ -651,5 +677,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D3, D4, D5, D6 and D7 when work on #425 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D3, D4, D5, D6, D7 and D9 when work on #425 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull requests 1 to 3 in any order after 1 (2 needs 1); pull request 4; pull request 5 last.
