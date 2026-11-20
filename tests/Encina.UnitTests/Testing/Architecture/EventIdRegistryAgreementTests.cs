@@ -26,7 +26,8 @@ namespace Encina.UnitTests.Testing.Architecture;
 /// <c>EventIdRanges.cs</c> is in the registry with the same bounds; (2) every registry row that claims to be
 /// registered matches a range of <c>EventIdRanges.cs</c> with the same bounds; (3) a reserved block overlaps no
 /// registered range; (4) reserved blocks overlap each other nowhere; (5) nothing lies below 10000 except the
-/// historical registered ranges (<c>Zone = historical</c>) and the reserved blocks recorded before the zone
+/// historical ranges, whose exact names are the allow-list <c>HistoricalRangeNames</c> (the registry's
+/// <c>Zone = historical</c> label alone is not trusted), and the reserved blocks recorded before the zone
 /// existed (<c>Status = reserved-pre-zone</c>). A plain <c>reserved</c> block below 10000 is a violation.
 /// </para>
 /// </remarks>
@@ -150,6 +151,46 @@ public sealed class EventIdRegistryAgreementTests
     }
 
     [Fact]
+    public void Check_NewRangeBelowZoneLabelledHistorical_IsRejected()
+    {
+        // The registry carries its own 'historical' label, so a new sub-10000 range written with that label
+        // must still fail: only the names of the allow-list are historical (ADR-021, #4101).
+        var registry = Registry(
+            registered:
+            [
+                "| Core | 100-199 | Core and messaging | historical |",
+                "| BrandNewFeature | 5970-5999 | Core and messaging | historical |",
+            ]);
+
+        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199), ("BrandNewFeature", 5970, 5999)]);
+
+        var violation = violations.ShouldHaveSingleItem();
+        violation.ShouldContain("'BrandNewFeature'");
+        violation.ShouldContain("10000+");
+    }
+
+    [Fact]
+    public void Check_NewRangeInsideTheZone_IsNotSubjectToTheAllowList()
+    {
+        var registry = Registry(
+            registered: ["| BrandNewFeature | 10050-10099 | Core and messaging | zone |"]);
+
+        var violations = EventIdBlockRegistry.Check(registry, [("BrandNewFeature", 10050, 10099)]);
+
+        violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
+    }
+
+    [Fact]
+    public void HistoricalAllowList_MatchesTheExistingRangesBelowTheZone()
+    {
+        // Every historical name must still exist in EventIdRanges.cs, so a rename or removal updates the list.
+        var below = EventIdRanges.GetAllRanges().Where(r => r.Max < 10000).Select(r => r.Name).ToHashSet(StringComparer.Ordinal);
+
+        EventIdBlockRegistry.HistoricalRangeNames.Except(below).ShouldBeEmpty();
+        below.Except(EventIdBlockRegistry.HistoricalRangeNames).ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Check_PreZoneMarkerInsideTheZone_IsRejected()
     {
         var registry = Registry(
@@ -258,7 +299,35 @@ internal static class EventIdBlockRegistry
 {
     private const int ZoneStart = 10000;
 
-    private static readonly string[] RegisteredHeader = ["Name", "Block", "Area", "Zone"];
+    /// <summary>
+    /// The exact names of the 91 ranges below 10000 that existed when the 10000+ zone was introduced (ADR-021,
+    /// #4006). New blocks are born in 10000+, so a range below 10000 whose name is not listed here is rejected
+    /// whatever the registry's <c>Zone</c> label says. Adding a name is deliberately a visible code change, and
+    /// #4007 shrinks the list as the ranges migrate.
+    /// </summary>
+    internal static readonly System.Collections.Generic.HashSet<string> HistoricalRangeNames = new(StringComparer.Ordinal)
+    {
+        "Sanitization", "Core", "AspNetCore", "Testing", "DomainModelingRepository", "DomainModelingUnitOfWork",
+        "DomainModelingBulkOperations", "DomainModelingSpecification", "EntityFrameworkCoreSoftDelete",
+        "DomainModelingAudit", "SecurityAuditRead", "Tenancy", "ModuleIsolation", "MessagingOutbox",
+        "MessagingInbox", "MessagingSaga", "MessagingScheduling", "EntityFrameworkCoreQueryCache",
+        "MessagingEncryption", "DomainModelingDomainEvents", "AuditMarten", "Marten", "Messaging",
+        "EntityFrameworkCore", "MongoDB", "ADOSqlServer", "ADOPostgreSQL", "ADOMySQL", "DapperSqlServer",
+        "DapperPostgreSQL", "DapperMySQL", "Caching", "CachingMemory", "CachingRedis", "CachingHybrid",
+        "DistributedLockInMemory", "DistributedLockRedis", "DistributedLockSqlServer", "TenancyAspNetCore",
+        "Polly", "ExtensionsResilience", "Hangfire", "Quartz", "RabbitMQ", "Kafka", "NATS", "MQTT",
+        "AzureServiceBus", "AmazonSQS", "RedisPubSub", "InMemory", "GRpc", "GraphQL", "SignalR", "Refit",
+        "AwsLambda", "AzureFunctions", "Cdc", "CdcSqlServer", "CdcDebezium", "SecurityAudit", "SecuritySecrets",
+        "SecuritySecretsAzureKeyVault", "SecuritySecretsAwsSecretsManager", "SecuritySecretsHashiCorpVault",
+        "SecuritySecretsGoogleCloudSecretManager", "CdcMySql", "MessagingRecoverability", "OpenTelemetry",
+        "Security", "SecurityPII", "IdGeneration", "ComplianceGDPR", "ComplianceConsent", "ComplianceDSR",
+        "ComplianceLawfulBasis", "ComplianceAnonymization", "MartenGDPRCryptoShredding", "ComplianceRetention",
+        "ComplianceDataResidency", "ComplianceBreachNotification", "ComplianceDPIA", "CompliancePrivacyByDesign",
+        "SecurityABAC", "SecurityAntiTampering", "ComplianceNIS2", "ComplianceCrossBorderTransfer",
+        "ComplianceProcessorAgreements", "ComplianceAIAct", "ComplianceAttestation", "SecurityBreakTheGlass",
+    };
+
+    private static readonly string[] RegisteredHeader =["Name", "Block", "Area", "Zone"];
     private static readonly string[] BlocksHeader = ["Block", "Area", "Owner", "Status"];
     private static readonly string[] Statuses = ["registered", "reserved", "reserved-pre-zone", "superseded", "free"];
 
@@ -365,7 +434,7 @@ internal static class EventIdBlockRegistry
 
         CheckRegisteredAgainstCode(registered, blocks, codeRanges, violations);
         CheckReservedBlocks(blocks, codeRanges, violations);
-        CheckZone(registered, blocks, violations);
+        CheckZone(registered, blocks, codeRanges, violations);
 
         return violations;
     }
@@ -436,9 +505,21 @@ internal static class EventIdBlockRegistry
         }
     }
 
-    private static void CheckZone(List<RegisteredRow> registered, List<BlockRow> blocks, List<string> violations)
+    private static void CheckZone(
+        List<RegisteredRow> registered,
+        List<BlockRow> blocks,
+        IReadOnlyList<(string Name, int Min, int Max)> codeRanges,
+        List<string> violations)
     {
-        // Rule 5: below 10000 only the historical registered ranges and the reserved-pre-zone blocks.
+        // Rule 5: below 10000 only the historical ranges of the allow-list (never the registry's own label)
+        // and the reserved-pre-zone blocks.
+        foreach (var range in codeRanges.Where(c => c.Min < ZoneStart && !HistoricalRangeNames.Contains(c.Name)))
+        {
+            violations.Add(
+                $"Range '{range.Name}' ({range.Min}-{range.Max}) lies below {ZoneStart} but is not one of the historical ranges: " +
+                $"new blocks are born in 10000+ (ADR-021); adding a name to {nameof(HistoricalRangeNames)} is not the way to allocate.");
+        }
+
         foreach (var row in registered)
         {
             var expected = row.Min < ZoneStart ? "historical" : "zone";
