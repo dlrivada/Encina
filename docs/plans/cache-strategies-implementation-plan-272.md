@@ -2,7 +2,7 @@
 
 > **Issue**: [#272](https://github.com/dlrivada/Encina/issues/272)
 > **Type**: Feature
-> **Complexity**: High (4 code phases, 4 pull requests of 13, 12, 15 and 15 files)
+> **Complexity**: High (4 code phases, 4 pull requests of 13, 13, 15 and 15 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,900 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (e31de98cb):
+Issue #272 asks for a `CacheStrategy` enum selectable per request on `[Cache]` (cache-aside, read-through, write-through, write-behind), the three new strategies in "`CachePipelineBehavior`", a write-behind background worker with configurable flush interval and batch size, and durability options for the write-behind queue. Re-checked against `origin/main` (0336d31c7):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -326,7 +326,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 12 files:
+PR 2 holds exactly these 13 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -342,6 +342,7 @@ PR 2 holds exactly these 12 files:
 | 10 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (DI test with `ValidateOnBuild` and `ValidateScopes`; the processor is registered only when the option is on) |
 | 11 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 12 | `changelog.d/272-cache-write-through.added.md` | new (`mechanical-fixer`) |
+| 13 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingStrategies \| 500-507 \| Caching \| historical` in the "Registered ranges" table, and the `500-549 reserved-pre-zone` block row split into `500-507 registered` and `508-549 reserved-pre-zone`; `EventIdRegistryAgreementTests` fails when a range of `EventIdRanges.cs` has no row or overlaps a reserved block; read the test and the document before editing) |
 
 PR 2 needs #266 PR 4 (`CachePatternMetrics.cs`) merged first.
 
@@ -635,7 +636,7 @@ REFERENCE FILES:
 | Tests | 10 | 5 | New: unit (7), guard (1), contract (1), plus the metrics test; modified: attribute, options, DI, allocation test |
 | Documentation | 0 | 1 | `docs/features/handler-caching.md` |
 | Configuration | 4 | 4 | Four changelog fragments; manifest edited in each PR |
-| **Total** | **26** | **18** | 4 pull requests: 13, 12, 15 and 15 files, each at most 15 files and 1500 lines |
+| **Total** | **26** | **18** | 4 pull requests: 13, 13, 15 and 15 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -702,7 +703,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
 | `QueryCachingPipelineBehavior`, `IRequestPostCommitProcessor`, `IDeadLetterStore` | ✅ Available | On `origin/main` |
-| #266 PR 1 (`CachePatternSettings`, envelope) and PR 4 (`CachePatternMetrics.cs`) | Open | PR 1 and PR 2 of this plan need PR 1; PR 4 needs #266 PR 4 |
+| #266 PR 1 (`CachePatternSettings`, envelope) and PR 4 (`CachePatternMetrics.cs`) | Open | PR 1 of this plan needs #266 PR 1; PR 2 (which creates the metrics partial) and PR 3 and PR 4 need #266 PR 4 |
 | Block 500-549 of the EventId registry | ✅ Assigned | Plan batch registry |
 | Maintainer answers to Design Choices 1, 2, 5, 6, 7, 8 and 9 | Pending | Asked when work starts |
 
