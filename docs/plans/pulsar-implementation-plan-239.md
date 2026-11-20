@@ -268,7 +268,7 @@ REFERENCE FILES: src/Encina.NATS/EncinaNATSOptions.cs, src/Encina.NATS/EncinaNAT
 
 1. `IPulsarMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, string? key = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `PulsarMessagePublisher` with a cached producer per topic and message type; the message id travels as the `message-id` property (a new one only when null or empty) and `deliverAt` is the delayed delivery of D7.
 2. Errors (ADR-062): `PULSAR_PUBLISH_FAILED` `Internal` (R4), `PULSAR_TOPIC_REQUIRED` `InvalidRequest` (R3), `PULSAR_DELAY_UNSUPPORTED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
-3. `Log.cs` 1060-1062; `EventIdRanges.Pulsar = (1060, 1069)`; `AssemblyRanges` entry; registry row (through `docs-writer`).
+3. `Log.cs` 1060-1062; `EventIdRanges.Pulsar = (1060, 1069)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| Pulsar | 1060-1069 | Transports | historical |` in the registered ranges table and the split of the reserved block 1050-1099 so that 1060-1069 is `registered` and no reserved block overlaps a registered range, as `EventIdRegistryAgreementTests` requires (the other four plans edit neighbouring rows of the same table, so the pull requests rebase on each other).
 4. Tests: `PulsarMessagePublisherTests`, `PulsarMessageIdTests`, guard edit, manifest edit.
 
 </details>
