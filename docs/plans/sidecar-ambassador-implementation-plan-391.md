@@ -2,7 +2,7 @@
 
 > **Issue**: [#391](https://github.com/dlrivada/Encina/issues/391)
 > **Type**: Feature
-> **Complexity**: High (10 phases, 6 pull requests of 14, 15, 14, 12, 9 and 7 files)
+> **Complexity**: High (10 phases, 7 pull requests of 15, 15, 12, 12, 13, 6 and 8 files)
 > **Estimated Scope**: ~900 lines of production code + ~2,400 lines of tests
 > **Family**: Aspire (aspire-2): #424, #425, #382, #387. Related and merged on `main` as plans: #1233 (`Encina.Http`: outbound client, client certificates per client and tenant, auth providers), #607 (service discovery), #421 (the processor model for deployment publishers), #383 (BFF, in-process aggregation, no YARP), #454 (health probes). **This plan owns the `Encina.Sidecar` and `Encina.Sidecar.Host` projects, the `Yarp.ReverseProxy` pin and EventIds 890-899.**
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for `ISidecarProxy`, `IAmbassadorProxy`, an `EncinaSidecarHost` background service with an HTTP listener, health check integration, a Kubernetes example, Docker image configuration and tests. State of `origin/main` (`098caa920`), verified by reading and grep, and of the NuGet feed (read 2026-11-20):
+The issue asks for `ISidecarProxy`, `IAmbassadorProxy`, an `EncinaSidecarHost` background service with an HTTP listener, health check integration, a Kubernetes example, Docker image configuration and tests. State of `origin/main` (`1dd3cab4c`), verified by reading and grep, and of the NuGet feed (read 2026-11-20):
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -54,7 +54,7 @@ Differences from the issue text: (1) the sketched `EncinaSidecarHost` calls `_en
 
 ### Rationale
 
-A wins for the issue's own key benefit, "language agnostic: works with any app language"; B wins only when the proxied application is an Encina application that wants its handlers invoked by the sidecar, which is what `Encina.AspNetCore` endpoints already do inside the application. YARP is used through `IHttpForwarder` only (no route configuration model, no config file), so its surface in Encina stays small.
+A wins for the issue's own key benefit, "language agnostic: works with any app language"; under A the issue's typed `ProxyAsync<TRequest, TResponse>` and `ForwardAsync<TRequest, TResponse>` shapes become the `HttpContext` shapes below (they return under option B), and the sketched `ISidecarProxy.RegisterAsync(SidecarRegistration)` is not part of the proxy: registering the instance in discovery is `AddEncinaServiceRegistration` of #382. B wins only when the proxied application is an Encina application that wants its handlers invoked by the sidecar, which is what `Encina.AspNetCore` endpoints already do inside the application. YARP is used through `IHttpForwarder` only (no route configuration model, no config file), so its surface in Encina stays small.
 
 **Class:** Dilemma
 
@@ -108,7 +108,7 @@ AGENTS.md section 3 requires gates to fail closed when context is missing or a l
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The resilience middleware retries only `GET`, `HEAD`, `OPTIONS` and `TRACE` (and a method the operator lists as idempotent) on connection failures and 502, 503 and 504 answers; a circuit breaker and a timeout apply to every method; a cancellation is never retried and never a `Left`** | A `POST` is never replayed behind the caller's back (double payment); the issue's `EnableRetry` and `EnableCircuitBreaker` are delivered safely | `POST` failures reach the client |
+| **A) The resilience middleware retries only `GET`, `HEAD`, `OPTIONS` and `TRACE` (and a method the operator lists as idempotent) on connection failures before any response byte is received (a status answer is never retried: the forwarder streams the response to the caller); a circuit breaker and a timeout apply to every method; a cancellation is never retried and never a `Left`** | A `POST` is never replayed behind the caller's back (double payment); the issue's `EnableRetry` and `EnableCircuitBreaker` are delivered safely | `POST` failures reach the client |
 | **B) Retry everything** | Simple | Duplicates non-idempotent operations |
 
 ### Chosen Option: **A — retry idempotent methods only**
@@ -149,14 +149,14 @@ A wins because a pod-local target is the sidecar pattern; B wins where reviewers
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The ambassador's outbound handler is built on `Encina.Http` (#1233): client certificates per (client, tenant), auth providers, rate limiting; this plan adds routing and the allowlist only, and the mTLS bullet is delivered by consuming #1233** | One place for certificates and credentials (private keys, passwords, rotation); no secret handling here | The ambassador's mTLS depends on #1233 being merged; `EnableMTLS` is a switch over #1233's options |
+| **A) The ambassador's outbound handler is built on `Encina.Http` (#1233): client certificates per (client, tenant), auth providers, rate limiting; this plan adds routing and the allowlist only, and the mTLS bullet is delivered by consuming #1233** | One place for certificates and credentials (private keys, passwords, rotation); no secret handling here | The ambassador's mTLS depends on #1233's code being merged (only its plan is on `main`); `AmbassadorOptions.HttpClientName` names the `Encina.Http` client whose certificate and credentials apply, and the issue's `EnableMTLS` switch is not a property here: mTLS is on or off in that client's own configuration |
 | **B) Own client certificate options in `AmbassadorOptions`** | Self-contained | A second implementation of certificates, with key and password options that need `[JsonIgnore]` and `ToString()` hiding; duplicates #1233 |
 
 ### Chosen Option: **A — consume `Encina.Http`** (recommended, pending the maintainer)
 
 ### Rationale
 
-A wins because #1233 already designs per-tenant certificate handlers and secrets reading; B wins only if the sidecar must ship before #1233. The pull request that needs #1233 (pull request 4) waits for it.
+A wins because #1233 already designs per-tenant certificate handlers and secrets reading; B wins only if the sidecar must ship before #1233. The pull request that needs #1233 (pull request 5) waits for it.
 
 **Class:** Dilemma
 
@@ -204,6 +204,27 @@ A follows the repository's tenancy rule (a configured gate denies when context i
 
 </details>
 
+<details>
+<summary><strong>9. Defaults register and the health path (Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `ListenPort` 8081 (not 3500, which is the default Dapr HTTP endpoint of #387 in the same pod), `TargetHost` `127.0.0.1`, `TargetPort` 8080, `Timeout` 30 seconds, `MaxRequestBodyBytes` 10 MiB, `MaxHeaderCount` 100, tenant header value at most 128 printable ASCII characters, `HealthPath` `/_encina/sidecar/health` (so the proxied application's own `/health` is never hidden)** | No port clash with Dapr in one pod; every default is written down; the health route cannot shadow the application | 8081 is a convention, not a standard |
+| **B) The issue's defaults: 3500 and `/health`** | Matches the issue sketch | Clashes with Dapr's HTTP port when both sidecars run in one pod; hides the application's `/health` |
+| **C) No defaults: every value required** | Nothing implicit | A first run needs a page of settings |
+
+### Chosen Option: **A — the register above** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins in clusters that run both sidecars; B wins when the sidecar stands alone and the maintainer prefers the issue's numbers; C when implicit defaults are unwelcome. Each default is validated at start and listed in the README.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -216,7 +237,7 @@ A follows the repository's tenancy rule (a configured gate denies when context i
 <summary>Tasks</summary>
 
 1. `src/Encina.Sidecar/Encina.Sidecar.csproj` (`FrameworkReference Microsoft.AspNetCore.App`, `Yarp.ReverseProxy`, PublicAPI analyzer, `InternalsVisibleTo` for the unit, guard and contract test projects), `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, the pin `Yarp.ReverseProxy` 2.3.0 in `Directory.Packages.props`, the `Encina.slnx` entry, the test project references, `.github/coverage-manifest/Encina.Sidecar.json`.
-2. `SidecarOptions.cs` (public sealed): `ListenPort` (default 3500, 1-65535), `TargetHost` (default `127.0.0.1`), `TargetPort` (default 8080), `AllowLocalEndpoints` (Design Choice 5), `Timeout` (default 30 seconds), `EnableRetry` and `EnableCircuitBreaker` (default true for safe methods only, Design Choice 4), `MaxRequestBodyBytes` (default 10 MiB), `MaxHeaderCount` (default 100), `TenantHeader` (`string?`, a valid header token), `EnableHealthCheck` (default true). `AmbassadorOptions.cs`: `Routes` (a read-only list of `AmbassadorRoute(Name, BaseUrl, AllowLocalEndpoints)`), `ForwardHeaderNames` (an allowlist, empty by default), `EnableTracing` (default true).
+2. `SidecarOptions.cs` (public sealed): `ListenPort`, `TargetHost`, `TargetPort`, `AllowLocalEndpoints` (Design Choice 5), `Timeout`, `EnableRetry` and `EnableCircuitBreaker` (Design Choice 4), `MaxRequestBodyBytes`, `MaxHeaderCount`, `TenantHeader` (`string?`, a valid header token), `HealthPath`, `EnableHealthCheck`; the defaults are the register of Design Choice 9. `AmbassadorOptions.cs`: `Routes` (a read-only list of `AmbassadorRoute(Name, BaseUrl, AllowLocalEndpoints)`), `ForwardHeaderNames` (an allowlist, empty by default), `HttpClientName` (the `Encina.Http` client, Design Choice 6), `EnableTracing` (default true). The project references `Encina` (`EncinaError`, `EndpointValidator`), `Encina.Messaging` (`IEncinaHealthCheck`, the interface every provider health check implements) and `Encina.AspNetCore` (problem details): a dependency decision recorded here, not an accident. The options validator emits no warning for a loopback flag (no EventId exists for it); a loopback target is the documented default of Design Choice 5.
 3. `SidecarOptionsValidator.cs` (internal): ports, `EndpointValidator` on the target and each route, unique route names, header token syntax; a warning once when a loopback flag is set.
 4. `SidecarErrors.cs` (internal static): codes with named categories and constant messages: `encina.sidecar.route_not_allowed` (`ErrorCategory.Forbidden`), `encina.sidecar.tenant_required` (`ErrorCategory.Forbidden`), `encina.sidecar.request_rejected` (`ErrorCategory.InvalidRequest`), `encina.sidecar.target_unavailable` (`ErrorCategory.Unavailable`), `encina.sidecar.timeout` (`ErrorCategory.Timeout`), `encina.sidecar.upstream_failed` (`ErrorCategory.UpstreamFailure`).
 5. Tests: options and validator unit tests, guard tests; PublicAPI and manifest through `mechanical-fixer`.
@@ -228,7 +249,7 @@ A follows the repository's tenancy rule (a configured gate denies when context i
 
 ```text
 CONTEXT:
-- Issue #391; plan docs/plans/sidecar-ambassador-implementation-plan-391.md. D1, D2, D5, D6 and D7 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #391; plan docs/plans/sidecar-ambassador-implementation-plan-391.md. D1, D2, D5, D6, D7 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - Directory.Packages.props has no Yarp.ReverseProxy; add 2.3.0 (NuGet stable) and build.
 
 TASK:
@@ -249,18 +270,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 2: The forwarder, limits and registration (pull request 2)
+### Phase 2: The forwarder and registration (pull request 2)
 
-> **Goal**: `ISidecarProxy` forwards through YARP after the limits; `AddEncinaSidecar` and `MapEncinaSidecar` register and map it.
+> **Goal**: `ISidecarProxy` forwards through YARP; `AddEncinaSidecar` and `MapEncinaSidecar` register and map it.
 
 <details>
 <summary>Tasks</summary>
 
 1. `ISidecarProxy.cs` and `SidecarProxy.cs`: `ForwardAsync(HttpContext context, CancellationToken cancellationToken)` returns `Either<EncinaError, Unit>`; builds the destination from the options only, calls `IHttpForwarder.SendAsync` with a `SocketsHttpHandler`-based invoker (no automatic redirect following, no cookies, `UseProxy = false`), maps a `ForwarderError` to `target_unavailable`, `timeout` or `upstream_failed`; the caller's cancellation is not a `Left`.
-2. `Middleware/SidecarLimitsMiddleware.cs`: body size and header count; rejects with `request_rejected` before forwarding.
-3. `ServiceCollectionExtensions.AddEncinaSidecar(this IServiceCollection, Action<SidecarOptions>? = null)` (options with `ValidateOnStart`, `TryAdd` registrations, `AddHttpForwarder()`), and `SidecarEndpointRouteBuilderExtensions.MapEncinaSidecar(this IEndpointRouteBuilder)` (a catch-all endpoint after the health endpoint); the extension maps `Either` to status codes (`Forbidden` 403, `InvalidRequest` 400, `Unavailable` 503, `Timeout` 504, `UpstreamFailure` 502) with a problem body that carries the code only, reusing the `Encina.AspNetCore` mapping if one exists (verify at this phase).
-4. `Diagnostics/SidecarLog.cs`: 890 forward failed (Warning: error code), 891 request rejected (Debug: error code), 892 sidecar started (Information: listen and target ports as integers). `EventIdRanges.Sidecar = (890, 899)` registered first, the allocation map, the `Encina` PublicAPI lines; ids 890-892 packed now; 893-894 are used in Phase 3.
-5. Tests: unit with `Microsoft.AspNetCore.TestHost` and a fake target (a real YARP forwarder over two in-process servers): streaming body, headers preserved, hop-by-hop headers dropped, size limit, unreachable target; guard; a DI test with `ValidateOnBuild` and `ValidateScopes`; PublicAPI and manifest through `mechanical-fixer`.
+2. `ServiceCollectionExtensions.AddEncinaSidecar(this IServiceCollection, Action<SidecarOptions>? = null)` (options with `ValidateOnStart`, `TryAdd` registrations, `AddHttpForwarder()`), and `SidecarEndpointRouteBuilderExtensions.MapEncinaSidecar(this IEndpointRouteBuilder)` (a catch-all endpoint after the health endpoint); the extension maps `Either` to status codes (`Forbidden` 403, `InvalidRequest` 400, `Unavailable` 503, `Timeout` 504, `UpstreamFailure` 502) with a problem body that carries the code only, through `ProblemDetailsExtensions.ToProblemDetails` of `Encina.AspNetCore` (which the package therefore references), and the health endpoint is added in Phase 3.
+3. `Diagnostics/SidecarLog.cs`: only 890 forward failed (Warning: error code), emitted by `SidecarProxy`. `EventIdRanges.Sidecar = (890, 899)` registered first, the allocation map, the `Encina` PublicAPI lines, and `docs/engineering/eventid-block-registry.md` (a "Registered ranges" row for `Sidecar` and the reserved 850-899 row split, required by `EventIdRegistryAgreementTests`). `MapEncinaSidecar` (`SidecarEndpointRouteBuilderExtensions`) is created in pull request 3 with the health endpoint, so pull request 2 stays at 15 files; the proxy is usable without mapping, and its tests call it directly. Each later pull request adds the ids its own classes emit (Phases 3 to 5: 891-896, packed in order), so no log method is declared before its emitter and every target of `SidecarLog.cs` is reachable in the pull request that sets it. There is no "sidecar started" message: with Kestrel as the listener (Design Choice 2) the host already logs it.
+4. Tests: unit with `Microsoft.AspNetCore.TestHost` and a fake target (a real YARP forwarder over two in-process servers): streaming body, headers preserved, hop-by-hop headers dropped, unreachable target; guard; a DI test with `ValidateOnBuild` and `ValidateScopes`; a contract suite `ISidecarProxyContractTests` (instantiates the real `SidecarProxy`, pins the error-to-category mapping), so the contract target of `SidecarProxy.cs` is reached in this pull request; PublicAPI and manifest through `mechanical-fixer`.
 
 </details>
 
@@ -272,7 +292,7 @@ CONTEXT:
 - Issue #391, Phase 2 (pull request 2). Phase 1 is merged. D1 and D2 are recommended, pending the maintainer.
 
 TASK:
-Write the proxy, the limits middleware, the registration and mapping, the first log messages and the EventId range, with tests.
+Write the proxy, the registration and mapping, the first log message (890) and the EventId range, with tests and the contract suite.
 
 KEY RULES:
 - Register EventIdRanges.Sidecar first; EventIds packed from 890.
@@ -290,19 +310,19 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Resilience, tenant gate, health and telemetry (pull request 3)
+### Phase 3: Limits, tenant gate and health (pull request 3), then resilience and telemetry (pull request 4)
 
-> **Goal**: Safe retries, the optional tenant gate, the combined health check and diagnostics.
+> **Goal**: Request limits, the optional tenant gate and the combined health check (pull request 3); safe retries, the breaker and diagnostics (pull request 4).
 
 <details>
 <summary>Tasks</summary>
 
-1. `Middleware/SidecarResilienceMiddleware.cs`: a Polly pipeline (timeout from `Timeout`, retry for safe methods on connection failure and 502, 503, 504 with jitter, a circuit breaker) built once per options instance; a request body that cannot be replayed is never retried.
-2. `Middleware/SidecarTenantMiddleware.cs`: Design Choice 8.
-3. `Health/SidecarHealthCheck.cs` (`IEncinaHealthCheck`; `DefaultName` const, `Tags` static array): the target's reachability and the sidecar's own state; `MapEncinaSidecar` maps `/health` before the catch-all.
-4. `Diagnostics/SidecarDiagnostics.cs`: `ActivitySource` and `Meter` `Encina.Sidecar`, span `encina.sidecar.forward`, counter `encina.sidecar.requests` (tags `outcome`, `method`); the tenant tag only when the gate is on. `Encina.OpenTelemetry` subscribes the source and the meter (one edit).
-5. `SidecarLog` gains 893 target health probe failed (Warning: code) and 894 request denied by the tenant gate (Debug: no value); these are emitted by this pull request's classes, so the pull request edits the Phase 2 log class (counted as modified).
-6. Tests: unit (retry on GET but not on POST, breaker opens, tenant gate allows and denies, health branches, tags), guard; manifests and PublicAPI through `mechanical-fixer`.
+1. Pull request 3: `Middleware/SidecarLimitsMiddleware.cs`: body size and header count; rejects with `request_rejected` before forwarding (log 891 request rejected, Debug: error code).
+2. Pull request 3: `Middleware/SidecarTenantMiddleware.cs`: Design Choice 8 (log 892 request denied by the tenant gate, Debug: no value).
+3. Pull request 3: `Health/SidecarHealthCheck.cs` (`IEncinaHealthCheck`, from `Encina.Messaging`, which the package references because every provider health check implements that interface; `DefaultName` const, `Tags` static array): the target's reachability and the sidecar's own state (log 893 target health probe failed, Warning: code). `MapEncinaSidecar` maps the health endpoint at `SidecarOptions.HealthPath` (default `/_encina/sidecar/health`, so the proxied application's own `/health` is never hidden) before the catch-all. `SidecarLog`, the extension class, PublicAPI and manifest are edited (counted as modified).
+4. Pull request 4: `Middleware/SidecarResilienceMiddleware.cs`: a Polly pipeline built once per options instance: a timeout from `Timeout`, a circuit breaker, and a retry only for safe methods and only for **connection failures before any response byte is received** (the forwarder streams the upstream response into `HttpContext.Response`, so a status-based retry would need a buffered body and a transformer that suppresses the copy; the plan does not retry on 502, 503 and 504 answers, which reach the caller unchanged); a request whose body was already read is never retried (log 894 circuit opened, Warning).
+5. Pull request 4: `Diagnostics/SidecarDiagnostics.cs`: `ActivitySource` and `Meter` `Encina.Sidecar`, span `encina.sidecar.forward`, counter `encina.sidecar.requests` with tags `outcome` and `method`, where `method` is normalized to the nine standard HTTP methods plus `other` (the client controls the method token, so it is never used raw); the tenant tag only when the gate is on, and only after the value passed validation (the header is unauthenticated, so a spoofed value can raise tag cardinality: the limit is documented and the tag stays off by default). `Encina.OpenTelemetry` subscribes the source and the meter (one edit of `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`, whose manifest entry gains a unit test that builds a tracer and meter provider and asserts both are subscribed).
+6. Tests: unit (limits, tenant allow and deny, health branches in pull request 3; retry on GET before a response but not on POST, no retry on a 503 answer, breaker opens, tags and method normalization in pull request 4), guard; manifests and PublicAPI through `mechanical-fixer`.
 
 </details>
 
@@ -311,13 +331,14 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #391, Phase 3 (pull request 3). Phase 2 is merged. D4 and D8 are Settled in the plan.
+- Issue #391, Phase 3 (pull requests 3 and 4). Phase 2 is merged. D4 and D8 are Settled in the plan.
 
 TASK:
-Write the resilience and tenant middleware, the health check, the diagnostics and their tests.
+Pull request 3: limits and tenant middleware, the health check. Pull request 4: the resilience middleware, the diagnostics and the OpenTelemetry subscription. Each with tests; each adds only the SidecarLog ids its own classes emit.
 
 KEY RULES:
-- Retry only idempotent methods and only a replayable body; never retry a cancellation.
+- Retry only idempotent methods, only before any response byte, never on a status answer; never retry a cancellation.
+- The metric method tag is normalized to the standard methods plus other.
 - With the tenant gate on, a missing or invalid header denies; never log the value; tenant tag only when the gate is on.
 - Health check: DefaultName const, Tags static array.
 
@@ -331,14 +352,14 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: The ambassador (pull request 4)
+### Phase 4: The ambassador (pull request 5)
 
 > **Goal**: `IAmbassadorProxy` forwards to a named, allowlisted service through #1233's outbound client.
 
 <details>
 <summary>Tasks</summary>
 
-1. `IAmbassadorProxy.cs` and `AmbassadorProxy.cs`: `ForwardAsync(HttpContext context, string targetService, CancellationToken)`: looks the service up in `AmbassadorOptions.Routes` (deny when absent), forwards only the allowlisted header names, uses the named `HttpClient` that `Encina.Http` configures per client (client certificates, auth providers, rate limits; Design Choice 6), and resolves a route without a fixed `BaseUrl` through `IServiceDiscoveryProvider` of #607 when registered.
+1. `IAmbassadorProxy.cs` and `AmbassadorProxy.cs`: `ForwardAsync(HttpContext context, string targetService, CancellationToken)`: looks the service up in `AmbassadorOptions.Routes` (deny when absent), forwards only the allowlisted header names, uses the named `HttpClient` that `Encina.Http` configures per client (client certificates, auth providers, rate limits; Design Choice 6), and resolves a route without a fixed `BaseUrl` through `IServiceDiscoveryProvider` of #607 when registered. **One source for the destination**: the route's `BaseUrl` or the discovery result, never the named client's own `BaseAddress` (the named client contributes only its handler: certificate, credentials, rate limit). **Every destination is validated before use**: the route `BaseUrl` at start, and each discovered endpoint on every resolution, with `EndpointValidator.ValidateHost` under a per-route `EndpointPolicy` (link-local, metadata and unspecified hosts always rejected; loopback and private hosts only when the route sets `AllowLocalEndpoints`), because a registry entry or a hostname that resolves to a metadata address must not be reachable (`route_not_allowed`, `ErrorCategory.Forbidden`, log 895 destination rejected: no host in the message). The ambassador's outbound handler is built with `AllowAutoRedirect = false` (a redirect could leave the validated destination); the check that the named client was configured so fails the start (`ValidateOnStart`). Log 896 ambassador forward failed (Warning: error code); both ids are added by this pull request, which edits `SidecarLog`.
 2. Registration: `AddEncinaAmbassador(this IServiceCollection, Action<AmbassadorOptions>)` (the parameter is not nullable; an empty route list is a start error).
 3. Tests: unit with fake routes and a fake outbound handler, guard, DI; contract: the `ISidecarProxy` and `IAmbassadorProxy` suites check the same error mapping; PublicAPI and manifests through `mechanical-fixer`.
 
@@ -349,7 +370,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #391, Phase 4 (pull request 4). #1233 and #607 are merged before this pull request. D6 is recommended, pending the maintainer.
+- Issue #391, Phase 4 (pull request 5). The code of #1233 and #607 (only their plans are on main today) is merged before this pull request. D6 is recommended, pending the maintainer.
 
 TASK:
 Write the ambassador, its registration and tests.
@@ -357,6 +378,7 @@ Write the ambassador, its registration and tests.
 KEY RULES:
 - Unknown service: deny with route_not_allowed; the request never picks a URL; forward only allowlisted header names.
 - Outbound credentials and certificates come from Encina.Http, never from this package's options.
+- Validate every route and every discovered endpoint with EndpointValidator; no redirects; the destination is never the named client's BaseAddress.
 - Cancellation is never a Left.
 
 REFERENCE FILES:
@@ -368,7 +390,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: The host project and the image (pull request 5)
+### Phase 5: The host project and the image (pull request 6)
 
 > **Goal**: A runnable sidecar process and its container settings.
 
@@ -377,7 +399,7 @@ REFERENCE FILES:
 
 1. `src/Encina.Sidecar.Host/Encina.Sidecar.Host.csproj` (`OutputType Exe`, `IsPackable false`, `Microsoft.NET.Sdk.Web`, container publish properties: repository name, tag from the project version, no `latest`), `Program.cs` (minimal hosting: `AddEncinaSidecar` bound from the `Encina:Sidecar` configuration section and environment variables, `MapEncinaSidecar`), the `Encina.slnx` entry.
 2. Environment names documented for the container: `Encina__Sidecar__TargetPort`, `Encina__Sidecar__TargetHost`, and so on, bound by `IConfiguration` (no custom parser).
-3. Tests: a unit-level test that builds the host with in-memory configuration and forwards one request; the documentation pull request validates the Kubernetes and Compose examples.
+3. Tests: a unit-level test (`WebApplicationFactory`-style over `TestHost`) that builds the host with in-memory configuration and forwards one request; it needs `Program` visible: `public partial class Program` is declared at the end of `Program.cs` (the standard pattern), so no `InternalsVisibleTo` is needed. The documentation pull request validates the Kubernetes and Compose examples.
 4. The host project is production code with a `Program.cs`; its coverage target is stated in Phase 9.
 
 </details>
@@ -387,7 +409,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #391, Phase 5 (pull request 5). Pull requests 1 to 3 are merged. D7 is recommended, pending the maintainer.
+- Issue #391, Phase 5 (pull request 6). Pull requests 1 to 4 are merged. D7 is recommended, pending the maintainer.
 
 TASK:
 Create the host project with container publish settings and a minimal Program.cs, with a host-level test.
@@ -446,7 +468,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Confirm ids 890-894 are packed inside 890-899 (895-899 spare), that the architecture tests pass and that the source and meter are subscribed in `Encina.OpenTelemetry`; no tag carries a URL, header value, route target or tenant value (tenant only when the gate is on, ADR-054 D4).
+1. Confirm ids 890-896 are packed inside 890-899 (897-899 spare), that the architecture tests pass and that the source and meter are subscribed in `Encina.OpenTelemetry`; no tag carries a URL, header value, route target or tenant value (tenant only when the gate is on, ADR-054 D4).
 
 </details>
 
@@ -487,14 +509,16 @@ REFERENCE FILES:
    | `SidecarOptions.cs`, `AmbassadorOptions.cs`, validator (1) | 95 | 90 | 0 | 0 | 0 | Every rule and default asserted |
    | `SidecarErrors.cs` (1) | 100 | 0 | 0 | 0 | 0 | Constants; internal, no guarded parameter |
    | `SidecarProxy.cs` (2) | 92 | 85 | 85 | 0 | 0 | Real YARP over in-process servers; the contract suite pins the error mapping |
-   | `SidecarLimitsMiddleware.cs` (2) | 95 | 85 | 0 | 0 | 0 | Each limit and the pass-through |
+   | `SidecarLimitsMiddleware.cs` (3) | 95 | 85 | 0 | 0 | 0 | Each limit and the pass-through |
    | `ServiceCollectionExtensions.cs`, `SidecarEndpointRouteBuilderExtensions.cs` (2) | 95 | 90 | 0 | 0 | 0 | Registration, mapping and the DI test |
-   | `SidecarResilienceMiddleware.cs` (3) | 90 | 85 | 0 | 0 | 0 | Retry, no retry, breaker and timeout with a fake time source |
+   | `SidecarResilienceMiddleware.cs` (4) | 90 | 85 | 0 | 0 | 0 | Retry, no retry, breaker and timeout with a fake time source |
    | `SidecarTenantMiddleware.cs` (3) | 95 | 85 | 0 | 0 | 0 | Allow, deny, invalid value |
    | `SidecarHealthCheck.cs` (3) | 95 | 85 | 0 | 0 | 0 | Healthy, unreachable, exception |
-   | `SidecarDiagnostics.cs`, `SidecarLog.cs` (2, 3) | 90 | 0 | 0 | 0 | 0 | Listener-based tests of tags; generated methods called by the tests |
-   | `AmbassadorProxy.cs` (4) | 92 | 85 | 85 | 0 | 0 | Fake routes and outbound handler; the shared suite |
-   | `Program.cs` of the host (5) | 70 | 0 | 0 | 0 | 0 | Top-level statements run by the host-level test; no guarded parameter |
+   | `SidecarDiagnostics.cs` (4), `SidecarLog.cs` (2 to 5) | 90 | 0 | 0 | 0 | 0 | Listener-based tests of tags; generated methods called by the tests |
+   | `AmbassadorProxy.cs` (5) | 92 | 85 | 85 | 0 | 0 | Fake routes and outbound handler; the shared suite |
+   | `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` (4, edit) | existing kept | existing kept | existing kept | existing kept | existing kept | Two subscription lines added; the new unit test asserts both subscriptions; no target is lowered |
+   | `EventIdRanges.cs` (2, edit) | existing kept | 0 | 0 | 0 | 0 | One new field read by the allocation architecture test |
+   | `Program.cs` of the host (6) | 70 | 0 | 0 | 0 | 0 | Top-level statements run by the host-level test; no guarded parameter |
 
 3. Run `crap-gate` locally (every touched method CRAP <= 10) and `coverage-report.cs --check-justifications`; never lower a manifest target.
 
@@ -523,7 +547,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 9: Documentation & Finalization (pull request 6)
+### Phase 9: Documentation & Finalization (pull request 7)
 
 > **Goal**: A user can run the sidecar in Kubernetes and Compose.
 
@@ -540,7 +564,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #391, Phase 9 (pull request 6). Code merged.
+- Issue #391, Phase 9 (pull request 7). Code merged.
 
 TASK:
 Write the READMEs, the guide with the two deployment examples, the inventory lines and the changelog fragment.
@@ -593,14 +617,15 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | `Directory.Packages.props` edit, project file, two PublicAPI files, `Encina.slnx` edit, `SidecarOptions`, `AmbassadorOptions`, validator, `SidecarErrors`, manifest, three test project references, unit and guard test files | 14 | 1,000 |
-| 2 | `ISidecarProxy`, `SidecarProxy`, `SidecarLimitsMiddleware`, extension class, endpoint extension, `SidecarLog`, `EventIdRanges.cs` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, Sidecar PublicAPI edit and manifest edit, unit (2), guard and DI tests | 15 | 1,400 |
-| 3 | Resilience and tenant middleware, health check, diagnostics, `SidecarLog` edit, `Encina.OpenTelemetry` edit, PublicAPI and manifest edits, unit (2), guard and DI test edits | 14 | 1,200 |
-| 4 | `IAmbassadorProxy`, `AmbassadorProxy`, registration edit, PublicAPI and manifest edits, unit, guard, DI and contract tests, project references to `Encina.Http` and `Encina.ServiceDiscovery` | 12 | 1,000 |
-| 5 | Host csproj, `Program.cs`, `Encina.slnx` edit, host-level test, manifest, test project reference, `PublicAPI` is not needed (no public API) | 9 | 450 |
-| 6 | Two READMEs, guide page, inventory line, changelog fragment, two justification files, one more doc file for the examples | 7 | 420 |
+| 1 | `Directory.Packages.props` edit, project file, two PublicAPI files, `Encina.slnx` edit, `SidecarOptions`, `AmbassadorOptions`, validator, `SidecarErrors`, manifest, three test project references (the project file carries the `Encina`, `Encina.Messaging` and `Encina.AspNetCore` references), unit and guard test files, counted file by file: props, project, two PublicAPI, slnx, three options and validator files (`SidecarOptions`, `AmbassadorOptions`, validator), `SidecarErrors`, manifest, three csproj edits, unit, guard | 15 | 1,000 |
+| 2 | `ISidecarProxy`, `SidecarProxy`, extension class (`AddEncinaSidecar`; the endpoint mapping moves to pull request 3 to stay within 15 files), `SidecarLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (row for `Sidecar` 890-899 in "Registered ranges" and the split of the reserved 850-899 row, required by `EventIdRegistryAgreementTests`), `Encina` PublicAPI, `Encina.json`, allocation map edit, Sidecar PublicAPI edit, Sidecar manifest edit, one unit test file, guard test, DI test, `ISidecarProxyContractTests` | 15 | 1,300 |
+| 3 | `SidecarLimitsMiddleware`, `SidecarTenantMiddleware`, `SidecarHealthCheck`, `SidecarEndpointRouteBuilderExtensions` (`MapEncinaSidecar`: health endpoint and catch-all), extension class edit (registrations), `SidecarLog` edit (891-893), Sidecar PublicAPI and manifest edits, unit tests (limits and tenant in one file, health in one), guard test edit, DI test edit | 11 | 900 |
+| 4 | `SidecarResilienceMiddleware`, `SidecarDiagnostics`, extension class edit (registration), `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` edit, `Encina.OpenTelemetry.json` manifest edit, subscription unit test, `SidecarLog` edit (894), Sidecar PublicAPI and manifest edits, unit tests (2), guard test edit | 12 | 1,100 |
+| 5 | `IAmbassadorProxy`, `AmbassadorProxy`, extension class edit (`AddEncinaAmbassador`), `SidecarLog` edit (895-896), project file edit (references to `Encina.Http` and `Encina.ServiceDiscovery`), Sidecar PublicAPI and manifest edits, unit, guard, DI and contract tests, two test project reference edits | 13 | 1,100 |
+| 6 | Host csproj, `Program.cs`, `Encina.slnx` edit, host-level test, host manifest, test project reference (no public API, so no PublicAPI file) | 6 | 450 |
+| 7 | Two READMEs, guide page, inventory line, changelog fragment, two justification files, one more doc file for the examples | 8 | 420 |
 
-PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 2 and #1233 and #607 (their packages, merged); PR 5 needs PR 3; PR 6 is last. No interface of another package is changed, so no implementer or test double is touched. Project references added in PR 4 count as edits of three csproj files in its row.
+PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 3; PR 5 needs PR 2 and the code of #1233 and #607 (only their plans are on `main` today); PR 6 needs PR 4; PR 7 is last. No interface of another package is changed, so no implementer or test double is touched. Every pull request is counted from the file names of its row, not estimated; PR 1 and PR 2 sit exactly at 15.
 
 ---
 
@@ -632,7 +657,7 @@ PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 2 and #1233 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Sidecar` (`Sidecar`, new) | 890-899, ids 890-894 used | From the block 850-899 (aspire-2); registered in `EventIdRanges.cs` and the allocation test map before use |
+| `Encina.Sidecar` (`Sidecar`, new) | 890-899, ids 890-896 used (890 PR 2; 891-893 PR 3; 894 PR 4; 895-896 PR 5) | From the block 850-899 (aspire-2); registered in `EventIdRanges.cs` and the allocation test map before use |
 
 ### Estimated File Count
 
@@ -643,7 +668,7 @@ PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 2 and #1233 
 | Public API and manifests | 6 | `Encina.Sidecar` PublicAPI and manifest, `Encina` PublicAPI, `Encina.json`, host manifest |
 | Tests and project files | 16 | Unit, guard, DI, contract, host test, allocation map, csproj references |
 | Documentation | 7 | Two READMEs, guide, inventory, fragment, two justification files |
-| **Total** | **by the split table: 14 + 15 + 14 + 12 + 9 + 7 = 71 file touches over 6 pull requests** | The split table is the authority |
+| **Total** | **by the split table: 15 + 15 + 12 + 12 + 13 + 6 + 8 = 81 file touches over 7 pull requests** | The split table is the authority |
 
 ---
 
@@ -655,14 +680,15 @@ PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 2 and #1233 
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #391: sidecar and ambassador. Plan: docs/plans/sidecar-ambassador-implementation-plan-391.md; D1, D2, D5, D6 and D7 are recommended, pending the maintainer.
+- Issue #391: sidecar and ambassador. Plan: docs/plans/sidecar-ambassador-implementation-plan-391.md; D1, D2, D5, D6, D7 and D9 are recommended, pending the maintainer.
 
-IMPLEMENTATION OVERVIEW (6 pull requests, each builds alone):
+IMPLEMENTATION OVERVIEW (7 pull requests, each builds alone):
 1. Encina.Sidecar skeleton, options, validator, errors (Phase 1).
-2. The YARP forwarder, limits, registration, first logs and range (Phase 2).
-3. Resilience, tenant gate, health, diagnostics (Phase 3).
-4. The ambassador on Encina.Http and discovery (Phase 4).
-5. The host project and container settings (Phase 5). 6. Documentation (Phase 9).
+2. The YARP forwarder, registration, log 890 and the range, with the contract suite (Phase 2).
+3. Limits, tenant gate, health check (Phase 3).
+4. Resilience, diagnostics, OpenTelemetry subscription (Phase 3).
+5. The ambassador on Encina.Http and discovery (Phase 4).
+6. The host project and container settings (Phase 5). 7. Documentation (Phase 9).
 
 KEY PATTERNS:
 - Targets from options only, validated with EndpointValidator; a request never chooses a host; unknown routes denied.
@@ -688,7 +714,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ | Deferred as in the issue (sidecar response caching); the issue file of this run for sidecar follow-ups lists it |
 | 2 | OpenTelemetry | ✅ | Phase 3: `Encina.Sidecar` source and meter; W3C context forwarded by YARP; tenant tag only when the gate is on (ADR-054 D4) |
-| 3 | Structured Logging | ✅ | Phases 2 and 3: EventIds 890-894 |
+| 3 | Structured Logging | ✅ | Phases 2 to 4: EventIds 890-896 |
 | 4 | Health Checks | ✅ | Phase 3: `SidecarHealthCheck` (target and self); probe endpoints of Kubernetes are #454's |
 | 5 | Validation | ✅ | Options, targets and request limits; body validation is not applicable (infrastructure pattern, as the issue says) |
 | 6 | Resilience | ✅ | Phase 3: timeout, breaker, retry for idempotent methods only |
@@ -703,7 +729,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- Pull requests 1 to 3 and 5 need nothing outside the repository; pull request 4 needs the packages of #1233 and #607 merged.
+- Pull requests 1 to 4 and 6 need nothing outside the repository; pull request 5 needs the code of #1233 and #607 merged (only their plans are on `main` today).
 - `Yarp.ReverseProxy` 2.3.0 is added to `Directory.Packages.props` (the #383 plan does not use YARP).
 - Issue files of this run: the image publish pipeline (registry and tags), Aspire co-location through #421's processor model, and the deferred caching and audit items.
 
@@ -711,5 +737,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D5, D6 and D7 when work on #391 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D5, D6, D7 and D9 when work on #391 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull requests 1 to 3 in order; 4 after #1233 and #607; 5; 6 last.
