@@ -12,7 +12,7 @@
 
 Add the two nullable members `string? TenantId { get; set; }` and `string? ModuleId { get; set; }` to the persisted-state interfaces of the two messaging patterns that have no implementation yet: `IChoreographyState` (`src/Encina.Messaging/Choreography/IChoreographyState.cs`) and `IRoutingSlipState` (`src/Encina.Messaging/RoutingSlip/IRoutingSlipState.cs`). The motivation of the issue holds: an interface member added before any implementer exists costs nothing, and one added after the 10 providers exist is a breaking change across all of them. SPEC-002 DEC-009 (b) makes multi-tenancy required in 1.0 for every capability SPEC-002 adds or changes.
 
-**State of `origin/main` (`8727c5cc3`), verified by reading and grep (corrects the issue text).**
+**State of `origin/main` (`1dd3cab4c`), verified by reading and grep (corrects the issue text).**
 
 - **No implementer exists, in `src` or in `tests`.** A grep of class and record declarations for `IChoreographyState` and `IRoutingSlipState` finds none; the only users are the store interfaces (`IChoreographyStateStore`, `IChoreographyEventBus.GetSagaStateAsync`, `IRoutingSlipStore`). Mocks (NSubstitute) of the two interfaces would not break. Nothing builds on `IChoreographyStateStore` either: no class implements it, and the choreography feature has no registration (open debt #1467, #1472).
 - `IChoreographyState` has nine members (`CorrelationId`, `SagaType`, `StateData`, `Status`, `StartedAtUtc`, `LastUpdatedAtUtc`, `CompletedAtUtc`, `ErrorMessage`, `EventCount`) and is tracked in `src/Encina.Messaging/PublicAPI.Unshipped.txt` (lines for `Encina.Messaging.Choreography.IChoreographyState.*`). `IRoutingSlipState` has `RoutingSlipId`, `SlipType`, `Data`, `Itinerary`, `ActivityLog`, `Status`, `CurrentStep`, `CreatedAtUtc`, `LastUpdatedAtUtc`, `CompletedAtUtc`, `TimeoutAtUtc` and `ErrorMessage`; a grep finds no `IRoutingSlipState` line in any `PublicAPI*.txt` on `main` although RS0016 is an error (`.editorconfig` line 145), so the first build of the pull request decides exactly which lines are needed (Phase 1 task 3).
@@ -68,7 +68,7 @@ Add the two nullable members `string? TenantId { get; set; }` and `string? Modul
 
 ### Rationale
 
-- The documentation states the semantics once, so the two stores that implement them (#590, #592) behave the same: stores persist the value as written, orchestrators fill it from the resolved scope, readers filter strictly (a null tenant never means "all tenants").
+- The documentation states the semantics once, so the two stores that implement them (#590, #592) behave the same: stores persist the value as written, orchestrators fill it from the resolved scope, tenant-scoped readers (reads that take a tenant argument) filter strictly (a null tenant never means "all tenants"). Reads with no tenant argument, such as the #590 store reads `GetStuckAsync` and `GetExpiredAsync` used by the recovery processor, cover every tenant by design: they add no tenant filter, and the processor acts on each slip under that slip's own `TenantId` and `ModuleId`.
 
 </details>
 
@@ -147,7 +147,7 @@ Add the two nullable members `string? TenantId { get; set; }` and `string? Modul
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Messaging/Choreography/IChoreographyState.cs`: add `string? TenantId { get; set; }` and `string? ModuleId { get; set; }` after `EventCount`, each with `<summary>` and `<remarks>` (Design Choice 2: null means not scoped, never an empty string; limits of 128 characters; the tenant is the resolved `TenantScope.TenantId`; the module is the normalized name; readers filter strictly).
+1. `src/Encina.Messaging/Choreography/IChoreographyState.cs`: add `string? TenantId { get; set; }` and `string? ModuleId { get; set; }` after `EventCount`, each with `<summary>` and `<remarks>` (Design Choice 2: null means not scoped, never an empty string; limits of 128 characters; the tenant is the resolved `TenantScope.TenantId`; the module is the normalized name; tenant-scoped readers filter strictly, reads without a tenant argument cover every tenant).
 2. `src/Encina.Messaging/RoutingSlip/IRoutingSlipState.cs` (under D1 option A, the recommendation; under option B this task and its PublicAPI lines are skipped and #590 owns them): first check whether `TenantId` and `ModuleId` already exist on the interface (the P1 of #590 may have landed first); add only the members that are missing, after `ErrorMessage`, with the same documentation, so no duplicate declaration is produced in either merge order. When #590 landed first, keep its declarations and only align the XML documentation with Design Choice 2.
 3. `src/Encina.Messaging/PublicAPI.Unshipped.txt`: four lines per tracked interface (`...TenantId.get -> string?`, `...TenantId.set -> void`, `...ModuleId.get -> string?`, `...ModuleId.set -> void`) for `Encina.Messaging.Choreography.IChoreographyState`; for `IRoutingSlipState` build once and add exactly the lines RS0016 reports (a grep on `main` finds no line for the type, Summary), in the same pull request. Zero warnings.
 
@@ -189,7 +189,7 @@ REFERENCE FILES:
 
 1. `dotnet build Encina.slnx --configuration Release` with 0 warnings proves that no implementer or double of either interface exists (a missing implementation of a new member would be CS0535).
 2. No new test (Design Choice 4): unit, guard, contract and property tests of these members belong to the first implementers (#590 P1 `RoutingSlipStoreContractTests`; the choreography contract suite of #592). Guard tests: none, the pull request adds no method and no constructor.
-3. Per-file targets in `.github/coverage-manifest/Encina.Messaging.json`: the entries `Choreography/IChoreographyState.cs` and `RoutingSlip/IRoutingSlipState.cs` already declare `defaultTests: []` with the reason "Interfaces have no implementation to test"; they stay unchanged, and the targets of both files are 0 for every flag with that one-sentence reason (interface without executable code). The measured coverage of the touched files is reported as "no coverable lines".
+3. Per-file targets in `.github/coverage-manifest/Encina.Messaging.json`: the entries `Choreography/IChoreographyState.cs` and `RoutingSlip/IRoutingSlipState.cs` already declare `defaultTests: []` with the reason "Interfaces have no implementation to test"; keep those members and add to each entry an explicit per-file `targets` object with the value 0 for every coverage flag (unit, guard, contract, property, integration) and the one-sentence justification "interface without executable code". The coverage check builds its per-file rows from `targets`, not from `defaultTests`, so without it a touched file is reported as `no-targets`; a target of 0 is always met.
 
 </details>
 
@@ -278,7 +278,7 @@ One pull request; it builds and passes alone because no implementer exists (re-g
 | `IChoreographyStateStore`, `IRoutingSlipStore` | `src/Encina.Messaging/Choreography/`, `src/Encina.Messaging/RoutingSlip/` | The consumers of the interfaces (no implementer yet) |
 | `ITenantScopeResolver` | #1257 PR A1 (core) | Source of the value, used by the future orchestrators |
 | `MessagingModuleId.Normalize` | #747 PR 1 | Module normalization at the writers |
-| Coverage manifest entries of both interfaces | `.github/coverage-manifest/Encina.Messaging.json` | `defaultTests: []` with reason |
+| Coverage manifest entries of both interfaces | `.github/coverage-manifest/Encina.Messaging.json` | `defaultTests: []` with reason kept, plus explicit per-file `targets` of 0 for every flag |
 
 ### Event ID Allocation
 
