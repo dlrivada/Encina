@@ -2,7 +2,7 @@
 
 > **Issue**: [#424](https://github.com/dlrivada/Encina/issues/424)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 5 pull requests of 13, 9, 11, 9 and 6 files)
+> **Complexity**: Medium (8 phases, 5 pull requests of 13, 9, 11, 12 and 6 files)
 > **Estimated Scope**: ~600 lines of production code + ~1,500 lines of tests
 > **Family**: Aspire (aspire-2): #424 external services, #425 hot reload, #382 service discovery and configuration, #387 Dapr, #391 sidecar. The aspire-1 plans own the shared pieces this plan reuses: #416 (the hosting package, `EncinaResource`, `WithEncina`, the `Encina__Aspire__*` environment contract), #417 (`Encina.Aspire.ServiceDefaults`, the reader of that contract), #440 (naming rules, parity tests, quickstart) and #607 (`Encina.ServiceDiscovery`). **This plan owns the `ExternalServices` folder of the hosting package and the `Encina__Aspire__ExternalServices__*` keys.**
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for `AddEncinaExternalService`, so that a service that lives in another repository can be part of the AppHost model with service discovery, a shared message broker, a development stub, dashboard visibility and a contract. State of `origin/main` (`098caa920`; #416, #417, #419, #421 and #440 are merged), verified by reading and grep, and of `Aspire.Hosting` 13.6.5 (the version pinned by `Directory.Packages.props`, #3491; the issue cites Aspire 9.x), read in its `Aspire.Hosting.xml`:
+The issue asks for `AddEncinaExternalService`, so that a service that lives in another repository can be part of the AppHost model with service discovery, a shared message broker, a development stub, dashboard visibility and a contract. State of `origin/main` (`1dd3cab4c`; the plans of #416, #417, #419, #421 and #440 are merged, their code is not: `src/` has no `Encina.Aspire.Hosting` or `Encina.Aspire.ServiceDefaults` yet), verified by reading and grep, and of `Aspire.Hosting` 13.6.5 (the version pinned by `Directory.Packages.props`, #3491; the issue cites Aspire 9.x), read in its `Aspire.Hosting.xml`:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -84,7 +84,7 @@ A wins when the same solution runs against local endpoints in development and ag
 </details>
 
 <details>
-<summary><strong>3. The shared broker: a declaration by resource name; Encina never writes a connection string</strong></summary>
+<summary><strong>3. The shared broker: a declaration by resource name, or Encina wires the reference (Dilemma D3)</strong></summary>
 
 ### Options Considered
 
@@ -94,14 +94,13 @@ A wins when the same solution runs against local endpoints in development and ag
 | **B) Encina calls `WithReference(broker)` on the consumer for the user** | One call less | Secrets reach a consumer that did not ask for them; hides a dependency |
 | **C) A connection string as a plain string in the options (the issue sketch)** | Closest to the issue | A string option holding a connection string needs `[JsonIgnore]` and a `ToString()` override (AGENTS.md section 3) and would be written into an environment variable in clear text |
 
-### Chosen Option: **A — a declaration by resource name**
+### Chosen Option: **A — a declaration by resource name** (recommended, pending the maintainer)
 
 ### Rationale
 
-Aspire's convention is that connection strings travel only through `WithReference`; Encina declares which broker the external service shares and where its outbox topic is (`OutboxTopic`), so the application's start check can require the outbox pattern. The environment keys carry a resource name and a topic, never a credential.
+A wins when the team wants the explicit Aspire call on each consumer and no secret reaching a service that did not ask for it (Aspire's convention is that connection strings travel only through `WithReference`); B wins when most consumers need the broker and one call less is preferred. Under A (and B), Encina declares which broker the external service shares and where its outbox topic is (`OutboxTopic`); the environment keys carry a resource name and a topic, never a credential; option C would need `[JsonIgnore]` and a `ToString()` override and is rejected. The application-side check "a declared broker requires the outbox pattern" exists in both A and B, and is part of this choice, not of Design Choice 6.
 
-**Class:** Trivial
-**Settled by:** `Aspire.Hosting` 13.6.5 (`Aspire.Hosting.xml`, `ResourceBuilderExtensions.WithReference` carries connection strings); AGENTS.md section 3 (options with a connection string)
+**Class:** Dilemma
 
 </details>
 
@@ -154,7 +153,7 @@ A wins when the contract library is a shared NuGet package and drift is the risk
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The AppHost rejects at model-build time a URL that is not absolute `http` or `https`, carries user-info (`user:pass@`), or names a link-local, cloud metadata or unspecified host; the application's start check fails the host when a declaration is malformed, names a broker without the outbox pattern declared, or names a contract that is not loaded** | A credential in a URL can never reach an environment variable or the dashboard; drift is a start failure, not a silent no-op (AGENTS.md section 3: gates fail closed) | A little code duplicated from `EndpointValidator` (the AppHost does not reference core) |
+| **A) The AppHost rejects at model-build time a URL that is not absolute `http` or `https`, carries user-info (`user:pass@`), or names a link-local, cloud metadata or unspecified host; the application's start check fails the host when a URL injected through a parameter is rejected by `EndpointValidator` (the start-check items that depend on the broker declaration and the contract declaration belong to Design Choices 3 and 5, not to this entry)** | A credential in a URL can never reach an environment variable or the dashboard; a rejected endpoint is a start failure, not a silent no-op (AGENTS.md section 3: gates fail closed) | A little code duplicated from `EndpointValidator` (the AppHost does not reference core) |
 | **B) Accept anything the user writes and log a warning** | No code | A URL with user-info is shown in the dashboard and written into every consumer's environment |
 
 ### Chosen Option: **A — reject at build time, fail at start**
@@ -169,21 +168,81 @@ A wins when the contract library is a shared NuGet package and drift is the risk
 </details>
 
 <details>
-<summary><strong>7. Features of the issue this plan does not deliver (Dilemma D7)</strong></summary>
+<summary><strong>7. Schema registry integration for message contracts (a Features bullet, Dilemma D7)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Schema registry and cross-repo correlation are recorded as omissions: correlation follows ADR-054 (W3C trace context, no baggage, so nothing to build); the schema registry becomes its own issue file (a registry integration needs a message-serialization decision that this issue does not own)** | The plan stays one pull-request family; the omission is written, not silent | The issue's "Messaging Integration" bullets are only partly delivered |
+| **A) Not delivered here: its own issue file (a registry integration needs a message-serialization decision and its own providers that this issue does not own)** | The plan stays one pull-request family; the omission is written, not silent | The issue's "Messaging Integration" bullet is not delivered |
 | **B) Build a message schema registry abstraction here** | Delivers the bullet | A new feature with its own providers and plan, far beyond an AppHost wrapper |
-| **C) Add a custom correlation header** | Matches the issue text | Contradicts ADR-054 D4 (no baggage) and duplicates `traceparent` |
 
-### Chosen Option: **A — record the omissions and open an issue** (recommended, pending the maintainer)
+### Chosen Option: **A — an issue file** (recommended, pending the maintainer)
 
 ### Rationale
 
-A wins because the two bullets are not part of the issue's acceptance criteria (they sit in its Features list) and one of them is already decided by ADR-054; B wins only if the maintainer wants the registry now. The issue file `artifacts/issues/schema-registry-integration.md` of this run carries the registry.
+A wins because the bullet sits in the issue's Features list, not its acceptance criteria, and needs its own design; B wins only if the maintainer wants the registry now. The issue file `artifacts/issues/schema-registry-integration.md` of this run carries it.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. Correlation across repositories: no custom header</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Nothing is built: cross-repo correlation is W3C trace context (`traceparent`), which `HttpClient` and the transports propagate, with no baggage** | One standard; nothing to maintain | The issue's "correlation ID propagation" bullet is met by the platform, not by Encina code |
+| **B) A custom correlation header** | Matches the issue text | Duplicates `traceparent` and contradicts the decision of no baggage |
+
+### Chosen Option: **A — W3C trace context only**
+
+### Rationale
+
+ADR-054 (D4: no baggage; tenant as attribute and tag only when tenancy is on) already decides propagation for all of Encina; only option A complies.
+
+**Class:** Settled
+**Settled by:** ADR-054 (observability conventions and trace propagation, D4 no baggage)
+
+</details>
+
+<details>
+<summary><strong>9. Service authentication between repositories (an issue "Technical Considerations" item, Dilemma D9)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Not delivered by this plan: outbound credentials and client certificates of calls to the external service are the auth providers of `Encina.Http` (#1233), which the application uses on its named client; the AppHost only models the endpoint** | One owner for credentials; the AppHost never handles a secret | The consideration is documented, not implemented here |
+| **B) Credential options on the external service resource** | One place in the AppHost | Secrets in AppHost options and environment variables; duplicates #1233 |
+
+### Chosen Option: **A — #1233 owns outbound authentication** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because the AppHost has no business holding credentials and #1233 already plans per-client authentication; B wins only if the maintainer wants the AppHost to declare which auth provider each external service uses (a name, not a secret), which would be a small addition to the declaration.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Defaults register: health check, topic and stub (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The health check is opt-in: `HealthCheckPath` defaults to null (no probe) and `HealthCheckStatusCode` to null (Aspire's default of 200 when a path is set); `OutboxTopic` has no default (null: none declared); the stub exists only when `UseStub` is called and only in run mode** | An external service owned by another team is not probed (and shown unhealthy) unless asked; no implicit stub | A user must write the path to get a health row |
+| **B) The health check defaults to `/health`** | The dashboard shows health with no extra line | A default probe against a service the AppHost's owner does not control; an absent endpoint shows as unhealthy |
+
+### Chosen Option: **A — opt-in health check, no default topic or stub** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because the services are other repositories' and a default probe is a default-on behavior (AGENTS.md section 1: every feature opt-in); B wins when the team's convention is that every service exposes `/health`. Any default stated here is written in the README table.
 
 **Class:** Dilemma
 
@@ -201,7 +260,7 @@ A wins because the two bullets are not part of the issue's acceptance criteria (
 <summary>Tasks</summary>
 
 1. `src/Encina.Aspire.Hosting/ExternalServices/EncinaExternalServiceDiscovery.cs` (public enum): `Endpoint` (0), `Kubernetes`, `Consul`, `Dns`.
-2. `ExternalServices/EncinaExternalServiceOptions.cs` (public sealed): `HealthCheckPath` (`string?`, default `"/health"`, validated like #416's path: starts with `/`, no whitespace), `HealthCheckStatusCode` (`int?`, 100 to 599), `Discovery`, `DiscoveryName` (required when `Discovery` is not `Endpoint`, a valid DNS label list), `OutboxTopic` (`string?`), methods `SharesMessageBroker(IResourceBuilder<IResourceWithConnectionString> broker)` (guard; stores the resource name), `ImplementsContract<T>()`, `ImplementsContract(string typeName)` (a non-blank `Namespace.Type, Assembly` text) and `UseStub(string mappingsDirectory)` (Phase 3). An internal `Validate()` returns the first violation as text; a violation throws `ArgumentException` at the call that built it (builder-time programming error, the convention of #416; there is no `Either` in an AppHost).
+2. `ExternalServices/EncinaExternalServiceOptions.cs` (public sealed): `HealthCheckPath` (`string?`, default null: no probe, Design Choice 10; when set, validated like #416's path: starts with `/`, no whitespace), `HealthCheckStatusCode` (`int?`, default null, 100 to 599), `Discovery`, `DiscoveryName` (required when `Discovery` is not `Endpoint`, a valid DNS label list), `OutboxTopic` (`string?`), methods `SharesMessageBroker(IResourceBuilder<IResourceWithConnectionString> broker)` (guard; stores the resource name), `ImplementsContract<T>()`, `ImplementsContract(string typeName)` (a non-blank `Namespace.Type, Assembly` text) and `UseStub(string mappingsDirectory)` (Phase 3). An internal `Validate()` returns the first violation as text; a violation throws `ArgumentException` at the call that built it (builder-time programming error, the convention of #416; there is no `Either` in an AppHost).
 3. `ExternalServices/EncinaExternalServiceAnnotation.cs` (public sealed, `IResourceAnnotation`): the validated snapshot of the options (immutable collections).
 4. `ExternalServices/ExternalServiceUrlValidator.cs` (internal static): `Validate(string? url)` and `Validate(Uri uri)`: absolute, scheme `http` or `https`, no user-info, no link-local (169.254.0.0/16, fe80::/10), cloud metadata (169.254.169.254, `metadata.google.internal`) or unspecified host (0.0.0.0, ::).
 5. `EncinaAspireEnvironment.cs` (the #416 file, edited): `ExternalServiceKey(string serviceName, string field)` returning `Encina__Aspire__ExternalServices__{serviceName}__{field}`; constants `Discovery`, `DiscoveryName`, `Broker`, `OutboxTopic`, `Contracts`, `Stub`.
@@ -214,7 +273,7 @@ A wins because the two bullets are not part of the issue's acceptance criteria (
 
 ```text
 CONTEXT:
-- Issue #424; plan docs/plans/aspire-external-service-implementation-plan-424.md. D1, D2, D4, D5 and D7 (the Dilemmas, numbered like the Design Choices) are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (#416 merged).
+- Issue #424; plan docs/plans/aspire-external-service-implementation-plan-424.md. D1, D2, D3, D4, D5, D7, D9 and D10 (the Dilemmas, numbered like the Design Choices) are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists. The package Encina.Aspire.Hosting exists (the code of #416 is merged before this pull request; today only its plan is on main).
 - Aspire.Hosting 13.6.5: AddExternalService, ExternalServiceResource, WithHttpHealthCheck and WithReference(external) exist; confirm each signature in Aspire.Hosting.xml before coding.
 
 TASK:
@@ -315,7 +374,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: The application-side reader and catalog (pull request 3)
+### Phase 4: The application-side reader and catalog (pull request 3a)
 
 > **Goal**: The application reads the declaration into a read-only catalog.
 
@@ -335,7 +394,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #424, Phase 4 (pull request 3). #417's AddEncinaDefaults and EncinaAspireConfiguration exist. D2 and D5 are recommended, pending the maintainer.
+- Issue #424, Phase 4 (pull request 3a). #417's AddEncinaDefaults and EncinaAspireConfiguration exist (the code of #417 is merged first). D2 and D5 are recommended, pending the maintainer.
 
 TASK:
 Write the declaration type, the reader returning Either, the catalog and its registration, with tests.
@@ -354,7 +413,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Cross-cutting integration — the start check (pull request 3)
+### Phase 5: Cross-cutting integration — the start check (pull request 3b)
 
 > **Goal**: A declaration that does not match the application fails the start.
 
@@ -373,7 +432,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #424, Phase 5 (pull request 3). The catalog of Phase 4 exists.
+- Issue #424, Phase 5 (pull request 3b). The catalog of Phase 4 exists.
 
 TASK:
 Write the start check with its three failures and add the parity case to the environment contract test.
@@ -400,7 +459,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `ExternalServices/Diagnostics/ExternalServiceLog.cs` (`[LoggerMessage]`, in `Encina.Aspire.ServiceDefaults`): 850 external services loaded (Information: count), 851 invalid declaration (Error: error code, key name), 852 broker declared without the outbox pattern (Error: service name, code), 853 contract not loaded (Error: service name, contract name, code). Registered first: `EventIdRanges.AspireExternalServices = (850, 854)` in `src/Encina/Diagnostics/EventIdRanges.cs`, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests` (the assembly `Encina.Aspire.ServiceDefaults` then maps to two ranges, as #417's 800-819 plus this one), the `Encina` PublicAPI line. Ids 850-853 are packed; 854 is spare.
+1. `ExternalServices/Diagnostics/ExternalServiceLog.cs` (`[LoggerMessage]`, in `Encina.Aspire.ServiceDefaults`): 850 external services loaded (Information: count), 851 broker declared without the outbox pattern (Error: service name, code), 852 contract not loaded (Error: service name, contract name, code), 853 injected endpoint rejected (Error: service name, code), every one emitted by the start check of pull request 3b. A malformed declaration is rejected earlier, in `AddEncinaDefaults` of pull request 3a, which has no logger and logs nothing: it throws `InvalidOperationException` with the error code only. Registered first: `EventIdRanges.AspireExternalServices = (850, 854)` in `src/Encina/Diagnostics/EventIdRanges.cs`, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests` (the assembly `Encina.Aspire.ServiceDefaults` then maps to two ranges, as #417's 800-819 plus this one), the `Encina` PublicAPI line, and `docs/engineering/eventid-block-registry.md` in the same pull request: a row for `AspireExternalServices` 850-854 in the "Registered ranges" table (zone `reserved-pre-zone`) and the reserved row of 850-899 split so that it does not overlap the registered range (`tests/Encina.UnitTests/Testing/Architecture/EventIdRegistryAgreementTests.cs` fails otherwise). Ids 850-853 are packed; 854 is spare.
 2. No `ActivitySource` and no `Meter`: the start check runs once and the AppHost has no telemetry; cross-service traces are W3C `traceparent` propagated by `HttpClient` and the transports (ADR-054), with no baggage (D4: no custom correlation header and no tenant tag emitted here, because nothing is measured per tenant).
 3. Errors are logged by code, never by `EncinaError.Message`, and an exception through `ForLogging()`.
 
@@ -452,7 +511,10 @@ REFERENCE FILES:
    | `EncinaExternalServiceAnnotation.cs` | 100 | 0 | 0 | 0 | 0 | A data holder read in every builder test; no parameterized public member reachable by guard tests |
    | `EncinaExternalServiceBuilderExtensions.cs` | 95 | 90 | 0 | 0 | 0 | Run over the real Aspire model, both overloads and every guard |
    | `EncinaExternalServiceResourceBuilderExtensions.cs` | 95 | 90 | 0 | 0 | 0 | Each key, the missing annotation and the relationship, asserted on the real model |
-   | `EncinaExternalServiceStub.cs` | 90 | 0 | 0 | 0 | 70 | Constants and the container wiring, run in both modes by unit tests; the integration test of the same pull request starts the stub with Docker |
+   | `EncinaExternalServiceStub.cs` | 90 | 0 | 0 | 0 | 70 | The image and port constants and the mount path, read by the unit tests of the builder; the wiring itself lives in `AddEncinaExternalService`, whose tests (run and publish mode) cover it, and the integration test of the same pull request starts the stub with Docker |
+| `EncinaAspireEnvironment.cs` (1, edit; #416 file) | 100 | existing kept | 90 | 0 | 0 | The new `ExternalServiceKey` helper and field constants are read by the writer tests and, from pull request 3a, the parity case; no manifest target is lowered |
+| `EncinaDefaultsExtensions.cs` (3a and 3b, edits; #417 file) | 95 | existing kept | 0 | 0 | 0 | The reader call and the check registration are covered by the DI tests of 3a and 3b; no manifest target is lowered |
+| `EventIdRanges.cs` (3b, edit) | existing kept | 0 | 0 | 0 | 0 | One new field read by the allocation architecture test |
    | `EncinaExternalServiceReader.cs` | 100 | 0 | 90 | 0 | 0 | Pure parsing with every branch tested; internal, the parity contract test runs it |
    | `EncinaExternalServiceCatalog.cs` | 100 | 85 | 0 | 0 | 0 | Lookup and list; the constructor guard is reached by guard tests |
    | `ExternalServiceStartCheck.cs` | 95 | 85 | 0 | 0 | 0 | Each failure and the passing case with an in-memory configuration |
@@ -487,7 +549,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 8: Documentation & Finalization (pull request 5)
+### Phase 8: Documentation & Finalization (pull request 4)
 
 > **Goal**: Users can follow the feature from a README.
 
@@ -508,7 +570,7 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #424, Phase 8 (pull request 5). All code of pull requests 1 to 3 is merged.
+- Issue #424, Phase 8 (pull request 4). All code of pull requests 1 to 3b is merged.
 
 TASK:
 Write the documentation sections, the changelog fragment and the inventory line.
@@ -535,10 +597,10 @@ REFERENCE FILES:
 | 1 | `EncinaExternalServiceDiscovery`, `EncinaExternalServiceOptions`, `EncinaExternalServiceAnnotation`, `ExternalServiceUrlValidator`, `EncinaExternalServiceBuilderExtensions`, `EncinaExternalServiceResourceBuilderExtensions`, `EncinaAspireEnvironment.cs` edit, hosting `PublicAPI.Unshipped.txt`, hosting manifest, unit tests (2 files), guard tests (1 file), the validator contract test (1 file; `Encina.ContractTests` already references the hosting package through #440) | 13 | 1,200 |
 | 2 | `EncinaExternalServiceStub`, options and builder edits, `PublicAPI.Unshipped.txt`, manifest, unit and guard test edits, integration test and its fixture reference (`Encina.IntegrationTests.csproj` edit) | 9 | 650 |
 | 3a | Declaration, reader, catalog and interface, `EncinaDefaultsExtensions.cs` edit, ServiceDefaults `PublicAPI.Unshipped.txt` and manifest, unit, guard and DI test files, `EnvironmentContractTests.cs` edit (the writer-reader parity case, so the reader's contract target is reached in the pull request that sets it) | 11 | 1,000 |
-| 3b | `ExternalServiceStartCheck`, `ExternalServiceLog`, `EventIdRanges.cs` edit, `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` manifest, ServiceDefaults manifest edit, allocation test map edit, `EncinaDefaultsExtensions.cs` edit (registers the check), unit test | 9 | 800 |
+| 3b | `ExternalServiceStartCheck`, `ExternalServiceLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (the registered-ranges row for `AspireExternalServices` and the split of the reserved 850-899 row, which `EventIdRegistryAgreementTests` requires in the pull request that registers the range), `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` manifest, ServiceDefaults manifest edit, allocation test map edit, `EncinaDefaultsExtensions.cs` edit (registers the check), unit test, guard test (the check's public-facing constructor checks, if any, and the registration guards), DI test file edit (the provider builds with `ValidateOnBuild` and `ValidateScopes` with the check registered) | 12 | 950 |
 | 4 | Two README sections, `docs/INVENTORY.md` line, changelog fragment, two justification files (load, benchmark) | 6 | 330 |
 
-PR 1 needs #416 pull requests 1 and 2 (the package and `WithEncina`); PR 2 needs PR 1; PR 3a needs #417 and #440 (merged on `main`: `AddEncinaDefaults`, the reader and `EnvironmentContractTests`) and PR 1; PR 3b needs PR 3a; PR 4 is last. No interface is changed, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again. Guard tests, the DI test and the manifests are counted in every row.
+PR 1 needs the code of #416 pull requests 1 and 2 (the package and `WithEncina`; `Directory.Packages.props` pins `Aspire.Hosting` 13.6.5 only in #416's first pull request: today it pins `Aspire.Hosting.Testing` and `Aspire.Hosting.PostgreSQL`); PR 2 needs PR 1; PR 3a needs the code of #417 and #440 (`AddEncinaDefaults`, the reader and `EnvironmentContractTests`; only their plans are on `main`) and PR 1; PR 3b needs PR 3a; PR 4 is last. No interface is changed, so no implementer is touched. A pull request that measures over 15 files or 1,500 lines when it is briefed is split again. Guard tests, the DI test and the manifests are counted in every row.
 
 ---
 
@@ -582,7 +644,7 @@ PR 1 needs #416 pull requests 1 and 2 (the package and `WithEncina`); PR 2 needs
 | Public API and manifests | 6 | Hosting and ServiceDefaults `PublicAPI.Unshipped.txt` and manifests, `Encina` PublicAPI, `Encina.json` |
 | Tests and project files | 11 | Unit (5), guard (2), contract (2), DI (1), integration (1), allocation map edit, one csproj edit |
 | Documentation | 4 | Two README sections, inventory line, changelog fragment |
-| **Total** | **by the split table: 13 + 9 + 11 + 9 + 6 = 48 file touches over 5 pull requests** | The split table is the authority |
+| **Total** | **by the split table: 13 + 9 + 11 + 12 + 6 = 51 file touches over 5 pull requests** | The split table is the authority |
 
 ---
 
@@ -594,12 +656,13 @@ PR 1 needs #416 pull requests 1 and 2 (the package and `WithEncina`); PR 2 needs
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #424: AddEncinaExternalService for services in other repositories. Plan: docs/plans/aspire-external-service-implementation-plan-424.md; D1, D2, D4, D5 and D7 are recommended, pending the maintainer.
+- Issue #424: AddEncinaExternalService for services in other repositories. Plan: docs/plans/aspire-external-service-implementation-plan-424.md; D1, D2, D3, D4, D5, D7, D9 and D10 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (5 pull requests, each builds alone):
 1. Options, annotation, URL validation, AddEncinaExternalService, WithEncinaExternalService (Phases 1-2).
 2. The WireMock stub of run mode (Phase 3).
-3. The application reader, catalog, start check and log (Phases 4-6).
+3a. The application reader, catalog and parity test (Phase 4).
+3b. The start check, log, EventId range and its tests (Phases 5-6).
 4. Documentation (Phase 8).
 
 KEY PATTERNS:
@@ -649,5 +712,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D4, D5 and D7 when work on #424 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
-2. Pull request 1 after #416; pull request 2; pull request 3a after #417; pull request 3b; pull request 4 last.
+1. The maintainer answers D1, D2, D3, D4, D5, D7, D9 and D10 when work on #424 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+2. Pull request 1 after the code of #416; pull request 2; pull request 3a after the code of #417 and #440; pull request 3b; pull request 4 last.
