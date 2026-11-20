@@ -268,7 +268,7 @@ REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNAT
 
 1. `IActiveMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? destination = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `ActiveMQMessagePublisher` (scoped; the connection holder, options, logger, `TimeProvider`): JSON text message, `message-id` property (a new id only when null or empty), the destination as queue or topic, delivery delay computed from `deliverAt` and `TimeProvider`.
 2. Errors (ADR-062): `ACTIVEMQ_PUBLISH_FAILED` `Internal` (R4), `ACTIVEMQ_DESTINATION_REQUIRED` `InvalidRequest` (R3); cancellation propagates; constant messages; exception to `ForLogging()`.
-3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; registry row (through `docs-writer`).
+3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ActiveMQ | 1070-1079 | Transports | historical |` in the registered ranges table and the split of the reserved block 1050-1099 so that 1070-1079 is `registered` and no reserved block overlaps a registered range, as `EventIdRegistryAgreementTests` requires (the other four plans edit neighbouring rows of the same table, so the pull requests rebase on each other).
 4. Tests: `ActiveMQMessagePublisherTests`, `ActiveMQMessageIdTests`, guard edit, manifest edit.
 
 </details>
