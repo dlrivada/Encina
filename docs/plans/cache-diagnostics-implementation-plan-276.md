@@ -2,7 +2,7 @@
 
 > **Issue**: [#276](https://github.com/dlrivada/Encina/issues/276)
 > **Type**: Feature
-> **Complexity**: Medium (3 code phases, 3 pull requests of 11, 13 and 12 files, and a documentation pull request)
+> **Complexity**: Medium (3 code phases, 3 code pull requests of 15, 9 and 15 files, and a documentation and integration pull request of 3 files)
 > **Estimated Scope**: about 700 lines of production code, about 1,500 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #276 asks for development-time diagnostics of the query cache: response headers (`X-Cache-Status`, `X-Cache-Key`, `X-Cache-Age`, `X-Cache-TTL`, `X-Cache-Level`, `X-Cache-Stale`), diagnostic endpoints (stats, key search, key details, key deletion) mapped by `MapEncinaCacheDiagnostics`, an `ICacheDiagnostics` inspection API, authorization on the endpoints and a switch to disable them. Re-checked against `origin/main` (e31de98cb):
+Issue #276 asks for development-time diagnostics of the query cache: response headers (`X-Cache-Status`, `X-Cache-Key`, `X-Cache-Age`, `X-Cache-TTL`, `X-Cache-Level`, `X-Cache-Stale`), diagnostic endpoints (stats, key search, key details, key deletion) mapped by `MapEncinaCacheDiagnostics`, an `ICacheDiagnostics` inspection API, authorization on the endpoints and a switch to disable them. Re-checked against `origin/main` (0336d31c7):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -78,7 +78,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `MapEncinaCacheDiagnostics(string authorizationPolicy, string prefix = "/cache")` requires the policy name, applies it to every endpoint and throws at startup when the name is blank or the policy is not registered; nothing is mapped or enabled unless the application calls it, and `CachingOptions.Diagnostics.Enabled` (default false) must also be on** | Fail closed, as `MapDPIAEndpoints` does; "disabled in production" is the absence of the call or of the option | Applications must define a policy |
+| **A) `MapEncinaCacheDiagnostics(string authorizationPolicy, string prefix = "/cache")` requires the policy name, applies it to every endpoint and throws at startup when the name is blank or the policy is not registered; nothing is mapped or enabled unless the application calls `AddEncinaCacheDiagnostics` and the mapping method (there is no other switch)** | Fail closed, as `MapDPIAEndpoints` does; "disabled in production" is the absence of the calls | Applications must define a policy |
 | **B) The issue's bare `MapEncinaCacheDiagnostics("/cache")` with `.RequireAuthorization(...)` chained by the caller** | Matches the issue text | Open by default when the chain is forgotten |
 
 ### Chosen Option: **A - policy name required**
@@ -216,7 +216,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 14 files (the registry logs its own eviction, so the log class, the range and its registration belong here):
+PR 1 holds exactly these 15 files (the registry logs its own eviction, so the log class, the range, its registration and its row in `docs/engineering/eventid-block-registry.md` belong here; row 4e below):
 
 | # | File | Change |
 |---|------|--------|
@@ -227,6 +227,7 @@ PR 1 holds exactly these 14 files (the registry logs its own eviction, so the lo
 | 4b | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingDiagnostics = (532, 533)`) |
 | 4c | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (map `Encina.Caching`) |
 | 4d | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
+| 4e | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingDiagnostics \| 532-533 \| Caching \| historical` in the "Registered ranges" table and the `500-549 reserved-pre-zone` block row split so `532-533` is `registered`; `EventIdRegistryAgreementTests` fails otherwise; read the test and the document first) |
 | 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (optional trailing `ICacheKeyRecorder?` and `CacheOutcomeAccessor?`, both public types because the behavior's constructor is public and an internal parameter type would not compile; record on hit, miss, bypass and write) |
 | 6 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 7 | `tests/Encina.UnitTests/Caching/CacheKeyRegistryTests.cs` | new |
@@ -240,7 +241,7 @@ Tasks:
 1. **Create** `CacheKeyRegistry`: a `ConcurrentDictionary<string, Entry>` plus an insertion-order queue bounded by `MaxTrackedKeys`; `Record(key, requestType, cachedAtUtc, duration, tenantId)`, `Remove(key)`, `Snapshot(tenantId)`; instance-level state only (a registry per `AddEncinaCaching`, never a static field of a generic class); the stored tenant is the segment used by the key generator, so a tenant filter compares equal strings, never substrings.
 2. **Create** `CacheOutcomeAccessor` (singleton): `Begin()` returns a disposable holder pushed on an `AsyncLocal`, `Record(CacheOutcome)` is a no-op without a holder; `CacheOutcome` carries the status, `CachedAtUtc` and the duration, never the value or the raw key.
 3. **Modify** the behavior: the existing paths already know hit, miss, bypass and write; each hook is a one-line call to a private method so `Handle` keeps CRAP at 10 or below. With both optional parameters null (diagnostics off) behavior is unchanged.
-4. **Tests (unit):** bound and eviction order, tenant filter is equality, a re-write refreshes an entry, no holder means no work, outcomes for hit, miss, bypass (the three existing bypass reasons) and write, the registry never holds a value. Guard tests: `CacheDiagnosticsOptions` setters reject invalid ranges (`MaxTrackedKeys` at least 1); `ICacheKeyRecorder.Record(string key, ...)` throws `ArgumentNullException` for a null or whitespace key (a key is never recorded blank); `CacheOutcomeAccessor.Record(CacheOutcome)` takes a value-type record, so a default value is a valid input and gets a valid-result test (it records nothing without a holder); `Begin()` has no parameter.
+4. **Tests (unit):** bound and eviction order, tenant filter is equality, a re-write refreshes an entry, no holder means no work, outcomes for hit, miss, bypass (the three existing bypass reasons) and write, the registry never holds a value. The two new optional parameters of the behavior's public constructor accept null (diagnostics off): `CacheDiagnosticsGuardTests.cs` has a valid-result test for each (the behavior behaves as today), not an exception test. The `AsyncLocal` holder is thread-safe: one HTTP request can run several `Send` calls in parallel, so the holder aggregates with `Interlocked` operations on a packed state (hit, miss, bypass counts), never a plain list. Guard tests: `CacheDiagnosticsOptions` setters reject invalid ranges (`MaxTrackedKeys` at least 1); `ICacheKeyRecorder.Record(string key, ...)` throws `ArgumentNullException` for a null or whitespace key (a key is never recorded blank); `CacheOutcomeAccessor.Record(CacheOutcome)` takes a value-type record, so a default value is a valid input and gets a valid-result test (it records nothing without a holder); `Begin()` has no parameter.
 
 </details>
 
@@ -333,14 +334,14 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 15 files:
+PR 3 holds exactly these 15 files (the integration test of Design Choice 9 moved to PR 4 to make room for the registry row):
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.AspNetCore/CacheDiagnosticHeadersMiddleware.cs` | new (internal sealed) |
 | 1b | `src/Encina.AspNetCore/ApplicationBuilderExtensions.cs` | modify (`UseEncinaCacheDiagnosticHeaders`) |
 | 1c | `tests/Encina.UnitTests/AspNetCore/ApplicationBuilderExtensionsTests.cs` | modify |
-| 1d | `tests/Encina.IntegrationTests/Infrastructure/Caching/CacheDiagnosticsIntegrationTests.cs` | new (shared Redis fixture, test server: headers, tenant scoping and delete over the real behavior and provider; Design Choice 9) |
+| 1d | `docs/engineering/eventid-block-registry.md` | modify (a row `AspNetCoreCachingDiagnostics \| 534-536 \| Caching \| historical` in the "Registered ranges" table and the remaining `500-549 reserved-pre-zone` block row split around it; `EventIdRegistryAgreementTests` fails otherwise) |
 | 2 | `src/Encina.AspNetCore/CacheDiagnosticsEndpointExtensions.cs` | new (public `MapEncinaCacheDiagnostics`) |
 | 3 | `src/Encina.AspNetCore/CacheDiagnosticsAspNetLog.cs` | new (EventIds 534-536) |
 | 4 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`AspNetCoreCachingDiagnostics = (534, 536)`) |
@@ -408,6 +409,8 @@ REFERENCE FILES:
 | `Encina.Caching/Configuration/CacheDiagnosticsOptions.cs` | 100 | 80 | 0 | 0 | Setters with range guards |
 | `Encina.Caching/Abstractions/ICacheDiagnostics.cs` | 0 | 0 | 0 | 0 | An interface and records without executable validation |
 | `Encina.AspNetCore/CacheDiagnosticsEndpointExtensions.cs` | 90 | 70 | 0 | 0 | Route handlers run on a test server; the startup guards run in guard tests |
+| `Encina.AspNetCore/ApplicationBuilderExtensions.cs` | keep | keep | 0 | 0 | An existing file touched by PR 3 (`UseEncinaCacheDiagnosticHeaders`): its targets are never lowered and the new method's null guard and registration are covered by `ApplicationBuilderExtensionsTests.cs` and the guard file |
+| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (the two new optional constructor parameters) | keep | keep | 0 | 0 | The valid-result guard tests for null `ICacheKeyRecorder?` and `CacheOutcomeAccessor?` (#3798) are in `CacheDiagnosticsGuardTests.cs` of PR 1 |
 | `Encina.AspNetCore/CacheDiagnosticHeadersMiddleware.cs` | 100 | 0 | 0 | 0 | Internal; driven through the test server |
 | `Encina.Caching/Diagnostics/CacheDiagnosticsLog.cs`, `Encina.AspNetCore/CacheDiagnosticsAspNetLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the tests above; internal |
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`, `Configuration/CachingOptions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; the new hooks are tested in PR 1 |
@@ -445,7 +448,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. XML documentation with `<example>` on `ICacheDiagnostics`, `AddEncinaCacheDiagnostics`, `MapEncinaCacheDiagnostics` and `UseEncinaCacheDiagnosticHeaders`; the remarks state that data is node-local, that no value is returned and that production use needs a policy.
-2. `docs-writer` (PR 4, two files): `docs/features/cache-diagnostics.md` (new) and a pointer from `docs/features/handler-caching.md` (the handler-caching page owned by the #266 family; `query-caching.md` is the EF Core page and is not touched), with the header table, the endpoint table and the security model, citing tests by name and no typed figure.
+2. PR 4 (three files) also carries the integration test of Design Choice 9, `tests/Encina.IntegrationTests/Infrastructure/Caching/CacheDiagnosticsIntegrationTests.cs` (shared Redis fixture, test server: headers, tenant scoping and delete over the real behavior and provider). `docs-writer` (PR 4, two files): `docs/features/cache-diagnostics.md` (new) and a pointer from `docs/features/handler-caching.md` (the handler-caching page owned by the #266 family; `query-caching.md` is the EF Core page and is not touched), with the header table, the endpoint table and the security model, citing tests by name and no typed figure.
 3. `PublicAPI.Unshipped.txt` lines are written by `mechanical-fixer` per PR; no ROADMAP, INVENTORY or ADR change (ADR number assigned when the ADR pull request opens, if the maintainer asks for one).
 4. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching and AspNetCore namespaces) and `Encina.GuardTests`; per-flag coverage and the CRAP table of changed methods.
 
@@ -513,7 +516,7 @@ REFERENCE FILES:
 | Tests | 7 | 3 | Unit (5), guard (3 across PRs); modified: allocation test (twice) |
 | Documentation | 1 | 1 | `docs/features/cache-diagnostics.md`, `docs/features/handler-caching.md` (owned by the #266 family) |
 | Configuration | 3 | 3 | Three changelog fragments; manifests edited per PR |
-| **Total** | **21** | **13** | 4 pull requests of 14, 9, 15 and 2 files, each at most 15 files and 1500 lines |
+| **Total** | **21** | **13** | 4 pull requests of 15, 9, 15 and 3 files, each at most 15 files and 1500 lines |
 
 ---
 
