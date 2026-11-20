@@ -11,7 +11,7 @@
 
 When the process is overloaded, drop the least important requests first so the important ones keep their capacity: a request has a priority, a utilization provider measures CPU, memory, p99 latency and error rate, each priority has a threshold, and above it requests are rejected with a probability that grows with the excess (the Netflix and Uber pattern). The comment of 2026-10-23 on #138 moves it into the 1.0 scope; [ADR-055](../architecture/adr/055-resilience-family.md) decided that load shedding lives in `Encina.Resilience` and that there is no `Encina.LoadShedding` package (R1, which overrides the `new-package` label and the "Other: `Encina.LoadShedding` (new package)" line of the issue).
 
-What exists today (read in `origin/main` at `8727c5cc3`):
+What exists today (read in `origin/main` at `e31de98cb`):
 
 - Nothing: `git grep -E "LoadShed|IPrioritizedRequest|IUtilizationProvider|RequestPriority" -- src` has no match. `Encina.Resilience`, the per-type compiler (R2) and R6 are not on main.
 - The plan of #123 (on main) proposes `MessagePriority` and `IPrioritizedMessage` in `Encina.Messaging` (five levels, higher is more urgent) and notes that `IPrioritizedRequest` and `[Priority]` do not exist in the tree. The issue's own enum is `Critical = 0 ... Bulk = 3`, where a lower number is more important. Design Choice 4 settles the relation.
@@ -354,7 +354,7 @@ Five pull requests, in order: **PR-1** Phase 1 (model and calculator); **PR-2** 
 
 1. `src/Encina.Resilience/LoadShedding/RequestPriority.cs` (choice 4) with a `Compare` helper that orders by importance; `IPrioritizedRequest.cs` (`RequestPriority Priority { get; }`); `UtilizationMetric.cs` (`[Flags] enum`).
 2. `LoadSheddingOptions.cs`: `Thresholds` (default `Bulk 60, BestEffort 70, Degraded 80, Critical 90`), `UtilizationMetric Metric` (default `Cpu | Latency`), `RequestPriority DefaultPriority = Degraded`, `bool EnableGradualShedding = true`, `TimeSpan? RetryAfterHint`, `TimeSpan? LatencyTarget` (no default; required when `Latency` is selected, failing at startup), `TimeSpan SampleInterval` (1 s), `bool PinPriority` per type (choice 5); the defaults are choice 15; `LoadSheddingOptionsValidator.cs` (internal: thresholds in 1 to 100 and not decreasing with importance).
-3. `IUtilizationProvider.cs` (`double GetCpuUtilization()`, `GetMemoryUtilization()`, `GetLatencyP99()`, `GetErrorRate()` as in the issue, documented in 0-1 or milliseconds), `ILoadSheddingManager.cs` (`bool ShouldShed(RequestPriority priority)` and `double Utilization`).
+3. `IUtilizationProvider.cs` (`double GetCpuUtilization()`, `GetMemoryUtilization()`, `GetLatencyP99()`, `GetErrorRate()` as in the issue, documented in 0-1 or milliseconds), `ILoadSheddingManager.cs` (`bool ShouldShed(RequestPriority priority)`, the probabilistic decision of one request; `bool IsShedding(RequestPriority priority)`, a state read of whether that priority's utilization is at or above its threshold, which the health check of PR-3 reads; and `double Utilization`). `IsShedding` is implemented by the manager in PR-2 and tested there (above, at and below the threshold, and consistency with the transition flag).
 4. `SheddingCalculator.cs`: the pure rejection probability (choice 11).
 
 </details>
@@ -421,7 +421,7 @@ REFERENCE FILES: src/Encina.Polly/ServiceCollectionExtensions.cs
 <details>
 <summary>Tasks</summary>
 
-1. Health check (choice 12): `LoadSheddingHealthCheck`, tags and name constants per AGENTS.md; scoped resolution is unnecessary (the manager is a singleton).
+1. Health check (choice 12): `LoadSheddingHealthCheck` (reads `ILoadSheddingManager.IsShedding` for each priority and reports `Degraded` when any is true), tags and name constants per AGENTS.md; scoped resolution is unnecessary (the manager is a singleton).
 2. Multi-tenancy: tenant tag only with multi-tenancy; no tenant-qualified key exists (utilization is process-wide), so the reserved `default` segment does not apply; tenant-scoped thresholds are the issue file `resilience-loadshedding-tenant-thresholds.md`.
 3. Idempotency: a shed request has not run, so retry is safe.
 
