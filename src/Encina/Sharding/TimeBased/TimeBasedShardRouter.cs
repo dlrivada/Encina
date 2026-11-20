@@ -282,7 +282,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         var isOutsideRange = originalError.Match(
             Right: _ => false,
             Left: error => error.GetCode().Match(
-                Some: code => code == ShardingErrorCodes.TimestampOutsideRange, ErrorCategory.Internal,
+                Some: code => code == ShardingErrorCodes.TimestampOutsideRange,
                 None: () => false));
 
         if (!isOutsideRange)
