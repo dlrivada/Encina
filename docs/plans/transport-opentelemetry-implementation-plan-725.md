@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `e31de98cb`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - None of the ten transports emits a span or an instrument, and none propagates a trace context (ADR-054 Context; `traceparent` does not occur in `src`).
 - **There is no shared transport abstraction**: `IMessageTransport` named in `AGENTS.md` does not exist. Each package has its own publisher interface with its own return type: `IRabbitMQMessagePublisher` (`PublishAsync`, `SendToQueueAsync`, `RequestAsync`), `IKafkaMessagePublisher` (`ProduceAsync`, `ProduceBatchAsync`, `ProduceWithHeadersAsync`), `INATSMessagePublisher`, `IAzureServiceBusMessagePublisher`, `IAmazonSQSMessagePublisher`, `IRedisPubSubMessagePublisher`, `IMQTTMessagePublisher`, `IInMemoryMessageBus`; `Encina.gRPC` (`GrpcEncinaService`) and `Encina.GraphQL` (`IGraphQLMediatorBridge`) are server bridges, not publishers.
@@ -24,8 +24,8 @@
 
 - A public helper in core, `TransportTelemetry` (`Encina.Diagnostics`): one instance per transport owns that package's `ActivitySource` and `Meter` (named after the package, ADR-054 D3: `Encina.RabbitMQ`, `Encina.Kafka`, ...), starts producer and consumer spans, records the three OpenTelemetry messaging instruments and calls the propagator of #132; it is the only new type outside the transports.
 - Each publisher gets a `private static readonly TransportTelemetry` and wraps its publish operations: span `{operation} {destination-kind}` with `messaging.system`, `messaging.operation.name`, `messaging.destination.name` where the transport knows it (never a message id or body), `error.type` on failure; injection of `traceparent` and `tracestate` into the transport's native carrier.
-- Consumer spans where code exists: MQTT, Redis.PubSub and InMemory deliveries (parent or link per ADR-054 D2); gRPC and GraphQL handlers get a child span of the ambient request activity (ASP.NET Core already extracted the HTTP trace headers).
-- Instruments per transport meter: `messaging.client.operation.duration` (histogram, `s`), `messaging.client.sent.messages` and `messaging.client.consumed.messages` (counters), names pinned in the constants class of #177.
+- Consumer spans where code exists: MQTT, Redis.PubSub and InMemory deliveries (parent or link per ADR-054 D2); gRPC and GraphQL handlers get a child span of the ambient request activity (ASP.NET Core already extracted the HTTP trace headers); they emit no `messaging.client.consumed.messages` count (register row C6).
+- Instruments per transport meter (the eight publisher transports): `messaging.client.operation.duration` (histogram, `s`), `messaging.client.sent.messages` and `messaging.client.consumed.messages` (counters, consumed only where a delivery exists: MQTT, Redis.PubSub, InMemory), names pinned in the constants class of #177. gRPC and GraphQL get child spans only.
 - The tenant tag through the helper of #2676.
 - Not delivered, each in a Design Choice: queue depth, acknowledge and reject (no code to observe), consumer spans of the five publish-only transports (#1609).
 - Shared pieces and owner: the helper is this plan's; constants #177's; propagation #132's; adapters #2385's.
@@ -149,6 +149,7 @@
 | C3 | The consumer relation is fixed per operation (`Send` child, `Publish`, scheduled and batch link), identical on all transports, no switch | Settled | ADR-054 D2 |
 | C4 | No tenant-qualified id is built; the tenant is a tag only; with multi-tenancy off no tenant tag | Settled | ADR-054 D4 |
 | C5 | Body size is emitted only where the publisher already holds the serialized bytes (no re-serialization for telemetry) | Dilemma (recommended, pending the maintainer) | cost on the hot path against #177's `messaging.message.body.size` |
+| C6 | gRPC and GraphQL get child spans but no `messaging.client.consumed.messages` count: a server request is not a consumed message, and the two packages are server bridges, not publishers; the alternative is a count tagged `messaging.system` = `grpc` or `graphql` | Dilemma (recommended, pending the maintainer) | the scenario that flips it: operators who want one request-rate panel across all ten transports and accept a semantic stretch of the OpenTelemetry metric |
 
 ---
 
@@ -160,9 +161,10 @@
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina/Diagnostics/TransportTelemetry.cs` (`public sealed class`): constructor `(string packageName, string messagingSystem, TimeProvider? timeProvider = null)` creating `ActivitySource(packageName, "1.0")` and `Meter(packageName, "1.0")` with the three instruments; `Activity? StartPublish(string operation, string? destination)`, `Activity? StartConsume(...)` (applies the D2 rule through `TraceContextConsumer` of #132), `StartMeasurement()`, `Complete<T>(Activity?, in Measurement, Either<EncinaError, T>)`, `Failed(Activity?, in Measurement, Exception)` and `Inject(Activity?, setter)`. Everything is a no-op when nothing listens.
-2. **Modify** `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`: subscribe the ten package sources and meters in `WithEncina` (until #1787 subscribes by wildcard).
-3. `src/Encina/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.json`, `.github/coverage-manifest/Encina.OpenTelemetry.json` and `changelog.d/725-transport-telemetry.added.md` through `mechanical-fixer`.
-4. Tests: new `tests/Encina.UnitTests/Diagnostics/TransportTelemetryTests.cs` (listeners see the span kind, tags, the three instruments, error type; nothing happens without a listener; a fake `TimeProvider` gives exact durations; no body, id or message text in any tag); new `tests/Encina.GuardTests/Diagnostics/TransportTelemetryGuardTests.cs` (null or whitespace package name and system; null `timeProvider` valid); new `tests/Encina.ContractTests/Diagnostics/TransportTelemetryContractTests.cs` (instrument names equal the constants of #177 for every `messaging.system` value).
+   `Measurement` is a public `readonly struct` (nested in `TransportTelemetry`, an opaque timestamp holder with no public members besides the implicit default constructor), because it appears in the public signatures of `Complete` and `Failed`.
+2. **Modify** `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`: subscribe the ten package sources and meters in `WithEncina` (until #1787 subscribes by wildcard); edit `tests/Encina.UnitTests/OpenTelemetry/ServiceCollectionExtensionsTests.cs` so a `WithEncina` test asserts the ten sources and ten meters are subscribed (otherwise the new lines are uncovered for the crap-gate).
+3. `src/Encina/PublicAPI.Unshipped.txt` (about 12 lines: the class, its constructor, six methods, the nested `Measurement` struct and its default constructor), `.github/coverage-manifest/Encina.json`, `.github/coverage-manifest/Encina.OpenTelemetry.json` and `changelog.d/725-transport-telemetry.added.md` through `mechanical-fixer`.
+4. Tests: new `tests/Encina.UnitTests/Diagnostics/TransportTelemetryTests.cs` (listeners see the span kind, tags, the three instruments, error type; nothing happens without a listener; a fake `TimeProvider` gives exact durations; no body, id or message text in any tag); new `tests/Encina.GuardTests/Diagnostics/TransportTelemetryGuardTests.cs` (null or whitespace package name and system; null `timeProvider` valid; a `default(Measurement)` passed to `Complete` and `Failed` is a valid-result case, which guards the members of the public struct); new `tests/Encina.ContractTests/Diagnostics/TransportTelemetryContractTests.cs` (instrument names equal the constants of #177 for every `messaging.system` value).
 
 </details>
 
@@ -187,7 +189,7 @@ KEY RULES:
 - Never emit message ids, bodies, headers, keys, EncinaError.Message or exception messages; never throw from telemetry.
 
 REFERENCE FILES:
-- docs/plans/messaging-semantic-conventions-implementation-plan-177.md, docs/plans/trace-context-propagation-implementation-plan-132.md
+- the plans of #177 (messaging semantic conventions) and #132 (trace context propagation)
 - docs/architecture/adr/054-observability-conventions-and-trace-propagation.md
 ```
 
@@ -269,8 +271,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `src/Encina.gRPC/GrpcMediatorService.cs` (class `GrpcEncinaService`) and `src/Encina.GraphQL/GraphQLMediatorBridge.cs`: a child span per `SendAsync`, `PublishAsync`, `StreamAsync` and query, mutation and subscription, as a child of the ambient activity (no header extraction: ASP.NET Core instrumentation does it), instruments `messaging.client.consumed.messages` for received requests.
-2. Tests: new `GrpcTelemetryTests.cs` and `GraphQLTelemetryTests.cs` (public service only; GraphQL has UnitTests IVT); new `tests/Encina.ContractTests/Messaging/TransportTelemetryCoherenceTests.cs` (every transport's publish emits the same instrument names, the `messaging.system` value set and `error.type` rules); manifests and changelog through `mechanical-fixer`.
+1. **Modify** `src/Encina.gRPC/GrpcMediatorService.cs` (class `GrpcEncinaService`) and `src/Encina.GraphQL/GraphQLMediatorBridge.cs`: a child span per `SendAsync`, `PublishAsync`, `StreamAsync` and query, mutation and subscription, as a child of the ambient activity (no header extraction: ASP.NET Core instrumentation does it); no `messaging.client.consumed.messages` count (register row C6), only the spans.
+2. **Modify** `tests/Encina.ContractTests/Encina.ContractTests.csproj`: add ProjectReferences to `Encina.RabbitMQ`, `Encina.Kafka`, `Encina.NATS`, `Encina.MQTT`, `Encina.InMemory`, `Encina.gRPC` and `Encina.GraphQL` (the project already references `Encina.AmazonSQS`, `Encina.AzureServiceBus` and `Encina.Redis.PubSub`); counted in T4.
+3. Tests: new `GrpcTelemetryTests.cs` and `GraphQLTelemetryTests.cs` (public service only; GraphQL has UnitTests IVT); new `tests/Encina.ContractTests/Messaging/TransportTelemetryCoherenceTests.cs` (every publisher transport's publish emits the same instrument names, the `messaging.system` value set and `error.type` rules; gRPC and GraphQL are checked for the span only); manifests and changelog through `mechanical-fixer`.
 
 </details>
 
@@ -282,8 +285,9 @@ CONTEXT:
 Issue #725 plan docs/plans/transport-opentelemetry-implementation-plan-725.md, phase 4. Phases 1-3 merged.
 
 TASK:
-1. Child spans and received-message counts in the gRPC service and the GraphQL bridge.
-2. A contract test across all ten transports for instrument names and tag keys.
+1. Child spans (no message count, register row C6) in the gRPC service and the GraphQL bridge.
+2. A contract test across the transports for instrument names and tag keys; add the seven missing ProjectReferences to the
+   ContractTests csproj.
 
 KEY RULES:
 - No trace header extraction in these two packages (the host does it); never emit query text, variables or payloads.
@@ -358,22 +362,30 @@ REFERENCE FILES:
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| T1 | Phase 1 | 1 | 2 (`ServiceCollectionExtensions.cs` of OpenTelemetry, PublicAPI) | 3 | 0 | 2 | 1 (changelog) | 9 | ~620 |
+| T1 | Phase 1 | 1 | 2 (`ServiceCollectionExtensions.cs` of OpenTelemetry, PublicAPI) | 3 | 1 (OpenTelemetry `ServiceCollectionExtensionsTests.cs`) | 2 | 1 (changelog) | 10 | ~650 |
 | T2 | Phase 2 | 0 | 4 | 4 | 0 | 4 | 1 | 13 | ~800 |
 | T3 | Phase 3 | 0 | 4 | 4 | 0 | 4 | 1 | 13 | ~850 |
-| T4 | Phase 4 | 0 | 2 | 3 | 0 | 2 | 1 | 8 | ~480 |
+| T4 | Phase 4 | 0 | 2 | 3 | 0 | 2 | 2 (changelog, ContractTests csproj) | 9 | ~500 |
 | T5 | Phase 5 | 0 | 1 | 4 | 1 | 1 | 2 (changelog, README) | 9 | ~620 |
-| **Total** | | **1** | **13** | **18** | **1** | **13** | **6** | **52** | **~3,370** |
+| **Total** | | **1** | **13** | **18** | **2** | **13** | **7** | **54** | **~3,420** |
 
-Columns sum: 1 + 13 + 18 + 1 + 13 + 6 = 52 = 9 + 13 + 13 + 8 + 9. No interface changes: the publisher interfaces are untouched, so no fake or test-double changes (`new XPublisher(` call sites keep their constructors). `PublicAPI.Unshipped.txt` changes only for the core class (T1); the `RedisMessageWrapper` fields are internal to the package.
+Columns sum: 1 + 13 + 18 + 2 + 13 + 7 = 54 = 10 + 13 + 13 + 9 + 9. No interface changes: the publisher interfaces are untouched, so no fake or test-double changes (`new XPublisher(` call sites keep their constructors). `PublicAPI.Unshipped.txt` changes only for the core class and its nested public `Measurement` struct (T1, about 12 lines); the `RedisMessageWrapper` fields are internal to the package.
 
 Per-file coverage targets:
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
 | `Diagnostics/TransportTelemetry.cs` (core) | 92 | 60 | 30 | 0 | 30 | Span, metric, error and no-listener paths are listener-driven; guard covers constructor arguments with valid-result null time provider; contract pins instrument names; integration runs it on four real brokers |
-| Each publisher edited in T2 and T3 (RabbitMQ, Kafka, NATS, Azure Service Bus, SQS, MQTT, Redis.PubSub, InMemory) | existing target, not lowered (measured value raised by 3 points) | existing | 0 | 0 | 0 | The new lines are the span wrapper, driven by the new telemetry unit tests on every publish method; the rest is unchanged code with its existing tests |
-| `GrpcMediatorService.cs`, `GraphQLMediatorBridge.cs` | existing | existing | 0 | 0 | 0 | The child-span lines are driven by the two new unit tests |
+| `RabbitMQMessagePublisher.cs` | 95 | 20 | 0 | 0 | 0 | Existing targets kept (read from `Encina.RabbitMQ.json`); the new span wrapper is driven by the new telemetry unit tests on every publish method |
+| `KafkaMessagePublisher.cs` | 95 | 15 | 0 | 0 | 0 | Existing targets kept; produce and batch paths are driven against a substitute producer |
+| `NATSMessagePublisher.cs` | 95 | 15 | 0 | 0 | 30 | Existing targets kept; publish, request and JetStream paths are unit-driven, JetStream deduplication keeps its integration test |
+| `AzureServiceBusMessagePublisher.cs` | 90 | 15 | 90 | 0 | 90 | Existing targets kept; send, schedule and cancel are driven by the unit tests and the emulator tests |
+| `AmazonSQSMessagePublisher.cs` | 95 | 10 | 75 | 0 | 85 | Existing targets kept; the message-attribute injection is driven by the SQS unit tests |
+| `MQTTMessagePublisher.cs` | 85 | 10 | 0 | 0 | 0 | Existing targets kept; the publish wrapper and the delivery span are unit-driven (the subscription wrappers need a real client, as the manifest says) |
+| `RedisPubSubMessagePublisher.cs` | 70 | 20 | 0 | 0 | 85 | Existing targets kept; publish is unit-driven, the delivery span lines run in the Redis integration tests (T5) |
+| `InMemoryMessageBus.cs` (the manifest entry today says "Interface, no implementation" with no target; T3 replaces it) | 80 | 0 | 0 | 0 | 0 | New per-file target: publish and delivery spans are driven by the telemetry unit tests; guard 0 because `Encina.GuardTests` has no ProjectReference to `Encina.InMemory` |
+| `GrpcMediatorService.cs` | 80 | 15 | 0 | 0 | 0 | No per-file entry today (package targets unit 55, guard 15); new unit target 80 because the child-span lines are driven by the new unit test, guard kept at the package value |
+| `GraphQLMediatorBridge.cs` | 80 | 15 | 0 | 0 | 0 | Same as gRPC: package targets unit 55, guard 15 today; the span lines are driven by the new unit test |
 
 ---
 
@@ -400,8 +412,7 @@ KEY PATTERNS:
 - Never emit ids, bodies, header values, query text or per-tenant names. Acknowledge, reject and queue depth are out of scope (#1609).
 
 REFERENCE FILES:
-- src/Encina.<Transport>/ publishers, docs/plans/messaging-semantic-conventions-implementation-plan-177.md,
-  docs/plans/trace-context-propagation-implementation-plan-132.md, docs/plans/outbox-transport-publisher-implementation-plan-2385.md
+- src/Encina.<Transport>/ publishers, and the plans of #177, #132 and #2385
 ```
 
 </details>
@@ -451,6 +462,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #725 and ask the maintainer to answer Design Choices 1 to 4 and register row C5 when work starts.
+1. Link this plan from #725 and ask the maintainer to answer Design Choices 1 to 4 and register rows C5 and C6 when work starts.
 2. Implement T1 to T4; T5 after #2676. Order in the family: #721, #722, #723, #724, #725 (this one last: it waits for #177 and #132).
 3. Maintainer action: amend the acceptance criteria of #725 that name Acknowledge, Reject, queue depth and "unit tests per transport" for the five publish-only transports to the outcome of Design Choice 2 (this plan never comments on an issue).
