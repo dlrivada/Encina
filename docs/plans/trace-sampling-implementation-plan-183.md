@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `098caa920`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - No sampler exists: a search of `src` for `Sampler` finds nothing, and `WithEncina()` (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217`) calls `AddSource` and `AddMeter` only. A host gets the SDK default, a `ParentBasedSampler` over `AlwaysOnSampler`.
 - `EncinaOpenTelemetryOptions` (`src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`) has `ServiceName`, `ServiceVersion` and `EnableMessagingEnrichers`; it has no `Sampling` member. `WithEncina(OpenTelemetryBuilder, EncinaOpenTelemetryOptions?)` receives the options object, so a sampler can be applied there with `tracing.SetSampler(...)`.
@@ -189,11 +189,11 @@ The issue (2026-era text, `status:proposal`) proposes `SamplingConfiguration` (d
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
 | C1 | `Sampling` is `null` by default: no sampler is set and the SDK default applies; setting it is the opt-in | Settled | `AGENTS.md` section 1 (every feature opt-in); ADR-054 settled point 1 |
-| C2 | Validation at `WithEncina()` and `Update`: rates are finite and within 0 to 1 (NaN and infinity rejected), patterns non-empty, at most 128 characters, no duplicate pattern, at most 256 rules; a failure at `WithEncina()` throws `InvalidOperationException` at startup, a failure at `Update` returns `false` and keeps the old snapshot (no `EncinaError` is created, so no ADR-062 `ErrorCategory`) | Settled | `AGENTS.md` section 3 (startup validation or registration errors for configuration; ROP is for business operations); ADR-062 (a category is chosen where an `EncinaError` is created) |
-| C3 | The matched attribute is `RequestSpanKeys.RequestName` for requests, commands, queries and streams and `RequestSpanKeys.NotificationName` for `Encina.Publish`; a span with neither attribute (a store or transport span) gets the default rate | Settled | Phase 1 attributes; the sampler never reads another key |
+| C2 | Validation at `WithEncina()` and `Update`: rates are finite and within 0 to 1 (NaN and infinity rejected), patterns non-empty, at most 128 characters, no duplicate pattern, at most 256 rules. Failure handling: a failure at `WithEncina()` throws `InvalidOperationException` at startup and a failure at `Update` returns `false`, keeps the old snapshot and logs 7015; no `EncinaError` is created, so no ADR-062 `ErrorCategory` (a category is chosen where an `EncinaError` is created). Alternatives: return `Either<EncinaError, Unit>` from `Update` (ADR-001 style, which then needs an error code and an `ErrorCategory`) or throw from `Update` as well | Dilemma (recommended, pending the maintainer) | `AGENTS.md` section 3 does not say how a configuration object reports invalid values, and more than one option fits; the recommendation keeps a hot reload from crashing a running host while a bad startup configuration fails fast |
+| C3 | The matched attribute is `RequestSpanKeys.RequestName` for requests, commands, queries and streams and `RequestSpanKeys.NotificationName` for `Encina.Publish`; a span with neither attribute (a store or transport span) gets the default rate | Trivial | The two key strings exist today as `ActivityTagNames.RequestName` and `NotificationName` (`src/Encina/Diagnostics/ActivityTagNames.cs:13-16, 24-26`); the sampler reads those strings and no other key |
 | C4 | The decision logs no per-span line (a hot path); only the configuration is logged: event 7013 configured (rule count and default rate, numbers only), 7014 updated, 7015 update rejected (reason code) | Settled | `AGENTS.md` section 7 (EventIds in the registered range, packed), ADR-021 |
-| C5 | A counter `encina.sampling.decisions` (unit `{span}`, attribute `encina.sampling.decision` = `sampled` or `dropped`) on a meter named `Encina.OpenTelemetry` counts decisions so a host sees its effective rate; no request name attribute (unbounded by user types) and no tenant attribute (ADR-054 D4 is #2676's) | Settled | ADR-054 D3 (meter named after the package), settled point 4 (name rules), D4 |
-| C6 | The consecutive creation-time tag allocation exists only when `HasListeners()` is true (the `StartActivity` null path costs nothing without a listener) | Settled | ADR-054 settled point 7 |
+| C5 | A counter `encina.sampling.decisions` (unit `{span}`, attribute `encina.sampling.decision` = `sampled` or `dropped`) on a meter named `Encina.OpenTelemetry` counts decisions so a host sees its effective rate; no request name attribute (unbounded by user types) and no tenant attribute (ADR-054 D4 is #2676's) | Trivial | The name and attribute follow ADR-054 D3 (meter named after the package) and settled point 4 (name rules); the choice of one counter is the plan's own, and it exists only when Design Choice 1 option A is built |
+| C6 | The creation-time tag array is allocated only when `HasListeners()` is true, so without a listener the `StartActivity` path costs nothing | Settled | ADR-054 settled point 7 |
 | C7 | `SamplingConfiguration` and `SamplingRule` are immutable records; the rule list is a `IReadOnlyList<SamplingRule>`; the sampler stores one `Volatile` reference to a compiled snapshot (exact-name dictionary plus a pattern array sorted by literal length descending) | Trivial | `AGENTS.md` section 3 (immutable value types in a hot path); the sorted array makes the lookup order independent |
 | C8 | Public names: `Encina.OpenTelemetry.Sampling.SamplingConfiguration`, `SamplingRule`, `EncinaSampler`; core `Encina.Diagnostics.RequestSpanKeys` | Dilemma (recommended, pending the maintainer) | public surface; alternatives are the namespace `Encina.OpenTelemetry` and `ActivitySamplingRules` |
 
@@ -251,7 +251,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** (all new) `src/Encina.OpenTelemetry/Sampling/SamplingConfiguration.cs` (`public sealed record SamplingConfiguration(double DefaultRate, IReadOnlyList<SamplingRule> Rules)`, `public sealed record SamplingRule(string Pattern, double Rate)`), `src/Encina.OpenTelemetry/Sampling/SamplingRuleMatcher.cs` (`internal sealed class`: compiled snapshot of an exact dictionary and a pattern array sorted by literal length; `double Resolve(string? name)`, ordinal case-sensitive `*` matching without allocation) and `src/Encina.OpenTelemetry/Sampling/SamplingConfigurationValidator.cs` (`internal static` returning a reason code or `null`, per register row C2).
-2. **Modify** `src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`: `public SamplingConfiguration? Sampling { get; set; }` (default `null`). **Modify** `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`; add `changelog.d/183-sampling-configuration.added.md` through `mechanical-fixer`.
+2. **Modify** `src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`: `public SamplingConfiguration? Sampling { get; set; }` (default `null`). **Modify** `src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj`: add `<InternalsVisibleTo Include="Encina.PropertyTests" />` next to the four existing entries (UnitTests, GuardTests, ContractTests, IntegrationTests), because the property test targets the `internal` `SamplingRuleMatcher` (without it the test project fails with CS0122; `tests/Encina.PropertyTests/Encina.PropertyTests.csproj` already references `Encina.OpenTelemetry`, so no test project edit is needed). **Modify** `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`; add `changelog.d/183-sampling-configuration.added.md` through `mechanical-fixer`.
 3. Tests (new): `tests/Encina.UnitTests/OpenTelemetry/Sampling/SamplingRuleMatcherTests.cs` (exact beats pattern, longest literal beats shorter, declaration order among equals, `*` alone, prefix, suffix and infix patterns, an empty or null name gets the default), `SamplingConfigurationValidatorTests.cs` (NaN, infinity, negative, above one, empty and oversize patterns, duplicates, 257 rules), `tests/Encina.GuardTests/OpenTelemetry/Sampling/SamplingConfigurationGuardTests.cs` (null rules list, null pattern, a valid empty rule list), `tests/Encina.PropertyTests/OpenTelemetry/Sampling/SamplingRuleMatcherProperties.cs` (FsCheck: the result is always one of the configured rates and does not depend on the rule order when no two matching patterns have the same literal length).
 
 </details>
@@ -266,7 +266,8 @@ Issue #183 plan docs/plans/trace-sampling-implementation-plan-183.md, phase 2. P
 TASK:
 1. Create SamplingConfiguration and SamplingRule (immutable records), SamplingRuleMatcher (exact dictionary plus patterns sorted by
    literal length, ordinal, no allocation per lookup) and SamplingConfigurationValidator (reason codes) in src/Encina.OpenTelemetry/Sampling/.
-2. Add EncinaOpenTelemetryOptions.Sampling (null by default).
+2. Add EncinaOpenTelemetryOptions.Sampling (null by default) and InternalsVisibleTo Encina.PropertyTests in Encina.OpenTelemetry.csproj
+   (the property test targets the internal SamplingRuleMatcher).
 3. Unit, guard and FsCheck property tests; PublicAPI, manifest and changelog through mechanical-fixer.
 
 KEY RULES:
@@ -394,12 +395,12 @@ Every count includes tests, the coverage manifest, PublicAPI and the changelog f
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1 | Creation-time attributes in core | 1 | 6 (`ActivityTagNames`, `EncinaDiagnostics`, the two behaviors, the notification dispatcher, PublicAPI) | 1 | 0 | 1 | 1 (changelog) | 10 | ~420 |
-| S2 | Configuration, matcher, validator | 3 | 2 (options, PublicAPI) | 4 | 0 | 1 | 1 | 11 | ~640 |
+| S2 | Configuration, matcher, validator | 3 | 3 (options, `Encina.OpenTelemetry.csproj` for the property-test `InternalsVisibleTo`, PublicAPI) | 4 | 0 | 1 | 1 | 12 | ~640 |
 | S3 | Sampler and `WithEncina()` | 3 | 2 (`ServiceCollectionExtensions`, PublicAPI) | 4 | 0 | 1 | 1 | 11 | ~820 |
 | D1 | Documentation | 0 | 0 | 0 | 0 | 0 | 1 (guide) | 1 | ~140 |
-| **Total** | | **7** | **10** | **9** | **0** | **3** | **4** | **33** | **~2,020** |
+| **Total** | | **7** | **11** | **9** | **0** | **3** | **4** | **34** | **~2,020** |
 
-The columns sum to the total (7 + 10 + 9 + 0 + 3 + 4 = 33; 10 + 11 + 11 + 1 = 33). The pull request of this plan itself is one file.
+The columns sum to the total (7 + 11 + 9 + 0 + 3 + 4 = 34; 10 + 12 + 11 + 1 = 34). The pull request of this plan itself is one file.
 
 Per-file coverage targets (per flag, one sentence each), written to the package manifests:
 
@@ -492,5 +493,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #183 and ask the maintainer to answer Design Choices 1, 2, 4, 5 and 7 and register row C8 when work starts.
+1. Link this plan from #183 and ask the maintainer to answer Design Choices 1, 2, 4, 5 and 7 and register rows C2 and C8 when work starts.
 2. Implement S1, S2 and S3 in order, then D1; when #183 is picked up, ask that its acceptance criteria be amended to the decision of Design Choice 4 (head-based in code, error and slow retention through the collector).
