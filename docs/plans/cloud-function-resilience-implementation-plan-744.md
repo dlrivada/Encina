@@ -2,7 +2,7 @@
 
 > **Issue**: [#744](https://github.com/dlrivada/Encina/issues/744)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 2 cloud providers, 4 pull requests)
+> **Complexity**: High (7 phases, 2 cloud providers, 5 pull requests)
 > **Estimated Scope**: ~350 lines of production code + ~900 lines of tests (about 1,500 changed lines in total, four pull requests)
 
 ---
@@ -11,7 +11,7 @@
 
 Make an Encina function stop gracefully before the platform kills it, and state who owns each retry, by giving the two cloud adapters a platform deadline and one resilience options section, on top of `Encina.Resilience`. SPIKE #2691 R7 (option 7a, comment of 2026-10-24 on #744; [ADR-055](../architecture/adr/055-resilience-family.md)) says the cloud function adapters get decorators from `Encina.Resilience` with the SDK's own retry disabled where Encina retries. The comment of 2026-10-23 moves #744 into the 1.0 scope, for the AWS and Azure sides of the triangle.
 
-What exists today (read in `origin/main` at `277402987`):
+What exists today (read in `origin/main` at `0336d31c7`):
 
 - **The adapters are inbound hosts and make no outbound call.** `git grep "HttpClient\|GrpcChannel"` over `src/Encina.AwsLambda` and `src/Encina.AzureFunctions` finds only a comment. The seams are `SqsMessageHandler.ProcessBatchAsync` and `EventBridgeHandler.ProcessAsync` (static helpers taking a callback, `src/Encina.AwsLambda/`), `LambdaContextExtensions.GetRemainingTimeMs` (`ILambdaContext.RemainingTime`), `EncinaFunctionMiddleware` (`src/Encina.AzureFunctions/`, a singleton `IFunctionsWorkerMiddleware`) and the Durable helpers (`OrchestrationContextExtensions.CreateRetryOptions`, `DurableSagaBuilder.WithRetry`, which use the platform's `RetryPolicy`). Taken literally, "retry on 429/503" and "circuit breaker for downstream calls" decorate nothing in these packages (the same finding #745 records for gRPC and GraphQL); the downstream calls are made by handlers, which the per-type pipeline of `Encina.Resilience` already covers.
 - A function that exceeds the platform limit is killed mid-batch: for SQS the whole batch is then redelivered, including the records already processed. `EncinaAwsLambdaOptions.EnableSqsBatchItemFailures` (default true) is read by no handler today (only the options class, `AwsLambdaHealthCheck` and the docs): `SqsMessageHandler.ProcessBatchAsync` always returns a partial batch response, so its `false` meaning is undefined; choice 7 defines it for the new overload.
@@ -22,7 +22,7 @@ What this plan delivers: a provider-neutral `CloudFunctionResilienceOptions` in 
 
 - **Affected packages**: `Encina.Resilience` (planned), `Encina.AwsLambda`, `Encina.AzureFunctions`. `Encina.GoogleCloudFunctions` does not exist (choice 8).
 - **Provider category**: Cloud (AGENTS.md section 5): AWS and Azure now, GCP post-1.0 (SPEC-000 section 6.1, REQ-028).
-- **Estimated size**: 4 pull requests of at most 15 files and 1,500 lines.
+- **Estimated size**: 5 pull requests of at most 15 files and 1,500 lines.
 - **Prerequisites**: the foundation, R6 and #335, described in "Prerequisites & Dependencies".
 
 ### Shared Pieces and Ownership (family resilience-patterns-1 and resilience-patterns-2)
@@ -255,7 +255,7 @@ The issue lists "Lambda retry-after" as a platform-specific item. `Retry-After` 
 
 ## Implementation Phases
 
-Four pull requests, in order: **PR-1** Phase 1 (`CloudFunctionResilienceOptions`, its validator and the public validation registration, in `Encina.Resilience` only); **PR-2** the AWS half: the `Resilience` property, the `ProjectReference`, the validation registration, the overloads, the early stop, the logs and the tests; **PR-3** the Azure half likewise; **PR-4** Phase 7 (documentation and integration tests). Every PR needs the foundation, R6 and #335 merged (choice 1 option A).
+Five pull requests, in order: **PR-1** Phase 1 (`CloudFunctionResilienceOptions`, its validator and the public validation registration, in `Encina.Resilience` only); **PR-2** the AWS deadline and SQS half: the `Resilience` property, the `ProjectReference`, the validation registration, `LambdaContextExtensions`, the `SqsMessageHandler` overload with the early stop, the logs and their unit, guard, DI and integration tests; **PR-3** the `EventBridgeHandler` overload with its tests; **PR-4** the Azure half likewise (middleware step, with its integration test); **PR-5** Phase 7 (documentation and justification files). Every PR needs the foundation, R6 and #335 merged (choice 1 option A).
 
 ### Phase 1: Core Models
 
@@ -263,7 +263,7 @@ Four pull requests, in order: **PR-1** Phase 1 (`CloudFunctionResilienceOptions`
 <summary>Tasks</summary>
 
 1. `src/Encina.Resilience/CloudFunctions/CloudFunctionResilienceOptions.cs`: `TimeSpan? SafetyMargin`, `TimeSpan? FunctionTimeout` (both null: nothing applies); `CloudFunctionResilienceOptionsValidator.cs` (internal, generic over the owning options type, rules of choice 5); `CloudFunctionResilienceServiceCollectionExtensions.cs` (public): `AddCloudFunctionResilienceValidation<TOptions>(this IServiceCollection services, Func<TOptions, CloudFunctionResilienceOptions> selector, bool platformSuppliesLimit)`, with `ArgumentNullException.ThrowIfNull` on `services` and `selector`, registering the validator as `IValidateOptions<TOptions>` with `ValidateOnStart`; the adapters call this public method, so no `InternalsVisibleTo` between assemblies is needed.
-2. PR-2 and PR-3 (not PR-1): `EncinaAwsLambdaOptions.cs` and `EncinaAzureFunctionsOptions.cs` each gain a `Resilience` property, and each package gains a `ProjectReference` to `Encina.Resilience` and calls the registration of task 1 from its `ServiceCollectionExtensions.cs`.
+2. PR-2 and PR-4 (not PR-1): `EncinaAwsLambdaOptions.cs` and `EncinaAzureFunctionsOptions.cs` each gain a `Resilience` property, and each package gains a `ProjectReference` to `Encina.Resilience` and calls the registration of task 1 from its `ServiceCollectionExtensions.cs`.
 
 </details>
 
@@ -306,7 +306,7 @@ REFERENCE FILES: src/Encina.AwsLambda/SqsMessageHandler.cs, src/Encina.AzureFunc
 <details>
 <summary>Tasks</summary>
 
-1. Both `ServiceCollectionExtensions.cs` (modified, in PR-2 and PR-3): call `AddCloudFunctionResilienceValidation` (AWS with `platformSuppliesLimit: true`, Azure with `false`); the DI tests build with `ValidateOnBuild` and `ValidateScopes`.
+1. Both `ServiceCollectionExtensions.cs` (modified, in PR-2 and PR-4): call `AddCloudFunctionResilienceValidation` (which registers the validator as `IValidateOptions<TOptions>` and also calls `services.AddOptions<TOptions>().ValidateOnStart()`, which is idempotent next to the adapter's own `Configure`; the DI test of each PR asserts that an invalid section fails the provider build) (AWS with `platformSuppliesLimit: true`, Azure with `false`); the DI tests build with `ValidateOnBuild` and `ValidateScopes`.
 2. `PublicAPI.Unshipped.txt` of the three packages (`mechanical-fixer`).
 
 </details>
@@ -374,7 +374,7 @@ REFERENCE FILES: src/Encina.AwsLambda/Log.cs, src/Encina/Diagnostics/EventIdRang
 
 1. Unit (`tests/Encina.UnitTests/AwsLambda/`, `.../AzureFunctions/`): a fake `ILambdaContext` with a controlled `RemainingTime`; the batch stops before a record when the margin is reached and reports exactly the unstarted ones, always starts one record, and does not stop early when `EnableSqsBatchItemFailures` is false; no margin keeps today's behavior; the deadline is set and restored; the earliest deadline wins; options validation, including a `SafetyMargin` without a `FunctionTimeout` on Azure. Throttling (the acceptance criterion "unit tests for throttling"): a record whose `Left` has category `RateLimited` or `Unavailable` becomes a batch item failure, and an API Gateway and an HTTP trigger response for the same `Left` carry 429 or 503 with `Retry-After` when the error has it (existing mapping, now asserted for the throttled paths).
 2. Guard (`tests/Encina.GuardTests/`): the new overloads (null event, null callback, null context, null options) and the new extension; an optional accessor accepted as null (valid result).
-3. Integration: `tests/Encina.IntegrationTests` already runs the Lambda handlers in-process; PR-4 adds one test per adapter with a short margin through real DI.
+3. Integration: `tests/Encina.IntegrationTests` already runs the Lambda handlers and the Azure middleware in-process; each PR extends the existing integration test class of its code (SQS in PR-2, EventBridge in PR-3, the middleware in PR-4) with a short margin through real DI, so the new code is reached by the integration flag in the PR that adds it.
 4. Contract, property, load, benchmark: not applicable beyond the above; justification files for load and benchmark.
 
 </details>
@@ -442,8 +442,8 @@ Cloud triangle:
 
 | Provider | In this plan | Notes |
 |----------|--------------|-------|
-| AWS Lambda | Yes (PR-2) | Exact remaining time |
-| Azure Functions | Yes (PR-3) | Explicit `FunctionTimeout` unless the worker exposes it |
+| AWS Lambda | Yes (PR-2, PR-3) | Exact remaining time |
+| Azure Functions | Yes (PR-4) | Explicit `FunctionTimeout` option |
 | GCP | No: #205, post-1.0 | Options type is provider-neutral |
 
 ### Event ID Allocation
@@ -458,9 +458,10 @@ Cloud triangle:
 | PR | Files | Content |
 |----|-------|---------|
 | PR-1 | 7 | `CloudFunctionResilienceOptions`, validator (internal), `CloudFunctionResilienceServiceCollectionExtensions`, 2 tests (options and validator rules, guard), `Encina.Resilience` `PublicAPI.Unshipped.txt`, manifest |
-| PR-2 | 15 | AWS package: `EncinaAwsLambdaOptions`, `Encina.AwsLambda.csproj`, `ServiceCollectionExtensions`, `LambdaContextExtensions`, `SqsMessageHandler`, `EventBridgeHandler`, `Log.cs` (7 modified); tests: SQS handler (throttled path, early stop), EventBridge, context extensions, DI, options, guard (6, modified or new); `PublicAPI.Unshipped.txt`, manifest |
-| PR-3 | 11 | Azure package: `EncinaAzureFunctionsOptions`, `Encina.AzureFunctions.csproj`, `ServiceCollectionExtensions`, `EncinaFunctionMiddleware`, `Log.cs` (5 modified); tests: middleware, DI, options, guard (4); `PublicAPI.Unshipped.txt`, manifest |
-| PR-4 | 8 | 2 integration tests, 2 justification `.md`, 2 READMEs, feature page, changelog fragment |
+| PR-2 | 14 | AWS package: `EncinaAwsLambdaOptions`, `Encina.AwsLambda.csproj`, `ServiceCollectionExtensions`, `LambdaContextExtensions`, `SqsMessageHandler`, `Log.cs` (6 modified); tests: SQS handler (throttled path, early stop), context extensions, DI, options, guard, the existing SQS integration test class (6, modified or new); `PublicAPI.Unshipped.txt`, manifest |
+| PR-3 | 6 | `EventBridgeHandler` (modified), its unit test, guard test and integration test (modified), `PublicAPI.Unshipped.txt`, manifest |
+| PR-4 | 12 | Azure package: `EncinaAzureFunctionsOptions`, `Encina.AzureFunctions.csproj`, `ServiceCollectionExtensions`, `EncinaFunctionMiddleware`, `Log.cs` (5 modified); tests: middleware, DI, options, guard, the existing middleware integration test (5); `PublicAPI.Unshipped.txt`, manifest |
+| PR-5 | 6 | 2 justification `.md` (load, benchmark), 2 READMEs, feature page, changelog fragment |
 
 Each PR is within 15 files and 1,500 lines. The existing manifest targets of both packages are not lowered (the numbers below are the targets of the new code in the file, set in the PR that adds it; a modified file keeps its existing per-file target if that is higher).
 
@@ -470,10 +471,15 @@ Per-file targets:
 |------|------|-------|----------|----------|-------------|---------------|
 | `CloudFunctionResilienceOptions.cs`, validator (PR-1) | 95 | 0 | 0 | 0 | 0 | Property bag and rules; the internal validator is reached through the public registration, so no `InternalsVisibleTo` is needed |
 | `CloudFunctionResilienceServiceCollectionExtensions.cs` (PR-1) | 90 | 100 | 0 | 0 | 0 | One guarded public method (null `services`, null `selector`) |
-| `SqsMessageHandler.cs` (PR-2, modified) | 95 | 95 | 0 | 0 | 97 | Early stop, one-record minimum, the false option and the throttled path driven by unit tests; the guard test sends null arguments to the new overload; the in-process integration tests exist |
-| `EventBridgeHandler.cs`, `LambdaContextExtensions.cs` (PR-2, modified) | 95 | 95 | 0 | 0 | 97 | The deadline helper and the overload are driven with a fake `ILambdaContext` |
-| `EncinaFunctionMiddleware.cs` (PR-3, modified) | 90 | 15 | 0 | 0 | 94 | New branch driven with a fake `FunctionContext` (valid, no value, shorter existing deadline); guard target of the package stays 15 |
-| `ServiceCollectionExtensions.cs` (both, modified) | 90 | 95 | 0 | 0 | 0 | DI tests with `ValidateOnBuild`; the validation call is reached through them |
+| `SqsMessageHandler.cs` (PR-2, modified; existing 90 / 95 / integration 95) | 95 | 95 | 0 | 0 | 95 | Early stop, one-record minimum, the false option and the throttled path driven by unit tests; the guard test sends null arguments to the new overload; the existing integration class gains a test for the new overload |
+| `EventBridgeHandler.cs` (PR-3, modified; existing 95 / 95 / integration 100) | 95 | 95 | 0 | 0 | 100 | The overload is driven with a fake `ILambdaContext` and, for the integration floor, through the existing in-process integration class |
+| `LambdaContextExtensions.cs` (PR-2, modified; existing 94 / 95 / 95) | 95 | 95 | 0 | 0 | 95 | The deadline helper, driven with a fake context and through the SQS integration test |
+| `EncinaAwsLambdaOptions.cs` (PR-2, modified; existing 100 / 85 / 90) | 100 | 85 | 0 | 0 | 90 | One property added; existing floors kept |
+| `EncinaFunctionMiddleware.cs` (PR-4, modified; existing 100 / guard 30 / integration 100) | 100 | 30 | 0 | 0 | 100 | New branch driven with a fake `FunctionContext` and through the existing in-process integration class, with real DI and a short `FunctionTimeout` |
+| `EncinaAzureFunctionsOptions.cs` (PR-4, modified; existing 100 / 80 / 90) | 100 | 80 | 0 | 0 | 90 | One property added; existing floors kept |
+| AWS `ServiceCollectionExtensions.cs` (PR-2, modified; existing guard 85 / integration 100) | 90 | 85 | 0 | 0 | 100 | DI tests with `ValidateOnBuild`; the validation call is reached through them and through the integration host |
+| Azure `ServiceCollectionExtensions.cs` (PR-4, modified; existing 100 / 25 / 100) | 100 | 25 | 0 | 0 | 100 | Same |
+| Both `Log.cs` (modified; existing 0 / 0 / 0) | 0 | 0 | 0 | 0 | 0 | Generated partial methods; no executable lines of our own, and the emitting code is covered above |
 
 CRAP of each added method is at most 10 (the batch loop splits the time check from the record handling).
 
@@ -533,4 +539,4 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina.AwsL
 
 1. Commit this plan, open its PR and link it from #744.
 2. When #744 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 5, 7, 9 and 10).
-3. Brief workers for PR-1 to PR-4 in order, after the foundation, R6 and #335 are merged.
+3. Brief workers for PR-1 to PR-5 in order, after the foundation, R6 and #335 are merged.
