@@ -11,7 +11,7 @@
 
 Add `[Fallback]` and `IFallbackHandler<TRequest, TResponse>` so that a failed query can return a substitute result: a default value, the value of a factory method on the request, or the answer of an alternative handler. The strategy is Polly v8's fallback strategy, compiled once per request type into the per-type pipeline ([ADR-055](../architecture/adr/055-resilience-family.md) R2, R3). #137 sits in milestone v0.18.0, which SPEC-000 DEC-009 moves into 1.0; it has no comment of its own, and the spike report (section 5) notes that #137 has no 1.0 decision beyond that milestone.
 
-What exists today (read in `origin/main` at `89303f1e8`):
+What exists today (read in `origin/main` at `e31de98cb`):
 
 - Nothing: `git grep -E "IFallbackHandler|FallbackAttribute|FallbackStrategy" -- src` returns no match. `src/Encina.Resilience` does not exist (ADR-055 R1 plans it; no open issue creates it) and `RequestHandlerCallback<TResponse>()` has no `CancellationToken` (R6, no issue yet).
 - The fixed strategy order of ADR-055 R2 (rate limiter, total timeout, retry or hedging, circuit breaker, per-attempt timeout, chaos) does not mention fallback; Design Choice 3 settles the position as a Dilemma.
@@ -353,7 +353,7 @@ REFERENCE FILES: src/Encina.Polly/Attributes/RetryAttribute.cs, src/Encina/Abstr
 ```text
 CONTEXT: Phase 1 types exist.
 TASK: Implement FallbackStrategyFactory and FallbackPropertyKeys with Polly 8.6.6 AddFallback on the generic builder.
-KEY RULES: never throw for a business failure; an error is rebuilt with EncinaErrors.Create(code, category: <original category>, <constant message>, details: ...) with the named category argument and never ex.Message; the handler is resolved per call, never captured; the fallback runs after Authorization (stage 500), so it only answers authorized callers.
+KEY RULES: never throw for a business failure; an error is rebuilt with EncinaErrors.Create(code, category: <original category>, <constant message>, details: ...) with the named category argument and never ex.Message; the handler is resolved per call, never captured; under choice 3 option A the fallback runs after Authorization (stage 500), so it only answers authorized callers; under option B (a layer outside the Admission behavior, stage 200, before authentication and authorization) the protection is the default trigger set of choice 7: a `Forbidden`, `Unauthorized` or `Unauthenticated` `Left` is never a trigger unless the application lists it in `FallbackOn`, and a unit test pins that an authorization `Left` is not masked.
 REFERENCE FILES: src/Encina/Results/EncinaErrors.cs, src/Encina/Errors/EncinaErrorMetadataKeys.cs
 ```
 
@@ -433,7 +433,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/Resilience/Fallback/`): default value returned for a `Unavailable` error; factory method; handler resolved per call (two calls, two scoped instances); `Validation` error not masked; `FallbackOn = [NotFound]` widens; fallback `Left` returns the original error with details and the original category; a command type fails validation; unparsable default fails at startup; two calls get distinct deserialized instances.
+1. Unit (`tests/Encina.UnitTests/Resilience/Fallback/`): default value returned for a `Unavailable` error; factory method; `Validation` error and authorization `Left` (`Forbidden`, `Unauthenticated`) not masked; (the per-call handler resolution, two calls with two scoped instances, is asserted in the PR-2 DI test); `FallbackOn = [NotFound]` widens; fallback `Left` returns the original error with details and the original category; a command type fails validation; unparsable default fails at startup; two calls get distinct deserialized instances.
 2. Guard (`tests/Encina.GuardTests/Resilience/Fallback/`): `FallbackOptions.From` null attribute (PR-1); builder extension nulls (PR-2); nullable `FallbackOn` null accepted (valid result). Unit also covers: a factory or handler that throws returns the original error with `encina.fallback.exception_type` (PR-1); the assertion that 909 is logged for it, and not logged for a cancellation, is in the PR-3 factory tests (the log messages land in PR-3).
 3. Contract (`tests/Encina.ContractTests/Resilience/FallbackHandlerContractTests.cs`): real handlers return `Right` or `Left` and never throw.
 4. DI test (PR-2, with the end-to-end startup-rule tests) and telemetry test with `MeterListener` (PR-3). Cancellation: a caller `OperationCanceledException` from the handler or factory propagates, is not converted (unit test, PR-1; the no-909-log assertion is in the PR-3 factory tests). Property, load, benchmark and integration: not applicable (stateless strategy over Polly); justification files in PR-3 as in #136.
@@ -496,7 +496,7 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | `ErrorCategory`, `EncinaErrors.Create` | `src/Encina/Errors/ErrorCategory.cs`, `src/Encina/Results/EncinaErrors.cs` | Trigger set and enriched error |
 | `EncinaErrorMetadataKeys` | `src/Encina/Errors/EncinaErrorMetadataKeys.cs` | Detail keys style |
 | `ICommand<>`, `IQuery<>` | `src/Encina/Abstractions/CqrsContracts.cs` | Query-only rule |
-| `PipelineStage.Resilience`, `Authorization` | `src/Encina/Pipeline/Ordering/PipelineStage.cs` | Fallback runs after authorization |
+| `PipelineStage.Resilience`, `Authorization` | `src/Encina/Pipeline/Ordering/PipelineStage.cs` | Under choice 3 A the fallback runs after authorization; under B the default trigger set of choice 7 is the protection |
 | `IRequestContextAccessor` | `src/Encina/Abstractions/IRequestContextAccessor.cs` | Context for handlers (choice 6) |
 | `MultiTenancyMarker` | `src/Encina/Abstractions/MultiTenancyMarker.cs` | Tenant tag |
 
