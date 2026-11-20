@@ -11,7 +11,7 @@
 
 Let a team inject faults and latency into chosen request types to prove that its retry, breaker and timeout settings work, using Polly v8's chaos strategies as the last strategy of the per-type pipeline ([ADR-055](../architecture/adr/055-resilience-family.md) R2: "rate limiter, total timeout, retry (or hedging instead), circuit breaker, per-attempt timeout, chaos last"). The table of ADR-055 puts #145 in `Encina.Resilience`. Chaos is the one resilience capability that does harm by design, so this plan makes it **off by default and impossible to enable by accident**: nothing is injected unless the application asks for it, the host environment must allow it, the request that is on is logged and visible in the health report, and a host without an environment is denied.
 
-What exists today (read in `origin/main` at `098caa920`):
+What exists today (read in `origin/main` at `277402987`):
 
 - No chaos code: `git grep -i "chaos"` over `src` returns no match. `Encina.Polly` and `Encina.Extensions.Resilience` (both replaced by ADR-055 R1) reference `Polly` and `Polly.Extensions` (version 8.6.6, `Directory.Packages.props:72`). The assembly `Polly.Core` 8.6.6 ships the chaos types under `Polly.Simmy` (`ChaosFaultStrategyOptions`, `ChaosLatencyStrategyOptions`, `ChaosOutcomeStrategyOptions<T>`, `ChaosBehaviorStrategyOptions`, base `ChaosStrategyOptions`), read in its XML documentation in the local NuGet cache.
 - The package that ADR-055 R1 names, `Encina.Resilience`, **does not exist in `src/`**, and no open issue creates it. The continuation `RequestHandlerCallback<TResponse>()` has no token (R6, planned).
@@ -103,6 +103,7 @@ The issue's sample sets `options.Enabled = builder.Environment.IsDevelopment()`,
 ### Rationale
 
 - A wins when chaos must also run in a deployed non-production environment (staging, a game day); B wins when chaos is only a test tool and a production deployment must be unable to contain it; C does not satisfy AGENTS.md section 3 and is listed to show what A prevents.
+- Under A the gate is enforced on every call, not only at startup: R3 rebuilds a type's pipeline when its bound options change (a configuration change token), and a rebuild does not pass through `ValidateOnStart`. The strategies' `EnabledGenerator` and `InjectionRateGenerator` consult the gate on each call (the environment verdict is computed once per container and cached, so the check is one boolean read) and return disabled and rate 0 when it denies; a reload that sets a rate above zero in a denied environment injects nothing and is logged (EventId 961). A test reloads the options in a denied environment and asserts nothing is injected.
 - Test hosts built with the generic host default to the environment `Production`, so a test enables chaos by `UseEnvironment("Development")` or by listing its environment; the documentation says so.
 
 - **Class:** Dilemma
@@ -197,6 +198,50 @@ The issue lists handler types (`TargetHandlers`). ADR-055 R2 compiles one pipeli
 
 </details>
 
+<details>
+<summary><strong>8. How the master switch, the controller and the per-type entries combine</strong></summary>
+
+Per-type entries (`For<TRequest>`) hold the configured rates; the controller (choice 6) can change them at run time; PR-1 ships entries before PR-2 ships the controller.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Two keys: `ChaosOptions.Enabled` (default false) is the master switch, the controller's `IsEnabled` starts from it and can only be changed to true when the gate allows; an entry injects only when the master switch is on, the gate allows and the entry's rate is above zero; a controller rate set at run time overrides the rate of every targeted type (types with no entry are never targeted); in PR-1 the master switch is the options value alone** | A rate in configuration alone never injects; one switch to find; the health check reads the same state | Two steps to turn chaos on (the switch and a rate) |
+| **B) Entries alone decide: a rate above zero injects; the controller only overrides rates** | One step | Merging a configuration with a rate injects without any explicit switch; `IsEnabled` would be redundant |
+
+### Chosen Option: **A — Master switch plus entries** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on fail-closed (explicit opt-in); B wins for the shortest configuration. The health check is `Degraded` when the master switch is on and any effective rate is above zero.
+
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. Integration tests (acceptance criterion)</strong></summary>
+
+The issue asks for integration tests. Chaos has no infrastructure, but the gate depends on the host environment.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) An in-process host integration test (`tests/Encina.IntegrationTests/Resilience/Chaos/`, no container): a real generic host per environment (`Development` injects, `Production` fails startup, an unlisted `Staging` fails startup, a listed `Staging` injects), plus a reload test through `IConfiguration`; a justification `.md` states that no external infrastructure is needed** | Meets the criterion where the risk is (host environment, reload) | A host per case is slower than a unit test |
+| **B) No integration test; unit tests with a fake `IHostEnvironment` and a justification `.md`** | Faster | The real host wiring and the reload path are not exercised |
+
+### Chosen Option: **A — In-process host tests** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins because the gate is host-dependent; B wins if the maintainer reads "integration" as infrastructure only. `Encina.IntegrationTests.csproj` gains a `ProjectReference` to `Encina.Resilience` (counted in PR-4).
+
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -208,7 +253,8 @@ Four pull requests, in order: **PR-1** Phase 1, the strategy factory of Phase 2 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Chaos/ChaosOptions.cs`: `double FaultRate` (default 0), `ErrorCategory FaultCategory` (default `Unavailable`), `TimeSpan Latency`, `double LatencyRate` (default 0), `IReadOnlyCollection<string> AllowedEnvironments` (default `["Development"]`, used from PR-2); per-type entries through the foundation's `For<T>` section.
+1. `src/Encina.Resilience/Chaos/ChaosOptions.cs`: `bool Enabled` (default false: the master switch of choice 8), `double FaultRate` (default 0), `ErrorCategory FaultCategory` (default `Unavailable`), `TimeSpan Latency`, `double LatencyRate` (default 0), `IReadOnlyCollection<string> AllowedEnvironments` (default `["Development"]`, read by the gate from PR-1); per-type entries through the foundation's `For<T>` section.
+   `Encina.Resilience.csproj` gains a `PackageReference` to `Microsoft.Extensions.Hosting.Abstractions` (already pinned in `Directory.Packages.props`; `IHostEnvironment`), counted in PR-1.
 2. `ChaosOptionsValidator.cs` (internal): rates in [0, 1], latency not negative, `FaultCategory` among `Unavailable`, `Timeout`, `UpstreamFailure`, `Internal`; an invalid value fails at startup.
 3. `ChaosErrorCodes.cs`: `public const string Injected = "encina.chaos.injected"` (ADR-062 category `Unavailable` by default; settable per choice 5) and the detail key `encina.chaos.kind`.
 
@@ -232,7 +278,7 @@ REFERENCE FILES: src/Encina/Errors/EncinaErrorCodes.cs, src/Encina/Errors/ErrorC
 <summary>Tasks</summary>
 
 1. `Chaos/IChaosController.cs` (public): `bool IsEnabled { get; }`, `Either<EncinaError, Unit> Enable(bool enabled)`, `Either<EncinaError, Unit> SetFaultRate(double rate)`, `Either<EncinaError, Unit> SetLatency(TimeSpan latency, double rate)`; `ChaosController.cs` (internal sealed, singleton): `Volatile` fields; the setters return a `Left` for a rate outside [0, 1] (validation returns `Either`, AGENTS.md section 3).
-2. `ChaosStrategyFactory.cs` (internal): implements the foundation's strategy-factory contract; for a request type whose entry has a rate above zero it adds `AddChaosLatency` and `AddChaosOutcome<Either<EncinaError, T>>` in the last slot, with `EnabledGenerator` and `InjectionRateGenerator` reading the controller and the entry; the outcome generator returns `Left` built with `EncinaErrors.Create(ChaosErrorCodes.Injected, category: options.FaultCategory, "A fault was injected by chaos.")` (constant message); the random source and the latency use `TimeProvider` and a `Func<double>` injected for tests.
+2. `ChaosStrategyFactory.cs` (internal): implements the foundation's strategy-factory contract; for a request type whose entry has a rate above zero it adds `AddChaosLatency` and `AddChaosOutcome<Either<EncinaError, T>>` in the last slot, with `EnabledGenerator` and `InjectionRateGenerator` reading, on every call, the gate verdict (choice 3), the master switch (choice 8, the options value in PR-1 and the controller from PR-2) and the entry's rate; the outcome generator returns `Left` built with `EncinaErrors.Create(ChaosErrorCodes.Injected, category: options.FaultCategory, "A fault was injected by chaos.")` (constant message); the random source and the latency use `TimeProvider` and a `Func<double>` injected for tests.
 3. The factory reads the controller once per call, never a scoped service.
 
 </details>
@@ -301,7 +347,7 @@ REFERENCE FILES: src/Encina.AspNetCore/EncinaAspNetCoreOptions.cs, src/Encina.Se
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceChaos = (960, 969)`; core `PublicAPI.Unshipped.txt`; the `AssemblyRanges` entry of `Encina.Resilience` in `EncinaEventIdAllocationTests.cs` gains the range.
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceChaos = (960, 969)`; core `PublicAPI.Unshipped.txt`; `EncinaEventIdAllocationTests.cs`: create the `Encina.Resilience` entry of `AssemblyRanges` if absent, otherwise add the range to it (an entry for an assembly that declares no EventIds fails `AssemblyRanges_HasNoStaleEntries`). The block 950-999 stays valid after the 10000+ zone of AGENTS.md section 7 (`reserved-pre-zone` in `docs/engineering/eventid-block-registry.md`).
 2. `Chaos/ChaosLogMessages.cs`: 960 `ChaosActive` (Warning at start: environment, rates), 961 `ChaosDeniedInEnvironment` (Error), 962 `ChaosSettingChanged` (Warning), 963 `ChaosInjected` (Debug: kind), 964 `ChaosEnvironmentUnknown` (Warning: no `IHostEnvironment`, denied); 965 to 969 spare. Never log `EncinaError.Message` or request data.
 3. Telemetry: Polly's chaos strategies report their own events through the pipeline telemetry that R5 enriches, so this plan creates no instrument (Polly measures it); the PR verifies with a listener test that an injected fault produces a Polly strategy event, and, if Polly 8.6.6 does not, adds one counter named by the #728 convention.
 4. `ChaosStrategyFactory.cs` and `ChaosController.cs` (modified): emit the logs.
@@ -329,7 +375,8 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 2. Guard (`tests/Encina.GuardTests/Resilience/Chaos/`): `AddEncinaChaos` with a null `services`; a null `configure` is accepted (valid result); the controller's setters with out-of-range values return a `Left` (a validation result, asserted in the unit tests, not an exception).
 3. Contract (`tests/Encina.ContractTests/Resilience/`, PR-4): any `IChaosController` honours the same setter contract; runs the real controller.
 4. Property (`tests/Encina.PropertyTests/Resilience/Chaos/`): FsCheck, for any rate in [0, 1] and a seeded random source the injected count matches the generator's decisions.
-5. Integration, load, benchmark: not applicable (no infrastructure; arithmetic plus a Polly strategy); justification `.md` files for load and benchmark.
+5. Integration (PR-4, choice 9 A): `tests/Encina.IntegrationTests/Resilience/Chaos/` with a real generic host per environment and a configuration reload in a denied environment (nothing injected); `[Trait("Category", "Integration")]`, no container, so no database fixture applies. Load and benchmark: not applicable (arithmetic plus a Polly strategy); justification `.md` files.
+6. The gate on the reload path (Phase 4, choice 3): a unit test changes the options in a denied environment and asserts the generators return disabled and rate 0.
 
 </details>
 
@@ -398,30 +445,30 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` (`ResilienceChaos`) | 960-969 | New range from the block 950-999; 960-964 used, 965-969 spare; verified free by repository-wide search on `098caa920` |
+| `Encina.Resilience` (`ResilienceChaos`) | 960-969 | New range from the block 950-999; 960-964 used, 965-969 spare; verified free by repository-wide search on `277402987` |
 
 ### Estimated File Count
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 13 | 6 production (`ChaosOptions`, `ChaosOptionsValidator`, `ChaosErrorCodes`, `ChaosEnvironmentGate`, `ChaosStrategyFactory`, `ChaosServiceCollectionExtensions`), 5 tests (strategy factory, gate, options and validator, DI, guard), `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-1 | 15 | 6 production (`ChaosOptions`, `ChaosOptionsValidator`, `ChaosErrorCodes`, `ChaosEnvironmentGate`, `ChaosStrategyFactory`, `ChaosServiceCollectionExtensions`), `Encina.Resilience.csproj` (`Microsoft.Extensions.Hosting.Abstractions`; `InternalsVisibleTo` only if missing), 5 tests (strategy factory with the reload case, gate, options and validator, DI, guard), `PublicAPI.Unshipped.txt`, manifest rows (unit and guard rows only) |
 | PR-2 | 12 | `IChaosController`, `ChaosController`, `ChaosHealthCheck`, `ChaosStrategyFactory` and the registration (modified), controller test, health check test, factory test, DI test and guard test (modified), `PublicAPI.Unshipped.txt`, manifest |
 | PR-3 | 12 | `ChaosLogMessages`, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `ChaosEnvironmentGate`, `ChaosController` and `ChaosStrategyFactory` (modified, they emit the logs), their three tests (modified, log assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
-| PR-4 | 8 | contract test, property test, 2 justification `.md`, feature page, README section, changelog fragment, manifest row |
+| PR-4 | 14 | contract test, property test, host integration test (choice 9), `Encina.IntegrationTests.csproj` (`ProjectReference`), `Encina.ContractTests.csproj` and `Encina.PropertyTests.csproj` (`ProjectReference`, each only if missing), 3 justification `.md` (load, benchmark, and the infrastructure note of choice 9), feature page, README section, changelog fragment, manifest rows (contract, property and integration rows are added here) |
 
 Each PR is within 15 files and 1,500 lines. No test double changes belong to this plan.
 
-Per-file targets (new files; baseline: none exists on `origin/main`):
+Per-file targets (new files; baseline: none exists on `origin/main`). A flag's row is written in the manifest of the PR that adds the tests reaching it: PR-1 sets unit and guard, PR-2 the controller and health check rows, PR-3 the log rows, and PR-4 sets every contract, property and integration row (so no PR sets a target it cannot reach):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
 | `ChaosOptions.cs`, `ChaosErrorCodes.cs` | 90 | 0 | 0 | 0 | 0 | Property bags and constants read by validator and factory tests; no parameters |
 | `ChaosOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Internal; one test per rule through `InternalsVisibleTo` |
 | `IChaosController.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code |
-| `ChaosController.cs` | 95 | 0 | 90 | 0 | 0 | Internal; setters return `Left` for bad values (unit), contract test runs the real controller |
-| `ChaosStrategyFactory.cs` | 90 | 0 | 0 | 85 | 0 | Rate 0, rate 1 and latency with a fake clock; the property test drives the seeded decisions |
+| `ChaosController.cs` | 95 (PR-2) | 0 | 90 (PR-4) | 0 | 0 | Internal; setters return `Left` for bad values (unit, PR-2), the contract test of PR-4 runs the real controller |
+| `ChaosStrategyFactory.cs` | 90 (PR-1) | 0 | 0 | 85 (PR-4) | 70 (PR-4) | Rate 0, rate 1, latency and the reload case with a fake clock (PR-1); the property test of PR-4 drives the seeded decisions; the host integration test reaches the wiring |
 | `ChaosServiceCollectionExtensions.cs` | 90 | 100 | 0 | 0 | 0 | One guarded public method plus the DI test |
-| `ChaosEnvironmentGate.cs` | 95 | 0 | 0 | 0 | 0 | Internal; every branch (null, allowed, denied) |
+| `ChaosEnvironmentGate.cs` | 95 | 0 | 0 | 0 | 80 | Internal; every branch (null, allowed, denied) in unit tests; the host integration test of PR-4 runs the real environments |
 | `ChaosHealthCheck.cs` | 90 | 0 | 0 | 0 | 0 | Healthy and Degraded paths; constructed through DI in the test |
 | `ChaosLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger |
 
@@ -481,5 +528,5 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina.AspN
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #145.
-2. When #145 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 6).
+2. When #145 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 6, 8 and 9).
 3. Brief workers for PR-1 to PR-4 in order, after the foundation is merged.
