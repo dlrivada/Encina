@@ -60,7 +60,7 @@ public sealed class RangeShardRouter : IShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoActiveShards,
+                    ShardingErrorCodes.NoActiveShards, ErrorCategory.Internal,
                     "No ranges are configured in the range router."));
         }
 
@@ -93,7 +93,7 @@ public sealed class RangeShardRouter : IShardRouter
 
         return Either<EncinaError, string>.Left(
             EncinaErrors.Create(
-                ShardingErrorCodes.KeyOutsideRange,
+                ShardingErrorCodes.KeyOutsideRange, ErrorCategory.Internal,
                 $"Shard key '{shardKey}' does not fall within any configured range."));
     }
 
@@ -151,7 +151,7 @@ public sealed class RangeShardRouter : IShardRouter
         {
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.PartialKeyRoutingFailed,
+                    ShardingErrorCodes.PartialKeyRoutingFailed, ErrorCategory.Internal,
                     $"No ranges match the partial key prefix '{prefix}'."));
         }
 

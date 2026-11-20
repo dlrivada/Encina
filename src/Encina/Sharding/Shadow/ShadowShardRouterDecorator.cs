@@ -118,7 +118,7 @@ internal sealed class ShadowShardRouterDecorator : IShadowShardRouter
             return Task.FromResult(
                 Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.ShadowRoutingFailed,
+                        ShardingErrorCodes.ShadowRoutingFailed, ErrorCategory.Internal,
                         $"Shadow routing failed for shard key '{shardKey}'.",
                         ex)));
         }
@@ -141,7 +141,7 @@ internal sealed class ShadowShardRouterDecorator : IShadowShardRouter
             return Task.FromResult(
                 Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.ShadowRoutingFailed,
+                        ShardingErrorCodes.ShadowRoutingFailed, ErrorCategory.Internal,
                         $"Shadow routing failed for compound key '{keyString}'.",
                         ex)));
         }

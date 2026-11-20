@@ -77,7 +77,7 @@ public sealed class GeoShardRouter : IShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.RegionNotFound,
+                    ShardingErrorCodes.RegionNotFound, ErrorCategory.Internal,
                     $"Region '{regionCode}' was not found and exact match is required."));
         }
 
@@ -240,6 +240,6 @@ public sealed class GeoShardRouter : IShardRouter
             : "Could not resolve region from shard key and no default region is configured.";
 
         return Either<EncinaError, string>.Left(
-            EncinaErrors.Create(ShardingErrorCodes.RegionNotFound, message));
+            EncinaErrors.Create(ShardingErrorCodes.RegionNotFound, ErrorCategory.Internal, message));
     }
 }

@@ -165,7 +165,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
             ? Either<EncinaError, ShardTier>.Right(entry.TierInfo.CurrentTier)
             : Either<EncinaError, ShardTier>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the time-based router."));
     }
 
@@ -178,7 +178,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
             ? Either<EncinaError, ShardTierInfo>.Right(entry.TierInfo)
             : Either<EncinaError, ShardTierInfo>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the time-based router."));
     }
 
@@ -191,7 +191,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoTimeBasedShards,
+                    ShardingErrorCodes.NoTimeBasedShards, ErrorCategory.Internal,
                     "No time-based shard entries are configured in the router."));
         }
 
@@ -237,7 +237,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.PartialKeyRoutingFailed,
+                    ShardingErrorCodes.PartialKeyRoutingFailed, ErrorCategory.Internal,
                     $"No time-based shard ranges match the partial key prefix '{prefix}'."));
         }
 
@@ -282,7 +282,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         var isOutsideRange = originalError.Match(
             Right: _ => false,
             Left: error => error.GetCode().Match(
-                Some: code => code == ShardingErrorCodes.TimestampOutsideRange,
+                Some: code => code == ShardingErrorCodes.TimestampOutsideRange, ErrorCategory.Internal,
                 None: () => false));
 
         if (!isOutsideRange)
@@ -304,7 +304,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoTimeBasedShards,
+                    ShardingErrorCodes.NoTimeBasedShards, ErrorCategory.Internal,
                     "No time-based shard entries are configured in the router."));
         }
 
@@ -320,7 +320,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoTimeBasedShards,
+                    ShardingErrorCodes.NoTimeBasedShards, ErrorCategory.Internal,
                     "No time-based shard entries are configured in the router."));
         }
 
@@ -334,7 +334,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
                 {
                     return Either<EncinaError, string>.Left(
                         EncinaErrors.Create(
-                            ShardingErrorCodes.ShardReadOnly,
+                            ShardingErrorCodes.ShardReadOnly, ErrorCategory.Internal,
                             $"Shard '{entry.TierInfo.ShardId}' is in tier '{entry.TierInfo.CurrentTier}' " +
                             $"and does not accept writes. Only Hot-tier shards accept write operations."));
                 }
@@ -349,7 +349,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoTimeBasedShards,
+                    ShardingErrorCodes.NoTimeBasedShards, ErrorCategory.Internal,
                     "No time-based shard entries are configured in the router."));
         }
 
@@ -378,7 +378,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
         {
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.TimestampOutsideRange,
+                    ShardingErrorCodes.TimestampOutsideRange, ErrorCategory.Internal,
                     $"No time-based shards cover the range [{from:O}, {to:O})."));
         }
 
@@ -420,7 +420,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
 
         return Either<EncinaError, TimeBasedShardEntry>.Left(
             EncinaErrors.Create(
-                ShardingErrorCodes.TimestampOutsideRange,
+                ShardingErrorCodes.TimestampOutsideRange, ErrorCategory.Internal,
                 $"Key '{key}' does not fall within any configured time-based shard period."));
     }
 
