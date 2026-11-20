@@ -4,13 +4,13 @@
 > **Type**: Feature (observability core)
 > **Related**: ADR-054 (settled point 4 instrument rules, D3 names, D4 tenant tag, D6 Encina-level metrics), #2678 (renames every existing instrument to the ADR-054 rules, so this plan renames nothing), #2677 (renames the 27 plain `"Encina"` meters), #2676 (the one tenant tag helper), #1794 (backlog triage that lists #174), #1937 (instruments declared and never emitted, the same defect in the data-subject-rights package), #187 (dashboards read the names this plan settles), #906 (observability guide), #184 and #185 (sibling plans of this family, not duplicated), ADR-062
 > **Complexity**: Medium (the instruments mostly exist; the work is finding the one recorder per fact, wiring what is declared and never emitted, and keeping the gauge off the request path)
-> **Estimated Scope**: ~330 lines of production code + ~900 lines of tests + 3 documentation files, in four code pull requests and one documentation pull request of at most 15 files and 900 lines each
+> **Estimated Scope**: ~360 lines of production code + ~950 lines of tests + 3 documentation files, in five code pull requests (M1-M5) and one documentation pull request (D1) of at most 15 files and 900 lines each
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `098caa920`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - The issue says there is "no metrics collected". That is out of date. `src/Encina/Diagnostics/IEncinaMetrics.cs` holds `IEncinaMetrics` and the sealed class `EncinaMetrics` (an instance registered by `AddEncina` with `TryAddSingleton`, `src/Encina/Core/ServiceCollectionExtensions.cs:61`, not the static class of the issue). It creates, on the meter `Encina`, `Encina.request.success` and `Encina.request.failure` (counters) and `Encina.request.duration` (histogram in `ms`), tagged `request.kind`, `request.name` and, for a failure, `failure.reason` (the error code).
 - The dispatcher feeds them for every `Send`: `src/Encina/Dispatchers/Encina.RequestDispatcher.cs:53` resolves `IEncinaMetrics`, and lines 83, 95, 128, 132 and 159 call `TrackFailure` or `TrackSuccess`, with the error code as the reason (never the message).
@@ -94,7 +94,7 @@ The issue (2026-era text) proposes a static `EncinaMetrics`, the instruments `en
 
 ### Rationale
 
-- The interface is the documented extension point of the request metrics (its remarks say it "can be customized to integrate with other observability systems"); an active gauge is one more fact of the same lifecycle. Only three test spies implement it (`tests/Encina.UnitTests/Core/EncinaTests.cs:1936` and the two behavior test files, which Design Choice 1 deletes with the behaviors).
+- The interface is the documented extension point of the request metrics (its remarks say it "can be customized to integrate with other observability systems"); an active gauge is one more fact of the same lifecycle. Only four test doubles implement it: `EncinaMetricsSpy` (`tests/Encina.UnitTests/Core/EncinaTests.cs:1936`) and `NoopMetrics` (`tests/Encina.UnitTests/Core/PipelineErrorCategoryTests.cs:70`), which gain the two members, and the two `SpyMetrics` of the behavior test files, which Design Choice 1 deletes with the behaviors.
 - The decrement runs in a `finally`, so an exception that escapes the dispatcher (the pure-ROP fail-fast path) still balances the counter.
 
 **Class:** Trivial
@@ -110,7 +110,7 @@ The issue (2026-era text) proposes a static `EncinaMetrics`, the instruments `en
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) In the `Instrumented*Store` decorators of `Encina.OpenTelemetry`** | One place per store; covers all providers | Cannot see the facts that are orchestrator semantics (an inbox duplicate, a saga reaching a terminal status with its duration); decorators get no service provider today (`DecorateService` passes only the inner store), and the metrics class would have to be a DI singleton there as well |
-| **B) In the orchestrators of `Encina.Messaging` (`InboxOrchestrator`, `SagaOrchestrator`, `OutboxBatchProcessor`), through an optional `MessagingStoreMetrics` constructor parameter that DI fills** | The orchestrators already know the facts and already feed `OutboxProcessorMetrics`; all 10 providers sit below them; one instance registered once | Three constructors gain a last optional parameter (38 `new X(` sites keep compiling) |
+| **B) In the orchestrators of `Encina.Messaging` (`InboxOrchestrator`, `SagaOrchestrator`, `SchedulerOrchestrator`, `OutboxOrchestrator` and the internal `OutboxBatchProcessor`), through an optional `MessagingStoreMetrics` constructor parameter** | The orchestrators already know the facts and already feed `OutboxProcessorMetrics`; all 10 providers sit below them; one instance registered once | Four DI-built constructors gain a last optional parameter that DI fills (the 72 `new X(` sites of those four classes in `src` and `tests` keep compiling); `OutboxBatchProcessor` is built by hand with `new` at `OutboxOrchestrator.cs:151` and `OutboxProcessorBase.cs:132`, so DI never fills it: `OutboxOrchestrator` passes its own parameter and `OutboxProcessorBase` resolves `services.GetService<MessagingStoreMetrics>()` in the cycle scope, as it does for `DeadLetterSourceCapture` |
 
 ### Chosen Option: **B — The orchestrators record** (recommended, pending the maintainer)
 
@@ -192,8 +192,8 @@ The issue (2026-era text) proposes a static `EncinaMetrics`, the instruments `en
 
 1. **Modify** `src/Encina/Dispatchers/Encina.RequestDispatcher.cs`: resolve `IFunctionalFailureDetector` from the request scope (`serviceProvider.GetService<IFunctionalFailureDetector>() ?? NullFunctionalFailureDetector.Instance`; it is registered by `AddEncina` as a singleton) and, on a `Right`, call `TrackFailure(kind, name, elapsed, failureReason)` when `TryExtractFailure` reports a functional failure and `TrackSuccess` otherwise, the rule `CommandMetricsPipelineBehavior` applies today.
 2. **Delete** `src/Encina/Pipeline/Behaviors/CommandMetricsPipelineBehavior.cs` and `QueryMetricsPipelineBehavior.cs`; remove their lines from `src/Encina/PublicAPI.Unshipped.txt` and their entries from `.github/coverage-manifest/Encina.json` (the source files no longer exist, so the ratchet does not apply).
-3. **Delete** their tests: `tests/Encina.UnitTests/Pipeline/Behaviors/CommandMetricsPipelineBehaviorTests.cs`, `QueryMetricsPipelineBehaviorTests.cs`, `tests/Encina.GuardTests/Core/Pipeline/CommandMetricsPipelineBehaviorGuardTests.cs`, `QueryMetricsPipelineBehaviorGuardTests.cs`, `tests/Encina.ContractTests/Core/Pipeline/MetricsPipelineBehaviorContractTests.cs`; **edit** the two type lists that name them: `tests/Encina.ContractTests/PipelineBehaviorContracts.cs:37-39` and `tests/Encina.ContractTests/ServiceRegistrationContracts.cs:15-17`. Before deleting, grep test aliases (`using X = ...`) and every `typeof(CommandMetricsPipelineBehavior<,>)` site; the search on 2026-11-20 finds exactly these files.
-4. **Create** `tests/Encina.UnitTests/Core/EncinaRequestMetricsTests.cs`: a real `Encina` with an `EncinaMetrics` and a `MeterListener` (not a spy): a `Right` response records one success and one duration; a `Left` records one failure with `failure.reason` equal to the error code; a `Right` for which a stub `IFunctionalFailureDetector` reports a failure records a failure with the detector's reason; a missing handler records `encina.request.handler_missing`; a cancelled request records the cancellation code; the error message never appears in any tag value.
+3. **Delete** their tests: `tests/Encina.UnitTests/Pipeline/Behaviors/CommandMetricsPipelineBehaviorTests.cs`, `QueryMetricsPipelineBehaviorTests.cs`, `tests/Encina.GuardTests/Core/Pipeline/CommandMetricsPipelineBehaviorGuardTests.cs`, `QueryMetricsPipelineBehaviorGuardTests.cs`, `tests/Encina.ContractTests/Core/Pipeline/MetricsPipelineBehaviorContractTests.cs`; **edit** the three other test files that name them: the two type lists `tests/Encina.ContractTests/PipelineBehaviorContracts.cs:37-39` and `tests/Encina.ContractTests/ServiceRegistrationContracts.cs:15-17`, and `tests/Encina.UnitTests/Core/PipelineErrorCategoryTests.cs`, whose four tests `CommandMetricsBehavior_Cancelled_IsCancelled`, `CommandMetricsBehavior_Exception_IsInternal`, `QueryMetricsBehavior_Cancelled_IsCancelled` and `QueryMetricsBehavior_Exception_IsInternal` (lines 286-343) construct the deleted behaviors and are removed (the same cancelled and exception categories are asserted through the dispatcher in the new `EncinaRequestMetricsTests`, task 4); its `NoopMetrics` stays. Before deleting, grep test aliases (`using X = ...`) and every `typeof(CommandMetricsPipelineBehavior<,>)` site; `git grep -E "(Command|Query)MetricsPipelineBehavior"` on `0336d31c7` outside `docs` and `changelog.d` finds exactly 12 files: the two behavior sources, `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.json`, the five test files above, the two contract lists and `PipelineErrorCategoryTests.cs`.
+4. **Create** `tests/Encina.UnitTests/Core/EncinaRequestMetricsTests.cs`: a real `Encina` with an `EncinaMetrics` and a `MeterListener` (not a spy): a `Right` response records one success and one duration; a `Left` records one failure with `failure.reason` equal to the error code; a `Right` for which a stub `IFunctionalFailureDetector` reports a failure records a failure with the detector's reason; a missing handler records `encina.request.handler_missing`; a cancelled request records the cancellation code and the `Cancelled` error category; a throwing behavior yields the `Internal` category (the assertions of the four removed tests); the error message never appears in any tag value.
 5. Add `changelog.d/174-single-request-metrics-recorder.changed.md` through `mechanical-fixer`.
 
 </details>
@@ -211,8 +211,9 @@ TASK:
 1. In RequestDispatcher.ExecuteAsync resolve IFunctionalFailureDetector from the scope and count a Right with a functional failure
    as TrackFailure (reason = the detector's reason), otherwise TrackSuccess.
 2. Delete the two behaviors, their PublicAPI lines, manifest entries and the 5 test files named in the plan; edit the two contract
-   type lists. Grep test aliases and typeof sites on origin/main before deleting.
-3. Add EncinaRequestMetricsTests with a real MeterListener.
+   type lists, and remove the four metrics-behavior tests of tests/Encina.UnitTests/Core/PipelineErrorCategoryTests.cs
+   (lines 286-343). Grep test aliases and typeof sites on origin/main before deleting.
+3. Add EncinaRequestMetricsTests with a real MeterListener, including the cancelled and exception error categories.
 4. PublicAPI, manifest and the changelog fragment go through mechanical-fixer.
 
 KEY RULES:
@@ -239,7 +240,7 @@ REFERENCE FILES:
 1. **Modify** `src/Encina/Diagnostics/IEncinaMetrics.cs`: add `void TrackStarted(string requestKind, string requestName)` and `void TrackFinished(string requestKind, string requestName)` to the interface; `EncinaMetrics` creates `_activeCounter = Meter.CreateUpDownCounter<long>("encina.request.active", unit: "{request}", description: ...)` and adds +1 and -1 with the tags `request.kind` and `request.name`; both methods call `ArgumentNullException.ThrowIfNull` on each argument.
 2. **Modify** `src/Encina/Dispatchers/Encina.RequestDispatcher.cs`: call `TrackStarted` after the kind is known and `TrackFinished` in a `finally` that wraps handler resolution, validation and the pipeline, so the early returns (missing handler, type mismatch) and a fail-fast exception are balanced.
 3. **Modify** `src/Encina/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.json`; add `changelog.d/174-active-requests-metric.added.md` through `mechanical-fixer`.
-4. Tests: **edit** `tests/Encina.UnitTests/Core/EncinaTests.cs` (the spy at line 1936 implements the two members); **create** `tests/Encina.UnitTests/Diagnostics/EncinaMetricsActiveRequestsTests.cs` (a `MeterListener` sees +1 then -1 per request; an `Encina` whose handler throws still decrements; a missing handler decrements; two concurrent requests peak at 2) and `tests/Encina.GuardTests/Diagnostics/EncinaMetricsGuardTests.cs` (null kind, null name on both new members).
+4. Tests: **edit** `tests/Encina.UnitTests/Core/EncinaTests.cs` (the spy at line 1936 implements the two members) and `tests/Encina.UnitTests/Core/PipelineErrorCategoryTests.cs` (`NoopMetrics`, line 70, implements them); **create** `tests/Encina.UnitTests/Diagnostics/EncinaMetricsActiveRequestsTests.cs` (a `MeterListener` sees +1 then -1 per request; an `Encina` whose handler throws still decrements; a missing handler decrements; two concurrent requests peak at 2) and `tests/Encina.GuardTests/Diagnostics/EncinaMetricsGuardTests.cs` (null kind, null name on both new members).
 
 </details>
 
@@ -253,7 +254,7 @@ Issue #174 plan docs/plans/request-metrics-implementation-plan-174.md, phase 2. 
 TASK:
 1. Add TrackStarted and TrackFinished to IEncinaMetrics and EncinaMetrics (UpDownCounter<long> "encina.request.active", unit "{request}").
 2. Call them from the dispatcher: started after the request kind is known, finished in a finally.
-3. Update the EncinaTests spy; add unit and guard tests; PublicAPI, manifest, changelog through mechanical-fixer.
+3. Update the EncinaTests spy and the PipelineErrorCategoryTests NoopMetrics; add unit and guard tests; PublicAPI, manifest, changelog through mechanical-fixer.
 
 KEY RULES:
 - The name follows ADR-054 settled point 4 (no _total); the unit lives in the metadata.
@@ -268,18 +269,18 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Wire the Declared Messaging Instruments (pull request M3)
+### Phase 3: Wire the Inbox and Saga Instruments (pull request M3)
 
-> **Goal**: The instruments of `MessagingStoreMetrics` reach a listener, from the orchestrators.
+> **Goal**: `MessagingStoreMetrics` becomes one DI singleton and the inbox and saga instruments reach a listener, from the orchestrators.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs`: add `RecordOutboxRetry(int retryCount)` (a histogram `encina.outbox.message.retries`, unit `{retry}`) and `RecordSagaCompleted(string sagaType, string outcome, double durationSeconds)` (a histogram `encina.saga.duration`, unit `s`, tags `saga_type` and `outcome`); validate the strings with `ArgumentException.ThrowIfNullOrWhiteSpace`.
+1. **Modify** `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs`: add `RecordSagaCompleted(string sagaType, string outcome, double durationSeconds)` (a histogram `encina.saga.duration`, unit `s`, tags `saga_type` and `outcome`; validate the strings with `ArgumentException.ThrowIfNullOrWhiteSpace`); remove `RecordOutboxProcessed` (it duplicates `encina.outbox.processor.messages_total` of `OutboxProcessorMetrics`) and `RecordOutboxAdded` (`OutboxProcessorMetrics.RecordEnqueued` covers it); `git grep -E "RecordOutboxProcessed|RecordOutboxAdded"` on `0336d31c7` finds only the declarations and their `PublicAPI.Unshipped.txt` lines (728, 729), no test.
 2. **Modify** `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` (`AddEncinaMessaging`): `services.TryAddSingleton(static provider => new MessagingStoreMetrics(provider.GetService<MessagingStoreMetricsCallbacks>()))`, so one instance exists and a callbacks registration made by `Encina.OpenTelemetry` is honored.
-3. **Modify** the four orchestrators (`InboxOrchestrator`, `SagaOrchestrator`, `SchedulerOrchestrator` and the internal `OutboxBatchProcessor`), each with a last optional parameter `MessagingStoreMetrics? metrics = null` (after the existing optional parameters, so CS1737 does not apply): `InboxOrchestrator` (`RecordInboxDuplicate()` where an existing processed message is returned, `InboxOrchestrator.cs:214`; `RecordInboxReceived` after the new message is added, `InboxOrchestrator.cs:160`); `SagaOrchestrator` (`RecordSagaTransition` on each step advance and `RecordSagaCompleted` where the status becomes `Completed`, `Compensated`, `Failed` or `TimedOut`, lines 243, 345, 389 and 511, with duration `CompletedAtUtc - StartedAtUtc` from the injected `TimeProvider`); `OutboxBatchProcessor` (`RecordOutboxRetry(message.RetryCount)` when a message is marked failed). `OutboxProcessorMetrics` already counts processed and exhausted messages, so `RecordOutboxProcessed` is not called (it duplicates `encina.outbox.processor.messages_total`) and is removed from `MessagingStoreMetrics` with `RecordOutboxAdded`, which `OutboxProcessorMetrics.RecordEnqueued` covers; the scheduling counters are fed by `SchedulerOrchestrator` through `RecordScheduled` and `RecordExecuted`.
-4. **Modify** `src/Encina.Messaging/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.Messaging.json`; add `changelog.d/174-messaging-store-metrics-wired.fixed.md` through `mechanical-fixer`.
-5. Tests (new files): `tests/Encina.UnitTests/Messaging/Diagnostics/MessagingStoreMetricsRecordingTests.cs` (a `MeterListener` sees each instrument with its tags), `tests/Encina.UnitTests/Messaging/Inbox/InboxOrchestratorMetricsTests.cs` (a duplicate message records one duplicate and no received), `tests/Encina.UnitTests/Messaging/Sagas/SagaOrchestratorMetricsTests.cs` (with a `FakeTimeProvider`: a saga completed after 90 seconds records 90 and outcome `completed`; each terminal status records once), `tests/Encina.UnitTests/Messaging/Outbox/OutboxRetryMetricsTests.cs`, `tests/Encina.UnitTests/Messaging/Diagnostics/MessagingStoreMetricsRegistrationTests.cs` (the DI test: a provider built with `ValidateOnBuild` and `ValidateScopes` after `AddEncinaMessaging` resolves one `MessagingStoreMetrics`), `tests/Encina.GuardTests/Messaging/Diagnostics/MessagingStoreMetricsGuardTests.cs` (null or blank `sagaType`, `outcome`; a negative duration is a valid record of zero).
+3. **Modify** `InboxOrchestrator` and `SagaOrchestrator`, each with a last optional parameter `MessagingStoreMetrics? metrics = null` (after the existing optional parameters, so CS1737 does not apply; DI fills it): `InboxOrchestrator` (`RecordInboxDuplicate()` where an existing processed message is returned, `InboxOrchestrator.cs:214`; `RecordInboxReceived` after the new message is added, `InboxOrchestrator.cs:160`); `SagaOrchestrator` (`RecordSagaTransition` on each step advance and `RecordSagaCompleted` where the status becomes `Completed`, `Compensated`, `Failed` or `TimedOut`, lines 243, 345, 389 and 511, with duration `CompletedAtUtc - StartedAtUtc` from the injected `TimeProvider`).
+4. **Modify** `src/Encina.Messaging/PublicAPI.Unshipped.txt` (remove lines 728-729, add `RecordSagaCompleted`), `.github/coverage-manifest/Encina.Messaging.json`; add `changelog.d/174-messaging-store-metrics-wired.fixed.md` through `mechanical-fixer`.
+5. Tests: **create** `tests/Encina.UnitTests/Messaging/Diagnostics/MessagingStoreMetricsRecordingTests.cs` (a `MeterListener` sees each instrument with its tags), `tests/Encina.UnitTests/Messaging/Inbox/InboxOrchestratorMetricsTests.cs` (a duplicate message records one duplicate and no received), `tests/Encina.UnitTests/Messaging/Sagas/SagaOrchestratorMetricsTests.cs` (with a `FakeTimeProvider`: a saga completed after 90 seconds records 90 and outcome `completed`; each terminal status records once) and `tests/Encina.UnitTests/Messaging/Diagnostics/MessagingStoreMetricsRegistrationTests.cs` (the DI test: a provider built with `ValidateOnBuild` and `ValidateScopes` after `AddEncinaMessaging` resolves one `MessagingStoreMetrics`); **edit** the existing `tests/Encina.GuardTests/Messaging/Diagnostics/MessagingStoreMetricsGuardTests.cs` (null or blank `sagaType`, `outcome` of `RecordSagaCompleted`; a negative duration is a valid record of zero).
 
 </details>
 
@@ -293,10 +294,10 @@ that no code ever records and no code registers the callbacks; OutboxProcessorMe
 
 TASK:
 1. Register MessagingStoreMetrics as one singleton in AddEncinaMessaging (TryAddSingleton with the optional callbacks from DI).
-2. Add the last optional parameter MessagingStoreMetrics? metrics = null to InboxOrchestrator, SagaOrchestrator, OutboxBatchProcessor
-   and SchedulerOrchestrator; record duplicate, received, transition, saga duration, outbox retry, scheduled and executed at the sites named in the plan.
-3. Remove RecordOutboxProcessed and RecordOutboxAdded (duplicated by OutboxProcessorMetrics); add RecordOutboxRetry and RecordSagaCompleted.
-4. Tests with a real MeterListener and FakeTimeProvider, a DI test with ValidateOnBuild and ValidateScopes, guard tests;
+2. Add the last optional parameter MessagingStoreMetrics? metrics = null to InboxOrchestrator and SagaOrchestrator;
+   record duplicate, received, transition and saga duration at the sites named in the plan.
+3. Remove RecordOutboxProcessed and RecordOutboxAdded (duplicated by OutboxProcessorMetrics); add RecordSagaCompleted.
+4. Tests with a real MeterListener and FakeTimeProvider, a DI test with ValidateOnBuild and ValidateScopes, edit the existing guard test file;
    PublicAPI, manifest, changelog through mechanical-fixer.
 
 KEY RULES:
@@ -305,26 +306,27 @@ KEY RULES:
 - Tags carry saga type, outcome and codes only, never messages or ids.
 
 REFERENCE FILES:
-- src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs, OutboxProcessorMetrics.cs, SchedulingProcessorMetrics.cs
-- src/Encina.Messaging/Inbox/InboxOrchestrator.cs, Sagas/SagaOrchestrator.cs, Outbox/OutboxBatchProcessor.cs
+- src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs, OutboxProcessorMetrics.cs
+- src/Encina.Messaging/Inbox/InboxOrchestrator.cs, Sagas/SagaOrchestrator.cs
+- tests/Encina.GuardTests/Messaging/Diagnostics/MessagingStoreMetricsGuardTests.cs
 ```
 
 </details>
 
 ---
 
-### Phase 4: The Outbox Pending Gauge (pull request M4)
+### Phase 4: Wire the Outbox Retry and Scheduling Instruments (pull request M4)
 
-> **Goal**: `encina.outbox.pending_count` reports the store's pending count without a database call in the callback.
+> **Goal**: The outbox retry histogram and the scheduling counters reach a listener, including through the two places that build `OutboxBatchProcessor` by hand.
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.OpenTelemetry/MessagingStores/OutboxPendingRefresher.cs` (`internal sealed class : BackgroundService`; constructor `(IServiceScopeFactory scopeFactory, EncinaOpenTelemetryOptions options, TimeProvider timeProvider, ILogger<OutboxPendingRefresher> logger)`; a `PeriodicTimer(options.MessagingMetricsRefreshInterval, timeProvider)`; each tick creates a scope, resolves `IOutboxStore` and `OutboxOptions`, calls `GetPendingCountAsync(maxRetries, stoppingToken)` and stores the result with `Interlocked.Exchange`; a `Left` is logged by error code through event 7011 and keeps the last value; an exception is caught per tick (event 7012 with `ForLogging()`), an `OperationCanceledException` of the stopping token ends the loop) and `src/Encina.OpenTelemetry/MessagingStores/MessagingStoreMetricsLog.cs` (`[LoggerMessage]`, EventIds 7010 no outbox store registered, 7011 count query failed, 7012 refresh iteration failed; "Event IDs: 7010-7012 (see EventIdRanges.OpenTelemetry)"; no new range).
-2. **Modify** `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`: register `OutboxPendingRefresher` as a hosted service and a `MessagingStoreMetricsCallbacks` singleton whose `getOutboxPendingCount` reads the refresher's cache (`getActiveSagaCount` returns the sentinel `0` until the follow-up issue lands; the gauge for active sagas is therefore created only when the callbacks object reports it, see task 3); **modify** `MessagingStoreMetricsInitializer.cs` to resolve the singleton `MessagingStoreMetrics` instead of constructing one.
-3. **Modify** `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs` so the `encina.saga.active_count` gauge is created only when the callbacks carry a saga source (`Func<long>? getActiveSagaCount`), removing the always-zero series; the constructor of `MessagingStoreMetricsCallbacks` keeps `getOutboxPendingCount` first and takes the saga function as a nullable second parameter.
-4. **Modify** `src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs` (`TimeSpan MessagingMetricsRefreshInterval { get; set; } = TimeSpan.FromSeconds(30)`), the OpenTelemetry and Messaging `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`; add `changelog.d/174-outbox-pending-gauge.added.md` through `mechanical-fixer`.
-5. Tests (new): `tests/Encina.UnitTests/OpenTelemetry/MessagingStores/OutboxPendingRefresherTests.cs` (a `FakeTimeProvider` advances one interval: the cached value equals the store's count; a `Left` keeps the last value and logs event 7011 with the code only; a thrown exception does not end the loop; cancellation ends it; no store registered logs 7010 once), `tests/Encina.UnitTests/OpenTelemetry/MessagingStores/MessagingStoreMetricsWiringTests.cs` (the DI test: `AddEncinaMessaging` plus `AddEncinaOpenTelemetry` built with `ValidateOnBuild` and `ValidateScopes` resolves one `MessagingStoreMetrics` and the gauge reports the refreshed value through a `MeterListener`), `tests/Encina.GuardTests/OpenTelemetry/MessagingStores/OutboxPendingRefresherGuardTests.cs` (null scope factory, options, time provider, logger); **edit** `MessagingStoreMetricsInitializerTests.cs` for the singleton.
+1. **Modify** `MessagingStoreMetrics.cs`: add `RecordOutboxRetry(int retryCount)` (a histogram `encina.outbox.message.retries`, unit `{retry}`).
+2. **Modify** `src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs` (internal; constructor gains a last optional `MessagingStoreMetrics? metrics = null` after `deadLetterCapture`, and `RecordOutboxRetry(message.RetryCount)` runs when a message is marked failed); **modify** its two production callers, which DI never reaches because they use `new`: `src/Encina.Messaging/Outbox/OutboxOrchestrator.cs:151` (the constructor gains a last optional `MessagingStoreMetrics? metrics = null` that DI fills and the orchestrator passes on) and `src/Encina.Messaging/Outbox/OutboxProcessorBase.cs:132` (the cycle scope resolves `services.GetService<MessagingStoreMetrics>()` and passes it, like `DeadLetterSourceCapture`; the protected constructor does not change). The other two `new OutboxBatchProcessor(` sites (`tests/Encina.UnitTests/Messaging/Outbox/OutboxRetryAfterCeilingTests.cs:182` and `tests/Encina.PropertyTests/Messaging/RetryAfterCeilingProperties.cs:75`) keep compiling because the parameter is optional.
+3. **Modify** `SchedulerOrchestrator` with the same last optional parameter (DI fills it): `RecordScheduled` when a message is scheduled and `RecordExecuted` when one is processed.
+4. **Modify** `src/Encina.Messaging/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.Messaging.json`; add `changelog.d/174-outbox-retry-scheduling-metrics.fixed.md` through `mechanical-fixer`.
+5. Tests: **create** `tests/Encina.UnitTests/Messaging/Outbox/OutboxRetryMetricsTests.cs` (a failed message records its `RetryCount`; through `OutboxOrchestrator` and through a processor derived from `OutboxProcessorBase` with a registered `MessagingStoreMetrics`, so both hand-built sites are covered) and `tests/Encina.UnitTests/Messaging/Scheduling/SchedulerOrchestratorMetricsTests.cs` (scheduling records one scheduled, execution records one executed with its outcome); **edit** `MessagingStoreMetricsRecordingTests.cs` (the retry histogram).
 
 </details>
 
@@ -336,11 +338,54 @@ CONTEXT:
 Issue #174 plan docs/plans/request-metrics-implementation-plan-174.md, phase 4. Phase 3 merged: MessagingStoreMetrics is a DI singleton.
 
 TASK:
+1. Add RecordOutboxRetry to MessagingStoreMetrics.
+2. Add the last optional parameter MessagingStoreMetrics? metrics = null to OutboxBatchProcessor, OutboxOrchestrator and SchedulerOrchestrator;
+   OutboxOrchestrator.cs:151 passes its parameter, OutboxProcessorBase.cs:132 resolves GetService<MessagingStoreMetrics>() in the cycle scope.
+3. Record retry, scheduled and executed at the sites named in the plan.
+4. Tests with a real MeterListener; PublicAPI, manifest, changelog through mechanical-fixer.
+
+KEY RULES:
+- DI never fills a constructor that is called with new: pass the instance explicitly at every new OutboxBatchProcessor( site.
+- Optional parameter last (CS1737); grep every new X( site on origin/main before changing a constructor.
+
+REFERENCE FILES:
+- src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, OutboxOrchestrator.cs, OutboxProcessorBase.cs
+- src/Encina.Messaging/Scheduling/SchedulerOrchestrator.cs
+```
+
+</details>
+
+---
+
+### Phase 5: The Outbox Pending Gauge (pull request M5)
+
+> **Goal**: `encina.outbox.pending_count` reports the store's pending count without a database call in the callback.
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+1. **Create** `src/Encina.OpenTelemetry/MessagingStores/OutboxPendingRefresher.cs` (`internal sealed class : BackgroundService`; constructor `(IServiceScopeFactory scopeFactory, EncinaOpenTelemetryOptions options, TimeProvider timeProvider, ILogger<OutboxPendingRefresher> logger)`; a `PeriodicTimer(options.MessagingMetricsRefreshInterval, timeProvider)`; each tick creates a scope, resolves `IOutboxStore` and `OutboxOptions`, calls `GetPendingCountAsync(maxRetries, stoppingToken)` and stores the result with `Interlocked.Exchange`; a `Left` is logged by error code through event 7011 and keeps the last value; an exception is caught per tick (event 7012 with `ForLogging()`), an `OperationCanceledException` of the stopping token ends the loop) and `src/Encina.OpenTelemetry/MessagingStores/MessagingStoreMetricsLog.cs` (`[LoggerMessage]`, EventIds 7010 no outbox store registered, 7011 count query failed, 7012 refresh iteration failed; "Event IDs: 7010-7012 (see EventIdRanges.OpenTelemetry)"; no new range).
+2. **Modify** `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`: register `OutboxPendingRefresher` as a hosted service and a `MessagingStoreMetricsCallbacks` singleton whose `getOutboxPendingCount` reads the refresher's cache (`getActiveSagaCount` returns the sentinel `0` until the follow-up issue lands; the gauge for active sagas is therefore created only when the callbacks object reports it, see task 3); **modify** `MessagingStoreMetricsInitializer.cs` to resolve the singleton `MessagingStoreMetrics` instead of constructing one.
+3. **Modify** `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs` so the `encina.saga.active_count` gauge is created only when the callbacks carry a saga source (`Func<long>? getActiveSagaCount`), removing the always-zero series; the constructor of `MessagingStoreMetricsCallbacks` keeps `getOutboxPendingCount` first and takes the saga function as a nullable second parameter (the Messaging `PublicAPI.Unshipped.txt` line 736 changes to `System.Func<long>? getActiveSagaCount`).
+4. **Modify** `src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs` (`TimeSpan MessagingMetricsRefreshInterval { get; set; } = TimeSpan.FromSeconds(30)`), the OpenTelemetry and Messaging `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`; add `changelog.d/174-outbox-pending-gauge.added.md` through `mechanical-fixer`.
+5. Tests (new): `tests/Encina.UnitTests/OpenTelemetry/MessagingStores/OutboxPendingRefresherTests.cs` (a `FakeTimeProvider` advances one interval: the cached value equals the store's count; a `Left` keeps the last value and logs event 7011 with the code only; a thrown exception does not end the loop; cancellation ends it; no store registered logs 7010 once), `tests/Encina.UnitTests/OpenTelemetry/MessagingStores/MessagingStoreMetricsWiringTests.cs` (the DI test: `AddEncinaMessaging` plus `AddEncinaOpenTelemetry` built with `ValidateOnBuild` and `ValidateScopes` resolves one `MessagingStoreMetrics` and the gauge reports the refreshed value through a `MeterListener`), `tests/Encina.GuardTests/OpenTelemetry/MessagingStores/OutboxPendingRefresherGuardTests.cs` (null scope factory, options, time provider, logger); **edit** `MessagingStoreMetricsInitializerTests.cs` for the singleton and the existing `tests/Encina.GuardTests/Messaging/Diagnostics/MessagingStoreMetricsGuardTests.cs`: its test at line 24 asserts that a null `getActiveSagaCount` throws `ArgumentNullException`, which no longer holds once the parameter is nullable, so it becomes a test that a null saga source is valid and creates no `encina.saga.active_count` gauge, while the null check of `getOutboxPendingCount` (line 16) stays.
+
+</details>
+
+<details>
+<summary><strong>Prompt for AI Agents — Phase 5</strong></summary>
+
+```text
+CONTEXT:
+Issue #174 plan docs/plans/request-metrics-implementation-plan-174.md, phase 5. Phase 3 merged: MessagingStoreMetrics is a DI singleton.
+
+TASK:
 1. Create OutboxPendingRefresher (BackgroundService, PeriodicTimer with TimeProvider, scope per tick, cached value, per-iteration catch)
    and MessagingStoreMetricsLog with EventIds 7010-7012 of EventIdRanges.OpenTelemetry (7000-7009 are used by resharding).
 2. Register the refresher and a MessagingStoreMetricsCallbacks singleton in AddEncinaOpenTelemetry; make the initializer resolve the singleton.
-3. Create the saga gauge only when a saga source exists; add EncinaOpenTelemetryOptions.MessagingMetricsRefreshInterval (default 30 s).
-4. Tests with FakeTimeProvider, a DI test with ValidateOnBuild and ValidateScopes, guard tests; PublicAPI, manifest, changelog through mechanical-fixer.
+3. Create the saga gauge only when a saga source exists (getActiveSagaCount becomes nullable); add EncinaOpenTelemetryOptions.MessagingMetricsRefreshInterval (default 30 s).
+4. Tests with FakeTimeProvider, a DI test with ValidateOnBuild and ValidateScopes, guard tests (and the edit of the existing
+   MessagingStoreMetricsGuardTests null check of getActiveSagaCount); PublicAPI, manifest, changelog through mechanical-fixer.
 
 KEY RULES:
 - Never call the store from the gauge callback; async with the stopping token only (AGENTS.md section 3).
@@ -356,7 +401,7 @@ REFERENCE FILES:
 
 ---
 
-### Phase 5: Documentation (pull request D1)
+### Phase 6: Documentation (pull request D1)
 
 > **Goal**: Say which instruments exist, which are gone and how to read the pending gauge.
 
@@ -369,11 +414,11 @@ REFERENCE FILES:
 </details>
 
 <details>
-<summary><strong>Prompt for AI Agents — Phase 5</strong></summary>
+<summary><strong>Prompt for AI Agents — Phase 6</strong></summary>
 
 ```text
 CONTEXT:
-Issue #174 plan docs/plans/request-metrics-implementation-plan-174.md, phase 5, documentation only. Phases 1 to 4 merged.
+Issue #174 plan docs/plans/request-metrics-implementation-plan-174.md, phase 6, documentation only. Phases 1 to 5 merged.
 
 TASK:
 1. Update the Encina.OpenTelemetry README, docs/features/pipeline-behaviors.md and docs/INVENTORY.md as the plan lists.
@@ -420,7 +465,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.OpenTelemetry` | 7010-7012 (inside `EventIdRanges.OpenTelemetry` 7000-7099; 7000-7009 are resharding) | 7010 no outbox store registered, 7011 count query failed (code only), 7012 refresh iteration failed (`ForLogging()`); no new range and no id of the block 5970-5999; #183 takes 7013-7016 of the same range |
+| `Encina.OpenTelemetry` | 7010-7012 (inside `EventIdRanges.OpenTelemetry` 7000-7099; 7000-7009 are resharding) | 7010 no outbox store registered, 7011 count query failed (code only), 7012 refresh iteration failed (`ForLogging()`); no new range and no id of the block 5970-5999; #183 takes 7013-7015 of the same range |
 
 ### Estimated File Count
 
@@ -428,14 +473,15 @@ Every count includes tests, the coverage manifest, PublicAPI and the changelog f
 
 | PR | Content | Deleted src | New src | Changed src | New tests | Deleted tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|-------------|---------|-------------|-----------|---------------|--------------|----------|-------|-------|--------------|
-| M1 | Dispatcher is the single recorder | 2 | 0 | 2 (dispatcher, PublicAPI) | 1 | 5 | 2 | 1 | 1 (changelog) | 14 | ~700 |
-| M2 | Active requests | 0 | 0 | 3 (interface, dispatcher, PublicAPI) | 2 | 0 | 1 | 1 | 1 | 8 | ~420 |
-| M3 | Wire the declared instruments | 0 | 0 | 7 (metrics class, `AddEncinaMessaging`, 4 orchestrators, PublicAPI) | 6 | 0 | 0 | 1 | 1 | 15 | ~850 |
-| M4 | Outbox pending gauge | 0 | 2 | 6 (`ServiceCollectionExtensions`, initializer, options, `MessagingStoreMetrics`, 2 PublicAPI) | 3 | 0 | 1 | 1 | 1 | 14 | ~780 |
+| M1 | Dispatcher is the single recorder | 2 | 0 | 2 (dispatcher, PublicAPI) | 1 | 5 | 3 (2 contract lists, `PipelineErrorCategoryTests`) | 1 | 1 (changelog) | 15 | ~700 |
+| M2 | Active requests | 0 | 0 | 3 (interface, dispatcher, PublicAPI) | 2 | 0 | 2 (`EncinaTests`, `PipelineErrorCategoryTests`) | 1 | 1 | 9 | ~440 |
+| M3 | Inbox and saga instruments, singleton | 0 | 0 | 5 (metrics class, `AddEncinaMessaging`, `InboxOrchestrator`, `SagaOrchestrator`, PublicAPI) | 4 | 0 | 1 (`MessagingStoreMetricsGuardTests`) | 1 | 1 | 12 | ~700 |
+| M4 | Outbox retry and scheduling instruments | 0 | 0 | 6 (metrics class, `OutboxBatchProcessor`, `OutboxOrchestrator`, `OutboxProcessorBase`, `SchedulerOrchestrator`, PublicAPI) | 2 | 0 | 1 (`MessagingStoreMetricsRecordingTests`) | 1 | 1 | 11 | ~450 |
+| M5 | Outbox pending gauge | 0 | 2 | 6 (`ServiceCollectionExtensions`, initializer, options, `MessagingStoreMetrics`, 2 PublicAPI) | 3 | 0 | 2 (`MessagingStoreMetricsInitializerTests`, `MessagingStoreMetricsGuardTests`) | 1 | 1 | 15 | ~800 |
 | D1 | Documentation | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 (README, 2 pages) | 3 | ~120 |
-| **Total** | | **2** | **2** | **18** | **12** | **5** | **4** | **4** | **7** | **54** | **~2,870** |
+| **Total** | | **2** | **2** | **22** | **12** | **5** | **9** | **5** | **8** | **65** | **~3,210** |
 
-The columns sum to the total (2 + 2 + 18 + 12 + 5 + 4 + 4 + 7 = 54; 14 + 8 + 15 + 14 + 3 = 54). M3 and M1 sit at the limit of 15 files: if a count grows, M3 splits the scheduling counters (`SchedulerOrchestrator`) into a fifth pull request. The pull request of this plan itself is one file.
+The columns sum to the total (2 + 2 + 22 + 12 + 5 + 9 + 5 + 8 = 65; 15 + 9 + 12 + 11 + 15 + 3 = 65). M1 and M5 sit at the limit of 15 files: M1 cannot shed a file (the four `PipelineErrorCategoryTests` tests construct the deleted behaviors, so the edit must land with the deletion); if M5 grows, it splits the options class and the log class into their own pull request. The pull request of this plan itself is one file.
 
 Per-file coverage targets (per flag, one sentence each), written to the package manifests; a touched file keeps its current target and the changed methods reach full line coverage (CRAP gate):
 
@@ -444,7 +490,7 @@ Per-file coverage targets (per flag, one sentence each), written to the package 
 | `Encina/Diagnostics/IEncinaMetrics.cs` (the `EncinaMetrics` class; the manifest lists it as an interface with no tests today) | 95 | 80 | 0 | 0 | Every instrument is driven through a real `MeterListener`; guard reaches the null checks of the new members; no contract or property applies to a counter wrapper |
 | `Encina/Dispatchers/Encina.RequestDispatcher.cs` | 85 | 0 | 0 | 0 | The functional-failure, missing-handler, cancellation and fail-fast paths are driven with a real `Encina`; the dispatcher is a private nested class with no guardable public parameter |
 | `Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs` | 95 | 85 | 0 | 0 | Each `Record*` method is driven with a listener and the guard run covers the string checks; a metrics holder has no contract or property |
-| `Encina.Messaging/Inbox/InboxOrchestrator.cs`, `Sagas/SagaOrchestrator.cs`, `Outbox/OutboxBatchProcessor.cs` | current target kept | current target kept | 0 | 0 | The new lines are covered by the named recording tests; an optional constructor parameter adds no guard (a null `metrics` is the valid default) |
+| `Encina.Messaging/Inbox/InboxOrchestrator.cs`, `Sagas/SagaOrchestrator.cs`, `Outbox/OutboxBatchProcessor.cs`, `Outbox/OutboxOrchestrator.cs`, `Outbox/OutboxProcessorBase.cs`, `Scheduling/SchedulerOrchestrator.cs` | current target kept | current target kept | 0 | 0 | The new lines are covered by the named recording tests (`SchedulerOrchestratorMetricsTests` for the scheduler); an optional constructor parameter adds no guard (a null `metrics` is the valid default) |
 | `Encina.OpenTelemetry/MessagingStores/OutboxPendingRefresher.cs` | 90 | 75 | 0 | 0 | The loop is driven tick by tick with `FakeTimeProvider` and a stub store; guard covers the four constructor arguments |
 | `Encina.OpenTelemetry/MessagingStores/MessagingStoreMetricsLog.cs` | 0 | 0 | 0 | 0 | Generated `[LoggerMessage]` code with no parameters of its own; executed through the refresher |
 
@@ -456,7 +502,7 @@ Per-file coverage targets (per flag, one sentence each), written to the package 
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-You are implementing issue #174 - real request and messaging metrics of Encina - in five small pull requests.
+You are implementing issue #174 - real request and messaging metrics of Encina - in six small pull requests (M1-M5 and D1).
 
 PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library; pre-1.0, no backward compatibility, best solution always; edit source only with the
@@ -467,9 +513,10 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. M1: the dispatcher is the only request recorder (it learns functional failures); delete CommandMetricsPipelineBehavior and QueryMetricsPipelineBehavior with their tests.
 2. M2: IEncinaMetrics.TrackStarted/TrackFinished and the UpDownCounter encina.request.active, balanced in a finally.
-3. M3: MessagingStoreMetrics as one DI singleton; the inbox, saga and outbox batch processor record duplicate, transition, saga duration and retries.
-4. M4: OutboxPendingRefresher (PeriodicTimer, cached value) feeds the pending gauge; EventIds 7010-7012; initializer resolves the singleton.
-5. D1: README and two pages.
+3. M3: MessagingStoreMetrics as one DI singleton; the inbox and saga orchestrators record duplicate, transition and saga duration.
+4. M4: the outbox batch processor (built by hand at two sites) records retries; the scheduler records scheduled and executed.
+5. M5: OutboxPendingRefresher (PeriodicTimer, cached value) feeds the pending gauge; EventIds 7010-7012; initializer resolves the singleton.
+6. D1: README and two pages.
 
 KEY PATTERNS:
 - Real MeterListener tests, never reflection-only; FakeTimeProvider for time; DI tests with ValidateOnBuild and ValidateScopes.
@@ -491,10 +538,10 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Counters and gauges are real-time; the pending value is cached for one interval inside the refresher, which is not a cache provider read |
-| 2 | OpenTelemetry | ✅ Phases 1-4 | This is the metrics work: one recorder, the active instrument, the wired messaging instruments |
-| 3 | Structured Logging | ✅ Phase 4 | Events 7010-7012 for the refresher, error codes only |
+| 2 | OpenTelemetry | ✅ Phases 1-5 | This is the metrics work: one recorder, the active instrument, the wired messaging instruments |
+| 3 | Structured Logging | ✅ Phase 5 | Events 7010-7012 for the refresher, error codes only |
 | 4 | Health Checks | ❌ N/A | A threshold on these metrics is an alert rule (#187), not a health check; the outbox and saga health checks exist |
-| 5 | Validation | ✅ Phase 4 | The refresh interval is validated at registration (greater than 1 second); instrument inputs are internal |
+| 5 | Validation | ✅ Phase 5 | The refresh interval is validated at registration (greater than 1 second); instrument inputs are internal |
 | 6 | Resilience | ❌ N/A | The refresher's store call needs no retry: the next tick is the retry |
 | 7 | Distributed Locks | ❌ N/A | Each instance reads the count independently (register row C7) |
 | 8 | Transactions | ❌ N/A | Metrics are non-transactional; register row C5 states what "recorded" means |
@@ -529,5 +576,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #174 and ask the maintainer to answer Design Choices 1, 2, 4 and 6 and register row C8 when work starts.
-2. Implement M1 and M2 first (core only), then M3 and M4; the follow-up issue files are opened by the orchestrator.
+2. Implement M1 and M2 first (core only), then M3, M4 and M5; the follow-up issue files are opened by the orchestrator.
 3. When #174 is picked up, ask that its acceptance criteria be amended: `encina.request.total` and the static `EncinaMetrics` are replaced by the instruments above (Design Choices 1 and 2).
