@@ -2,7 +2,7 @@
 
 > **Issue**: [#278](https://github.com/dlrivada/Encina/issues/278)
 > **Type**: Feature
-> **Complexity**: High (5 pull requests of 11, 14, 8, 12 and 10 files)
+> **Complexity**: High (5 pull requests of 11, 15, 8, 12 and 10 files)
 > **Estimated Scope**: about 900 lines of production code, about 1,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #278 asks for retry with exponential backoff, a circuit breaker, automatic reconnection (`ICacheConnectionManager`), fallback strategies (skip the cache, local memory, a secondary provider), Polly integration and health reporting for cache operations. Re-checked against `origin/main` (e31de98cb):
+Issue #278 asks for retry with exponential backoff, a circuit breaker, automatic reconnection (`ICacheConnectionManager`), fallback strategies (skip the cache, local memory, a secondary provider), Polly integration and health reporting for cache operations. Re-checked against `origin/main` (0336d31c7):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -227,7 +227,7 @@ PR 1 holds exactly these 11 files:
 |---|------|--------|
 | 1 | `src/Encina.Caching/Recovery/CacheAutoRecoveryOptions.cs` | new (public: `Retry`, `CircuitBreaker`, `Fallback`, `EnableAutoReconnect`, `ReconnectInterval`, `MaxReconnectAttempts`, `Validate()`, and the public enum `CacheFallbackStrategy` declared here with `SkipCache`; `UseLocalMemory` is added by PR 3 only if Design Choice 5 is answered B or C) |
 | 2 | `src/Encina.Caching/Recovery/ICacheFailureClassifier.cs` | new (public interface) |
-| 3 | `src/Encina.Caching/Recovery/DefaultCacheFailureClassifier.cs` | new (internal sealed, plus the internal `CompositeCacheFailureClassifier`: transient or backend failure when any registered classifier says so; the decorator takes the composite, so the provider packages' classifiers add to the defaults instead of replacing them) |
+| 3 | `src/Encina.Caching/Recovery/DefaultCacheFailureClassifier.cs` | new (internal sealed, plus the internal `CacheFailureClassification` (the composite, a distinct type from `ICacheFailureClassifier`, which is the member type): transient or backend failure when any registered classifier says so; the decorator takes the composite, so the provider packages' classifiers add to the defaults instead of replacing them) |
 | 4 | `src/Encina.Caching/Recovery/CacheCircuitBreaker.cs` | new (internal sealed state machine) |
 | 5 | `src/Encina.Caching/Recovery/CacheCircuitState.cs` | new (public enum: `Closed`, `Open`, `HalfOpen`) |
 | 6 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
@@ -275,7 +275,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 2 holds exactly these 14 files (PR 2 needs #266 PR 4, because it creates a metrics partial of `CachePatternMetrics`):
+PR 2 holds exactly these 15 files (PR 2 needs #266 PR 4, because it creates a metrics partial of `CachePatternMetrics`):
 
 | # | File | Change |
 |---|------|--------|
@@ -293,6 +293,7 @@ PR 2 holds exactly these 14 files (PR 2 needs #266 PR 4, because it creates a me
 | 12 | `changelog.d/278-cache-circuit-breaker.added.md` | new (`mechanical-fixer`) |
 | 13 | `tests/Encina.ContractTests/Encina.ContractTests.csproj` | modify (`ProjectReference` to `Encina.Caching.Memory`, which the contract project does not reference today) |
 | 14 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Recovery.cs` | new (partial of #266's class: the `encina.cache.circuit_state` gauge and the `encina.cache.circuit_transitions` and `encina.cache.fallback_operations` counters, emitted by the decorator and the breaker callback of this PR) |
+| 15 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingRecovery \| 520-531 \| Caching \| historical` in the "Registered ranges" table, and the `500-549 reserved-pre-zone` block row split so that `520-531` is `registered`; `EventIdRegistryAgreementTests` fails when a range of `EventIdRanges.cs` has no row or overlaps a reserved block; read the test and the document first) |
 
 The registration tests (both orders, `ValidateOnBuild`, `ValidateScopes`, the validator) and the metrics `MeterListener` tests are inside `ResilientCacheProviderTests.cs` (row 8). `src/Encina.Caching/Configuration/CachingOptions.cs` is not touched: the options live in `AddEncinaCacheAutoRecovery`'s own `IOptions<CacheAutoRecoveryOptions>`, so the hand-written copy list of `AddEncinaCaching` is unaffected and no `CachingOptions` member is added.
 
@@ -300,7 +301,7 @@ Tasks:
 
 1. **Create** `ResilientCacheProvider(ICacheProvider inner, ICacheFailureClassifier classifier, CacheCircuitBreaker breaker, IOptions<CacheAutoRecoveryOptions> options, ILogger<...>, TimeProvider? timeProvider = null)`; each method follows: breaker not acquirable then the fallback of the chosen strategy (`SkipCache`: `GetAsync` returns default, `SetAsync` and `RemoveAsync` complete, `ExistsAsync` false, `RefreshAsync` false, `GetOrSetAsync` runs the factory); acquirable then call the inner, `RecordSuccess` on return, `RecordFailure` and log when the classifier says backend failure and the token is not cancelled, then swallow (reads) or retry (writes, Design Choice 4) and finally swallow, because `ThrowOnCacheErrors` is rejected with this feature (Design Choice 9, as answered). `OperationCanceledException` from the caller's token rethrows. In `GetOrSetAsync` the factory is wrapped so an exception from it is captured, rethrown unchanged and not counted.
 2. **EventIds:** 520 circuit opened, 521 circuit half-open, 522 circuit closed, 523 retry attempt, 524 retries exhausted; logs carry the operation name and the exception type only, never a key, a message or a value.
-3. **Create** `AddEncinaCacheAutoRecovery(this IServiceCollection, Action<CacheAutoRecoveryOptions>? = null)` (public; null services throws; a null delegate is valid): registers the options with the `IValidateOptions` validator and `ValidateOnStart` (validation runs at host start with the final values, not at registration), requires an existing `ICacheProvider` descriptor (otherwise `InvalidOperationException` naming the missing provider), replaces it with a singleton factory that resolves the original registration and wraps it; registers the default classifier with `TryAddEnumerable` and the composite as the single `ICacheFailureClassifier` the decorator takes (provider packages add theirs with `TryAddEnumerable` too).
+3. **Create** `AddEncinaCacheAutoRecovery(this IServiceCollection, Action<CacheAutoRecoveryOptions>? = null)` (public; null services throws; a null delegate is valid): registers the options with the `IValidateOptions` validator and `ValidateOnStart` (validation runs at host start with the final values, not at registration), requires an existing `ICacheProvider` descriptor (otherwise `InvalidOperationException` naming the missing provider) whose lifetime is `Singleton` (a scoped or transient original, such as a custom provider, would put a short-lived service inside the singleton decorator, so the call throws `InvalidOperationException` naming the lifetime; tested), replaces it with a singleton factory that resolves the original registration and wraps it. Classifiers: every classifier (the default and each provider package's) is registered as `ICacheFailureClassifier` with `TryAddEnumerable`, and the decorator takes a distinct internal type `CacheFailureClassification` (the composite) that is registered with `TryAddSingleton` and receives `IEnumerable<ICacheFailureClassifier>`, so the composite is never a member of the sequence it consumes and `ValidateOnBuild` finds no cycle; the Redis classifier is added with `TryAddEnumerable` too and never replaces the default (a test builds the provider with the default plus the Redis classifier). The `CacheCircuitBreaker` is registered here as an internal singleton (`TryAddSingleton`, built from `IOptions<CacheAutoRecoveryOptions>` and `TimeProvider`), so the decorator and the PR 4 hosted service and health check resolve the same instance.
 4. **Tests:** open after failures and skip afterwards, half-open probe closes, a thrown factory never trips the breaker, cancellation never counts, retries with `FakeTimeProvider` for writes only, registration before and after the provider (the first throws), `ThrowOnCacheErrors` rejected, the contract test drives the real decorator over the real in-memory provider and asserts the provider contract still holds with the circuit closed. Targets in Research.
 
 </details>
@@ -465,7 +466,7 @@ REFERENCE FILES:
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Encina.Caching/Recovery/CacheCircuitBreaker.cs` | 100 | 0 | 0 | 0 | Pure state machine with `FakeTimeProvider`; internal, no `InternalsVisibleTo` for the guard project |
-| `Encina.Caching/Recovery/ResilientCacheProvider.cs` | 95 | 0 | 70 | 40 | Unit tests drive each operation and failure; the contract test runs the real decorator over the real in-memory provider; the Redis integration test runs the open and close path |
+| `Encina.Caching/Recovery/ResilientCacheProvider.cs` | 95 | 0 | 70 | 0 now, 40 in PR 5 | PR 2 sets unit 95 and contract 70 (its unit tests drive each operation and failure; its contract test runs the real decorator over the real in-memory provider); the integration target of 40 is set in PR 5, the PR that adds the Redis pause and unpause test |
 | `Encina.Caching/Recovery/LocalFallbackCache.cs` | 100 | 0 | 0 | 0 | Bounded store driven by unit tests; internal |
 | `Encina.Caching/Recovery/CacheRecoveryHostedService.cs` | 90 | 0 | 0 | 0 | Driven with `FakeTimeProvider`; internal |
 | `Encina.Caching/Recovery/CacheAutoRecoveryOptions.cs`, `CacheAutoRecoveryServiceCollectionExtensions.cs` | 100 | 85 | 0 | 0 | Setter range guards and the registration null guard are covered by guard and registration tests |
@@ -574,7 +575,7 @@ REFERENCE FILES:
 | Tests | 16 | 4 | Unit (10), guard (3), contract (1), integration (1) and Redis unit tests; modified: allocation test, options tests, registration tests |
 | Documentation | 0 | 1 | `docs/features/handler-caching.md` |
 | Configuration | 5 | 6 | Five changelog fragments; PublicAPI files and manifests |
-| **Total** | **36** | **16** | 5 pull requests of 11, 14, 8, 12 and 10 files, each at most 15 files and 1500 lines |
+| **Total** | **36** | **16** | 5 pull requests of 11, 15, 8, 12 and 10 files, each at most 15 files and 1500 lines |
 
 ---
 
