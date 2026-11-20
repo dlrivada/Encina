@@ -60,7 +60,7 @@ public sealed class ApiGatewayResponseIntegrationTests
     }
 
     [Fact]
-    public async Task ToApiGatewayResponse_ForACommandWithoutAHandler_ReturnsNotFound()
+    public async Task ToApiGatewayResponse_ForACommandWithoutAHandler_ReturnsInternalServerError()
     {
         // Arrange
         await using var provider = CreateServiceProvider();
@@ -71,7 +71,7 @@ public sealed class ApiGatewayResponseIntegrationTests
         var response = (await encina.Send(new UnhandledCommand())).ToApiGatewayResponse();
 
         // Assert
-        response.StatusCode.ShouldBe(404);
+        response.StatusCode.ShouldBe(500);
         response.Headers["Content-Type"].ShouldBe("application/problem+json");
         using var body = JsonDocument.Parse(response.Body);
         body.RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
