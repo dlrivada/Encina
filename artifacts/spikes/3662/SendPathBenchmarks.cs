@@ -142,4 +142,111 @@ public class SendPathBenchmarks
     public async ValueTask<int> Custom_AsyncFailure() => (await SendCustom(false).ConfigureAwait(false)) switch { int v => v, EncinaError e => e.Message.Length };
     [Benchmark, BenchmarkCategory("Async_failure")]
     public async ValueTask<int> Hierarchy_AsyncFailure() => (await SendHier(false).ConfigureAwait(false)) switch { HResult<int>.Fail f => f.Error.Message.Length, _ => -1 };
+
+    // =====================================================================================
+    // #3672: error held by reference (BoxResult, RefResult) and shrunk inline error (SlimResult).
+    // Same seven scenarios. RefResult reuses one preallocated EncinaErrorRef (ErrRef), like the other
+    // options reuse the static Err value, so its failure rows show 0 B for the carrier only; the extra
+    // *FreshError rows allocate the class instance per failure, as real error creation does.
+    // =====================================================================================
+    private static readonly EncinaErrorRef ErrRef = EncinaErrorRef.New("Order not found");
+    private static readonly SlimError ErrSlim = SlimError.New("Order not found");
+
+    [MethodImpl(MethodImplOptions.NoInlining)] private BoxResult<int> HandleBox(bool ok) => ok ? new BoxResult<int>(_input + 1) : new BoxResult<int>(Err);
+    [MethodImpl(MethodImplOptions.NoInlining)] private RefResult<int> HandleRef(bool ok) => ok ? new RefResult<int>(_input + 1) : new RefResult<int>(ErrRef);
+    [MethodImpl(MethodImplOptions.NoInlining)] private SlimResult<int> HandleSlim(bool ok) => ok ? new SlimResult<int>(_input + 1) : new SlimResult<int>(ErrSlim);
+    [MethodImpl(MethodImplOptions.NoInlining)] private RefResult<int> HandleRefFresh() => new RefResult<int>(EncinaErrorRef.New("Order not found"));
+
+    [MethodImpl(MethodImplOptions.NoInlining)] private static BoxResult<OrderDto> HandleBoxRef() => new(Dto);
+    [MethodImpl(MethodImplOptions.NoInlining)] private static RefResult<OrderDto> HandleRefRef() => new(Dto);
+    [MethodImpl(MethodImplOptions.NoInlining)] private static SlimResult<OrderDto> HandleSlimRef() => new(Dto);
+
+    // ---------------- success, value T ----------------
+    [Benchmark, BenchmarkCategory("Success_int")]
+    public int BoxError_Success() => HandleBox(true) switch { int v => v, EncinaError => -1 };
+    [Benchmark, BenchmarkCategory("Success_int")]
+    public int RefError_Success() => HandleRef(true) switch { int v => v, EncinaErrorRef => -1 };
+    [Benchmark, BenchmarkCategory("Success_int")]
+    public int SlimError_Success() => HandleSlim(true) switch { int v => v, SlimError => -1 };
+
+    // ---------------- success, reference T ----------------
+    [Benchmark, BenchmarkCategory("Success_ref")]
+    public int BoxError_SuccessRef() => HandleBoxRef() switch { OrderDto v => v.Id, EncinaError => -1 };
+    [Benchmark, BenchmarkCategory("Success_ref")]
+    public int RefError_SuccessRef() => HandleRefRef() switch { OrderDto v => v.Id, EncinaErrorRef => -1 };
+    [Benchmark, BenchmarkCategory("Success_ref")]
+    public int SlimError_SuccessRef() => HandleSlimRef() switch { OrderDto v => v.Id, SlimError => -1 };
+
+    // ---------------- failure ----------------
+    [Benchmark, BenchmarkCategory("Failure")]
+    public int BoxError_Failure() => HandleBox(false) switch { int v => v, EncinaError e => e.Message.Length };
+    [Benchmark, BenchmarkCategory("Failure")]
+    public int RefError_Failure() => HandleRef(false) switch { int v => v, EncinaErrorRef e => e.Message.Length };
+    [Benchmark, BenchmarkCategory("Failure")]
+    public int RefError_FailureFreshError() => HandleRefFresh() switch { int v => v, EncinaErrorRef e => e.Message.Length };
+    [Benchmark, BenchmarkCategory("Failure")]
+    public int SlimError_Failure() => HandleSlim(false) switch { int v => v, SlimError e => e.Message.Length };
+
+    // ---------------- Bind -> Map -> Bind chain (success path) ----------------
+    [Benchmark, BenchmarkCategory("Chain3")]
+    public int BoxError_Chain3() => HandleBox(true)
+        .Bind(static v => v > 0 ? new BoxResult<int>(v * 2) : new BoxResult<int>(Err))
+        .Map(static v => v + 1)
+        .Bind(static v => v < 1_000_000 ? new BoxResult<long>((long)v) : new BoxResult<long>(Err))
+        .Match(static v => (int)v, static _ => -1);
+    [Benchmark, BenchmarkCategory("Chain3")]
+    public int RefError_Chain3() => HandleRef(true)
+        .Bind(static v => v > 0 ? new RefResult<int>(v * 2) : new RefResult<int>(ErrRef))
+        .Map(static v => v + 1)
+        .Bind(static v => v < 1_000_000 ? new RefResult<long>((long)v) : new RefResult<long>(ErrRef))
+        .Match(static v => (int)v, static _ => -1);
+    [Benchmark, BenchmarkCategory("Chain3")]
+    public int SlimError_Chain3() => HandleSlim(true)
+        .Bind(static v => v > 0 ? new SlimResult<int>(v * 2) : new SlimResult<int>(ErrSlim))
+        .Map(static v => v + 1)
+        .Bind(static v => v < 1_000_000 ? new SlimResult<long>((long)v) : new SlimResult<long>(ErrSlim))
+        .Match(static v => (int)v, static _ => -1);
+
+    // ---------------- Bind -> Map -> Bind chain (failure at step 1) ----------------
+    [Benchmark, BenchmarkCategory("Chain3_failure")]
+    public int BoxError_Chain3Failure() => HandleBox(false)
+        .Bind(static v => new BoxResult<int>(v * 2))
+        .Map(static v => v + 1)
+        .Bind(static v => new BoxResult<long>((long)v))
+        .Match(static v => (int)v, static _ => -1);
+    [Benchmark, BenchmarkCategory("Chain3_failure")]
+    public int RefError_Chain3Failure() => HandleRef(false)
+        .Bind(static v => new RefResult<int>(v * 2))
+        .Map(static v => v + 1)
+        .Bind(static v => new RefResult<long>((long)v))
+        .Match(static v => (int)v, static _ => -1);
+    [Benchmark, BenchmarkCategory("Chain3_failure")]
+    public int SlimError_Chain3Failure() => HandleSlim(false)
+        .Bind(static v => new SlimResult<int>(v * 2))
+        .Map(static v => v + 1)
+        .Bind(static v => new SlimResult<long>((long)v))
+        .Match(static v => (int)v, static _ => -1);
+
+    // ---------------- async ValueTask wrapping ----------------
+    [MethodImpl(MethodImplOptions.NoInlining)] private ValueTask<BoxResult<int>> HandleBoxAsync(bool ok) => new(HandleBox(ok));
+    [MethodImpl(MethodImplOptions.NoInlining)] private ValueTask<RefResult<int>> HandleRefAsync(bool ok) => new(HandleRef(ok));
+    [MethodImpl(MethodImplOptions.NoInlining)] private ValueTask<SlimResult<int>> HandleSlimAsync(bool ok) => new(HandleSlim(ok));
+
+    private async ValueTask<BoxResult<int>> SendBox(bool ok) => await HandleBoxAsync(ok).ConfigureAwait(false);
+    private async ValueTask<RefResult<int>> SendRef(bool ok) => await HandleRefAsync(ok).ConfigureAwait(false);
+    private async ValueTask<SlimResult<int>> SendSlim(bool ok) => await HandleSlimAsync(ok).ConfigureAwait(false);
+
+    [Benchmark, BenchmarkCategory("Async_success")]
+    public async ValueTask<int> BoxError_Async() => (await SendBox(true).ConfigureAwait(false)) switch { int v => v, EncinaError => -1 };
+    [Benchmark, BenchmarkCategory("Async_success")]
+    public async ValueTask<int> RefError_Async() => (await SendRef(true).ConfigureAwait(false)) switch { int v => v, EncinaErrorRef => -1 };
+    [Benchmark, BenchmarkCategory("Async_success")]
+    public async ValueTask<int> SlimError_Async() => (await SendSlim(true).ConfigureAwait(false)) switch { int v => v, SlimError => -1 };
+
+    [Benchmark, BenchmarkCategory("Async_failure")]
+    public async ValueTask<int> BoxError_AsyncFailure() => (await SendBox(false).ConfigureAwait(false)) switch { int v => v, EncinaError e => e.Message.Length };
+    [Benchmark, BenchmarkCategory("Async_failure")]
+    public async ValueTask<int> RefError_AsyncFailure() => (await SendRef(false).ConfigureAwait(false)) switch { int v => v, EncinaErrorRef e => e.Message.Length };
+    [Benchmark, BenchmarkCategory("Async_failure")]
+    public async ValueTask<int> SlimError_AsyncFailure() => (await SendSlim(false).ConfigureAwait(false)) switch { int v => v, SlimError e => e.Message.Length };
 }

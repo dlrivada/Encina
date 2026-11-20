@@ -21,6 +21,19 @@ public static class Probe
         Console.WriteLine($"Result<string> (custom)     {Unsafe.SizeOf<Result<string>>()}");
         Console.WriteLine($"HResult<int> (reference)    {Unsafe.SizeOf<HResult<int>>()}");
 
+        Console.WriteLine("== Sizes, #3672 options (bytes) ==");
+        Console.WriteLine($"SlimError                   {Unsafe.SizeOf<SlimError>()}");
+        Console.WriteLine($"BoxResult<int>              {Unsafe.SizeOf<BoxResult<int>>()}");
+        Console.WriteLine($"BoxResult<string>           {Unsafe.SizeOf<BoxResult<string>>()}");
+        Console.WriteLine($"RefResult<int>              {Unsafe.SizeOf<RefResult<int>>()}");
+        Console.WriteLine($"RefResult<string>           {Unsafe.SizeOf<RefResult<string>>()}");
+        Console.WriteLine($"SlimResult<int>             {Unsafe.SizeOf<SlimResult<int>>()}");
+        Console.WriteLine($"SlimResult<string>          {Unsafe.SizeOf<SlimResult<string>>()}");
+        Measure("BoxResult<int>  success", () => { BoxResult<int> r = 42; return r.IsSuccess; });
+        Measure("BoxResult<int>  failure", () => { BoxResult<int> r = Err; return r.IsSuccess; });
+        Measure("RefResult<int>  failure (fresh error)", () => { RefResult<int> r = EncinaErrorRef.New("x"); return r.IsSuccess; });
+        Measure("SlimResult<int> failure", () => { SlimResult<int> r = SlimError.New("x"); return r.IsSuccess; });
+
         Console.WriteLine("== Allocated bytes for one construction ==");
         Measure("Either<,int>  success", () => { Either<EncinaError, int> r = 42; return r.IsRight; });
         Measure("Either<,int>  failure", () => { Either<EncinaError, int> r = Err; return r.IsLeft; });
