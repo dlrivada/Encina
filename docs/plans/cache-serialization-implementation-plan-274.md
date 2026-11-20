@@ -2,7 +2,7 @@
 
 > **Issue**: [#274](https://github.com/dlrivada/Encina/issues/274)
 > **Type**: Feature
-> **Complexity**: High (8 pull requests of 15, 7, 10, 8, 14, 12, 12 and 4 files)
+> **Complexity**: High (9 pull requests of 15, 7, 13, 8, 13, 9, 14, 14 and 4 files)
 > **Estimated Scope**: about 1,100 lines of production code, about 2,300 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (89303f1e8):
+Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (e31de98cb):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -146,7 +146,7 @@ The plan adds, in `Encina.Caching`: `ICacheSerializer`, `ICacheCompressor`, an i
 
 ### Rationale
 
-- Defaults are pay-for-what-you-use: no tier above `None`, so nothing is compressed unless configured. A level outside the algorithm's range, an empty list, an unsorted or duplicate `MinBytes`, or a tier whose algorithm has no registered `ICacheCompressor` fails at startup validation. Option B wins if the issue's public vocabulary is a requirement.
+- Defaults are pay-for-what-you-use: no tier above `None`, so nothing is compressed unless configured. A level outside the algorithm's range, an empty list, an unsorted or duplicate `MinBytes`, or a tier whose algorithm has no registered `ICacheCompressor` fails host start: the check is an `IValidateOptions<CacheSerializationOptions>` that takes `IEnumerable<ICacheCompressor>`, registered with `ValidateOnStart`, so it runs after every `AddEncina*` call (the compressors of `Encina.Caching.Compression` are registered later than `AddEncinaCaching`); both registration orders are tested. Option B wins if the issue's public vocabulary is a requirement.
 - Class: Dilemma
 
 </details>
@@ -167,7 +167,7 @@ The plan adds, in `Encina.Caching`: `ICacheSerializer`, `ICacheCompressor`, an i
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 (security gates fail closed; errors are logged by code, `EncinaError.Message` never reaches logs; ROP returns `Either`) and the OWASP Deserialization Cheat Sheet (bound untrusted input before decoding).
-- Codes: `cache.serialization_failed` (`ErrorCategory.Internal`: the value cannot be encoded, a programming error), `cache.deserialization_failed` and `cache.decompression_limit_exceeded` (`ErrorCategory.UpstreamFailure`: the stored bytes come from the cache server); constant messages. `MaxDecompressedBytes` defaults to 16 MiB (an option).
+- This entry settles only the rule: a bound exists, a failure is a miss, nothing throws to the caller. The values below are separate, Trivial lines (they follow ADR-062's category table and the options precedent of `CachingOptions`, and no option of any Dilemma changes them): the codes `cache.serialization_failed` (`ErrorCategory.Internal`: the value cannot be encoded, a programming error), `cache.deserialization_failed` and `cache.decompression_limit_exceeded` (`ErrorCategory.UpstreamFailure`: the stored bytes come from the cache server), with constant messages, and the default `MaxDecompressedBytes` of 16 MiB, an option the application can change. The codec itself logs (it takes an `ILogger` and emits 508-513 from `Encina.Caching`); the providers log nothing about encoding.
 
 </details>
 
@@ -208,7 +208,7 @@ PR 1 holds exactly these 15 files:
 | 3 | `src/Encina.Caching/Serialization/SystemTextJsonCacheSerializer.cs` | new (public sealed) |
 | 4 | `src/Encina.Caching/Serialization/BrotliCacheCompressor.cs` | new (public sealed, `System.IO.Compression`) |
 | 5 | `src/Encina.Caching/Serialization/CacheValueCodec.cs` | new (internal sealed: header, tiers, limits, envelope) |
-| 6 | `src/Encina.Caching/Serialization/CacheSerializationOptions.cs` | new (public: default serializer, per-type map, compression tiers, limits) |
+| 6 | `src/Encina.Caching/Serialization/CacheSerializationOptions.cs` | new (public: default serializer, per-type map, compression tiers, limits, `ApplyToHybridCache` default false, `Validate()`) |
 | 7 | `src/Encina.Caching/Diagnostics/CacheSerializationLog.cs` | new (EventIds 508-513) |
 | 8 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingSerialization = (508, 513)`) |
 | 9 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (map `Encina.Caching`) |
@@ -276,11 +276,13 @@ PR 2 holds exactly these 7 files:
 | 2 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (copy `Serialization`, validate it, register the codec as a singleton) |
 | 3 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: removed lines, RS0017, and the new property) |
 | 4 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (the old options leave) |
-| 5 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (the option reaches `IOptions<CachingOptions>`; an invalid tier list fails at startup; DI built with `ValidateOnBuild` and `ValidateScopes`) |
+| 5 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (the option reaches `IOptions<CachingOptions>`; an invalid tier list fails host start in both registration orders; DI built with `ValidateOnBuild` and `ValidateScopes`) |
 | 6 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 7 | `changelog.d/274-cache-serialization-options.changed.md` | new (`mechanical-fixer`) |
 
-Tasks: replace the two dead types by the new `Serialization` property (Design Choice 8); `AddEncinaCaching` copies it (the option copy list is hand-written: a missing line silently drops the option), runs `Validate()` and registers the internal codec with `TryAddSingleton`. No guard test: `AddEncinaCaching` has no guard test project coverage today and this PR adds no new public method.
+This PR closes the open debt #3615 ("`CachingOptions.SerializerOptions` is configured but no cache provider reads it"): its description says `Fixes #3615`, and the options reference page of #84 (which documents the two removed option tables) is updated by that plan's owner after this merge.
+
+Tasks: replace the two dead types by the new `Serialization` property (Design Choice 8); `AddEncinaCaching` copies it (the option copy list is hand-written: a missing line silently drops the option), registers an `IValidateOptions<CacheSerializationOptions>` with `ValidateOnStart` (runs `Validate()` and the compressor-registration rule of Design Choice 6 at host start, after all registrations; the old call-time validation is not used) and registers the internal codec with `TryAddSingleton` (the codec takes an `ILogger<CacheValueCodec>`). The option `CacheSerializationOptions.ApplyToHybridCache` (default false, added to the options file of PR 1) is the explicit opt-in that PR 4 reads. No guard test: `AddEncinaCaching` has no guard test project coverage today and this PR adds no new public method.
 
 </details>
 
@@ -313,24 +315,27 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 3 holds exactly these 10 files:
+PR 3 holds exactly these 13 files (the required constructor parameter changes the 15 `new RedisCacheProvider(` sites found by `git grep` on origin/main: 4 in `RedisCachingGuardTests.cs`, 3 in `RedisCacheProviderGuardTests.cs`, 4 in `RedisCacheProviderTests.cs`, and one each in `RedisCacheProviderIntegrationTests.cs`, `CacheLogRedactionTests.cs`, `RedisCacheProviderBenchmarks.cs` and `RedisCacheProviderFactory.cs`):
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching.Redis/RedisCacheProvider.cs` | modify (constructor takes the codec, reads and writes bytes, sliding metadata keeps STJ) |
-| 2 | `src/Encina.Caching.Redis/ServiceCollectionExtensions.cs` | modify (resolve the codec) |
+| 1 | `src/Encina.Caching.Redis/RedisCacheProvider.cs` | modify (required `ICacheValueCodec` constructor parameter, reads and writes bytes, sliding metadata keeps STJ) |
+| 2 | `src/Encina.Caching.Redis/ServiceCollectionExtensions.cs` | modify (`TryAddSingleton<ICacheValueCodec>`, so `AddEncinaRedisCache` is complete without `AddEncinaCaching`) |
 | 3 | `src/Encina.Caching.Redis/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the constructor line changes, RS0017) |
-| 4 | `tests/Encina.UnitTests/Caching/Redis/RedisCacheProviderTests.cs` | modify |
-| 5 | `tests/Encina.UnitTests/Caching/Redis/ServiceCollectionExtensionsTests.cs` | modify |
-| 6 | `tests/Encina.GuardTests/Caching/RedisCacheProviderGuardTests.cs` | modify (new constructor parameter) |
-| 7 | `tests/Encina.IntegrationTests/Infrastructure/Caching/RedisCacheProviderIntegrationTests.cs` | modify (round trips with compression against the shared Redis container) |
-| 8 | `tests/Encina.IntegrationTests/Infrastructure/Caching/ServiceCollectionExtensionsIntegrationTests.cs` | modify (registration built with `ValidateOnBuild` and `ValidateScopes`) |
-| 9 | `.github/coverage-manifest/Encina.Caching.Redis.json` | modify (`mechanical-fixer`) |
-| 10 | `changelog.d/274-cache-serialization-redis.changed.md` | new (`mechanical-fixer`) |
+| 4 | `tests/Encina.UnitTests/Caching/Redis/RedisCacheProviderTests.cs` | modify (4 sites) |
+| 5 | `tests/Encina.UnitTests/Caching/CacheLogRedactionTests.cs` | modify (1 site) |
+| 6 | `tests/Encina.GuardTests/Infrastructure/Caching/RedisCacheProviderGuardTests.cs` | modify (3 sites, and a null codec guard) |
+| 7 | `tests/Encina.GuardTests/Caching/Redis/RedisCachingGuardTests.cs` | modify (4 sites) |
+| 8 | `tests/Encina.IntegrationTests/Infrastructure/Caching/RedisCacheProviderIntegrationTests.cs` | modify (1 site; round trips with compression against the shared Redis container) |
+| 9 | `tests/Encina.BenchmarkTests/Encina.Caching.Redis.Benchmarks/Benchmarks/RedisCacheProviderBenchmarks.cs` | modify (1 site) |
+| 10 | `tests/Encina.NBomber/Scenarios/Caching/Providers/RedisCacheProviderFactory.cs` | modify (1 site) |
+| 11 | `tests/Encina.UnitTests/Caching/Redis/ServiceCollectionExtensionsTests.cs` | modify (the codec is registered; DI built with `ValidateOnBuild` and `ValidateScopes`) |
+| 12 | `.github/coverage-manifest/Encina.Caching.Redis.json` | modify (`mechanical-fixer`) |
+| 13 | `changelog.d/274-cache-serialization-redis.changed.md` | new (`mechanical-fixer`) |
 
 Tasks:
 
-1. `RedisCacheProvider` takes the public `ICacheValueCodec` of PR 1 as an optional trailing constructor parameter defaulting to a codec with the STJ serializer and no compression (the existing call sites keep compiling; DI always supplies the configured one; when the parameter is null the provider creates the internal `CacheValueCodec` itself, which the existing `InternalsVisibleTo` for `Encina.Caching.Redis` allows). A cancelled token throws `OperationCanceledException` and is never turned into a miss or a `Left`; a `Right` from `Send` never confirms that a value was cached, because the behavior swallows write failures when `ThrowOnCacheErrors` is off. `GetAsync<T>` reads `RedisValue` bytes and calls `Decode`; a `Left` is a miss; `SetAsync` and the sliding variant call `Encode`; a `Left` from `Encode` is logged and the write is skipped (the value cannot be stored; never throws a message). The sliding metadata key keeps its small STJ JSON (it is not a cached value).
+1. `RedisCacheProvider` takes the public `ICacheValueCodec` of PR 1 as a required constructor parameter: a default that built its own codec when the parameter is null would hide a missing registration (an `AddEncinaRedisCache` without the serialization settings silently ignoring them), and AGENTS.md section 3 forbids compatibility defaults. DI supplies it (`AddEncinaRedisCache` registers the codec with `TryAddSingleton`, building the internal `CacheValueCodec` through the existing `InternalsVisibleTo`). A cancelled token throws `OperationCanceledException` and is never turned into a miss or a `Left`; a `Right` from `Send` never confirms that a value was cached, because the behavior swallows write failures when `ThrowOnCacheErrors` is off. `GetAsync<T>` reads `RedisValue` bytes and calls `Decode`; a `Left` is a miss; `SetAsync` and the sliding variant call `Encode`; a `Left` from `Encode` is logged and the write is skipped (the value cannot be stored; never throws a message). The sliding metadata key keeps its small STJ JSON (it is not a cached value).
 2. Valkey, Dragonfly, Garnet and KeyDB reuse `AddEncinaRedisCache` and need no change; the Redis registration test of each wrapper proves it picks the configured codec (the four wrapper test files are not edited when the Redis registration test already builds each wrapper; the worker counts them and adds them to the PR only if they fail).
 3. **Tests:** unit with a fake `IDatabase`, integration with `RedisFixture` (`[Collection("Redis")]`-style shared fixture): STJ default, Brotli tier, a stored legacy JSON string is a miss and is overwritten.
 
@@ -350,7 +355,7 @@ TASK:
 
 KEY RULES:
 - A decode Left is a miss; the provider never throws a payload or a message.
-- The new constructor parameter is optional and trailing (30+ call sites compile unchanged).
+- The new constructor parameter is required; update the 15 call sites listed in the plan; no default that hides a missing registration.
 - Integration tests use the shared Redis collection fixture; never a per-class container.
 
 REFERENCE FILES:
@@ -366,9 +371,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 4 holds exactly these 8 files: `src/Encina.Caching.Hybrid/EncinaHybridCacheSerializerFactory.cs` (new, internal, `IHybridCacheSerializerFactory`), `src/Encina.Caching.Hybrid/ServiceCollectionExtensions.cs` (modify), `src/Encina.Caching.Hybrid/PublicAPI.Unshipped.txt` (`mechanical-fixer`), `tests/Encina.UnitTests/Caching/Hybrid/EncinaHybridCacheSerializerFactoryTests.cs` (new), `tests/Encina.UnitTests/Caching/Hybrid/ServiceCollectionExtensionsTests.cs` (modify), `tests/Encina.GuardTests/Caching/HybridCacheProviderGuardTests.cs` (modify when a public signature changes), `.github/coverage-manifest/Encina.Caching.Hybrid.json` (`mechanical-fixer`), `changelog.d/274-cache-serialization-hybrid.added.md` (`mechanical-fixer`).
+PR 4 holds exactly these 8 files: `src/Encina.Caching.Hybrid/EncinaHybridCacheSerializerFactory.cs` (new, internal, `IHybridCacheSerializerFactory`), `src/Encina.Caching.Hybrid/ServiceCollectionExtensions.cs` (modify), `src/Encina.Caching.Hybrid/PublicAPI.Unshipped.txt` (`mechanical-fixer`), `tests/Encina.UnitTests/Caching/Hybrid/EncinaHybridCacheSerializerFactoryTests.cs` (new), `tests/Encina.UnitTests/Caching/Hybrid/ServiceCollectionExtensionsTests.cs` (modify), `tests/Encina.GuardTests/Infrastructure/Caching/HybridCacheProviderGuardTests.cs` (modify when a public signature changes), `.github/coverage-manifest/Encina.Caching.Hybrid.json` (`mechanical-fixer`), `changelog.d/274-cache-serialization-hybrid.added.md` (`mechanical-fixer`).
 
-Tasks: the factory returns an `IHybridCacheSerializer<T>` that wraps `ICacheSerializer` and the compression tiers (`TryCreateSerializer<T>` returns false when the options leave the defaults, so `HybridCache`'s own serializer applies); `AddEncinaHybridCache` registers the factory only when serialization options were configured (Design Choice 2). Tests: the adapter round trips through a real `HybridCache` built by `AddHybridCache`, and a build with `ValidateOnBuild`. The `HybridCache` L1 keeps object references: only L2 bytes are encoded.
+Tasks: the factory returns an `IHybridCacheSerializer<T>` that wraps `ICacheSerializer` and the compression tiers (`TryCreateSerializer<T>` returns false unless `CacheSerializationOptions.ApplyToHybridCache` is true, an explicit flag read when `HybridCache` asks for a serializer, so the answer does not depend on the order of the `AddEncina*` calls; with the flag off `HybridCache`'s own serializer applies); `AddEncinaHybridCache` registers the factory with `TryAddEnumerable` (Design Choice 2). The adapter needs the public `ICacheValueCodec`, so no `InternalsVisibleTo` is added for `Encina.Caching.Hybrid`. Tests: the adapter round trips through a real `HybridCache` built by `AddHybridCache`, and a build with `ValidateOnBuild`. The `HybridCache` L1 keeps object references: only L2 bytes are encoded.
 
 </details>
 
@@ -380,11 +385,11 @@ CONTEXT:
 Phases 1-3 are merged. HybridCacheProvider (src/Encina.Caching.Hybrid) delegates serialization to Microsoft HybridCache.
 
 TASK:
-Create EncinaHybridCacheSerializerFactory (IHybridCacheSerializerFactory) over the codec and register it only when serialization
-options are configured; write the tests; ask mechanical-fixer for PublicAPI, manifest and fragment.
+Create EncinaHybridCacheSerializerFactory (IHybridCacheSerializerFactory) over the codec and register it with TryAddEnumerable; it applies only when
+CacheSerializationOptions.ApplyToHybridCache is true; write the tests; ask mechanical-fixer for PublicAPI, manifest and fragment.
 
 KEY RULES:
-- Opt-in: without configured options HybridCache is untouched.
+- Opt-in: with ApplyToHybridCache off HybridCache is untouched.
 - Failed decode is a miss, never an exception with the payload.
 
 REFERENCE FILES:
@@ -394,12 +399,14 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 5: `Encina.Caching.Compression` (pull request 5)
+### Phase 5: `Encina.Caching.Compression` (pull requests 5 and 6)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 5 holds exactly these 14 files: `src/Encina.Caching.Compression/Encina.Caching.Compression.csproj`, `Lz4CacheCompressor.cs`, `ZstdCacheCompressor.cs`, `SnappyCacheCompressor.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaCachingCompression()` registers the three compressors with `TryAddEnumerable`), `README.md` (`docs-writer`), `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (`mechanical-fixer`), `Directory.Packages.props` (the three versions), `Encina.slnx`, `tests/Encina.UnitTests/Caching/Compression/CompressorTests.cs`, `tests/Encina.GuardTests/Caching/CompressionGuardTests.cs`, `.github/coverage-manifest/Encina.Caching.Compression.json` (`mechanical-fixer`), `changelog.d/274-cache-compression-package.added.md`.
+PR 5 (the package and LZ4) holds exactly these 13 files: `src/Encina.Caching.Compression/Encina.Caching.Compression.csproj`, `Lz4CacheCompressor.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaCachingCompression()` registers the compressors with `TryAddEnumerable`), `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` (`mechanical-fixer`), `Directory.Packages.props` (the LZ4 version), `Encina.slnx`, `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` (a `ProjectReference` to the new package in each, as both reference `Encina.Caching.Memory` today), `tests/Encina.UnitTests/Caching/Compression/CompressorTests.cs`, `tests/Encina.GuardTests/Caching/Compression/CompressionGuardTests.cs`, `.github/coverage-manifest/Encina.Caching.Compression.json` (`mechanical-fixer`) and `changelog.d/274-cache-compression-package.added.md`; the package README comes with PR 6 (`docs-writer`).
+
+PR 6 (Zstd and Snappy) holds exactly these 9 files: `ZstdCacheCompressor.cs`, `SnappyCacheCompressor.cs`, `ServiceCollectionExtensions.cs` (modify), `README.md` (`docs-writer`, new), `PublicAPI.Unshipped.txt`, `Directory.Packages.props`, the two test files (modify) and the manifest.
 
 Tasks: one compressor per algorithm with the level range of the library (Zstd 1-22, LZ4 levels, Snappy none) validated in `Compress`; ids are fixed constants of the wire format (`1` Brotli, `2` LZ4, `3` Zstd, `4` Snappy) and never reused; the package target is .NET 10 only with `Nullable` and the public-API analyzer like `Encina.Caching.Memory`. Tests: round trip, level bounds, an adversarial payload (random bytes) never throws out of `TryDecompress`, and the limit is honored. `InternalsVisibleTo` for `Encina.UnitTests` only when an internal type needs it.
 
@@ -430,12 +437,12 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 6: `Encina.Caching.MessagePack` and `Encina.Caching.MemoryPack` (pull requests 6 and 7)
+### Phase 6: `Encina.Caching.MessagePack` and `Encina.Caching.MemoryPack` (pull requests 7 and 8)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-Each of PR 6 (`MessagePack`) and PR 7 (`MemoryPack`) holds the same 12 files for its own name (`MessagePack` or `MemoryPack`): `src/Encina.Caching.<Name>/Encina.Caching.<Name>.csproj`, `<Name>CacheSerializer.cs`, `ServiceCollectionExtensions.cs` (`UseMessagePackSerialization(this CachingOptions)` / `UseMemoryPackSerialization(this CachingOptions)` and `AddSerializer`-style helpers), `README.md` (`docs-writer`), the two PublicAPI files, `Directory.Packages.props`, `Encina.slnx`, `tests/Encina.UnitTests/Caching/<Name>/<Name>CacheSerializerTests.cs`, `tests/Encina.GuardTests/Caching/<Name>GuardTests.cs`, the manifest `.github/coverage-manifest/Encina.Caching.<Name>.json` and the fragment `changelog.d/274-cache-<name>-package.added.md`.
+Each of PR 7 (`MessagePack`) and PR 8 (`MemoryPack`) holds the same 14 files for its own name (`MessagePack` or `MemoryPack`): `src/Encina.Caching.<Name>/Encina.Caching.<Name>.csproj`, `<Name>CacheSerializer.cs`, `ServiceCollectionExtensions.cs` (`UseMessagePackSerialization(this CacheSerializationOptions)` / `UseMemoryPackSerialization(this CacheSerializationOptions)` and `AddSerializer`-style helpers), `README.md` (`docs-writer`), the two PublicAPI files, `Directory.Packages.props`, `Encina.slnx`, the `ProjectReference` edits in `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj`, `tests/Encina.UnitTests/Caching/<Name>/<Name>CacheSerializerTests.cs`, `tests/Encina.GuardTests/Caching/<Name>/<Name>GuardTests.cs`, the manifest `.github/coverage-manifest/Encina.Caching.<Name>.json` and the fragment `changelog.d/274-cache-<name>-package.added.md`.
 
 Tasks: `SupportsType` is true only for types the library can serialize (MemoryPack: types with the generated `IMemoryPackable<T>` implementation; MessagePack: annotated types or those a configured resolver accepts), so an unsupported type falls back to the default serializer with EventId 512 instead of throwing. MessagePack security: the package uses `MessagePackSecurity.UntrustedData` (bounded depth and hash-collision-resistant) because cache bytes are untrusted input; MemoryPack has no untrusted-data mode, which the README states. The existing transitive MessagePack pin for Aspire (#2338) stays and the direct reference reuses the same version entry. Tests: round trip of an annotated type, an unsupported type reports `SupportsType` false, malformed bytes return a `Left` through the codec.
 
@@ -449,7 +456,7 @@ CONTEXT:
 Phase 1 is merged. Each serializer package implements ICacheSerializer for one library.
 
 TASK:
-Create Encina.Caching.MessagePack (PR 6) and Encina.Caching.MemoryPack (PR 7) as the plan lists; ask mechanical-fixer for PublicAPI,
+Create Encina.Caching.MessagePack (PR 7) and Encina.Caching.MemoryPack (PR 8) as the plan lists; ask mechanical-fixer for PublicAPI,
 manifests and fragments and docs-writer for the READMEs.
 
 KEY RULES:
@@ -463,12 +470,12 @@ REFERENCE FILES:
 
 </details>
 
-### Phase 7: Benchmarks and documentation (pull request 8)
+### Phase 7: Benchmarks and documentation (pull request 9)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 8 holds exactly these 4 files: `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/SerializationBenchmarks.cs` (new: STJ, MessagePack and MemoryPack across small, medium and large payloads and each compression algorithm, run through `BenchmarkSwitcher`), `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj` (modify: the three `ProjectReference` entries), `docs/features/query-caching.md` (`docs-writer`: serializers, compression tiers, the loss of readable JSON in Redis, the benchmark cited by name) and `docs/features/caching-serialization.md` (`docs-writer`, new). It has no user-visible change of its own, so no changelog fragment. `src/Encina.Caching` has no README today and creating one is outside this plan. Verify the filter with `--list flat --filter` before a full run; results go to `artifacts/performance/`. The issue's performance table is replaced by the measured result cited, never typed.
+PR 9 holds exactly these 4 files: `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/SerializationBenchmarks.cs` (new: STJ, MessagePack and MemoryPack across small, medium and large payloads and each compression algorithm, run through `BenchmarkSwitcher`), `tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj` (modify: the three `ProjectReference` entries), `docs/features/handler-caching.md` (the handler-caching page owned by the #266 family; `query-caching.md` is the EF Core page and is not touched; `docs-writer`: serializers, compression tiers, the loss of readable JSON in Redis, the benchmark cited by name) and `docs/features/caching-serialization.md` (`docs-writer`, new). It has no user-visible change of its own, so no changelog fragment. `src/Encina.Caching` has no README today and creating one is outside this plan. Verify the filter with `--list flat --filter` before a full run; results go to `artifacts/performance/`. The issue's performance table is replaced by the measured result cited, never typed.
 
 </details>
 
@@ -488,7 +495,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - tests/Encina.BenchmarkTests/Encina.Caching.Benchmarks/Encina.Caching.Benchmarks.csproj
-- docs/features/query-caching.md
+- docs/features/handler-caching.md
 ```
 
 </details>
@@ -577,9 +584,9 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 20 | 8 | Core (7), three packages (about 4 each plus READMEs), Hybrid adapter; modified: options, DI x3, Redis provider, `EventIdRanges.cs`, Hybrid DI |
 | Tests | 10 | 8 | Unit, guard and benchmarks; Redis integration tests modified |
-| Documentation | 5 | 2 | Three READMEs, two feature pages, `query-caching.md` modified |
+| Documentation | 5 | 2 | Three READMEs, two feature pages, `handler-caching.md` modified |
 | Configuration | 12 | 8 | Fragments, manifests, PublicAPI files, `Directory.Packages.props`, `Encina.slnx`, csproj files |
-| **Total** | **47** | **26** | 8 pull requests of 15, 7, 10, 8, 14, 12, 12 and 4 files, each at most 15 files and 1500 lines |
+| **Total** | **47** | **26** | 9 pull requests of 15, 7, 13, 8, 13, 9, 14, 14 and 4 files, each at most 15 files and 1500 lines |
 
 ---
 
@@ -597,7 +604,7 @@ System.Text.Json and CachingOptions.SerializerOptions is dead.
 IMPLEMENTATION OVERVIEW:
 1. PR 1: ICacheSerializer, ICacheCompressor, CacheValueCodec, STJ, Brotli, CacheSerializationOptions, EventIds 508-513.
 2. PR 2: CachingOptions.Serialization replaces the dead options. PR 3: RedisCacheProvider uses the codec (Valkey, Dragonfly, Garnet, KeyDB follow).
-3. PR 4: Hybrid adapter. PR 5: Encina.Caching.Compression. PR 6: MessagePack. PR 7: MemoryPack. PR 8: benchmarks and docs.
+3. PR 4: Hybrid adapter. PR 5 and PR 6: Encina.Caching.Compression. PR 7: MessagePack. PR 8: MemoryPack. PR 9: benchmarks and docs.
 
 KEY PATTERNS:
 - Cache bytes are untrusted: decoding never throws to the caller, output is bounded, a failure is a miss.
@@ -645,7 +652,7 @@ REFERENCE FILES:
 | `RedisCacheProvider`, `HybridCacheProvider`, `CachingOptions` | ✅ Available | On `origin/main` |
 | #266 PR 1 (`CacheEntry<T>` envelope fields) | Open | PR 1 of this plan adapts to whatever the envelope holds when it starts |
 | Block 500-549 of the EventId registry | ✅ Assigned | Plan batch registry |
-| Licence, .NET 10 support and maintenance of each NuGet candidate | Pending | Checked by the worker of PR 5, 6 and 7 |
+| Licence, .NET 10 support and maintenance of each NuGet candidate | Pending | Checked by the worker of PR 5, 7 and 8 |
 | Maintainer answers to Design Choices 1 to 6 | Pending | Asked when work starts |
 
 ---
