@@ -17,7 +17,7 @@ internal static class EncinaBehaviorGuards
             ["stage"] = "behavior_guard",
             ["issue"] = "null_request"
         };
-        failure = EncinaErrors.Create(EncinaErrorCodes.BehaviorNullRequest, message, details: metadata);
+        failure = EncinaErrors.Create(EncinaErrorCodes.BehaviorNullRequest, ErrorCategory.Internal, message, details: metadata);
         return false;
     }
 
@@ -36,7 +36,7 @@ internal static class EncinaBehaviorGuards
             ["stage"] = "behavior_guard",
             ["issue"] = "null_next"
         };
-        failure = EncinaErrors.Create(EncinaErrorCodes.BehaviorNullNext, message, details: metadata);
+        failure = EncinaErrors.Create(EncinaErrorCodes.BehaviorNullNext, ErrorCategory.Internal, message, details: metadata);
         return false;
     }
 }

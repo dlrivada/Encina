@@ -24,7 +24,7 @@ internal static class EncinaRequestGuards
         }
 
         const string message = "The request cannot be null.";
-        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, message));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, ErrorCategory.Internal, message));
         return false;
     }
 
@@ -43,7 +43,7 @@ internal static class EncinaRequestGuards
         }
 
         const string message = "The notification cannot be null.";
-        error = Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.NotificationNull, message));
+        error = Left<EncinaError, Unit>(EncinaErrors.Create(EncinaErrorCodes.NotificationNull, ErrorCategory.Internal, message));
         return false;
     }
 
@@ -75,7 +75,7 @@ internal static class EncinaRequestGuards
             ["responseType"] = responseType.FullName,
             ["stage"] = "handler_resolution"
         };
-        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerMissing, message, details: metadata));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerMissing, ErrorCategory.Internal, message, details: metadata));
         return false;
     }
 
@@ -108,7 +108,7 @@ internal static class EncinaRequestGuards
             ["requestType"] = requestType.FullName,
             ["stage"] = "handler_validation"
         };
-        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerTypeMismatch, message, details: metadata));
+        error = Left<EncinaError, TResponse>(EncinaErrors.Create(EncinaErrorCodes.RequestHandlerTypeMismatch, ErrorCategory.Internal, message, details: metadata));
         return false;
     }
 
@@ -128,7 +128,7 @@ internal static class EncinaRequestGuards
         }
 
         const string message = "The stream request cannot be null.";
-        error = Left<EncinaError, TItem>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, message));
+        error = Left<EncinaError, TItem>(EncinaErrors.Create(EncinaErrorCodes.RequestNull, ErrorCategory.Internal, message));
         return false;
     }
 }

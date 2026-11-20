@@ -92,13 +92,13 @@ public sealed class CommandActivityPipelineBehavior<TCommand, TResponse>(IFuncti
         {
             RecordCancellation(activity);
             return Left<EncinaError, TResponse>( // NOSONAR S6966: Left is a pure function, not an async operation
-                EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
+                EncinaErrors.Create(EncinaErrorCodes.BehaviorCancelled, ErrorCategory.Cancelled, $"Behavior {GetType().Name} cancelled the {typeof(TCommand).Name} request.", ex));
         }
         catch (Exception ex)
         {
             RecordException(activity, ex);
             return Left<EncinaError, TResponse>( // NOSONAR S6966: Left is a pure function, not an async operation
-                EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}."));
+                EncinaErrors.FromException(EncinaErrorCodes.BehaviorException, ErrorCategory.Internal, ex, $"Error running {GetType().Name} for {typeof(TCommand).Name}."));
         }
     }
 
