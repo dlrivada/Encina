@@ -4,13 +4,13 @@
 > **Type**: Feature (observability)
 > **Related**: #721 (owns `StoreTelemetry` and `DatabaseIdentity`, this plan uses them), ADR-054 (D3, D4, D6), #2676 (tenant tag helper), #1787, #906
 > **Complexity**: Low (no production mechanism of its own; proof, a coherence test and the package README)
-> **Estimated Scope**: ~0 lines of new production code + ~500 lines of tests, in one pull request of 7 files
+> **Estimated Scope**: ~0 lines of new production code + ~500 lines of tests, in one pull request of 6 files
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `e31de98cb`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - No Dapper package emits telemetry: `src/Encina.Dapper.SqlServer`, `.PostgreSQL` and `.MySQL` contain no `new ActivitySource(` and no `new Meter(`. `Encina.Dapper.Sqlite` is not in `src` (SQLite is outside the matrix, ADR-024), so the issue's "4 providers" are 3.
 - The Dapper stores implement the same `Encina.Messaging` interfaces as the ADO stores, and `AddEncinaOpenTelemetry` decorates those interfaces for every provider (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`, eight `DecorateService` calls). The Dapper monitors register `IDatabaseHealthMonitor` with the provider names `dapper-sqlserver`, `dapper-postgresql` and `dapper-mysql` (`src/Encina.Dapper.*/Health/*DatabaseHealthMonitor.cs`).
@@ -21,7 +21,7 @@
 ### What this plan delivers
 
 - Integration proof for the 3 Dapper providers (span tags, counter, histogram, error path) with the shared fixtures.
-- A cross-access contract test: the same store operation on an ADO identity and a Dapper identity differs only in `encina.db.access` and the provider-specific `db.system.name`.
+- No contract test of its own: the cross-access check (the same store operation on an ADO identity and a Dapper identity differs only in `encina.db.access` and the provider-specific `db.system.name`) is one case of #721 S2's `StoreTelemetryContractTests`, so the two plans do not duplicate a test.
 - A section in the `Encina.OpenTelemetry` README listing the instruments and tags.
 - No production code: the issue's items "ActivitySource for Dapper store operations" and "bulk operations" are answered by Design Choices 1 and 2.
 - Shared pieces and owner: everything is #721's; this plan only consumes it. Affected packages: tests, `Encina.OpenTelemetry` README. Provider category: Database (10); proves the 3 Dapper providers.
@@ -125,7 +125,7 @@
 
 ## Implementation Phases
 
-### Phase 1: Dapper Integration Proof and Coherence Test (single pull request D1)
+### Phase 1: Dapper Integration Proof (single pull request D1)
 
 > **Goal**: the Dapper stores are proven to emit what #721 defines, on real databases.
 
@@ -133,8 +133,7 @@
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `tests/Encina.IntegrationTests/Dapper/SqlServer/Observability/StoreTelemetryIntegrationTests.cs`, `.../Dapper/PostgreSQL/Observability/...` and `.../Dapper/MySQL/Observability/...`: `[Collection("Dapper-<Db>")]`, `[Trait("Category", "Integration")]`, `[Trait("Provider", "Dapper.<Db>")]`; each builds a provider with the Dapper store registration and `AddEncinaOpenTelemetry` (called after the provider registration), adds and processes an outbox message and asserts with an `ActivityListener` and a `MeterListener` the span tags (`db.system.name`, `encina.db.access = dapper`), `encina.store.operations`, `encina.store.operation.duration`, and `encina.outcome = error` with the code when the store fails.
-2. **Create** `tests/Encina.ContractTests/Infrastructure/OpenTelemetry/StoreTelemetryAccessCoherenceTests.cs`: for the six ADO and Dapper identities the instrument names and tag keys are equal and only `encina.db.access` and the system value differ.
-3. **Modify** `.github/coverage-manifest/Encina.OpenTelemetry.json` (integration target of `Telemetry/StoreTelemetry.cs` raised with the Dapper proof) through `mechanical-fixer`; the `Encina.OpenTelemetry` README section through `docs-writer`.
+2. **Modify** `.github/coverage-manifest/Encina.OpenTelemetry.json` (integration target of `Telemetry/StoreTelemetry.cs` raised from #721 S4's 40 to 55 with the Dapper proof) through `mechanical-fixer`; the `Encina.OpenTelemetry` README section through `docs-writer`; the changelog fragment `changelog.d/722-dapper-store-telemetry.added.md` through `mechanical-fixer`.
 
 </details>
 
@@ -143,14 +142,13 @@
 
 ```text
 CONTEXT:
-Issue #722, plan docs/plans/dapper-opentelemetry-implementation-plan-722.md. #721 (S1, S2) merged: StoreTelemetry and
+Issue #722, plan docs/plans/dapper-opentelemetry-implementation-plan-722.md. #721 (S1, S2, S4) merged: StoreTelemetry and
 DatabaseIdentity exist in src/Encina.OpenTelemetry/Telemetry; the message-store decorators record encina.store.operations
 and encina.store.operation.duration with db.system.name and encina.db.access.
 
 TASK:
 1. Write one integration test class per Dapper provider (SqlServer, PostgreSQL, MySQL) with the shared collection fixtures.
-2. Write the access-coherence contract test.
-3. Manifest through mechanical-fixer, README through docs-writer.
+2. Manifest and changelog through mechanical-fixer, README through docs-writer. No contract test here (it is #721 S2's).
 
 KEY RULES:
 - [Collection("Dapper-<Db>")] fixtures only; ClearAllDataAsync in InitializeAsync; never dispose the fixture; no Thread.Sleep.
@@ -193,12 +191,12 @@ REFERENCE FILES:
 
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
-| D1 | Phase 1 | 0 | 0 | 4 | 0 | 1 | 2 (README, changelog) | 7 | ~520 |
-| **Total** | | **0** | **0** | **4** | **0** | **1** | **2** | **7** | **~520** |
+| D1 | Phase 1 | 0 | 0 | 3 | 0 | 1 | 2 (README, changelog) | 6 | ~420 |
+| **Total** | | **0** | **0** | **3** | **0** | **1** | **2** | **6** | **~420** |
 
-Columns sum: 4 + 1 + 2 = 7. No production code, so no guard tests are added; the guard flag of the files #721 owns is unchanged.
+Columns sum: 3 + 1 + 2 = 6. No production code, so no guard tests are added; the guard flag of the files #721 owns is unchanged. The integration test project already references `Encina.OpenTelemetry`, so there is no csproj edit.
 
-Per-file coverage targets: `Telemetry/StoreTelemetry.cs` (owned by #721, unit 90, integration 40): this plan raises the integration target to 55 because the 3 Dapper tests run the same lines as the 3 ADO tests on a second access technology; contract and guard targets stay at 0 and 0 (internal static type without a validated parameter, covered by #721's tests).
+Per-file coverage targets: `Telemetry/StoreTelemetry.cs` (owned by #721, unit 90, integration 40): this plan raises the integration target from #721 S4's 40 to 55 (the manifest edit lands after S4, so the two never conflict) because the 3 Dapper tests run the same lines as the 3 ADO tests on a second access technology; contract and guard targets stay at 0 and 0 (internal static type without a validated parameter, covered by #721's tests).
 
 ---
 
@@ -208,7 +206,7 @@ Per-file coverage targets: `Telemetry/StoreTelemetry.cs` (owned by #721, unit 90
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-You are implementing issue #722 - Dapper store telemetry proof - in one pull request, after #721 S1 and S2 merged.
+You are implementing issue #722 - Dapper store telemetry proof - in one pull request, after #721 S1, S2 and S4 merged.
 
 PROJECT CONTEXT:
 - Encina .NET 10 / C# 14, pre-1.0. The decorators in Encina.OpenTelemetry are provider-agnostic; #721 adds the instruments and tags.
@@ -216,7 +214,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. Three integration test classes for Dapper SqlServer, PostgreSQL, MySQL with shared collection fixtures.
-2. One contract test that ADO and Dapper identities emit the same instruments and keys.
+2. No contract test: the ADO versus Dapper identity check is a case of #721 S2's contract test.
 
 KEY PATTERNS:
 - No production code, no Dapper-specific instrumentation, never db.query.text.
@@ -242,7 +240,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | Acquires no lock |
 | 8 | Transactions | ❌ N/A | Observes the unit of work, never changes it |
 | 9 | Idempotency | ❌ N/A | Recording twice is harmless |
-| 10 | Multi-Tenancy | ✅ Phase 1 | Tenant rule is #721 S3; the proof asserts it for Dapper |
+| 10 | Multi-Tenancy | ❌ N/A | There is no Dapper-specific tenant code: the tenant tag is one shared helper and its tests are #721 S3 (after #2676); this plan's integration tests assert only that the tag is absent when multi-tenancy is off |
 | 11 | Module Isolation | ❌ N/A | No module data |
 | 12 | Audit Trail | ❌ N/A | No personal data reaches telemetry |
 
@@ -254,7 +252,7 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |-------------|--------|-------|
-| #721 S1 and S2 merged | Open (plan on its own branch) | Provides the instruments the tests assert |
+| #721 S1, S2 and S4 merged | Open (plan on its own branch) | S1 and S2 provide the instruments the tests assert; S4 sets the integration target this plan raises |
 
 ### Recommended (Not Blocking)
 
@@ -268,5 +266,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from #722 and ask the maintainer to answer Design Choices 1 and 2 when work starts.
-2. Open the pull request after #721 S2. Order in the family: #721, then this plan.
+2. Open the pull request after #721 S4. Order in the family: #721, then this plan.
 3. Maintainer action: amend the acceptance criteria of #722 that name SQLite, bulk operations and an `ActivitySource` for Dapper to the outcome of Design Choices 1 and 2 (this plan never comments on an issue).
