@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-20, main `e31de98cb`)
+### What exists today (read on 2026-11-20, main `0336d31c7`)
 
 - No lock provider emits telemetry. `IDistributedLockProvider` (`src/Encina.DistributedLock/IDistributedLockProvider.cs`) has `TryAcquireAsync` (returns `IAsyncDisposable?`, `null` on contention), `AcquireAsync`, `IsLockedAsync` and `ExtendAsync`. Five classes implement it: `InMemoryDistributedLockProvider`, `RedisDistributedLockProvider` and `SqlServerDistributedLockProvider` in the `Encina.DistributedLock.*` packages, and `MemoryDistributedLockProvider` and `RedisDistributedLockProvider` in `Encina.Caching.Memory` and `Encina.Caching.Redis`. The issue lists three; the ADR-054 D6.1 count and the code are five, and #207 to #210 add four more.
 - The returned object is a private `LockHandle : ILockHandle` in each of the three lock packages, and callers cast it to `ILockHandle` (integration tests do, for example `(ILockHandle)await _provider.AcquireAsync(...)`). A wrapper that hides `ILockHandle` would break them.
@@ -21,7 +21,7 @@
 
 ### What this plan delivers
 
-- `InstrumentedDistributedLockProvider` (decorator over any provider) and `InstrumentedLockHandle : ILockHandle`, in `Encina.DistributedLock/Diagnostics/`, with spans `encina.distributed_lock.try_acquire|acquire|is_locked|extend|release`, outcome `acquired`, `contended` or `failed`, and the provider label derived from the provider type name (`redis`, `sqlserver`, `inmemory`, `memory`, and the four planned providers automatically).
+- `InstrumentedDistributedLockProvider` (decorator over any provider) and `InstrumentedLockHandle : ILockHandle`, in `Encina.DistributedLock/Diagnostics/`, with spans `encina.distributed_lock.try_acquire|acquire|is_locked|extend|release`, outcome `acquired`, `contended` or `failed`, and the provider label `encina.lock.system` taken from an explicit table keyed by the full type name of the wrapped provider: `Encina.DistributedLock.InMemory.InMemoryDistributedLockProvider` gives `inmemory`, `Encina.DistributedLock.Redis.RedisDistributedLockProvider` and `Encina.Caching.Redis.RedisDistributedLockProvider` (two classes of the same name in two namespaces) both give `redis`, `Encina.Caching.Memory.MemoryDistributedLockProvider` gives `memory`, `Encina.DistributedLock.SqlServer.SqlServerDistributedLockProvider` gives `sqlserver`, and every other type gives `other`. The four planned providers (#207 to #210) have no fixed names yet, so each adds its row to the table in its own pull request (no automatic mapping is assumed).
 - Instruments on `Meter("Encina.DistributedLock")`: `encina.distributed_lock.acquisitions` (counter; tags `encina.lock.operation`, `encina.lock.outcome`, `encina.lock.system`, `error.type` on failures), `encina.distributed_lock.acquisition.duration` (histogram, `s`) and `encina.distributed_lock.held` (up-down counter of handles not yet disposed).
 - A public opt-in registration `AddEncinaDistributedLockTelemetry()` that decorates the registered provider (the provider must be registered first, as for #741's decorator).
 - The tenant tag through the helper of #2676; the resource name is never emitted.
@@ -88,7 +88,7 @@
 
 ### Rationale
 
-- A wins because lock names are free text and the interface has no label; B wins for deployments whose lock names are all family-first; C wins if #222 needs per-family contention and the maintainer accepts an interface change. The provider label comes from the type name (`RedisDistributedLockProvider` gives `redis`), verified by a test per provider.
+- A wins because lock names are free text and the interface has no label; B wins for deployments whose lock names are all family-first; C wins if #222 needs per-family contention and the maintainer accepts an interface change. The provider label comes from the explicit full-type-name table of the Summary with an `other` fallback (the same approach as #723), verified by a test per row, including the two same-named `RedisDistributedLockProvider` classes.
 
 **Class:** Dilemma
 
@@ -151,11 +151,13 @@
 
 ### Phase 1: Decorator, Handle Wrapper and Instruments (pull request L1, after #2667)
 
+> **Not startable until #2667 merges**: the tasks below name the ADR-052 `Either` shapes, not the `IAsyncDisposable?` contract that `main` has today.
+
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. **Create or complete** `src/Encina.DistributedLock/Diagnostics/DistributedLockDiagnostics.cs` (`internal static`): `ActivitySource` and `Meter` named `Encina.DistributedLock`, version `1.0`; if #741 PR 2 landed first, add only the three instruments of this plan.
-2. **Create** `Diagnostics/InstrumentedDistributedLockProvider.cs` (`internal sealed`, `IDistributedLockProvider`): constructor `(IDistributedLockProvider inner, TimeProvider? timeProvider = null)`; each method starts a span, measures the duration and maps the result to `acquired` (`Right(Some)`), `contended` (`Right(None)`) or `failed` (`Left`, `error.type` = code); returns the inner value unchanged except that an acquired handle is wrapped.
+2. **Create** `Diagnostics/InstrumentedDistributedLockProvider.cs` (`internal sealed`, `IDistributedLockProvider`): constructor `(IDistributedLockProvider inner, TimeProvider? timeProvider = null)`; the `encina.lock.system` label comes from the explicit type-name table (Summary) with the `other` fallback; each method starts a span, measures the duration and maps the result to `acquired` (`Right(Some)`), `contended` (`Right(None)`) or `failed` (`Left`, `error.type` = code); returns the inner value unchanged except that an acquired handle is wrapped.
 3. **Create** `Diagnostics/InstrumentedLockHandle.cs` (`internal sealed`, `ILockHandle`) forwarding every member and decrementing `held` once on dispose.
 4. **Modify** `ServiceCollectionExtensions.cs`: public `AddEncinaDistributedLockTelemetry(this IServiceCollection)` replacing the registered `IDistributedLockProvider` descriptor with the decorator (same lifetime), `InvalidOperationException` when none is registered; `Encina.DistributedLock.csproj` (`InternalsVisibleTo` `Encina.GuardTests`); `PublicAPI.Unshipped.txt`, manifest `Encina.DistributedLock.json` and changelog `changelog.d/724-lock-telemetry.added.md` through `mechanical-fixer`.
 5. Tests: new `tests/Encina.UnitTests/DistributedLock/Diagnostics/InstrumentedDistributedLockProviderTests.cs` (real `InMemoryDistributedLockProvider` with `FakeTimeProvider`: acquired, contended, faulted inner via a throwing provider, instruments and span tags, no resource text in any tag, cast to `ILockHandle` still works, `held` returns to zero after dispose and after double dispose, no work without listener); new `InstrumentedLockHandleTests.cs`; new `tests/Encina.GuardTests/Infrastructure/DistributedLock/InstrumentedDistributedLockProviderGuardTests.cs` (null inner, null resource, null `timeProvider` valid, `services` null for the registration); edit the DI unit tests (provider built with `ValidateOnBuild` and `ValidateScopes`; no provider registered throws).
@@ -183,7 +185,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.DistributedLock/IDistributedLockProvider.cs, ILockHandle.cs, ServiceCollectionExtensions.cs
-- docs/plans/tenant-scoped-lock-implementation-plan-741.md (shared DistributedLockDiagnostics), docs/architecture/adr/052-distributed-lock-failure-contract.md
+- the plan of #741 (shared DistributedLockDiagnostics), docs/architecture/adr/052-distributed-lock-failure-contract.md
 ```
 
 </details>
@@ -296,7 +298,7 @@ Per-file coverage targets:
 | `Diagnostics/InstrumentedDistributedLockProvider.cs` | 90 | 70 | 25 | 0 | 40 | All three outcomes and four methods are driven with real providers; guard covers constructor, resource and token arguments; contract and integration add Redis and SQL Server |
 | `Diagnostics/InstrumentedLockHandle.cs` | 95 | 40 | 0 | 0 | 0 | Forwarding, dispose-once and extension are table-driven; guard covers the constructor; no contract of its own beyond `ILockHandle` |
 | `Diagnostics/DistributedLockDiagnostics.cs` | 80 | 0 | 0 | 0 | 0 | Constants and instrument creation reached by unit tests; internal static with no validated parameter |
-| `ServiceCollectionExtensions.cs` (existing file, see manifest) | 90 | 40 | 0 | 0 | 0 | The new registration and its two failure paths are driven by the DI tests; targets never go below the current manifest values |
+| `ServiceCollectionExtensions.cs` (the manifest `Encina.DistributedLock.json` has no per-file entry for it today; the package targets are unit 60 and guard 20) | 90 | 40 | 0 | 0 | 0 | The plan adds a per-file entry with unit 90 and guard 40, both above the package values (a rise, never a lowering): the new registration and its two failure paths (no provider registered, null `services`) are driven by the DI and guard tests |
 
 ---
 
@@ -306,7 +308,8 @@ Per-file coverage targets:
 <summary><strong>Full combined prompt for all phases</strong></summary>
 
 ```text
-You are implementing issue #724 - OpenTelemetry for the distributed lock providers - in three small pull requests, after #2667.
+You are implementing issue #724 - OpenTelemetry for the distributed lock providers - in three small pull requests. Nothing here is
+startable until #2667 (the ADR-052 Either contract) has merged; L2 also waits for #2676.
 
 PROJECT CONTEXT:
 - Encina .NET 10 / C# 14, pre-1.0. Edit with Edit/Write only; PublicAPI, manifest and changelog through mechanical-fixer; README
@@ -323,7 +326,7 @@ KEY PATTERNS:
 - Add InternalsVisibleTo Encina.GuardTests; null optional parameters get valid-result tests.
 
 REFERENCE FILES:
-- src/Encina.DistributedLock/, docs/plans/tenant-scoped-lock-implementation-plan-741.md, docs/plans/leader-election-implementation-plan-717.md
+- src/Encina.DistributedLock/, the plan of #741 (tenant-scoped locks) and the plan of #717 (leader election)
 ```
 
 </details>
