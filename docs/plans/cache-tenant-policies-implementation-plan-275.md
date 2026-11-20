@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (e31de98cb):
+Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (0336d31c7):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -225,7 +225,7 @@ Tasks:
 1. **Create** `CacheTenantPolicy` (`MaxEntries` int?, `Duration` TimeSpan?, `RateLimit` `CacheRateLimitPolicy?`) with `Validate()` (positive values, `MaxBurstSize` at least 1, a finite duration; the message names the member, never a tenant id) and `CacheRateLimitPolicy` (`MaxOperationsPerSecond`, `MaxBurstSize`).
 2. **Create** `ITenantCachePolicyProvider` (Design Choice 2) and the default `ConfiguredTenantCachePolicyProvider` (looks up `Policies` by tenant id, `Right(Default)` otherwise, `Right(null)` when no default).
 3. **Create** `TenantCachePolicyResolver`: `ValueTask<TenantPolicyDecision> ResolveAsync(string tenantKey, CancellationToken)` where the decision is `Allow(policy)` or `Deny(reason)` with reason `LookupFailed` (a `Left` or an exception from a custom provider), `NoPolicy` (`Right(null)` with no default) or `InvalidPolicy` (`Validate()` failed): Design Choice 8; the resolver logs nothing, the governor of PR 2 logs the reason; takes `IServiceScopeFactory` and resolves the custom provider per lookup in a new scope; caches per tenant for `PolicyCacheDuration`; bounded by `MaxTrackedTenants`; instance-level state only (never a static field of a generic class).
-4. **Modify** `CachingOptions` (`CacheTenantPolicyOptions TenantPolicies { get; set; } = new();`, `Enabled` false) and `AddEncinaCaching`: copy the option (the list is hand-written), run each policy's `Validate()` at registration, register the resolver and the default provider with `TryAddSingleton` (a custom provider registered before or after wins: `TryAdd`).
+4. **Modify** `CachingOptions` (`CacheTenantPolicyOptions TenantPolicies { get; set; } = new();`, `Enabled` false) and `AddEncinaCaching`: copy the option (the list is hand-written), validate the policies with an `IValidateOptions<CacheTenantPolicyOptions>` registered with `ValidateOnStart` (each policy's `Validate()` runs at host start with the final values, so a later `Configure<CachingOptions>` cannot bypass it), register the resolver and the default provider with `TryAddSingleton` (a custom provider registered before or after wins: `TryAdd`).
 5. **Tests (unit):** validation rules, tenant-keyed lookup, default fallback, a `Left`, an exception and `Right(null)` each deny, cache expiry with `FakeTimeProvider`, bound at `MaxTrackedTenants`, DI test with `ValidateOnBuild` and `ValidateScopes`. Guard tests: `CacheTenantPolicyOptions` setters reject null collections and `ConfiguredTenantCachePolicyProvider` is internal (no `InternalsVisibleTo` for `Encina.GuardTests` in `Encina.Caching.csproj`), so the guard file covers the public members only.
 
 </details>
@@ -278,10 +278,12 @@ PR 2 holds exactly these 15 files:
 | 9 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
 | 10 | `src/Encina.Caching/Tenancy/ITenantCacheGovernor.cs` | new (public interface and the public result type `TenantCacheDecision`; the behavior's public constructor cannot take an internal type) |
 | 11 | `tests/Encina.UnitTests/Caching/TenantCacheGovernorTests.cs` | new (includes the usage tracker, the behavior-with-governor and the metrics listener tests) |
-| 12 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (DI built with `ValidateOnBuild` and `ValidateScopes`: the governor exists only when enabled) |
+| 12 | `tests/Encina.GuardTests/Infrastructure/Caching/QueryCachingPipelineBehaviorGuardTests.cs` | modify (a valid-result test for the new optional `governor` constructor parameter set to null: the behavior behaves as today, #3798) |
 | 13 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
-| 14 | `changelog.d/275-cache-tenant-quota.added.md` | new (`mechanical-fixer`) |
+| 14 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingTenantPolicies \| 514-519 \| Caching \| historical` in the "Registered ranges" table and the `500-549 reserved-pre-zone` block row split so `514-519` is `registered`; `EventIdRegistryAgreementTests` fails otherwise; read the test and the document first) |
 | 15 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: `ITenantCacheGovernor`, `TenantCacheDecision` and the changed behavior constructor line, RS0017) |
+
+PR 2 has no changelog fragment of its own (the quota is observable only with PR 3's duration and rate limit; PR 3's fragment covers both) and its DI assertions (built with `ValidateOnBuild` and `ValidateScopes`: the governor exists only when enabled) are in `TenantCacheGovernorTests.cs`.
 
 The policy duration (and its attribute opt-out) moved to PR 3 to keep this PR at 15 files.
 
@@ -349,7 +351,7 @@ PR 3 holds exactly these 13 files:
 Tasks:
 
 0. **Duration:** `TimeSpan EffectiveDuration(...)` applies Design Choice 4 (the policy duration replaces or caps `[Cache(DurationSeconds)]` per the maintainer's answer; with `SlidingExpiration` it is the sliding window); the behavior passes it to `SetAsync` or `SetWithSlidingExpirationAsync`.
-1. **Create** `TenantCacheRateLimiter`: per tenant key a token bucket (`MaxOperationsPerSecond` refill with `TimeProvider`, `MaxBurstSize` capacity); `TryAcquire(tenantKey, policy)`; idle buckets are purged lazily when the table reaches `MaxTrackedTenants` (EventId 518 is shared); no timer, no thread.
+1. **Create** `TenantCacheRateLimiter`, created internally by `TenantCacheGovernor` (from `TimeProvider` and the options it already has), never a constructor dependency, so PR 3 needs no `ServiceCollectionExtensions.cs` or DI test edit: per tenant key a token bucket (`MaxOperationsPerSecond` refill with `TimeProvider`, `MaxBurstSize` capacity); `TryAcquire(tenantKey, policy)`; idle buckets are purged lazily when the table reaches `MaxTrackedTenants` (EventId 518 is shared); no timer, no thread.
 2. **Modify** the behavior: when `EnableRateLimiting` is on and the tenant's policy has a `RateLimit`, a read or a write over the limit is skipped (Design Choice 6: bypass), logged once per request with EventId 517 (request type only) and counted with reason `rate_limit`.
 3. **Integration test** (`[Collection("Redis")]`-style shared fixture, `[Trait("Category", "Integration")]`): tenant A at the quota stops caching while tenant B keeps caching; a bypassed request still returns the handler's value. The test never creates its own container.
 4. **Tests (unit):** burst then refill, tenants isolated, an exhausted bucket bypasses without failing the request, no limiter state without a `RateLimit`.
@@ -396,7 +398,7 @@ REFERENCE FILES:
 | `Encina.Caching/Tenancy/CacheTenantPolicyOptions.cs` | 100 | 85 | 0 | 0 | Property setters with null guards, covered by unit and guard tests |
 | `Encina.Caching/Tenancy/TenantCachePolicyResolver.cs`, `ConfiguredTenantCachePolicyProvider.cs` | 95 | 0 | 0 | 0 | Internal types: no `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Tenancy/TenantCacheUsageTracker.cs`, `TenantCacheRateLimiter.cs` | 100 | 0 | 0 | 0 | Pure logic with `FakeTimeProvider`; internal |
-| `Encina.Caching/Tenancy/TenantCacheGovernor.cs` | 95 | 0 | 0 | 40 | Unit tests drive every decision; the integration flag runs it against a real Redis |
+| `Encina.Caching/Tenancy/TenantCacheGovernor.cs` | 95 | 0 | 0 | 0 in PR 2, 40 in PR 3 | PR 2 sets unit 95 (its tests drive every decision); the integration target of 40 is set in PR 3, the PR that adds the Redis integration test |
 | `Encina.Caching/Tenancy/ITenantCachePolicyProvider.cs` | 0 | 0 | 0 | 0 | An interface has no executable lines |
 | `Encina.Caching/Diagnostics/CacheTenantPolicyLog.cs`, `CachePatternMetrics.TenantPolicies.cs` | 90 | 0 | 0 | 0 | Generated bodies and instrument calls run in the behavior tests |
 | `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`, `ServiceCollectionExtensions.cs`, `Configuration/CachingOptions.cs`, `Attributes/CacheAttribute.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; new branches are tested in the same PRs |
@@ -547,7 +549,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ Include | `encina.cache.tenant.entries` and `.rejected` in a `CachePatternMetrics` partial; tenant tag only with multi-tenancy on (ADR-054 D4); spans belong to #723 (open). |
 | 3 | Structured Logging | ✅ Include | `CacheTenantPolicyLog`, EventIds 514-519 in `CachingTenantPolicies`. |
 | 4 | Health Checks | ⏭️ Defer | Per-tenant cache health belongs to the provider health work (#754, open); this feature has no backend of its own. |
-| 5 | Validation | ✅ Include | `CacheTenantPolicy.Validate()` at registration and at provider answer time. |
+| 5 | Validation | ✅ Include | `CacheTenantPolicy.Validate()` through `IValidateOptions` at host start and at provider answer time. |
 | 6 | Resilience | ❌ N/A | Policies are configuration and an in-memory lookup; a failing custom provider denies the cache (fail closed) rather than retrying. |
 | 7 | Distributed Locks | ❌ N/A | State is node-local; no shared resource is coordinated. |
 | 8 | Transactions | ❌ N/A | Cache operations are independent of units of work. |
