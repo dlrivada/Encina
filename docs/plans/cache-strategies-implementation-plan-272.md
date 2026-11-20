@@ -514,7 +514,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **EventIds:** `CachingStrategies` 500-507 only (500 write-through applied, 501 failed, 502 queue full, 503 flush retry, 504 batch dead-lettered, 505 stopped with undrained items, 506 flush iteration faulted, 507 write-through skipped for no tenant); verified free by a repo-wide grep of `src/Encina.Caching` (its used range is 3500-3513) and registered in `EventIdRanges.cs` and the `AssemblyRanges` map in PR 2; emitted only by `Encina.Caching`.
+1. **EventIds:** `CachingStrategies` 500-507 only (500 write-through applied, 501 failed, 502 queue full, 503 flush retry, 504 batch dead-lettered, 505 stopped with undrained items, 506 flush iteration faulted, 507 write-through skipped for no tenant); declared in the PR that emits each id (500, 501 and 507 in PR 2; 502 in PR 3; 503-506 in PR 4); verified free by a repo-wide grep of `src/Encina.Caching` (its used range is 3500-3513) and registered in `EventIdRanges.cs` and the `AssemblyRanges` map in PR 2; emitted only by `Encina.Caching`.
 2. **Error codes:** one, `cache.write_behind_queue_full`, ADR-062 `ErrorCategory.Unavailable`, constant message; no code is created for the post-commit write (it never returns `Left`).
 3. **Coverage targets (per flag, per PR, set in the PR that adds the file):**
 
@@ -529,7 +529,9 @@ REFERENCE FILES:
 | `Encina.Caching/WriteBehindServiceCollectionExtensions.cs` | 100 | 100 | 0 | 0 | One null guard and the registrations, covered by the guard and DI tests |
 | `Encina.Caching/Diagnostics/CacheStrategyLog.cs`, `CachePatternMetrics.Strategies.cs` | 90 | 0 | 0 | 0 | Generated bodies and instrument calls run in the behavior tests |
 | `Encina.Caching/Abstractions/IWriteBehind*.cs`, `Configuration/CacheStrategy.cs` | 0 | 0 | 0 | 0 | Interfaces, a record and an enum: no executable lines |
-| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`, `Attributes/CacheAttribute.cs`, `Configuration/CachingOptions.cs`, `ServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; the new branches are tested in the same PRs |
+| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs`, `Attributes/CacheAttribute.cs`, `Configuration/CachingOptions.cs` | keep | keep | 0 | 0 | Existing targets are never lowered; the new branches are tested in the same PRs (PR 1 for the attribute, option and skip path; PR 3 for the `WriteBehind` sub-options) |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | at least 90 | 0 | 0 | 0 | The value the manifest has on main after #266 (90 unit, 0 guard) is kept, never lowered; the copy lines (PR 1 and PR 3) and the processor registration (PR 2) are run by the DI tests of those PRs, which build the provider with `ValidateOnBuild` and `ValidateScopes`; no guard test calls `AddEncinaCaching`, so the guard target stays 0 |
+| `Encina.Caching/Patterns/CachePatternSettings.cs` | keep | 0 | 0 | 0 | #266's targets are kept; PR 1 and PR 3 add the rule branches and their tests (`CacheStrategySettingsTests.cs`); internal, no guard surface |
 
    The worker measures every flag with `coverage-report.cs` per PR and records the numbers in the PR description; no target is lowered (`target-ratchet`).
 4. **Property, load, benchmark:** no property test (no invariant beyond the unit grid); no load test (the queue is a bounded channel covered by gated unit tests); a benchmark of the enqueue path is a follow-up inside the existing caching benchmarks, not a PR of this plan.
@@ -651,9 +653,9 @@ because everything lives at the behavior level.
 
 IMPLEMENTATION OVERVIEW:
 1. PR 1: CacheStrategy, attribute properties, settings validation, write strategies skip the read-through path.
-2. PR 2: CacheWriteThroughPostCommitProcessor, EnableWriteThrough, EventIds 500-501, CachingStrategies range.
+2. PR 2: CacheWriteThroughPostCommitProcessor, EventIds 500, 501 and 507, CachingStrategies range, the metrics partial (EnableWriteThrough and its copy line are in PR 1).
 3. PR 3: write-behind abstractions, WriteBehindQueue, WriteBehindPipelineBehavior, EventId 502.
-4. PR 4: WriteBehindFlushService, dead-letter sink, health check, AddEncinaWriteBehind, metrics, EventIds 503-507.
+4. PR 4: WriteBehindFlushService, dead-letter sink, health check, AddEncinaWriteBehind, flush metrics, EventIds 503-506, Redis integration test.
 
 KEY PATTERNS:
 - Fail closed: no tenant under multi-tenancy never reaches the cache or the queue.
