@@ -2,8 +2,8 @@
 
 > **Issue**: [#742](https://github.com/dlrivada/Encina/issues/742)
 > **Type**: Feature
-> **Complexity**: Very high (7 phases, 8 transports, 8 pull requests)
-> **Estimated Scope**: ~900 lines of production code + ~2,600 lines of tests (about 5,000 changed lines in total, eight pull requests)
+> **Complexity**: Very high (7 phases, 8 transports, 11 pull requests)
+> **Estimated Scope**: ~900 lines of production code + ~2,600 lines of tests (about 5,500 changed lines in total, eleven pull requests)
 
 ---
 
@@ -11,19 +11,19 @@
 
 Give every message transport retry, a circuit breaker and a timeout around its outbound operations, through one executor in `Encina.Resilience` and one thin decorator per transport, as decided by SPIKE #2691 R7 (option 7a, comments of 2026-10-24 on #742) and written in [ADR-055](../architecture/adr/055-resilience-family.md): a pipeline from the R2 registry keyed by provider name, one options model (R3), one telemetry (R5), and the SDK's own retry disabled wherever Encina retries (one retry layer, ADR-050). The comment of 2026-10-23 on #742 moves it into the 1.0 scope; the issue's `ITransportResiliencePolicy` is replaced by that model.
 
-What exists today (read in `origin/main` at `098caa920`):
+What exists today (read in `origin/main` at `277402987`):
 
-- **There is no `IMessageTransport`.** ADR-055 R7 says the decorators "wrap `IMessageTransport`", but `git grep "interface IMessageTransport"` over `src` returns nothing. Each transport has its own publisher interface with its own shape: `IKafkaMessagePublisher` (`ProduceAsync`, `ProduceBatchAsync`, `ProduceWithHeadersAsync`), `IRabbitMQMessagePublisher` (`PublishAsync`, `SendToQueueAsync`, `RequestAsync`), `INATSMessagePublisher` (`PublishAsync`, `RequestAsync`, `JetStreamPublishAsync`), `IMQTTMessagePublisher` and `IRedisPubSubMessagePublisher` (`PublishAsync`, `SubscribeAsync`, `SubscribePatternAsync`), `IAzureServiceBusMessagePublisher` (`SendToQueueAsync`, `PublishToTopicAsync`, `ScheduleAsync`, `CancelScheduledAsync`), `IAmazonSQSMessagePublisher` (`SendToQueueAsync`, `PublishToTopicAsync`, `SendBatchAsync`, `SendToFifoQueueAsync`) and `IInMemoryMessageBus` (`PublishAsync`, `EnqueueAsync`, `Subscribe`). Every method returns `ValueTask<Either<EncinaError, T>>` and takes a `CancellationToken`.
+- **There is no `IMessageTransport`.** ADR-055 R7 says the decorators "wrap `IMessageTransport`", but `git grep "interface IMessageTransport"` over `src` returns nothing. Each transport has its own publisher interface with its own shape: `IKafkaMessagePublisher` (`ProduceAsync`, `ProduceBatchAsync`, `ProduceWithHeadersAsync`), `IRabbitMQMessagePublisher` (`PublishAsync`, `SendToQueueAsync`, `RequestAsync`), `INATSMessagePublisher` (`PublishAsync`, `RequestAsync`, `JetStreamPublishAsync`), `IMQTTMessagePublisher` and `IRedisPubSubMessagePublisher` (`PublishAsync`, `SubscribeAsync`, `SubscribePatternAsync`), `IAzureServiceBusMessagePublisher` (`SendToQueueAsync`, `PublishToTopicAsync`, `ScheduleAsync`, `CancelScheduledAsync`), `IAmazonSQSMessagePublisher` (`SendToQueueAsync`, `PublishToTopicAsync`, `SendBatchAsync`, `SendToFifoQueueAsync`) and `IInMemoryMessageBus` (`PublishAsync`, `EnqueueAsync`, `Subscribe`). Every operation method returns `ValueTask<Either<EncinaError, T>>` and takes a `CancellationToken`; the exceptions are the subscription methods (`SubscribeAsync` and `SubscribePatternAsync` return `ValueTask<IAsyncDisposable>`, `IInMemoryMessageBus.Subscribe` returns `IDisposable`), which this plan does not wrap (choice 4).
 - The transports have **no consumer loop**: a search for `BasicConsume`, `ServiceBusProcessor` and `ReceiveMessageAsync` in `src` finds no match, and the only `IConsumer<` is the Debezium connector. MQTT and Redis.PubSub expose `SubscribeAsync` with a handler callback.
 - Resilience of any kind: none in the eight packages (`git grep` of `MaxErrorRetry`, `RetryOptions` and `RetryPolicy` over them is empty). `EncinaKafkaOptions` exposes only `Acks`, `EnableIdempotence` and `MessageTimeoutMs`.
-- Seven of the eight publishers catch every exception, cancellation included, and return a `Left` (`catch (Exception ex)` with no `OperationCanceledException` branch in `src/Encina.{RabbitMQ,Kafka,MQTT,AzureServiceBus,AmazonSQS,Redis.PubSub,InMemory}`; NATS has one). A caller's cancellation therefore arrives as a `Left` such as `KAFKA_PRODUCE_FAILED`. This is recorded in the issue file `transport-publishers-cancellation-as-left` (read from code, nothing run).
+- All eight publishers swallow the caller's cancellation into a `Left`: seven have `catch (Exception ex)` with no `OperationCanceledException` branch (`src/Encina.{RabbitMQ,Kafka,MQTT,AzureServiceBus,AmazonSQS,Redis.PubSub,InMemory}`), and NATS has one only as `when (!cancellationToken.IsCancellationRequested)`, which excludes the caller's own cancellation (lines 101, 162 and 211 return a `Left`). A caller's cancellation therefore arrives as a `Left` such as `KAFKA_PRODUCE_FAILED`. This is recorded in the issue file `transport-publishers-cancellation-as-left` (read from code, nothing run).
 - `Encina.Resilience` does **not exist in `src/`**, no open issue creates it, and R6 is not on main. The packages of the six planned transports (GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr) are not on main either.
 
-What this plan delivers: `IProviderResilience` and its executor (a provider-keyed pipeline from the registry: timeout, retry, breaker), `ProviderResilienceOptions` (`ForProvider("kafka", ...)`), one public decorator per transport (eight), the registration per transport, six `[LoggerMessage]` definitions, a shared contract suite that runs every decorator against a fault-injecting fake, and per-broker integration tests. #744 (cloud functions) reuses the executor; #745 (gRPC and GraphQL) and #643 (shards) may.
+What this plan delivers: `IProviderResilience` and its executor (a provider-keyed pipeline from the registry: timeout, retry, breaker), `ProviderResilienceOptions` (`ForProvider("kafka", ...)`), one public decorator per transport (eight), the registration per transport, six `[LoggerMessage]` definitions, a shared contract suite that runs every decorator against a fault-injecting fake, and per-broker integration tests. #744 (cloud functions) does not use it (its adapters are inbound and call nothing); #745 (gRPC and GraphQL) and #643 (shards) may.
 
 - **Affected packages**: `Encina.Resilience` (planned), the eight transport packages, `Encina` core (`EventIdRanges.cs` only). The issue also names `Encina.Messaging` and `Encina.Polly`: neither gets code (choices 2 and 7).
 - **Provider category**: Transports (AGENTS.md section 5). The matrix is in "Research": eight on main, two carved to #745 (choice 3), six planned ones through the issue file `transport-resilience-planned-transports`.
-- **Estimated size**: 8 pull requests of at most 15 files and 1,500 lines, split in "Implementation Phases".
+- **Estimated size**: 11 pull requests of at most 15 files and 1,500 lines, split in "Implementation Phases".
 - **Prerequisites**: the foundation, R6 and #335's timeout mapper, described in "Prerequisites & Dependencies".
 
 ### Shared Pieces and Ownership (family resilience-patterns-1 and resilience-patterns-2)
@@ -32,7 +32,7 @@ What this plan delivers: `IProviderResilience` and its executor (a provider-keye
 |--------------|-------|---------|
 | `Encina.Resilience` project, per-type compiler, registry, options front-ends, rejection-mapper hook (maps `BrokenCircuitException` to the circuit-open `Left`), strategy factories for retry and breaker | The foundation issue (issue file `resilience-foundation-encina-resilience.md` of the family resilience-patterns-1) | every plan of both families |
 | The `encina.timeout` mapper and `[Timeout]` strategies | #335 (sibling plan, by number) | the executor's timeout step reuses the mapper |
-| `IProviderResilience`, the executor, `ProviderResilienceOptions`, the provider-keyed pipelines, the shared contract suite, EventIds 970-984 (`ResilienceProvider`) | **This plan (#742)** | #744 (cloud functions), #745 and #643 may reuse |
+| `IProviderResilience`, the executor, `ProviderResilienceOptions`, the provider-keyed pipelines, the shared contract suite, EventIds 970-984 (`ResilienceProvider`) | **This plan (#742)** | #745 and #643 may reuse; #744 does not (inbound adapters) |
 | One decorator per transport and its registration | **This plan (#742)** | the six planned transports (issue file) |
 | The `Meter("Encina.Resilience")` holder and instrument names | #728 (plan on main; its choices 1 and 8 pending) | this plan creates no instrument |
 
@@ -58,7 +58,7 @@ ADR-055 R7 builds the decorators on the R2 registry, which does not exist yet.
 ### Rationale
 
 - A wins when the 1.0 order of the spike report is kept; B wins if transport resilience must ship first (it is the most critical gap of the issue: "ZERO resilience"); C wins if the foundation should grow out of this capability. The question is asked once for the resilience family (the shared Dilemma 1 of #136).
-- Choices 2 to 9 are written for A.
+- Choices 2 to 9 and 11 are written for A.
 
 - **Class:** Dilemma
 
@@ -134,7 +134,7 @@ The acceptance criterion "circuit breaker for broker connectivity" and the issue
 <details>
 <summary><strong>5. Retrying a publish without duplicating it</strong></summary>
 
-A publish whose answer was lost may already have been delivered. Every publisher method has a `messageId` parameter that becomes the message-id header so consumers can deduplicate (Inbox, AGENTS.md section 3), and generates a new id when it is null or empty (`KafkaMessagePublisher`, `RabbitMQMessagePublisher`).
+A publish whose answer was lost may already have been delivered. The publish-style methods have a `messageId` parameter that becomes the message-id header so consumers can deduplicate (Inbox, AGENTS.md section 3), and the implementations generate a new id when it is null or empty (`KafkaMessagePublisher`, `RabbitMQMessagePublisher`). Four operations have none: NATS `RequestAsync`, `IInMemoryMessageBus.PublishAsync` and `EnqueueAsync`, and Azure Service Bus `CancelScheduledAsync` (and `ProduceBatchAsync` carries an id per tuple). Those are choice 11; this choice covers the publish-style methods that have the parameter.
 
 ### Options Considered
 
@@ -250,16 +250,38 @@ ADR-055 settled points: breaker state lives in a per-container singleton, never 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One breaker per provider name per container, in the singleton pipeline registry; the key is the fixed lowercase provider name (`kafka`, `rabbitmq`, `nats`, `mqtt`, `azureservicebus`, `amazonsqs`, `redispubsub`, `inmemory`)** | Broker connectivity is a property of the broker; the key is injective (eight distinct constants, no tenant or user input) | One broker outage opens the breaker for every topic of that provider |
+| **A) One breaker per provider name per container, in the singleton pipeline registry; the key is a fixed lowercase constant of the decorator's own package, never derived from caller input (the constants of the transports decorated by this plan are in "Research")** | Broker connectivity is a property of the broker; the key is injective (one distinct constant per decorator, no tenant or user input) | One broker outage opens the breaker for every topic of that provider |
 | **B) One breaker per provider and destination (topic, queue)** | A bad topic does not stop the others | Unbounded keys from caller input; a registry that grows without limit |
 
 ### Chosen Option: **A — Per provider name**
 
 ### Rationale
 
-- B does not comply: it keys by caller-supplied values, which grows the registry without a bound and breaks the injectivity of keys; A is the only option that satisfies the singleton rule with a bounded key. It holds under every option of choices 1 to 9 (it concerns the key, not the package or the wrapped interface). A breaker is not tenant-keyed: broker connectivity is shared, so the reserved `default` tenant segment does not apply.
+- B does not comply: it keys by caller-supplied values, which grows the registry without a bound and breaks the injectivity of keys; A is the only option that satisfies the singleton rule with a bounded key. It holds under every option of choices 1 to 9 and 11 (it concerns how a key is formed, not the package, the wrapped interface, the set of transports or which operations retry; a transport added by choice 3 option B would add its own constant). A breaker is not tenant-keyed: broker connectivity is shared, so the reserved `default` tenant segment does not apply.
 - **Class:** Settled
 - **Settled by:** ADR-055 settled points ("circuit-breaker state lives in a per-container singleton, never in a static field") and R7 ("keyed by provider name or shard id")
+
+</details>
+
+<details>
+<summary><strong>11. Request/reply, batch and id-less operations</strong></summary>
+
+Request/reply (RabbitMQ and NATS `RequestAsync`) executes work on the other side and returns a response; a batch (`ProduceBatchAsync`, `SendBatchAsync`) can be delivered in part; `InMemory` publishing has no id and an in-process failure is a subscriber exception.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Request/reply is not retried (breaker and timeout only); a batch is retried whole with each element's id assigned once (the Kafka tuple id, a generated id per SQS entry), so the consumer deduplicates the elements already delivered; `InMemory` is not retried (a retry would re-run subscribers; breaker and timeout apply); `CancelScheduledAsync` is retried (cancelling twice is idempotent)** | No duplicated work on the other side of a request; partial batches converge | Request/reply gets no retry; a batch may redeliver elements the consumer must deduplicate |
+| **B) All of them retried like a publish** | One rule | A retried request repeats side effects; an in-process retry runs handlers twice |
+
+### Chosen Option: **A — Per operation kind** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on safety (ADR-029: a command is retried only when idempotent; a request is a command); B wins if every request/reply in the application is idempotent, which an option `RetryRequestReply` (default false) can express per provider.
+
+- **Class:** Dilemma
 
 </details>
 
@@ -267,7 +289,7 @@ ADR-055 settled points: breaker state lives in a per-container singleton, never 
 
 ## Implementation Phases
 
-Eight pull requests, in order: **PR-1** Phases 1 and 2 (options, executor, registration, with their tests); **PR-2** Phase 5 (EventIds, logs and the span event; it modifies the executor and its tests); **PR-3** Kafka and RabbitMQ; **PR-4** NATS and MQTT; **PR-5** AzureServiceBus and AmazonSQS; **PR-6** Redis.PubSub and InMemory (Phase 3); **PR-7** the shared contract suite and Phase 7 (documentation); **PR-8** the integration tests. Every PR needs the foundation, R6 and the #335 mapper merged (choice 1 option A); under B or C the split is recounted.
+Eleven pull requests, in order: **PR-1** Phases 1 and 2 (options, executor, registration, with their unit, guard, DI and property tests); **PR-2** Phase 5 (EventIds, logs and the span event; it modifies the executor and its tests); **PR-3 to PR-10** one transport each (Phase 3), in the order Kafka, RabbitMQ, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub, InMemory; PR-3 also adds the abstract contract suite; **PR-11** Phase 7 (documentation). Every PR needs the foundation, R6 and the #335 mapper merged (choice 1 option A); under B or C the split is recounted.
 
 ### Phase 1: Core Models and Contracts
 
@@ -320,11 +342,12 @@ REFERENCE FILES: src/Encina/Recoverability/IErrorClassifier.cs, src/Encina/Recov
 <details>
 <summary>Tasks</summary>
 
-For each of the eight transports (PR-3 to PR-6), in its package:
+For each of the eight transports (PR-3 to PR-10), in its package:
 
-1. `Resilient<Transport>MessagePublisher.cs` (public sealed, implements the package's publisher interface; constructor `(I<Transport>MessagePublisher inner, IProviderResilience resilience)`, both public types, both null-guarded): every method calls `resilience.ExecuteAsync("<provider>", "<operation>", ct => inner.Method(..., messageId ?? generated, ct), cancellationToken)` and passes the id assigned once (choice 5); `InMemory`'s decorator wraps `PublishAsync` and `EnqueueAsync`, and `Subscribe` and the counters pass through.
+1. `Resilient<Transport>MessagePublisher.cs` (public sealed, implements the package's publisher interface; constructor `(I<Transport>MessagePublisher inner, IProviderResilience resilience)`, both public types, both null-guarded): every operation method calls `resilience.ExecuteAsync("<provider>", "<operation>", ct => inner.Method(..., messageId ?? generated, ct), cancellationToken)` and passes the id assigned once (choice 5) per the operation kinds of choice 11; the subscription methods and counters (`SubscribeAsync`, `SubscribePatternAsync`, `Subscribe`, `PendingCount`, `SubscriberCount`) pass through unwrapped (choice 4); `InMemory`'s decorator wraps `PublishAsync` and `EnqueueAsync` without retry.
 2. `ServiceCollectionExtensions.cs` (modified): `AddEncina<Transport>Resilience()` per choice 8; the inner registration becomes the concrete class plus a factory.
-3. `Encina.<Transport>.csproj`: `ProjectReference` to `Encina.Resilience`; `PublicAPI.Unshipped.txt` and the package manifest (`mechanical-fixer`).
+3. `Encina.<Transport>.csproj`: `ProjectReference` to `Encina.Resilience`; `PublicAPI.Unshipped.txt`, the package manifest and one line in the package `README.md` (`mechanical-fixer`, `docs-writer`).
+4. Tests in the same PR: the decorator unit test, the DI test (`ValidateOnBuild`, `ValidateScopes`), the guard test, a derived class of the abstract contract suite (`tests/Encina.ContractTests/Messaging/`, with a `ProjectReference` edit of `Encina.ContractTests.csproj`) and the broker integration test (Phase 6 task 5).
 4. Provider facts to verify in each PR and record in the options defaults and the docs: whether the SDK retries by default and how to turn it off (choice 6); which exceptions the SDK raises for a closed broker.
 
 </details>
@@ -369,7 +392,7 @@ REFERENCE FILES: docs/architecture/adr/054-observability-conventions-and-trace-p
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceProvider = (970, 984)`; core `PublicAPI.Unshipped.txt`; the `AssemblyRanges` entry for `Encina.Resilience` gains the range in `EncinaEventIdAllocationTests.cs`.
+1. `src/Encina/Diagnostics/EventIdRanges.cs`: register `ResilienceProvider = (970, 984)`; core `PublicAPI.Unshipped.txt`; `EncinaEventIdAllocationTests.cs`: create the `Encina.Resilience` entry of `AssemblyRanges` if absent, otherwise add the range to it (an entry for an assembly with no EventIds fails `AssemblyRanges_HasNoStaleEntries`, so the entry exists only once some plan registers ids). The block 950-999 stays valid after the 10000+ zone of AGENTS.md section 7 (it is `reserved-pre-zone` in `docs/engineering/eventid-block-registry.md`).
 2. `Providers/ProviderResilienceLogMessages.cs`: 970 `ProviderRetryExhausted` (Warning: provider, operation, attempts), 971 `ProviderCircuitOpened` (Warning), 972 `ProviderCircuitClosed` (Information), 973 `ProviderCallRejectedByOpenCircuit` (Warning), 974 `ProviderRetryAttempt` (Debug), 975 `ProviderTimedOut` (Warning); 976 to 984 spare. Never `EncinaError.Message`, message bodies or ids.
 3. `ProviderResilience.cs` (modified): emits the logs from Polly's `OnRetry`, `OnOpened`, `OnClosed` callbacks; spans and Polly's instruments follow R5 and #728 (no instrument of our own); the provider name is a tag.
 
@@ -394,9 +417,9 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests
 
 1. Unit (`tests/Encina.UnitTests/Resilience/Providers/` and per transport): executor retries a transient `Left` and not a permanent one, stops at `MaxAttempts`, opens the breaker after the threshold, half-opens after the break with a fake clock, times out, never counts a cancelled token, throws on cancellation; each decorator forwards arguments, assigns the id once and keeps it across attempts, returns the last `Left`.
 2. Guard (`tests/Encina.GuardTests/`): the executor's `ExecuteAsync` (null or blank `provider`, null `action`), `AddEncinaProviderResilience` null `services`, and for each of the eight decorators the constructor `(inner, resilience)` with a null of each (and no nullable parameter).
-3. Contract (`tests/Encina.ContractTests/Messaging/`, PR-7): an abstract suite with one derived class per transport: each decorator, against a fake inner that fails transiently, retries, opens the breaker and returns the `Left`; runs real code.
-4. Property (`tests/Encina.PropertyTests/Resilience/`): FsCheck, for any failure sequence the number of attempts never exceeds `MaxAttempts` and the id is constant across attempts.
-5. Integration (PR-8, `tests/Encina.IntegrationTests/MessageBrokers/<Transport>/`, shared collection fixtures of the existing broker tests, `[Trait("Category", "Integration")]`): per broker (RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus emulator, AmazonSQS LocalStack, Redis.PubSub) a publish succeeds after a broker restart and the breaker opens while the container is stopped; `Encina.IntegrationTests.csproj` gains a `ProjectReference` to `Encina.Resilience` (counted).
+3. Contract (`tests/Encina.ContractTests/Messaging/`): the abstract suite lands in PR-3 and each transport PR adds one derived class (PR-3 to PR-10): each decorator, against a fake inner that fails transiently, retries (where choice 11 says so), opens the breaker and returns the `Left`; runs real code.
+4. Property (`tests/Encina.PropertyTests/Resilience/`, PR-1): FsCheck, for any failure sequence the number of attempts never exceeds `MaxAttempts` and the id is constant across attempts.
+5. Integration (in each transport PR, `tests/Encina.IntegrationTests/MessageBrokers/<Transport>/`, shared collection fixtures of the existing broker tests (the ASB emulator, LocalStack and the NATS collection exist; the Redis one is `RedisFixture` under `Infrastructure/Caching`; a missing collection fixture for RabbitMQ, Kafka or MQTT is added in that PR and counted), `[Trait("Category", "Integration")]`): per broker (RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus emulator, AmazonSQS LocalStack, Redis.PubSub) a publish succeeds after a broker restart and the breaker opens while the container is stopped; PR-3 edits `Encina.IntegrationTests.csproj` to add a `ProjectReference` to `Encina.Resilience` (counted). `InMemory` has no infrastructure: its integration target is 0 with that reason.
 6. Load and benchmark: justification files (the executor is a Polly pipeline call); a benchmark is not planned because the added cost is one registry lookup per call.
 
 </details>
@@ -418,8 +441,8 @@ REFERENCE FILES: tests/Encina.IntegrationTests/MessageBrokers/, .github/coverage
 <details>
 <summary>Tasks</summary>
 
-1. `docs/features/transport-resilience.md` and the `Encina.Resilience` README section (`docs-writer`): the options, the per-provider SDK retry table (as verified), at-least-once and the message id, what is not covered (consumers, gRPC, GraphQL), connection recovery per SDK; each transport README gets one line.
-2. `changelog.d/742-transport-resilience.added.md`, `PublicAPI.Unshipped.txt` and manifests of the eight packages and `Encina.Resilience` (`mechanical-fixer`).
+1. `docs/features/transport-resilience.md` and the `Encina.Resilience` README section (`docs-writer`): the options, the per-provider SDK retry table (as verified), at-least-once and the message id, what is not covered (consumers, gRPC, GraphQL), connection recovery per SDK; each transport README line lands in its own transport PR (Phase 3 task 3).
+2. `changelog.d/742-transport-resilience.added.md`, the `Encina.Resilience` manifest rows for the load and benchmark justifications (`mechanical-fixer`); each transport's `PublicAPI.Unshipped.txt` and manifest land in its own PR.
 3. Verification: `dotnet build` 0 warnings; tests filtered to `Resilience.Providers`; EventId architecture tests; `--check-justifications`.
 
 </details>
@@ -457,21 +480,21 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | Publisher interfaces and implementations | `src/Encina.{Kafka,RabbitMQ,NATS,MQTT,AzureServiceBus,AmazonSQS,Redis.PubSub,InMemory}/` | Decorated |
 | `ResilientSecretReaderDecorator` | `src/Encina.Security.Secrets/` | The R7 precedent |
 | `IErrorClassifier`, `OutboundRetryRules` | `src/Encina/Recoverability/` | Retry classification |
-| Existing broker integration tests and collections | `tests/Encina.IntegrationTests/MessageBrokers/` | PR-8 |
+| Existing broker integration tests and collections | `tests/Encina.IntegrationTests/MessageBrokers/` | The per-transport PRs |
 | `DeadLetter/` store and orchestrator | `src/Encina.Messaging/DeadLetter/` | Not used by the transports (choice 7) |
 
 Transport matrix (AGENTS.md section 5; 10 existing and 6 planned):
 
 | Transport | In this plan | Operations wrapped | SDK retry (claim, verify in the PR) |
 |-----------|--------------|--------------------|-------------------------------------|
-| RabbitMQ | PR-3 | `PublishAsync`, `SendToQueueAsync`, `RequestAsync` | Client has connection recovery, no publish retry |
+| RabbitMQ | PR-4 | `PublishAsync`, `SendToQueueAsync`, `RequestAsync` | Client has connection recovery, no publish retry |
 | Kafka | PR-3 | `ProduceAsync`, `ProduceBatchAsync`, `ProduceWithHeadersAsync` | Idempotent producer retries inside `MessageTimeoutMs`; keeps its retries (choice 6 A) |
-| NATS | PR-4 | `PublishAsync`, `RequestAsync`, `JetStreamPublishAsync` | Reconnect only |
-| MQTT | PR-4 | `PublishAsync` | None on publish |
-| AzureServiceBus | PR-5 | `SendToQueueAsync`, `PublishToTopicAsync`, `ScheduleAsync`, `CancelScheduledAsync` | Client retry options on by default; disable when Encina retries |
-| AmazonSQS | PR-5 | `SendToQueueAsync`, `PublishToTopicAsync`, `SendBatchAsync`, `SendToFifoQueueAsync` | AWS SDK retries by default; disable when Encina retries |
-| Redis.PubSub | PR-6 | `PublishAsync` | None on publish |
-| InMemory | PR-6 | `PublishAsync`, `EnqueueAsync` | Not applicable |
+| NATS | PR-5 | `PublishAsync`, `RequestAsync`, `JetStreamPublishAsync` | Reconnect only |
+| MQTT | PR-6 | `PublishAsync` | None on publish |
+| AzureServiceBus | PR-7 | `SendToQueueAsync`, `PublishToTopicAsync`, `ScheduleAsync`, `CancelScheduledAsync` | Client retry options on by default; disable when Encina retries |
+| AmazonSQS | PR-8 | `SendToQueueAsync`, `PublishToTopicAsync`, `SendBatchAsync`, `SendToFifoQueueAsync` | AWS SDK retries by default; disable when Encina retries |
+| Redis.PubSub | PR-9 | `PublishAsync` | None on publish |
+| InMemory | PR-10 | `PublishAsync`, `EnqueueAsync` | Not applicable |
 | gRPC, GraphQL | No: #745 (open; spike #3384) | none | none |
 | GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr (planned) | No: issue file `transport-resilience-planned-transports` | when each package lands | per package |
 
@@ -479,30 +502,31 @@ Transport matrix (AGENTS.md section 5; 10 existing and 6 planned):
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` (`ResilienceProvider`) | 970-984 | New range from the block 950-999; 970-975 used, 976-984 spare; #744 reuses these ids and adds none here; verified free by repository-wide search on `098caa920` |
+| `Encina.Resilience` (`ResilienceProvider`) | 970-984 | New range from the block 950-999; 970-975 used, 976-984 spare; #744 uses none of them (its ids are 4711-4712 and 4759-4760 in its own ranges); verified free by repository-wide search on `277402987` |
 
 ### Estimated File Count
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 11 | 5 production (`ProviderResilienceOptions`, validator, `IProviderResilience`, `ProviderResilience`, `ProviderResilienceServiceCollectionExtensions`), 4 tests (executor, options and validator, DI, guard), `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-1 | 15 | 5 production (`ProviderResilienceOptions`, validator, `IProviderResilience`, `ProviderResilience`, `ProviderResilienceServiceCollectionExtensions`), 5 tests (executor, options and validator, DI, guard, property), `Encina.PropertyTests.csproj` and `Encina.GuardTests.csproj` (`ProjectReference` to `Encina.Resilience`, each only if missing), `PublicAPI.Unshipped.txt`, manifest rows |
 | PR-2 | 9 | `ProviderResilienceLogMessages`, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `ProviderResilience.cs` (modified), executor test (modified), Resilience `PublicAPI.Unshipped.txt`, manifest, the span test |
-| PR-3 to PR-6 | 14 each | per transport (2 per PR): decorator, `ServiceCollectionExtensions.cs` (modified), `.csproj` (`ProjectReference`), package `PublicAPI.Unshipped.txt`, package manifest, unit test, guard test |
-| PR-7 | 14 | abstract contract suite, 8 derived classes, `Encina.ContractTests.csproj` (8 `ProjectReference`s), property test, feature page, README section, changelog fragment |
-| PR-8 | 11 | 7 integration test classes, `Encina.IntegrationTests.csproj`, 2 justification `.md`, manifest, the executor test (modified) |
+| PR-3 (Kafka) | 14 | decorator, `ServiceCollectionExtensions.cs` (modified), `Encina.Kafka.csproj`, package `PublicAPI.Unshipped.txt`, manifest, `README.md`, unit, DI and guard tests, derived contract class, integration test (the existing Kafka health collection), plus the abstract contract suite, `Encina.ContractTests.csproj` and `Encina.IntegrationTests.csproj` (one `ProjectReference` each) |
+| PR-4 to PR-9 (RabbitMQ, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub) | 12 to 13 each | the same 12 files as PR-3 without the three shared ones (decorator, registration, `.csproj`, `PublicAPI`, manifest, `README.md`, unit, DI, guard, contract class, integration test, `Encina.ContractTests.csproj`), plus a collection fixture where the broker has none (RabbitMQ, Kafka, MQTT: counted in its PR) |
+| PR-10 (InMemory) | 11 | the 12 files without the integration test (no infrastructure) |
+| PR-11 | 6 | feature page, Resilience README section, changelog fragment, 2 justification `.md` (load, benchmark), `Encina.Resilience` manifest rows |
 
 Each PR is within 15 files and 1,500 lines. Implementers of changed interfaces: none (no interface changes); `new X(` sites of the registrations are the eight `ServiceCollectionExtensions.cs` files, listed above.
 
-Per-file targets (new files; baseline: none exists on `origin/main`; existing manifest targets of the eight packages are not lowered):
+Per-file targets (new files; baseline: none exists on `origin/main`; existing manifest targets of the eight packages are not lowered; each target is set by the PR that adds the tests reaching it):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
-| `ProviderResilience.cs` | 90 | 100 | 0 | 85 | 0 | Retry, breaker, timeout, cancellation driven with a fake clock; property test on attempts; guard test on `ExecuteAsync` arguments |
-| `ProviderResilienceOptions.cs`, `ProviderResilienceOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Property bags and rules; internal validator reached through `InternalsVisibleTo` |
-| `ProviderResilienceServiceCollectionExtensions.cs` | 90 | 100 | 0 | 0 | 0 | Guarded public method plus the DI test |
-| `ProviderResilienceLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger |
-| `Resilient<Transport>MessagePublisher.cs` (8) | 90 | 100 | 85 | 0 | 70 | Forwarding and id assignment in unit tests; guard tests send null to the public constructor; the contract suite runs every decorator; integration tests run the seven brokers (InMemory 0 integration: in-process) |
-| `ServiceCollectionExtensions.cs` of each transport (modified) | no lowering | no lowering | 0 | 0 | 0 | The new branch is covered by the DI test of each transport; existing targets stay |
+| `ProviderResilience.cs` (PR-1) | 90 | 100 | 0 | 85 | 0 | Retry, breaker, timeout, cancellation driven with a fake clock; the property test of PR-1 on attempts; guard test on `ExecuteAsync` arguments |
+| `ProviderResilienceOptions.cs`, `ProviderResilienceOptionsValidator.cs` (PR-1) | 95 | 0 | 0 | 0 | 0 | Property bags and rules; internal validator reached through `InternalsVisibleTo` |
+| `ProviderResilienceServiceCollectionExtensions.cs` (PR-1) | 90 | 100 | 0 | 0 | 0 | Guarded public method plus the DI test |
+| `ProviderResilienceLogMessages.cs` (PR-2) | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger |
+| `Resilient<Transport>MessagePublisher.cs` (each in its own PR, PR-3 to PR-10) | 90 | 100 | 85 | 0 | 70 (InMemory 0) | Forwarding and id assignment in the unit tests; guard tests send null to the public constructor; the derived contract class and the broker integration test of the same PR reach the contract and integration rows; InMemory has no infrastructure |
+| `ServiceCollectionExtensions.cs` of each transport (modified, same PRs) | 90 | existing target kept (Kafka 15, others per manifest) | 0 | 0 | 0 | The new branch is covered by the DI test of the same PR (unit row 90); a modified file keeps the higher of its existing target and these numbers |
 
 CRAP of each added method is at most 10 (the executor splits pipeline construction, classification and logging into small methods).
 
@@ -563,5 +587,5 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina.Kafk
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #742.
-2. When #742 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 9).
-3. Brief workers for PR-1 to PR-8 in order, after the foundation, R6 and the #335 mapper are merged.
+2. When #742 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 9 and 11).
+3. Brief workers for PR-1 to PR-11 in order, after the foundation, R6 and the #335 mapper are merged.
