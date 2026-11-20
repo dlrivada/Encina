@@ -2,7 +2,7 @@
 
 > **Issue**: [#335](https://github.com/dlrivada/Encina/issues/335)
 > **Type**: Feature
-> **Complexity**: Medium (7 phases, no database providers, 3 pull requests)
+> **Complexity**: Medium (7 phases, no database providers, 4 pull requests)
 > **Estimated Scope**: ~450 lines of production code + ~900 lines of tests (about 1,500 changed lines in total, three pull requests)
 
 ---
@@ -23,7 +23,7 @@ What this plan delivers, all in `Encina.Resilience`: `TimeoutAttribute`, `IHasTi
 
 - **Affected packages**: `Encina.Resilience` (planned), `Encina` core (`EventIdRanges.cs` only). The issue also ticks `Encina.AspNetCore` and `Encina.Caching.*`: neither needs code (hosts already map category `Timeout` to 504; the cached-value fallback is choice 5).
 - **Provider category**: Resilience (AGENTS.md section 5, "Other categories"); no database, caching, transport, lock or validation matrix applies.
-- **Estimated size**: 3 pull requests of at most 15 files and 1,500 lines, split in "Implementation Phases".
+- **Estimated size**: 4 pull requests of at most 15 files and 1,500 lines, split in "Implementation Phases".
 - **Prerequisites**: the foundation (package, compiler, options front-ends) and R6 (token and deadline), described in "Prerequisites & Dependencies".
 
 ### Shared Pieces and Ownership (family resilience-patterns-1 and resilience-patterns-2)
@@ -222,7 +222,7 @@ R5: Polly's `resilience.polly.*` instruments are enriched by Encina; Encina crea
 ### Rationale
 
 - A wins on R5; B wins only if the maintainer wants a timeout histogram by request type without relying on Polly's dimensions. The tenant tag is added only when multi-tenancy is on (ADR-054 D4).
-- Logs are in PR-2 (choice of EventIds 950-954); they carry the request type, the kind and the configured limit, never an `EncinaError.Message`.
+- Logs are in PR-3 (choice of EventIds 950-954); they carry the request type, the kind and the configured limit, never an `EncinaError.Message`.
 
 - **Class:** Dilemma
 
@@ -276,7 +276,7 @@ Inside the pipeline Polly's per-attempt timeout raises `TimeoutRejectedException
 
 ## Implementation Phases
 
-Three pull requests, in order: **PR-1** Phases 1 and 2 with the registration of the factory and the mapper and their tests (the strategies work with the token of R6; the deadline is not shortened yet); **PR-2** the contributor of Phase 3 and Phase 5 (deadline shortening, logs and span event; it modifies the factory, the mapper, the registration and their tests); **PR-3** the contract test, the justification files and Phase 7 (documentation and changelog). Every PR needs the foundation and R6 merged (choice 1 option A); under B or C the split is recounted.
+Four pull requests, in order: **PR-1** Phase 1 (attribute, interface, options, validator, detail keys); **PR-2** Phase 2 with the registration of the factory and the mapper and their tests (the strategies work with the token of R6; the deadline is not shortened yet); **PR-3** the contributor of Phase 3 and Phase 5 (deadline shortening, logs, registry row and span event; it modifies the factory, the mapper, the registration and their tests); **PR-4** the contract test, the justification files and Phase 7 (documentation and changelog). Every PR needs the foundation and R6 merged (choice 1 option A); under B or C the split is recounted.
 
 ### Phase 1: Core Models
 
@@ -476,24 +476,27 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 15 | 7 production (`TimeoutAttribute`, `IHasTimeout`, `TimeoutOptions`, `TimeoutOptionsValidator`, `TimeoutDetailKeys`, `TimeoutStrategyFactory`, `TimeoutRejectionMapper`), `ResilienceServiceCollectionExtensions.cs` (modified), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing), 3 tests (factory with precedence, mapper, options with validator), the DI test (modified), `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-2 | 14 | `TimeoutDeadlineContributor.cs`, `ResilienceServiceCollectionExtensions.cs` and the DI test (modified), the contributor test, `TimeoutLogMessages.cs`, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `TimeoutStrategyFactory.cs` and `TimeoutRejectionMapper.cs` (modified, they emit the logs), their two tests (modified, log and span-event assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
-| PR-3 | 7 | the contract test, 2 justification `.md` (load, benchmark), feature page, README section, changelog fragment, manifest row |
+| PR-1 | 8 | 5 production (`TimeoutAttribute`, `IHasTimeout`, `TimeoutOptions`, `TimeoutOptionsValidator`, `TimeoutDetailKeys`), the options and validator test, `PublicAPI.Unshipped.txt`, manifest rows (the options section is a property added to the foundation's per-type options type through its extension point, counted as `TimeoutOptions` here, not as an edit of a foundation file) |
+| PR-2 | 9 | `TimeoutStrategyFactory`, `TimeoutRejectionMapper`, `ResilienceServiceCollectionExtensions.cs` (modified), `Encina.Resilience.csproj` (`InternalsVisibleTo`, only if missing), 2 tests (factory with precedence, mapper), the DI test (modified), `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-3 | 15 | `TimeoutDeadlineContributor.cs`, `ResilienceServiceCollectionExtensions.cs` and the DI test (modified), the contributor test, `Diagnostics/TimeoutLogMessages.cs`, `EventIdRanges.cs`, `docs/engineering/eventid-block-registry.md` (split the reserved-pre-zone row 950-999 so the registered range 950-959 does not overlap it and add the `ResilienceTimeout` row; `EventIdRegistryAgreementTests` fails otherwise), core `PublicAPI.Unshipped.txt`, `EncinaEventIdAllocationTests.cs`, `TimeoutStrategyFactory.cs` and `TimeoutRejectionMapper.cs` (modified, they emit the logs), their two tests (modified, log and span-event assertions), Resilience `PublicAPI.Unshipped.txt`, manifest |
+| PR-4 | 7 | the contract test, 2 justification `.md` (load, benchmark), feature page, README section, changelog fragment, manifest row |
 
-Each PR is within 15 files and 1,500 lines (PR-1 is 15 only when the conditional `Encina.Resilience.csproj` edit is needed; the `ProjectReference` of `Encina.UnitTests`, `Encina.GuardTests` and `Encina.ContractTests` to `Encina.Resilience` and the pinned Polly version are acceptance items of the foundation, so no `Directory.Packages.props` or test-project edit belongs to this plan; if the foundation lacks the `Encina.ContractTests` reference, PR-3 adds it and stays at 8 files). No test double changes belong to this plan (the `IRequestContext` implementers are updated by R6).
+Each PR is within 15 files and 1,500 lines (the `ProjectReference` of `Encina.UnitTests`, `Encina.GuardTests` and `Encina.ContractTests` to `Encina.Resilience` and the pinned Polly version are acceptance items of the foundation, so no `Directory.Packages.props` or test-project edit belongs to this plan; if the foundation lacks the `Encina.ContractTests` reference, PR-4 adds it and stays at 8 files). No test double changes belong to this plan (the `IRequestContext` implementers are updated by R6).
 
 Per-file targets (new files; baseline: none exists on `origin/main`):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
 | `TimeoutAttribute.cs` | 90 | 0 | 0 | 0 | 0 | Property bag read by the factory tests; no parameters, so no guard test can reach it |
-| `IHasTimeout.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code; its behavior is covered through the contract test of PR-3 on the factory |
+| `IHasTimeout.cs` | 0 | 0 | 0 | 0 | 0 | Interface, no executable code; its behavior is covered through the contract test of PR-4 on the factory |
 | `TimeoutOptions.cs`, `TimeoutDetailKeys.cs` | 90 | 0 | 0 | 0 | 0 | Property bags and constants, read by the validator and mapper tests |
 | `TimeoutOptionsValidator.cs` | 95 | 0 | 0 | 0 | 0 | Internal; one test per rule through the `InternalsVisibleTo` of Phase 2 |
-| `TimeoutStrategyFactory.cs` | 90 (PR-1) | 0 | 80 (PR-3) | 0 | 0 | Every branch (total, per-attempt, instance value, precedence, the nested outcome strategy of choice 10) with a fake clock in PR-1; the contract row is written in the manifest of PR-3, which adds the contract test that runs a real compiled pipeline; internal, no public parameters |
+| `TimeoutStrategyFactory.cs` | 90 (PR-2) | 0 | 80 (PR-4) | 0 | 0 | Every branch (total, per-attempt, instance value, precedence, the nested outcome strategy of choice 10) with a fake clock in PR-1; the contract row is written in the manifest of PR-4, which adds the contract test that runs a real compiled pipeline; internal, no public parameters |
 | `TimeoutRejectionMapper.cs` | 95 | 0 | 0 | 0 | 0 | Three branches (rejection, caller cancellation, other exception) driven directly |
-| `TimeoutDeadlineContributor.cs` | 90 | 0 | 0 | 0 | 0 | Set, restore on exception, not-shorter case; internal, constructor reached through DI |
-| `TimeoutLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions in PR-2 with a fake logger |
+| `TimeoutDeadlineContributor.cs` (PR-3) | 90 | 0 | 0 | 0 | 0 | Set, restore on exception, not-shorter case; internal, constructor reached through DI |
+| `ResilienceServiceCollectionExtensions.cs` (modified in PR-2 and PR-3; foundation file) | 90 | existing target of the foundation kept | 0 | 0 | 0 | The new registrations are reached by the DI test; the foundation's rows are never lowered |
+| `Encina/Diagnostics/EventIdRanges.cs` (modified in PR-3; existing unit 95) | 95 | 0 | 0 | 0 | 0 | One field added; the existing unit target of the core manifest stays 95 and is reached by the registry and allocation tests |
+| `TimeoutLogMessages.cs` (PR-3) | 85 | 0 | 0 | 0 | 0 | Log assertions in PR-3 with a fake logger |
 
 CRAP of each added method is at most 10 (the factory splits the generator into small methods).
 
@@ -524,7 +527,7 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Erro
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Timeouts act on live calls; a cached answer on timeout is #268's pattern (choice 5) |
 | 2 | OpenTelemetry | ✅ | Polly's instruments plus a `timeout` span event (choice 8); tenant tag only with multi-tenancy |
-| 3 | Structured Logging | ✅ | EventIds 950-954 (PR-2) |
+| 3 | Structured Logging | ✅ | EventIds 950-954 (PR-3) |
 | 4 | Health Checks | ❌ | No dependency or persistent state |
 | 5 | Validation | ✅ | Options validated at startup; an invalid `IHasTimeout` value is ignored and logged |
 | 6 | Resilience | ✅ | This is a resilience capability; it fills two slots of the R2 order |
@@ -554,4 +557,4 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Erro
 
 1. Commit this plan, open its PR and link it from #335.
 2. When #335 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1, 2, 3, 4, 5, 7, 8, 9 and 10).
-3. Brief workers for PR-1 to PR-3 in order, after the foundation and R6 are merged.
+3. Brief workers for PR-1 to PR-4 in order, after the foundation and R6 are merged.
