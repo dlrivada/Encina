@@ -33,10 +33,10 @@
       ],
       "defaultRule": "*Validator.cs",
       "reason": "Options validator with a single null check",
-      "targets": { "unit": 100, "guard": 0 },
+      "targets": { "unit": 100, "guard": 50 },
       "justifications": {
         "unit": "Unit tests exercise every validation outcome of the options validator.",
-        "guard": "The class is internal and its single null check is exercised by the unit tests."
+        "guard": "Guard tests run the options null check and the default success path (50% measured); the header trust-decision failure branch is covered by the unit flag."
       }
     },
     "Diagnostics/TenancyAspNetCoreLogMessages.cs": {
@@ -162,10 +162,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 100, "guard": 0 },
+      "targets": { "unit": 100, "guard": 60 },
       "justifications": {
         "unit": "Every resolver ordering and first-match outcome of the chain is unit-tested.",
-        "guard": "The class is internal and its two null checks are exercised by the unit tests."
+        "guard": "Guard tests run the constructor and ResolveAsync null checks and the empty-chain outcome (63.33% measured); the authoritative/mismatch resolution paths are covered by the unit flag."
       }
     },
     "ServiceCollectionExtensions.cs": {
