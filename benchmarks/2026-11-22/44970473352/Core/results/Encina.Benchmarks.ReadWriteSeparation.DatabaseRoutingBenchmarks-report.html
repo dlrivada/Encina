@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.ReadWriteSeparation.DatabaseRoutingBenchmarks-20261122-011854</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.67GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]    : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  MediumRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=MediumRun  InvocationCount=1  IterationCount=15  
+LaunchCount=2  UnrollFactor=1  WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                          </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Median</th><th>Allocated</th>
+</tr>
+</thead><tbody><tr><td>&#39;Nested scopes (Read → ForceWrite)&#39;</td><td>3,053.89 ns</td><td>175.08 ns</td><td>251.09 ns</td><td>2,996.50 ns</td><td>840 B</td>
+</tr><tr><td>&#39;Read CurrentIntent (AsyncLocal)&#39;</td><td>100.15 ns</td><td>14.92 ns</td><td>22.33 ns</td><td>100.25 ns</td><td>-</td>
+</tr><tr><td>DatabaseRoutingScope.ForRead()</td><td>2,590.46 ns</td><td>103.78 ns</td><td>142.06 ns</td><td>2,598.50 ns</td><td>392 B</td>
+</tr><tr><td>&#39;Read EffectiveIntent (null-coalesce)&#39;</td><td>118.80 ns</td><td>16.08 ns</td><td>24.07 ns</td><td>125.50 ns</td><td>-</td>
+</tr><tr><td>&#39;Read HasIntent&#39;</td><td>70.95 ns</td><td>31.89 ns</td><td>45.73 ns</td><td>95.25 ns</td><td>-</td>
+</tr><tr><td>&#39;Read IsReadIntent&#39;</td><td>158.04 ns</td><td>55.08 ns</td><td>78.99 ns</td><td>125.00 ns</td><td>-</td>
+</tr><tr><td>&#39;Read IsWriteIntent&#39;</td><td>95.39 ns</td><td>25.91 ns</td><td>37.16 ns</td><td>100.00 ns</td><td>-</td>
+</tr><tr><td>DatabaseRoutingScope.ForWrite()</td><td>2,430.10 ns</td><td>176.83 ns</td><td>259.19 ns</td><td>2,454.00 ns</td><td>392 B</td>
+</tr><tr><td>DatabaseRoutingScope.ForForceWrite()</td><td>2,547.79 ns</td><td>109.30 ns</td><td>156.75 ns</td><td>2,558.50 ns</td><td>392 B</td>
+</tr><tr><td>DatabaseRoutingContext.Clear()</td><td>1,503.46 ns</td><td>130.35 ns</td><td>186.95 ns</td><td>1,562.50 ns</td><td>96 B</td>
+</tr></tbody></table>
+</body>
+</html>

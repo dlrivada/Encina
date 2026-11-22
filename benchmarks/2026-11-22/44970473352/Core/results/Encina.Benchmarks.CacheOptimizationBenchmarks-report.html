@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Benchmarks.CacheOptimizationBenchmarks-20261122-012000</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 7763 3.13GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]    : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+  MediumRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=MediumRun  IterationCount=15  LaunchCount=2  
+WarmupCount=10  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Median </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>Cache_TryGetValue_ThenGetOrAdd</td><td>41.1706 ns</td><td>0.1175 ns</td><td>0.1527 ns</td><td>41.2212 ns</td><td>0.983</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>TypeCheck_Cached</td><td>13.5332 ns</td><td>0.1230 ns</td><td>0.1724 ns</td><td>13.4464 ns</td><td>0.323</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>TypeCheck_Direct</td><td>0.3644 ns</td><td>0.0092 ns</td><td>0.0135 ns</td><td>0.3611 ns</td><td>0.009</td><td>0.00</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Send_Command_CacheHit</td><td>4,547.4482 ns</td><td>27.2512 ns</td><td>39.0828 ns</td><td>4,536.8404 ns</td><td>108.566</td><td>1.40</td><td>0.1678</td><td>2856 B</td><td>NA</td>
+</tr><tr><td>Cache_GetOrAdd_Direct</td><td>41.8903 ns</td><td>0.2868 ns</td><td>0.4204 ns</td><td>41.7768 ns</td><td>1.000</td><td>0.01</td><td>-</td><td>-</td><td>NA</td>
+</tr><tr><td>Publish_Notification_CacheHit</td><td>3,652.9823 ns</td><td>28.8258 ns</td><td>42.2525 ns</td><td>3,657.0907 ns</td><td>87.212</td><td>1.31</td><td>0.1297</td><td>2232 B</td><td>NA</td>
+</tr><tr><td>Send_Query_CacheHit</td><td>4,740.2124 ns</td><td>51.6433 ns</td><td>70.6899 ns</td><td>4,692.8035 ns</td><td>113.169</td><td>1.99</td><td>0.1678</td><td>2832 B</td><td>NA</td>
+</tr></tbody></table>
+</body>
+</html>
