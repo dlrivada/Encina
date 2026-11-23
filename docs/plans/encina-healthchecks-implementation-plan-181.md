@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `237a83364`)
+### What exists today (read on 2026-11-23, main `682b1d70b`)
 
 The issue (2026-era text, `status:ready`) asks for a new `Encina.HealthChecks` package. Almost everything it lists already lives in other packages. Verified against `main`:
 
@@ -22,7 +22,7 @@ The issue (2026-era text, `status:ready`) asks for a new `Encina.HealthChecks` p
 | `ScheduledMessageHealthCheck`, overdue messages | Exists as `SchedulingHealthCheck.cs`, `SchedulingHealthCheckOptions.OverdueWarningThreshold` and `OverdueCriticalThreshold` | Done |
 | `InboxHealthCheck`, stuck message detection | The check exists but only proves connectivity: it calls `IInboxStore.GetExpiredMessagesAsync(batchSize: 1)` and reports `expired_sample`. `IInboxStore` has no count, backlog or failed-message query, so stuck detection needs a new store method on 10 providers | Design Choice 4 and the follow-up issue file `artifacts/issues/inbox-store-backlog-query.md` |
 | `CacheHealthCheck`, connectivity | `QueryCacheHealthCheck` (`src/Encina.Caching/Health`) and `RedisHealthCheck` exist; the six other providers are #754 | #754 |
-| `DatabaseHealthCheck<TContext>`, EF Core context health | **Gap.** `EntityFrameworkCoreHealthCheck` resolves the one `DbContext` alias (`GetRequiredService<DbContext>()`), and `AddEncinaEntityFrameworkCore<TDbContext>` registers that alias with `TryAddScoped<DbContext>` (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:165`), so only the first context of a host with several is ever checked | This plan, Phase 1 |
+| `DatabaseHealthCheck<TContext>`, EF Core context health | **Gap.** `EntityFrameworkCoreHealthCheck` resolves the one `DbContext` alias (`GetRequiredService<DbContext>()`), and `AddEncinaEntityFrameworkCore<TDbContext>` registers that alias with `TryAddScoped<DbContext>` (`src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:165`), so, when the provider health check is enabled (`MessagingConfiguration.ProviderHealthCheck.Enabled`, `RegisterProviderHealthCheck` at `:584-589`, which also registers `ProviderHealthCheckOptions` as a service), only the first context of a host with several is ever checked | This plan, Phase 1 |
 | Kubernetes probe helpers | Absent today | #454 |
 | Health check UI integration | The Encina checks reach the host as framework `IHealthCheck` through `EncinaHealthCheckAdapter` (`src/Encina.AspNetCore/Health`), so any response writer applies; the Encina JSON writer is #454's | #454; documented here (Design Choice 1) |
 | Health results as OpenTelemetry metrics | No per-check metric exists; one publisher with a per-check gauge is designed in the plan of #622 (its Design Choice 4) | #622 |
@@ -35,7 +35,7 @@ The issue's `AddEncinaHealthChecks(config => { config.AddOutboxHealthCheck(); ..
 
 ### What this plan delivers
 
-- `DbContextHealthCheck<TDbContext>` and `AddEncinaDbContextHealthCheck<TDbContext>(Action<ProviderHealthCheckOptions>?)` in `Encina.EntityFrameworkCore`: one check per registered context, each with its own name, tags and timeout (Phase 1).
+- `DbContextHealthCheck<TDbContext>` and `AddEncinaDbContextHealthCheck<TDbContext>(Action<ProviderHealthCheckOptions>?)` in `Encina.EntityFrameworkCore`: one `IEncinaHealthCheck` per registered context, each with its own name, tags and timeout. `AddEncinaHealthChecks` wraps every `IEncinaHealthCheck` in ONE framework registration named `encina` with one tag set (`HealthCheckBuilderExtensions.cs:81-89`, `CompositeEncinaHealthCheck`), so the per-context name appears as a key inside that entry's data (`results[check.Name]`), and per-check tags do not select probes: a `ready` filter applies to the `encina` entry as a whole, not per context (Phase 1).
 - The closing map of #181: every checkbox of the issue is closed by code, by a named sibling or by a follow-up issue file (Phase 2, documentation, and the table above).
 - Shared pieces and owner: `ProviderHealthCheckOptions` and the tag convention are #754's; probe tags and the endpoint mapping are #454's; the health publisher is #622's. This plan creates no shared type.
 - Affected packages: `Encina.EntityFrameworkCore`. No new package under the recommended Design Choice 1.
@@ -85,7 +85,7 @@ The issue's `AddEncinaHealthChecks(config => { config.AddOutboxHealthCheck(); ..
 
 - A resolves `TDbContext` from a scope created per probe (never injected into the singleton check, so no scoped service lives in a singleton) and calls `Database.CanConnectAsync(linkedToken)`, with the timeout of `ProviderHealthCheckOptions.Timeout` (5 seconds by default) linked to the caller's token, the pattern of `EntityFrameworkCoreHealthCheck.CheckHealthCoreAsync`.
 - C wins for the common application with one context, which is why the existing alias check stays as it is; B wins when the maintainer prefers fewer public types over a typed check.
-- Names are injective: the default name is `encina-efcore-` plus the kebab-case `typeof(TDbContext).Name`, a caller-supplied `Name` overrides it, and registering two checks with the same name throws `InvalidOperationException` at registration, so two contexts never collapse into one report entry.
+- Names are injective: the default name is `encina-efcore-` plus the kebab-case `typeof(TDbContext).Name`, a caller-supplied `Name` overrides it, and registering two checks with the same name throws `InvalidOperationException` at registration, so two contexts never overwrite each other's key in the composite result (`CompositeEncinaHealthCheck` keys its data by `check.Name`). The framework report has one `encina` entry for all of them, with the per-context results inside its data.
 - Class: Dilemma
 
 </details>
@@ -118,15 +118,16 @@ The issue's `AddEncinaHealthChecks(config => { config.AddOutboxHealthCheck(); ..
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Not here: a follow-up issue file `artifacts/issues/inbox-store-backlog-query.md` adding a backlog or failed-message count to `IInboxStore` on all 10 providers, then thresholds in `InboxHealthCheck`** | Honest size: the store method, 10 implementations, the in-memory store and the test doubles are one pull request of their own | The issue's "stuck message detection" is delivered later |
-| **B) Add the store method and the 10 implementations in this plan** | Closes the task now | More than 15 files; the provider rule (`AGENTS.md` section 5) makes the 10 implementations a requirement, so a partial version is not allowed |
+| **B) Add the store method and the 10 implementations in this plan** | Closes the task now | More than 15 files in one pull request, so it needs sub-issues of #181 (`AGENTS.md` section 11); the provider rule (`AGENTS.md` section 5) makes the 10 implementations a requirement, so a partial version is not allowed |
 
-### Chosen Option: **A - a follow-up issue**
+### Chosen Option: **A - a follow-up issue** (recommended, pending the maintainer)
 
 ### Rationale
 
-- `AGENTS.md` section 11 limits a worker's issue to one pull request of at most 15 files and 1500 lines, and section 5 requires all 10 providers for a store method; B cannot satisfy both, so A is the only option that complies.
-- Class: Settled
-- Settled by: `AGENTS.md` section 11 (pull request size) and section 5 (database provider rule)
+- `IInboxStore` has no backlog query, so 10 implementations (`AGENTS.md` section 5) are needed under either option; they do not fit one pull request of at most 15 files and 1500 lines (`AGENTS.md` section 11). Section 11 also allows decomposing an oversized issue into sub-issues, so B is not forbidden: it is the same work done as sub-issues of #181 instead of as a new issue.
+- What is really decided is where the issue's "stuck message detection" acceptance item is delivered: A moves it to a new issue and lets #181 close with the map; B keeps #181 open until the sub-issues merge.
+- B wins when the maintainer wants the criterion to close with #181 itself and accepts #181 staying open for the 10-provider work.
+- Class: Dilemma
 
 </details>
 
@@ -154,7 +155,7 @@ The issue's `AddEncinaHealthChecks(config => { config.AddOutboxHealthCheck(); ..
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina.EntityFrameworkCore/Health/DbContextHealthCheck.cs`: `public sealed class DbContextHealthCheck<TDbContext> : EncinaHealthCheck where TDbContext : DbContext`; constructor `(IServiceProvider serviceProvider, ProviderHealthCheckOptions? options)` with `ArgumentNullException.ThrowIfNull(serviceProvider)`; the base call passes `options?.Name ?? DefaultNameFor<TDbContext>()` and `MergeTags(options?.Tags, DefaultTags)`. `CheckHealthCoreAsync` follows `EntityFrameworkCoreHealthCheck`: a `CancellationTokenSource` with `_options.Timeout` linked to the caller's token, `using var scope = _serviceProvider.CreateScope()`, `scope.ServiceProvider.GetRequiredService<TDbContext>()`, `await dbContext.Database.CanConnectAsync(linkedCts.Token)`; `true` returns Healthy; `false` and a timeout return Degraded when `_options.FailureStatus` is `Degraded` and Unhealthy otherwise, the rule `Encina.Messaging/Health/DatabaseHealthCheck.cs:143` applies (the existing EF check ignores `FailureStatus`; the typed check honors it); any other exception is reported by the base class (exception type only). The generic constraint is `where TDbContext : DbContext`; `DbContext` is a reference type, so no CS0452 arises.
-2. **Create** `src/Encina.EntityFrameworkCore/Health/DbContextHealthCheckExtensions.cs`: `public static IServiceCollection AddEncinaDbContextHealthCheck<TDbContext>(this IServiceCollection services, Action<ProviderHealthCheckOptions>? configure = null) where TDbContext : DbContext`. It builds the options instance, applies `configure`, computes the final name, throws `InvalidOperationException` when an `IEncinaHealthCheck` descriptor with the same name was already added by this method (the extension keeps the names in a marker singleton, `DbContextHealthCheckNames`), and adds `services.AddSingleton<IEncinaHealthCheck>(sp => new DbContextHealthCheck<TDbContext>(sp, options))`. It does not register `DbContext` or the context; the host's own `AddDbContext<TDbContext>` does.
+2. **Create** `src/Encina.EntityFrameworkCore/Health/DbContextHealthCheckExtensions.cs`: `public static IServiceCollection AddEncinaDbContextHealthCheck<TDbContext>(this IServiceCollection services, Action<ProviderHealthCheckOptions>? configure = null) where TDbContext : DbContext`. It builds the options instance, applies `configure`, computes the final name, throws `InvalidOperationException` when an `IEncinaHealthCheck` descriptor with the same name was already added by this method (the extension keeps the names in a marker singleton, `DbContextHealthCheckNames`, an `internal` type declared in this same extensions file, so it adds no file and no `PublicAPI` line), and adds `services.AddSingleton<IEncinaHealthCheck>(sp => new DbContextHealthCheck<TDbContext>(sp, options))`. It does not register `DbContext` or the context; the host's own `AddDbContext<TDbContext>` does.
 3. **Edit** `src/Encina.EntityFrameworkCore/PublicAPI.Unshipped.txt` through `mechanical-fixer` (the file is at the package root, not in a `PublicAPI` folder): the class, its constructor and the extension method (the default-name helper is `private`).
 4. **Edit** `.github/coverage-manifest/Encina.EntityFrameworkCore.json` through `mechanical-fixer`: the two new entries with the per-file targets of the table in Research.
 5. **Create** `tests/Encina.UnitTests/EntityFrameworkCore/Health/DbContextHealthCheckTests.cs`: the real check class driven with the dependency substitutes of the sibling `EntityFrameworkCoreHealthCheckTests` (NSubstitute for `DbContext`, `DatabaseFacade` and the scope factory; follow that file): a reachable context returns Healthy; an unreachable one returns Unhealthy, or Degraded when `FailureStatus` is `Degraded`; the timeout path (`CancellationTokenSource(TimeSpan)` does not use a `TimeProvider`, so the test passes a 1 millisecond timeout and a substitute whose `CanConnectAsync` waits on the token); a second context type has its own result; the failure data never contains an exception message.
