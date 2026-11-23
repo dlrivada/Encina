@@ -3,7 +3,7 @@
 > **Issue**: [#242](https://github.com/dlrivada/Encina/issues/242)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 6 pull requests of about 12, 14, 11, 9, 10 and 8 files)
+> **Complexity**: Medium (7 phases, 6 pull requests of about 12, 14, 11, 10, 10 and 7 files)
 > **Estimated Scope**: about 800 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -56,10 +56,10 @@ A wins when the maintainer keeps #387's boundary (its Design Choice 1 also recom
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddEncinaDaprPubSub` calls `AddEncinaDapr()` itself (its registrations are `TryAdd`, so an application's own client wins)** | One call is enough; no resolution failure at the first publish | The application's `AddEncinaDapr` configuration must come from the same call chain |
-| **B) The application must call `AddEncinaDapr` first; a missing client fails at the first publish** | Smaller method | A missing dependency is found at run time, not at startup |
+| **A) `AddEncinaDaprPubSub` registers every dependency it resolves, with `TryAdd` so an application's own client wins: through the client registration of the Dapr core package under D1 options A and B, through its own `DaprClient` registration under D1 option C** | One call is enough; no resolution failure at the first publish; holds under every option of D1 | The application's Dapr options must come from the same call chain |
+| **B) The application must register the Dapr client first; a missing client fails at the first publish** | Smaller method | A missing dependency is found at run time, not at startup |
 
-### Chosen Option: **A, the pub/sub registration adds the client registration**
+### Chosen Option: **A, the pub/sub registration adds the client registration, whichever package owns it**
 
 ### Rationale
 
@@ -217,10 +217,10 @@ A wins for coherence across transports; B wins when a Dapr user needs bulk publi
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) CloudEvent `id` is the caller's `messageId` (a new GUID only when null or empty), `type` the message type name, `traceparent` stamped from the current activity, caller headers as `PublishOptions.Metadata` entries with the prefix `encina-`** | The same message-id rule as every other publisher; the outbox row id reaches consumers | Metadata keys are limited to what the broker component accepts |
+| **A) The caller's `messageId` (a new GUID only when null or empty), the message type name and the `traceparent` of the current activity travel in the carrier D7 selects: under D7 A the CloudEvent attributes `id`, `type` and `traceparent` through `PublishOptions`; under D7 B (`rawPayload=true`) the metadata entries `encina-message-id`, `encina-type` and `encina-traceparent`; caller headers are `PublishOptions.Metadata` entries with the prefix `encina-` in both** | The same message-id rule as every other publisher; the outbox row id reaches consumers | Metadata keys are limited to what the broker component accepts |
 | **B) Everything in one JSON body** | Simple | Double serialization; headers invisible to Dapr tooling |
 
-### Chosen Option: **A, CloudEvent attributes and prefixed metadata**
+### Chosen Option: **A, the message-id rule in whichever carrier D7 selects, plus prefixed metadata**
 
 ### Rationale
 
@@ -260,7 +260,7 @@ The issue's acceptance criteria list "Integration tests with Dapr sidecar", and 
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) `ActivitySource` and `Meter` named `Encina.Dapr.PubSub` in the package, registered by name in `Encina.OpenTelemetry`; the W3C `traceparent` travels in the CloudEvent; Dapr's own sidecar spans are Dapr's built-in telemetry** | Meets the criterion "traces/metrics (via Dapr built-in)" now: the sidecar traces itself, the package adds the application side | The name list in `Encina.OpenTelemetry` is edited by every transport plan |
-| **B) Wait for the shared transport instrumentation of #725** | One design for all transports | #725's plan is merged but its code is not; the criterion would stay open |
+| **B) Wait for the shared transport instrumentation of #725** | One design for all transports | #725's plan is on `origin/main` but its code is not; the criterion would stay open |
 
 ### Chosen Option: **A, per-package instrumentation** (recommended, pending the maintainer)
 
@@ -301,10 +301,10 @@ A wins because one design for all transports needs #1164 and #2385; B wins for a
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Dapr.PubSub/Encina.Dapr.PubSub.csproj` (net10.0; packages `Dapr.Messaging` (new pin in `Directory.Packages.props`, 1.19.1), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina`, `Encina.Messaging` and `Encina.Dapr` (#387); `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Transport packages carry no `PublicAPI.*.txt` today (none in NATS, AmazonSQS, Redis.PubSub), so none is added.
+1. `src/Encina.Dapr.PubSub/Encina.Dapr.PubSub.csproj` (net10.0; packages `Dapr.Messaging` (new pin in `Directory.Packages.props`, 1.19.1, whose nuspec depends on `Dapr.Common` 1.19.1), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; a `FrameworkReference` to `Microsoft.AspNetCore.App` because `Dapr.Messaging` depends on `Grpc.AspNetCore` 2.80.0; project references to `Encina`, `Encina.Messaging` and `Encina.Dapr` (#387); `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Main pins `Dapr.Client` and `Dapr.AspNetCore` at 1.16.1; #387 pull request 1 owns the bump of `Dapr.Client` to 1.19.1 (its Phase 1), which is a prerequisite here so both Dapr packages resolve one `Dapr.Common`; if #387 keeps 1.16.1, this pull request bumps the `Dapr.Client` and `Dapr.AspNetCore` pins to 1.19.1 in the same `Directory.Packages.props` edit (no extra file) and records the build result. Transport packages carry no `PublicAPI.*.txt` today (none in NATS, AmazonSQS, Redis.PubSub), so none is added.
 2. `EncinaDaprPubSubOptions` (namespace `Encina.Dapr.PubSub`, public sealed): `PubSubName` (default `pubsub`, the name of the Dapr documentation's examples), `DefaultTopic`, `DeadLetterTopicSuffix` (null: no dead letter), `MaxQueuedMessages`, `ProviderHealthCheck` (`ProviderHealthCheckOptions`). It holds no secret: the sidecar endpoint and API token are `EncinaDaprOptions` of #387 (`ApiToken` is `[JsonIgnore]` with a `ToString()` override there). `ToString()` prints the pub/sub name only. Internal `EncinaDaprPubSubOptionsValidator : IValidateOptions<>`: non-blank `PubSubName`, topic names without whitespace or control characters, positive `MaxQueuedMessages`.
-3. `ServiceCollectionExtensions.AddEncinaDaprPubSub(this IServiceCollection, Action<EncinaDaprPubSubOptions>? configure = null)`: calls `AddEncinaDapr()` (Design Choice 2), options with `ValidateOnStart`, the validator through `TryAddEnumerable`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-4. Tests: `EncinaDaprPubSubOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `DaprPubSubGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.Dapr.PubSub.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+3. `ServiceCollectionExtensions.AddEncinaDaprPubSub(this IServiceCollection, Action<EncinaDaprPubSubOptions>? configure = null)`: registers the Dapr client registration of the core package (Design Choice 2), options with `ValidateOnStart`, the validator through `TryAddEnumerable`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
+4. Tests: `EncinaDaprPubSubOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `DaprPubSubGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.Dapr.PubSub.json` with the unit and guard targets of these files and their one-sentence justifications at file and package level (`coverage-report.cs --check-justifications` fails a target without one; every later pull request adds the targets and justifications of the files and flags it introduces); `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
 
 </details>
 
@@ -327,9 +327,9 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 
 1. `IDaprMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `DaprMessagePublisher` (scoped; `DaprClient`, `IOptions`, `ILogger`): `PublishEventAsync` with the CloudEvent attributes of Design Choice 7 and the metadata of Design Choice 10; the topic is the argument or `DefaultTopic`.
 2. Errors (ADR-062), in `DaprPubSubErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.dapr.pubsub.publish_failed` category `Internal` (R4, provider failure), `encina.dapr.pubsub.topic_required` `InvalidRequest` (R3). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-3. `Log.cs` 40000-40002 (publishing, published, publish failed; no message ids, no payload). `EventIdRanges.DaprPubSub = (40000, 40019)`; the line `static readonly Encina.Diagnostics.EventIdRanges.DaprPubSub -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| DaprPubSub | 40000-40019 | Transports | zone |` in the registered ranges table (Zone `zone` for a range at or above 10000), and in the Blocks table the five `reserved` rows of this family (`40000-40019` registered to this plan, `40020-40039`, `40040-40059`, `40060-40079`, `40080-40099` reserved for #610, #611, #612 and #310, owner `transport-new-2: #<n>`); the status of this plan's row is `registered`, so no reserved row overlaps a registered range as `EventIdRegistryAgreementTests` requires. Whichever of the five plans lands first adds the five rows; the later pull requests change only their own row, so a conflict is resolved by keeping both (a new commit, never a rebase of a pushed branch).
+3. `Log.cs` 40000-40002 (publishing, published, publish failed; no message ids, no payload). `EventIdRanges.DaprPubSub = (40000, 40019)`; the line `static readonly Encina.Diagnostics.EventIdRanges.DaprPubSub -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| DaprPubSub | 40000-40019 | Transports | zone |` in the registered ranges table (Zone `zone` for a range at or above 10000), and the Blocks row `| 40000-40019 | Transports | transport-new-2: #242 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; no `reserved` row is written for the other plans of the family, which add their own disjoint `registered` rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
 4. DI: `AddEncinaDaprPubSub` gains `services.TryAddScoped<IDaprMessagePublisher, DaprMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); `ServiceCollectionExtensions` tests gain the resolution test with `ValidateOnBuild` and `ValidateScopes`.
-5. Tests: `DaprMessagePublisherTests` and `DaprMessageIdTests` (unit, over a substituted `DaprClient`), guard edit; manifest edit with the unit and guard targets of the publisher (contract and integration targets are entered in pull request 5, where those tests land).
+5. Tests: `DaprMessagePublisherTests` and `DaprMessageIdTests` (unit, over a substituted `DaprClient`), guard edit; manifest edit with the unit and guard targets of the publisher and their one-sentence justifications (contract, property and integration targets and their justifications are entered in pull request 5, where those tests land).
 
 </details>
 
@@ -376,7 +376,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 
 1. `Health/DaprPubSubHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-dapr-pubsub"`, tags `encina`, `messaging`, `dapr-pubsub`, `ready`): `DaprClient.GetMetadataAsync` bounded by `ProviderHealthCheck.Timeout`, healthy when the configured pub/sub component is listed; the result text names the check and the exception type only. Sidecar reachability itself is the check of #387; this one adds the component presence. Registered like `AmazonSQSHealthCheck` when `ProviderHealthCheck.Enabled`.
 2. `Diagnostics/DaprPubSubActivitySource` and `DaprPubSubMetrics`: spans publish and consume with a link from consumer to producer through the CloudEvent `traceparent`; counters `dapr_pubsub.published`, `.consumed`, `.dropped` with tags `topic`, `outcome`; no tenant tag. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. DI: the health check registration is the only DI edit of this pull request. Tests: `DaprPubSubHealthCheckTests`, `DaprPubSubDiagnosticsTests` (unit), guard edit; manifest edit; the `Encina.OpenTelemetry` registration test is extended (its manifest targets stay at today's unit 90 and guard 35).
+3. DI: the health check registration is the only DI edit of this pull request. Tests: `DaprPubSubHealthCheckTests`, `DaprPubSubDiagnosticsTests` (unit), guard edit; manifest edit; the `Encina.OpenTelemetry` registration test is extended and counted as a file (its manifest targets and justifications stay at today's unit 90 and guard 35).
 
 </details>
 
@@ -423,7 +423,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 2. `tests/Encina.ContractTests/MessageBrokers/Dapr/DaprConformanceTests.cs`, a subclass of `TransportConformanceContractBase` of #240 (publish with message id, subscribe delivers, handler failure redelivers, dead letter, cancellation); `ContractTests.csproj` reference.
 3. `tests/Encina.IntegrationTests/MessageBrokers/Dapr/DaprPubSubIntegrationTests.cs` (`[Collection]`, `[Trait("Category","Integration")]`, `[Trait("Transport","Dapr")]`): fan-out with two app ids, retry after a throwing handler, dead-letter topic content, CloudEvent attributes; `IntegrationTests.csproj` reference.
 4. `tests/Encina.PropertyTests/Messaging/DaprPubSub/DaprEnvelopePropertyTests.cs` (FsCheck round trip of message id, headers and type) and `PropertyTests.csproj` reference.
-5. One manifest edit that enters the contract, property and integration targets (the table of Phase 7), because those flags are reachable only now.
+5. One manifest edit that enters the contract, property and integration targets of the table of Phase 7 together with their one-sentence justifications, the package-level contract and integration targets and justifications included, because those flags are reachable only now.
 
 </details>
 
@@ -444,7 +444,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.Dapr.PubSub.json` in the pull request that adds the tests of each flag: unit and guard with the file in pull requests 1 to 4, contract, property and integration in pull request 5; measured with the commands of AGENTS.md section 9):
+Per-flag targets, each written with its one-sentence justification in `.github/coverage-manifest/Encina.Dapr.PubSub.json` in the same pull request that adds the tests of the flag (unit and guard with the file in pull requests 1 to 4, contract, property and integration in pull request 5; this pull request adds no target); the table is the final state, measured with the commands of AGENTS.md section 9:
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -474,7 +474,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.Dapr.PubSub.json`
 
 ```text
 CONTEXT: The package is implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest justifications, write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Check that every manifest target already has its justification (run coverage-report.cs --check-justifications), write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer; no private application names.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AmazonSQS.json, changelog.d/README.md.
 ```
@@ -522,9 +522,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | **Pull request 1** | **12** | csproj, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, DI test, guard test; about 450 lines |
 | **Pull request 2** | **14** | interface, publisher, `DaprPubSubErrorCodes`, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
 | **Pull request 3** | **11** | interface edit, publisher edit, subscription seam, `Log` edit, options edit, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 650 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
+| **Pull request 4** | **10** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
 | **Pull request 5** | **10** | sidecar fixture, 2 collection classes, conformance subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest; about 750 lines |
-| **Pull request 6** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 6** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 Implementers and callers: `IDaprMessagePublisher` is new, so it has no implementers or `new X(` sites to update; the shared edits are additive. Pull request 1 registers options and the client (through `AddEncinaDapr`), pull request 2 the scoped publisher, pull request 3 the subscription seam and SDK client, pull request 4 the health check. Each pull request builds alone in order 1 to 6 and needs #387 pull requests 1 and 2 merged; pull request 5 also needs #240 pull request 5 (the conformance base).
 
@@ -580,5 +580,5 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Messa
 
 1. Ask the maintainer D1, D3, D4, D5, D6, D7, D8, D9, D12 and D13 when work on #242 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (12 files), after #387 pull requests 1 and 2.
-3. Pull requests 2 to 4: publish (14), subscribe (11), health and telemetry (9).
-4. Pull requests 5 and 6: contract, property and integration tests (10), documentation (8).
+3. Pull requests 2 to 4: publish (14), subscribe (11), health and telemetry (10).
+4. Pull requests 5 and 6: contract, property and integration tests (10), documentation (7).
