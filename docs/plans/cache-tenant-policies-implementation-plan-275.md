@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (0336d31c7):
+Issue #275 asks for per-tenant cache policies (`MaxEntries`, `MaxMemoryMb`, `DefaultDuration`, `AllowedCacheLevels`, `DisableEagerRefresh`), a dynamic `ITenantCachePolicyProvider`, quota enforcement, per-tenant rate limiting of cache operations and per-tenant usage metrics. Re-checked against `origin/main` (9330b46cd):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -225,7 +225,7 @@ Tasks:
 1. **Create** `CacheTenantPolicy` (`MaxEntries` int?, `Duration` TimeSpan?, `RateLimit` `CacheRateLimitPolicy?`) with `Validate()` (positive values, `MaxBurstSize` at least 1, a finite duration; the message names the member, never a tenant id) and `CacheRateLimitPolicy` (`MaxOperationsPerSecond`, `MaxBurstSize`).
 2. **Create** `ITenantCachePolicyProvider` (Design Choice 2) and the default `ConfiguredTenantCachePolicyProvider` (looks up `Policies` by tenant id, `Right(Default)` otherwise, `Right(null)` when no default).
 3. **Create** `TenantCachePolicyResolver`: `ValueTask<TenantPolicyDecision> ResolveAsync(string tenantKey, CancellationToken)` where the decision is `Allow(policy)` or `Deny(reason)` with reason `LookupFailed` (a `Left` or an exception from a custom provider), `NoPolicy` (`Right(null)` with no default) or `InvalidPolicy` (`Validate()` failed): Design Choice 8; the resolver logs nothing, the governor of PR 2 logs the reason; takes `IServiceScopeFactory` and resolves the custom provider per lookup in a new scope; caches per tenant for `PolicyCacheDuration`; bounded by `MaxTrackedTenants`; instance-level state only (never a static field of a generic class).
-4. **Modify** `CachingOptions` (`CacheTenantPolicyOptions TenantPolicies { get; set; } = new();`, `Enabled` false) and `AddEncinaCaching`: copy the option (the list is hand-written), validate the policies with an `IValidateOptions<CacheTenantPolicyOptions>` registered with `ValidateOnStart` (each policy's `Validate()` runs at host start with the final values, so a later `Configure<CachingOptions>` cannot bypass it), register the resolver and the default provider with `TryAddSingleton` (a custom provider registered before or after wins: `TryAdd`).
+4. **Modify** `CachingOptions` (`CacheTenantPolicyOptions TenantPolicies { get; set; } = new();`, `Enabled` false) and `AddEncinaCaching`: copy the option (the list is hand-written), validate the policies with an `IValidateOptions<CacheTenantPolicyOptions>` (an internal nested type inside `CacheTenantPolicyOptions.cs`, row 3, so no file is added) whose binding is `services.AddOptions<CacheTenantPolicyOptions>().Configure<IOptions<CachingOptions>>((o, c) => ...copy from c.Value.TenantPolicies...).ValidateOnStart()` in `AddEncinaCaching` (the settings are a property of `CachingOptions`, so without this binding the validator would never run); each policy's `Validate()` runs at host start with the final values, so a later `Configure<CachingOptions>` cannot bypass it, and the PR 1 DI test fails when the binding is missing (an invalid policy must stop the host); register the resolver and the default provider with `TryAddSingleton` (a custom provider registered before or after wins: `TryAdd`).
 5. **Tests (unit):** validation rules, tenant-keyed lookup, default fallback, a `Left`, an exception and `Right(null)` each deny, cache expiry with `FakeTimeProvider`, bound at `MaxTrackedTenants`, DI test with `ValidateOnBuild` and `ValidateScopes`. Guard tests: `CacheTenantPolicyOptions` setters reject null collections and `ConfiguredTenantCachePolicyProvider` is internal (no `InternalsVisibleTo` for `Encina.GuardTests` in `Encina.Caching.csproj`), so the guard file covers the public members only.
 
 </details>
@@ -563,6 +563,8 @@ REFERENCE FILES:
 ---
 
 ## Prerequisites & Dependencies
+
+Registry merge order: the five cache-patterns plans split the same `500-549 reserved-pre-zone` row of `docs/engineering/eventid-block-registry.md` and append rows to the same table; their ranges are contiguous (500-507 #272, 508-513 #274, 514-519 #275, 520-531 #278, 532-536 #276), so the first PR to land splits the reserved row and each later PR rebases and changes only its own row (`EventIdRegistryAgreementTests` catches a wrong result).
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
