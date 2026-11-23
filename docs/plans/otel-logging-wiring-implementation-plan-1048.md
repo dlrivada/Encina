@@ -25,7 +25,7 @@
 
 **Provider category**: None (observability, provider-independent).
 
-**What the code does today** (`origin/main` at `da9dd5e3e`):
+**What the code does today** (`origin/main` at `ce352001f`):
 
 - `WithEncina` has the blocks `ConfigureResource`, `WithTracing` and `WithMetrics`; its second parameter `EncinaOpenTelemetryOptions` is a plain instance (not `IOptions`), used for the service name and version only. `EncinaOpenTelemetryOptions` has three properties: `ServiceName`, `ServiceVersion`, `EnableMessagingEnrichers`.
 - `Encina.OpenTelemetry.csproj` references `OpenTelemetry`, `OpenTelemetry.Api`, `OpenTelemetry.Exporter.Console`, `OpenTelemetry.Exporter.OpenTelemetryProtocol` (`PrivateAssets="all"`, made public by #1043) and `OpenTelemetry.Extensions.Hosting`, all 1.17.0 (`Directory.Packages.props`); no code under `src/Encina.OpenTelemetry` uses `OpenTelemetry.Logs`.
@@ -93,14 +93,13 @@
 | **B) The issue's sketch (properties set on the first lambda's argument)** | Matches the issue text | Does not compile: `LoggerProviderBuilder` has no `IncludeFormattedMessage`, `IncludeScopes` or `ParseStateValues` |
 | **C) `services.AddLogging(b => b.AddOpenTelemetry(o => ...))` on `builder.Services`** | The classic registration | Bypasses the `OpenTelemetryBuilder` the method already receives, so other `WithLogging` extensions (such as the OTLP one of #1043) would not share the provider |
 
-### Chosen Option: **A — two-lambda overload**
+### Chosen Option: **A — two-lambda overload** (recommended, pending the maintainer)
 
 ### Rationale
 
-- B is a defect of the sketch, not an option that can be implemented; C splits the logs pipeline from the builder. If Phase 1 finds that the overload does not exist in 1.17.0, the implementer stops and reports instead of choosing C.
+- B is a defect of the sketch (the three properties are on `OpenTelemetryLoggerOptions`, and the first lambda of `WithLogging` receives a `LoggerProviderBuilder`, in `OpenTelemetry` 1.17.0 from `Directory.Packages.props`), so it cannot be implemented. A and C are both valid: A wins because the logs pipeline stays on the `OpenTelemetryBuilder` the method receives, so the OTLP logs exporter of #1043 shares the provider; C wins for an application that already composes its logging only through `ILoggingBuilder` and wants no `OpenTelemetryBuilder` involvement. The Phase 4 test that both registrations coexist without a duplicate export is the check of either answer. If Phase 1 finds that the overload does not exist in 1.17.0, the implementer stops and reports.
 
-**Class:** Settled
-**Settled by:** the public API of `OpenTelemetry` 1.17.0 (`Directory.Packages.props`): `OpenTelemetryLoggerOptions` owns `IncludeFormattedMessage`, `IncludeScopes` and `ParseStateValues`; the first lambda of `WithLogging` receives a `LoggerProviderBuilder`
+**Class:** Dilemma
 
 </details>
 
@@ -432,5 +431,5 @@ REFERENCE FILES:
 ## Next Steps
 
 1. Link this plan from issue #1048; the worker brief can follow once the Dilemmas are answered.
-2. When work on the issue starts, ask the maintainer to answer Dilemmas 1 and 2 (unconditional or opt-in logs; values of the three options), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
+2. When work on the issue starts, ask the maintainer to answer Dilemmas 1 to 3 (unconditional or opt-in logs; values of the three options; the two-lambda block or the classic `AddLogging` registration), record the answers in a `## Maintainer Decisions` section placed last, and have the adversarial-reviewer verify the Settled and Trivial choices.
 3. One commit for the change; it references `Fixes #1048`.
