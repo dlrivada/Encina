@@ -77,10 +77,23 @@ public sealed class GeoShardRouter : IShardRouter
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.RegionNotFound,
+                    ShardingErrorCodes.RegionNotFound, ErrorCategory.Internal,
                     $"Region '{regionCode}' was not found and exact match is required."));
         }
 
+        var fallbackShardId = FindFallbackShardId(_regions, regionCode);
+
+        if (fallbackShardId is not null)
+        {
+            return Either<EncinaError, string>.Right(fallbackShardId);
+        }
+
+        // Last resort: default region
+        return TryDefaultRegion(regionCode);
+    }
+
+    internal static string? FindFallbackShardId(IReadOnlyDictionary<string, GeoRegion> regions, string regionCode)
+    {
         // Try fallback chain (prevent infinite loops with visited set)
         var visited = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase) { regionCode };
         var current = regionCode;
@@ -88,26 +101,23 @@ public sealed class GeoShardRouter : IShardRouter
         while (true)
         {
             // Check if there's a region with this code that has a fallback
-            if (!_regions.TryGetValue(current, out var currentRegion) || currentRegion.FallbackRegionCode is null)
+            if (!regions.TryGetValue(current, out var currentRegion) || currentRegion.FallbackRegionCode is null)
             {
-                break;
+                return null;
             }
 
             current = currentRegion.FallbackRegionCode;
 
             if (!visited.Add(current))
             {
-                break; // Cycle detected
+                return null; // Cycle detected
             }
 
-            if (_regions.TryGetValue(current, out var fallbackRegion))
+            if (regions.TryGetValue(current, out var fallbackRegion))
             {
-                return Either<EncinaError, string>.Right(fallbackRegion.ShardId);
+                return fallbackRegion.ShardId;
             }
         }
-
-        // Last resort: default region
-        return TryDefaultRegion(regionCode);
     }
 
     /// <inheritdoc />
@@ -240,6 +250,6 @@ public sealed class GeoShardRouter : IShardRouter
             : "Could not resolve region from shard key and no default region is configured.";
 
         return Either<EncinaError, string>.Left(
-            EncinaErrors.Create(ShardingErrorCodes.RegionNotFound, message));
+            EncinaErrors.Create(ShardingErrorCodes.RegionNotFound, ErrorCategory.Internal, message));
     }
 }

@@ -78,7 +78,7 @@ public sealed class ShardArchiver : IShardArchiver
             if (!updated)
             {
                 return EncinaErrors.Create(
-                    ShardingErrorCodes.TierTransitionFailed,
+                    ShardingErrorCodes.TierTransitionFailed, ErrorCategory.Internal,
                     $"Tier transition failed: shard '{shardId}' was not found in the tier store.");
             }
 
@@ -97,7 +97,7 @@ public sealed class ShardArchiver : IShardArchiver
         catch (Exception ex)
         {
             return EncinaErrors.FromException(
-                ShardingErrorCodes.TierTransitionFailed,
+                ShardingErrorCodes.TierTransitionFailed, ErrorCategory.Internal,
                 ex,
                 $"Tier transition to '{newTier}' failed for shard '{shardId}'.");
         }
@@ -152,7 +152,7 @@ public sealed class ShardArchiver : IShardArchiver
             if (!updated)
             {
                 return EncinaErrors.Create(
-                    ShardingErrorCodes.RetentionPolicyFailed,
+                    ShardingErrorCodes.RetentionPolicyFailed, ErrorCategory.Internal,
                     $"Retention policy failed: shard '{shardId}' was not found in the tier store.");
             }
 
@@ -161,7 +161,7 @@ public sealed class ShardArchiver : IShardArchiver
         catch (Exception ex)
         {
             return EncinaErrors.FromException(
-                ShardingErrorCodes.RetentionPolicyFailed,
+                ShardingErrorCodes.RetentionPolicyFailed, ErrorCategory.Internal,
                 ex,
                 $"Retention policy execution failed for shard '{shardId}'.");
         }
@@ -178,7 +178,7 @@ public sealed class ShardArchiver : IShardArchiver
             if (tierInfo is null)
             {
                 return EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the tier store.");
             }
 
@@ -190,7 +190,7 @@ public sealed class ShardArchiver : IShardArchiver
         catch (Exception ex)
         {
             return EncinaErrors.FromException(
-                ShardingErrorCodes.TierTransitionFailed,
+                ShardingErrorCodes.TierTransitionFailed, ErrorCategory.Internal,
                 ex,
                 $"Read-only enforcement failed for shard '{shardId}'.");
         }

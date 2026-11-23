@@ -90,12 +90,12 @@ public sealed class ContentRouter : IContentRouter
         catch (OperationCanceledException)
         {
             ContentRouterLog.RoutingCancelled(_logger, routingId);
-            return EncinaErrors.Create(ContentRouterErrorCodes.RouterCancelled, "Routing was cancelled");
+            return EncinaErrors.Create(ContentRouterErrorCodes.RouterCancelled, ErrorCategory.Cancelled, "Routing was cancelled");
         }
         catch (Exception ex)
         {
             ContentRouterLog.RoutingException(_logger, routingId, ex.GetType().Name, ex.ForLogging());
-            return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
+            return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ErrorCategory.Internal, ex.Message);
         }
     }
 
@@ -131,7 +131,7 @@ public sealed class ContentRouter : IContentRouter
         {
             ContentRouterLog.NoMatchingRoute(_logger, routingId, typeof(TMessage).Name);
             return EncinaErrors.Create(
-                ContentRouterErrorCodes.NoMatchingRoute,
+                ContentRouterErrorCodes.NoMatchingRoute, ErrorCategory.Internal,
                 $"No matching route found for message of type '{typeof(TMessage).Name}'");
         }
 
@@ -256,7 +256,7 @@ public sealed class ContentRouter : IContentRouter
             stepStopwatch.Stop();
             stopwatch.Stop();
             ContentRouterLog.RouteExecutionFailed(_logger, routingId, defaultRoute.Name, ex.GetType().Name);
-            return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
+            return EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ErrorCategory.Internal, ex.Message);
         }
     }
 
@@ -362,14 +362,14 @@ public sealed class ContentRouter : IContentRouter
         {
             stopwatch.Stop();
             ContentRouterLog.RoutingCancelled(_logger, routingId);
-            var error = EncinaErrors.Create(ContentRouterErrorCodes.RouterCancelled, "Route execution was cancelled");
+            var error = EncinaErrors.Create(ContentRouterErrorCodes.RouterCancelled, ErrorCategory.Cancelled, "Route execution was cancelled");
             return InternalRouteResult<TResult>.Failure(route.Name, error, stopwatch.Elapsed, executedAt);
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
             ContentRouterLog.RouteExecutionFailed(_logger, routingId, route.Name, ex.GetType().Name);
-            var error = EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ex.Message);
+            var error = EncinaErrors.Create(ContentRouterErrorCodes.RouteExecutionFailed, ErrorCategory.Internal, ex.Message);
             return InternalRouteResult<TResult>.Failure(route.Name, error, stopwatch.Elapsed, executedAt);
         }
     }

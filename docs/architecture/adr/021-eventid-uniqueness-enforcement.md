@@ -114,7 +114,7 @@ EventIds are not a stable contract before 1.0; dashboards or alerts that filter 
 
 ## Amendment (2026-11-20, #4006): the 10000+ zone
 
-The ids 1-9999 are nearly exhausted: 91 ranges are registered in `EventIdRanges.cs`, the five free blocks below 10000 that are not in the registry (5970-5999, 6380-6399, 7950-7999, 8950-8999, 9950-9999) sum to 200 ids, and the estimate that the plans written for the 1.0 scope need about 2500-3000 comes from the #3387 plan batch, not from the registry. The registry covers reserved and registered blocks, so free space below 10000 is not read from it. The maintainer chose on 2026-11-18 (option D) to open a second id space instead of squeezing blocks into the gaps. From this amendment on, every new EventId block is born in a 10000+ zone, one base per area, in blocks of 1000 ids, in the style of EF Core's [`CoreEventId`](https://github.com/dotnet/efcore/blob/main/src/EFCore/Diagnostics/CoreEventId.cs).
+The ids 1-9999 are nearly exhausted: 91 ranges are registered in `EventIdRanges.cs`, six gaps below 10000 appear in neither table of the registry (5970-5999, 6380-6399, 7470-7499, 7950-7999, 8950-8999, 9950-9999) and sum to 230 ids (30 + 20 + 30 + 50 + 50 + 50); 7470-7499 is claimed in the registry's prose for `ComplianceNIS2Governance` (#827), so 200 ids are unclaimed. These gaps are not listed in the registry and are not allocatable, because new blocks are born only in the 10000+ zone. The estimate that the plans written for the 1.0 scope need about 2500-3000 still comes from the #3387 plan batch, not from the registry. Free space below 10000 is therefore not read from the registry; for the 10000+ zone the registry is the place to read free space. The maintainer chose on 2026-11-18 (option D) to open a second id space instead of squeezing blocks into the gaps. From this amendment on, every new EventId block is born in a 10000+ zone, one base per area, in blocks of 1000 ids, in the style of EF Core's [`CoreEventId`](https://github.com/dotnet/efcore/blob/main/src/EFCore/Diagnostics/CoreEventId.cs).
 
 ### Areas
 
@@ -149,7 +149,7 @@ Each area owns ten 1000-id blocks (`base` to `base + 9999`). The "Current block"
 4. Reserved blocks do not overlap each other.
 5. Nothing is below 10000 unless it is a historical registered range or a block with status `reserved-pre-zone`.
 
-The registry replaces the git-ignored working snapshot the plan batch used, and the free-range list that `AGENTS.md` section 7 carried: free space is read from the registry, never from a list typed into a rule file.
+The registry replaces the git-ignored working snapshot the plan batch used, and the free-range list that `AGENTS.md` section 7 carried: the free space of the 10000+ zone is read from the registry (below 10000 nothing is allocatable), never from a list typed into a rule file.
 
 ## Related Issues
 
