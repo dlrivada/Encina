@@ -122,14 +122,16 @@ Each area owns ten 1000-id blocks (`base` to `base + 9999`). The "Current block"
 
 | Area | Base | Covers | Current block |
 | --- | --- | --- | --- |
-| Core and messaging | 10000 | Mediator, messaging patterns, domain modeling, tenancy, modules, event sourcing, CDC | 10000-10999 |
-| Database | 20000 | ADO.NET, Dapper, EF Core and MongoDB providers | 20000-20999 |
-| Caching | 30000 | Cache providers and patterns, distributed locks | 30000-30999 |
-| Transports | 40000 | Message transports and their API integrations | 40000-40999 |
-| Security and compliance | 50000 | Security, secrets, audit, compliance modules | 50000-50999 |
-| Observability and platform | 60000 | OpenTelemetry, ASP.NET Core, resilience, scheduling adapters, health checks, platform features | 60000-60999 |
-| Testing and tooling | 70000 | Testing packages and developer tooling | 70000-70999 |
-| Cloud and integration | 80000 | Serverless and cloud service integrations | 80000-80999 |
+| Core and messaging | 10000 | Mediator, messaging patterns, domain modeling, tenancy, modules, event sourcing, CDC | 13000-13999 |
+| Database | 20000 | ADO.NET, Dapper, EF Core and MongoDB providers | 21000-21999 |
+| Caching | 30000 | Cache providers and patterns, distributed locks | 31000-31999 |
+| Transports | 40000 | Message transports and their API integrations | 41000-41999 |
+| Security and compliance | 50000 | Security, secrets, audit, compliance modules | 53000-53999 |
+| Observability and platform | 60000 | OpenTelemetry, ASP.NET Core, resilience, scheduling adapters, health checks, platform features | 61000-61999 |
+| Testing and tooling | 70000 | Testing packages and developer tooling | 71000-71999 |
+| Cloud and integration | 80000 | Serverless and cloud service integrations | 81000-81999 |
+
+The extents below those blocks are reserved by #4007 for the migration of the 91 historical ranges until its Z sub-issue closes the historical zone, so the current block of each area starts after its migration extent (see the migration map in [the block registry](../../engineering/eventid-block-registry.md)).
 
 ### Rules
 
