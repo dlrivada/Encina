@@ -210,7 +210,7 @@ A wins because the acceptance criterion is in this issue; B wins if #725 should 
 </details>
 
 <details>
-<summary><strong>10. Multi-tenancy and module headers</strong></summary>
+<summary><strong>10. Multi-tenancy and module headers (Dilemma D10)</strong></summary>
 
 ### Options Considered
 
@@ -219,14 +219,13 @@ A wins because the acceptance criterion is in this issue; B wins if #725 should 
 | **A) Defer to an issue: tenant-scoped stream keys and tenant/module headers need the persisted context of #1164 and the route metadata of #2385** | No invented key scheme; one design for all transports | Not in this plan |
 | **B) Stamp a tenant segment into the stream key now** | Early isolation | Needs the reserved `default` tenant segment and an injective key encoding that no transport has defined |
 
-### Chosen Option: **A, defer to a follow-up issue**
+### Chosen Option: **A, defer to a follow-up issue** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue itself defers it ("Tenant-scoped stream keys"); the issue file is `artifacts/issues/new-transports-tenant-and-shared-contracts.md`.
+A wins because one design for all transports needs #1164 and #2385, and the issue itself defers it ("Tenant-scoped stream keys"); B wins for a tenant-isolated deployment that needs scoped keys before those land. The issue file is `artifacts/issues/new-transports-tenant-and-shared-contracts.md`.
 
-**Class:** Settled
-**Settled by:** #240 (cross-cutting table: multi-tenancy and module isolation deferred) and #1164
+**Class:** Dilemma
 
 </details>
 
@@ -514,7 +513,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub, src/Encina.NATS, src/Encina.Messaging/
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D4, D5, D6, D8 and D9 when work on #240 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D8, D9 and D10 when work on #240 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (11 files).
 3. Pull requests 2 to 4: publish (13), consume and dead letter (8), health and telemetry (9).
 4. Pull requests 5 and 6: contract, property and integration tests (8), documentation (8).
