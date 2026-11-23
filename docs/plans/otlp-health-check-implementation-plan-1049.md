@@ -21,13 +21,13 @@ Once #1043 lands, an application can export traces, metrics and logs to a collec
 
 **Standards**: OTLP receiver ports; `AGENTS.md` section 3 (the endpoint may carry credentials, so it is never reported; cancellation propagates).
 
-**Estimated scope**: 4 new production files, 2 modified, 1 `PublicAPI.Unshipped.txt`, 1 manifest, 4 test and justification files, the package README, a changelog fragment; one pull request of 14 files (see Implementation Phases).
+**Estimated scope**: 5 new production files, 2 modified, 1 `PublicAPI.Unshipped.txt`, 1 manifest, 4 test and justification files, the package README, a changelog fragment; one pull request of 15 files (see Implementation Phases).
 
 **Affected packages**: `Encina.OpenTelemetry`.
 
 **Provider category**: Observability (OpenTelemetry); none of the database, cache, transport or lock matrices applies.
 
-**What the code does today** (`origin/main` at `da9dd5e3e`):
+**What the code does today** (`origin/main` at `ce352001f`):
 
 - `src/Encina.OpenTelemetry/Migrations/SchemaDriftHealthCheck.cs` and `Resharding/ReshardingHealthCheck.cs` implement `Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck` (not `IEncinaHealthCheck`) with an options object taken in the constructor and `TimeProvider? timeProvider = null`; they are registered by the consumer through `AddHealthChecks().Add(...)`. No class in the package implements `IEncinaHealthCheck`.
 - `IEncinaHealthCheck` (`Encina.Messaging.Health`, referenced by the project) has `Name`, `Tags` and `CheckHealthAsync(CancellationToken)`; `Encina.AspNetCore` adapts every registered `IEncinaHealthCheck` (`HealthCheckBuilderExtensions` resolves `GetServices<IEncinaHealthCheck>()`); provider packages register theirs as `AddSingleton<IEncinaHealthCheck, X>()`. The base class `EncinaHealthCheck` turns a cancelled call into `Unhealthy`, which Design Choice 1 avoids by implementing the interface directly.
@@ -129,7 +129,7 @@ Once #1043 lands, an application can export traces, metrics and logs to a collec
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Log on transitions only: a Warning when the status leaves `Healthy` (message 7011, reason and latency) and an Information when it returns (message 7012), tracked with an `Interlocked` field of the singleton** | One line per incident, however often the probe runs | Per-instance state in a singleton; two messages |
+| **A) Log on transitions only: a Warning when the status leaves `Healthy` (message 7016, reason and latency) and an Information when it returns (message 7017), tracked with an `Interlocked` field of the singleton** | One line per incident, however often the probe runs | Per-instance state in a singleton; two messages |
 | **B) Log every non-healthy result** | Stateless | A collector down for an hour at a 10-second probe writes 360 identical warnings |
 
 ### Chosen Option: **A — transitions** (recommended, pending the maintainer)
@@ -147,21 +147,22 @@ Once #1043 lands, an application can export traces, metrics and logs to a collec
 | Id | Choice | Class | Settled by |
 |----|--------|-------|------------|
 | C1 | No `EncinaError` is created (the result is a health status), so there is no ADR-062 `ErrorCategory` to assign | Settled | ADR-062 (a category is chosen where an error is created) |
-| C2 | EventIds 7011-7012 come from the registered range `OpenTelemetry = (7000, 7099)`: 7000-7009 are used, 7010 belongs to the plan of #622; no new range and no registry edit | Settled | `AGENTS.md` section 7 (ids inside a registered range, packed without gaps) |
+| C2 | Any EventId this feature needs (two under Dilemma 5 option A, none under option B) comes from the registered range `OpenTelemetry = (7000, 7099)` and is taken after the highest id that any plan on `main` or the code already claims: 7000-7009 are used by resharding, `docs/plans` claims 7010 (#622), 7010-7012 (#174) and 7013-7015 (#183), so 7016 is the first free id on current `main`; the ids are re-read from `docs/plans` and the registry when the pull request opens; no new range and no registry edit (a range below 10000 that is not historical fails `EventIdRegistryAgreementTests` rule 5, and this range is historical) | Settled | `AGENTS.md` section 7 (ids inside a registered range, packed without gaps; new ranges only in the 10000+ zone) |
 | C3 | The endpoint is never put in the result data, the span, a tag or a log: a URI can carry user information or tokens in its query | Settled | `AGENTS.md` section 3 (credentials never printed); ADR-054 settled point 2 |
 | C4 | A caller's cancellation propagates as `OperationCanceledException`; only the probe's own timeout (a token from `TimeProvider`) is `Unhealthy`; cancellation is never a failure result | Settled | `AGENTS.md` section 3 (cancellation is not an error and propagates); ADR-052 |
 | C5 | `EnableOtlpExporter == false` returns `Healthy` with the description "OTLP exporter not configured", also when the flag `AddOtlpHealthCheck` is on | Settled | #1049 acceptance criterion 4 |
-| C6 | `DefaultName = "encina-otlp-exporter"`, `Tags = ["encina", "observability", "otlp", "ready"]` as a static array, the instance `Name` and `Tags` return them | Trivial | Existing Encina health checks (`DefaultName` const and static `Tags`, the prompt's health-check rule); the issue sketch |
+| C6 | The check's name and tags are the constants `DefaultName = "encina-otlp-exporter"` and the static array `Tags = ["encina", "observability", "otlp", "ready"]` under either option of Dilemma 1 (the instance `Name` and `Tags` of `IEncinaHealthCheck` return them; a Microsoft registration would use the same strings) | Trivial | Existing Encina health checks (`DefaultName` const and static `Tags`, the prompt's health-check rule); the issue sketch |
 | C7 | The effective endpoint is resolved once and cached: a fresh `OtlpExporterOptions` (which reads `OTEL_EXPORTER_OTLP_ENDPOINT` and the SDK default) is passed through `ConfigureOtlpExporter`; per-signal variables such as `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` are not read and the README says so | Trivial | #1043 plan Design Choice 4 (one callback for all three signals); the options are fixed at startup |
-| C8 | The check is a singleton with no scoped dependency; the registration is `TryAddEnumerable(ServiceDescriptor.Singleton<IEncinaHealthCheck>(factory))` from `AddEncinaOpenTelemetry`, resolving `TimeProvider` and `ILogger<>` optionally; proven by a DI test with `ValidateOnBuild` and `ValidateScopes` | Settled | `AGENTS.md` section 3 (registration completeness) |
+| C8 | Under either option of Dilemma 1 the check is a singleton with no scoped dependency, registered by `AddEncinaOpenTelemetry` only when `AddOtlpHealthCheck` is on, resolving `TimeProvider` and `ILogger<>` optionally, and proven by a DI test with `ValidateOnBuild` and `ValidateScopes`; the registration form follows Dilemma 1: option A is the typed descriptor `ServiceDescriptor.Singleton<IEncinaHealthCheck, OtlpExporterHealthCheck>(factory)` through `TryAddEnumerable` (the one-type-argument form with a factory has the service type as its implementation type and `TryAddEnumerable` rejects it), option B a `HealthCheckRegistration` | Settled | `AGENTS.md` section 3 (registration completeness) |
 | C9 | No tenant tag and no tenant-qualified id: the check is infrastructure-wide and has no tenant data | Settled | ADR-054 D4 (a tenant tag exists only where tenant data exists) |
-| C10 | The probe is read-only and fires no telemetry round trip; the span of Design Choice 3 is the only telemetry | Settled | #1049 acceptance criterion 5 |
+| C10 | The probe is read-only and fires no telemetry round trip (a TCP connect and an optional `HEAD`); any span, metric or log that Dilemmas 3 and 5 add carries only fixed values | Settled | #1049 acceptance criterion 5; ADR-054 settled point 2 |
+| C11 | The thresholds are validated at startup: an internal `IValidateOptions<OtlpHealthCheckOptions>` registered with `AddOptions<OtlpHealthCheckOptions>().ValidateOnStart()` rejects a non-positive `Timeout`, a non-positive `DegradedThreshold` and a `DegradedThreshold` not less than `Timeout`; the check's public constructor repeats the range checks for a caller that builds it directly (`ArgumentOutOfRangeException`). `ValidateOnBuild` does not run factories, so the options validator, not the constructor, is the startup gate | Settled | `AGENTS.md` section 3 (registration completeness, fail early); .NET options validation |
 
 ---
 
 ## Implementation Phases
 
-One pull request of 14 files (about 1000 lines including tests): 4 new production files (`Health/OtlpExporterHealthCheck.cs`, `Health/OtlpHealthCheckOptions.cs`, `Health/OtlpHealthCheckLogMessages.cs`, `Health/OtlpHealthCheckTelemetry.cs`), 2 modified (`EncinaOpenTelemetryOptions.cs`, `ServiceCollectionExtensions.cs`), `PublicAPI/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`, 3 test files (unit check tests, DI registration test, guard tests), 1 justification file (integration), the package README and the changelog fragment. Phase 1 is gated on the code of #1043 being on `main`.
+One pull request of 15 files (about 1100 lines including tests; if the line count passes 1500, the README, the changelog fragment and the justification file move to a second pull request): 5 new production files (`Health/OtlpExporterHealthCheck.cs`, `Health/OtlpHealthCheckOptions.cs`, `Health/OtlpHealthCheckOptionsValidator.cs`, `Health/OtlpHealthCheckLogMessages.cs`, `Health/OtlpHealthCheckTelemetry.cs`), 2 modified (`EncinaOpenTelemetryOptions.cs`, `ServiceCollectionExtensions.cs`), `PublicAPI/PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.OpenTelemetry.json`, 3 test files (unit check tests, DI registration test, guard tests), 1 justification file (integration), the package README and the changelog fragment. Phase 1 is gated on the code of #1043 being on `main`.
 
 ### Phase 1: Options and the Probe
 
@@ -174,7 +175,8 @@ One pull request of 14 files (about 1000 lines including tests): 4 new productio
 2. **`src/Encina.OpenTelemetry/EncinaOpenTelemetryOptions.cs`** (modify) — `bool AddOtlpHealthCheck { get; set; } = false` and `Action<OtlpHealthCheckOptions>? ConfigureOtlpHealthCheck { get; set; }` with XML docs
 3. **`src/Encina.OpenTelemetry/Health/OtlpHealthCheckOptions.cs`** (new, public sealed) — `TimeSpan Timeout = 2 s`, `TimeSpan DegradedThreshold = 500 ms`, `bool ProbeHttpEndpoint = false`
 4. **`src/Encina.OpenTelemetry/Health/OtlpExporterHealthCheck.cs`** (new, public sealed, `IEncinaHealthCheck`) — `public const string DefaultName`, `public static readonly string[] Tags`; public constructor `(EncinaOpenTelemetryOptions options, OtlpHealthCheckOptions healthOptions, TimeProvider? timeProvider = null, ILogger<OtlpExporterHealthCheck>? logger = null)` with `ArgumentNullException.ThrowIfNull` and the range checks of Design Choice 2; an internal constructor adds a probe delegate `Func<string, int, bool, CancellationToken, Task>` (host, port, http flag) for tests (a public constructor never takes an internal type); `CheckHealthAsync(CancellationToken)` split into `ResolveTarget`, `ProbeAsync` and `Classify` so every method stays at CRAP 10 or below: a linked token from `_timeProvider.CreateCancellationTokenSource(Timeout)`, latency from `GetTimestamp` and `GetElapsedTime`, `OperationCanceledException` rethrown when the caller's token is cancelled and mapped to `Unhealthy` ("timeout") when the probe's token fired, `SocketException` mapped by `SocketError` to `refused`, `dns` or `error`
-5. **`PublicAPI.Unshipped.txt`** (`mechanical-fixer`) — every new public member
+5. **`src/Encina.OpenTelemetry/Health/OtlpHealthCheckOptionsValidator.cs`** (new, internal sealed, `IValidateOptions<OtlpHealthCheckOptions>`) — the startup rules of C11 (returns `ValidateOptionsResult.Fail` naming the property and the condition, never a value that could carry data)
+6. **`PublicAPI.Unshipped.txt`** (`mechanical-fixer`) — every new public member
 
 </details>
 
@@ -215,9 +217,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`ServiceCollectionExtensions.cs`** (modify) — inside `AddEncinaOpenTelemetry`, when `options.AddOtlpHealthCheck`: build one `OtlpHealthCheckOptions`, apply `ConfigureOtlpHealthCheck`, and `services.TryAddEnumerable(ServiceDescriptor.Singleton<IEncinaHealthCheck>(sp => new OtlpExporterHealthCheck(options, healthOptions, sp.GetService<TimeProvider>(), sp.GetService<ILogger<OtlpExporterHealthCheck>>())))`
+1. **`ServiceCollectionExtensions.cs`** (modify) — inside `AddEncinaOpenTelemetry`, when `options.AddOtlpHealthCheck`: `services.AddOptions<OtlpHealthCheckOptions>().Configure(o => options.ConfigureOtlpHealthCheck?.Invoke(o)).ValidateOnStart()` with the internal validator `Health/OtlpHealthCheckOptionsValidator.cs` (C11), and `services.TryAddEnumerable(ServiceDescriptor.Singleton<IEncinaHealthCheck, OtlpExporterHealthCheck>(sp => new OtlpExporterHealthCheck(options, sp.GetRequiredService<IOptions<OtlpHealthCheckOptions>>().Value, sp.GetService<TimeProvider>(), sp.GetService<ILogger<OtlpExporterHealthCheck>>())))` (the typed descriptor; Design Choice 1 option A)
 2. With Design Choice 3 option A: `tracing.AddSource(OtlpHealthCheckTelemetry.SourceName)` in `WithEncina`
-3. A DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`, with the flag on and off, and resolves `IEnumerable<IEncinaHealthCheck>`
+3. A DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`, with the flag on and off, resolves `IEnumerable<IEncinaHealthCheck>` and asserts one instance after a second `AddEncinaOpenTelemetry` call (the typed descriptor must not throw); a second test starts a host with an invalid threshold and asserts that startup fails with an `OptionsValidationException` (C11)
 
 </details>
 
@@ -232,7 +234,8 @@ CONTEXT:
 - Provider packages register health checks as IEncinaHealthCheck singletons; the check has no scoped dependency.
 
 TASK:
-Register the check when AddOtlpHealthCheck is true, with TryAddEnumerable so a second call adds nothing, and prove it with a DI test.
+Register the check when AddOtlpHealthCheck is true, with TryAddEnumerable and the TYPED descriptor ServiceDescriptor.Singleton<IEncinaHealthCheck, OtlpExporterHealthCheck>(factory)
+so a second call adds nothing and TryAddEnumerable does not throw; add the options validator with ValidateOnStart; prove both with DI tests.
 
 KEY RULES:
 - Default off (pay-for-what-you-use). TimeProvider and ILogger are optional dependencies.
@@ -288,8 +291,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`Health/OtlpHealthCheckTelemetry.cs`** (new, internal static) — `SourceName = "Encina.OpenTelemetry"`, an `ActivitySource`, `StartProbe()` returning `null` without a listener, and the tag constants for the outcome and the reason (added to the existing tag-name constants file when it fits)
-2. **`Health/OtlpHealthCheckLogMessages.cs`** (new, internal static partial) — `[LoggerMessage]` methods: `EventId = 7011` Warning `OtlpCollectorUnhealthy(ILogger, string reason, long latencyMs)`; `EventId = 7012` Information `OtlpCollectorRecovered(ILogger)`; XML docs "Event IDs: 7011-7012 (see EventIdRanges.OpenTelemetry)". No registration is needed: the ids sit inside the registered range, and `EncinaEventIdAllocationTests` already maps the assembly
+1. **`Health/OtlpHealthCheckTelemetry.cs`** (new, internal static) — `SourceName = "Encina.OpenTelemetry"`, an `ActivitySource`, `StartProbe()` returning `null` without a listener, and the tag constants for the outcome and the reason (kept inside this class; `ActivityTagNames.cs` is not edited, so the pull request stays at 15 files)
+2. **`Health/OtlpHealthCheckLogMessages.cs`** (new, internal static partial) — `[LoggerMessage]` methods: `EventId = 7016` Warning `OtlpCollectorUnhealthy(ILogger, string reason, long latencyMs)`; `EventId = 7017` Information `OtlpCollectorRecovered(ILogger)` (the ids are the first free ones after 7015 on `main` today and are re-checked against `docs/plans` when the pull request opens); XML docs "Event IDs: 7016-7017 (see EventIdRanges.OpenTelemetry)". No registration is needed: the ids sit inside the registered range, and `EncinaEventIdAllocationTests` already maps the assembly
 3. Transition tracking with an `Interlocked.Exchange` on an `int` field; the run of the EventId architecture tests
 
 </details>
@@ -301,7 +304,7 @@ REFERENCE FILES:
 You are implementing Phase 4 of issue #1049: the probe span and two log messages.
 
 CONTEXT:
-- Encina.OpenTelemetry owns the registered range 7000-7099; 7000-7009 are used, 7010 belongs to the plan of #622. This feature takes 7011-7012.
+- Encina.OpenTelemetry owns the registered range 7000-7099; 7000-7009 are used and plans on main claim 7010-7015 (#622, #174, #183). This feature takes the next two free ids, 7016-7017 today, re-checked when the pull request opens.
 - ADR-054: one ActivitySource per package named Encina.*, HasListeners() guard, error status carries a code or type only.
 
 TASK:
@@ -309,7 +312,7 @@ Add the telemetry class and the log messages and use them in the check; log only
 
 KEY RULES:
 - Never log the endpoint, EncinaError.Message or an exception message; the reason is one of timeout, refused, dns, error.
-- EventIds packed (7011, 7012), no gaps; run tests/Encina.UnitTests EncinaEventIdAllocationTests and EventIdRegistryAgreementTests.
+- EventIds packed (7016, 7017), no gaps; run tests/Encina.UnitTests EncinaEventIdAllocationTests and EventIdRegistryAgreementTests.
 
 REFERENCE FILES:
 - src/Encina.OpenTelemetry/Resharding/ReshardingLogMessages.cs
@@ -330,7 +333,7 @@ REFERENCE FILES:
 2. **Guard** (`tests/Encina.GuardTests/Infrastructure/OpenTelemetry/OtlpExporterHealthCheckGuardTests.cs`): null `options` and null `healthOptions`; `Timeout` zero or negative, `DegradedThreshold` zero or not less than `Timeout` throw `ArgumentOutOfRangeException`; the nullable `timeProvider` and `logger` accept `null` (a test of the valid result)
 3. **Contract, property** — not applicable: the contract is the existing interface; no complex invariant
 4. **Integration** — justification file `tests/Encina.IntegrationTests/Observability/OpenTelemetry/OtlpExporterHealthCheck.md` (no database storage; the reachable and refused paths run against real loopback sockets in the unit tests; the collector stack of `docker-compose.observability.yml` is not started by the suite)
-5. **Targets** (manifest, written by `mechanical-fixer`, measured by the PR): `Health/OtlpExporterHealthCheck.cs` unit 90 (every branch is driven by a loopback socket or the probe delegate) and guard 12 (the constructor checks are the reachable lines); `Health/OtlpHealthCheckOptions.cs` unit 100 and guard 0 (auto-properties with no parameters; validation lives in the check's constructor); `Health/OtlpHealthCheckTelemetry.cs` unit 80 (the span helper runs with and without a listener), guard 0 (a static class whose methods take no reference-type or validated parameters); `Health/OtlpHealthCheckLogMessages.cs` no flags (source-generated, as `ReshardingLogMessages.cs`); `EncinaOpenTelemetryOptions.cs` unit 100; `ServiceCollectionExtensions.cs` unit 90 and guard 35 unchanged (the new branch is covered by the registration tests); no target is lowered
+5. **Targets** (manifest, written by `mechanical-fixer`, measured by the PR): `Health/OtlpExporterHealthCheck.cs` unit 90 (every branch is driven by a loopback socket or the probe delegate) and guard 12 (the constructor checks are the reachable lines); `Health/OtlpHealthCheckOptions.cs` unit 100 and guard 0 (auto-properties with no parameters; validation lives in the check's constructor); `Health/OtlpHealthCheckTelemetry.cs` unit 80 (the span helper runs with and without a listener), guard 0 (a static class whose methods take no reference-type or validated parameters); `Health/OtlpHealthCheckOptionsValidator.cs` unit 100 (three rules and the valid case) and guard 0 (an internal class whose only method takes the options instance the framework supplies; no null check is written); `Health/OtlpHealthCheckLogMessages.cs` no flags (source-generated, as `ReshardingLogMessages.cs`); `EncinaOpenTelemetryOptions.cs` unit 100; `ServiceCollectionExtensions.cs` unit 90 and guard 35 unchanged (the new branch is covered by the registration tests); no target is lowered
 
 </details>
 
@@ -428,19 +431,19 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.OpenTelemetry` | 7011-7012 inside the registered `OpenTelemetry = (7000, 7099)` | 7000-7009 used, 7010 is the plan of #622, 7013-7099 free; no registration and no registry edit; the block 1000-1049 assigned to this family is not needed |
+| `Encina.OpenTelemetry` | 7016-7017 inside the registered `OpenTelemetry = (7000, 7099)` | 7000-7009 used, 7010-7015 claimed by the plans of #622, #174 and #183, 7018-7099 unclaimed today; re-check when the pull request opens; no registration and no registry edit; the block 1000-1049 assigned to this family is not needed |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production (new) | 4 | Check, options, log messages, telemetry |
+| Production (new) | 5 | Check, options, options validator, log messages, telemetry |
 | Production (modified) | 2 | `EncinaOpenTelemetryOptions.cs`, `ServiceCollectionExtensions.cs` |
 | PublicAPI and manifest | 2 | `PublicAPI.Unshipped.txt`, `Encina.OpenTelemetry.json` |
 | Tests | 3 | Check tests plus registration tests (one file each), guard tests |
 | Justification | 1 | Integration |
 | Documentation and changelog | 2 | README, fragment |
-| **Total** | **14** | One pull request, about 1000 lines; at most 15 files |
+| **Total** | **15** | One pull request, about 1100 lines; at most 15 files |
 
 ---
 
@@ -462,8 +465,8 @@ IMPLEMENTATION OVERVIEW:
 2. OtlpExporterHealthCheck : IEncinaHealthCheck (direct, never EncinaHealthCheck): resolve the endpoint once, TCP connect (optional HTTP HEAD, any
    response is reachable) with a timeout from TimeProvider; Healthy, Degraded, Unhealthy; exporter off is Healthy "not configured"; caller
    cancellation propagates.
-3. Registration in AddEncinaOpenTelemetry with TryAddEnumerable as a singleton; a span per probe on source Encina.OpenTelemetry; log messages 7011 and
-   7012 on transitions only (inside the registered range 7000-7099).
+3. Registration in AddEncinaOpenTelemetry with TryAddEnumerable as a singleton; a span per probe on source Encina.OpenTelemetry; log messages 7016 and
+   7017 on transitions only (inside the registered range 7000-7099).
 4. Tests: loopback sockets for reachable and refused, FakeTimeProvider for slow and timeout, guard tests, DI with ValidateOnBuild and ValidateScopes;
    integration justification; README through docs-writer; fragment, PublicAPI and manifest through mechanical-fixer.
 
@@ -488,7 +491,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A probe result must be current; the health-check framework already caches nothing here |
 | 2 | OpenTelemetry | ✅ | Phase 4: a span per probe (Design Choice 3) |
-| 3 | Structured Logging | ✅ | Phase 4: EventIds 7011-7012 on transitions |
+| 3 | Structured Logging | ✅ | Phase 4: EventIds 7016-7017 on transitions |
 | 4 | Health Checks | ✅ | This plan is the health check (Phases 1 and 2) |
 | 5 | Validation | ✅ | Phase 1: constructor range checks of the thresholds |
 | 6 | Resilience | ❌ | The probe has its own timeout and reports the failure; no retry policy is added |
@@ -507,7 +510,7 @@ REFERENCE FILES:
 |------|-------|---------------------|
 | [#1043](https://github.com/dlrivada/Encina/issues/1043) — OTLP exporter opt-in | Open; plan on `main`, no code | Phase 1 gate: the two exporter properties must exist |
 | [#1048](https://github.com/dlrivada/Encina/issues/1048) — logs wiring | Open; plan written | Independent; the probe does not need the logs signal |
-| [#622](https://github.com/dlrivada/Encina/issues/622) — health checks plan | Open; plan on `main` | Takes EventId 7010 of the same range; this plan takes 7011-7012 whichever merges first |
+| [#622](https://github.com/dlrivada/Encina/issues/622) — health checks plan | Open; plan on `main` | Takes EventId 7010 of the same range (with #174 7010-7012 and #183 7013-7015); this plan takes the next free two ids (7016-7017 today), re-checked whichever merges first |
 | [#1787](https://github.com/dlrivada/Encina/issues/1787) — every source subscribed | Open | The new source `Encina.OpenTelemetry` is subscribed in `WithEncina` in Phase 2 |
 
 ---
