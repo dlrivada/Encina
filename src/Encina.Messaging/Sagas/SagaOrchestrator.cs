@@ -502,6 +502,22 @@ public sealed class SagaOrchestrator
 
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
+        var timedOut = MarkTimedOut(sagaId, state);
+        if (timedOut.IsLeft)
+            return timedOut.LeftToArray()[0];
+
+        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
+        if (updateResult.IsLeft)
+            return updateResult.LeftToArray()[0];
+
+        Log.SagaTimedOut(_logger, sagaId, state.CurrentStep);
+
+        return state.CurrentStep;
+    }
+
+    // The in-memory part of TimeoutAsync: only a running or compensating saga can time out.
+    private Either<EncinaError, ISagaState> MarkTimedOut(Guid sagaId, ISagaState state)
+    {
         if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
         {
             Log.SagaNotRunning(_logger, sagaId, state.Status);
@@ -512,13 +528,7 @@ public sealed class SagaOrchestrator
         state.ErrorMessage = "Saga exceeded its configured timeout";
         state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
-        if (updateResult.IsLeft)
-            return updateResult.LeftToArray()[0];
-
-        Log.SagaTimedOut(_logger, sagaId, state.CurrentStep);
-
-        return state.CurrentStep;
+        return Right<EncinaError, ISagaState>(state);
     }
 
     /// <summary>

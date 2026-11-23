@@ -233,6 +233,39 @@ public sealed class MessagingPatternsErrorCategoryTests
         CategoryOf(result).ShouldBe(ErrorCategory.Internal);
     }
 
+    [Theory]
+    [InlineData("CompensateStep")]
+    [InlineData("Timeout")]
+    public async Task SagaOrchestrator_StoreReadFails_KeepsTheStoreError(string operation)
+    {
+        var store = Substitute.For<ISagaStore>();
+        store.GetAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Option<ISagaState>>>(
+                EncinaErrors.Create("store.down", ErrorCategory.Unavailable, "store down")));
+
+        var error = await InvokeAsync(NewOrchestrator(store), operation, Guid.NewGuid());
+
+        error.GetCode().IfNone(string.Empty).ShouldBe("store.down");
+        error.GetCategory().ShouldBe(ErrorCategory.Unavailable);
+    }
+
+    [Fact]
+    public async Task SagaOrchestrator_StoreUpdateFailsWhileTimingOut_KeepsTheStoreError()
+    {
+        var inner = new FakeSagaStore();
+        var sagaId = await SeedAsync(inner, SagaStatus.Running, "{}");
+        var store = Substitute.For<ISagaStore>();
+        store.GetAsync(sagaId, Arg.Any<CancellationToken>()).Returns(call => inner.GetAsync(sagaId));
+        store.UpdateAsync(Arg.Any<ISagaState>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, LanguageExt.Unit>>(
+                EncinaErrors.Create("store.down", ErrorCategory.Unavailable, "store down")));
+
+        var error = await InvokeAsync(NewOrchestrator(store), "Timeout", sagaId);
+
+        error.GetCode().IfNone(string.Empty).ShouldBe("store.down");
+        error.GetCategory().ShouldBe(ErrorCategory.Unavailable);
+    }
+
     private static async Task<EncinaError> InvokeAsync(SagaOrchestrator orchestrator, string operation, Guid sagaId)
         => operation switch
         {

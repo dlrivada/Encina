@@ -28,13 +28,32 @@ internal static class ScatterGatherFailureCategory
             return ErrorCategory.Timeout;
         }
 
-        var categories = results
-            .Where(static r => r.IsFailure)
-            .Select(static r => r.Result.Match(static _ => ErrorCategory.Internal, static error => error.GetCategory()))
-            .Distinct()
-            .Take(2)
-            .ToList();
-
-        return categories.Count == 1 ? categories[0] : ErrorCategory.Internal;
+        return SharedCategory(results) ?? ErrorCategory.Internal;
     }
+
+    // The one category all failed scatters share; null when none failed, Internal when they disagree.
+    private static ErrorCategory? SharedCategory<TResponse>(IEnumerable<ScatterExecutionResult<TResponse>> results)
+    {
+        ErrorCategory? shared = null;
+        foreach (var result in results)
+        {
+            var category = FailureCategory(result);
+            if (category is null)
+            {
+                continue;
+            }
+
+            if (shared is not null && shared != category)
+            {
+                return ErrorCategory.Internal;
+            }
+
+            shared = category;
+        }
+
+        return shared;
+    }
+
+    private static ErrorCategory? FailureCategory<TResponse>(ScatterExecutionResult<TResponse> result)
+        => result.Result.Case is EncinaError error ? error.GetCategory() : null;
 }
