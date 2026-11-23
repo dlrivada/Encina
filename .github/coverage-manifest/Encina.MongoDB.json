@@ -155,54 +155,57 @@
     },
     "DeadLetter/DeadLetterMessage.cs": {
       "defaultTests": [
+        "unit",
         "guard",
         "integration"
       ],
       "defaultRule": "*.cs",
       "reason": "Dead letter message container with no logic of its own",
       "targets": {
-        "unit": 0,
+        "unit": 100,
         "guard": 75,
         "integration": 90
       },
       "justifications": {
-        "unit": "The message is an auto-property container with no logic of its own, so a unit test would only restate its properties.",
+        "unit": "Unit tests cover every property, the replay and expiry members and the BSON mapping; only persistence against a real server is left to the integration flag.",
         "guard": "The guard suite covers the argument checks of the message, and the plain property accessors have no guard surface.",
         "integration": "Every integration run persists and reads back messages on a real database, which exercises the full property mapping."
       }
     },
     "DeadLetter/DeadLetterMessageFactory.cs": {
       "defaultTests": [
+        "unit",
         "guard",
         "integration"
       ],
       "defaultRule": "*Factory.cs",
       "reason": "Dead letter message factory with a single object initializer",
       "targets": {
-        "unit": 0,
+        "unit": 100,
         "guard": 90,
         "integration": 90
       },
       "justifications": {
-        "unit": "The factory is a single object initializer that the guard theory and every integration test already exercise, so a unit test would add no distinct path.",
+        "unit": "Unit tests cover every field copy and the null guard; only creation against a real database is left to the integration flag.",
         "guard": "The guard theory covers the argument validation of the factory, which is its only branch surface.",
         "integration": "Every integration test creates dead letter messages through the factory against a real database."
       }
     },
     "DeadLetter/DeadLetterStoreMongoDB.cs": {
       "defaultTests": [
+        "unit",
         "guard",
         "integration"
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB dead letter store — needs real MongoDB",
       "targets": {
-        "unit": 0,
+        "unit": 100,
         "guard": 8,
         "integration": 80
       },
       "justifications": {
-        "unit": "The store only forwards calls to the MongoDB driver, so a unit test would assert mocks while the shared contract runs every operation on a real MongoDB instance.",
+        "unit": "Unit tests run every operation against substituted driver interfaces, including each Left path and the duplicate-key branch; only real server behavior (unique index, driver serialization) is left to the integration flag.",
         "guard": "Constructor and argument checks are the only guard-reachable surface of the store.",
         "integration": "The shared contract runs every operation on a real MongoDB instance, and only driver-failure branches remain uncovered."
       }
