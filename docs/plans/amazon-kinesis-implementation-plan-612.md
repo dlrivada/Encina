@@ -3,7 +3,7 @@
 > **Issue**: [#612](https://github.com/dlrivada/Encina/issues/612)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: High (8 phases, 8 pull requests of about 15, 10, 7, 14, 9, 9, 9 and 8 files)
+> **Complexity**: High (8 phases, 8 pull requests of about 11, 14, 7, 14, 9, 10, 9 and 7 files)
 > **Estimated Scope**: about 1,400 lines of production code and about 2,600 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -197,14 +197,14 @@ A wins for throughput, the reason to use Kinesis; B wins for a low-volume stream
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Ambient AWS credentials and `Region`, as `Encina.AmazonSQS`; an optional `ServiceUrl` for emulators validated by `EndpointValidator` (https, no loopback, link-local or metadata address) unless `AllowInsecureHttp` or `AllowLocalEndpoints` is set, each logging a warning once** | No secret in options; the same safety rule as the SQS package | The emulator needs two flags |
+| **A) Ambient AWS credentials and `Region`, as `Encina.AmazonSQS`; an optional `ServiceUrl` for emulators validated by `EndpointValidator` (https, no loopback, link-local or metadata address) unless `AllowInsecureHttp` or `AllowLocalEndpoints` is set (the documentation states the relaxations; the validator itself does not log)** | No secret in options; the same safety rule as the SQS package | The emulator needs two flags |
 | **B) Keys in the options** | Simple | A secret in configuration |
 
 ### Chosen Option: **A, ambient credentials and a validated endpoint**
 
 ### Rationale
 
-`src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs` and `EncinaAmazonSQSOptionsValidator.cs` (the `EndpointPolicy.ForHttps(allowInsecureHttp, allowLocalEndpoints)` call and the warning once per options name) are the convention for the AWS transports. The options hold no secret.
+`src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs` and `EncinaAmazonSQSOptionsValidator.cs` (the `EndpointPolicy.ForHttps(allowInsecureHttp, allowLocalEndpoints)` call) are the convention for the AWS transports. The options hold no secret.
 
 **Class:** Trivial
 **Settled by:** `src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs` and `src/Encina.AmazonSQS/EncinaAmazonSQSOptionsValidator.cs`
@@ -302,11 +302,10 @@ A wins because one design for all transports needs #1164 and #2385; B wins for a
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.AmazonKinesis/Encina.AmazonKinesis.csproj` (net10.0; packages `AWSSDK.Kinesis` 4.1.1 and `AWSSDK.DynamoDBv2` 4.1.0.3 (new pins in `Directory.Packages.props`, restored together with the pinned `AWSSDK.Core` of the SQS pins; the pull request records the restore result), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Transport packages carry no `PublicAPI.*.txt` today (none in AmazonSQS, NATS, Redis.PubSub), so none is added.
-2. `EncinaAmazonKinesisOptions` (namespace `Encina.AmazonKinesis`, public sealed): `Region` (default `us-east-1`), `ServiceUrl`, `AllowInsecureHttp`, `AllowLocalEndpoints`, `StreamName`, `DeadLetterStreamName` (null: none), `ConsumerName`, `LeaseTableName`, `CreateLeaseTableIfMissing` (default false), `MaxHandlerAttempts`, `MaxRecordsPerRead`, `LeaseDuration`, `ProviderHealthCheck`. It holds no secret (ambient credentials); `ToString()` prints the stream name only. Internal `EncinaAmazonKinesisOptionsValidator : IValidateOptions<>`: the endpoint rule of Design Choice 9 (it logs the relaxation warning once per options name, as `EncinaAmazonSQSOptionsValidator` does), non-blank names, positive counts and durations.
-3. `Log.cs` 40060 (endpoint validation relaxed). `EventIdRanges.AmazonKinesis = (40060, 40079)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AmazonKinesis | 40060-40079 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
-4. `ServiceCollectionExtensions.AddEncinaAmazonKinesis(this IServiceCollection, Action<EncinaAmazonKinesisOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`, `TryAddSingleton<IAmazonKinesis>` and `TryAddSingleton<IAmazonDynamoDB>` from the options (an application's own client wins); a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-5. Tests: `AmazonKinesisOptionsAndRegistrationTests` (unit: options, validator, DI), `AmazonKinesisGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.AmazonKinesis.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+1. `src/Encina.AmazonKinesis/Encina.AmazonKinesis.csproj` (net10.0; packages `AWSSDK.Kinesis` 4.1.1 and `AWSSDK.DynamoDBv2` 4.1.0.3 (new pins in `Directory.Packages.props`, `Directory.Packages.props` has no `AWSSDK.Core` pin, so the transitive core version is whatever the SQS pins already resolve together with these two; the pull request records the restore result), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Transport packages carry no `PublicAPI.*.txt` today (none in AmazonSQS, NATS, Redis.PubSub), so none is added.
+2. `EncinaAmazonKinesisOptions` (namespace `Encina.AmazonKinesis`, public sealed): `Region` (default `us-east-1`), `ServiceUrl`, `AllowInsecureHttp`, `AllowLocalEndpoints`, `StreamName`, `DeadLetterStreamName` (null: none), `ConsumerName`, `LeaseTableName`, `CreateLeaseTableIfMissing` (default false), `MaxHandlerAttempts`, `MaxRecordsPerRead`, `LeaseDuration`, `ProviderHealthCheck`. It holds no secret (ambient credentials); `ToString()` prints the stream name only. Internal `EncinaAmazonKinesisOptionsValidator : IValidateOptions<>`: the endpoint rule of Design Choice 9 (it does not log: the package has no log messages until pull request 2, where the range is registered), non-blank names, positive counts and durations.
+3. `ServiceCollectionExtensions.AddEncinaAmazonKinesis(this IServiceCollection, Action<EncinaAmazonKinesisOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`, `TryAddSingleton<IAmazonKinesis>` from the options (an application's own client wins); `IAmazonDynamoDB` is registered only in pull request 4 with the consumer, so a publish-only application takes no DynamoDB client (AGENTS.md section 1); a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
+4. Tests: `AmazonKinesisOptionsAndRegistrationTests` (unit: options, validator, DI), `AmazonKinesisGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.AmazonKinesis.json` with the unit and guard targets of these files and, in the same file, their one-sentence justifications at file and package level (`coverage-report.cs --check-justifications` fails a target without one); every later pull request adds the targets and justifications of the files and flags it introduces; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
 
 </details>
 
@@ -314,9 +313,9 @@ A wins because one design for all transports needs #1164 and #2385; B wins for a
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: Encina.AmazonSQS is the template (options, validator with the endpoint policy and the relaxation warning, DI). AWSSDK.Kinesis 4.1.1 and AWSSDK.DynamoDBv2 4.1.0.3 are Apache-2.0. Amazon.Kinesis.ClientLibrary does not exist on NuGet.
-TASK: Create the Encina.AmazonKinesis package skeleton with validated options, the EventId range and AddEncinaAmazonKinesis, and their unit and guard tests.
-KEY RULES: no secret in options (ambient credentials); the endpoint validator warns once per options name and never logs the URL credentials; TryAdd registrations only; a DI test with ValidateOnBuild and ValidateScopes; EventIds only 40060-40079, registered first in EventIdRanges.cs and in the registry (Zone zone); no Obsolete, no compatibility code.
+CONTEXT: Encina.AmazonSQS is the template (options, validator with the endpoint policy, DI). AWSSDK.Kinesis 4.1.1 and AWSSDK.DynamoDBv2 4.1.0.3 are Apache-2.0. Amazon.Kinesis.ClientLibrary does not exist on NuGet.
+TASK: Create the Encina.AmazonKinesis package skeleton with validated options and AddEncinaAmazonKinesis, and their unit and guard tests.
+KEY RULES: no secret in options (ambient credentials); the endpoint validator never prints the URL; TryAdd registrations only; a DI test with ValidateOnBuild and ValidateScopes; no Obsolete, no compatibility code.
 REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina/Validation/EndpointValidator.cs, .github/coverage-manifest/Encina.AmazonSQS.json, docs/engineering/eventid-block-registry.md.
 ```
 
@@ -328,8 +327,8 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina/Validation/EndpointValida
 <summary>Tasks</summary>
 
 1. `IAmazonKinesisMessagePublisher.PublishAsync<TMessage>(TMessage message, string? partitionKey = null, string? streamName = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `AmazonKinesisMessagePublisher` (scoped; `IAmazonKinesis`, `IOptions`, `ILogger`): `PutRecordAsync` with the envelope of Design Choice 10 and the key of Design Choice 8.
-2. Errors (ADR-062), in `AmazonKinesisErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.kinesis.publish_failed` `Internal` (R4), `encina.kinesis.publish_throttled` `Unavailable` (R7, `ProvisionedThroughputExceededException`), `encina.kinesis.record_too_large` `Validation` (R3), `encina.kinesis.stream_not_configured` `Internal` (R1). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-3. `Log.cs` 40061-40063 (publishing, published, publish failed; no message ids, no payload, no partition keys). DI: `TryAddScoped<IAmazonKinesisMessagePublisher, AmazonKinesisMessagePublisher>()` (registration completeness, AGENTS.md section 3); the DI test resolves it with `ValidateOnBuild` and `ValidateScopes`.
+2. Errors (ADR-062), in `AmazonKinesisErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.kinesis.publish_failed` `Internal` (R4), `encina.kinesis.publish_throttled` `RateLimited` (`ProvisionedThroughputExceededException` is a rate limit; ADR-062 R7 maps `rate_limited` to the outbound table, and `ErrorCategory.RateLimited` exists), `encina.kinesis.record_too_large` `Validation` (R3), `encina.kinesis.stream_not_configured` `Internal` (R1). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
+3. `Log.cs` 40060-40062 (publishing, published, publish failed; no message ids, no payload, no partition keys). `EventIdRanges.AmazonKinesis = (40060, 40079)`; the line `static readonly Encina.Diagnostics.EventIdRanges.AmazonKinesis -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AmazonKinesis | 40060-40079 | Transports | zone |` in the registered ranges table and the Blocks row `| 40060-40079 | Transports | transport-new-2: #612 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch). DI: `TryAddScoped<IAmazonKinesisMessagePublisher, AmazonKinesisMessagePublisher>()` (registration completeness, AGENTS.md section 3); the DI test resolves it with `ValidateOnBuild` and `ValidateScopes`.
 4. Tests: `AmazonKinesisMessagePublisherTests` and `AmazonKinesisEnvelopeTests` (unit over a substituted `IAmazonKinesis`), registration test edit, guard edit; manifest edit with the unit and guard targets (contract and integration targets are entered in pull request 7).
 
 </details>
@@ -339,7 +338,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina/Validation/EndpointValida
 
 ```text
 CONTEXT: The package skeleton exists. Publishing follows Encina.AmazonSQS: a messageId parameter, generated only when null or empty. Kinesis records have no attributes, so metadata lives in a JSON envelope in the data.
-TASK: Implement IAmazonKinesisMessagePublisher.PublishAsync with the envelope, the partition key default, the size check, the error codes class and the log messages 40061-40063, with unit and guard tests.
+TASK: Implement IAmazonKinesisMessagePublisher.PublishAsync with the envelope, the partition key default, the size check, the error codes class, the log messages 40060-40062 and the EventId range AmazonKinesis, with unit and guard tests.
 KEY RULES: EncinaErrors.Create with the named category: argument (ADR-062); constant messages, never ex.Message; ids, payloads and partition keys never logged; cancellation propagates; the size is checked before AWS is called.
 REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, src/Encina/Diagnostics/EventIdRanges.cs.
 ```
@@ -352,7 +351,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, src/Encina/D
 <summary>Tasks</summary>
 
 1. `PublishBatchAsync<TMessage>(IReadOnlyList<TMessage> messages, string? streamName = null, CancellationToken cancellationToken = default)` returning `ValueTask<Either<EncinaError, IReadOnlyList<string>>>` over `PutRecordsAsync` in chunks of at most 500 records and 5 MiB; any `FailedRecordCount` above zero is a `Left` (Design Choice 7), with the failed count in the details and no ids.
-2. Code added to `AmazonKinesisErrorCodes.cs`: `encina.kinesis.batch_failed` `Internal` (R4). `Log.cs` 40064-40065 (publishing batch, batch published; counts only).
+2. Code added to `AmazonKinesisErrorCodes.cs`: `encina.kinesis.batch_failed` `Internal` (R4). `Log.cs` 40063-40064 (publishing batch, batch published; counts only).
 3. Tests: `AmazonKinesisBatchTests` (unit: chunking, partial failure, oversize record), guard edit, manifest edit.
 
 </details>
@@ -376,7 +375,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs (SendBatchAsy
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? streamName = null, CancellationToken cancellationToken = default)` returning `ValueTask<IAsyncDisposable>`. Internal pieces: `KinesisShardReader` (`ListShardsAsync`, `GetShardIteratorAsync` from the checkpoint or `TRIM_HORIZON`, a `GetRecordsAsync` loop that backs off when empty or throttled), `IKinesisCheckpointStore` with `DynamoDbKinesisCheckpointStore` (conditional `PutItem` and `UpdateItem` on the lease table; the table is created only when `CreateLeaseTableIfMissing` is set), and the consumer host that runs the handler with the in-place retry and dead lettering of Design Choice 5. In this pull request one instance reads every shard (no coordination yet; pull request 5 adds leases), and a checkpoint advances only after success or a successful dead-letter write. The read loops catch per iteration; the stopping token ends them.
 2. Codes added to `AmazonKinesisErrorCodes.cs`: `encina.kinesis.subscribe_failed`, `encina.kinesis.checkpoint_failed`, `encina.kinesis.dead_letter_failed`, `encina.kinesis.deserialize_failed` (an undeserializable record is dead-lettered at once), all `Internal` (R4).
-3. `Log.cs` 40066-40072 (subscription started, shard read started, handler failed with attempt, dead lettered, dead letter failed, checkpoint failed, read iteration failed). DI: `TryAddSingleton<IKinesisCheckpointStore, DynamoDbKinesisCheckpointStore>()`; the DI test subscribes with substituted clients.
+3. `Log.cs` 40065-40071 (subscription started, shard read started, handler failed with attempt, dead lettered, dead letter failed, checkpoint failed, read iteration failed). DI: `TryAddSingleton<IAmazonDynamoDB>` from the options (an application's own client wins) and `TryAddSingleton<IKinesisCheckpointStore, DynamoDbKinesisCheckpointStore>()`; the DI test subscribes with substituted clients.
 4. Tests: `KinesisShardReaderTests`, `KinesisCheckpointStoreTests`, `KinesisConsumerTests` (unit over substituted `IAmazonKinesis` and `IAmazonDynamoDB`), registration test edit, guard edit, manifest edit.
 
 </details>
@@ -398,10 +397,10 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, src/Encina.R
 <details>
 <summary>Tasks</summary>
 
-1. `KinesisLeaseManager` (internal): acquire a shard lease with a conditional write (owner, `LeaseDuration`, expiry computed from `TimeProvider`), renew it from a `PeriodicTimer` loop, take over an expired lease, release on dispose, and fair-share balancing (an instance takes at most `ceil(shards / instances)` leases, instances being the distinct live owners in the table). A lost lease (a conditional write fails) stops that shard's reader without a checkpoint and is logged, never returned to a caller (`encina.kinesis.lease_lost`, `Conflict`, R2).
+1. `KinesisLeaseManager` (internal): acquire a shard lease with a conditional write (owner, `LeaseDuration`, expiry computed from `TimeProvider`), renew it from a `PeriodicTimer` loop, take over an expired lease, release on dispose, and fair-share balancing with an explicit rebalance. Instances are counted from heartbeat items: each instance writes an item `INSTANCE#<id>` with an expiry in the same table on every renewal tick, so an instance that holds no lease yet is already counted; the share is `ceil(shards / live instances)`. An instance acquires leases only while it holds fewer than its share, and a lease above its share is released: the renewal loop stops renewing the surplus, its reader finishes the batch in flight, checkpoints and releases it (a conditional delete of the owner field), so another instance can take it on its next tick. A test on a fake clock starts one instance, then a second, and asserts that the shards converge to an even split within a bounded number of lease durations and that no shard is read by two instances at once. A lost lease (a conditional write fails) stops that shard's reader without a checkpoint and is logged, never returned to a caller (`encina.kinesis.lease_lost`, `Conflict`, R2).
 2. `KinesisShardSync` (internal): a periodic `ListShardsAsync` that creates lease items for new shards and reads a child shard only after every parent shard is closed and fully checkpointed (resharding order).
-3. The consumer host of pull request 4 now reads only the shards it holds. Codes added: `encina.kinesis.lease_lost` `Conflict` (R2), `encina.kinesis.shard_sync_failed` `Internal` (R4). `Log.cs` 40073-40077 (lease acquired, lease lost, shard sync iteration failed, shard split observed, lease released). All loops catch per iteration and never let an exception escape (AGENTS.md section 3).
-4. Tests: `KinesisLeaseManagerTests` (unit with `FakeTimeProvider`: acquire, renew, expiry takeover, fair share, lost lease), `KinesisShardSyncTests` (parent before child), guard edit, manifest edit.
+3. The consumer host of pull request 4 now reads only the shards it holds. Codes added: `encina.kinesis.lease_lost` `Conflict` (R2), `encina.kinesis.shard_sync_failed` `Internal` (R4). `Log.cs` 40072-40076 (lease acquired, lease lost, shard sync iteration failed, shard split observed, lease released). All loops catch per iteration and never let an exception escape (AGENTS.md section 3).
+4. Tests: `KinesisLeaseManagerTests` (unit with `FakeTimeProvider`: acquire, renew, expiry takeover, heartbeat counting, fair share and surplus release when a second instance starts, lost lease), `KinesisShardSyncTests` (parent before child), guard edit, manifest edit.
 
 </details>
 
@@ -424,7 +423,7 @@ REFERENCE FILES: src/Encina.Messaging/Scheduling (loops), docs/en/guides/TESTING
 
 1. `Health/AmazonKinesisHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-amazon-kinesis"`, tags `encina`, `messaging`, `amazon-kinesis`, `ready`): `DescribeStreamSummaryAsync` bounded by `ProviderHealthCheck.Timeout`, healthy when the stream is `ACTIVE`; the result text names the check and the exception type only. Registered like `AmazonSQSHealthCheck` when `ProviderHealthCheck.Enabled`.
 2. `Diagnostics/AmazonKinesisActivitySource` and `AmazonKinesisMetrics`: spans publish, process, checkpoint, dead-letter with a link from consumer to producer through the envelope `traceparent`; counters `amazon_kinesis.published`, `.processed`, `.dead_lettered`, `.leases_lost` with tags `stream`, `outcome`; no tenant tag. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `AmazonKinesisHealthCheckTests`, `AmazonKinesisDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended (its manifest targets stay at today's unit 90 and guard 35).
+3. Tests: `AmazonKinesisHealthCheckTests`, `AmazonKinesisDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended and counted as a file (its manifest targets and justifications stay at today's unit 90 and guard 35).
 
 </details>
 
@@ -449,7 +448,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/Health/AmazonSQSHealthCheck.cs, src/Encina
 2. `tests/Encina.ContractTests/MessageBrokers/AmazonKinesis/AmazonKinesisConformanceTests.cs`, a subclass of `TransportConformanceContractBase` of #240 (publish with message id, subscribe delivers, handler failure retried then dead-lettered, cancellation) in `[Collection(LocalStackFixture.CollectionName)]`; `ContractTests.csproj` reference.
 3. `tests/Encina.IntegrationTests/MessageBrokers/AmazonKinesis/AmazonKinesisIntegrationTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","AmazonKinesis")]`): partition-key ordering, batch publish, two consumers sharing shards through the lease table, takeover after an expired lease, restart resumes from the checkpoint, dead-letter stream content; `IntegrationTests.csproj` reference.
 4. `tests/Encina.PropertyTests/Messaging/AmazonKinesis/AmazonKinesisEnvelopePropertyTests.cs` (FsCheck round trip of the envelope and the size limit) and `PropertyTests.csproj` reference.
-5. One manifest edit entering the contract, property and integration targets (the table of Phase 8).
+5. One manifest edit entering the contract, property and integration targets of the table of Phase 8 together with their one-sentence justifications, the package-level contract and integration targets and justifications included (`--check-justifications`).
 
 </details>
 
@@ -470,7 +469,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonKinesis.json` in the pull request that adds the tests of each flag: unit and guard with the file in pull requests 1 to 6, contract, property and integration in pull request 7; measured with the commands of AGENTS.md section 9):
+Per-flag targets, each written with its one-sentence justification in `.github/coverage-manifest/Encina.AmazonKinesis.json` in the same pull request that adds the tests of the flag (unit and guard with the file in pull requests 1 to 6, contract, property and integration in pull request 7; this pull request adds no target); the table is the final state, measured with the commands of AGENTS.md section 9:
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -506,7 +505,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonKinesis.jso
 
 ```text
 CONTEXT: The package is implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest justifications, write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Check that every manifest target already has its justification (run coverage-report.cs --check-justifications), write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AmazonSQS.json, changelog.d/README.md.
 ```
@@ -541,7 +540,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `AmazonKinesis` (new) | 40060-40079 | Fourth range of the block `40000-40099` of the Transports zone taken by transport-new-2 (`DaprPubSub` 40000-40019 is #242's, `ZeroMQ` 40020-40039 is #610's, `AzureEventHubs` 40040-40059 is #611's); ids 40060-40077 used (40060 endpoint, 40061-40063 publish, 40064-40065 batch, 40066-40072 consume, 40073-40077 leases), 40078-40079 spare. The block `9750-9799` of the batch snapshot is registered as `SecurityBreakTheGlass` on `origin/main` (status `superseded` in the registry). Verified free by a search of the registry and of every `docs/plan-*` branch for `40000`. |
+| `AmazonKinesis` (new) | 40060-40079 | Fourth range of the block `40000-40099` of the Transports zone taken by transport-new-2 (`DaprPubSub` 40000-40019 is #242's, `ZeroMQ` 40020-40039 is #610's, `AzureEventHubs` 40040-40059 is #611's); ids 40060-40076 used (40060-40062 publish, 40063-40064 batch, 40065-40071 consume, 40072-40076 leases), 40077-40079 spare. The block `9750-9799` of the batch snapshot is registered as `SecurityBreakTheGlass` on `origin/main` (status `superseded` in the registry). Verified free by a search of the registry and of every `docs/plan-*` branch for `40000`. |
 
 ### Estimated File Count
 
@@ -551,14 +550,14 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Tests | 15 | options and registration, publisher, envelope, batch, reader, checkpoint, consumer, lease, shard sync, health, diagnostics, guard, property, conformance subclass, integration |
 | Shared edits | 11 | `Encina.slnx`, `Directory.Packages.props`, `LocalStackFixture`, `TestInfrastructure.csproj`, 5 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry rows, changelog, 2 justification files |
-| **Pull request 1** | **15** | csproj, options, validator, `Log`, `EventIdRanges.cs`, allocation test, registry, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, one unit test file, guard test; about 650 lines |
-| **Pull request 2** | **10** | interface, publisher, error codes, `Log` edit, DI edit, 2 unit tests, registration test edit, guard edit, manifest edit; about 600 lines |
+| **Pull request 1** | **11** | csproj, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, one unit test file, guard test; about 450 lines |
+| **Pull request 2** | **14** | interface, publisher, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, 2 unit tests, registration test edit, guard edit, manifest edit; about 750 lines |
 | **Pull request 3** | **7** | interface edit, publisher edit, error codes edit, `Log` edit, unit test, guard edit, manifest edit; about 350 lines |
 | **Pull request 4** | **14** | interface edit, reader, checkpoint store interface, DynamoDB checkpoint store, consumer host, error codes edit, `Log` edit, DI edit, registration test edit, 3 unit tests, guard edit, manifest edit; about 1,100 lines |
 | **Pull request 5** | **9** | lease manager, shard sync, consumer host edit, error codes edit, `Log` edit, 2 unit tests, guard edit, manifest edit; about 800 lines |
-| **Pull request 6** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
+| **Pull request 6** | **10** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
 | **Pull request 7** | **9** | `LocalStackFixture` edit, `TestInfrastructure.csproj`, conformance subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest; about 900 lines |
-| **Pull request 8** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 8** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 Implementers and callers: `IAmazonKinesisMessagePublisher` is new, so it has no implementers or `new X(` sites to update; `LocalStackFixture` is edited additively (callers use its existing members). Pull request 1 registers options, validator and the two AWS clients, pull request 2 the scoped publisher, pull request 4 the checkpoint store, pull request 6 the health check. Each pull request builds alone in order 1 to 8; pull request 7 also needs #240 pull request 5 (the conformance base). If the maintainer chooses option B of Design Choice 4, pull request 5 is dropped.
 
@@ -572,7 +571,7 @@ Implementers and callers: `IAmazonKinesisMessagePublisher` is new, so it has no 
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.AmazonKinesis adds a streaming transport on AWSSDK.Kinesis with an Encina lease-based consumer (the KCL is a Java library), tested on LocalStack.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, endpoint validation, EventId range AmazonKinesis 40060-40079, DI; PR2 publish with envelope; PR3 PutRecords batches; PR4 shard reader, DynamoDB checkpoints, retry and dead-letter stream; PR5 leases, balancing and resharding; PR6 health check and telemetry; PR7 LocalStack fixture, conformance subclass, property and integration tests; PR8 documentation. Dilemmas D2, D3, D4, D5, D6, D7, D8, D12 and D13 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, endpoint validation, DI; PR2 publish with envelope and the EventId range AmazonKinesis 40060-40079; PR3 PutRecords batches; PR4 shard reader, DynamoDB checkpoints, retry and dead-letter stream; PR5 leases, balancing and resharding; PR6 health check and telemetry; PR7 LocalStack fixture, conformance subclass, property and integration tests; PR8 documentation. Dilemmas D2, D3, D4, D5, D6, D7, D8, D12 and D13 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure and never a silent skip; loops catch per iteration; time through TimeProvider; named ADR-062 category on every error; constant error messages; ids, payloads and partition keys never logged; no secret in options; targets never go down; CRAP <= 10.
 
@@ -589,7 +588,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Messaging/Health, tests/Encina
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A transport does not cache messages. |
 | 2 | OpenTelemetry | ✅ | Per-package `ActivitySource` and `Meter` (Design Choice 12); the shared design of #725 may rename them. |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40060-40077 of the range 40060-40079; error codes and exception types only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40060-40076 of the range 40060-40079; error codes and exception types only. |
 | 4 | Health Checks | ✅ | `AmazonKinesisHealthCheck` describes the stream. |
 | 5 | Validation | ❌ | Options are validated at startup; payload validation belongs to the validation behaviors of the consuming handler. |
 | 6 | Resilience | ⏭️ | The AWS SDK retries transient faults by itself; one retry layer per ADR-050, and #742 decides whether Encina adds a decorator, recorded in the issue file `transport-new-2-tenant-module-and-resilience-adoption`. Handler failures retry in place (Design Choice 5). |
@@ -613,6 +612,6 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Messaging/Health, tests/Encina
 ## Next Steps
 
 1. Ask the maintainer D2, D3, D4, D5, D6, D7, D8, D12 and D13 when work on #612 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: package skeleton (15 files).
-3. Pull requests 2 to 6: publish (10), batch (7), reader and checkpoints (14), leases (9), health and telemetry (9).
+2. Pull request 1: package skeleton (11 files).
+3. Pull requests 2 to 6: publish and the EventId range (14), batch (7), reader and checkpoints (14), leases (9), health and telemetry (10).
 4. Pull requests 7 and 8: LocalStack contract, property and integration tests (9), documentation (8).
