@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Encina.DataAnnotations;
+using Encina.Testing.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Shouldly;
@@ -14,6 +15,17 @@ namespace Encina.GuardTests.Validation;
 public sealed class DataAnnotationsGuardTests
 {
     private sealed record SampleRequest([property: Required] string? Name);
+
+    private sealed class CapturingRequest : IValidatableObject
+    {
+        public Dictionary<object, object?>? Items { get; private set; }
+
+        public IEnumerable<System.ComponentModel.DataAnnotations.ValidationResult> Validate(ValidationContext validationContext)
+        {
+            Items = new Dictionary<object, object?>(validationContext.Items);
+            return [];
+        }
+    }
 
     [Fact]
     public async Task ValidateAsync_NullRequest_Throws()
@@ -49,7 +61,7 @@ public sealed class DataAnnotationsGuardTests
     }
 
     [Fact]
-    public async Task ValidateAsync_InvalidRequestWithUserAndTenant_ReturnsFailure()
+    public async Task ValidateAsync_InvalidRequestWithTenant_ReturnsFailure()
     {
         var sut = new DataAnnotationsValidationProvider();
         var context = RequestContext.CreateForTest(tenantId: "tenant-1");
@@ -58,6 +70,25 @@ public sealed class DataAnnotationsGuardTests
 
         result.IsValid.ShouldBeFalse();
         result.Errors.ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AuthenticatedIdentityAndTenant_PassesUserAndTenantToValidationContext()
+    {
+        var sut = new DataAnnotationsValidationProvider();
+        var context = Substitute.For<IRequestContext>();
+        context.CorrelationId.Returns("corr-1");
+        context.TenantId.Returns("tenant-1");
+        context.Identity.Returns(TestIdentity.User("user-1"));
+        var request = new CapturingRequest();
+
+        var result = await sut.ValidateAsync(request, context, CancellationToken.None);
+
+        result.IsValid.ShouldBeTrue();
+        request.Items.ShouldNotBeNull();
+        request.Items!["UserId"].ShouldBe("user-1");
+        request.Items["TenantId"].ShouldBe("tenant-1");
+        request.Items["CorrelationId"].ShouldBe("corr-1");
     }
 
     [Fact]
@@ -77,5 +108,8 @@ public sealed class DataAnnotationsGuardTests
 
         returned.ShouldBeSameAs(services);
         services.ShouldContain(d => d.ServiceType == typeof(IValidationProvider));
+        services.ShouldContain(d => d.ServiceType == typeof(ValidationOrchestrator));
+        services.ShouldContain(d => d.ServiceType == typeof(IPipelineBehavior<,>)
+            && d.ImplementationType == typeof(ValidationPipelineBehavior<,>));
     }
 }
