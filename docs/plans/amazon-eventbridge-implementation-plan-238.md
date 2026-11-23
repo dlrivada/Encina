@@ -50,7 +50,7 @@ The issue names the package; the interface name follows the convention of every 
 </details>
 
 <details>
-<summary><strong>2. Publish-only interface</strong></summary>
+<summary><strong>2. Publish-only interface (Dilemma D2)</strong></summary>
 
 ### Options Considered
 
@@ -59,14 +59,13 @@ The issue names the package; the interface name follows the convention of every 
 | **A) `IAmazonEventBridgeMessagePublisher` with `PublishAsync` only** | Matches the service: no receive API exists | The transport rule "subscription management" is met by rules (Design Choice 3), not by a handler |
 | **B) A `SubscribeAsync` that creates an SQS target and polls it** | Same call shape as MQTT and Redis.PubSub | Hides a second service (SQS) and its polling inside the EventBridge package; that is the SQS transport's consume work (#1609) |
 
-### Chosen Option: **A, publish only**
+### Chosen Option: **A, publish only** (recommended, pending the maintainer)
 
 ### Rationale
 
-EventBridge delivers to targets; the issue lists no consumer in its tasks or acceptance criteria and cites the AWS `IEventBridgePublisher`. Consuming an SQS target belongs to the SQS transport.
+A wins because EventBridge delivers to targets, the issue lists no consumer in its tasks or acceptance criteria and cites the AWS `IEventBridgePublisher`, and consuming an SQS target belongs to the SQS transport (#1609); B wins for applications that want the same publish-and-subscribe call shape on every transport and accept an SQS dependency inside this package.
 
-**Class:** Settled
-**Settled by:** #238 (summary and acceptance criteria: publisher only; motivation cites the AWS `IEventBridgePublisher`)
+**Class:** Dilemma
 
 </details>
 
@@ -195,7 +194,7 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 </details>
 
 <details>
-<summary><strong>9. Multi-tenancy and module headers</strong></summary>
+<summary><strong>9. Multi-tenancy and module headers (Dilemma D9)</strong></summary>
 
 ### Options Considered
 
@@ -204,14 +203,13 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 | **A) Defer to an issue: tenant and module CloudEvents extension attributes need #1164 and the route metadata of #2385** | One design for all transports | Not in this plan |
 | **B) Stamp a tenant attribute now** | Early | Needs the reserved `default` tenant segment and an injective encoding no transport defines yet |
 
-### Chosen Option: **A, defer**
+### Chosen Option: **A, defer** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue itself defers it ("Tenant context in headers"); the follow-up is an issue file.
+A wins because one design for all transports needs the persisted context of #1164 and the route metadata of #2385, and the issue's own table defers it ("Tenant context in headers"); B wins for a tenant-isolated deployment that needs the extension attribute before those land. The follow-up is an issue file.
 
-**Class:** Settled
-**Settled by:** #238 (cross-cutting table: multi-tenancy and module isolation deferred) and #1164
+**Class:** Dilemma
 
 </details>
 
@@ -250,7 +248,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs, src/Encina.Amaz
 
 1. `IAmazonEventBridgeMessagePublisher.PublishAsync<TMessage>(TMessage message, string? eventBusName = null, string? detailType = null, string? messageId = null, string? subject = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the event id); `AmazonEventBridgeMessagePublisher` (scoped; `IAmazonEventBridge`, options, logger, `TimeProvider`): one `PutEvents` entry whose `Detail` is the CloudEvent (Design Choice 4), `Source` and `DetailType` from options and type, `TraceHeader` from the current activity, a rejected entry is a `Left` (Design Choice 7).
 2. Internal `CloudEventFormatter` (id from the message id, time from `TimeProvider`).
-3. `Log.cs` 1090-1093 (publishing, published, failed, entry rejected); `EventIdRanges.AmazonEventBridge = (1090, 1099)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AmazonEventBridge | 1090-1099 | Transports | historical |` in the registered ranges table and the split of the reserved block 1050-1099 so that 1090-1099 is `registered` and no reserved block overlaps a registered range, as `EventIdRegistryAgreementTests` requires (the other four plans edit neighbouring rows of the same table, so the pull requests rebase on each other).
+3. `Log.cs` 1090-1093 (publishing, published, failed, entry rejected); `EventIdRanges.AmazonEventBridge = (1090, 1099)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AmazonEventBridge | 1090-1099 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1090-1099` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
 4. `Directory.Packages.props` entry for `CloudNative.CloudEvents` (and its System.Text.Json formatter) and the csproj edit; tests `AmazonEventBridgeMessagePublisherTests`, `CloudEventFormatterTests`, guard edit, manifest edit.
 
 </details>
@@ -363,7 +361,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonEventBridge.json` in the pull request that adds each file):
+Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonEventBridge.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -503,7 +501,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Messaging/Health, tests/Encina
 
 ## Next Steps
 
-1. Ask the maintainer D3, D4, D5 and D8 when work on #238 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D8 and D9 when work on #238 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (14), provisioner (8), health and telemetry (9).
 4. Pull requests 5 to 7: LocalStack integration tests (6), conformance subclass (3), documentation (8).
