@@ -58,7 +58,7 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
         context.UseDeadLetter(cancellationToken => capture.CaptureAsync(
             message,
             new DeadLetterContext(
-                EncinaErrors.Create(SagaErrorCodes.NotFound, "Saga not found"),
+                EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, "Saga not found"),
                 Exception: null,
                 DeadLetterSourcePatterns.Saga,
                 TotalRetryAttempts: 0,
@@ -104,14 +104,14 @@ internal sealed partial class SagaNotFoundDispatcher : ISagaNotFoundDispatcher
         {
             Log.SagaNotFoundHandlerCancelled(_logger, typeof(TMessage).Name, context.SagaId);
             return EncinaErrors.Create(
-                SagaErrorCodes.HandlerCancelled,
+                SagaErrorCodes.HandlerCancelled, ErrorCategory.Cancelled,
                 $"Saga not found handler for {typeof(TMessage).Name} was cancelled");
         }
         catch (Exception ex)
         {
             Log.SagaNotFoundHandlerFailed(_logger, typeof(TMessage).Name, context.SagaId, ex.ForLogging());
             return EncinaErrors.FromException(
-                SagaErrorCodes.HandlerFailed,
+                SagaErrorCodes.HandlerFailed, ErrorCategory.Internal,
                 ex,
                 $"Saga not found handler for {typeof(TMessage).Name} failed");
         }

@@ -38,7 +38,7 @@ Manages EventId allocation for Encina's structured logging system. Prevents coll
 | Compliance Extensions | 9200-9699 | NIS2, CrossBorderTransfer, ProcessorAgreements, AIAct, Attestation |
 | Later additions | 3850-3899, 5400-5499, 9750-9799 and others | Registered after this table was written; verify each against `EventIdRanges.cs` before naming it. [The block registry](../../../docs/engineering/eventid-block-registry.md) lists every range |
 
-The ranges below 10000 are historical: this table is the original allocation, there is no free-range list, and the registry file is the place to check free space. New blocks are born in the 10000+ zone (ADR-021 amendment, #4006), one base per area, 1000 ids per block, each area owning ten blocks (base to base+9999):
+The ranges below 10000 are historical: this table is the original allocation, there is no free-range list, free gaps below 10000 are not listed in the registry and are not allocatable, and the registry file is the place to read free space only for the 10000+ zone. New blocks are born in the 10000+ zone (ADR-021 amendment, #4006), one base per area, 1000 ids per block, each area owning ten blocks (base to base+9999):
 
 | Area | Base | Current block |
 |------|------|---------------|
@@ -57,7 +57,7 @@ A new area takes the next base (90000) by amending the ADR table.
 
 When adding structured logging to a feature:
 
-1. **Pick** the next free 50 or 100 id slot in the area's current 1000 block (open the next block when it is full); read free space from `docs/engineering/eventid-block-registry.md`
+1. **Pick** the next free 50 or 100 id slot in the area's current 1000 block (open the next block when it is full); read the free space of the 10000+ zone from `docs/engineering/eventid-block-registry.md` (nothing below 10000 is allocatable)
 2. **Register** a new `public static readonly (int Min, int Max) RangeName = (min, max);` in `EventIdRanges.cs` and add its row to the registry file (Registered ranges and Blocks tables) in the same pull request
 3. **Create** `Diagnostics/*LogMessages.cs` with EventIds **within** the registered range
 4. **Update** `PublicAPI.Unshipped.txt` for the new public field
