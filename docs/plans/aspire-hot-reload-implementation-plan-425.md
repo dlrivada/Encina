@@ -25,7 +25,7 @@ The issue asks for hot reload of handlers, validators and pipeline behaviors, st
 
 Differences from the issue text: hot reload in .NET is delivered by the runtime and the tooling (`dotnet watch`, the IDE debugger; `Aspire.Hosting` 13.6.5 only hints `RunConfiguration.WatchEnabled`), which apply method-body and some type edits **in place**. The type identities do not change, so a handler whose body is edited needs no Encina work; what goes stale is what Encina cached from the old shape (dispatcher wrappers, attribute caches) and the services the container never knew (a new handler class). Everything below is therefore about invalidating caches and reporting, not about reloading assemblies.
 
-**Delivered**: in core `Encina` (folder `HotReload/`): an assembly-level `MetadataUpdateHandler` that clears the four dispatcher caches and raises an internal notification; `EncinaHotReloadOptions` and `ConfigureEncinaHotReload(this IServiceCollection, Action<EncinaHotReloadOptions>? = null)`, which registers a development-only coordinator that logs each update and warns about handler types the container does not know; in `Encina.AspNetCore` the authorization caches in a non-generic holder cleared by its own handler; the declaration `UseHotReload` in `EncinaHostingOptions` (#416) written as `Encina__Aspire__HotReload`, read by `AddEncinaDefaults` (#417); log messages 855-860.
+**Delivered**: in core `Encina` (folder `HotReload/`): an assembly-level `MetadataUpdateHandler` that clears the four dispatcher caches and raises an internal notification; `EncinaHotReloadOptions` and `ConfigureEncinaHotReload(this IServiceCollection, Action<EncinaHotReloadOptions>? = null)`, which registers a development-only coordinator that logs each update and warns about handler types the container does not know; in `Encina.AspNetCore` the authorization caches in a non-generic holder cleared by its own handler; the declaration `UseHotReload` in `EncinaHostingOptions` (#416) written as `Encina__Aspire__HotReload`, read by `AddEncinaDefaults` (#417); log messages 80050-80055.
 
 **Not in scope**: loading or unloading assemblies, a file watcher, a `Preserve` API, publishing state to the dashboard from the AppHost, changes to Messaging, caching or provider packages (the other static caches of `src/` are listed in the follow-up issue file of this run).
 
@@ -88,7 +88,7 @@ The handler is the documented extension point of .NET hot reload (the issue's ow
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Detect and say so: `UpdateApplication` receives the updated types; for each type that implements a handler interface and has no registration in the container, log a warning "restart required for this handler" (EventId 857) and do nothing else** | Honest; no change to the dispatcher or the container; no lifetime questions | The developer restarts for a new handler class (body edits of existing handlers need nothing) |
+| **A) Detect and say so: `UpdateApplication` receives the updated types; for each type that implements a handler interface and has no registration in the container, log a warning "restart required for this handler" (EventId 80052) and do nothing else** | Honest; no change to the dispatcher or the container; no lifetime questions | The developer restarts for a new handler class (body edits of existing handlers need nothing) |
 | **B) A late-registration table the dispatcher consults when the container has no handler** | New handlers work without a restart | A second lookup path in the hot dispatch path (a miss path only, but still a change to `Encina.cs`); scoped lifetimes and open generics must be re-created by hand |
 
 ### Chosen Option: **A — warn, do not register** (recommended, pending the maintainer)
@@ -170,7 +170,7 @@ A wins because the runtime keeps the process, its container and its hosted servi
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Structured logs: each update logs its affected type count and duration (EventIds 855-856), the OTLP log exporter of the Aspire service defaults shows them in the dashboard's structured logs** | No endpoint, no AppHost state, works with the existing export of #417 | Not a dedicated panel |
+| **A) Structured logs: each update logs its affected type count and duration (EventIds 80050-80051), the OTLP log exporter of the Aspire service defaults shows them in the dashboard's structured logs** | No endpoint, no AppHost state, works with the existing export of #417 | Not a dedicated panel |
 | **B) A dashboard resource state or command published by the AppHost** | A status next to the resource | The AppHost does not observe the application's process; needs a channel from the application back to the AppHost |
 | **C) A new `Meter` counting updates** | Chartable | Requires `AddMeter` in `Encina.OpenTelemetry` for one dev counter; the issue itself marks OpenTelemetry not applicable |
 
@@ -239,8 +239,8 @@ A wins when the first delivery must be correct for decisions that gate access an
 <summary>Tasks</summary>
 
 1. `src/Encina/Core/Encina.cs`, `src/Encina/Core/StreamDispatcher.cs`, `src/Encina/Dispatchers/Encina.RequestDispatcher.cs` (edited): an `internal static void ClearHotReloadCaches()` next to each cache (`RequestHandlerCache` and `NotificationHandlerInvokerCache` are in the partial class `Encina`; `RequestKindCache` is in its dispatcher partial; `StreamHandlerCache` in `StreamDispatcher`); nothing else changes.
-2. `src/Encina/HotReload/EncinaHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(typeof(EncinaHotReloadHandler))]`, `ClearCache(Type[]? updatedTypes)` records `Stopwatch.GetTimestamp()` in a static field and calls the four clearers (each is `ConcurrentDictionary.Clear()`, which does not throw, so there is no `catch` and nothing is swallowed), and `UpdateApplication(Type[]? updatedTypes)` raises the notifier with the recorded start timestamp. The runtime calls `ClearCache` and then `UpdateApplication` as separate callbacks, so the duration of event 855 runs from the timestamp taken in `ClearCache` to the end of the coordinator's handling. The methods take no token.
-3. `src/Encina/HotReload/HotReloadNotifier.cs` (internal static): `event Action<HotReloadUpdate>? Updated` (a readonly struct carrying the updated types and the start timestamp); `Raise(Type[]? types, long startTimestamp)` iterates `Updated.GetInvocationList()` and invokes each subscriber individually, so one failing subscriber does not stop the others; the exceptions are collected and, after every subscriber ran, rethrown as one `AggregateException` to the caller (the runtime), never swallowed. The only subscriber in production is the coordinator, which catches and logs its own failures (event 860), so the aggregate is normally never thrown; the notifier has no logger and no static logger sink exists. The event is process-global: unit tests that subscribe do so through a coordinator instance that unsubscribes on dispose, and the tests of one class never run in parallel with another that raises it (a collection attribute); this limitation is stated in the pull request.
+2. `src/Encina/HotReload/EncinaHotReloadHandler.cs` (internal static): `[assembly: MetadataUpdateHandler(typeof(EncinaHotReloadHandler))]`, `ClearCache(Type[]? updatedTypes)` records `Stopwatch.GetTimestamp()` in a static field and calls the four clearers (each is `ConcurrentDictionary.Clear()`, which does not throw, so there is no `catch` and nothing is swallowed), and `UpdateApplication(Type[]? updatedTypes)` raises the notifier with the recorded start timestamp. The runtime calls `ClearCache` and then `UpdateApplication` as separate callbacks, so the duration of event 80050 runs from the timestamp taken in `ClearCache` to the end of the coordinator's handling. The methods take no token.
+3. `src/Encina/HotReload/HotReloadNotifier.cs` (internal static): `event Action<HotReloadUpdate>? Updated` (a readonly struct carrying the updated types and the start timestamp); `Raise(Type[]? types, long startTimestamp)` iterates `Updated.GetInvocationList()` and invokes each subscriber individually, so one failing subscriber does not stop the others; the exceptions are collected and, after every subscriber ran, rethrown as one `AggregateException` to the caller (the runtime), never swallowed. The only subscriber in production is the coordinator, which catches and logs its own failures (event 80055), so the aggregate is normally never thrown; the notifier has no logger and no static logger sink exists. The event is process-global: unit tests that subscribe do so through a coordinator instance that unsubscribes on dispose, and the tests of one class never run in parallel with another that raises it (a collection attribute); this limitation is stated in the pull request.
 4. `src/Encina/HotReload/CoreHotReloadCaches.cs` (internal static): `Clear()` calling the three clearers, so the handler has one call.
 5. Tests: unit tests call `ClearCache` and `UpdateApplication` directly (the runtime contract is two static methods, so a test can run them without a hot reload agent): after one dispatch fills each cache, `ClearCache` empties it and a second dispatch works; with two subscribers where the first throws, the second still runs and the caller receives an `AggregateException` holding the first's exception; `Encina.json` manifest entries through `mechanical-fixer`. No public API, so no PublicAPI lines and no guard test.
 
@@ -281,8 +281,8 @@ REFERENCE FILES:
 
 1. `src/Encina/HotReload/EncinaHotReloadOptions.cs` (public sealed): `Enabled` (bool, default `false`: the call alone does not enable it), `WarnOnUnregisteredHandlers` (bool, default `true`), `OnReload` (`Action<EncinaHotReloadEvent>?`), `WatchAssemblies(params Assembly[])` (restricts the warning to those assemblies; null elements rejected). `EncinaHotReloadEvent` (public sealed record): `UpdatedTypeCount`, `DurationMilliseconds`.
 2. `src/Encina/HotReload/ServiceCollectionExtensions.cs` (the folder's extension class, `EncinaHotReloadServiceCollectionExtensions`): `ConfigureEncinaHotReload(this IServiceCollection services, Action<EncinaHotReloadOptions>? configure = null)`: guards; registers the options with `AddOptions` and a `TryAddEnumerable` `IHostedService` coordinator; the coordinator does nothing unless `Enabled` is true and `IHostEnvironment.IsDevelopment()` (an unresolved environment counts as not Development: fail closed).
-3. `src/Encina/HotReload/HotReloadCoordinator.cs` (internal sealed, `IHostedService`): subscribes to `HotReloadNotifier.Updated` on `StartAsync`, unsubscribes on `StopAsync` and `Dispose`; on an update computes the duration with `Stopwatch.GetElapsedTime(update.StartTimestamp)` (a monotonic interval, not a date, so `TimeProvider` is not involved; the timestamp was taken in `ClearCache`), logs 855 (updated type count, duration), invokes `OnReload` inside `try`/`catch` (a failing callback logs 860 and never escapes), and, when `WarnOnUnregisteredHandlers` is true, resolves `IServiceProviderIsService` and logs 857 for each updated type that implements `IRequestHandler<,>`, `INotificationHandler<>` or the stream handler interface and is not registered.
-4. `src/Encina/HotReload/Diagnostics/HotReloadLog.cs` (`[LoggerMessage]`): 855 update applied (Information: count, milliseconds), 856 caches cleared (Debug), 857 new handler type needs a restart (Warning: the type name), 858 coordinator started (Information), 859 coordinator disabled because the environment is not Development (Debug), 860 hot reload step failed (Error: exception through `ForLogging()`). `EventIdRanges.AspireHotReload = (855, 864)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI lines. `docs/engineering/eventid-block-registry.md` is edited in the same pull request, as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains `| AspireHotReload | 855-864 | Observability and platform | historical |` (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a Status of the "Blocks" table), and in the "Blocks" table (header `Block | Area | Owner | Status`) the reserved row 850-899 is replaced by `855-864` with Status `registered` and the remaining ids kept `reserved-pre-zone`. The five aspire-2 plans edit that one shared row: the first to land splits it into one `reserved-pre-zone` row per plan (#424 850-854, #425 855-864, #382 865-877, #387 878-889, #391 890-899, owners `aspire-2: #<n>`); every later pull request changes only its own row, so the edits are disjoint lines and a conflict is resolved by keeping both; recommended merge order #424, #425, #382, #387, #391. Ids 855-860 are packed; 861-864 spare. Every log call is made by the coordinator (856 when the notification arrives, 860 for any failure of its own steps), so the Phase 1 handler and notifier stay internal and log-free, and the log file's methods all have an emitter in the pull request that declares them.
+3. `src/Encina/HotReload/HotReloadCoordinator.cs` (internal sealed, `IHostedService`): subscribes to `HotReloadNotifier.Updated` on `StartAsync`, unsubscribes on `StopAsync` and `Dispose`; on an update computes the duration with `Stopwatch.GetElapsedTime(update.StartTimestamp)` (a monotonic interval, not a date, so `TimeProvider` is not involved; the timestamp was taken in `ClearCache`), logs 80050 (updated type count, duration), invokes `OnReload` inside `try`/`catch` (a failing callback logs 80055 and never escapes), and, when `WarnOnUnregisteredHandlers` is true, resolves `IServiceProviderIsService` and logs 80052 for each updated type that implements `IRequestHandler<,>`, `INotificationHandler<>` or the stream handler interface and is not registered.
+4. `src/Encina/HotReload/Diagnostics/HotReloadLog.cs` (`[LoggerMessage]`): 80050 update applied (Information: count, milliseconds), 80051 caches cleared (Debug), 80052 new handler type needs a restart (Warning: the type name), 80053 coordinator started (Information), 80054 coordinator disabled because the environment is not Development (Debug), 80055 hot reload step failed (Error: exception through `ForLogging()`). `EventIdRanges.AspireHotReload = (80050, 80099)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI lines. `docs/engineering/eventid-block-registry.md` is edited in the same pull request, as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains `| AspireHotReload | 80050-80099 | Cloud and integration | zone |` (ranges below 10000 are refused by rule 5 of the test; the Cloud and integration zone starts at 80000, and the aspire-2 family takes consecutive 50-id slots of the first block: #424 80000-80049, #425 80050-80099, #382 80100-80249, #387 80250-80349, #391 80350-80399), and the "Blocks" table (header `Block | Area | Owner | Status`) gains `| 80050-80099 | Cloud and integration | aspire-2 #425 AspireHotReload | registered |`. The pre-zone reservation 850-899 is not used by this plan and is not edited here (the orchestrator marks it superseded). `src/Encina/PublicAPI.Unshipped.txt` gains one line, `static readonly Encina.Diagnostics.EventIdRanges.AspireHotReload -> (int Min, int Max)`, in this pull request (the `Encina` PublicAPI file already counted in its row). Ids 80050-80055 are packed; 80056-80099 spare. Every log call is made by the coordinator (80051 when the notification arrives, 80055 for any failure of its own steps), so the Phase 1 handler and notifier stay internal and log-free, and the log file's methods all have an emitter in the pull request that declares them.
 5. No scoped service is injected into the coordinator (a singleton): it takes `IOptions<EncinaHotReloadOptions>`, `IHostEnvironment`, `IServiceProviderIsService`, and `ILogger<>`; no `TimeProvider` is injected, because the only time measured is a monotonic interval from `Stopwatch` (the start timestamp comes from the static handler).
 6. Tests: unit (disabled outside Development, disabled when `Enabled` is false, enabled path logs and calls `OnReload`, a throwing callback is contained, the warning for an unregistered handler and not for a registered one, unsubscribe on stop); guard (null arguments, null assembly element); a DI test building the provider with `ValidateOnBuild` and `ValidateScopes`; PublicAPI and manifest through `mechanical-fixer`.
 
@@ -299,7 +299,7 @@ TASK:
 Write the options, ConfigureEncinaHotReload, the coordinator, HotReloadLog, the EventId range and their tests.
 
 KEY RULES:
-- Register EventIdRanges.AspireHotReload first; ids 855-860 packed inside 855-864; update EncinaEventIdAllocationTests.
+- Register EventIdRanges.AspireHotReload (80050-80099) first, with its registry rows and PublicAPI line; ids 80050-80055 packed; update EncinaEventIdAllocationTests.
 - The coordinator is a singleton and injects no scoped service; use IServiceProviderIsService for the registration check.
 - Disabled unless Enabled and IsDevelopment(); a missing environment disables it.
 - Log counts, milliseconds and type names only; exceptions through ForLogging(); never EncinaError.Message; no tenant or user id.
@@ -446,13 +446,13 @@ REFERENCE FILES:
 
 ```text
 CONTEXT:
-- Issue #425, Phase 6. Phase 2 created HotReloadLog and the range 855-864.
+- Issue #425, Phase 6. Phase 2 created HotReloadLog and the range 80050-80099.
 
 TASK:
-Run the architecture tests and confirm ids 855-860 are packed and mapped to the Encina assembly.
+Run the architecture tests and confirm ids 80050-80055 are packed and mapped to the Encina assembly.
 
 KEY RULES:
-- No id outside 855-864; no sparse ids.
+- No id outside 80050-80099; no sparse ids.
 
 REFERENCE FILES:
 - src/Encina/Diagnostics/EventIdRanges.cs
@@ -581,7 +581,7 @@ PR 1 needs nothing (the handler and notifier log nothing; the coordinator of PR 
 |-----------|-----------------|---------------------|
 | .NET `MetadataUpdateHandlerAttribute` | `ClearCache` and `UpdateApplication` contract | Phase 1, Design Choice 2 |
 | `AGENTS.md` sections 1, 3 and 6 | Opt-in, fail closed, errors by code, 12 functions | Design Choice 8, Phase 5 |
-| ADR-021 | EventId ranges registered first | `AspireHotReload` 855-864 |
+| ADR-021 | EventId ranges registered first | `AspireHotReload` 80050-80099 |
 | ADR-054 (D4) | Tenant tags only where multi-tenancy is on; no baggage | No tenant data in logs |
 | ADR-062 | Error category contract | Any new code of Phase 4 |
 | SPEC-000 section 2 and DEC-009 | Hot reload is in 1.0 | Scope |
@@ -603,7 +603,7 @@ PR 1 needs nothing (the handler and notifier log nothing; the coordinator of PR 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (`AspireHotReload`, new) | 855-864, ids 855-860 used | From the assigned block 850-899 (aspire-2); #424 uses 850-854, #382 865-877, #387 878-889, #391 890-899; registered in `EventIdRanges.cs` and the allocation test map before use |
+| `Encina` (`AspireHotReload`, new) | 80050-80099, ids 80050-80055 used | Cloud and integration zone, first block 80000-80999, consecutive 50-id slots of the aspire-2 family (#424 80000-80049, #382 80100-80249, #387 80250-80349, #391 80350-80399); registered in `EventIdRanges.cs`, the registry tables (Zone `zone`) and the allocation test map before use |
 
 ### Estimated File Count
 
@@ -630,7 +630,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW (5 pull requests, each builds alone):
 1. Core: four cache clearers, the assembly MetadataUpdateHandler, the notifier (Phase 1).
-2. Options, ConfigureEncinaHotReload, the coordinator, logs 855-860 (Phase 2).
+2. Options, ConfigureEncinaHotReload, the coordinator, logs 80050-80055 (Phase 2).
 3. Authorization caches in a non-generic holder and their handler (Phase 3).
 4. UseHotReload in the AppHost and the reader in the service defaults (Phase 4).
 5. Documentation (Phase 8).
@@ -639,7 +639,7 @@ KEY PATTERNS:
 - A metadata update keeps type identities: clear what Encina cached, warn about handler types the container does not know, never reload assemblies.
 - Handlers never throw. The coordinator is a development-only singleton, off unless Enabled and IsDevelopment().
 - Authorization caches clear toward re-reading attributes, never toward allowing.
-- EventIds 855-860 inside AspireHotReload (855-864), registered first.
+- EventIds 80050-80055 inside AspireHotReload (80050-80099), registered first, in the zone.
 
 REFERENCE FILES:
 - src/Encina/Core/Encina.cs, src/Encina/Core/StreamDispatcher.cs, src/Encina/Dispatchers/Encina.RequestDispatcher.cs
@@ -658,7 +658,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: the feature clears dispatcher and attribute caches; it adds no cache |
 | 2 | OpenTelemetry | ❌ | Not applicable, as in the issue: no spans or meters (Design Choice 7 option C rejected); logs are exported by the service defaults of #417 |
-| 3 | Structured Logging | ✅ | Phase 2: `HotReloadLog`, EventIds 855-860 |
+| 3 | Structured Logging | ✅ | Phase 2: `HotReloadLog`, EventIds 80050-80055 |
 | 4 | Health Checks | ❌ | Not applicable: a development-time feature with no checkable dependency |
 | 5 | Validation | ✅ | Options validated; the Aspire declaration validated by the reader |
 | 6 | Resilience | ❌ | Not applicable: no external call |
