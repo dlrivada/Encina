@@ -15,7 +15,7 @@
 
 - There is no Jaeger code. `Encina.OpenTelemetry` references `OpenTelemetry.Exporter.OpenTelemetryProtocol` as `PrivateAssets="all"` (`src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj:24`, the version `1.17.0` is pinned in `Directory.Packages.props`) and calls it nowhere; `WithEncina()` only subscribes sources and meters and sets the resource name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217`).
 - Jaeger receives OTLP natively. The repository's own stack proves it: `.github/observability/docker-compose.observability.yml` runs `jaegertracing/all-in-one:1.57` with OTLP gRPC and HTTP mapped to host ports 4320 and 4321, and `otel-collector-config.yaml` exports traces to it with `otlp/jaeger`. The issue's own Alternative 1 says the legacy Jaeger client is deprecated in favor of OTLP, so the exporter is the OTLP one and no Jaeger-specific SDK package exists to add.
-- The plan of #1043 (open issue, plan on `main`) adds `EncinaOpenTelemetryOptions.EnableOtlpExporter` and `ConfigureOtlpExporter`, which wire one OTLP configuration to traces, metrics and logs and drop `PrivateAssets="all"`. A Jaeger instance ingests traces; metrics and logs sent to the same endpoint have nowhere to go, so `EnableOtlpExporter` aimed at Jaeger is not a good fit and a host needs a traces-only exporter.
+- The plan of #1043 (open issue, plan on `main`) adds `EncinaOpenTelemetryOptions.EnableOtlpExporter` and `ConfigureOtlpExporter`, which wire one OTLP configuration to traces, metrics and logs and drop `PrivateAssets="all"`. A Jaeger instance is a trace backend (in the repository's stack metrics go to Prometheus and logs to Loki through the Collector), so `EnableOtlpExporter` aimed straight at Jaeger sends metrics and logs to a backend that stores neither, and a host without a Collector needs a traces-only exporter.
 - Sampling is owned elsewhere: the plan of #183 adds `EncinaOpenTelemetryOptions.Sampling` and an `EncinaSampler`; the issue's `JaegerOptions.SamplingRate` would be a second owner of `SetSampler`, where the last call wins silently.
 - The issue's `JaegerOptions.ServiceName` defaults to `"encina-service"`. `WithEncina()` already sets the resource name from `EncinaOpenTelemetryOptions.ServiceName`; a Jaeger default applied afterwards would silently rename the service in every host that set its own.
 
@@ -65,15 +65,15 @@ The issue (2026-era text, `status:proposal`) proposes a package `Encina.OpenTele
 |--------|------|------|
 | **A) Traces only, through the named overload `AddOtlpExporter("EncinaJaeger", configure)` on the `TracerProviderBuilder`** | Jaeger gets only what it ingests; the named options never alias the default unnamed `OtlpExporterOptions` that #1043 configures, so both can coexist without sharing an endpoint | The host must not enable both for traces (documented, register row C2) |
 | **B) The unnamed `AddOtlpExporter(configure)` for traces and metrics, as #1043 does** | One shape for all signals | Metrics and logs sent to Jaeger fail; an unnamed second registration shares options with #1043's and the endpoints overwrite each other |
-| **C) Reuse `EncinaOpenTelemetryOptions.EnableOtlpExporter` and tell hosts to point it at Jaeger** | No new code | All three signals go to one endpoint; Jaeger rejects two of them |
+| **C) Reuse `EncinaOpenTelemetryOptions.EnableOtlpExporter` and tell hosts to point it at Jaeger** | No new code | All three signals go to one endpoint; a Jaeger without a Collector in front has no store for two of them |
 
-### Chosen Option: **A - traces only, named exporter options**
+### Chosen Option: **A - traces only, named exporter options** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The named overload is the SDK's mechanism for several exporters of one signal; an unnamed one is the single shared configuration.
-- Class: Settled
-- Settled by: the OpenTelemetry .NET SDK named-options overload `AddOtlpExporter(string? name, Action<OtlpExporterOptions>? configure)` of `OpenTelemetry.Exporter.OpenTelemetryProtocol`; the compose stack (`.github/observability/docker-compose.observability.yml`) showing Jaeger as a trace backend only
+- The named overload (`AddOtlpExporter(string? name, Action<OtlpExporterOptions>? configure)`) is the SDK's mechanism for several exporters of one signal; an unnamed one is the single shared configuration. The compose stack (`.github/observability/docker-compose.observability.yml`) uses Jaeger as the trace backend only; metrics go to Prometheus and logs to Loki through the Collector.
+- C wins when the OTLP endpoint is an OpenTelemetry Collector that fans out to Jaeger, Prometheus and Loki (the shape of the repository's own stack): then `EnableOtlpExporter` of #1043 is the right switch and no Jaeger helper is needed; B wins only when a host wants one unnamed registration for every signal and accepts the aliasing.
+- Class: Dilemma
 
 </details>
 
@@ -125,7 +125,7 @@ The issue (2026-era text, `status:proposal`) proposes a package `Encina.OpenTele
 | C2 | Enabling both `EnableOtlpExporter` (#1043) and `AddEncinaJaeger` exports traces twice, to two endpoints that may be the same Jaeger; it is documented, and not detected, because `WithEncina(builder, options)` receives its options object directly and not through DI (`ServiceCollectionExtensions.cs:158`) | Trivial | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158` |
 | C3 | `DeploymentEnvironment` sets the resource attribute `deployment.environment.name`, an `internal const` of the options file (a resource attribute, not a messaging or database key of the constants class of ADR-054 D3) | Trivial | ADR-054 D3 (latest semantic conventions) |
 | C4 | `ServiceName` is applied with `ConfigureResource(r => r.AddService(name))` only when set; null leaves the name chosen by `WithEncina()` or the host | Settled | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217` (`WithEncina` sets the resource name; a later default would override it) |
-| C5 | Validation at startup (`ValidateOnStart`): an `Endpoint` with a scheme other than `http` or `https`, a relative `Endpoint`, an undefined `Protocol`, a blank `ServiceName` or `DeploymentEnvironment`; messages name the option, never a value | Trivial | `AGENTS.md` section 3 (messages and values do not reach logs) |
+| C5 | Validation at startup (`ValidateOnStart`): an `Endpoint` with a scheme other than `http` or `https`, a relative `Endpoint`, an `Endpoint` that carries user info (a credential in a URI would reach `ToString()` and diagnostics; credentials go through `ConfigureExporter` headers or `OTEL_EXPORTER_OTLP_HEADERS`), an undefined `Protocol`, a blank `ServiceName` or `DeploymentEnvironment`; messages name the option, never a value | Trivial | `AGENTS.md` section 3 (options never print credentials; messages and values do not reach logs) |
 | C6 | No new `EncinaError` code and no ADR-062 `ErrorCategory`: a bad option is an `OptionsValidationException` at startup | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C7 | The helper emits no span or metric, so no tenant tag (ADR-054 D4) and no tenant-qualified id (the reserved `default` tenant segment does not apply); no log message and no EventId (matrix row 3) | Settled | ADR-054 D4; `AGENTS.md` section 6 row 10 |
 | C8 | The integration image is one constant of the fixture, taken from the vendor's current supported line when work starts (the compose stack pins `1.57`) | Trivial | `src/Encina.Testing.Testcontainers/ContainerDefaultImages.cs` header (each default is the vendor's supported line) |
@@ -350,5 +350,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #613 and ask the maintainer to answer Design Choices 1 and 3 and register row C9 when work starts; Design Choice 1 is answered together with #614 and #180.
+1. Link this plan from #613 and ask the maintainer to answer Design Choices 1 to 3 and register row C9 when work starts; Design Choice 1 is answered together with #614 and #180.
 2. Implement J1 after #1043 merges. The orchestrator opens the follow-up issue file `artifacts/issues/exporter-endpoint-health-checks.md` (shared with #614 and #182).
