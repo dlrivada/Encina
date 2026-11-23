@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: High (11 phases, 13 pull requests of 13, 14, 13, 7, 14, 13, 6, 12, 9, 9, 10, 11 and 7 files)
 > **Estimated Scope**: ~1,300 lines of production code + ~3,000 lines of tests
-> **Family**: Aspire (aspire-2): #424, #425, #382, #391. Related: #242 (Dapr PubSub transport, `status:proposal`, same package name `Encina.Dapr`), #388 (Orleans virtual actors), #607 and #382 (service discovery), #416 (the hosting package). The closed duplicates #420 (CloudEvents and Aspire AppHost extensions) and #450 (secrets by attribute, cross-service handler invocation) were carried into this issue. **This plan owns the `Encina.Dapr` and `Encina.Dapr.StateStore` packages and EventIds 878-889.**
+> **Family**: Aspire (aspire-2): #424, #425, #382, #391. Related: #242 (Dapr PubSub transport, `status:proposal`, same package name `Encina.Dapr`), #388 (Orleans virtual actors), #607 and #382 (service discovery), #416 (the hosting package). The closed duplicates #420 (CloudEvents and Aspire AppHost extensions) and #450 (secrets by attribute, cross-service handler invocation) were carried into this issue. **This plan owns the `Encina.Dapr` and `Encina.Dapr.StateStore` packages and the EventId ranges `DaprCore` 80250-80299 and `DaprStateStore` 80300-80349 (the Cloud and integration zone, first block 80000-80999, shared by the aspire-2 family: #424 80000-80049, #425 80050-80099, #382 80100-80249, #387 80250-80349, #391 80350-80399).**
 
 ---
 
@@ -26,7 +26,7 @@ The issue asks for five packages (core, state store, pub/sub, workflows, actors)
 
 Differences from the issue text: (1) the sketched `DaprOutboxStore.AddAsync` writes one key per message and ignores the contract's `GetPendingMessagesAsync` (a query), `MarkAsExhaustedAsync` and `RequeueExhaustedAsync`; the real stores need the Dapr **query API**, whose availability depends on the component (Design Choice 2). (2) A Dapr state transaction is atomic inside one state store component only; the plan never claims atomicity with business data held elsewhere, and the orchestrators never call `SaveChangesAsync` themselves (the commit owner is `SagaOrchestrator.CommitAsync` of #720). (3) The `config.DaprHttpEndpoint = "http://localhost:3500"` default is loopback: it needs the loopback opt-in of `EndpointPolicy` (Design Choice 8).
 
-**Delivered**: `Encina.Dapr` (`EncinaDaprOptions`, validator, `AddEncinaDapr`, `DaprSidecarHealthCheck`, `IDaprServiceInvoker`, error codes, log messages); `Encina.Dapr.StateStore` (`OutboxStoreDapr`, `InboxStoreDapr`, `SagaStoreDapr`, key builder, start validation of the component, `AddEncinaOutboxDapr`, `AddEncinaInboxDapr`, `AddEncinaSagaDapr`); a declaration-only `WithEncinaDapr` in `Encina.Aspire.Hosting` (Design Choice 7, if confirmed); EventIds 878-886.
+**Delivered**: `Encina.Dapr` (`EncinaDaprOptions`, validator, `AddEncinaDapr`, `DaprSidecarHealthCheck`, `IDaprServiceInvoker`, error codes, log messages); `Encina.Dapr.StateStore` (`OutboxStoreDapr`, `InboxStoreDapr`, `SagaStoreDapr`, key builder, start validation of the component, `AddEncinaOutboxDapr`, `AddEncinaInboxDapr`, `AddEncinaSagaDapr`); a declaration-only `WithEncinaDapr` in `Encina.Aspire.Hosting` (Design Choice 7, if confirmed); EventIds 80250-80252 and 80300-80302.
 
 **Not in scope**: Pub/Sub (Design Choice 1), workflows, actors, bindings and secrets (Design Choice 5), locks and a cache backend (Design Choice 6), a Dapr scheduler.
 
@@ -254,8 +254,8 @@ A wins because the values are configuration, not development aids, and names car
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No tenant in this delivery: keys are `encina:{store}:{id}` where the id is the message id, the saga id or, for the Inbox, `IInboxMessage.MessageId` (a string, typically the idempotency key, so two tenants that use the same key would share one Dapr key, exactly as with the primary key of the relational providers), so keys are injective in (store, id) but not per tenant; **with multi-tenancy on the Dapr stores fail closed**: the state-store start check fails the host when the tenancy abstraction `ITenantContext` is registered in the container (confirmed at Phase 4) unless `DaprStateStoreOptions.AllowSharedTenantKeys` is explicitly set (default false; `encina.dapr.state_requires_tenant_optin`, `ErrorCategory.FailedPrecondition`, logged as 884), so the shared-key case is never silent; multi-tenant stores are a deferred item with an issue file, to be planned together with the Messaging tenancy work, because the Outbox and Saga contracts carry no tenant (a grep of `src/Encina.Messaging/Outbox` and `Sagas` finds no tenant member; the Inbox carries one only inside `InboxOrchestrator`) and the processors read pending work across tenants outside any request** | Honest about the contracts; no invented tenant source; a background processor still works | A multi-tenant application cannot partition Dapr stores by tenant yet |
-| **B) The scoped store reads `ITenantContext`, denies a write when tenancy is on and no tenant is present, and qualifies keys with the tenant (reserved `default` segment)** | Tenant isolation of the stored data | Processors run in their own scopes with no tenant, so every background read would deny or read across tenants; the query API cannot filter by key prefix |
+| **A) No tenant in this delivery: keys are `encina:{store}:{id}` where the id is the message id, the saga id or, for the Inbox, `IInboxMessage.MessageId` (a string, typically the idempotency key, so two tenants that use the same key would share one Dapr key, exactly as with the primary key of the relational providers), so keys are injective in (store, id) but not per tenant; **with multi-tenancy on the Dapr stores fail closed**: the state-store start check fails the host when the tenancy abstraction `ITenantProvider` (`src/Encina.Tenancy/Abstractions/ITenantProvider.cs`; there is no `ITenantContext` type under `src/`) is registered in the container, detected with `IServiceProviderIsService`, which needs a `ProjectReference` from `Encina.Dapr.StateStore` to `Encina.Tenancy` (an abstractions-level package: it references `Encina` and `Encina.Messaging` only; the reference is in the project file created in pull request 4), unless `DaprStateStoreOptions.AllowSharedTenantKeys` is explicitly set (default false; `encina.dapr.state_requires_tenant_optin`, `ErrorCategory.FailedPrecondition`, logged as 80300), so the shared-key case is never silent; multi-tenant stores are a deferred item with an issue file, to be planned together with the Messaging tenancy work, because the Outbox and Saga contracts carry no tenant (a grep of `src/Encina.Messaging/Outbox` and `Sagas` finds no tenant member; the Inbox carries one only inside `InboxOrchestrator`) and the processors read pending work across tenants outside any request** | Honest about the contracts; no invented tenant source; a background processor still works | A multi-tenant application cannot partition Dapr stores by tenant yet |
+| **B) The scoped store reads `ITenantProvider`, denies a write when tenancy is on and no tenant is present, and qualifies keys with the tenant (reserved `default` segment)** | Tenant isolation of the stored data | Processors run in their own scopes with no tenant, so every background read would deny or read across tenants; the query API cannot filter by key prefix |
 
 ### Chosen Option: **A — no tenant in keys now, an issue file for tenant-aware stores** (recommended, pending the maintainer)
 
@@ -382,7 +382,7 @@ REFERENCE FILES:
 1. `ServiceCollectionExtensions.AddEncinaDapr(this IServiceCollection, Action<EncinaDaprOptions>? = null)`: options with `ValidateOnStart`, the validator with `TryAddEnumerable`, `DaprClient` as a singleton built from the options (`DaprClientBuilder` with the HTTP and gRPC endpoints and the API token), `TryAdd` so an application's own client wins; the health check registered when `ProviderHealthCheck.Enabled`.
 2. `Health/DaprSidecarHealthCheck.cs` (`IEncinaHealthCheck`; `DefaultName` const, `Tags` static array): `DaprClient.CheckHealthAsync`; unhealthy results carry the error code only.
 3. `DaprErrors.cs` (internal, `Encina.Dapr`): only `encina.dapr.sidecar_unavailable` (`ErrorCategory.Unavailable`), the one code the health check of this pull request emits, created with `EncinaErrors.Create(code, category: ErrorCategory.Unavailable, message: <constant text>)`. Each package owns the codes it emits and each code is added in the pull request that emits it: pull request 3 adds the invoker's codes to this file (`app_id_not_allowed` `Forbidden`, `invalid_method` `Validation`, `invocation_failed` `UpstreamFailure`, `timeout` `Timeout`); the state-store package has its own `DaprStateStoreErrors.cs` (Phases 4 to 6), so no internal type is shared between the two packages.
-4. `Diagnostics/DaprLog.cs`: only 878 sidecar health probe failed (Warning: error code), emitted by the health check of this pull request. `EventIdRanges.DaprCore = (878, 883)` registered first, the allocation test map, the `Encina` PublicAPI lines, and `docs/engineering/eventid-block-registry.md` in the same pull request, as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains `| DaprCore | 878-883 | Observability and platform | historical |` (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a Status of the "Blocks" table); in the "Blocks" table (header `Block | Area | Owner | Status`) the reserved row 878-889 becomes `878-883` with Status `registered` plus `884-889` kept `reserved-pre-zone`, so no reserved row overlaps a registered range. Pull request 4b does the same for `DaprStateStore` 884-889 (its block row becomes `registered`). The five aspire-2 plans edit one shared row (850-899, owner aspire-2): the first to land splits it into one `reserved-pre-zone` row per plan (#424 850-854, #425 855-864, #382 865-877, #387 878-889, #391 890-899, owners `aspire-2: #<n>`); every later pull request changes only its own row, so the edits are disjoint lines and a conflict is resolved by keeping both; recommended merge order #424, #425, #382, #387, #391. Ids 879 invocation failed (Warning: error code) and 880 invocation denied (Warning: a fixed reason, not the app id) are added by pull request 3 together with the invoker that emits them, so no log method is declared before its emitter; 881-883 spare.
+4. `Diagnostics/DaprLog.cs`: only 80250 sidecar health probe failed (Warning: error code), emitted by the health check of this pull request. `EventIdRanges.DaprCore = (80250, 80299)` registered first (a new block in the Cloud and integration zone, per AGENTS.md section 7; ranges below 10000 are refused by `EventIdRegistryAgreementTests` rule 5), the allocation test map, `src/Encina/PublicAPI.Unshipped.txt` (one line, `static readonly Encina.Diagnostics.EventIdRanges.DaprCore -> (int Min, int Max)`), and `docs/engineering/eventid-block-registry.md` in the same pull request, as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains `| DaprCore | 80250-80299 | Cloud and integration | zone |`, and the "Blocks" table (header `Block | Area | Owner | Status`) gains `| 80250-80299 | Cloud and integration | aspire-2 #387 DaprCore | registered |`. The pre-zone reservation 850-899 is not used by this plan and is not edited here (the orchestrator marks it superseded). Ids 80251 invocation failed (Warning: error code) and 80252 invocation denied (Warning: a fixed reason, not the app id) are added by pull request 3 together with the invoker that emits them, so no log method is declared before its emitter; 80253-80299 are spare. Pull request 4b does the same for `DaprStateStore` 80300-80349.
 5. Tests: unit (health check healthy and unhealthy with a fake client), guard, a DI test with `ValidateOnBuild` and `ValidateScopes`; PublicAPI and manifest edits through `mechanical-fixer`.
 
 </details>
@@ -398,7 +398,7 @@ TASK:
 Write AddEncinaDapr, the sidecar health check, the error holder, the log class and the EventId range, with tests.
 
 KEY RULES:
-- Register EventIdRanges.DaprCore first; ids 878-880 packed inside 878-883.
+- Register EventIdRanges.DaprCore (80250-80299) first, with its registry rows and PublicAPI line; ids 80250-80252 packed.
 - Singleton services take no scoped dependency; TryAdd so the application's DaprClient wins.
 - Error codes carry a named ErrorCategory; logs carry codes, never EncinaError.Message or an app id.
 
@@ -419,7 +419,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `IDaprServiceInvoker.cs` and `DaprServiceInvoker.cs`: Design Choice 4; the timeout from `InvocationTimeout` is a linked token source and a timeout is `ErrorCategory.Timeout` (`encina.dapr.timeout`), while the caller's cancellation propagates; the HTTP verb is POST (Design Choice 12); the activity of Phase 9 wraps the call in pull request 3b. The invoker emits 879 and 880, added to `DaprLog` here (an edit of the PR 2 file).
+1. `IDaprServiceInvoker.cs` and `DaprServiceInvoker.cs`: Design Choice 4; the timeout from `InvocationTimeout` is a linked token source and a timeout is `ErrorCategory.Timeout` (`encina.dapr.timeout`), while the caller's cancellation propagates; the HTTP verb is POST (Design Choice 12); the activity of Phase 9 wraps the call in pull request 3b. The invoker emits 80251 and 80252, added to `DaprLog` here (an edit of the PR 2 file).
 2. Registration edit in `AddEncinaDapr`.
 3. Tests: unit with a fake sidecar (WireMock through `Encina.Testing.WireMock`): allowed and denied ids, invalid methods, timeout, cancellation, sidecar failure; guard; an integration test against a real `daprd` container in a `[Collection("Dapr")]` fixture (`DaprFixture` and its collection file) with a second container as the target app.
 4. PublicAPI, manifest and the integration project reference through `mechanical-fixer`.
@@ -458,9 +458,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `src/Encina.Dapr.StateStore/Encina.Dapr.StateStore.csproj` (references `Encina.Dapr` and `Encina.Messaging`), PublicAPI files, the `Encina.slnx` entry, test project references, manifest.
-2. `DaprStateStoreOptions.cs`: `StoreName` (required), `Consistency` (default strong, registered); there is no TTL here: `DaprInboxStoreOptions.InboxTtlSeconds` (`int?`, null by default, an Inbox-only option, validated positive) is the only expiry setting, because a TTL on Outbox or Saga entries would silently delete unprocessed messages or running sagas (data loss); Outbox and Saga entries are removed only by their stores' own purge operations.
+2. `DaprStateStoreOptions.cs`: `StoreName` (required), `Consistency` (default strong, registered), `AllowSharedTenantKeys` (bool, default false, registered; read by the start check of pull request 4b, Design Choice 11; its PublicAPI line is in this pull request's PublicAPI files); the project file references `Encina.Tenancy` for the tenancy detection of 4b (counted in this pull request's project file); there is no TTL here: `DaprInboxStoreOptions.InboxTtlSeconds` (`int?`, null by default, an Inbox-only option, validated positive) is the only expiry setting, because a TTL on Outbox or Saga entries would silently delete unprocessed messages or running sagas (data loss); Outbox and Saga entries are removed only by their stores' own purge operations.
 3. `DaprStateKey.cs` (internal static): `Build(string store, string id)` returning the key `encina:{store}:{id}` with `%`, `:` and `|` percent-encoded in each part (Dapr reserves `||` in state keys, to be confirmed against the pinned SDK documentation at Phase 1; escaping `|` makes the builder safe either way); a unit and a property test prove injectivity over generated pairs. There is no tenant in the key (Design Choice 11). `DaprStateStoreErrors.cs` (internal, `Encina.Dapr.StateStore`) is created in pull request 4b with `encina.dapr.state_query_unsupported` (`ErrorCategory.FailedPrecondition`), the first code something emits, and gains `encina.dapr.state_conflict` (`ErrorCategory.Conflict`) in pull request 5, so a code is never declared before its emitter (this pull request declares no error code). `DaprStateStoreOptions`, `DaprInboxStoreOptions` and the key builder are the production files of this pull request.
-4. (pull request 4b) `DaprStateStoreStartCheck.cs` (internal) and the log: calls the Dapr metadata endpoint, requires the named component to exist and, per the stores registered, to support transactions and queries (`encina.dapr.state_query_unsupported`, `ErrorCategory.FailedPrecondition`); it also fails closed when multi-tenancy is registered and `AllowSharedTenantKeys` is not set (Design Choice 11, code `encina.dapr.state_requires_tenant_optin`); a failure logs 884 state-store start check failed (Error: code) and stops the host with the code only. The check does not register itself: pull request 4c adds the public `AddEncinaDaprStateStore(this IServiceCollection, Action<DaprStateStoreOptions>?)` in the state-store `ServiceCollectionExtensions.cs` (registers `DaprStateStoreOptions` with validation on start, the start check as a hosted service with `TryAddEnumerable`, and is called by `AddEncinaSagaDapr`, `AddEncinaInboxDapr` and `AddEncinaOutboxDapr`), with its PublicAPI lines, guard test and DI test (`ValidateOnBuild`, `ValidateScopes`). `DaprStateStoreLog.cs` with 884, `EventIdRanges.DaprStateStore = (884, 889)` registered first, the allocation map, the `Encina` PublicAPI lines and `Encina.json` manifest entry are in pull request 4b, so the start check and its log land together; the queryable state component files for the Docker fixture (a component YAML mounted by `DaprFixture`) are also in 4b, with the integration case of the check.
+4. (pull request 4b) `DaprStateStoreStartCheck.cs` (internal) and the log: calls the Dapr metadata endpoint, requires the named component to exist and, per the stores registered, to support transactions and queries (`encina.dapr.state_query_unsupported`, `ErrorCategory.FailedPrecondition`); it also fails closed when multi-tenancy is registered and `AllowSharedTenantKeys` is not set (Design Choice 11, code `encina.dapr.state_requires_tenant_optin`); a failure logs 80300 state-store start check failed (Error: code) and stops the host with the code only. The check does not register itself: pull request 4c adds the public `AddEncinaDaprStateStore(this IServiceCollection, Action<DaprStateStoreOptions>?)` in the state-store `ServiceCollectionExtensions.cs` (registers `DaprStateStoreOptions` with validation on start, the start check as a hosted service with `TryAddEnumerable`, and is called by `AddEncinaSagaDapr`, `AddEncinaInboxDapr` and `AddEncinaOutboxDapr`), with its PublicAPI lines, guard test and DI test (`ValidateOnBuild`, `ValidateScopes`). `DaprStateStoreLog.cs` with 80300, `EventIdRanges.DaprStateStore = (80300, 80349)` registered first, the allocation map, the `Encina` PublicAPI line (`static readonly Encina.Diagnostics.EventIdRanges.DaprStateStore -> (int Min, int Max)`), the registry rows (`| DaprStateStore | 80300-80349 | Cloud and integration | zone |` in "Registered ranges", `| 80300-80349 | Cloud and integration | aspire-2 #387 DaprStateStore | registered |` in "Blocks") and `Encina.json` manifest entry are in pull request 4b, so the start check and its log land together; the queryable state component files for the Docker fixture (a component YAML mounted by `DaprFixture`) are also in 4b, with the integration case of the check.
 5. Tests: unit (keys, options in pull request 4; the check with a fake client in 4b), guard, a property test (FsCheck, `Encina.Testing.FsCheck`) for key injectivity and round trip; PublicAPI and manifest through `mechanical-fixer`.
 
 </details>
@@ -497,7 +497,7 @@ REFERENCE FILES:
 
 1. `SagaStoreDapr.cs` (`ISagaStore`): `GetAsync` reads by key; `AddAsync`/`UpdateAsync` stage; `GetStuckSagasAsync`/`GetExpiredSagasAsync` use the query API; `SaveChangesAsync` applies the staged operations in one state transaction with ETags; cancellation propagates.
 2. The state entity (`DaprSagaState : ISagaState`) and its factory as the provider implementations do (verify on the ADO saga store); `AddEncinaSagaDapr()` registers `ISagaStore` as scoped with `TryAddScoped` (the store holds a per-scope staging list and takes the singleton `DaprClient`). `Encina.Messaging` registers no default store for `IOutboxStore`, `IInboxStore` or `ISagaStore` (no `InMemory*Store` class and no `TryAdd` of the three interfaces under `src/Encina.Messaging`; a store comes from a provider package), so the order against a default cannot matter; against an application's own registration `TryAdd` never overrides it, and an application registration added after the Dapr call replaces it as in any container. The DI test of this pull request builds the provider in both orders (Dapr call before and after an application-registered store) and with only the Dapr call, with `ValidateOnBuild` and `ValidateScopes`. The start check of Phase 4 runs when a Dapr store is registered.
-3. `Diagnostics/DaprStateStoreLog.cs` (the file created in pull request 4b with 884) gains 885 state transaction failed (Error: code) and 886 ETag conflict (Debug), both emitted by `SagaStoreDapr`; the range `DaprStateStore = (884, 889)` is already registered; ids 884-886 packed, 887-889 spare. The saga entity and its factory are two files of this pull request (counted in its row).
+3. `Diagnostics/DaprStateStoreLog.cs` (the file created in pull request 4b with 80300) gains 80301 state transaction failed (Error: code) and 80302 ETag conflict (Debug), both emitted by `SagaStoreDapr`; the range `DaprStateStore = (80300, 80349)` is already registered; ids 80300-80302 packed, 80303-80349 spare. The saga entity and its factory are two files of this pull request (counted in its row).
 4. Tests: unit with a fake client (every `ISagaStore` operation); no behavioral contract suite for `ISagaStore` exists on `main` (`tests/Encina.ContractTests` has only the reflection checks of `EntityFrameworkCore/StoreContractTests.cs` and `SagaContractTests.cs`), so there is no Contract target for the Dapr stores and the suites are an issue file of this run; an integration test on the `Dapr` collection with a queryable component (PostgreSQL or MongoDB state component); guard; DI test; manifests and PublicAPI through `mechanical-fixer`.
 
 </details>
@@ -510,12 +510,12 @@ CONTEXT:
 - Issue #387, Phase 5 (pull request 5). Phase 4 is merged.
 
 TASK:
-Write SagaStoreDapr, its entity, registration, log class and range, with tests and the contract suite.
+Write SagaStoreDapr, its entity and factory, registration, log messages and tests (no contract suite exists on main; none is written here).
 
 KEY RULES:
-- Register EventIdRanges.DaprStateStore first; ids 884-886 packed.
+- EventIdRanges.DaprStateStore (80300-80349) is registered by pull request 4b; ids 80300-80302 packed.
 - Never claim atomicity beyond the state store; the orchestrators never call SaveChangesAsync, the commit owner does.
-- A satellite registration uses TryAdd* and wins over the in-memory default in any order.
+- Registration is TryAddScoped (Encina.Messaging registers no default store); the DI test covers an application-registered store before and after the Dapr call.
 
 REFERENCE FILES:
 - src/Encina.ADO.PostgreSQL (saga store, entity and factory)
@@ -608,7 +608,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Health: Phase 2; validation: options and invoker inputs; transactions: Phases 5 to 6; idempotency: the Inbox store; multi-tenancy: Design Choice 3; resilience: the invocation timeout (retries are the sidecar's resiliency policy, configured in Dapr, not duplicated here).
+1. Health: Phase 2; validation: options and invoker inputs; transactions: Phases 5 to 6; idempotency: the Inbox store; multi-tenancy: Design Choice 11 (deferred, fail closed when tenancy is registered); resilience: the invocation timeout (retries are the sidecar's resiliency policy, configured in Dapr, not duplicated here).
 2. Caching and locks are not delivered (Design Choice 6); audit and module scoping per the matrix.
 
 </details>
@@ -685,13 +685,13 @@ REFERENCE FILES:
    | `EncinaDaprOptions.cs`, validator (1) | 95 | 90 | 0 | 0 | 0 | Every rule and the token hiding asserted |
    | `ServiceCollectionExtensions.cs` (2) | 95 | 90 | 0 | 0 | 0 | Registration, guards and the DI test |
    | `DaprSidecarHealthCheck.cs` (2) | 95 | 85 | 0 | 0 | 0 | Healthy, unhealthy and exception branches |
-   | `DaprErrors.cs`, `DaprLog.cs` (2, with 879 and 880 added in 3) | 100 | 0 | 0 | 0 | 0 | Constants and generated methods, each called by an emitter of the pull request that declares it (878 by the health check, 879 and 880 by the invoker); no guarded parameter |
+   | `DaprErrors.cs`, `DaprLog.cs` (2, with 80251 and 80252 added in 3) | 100 | 0 | 0 | 0 | 0 | Constants and generated methods, each called by an emitter of the pull request that declares it (80250 by the health check, 80251 and 80252 by the invoker); no guarded parameter |
    | `EventIdRanges.cs` (2, 4b, edits) | 95 (the manifest's current unit target, kept) | 0 | 0 | 0 | 0 | Two new fields read by the allocation architecture test; no target lowered |
    | `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` (3b, edit) | 90 (current, kept) | 35 (current, kept) | 0 | 0 | 0 | Two subscription lines; the new unit test asserts both subscriptions; the manifest's current unit 90 and guard 35 are kept, not lowered |
    | `EncinaAspireEnvironment.cs` (8b, edit) | 100 | existing kept | 90 | 0 | 0 | Two new keys, written in both modes and read by the parity case |
    | `DaprAspireDeclarationOptionsSetup.cs` and the state-store setup (8a; Contract raised in 8b) | 95 | 0 | 0 in 8a, 90 from 8b | 0 | 0 | Internal setups run by the unit tests of 8a; the parity case and the contract project references that reach them are in 8b, which raises the Contract target; no public parameter for guard tests |
    | The state-store `ServiceCollectionExtensions.cs` (`AddEncinaDaprStateStore`, 4c) | 95 | 90 | 0 | 0 | 0 | Registration of the options and the check, guards and the DI test |
-   | `DaprStateStoreLog.cs` (4b, 5) | 90 | 0 | 0 | 0 | 0 | 884 called by the start check (4b), 885 and 886 by the saga store (5) |
+   | `DaprStateStoreLog.cs` (4b, 5) | 90 | 0 | 0 | 0 | 0 | 80300 called by the start check (4b), 80301 and 80302 by the saga store (5) |
    | `DaprServiceInvoker.cs` (3) | 92 | 85 | 0 | 0 | 70 | A fake sidecar covers every branch; `daprd` covers the real path |
    | `DaprStateKey.cs` (4) | 100 | 0 | 0 | 90 | 0 | Pure function; the property test proves injectivity; internal static |
    | `DaprStateStoreStartCheck.cs` (4b) | 92 | 0 | 0 | 0 | 60 | Fake metadata for branches; one integration case |
@@ -773,19 +773,19 @@ REFERENCE FILES:
 |----|---------|------:|--------------:|
 | 1 | `Directory.Packages.props` edit, project file, two PublicAPI files, `Encina.slnx` edit, options, validator, manifest, three test project reference edits, unit and guard test files | 13 | 900 |
 | 2 | Extension class, health check, `DaprErrors`, `DaprLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, Dapr PublicAPI edit and manifest edit, unit, guard and DI test files | 14 | 1,000 |
-| 3 | `IDaprServiceInvoker`, `DaprServiceInvoker`, extension edit, `DaprErrors` edit (the four invoker codes), `DaprLog` edit (879, 880), Dapr PublicAPI edit and manifest edit, unit, guard, `DaprFixture`, collection file, integration test, integration csproj edit | 13 | 1,050 |
+| 3 | `IDaprServiceInvoker`, `DaprServiceInvoker`, extension edit, `DaprErrors` edit (the four invoker codes), `DaprLog` edit (80251, 80252), Dapr PublicAPI edit and manifest edit, unit, guard, `DaprFixture`, collection file, integration test, integration csproj edit | 13 | 1,050 |
 | 3b | `DaprDiagnostics`, invoker edit (spans and counters), `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` edit, `Encina.OpenTelemetry.json` manifest edit, subscription unit test, diagnostics unit test, Dapr manifest edit | 7 | 500 |
 | 4 | State-store project file, two PublicAPI files, `Encina.slnx` edit, `DaprStateStoreOptions`, `DaprInboxStoreOptions`, `DaprStateKey`, manifest, three test project references, unit, guard and property test files | 14 | 1,000 |
-| 4b | `DaprStateStoreStartCheck`, `DaprStateStoreLog` (884), `DaprStateStoreErrors` (`state_query_unsupported`, `state_requires_tenant_optin`), `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit, `Encina` PublicAPI, `Encina.json`, state-store manifest edit, allocation map edit, queryable component file for the fixture, `DaprFixture` edit, unit test, integration test (the check constructed directly against the fixture) | 13 | 1,000 |
+| 4b | `DaprStateStoreStartCheck`, `DaprStateStoreLog` (80300), `DaprStateStoreErrors` (`state_query_unsupported`, `state_requires_tenant_optin`), `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (two rows), `src/Encina/PublicAPI.Unshipped.txt` (the `DaprStateStore` field line, counted as the `Encina` PublicAPI file), `Encina.json`, state-store manifest edit, allocation map edit, queryable component file for the fixture, `DaprFixture` edit, unit test, integration test (the check constructed directly against the fixture) | 13 | 1,000 |
 | 4c | The state-store `ServiceCollectionExtensions.cs` (`AddEncinaDaprStateStore`, public), state-store PublicAPI edit, state-store manifest edit, unit test (options validation, check registration), guard test, DI test | 6 | 450 |
-| 5 | `SagaStoreDapr`, saga entity, saga factory, `AddEncinaSagaDapr` (edit of the state-store `ServiceCollectionExtensions.cs`), `DaprStateStoreLog` edit (885, 886), `DaprStateStoreErrors` edit (`state_conflict`), PublicAPI and manifest edits, unit, guard, DI (two orders) and integration tests (the registration calls `AddEncinaDaprStateStore` of 4c) | 12 | 1,100 |
-| 6 | `InboxStoreDapr`, entity, `AddEncinaInboxDapr` (edit of the registration file), PublicAPI, manifest, unit, guard, DI (two orders) and integration tests | 9 | 800 |
-| 7 | `OutboxStoreDapr`, entity, `AddEncinaOutboxDapr` (edit of the registration file), PublicAPI, manifest, unit, guard, DI (two orders) and integration tests | 9 | 900 |
+| 5 | `SagaStoreDapr`, saga entity, saga factory, `AddEncinaSagaDapr` (edit of the state-store `ServiceCollectionExtensions.cs`), `DaprStateStoreLog` edit (80301, 80302), `DaprStateStoreErrors` edit (`state_conflict`), PublicAPI and manifest edits, unit, guard, DI (two orders) and integration tests (the registration calls `AddEncinaDaprStateStore` of 4c) | 12 | 1,100 |
+| 6 | `InboxStoreDapr`, the Inbox entity, `IInboxMessageFactory` implementation, `AddEncinaInboxDapr` (edit of the registration file), PublicAPI, manifest, unit, guard, DI (two orders) and integration tests | 10 | 850 |
+| 7 | `OutboxStoreDapr`, the Outbox entity, `IOutboxMessageFactory` implementation, `AddEncinaOutboxDapr` (edit of the registration file), PublicAPI, manifest, unit, guard, DI (two orders) and integration tests | 10 | 950 |
 | 8a | The Dapr side of the declaration: `DaprAspireDeclarationOptionsSetup` (`Encina.Dapr`), the state-store setup, `AddEncinaDapr` registration edit (`Encina.Dapr/ServiceCollectionExtensions.cs`), state-store registration edit, `DaprErrors` edit and `DaprStateStoreErrors` edit (`encina.dapr.invalid_declaration`, `ErrorCategory.Validation`, one per package), setups unit test, DI test edit, two Dapr manifest edits (the setups' Contract target is 0 here and raised in 8b) | 10 | 700 |
 | 8b | The hosting side: `EncinaDaprHostingOptions`, `WithEncinaDapr` extension, `EncinaAspireEnvironment` edit, Hosting PublicAPI and manifest edits, hosting unit test, hosting guard test, `EnvironmentContractTests` edit (the writer into the Dapr setups), `Encina.ContractTests.csproj` edit (references to the Dapr packages), two Dapr manifest edits (raising the setups' Contract target from 0 to 90) | 11 | 700 |
 | 9 | Two READMEs, guide, inventory line, changelog fragment, two justification files (load, benchmark) | 7 | 380 |
 
-PR 1 and PR 2 are sequential; PR 3 needs PR 2; PR 3b needs PR 3; PR 4 needs PR 2; PR 4b needs PR 4 and PR 3 (the fixture); PR 4c needs PR 4b; PR 5 needs PR 4c; PRs 6 and 7 need PR 5; PR 8a needs PRs 2 and 4b; PR 8b needs PR 8a and the code of #416 and #440 (their plans are merged; `src/Encina.Aspire.Hosting` is not on `main` yet); PR 9 is last. `Encina.Aspire.ServiceDefaults` (#417) is not touched. Interfaces are not changed, so no implementer or test double is touched; no behavioral contract suite exists for the three store interfaces on `main` (only reflection checks under `tests/Encina.ContractTests/EntityFrameworkCore`), so none is counted here and an issue file of this run asks for the suites. Every row is counted by file name; a pull request that measures over 15 files or 1,500 lines when briefed is split again.
+PR 1 and PR 2 are sequential; PR 3 needs PR 2; PR 3b needs PR 3; PR 4 needs PR 2; PR 4b needs PR 4 and PR 3 (the fixture); PR 4c needs PR 4b; PR 5 needs PR 4c; PRs 6 and 7 need PR 5; PR 8a needs PRs 2 and 4c; PR 8b needs PR 8a and the code of #416 and #440 (their plans are merged; `src/Encina.Aspire.Hosting` is not on `main` yet); PR 9 is last. `Encina.Aspire.ServiceDefaults` (#417) is not touched. Interfaces are not changed, so no implementer or test double is touched; no behavioral contract suite exists for the three store interfaces on `main` (only reflection checks under `tests/Encina.ContractTests/EntityFrameworkCore`), so none is counted here and an issue file of this run asks for the suites. Every row is counted by file name; a pull request that measures over 15 files or 1,500 lines when briefed is split again.
 
 ---
 
@@ -797,7 +797,7 @@ PR 1 and PR 2 are sequential; PR 3 needs PR 2; PR 3b needs PR 3; PR 4 needs PR 2
 |-----------|-----------------|---------------------|
 | `AGENTS.md` sections 3, 5, 6 | Fail closed, secrets, locks and caches closed sets, 12 functions, provider coherence | Design Choices 3, 4, 6 and 8 |
 | ADR-001, ADR-062 | Either results and error categories | Error codes |
-| ADR-021 | EventId ranges registered first | `DaprCore` 878-883, `DaprStateStore` 884-889 |
+| ADR-021 | EventId ranges registered first | `DaprCore` 80250-80299, `DaprStateStore` 80300-80349 |
 | ADR-054 (D4) | W3C trace context; tenant tag only where multi-tenancy is on | Phase 9 |
 | SPEC-000 section 6, DEC-009 | Local-emulator rule; lock set closed | Scope, Design Choice 6 |
 | Dapr state API (transactions, ETags, query, TTL) and service invocation | The building blocks | Phases 3 to 6; status re-read at Phase 1 |
@@ -818,8 +818,8 @@ PR 1 and PR 2 are sequential; PR 3 needs PR 2; PR 3b needs PR 3; PR 4 needs PR 2
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Dapr` (`DaprCore`, new) | 878-883, ids 878-880 used | From the block 850-899 (aspire-2); registered in `EventIdRanges.cs` and the allocation test map before use |
-| `Encina.Dapr.StateStore` (`DaprStateStore`, new) | 884-889, ids 884-886 used | Same block; #242 takes its own range from the transport family's block |
+| `Encina.Dapr` (`DaprCore`, new) | 80250-80299, ids 80250-80252 used | Cloud and integration zone, first block 80000-80999 (aspire-2 family slots: #424 80000-80049, #425 80050-80099, #382 80100-80249, #387 80250-80349, #391 80350-80399); registered in `EventIdRanges.cs`, the registry tables (Zone `zone`) and the allocation test map before use |
+| `Encina.Dapr.StateStore` (`DaprStateStore`, new) | 80300-80349, ids 80300-80302 used | Same block; #242 takes its own range from the transport family's block |
 
 ### Estimated File Count
 
@@ -844,9 +844,9 @@ PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
 - Issue #387: Dapr integration. Plan: docs/plans/dapr-integration-implementation-plan-387.md; D1, D2, D5, D7, D8, D9, D10, D11, D12, D13 and D14 are recommended, pending the maintainer.
 
-IMPLEMENTATION OVERVIEW (9 pull requests, each builds alone):
-1-3. Encina.Dapr: options, registration, health, invoker, diagnostics (Phases 1-3, 9).
-4-7. Encina.Dapr.StateStore: keys, start check, Saga, Inbox, Outbox stores (Phases 4-6).
+IMPLEMENTATION OVERVIEW (13 pull requests, each builds alone):
+1, 2, 3, 3b. Encina.Dapr: options, registration, health, invoker, diagnostics (Phases 1-3, 9).
+4, 4b, 4c, 5, 6, 7. Encina.Dapr.StateStore: options and keys, start check, registration, Saga, Inbox, Outbox stores (Phases 4-6).
 8a/8b. The Aspire declaration: the Dapr-side setups, then the hosting side (Phase 7). 9. Documentation (Phase 11).
 
 KEY PATTERNS:
@@ -854,7 +854,7 @@ KEY PATTERNS:
 - Invocation only to an allowlisted app id and a validated method; cancellation propagates, never a Left.
 - Options with a token: [JsonIgnore] and ToString(); endpoints through EndpointValidator.
 - EncinaErrors.Create(code, category: ErrorCategory.X, message: <constant>); one category per code; no ids or values in logs.
-- EventIds registered first: DaprCore 878-883, DaprStateStore 884-889.
+- EventIds registered first, in the zone: DaprCore 80250-80299, DaprStateStore 80300-80349 (registry rows with Zone zone, PublicAPI line per field).
 
 REFERENCE FILES:
 - src/Encina.NATS, src/Encina.Messaging/Outbox/IOutboxStore.cs, Inbox/IInboxStore.cs, Sagas/ISagaStore.cs
@@ -873,7 +873,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: the caching provider set is closed at eight (Design Choice 6); the issue's "state store as cache backend" is not delivered |
 | 2 | OpenTelemetry | ✅ | Phase 9: `Encina.Dapr` source and meter; W3C context by the SDK; tenant tag only when tenancy is on |
-| 3 | Structured Logging | ✅ | Phases 2 to 5: EventIds 878-880 and 884-886 (884 is the state-store start check, including the multi-tenancy fail-closed case) |
+| 3 | Structured Logging | ✅ | Phases 2 to 5: EventIds 80250-80252 and 80300-80302 (80300 is the state-store start check, including the multi-tenancy fail-closed case) |
 | 4 | Health Checks | ✅ | Phase 2: `DaprSidecarHealthCheck`; Phase 4 start check of the component |
 | 5 | Validation | ✅ | Options, app ids, methods, keys |
 | 6 | Resilience | ✅ | An invocation timeout; retries and circuit breaking stay the sidecar's resiliency policy, configured in Dapr |
