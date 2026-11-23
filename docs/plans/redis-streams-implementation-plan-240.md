@@ -3,7 +3,7 @@
 > **Issue**: [#240](https://github.com/dlrivada/Encina/issues/240)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: Medium (7 phases, 6 pull requests of about 11, 13, 8, 9, 8 and 8 files)
+> **Complexity**: Medium (7 phases, 6 pull requests of about 11, 15, 10, 11, 9 and 7 files)
 > **Estimated Scope**: about 900 lines of production code and about 1,900 lines of tests
 > **Family**: transport-new-1 (#237 Google Cloud Pub/Sub, #238 Amazon EventBridge, #239 Pulsar, #240 Redis Streams, #241 ActiveMQ Artemis). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -95,8 +95,8 @@ Under either option a failure leaves the entry pending (no `XACK`), it is redeli
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A dead-letter stream `{<stream>}:dead` written together with the `XACK` of the original in one `MULTI`/`EXEC` (both keys carry the same hash tag so they share a cluster slot: the default `StreamKey` is `{encina}:events`, the validator and `PublishAsync`/`SubscribeAsync` reject a stream key without a non-empty `{tag}` with `REDIS_STREAMS_STREAM_KEY_INVALID` (`InvalidRequest`, R3), and the dead stream is the stream key plus `:dead`)** | Stays on the broker; atomic move; the issue's "dead-letter handling via XCLAIM" | Operators read a second stream; no Encina tooling reads it |
-| **B) Hand the entry to the Encina dead letter store of `Encina.Messaging`** | One place for all dead letters | Couples the transport to a database store; the store is a separate 1.0 workstream (#583 family) |
+| **A) A dead-letter stream `<stream key>:dead` written together with the `XACK` of the original in one `MULTI`/`EXEC`; both keys share the hash tag of the stream key (Design Choice 11), so they share a cluster slot** | Stays on the broker; atomic move; the issue's "dead-letter handling via XCLAIM" | Operators read a second stream; no Encina tooling reads it |
+| **B) Hand the entry to the Encina dead letter store (`IDeadLetterStore`, `src/Encina.Messaging/DeadLetter/IDeadLetterStore.cs`)** | One place for all dead letters; no second stream; no hash-tag rule needed for dead lettering | Couples the transport to a database store registered in the application; the move is two systems (acknowledge in Redis, add in the store), so a crash between them duplicates or loses the entry unless ordered store-first |
 
 ### Chosen Option: **A, a dead-letter stream** (recommended, pending the maintainer)
 
@@ -149,7 +149,7 @@ Both options satisfy AGENTS.md section 3 (a loop catches per iteration, a timer 
 </details>
 
 <details>
-<summary><strong>7. Envelope and metadata propagation</strong></summary>
+<summary><strong>7. Envelope and metadata propagation (Dilemma D7)</strong></summary>
 
 ### Options Considered
 
@@ -158,14 +158,13 @@ Both options satisfy AGENTS.md section 3 (a loop catches per iteration, a timer 
 | **A) Stream fields: `payload` (UTF-8 JSON), `type`, `message-id`, `traceparent` (stamped from the current activity when there is one) and one `h:<name>` field per caller header; a new id only when the caller gives none** | Native fields, no wrapper JSON; headers visible to `XRANGE`; the same message-id rule as the other publishers | Header names are limited to what a field name accepts |
 | **B) One JSON envelope in a single `data` field** | Simple | Opaque to Redis tooling; double serialization |
 
-### Chosen Option: **A, native fields**
+### Chosen Option: **A, native fields** (recommended, pending the maintainer)
 
 ### Rationale
 
-Every existing publisher takes `messageId` and generates one only when null or empty (`INATSMessagePublisher`, `IRedisPubSubMessagePublisher`); the outbox passes its row id there so consumers deduplicate. Tenant and module headers are not stamped in this plan (Design Choice 10).
+A wins when operators inspect streams with `XRANGE` and consumers filter by field; B wins when one opaque payload is easier to version. The message-id rule itself is common to both: every existing publisher takes `messageId` and generates one only when null or empty (`INATSMessagePublisher`, `IRedisPubSubMessagePublisher`), and the outbox passes its row id there so consumers deduplicate. The `traceparent` field follows Design Choice 9 and is dropped if that Dilemma is answered B. Tenant and module headers are not stamped in this plan (Design Choice 10).
 
-**Class:** Trivial
-**Settled by:** the `messageId` convention of `src/Encina.NATS/INATSMessagePublisher.cs` and `src/Encina.Redis.PubSub/IRedisPubSubMessagePublisher.cs`
+**Class:** Dilemma
 
 </details>
 
@@ -229,6 +228,46 @@ A wins because one design for all transports needs #1164 and #2385, and the issu
 
 </details>
 
+<details>
+<summary><strong>11. Stream key shape: hash tag required or not (Dilemma D11)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A hash tag is always required: the default `StreamKey` is `{encina}:events`, the options validator and `PublishAsync`/`SubscribeAsync` reject a key without a non-empty `{tag}` with `REDIS_STREAMS_STREAM_KEY_INVALID` (`InvalidRequest`, R3), and the dead stream is the key plus `:dead`** | Works on a standalone server and on a cluster; the dead-letter `MULTI`/`EXEC` never hits CROSSSLOT | Braces in every key name, also for users with no cluster |
+| **B) No tag rule: any key is accepted; dead lettering with `MULTI`/`EXEC` is attempted only on a server that is not a cluster, and on a cluster the dead letter move is two commands (add then acknowledge)** | Plain key names; no validator rule | Two code paths; on a cluster a crash between the commands duplicates the dead entry |
+
+### Chosen Option: **A, a hash tag is always required** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins for one behaviour on every topology; B wins for an application with existing stream names it cannot rename. The phases below are written for A and for D4 option A; under D4 option B (the Encina dead letter store) the rule is still harmless but no longer needed.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>12. Testability of the Redis calls (Dilemma D12)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) An internal seam `IRedisStreamOperations` over `IDatabase` (add, read group, pending, auto-claim, acknowledge, dead-letter move) that returns Encina-owned records (`PendingEntry`, `ClaimedEntries`); the publisher uses only the seam, and the thin `RedisStreamOperations` adapter is covered by the integration flag** | `StreamPendingMessageInfo` and `StreamAutoClaimResult` have internal constructors in StackExchange.Redis 2.12.14 (checked by reflection on the package assembly), so a substituted `IDatabase` cannot produce a delivery count or a claimed entry; with the seam the dead-letter and recovery branches are unit tested | Two more files; the adapter has no unit coverage |
+| **B) No seam: the publisher calls `IDatabase` directly and the pending, claim and dead-letter branches are covered only by the integration flag, with a lower unit target and a justification, as `Encina.Redis.PubSub.json` does for its subscribe paths** | Fewer files | The branches with the most logic (delivery count, dead letter) have no fast test |
+
+### Chosen Option: **A, an internal seam** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins because the dead-letter decision is the riskiest logic of the package and needs fast tests; B wins if the maintainer prefers fewer abstractions and accepts integration-only coverage of those branches.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -238,10 +277,10 @@ A wins because one design for all transports needs #1164 and #2385, and the issu
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Redis.Streams/Encina.Redis.Streams.csproj` (net10.0, packages `StackExchange.Redis`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, project reference to `Encina`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry.
-2. `EncinaRedisStreamsOptions` (namespace `Encina.Redis.Streams`): `ConnectionString` (`[JsonIgnore]`, `ToString()` override that prints the stream key only), `StreamKey` (default `{encina}:events`; the validator rejects a key without a non-empty hash tag, Design Choice 4), `ConsumerGroup`, `ConsumerName`, `MaxLength`, `MinIdAge`, `ClaimIdleTime`, `MaxDeliveryAttempts`, `BatchSize`, `BlockTimeout`, `ProviderHealthCheck`. Internal `EncinaRedisStreamsOptionsValidator : IValidateOptions<>`.
+1. `src/Encina.Redis.Streams/Encina.Redis.Streams.csproj` (net10.0, packages `StackExchange.Redis`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, project reference to `Encina`; `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.PropertyTests` and `DynamicProxyGenAssembly2`, so the internal seam of Design Choice 12 can be substituted and driven by the property test) and the `Encina.slnx` entry.
+2. `EncinaRedisStreamsOptions` (namespace `Encina.Redis.Streams`): `ConnectionString` (`[JsonIgnore]`, `ToString()` override that prints the stream key only), `StreamKey` (default `{encina}:events`; the validator rejects a key without a non-empty hash tag, Design Choice 11 option A), `ConsumerGroup`, `ConsumerName`, `MaxLength`, `MinIdAge`, `ClaimIdleTime`, `MaxDeliveryAttempts`, `BatchSize`, `BlockTimeout`, `ProviderHealthCheck`. Internal `EncinaRedisStreamsOptionsValidator : IValidateOptions<>`.
 3. `ServiceCollectionExtensions.AddEncinaRedisStreams(this IServiceCollection, Action<EncinaRedisStreamsOptions>? configure = null)`: options with `ValidateOnStart`, `TryAddSingleton<IConnectionMultiplexer>`, `TryAddSingleton(TimeProvider.System)`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-4. Tests: `EncinaRedisStreamsOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `RedisStreamsGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.Redis.Streams.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+4. Tests: `EncinaRedisStreamsOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `RedisStreamsGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.Redis.Streams.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits. The manifest of this pull request carries the package-level `targets` for the flags its files expect (unit and guard) and the per-file targets with one-sentence justifications of the files it adds (the table of Phase 7, rows of pull request 1), because `coverage-report.cs --check-justifications` (run by `ci.yml`) fails a manifest without them.
 
 </details>
 
@@ -262,11 +301,11 @@ REFERENCE FILES: src/Encina.Redis.PubSub/*.cs, src/Encina.NATS/EncinaNATSOptions
 <details>
 <summary>Tasks</summary>
 
-1. `IRedisStreamsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? streamKey = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the stream entry id). `RedisStreamsMessagePublisher` (scoped, `IConnectionMultiplexer`, `IOptions`, `ILogger`, `TimeProvider`): `StreamAddAsync` with the envelope fields of Design Choice 7 and trimming from the options (`MaxLength` approximate, `MinIdAge` through `StreamTrimByMinIdAsync` computed from `TimeProvider`).
-2. Errors (ADR-062), in a new `RedisStreamsErrorCodes.cs` (one constants class, so later pull requests add their codes to the same file): `REDIS_STREAMS_PUBLISH_FAILED` category `Internal` (R4, provider failure), `REDIS_STREAMS_STREAM_KEY_REQUIRED` `InvalidRequest` (R3), `REDIS_STREAMS_STREAM_KEY_INVALID` `InvalidRequest` (R3, no hash tag, Design Choice 4). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). Messages are constants; the exception goes to `ForLogging()`.
+1. `IRedisStreamsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? streamKey = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the stream entry id). `RedisStreamsMessagePublisher` (scoped, `IRedisStreamOperations`, `IOptions`, `ILogger`, `TimeProvider`): adds with the envelope fields of Design Choice 7 and trims from the options (`MaxLength` approximate, `MinIdAge` through the trim-by-minimum-id call computed from `TimeProvider`). The internal seam of Design Choice 12 is `IRedisStreamOperations` (here the add and trim members; pull request 3 adds read, pending, claim, acknowledge and dead-letter move) and its adapter `RedisStreamOperations` over `IConnectionMultiplexer`, registered with `TryAddSingleton` in this pull request.
+2. Errors (ADR-062), in a new `RedisStreamsErrorCodes.cs` (one constants class, so later pull requests add their codes to the same file): `REDIS_STREAMS_PUBLISH_FAILED` category `Internal` (R4, provider failure), `REDIS_STREAMS_STREAM_KEY_REQUIRED` `InvalidRequest` (R3), `REDIS_STREAMS_STREAM_KEY_INVALID` `InvalidRequest` (R3, no hash tag, Design Choice 11). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). Messages are constants; the exception goes to `ForLogging()`.
 3. `Log.cs` 1050-1052 (publishing, published, failed; no message ids, no payload); `EventIdRanges.RedisStreams = (1050, 1059)`; `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| RedisStreams | 1050-1059 | Transports | historical |` in the registered ranges table (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` into `1050-1059` with status `registered` and the remainder `1060-1099` with status `reserved-pre-zone`, so that no reserved block overlaps a registered range and a `registered` row matches its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and the later ones re-split the remainder row (a new commit on the branch, never a rebase of a pushed branch).
 4. DI: `AddEncinaRedisStreams` gains `services.TryAddScoped<IRedisStreamsMessagePublisher, RedisStreamsMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); `ServiceCollectionExtensionsTests` gains the resolution test with `ValidateOnBuild` and `ValidateScopes`. The publisher stamps the `traceparent` field of Design Choice 7 from the current activity.
-5. Tests: `RedisStreamsMessagePublisherTests`, `RedisStreamsMessageIdTests` (unit), guard edit; manifest edit with the unit and guard targets of the publisher (its contract and integration targets are entered in pull request 5, where those tests land).
+5. Tests: `RedisStreamsMessagePublisherTests`, `RedisStreamsMessageIdTests` (unit over a substituted `IRedisStreamOperations`), guard edit; manifest edit with the unit and guard targets of the files added here and their one-sentence justifications (the publisher's contract and integration targets, and their justifications, are entered in pull request 5, where those tests land). This pull request has 15 files: interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest.
 
 </details>
 
@@ -288,9 +327,9 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 <summary>Tasks</summary>
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? streamKey = null, CancellationToken cancellationToken = default)` returning `ValueTask<IAsyncDisposable>`; creates the group (`StreamCreateConsumerGroupAsync` from `$`, ignoring `BUSYGROUP`), then runs the loop of Design Choice 6; a successful handler is followed by `StreamAcknowledgeAsync`.
-2. Dead lettering (Design Choice 4): when `DeliveryCount` from `StreamPendingMessagesAsync` exceeds `MaxDeliveryAttempts`, one `MULTI`/`EXEC` adds the entry to `<stream key>:dead` (same hash tag, same cluster slot) and acknowledges the original. Codes, added to `RedisStreamsErrorCodes.cs`: `REDIS_STREAMS_SUBSCRIBE_FAILED` `Internal` (R4), `REDIS_STREAMS_DEAD_LETTER_FAILED` `Internal` (R4); an undeserializable entry is dead lettered at once with reason code `REDIS_STREAMS_DESERIALIZE_FAILED` `Internal`.
+2. Dead lettering (Design Choice 4, option A): when the delivery count of the pending entry (read through the seam, as an Encina-owned `PendingEntry`) exceeds `MaxDeliveryAttempts`, one `MULTI`/`EXEC` adds the entry to `<stream key>:dead` (same hash tag, same cluster slot) and acknowledges the original. Codes, added to `RedisStreamsErrorCodes.cs`: `REDIS_STREAMS_SUBSCRIBE_FAILED` `Internal` (R4), `REDIS_STREAMS_DEAD_LETTER_FAILED` `Internal` (R4); an undeserializable entry is dead lettered at once with reason code `REDIS_STREAMS_DESERIALIZE_FAILED` `Internal`.
 3. `Log.cs` 1053-1059 (subscription started, group created, handler failed, claimed count, dead lettered, dead letter failed, loop iteration failed).
-4. Tests: `RedisStreamsConsumerLoopTests`, `RedisStreamsDeadLetterTests` (unit over a substituted `IDatabase`), guard edit, manifest edit.
+4. Tests: `RedisStreamsConsumerLoopTests`, `RedisStreamsDeadLetterTests` (unit over a substituted `IRedisStreamOperations`, so a delivery count above the maximum and a claimed entry can be produced), guard edit, manifest edit with the targets and justifications of the files changed here. This pull request has 10 files: publisher interface edit, publisher edit, seam interface edit, seam adapter edit, `Log` edit, error codes edit, 2 unit tests, guard edit, manifest.
 
 </details>
 
@@ -312,8 +351,8 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, docs/en
 <summary>Tasks</summary>
 
 1. `Health/RedisStreamsHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-redis-streams"`, tags `encina`, `messaging`, `redis-streams`, `ready`; `PingAsync` bounded by `ProviderHealthCheck.Timeout`; result text names the check and the exception type only), registered like `NATSHealthCheck` when `ProviderHealthCheck.Enabled`.
-2. `Diagnostics/RedisStreamsActivitySource` and `RedisStreamsMetrics`: spans publish, consume, acknowledge, dead-letter with a link from consumer to producer through the `traceparent` field; counters `redis_streams.published`, `.consumed`, `.dead_lettered`, `.claimed` with tags `stream`, `outcome`; no tenant tag yet. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. DI: the health check registration of this phase is the only DI edit of pull request 4 (the publisher was registered in pull request 2). Tests: `RedisStreamsHealthCheckTests`, `RedisStreamsDiagnosticsTests` (unit), guard edit; manifest edit.
+2. `Diagnostics/RedisStreamsActivitySource` and `RedisStreamsMetrics`: spans publish, consume, acknowledge, dead-letter with a link from consumer to producer through the `traceparent` field; counters `redis_streams.published`, `.consumed`, `.dead_lettered`, `.claimed` with tags `stream`, `outcome`; no tenant tag yet. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines. The publisher (pull requests 2 and 3) is the emitter, so its file is edited here to start and stop the spans and increment the counters, and the metrics land in the pull request that wires them.
+3. DI: the health check registration of this phase is the only DI edit of pull request 4 (the publisher was registered in pull request 2). Tests: `RedisStreamsHealthCheckTests`, `RedisStreamsDiagnosticsTests` and an edit of `RedisStreamsMessagePublisherTests` (unit), guard edit (health check constructor); manifest edit with the targets and justifications of the files added or changed here. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -357,7 +396,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 <summary>Tasks</summary>
 
 1. `tests/Encina.ContractTests/MessageBrokers/Conformance/TransportConformanceContractBase.cs` (Design Choice 8: publish with message id, subscribe delivers, handler failure redelivers, dead letter after N attempts, cancellation) and `tests/Encina.ContractTests/MessageBrokers/RedisStreams/RedisStreamsConformanceTests.cs` over `RedisFixture`; `ContractTests.csproj` reference.
-2. `tests/Encina.IntegrationTests/MessageBrokers/RedisStreams/RedisStreamsIntegrationTests.cs` in the shared `RedisCollection` (`[Trait("Category","Integration")]`, `[Trait("Transport","Redis")]`): fanout with two groups, round robin with two consumers of one group, `XAUTOCLAIM` recovery after a consumer stops, dead-letter stream content, trimming; `IntegrationTests.csproj` reference.
+2. `tests/Encina.IntegrationTests/MessageBrokers/RedisStreams/RedisStreamsIntegrationTests.cs` in the shared `RedisCollection` (`[Trait("Category","Integration")]`, `[Trait("Transport","Redis")]`): fanout with two groups, round robin with two consumers of one group, `XAUTOCLAIM` recovery after a consumer stops, dead-letter stream content, trimming; `RedisStreamsHealthCheckIntegrationTests.cs` (one healthy ping, the pattern of `NATSHealthCheckIntegrationTests`); `IntegrationTests.csproj` reference.
 3. `tests/Encina.PropertyTests/Messaging/RedisStreams/RedisStreamsEnvelopePropertyTests.cs` (FsCheck round trip of fields, headers and message id) and the `PropertyTests.csproj` reference.
 4. One manifest edit that enters the contract and integration targets of the publisher and health check (the table of Phase 7), because those flags are reachable only now.
 
@@ -380,24 +419,22 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/RedisPubSub/RedisPubSub
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.Redis.Streams.json` in the pull request that adds the tests of each flag: unit and guard targets with the file (pull requests 1 to 4), contract, property and integration targets in pull request 5; measured with the commands of AGENTS.md section 9):
+Per-flag targets are entered in `.github/coverage-manifest/Encina.Redis.Streams.json` in the pull request that adds the tests of each flag, each with its one-sentence justification and with the package-level `targets` of that flag in the same pull request (`coverage-report.cs --check-justifications`, run by `ci.yml`, fails a manifest without them). The numbers are the planned ceilings; each pull request replaces them with the measured value floored to a multiple of 5 when that is lower (never lowering a target already entered), measured with the commands of AGENTS.md section 9.
 
-| File | unit | guard | contract | property | integration |
-|------|:---:|:---:|:---:|:---:|:---:|
-| `RedisStreamsMessagePublisher.cs` | 85 | 20 | 50 | 0 | 70 |
-| `EncinaRedisStreamsOptions.cs`, `...OptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 |
-| `ServiceCollectionExtensions.cs` | 85 | 55 | 0 | 0 | 0 |
-| `Health/RedisStreamsHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 |
-| `Diagnostics/*.cs` | 90 | 0 | 0 | 0 | 0 |
-| `IRedisStreamsMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 |
-
-| File and flag | Justification |
-|---------------|---------------|
-| Publisher unit 85, integration 70 | Unit tests substitute `IDatabase` for every branch; the integration class runs the real group, claim and dead-letter paths on Redis, leaving only connection-failure branches. |
-| Publisher guard 20, contract 50 | Guard tests reach only the argument checks; the conformance base runs the publish and subscribe scenarios, not trimming or recovery timing. |
-| Options and validator unit 100 | Pure data and validation. |
-| Health check integration 50 | One real Redis ping; the failure branch needs a broken connection. |
-| Interfaces and `Log.cs` 0 | No executable lines (interfaces) or generated delegates. |
+| Pull request | File | unit | guard | contract | property | integration | Justification |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | `EncinaRedisStreamsOptions.cs`, `EncinaRedisStreamsOptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider for each option combination; guard tests reach only the null check of `services`, a small share of the lines. |
+| 2 | `RedisStreamsMessagePublisher.cs` (publish part) | 85 | 20 | 0 | 0 | 0 | Unit tests over the seam reach every publish branch; guard tests reach only the argument checks. |
+| 2 | `RedisStreamOperations.cs` | 0 | 0 | 0 | 0 | 0 | The adapter only forwards to StackExchange.Redis, whose result types cannot be built in a unit test; its target is entered with its integration tests in pull request 5. |
+| 2 | `RedisStreamsErrorCodes.cs`, `IRedisStreamsMessagePublisher.cs`, `IRedisStreamOperations.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants, interfaces and generated delegates have no executable lines. |
+| 3 | `RedisStreamsMessagePublisher.cs` (consume part) | 85 | 20 | 0 | 0 | 0 | The seam returns Encina-owned records, so delivery counts above the maximum, claimed entries and failing handlers are unit tested. |
+| 4 | `Health/RedisStreamsHealthCheck.cs` | 90 | 40 | 0 | 0 | 0 | A substituted multiplexer reaches the healthy and unhealthy branches; guard tests reach the constructor checks. |
+| 4 | `Diagnostics/*.cs` | 80 | 0 | 0 | 0 | 0 | Counters and spans are exercised through publisher and consumer unit tests; the static initializers are the remainder. |
+| 5 | `RedisStreamsMessagePublisher.cs` | 85 | 20 | 50 | 0 | 70 | The conformance base runs the common publish and subscribe scenarios; integration tests run the real group, claim and dead-letter paths on Redis, leaving connection-failure branches. |
+| 5 | `RedisStreamOperations.cs` | 0 | 0 | 0 | 0 | 80 | Integration tests drive every member against a real Redis. |
+| 5 | `Health/RedisStreamsHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 | One real ping scenario (the health-check integration class); the failure branch needs a broken connection. |
+| 5 | envelope helper (inside the publisher) | 85 | 20 | 50 | 40 | 70 | The property test round-trips fields, headers and message id through the publisher over the seam. |
 
 1. `src/Encina.Redis.Streams/README.md`, `docs/features/redis-streams.md`, the Redis Streams section of `docs/messaging/transports.md` and `docs/INVENTORY.md` through `docs-writer`; changelog fragment `changelog.d/240-redis-streams.added.md` through `mechanical-fixer`. Transport packages carry no `PublicAPI.*.txt` today (none in NATS, Redis.PubSub, Kafka), so none is added.
 2. Load and benchmark: justification files `tests/Encina.LoadTests/Messaging/RedisStreams/RedisStreams.md` and `tests/Encina.BenchmarkTests/Messaging/RedisStreams/RedisStreams.md` (throughput is Redis's; the Redis.PubSub precedent has the same two files).
@@ -410,7 +447,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.Redis.Streams.jso
 
 ```text
 CONTEXT: The package is implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest targets with one-sentence justifications, write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Write the two justification files (the manifest targets and their justifications were entered in pull requests 1 to 5), and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: Targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.Redis.PubSub.json, changelog.d/README.md.
 ```
@@ -454,12 +491,12 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Tests | 14 | options, DI, publisher, message id, consumer loop, dead letter, health, diagnostics, guard, property, conformance base and subclass, integration, manifest |
 | Shared edits | 8 | `Encina.slnx`, 4 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files |
-| **Pull request 1** | **11** | csproj, options, validator, DI, slnx, 2 test csproj, manifest, options test, DI test, guard test; about 450 lines |
-| **Pull request 2** | **13** | interface, publisher, `RedisStreamsErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (scoped publisher), DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 3** | **8** | interface edit, publisher edit, `Log` edit, 2 unit tests, guard edit, manifest edit, options edit; about 650 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit (health check only), `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
-| **Pull request 5** | **8** | conformance base, subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest (contract, property and integration targets); about 650 lines |
-| **Pull request 6** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 1** | **11** | csproj (with the three `InternalsVisibleTo` entries), options, validator, DI, slnx, 2 test csproj, manifest (package targets, targets and justifications), options test, DI test, guard test; about 450 lines |
+| **Pull request 2** | **15** | publisher interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, `RedisStreamsErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (seam and scoped publisher), DI test edit, 2 unit tests, guard edit, manifest edit; about 900 lines |
+| **Pull request 3** | **10** | publisher interface edit, publisher edit, seam interface and adapter edits, `Log` edit, error codes edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
+| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests (health, diagnostics, publisher edit), guard edit, manifest edit; about 600 lines |
+| **Pull request 5** | **9** | conformance base, subclass, integration test, health check integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest (contract, property and integration targets with justifications); about 750 lines |
+| **Pull request 6** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 Implementers and callers: `IRedisStreamsMessagePublisher` is new, so it has no implementers or `new X(` sites to update; the shared edits are additive. Each pull request builds alone in the order 1 to 6 (each needs the previous one); pull request 1 registers only options, the multiplexer and `TimeProvider`, pull request 2 the scoped publisher, pull request 4 the health check.
 
@@ -473,7 +510,7 @@ Implementers and callers: `IRedisStreamsMessagePublisher` is new, so it has no i
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.Redis.Streams adds a durable transport.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 publish with envelope and trimming and the EventId block 1050-1059; PR3 consumer groups, XAUTOCLAIM recovery and dead-letter stream; PR4 health check and telemetry; PR5 conformance base, property and integration tests on the shared Redis collection; PR6 documentation and justification files. Dilemmas D2, D3, D4, D5, D6, D8 and D9 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 publish with envelope and trimming and the EventId block 1050-1059; PR3 consumer groups, XAUTOCLAIM recovery and dead-letter stream; PR4 health check and telemetry; PR5 conformance base, property and integration tests on the shared Redis collection; PR6 documentation and justification files. Dilemmas D2 to D12 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; background loop catches per iteration; named ADR-062 category on every error; constant error messages; ids and payloads never logged; secrets [JsonIgnore] with ToString override; TimeProvider; targets never go down; CRAP <= 10.
 
@@ -506,14 +543,14 @@ REFERENCE FILES: src/Encina.Redis.PubSub, src/Encina.NATS, src/Encina.Messaging/
 ## Prerequisites & Dependencies
 
 - None blocking pull request 1. Pull requests 2 to 6 follow in order.
-- **Related, not blocking**: #1609 (the other five transports gain subscribe with the shape chosen in D2 and D3), #251, #252 and #2385 (contracts the new transports adopt through the issue file), #725 and #742 (telemetry and resilience of all transports), #1164.
+- **Related, not blocking**: #1609 (the other five transports gain subscribe with the shape chosen in D2 and D3), #256 (Consumer Groups abstraction, open; the consumer-group options here are Redis-specific until it lands), #251, #252 and #2385 (contracts the new transports adopt through the issue file), #725 and #742 (telemetry and resilience of all transports), #1164.
 - **Sibling plans**: #237, #238, #239 and #241 subclass the conformance base of Design Choice 8 after pull request 5 lands; transport-new-2 does the same.
 
 ---
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D4, D5, D6, D8, D9 and D10 when work on #240 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D7, D8, D9, D10, D11 and D12 when work on #240 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (11 files).
 3. Pull requests 2 to 4: publish (13), consume and dead letter (8), health and telemetry (9).
 4. Pull requests 5 and 6: contract, property and integration tests (8), documentation (8).
