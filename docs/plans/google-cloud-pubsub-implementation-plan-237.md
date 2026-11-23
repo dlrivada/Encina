@@ -3,7 +3,7 @@
 > **Issue**: [#237](https://github.com/dlrivada/Encina/issues/237)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: High (7 phases, 7 pull requests of about 13, 12, 10, 9, 8, 3 and 8 files)
+> **Complexity**: High (7 phases, 7 pull requests of about 13, 15, 9, 11, 9, 3 and 7 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 2,000 lines of tests
 > **Family**: transport-new-1 (#237, #238, #239, #240, #241). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -90,23 +90,23 @@ Push subscriptions appear under Features but not in the acceptance criteria or t
 </details>
 
 <details>
-<summary><strong>4. Message ordering</strong></summary>
+<summary><strong>4. Message ordering (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Opt-in `EnableMessageOrdering`; `PublishAsync` takes an `orderingKey`; after a failed ordered publish the publisher calls the client's resume for that key and returns a `Left`** | Ordering has a cost (a regional endpoint, a paused key after failure), so it is off by default; the issue's criterion is met | One more option and a resume path |
-| **B) Always on** | Simplest | Breaks pay-for-what-you-use; needs a regional endpoint for everyone |
+| **A) Opt-in `EnableMessageOrdering` in the options; `PublishAsync` takes an `orderingKey`; ordering requires a regional `ServiceEndpoint` (validated host and port, required by the options validator when ordering is on); after a failed ordered publish the publisher resumes that key and returns a `Left`** | Ordering has a cost (a regional endpoint, a paused key after failure) and stays off by default; the configuration is explicit and validated at startup | One more option and a resume path |
+| **B) Per publish: the ordering client is built only when an `orderingKey` is passed (two clients, one with ordering on)** | No option; callers who never pass a key pay nothing | The regional endpoint is still needed when a key is passed, so a missing endpoint fails at publish time instead of at startup; two client lifetimes |
+| **C) Always on** | Simplest | Breaks pay-for-what-you-use; needs a regional endpoint for everyone |
 
-### Chosen Option: **A, opt-in ordering**
+### Chosen Option: **A, opt-in ordering with a validated regional endpoint** (recommended, pending the maintainer)
 
 ### Rationale
 
-Ordering is an acceptance criterion; every feature is opt-in. The ordering key travels as the Pub/Sub ordering key and a validation `Left` (`GOOGLEPUBSUB_ORDERING_DISABLED`, `InvalidRequest`) is returned when a key is given while ordering is off.
+C is excluded by AGENTS.md section 1 (pay-for-what-you-use); A wins when misconfiguration should fail at startup, B wins for an application that publishes ordered messages only occasionally and wants no ordering option. The ordering key travels as the Pub/Sub ordering key, and a `Left` (`GOOGLEPUBSUB_ORDERING_DISABLED`, `InvalidRequest`) is returned when a key is given while ordering is off. The emulator ignores the endpoint.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 1 (pay-for-what-you-use) and #237 (acceptance criterion: message ordering support)
+**Class:** Dilemma
 
 </details>
 
@@ -152,7 +152,7 @@ Neither is an acceptance criterion. A wins because both are subscription propert
 </details>
 
 <details>
-<summary><strong>7. Credentials and endpoint</strong></summary>
+<summary><strong>7. Credentials and endpoint (Dilemma D7)</strong></summary>
 
 ### Options Considered
 
@@ -161,19 +161,18 @@ Neither is an acceptance criterion. A wins because both are subscription propert
 | **A) Application Default Credentials only, no secret in the options; `ProjectId`, `TopicId`, `SubscriptionId`, an optional `EmulatorHost` validated with `EndpointValidator.ValidateHost` and `AllowLocalEndpoints` with a startup warning** | Nothing to leak; the same ambient credential model as SQS | A credential file or key cannot be set from options |
 | **B) A credentials JSON or key file path in the options** | Explicit | A secret in options (needs `[JsonIgnore]` and a `ToString()` override) |
 
-### Chosen Option: **A, ambient credentials and a validated emulator host**
+### Chosen Option: **A, ambient credentials and a validated emulator host** (recommended, pending the maintainer)
 
 ### Rationale
 
-`EncinaAmazonSQSOptions` has a region and no credentials, and `AllowInsecureHttp` and `AllowLocalEndpoints` for emulators; the Google client resolves Application Default Credentials itself, so there is nothing to protect.
+A wins in managed environments (Cloud Run, GKE workload identity) where the client resolves Application Default Credentials and there is nothing to protect; B wins for a host outside Google Cloud that must use a service-account key file. `EncinaAmazonSQSOptions` is the precedent for the emulator flags (`AllowInsecureHttp`, `AllowLocalEndpoints`), not a decision for Google. `EmulatorHost` with `AllowLocalEndpoints` false fails validation, so the emulator path cannot replace credentials in production.
 
-**Class:** Trivial
-**Settled by:** `src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs` and `src/Encina.AmazonSQS/EncinaAmazonSQSOptionsValidator.cs`
+**Class:** Dilemma
 
 </details>
 
 <details>
-<summary><strong>8. Envelope and metadata propagation</strong></summary>
+<summary><strong>8. Envelope and metadata propagation (Dilemma D8)</strong></summary>
 
 ### Options Considered
 
@@ -182,14 +181,13 @@ Neither is an acceptance criterion. A wins because both are subscription propert
 | **A) Data is the JSON payload; attributes carry `message-id` (a new id only when null or empty), `message-type` and the caller's headers; a header that breaks the service limits (key length, value length, attribute count) returns a validation `Left` before sending** | Native attributes visible to filters; the same message-id rule as the other publishers | Limits must be mirrored in the validator |
 | **B) Everything in one JSON envelope** | One field | Filters cannot see the headers |
 
-### Chosen Option: **A, attributes**
+### Chosen Option: **A, attributes** (recommended, pending the maintainer)
 
 ### Rationale
 
-Every publisher takes `messageId` and generates one only when null or empty (`INATSMessagePublisher`, `IRedisPubSubMessagePublisher`); filtering needs attributes. Codes: `GOOGLEPUBSUB_ATTRIBUTE_INVALID` `Validation` (R3).
+A wins because subscription filters (D6) can only see attributes; B wins when one opaque payload is easier to version. The message-id rule is common to both: every publisher takes `messageId` and generates one only when null or empty (`INATSMessagePublisher`, `IRedisPubSubMessagePublisher`). Codes: `GOOGLEPUBSUB_ATTRIBUTE_INVALID` is `Validation` (ADR-062 R3: the caller's header breaks a field rule), while a missing topic and an ordering key with ordering off are `InvalidRequest` (R3: a missing or contradicting request value).
 
-**Class:** Trivial
-**Settled by:** the `messageId` convention of `src/Encina.NATS/INATSMessagePublisher.cs` and `src/Encina.Redis.PubSub/IRedisPubSubMessagePublisher.cs`
+**Class:** Dilemma
 
 </details>
 
@@ -243,9 +241,9 @@ A wins because one design for all transports needs the persisted context of #116
 <summary>Tasks</summary>
 
 1. `src/Encina.GoogleCloudPubSub/Encina.GoogleCloudPubSub.csproj` (`Google.Cloud.PubSub.V1`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entry for `Google.Cloud.PubSub.V1` 3.40.0; the restore must show no downgrade warning for Gax or Protobuf.
-2. `EncinaGoogleCloudPubSubOptions`: `ProjectId`, `TopicId`, `SubscriptionId`, `EmulatorHost`, `AllowLocalEndpoints`, `EnableMessageOrdering`, `AutoCreateResources`, `DeadLetterTopicId`, `MaxDeliveryAttempts` (5 to 100, the service range), `SubscriptionFilter`, `EnableExactlyOnceDelivery`, `ProviderHealthCheck`; `ToString()` prints project and topic only; internal validator (ids non-empty and well formed, attempts range, dead-letter topic required when attempts are set).
-3. `AddEncinaGoogleCloudPubSub(this IServiceCollection, Action<EncinaGoogleCloudPubSubOptions>? configure = null)` with eager validation and `ValidateOnStart`; a client factory holder with `TryAddSingleton`.
-4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `GoogleCloudPubSubGuardTests`; manifest; `UnitTests.csproj` and `GuardTests.csproj` references.
+2. `EncinaGoogleCloudPubSubOptions`: `ProjectId`, `TopicId`, `SubscriptionId`, `EmulatorHost`, `AllowLocalEndpoints`, `ServiceEndpoint`, `EnableMessageOrdering`, `AutoCreateResources` (default false), `DeadLetterTopicId`, `MaxDeliveryAttempts` (default 5, the service minimum; range 5 to 100, the service range), `SubscriptionFilter`, `EnableExactlyOnceDelivery`, `ProviderHealthCheck`; `ToString()` prints project and topic only; internal validator (ids non-empty and well formed, attempts range, dead-letter topic required when `AutoCreateResources` is on, `ServiceEndpoint` required when ordering is on, `EmulatorHost` rejected unless `AllowLocalEndpoints`). These options implement the recommended answers of Dilemmas D4, D5 and D6; the validator rules change with the maintainer's answers.
+3. `AddEncinaGoogleCloudPubSub(this IServiceCollection, Action<EncinaGoogleCloudPubSubOptions>? configure = null)` with eager validation and `ValidateOnStart`; this pull request registers only the options and their validator (the client holder is created, tested and registered in pull request 2, so this pull request builds alone).
+4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `GoogleCloudPubSubGuardTests`; manifest with the package-level `targets` for unit and guard and the per-file targets and one-sentence justifications of the files added (table of Phase 7, rows of pull request 1; `coverage-report.cs --check-justifications` in `ci.yml` fails a manifest without them); `UnitTests.csproj` and `GuardTests.csproj` references. This pull request has 13 files: csproj, options, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard test.
 
 </details>
 
@@ -266,10 +264,11 @@ REFERENCE FILES: src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs, src/Encina.Amaz
 <details>
 <summary>Tasks</summary>
 
-1. `IGoogleCloudPubSubMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topicId = null, string? messageId = null, IReadOnlyDictionary<string,string>? attributes = null, string? orderingKey = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the service message id); `GoogleCloudPubSubMessagePublisher` (scoped; client holder, options, logger): JSON data, attributes of Design Choice 8, ordering key of Design Choice 4 with resume after a failed ordered publish.
-2. Errors (ADR-062): `GOOGLEPUBSUB_PUBLISH_FAILED` `Internal` (R4), `GOOGLEPUBSUB_TOPIC_REQUIRED` `InvalidRequest` (R3), `GOOGLEPUBSUB_ATTRIBUTE_INVALID` `Validation` (R3), `GOOGLEPUBSUB_ORDERING_DISABLED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
+1. `IGoogleCloudPubSubMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topicId = null, string? messageId = null, IReadOnlyDictionary<string,string>? attributes = null, string? orderingKey = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the service message id); `GoogleCloudPubSubClientHolder` (singleton; lazily creates and owns the publisher client, the subscriber factory and the admin clients, and is disposed by the container) and `GoogleCloudPubSubMessagePublisher` (scoped; holder, options, logger): JSON data, attributes of Design Choice 8, ordering key of Design Choice 4 with resume after a failed ordered publish.
+2. Errors (ADR-062), in a new `GoogleCloudPubSubErrorCodes.cs`: `GOOGLEPUBSUB_PUBLISH_FAILED` `Internal` (R4), `GOOGLEPUBSUB_TOPIC_REQUIRED` `InvalidRequest` (R3), `GOOGLEPUBSUB_ATTRIBUTE_INVALID` `Validation` (R3), `GOOGLEPUBSUB_ORDERING_DISABLED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
 3. `Log.cs` 1080-1082; `EventIdRanges.GoogleCloudPubSub = (1080, 1089)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| GoogleCloudPubSub | 1080-1089 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1080-1089` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
-4. Tests: `GoogleCloudPubSubMessagePublisherTests`, `GoogleCloudPubSubMessageIdTests`, guard edit, manifest edit.
+4. DI: `AddEncinaGoogleCloudPubSub` gains `TryAddSingleton<GoogleCloudPubSubClientHolder>` and `TryAddScoped<IGoogleCloudPubSubMessagePublisher, GoogleCloudPubSubMessagePublisher>` here (registration completeness, AGENTS.md section 3), with the resolution test under `ValidateOnBuild` and `ValidateScopes` in `ServiceCollectionExtensionsTests`.
+5. Tests: `GoogleCloudPubSubMessagePublisherTests`, `GoogleCloudPubSubMessageIdTests`, `GoogleCloudPubSubClientHolderTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 15 files: interface, publisher, client holder, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -291,10 +290,11 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, src/Encina.N
 <summary>Tasks</summary>
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? subscriptionId = null, CancellationToken cancellationToken = default)`: a streaming-pull `SubscriberClient` per subscription; success acks, failure nacks; the delivery attempt is read from the message for logging; exceptions are caught per message and never escape; cancellation stops the client.
-2. Internal `GoogleCloudPubSubResourceProvisioner` (only when `AutoCreateResources`): creates topic, dead-letter topic and subscription idempotently (an already-exists answer is success); codes `GOOGLEPUBSUB_SUBSCRIBE_FAILED` and `GOOGLEPUBSUB_PROVISION_FAILED`, both `Internal` (R4).
-3. `Log.cs` 1083-1087 (subscription started, handler failed, nacked with attempt count, resources provisioned, provisioning failed).
-4. Emulator probe (first task of the integration pull request): a Testcontainers test that creates a subscription with the dead-letter policy, the filter and exactly-once and records which the emulator accepts and enforces; the outcome decides which settings get an integration assertion and which a unit test only.
-5. Tests: `GoogleCloudPubSubConsumerTests`, `GoogleCloudPubSubProvisionerTests`, guard edit, manifest edit.
+2. Internal `GoogleCloudPubSubResourceProvisioner` (only when `AutoCreateResources`; the client holder calls it once, lazily, before the first publish or subscribe, so there is no hosted service): creates topic, dead-letter topic and subscription idempotently (an already-exists answer is success); codes, added to `GoogleCloudPubSubErrorCodes.cs`: `GOOGLEPUBSUB_SUBSCRIBE_FAILED` and `GOOGLEPUBSUB_PROVISION_FAILED`, both `Internal` (R4). The holder creates it, so it needs no DI registration of its own.
+3. Acceptance mapping: the criterion "dead-letter topic handling" is met by the subscription's native dead-letter policy only when `AutoCreateResources` is on or infrastructure as code creates the policy; with the defaults the transport only logs the delivery attempt, and the feature page says so.
+4. `Log.cs` 1083-1087 (subscription started, handler failed, nacked with attempt count, resources provisioned, provisioning failed).
+5. Emulator probe (first task of the integration pull request): a Testcontainers test that creates a subscription with the dead-letter policy, the filter and exactly-once and records which the emulator accepts and enforces. Fallback written now: pull requests 1 to 4 set only unit and guard targets, which do not depend on the probe; the integration targets of pull request 5 are entered after the probe in the same pull request, with the provisioner integration target at 40 (creation calls only) and the filter, exactly-once and dead-letter behavior asserted at the unit level and named in the tests when the emulator does not enforce them, and at 60 when it does.
+6. Tests: `GoogleCloudPubSubConsumerTests`, `GoogleCloudPubSubProvisionerTests`, guard edit, manifest edit with the targets and justifications of the files changed. This pull request has 9 files: publisher interface edit, publisher edit, provisioner, error codes edit, `Log` edit, 2 unit tests, guard edit, manifest.
 
 </details>
 
@@ -317,7 +317,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 
 1. `Health/GoogleCloudPubSubHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-googlecloudpubsub"`, tags `encina`, `messaging`, `googlecloudpubsub`, `ready`; reads the topic through the admin client within `ProviderHealthCheck.Timeout`; text names the exception type only), registered when enabled.
 2. `Diagnostics/GoogleCloudPubSubActivitySource` and `GoogleCloudPubSubMetrics`: spans publish, consume, ack, nack, consumer-to-producer link through message attributes; counters `googlecloudpubsub.published`, `.consumed`, `.nacked` with tags `topic`, `outcome`; `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `GoogleCloudPubSubHealthCheckTests`, `GoogleCloudPubSubDiagnosticsTests`; DI edit; manifest edit.
+3. The publisher and the consumer (pull requests 2 and 3) are the emitters, so the publisher file is edited here to start and stop the spans and increment the counters. Tests: `GoogleCloudPubSubHealthCheckTests`, `GoogleCloudPubSubDiagnosticsTests`, an edit of `GoogleCloudPubSubMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -360,7 +360,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 5 (8 files): `Directory.Packages.props` entry `Testcontainers.PubSub` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/PubSubEmulatorFixture.cs` (the module's builder; the emulator image tag is pinned explicitly in the fixture, since Google publishes no LTS line, to a current stable Cloud SDK emulators tag), `PubSubEmulatorCollection.cs`, `TestInfrastructure.csproj` and `IntegrationTests.csproj` references, `tests/Encina.IntegrationTests/MessageBrokers/GoogleCloudPubSub/GoogleCloudPubSubIntegrationTests.cs` and `GoogleCloudPubSubFeatureProbeTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","GoogleCloudPubSub")]`): publish and subscribe, ordering, dead letter, filter and exactly-once as far as the probe shows the emulator supports them; manifest.
+1. Pull request 5 (9 files, with a health check scenario): `Directory.Packages.props` entry `Testcontainers.PubSub` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/PubSubEmulatorFixture.cs` (the module's builder; the emulator image tag is pinned explicitly in the fixture, since Google publishes no LTS line, to a current stable Cloud SDK emulators tag), `PubSubEmulatorCollection.cs`, `TestInfrastructure.csproj` and `IntegrationTests.csproj` references, `tests/Encina.IntegrationTests/MessageBrokers/GoogleCloudPubSub/GoogleCloudPubSubIntegrationTests.cs`, `GoogleCloudPubSubFeatureProbeTests.cs` and `GoogleCloudPubSubHealthCheckIntegrationTests.cs` (one healthy topic read) (`[Trait("Category","Integration")]`, `[Trait("Transport","GoogleCloudPubSub")]`): publish and subscribe, ordering, dead letter, filter and exactly-once as far as the probe shows the emulator supports them; manifest with the integration targets and justifications of the publisher, the client holder, the provisioner and the health check (fallback of Phase 3).
 2. Pull request 6 (3 files): `tests/Encina.ContractTests/MessageBrokers/GoogleCloudPubSub/GoogleCloudPubSubConformanceTests.cs` subclassing the shared conformance base (owned by #240), `ContractTests.csproj` reference, manifest edit; it lands after #240's contract pull request.
 
 </details>
@@ -382,26 +382,23 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.GoogleCloudPubSub.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
+Per-flag targets are entered in `.github/coverage-manifest/Encina.GoogleCloudPubSub.json` in the pull request that adds the tests of each flag, each with its one-sentence justification and with the package-level `targets` of that flag in the same pull request (`coverage-report.cs --check-justifications`, run by `ci.yml`, fails a manifest without them). The numbers are planned ceilings; each pull request replaces one with the measured value floored to a multiple of 5 when that is lower (never lowering a target already entered).
 
-| File | unit | guard | contract | property | integration |
-|------|:---:|:---:|:---:|:---:|:---:|
-| `GoogleCloudPubSubMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 |
-| `GoogleCloudPubSubResourceProvisioner.cs` | 85 | 0 | 0 | 0 | 60 |
-| `EncinaGoogleCloudPubSubOptions.cs`, `...OptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 |
-| `ServiceCollectionExtensions.cs` | 85 | 55 | 0 | 0 | 0 |
-| `Health/GoogleCloudPubSubHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 |
-| `Diagnostics/*.cs` | 90 | 0 | 0 | 0 | 0 |
-| `IGoogleCloudPubSubMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 |
-
-| File and flag | Justification |
-|---------------|---------------|
-| Publisher unit 85, integration 65 | Unit tests substitute the client seam for each branch; the integration class runs real publish, subscribe, ordering and dead letter on the emulator, leaving connection-failure branches. |
-| Provisioner integration 60 | The emulator accepts creation calls; settings it ignores are unit tested only. |
-| Publisher guard 20, contract 50 | Guard tests reach only argument checks; the conformance base runs the common scenarios, not ordering or filters. |
-| Options and validator unit 100 | Pure data and validation. |
-| Health check integration 50 | One real topic read; the failing branch needs a broken service. |
-| Interface and `Log.cs` 0 | No executable lines or generated delegates. |
+| Pull request | File | unit | guard | contract | property | integration | Justification |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | `EncinaGoogleCloudPubSubOptions.cs`, `EncinaGoogleCloudPubSubOptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider for each option combination; guard tests reach only the null check of `services`. |
+| 2 | `GoogleCloudPubSubMessagePublisher.cs` | 85 | 20 | 0 | 0 | 0 | Unit tests over the holder seam reach every publish branch; guard tests reach only argument checks. |
+| 2 | `GoogleCloudPubSubClientHolder.cs` | 80 | 0 | 0 | 0 | 0 | Substituted client factories reach lazy creation and disposal; it has no public argument surface beyond the publisher. |
+| 2 | `GoogleCloudPubSubErrorCodes.cs`, `IGoogleCloudPubSubMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants, an interface and generated delegates have no executable lines. |
+| 3 | `GoogleCloudPubSubMessagePublisher.cs` (consume part) | 85 | 20 | 0 | 0 | 0 | Ack, nack and the per-message exception boundary are unit tested over a substituted subscriber. |
+| 3 | `GoogleCloudPubSubResourceProvisioner.cs` | 85 | 0 | 0 | 0 | 0 | Substituted admin clients reach every creation and already-exists branch. |
+| 4 | `Health/GoogleCloudPubSubHealthCheck.cs` | 90 | 40 | 0 | 0 | 0 | A substituted admin client reaches the healthy and unhealthy branches; guard tests reach the constructor checks. |
+| 4 | `Diagnostics/*.cs` | 80 | 0 | 0 | 0 | 0 | Counters and spans are exercised through publisher and consumer unit tests; the static initializers are the remainder. |
+| 5 | `GoogleCloudPubSubMessagePublisher.cs`, `GoogleCloudPubSubClientHolder.cs` | 85 | 20 | 0 | 0 | 65 | Integration tests run real publish, subscribe and ordering on the emulator, leaving connection-failure branches. |
+| 5 | `GoogleCloudPubSubResourceProvisioner.cs` | 85 | 0 | 0 | 0 | 60 | The emulator accepts creation calls; 40 when the probe shows it ignores the dead-letter, filter and exactly-once settings (Phase 3 fallback). |
+| 5 | `Health/GoogleCloudPubSubHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 | One real topic read; the failing branch needs a broken service. |
+| 6 | `GoogleCloudPubSubMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 | The conformance base runs the common publish and subscribe scenarios, not ordering or filters. |
 
 1. `src/Encina.GoogleCloudPubSub/README.md`, `docs/features/google-cloud-pubsub.md`, the Pub/Sub section of `docs/messaging/transports.md` and `docs/INVENTORY.md` through `docs-writer`; changelog fragment `changelog.d/237-google-cloud-pubsub.added.md` through `mechanical-fixer`. Transport packages carry no `PublicAPI.*.txt` today, so none is added.
 2. Load and benchmark justification files under `tests/Encina.LoadTests/Messaging/GoogleCloudPubSub/` and `tests/Encina.BenchmarkTests/Messaging/GoogleCloudPubSub/` (throughput belongs to the service).
@@ -415,7 +412,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.GoogleCloudPubSub
 
 ```text
 CONTEXT: The package is implemented and tested; documentation remains.
-TASK: Enter the manifest targets with one-sentence justifications, write the two justification files, hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
+TASK: Write the two justification files (the manifest targets and their justifications were entered in pull requests 1 to 6), hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
 KEY RULES: Targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AmazonSQS.json, changelog.d/README.md.
 ```
@@ -460,12 +457,12 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props` (twice), 4 test `.csproj`, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 9 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files, push issue file (git-ignored) |
 | **Pull request 1** | **13** | csproj, options, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard; about 600 lines |
-| **Pull request 2** | **12** | interface, publisher, client holder, `Log`, `EventIdRanges.cs`, allocation test, registry row, 2 unit tests, guard edit, manifest edit, DI edit; about 650 lines |
-| **Pull request 3** | **10** | interface edit, publisher edit, provisioner, `Log` edit, 2 unit tests, guard edit, manifest edit, options edit, DI edit; about 800 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, manifest edit; about 500 lines |
-| **Pull request 5** | **8** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 2 integration classes, manifest; about 650 lines |
+| **Pull request 2** | **15** | interface, publisher, client holder, `GoogleCloudPubSubErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (holder and scoped publisher), DI test edit, 3 unit tests, guard edit, manifest edit; about 850 lines |
+| **Pull request 3** | **9** | publisher interface edit, publisher edit, provisioner (created by the holder, so no DI edit), error codes edit, `Log` edit, 2 unit tests, guard edit, manifest edit; about 800 lines |
+| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest edit; about 600 lines |
+| **Pull request 5** | **9** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 3 integration classes, manifest; about 700 lines |
 | **Pull request 6** | **3** | conformance subclass, `ContractTests.csproj`, manifest; about 120 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 `IGoogleCloudPubSubMessagePublisher` is new, so there are no implementers or `new X(` sites to update. Pull requests 1 to 5 and 7 build alone in order (each needs the previous one); pull request 6 needs the conformance base of #240.
 
@@ -479,7 +476,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.GoogleCloudPubSub adds Google Cloud Pub/Sub, tested with the local emulator (SPEC-000 DEC-009).
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, client holder, DI, client package entry; PR2 publish with attributes, message id, ordering keys and the EventId block 1080-1089; PR3 streaming-pull subscriptions, ack and nack, opt-in resource provisioner with dead-letter policy, filter and exactly-once settings; PR4 health check and telemetry; PR5 emulator fixture, integration tests and the feature probe; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D5, D6 and D9 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, validator, DI of the options, client package entry; PR2 client holder, publish with attributes, message id, ordering keys and the EventId block 1080-1089; PR3 streaming-pull subscriptions, ack and nack, opt-in resource provisioner with dead-letter policy, filter and exactly-once settings; PR4 health check and telemetry; PR5 emulator fixture, integration tests and the feature probe; PR6 conformance subclass; PR7 documentation. Dilemmas D2 to D10 (all but D1) are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; no exception escapes a callback; named ADR-062 category on every error; constant error messages; ids and payloads never logged; no secret in options; TimeProvider; targets never go down; CRAP <= 10.
 
@@ -519,7 +516,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.NATS, src/Encina.Messaging/Hea
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D5, D6, D9 and D10 when work on #237 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D7, D8, D9 and D10 when work on #237 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (12), subscribe and provisioning (10), health and telemetry (9).
 4. Pull requests 5 to 7: emulator fixture and integration tests (8), conformance subclass (3), documentation (8).
