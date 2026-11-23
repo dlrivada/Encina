@@ -3,7 +3,7 @@
 > **Issue**: [#240](https://github.com/dlrivada/Encina/issues/240)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: Medium (7 phases, 6 pull requests of about 11, 15, 10, 11, 9 and 7 files)
+> **Complexity**: Medium (7 phases, 6 pull requests of about 11, 15, 10, 12, 9 and 7 files)
 > **Estimated Scope**: about 900 lines of production code and about 1,900 lines of tests
 > **Family**: transport-new-1 (#237 Google Cloud Pub/Sub, #238 Amazon EventBridge, #239 Pulsar, #240 Redis Streams, #241 ActiveMQ Artemis). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -17,7 +17,7 @@ The issue adds a durable transport next to `Encina.Redis.PubSub`: publishing wit
 - `Encina.Redis.PubSub` is the template: options with `[JsonIgnore]` connection string and a `ToString()` override, `TryAddSingleton<IConnectionMultiplexer>`, `TryAddScoped` publisher, a `messageId` parameter carried in the envelope.
 - StackExchange.Redis 2.12.14 (`Directory.Packages.props`) exposes `StreamAdd`, `StreamReadGroup`, `StreamAcknowledge`, `StreamAutoClaim`, `StreamClaim`, `StreamPending`, `StreamCreateConsumerGroup`, `StreamTrim` and `StreamTrimByMinId` (verified in the package's XML documentation in the local NuGet cache). No new package version is needed; the integration tests reuse `RedisFixture` (`redis:7-alpine`) and `Testcontainers.Redis`.
 
-Delivered: package `Encina.Redis.Streams` with `IRedisStreamsMessagePublisher` (publish and subscribe, Design Choice 2), `EncinaRedisStreamsOptions` (validated, `[JsonIgnore]` connection string), `AddEncinaRedisStreams`, a health check, an `ActivitySource` and `Meter`, log messages in the block `RedisStreams` 1050-1059, unit, guard, property, contract and integration tests, and documentation. Delivery is at-least-once: `XACK` ends redelivery, but a crash between handling and acknowledgement redelivers, so consumers deduplicate on the message id the envelope carries (the inbox, AGENTS.md section 3).
+Delivered: package `Encina.Redis.Streams` with `IRedisStreamsMessagePublisher` (publish and subscribe, Design Choice 2), `EncinaRedisStreamsOptions` (validated, `[JsonIgnore]` connection string), `AddEncinaRedisStreams`, a health check, an `ActivitySource` and `Meter`, log messages in the block `RedisStreams` 40000-40009, unit, guard, property, contract and integration tests, and documentation. Delivery is at-least-once: `XACK` ends redelivery, but a crash between handling and acknowledgement redelivers, so consumers deduplicate on the message id the envelope carries (the inbox, AGENTS.md section 3).
 
 **Provider category**: Messaging transports (10 existing, 6 planned; AGENTS.md section 5). The transport rule requires send/publish, subscription management, error handling with DLQ and metadata propagation; each is covered below.
 
@@ -142,7 +142,7 @@ A wins for reliability; B wins for a cache-like stream where freshness matters m
 
 ### Rationale
 
-Both options satisfy AGENTS.md section 3 (a loop catches per iteration, a timer callback never throws), so the choice is not settled by it. A wins when a subscription should own one cancellable unit of work; B wins when recovery must run on its own cadence while handlers are slow. Under A a failed iteration is logged with the exception type (EventId 1059) and the loop continues, a handler failure leaves the entry pending, and cancellation ends the loop and disposes the subscription.
+Both options satisfy AGENTS.md section 3 (a loop catches per iteration, a timer callback never throws), so the choice is not settled by it. A wins when a subscription should own one cancellable unit of work; B wins when recovery must run on its own cadence while handlers are slow. Under A a failed iteration is logged with the exception type (EventId 40009) and the loop continues, a handler failure leaves the entry pending, and cancellation ends the loop and disposes the subscription.
 
 **Class:** Dilemma
 
@@ -303,9 +303,9 @@ REFERENCE FILES: src/Encina.Redis.PubSub/*.cs, src/Encina.NATS/EncinaNATSOptions
 
 1. `IRedisStreamsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? streamKey = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the stream entry id). `RedisStreamsMessagePublisher` (scoped, `IRedisStreamOperations`, `IOptions`, `ILogger`, `TimeProvider`): adds with the envelope fields of Design Choice 7 and trims from the options (`MaxLength` approximate, `MinIdAge` through the trim-by-minimum-id call computed from `TimeProvider`). The internal seam of Design Choice 12 is `IRedisStreamOperations` (here the add and trim members; pull request 3 adds read, pending, claim, acknowledge and dead-letter move) and its adapter `RedisStreamOperations` over `IConnectionMultiplexer`, registered with `TryAddSingleton` in this pull request.
 2. Errors (ADR-062), in a new `RedisStreamsErrorCodes.cs` (one constants class, so later pull requests add their codes to the same file): `REDIS_STREAMS_PUBLISH_FAILED` category `Internal` (R4, provider failure), `REDIS_STREAMS_STREAM_KEY_REQUIRED` `InvalidRequest` (R3), `REDIS_STREAMS_STREAM_KEY_INVALID` `InvalidRequest` (R3, no hash tag, Design Choice 11). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). Messages are constants; the exception goes to `ForLogging()`.
-3. `Log.cs` 1050-1052 (publishing, published, failed; no message ids, no payload); `EventIdRanges.RedisStreams = (1050, 1059)`; `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| RedisStreams | 1050-1059 | Transports | historical |` in the registered ranges table (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` into `1050-1059` with status `registered` and the remainder `1060-1099` with status `reserved-pre-zone`, so that no reserved block overlaps a registered range and a `registered` row matches its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and the later ones re-split the remainder row (a new commit on the branch, never a rebase of a pushed branch).
+3. `Log.cs` 40000-40002 (publishing, published, failed; no message ids, no payload); `EventIdRanges.RedisStreams = (40000, 40009)`; `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the registered-ranges row `| RedisStreams | 40000-40009 | Transports | zone |` and the Blocks row `| 40000-40009 | Transports | transport-new-1 (#240) | registered |` (see "EventId allocation" in Research; no code range below 10000 is added, as `EventIdRegistryAgreementTests` rule 5 requires); and `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`) gets the line `static readonly Encina.Diagnostics.EventIdRanges.RedisStreams -> (int Min, int Max)`, because the range is a public field of `Encina`. The other four transport plans take the following slices, so their pull requests are merged one at a time (a new commit on a branch when a slot moves, never a rebase of a pushed branch).
 4. DI: `AddEncinaRedisStreams` gains `services.TryAddScoped<IRedisStreamsMessagePublisher, RedisStreamsMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); `ServiceCollectionExtensionsTests` gains the resolution test with `ValidateOnBuild` and `ValidateScopes`. The publisher stamps the `traceparent` field of Design Choice 7 from the current activity.
-5. Tests: `RedisStreamsMessagePublisherTests`, `RedisStreamsMessageIdTests` (unit over a substituted `IRedisStreamOperations`), guard edit; manifest edit with the unit and guard targets of the files added here and their one-sentence justifications (the publisher's contract and integration targets, and their justifications, are entered in pull request 5, where those tests land). This pull request has 15 files: interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest.
+5. Tests: `RedisStreamsMessagePublisherTests` (unit over a substituted `IRedisStreamOperations`, including the message-id rule), guard edit; manifest edit with the unit and guard targets of the files added here and their one-sentence justifications (the publisher's contract and integration targets, and their justifications, are entered in pull request 5, where those tests land). This pull request has 15 files: interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, allocation test, registry, DI edit, DI test edit, 1 unit test, guard edit, manifest.
 
 </details>
 
@@ -314,8 +314,8 @@ REFERENCE FILES: src/Encina.Redis.PubSub/*.cs, src/Encina.NATS/EncinaNATSOptions
 
 ```text
 CONTEXT: The package skeleton exists. Publishing follows Encina.Redis.PubSub: a messageId parameter, generated only when null or empty.
-TASK: Implement IRedisStreamsMessagePublisher.PublishAsync, the envelope with the traceparent field, trimming, the error codes class, the scoped DI registration and the log messages 1050-1052, with unit and guard tests.
-KEY RULES: EncinaErrors.Create/FromException with a named category: argument (ADR-062); constant messages, never ex.Message; ids and payloads never logged; TimeProvider for MinIdAge; cancellation propagates; EventIds only 1050-1059, registered first in EventIdRanges.cs.
+TASK: Implement IRedisStreamsMessagePublisher.PublishAsync, the envelope with the traceparent field, trimming, the error codes class, the scoped DI registration and the log messages 40000-40002, with unit and guard tests.
+KEY RULES: EncinaErrors.Create/FromException with a named category: argument (ADR-062); constant messages, never ex.Message; ids and payloads never logged; TimeProvider for MinIdAge; cancellation propagates; EventIds only 40000-40009, registered first in EventIdRanges.cs.
 REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Encina.NATS/NATSMessagePublisher.cs, src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs.
 ```
 
@@ -328,7 +328,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, src/Enc
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? streamKey = null, CancellationToken cancellationToken = default)` returning `ValueTask<IAsyncDisposable>`; creates the group (`StreamCreateConsumerGroupAsync` from `$`, ignoring `BUSYGROUP`), then runs the loop of Design Choice 6; a successful handler is followed by `StreamAcknowledgeAsync`.
 2. Dead lettering (Design Choice 4, option A): when the delivery count of the pending entry (read through the seam, as an Encina-owned `PendingEntry`) exceeds `MaxDeliveryAttempts`, one `MULTI`/`EXEC` adds the entry to `<stream key>:dead` (same hash tag, same cluster slot) and acknowledges the original. Codes, added to `RedisStreamsErrorCodes.cs`: `REDIS_STREAMS_SUBSCRIBE_FAILED` `Internal` (R4), `REDIS_STREAMS_DEAD_LETTER_FAILED` `Internal` (R4); an undeserializable entry is dead lettered at once with reason code `REDIS_STREAMS_DESERIALIZE_FAILED` `Internal`.
-3. `Log.cs` 1053-1059 (subscription started, group created, handler failed, claimed count, dead lettered, dead letter failed, loop iteration failed).
+3. `Log.cs` 40003-40009 (subscription started, group created, handler failed, claimed count, dead lettered, dead letter failed, loop iteration failed).
 4. Tests: `RedisStreamsConsumerLoopTests`, `RedisStreamsDeadLetterTests` (unit over a substituted `IRedisStreamOperations`, so a delivery count above the maximum and a claimed entry can be produced), guard edit, manifest edit with the targets and justifications of the files changed here. This pull request has 10 files: publisher interface edit, publisher edit, seam interface edit, seam adapter edit, `Log` edit, error codes edit, 2 unit tests, guard edit, manifest.
 
 </details>
@@ -352,7 +352,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub/RedisPubSubMessagePublisher.cs, docs/en
 
 1. `Health/RedisStreamsHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-redis-streams"`, tags `encina`, `messaging`, `redis-streams`, `ready`; `PingAsync` bounded by `ProviderHealthCheck.Timeout`; result text names the check and the exception type only), registered like `NATSHealthCheck` when `ProviderHealthCheck.Enabled`.
 2. `Diagnostics/RedisStreamsActivitySource` and `RedisStreamsMetrics`: spans publish, consume, acknowledge, dead-letter with a link from consumer to producer through the `traceparent` field; counters `redis_streams.published`, `.consumed`, `.dead_lettered`, `.claimed` with tags `stream`, `outcome`; no tenant tag yet. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines. The publisher (pull requests 2 and 3) is the emitter, so its file is edited here to start and stop the spans and increment the counters, and the metrics land in the pull request that wires them.
-3. DI: the health check registration of this phase is the only DI edit of pull request 4 (the publisher was registered in pull request 2). Tests: `RedisStreamsHealthCheckTests`, `RedisStreamsDiagnosticsTests` and an edit of `RedisStreamsMessagePublisherTests` (unit), guard edit (health check constructor); manifest edit with the targets and justifications of the files added or changed here. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
+3. DI: the health check registration of this phase is the only DI edit of pull request 4 (the publisher was registered in pull request 2). Tests: `RedisStreamsHealthCheckTests`, `RedisStreamsDiagnosticsTests` and an edit of `RedisStreamsMessagePublisherTests` (unit), guard edit (health check constructor); manifest edit with the targets and justifications of the files added or changed here. The `Encina.OpenTelemetry` edit (the new `AddSource`/`AddMeter` lines in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`) is tested by a new unit test `RedisStreamsOpenTelemetryRegistrationTests` that builds the tracer and meter providers with `AddEncinaOpenTelemetry` and asserts the package source and meter names are subscribed; that file's existing per-file targets in `.github/coverage-manifest/Encina.OpenTelemetry.json` (unit 90, guard 35) are not lowered and need no new entry. This pull request has 12 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 4 unit tests (health, diagnostics, publisher edit, OpenTelemetry registration), guard edit, manifest.
 
 </details>
 
@@ -481,7 +481,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `RedisStreams` (new) | 1050-1059 | First of five packages of block 1050-1099 assigned to transport-new-1 (`reserved-pre-zone`); 1050-1052 publish, 1053-1059 consume; verified free by repo-wide grep on `origin/main` |
+| `RedisStreams` (new) | 40000-40009 | 40000-40002 publish, 40003-40009 consume; first slice of the Transports block |
+
+**EventId allocation.** AGENTS.md section 7 allows new blocks only in the 10000+ zone and `EventIdRegistryAgreementTests` rule 5 fails any new range below 10000, so the family does not use the old 1050-1099 reservation. On 2026-11-23 no row of the Transports zone (base 40000, 1000-id blocks) was taken in `docs/engineering/eventid-block-registry.md`, so the five plans of transport-new-1 take contiguous 10-id slices of the first block: `RedisStreams` 40000-40009 (this plan), `Pulsar` 40010-40019 (#239), `ActiveMQ` 40020-40029 (#241), `GoogleCloudPubSub` 40030-40039 (#237), `AmazonEventBridge` 40040-40049 (#238). Each plan's registering pull request adds its own registered-ranges row (Zone `zone`) and its own Blocks row with status `registered`, so no `reserved` row overlaps a registered range. If another plan has taken the slot first, the registering pull request takes the next free slot and the ids of the plan shift by the same offset.
 
 ### Estimated File Count
 
@@ -492,9 +494,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 8 | `Encina.slnx`, 4 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files |
 | **Pull request 1** | **11** | csproj (with the three `InternalsVisibleTo` entries), options, validator, DI, slnx, 2 test csproj, manifest (package targets, targets and justifications), options test, DI test, guard test; about 450 lines |
-| **Pull request 2** | **15** | publisher interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, `RedisStreamsErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (seam and scoped publisher), DI test edit, 2 unit tests, guard edit, manifest edit; about 900 lines |
+| **Pull request 2** | **15** | publisher interface, publisher, `IRedisStreamOperations`, `RedisStreamOperations`, `RedisStreamsErrorCodes`, `Log`, `EventIdRanges.cs`, `PublicAPI.Unshipped.txt`, allocation test, registry (registered row and Blocks row), DI edit (seam and scoped publisher), DI test edit, 1 unit test, guard edit, manifest edit; about 850 lines |
 | **Pull request 3** | **10** | publisher interface edit, publisher edit, seam interface and adapter edits, `Log` edit, error codes edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests (health, diagnostics, publisher edit), guard edit, manifest edit; about 600 lines |
+| **Pull request 4** | **12** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 4 unit tests (health, diagnostics, publisher edit, OpenTelemetry registration), guard edit, manifest edit; about 650 lines |
 | **Pull request 5** | **9** | conformance base, subclass, integration test, health check integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest (contract, property and integration targets with justifications); about 750 lines |
 | **Pull request 6** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
@@ -510,7 +512,7 @@ Implementers and callers: `IRedisStreamsMessagePublisher` is new, so it has no i
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.Redis.Streams adds a durable transport.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 publish with envelope and trimming and the EventId block 1050-1059; PR3 consumer groups, XAUTOCLAIM recovery and dead-letter stream; PR4 health check and telemetry; PR5 conformance base, property and integration tests on the shared Redis collection; PR6 documentation and justification files. Dilemmas D2 to D12 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 publish with envelope and trimming and the EventId block 40000-40009; PR3 consumer groups, XAUTOCLAIM recovery and dead-letter stream; PR4 health check and telemetry; PR5 conformance base, property and integration tests on the shared Redis collection; PR6 documentation and justification files. Dilemmas D2 to D12 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; background loop catches per iteration; named ADR-062 category on every error; constant error messages; ids and payloads never logged; secrets [JsonIgnore] with ToString override; TimeProvider; targets never go down; CRAP <= 10.
 
@@ -527,7 +529,7 @@ REFERENCE FILES: src/Encina.Redis.PubSub, src/Encina.NATS, src/Encina.Messaging/
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A transport does not cache messages. |
 | 2 | OpenTelemetry | ✅ | Per-package `ActivitySource` and `Meter` (Design Choice 9); the shared design of #725 may rename them. |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 1050-1059; error codes and exception types only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40000-40009; error codes and exception types only. |
 | 4 | Health Checks | ✅ | `RedisStreamsHealthCheck` pings Redis. |
 | 5 | Validation | ❌ | Options are validated at startup; payload validation at the boundary belongs to the validation behaviors of the consuming handler. |
 | 6 | Resilience | ⏭️ | Retry and circuit breaking for transports is #742 (open); redelivery of failed entries is built in. |
@@ -552,5 +554,5 @@ REFERENCE FILES: src/Encina.Redis.PubSub, src/Encina.NATS, src/Encina.Messaging/
 
 1. Ask the maintainer D2, D3, D4, D5, D6, D7, D8, D9, D10, D11 and D12 when work on #240 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (11 files).
-3. Pull requests 2 to 4: publish (13), consume and dead letter (8), health and telemetry (9).
-4. Pull requests 5 and 6: contract, property and integration tests (8), documentation (8).
+3. Pull requests 2 to 4: publish (15), consume and dead letter (10), health and telemetry (12).
+4. Pull requests 5 and 6: contract, property and integration tests (9), documentation (7).
