@@ -2,7 +2,7 @@
 
 > **Issue**: [#424](https://github.com/dlrivada/Encina/issues/424)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases, 5 pull requests of 13, 9, 11, 12 and 6 files)
+> **Complexity**: Medium (8 phases, 5 pull requests of 14, 9, 11, 12 and 6 files)
 > **Estimated Scope**: ~600 lines of production code + ~1,500 lines of tests
 > **Family**: Aspire (aspire-2): #424 external services, #425 hot reload, #382 service discovery and configuration, #387 Dapr, #391 sidecar. The aspire-1 plans own the shared pieces this plan reuses: #416 (the hosting package, `EncinaResource`, `WithEncina`, the `Encina__Aspire__*` environment contract), #417 (`Encina.Aspire.ServiceDefaults`, the reader of that contract), #440 (naming rules, parity tests, quickstart) and #607 (`Encina.ServiceDiscovery`). **This plan owns the `ExternalServices` folder of the hosting package and the `Encina__Aspire__ExternalServices__*` keys.**
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for `AddEncinaExternalService`, so that a service that lives in another repository can be part of the AppHost model with service discovery, a shared message broker, a development stub, dashboard visibility and a contract. State of `origin/main` (`1dd3cab4c`; the plans of #416, #417, #419, #421 and #440 are merged, their code is not: `src/` has no `Encina.Aspire.Hosting` or `Encina.Aspire.ServiceDefaults` yet), verified by reading and grep, and of `Aspire.Hosting` 13.6.5 (the version pinned by `Directory.Packages.props`, #3491; the issue cites Aspire 9.x), read in its `Aspire.Hosting.xml`:
+The issue asks for `AddEncinaExternalService`, so that a service that lives in another repository can be part of the AppHost model with service discovery, a shared message broker, a development stub, dashboard visibility and a contract. State of `origin/main` (`da9dd5e3e`; the plans of #416, #417, #419, #421 and #440 are merged, their code is not: `src/` has no `Encina.Aspire.Hosting` or `Encina.Aspire.ServiceDefaults` yet), verified by reading and grep, and of `Aspire.Hosting` 13.6.5 (the version pinned by `Directory.Packages.props`, #3491; the issue cites Aspire 9.x), read in its `Aspire.Hosting.xml`:
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -517,6 +517,9 @@ REFERENCE FILES:
 | `EventIdRanges.cs` (3b, edit) | 95 (the manifest's current unit target, kept) | 0 | 0 | 0 | 0 | One new field read by the allocation architecture test |
    | `EncinaExternalServiceReader.cs` | 100 | 0 | 90 | 0 | 0 | Pure parsing with every branch tested; internal, the parity contract test runs it |
    | `EncinaExternalServiceCatalog.cs` | 100 | 85 | 0 | 0 | 0 | Lookup and list; the constructor guard is reached by guard tests |
+   | `EncinaExternalServiceDiscovery.cs` (hosting enum, 1) | 0 | 0 | 0 | 0 | 0 | An enum with no executable code; its values are read by the options, builder and annotation tests |
+   | `EncinaExternalServiceDeclaration.cs` and the ServiceDefaults discovery enum (3a) | 0 | 0 | 0 | 0 | 0 | A record and an enum with no executable logic; read through the reader and catalog tests (the record's generated members are not coverable lines) |
+   | `IEncinaExternalServiceCatalog.cs` (3a) | 0 | 0 | 0 | 0 | 0 | An interface with no executable code; covered through `EncinaExternalServiceCatalog` |
    | `ExternalServiceStartCheck.cs` | 95 | 85 | 0 | 0 | 0 | Each failure and the passing case with an in-memory configuration |
    | `ExternalServiceLog.cs` | 90 | 0 | 0 | 0 | 0 | Generated logger methods called by the start check tests; no parameters worth a guard test |
 
@@ -594,7 +597,7 @@ REFERENCE FILES:
 
 | PR | Content | Files | Approx. lines |
 |----|---------|------:|--------------:|
-| 1 | `EncinaExternalServiceDiscovery`, `EncinaExternalServiceOptions`, `EncinaExternalServiceAnnotation`, `ExternalServiceUrlValidator`, `EncinaExternalServiceBuilderExtensions`, `EncinaExternalServiceResourceBuilderExtensions`, `EncinaAspireEnvironment.cs` edit, hosting `PublicAPI.Unshipped.txt`, hosting manifest, unit tests (2 files), guard tests (1 file), the validator contract test (1 file; `Encina.ContractTests` already references the hosting package through #440) | 13 | 1,200 |
+| 1 | `EncinaExternalServiceDiscovery`, `EncinaExternalServiceOptions`, `EncinaExternalServiceAnnotation`, `ExternalServiceUrlValidator`, `EncinaExternalServiceBuilderExtensions`, `EncinaExternalServiceResourceBuilderExtensions`, `EncinaAspireEnvironment.cs` edit, hosting `PublicAPI.Unshipped.txt`, hosting manifest, unit tests (2 files), guard tests (1 file), the validator contract test (1 file; `Encina.ContractTests` already references the hosting package through #440), and the key parity case added to `EnvironmentContractTests.cs` (a #440 file that exists by then: the writer's `ExternalServiceKey` helper and constants are checked against the key strings the application reader of 3a will use, which the case declares as literals; 3a changes the case to run the real reader), so the Contract target of `EncinaAspireEnvironment.cs` is reached in this pull request | 14 | 1,250 |
 | 2 | `EncinaExternalServiceStub`, options and builder edits, `PublicAPI.Unshipped.txt`, manifest, unit and guard test edits, integration test and its fixture reference (`Encina.IntegrationTests.csproj` edit) | 9 | 650 |
 | 3a | Declaration, reader, catalog and interface, `EncinaDefaultsExtensions.cs` edit, ServiceDefaults `PublicAPI.Unshipped.txt` and manifest, unit, guard and DI test files, `EnvironmentContractTests.cs` edit (the writer-reader parity case, so the reader's contract target is reached in the pull request that sets it) | 11 | 1,000 |
 | 3b | `ExternalServiceStartCheck`, `ExternalServiceLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (the registered-ranges row for `AspireExternalServices` and the split of the reserved 850-899 row, which `EventIdRegistryAgreementTests` requires in the pull request that registers the range), `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` manifest, ServiceDefaults manifest edit, allocation test map edit, `EncinaDefaultsExtensions.cs` edit (registers the check), unit test, guard test (the check's public-facing constructor checks, if any, and the registration guards), DI test file edit (the provider builds with `ValidateOnBuild` and `ValidateScopes` with the check registered) | 12 | 950 |
@@ -644,7 +647,7 @@ PR 1 needs the code of #416 pull requests 1 and 2 (the package and `WithEncina`;
 | Public API and manifests | 6 | Hosting and ServiceDefaults `PublicAPI.Unshipped.txt` and manifests, `Encina` PublicAPI, `Encina.json` |
 | Tests and project files | 11 | Unit (5), guard (2), contract (2), DI (1), integration (1), allocation map edit, one csproj edit |
 | Documentation | 4 | Two README sections, inventory line, changelog fragment |
-| **Total** | **by the split table: 13 + 9 + 11 + 12 + 6 = 51 file touches over 5 pull requests** | The split table is the authority |
+| **Total** | **by the split table: 14 + 9 + 11 + 12 + 6 = 52 file touches over 5 pull requests** | The split table is the authority |
 
 ---
 
