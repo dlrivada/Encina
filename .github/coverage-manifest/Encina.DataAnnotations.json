@@ -18,11 +18,11 @@
       ],
       "defaultRule": "*Provider.cs",
       "reason": "Provider implementation with mockeable deps",
-      "targets": { "unit": 90, "property": 90, "guard": 95 },
+      "targets": { "unit": 90, "property": 90, "guard": 100 },
       "justifications": {
         "unit": "Validation and attribute-error mapping are pure logic that unit tests can drive to near-full coverage.",
         "property": "Property tests drive the provider with generated models, so near-full coverage is realistic.",
-        "guard": "Guard tests run the request and context null checks and the valid and invalid validation paths; the line that copies UserId into the validation context is left uncovered because it needs an authenticated identity, which the unit tests cover."
+        "guard": "Guard tests run the request and context null checks, the valid and invalid validation paths and the authenticated-identity path that copies UserId and TenantId into the validation context; every line is covered."
       }
     },
     "GlobalSuppressions.cs": {
