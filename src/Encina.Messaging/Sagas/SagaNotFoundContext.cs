@@ -147,14 +147,14 @@ public sealed class SagaNotFoundContext
         if (_moveToDeadLetterAsync is null)
         {
             return EncinaErrors.Create(
-                DeadLetterErrorCodes.NotConfigured,
+                DeadLetterErrorCodes.NotConfigured, ErrorCategory.Internal,
                 "Dead letter handling is not configured: register the dead letter queue and keep DeadLetterOptions.IntegrateWithSagas on.");
         }
 
         if (string.IsNullOrWhiteSpace(SourceMessageId))
         {
             return EncinaErrors.Create(
-                DeadLetterErrorCodes.SourceMessageIdRequired,
+                DeadLetterErrorCodes.SourceMessageIdRequired, ErrorCategory.InvalidRequest,
                 "A dead letter of a saga-not-found message needs the message's identity (sourceMessageId).");
         }
 
