@@ -117,7 +117,7 @@
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
-| C1 | No new `EncinaError` code, so no ADR-062 `ErrorCategory`; no logging, no EventId (block 6380-6399 unused) | Settled | ADR-062; `AGENTS.md` section 7 |
+| C1 | No new `EncinaError` code, so no ADR-062 `ErrorCategory`; no logging, no EventId (no EventId range needed) | Settled | ADR-062; `AGENTS.md` section 7 |
 | C2 | No tenant-qualified id; with multi-tenancy off no tenant tag; the tenant tag is #721 S3 | Settled | ADR-054 D4 |
 | C3 | `error.type` is the code or the exception type, never the message | Settled | ADR-054 settled point 2 |
 
@@ -132,8 +132,9 @@
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `tests/Encina.IntegrationTests/Dapper/SqlServer/Observability/StoreTelemetryIntegrationTests.cs`, `.../Dapper/PostgreSQL/Observability/...` and `.../Dapper/MySQL/Observability/...`: `[Collection("Dapper-<Db>")]`, `[Trait("Category", "Integration")]`, `[Trait("Provider", "Dapper.<Db>")]`; each builds a provider with the Dapper store registration and `AddEncinaOpenTelemetry` (called after the provider registration), adds and processes an outbox message and asserts with an `ActivityListener` and a `MeterListener` the span tags (`db.system.name`, `encina.db.access = dapper`), `encina.store.operations`, `encina.store.operation.duration`, and `encina.outcome = error` with the code when the store fails.
+1. **Create** `tests/Encina.IntegrationTests/Dapper/SqlServer/Observability/StoreTelemetryIntegrationTests.cs`, `.../Dapper/PostgreSQL/Observability/...` and `.../Dapper/MySQL/Observability/...`: `[Collection("Dapper-<Db>")]`, `[Trait("Category", "Integration")]`, `[Trait("Provider", "Dapper.<Db>")]`; each builds a provider with the Dapper store registration and `AddEncinaOpenTelemetry` (called after the provider registration), adds and processes an outbox message and asserts with an `ActivityListener` and a `MeterListener` the span tags (`db.system.name`, `encina.db.access = dapper`), `encina.store.operations`, `encina.store.operation.duration`, and `encina.outcome = error` with the code when the store fails, plus that no tenant tag is present when multi-tenancy is off.
 2. **Modify** `.github/coverage-manifest/Encina.OpenTelemetry.json` (integration target of `Telemetry/StoreTelemetry.cs` raised from #721 S4's 40 to 55 with the Dapper proof) through `mechanical-fixer`; the `Encina.OpenTelemetry` README section through `docs-writer`; the changelog fragment `changelog.d/722-dapper-store-telemetry.added.md` through `mechanical-fixer`.
+3. **Verify** before pushing: dotnet build --configuration Release with 0 errors and 0 warnings, dotnet test of the touched test project with all tests passing, and the per-flag coverage of Telemetry/StoreTelemetry.cs against the manifest targets (coverage-report.cs, "Per-file targets" table).
 
 </details>
 
@@ -147,8 +148,9 @@ DatabaseIdentity exist in src/Encina.OpenTelemetry/Telemetry; the message-store 
 and encina.store.operation.duration with db.system.name and encina.db.access.
 
 TASK:
-1. Write one integration test class per Dapper provider (SqlServer, PostgreSQL, MySQL) with the shared collection fixtures.
+1. Write one integration test class per Dapper provider (SqlServer, PostgreSQL, MySQL) with the shared collection fixtures; also assert no tenant tag when multi-tenancy is off.
 2. Manifest and changelog through mechanical-fixer, README through docs-writer. No contract test here (it is #721 S2's).
+3. Run dotnet build --configuration Release (0 errors, 0 warnings) and dotnet test (all pass); report the measured per-flag coverage of StoreTelemetry.cs against its manifest targets.
 
 KEY RULES:
 - [Collection("Dapper-<Db>")] fixtures only; ClearAllDataAsync in InitializeAsync; never dispose the fixture; no Thread.Sleep.
