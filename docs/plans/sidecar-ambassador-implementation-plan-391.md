@@ -10,7 +10,7 @@
 
 ## Summary
 
-The issue asks for `ISidecarProxy`, `IAmbassadorProxy`, an `EncinaSidecarHost` background service with an HTTP listener, health check integration, a Kubernetes example, Docker image configuration and tests. State of `origin/main` (`1dd3cab4c`), verified by reading and grep, and of the NuGet feed (read 2026-11-20):
+The issue asks for `ISidecarProxy`, `IAmbassadorProxy`, an `EncinaSidecarHost` background service with an HTTP listener, health check integration, a Kubernetes example, Docker image configuration and tests. State of `origin/main` (`da9dd5e3e`), verified by reading and grep, and of the NuGet feed (read 2026-11-20):
 
 | Item of the issue | Today | Owner of what remains |
 |-------------------|-------|-----------------------|
@@ -102,20 +102,20 @@ AGENTS.md section 3 requires gates to fail closed when context is missing or a l
 </details>
 
 <details>
-<summary><strong>4. Retries only for safe methods</strong></summary>
+<summary><strong>4. A non-idempotent method is never replayed</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The resilience middleware retries only `GET`, `HEAD`, `OPTIONS` and `TRACE` (and a method the operator lists as idempotent) on connection failures before any response byte is received (a status answer is never retried: the forwarder streams the response to the caller); a circuit breaker and a timeout apply to every method; a cancellation is never retried and never a `Left`** | A `POST` is never replayed behind the caller's back (double payment); the issue's `EnableRetry` and `EnableCircuitBreaker` are delivered safely | `POST` failures reach the client |
-| **B) Retry everything** | Simple | Duplicates non-idempotent operations |
+| **A) The sidecar never replays a request whose method is not idempotent (RFC 9110: `POST` and `PATCH` are not); a cancellation is never retried and never a `Left`** | A `POST` is never replayed behind the caller's back (double payment) | `POST` failures reach the client |
+| **B) Replay any method on failure** | Simple | Duplicates non-idempotent operations |
 
-### Chosen Option: **A — retry idempotent methods only**
+### Chosen Option: **A — no replay of non-idempotent methods**
 
 ### Rationale
 
-RFC 9110 section 9.2.2 defines which methods are idempotent; replaying others is not safe without an idempotency key, which a pass-through proxy cannot know.
+RFC 9110 section 9.2.2 defines which methods are idempotent; replaying others is not safe without an idempotency key, which a pass-through proxy cannot know. Which idempotent requests are retried, when, with what breaker and which defaults is the mechanism of Design Choice 10, not part of this entry.
 
 **Class:** Settled
 **Settled by:** RFC 9110 section 9.2.2 (idempotent methods); AGENTS.md section 3 (errors are never swallowed: a failed non-idempotent call is reported, not replayed)
@@ -190,7 +190,7 @@ A wins because it delivers "Docker image configuration" and "Kubernetes deployme
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Off by default; when `TenantHeader` is set, a request without a valid value (printable ASCII, at most 128 characters) is denied with `encina.sidecar.tenant_required` (`ErrorCategory.Forbidden`); the value is forwarded unchanged and never logged; a tenant tag appears on telemetry only when this gate is on (ADR-054 D4); the ambassador forwards only header names on an allowlist** | Fail closed when tenancy is configured; pay-for-what-you-use | The gate trusts the network position: the sidecar sits behind the pod boundary, documented |
+| **A) Off by default; when `TenantHeader` is set, a request without a valid value (the syntax and length limit are a default of Design Choice 9, not part of this choice) is denied with `encina.sidecar.tenant_required` (`ErrorCategory.Forbidden`); the value is forwarded unchanged and never logged; a tenant tag appears on telemetry only when this gate is on (ADR-054 D4); the ambassador forwards only header names on an allowlist** | Fail closed when tenancy is configured; pay-for-what-you-use | The gate trusts the network position: the sidecar sits behind the pod boundary, documented |
 | **B) On by default** | Safer by default | Breaks every non-tenant deployment |
 
 ### Chosen Option: **A — opt-in, deny when configured and missing**
@@ -211,7 +211,7 @@ A follows the repository's tenancy rule (a configured gate denies when context i
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ListenPort` 8081 (not 3500, which is the default Dapr HTTP endpoint of #387 in the same pod), `TargetHost` `127.0.0.1`, `TargetPort` 8080, `Timeout` 30 seconds, `MaxRequestBodyBytes` 10 MiB, `MaxHeaderCount` 100, tenant header value at most 128 printable ASCII characters, `HealthPath` `/_encina/sidecar/health` (so the proxied application's own `/health` is never hidden)** | No port clash with Dapr in one pod; every default is written down; the health route cannot shadow the application | 8081 is a convention, not a standard |
+| **A) `ListenPort` 8081 (not 3500, which is the default Dapr HTTP endpoint of #387 in the same pod), `TargetHost` `127.0.0.1`, `TargetPort` 8080, `Timeout` 30 seconds, `MaxRequestBodyBytes` 10 MiB, `MaxHeaderCount` 100, tenant header value valid when printable ASCII of at most 128 characters, `HealthPath` `/_encina/sidecar/health` (so the proxied application's own `/health` is never hidden), `EnableHealthCheck` true, `EnableTracing` true, `EnableRetry` true (idempotent methods only, Design Choice 10), `EnableCircuitBreaker` true** | No port clash with Dapr in one pod; every default is written down; the health route cannot shadow the application | 8081 is a convention, not a standard |
 | **B) The issue's defaults: 3500 and `/health`** | Matches the issue sketch | Clashes with Dapr's HTTP port when both sidecars run in one pod; hides the application's `/health` |
 | **C) No defaults: every value required** | Nothing implicit | A first run needs a page of settings |
 
@@ -220,6 +220,27 @@ A follows the repository's tenancy rule (a configured gate denies when context i
 ### Rationale
 
 A wins in clusters that run both sidecars; B wins when the sidecar stands alone and the maintainer prefers the issue's numbers; C when implicit defaults are unwelcome. Each default is validated at start and listed in the README.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>10. Retry and breaker mechanism and defaults (Dilemma D10)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A resilience middleware retries `GET`, `HEAD`, `OPTIONS`, `TRACE` (and methods the operator lists in `IdempotentMethods`) only on connection failures before any response byte is received (two retries with jitter); a status answer is never retried because the forwarder streams the response to the caller; a breaker (opens after 5 consecutive failures, stays open 30 seconds) and the timeout apply to every method; `EnableRetry` and `EnableCircuitBreaker` default true** | Simple and safe with a streaming forwarder; the issue's retry and breaker flags are delivered | A 502, 503 or 504 answer of the application reaches the caller unchanged |
+| **B) Also retry idempotent requests on 502, 503 and 504 answers, with a buffered request body and a transformer that suppresses the copy of the failed response** | Hides transient application errors | Buffers bodies (memory), needs the transformer, and cannot stream |
+| **C) No retry; the breaker and timeout only** | Smallest | The issue's `EnableRetry` is dropped |
+
+### Chosen Option: **A — connection-failure retries for idempotent methods** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins when the application is local to the pod (a connection failure then means it is restarting) and streaming matters; B wins when the application is remote or flaky and the bodies are small; C when the application handles its own retries. Thresholds (2 retries, 5 failures, 30 seconds) and the four flags are written in the options register of Design Choice 9.
 
 **Class:** Dilemma
 
@@ -237,8 +258,8 @@ A wins in clusters that run both sidecars; B wins when the sidecar stands alone 
 <summary>Tasks</summary>
 
 1. `src/Encina.Sidecar/Encina.Sidecar.csproj` (`FrameworkReference Microsoft.AspNetCore.App`, `Yarp.ReverseProxy`, PublicAPI analyzer, `InternalsVisibleTo` for the unit, guard and contract test projects), `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, the pin `Yarp.ReverseProxy` 2.3.0 in `Directory.Packages.props`, the `Encina.slnx` entry, the test project references, `.github/coverage-manifest/Encina.Sidecar.json`.
-2. `SidecarOptions.cs` (public sealed): `ListenPort`, `TargetHost`, `TargetPort`, `AllowLocalEndpoints` (Design Choice 5), `Timeout`, `EnableRetry` and `EnableCircuitBreaker` (Design Choice 4), `MaxRequestBodyBytes`, `MaxHeaderCount`, `TenantHeader` (`string?`, a valid header token), `HealthPath`, `EnableHealthCheck`; the defaults are the register of Design Choice 9. `AmbassadorOptions.cs`: `Routes` (a read-only list of `AmbassadorRoute(Name, BaseUrl, AllowLocalEndpoints)`), `ForwardHeaderNames` (an allowlist, empty by default), `HttpClientName` (the `Encina.Http` client, Design Choice 6), `EnableTracing` (default true). The project references `Encina` (`EncinaError`, `EndpointValidator`), `Encina.Messaging` (`IEncinaHealthCheck`, the interface every provider health check implements) and `Encina.AspNetCore` (problem details): a dependency decision recorded here, not an accident. The options validator emits no warning for a loopback flag (no EventId exists for it); a loopback target is the documented default of Design Choice 5.
-3. `SidecarOptionsValidator.cs` (internal): ports, `EndpointValidator` on the target and each route, unique route names, header token syntax; a warning once when a loopback flag is set.
+2. `SidecarOptions.cs` (public sealed): `ListenPort`, `TargetHost`, `TargetPort`, `AllowLocalEndpoints` (Design Choice 5), `Timeout`, `EnableRetry` and `EnableCircuitBreaker` (Design Choice 4), `MaxRequestBodyBytes`, `MaxHeaderCount`, `TenantHeader` (`string?`, a valid header token), `HealthPath`, `EnableHealthCheck`, `IdempotentMethods` and the breaker settings of Design Choice 10; the defaults are the register of Design Choices 9 and 10; `ListenPort` is consumed by the host project (Phase 5), which binds Kestrel to it. `AmbassadorOptions.cs`: `Routes` (a read-only list of `AmbassadorRoute(Name, BaseUrl, AllowLocalEndpoints)`), `ForwardHeaderNames` (an allowlist, empty by default), `HttpClientName` (the `Encina.Http` client, Design Choice 6), `EnableTracing` (default true). The project references `Encina` (`EncinaError`, `EndpointValidator`), `Encina.Messaging` (`IEncinaHealthCheck`, the interface every provider health check implements) and `Encina.AspNetCore` (problem details): a dependency decision recorded here, not an accident. The options validator emits no warning for a loopback flag (no EventId exists for it); a loopback target is the documented default of Design Choice 5.
+3. `SidecarOptionsValidator.cs` (internal): ports, `EndpointValidator` on the target and each route, unique route names, header token syntax; no warning is emitted for a loopback flag (no EventId exists for it).
 4. `SidecarErrors.cs` (internal static): codes with named categories and constant messages: `encina.sidecar.route_not_allowed` (`ErrorCategory.Forbidden`), `encina.sidecar.tenant_required` (`ErrorCategory.Forbidden`), `encina.sidecar.request_rejected` (`ErrorCategory.InvalidRequest`), `encina.sidecar.target_unavailable` (`ErrorCategory.Unavailable`), `encina.sidecar.timeout` (`ErrorCategory.Timeout`), `encina.sidecar.upstream_failed` (`ErrorCategory.UpstreamFailure`).
 5. Tests: options and validator unit tests, guard tests; PublicAPI and manifest through `mechanical-fixer`.
 
@@ -249,7 +270,7 @@ A wins in clusters that run both sidecars; B wins when the sidecar stands alone 
 
 ```text
 CONTEXT:
-- Issue #391; plan docs/plans/sidecar-ambassador-implementation-plan-391.md. D1, D2, D5, D6, D7 and D9 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
+- Issue #391; plan docs/plans/sidecar-ambassador-implementation-plan-391.md. D1, D2, D5, D6, D7, D9 and D10 are recommended, pending the maintainer: follow the Maintainer Decisions section if it exists.
 - Directory.Packages.props has no Yarp.ReverseProxy; add 2.3.0 (NuGet stable) and build.
 
 TASK:
@@ -397,7 +418,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Sidecar.Host/Encina.Sidecar.Host.csproj` (`OutputType Exe`, `IsPackable false`, `Microsoft.NET.Sdk.Web`, container publish properties: repository name, tag from the project version, no `latest`), `Program.cs` (minimal hosting: `AddEncinaSidecar` bound from the `Encina:Sidecar` configuration section and environment variables, `MapEncinaSidecar`), the `Encina.slnx` entry.
+1. `src/Encina.Sidecar.Host/Encina.Sidecar.Host.csproj` (`OutputType Exe`, `IsPackable false`, `Microsoft.NET.Sdk.Web`, container publish properties: repository name, tag from the project version, no `latest`), `Program.cs` (minimal hosting: `AddEncinaSidecar` bound from the `Encina:Sidecar` configuration section and environment variables, `ConfigureKestrel` listening on `SidecarOptions.ListenPort` (the only consumer of that option), `MapEncinaSidecar`), the `Encina.slnx` entry.
 2. Environment names documented for the container: `Encina__Sidecar__TargetPort`, `Encina__Sidecar__TargetHost`, and so on, bound by `IConfiguration` (no custom parser).
 3. Tests: a unit-level test (`WebApplicationFactory`-style over `TestHost`) that builds the host with in-memory configuration and forwards one request; it needs `Program` visible: `public partial class Program` is declared at the end of `Program.cs` (the standard pattern), so no `InternalsVisibleTo` is needed. The documentation pull request validates the Kubernetes and Compose examples.
 4. The host project is production code with a `Program.cs`; its coverage target is stated in Phase 9.
@@ -510,7 +531,10 @@ REFERENCE FILES:
    | `SidecarErrors.cs` (1) | 100 | 0 | 0 | 0 | 0 | Constants; internal, no guarded parameter |
    | `SidecarProxy.cs` (2) | 92 | 85 | 85 | 0 | 0 | Real YARP over in-process servers; the contract suite pins the error mapping |
    | `SidecarLimitsMiddleware.cs` (3) | 95 | 85 | 0 | 0 | 0 | Each limit and the pass-through |
-   | `ServiceCollectionExtensions.cs`, `SidecarEndpointRouteBuilderExtensions.cs` (2) | 95 | 90 | 0 | 0 | 0 | Registration, mapping and the DI test |
+   | `ServiceCollectionExtensions.cs` (2) | 95 | 90 | 0 | 0 | 0 | Registration, guards and the DI test |
+   | `SidecarEndpointRouteBuilderExtensions.cs` (3) | 95 | 90 | 0 | 0 | 0 | Created in pull request 3 with the health endpoint: the mapping, the status mapping through `ToProblemDetails` and the guards, run over `TestHost` |
+   | `ISidecarProxy.cs` (2), `IAmbassadorProxy.cs` (5) | 0 | 0 | 0 | 0 | 0 | Interfaces with no executable code; covered through `SidecarProxy` and `AmbassadorProxy` and their contract suites |
+   | `AmbassadorRoute.cs` (1, record) | 0 | 0 | 0 | 0 | 0 | A record with no executable logic; read by the validator and ambassador tests (generated record members are not coverable lines) |
    | `SidecarResilienceMiddleware.cs` (4) | 90 | 85 | 0 | 0 | 0 | Retry, no retry, breaker and timeout with a fake time source |
    | `SidecarTenantMiddleware.cs` (3) | 95 | 85 | 0 | 0 | 0 | Allow, deny, invalid value |
    | `SidecarHealthCheck.cs` (3) | 95 | 85 | 0 | 0 | 0 | Healthy, unreachable, exception |
@@ -619,7 +643,7 @@ REFERENCE FILES:
 |----|---------|------:|--------------:|
 | 1 | `Directory.Packages.props` edit, project file, two PublicAPI files, `Encina.slnx` edit, `SidecarOptions`, `AmbassadorOptions`, validator, `SidecarErrors`, manifest, three test project references (the project file carries the `Encina`, `Encina.Messaging` and `Encina.AspNetCore` references), unit and guard test files, counted file by file: props, project, two PublicAPI, slnx, three options and validator files (`SidecarOptions`, `AmbassadorOptions`, validator), `SidecarErrors`, manifest, three csproj edits, unit, guard | 15 | 1,000 |
 | 2 | `ISidecarProxy`, `SidecarProxy`, extension class (`AddEncinaSidecar`; the endpoint mapping moves to pull request 3 to stay within 15 files), `SidecarLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit (row for `Sidecar` 890-899 in "Registered ranges" and the split of the reserved 850-899 row, required by `EventIdRegistryAgreementTests`), `Encina` PublicAPI, `Encina.json`, allocation map edit, Sidecar PublicAPI edit, Sidecar manifest edit, one unit test file, guard test, DI test, `ISidecarProxyContractTests` | 15 | 1,300 |
-| 3 | `SidecarLimitsMiddleware`, `SidecarTenantMiddleware`, `SidecarHealthCheck`, `SidecarEndpointRouteBuilderExtensions` (`MapEncinaSidecar`: health endpoint and catch-all), extension class edit (registrations), `SidecarLog` edit (891-893), Sidecar PublicAPI and manifest edits, unit tests (limits and tenant in one file, health in one), guard test edit, DI test edit | 11 | 900 |
+| 3 | `SidecarLimitsMiddleware`, `SidecarTenantMiddleware`, `SidecarHealthCheck`, `SidecarEndpointRouteBuilderExtensions` (`MapEncinaSidecar`: health endpoint and catch-all), extension class edit (registrations), `SidecarLog` edit (891-893), Sidecar PublicAPI and manifest edits, unit tests (limits and tenant in one file, health in one), guard test edit, DI test edit | 12 | 950 |
 | 4 | `SidecarResilienceMiddleware`, `SidecarDiagnostics`, extension class edit (registration), `Encina.OpenTelemetry` `ServiceCollectionExtensions.cs` edit, `Encina.OpenTelemetry.json` manifest edit, subscription unit test, `SidecarLog` edit (894), Sidecar PublicAPI and manifest edits, unit tests (2), guard test edit | 12 | 1,100 |
 | 5 | `IAmbassadorProxy`, `AmbassadorProxy`, extension class edit (`AddEncinaAmbassador`), `SidecarLog` edit (895-896), project file edit (references to `Encina.Http` and `Encina.ServiceDiscovery`), Sidecar PublicAPI and manifest edits, unit, guard, DI and contract tests, two test project reference edits | 13 | 1,100 |
 | 6 | Host csproj, `Program.cs`, `Encina.slnx` edit, host-level test, host manifest, test project reference (no public API, so no PublicAPI file) | 6 | 450 |
@@ -680,7 +704,7 @@ PR 1 needs nothing; PR 2 needs PR 1; PR 3 needs PR 2; PR 4 needs PR 3; PR 5 need
 ```text
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Either<EncinaError, T>; no [Obsolete], no compatibility layers.
-- Issue #391: sidecar and ambassador. Plan: docs/plans/sidecar-ambassador-implementation-plan-391.md; D1, D2, D5, D6, D7 and D9 are recommended, pending the maintainer.
+- Issue #391: sidecar and ambassador. Plan: docs/plans/sidecar-ambassador-implementation-plan-391.md; D1, D2, D5, D6, D7, D9 and D10 are recommended, pending the maintainer.
 
 IMPLEMENTATION OVERVIEW (7 pull requests, each builds alone):
 1. Encina.Sidecar skeleton, options, validator, errors (Phase 1).
@@ -737,5 +761,5 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers D1, D2, D5, D6, D7 and D9 when work on #391 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
+1. The maintainer answers D1, D2, D5, D6, D7, D9 and D10 when work on #391 starts; the answers go into `## Maintainer Decisions` and the markers are removed.
 2. Pull requests 1 to 3 in order; 4 after #1233 and #607; 5; 6 last.
