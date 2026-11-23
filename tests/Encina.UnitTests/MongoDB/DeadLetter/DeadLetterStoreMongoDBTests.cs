@@ -669,9 +669,10 @@ public sealed class DeadLetterStoreMongoDBTests
         expires.ShouldContain("\"$ne\" : null");
         expires.ShouldContain("\"$lte\"");
         expires.ShouldContain("expiresAtUtc");
+        Render(sent!)["expiresAtUtc"]["$lte"].ToUniversalTime().ShouldBe(FakeNow.UtcDateTime);
         _time.Advance(TimeSpan.FromHours(1));
         await _store.DeleteExpiredAsync();
-        Render(sent!).ToString().ShouldNotBe(expires);
+        Render(sent!)["expiresAtUtc"]["$lte"].ToUniversalTime().ShouldBe(FakeNow.UtcDateTime.AddHours(1));
     }
 
     [Fact]
