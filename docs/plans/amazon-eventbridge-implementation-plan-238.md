@@ -3,7 +3,7 @@
 > **Issue**: [#238](https://github.com/dlrivada/Encina/issues/238)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: High (7 phases, 7 pull requests of about 13, 14, 8, 9, 6, 3 and 8 files)
+> **Complexity**: High (7 phases, 7 pull requests of about 13, 14, 10, 11, 7, 3 and 7 files)
 > **Estimated Scope**: about 850 lines of production code and about 1,700 lines of tests
 > **Family**: transport-new-1 (#237, #238, #239, #240, #241). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -132,7 +132,7 @@ Schema registry, archive and replay, and partner event sources appear under Feat
 </details>
 
 <details>
-<summary><strong>6. Credentials and endpoint</strong></summary>
+<summary><strong>6. Credentials and endpoint (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
@@ -141,14 +141,13 @@ Schema registry, archive and replay, and partner event sources appear under Feat
 | **A) Ambient credentials, no secret in options; `Region`, `EventBusName`, `Source`, an optional `ServiceUrl` validated with `EndpointValidator` and the `AllowInsecureHttp` and `AllowLocalEndpoints` flags with a startup warning** | The SQS precedent; nothing to leak | No explicit key in options |
 | **B) Access keys in options** | Explicit | A secret in options |
 
-### Chosen Option: **A, ambient credentials and a validated endpoint**
+### Chosen Option: **A, ambient credentials and a validated endpoint** (recommended, pending the maintainer)
 
 ### Rationale
 
-`EncinaAmazonSQSOptions` and its validator are the template for the emulator flags.
+A wins on hosts with an AWS credential chain (roles, instance profiles) where nothing needs protecting; B wins for a host outside AWS that must carry access keys in options (which would then need `[JsonIgnore]` and a `ToString()` override). `EncinaAmazonSQSOptions` and its validator are the precedent for the emulator flags, not a decision for EventBridge.
 
-**Class:** Trivial
-**Settled by:** `src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs` and `src/Encina.AmazonSQS/EncinaAmazonSQSOptionsValidator.cs`
+**Class:** Dilemma
 
 </details>
 
@@ -166,10 +165,10 @@ Schema registry, archive and replay, and partner event sources appear under Feat
 
 ### Rationale
 
-AGENTS.md section 3 requires that a failure is never reported as success. Codes (ADR-062): `EVENTBRIDGE_PUBLISH_FAILED` `Internal` (R4, provider failure), `EVENTBRIDGE_ENTRY_REJECTED` `Internal`, `EVENTBRIDGE_EVENT_BUS_REQUIRED` `InvalidRequest` (R3); messages are constants; cancellation propagates.
+AGENTS.md section 3 requires that a failure is never reported as success; this entry settles only that (a rejected entry is a `Left`). The codes follow ADR-062: `EVENTBRIDGE_PUBLISH_FAILED` `Internal` and `EVENTBRIDGE_ENTRY_REJECTED` `Internal` (R4: provider failures), `EVENTBRIDGE_EVENT_BUS_REQUIRED` `InvalidRequest` (R3). The AWS entry error code (a short code such as `ThrottlingException`, not text) is stored in the error details under `aws.error_code`, never in `EncinaError.Message`, which stays a constant and never reaches logs; cancellation propagates.
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 3 (errors are never swallowed) and ADR-062 R4
+**Settled by:** AGENTS.md section 3 (errors are never swallowed; option B is excluded) and ADR-062 R4 (provider failures are `Internal`)
 
 </details>
 
@@ -187,7 +186,7 @@ AGENTS.md section 3 requires that a failure is never reported as success. Codes 
 
 ### Rationale
 
-A wins because the criterion is in this issue; B wins if #725 should rename every source at once. Spans link to the consumer through the trace header (ADR-054 D2, no baggage); the tenant tag of ADR-054 D4 arrives with the multi-tenancy follow-up.
+A wins because the criterion is in this issue; B wins if #725 should rename every source at once. Spans link to the consumer through the CloudEvents `traceparent` attribute (ADR-054 D2, no baggage; the put's X-Ray `TraceHeader` is set as well for X-Ray users); the tenant tag of ADR-054 D4 arrives with the multi-tenancy follow-up.
 
 **Class:** Dilemma
 
@@ -222,10 +221,10 @@ A wins because one design for all transports needs the persisted context of #116
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.AmazonEventBridge/Encina.AmazonEventBridge.csproj` (`AWSSDK.EventBridge`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entry `AWSSDK.EventBridge` 4.1.0.2; the restore must show no downgrade warning for `AWSSDK.Core`.
+1. `src/Encina.AmazonEventBridge/Encina.AmazonEventBridge.csproj` (`AWSSDK.EventBridge`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entries `AWSSDK.EventBridge` 4.1.0.2, `CloudNative.CloudEvents` 2.9.0 and `CloudNative.CloudEvents.SystemTextJson` 2.9.0 (both Apache-2.0, both with a net10.0 target, checked on NuGet on 2026-11-20; they are referenced here and first used in pull request 2, so pull request 2 stays inside the file limit). `AWSSDK.Core` is not pinned in `Directory.Packages.props` (it arrives transitively with SQS and SNS 4.0.x); `AWSSDK.EventBridge` needs Core 4.1.1.1 or later, so the restore of this pull request must show no downgrade warning, and if it does an explicit `AWSSDK.Core` 4.1.1.1 entry goes in the same file.
 2. `EncinaAmazonEventBridgeOptions`: `Region`, `EventBusName` (default `default`), `Source` (default `encina`), `DetailTypePrefix`, `ServiceUrl`, `AllowInsecureHttp`, `AllowLocalEndpoints`, `AutoCreateResources`, `EventPattern`, `TargetArn`, `DeadLetterQueueArn`, `EnableArchive`, `ProviderHealthCheck`; `ToString()` prints the bus name only; internal validator (as the SQS one, plus a pattern that must be a JSON object and ARNs that must be well formed).
 3. `AddEncinaAmazonEventBridge(this IServiceCollection, Action<EncinaAmazonEventBridgeOptions>? configure = null)` with eager validation and `ValidateOnStart`; `IAmazonEventBridge` with `TryAddSingleton`.
-4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `AmazonEventBridgeGuardTests`; manifest; `UnitTests.csproj` and `GuardTests.csproj` references.
+4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `AmazonEventBridgeGuardTests`; manifest with the package-level `targets` for unit and guard and the per-file targets and one-sentence justifications of the files added (table of Phase 7, rows of pull request 1; `coverage-report.cs --check-justifications` in `ci.yml` fails a manifest without them); `UnitTests.csproj` and `GuardTests.csproj` references. This pull request has 13 files: csproj, options, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard test.
 
 </details>
 
@@ -246,10 +245,11 @@ REFERENCE FILES: src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs, src/Encina.Amaz
 <details>
 <summary>Tasks</summary>
 
-1. `IAmazonEventBridgeMessagePublisher.PublishAsync<TMessage>(TMessage message, string? eventBusName = null, string? detailType = null, string? messageId = null, string? subject = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the event id); `AmazonEventBridgeMessagePublisher` (scoped; `IAmazonEventBridge`, options, logger, `TimeProvider`): one `PutEvents` entry whose `Detail` is the CloudEvent (Design Choice 4), `Source` and `DetailType` from options and type, `TraceHeader` from the current activity, a rejected entry is a `Left` (Design Choice 7).
-2. Internal `CloudEventFormatter` (id from the message id, time from `TimeProvider`).
+1. `IAmazonEventBridgeMessagePublisher.PublishAsync<TMessage>(TMessage message, string? eventBusName = null, string? detailType = null, string? messageId = null, string? subject = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the event id); `AmazonEventBridgeMessagePublisher` (scoped; `IAmazonEventBridge`, options, logger, `TimeProvider`): one `PutEvents` entry whose `Detail` is the CloudEvent (Design Choice 4), `Source` and `DetailType` from options and type, a rejected entry is a `Left` (Design Choice 7). The trace context travels twice: as the CloudEvents `traceparent` extension attribute in the detail (the W3C value of the current activity, which the consumer links to, Design Choice 8), and as the put's `TraceHeader`, which is an X-Ray value (`Root=1-<8 hex>-<24 hex>;Parent=<16 hex>;Sampled=<0|1>`) built from the same trace and span ids, not a W3C `traceparent`.
+2. Internal `CloudEventFormatter` (id from the message id, time from `TimeProvider`) and the internal X-Ray header conversion.
 3. `Log.cs` 1090-1093 (publishing, published, failed, entry rejected); `EventIdRanges.AmazonEventBridge = (1090, 1099)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AmazonEventBridge | 1090-1099 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1090-1099` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
-4. `Directory.Packages.props` entry for `CloudNative.CloudEvents` (and its System.Text.Json formatter) and the csproj edit; tests `AmazonEventBridgeMessagePublisherTests`, `CloudEventFormatterTests`, guard edit, manifest edit.
+4. Error codes in a new `AmazonEventBridgeErrorCodes.cs`. DI: `AddEncinaAmazonEventBridge` gains `TryAddScoped<IAmazonEventBridgeMessagePublisher, AmazonEventBridgePublisher>` here (registration completeness, AGENTS.md section 3), with the resolution test under `ValidateOnBuild` and `ValidateScopes` in `ServiceCollectionExtensionsTests`.
+5. Tests: `AmazonEventBridgeMessagePublisherTests`, `CloudEventFormatterTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 14 files: interface, publisher, formatter, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest.
 
 </details>
 
@@ -270,10 +270,11 @@ REFERENCE FILES: src/Encina.AmazonSQS/AmazonSQSMessagePublisher.cs, src/Encina/D
 <details>
 <summary>Tasks</summary>
 
-1. Internal `AmazonEventBridgeResourceProvisioner` (only when `AutoCreateResources`; run once at start by an `IHostedService` registered with `TryAdd`): `CreateEventBus` when the bus is not `default`, `PutRule` with `EventPattern`, `PutTargets` with `DeadLetterConfig` and a `RetryPolicy`, `CreateArchive` when `EnableArchive`; an already-exists answer is success.
-2. Codes: `EVENTBRIDGE_PROVISION_FAILED` `Internal` (R4); a failed provisioning stops host start (fail closed on missing resources).
-3. `Log.cs` 1094-1097 (provisioning started, rule created, provisioned, provisioning failed); options and DI edits.
-4. Tests: `AmazonEventBridgeProvisionerTests`, `AmazonEventBridgeProvisionerHostedServiceTests`, guard edit, manifest edit.
+1. Internal `AmazonEventBridgeResourceProvisioner` and `AmazonEventBridgeProvisionerHostedService` (only when `AutoCreateResources`; the hosted service runs the provisioner once at start). The hosted service is registered with `services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, AmazonEventBridgeProvisionerHostedService>())`, because `TryAddSingleton<IHostedService, X>` is skipped whenever another hosted service is already registered and the provisioner would silently never run; a DI test resolves `IEnumerable<IHostedService>` and asserts the provisioner service is present when the option is on and absent when it is off. The provisioner: `CreateEventBus` when the bus is not `default`, `PutRule` with `EventPattern`, `PutTargets` with `DeadLetterConfig` and a `RetryPolicy`, `CreateArchive` when `EnableArchive`; an already-exists answer is success.
+2. Codes, added to `AmazonEventBridgeErrorCodes.cs`: `EVENTBRIDGE_PROVISION_FAILED` `Internal` (R4); a failed provisioning stops host start (fail closed on missing resources).
+3. Acceptance mapping: the criterion "event pattern matching support" and the dead-letter queue of a target are met only when `AutoCreateResources` is on or infrastructure as code creates the rule and target; with the defaults the transport only publishes, and the feature page says so.
+4. `Log.cs` 1094-1097 (provisioning started, rule created, provisioned, provisioning failed); DI edit (the hosted service and the provisioner).
+5. Tests: `AmazonEventBridgeProvisionerTests`, `AmazonEventBridgeProvisionerHostedServiceTests`, the hosted service resolution test in `ServiceCollectionExtensionsTests`, manifest edit with the targets and justifications of the files added (both new types are internal, so their guard target is 0 and no guard edit is needed). This pull request has 10 files: provisioner, hosted service, error codes edit, `Log` edit, DI edit, DI test edit, 2 unit tests, manifest, options edit.
 
 </details>
 
@@ -296,7 +297,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/ServiceCollectionExtensions.cs, AGENTS.md 
 
 1. `Health/AmazonEventBridgeHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-amazoneventbridge"`, tags `encina`, `messaging`, `eventbridge`, `ready`; `DescribeEventBus` within `ProviderHealthCheck.Timeout`; text names the exception type only), registered when enabled.
 2. `Diagnostics/AmazonEventBridgeActivitySource` and `AmazonEventBridgeMetrics`: spans publish and provision; counters `amazoneventbridge.published`, `.rejected` with tags `bus`, `outcome`; `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `AmazonEventBridgeHealthCheckTests`, `AmazonEventBridgeDiagnosticsTests`; DI edit; manifest edit.
+3. The publisher and the provisioner (pull requests 2 and 3) are the emitters, so the publisher file is edited here to start and stop the spans and increment the counters. Tests: `AmazonEventBridgeHealthCheckTests`, `AmazonEventBridgeDiagnosticsTests`, an edit of `AmazonEventBridgeMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -339,7 +340,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 5 (6 files): `LocalStackFixture` gains an `IAmazonEventBridge` client (the image stays `localstack/localstack:4.14.0`, pinned by #2699), `TestInfrastructure.csproj` references `AWSSDK.EventBridge`, `IntegrationTests.csproj` references the package, `tests/Encina.IntegrationTests/MessageBrokers/AmazonEventBridge/AmazonEventBridgePublisherIntegrationTests.cs` and `AmazonEventBridgeFeatureProbeTests.cs` in the existing `Cloud-LocalStack` collection (`[Trait("Category","Integration")]`, `[Trait("Transport","AmazonEventBridge")]`): the provisioner creates a rule and an SQS target, a publish arrives in the queue as a CloudEvent with the message id, a rejected entry is a `Left`, the probe records archive and pattern support; manifest.
+1. Pull request 5 (7 files, with a health check scenario): `LocalStackFixture` gains an `IAmazonEventBridge` client (the image stays `localstack/localstack:4.14.0`, pinned by #2699), `TestInfrastructure.csproj` references `AWSSDK.EventBridge`, `IntegrationTests.csproj` references the package, `tests/Encina.IntegrationTests/MessageBrokers/AmazonEventBridge/AmazonEventBridgePublisherIntegrationTests.cs`, `AmazonEventBridgeFeatureProbeTests.cs` and `AmazonEventBridgeHealthCheckIntegrationTests.cs` (one healthy bus description) in the existing `Cloud-LocalStack` collection (`[Trait("Category","Integration")]`, `[Trait("Transport","AmazonEventBridge")]`): the provisioner creates a rule and an SQS target, a publish arrives in the queue as a CloudEvent with the message id and the `traceparent` attribute, a rejected entry is a `Left`, the probe records archive and pattern support; manifest with the integration targets and justifications of the publisher, the provisioner, the hosted service and the health check (a feature LocalStack does not support lowers the provisioner target to 40 and is asserted at unit level).
 2. Pull request 6 (3 files): `tests/Encina.ContractTests/MessageBrokers/AmazonEventBridge/AmazonEventBridgeConformanceTests.cs` subclassing the publish scenarios of the shared base (owned by #240; EventBridge has no subscribe scenario), `ContractTests.csproj` reference, manifest edit; it lands after #240's contract pull request.
 
 </details>
@@ -361,28 +362,22 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonEventBridge.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
+Per-flag targets are entered in `.github/coverage-manifest/Encina.AmazonEventBridge.json` in the pull request that adds the tests of each flag, each with its one-sentence justification and with the package-level `targets` of that flag in the same pull request (`coverage-report.cs --check-justifications`, run by `ci.yml`, fails a manifest without them). The numbers are planned ceilings; each pull request replaces one with the measured value floored to a multiple of 5 when that is lower (never lowering a target already entered).
 
-| File | unit | guard | contract | property | integration |
-|------|:---:|:---:|:---:|:---:|:---:|
-| `AmazonEventBridgeMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 |
-| `CloudEventFormatter.cs` | 95 | 0 | 0 | 0 | 0 |
-| `AmazonEventBridgeResourceProvisioner.cs` | 85 | 0 | 0 | 0 | 60 |
-| `EncinaAmazonEventBridgeOptions.cs`, `...OptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 |
-| `ServiceCollectionExtensions.cs` | 85 | 55 | 0 | 0 | 0 |
-| `Health/AmazonEventBridgeHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 |
-| `Diagnostics/*.cs` | 90 | 0 | 0 | 0 | 0 |
-| `IAmazonEventBridgeMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 |
-
-| File and flag | Justification |
-|---------------|---------------|
-| Publisher unit 85, integration 65 | Unit tests substitute the AWS client for each branch; the integration class publishes through a real rule to an SQS target on LocalStack, leaving connection-failure branches. |
-| Formatter unit 95 | Pure mapping code with no external service. |
-| Provisioner integration 60 | LocalStack accepts creation calls; features it ignores are unit tested only. |
-| Publisher guard 20, contract 50 | Guard tests reach only argument checks; the conformance base runs the publish scenarios only. |
-| Options and validator unit 100 | Pure data and validation. |
-| Health check integration 50 | One real bus read; the failing branch needs a broken service. |
-| Interface and `Log.cs` 0 | No executable lines or generated delegates. |
+| Pull request | File | unit | guard | contract | property | integration | Justification |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | `EncinaAmazonEventBridgeOptions.cs`, `EncinaAmazonEventBridgeOptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider for each option combination; guard tests reach only the null check of `services`. |
+| 2 | `AmazonEventBridgeMessagePublisher.cs` | 85 | 20 | 0 | 0 | 0 | Unit tests substitute the AWS client for each publish branch; guard tests reach only argument checks. |
+| 2 | `CloudEventFormatter.cs` | 95 | 0 | 0 | 0 | 0 | Pure mapping code with no external service. |
+| 2 | `AmazonEventBridgeErrorCodes.cs`, `IAmazonEventBridgeMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants, an interface and generated delegates have no executable lines. |
+| 3 | `AmazonEventBridgeResourceProvisioner.cs`, `AmazonEventBridgeProvisionerHostedService.cs` | 85 | 0 | 0 | 0 | 0 | A substituted AWS client reaches every creation and already-exists branch; the hosted service only delegates. |
+| 4 | `Health/AmazonEventBridgeHealthCheck.cs` | 90 | 40 | 0 | 0 | 0 | A substituted client reaches the healthy and unhealthy branches; guard tests reach the constructor checks. |
+| 4 | `Diagnostics/*.cs` | 80 | 0 | 0 | 0 | 0 | Counters and spans are exercised through publisher and provisioner unit tests; the static initializers are the remainder. |
+| 5 | `AmazonEventBridgeMessagePublisher.cs` | 85 | 20 | 0 | 0 | 65 | Integration tests publish through a real rule to an SQS target on LocalStack, leaving connection-failure branches. |
+| 5 | `AmazonEventBridgeResourceProvisioner.cs`, `AmazonEventBridgeProvisionerHostedService.cs` | 85 | 0 | 0 | 0 | 60 | LocalStack accepts creation calls; 40 when the probe shows it ignores archives or patterns, which are then unit tested only. |
+| 5 | `Health/AmazonEventBridgeHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 | One real bus description; the failing branch needs a broken service. |
+| 6 | `AmazonEventBridgeMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 | The conformance base runs the publish scenarios only. |
 
 1. `src/Encina.AmazonEventBridge/README.md`, `docs/features/amazon-eventbridge.md`, the EventBridge section of `docs/messaging/transports.md` and `docs/INVENTORY.md` through `docs-writer`; changelog fragment `changelog.d/238-amazon-eventbridge.added.md` through `mechanical-fixer`. Transport packages carry no `PublicAPI.*.txt` today, so none is added.
 2. Load and benchmark justification files under `tests/Encina.LoadTests/Messaging/AmazonEventBridge/` and `tests/Encina.BenchmarkTests/Messaging/AmazonEventBridge/` (throughput belongs to the service).
@@ -396,7 +391,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.AmazonEventBridge
 
 ```text
 CONTEXT: The package is implemented and tested; documentation remains.
-TASK: Enter the manifest targets with one-sentence justifications, write the two justification files, hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
+TASK: Write the two justification files (the manifest targets and their justifications were entered in pull requests 1 to 6), hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
 KEY RULES: Targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AmazonSQS.json, changelog.d/README.md.
 ```
@@ -442,12 +437,12 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props` (twice), 4 test `.csproj`, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry`, `LocalStackFixture` |
 | Documentation | 9 | README, feature page, transports page, INVENTORY, registry, changelog, 2 justification files, follow-up issue file (git-ignored) |
 | **Pull request 1** | **13** | csproj, options, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard; about 550 lines |
-| **Pull request 2** | **14** | interface, publisher, formatter, `Log`, `EventIdRanges.cs`, allocation test, registry, `Directory.Packages.props`, csproj edit, 2 unit tests, guard edit, manifest edit, DI edit; about 700 lines |
-| **Pull request 3** | **8** | provisioner, hosted service, `Log` edit, options edit, DI edit, 2 unit tests, manifest edit; about 600 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
-| **Pull request 5** | **6** | `LocalStackFixture` edit, `TestInfrastructure.csproj`, `IntegrationTests.csproj`, 2 integration classes, manifest; about 500 lines |
+| **Pull request 2** | **14** | interface, publisher, formatter, `AmazonEventBridgeErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (scoped publisher), DI test edit, 2 unit tests, guard edit, manifest edit; about 750 lines |
+| **Pull request 3** | **10** | provisioner, hosted service, error codes edit, `Log` edit, options edit, DI edit (`TryAddEnumerable`), DI test edit, 2 unit tests, manifest edit; about 650 lines |
+| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest edit; about 600 lines |
+| **Pull request 5** | **7** | `LocalStackFixture` edit, `TestInfrastructure.csproj`, `IntegrationTests.csproj`, 3 integration classes, manifest; about 600 lines |
 | **Pull request 6** | **3** | conformance subclass, `ContractTests.csproj`, manifest; about 100 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 `IAmazonEventBridgeMessagePublisher` is new, so there are no implementers or `new X(` sites to update; `LocalStackFixture` is edited additively (callers use its existing members). Pull requests 1 to 5 and 7 build alone in order (each needs the previous one); pull request 6 needs the conformance base of #240.
 
@@ -461,7 +456,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.AmazonEventBridge adds an EventBridge publisher tested with LocalStack (SPEC-000 DEC-009).
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, DI, AWS package entry; PR2 publish with a CloudEvents detail, trace header, entry-level failure handling and the EventId block 1090-1099; PR3 opt-in provisioner for rules, targets with dead-letter queues and archives; PR4 health check and telemetry; PR5 LocalStack fixture extension and integration tests; PR6 conformance subclass (publish scenarios); PR7 documentation. Dilemmas D3, D4, D5 and D8 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, DI, AWS and CloudEvents package entries; PR2 publish with a CloudEvents detail, traceparent attribute and X-Ray trace header, entry-level failure handling and the EventId block 1090-1099; PR3 opt-in provisioner for rules, targets with dead-letter queues and archives; PR4 health check and telemetry; PR5 LocalStack fixture extension and integration tests; PR6 conformance subclass (publish scenarios); PR7 documentation. Dilemmas D2, D3, D4, D5, D6, D8 and D9 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: a rejected entry is a Left, never success; named ADR-062 category on every error; constant error messages; ids and payloads never logged; no secret in options; TimeProvider; targets never go down; CRAP <= 10.
 
@@ -501,7 +496,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Messaging/Health, tests/Encina
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D4, D5, D8 and D9 when work on #238 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D8 and D9 when work on #238 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (14), provisioner (8), health and telemetry (9).
 4. Pull requests 5 to 7: LocalStack integration tests (6), conformance subclass (3), documentation (8).
