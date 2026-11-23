@@ -2,7 +2,7 @@
 
 > **Issue**: [#310](https://github.com/dlrivada/Encina/issues/310)
 > **Type**: Feature
-> **Verified against**: origin/main `21a067a93` (2026-11-23)
+> **Verified against**: origin/main `ce352001f` (2026-11-23)
 > **Complexity**: High (9 phases, 9 pull requests of about 13, 15, 11, 14, 14, 14, 15, 7 and 9 files)
 > **Estimated Scope**: about 1,900 lines of production code and about 3,000 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). This issue is a pattern, not a transport: it sits on top of the transports and is planned last in the family; "Shared pieces" below says which plan owns what.
