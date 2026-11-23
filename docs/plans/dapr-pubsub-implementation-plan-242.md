@@ -3,7 +3,7 @@
 > **Issue**: [#242](https://github.com/dlrivada/Encina/issues/242)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 6 pull requests of about 12, 13, 11, 9, 10 and 8 files)
+> **Complexity**: Medium (7 phases, 6 pull requests of about 12, 14, 11, 9, 10 and 8 files)
 > **Estimated Scope**: about 800 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -327,7 +327,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 
 1. `IDaprMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `DaprMessagePublisher` (scoped; `DaprClient`, `IOptions`, `ILogger`): `PublishEventAsync` with the CloudEvent attributes of Design Choice 7 and the metadata of Design Choice 10; the topic is the argument or `DefaultTopic`.
 2. Errors (ADR-062), in `DaprPubSubErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.dapr.pubsub.publish_failed` category `Internal` (R4, provider failure), `encina.dapr.pubsub.topic_required` `InvalidRequest` (R3). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-3. `Log.cs` 40000-40002 (publishing, published, publish failed; no message ids, no payload). `EventIdRanges.DaprPubSub = (40000, 40019)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| DaprPubSub | 40000-40019 | Transports | zone |` in the registered ranges table (Zone `zone` for a range at or above 10000), and in the Blocks table the five `reserved` rows of this family (`40000-40019` registered to this plan, `40020-40039`, `40040-40059`, `40060-40079`, `40080-40099` reserved for #610, #611, #612 and #310, owner `transport-new-2: #<n>`); the status of this plan's row is `registered`, so no reserved row overlaps a registered range as `EventIdRegistryAgreementTests` requires. Whichever of the five plans lands first adds the five rows; the later pull requests change only their own row, so a conflict is resolved by keeping both (a new commit, never a rebase of a pushed branch).
+3. `Log.cs` 40000-40002 (publishing, published, publish failed; no message ids, no payload). `EventIdRanges.DaprPubSub = (40000, 40019)`; the line `static readonly Encina.Diagnostics.EventIdRanges.DaprPubSub -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| DaprPubSub | 40000-40019 | Transports | zone |` in the registered ranges table (Zone `zone` for a range at or above 10000), and in the Blocks table the five `reserved` rows of this family (`40000-40019` registered to this plan, `40020-40039`, `40040-40059`, `40060-40079`, `40080-40099` reserved for #610, #611, #612 and #310, owner `transport-new-2: #<n>`); the status of this plan's row is `registered`, so no reserved row overlaps a registered range as `EventIdRegistryAgreementTests` requires. Whichever of the five plans lands first adds the five rows; the later pull requests change only their own row, so a conflict is resolved by keeping both (a new commit, never a rebase of a pushed branch).
 4. DI: `AddEncinaDaprPubSub` gains `services.TryAddScoped<IDaprMessagePublisher, DaprMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); `ServiceCollectionExtensions` tests gain the resolution test with `ValidateOnBuild` and `ValidateScopes`.
 5. Tests: `DaprMessagePublisherTests` and `DaprMessageIdTests` (unit, over a substituted `DaprClient`), guard edit; manifest edit with the unit and guard targets of the publisher (contract and integration targets are entered in pull request 5, where those tests land).
 
@@ -520,7 +520,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props`, 5 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry rows, changelog, 2 justification files |
 | **Pull request 1** | **12** | csproj, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, DI test, guard test; about 450 lines |
-| **Pull request 2** | **13** | interface, publisher, `DaprPubSubErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
+| **Pull request 2** | **14** | interface, publisher, `DaprPubSubErrorCodes`, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
 | **Pull request 3** | **11** | interface edit, publisher edit, subscription seam, `Log` edit, options edit, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 650 lines |
 | **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
 | **Pull request 5** | **10** | sidecar fixture, 2 collection classes, conformance subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest; about 750 lines |
@@ -580,5 +580,5 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Messa
 
 1. Ask the maintainer D1, D3, D4, D5, D6, D7, D8, D9, D12 and D13 when work on #242 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (12 files), after #387 pull requests 1 and 2.
-3. Pull requests 2 to 4: publish (13), subscribe (11), health and telemetry (9).
+3. Pull requests 2 to 4: publish (14), subscribe (11), health and telemetry (9).
 4. Pull requests 5 and 6: contract, property and integration tests (10), documentation (8).
