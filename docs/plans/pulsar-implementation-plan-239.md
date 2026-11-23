@@ -3,7 +3,7 @@
 > **Issue**: [#239](https://github.com/dlrivada/Encina/issues/239)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: High (7 phases, 7 pull requests of about 13, 12, 8, 9, 8, 3 and 8 files)
+> **Complexity**: High (7 phases, 7 pull requests of about 14, 15, 14, 11, 9, 3 and 7 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 2,000 lines of tests
 > **Family**: transport-new-1 (#237, #238, #239, #240, #241). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -123,10 +123,10 @@ Under either option a failure is never reported as success (AGENTS.md section 3)
 
 ### Rationale
 
-The issue lists dead-letter topics under Features and Tasks but not in its acceptance criteria; AGENTS.md section 5 requires every transport to support error handling and DLQ, so the omission is not a choice. The topic name follows Pulsar's own default so existing tooling finds it, under client option A or B alike.
+The issue lists dead-letter topics under Features and Tasks but not in its acceptance criteria; AGENTS.md section 5 requires every transport to support error handling and DLQ, so the omission is not a choice: option B is excluded. What the citation settles is that a dead-letter path exists; the topic name `<topic>-<subscription>-DLQ` is Pulsar's own default (so existing tooling finds it) and the threshold `MaxRedeliveries` is an option, and both hold under client option A (the client's `DeadLetterPolicy` acts on the redelivery count) and under client option B of D2 (Encina counts `RedeliveryCount` and publishes to the same topic itself).
 
 **Class:** Settled
-**Settled by:** AGENTS.md section 5 (every transport MUST support error handling and DLQ)
+**Settled by:** AGENTS.md section 5 (every transport MUST support error handling and DLQ; a transport without dead lettering is excluded)
 
 </details>
 
@@ -242,9 +242,9 @@ A wins because one design for all transports needs the persisted context of #116
 <summary>Tasks</summary>
 
 1. `src/Encina.Pulsar/Encina.Pulsar.csproj` (`Pulsar.Client`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, reference to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entry for `Pulsar.Client` 3.21.0.
-2. `EncinaPulsarOptions`: `ServiceUrl` (default `pulsar://localhost:6650`, validated with `EndpointValidator` for schemes `pulsar`, `pulsar+ssl`, `http`, `https`; `AllowLocalEndpoints` as in NATS), `PulsarTenant`, `PulsarNamespace`, `TopicPrefix`, `SubscriptionName`, `PulsarSubscriptionType`, `MaxRedeliveries`, `EnableBatching`, `CompressionType`, `SchemaMode`, `AuthToken` (`[JsonIgnore]`), `ToString()` override printing the namespace only, `ProviderHealthCheck`; internal validator (`ServiceUrl` endpoint rules, positive counts).
+2. `EncinaPulsarOptions`: `ServiceUrl` (default `pulsar://localhost:6650`, validated with `EndpointValidator` for schemes `pulsar`, `pulsar+ssl`, `http`, `https`; `AllowLocalEndpoints` as in NATS), `PulsarTenant`, `PulsarNamespace`, `TopicPrefix`, `SubscriptionName`, `PulsarSubscriptionType`, `MaxRedeliveries`, `EnableBatching`, `AuthToken` (`[JsonIgnore]`), `ToString()` override printing the namespace only, `ProviderHealthCheck`; internal validator (`ServiceUrl` endpoint rules, positive counts, and a rejection of a `ServiceUrl` that carries user info, which `EndpointValidator` does not check today). `PulsarSubscriptionType` is added here; `SchemaMode` and `PulsarCompressionType` come with the consumers in pull request 3, so this pull request has no type its options do not use.
 3. `AddEncinaPulsar(this IServiceCollection, Action<EncinaPulsarOptions>? configure = null)`: eager validation like `AddEncinaNATS` plus `ValidateOnStart`; registers the client factory with `TryAddSingleton`.
-4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `PulsarGuardTests`; manifest; `UnitTests.csproj` and `GuardTests.csproj` references.
+4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `PulsarGuardTests`; manifest with the package-level `targets` for unit and guard and the per-file targets and one-sentence justifications of the files added (the table of Phase 7, rows of pull request 1; `coverage-report.cs --check-justifications` in `ci.yml` fails a manifest without them); `UnitTests.csproj` and `GuardTests.csproj` references. This pull request has 14 files: csproj, options, `PulsarSubscriptionType`, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard test.
 
 </details>
 
@@ -265,10 +265,11 @@ REFERENCE FILES: src/Encina.NATS/EncinaNATSOptions.cs, src/Encina.NATS/EncinaNAT
 <details>
 <summary>Tasks</summary>
 
-1. `IPulsarMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, string? key = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `PulsarMessagePublisher` with a cached producer per topic and message type; the message id travels as the `message-id` property (a new one only when null or empty) and `deliverAt` is the delayed delivery of D7.
-2. Errors (ADR-062): `PULSAR_PUBLISH_FAILED` `Internal` (R4), `PULSAR_TOPIC_REQUIRED` `InvalidRequest` (R3), `PULSAR_DELAY_UNSUPPORTED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
+1. `IPulsarMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, string? key = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `PulsarMessagePublisher` (scoped) that takes a singleton `PulsarProducerRegistry` owning one producer per topic and message type (created lazily, disposed by the container with the client), because a cache inside a scoped publisher would never reuse producers and would leak them; the message id travels as the `message-id` property (a new one only when null or empty) and `deliverAt` is the delayed delivery of D7.
+2. Errors (ADR-062), in a new `PulsarErrorCodes.cs`: `PULSAR_PUBLISH_FAILED` `Internal` (R4), `PULSAR_TOPIC_REQUIRED` `InvalidRequest` (R3), `PULSAR_DELAY_UNSUPPORTED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
 3. `Log.cs` 1060-1062; `EventIdRanges.Pulsar = (1060, 1069)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| Pulsar | 1060-1069 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1060-1069` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
-4. Tests: `PulsarMessagePublisherTests`, `PulsarMessageIdTests`, guard edit, manifest edit.
+4. DI: `AddEncinaPulsar` gains `TryAddSingleton<PulsarProducerRegistry>` and `TryAddScoped<IPulsarMessagePublisher, PulsarMessagePublisher>` here (registration completeness, AGENTS.md section 3), with the resolution test under `ValidateOnBuild` and `ValidateScopes` in `ServiceCollectionExtensionsTests`.
+5. Tests: `PulsarMessagePublisherTests`, `PulsarMessageIdTests`, `PulsarProducerRegistryTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 15 files: interface, publisher, producer registry, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -290,9 +291,10 @@ REFERENCE FILES: src/Encina.NATS/NATSMessagePublisher.cs, src/Encina.Kafka/Kafka
 <summary>Tasks</summary>
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? topic = null, CancellationToken cancellationToken = default)`: one consumer per subscription with the configured subscription type, a dead-letter policy (`MaxRedeliveries`, dead-letter topic of D5) and a receive loop that catches per iteration; success acknowledges, failure negatively acknowledges; the loop never lets an exception escape and cancellation ends it.
-2. Codes: `PULSAR_SUBSCRIBE_FAILED` `Internal` (R4), `PULSAR_DESERIALIZE_FAILED` `Internal` (R4; the entry is dead lettered at once, reason carries the code only).
-3. `Log.cs` 1063-1067 (subscription started, handler failed, redelivery requested, dead lettered, loop iteration failed).
-4. Tests: `PulsarConsumerLoopTests`, `PulsarDeadLetterTests`, `PulsarSubscriptionTypeTests`, guard edit, manifest edit.
+2. Codes, added to `PulsarErrorCodes.cs`: `PULSAR_SUBSCRIBE_FAILED` `Internal` (R4), `PULSAR_DESERIALIZE_FAILED` `Internal` (R4). A message that cannot be deserialized is negatively acknowledged and goes to the dead-letter topic when the client's dead-letter policy fires after `MaxRedeliveries` (not at once: the policy acts on the redelivery count, and a hand-written immediate dead letter would be extra publish-and-acknowledge code); under D2 option B the same rule is Encina code.
+3. `SchemaMode` (`None`, `Json`, D6) and `PulsarCompressionType` (Encina enums, D4's rule) with their options and validator rules land here with the consumers, because the schema applies to producers and consumers alike; the publisher edit applies them to cached producers.
+4. `Log.cs` 1063-1067 (subscription started, handler failed, redelivery requested, dead lettered, loop iteration failed).
+5. Tests: `PulsarConsumerLoopTests`, `PulsarDeadLetterTests`, `PulsarSubscriptionTypeTests`, `PulsarSchemaAndCompressionTests`, guard edit, manifest edit with the targets and justifications of the files changed. This pull request has 14 files: publisher interface edit, publisher edit, `SchemaMode`, `PulsarCompressionType`, options edit, validator edit, `Log` edit, error codes edit, 4 unit tests, guard edit, manifest.
 
 </details>
 
@@ -315,7 +317,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 
 1. `Health/PulsarHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-pulsar"`, tags `encina`, `messaging`, `pulsar`, `ready`; checks the client connection state within `ProviderHealthCheck.Timeout`; text names the exception type only), registered when enabled.
 2. `Diagnostics/PulsarActivitySource` and `PulsarMetrics`: spans publish, consume, acknowledge, dead-letter, consumer-to-producer link through message properties; counters `pulsar.published`, `.consumed`, `.dead_lettered` with tags `topic`, `outcome`; `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `PulsarHealthCheckTests`, `PulsarDiagnosticsTests`; DI edit; manifest edit.
+3. The publisher (pull requests 2 and 3) is the emitter, so its file is edited here to start and stop the spans and increment the counters. Tests: `PulsarHealthCheckTests`, `PulsarDiagnosticsTests`, an edit of `PulsarMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -358,8 +360,8 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 5: `Directory.Packages.props` entry `Testcontainers.Pulsar` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/PulsarFixture.cs` (image pinned to the Pulsar 4.0 LTS line of the Apache release policy, one container for the collection), `PulsarCollection.cs`, `tests/Encina.IntegrationTests/MessageBrokers/Pulsar/PulsarIntegrationTests.cs` and `PulsarDeadLetterIntegrationTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","Pulsar")]`): publish and subscribe, Shared and Key_Shared, dead letter after `MaxRedeliveries`, delayed delivery, schema `Json`; csproj references.
-2. Pull request 6 (the integration pull request 5 holds 8 files: package entry, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, two integration classes, manifest): `tests/Encina.ContractTests/MessageBrokers/Pulsar/PulsarConformanceTests.cs` subclassing the shared conformance base (owned by #240), `ContractTests.csproj` reference, manifest edit; it lands after #240's contract pull request.
+1. Pull request 5: `Directory.Packages.props` entry `Testcontainers.Pulsar` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/PulsarFixture.cs` (image pinned to the Pulsar 4.0 LTS line of the Apache release policy, one container for the collection), `PulsarCollection.cs`, `tests/Encina.IntegrationTests/MessageBrokers/Pulsar/PulsarIntegrationTests.cs`, `PulsarDeadLetterIntegrationTests.cs` and `PulsarHealthCheckIntegrationTests.cs` (one healthy check; `[Trait("Category","Integration")]`, `[Trait("Transport","Pulsar")]`): publish and subscribe, Shared and Key_Shared, dead letter after `MaxRedeliveries`, delayed delivery, schema `Json`; csproj references; the manifest edit enters the integration targets and justifications of the publisher, the producer registry and the health check. Pull request 5 has 9 files: package entry, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, three integration classes, manifest.
+2. Pull request 6 (3 files): `tests/Encina.ContractTests/MessageBrokers/Pulsar/PulsarConformanceTests.cs` subclassing the shared conformance base (owned by #240), `ContractTests.csproj` reference, manifest edit; it lands after #240's contract pull request.
 
 </details>
 
@@ -380,24 +382,22 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/NatsFixture.cs, tests/
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.Pulsar.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
+Per-flag targets are entered in `.github/coverage-manifest/Encina.Pulsar.json` in the pull request that adds the tests of each flag, each with its one-sentence justification and with the package-level `targets` of that flag in the same pull request (`coverage-report.cs --check-justifications`, run by `ci.yml`, fails a manifest without them). The numbers are planned ceilings; each pull request replaces one with the measured value floored to a multiple of 5 when that is lower (never lowering a target already entered).
 
-| File | unit | guard | contract | property | integration |
-|------|:---:|:---:|:---:|:---:|:---:|
-| `PulsarMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 |
-| `EncinaPulsarOptions.cs`, `...OptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 |
-| `ServiceCollectionExtensions.cs` | 85 | 55 | 0 | 0 | 0 |
-| `Health/PulsarHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 |
-| `Diagnostics/*.cs` | 90 | 0 | 0 | 0 | 0 |
-| `IPulsarMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 |
-
-| File and flag | Justification |
-|---------------|---------------|
-| Publisher unit 85, integration 65 | Unit tests substitute the client interfaces for each branch; the integration class runs real publish, subscribe, dead letter and delay on a container, leaving connection-failure branches. |
-| Publisher guard 20, contract 50 | Guard tests reach only argument checks; the conformance base runs the common scenarios, not delay or schema. |
-| Options and validator unit 100 | Pure data and validation. |
-| Health check integration 50 | One real connection check; the failing branch needs a broken broker. |
-| Interface and `Log.cs` 0 | No executable lines or generated delegates. |
+| Pull request | File | unit | guard | contract | property | integration | Justification |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | `EncinaPulsarOptions.cs`, `EncinaPulsarOptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider for each option combination; guard tests reach only the null check of `services`. |
+| 1 | `PulsarSubscriptionType.cs` | 0 | 0 | 0 | 0 | 0 | An enum has no executable lines. |
+| 2 | `PulsarMessagePublisher.cs` | 85 | 20 | 0 | 0 | 0 | Unit tests substitute the client interfaces for each publish branch; guard tests reach only argument checks. |
+| 2 | `PulsarProducerRegistry.cs` | 85 | 0 | 0 | 0 | 0 | The registry is exercised through substituted producer factories; it has no public argument surface beyond the publisher. |
+| 2 | `PulsarErrorCodes.cs`, `IPulsarMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants, an interface and generated delegates have no executable lines. |
+| 3 | `PulsarMessagePublisher.cs` (consume part), `SchemaMode.cs`, `PulsarCompressionType.cs` | 85 | 20 | 0 | 0 | 0 | The receive loop, negative acknowledgement and dead-letter policy are unit tested over substituted consumers; the enums have no executable lines. |
+| 4 | `Health/PulsarHealthCheck.cs` | 90 | 40 | 0 | 0 | 0 | A substituted client reaches the healthy and unhealthy branches; guard tests reach the constructor checks. |
+| 4 | `Diagnostics/*.cs` | 80 | 0 | 0 | 0 | 0 | Counters and spans are exercised through publisher and consumer unit tests; the static initializers are the remainder. |
+| 5 | `PulsarMessagePublisher.cs`, `PulsarProducerRegistry.cs` | 85 | 20 | 0 | 0 | 65 | Integration tests run real publish, subscribe, dead letter, delay and schema on a container, leaving connection-failure branches. |
+| 5 | `Health/PulsarHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 | One real connection check; the failing branch needs a broken broker. |
+| 6 | `PulsarMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 | The conformance base runs the common publish and subscribe scenarios, not delay or schema. |
 
 1. `src/Encina.Pulsar/README.md`, `docs/features/pulsar.md`, the Pulsar section of `docs/messaging/transports.md` and `docs/INVENTORY.md` through `docs-writer`; changelog fragment `changelog.d/239-pulsar.added.md` through `mechanical-fixer`. Transport packages carry no `PublicAPI.*.txt` today (none in NATS, Kafka, Redis.PubSub), so none is added.
 2. Load and benchmark justification files under `tests/Encina.LoadTests/Messaging/Pulsar/` and `tests/Encina.BenchmarkTests/Messaging/Pulsar/` (throughput belongs to the broker).
@@ -410,7 +410,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.Pulsar.json` in t
 
 ```text
 CONTEXT: The package is implemented and tested; documentation remains.
-TASK: Enter the manifest targets with one-sentence justifications, write the two justification files, hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
+TASK: Write the two justification files (the manifest targets and their justifications were entered in pull requests 1 to 6), hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
 KEY RULES: Targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.NATS.json, changelog.d/README.md.
 ```
@@ -455,13 +455,13 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Tests | 18 | options, validator, DI, publisher, message id, consumer loop, dead letter, subscription type, health, diagnostics, guard, fixture, collection, 2 integration, conformance subclass, manifest |
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props` (twice), 4 test `.csproj`, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files |
-| **Pull request 1** | **13** | csproj, options, enum, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard; about 600 lines |
-| **Pull request 2** | **12** | interface, publisher, `Log`, `EventIdRanges.cs`, allocation test, registry row, 2 unit tests, guard edit, manifest edit, options edit, DI edit; about 650 lines |
-| **Pull request 3** | **8** | interface edit, publisher edit, `Log` edit, 3 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, manifest edit; about 500 lines |
-| **Pull request 5** | **8** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 2 integration classes, manifest; about 650 lines |
+| **Pull request 1** | **14** | csproj, options, enum, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard; about 600 lines |
+| **Pull request 2** | **15** | interface, publisher, producer registry, `PulsarErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (registry and scoped publisher), DI test edit, 3 unit tests, guard edit, manifest edit; about 850 lines |
+| **Pull request 3** | **14** | interface edit, publisher edit, `SchemaMode`, `PulsarCompressionType`, options edit, validator edit, `Log` edit, error codes edit, 4 unit tests, guard edit, manifest; about 900 lines |
+| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest; about 600 lines |
+| **Pull request 5** | **9** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 3 integration classes, manifest; about 700 lines |
 | **Pull request 6** | **3** | conformance subclass, `ContractTests.csproj`, manifest; about 120 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 `IPulsarMessagePublisher` is new, so there are no implementers or `new X(` sites to update. Pull requests 1 to 5 and 7 build alone in order (each needs the previous one); pull request 6 needs the conformance base of #240.
 
@@ -475,7 +475,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.Pulsar adds an Apache Pulsar transport.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, DI, client package entry; PR2 publish with message id, key, delay and the EventId block 1060-1069; PR3 subscriptions, negative acknowledgement and dead-letter topic; PR4 health check and telemetry; PR5 Pulsar fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D6, D7, D8 and D9 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, DI, client package entry; PR2 publish with message id, key, delay and the EventId block 1060-1069; PR3 subscriptions, negative acknowledgement and dead-letter topic; PR4 health check and telemetry; PR5 Pulsar fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D6, D7, D8, D9 and D10 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; background loop catches per iteration; named ADR-062 category on every error; constant error messages; ids and payloads never logged; secrets [JsonIgnore] with ToString override; TimeProvider; targets never go down; CRAP <= 10.
 
