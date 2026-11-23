@@ -11,9 +11,9 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `237a83364`)
+### What exists today (read on 2026-11-23, main `682b1d70b`)
 
-- There is no Jaeger code. `Encina.OpenTelemetry` references `OpenTelemetry.Exporter.OpenTelemetryProtocol` as `PrivateAssets="all"` (`src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj:24`, the version `1.17.0` is pinned in `Directory.Packages.props`) and calls it nowhere; `WithEncina()` only subscribes sources and meters and sets the resource name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217`).
+- There is no Jaeger code. `Encina.OpenTelemetry` references `OpenTelemetry.Exporter.OpenTelemetryProtocol` as `PrivateAssets="all"` (`src/Encina.OpenTelemetry/Encina.OpenTelemetry.csproj:24`, the version `1.17.0` is pinned in `Directory.Packages.props`) and calls it nowhere; `WithEncina()` only subscribes sources and meters and sets the resource name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:166-217`).
 - Jaeger receives OTLP natively. The repository's own stack proves it: `.github/observability/docker-compose.observability.yml` runs `jaegertracing/all-in-one:1.57` with OTLP gRPC and HTTP mapped to host ports 4320 and 4321, and `otel-collector-config.yaml` exports traces to it with `otlp/jaeger`. The issue's own Alternative 1 says the legacy Jaeger client is deprecated in favor of OTLP, so the exporter is the OTLP one and no Jaeger-specific SDK package exists to add.
 - The plan of #1043 (open issue, plan on `main`) adds `EncinaOpenTelemetryOptions.EnableOtlpExporter` and `ConfigureOtlpExporter`, which wire one OTLP configuration to traces, metrics and logs and drop `PrivateAssets="all"`. A Jaeger instance is a trace backend (in the repository's stack metrics go to Prometheus and logs to Loki through the Collector), so `EnableOtlpExporter` aimed straight at Jaeger sends metrics and logs to a backend that stores neither, and a host without a Collector needs a traces-only exporter.
 - Sampling is owned elsewhere: the plan of #183 adds `EncinaOpenTelemetryOptions.Sampling` and an `EncinaSampler`; the issue's `JaegerOptions.SamplingRate` would be a second owner of `SetSampler`, where the last call wins silently.
@@ -112,8 +112,8 @@ The issue (2026-era text, `status:proposal`) proposes a package `Encina.OpenTele
 ### Rationale
 
 - The OTLP exporter appends `/v1/traces` only when the endpoint comes from the environment variable; an endpoint assigned in code is used as given, so the full path is needed for HTTP. Both protocols are exercised against the real container in Phase 2 (ports 4317 and 4318 of the all-in-one image).
-- Class: Settled
-- Settled by: the OpenTelemetry OTLP exporter specification for `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (the signal path is appended only to the general variable); the default OTLP ports 4317 (gRPC) and 4318 (HTTP) of the specification and of the Jaeger all-in-one image
+- Class: Trivial (a default value, proven by a test rather than by a rule)
+- Proof: the Phase 2 integration test posts spans over HTTP/protobuf to the real all-in-one container using the default endpoint; with option B the trace never arrives. The ports 4317 (gRPC) and 4318 (HTTP) are the OTLP defaults the compose stack already uses (`.github/observability/docker-compose.observability.yml`)
 
 </details>
 
@@ -122,9 +122,9 @@ The issue (2026-era text, `status:proposal`) proposes a package `Encina.OpenTele
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
 | C1 | `JaegerOptions`: `Endpoint` (`Uri?`, null = protocol default), `Protocol` (`OtlpExportProtocol`, default `Grpc`), `DeploymentEnvironment` (`string?`), `ServiceName` (`string?`) and `ConfigureExporter` (`Action<OtlpExporterOptions>?`, the escape hatch for headers and timeouts) | Trivial | The issue's options minus `SamplingRate`; headers go through the callback or `OTEL_EXPORTER_OTLP_HEADERS`, so no secret lives in the options class and no `[JsonIgnore]` or `ToString()` override is required |
-| C2 | Enabling both `EnableOtlpExporter` (#1043) and `AddEncinaJaeger` exports traces twice, to two endpoints that may be the same Jaeger; it is documented, and not detected, because `WithEncina(builder, options)` receives its options object directly and not through DI (`ServiceCollectionExtensions.cs:158`) | Trivial | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158` |
+| C2 | Enabling both `EnableOtlpExporter` (#1043) and `AddEncinaJaeger` exports traces twice, to two endpoints that may be the same Jaeger; it is documented, and not detected, because `WithEncina(builder, options)` receives its options object directly and not through DI (`ServiceCollectionExtensions.cs:166`) | Trivial | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:166` |
 | C3 | `DeploymentEnvironment` sets the resource attribute `deployment.environment.name`, an `internal const` of the options file (a resource attribute, not a messaging or database key of the constants class of ADR-054 D3) | Trivial | ADR-054 D3 (latest semantic conventions) |
-| C4 | `ServiceName` is applied with `ConfigureResource(r => r.AddService(name))` only when set; null leaves the name chosen by `WithEncina()` or the host | Settled | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217` (`WithEncina` sets the resource name; a later default would override it) |
+| C4 | `ServiceName` is applied with `ConfigureResource(r => r.AddService(name))` only when set; null leaves the name chosen by `WithEncina()` or the host | Settled | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:166-217` (`WithEncina` sets the resource name; a later default would override it) |
 | C5 | Validation at startup (`ValidateOnStart`): an `Endpoint` with a scheme other than `http` or `https`, a relative `Endpoint`, an `Endpoint` that carries user info (a credential in a URI would reach `ToString()` and diagnostics; credentials go through `ConfigureExporter` headers or `OTEL_EXPORTER_OTLP_HEADERS`), an undefined `Protocol`, a blank `ServiceName` or `DeploymentEnvironment`; messages name the option, never a value | Trivial | `AGENTS.md` section 3 (options never print credentials; messages and values do not reach logs) |
 | C6 | No new `EncinaError` code and no ADR-062 `ErrorCategory`: a bad option is an `OptionsValidationException` at startup | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C7 | The helper emits no span or metric, so no tenant tag (ADR-054 D4) and no tenant-qualified id (the reserved `default` tenant segment does not apply); no log message and no EventId (matrix row 3) | Settled | ADR-054 D4; `AGENTS.md` section 6 row 10 |
@@ -144,7 +144,7 @@ The issue (2026-era text, `status:proposal`) proposes a package `Encina.OpenTele
 
 1. **Create** `src/Encina.OpenTelemetry/Jaeger/JaegerOptions.cs`: `public sealed class JaegerOptions` with the five properties of register row C1, XML docs with an `<example>`, and an `internal static class JaegerDefaults` holding `GrpcEndpoint` (`http://localhost:4317`), `HttpEndpoint` (`http://localhost:4318/v1/traces`) and the exporter name `EncinaJaeger`.
 2. **Create** `src/Encina.OpenTelemetry/Jaeger/JaegerOptionsValidator.cs`: `internal sealed class : IValidateOptions<JaegerOptions>` with the rules of register row C5.
-3. **Create** `src/Encina.OpenTelemetry/Jaeger/JaegerServiceCollectionExtensions.cs`: `public static IServiceCollection AddEncinaJaeger(this IServiceCollection services, Action<JaegerOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; options with `ValidateOnStart`; `services.AddOpenTelemetry().WithTracing(t => t.AddOtlpExporter(JaegerDefaults.ExporterName, otlp => ...))` where the callback reads the validated `JaegerOptions` from DI through `services.ConfigureOpenTelemetryTracerProvider((sp, builder) => ...)`, sets `otlp.Endpoint`, `otlp.Protocol`, then invokes `ConfigureExporter`; `services.ConfigureOpenTelemetryTracerProvider` also adds `ConfigureResource` for the environment and, when set, the service name. It registers no hosted service and no singleton that holds a scoped service.
+3. **Create** `src/Encina.OpenTelemetry/Jaeger/JaegerServiceCollectionExtensions.cs`: `public static IServiceCollection AddEncinaJaeger(this IServiceCollection services, Action<JaegerOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; options with `ValidateOnStart`; `services.ConfigureOpenTelemetryTracerProvider((sp, builder) => builder.AddOtlpExporter(JaegerDefaults.ExporterName, otlp => ...))`: the `(sp, builder)` overload is the only form with a service provider (the `WithTracing(t => ...)` callback has none), so it reads the validated `JaegerOptions` from `sp`, sets `otlp.Endpoint`, `otlp.Protocol`, then invokes `ConfigureExporter`; the same registration also adds `ConfigureResource` for the environment and, when set, the service name. It registers no hosted service and no singleton that holds a scoped service.
 4. **Edit** `src/Encina.OpenTelemetry/PublicAPI/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.OpenTelemetry.json` through `mechanical-fixer` (the lines come from the Research table).
 5. **Create** `tests/Encina.UnitTests/OpenTelemetry/Jaeger/JaegerOptionsTests.cs`: defaults; one test per validator rule; the default endpoint per protocol (gRPC and HTTP) resolved by the registration.
 6. **Create** `tests/Encina.UnitTests/OpenTelemetry/Jaeger/JaegerRegistrationTests.cs`: a provider built with `ValidateOnBuild` and `ValidateScopes` resolves the `TracerProvider`; the named exporter options carry the configured endpoint and protocol while the unnamed `OtlpExporterOptions` stay at their defaults (both `AddEncinaJaeger` and `EnableOtlpExporter` of #1043 on one builder do not alias); `ConfigureExporter` runs after the defaults; the resource carries `deployment.environment.name` when set and the host's `service.name` when `ServiceName` is null.
@@ -164,7 +164,8 @@ Prerequisite: issue #1043 merged (it makes OpenTelemetry.Exporter.OpenTelemetryP
 
 TASK:
 1. Create JaegerOptions, JaegerOptionsValidator and AddEncinaJaeger under src/Encina.OpenTelemetry/Jaeger/.
-2. Register the exporter with the NAMED overload AddOtlpExporter("EncinaJaeger", ...) on WithTracing only; the default endpoint depends on
+2. Register the exporter with the NAMED overload, only through ConfigureOpenTelemetryTracerProvider((sp, builder) =>
+   builder.AddOtlpExporter("EncinaJaeger", ...)) (the form that has a service provider), traces only; the default endpoint depends on
    the protocol (gRPC http://localhost:4317, HTTP/protobuf http://localhost:4318/v1/traces).
 3. No SamplingRate, no default ServiceName; apply ServiceName and the environment attribute only when set.
 4. Add the unit and guard tests listed; PublicAPI, the manifest and the changelog fragment go through mechanical-fixer.
@@ -191,7 +192,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `tests/Encina.TestInfrastructure/Fixtures/JaegerFixture.cs`: `JaegerFixture : IAsyncLifetime` built with the generic `ContainerBuilder` (the `Testcontainers` package is already referenced by `Encina.TestInfrastructure`) from the all-in-one image, exposing ports 4317, 4318 and 16686 and waiting on the UI port; and `JaegerCollection : ICollectionFixture<JaegerFixture>` named `Jaeger`, following `NatsFixture.cs`.
+1. **Create** `tests/Encina.TestInfrastructure/Fixtures/JaegerFixture.cs`: `JaegerFixture : IAsyncLifetime` built with the generic `ContainerBuilder` (the `Testcontainers` package is already referenced by `Encina.TestInfrastructure`) from the all-in-one image, exposing ports 4317, 4318 and 16686 and waiting on the UI port; only the fixture class lives in `Encina.TestInfrastructure`, following `NatsFixture.cs`. xUnit collection definitions are per assembly (`AzuriteFixture.cs:25`, `LocalStackFixture.cs:22`; `NATSJetStreamDeduplicationIntegrationTests.cs:13-15` redeclares the collection over `NatsFixture`), so the `[CollectionDefinition("Jaeger")] JaegerCollection : ICollectionFixture<JaegerFixture>` class goes inside the integration test file of task 2, in `Encina.IntegrationTests` (no extra file).
 2. **Create** `tests/Encina.IntegrationTests/Observability/OpenTelemetry/JaegerExporterIntegrationTests.cs` (`[Collection("Jaeger")]`, `[Trait("Category", "Integration")]`, `[Trait("Component", "OpenTelemetry")]`): for each protocol a host with `AddEncinaJaeger` pointing at the mapped port emits a span from an `ActivitySource`, flushes the provider and polls the Jaeger query API (`/api/traces?service=<name>`) until the trace appears (bounded by a deadline, no `Thread.Sleep`); an unreachable endpoint starts, emits and shuts down without throwing.
 3. **Edit** `src/Encina.OpenTelemetry/README.md` (through `docs-writer`): the Jaeger helper, its defaults per protocol, the rule not to combine it with `EnableOtlpExporter` for traces and the pointer to #183 for sampling.
 
@@ -206,7 +207,8 @@ Issue #613 plan docs/plans/jaeger-exporter-implementation-plan-613.md, phase 2. 
 Jaeger test fixture; fixtures live in tests/Encina.TestInfrastructure/Fixtures (see NatsFixture.cs).
 
 TASK:
-1. Add JaegerFixture and JaegerCollection (generic Testcontainers ContainerBuilder, one image constant).
+1. Add JaegerFixture in Encina.TestInfrastructure (generic Testcontainers ContainerBuilder, one image constant); the [CollectionDefinition]
+   JaegerCollection goes in the Encina.IntegrationTests test file, because xUnit collection definitions are per assembly.
 2. Add the integration tests for gRPC and HTTP/protobuf and for an unreachable endpoint.
 3. README section through docs-writer.
 
@@ -268,11 +270,11 @@ The columns sum to the total (3 + 1 + 4 + 1 + 1 + 2 = 12). The pull request of t
 
 Per-file coverage targets (per flag, one sentence each), written to `.github/coverage-manifest/Encina.OpenTelemetry.json`; the changed methods reach full line coverage (CRAP gate):
 
-| File | Unit | Guard | Contract | Property | Justification |
-|------|------|-------|----------|----------|---------------|
-| `Jaeger/JaegerOptions.cs` | 90 | 0 | 0 | 0 | Defaults and the defaults-per-protocol constants are read by the registration tests; the class has no parameters to guard and no invariant worth a property |
-| `Jaeger/JaegerOptionsValidator.cs` | 95 | 70 | 0 | 0 | One test per rule drives every branch; guard covers the null options argument |
-| `Jaeger/JaegerServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | The registration test builds a real provider and reads the named exporter options; guard covers the null services and the null configure; the real-container path counts for the integration flag (target 70) |
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|------|-------|----------|----------|-------------|---------------|
+| `Jaeger/JaegerOptions.cs` | 90 | 0 | 0 | 0 | 0 | Defaults and the defaults-per-protocol constants are read by the registration tests; the class has no parameters to guard and no invariant worth a property |
+| `Jaeger/JaegerOptionsValidator.cs` | 95 | 70 | 0 | 0 | 0 | One test per rule drives every branch; guard covers the null options argument |
+| `Jaeger/JaegerServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | 70 | The registration test builds a real provider and reads the named exporter options; guard covers the null services and the null configure; the real-container path (both protocols against the Jaeger all-in-one image) is what the integration target of 70 measures |
 
 ---
 
