@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (0336d31c7):
+Issue #274 asks for an `ICacheSerializer` abstraction with per-type registration (`options.AddSerializer<T>(...)`), a MemoryPack serializer in a new `Encina.Caching.MemoryPack` package, extra compression algorithms (Zstd, Brotli, Snappy beside LZ4), size-based "smart" compression and benchmarks. Re-checked against `origin/main` (9330b46cd):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -194,7 +194,7 @@ The plan adds, in `Encina.Caching`: `ICacheSerializer`, `ICacheCompressor`, an i
 
 ## Implementation Phases
 
-### Phase 1: Contracts, the codec, STJ and Brotli (pull request 1)
+### Phase 1: Contracts, the codec and STJ (pull request 1; Brotli is in pull request 2)
 
 <details>
 <summary><strong>Tasks</strong></summary>
@@ -215,7 +215,7 @@ PR 1 holds exactly these 15 files:
 | 10 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
 | 11 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 12 | `tests/Encina.UnitTests/Caching/CacheValueCodecTests.cs` | new (codec and options validation) |
-| 13 | `tests/Encina.GuardTests/Caching/CacheSerializationGuardTests.cs` | new |
+| 13 | `tests/Encina.GuardTests/Infrastructure/Caching/CacheSerializationGuardTests.cs` | new (the folder where the package's other core guard tests live on main; PR 2 modifies this same path) |
 | 14 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 | 15 | `changelog.d/274-cache-serialization-core.added.md` | new (`mechanical-fixer`) |
 
@@ -223,12 +223,12 @@ Nothing is registered or read by a provider in this PR: the codec is internal an
 
 Tasks:
 
-1. **Create** `ICacheSerializer` (Design Choice 1), `ICacheCompressor` (`byte Id`, `string Name`, `int Compress(ReadOnlySpan<byte>, int level, IBufferWriter<byte>)`, `bool TryDecompress(ReadOnlySpan<byte>, int maxBytes, IBufferWriter<byte>)`), `SystemTextJsonCacheSerializer` (camelCase, not indented, like `RedisCacheProvider` today; an optional `JsonSerializerOptions` for source-generated contexts) and `BrotliCacheCompressor`.
+1. **Create** `ICacheSerializer` (Design Choice 1), `ICacheCompressor` (`byte Id`, `string Name`, `int Compress(ReadOnlySpan<byte>, int level, IBufferWriter<byte>)`, `bool TryDecompress(ReadOnlySpan<byte>, int maxBytes, IBufferWriter<byte>)`), `SystemTextJsonCacheSerializer` (camelCase, not indented, like `RedisCacheProvider` today; an optional `JsonSerializerOptions` for source-generated contexts); `BrotliCacheCompressor` is PR 2's, so this PR's codec tests use a fake `ICacheCompressor`.
 2. **Create** `CacheValueCodec` (internal): `Either<EncinaError, byte[]> Encode<T>(T value)` and `Either<EncinaError, T> Decode<T>(ReadOnlySpan<byte> data)` per Designs 3, 5, 6 and 7; the header is two bytes (format version `1`, compression id); tiers choose the algorithm by payload size; a compressed payload larger than the raw one is stored raw (EventId 513); the resolver keeps an instance-level `ConcurrentDictionary<Type, ICacheSerializer>`.
 3. **Create** `CacheSerializationOptions`: `DefaultSerializer` (STJ), `AddSerializer<T>(ICacheSerializer)` (null guard), `Compression` (tiers, `MaxDecompressedBytes`) and a `Validate()` method per Design Choice 6 (startup validation, throws `InvalidOperationException` naming the rule, never a value).
 4. **Create** `CacheSerializationLog` with EventIds 508 serialization failed, 509 deserialization failed, 510 decompression limit exceeded, 511 unknown format header, 512 serializer does not support the type (fell back to the default, logged once per type), 513 compressed payload not smaller (stored raw): by exception type or code only.
 5. **Register** the range in `EventIdRanges.cs` and the assembly map (`Encina.Caching` maps to `Caching` and `CachingSerialization`; if #272 merged first the map already holds `CachingStrategies`).
-6. **Tests (unit):** round trips for STJ with and without Brotli, each tier boundary, the unknown header, a truncated payload, a bomb over `MaxDecompressedBytes`, a `CacheEntry<T>`-shaped envelope with a per-type serializer, `SupportsType` fallback, the options validation, the log does not contain the payload. Guard tests (`CacheSerializationGuardTests.cs`, same PR): `SystemTextJsonCacheSerializer`, `BrotliCacheCompressor` and `CacheSerializationOptions.AddSerializer` are public with validated parameters (null serializer, null buffer writer); a nullable `JsonSerializerOptions` parameter that accepts null gets a valid-result test, not an exception test.
+6. **Tests (unit):** round trips for STJ with and without a fake compressor (the real Brotli round trips are PR 2's), each tier boundary, the unknown header, a truncated payload, a bomb over `MaxDecompressedBytes`, a `CacheEntry<T>`-shaped envelope with a per-type serializer, `SupportsType` fallback, the options validation, the log does not contain the payload. Guard tests (`CacheSerializationGuardTests.cs`, same PR): `SystemTextJsonCacheSerializer` and `CacheSerializationOptions.AddSerializer` are public with validated parameters (null serializer); the `BrotliCacheCompressor` cases (null buffer writer) are added by PR 2; a nullable `JsonSerializerOptions` parameter that accepts null gets a valid-result test, not an exception test.
 
 </details>
 
@@ -274,7 +274,7 @@ PR 2 holds exactly these 10 files:
 |---|------|--------|
 | 1 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (remove `CacheSerializerOptions` and `CacheSerializerType`; add `Serialization` of type `CacheSerializationOptions`) |
 | 2 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (copy `Serialization`, validate it, register the codec as a singleton) |
-| 3 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: removed lines, RS0017, and the new property) |
+| 3 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: removed lines, RS0017, the new property, and the public `BrotliCacheCompressor` lines, RS0016) |
 | 4 | `tests/Encina.UnitTests/Caching/CachingOptionsTests.cs` | modify (the old options leave) |
 | 5 | `tests/Encina.UnitTests/Caching/ServiceCollectionExtensionsTests.cs` | modify (the option reaches `IOptions<CachingOptions>`; an invalid tier list fails host start in both registration orders; DI built with `ValidateOnBuild` and `ValidateScopes`) |
 | 6 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
@@ -612,7 +612,7 @@ caching providers that serialize (Redis family, Hybrid; Memcached via #277; Memo
 System.Text.Json and CachingOptions.SerializerOptions is dead.
 
 IMPLEMENTATION OVERVIEW:
-1. PR 1: ICacheSerializer, ICacheCompressor, CacheValueCodec, STJ, Brotli, CacheSerializationOptions, EventIds 508-513.
+1. PR 1: ICacheSerializer, ICacheCompressor, CacheValueCodec, STJ, CacheSerializationOptions, EventIds 508-513 (Brotli is PR 2's).
 2. PR 2: CachingOptions.Serialization replaces the dead options. PR 3: RedisCacheProvider uses the codec (Valkey, Dragonfly, Garnet, KeyDB follow).
 3. PR 4: Hybrid adapter. PR 5 and PR 6: Encina.Caching.Compression. PR 7: MessagePack. PR 8: MemoryPack. PR 9: benchmarks and docs.
 
@@ -656,6 +656,8 @@ REFERENCE FILES:
 ---
 
 ## Prerequisites & Dependencies
+
+Registry merge order: the five cache-patterns plans split the same `500-549 reserved-pre-zone` row of `docs/engineering/eventid-block-registry.md` and append rows to the same table; their ranges are contiguous (500-507 #272, 508-513 #274, 514-519 #275, 520-531 #278, 532-536 #276), so the first PR to land splits the reserved row and each later PR rebases and changes only its own row (`EventIdRegistryAgreementTests` catches a wrong result).
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
