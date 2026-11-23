@@ -2,7 +2,7 @@
 
 > **Issue**: [#722](https://github.com/dlrivada/Encina/issues/722)
 > **Type**: Feature (observability)
-> **Related**: #721 (owns `StoreTelemetry` and `DatabaseIdentity`, this plan uses them), ADR-054 (D3, D4, D6), #2676 (tenant tag helper), #1787, #906
+> **Related**: #721 (owns `StoreTelemetry` and `DatabaseIdentity`, this plan uses them), [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) (D3, D4, D6), #2676 (tenant tag helper), #1787, #906
 > **Complexity**: Low (no production mechanism of its own; proof, a coherence test and the package README)
 > **Estimated Scope**: ~0 lines of new production code + ~500 lines of tests, in one pull request of 6 files
 
@@ -57,7 +57,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) None: store-level telemetry only, no Dapper hook** | ADR-054 D6.2 and D6.3: no driver-level duplication and never `db.query.text`; Dapper adds no seam of its own (it extends `IDbConnection`) | The issue's "query execution" span is the store span |
+| **A) None: store-level telemetry only, no Dapper hook** | [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D6.2 and D6.3: no driver-level duplication and never `db.query.text`; Dapper adds no seam of its own (it extends `IDbConnection`) | The issue's "query execution" span is the store span |
 | **B) A wrapper `IDbConnection` or `DbCommand` per Dapper package** | Per-query spans | Duplicates driver instrumentation (D6.2), risks query text, 3 packages of new code and a connection decorator beside `SchemaValidatingConnection` |
 | **C) Bulk operations wired now** | Matches the issue | The wiring mechanism is #721's deferred Design Choice 5 |
 
@@ -65,7 +65,7 @@
 
 ### Rationale
 
-- A wins on ADR-054 D6; B wins only for an application that needs per-statement timing and accepts enabling a driver instrumentation package instead (the documentation says which one).
+- A wins on [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D6; B wins only for an application that needs per-statement timing and accepts enabling a driver instrumentation package instead (the documentation says which one).
 
 **Class:** Dilemma
 
@@ -88,7 +88,7 @@
 - The behavior is #721's by construction; the tests of this plan assert it for Dapper.
 
 **Class:** Trivial
-**Settled by:** ADR-054 settled points 2 and 7 and D4; `AGENTS.md` section 5 (provider coherence: providers differ only in implementation)
+**Settled by:** [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) settled points 2 and 7 and D4; `AGENTS.md` section 5 (provider coherence: providers differ only in implementation)
 
 </details>
 
@@ -118,8 +118,8 @@
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
 | C1 | No new `EncinaError` code, so no ADR-062 `ErrorCategory`; no logging, no EventId (no EventId range needed) | Settled | ADR-062; `AGENTS.md` section 7 |
-| C2 | No tenant-qualified id; with multi-tenancy off no tenant tag; the tenant tag is #721 S3 | Settled | ADR-054 D4 |
-| C3 | `error.type` is the code or the exception type, never the message | Settled | ADR-054 settled point 2 |
+| C2 | No tenant-qualified id; with multi-tenancy off no tenant tag; the tenant tag is #721 S3 | Settled | [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4 |
+| C3 | `error.type` is the code or the exception type, never the message | Settled | [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) settled point 2 |
 
 ---
 
@@ -148,7 +148,7 @@ DatabaseIdentity exist in src/Encina.OpenTelemetry/Telemetry; the message-store 
 and encina.store.operation.duration with db.system.name and encina.db.access.
 
 TASK:
-1. Write one integration test class per Dapper provider (SqlServer, PostgreSQL, MySQL) with the shared collection fixtures; also assert no tenant tag when multi-tenancy is off.
+1. Write one integration test class per Dapper provider (SqlServer, PostgreSQL, MySQL) with the shared collection fixtures; each builds a provider with the Dapper registration and then AddEncinaOpenTelemetry, adds and processes an outbox message, and asserts with an ActivityListener and a MeterListener the span tags db.system.name and encina.db.access = dapper, the counter encina.store.operations, the histogram encina.store.operation.duration, encina.outcome = error with the code when the store fails, and no tenant tag when multi-tenancy is off.
 2. Manifest and changelog through mechanical-fixer, README through docs-writer. No contract test here (it is #721 S2's).
 3. Run dotnet build --configuration Release (0 errors, 0 warnings) and dotnet test (all pass); report the measured per-flag coverage of StoreTelemetry.cs against its manifest targets.
 
@@ -172,7 +172,7 @@ REFERENCE FILES:
 
 | Source | Provision | Use in this feature |
 |--------|-----------|---------------------|
-| ADR-054 | D3, D4, D6.2, D6.3 | No driver-level instrumentation, no query text |
+| [ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) | D3, D4, D6.2, D6.3 | No driver-level instrumentation, no query text |
 | `AGENTS.md` section 5 and 9 | Provider coherence; real-database integration tests | Phase 1 |
 
 ### Existing Encina Infrastructure to Leverage
@@ -215,7 +215,7 @@ PROJECT CONTEXT:
 - Edit with Edit/Write only; manifests and changelog through mechanical-fixer; README through docs-writer.
 
 IMPLEMENTATION OVERVIEW:
-1. Three integration test classes for Dapper SqlServer, PostgreSQL, MySQL with shared collection fixtures.
+1. Three integration test classes for Dapper SqlServer, PostgreSQL, MySQL with shared collection fixtures; each builds a provider with the Dapper registration and then AddEncinaOpenTelemetry, adds and processes an outbox message, and asserts with an ActivityListener and a MeterListener the span tags db.system.name and encina.db.access = dapper, the counter encina.store.operations, the histogram encina.store.operation.duration, encina.outcome = error with the code when the store fails, and no tenant tag when multi-tenancy is off.
 2. No contract test: the ADO versus Dapper identity check is a case of #721 S2's contract test.
 
 KEY PATTERNS:
