@@ -169,7 +169,7 @@ public sealed class SagaRunner : ISagaRunner
     {
         // Step failed - start compensation
         var error = stepResult.Match(
-            Right: _ => EncinaErrors.Create(SagaErrorCodes.StepFailed, "Unexpected"),
+            Right: _ => EncinaErrors.Create(SagaErrorCodes.StepFailed, ErrorCategory.Internal, "Unexpected"),
             Left: e => e);
 
         // Only the error code: EncinaError.Message can carry personal data (#1259 review),
@@ -252,7 +252,7 @@ public sealed class SagaRunner : ISagaRunner
 
         return failed.IsLeft
             ? (EncinaError)failed
-            : EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, "Saga was cancelled");
+            : EncinaErrors.Create(SagaErrorCodes.HandlerCancelled, ErrorCategory.Cancelled, "Saga was cancelled");
     }
 
     private async ValueTask<Either<EncinaError, SagaResult<TData>>> HandleExceptionAsync<TData>(
@@ -277,7 +277,7 @@ public sealed class SagaRunner : ISagaRunner
 
         return failed.IsLeft
             ? (EncinaError)failed
-            : EncinaErrors.Create(SagaErrorCodes.HandlerFailed, UnexpectedStepExceptionMessage, ex);
+            : EncinaErrors.Create(SagaErrorCodes.HandlerFailed, ErrorCategory.Internal, UnexpectedStepExceptionMessage, ex);
     }
 
     /// <summary>Mutable progress of one run, read by the failure handlers to compensate the executed steps.</summary>
