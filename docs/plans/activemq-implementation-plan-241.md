@@ -3,7 +3,7 @@
 > **Issue**: [#241](https://github.com/dlrivada/Encina/issues/241)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: High (7 phases, 7 pull requests of about 14, 15, 9, 11, 9, 3 and 7 files)
+> **Complexity**: High (7 phases, 7 pull requests of about 14, 15, 9, 12, 9, 3 and 7 files)
 > **Estimated Scope**: about 950 lines of production code and about 1,900 lines of tests
 > **Family**: transport-new-1 (#237, #238, #239, #240, #241). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -17,7 +17,7 @@ The issue adds Apache ActiveMQ Artemis as a transport over AMQP 1.0 with `Apache
 - `Encina.MQTT` shows the credentials shape: `Username` and `Password` marked `[JsonIgnore]` with a `ToString()` override. `Encina.NATS` shows endpoint validation (`EndpointValidator`, `AllowLocalEndpoints` with a startup warning).
 - Verified on 2026-11-20 by downloading the packages from NuGet: **Apache.NMS.AMQP 2.4.0** (netstandard2.0; depends on AMQPNetLite.Core 2.4.3 and Apache.NMS 2.2.0) and **Apache.NMS 2.2.0** (its assembly has the async API: `CreateProducerAsync`, `SendAsync`, `ReceiveAsync`, `CreateDurableConsumerAsync`, `StartAsync`, `RecoverAsync`, plus `DeliveryDelay`, `NMSPriority` and `IndividualAcknowledge`); **AMQPNetLite.Core 2.5.5** (Apache-2.0); **Testcontainers.ActiveMq 4.15.0** (the version the repository uses for its other Testcontainers modules; its assembly contains `ArtemisBuilder`). None of them is in `Directory.Packages.props` yet.
 
-Delivered: package `Encina.ActiveMQ` with `IActiveMQMessagePublisher` (publish and subscribe, Design Choice 3), `EncinaActiveMQOptions`, `AddEncinaActiveMQ`, a health check, an `ActivitySource` and `Meter`, log messages in the block `ActiveMQ` 1070-1079, an `ArtemisFixture`, unit, guard, contract and integration tests, and documentation. Delivery is at-least-once; consumers deduplicate on the message id carried as a message property.
+Delivered: package `Encina.ActiveMQ` with `IActiveMQMessagePublisher` (publish and subscribe, Design Choice 3), `EncinaActiveMQOptions`, `AddEncinaActiveMQ`, a health check, an `ActivitySource` and `Meter`, log messages in the block `ActiveMQ` 40120-40129, an `ArtemisFixture`, unit, guard, contract and integration tests, and documentation. Delivery is at-least-once; consumers deduplicate on the message id carried as a message property.
 
 **Provider category**: Messaging transports (10 existing, 6 planned; AGENTS.md section 5): send/publish, subscription management, error handling with DLQ, metadata propagation.
 
@@ -272,7 +272,7 @@ A wins for the same reason as in `Encina.NATS` and `Encina.AmazonSQS` (SSRF-styl
 
 ```text
 CONTEXT: Encina.NATS and Encina.MQTT are the templates for validated options, credentials and AddEncina<Name>. Apache.NMS.AMQP 2.4.0 (D2 recommended) is not yet in Directory.Packages.props.
-TASK: Create the Encina.ActiveMQ skeleton with options, validator, connection holder and DI, plus their unit and guard tests.
+TASK: Create the Encina.ActiveMQ skeleton with options, validator and the DI of the options (the connection holder belongs to pull request 2), plus their unit and guard tests.
 KEY RULES: Username and Password are [JsonIgnore] with a ToString() override that prints neither; EndpointValidator with AllowLocalEndpoints (warning once); TryAdd registrations only; DI test with ValidateOnBuild and ValidateScopes; own enum for the destination type; no blocking connection at registration.
 REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNATSOptionsValidator.cs, src/Encina.NATS/ServiceCollectionExtensions.cs.
 ```
@@ -286,9 +286,9 @@ REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNAT
 
 1. `IActiveMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? destination = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `ActiveMQConnectionHolder` (singleton, Design Choice 6: owns the lazy connection, the publish session, its producers and the semaphore; disposed by the container) and `ActiveMQMessagePublisher` (scoped; the holder, options, logger, `TimeProvider`): JSON text message, `message-id` property (a new id only when null or empty), the destination as queue or topic, delivery delay computed from `deliverAt` and `TimeProvider`.
 2. Errors (ADR-062), in a new `ActiveMQErrorCodes.cs`: `ACTIVEMQ_PUBLISH_FAILED` `Internal` (R4), `ACTIVEMQ_DESTINATION_REQUIRED` `InvalidRequest` (R3); cancellation propagates; constant messages; exception to `ForLogging()`.
-3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ActiveMQ | 1070-1079 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1070-1079` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
+3. `Log.cs` 40120-40122; `EventIdRanges.ActiveMQ = (40120, 40129)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the registered-ranges row `| ActiveMQ | 40120-40129 | Transports | zone |` and the Blocks row `| 40120-40129 | Transports | transport-new-1 (#241) | registered |` (see "EventId allocation" in Research; no code range below 10000 is added, as `EventIdRegistryAgreementTests` rule 5 requires); and `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`) gets the line `static readonly Encina.Diagnostics.EventIdRanges.ActiveMQ -> (int Min, int Max)`, because the range is a public field of `Encina`. The other four transport plans take the neighbouring slices, so their pull requests are merged one at a time (a new commit on a branch when a slot moves, never a rebase of a pushed branch).
 4. DI: `AddEncinaActiveMQ` gains `TryAddSingleton<ActiveMQConnectionHolder>` and `TryAddScoped<IActiveMQMessagePublisher, ActiveMQMessagePublisher>` here (registration completeness, AGENTS.md section 3), with the resolution test under `ValidateOnBuild` and `ValidateScopes` in `ServiceCollectionExtensionsTests`.
-5. Tests: `ActiveMQMessagePublisherTests`, `ActiveMQMessageIdTests`, `ActiveMQConnectionHolderTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 15 files: interface, publisher, connection holder, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 3 unit tests, guard edit, manifest.
+5. Tests: `ActiveMQMessagePublisherTests` (including the message-id rule), `ActiveMQConnectionHolderTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 15 files: interface, publisher, connection holder, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, allocation test, registry doc, DI edit, DI test edit, 2 unit tests, guard edit, manifest.
 
 </details>
 
@@ -298,7 +298,7 @@ REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNAT
 ```text
 CONTEXT: The package skeleton exists. Publishing follows the messageId convention of the other publishers.
 TASK: Implement PublishAsync over NMS async APIs with queue or topic destinations, message id, properties and optional delay, with unit and guard tests.
-KEY RULES: Named category: argument on every EncinaErrors call; constant messages; ids and payloads never logged; TimeProvider for delay arithmetic; EventIds only 1070-1079 registered first in EventIdRanges.cs; cancellation propagates; sessions are never shared across threads.
+KEY RULES: Named category: argument on every EncinaErrors call; constant messages; ids and payloads never logged; TimeProvider for delay arithmetic; EventIds only 40120-40129 registered first in EventIdRanges.cs; cancellation propagates; sessions are never shared across threads.
 REFERENCE FILES: src/Encina.NATS/NATSMessagePublisher.cs, src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests/MQTT/Publishing/MQTTPublisherMessageIdTests.cs.
 ```
 
@@ -312,7 +312,7 @@ REFERENCE FILES: src/Encina.NATS/NATSMessagePublisher.cs, src/Encina.MQTT/MQTTMe
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? destination = null, CancellationToken cancellationToken = default)`: one session per subscription in individual-acknowledge mode; a queue consumer, a topic consumer or a durable topic consumer (`DurableSubscriptionName` with `ClientId`); optional `MessageSelector`; success acknowledges, failure leaves the message unacknowledged and requests redelivery (D4 option A); the receive loop catches per iteration and never lets an exception escape; cancellation ends it.
 2. Codes, added to `ActiveMQErrorCodes.cs`: `ACTIVEMQ_SUBSCRIBE_FAILED` `Internal` (R4), `ACTIVEMQ_DESERIALIZE_FAILED` `Internal` (R4). An undeserializable message is settled through the client's reject path; whether Artemis moves a rejected AMQP delivery to the dead-letter address at once or counts it toward `max-delivery-attempts` is not verified at plan time, so the code does not depend on the answer and the dead-letter integration scenario of pull request 5 includes an undeserializable message and asserts the observed behavior, which the feature page then states.
 3. Acceptance mapping for the dead-letter queue (D4 option A): the criterion is met by the broker's address settings, which the transport cannot set or verify from the client; the feature page documents the required `dead-letter-address` and `max-delivery-attempts`, and the integration test configures them on the container.
-4. `Log.cs` 1073-1077 (subscription started, handler failed, redelivery requested, rejected, loop iteration failed).
+4. `Log.cs` 40123-40127 (subscription started, handler failed, redelivery requested, rejected, loop iteration failed).
 5. Tests: `ActiveMQConsumerLoopTests`, `ActiveMQDurableSubscriptionTests`, `ActiveMQSelectorTests`, guard edit, manifest edit with the targets and justifications of the files changed. This pull request has 9 files: interface edit, publisher edit, error codes edit, `Log` edit, 3 unit tests, guard edit, manifest.
 
 </details>
@@ -336,7 +336,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 
 1. `Health/ActiveMQHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-activemq"`, tags `encina`, `messaging`, `activemq`, `ready`; opens or reuses the connection within `ProviderHealthCheck.Timeout`; text names the exception type only), registered when enabled.
 2. `Diagnostics/ActiveMQActivitySource` and `ActiveMQMetrics`: spans publish, consume, acknowledge, reject, consumer-to-producer link through message properties; counters `activemq.published`, `.consumed`, `.rejected` with tags `destination`, `outcome`; `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. The publisher and the consume loop (pull requests 2 and 3) are the emitters, so the publisher file is edited here to start and stop the spans and increment the counters. Tests: `ActiveMQHealthCheckTests`, `ActiveMQDiagnosticsTests`, an edit of `ActiveMQMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
+3. The publisher and the consume loop (pull requests 2 and 3) are the emitters, so the publisher file is edited here to start and stop the spans and increment the counters. Tests: `ActiveMQHealthCheckTests`, `ActiveMQDiagnosticsTests`, an edit of `ActiveMQMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. The `Encina.OpenTelemetry` edit (the new `AddSource`/`AddMeter` lines in `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs`) is tested by a new unit test `ActiveMQOpenTelemetryRegistrationTests` that builds the tracer and meter providers with `AddEncinaOpenTelemetry` and asserts the package source and meter names are subscribed; that file's existing per-file targets in `.github/coverage-manifest/Encina.OpenTelemetry.json` (unit 90, guard 35) are not lowered and need no new entry. This pull request has 12 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 4 unit tests (health, diagnostics, publisher edit, OpenTelemetry registration), guard edit, manifest.
 
 </details>
 
@@ -463,7 +463,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `ActiveMQ` (new) | 1070-1079 | Third of five packages of block 1050-1099 (`reserved-pre-zone`, transport-new-1); 1070-1072 publish, 1073-1077 consume, 1078-1079 left for health and connection faults; verified free by repo-wide grep |
+| `ActiveMQ` (new) | 40120-40129 | 40120-40122 publish, 40123-40127 consume, 40128-40129 left for health and connection faults; third slice of the family |
+
+**EventId allocation.** AGENTS.md section 7 allows new blocks only in the 10000+ zone and `EventIdRegistryAgreementTests` rule 5 fails any new range below 10000, so the family does not use the old 1050-1099 reservation. The Transports slices 40000-40099 are held by transport-new-2 (#242 40000-40019, #610 40020-40039, #611 40040-40059, #612 40060-40079, #310 40080-40099), so the five plans of transport-new-1 take contiguous 10-id slices from 40100: `RedisStreams` 40100-40109 (#240), `Pulsar` 40110-40119 (#239), `ActiveMQ` 40120-40129 (this plan), `GoogleCloudPubSub` 40130-40139 (#237), `AmazonEventBridge` 40140-40149 (#238). Each plan's registering pull request adds its own registered-ranges row (Zone `zone`) and its own Blocks row with status `registered`, so no `reserved` row overlaps a registered range. If a slot has been taken by then, the registering pull request takes the next free slot and the ids of the plan shift by the same offset.
 
 ### Estimated File Count
 
@@ -474,9 +476,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props` (twice), 4 test `.csproj`, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files |
 | **Pull request 1** | **14** | csproj, options, enum, validator, DI (options only), slnx, `Directory.Packages.props`, 2 test csproj, manifest (package targets, targets and justifications), 3 unit tests, guard; about 600 lines |
-| **Pull request 2** | **15** | interface, publisher, connection holder, `ActiveMQErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (holder and scoped publisher), DI test edit, 3 unit tests, guard edit, manifest edit; about 850 lines |
+| **Pull request 2** | **15** | interface, publisher, connection holder, `ActiveMQErrorCodes`, `Log`, `EventIdRanges.cs`, `PublicAPI.Unshipped.txt`, allocation test, registry (registered row and Blocks row), DI edit (holder and scoped publisher), DI test edit, 2 unit tests, guard edit, manifest edit; about 800 lines |
 | **Pull request 3** | **9** | interface edit, publisher edit, error codes edit, `Log` edit, 3 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest edit; about 600 lines |
+| **Pull request 4** | **12** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 4 unit tests (health, diagnostics, publisher edit, OpenTelemetry registration), guard edit, manifest edit; about 650 lines |
 | **Pull request 5** | **9** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 3 integration classes, manifest; about 700 lines |
 | **Pull request 6** | **3** | conformance subclass, `ContractTests.csproj`, manifest; about 120 lines |
 | **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
@@ -493,7 +495,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.ActiveMQ adds an Artemis transport over AMQP 1.0.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options with protected credentials, validator, DI of the options, client package entry; PR2 connection holder, publish with message id, properties, delay and the EventId block 1070-1079; PR3 subscriptions, durable topic subscriptions, selectors and redelivery with broker-native dead lettering; PR4 health check and telemetry; PR5 Artemis fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D4, D5, D6, D9, D10 and D11 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options with protected credentials, validator, DI of the options, client package entry; PR2 connection holder, publish with message id, properties, delay and the EventId block 40120-40129; PR3 subscriptions, durable topic subscriptions, selectors and redelivery with broker-native dead lettering; PR4 health check and telemetry; PR5 Artemis fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D4, D5, D6, D9, D10 and D11 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; background loop catches per iteration; named ADR-062 category on every error; constant error messages; ids, payloads and selectors never logged; secrets [JsonIgnore] with ToString override; TimeProvider; sessions never shared across threads; targets never go down; CRAP <= 10.
 
@@ -510,7 +512,7 @@ REFERENCE FILES: src/Encina.MQTT, src/Encina.NATS, src/Encina.Messaging/Health, 
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A transport does not cache messages. |
 | 2 | OpenTelemetry | ✅ | Per-package `ActivitySource` and `Meter` (Design Choice 9). |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 1070-1079; error codes and exception types only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40120-40129; error codes and exception types only. |
 | 4 | Health Checks | ✅ | `ActiveMQHealthCheck` checks the broker connection. |
 | 5 | Validation | ❌ | Options are validated at startup; payload validation belongs to the consuming handler's pipeline. |
 | 6 | Resilience | ⏭️ | Retry and circuit breaking for transports is #742 (open); broker redelivery is built in. |
@@ -534,6 +536,6 @@ REFERENCE FILES: src/Encina.MQTT, src/Encina.NATS, src/Encina.Messaging/Health, 
 ## Next Steps
 
 1. Ask the maintainer D2, D3, D4, D5, D6, D9, D10 and D11 when work on #241 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: package skeleton (13 files).
-3. Pull requests 2 to 4: publish (12), subscribe (8), health and telemetry (9).
-4. Pull requests 5 to 7: fixture and integration tests (8), conformance subclass (3), documentation (8).
+2. Pull request 1: package skeleton (14 files).
+3. Pull requests 2 to 4: publish (15), subscribe (9), health and telemetry (12).
+4. Pull requests 5 to 7: fixture and integration tests (9), conformance subclass (3), documentation (7).
