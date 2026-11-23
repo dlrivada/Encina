@@ -135,7 +135,7 @@ The extents below those blocks are reserved by #4007 for the migration of the 91
 
 ### Rules
 
-- **Pick rule.** Take the next free 50 or 100 id slot (the size a package range usually needs) in the area's current 1000 block. When that block is full, open the next 1000 block of the area (for example 11000-11999) and update the "Current block" column in the same pull request.
+- **Pick rule.** Take the next free 50 or 100 id slot (the size a package range usually needs) in the area's current 1000 block. When that block is full, open the next 1000 block of the area (for example 14000-14999) and update the "Current block" column in the same pull request.
 - **One pull request.** Registering the range in `EventIdRanges.cs` and adding the row to [the block registry](../../engineering/eventid-block-registry.md) happen together.
 - **New area.** A new area takes the next free base (90000) by amending the area table above.
 - **Historical ranges stay.** The ranges registered below 10000 stay where they are, and so do the blocks that plans reserved there before this amendment (status `reserved-pre-zone` in the registry); none is rewritten. Moving them into the scheme is the separate refactoring issue #4007, which this amendment blocks. After this amendment no new block may be created below 10000.
