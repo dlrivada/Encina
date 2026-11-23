@@ -11,18 +11,18 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `237a83364`)
+### What exists today (read on 2026-11-23, main `682b1d70b`)
 
 - There is no Zipkin code and no reference to `OpenTelemetry.Exporter.Zipkin` in any project or in `Directory.Packages.props`. The version to pin is `1.17.0`, the train of the pinned `OpenTelemetry` 1.17.0: the package exists on nuget.org, has a `net10.0` asset, and depends on `OpenTelemetry` `1.17.0` exactly (read from its nuspec on 2026-11-23).
 - The exporter's surface (from the package documentation file): `TracerProviderBuilder.AddZipkinExporter(Action<ZipkinExporterOptions>)` and the named overload `AddZipkinExporter(string name, Action<ZipkinExporterOptions>)`; the options `Endpoint`, `UseShortTraceIds`, `MaxPayloadSizeInBytes`, `ExportProcessorType`, `BatchExportProcessorOptions` and `HttpClientFactory`.
 - The observability stack of the repository has no Zipkin service: `.github/observability/docker-compose.observability.yml` runs the OTel Collector, Prometheus, Jaeger, Loki and Grafana, and `otel-collector-config.yaml` exports traces only to Jaeger.
 - `OpenTelemetry.Extensions.Propagators` `1.17.0` is pinned in `Directory.Packages.props` and referenced by no project; it holds `B3Propagator` and `JaegerPropagator`.
 - Encina propagates nothing yet; the plan of #132 designs `IContextPropagator` for `traceparent` and `tracestate` only, as ADR-054 settled point 3 requires: "W3C Trace Context is the wire format. `traceparent` and `tracestate` are the only propagation fields."
-- As in #613: `WithEncina()` owns the resource service name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158-217`) and the plan of #183 owns sampling.
+- As in #613: `WithEncina()` owns the resource service name (`src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:166-217`) and the plan of #183 owns sampling.
 
 ### What the issue proposes and what changed since
 
-The issue (2026-era text, `status:proposal`) proposes a package with `AddEncinaZipkin(Action<ZipkinOptions>)`, options `Endpoint` (default `http://localhost:9411/api/v2/spans`) and `ServiceName` (default `"encina-service"`), and "B3 context propagation" as an acceptance item. Three points change: the default `ServiceName` would override the name `WithEncina()` sets, the endpoint default is already the exporter's own and is better left to the SDK (which also reads `OTEL_EXPORTER_ZIPKIN_ENDPOINT`), and B3 contradicts ADR-054 settled point 3 as written (Design Choice 2). Alternative 2 of the issue says a generic OTLP exporter reaches Zipkin through an OTLP endpoint; this plan does not rely on that, because the Zipkin v2 span endpoint is what the exporter and the test use, and Phase 2 verifies with the fixture image whether OTLP is accepted and records the result in the README.
+The issue (2026-era text, `status:proposal`) proposes a package with `AddEncinaZipkin(Action<ZipkinOptions>)`, options `Endpoint` (default `http://localhost:9411/api/v2/spans`) and `ServiceName` (default `"encina-service"`), and "B3 context propagation" as an acceptance item. Three points change: the default `ServiceName` would override the name `WithEncina()` sets, the endpoint default is already the exporter's own and is better left to the SDK (which also reads `OTEL_EXPORTER_ZIPKIN_ENDPOINT`), and B3 contradicts ADR-054 settled point 3 as written (Design Choice 2). Alternative 2 of the issue says a generic OTLP exporter reaches Zipkin through an OTLP endpoint; this plan does not rely on that, because the Zipkin v2 span endpoint is what the exporter and the test use, and Phase 2 probes whether the fixture image accepts OTLP and records the result as one README sentence only.
 
 ### What this plan delivers
 
@@ -122,11 +122,11 @@ The issue (2026-era text, `status:proposal`) proposes a package with `AddEncinaZ
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
-| C1 | `ZipkinOptions`: `Endpoint` (`Uri?`), `ServiceName` (`string?`), `DeploymentEnvironment` (`string?`) and `ConfigureExporter` (`Action<ZipkinExporterOptions>?`); no sampling option, no default service name | Trivial | The issue's options minus the two decisions of #613 (sampling is #183's; `WithEncina()` owns the name, `ServiceCollectionExtensions.cs:158-217`) |
+| C1 | `ZipkinOptions`: `Endpoint` (`Uri?`), `ServiceName` (`string?`), `DeploymentEnvironment` (`string?`) and `ConfigureExporter` (`Action<ZipkinExporterOptions>?`); no sampling option, no default service name | Trivial | The issue's options minus the two decisions of #613 (sampling is #183's; `WithEncina()` owns the name, `ServiceCollectionExtensions.cs:166-217`) |
 | C2 | `ServiceName` and the environment attribute (`deployment.environment.name`) are applied through `ConfigureResource` only when set | Trivial | Same as #613 register rows C3 and C4; ADR-054 D3 |
 | C3 | Validation at startup (`ValidateOnStart`): an `Endpoint` that is relative, not `http` or `https`, or carries user info (credentials in a URI would reach `ToString()` and diagnostics; credentials go in the callback through `HttpClientFactory`), and a blank name; messages name the option, never a value | Trivial | `AGENTS.md` section 3 (options never print credentials) |
 | C4 | The options class holds no secret (the user-info rule keeps a credential out of `Endpoint`), so no `[JsonIgnore]` and no `ToString()` override is required | Trivial | `AGENTS.md` section 3 (the rule applies to an options class with a password, token or key) |
-| C5 | Enabling `EnableOtlpExporter` of #1043 and `AddEncinaZipkin` exports traces twice, to two backends; documented, not detected (`WithEncina(builder, options)` receives its options directly, not through DI) | Trivial | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:158` |
+| C5 | Enabling `EnableOtlpExporter` of #1043 and `AddEncinaZipkin` exports traces twice, to two backends; documented, not detected (`WithEncina(builder, options)` receives its options directly, not through DI) | Trivial | `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs:166` |
 | C6 | No new `EncinaError` code and no ADR-062 `ErrorCategory`: a bad option is an `OptionsValidationException` at startup | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C7 | The package emits no span or metric, so no tenant tag (ADR-054 D4) and no tenant-qualified id (the reserved `default` tenant segment does not apply); no log message and no EventId (matrix row 3) | Settled | ADR-054 D4; `AGENTS.md` section 6 row 10 |
 | C8 | The fixture image is one constant, taken from the vendor's stable line when work starts | Trivial | `src/Encina.Testing.Testcontainers/ContainerDefaultImages.cs` header |
@@ -144,11 +144,11 @@ The issue (2026-era text, `status:proposal`) proposes a package with `AddEncinaZ
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina.OpenTelemetry.Zipkin/Encina.OpenTelemetry.Zipkin.csproj` (net10.0, nullable, `ManagePackageVersionsCentrally`, `PackageReference` to `OpenTelemetry.Exporter.Zipkin`, `Microsoft.Extensions.Options` and the private `Microsoft.CodeAnalysis.PublicApiAnalyzers`, `ProjectReference` to `Encina.OpenTelemetry`, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests` and `Encina.IntegrationTests`, the two `PublicAPI` files as `AdditionalFiles`), following `src/Encina.Hangfire/Encina.Hangfire.csproj`.
-2. **Create** `src/Encina.OpenTelemetry.Zipkin/ZipkinOptions.cs`, `ZipkinOptionsValidator.cs` (`internal sealed class : IValidateOptions<ZipkinOptions>`, register row C3) and `ServiceCollectionExtensions.cs`: `public static IServiceCollection AddEncinaZipkin(this IServiceCollection services, Action<ZipkinOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; options with `ValidateOnStart`; `services.AddOpenTelemetry().WithTracing(t => t.AddZipkinExporter("EncinaZipkin", z => ...))` with the callback reading the validated options through `services.ConfigureOpenTelemetryTracerProvider((sp, builder) => ...)`, setting `Endpoint` only when not null, then invoking `ConfigureExporter`; resource changes only when `ServiceName` or `DeploymentEnvironment` is set. No hosted service and no scoped service captured by a singleton.
+2. **Create** `src/Encina.OpenTelemetry.Zipkin/ZipkinOptions.cs`, `ZipkinOptionsValidator.cs` (`internal sealed class : IValidateOptions<ZipkinOptions>`, register row C3) and `ServiceCollectionExtensions.cs`: `public static IServiceCollection AddEncinaZipkin(this IServiceCollection services, Action<ZipkinOptions>? configure = null)`: `ArgumentNullException.ThrowIfNull(services)`; options with `ValidateOnStart`; `services.ConfigureOpenTelemetryTracerProvider((sp, builder) => builder.AddZipkinExporter("EncinaZipkin", z => ...))` (the only form with a service provider; the `WithTracing(t => ...)` callback has none) reading the validated options from `sp`, setting `Endpoint` only when not null, then invoking `ConfigureExporter`; resource changes only when `ServiceName` or `DeploymentEnvironment` is set. No hosted service and no scoped service captured by a singleton.
 3. **Edit** `Directory.Packages.props` (add `OpenTelemetry.Exporter.Zipkin` `1.17.0` next to the other OpenTelemetry pins), `Encina.slnx`, `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` (reference the project) through `mechanical-fixer`; **create** the two `PublicAPI` files and `.github/coverage-manifest/Encina.OpenTelemetry.Zipkin.json` through `mechanical-fixer` (the lines come from the Research table).
 4. **Create** `tests/Encina.UnitTests/OpenTelemetry/Zipkin/ZipkinOptionsTests.cs`: defaults; one test per validator rule (relative endpoint, wrong scheme, user info, blank names).
 5. **Create** `tests/Encina.UnitTests/OpenTelemetry/Zipkin/ZipkinRegistrationTests.cs`: a provider built with `ValidateOnBuild` and `ValidateScopes` resolves the `TracerProvider`; the named exporter options carry the configured `Endpoint` and keep the SDK default (and the environment variable) when null; `ConfigureExporter` runs; the resource carries the service name and environment only when set; with `EnableOtlpExporter` of #1043 on the same builder the two registrations stay separate.
-6. **Create** `tests/Encina.GuardTests/OpenTelemetry/Zipkin/ZipkinGuardTests.cs`: a null `services` throws `ArgumentNullException`; a null `configure` is valid and registers the defaults.
+6. **Create** `tests/Encina.GuardTests/OpenTelemetry/Zipkin/ZipkinGuardTests.cs` (a new package gets its own folder named after the package, as `tests/Encina.GuardTests/Hangfire/` does for `Encina.Hangfire`): a null `services` throws `ArgumentNullException`; a null `configure` is valid and registers the defaults.
 
 </details>
 
@@ -163,7 +163,8 @@ phase 1. A new package Encina.OpenTelemetry.Zipkin wraps OpenTelemetry.Exporter.
 
 TASK:
 1. Create the project, ZipkinOptions, ZipkinOptionsValidator and AddEncinaZipkin as the plan lists.
-2. Register the exporter with the NAMED overload AddZipkinExporter("EncinaZipkin", ...) on WithTracing only; Endpoint null keeps the SDK
+2. Register the exporter with the NAMED overload, only through ConfigureOpenTelemetryTracerProvider((sp, builder) =>
+   builder.AddZipkinExporter("EncinaZipkin", ...)) (the form that has a service provider); Endpoint null keeps the SDK
    default and OTEL_EXPORTER_ZIPKIN_ENDPOINT.
 3. No B3 code, no sampling option, no default ServiceName.
 4. Add the pin, solution entry and test references, and the unit and guard tests listed; PublicAPI, the manifest and the pin go
@@ -191,8 +192,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `tests/Encina.TestInfrastructure/Fixtures/ZipkinFixture.cs`: `ZipkinFixture : IAsyncLifetime` built with the generic `ContainerBuilder`, exposing port 9411 and waiting on the health endpoint; and `ZipkinCollection : ICollectionFixture<ZipkinFixture>` named `Zipkin`, following `NatsFixture.cs`.
-2. **Create** `tests/Encina.IntegrationTests/Observability/OpenTelemetry/ZipkinExporterIntegrationTests.cs` (`[Collection("Zipkin")]`, `[Trait("Category", "Integration")]`, `[Trait("Component", "OpenTelemetry")]`): a host with `AddEncinaZipkin` pointing at the mapped port emits a span, flushes and polls `/api/v2/traces?serviceName=<name>` until it appears (a deadline, no `Thread.Sleep`); an unreachable endpoint starts, emits and shuts down without throwing; a probe of whether the image accepts OTLP records its finding in a test comment and the README.
+1. **Create** `tests/Encina.TestInfrastructure/Fixtures/ZipkinFixture.cs`: `ZipkinFixture : IAsyncLifetime` built with the generic `ContainerBuilder`, exposing port 9411 and waiting on the health endpoint; only the fixture class lives in `Encina.TestInfrastructure`, following `NatsFixture.cs`. xUnit collection definitions are per assembly (`AzuriteFixture.cs:25`, `LocalStackFixture.cs:22`; `NATSJetStreamDeduplicationIntegrationTests.cs:13-15` redeclares the collection over `NatsFixture`), so the `[CollectionDefinition("Zipkin")] ZipkinCollection : ICollectionFixture<ZipkinFixture>` class goes inside the integration test file of task 2, in `Encina.IntegrationTests` (no extra file, so Z2 stays at 6 files).
+2. **Create** `tests/Encina.IntegrationTests/Observability/OpenTelemetry/ZipkinExporterIntegrationTests.cs` (`[Collection("Zipkin")]`, `[Trait("Category", "Integration")]`, `[Trait("Component", "OpenTelemetry")]`): a host with `AddEncinaZipkin` pointing at the mapped port emits a span, flushes and polls `/api/v2/traces?serviceName=<name>` until it appears (a deadline, no `Thread.Sleep`); an unreachable endpoint starts, emits and shuts down without throwing. Separately, a manual probe of whether the image accepts OTLP is recorded as one README sentence only; no test depends on its outcome.
 3. **Edit** `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj` (reference the project) and `.github/coverage-manifest/Encina.OpenTelemetry.Zipkin.json` (the integration target) through `mechanical-fixer`.
 4. **Create** `src/Encina.OpenTelemetry.Zipkin/README.md` (through `docs-writer`): install, the call, the defaults, the rule not to combine it with `EnableOtlpExporter` for traces, the B3 host recipe (Design Choice 2, option A) and the OTLP finding; and `changelog.d/614-zipkin-trace-exporter.added.md` (through `mechanical-fixer`).
 
@@ -207,7 +208,8 @@ Issue #614 plan docs/plans/zipkin-exporter-implementation-plan-614.md, phase 2. 
 There is no Zipkin test fixture; fixtures live in tests/Encina.TestInfrastructure/Fixtures (see NatsFixture.cs).
 
 TASK:
-1. Add ZipkinFixture and ZipkinCollection (generic Testcontainers ContainerBuilder, one image constant).
+1. Add ZipkinFixture in Encina.TestInfrastructure (generic Testcontainers ContainerBuilder, one image constant); the [CollectionDefinition]
+   ZipkinCollection goes in the Encina.IntegrationTests test file, because xUnit collection definitions are per assembly.
 2. Add the integration tests: a span reaches Zipkin; an unreachable endpoint does not break the host.
 3. Reference the package from Encina.IntegrationTests; README and changelog fragment through the specialists.
 
@@ -271,11 +273,11 @@ The columns sum to the total (4 + 5 + 4 + 1 + 2 + 4 = 20; 14 + 6 = 20). The pull
 
 Per-file coverage targets (per flag, one sentence each), written to `.github/coverage-manifest/Encina.OpenTelemetry.Zipkin.json`; the changed methods reach full line coverage (CRAP gate):
 
-| File | Unit | Guard | Contract | Property | Justification |
-|------|------|-------|----------|----------|---------------|
-| `ZipkinOptions.cs` | 90 | 0 | 0 | 0 | Defaults are read by the registration tests; the class has no parameters to guard and no invariant worth a property |
-| `ZipkinOptionsValidator.cs` | 95 | 70 | 0 | 0 | One test per rule drives every branch; guard covers the null options argument |
-| `ServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | The registration test builds a real provider and reads the named exporter options; guard covers the null services and the null configure; the real-container path counts for the integration flag (target 70) |
+| File | Unit | Guard | Contract | Property | Integration | Justification |
+|------|------|-------|----------|----------|-------------|---------------|
+| `ZipkinOptions.cs` | 90 | 0 | 0 | 0 | 0 | Defaults are read by the registration tests; the class has no parameters to guard and no invariant worth a property |
+| `ZipkinOptionsValidator.cs` | 95 | 70 | 0 | 0 | 0 | One test per rule drives every branch; guard covers the null options argument |
+| `ServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | 70 | The registration test builds a real provider and reads the named exporter options; guard covers the null services and the null configure; the real-container path against the Zipkin image is what the integration target of 70 measures (Z2 edits the manifest for it) |
 
 ---
 
