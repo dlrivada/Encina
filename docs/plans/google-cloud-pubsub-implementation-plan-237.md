@@ -214,7 +214,7 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 </details>
 
 <details>
-<summary><strong>10. Multi-tenancy and module headers</strong></summary>
+<summary><strong>10. Multi-tenancy and module headers (Dilemma D10)</strong></summary>
 
 ### Options Considered
 
@@ -223,14 +223,13 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 | **A) Defer to an issue: tenant and module attributes need #1164 and the route metadata of #2385** | One design for all transports | Not in this plan |
 | **B) Stamp a tenant attribute now** | Early | Needs the reserved `default` tenant segment and an injective encoding no transport defines yet |
 
-### Chosen Option: **A, defer**
+### Chosen Option: **A, defer** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue itself defers it ("Tenant context in headers"); the follow-up is an issue file.
+A wins because one design for all transports needs the persisted context of #1164 and the route metadata of #2385, and the issue's own table defers it ("Tenant context in headers"); B wins for a tenant-isolated deployment that needs the attribute before those land. The follow-up is an issue file.
 
-**Class:** Settled
-**Settled by:** #237 (cross-cutting table: multi-tenancy and module isolation deferred) and #1164
+**Class:** Dilemma
 
 </details>
 
@@ -269,7 +268,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/EncinaAmazonSQSOptions.cs, src/Encina.Amaz
 
 1. `IGoogleCloudPubSubMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topicId = null, string? messageId = null, IReadOnlyDictionary<string,string>? attributes = null, string? orderingKey = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the service message id); `GoogleCloudPubSubMessagePublisher` (scoped; client holder, options, logger): JSON data, attributes of Design Choice 8, ordering key of Design Choice 4 with resume after a failed ordered publish.
 2. Errors (ADR-062): `GOOGLEPUBSUB_PUBLISH_FAILED` `Internal` (R4), `GOOGLEPUBSUB_TOPIC_REQUIRED` `InvalidRequest` (R3), `GOOGLEPUBSUB_ATTRIBUTE_INVALID` `Validation` (R3), `GOOGLEPUBSUB_ORDERING_DISABLED` `InvalidRequest`; cancellation propagates; constant messages; exception to `ForLogging()`.
-3. `Log.cs` 1080-1082; `EventIdRanges.GoogleCloudPubSub = (1080, 1089)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| GoogleCloudPubSub | 1080-1089 | Transports | historical |` in the registered ranges table and the split of the reserved block 1050-1099 so that 1080-1089 is `registered` and no reserved block overlaps a registered range, as `EventIdRegistryAgreementTests` requires (the other four plans edit neighbouring rows of the same table, so the pull requests rebase on each other).
+3. `Log.cs` 1080-1082; `EventIdRanges.GoogleCloudPubSub = (1080, 1089)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| GoogleCloudPubSub | 1080-1089 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1080-1089` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
 4. Tests: `GoogleCloudPubSubMessagePublisherTests`, `GoogleCloudPubSubMessageIdTests`, guard edit, manifest edit.
 
 </details>
@@ -383,7 +382,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs, 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.GoogleCloudPubSub.json` in the pull request that adds each file):
+Per-flag targets (entered in `.github/coverage-manifest/Encina.GoogleCloudPubSub.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -520,7 +519,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.NATS, src/Encina.Messaging/Hea
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D5, D6 and D9 when work on #237 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D5, D6, D9 and D10 when work on #237 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (12), subscribe and provisioning (10), health and telemetry (9).
 4. Pull requests 5 to 7: emulator fixture and integration tests (8), conformance subclass (3), documentation (8).
