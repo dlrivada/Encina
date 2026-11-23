@@ -3,7 +3,7 @@
 > **Issue**: [#611](https://github.com/dlrivada/Encina/issues/611)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 7 pull requests of about 12, 14, 6, 12, 9, 13 and 8 files)
+> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 14, 6, 12, 10, 13 and 7 files)
 > **Estimated Scope**: about 900 lines of production code and about 2,000 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -83,7 +83,7 @@ A wins when the category is judged by coherence (one call shape for every transp
 
 ### Rationale
 
-Under either option a failure is never reported as success and an event is never skipped silently (AGENTS.md section 3): without a dead-letter destination an event that keeps failing stops its partition (no checkpoint, logged every attempt) rather than being lost. A wins for coherence with the two existing subscribers; B wins when handlers are thin wrappers over `IEncina.Send` returning `Either`.
+Under either option a failure is never reported as success and an event is never skipped silently (AGENTS.md section 3): without a dead-letter destination an event that keeps failing stops its partition (no checkpoint, logged every attempt) rather than being lost. The stall has a cost the plan states: the retry runs inside `ProcessEventAsync`, so a handler that retries for longer than the partition ownership interval of the processor loses the partition to another instance, which replays from the last checkpoint (at-least-once, never a loss); the validator therefore requires `MaxHandlerAttempts` times the capped backoff to stay below `PartitionOwnershipExpirationInterval` of the processor options (the pull request records the SDK default it reads from the pinned version), and a failure that outlasts it surfaces as a repeated `handler failed` log, not as silence. A wins for coherence with the two existing subscribers; B wins when handlers are thin wrappers over `IEncina.Send` returning `Either`.
 
 **Class:** Dilemma
 
@@ -164,10 +164,10 @@ The issue's acceptance criteria list "Batch operations"; only A delivers it, and
 
 ### Rationale
 
-SPEC-000 DEC-009 lists "the cloud halves split from #727, #604, #451, #602, #259 and #421" among the deliverables tied to a cloud service with no free local emulator and puts them in the milestone "Post-1.0: Cloud services without a local emulator"; the issue links #602 (`ISchemaRegistryProvider`) for exactly this. The criterion is optional in the issue.
+SPEC-000 line 166 names "#2696 (Azure Schema Registry)" in the milestone "Post-1.0: Cloud services without a local emulator", and DEC-009 lists "the cloud halves split from #727, #604, #451, #602, #259 and #421" among the deliverables tied to a cloud service with no free local emulator and puts them in the milestone "Post-1.0: Cloud services without a local emulator"; the issue links #602 (`ISchemaRegistryProvider`) for exactly this. The criterion is optional in the issue.
 
 **Class:** Settled
-**Settled by:** SPEC-000 DEC-009 (cloud services without a free local emulator are out of 1.0) and #611 (the criterion is optional)
+**Settled by:** SPEC-000 line 166 (#2696, Azure Schema Registry, post-1.0), SPEC-000 DEC-009 (cloud services without a free local emulator are out of 1.0) and #611 (the criterion is optional)
 
 </details>
 
@@ -283,8 +283,8 @@ A wins because one design for all transports needs #1164 and #2385; B wins for a
 
 1. `src/Encina.AzureEventHubs/Encina.AzureEventHubs.csproj` (net10.0; packages `Azure.Messaging.EventHubs` and `Azure.Messaging.EventHubs.Processor` (new pins 5.12.2 in `Directory.Packages.props`), `Azure.Storage.Blobs` (already pinned), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Transport packages carry no `PublicAPI.*.txt` today (none in AzureServiceBus, AmazonSQS, NATS), so none is added.
 2. `EncinaAzureEventHubsOptions` (namespace `Encina.AzureEventHubs`, public sealed): `ConnectionString` and `CheckpointStorageConnectionString` (`[JsonIgnore]`; `ToString()` prints the event hub name only), `EventHubName`, `ConsumerGroup` (default `$Default`, the Event Hubs default group), `CheckpointContainerName`, `CheckpointEveryEvents` (default 1), `MaxHandlerAttempts`, `DeadLetterEventHubName` (null: none), `ProviderHealthCheck`. Internal `EncinaAzureEventHubsOptionsValidator : IValidateOptions<>`: non-blank connection strings and names, `CheckpointEveryEvents` and `MaxHandlerAttempts` positive, the dead-letter name different from `EventHubName`.
-3. `ServiceCollectionExtensions.AddEncinaAzureEventHubs(this IServiceCollection, Action<EncinaAzureEventHubsOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-4. Tests: `EncinaAzureEventHubsOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `AzureEventHubsGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.AzureEventHubs.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+3. `ServiceCollectionExtensions.AddEncinaAzureEventHubs(this IServiceCollection, Action<EncinaAzureEventHubsOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`, and `TryAddSingleton<IEventHubProducerFactory, EventHubProducerFactory>()` (the internal producer factory: one `EventHubProducerClient` per hub name, cached, all disposed with the container); a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes` and disposes it.
+4. Tests: `EncinaAzureEventHubsOptionsTests`, `EventHubProducerFactoryTests` (unit: one producer per hub, same instance on a second call, disposal of every producer), `ServiceCollectionExtensionsTests` (unit), `AzureEventHubsGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.AzureEventHubs.json` with the unit and guard targets of these files and their one-sentence justifications at file and package level (`coverage-report.cs --check-justifications` fails a target without one); `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
 
 </details>
 
@@ -305,11 +305,11 @@ REFERENCE FILES: src/Encina.AzureServiceBus/*.cs, src/Encina.AmazonSQS/EncinaAma
 <details>
 <summary>Tasks</summary>
 
-1. `IAzureEventHubsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? partitionKey = null, string? eventHubName = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `AzureEventHubsMessagePublisher` (scoped; `EventHubProducerClient` from the container, `IOptions`, `ILogger`); the producer is a singleton registered with `TryAddSingleton` from the options.
-2. Errors (ADR-062), in `AzureEventHubsErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.eventhubs.publish_failed` `Internal` (R4), `encina.eventhubs.publish_timeout` `Timeout` (R7, the SDK's service-timeout reason), `encina.eventhubs.publish_throttled` `Unavailable` (R7, the SDK's service-busy and quota reasons), `encina.eventhubs.event_hub_not_configured` `Internal` (R1). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-3. `Log.cs` 40040-40042 (publishing, published, publish failed; no message ids, no payload, no connection string). `EventIdRanges.AzureEventHubs = (40040, 40059)`; the line `static readonly Encina.Diagnostics.EventIdRanges.AzureEventHubs -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AzureEventHubs | 40040-40059 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
-4. DI: `AddEncinaAzureEventHubs` gains `TryAddSingleton` of the producer and `TryAddScoped<IAzureEventHubsMessagePublisher, AzureEventHubsMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves the publisher with `ValidateOnBuild` and `ValidateScopes`.
-5. Tests: `AzureEventHubsMessagePublisherTests` and `AzureEventHubsMessageIdTests` (unit, over a substituted `EventHubProducerClient`, which has a protected constructor for mocking), guard edit; manifest edit with the unit and guard targets (contract and integration targets are entered in pull request 6).
+1. `IAzureEventHubsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? partitionKey = null, string? eventHubName = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `AzureEventHubsMessagePublisher` (scoped; `IEventHubProducerFactory`, `IOptions`, `ILogger`). An `EventHubProducerClient` is bound to one event hub, while the publish and subscribe members take an `eventHubName` and the dead-letter destination is a second hub, so the package has an internal singleton `IEventHubProducerFactory` (pull request 1) that creates one producer per hub name from the connection string, caches it, and disposes every cached producer when the container is disposed (`IAsyncDisposable`); an unknown hub name is created lazily and an empty name resolves to `EventHubName`. The dead-letter producer of pull request 4 and the health check come from the same factory.
+2. Errors (ADR-062), in `AzureEventHubsErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.eventhubs.publish_failed` `Internal` (R4), `encina.eventhubs.publish_timeout` `Timeout` (R7, the SDK's service-timeout reason), `encina.eventhubs.publish_throttled` `RateLimited` (the SDK's service-busy and quota reasons are rate limits; `ErrorCategory.RateLimited` exists on main), `encina.eventhubs.event_hub_not_configured` `Internal` (R1). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
+3. `Log.cs` 40040-40042 (publishing, published, publish failed; no message ids, no payload, no connection string). `EventIdRanges.AzureEventHubs = (40040, 40059)`; the line `static readonly Encina.Diagnostics.EventIdRanges.AzureEventHubs -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AzureEventHubs | 40040-40059 | Transports | zone |` in the registered ranges table and the Blocks row `| 40040-40059 | Transports | transport-new-2: #611 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
+4. DI: the producer factory is already registered by pull request 1; `AddEncinaAzureEventHubs` gains `TryAddScoped<IAzureEventHubsMessagePublisher, AzureEventHubsMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves the publisher with `ValidateOnBuild` and `ValidateScopes`.
+5. Tests: `AzureEventHubsMessagePublisherTests` and `AzureEventHubsMessageIdTests` (unit, over a substituted `EventHubProducerClient` returned by a substituted factory; the client has a protected constructor for mocking), guard edit; manifest edit with the unit and guard targets of the files and their one-sentence justifications (contract and integration targets and their justifications are entered in pull request 6).
 
 </details>
 
@@ -378,9 +378,9 @@ REFERENCE FILES: src/Encina.AzureServiceBus/AzureServiceBusMessagePublisher.cs, 
 <details>
 <summary>Tasks</summary>
 
-1. `Health/AzureEventHubsHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-azure-event-hubs"`, tags `encina`, `messaging`, `azure-event-hubs`, `ready`): `GetEventHubPropertiesAsync` on the producer bounded by `ProviderHealthCheck.Timeout`; the result text names the check and the exception type only (never the connection string). Registered like `AzureServiceBusHealthCheck` when `ProviderHealthCheck.Enabled`.
+1. `Health/AzureEventHubsHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-azure-event-hubs"`, tags `encina`, `messaging`, `azure-event-hubs`, `ready`): `GetEventHubPropertiesAsync` on the producer of the default hub from the factory, bounded by `ProviderHealthCheck.Timeout`; the result text names the check and the exception type only (never the connection string). Registered like `AzureServiceBusHealthCheck` when `ProviderHealthCheck.Enabled`.
 2. `Diagnostics/AzureEventHubsActivitySource` and `AzureEventHubsMetrics`: spans publish, process, checkpoint, dead-letter with a link from consumer to producer through the `traceparent` property; counters `azure_event_hubs.published`, `.processed`, `.dead_lettered`, `.checkpoints` with tags `event_hub`, `outcome`; no tenant tag. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `AzureEventHubsHealthCheckTests`, `AzureEventHubsDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended (its manifest targets stay at today's unit 90 and guard 35).
+3. Tests: `AzureEventHubsHealthCheckTests`, `AzureEventHubsDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended and counted as a file (its manifest targets and justifications stay at today's unit 90 and guard 35).
 
 </details>
 
@@ -405,7 +405,7 @@ REFERENCE FILES: src/Encina.AzureServiceBus/Health/AzureServiceBusHealthCheck.cs
 2. `tests/Encina.ContractTests/MessageBrokers/AzureEventHubs/AzureEventHubsConformanceTests.cs`, a subclass of `TransportConformanceContractBase` of #240 (publish with message id, subscribe delivers, handler failure retried then dead-lettered, cancellation); `ContractTests.csproj` reference.
 3. `tests/Encina.IntegrationTests/MessageBrokers/AzureEventHubs/AzureEventHubsIntegrationTests.cs` (`[Collection]`, `[Trait("Category","Integration")]`, `[Trait("Transport","AzureEventHubs")]`): partition-key ordering, two consumer groups, batch publish, restart resumes from the checkpoint, dead-letter hub content; `IntegrationTests.csproj` reference.
 4. `tests/Encina.PropertyTests/Messaging/AzureEventHubs/AzureEventHubsEnvelopePropertyTests.cs` (FsCheck round trip of message id, properties and body) and `PropertyTests.csproj` reference.
-5. One manifest edit entering the contract, property and integration targets (the table of Phase 7); `docs/testing/integration-tests.md` gains the emulator's terms (through `docs-writer`).
+5. One manifest edit entering the contract, property and integration targets of the table of Phase 7 together with their one-sentence justifications, the package-level contract and integration targets and justifications included (`coverage-report.cs --check-justifications` fails a target without one); `docs/testing/integration-tests.md` gains the emulator's terms (through `docs-writer`).
 
 </details>
 
@@ -426,7 +426,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/ServiceBusEmulatorFixt
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.AzureEventHubs.json` in the pull request that adds the tests of each flag: unit and guard with the file in pull requests 1 to 5, contract, property and integration in pull request 6; measured with the commands of AGENTS.md section 9):
+Per-flag targets, each written with its one-sentence justification in `.github/coverage-manifest/Encina.AzureEventHubs.json` in the same pull request that adds the tests of the flag (unit and guard with the file in pull requests 1 to 5, contract, property and integration in pull request 6; this pull request adds no target); the table is the final state, measured with the commands of AGENTS.md section 9:
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -458,7 +458,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.AzureEventHubs.js
 
 ```text
 CONTEXT: The package is implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest justifications, write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Check that every manifest target already has its justification (run coverage-report.cs --check-justifications), write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AzureServiceBus.json, changelog.d/README.md.
 ```
@@ -502,15 +502,15 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Tests | 13 | options, DI, publisher, message id, batch, consumer, dead letter, checkpoint, health, diagnostics, guard, property, conformance subclass, integration, fixture |
 | Shared edits | 10 | `Encina.slnx`, `Directory.Packages.props` (twice), 6 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 9 | README, feature page, transports page, INVENTORY, registry rows, integration-tests page, changelog, 2 justification files |
-| **Pull request 1** | **12** | csproj, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, DI test, guard test; about 450 lines |
+| **Pull request 1** | **14** | csproj, options, validator, producer factory, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, factory test, DI test, guard test; about 600 lines |
 | **Pull request 2** | **14** | interface, publisher, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
 | **Pull request 3** | **6** | interface edit, publisher edit, `Log` edit, unit test, guard edit, manifest edit; about 350 lines |
 | **Pull request 4** | **12** | interface edit, consumer host, processor seam, error codes edit, `Log` edit, DI edit, DI test edit, 3 unit tests, guard edit, manifest edit; about 900 lines |
-| **Pull request 5** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
+| **Pull request 5** | **10** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
 | **Pull request 6** | **13** | emulator fixture, `TestInfrastructure.csproj`, `Directory.Packages.props`, 2 collection classes, conformance subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, integration-tests page, manifest; about 900 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
-Implementers and callers: `IAzureEventHubsMessagePublisher` is new, so it has no implementers or `new X(` sites to update; the shared edits are additive. Pull request 1 registers options and their validator, pull request 2 the producer and the scoped publisher, pull request 4 the processor seam, pull request 5 the health check. Each pull request builds alone in order 1 to 7; pull request 6 also needs #240 pull request 5 (the conformance base).
+Implementers and callers: `IAzureEventHubsMessagePublisher` is new, so it has no implementers or `new X(` sites to update; the shared edits are additive. Pull request 1 registers options, their validator and the producer factory, pull request 2 the scoped publisher, pull request 4 the processor seam (the dead-letter producer comes from the factory, so it is created and disposed with the others), pull request 5 the health check. Each pull request builds alone in order 1 to 7; pull request 6 also needs #240 pull request 5 (the conformance base).
 
 ---
 
@@ -563,6 +563,6 @@ REFERENCE FILES: src/Encina.AzureServiceBus, src/Encina.Messaging/Health, tests/
 ## Next Steps
 
 1. Ask the maintainer D2, D3, D4, D5, D8, D10, D11 and D12 when work on #611 starts; record the answers in `## Maintainer Decisions`.
-2. Pull request 1: package skeleton (12 files).
-3. Pull requests 2 to 5: publish (14), batch (6), consume (12), health and telemetry (9).
-4. Pull requests 6 and 7: emulator, contract, property and integration tests (13), documentation (8).
+2. Pull request 1: package skeleton and producer factory (14 files).
+3. Pull requests 2 to 5: publish (14), batch (6), consume (12), health and telemetry (10).
+4. Pull requests 6 and 7: emulator, contract, property and integration tests (13), documentation (7).
