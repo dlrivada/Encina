@@ -176,7 +176,7 @@ KEY RULES:
 
 REFERENCE FILES:
 - src/Encina.Hangfire/Encina.Hangfire.csproj, src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs
-- docs/plans/jaeger-exporter-implementation-plan-613.md (when merged; the issue number #613 until then)
+- the plan of #613 (the Jaeger helper, same shape and decisions)
 - tests/Encina.GuardTests/Infrastructure/OpenTelemetry/ServiceCollectionExtensionsGuardTests.cs
 ```
 
