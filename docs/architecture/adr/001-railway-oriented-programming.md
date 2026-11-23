@@ -7,7 +7,9 @@ grand_parent: Architecture
 
 # ADR-001: Railway Oriented Programming for Error Handling
 
-**Status:** Accepted
+> **Amendment 2026-11-20 ([#3662](https://github.com/dlrivada/Encina/issues/3662), [ADR-064](064-rop-result-union.md)):** the Railway Oriented Programming principle of this ADR stands: operations return a result that is either a value or an `EncinaError`, never an exception for expected failures. Its carrier changes. [ADR-064](064-rop-result-union.md) replaces LanguageExt `Either<EncinaError, T>` with an Encina-owned C# 15 result union, and LanguageExt leaves Encina. Where the text below names `Either`, LanguageExt or their combinators, read the carrier defined by ADR-064. The `EncinaError` shape shown below, with its `Option<Exception>` field, is historical: ADR-064 defines it as a sealed immutable class without LanguageExt types; the conversion happens package by package after the move to .NET 11 ([#3667](https://github.com/dlrivada/Encina/issues/3667)).
+
+**Status:** Accepted; amended by [ADR-064](064-rop-result-union.md) (2026-11-20)
 **Date:** 2025-12-12
 **Deciders:** Architecture Team
 **Technical Story:** Establish consistent error handling strategy for Encina pipeline

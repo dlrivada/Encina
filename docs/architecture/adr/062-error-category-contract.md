@@ -13,6 +13,8 @@ grand_parent: Architecture
 
 [AGENTS.md](../../../AGENTS.md) section 8 requires an ADR for architectural decisions; the shape of the error contract that every transport reads is one.
 
+> **Amendment 2026-11-20 ([#4103](https://github.com/dlrivada/Encina/issues/4103), decided by the maintainer on 2026-11-20 for [#3419](https://github.com/dlrivada/Encina/issues/3419), unblocking [#3719](https://github.com/dlrivada/Encina/issues/3719) and [#3723](https://github.com/dlrivada/Encina/issues/3723)):** rule R1 is one rule. A runtime entity addressed by an id the caller supplies is `NotFound` (404), for example a saga looked up by the saga id the caller passes (`saga.not_found`). A configuration or topology entry (shard, region, route, profile, policy, template, key, handler) is `Internal` (500), for example `ShardNotFound`, `PartialKeyRoutingFailed`, `RegionNotFound` and `content_router.no_matching_route`. Range codes where the topology does not cover the key (`KeyOutsideRange`, `TimestampOutsideRange`) are `Internal`.
+
 ## Context
 
 The hosts derive the HTTP status of an error from the text of its code. `MapErrorCodeToStatusCode` is copied in `Encina.AspNetCore`, `Encina.AzureFunctions` and `Encina.AwsLambda` and matches prefixes and suffixes (`.not_found`, `.conflict`, `validation.`). Most code families match no rule, so they answer 500: repository not-found, concurrency conflict and tenant-required errors, `idempotency.in_progress`, the outbound codes and others (the evidence is in #3419). Some internal configuration lookups match `.not_found` and answer 404 by accident.
@@ -63,7 +65,7 @@ Each protocol owns its column. HTTP is written once in core as data and consumed
 
 ### Choice rules for producers
 
-- **R1.** `NotFound` only when the request names the missing thing. Server-side configuration or wiring lookups (profile, policy, template, key, handler) are `Internal`.
+- **R1.** `NotFound` only for a runtime entity addressed by an id the caller supplies. A configuration or topology entry (shard, region, route, profile, policy, template, key, handler) is `Internal`, and so is a range code where the topology does not cover the key (see the amendment at the top).
 - **R2.** Duplicates and "exists" are `AlreadyExists`. A version mismatch, an operation in progress and an invalid transition are `Conflict`. Do not use `FailedPrecondition` before #3420.
 - **R3.** Field rules are `Validation`. A missing header, key, id or tenant is `InvalidRequest` (a missing tenant answers 400, the `TenantResolutionMiddleware` precedent).
 - **R4.** Store, serialization, crypto and provider failures, a null request and a missing handler are `Internal`, never 501.
@@ -108,7 +110,7 @@ Also decided: `idempotency.in_progress` is `Conflict` (409), and the two `encina
 ## Related
 
 - [ADR-001](001-railway-oriented-programming.md) and [ADR-006](006-pure-rop-exception-handling.md), the `Either<EncinaError, T>` error model
-- Issues: [#3419](https://github.com/dlrivada/Encina/issues/3419), [#3545](https://github.com/dlrivada/Encina/issues/3545), [#2982](https://github.com/dlrivada/Encina/issues/2982), [#3429](https://github.com/dlrivada/Encina/issues/3429)
+- Issues: [#3419](https://github.com/dlrivada/Encina/issues/3419), [#3545](https://github.com/dlrivada/Encina/issues/3545), [#2982](https://github.com/dlrivada/Encina/issues/2982), [#3429](https://github.com/dlrivada/Encina/issues/3429), [#3719](https://github.com/dlrivada/Encina/issues/3719), [#3723](https://github.com/dlrivada/Encina/issues/3723), [#4103](https://github.com/dlrivada/Encina/issues/4103)
 
 ## Date
 
