@@ -73,7 +73,7 @@ public sealed class DirectoryShardRouter : IShardRouter
 
         return Either<EncinaError, string>.Left(
             EncinaErrors.Create(
-                ShardingErrorCodes.ShardNotFound,
+                ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                 $"Shard key '{shardKey}' has no mapping in the directory and no default shard is configured."));
     }
 
@@ -120,7 +120,7 @@ public sealed class DirectoryShardRouter : IShardRouter
 
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.PartialKeyRoutingFailed,
+                    ShardingErrorCodes.PartialKeyRoutingFailed, ErrorCategory.Internal,
                     $"No directory mappings match the partial key prefix '{prefix}' and no default shard is configured."));
         }
 

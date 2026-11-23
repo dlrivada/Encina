@@ -185,19 +185,19 @@ public sealed class SagaOrchestrator
         if (stateOpt.Case is not ISagaState state)
         {
             Log.SagaNotFound(_logger, sagaId);
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, $"Saga {sagaId} not found");
         }
 
         if (state.Status != SagaStatus.Running)
         {
             Log.SagaNotRunning(_logger, sagaId, state.Status);
-            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Saga is not running (status: {state.Status})");
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, ErrorCategory.Conflict, $"Saga is not running (status: {state.Status})");
         }
 
         var data = _messageSerializer.Deserialize<TSagaData>(state.Data);
         if (data == null)
         {
-            return EncinaErrors.Create(SagaErrorCodes.DeserializationFailed, "Failed to deserialize saga data");
+            return EncinaErrors.Create(SagaErrorCodes.DeserializationFailed, ErrorCategory.Internal, "Failed to deserialize saga data");
         }
 
         if (updateData != null)
@@ -230,14 +230,14 @@ public sealed class SagaOrchestrator
         var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
         if (stateOpt.IsNone)
         {
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, $"Saga {sagaId} not found");
         }
 
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Running)
         {
-            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Saga is not running (status: {state.Status})");
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, ErrorCategory.Conflict, $"Saga is not running (status: {state.Status})");
         }
 
         state.Status = SagaStatus.Completed;
@@ -279,7 +279,7 @@ public sealed class SagaOrchestrator
 
         if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
         {
-            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Cannot compensate saga with status: {state.Status}");
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, ErrorCategory.Conflict, $"Cannot compensate saga with status: {state.Status}");
         }
 
         state.Status = SagaStatus.Compensating;
@@ -304,7 +304,7 @@ public sealed class SagaOrchestrator
         var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
         if (stateOpt.IsNone)
         {
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, $"Saga {sagaId} not found");
         }
 
         return Right<EncinaError, ISagaState>(stateOpt.Match(Some: s => s, None: () => default!));
@@ -327,14 +327,14 @@ public sealed class SagaOrchestrator
         var stateOpt = stateResult.Match(Right: o => o, Left: _ => Option<ISagaState>.None);
         if (stateOpt.IsNone)
         {
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, $"Saga {sagaId} not found");
         }
 
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
         if (state.Status != SagaStatus.Compensating)
         {
-            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, "Saga is not in compensating state");
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, ErrorCategory.Conflict, "Saga is not in compensating state");
         }
 
         state.CurrentStep--;
@@ -416,7 +416,7 @@ public sealed class SagaOrchestrator
             state.SagaType,
             state.Data,
             new DeadLetterContext(
-                EncinaErrors.Create(errorCode, "Saga failed"),
+                EncinaErrors.Create(errorCode, ErrorCategory.Internal, "Saga failed"),
                 Exception: null,
                 DeadLetterSourcePatterns.Saga,
                 TotalRetryAttempts: 0,
@@ -497,20 +497,14 @@ public sealed class SagaOrchestrator
         if (stateOpt.IsNone)
         {
             Log.SagaNotFound(_logger, sagaId);
-            return EncinaErrors.Create(SagaErrorCodes.NotFound, $"Saga {sagaId} not found");
+            return EncinaErrors.Create(SagaErrorCodes.NotFound, ErrorCategory.NotFound, $"Saga {sagaId} not found");
         }
 
         var state = stateOpt.Match(Some: s => s, None: () => default!);
 
-        if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
-        {
-            Log.SagaNotRunning(_logger, sagaId, state.Status);
-            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, $"Cannot timeout saga with status: {state.Status}");
-        }
-
-        state.Status = SagaStatus.TimedOut;
-        state.ErrorMessage = "Saga exceeded its configured timeout";
-        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        var timedOut = MarkTimedOut(sagaId, state);
+        if (timedOut.IsLeft)
+            return timedOut.LeftToArray()[0];
 
         var updateResult = await _store.UpdateAsync(state, cancellationToken).ConfigureAwait(false);
         if (updateResult.IsLeft)
@@ -519,6 +513,22 @@ public sealed class SagaOrchestrator
         Log.SagaTimedOut(_logger, sagaId, state.CurrentStep);
 
         return state.CurrentStep;
+    }
+
+    // The in-memory part of TimeoutAsync: only a running or compensating saga can time out.
+    private Either<EncinaError, ISagaState> MarkTimedOut(Guid sagaId, ISagaState state)
+    {
+        if (state.Status is not (SagaStatus.Running or SagaStatus.Compensating))
+        {
+            Log.SagaNotRunning(_logger, sagaId, state.Status);
+            return EncinaErrors.Create(SagaErrorCodes.InvalidStatus, ErrorCategory.Conflict, $"Cannot timeout saga with status: {state.Status}");
+        }
+
+        state.Status = SagaStatus.TimedOut;
+        state.ErrorMessage = "Saga exceeded its configured timeout";
+        state.LastUpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        return Right<EncinaError, ISagaState>(state);
     }
 
     /// <summary>
