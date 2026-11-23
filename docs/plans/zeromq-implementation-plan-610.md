@@ -3,7 +3,7 @@
 > **Issue**: [#610](https://github.com/dlrivada/Encina/issues/610)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 14, 9, 8, 9, 7 and 8 files)
+> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 14, 9, 8, 10, 7 and 7 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -59,14 +59,13 @@ A wins when the maintainer accepts LGPL for an opt-in dependency that is not bun
 | **A) New package `Encina.ZeroMQ`** | Pay-for-what-you-use; its own options, health check and EventId range; the name the issue gives | One more package |
 | **B) Inside an existing transport package** | No new package | Mixes brokerless sockets into a broker transport; no existing package fits |
 
-### Chosen Option: **A, a new package**
+### Chosen Option: **A, a new package** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue names `Encina.ZeroMQ`; SPEC-000 REQ-030 puts the new transports in 1.0, and every other transport is its own package.
+This choice exists only under D1 option A; under D1 options B (no ZeroMQ transport) and C (outside the repository) no in-repo package exists. Under D1 A, the issue names `Encina.ZeroMQ`, SPEC-000 REQ-030 puts the new transports in 1.0 and every other transport is its own package, so A wins; B wins only if the maintainer wants brokerless sockets inside an existing transport package.
 
-**Class:** Settled
-**Settled by:** #610 (package name) and SPEC-000 REQ-030
+**Class:** Dilemma
 
 </details>
 
@@ -117,7 +116,7 @@ A wins when coherence across transports is the rule (#1609 asks for one subscrib
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `Func<TMessage, ValueTask>` for subscribe and pull as in MQTT and Redis.PubSub; `Func<TRequest, ValueTask<TResponse>>` for respond; an exception is logged by exception type and the message is dropped (Design Choice 3), a respond handler that throws sends no reply and the caller's request times out** | Same call shape as the two existing subscribers | Business failure travels as an exception, against Railway Oriented Programming |
+| **A) `Func<TMessage, ValueTask>` for subscribe and pull as in MQTT and Redis.PubSub; `Func<TRequest, ValueTask<TResponse>>` for respond; an exception is logged by exception type and the message is dropped (Design Choice 3), a respond handler that throws still gets a reply: a REP socket must send after every receive or its next receive throws, so the host sends an error reply (header frame with `error` set, no payload) and the requester gets `encina.zeromq.request_failed` at once instead of a timeout; the responder never wedges** | Same call shape as the two existing subscribers | Business failure travels as an exception, against Railway Oriented Programming |
 | **B) `Func<TMessage, CancellationToken, ValueTask<Either<EncinaError, Unit>>>` (and `Either<EncinaError, TResponse>` for respond, the `Left` travelling back to the requester as an error frame)** | A `Left` from `IEncina.Send` maps straight; the requester sees a categorized failure instead of a timeout | A new shape; an error frame format to define |
 
 ### Chosen Option: **A, the existing shape** (recommended, pending the maintainer)
@@ -200,14 +199,13 @@ A wins for a first release; B wins when many concurrent requests share one peer.
 | **A) A multipart message: frame 0 the topic (the PUB/SUB prefix filter), frame 1 a small header (`message-id`, `type`, `traceparent`, caller headers as JSON), frame 2 the UTF-8 JSON payload; a new message id only when the caller gives none** | The filter works on a dedicated frame; headers are readable without parsing the payload; the same message-id rule as the other publishers | A frame layout to maintain |
 | **B) One JSON envelope in a single frame** | Simple | The SUB prefix filter cannot see the topic; double parsing |
 
-### Chosen Option: **A, three frames**
+### Chosen Option: **A, three frames** (recommended, pending the maintainer)
 
 ### Rationale
 
-Every existing publisher takes `messageId` and generates one only when null or empty (`src/Encina.NATS/INATSMessagePublisher.cs`, `src/Encina.AmazonSQS/IAmazonSQSMessagePublisher.cs`); the outbox passes its row id there so consumers deduplicate. The subscriber checks the topic frame for an exact match after the prefix filter, so a subscription to `orders` does not receive `orders.eu`.
+A wins when the topic filter of SUB sockets must work on a dedicated frame; B wins for the smallest frame count when only request-reply is used. The layout is the baseline under the recommended options: an error reply of D5 A is a reply whose header frame carries an `error` entry and no payload frame, and D8 B (DEALER/ROUTER) would add a correlation frame, so the layout is a Dilemma that follows those two. Under every option the message id follows the existing rule: every publisher takes `messageId` and generates one only when null or empty (`src/Encina.NATS/INATSMessagePublisher.cs`, `src/Encina.AmazonSQS/IAmazonSQSMessagePublisher.cs`) so the outbox row id reaches consumers. The subscriber checks the topic frame for an exact match after the prefix filter, so a subscription to `orders` does not receive `orders.eu`.
 
-**Class:** Trivial
-**Settled by:** the `messageId` convention of `src/Encina.NATS/INATSMessagePublisher.cs` and `src/Encina.AmazonSQS/IAmazonSQSMessagePublisher.cs`
+**Class:** Dilemma
 
 </details>
 
@@ -282,10 +280,10 @@ A wins because one design for all transports needs #1164 and #2385; B wins for a
 <summary>Tasks</summary>
 
 1. `src/Encina.ZeroMQ/Encina.ZeroMQ.csproj` (net10.0; packages `NetMQ` (new pin 4.0.4.5 in `Directory.Packages.props`), `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. Transport packages carry no `PublicAPI.*.txt` today (none in NATS, AmazonSQS, Redis.PubSub), so none is added.
-2. `EncinaZeroMQOptions` (namespace `Encina.ZeroMQ`, public sealed): `Endpoints` (`IList<ZeroMQEndpointOptions>`: `Name`, `Pattern` (an Encina enum `Publish`, `Subscribe`, `Push`, `Pull`, `Request`, `Reply`), `Address`, `Bind`), `SendHighWaterMark`, `ReceiveHighWaterMark`, `SendTimeout`, `RequestTimeout`, `ReconnectInterval`, `Linger`, `CurveServerPublicKey`, `CurveSecretKey` (`[JsonIgnore]`; `ToString()` prints the endpoint names only), `CurvePublicKey`, `AllowInsecureTransport`, `ProviderHealthCheck`. Internal `EncinaZeroMQOptionsValidator : IValidateOptions<>`: addresses are `tcp://`, `ipc://` or `inproc://`; a non-loopback `tcp` address requires the CURVE keys unless `AllowInsecureTransport` (Design Choice 7); positive timeouts and high-water marks; unique endpoint names.
+2. `EncinaZeroMQOptions` (namespace `Encina.ZeroMQ`, public sealed): `Endpoints` (`IList<ZeroMQEndpointOptions>`: `Name`, `Pattern` (an Encina enum `Publish`, `Subscribe`, `Push`, `Pull`, `Request`, `Reply`), `Address`, `Bind`), `SendHighWaterMark`, `ReceiveHighWaterMark`, `SendTimeout`, `RequestTimeout`, `ReconnectInterval`, `Linger`, `CurveServerPublicKey`, `CurveSecretKey` (`[JsonIgnore]`; `ToString()` prints the endpoint names only), `CurvePublicKey`, `AllowInsecureTransport`, `ProviderHealthCheck`. Internal `EncinaZeroMQOptionsValidator : IValidateOptions<>`: addresses are `tcp://`, `ipc://` or `inproc://`; a `tcp` address is loopback only when its host is a literal address in `127.0.0.0/8` or `::1` (no name resolution happens at validation, so `localhost` and every other host name count as non-loopback), and a wildcard bind (`tcp://*:5555`, `0.0.0.0`, `::`) counts as non-loopback; `ipc://` and `inproc://` are exempt; a non-loopback `tcp` address requires the CURVE keys unless `AllowInsecureTransport` (Design Choice 7), with unit tests for each classification; positive timeouts and high-water marks; unique endpoint names.
 3. Internal `ZeroMQEnvelope` (Design Choice 9): the three-frame codec, with the message id rule and the topic frame.
 4. `ServiceCollectionExtensions.AddEncinaZeroMQ(this IServiceCollection, Action<EncinaZeroMQOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-5. Tests: `EncinaZeroMQOptionsTests`, `ZeroMQEnvelopeTests`, `ServiceCollectionExtensionsTests` (unit), `ZeroMQGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.ZeroMQ.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+5. Tests: `EncinaZeroMQOptionsTests`, `ZeroMQEnvelopeTests`, `ServiceCollectionExtensionsTests` (unit), `ZeroMQGuardTests` (guard: null `services`, null `configure` accepted); manifest `.github/coverage-manifest/Encina.ZeroMQ.json` with the unit and guard targets of these files and their one-sentence justifications at file and package level (`coverage-report.cs --check-justifications` fails a target without one; every later pull request adds the targets and justifications of the files and flags it introduces); `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
 
 </details>
 
@@ -309,8 +307,8 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 1. Internal `ZeroMQSocketHost` (Design Choice 6): owns a `NetMQPoller` thread, a `NetMQQueue<T>` of operations, creates and disposes every socket, applies the options (high-water marks, linger, reconnect interval, CURVE), completes each operation through a `TaskCompletionSource`; callbacks catch every exception; disposal stops the poller and fails pending operations with a `Left`. The host is a singleton registered by `AddEncinaZeroMQ` with `IHostedService` start/stop, started lazily on the first operation so an application that registers the package but sends nothing opens no socket.
 2. `IZeroMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `ZeroMQMessagePublisher` (scoped; the host, `IOptions`, `ILogger`).
 3. Errors (ADR-062), in `ZeroMQErrorCodes.cs`, each created with the named argument `category:` and a constant message: `encina.zeromq.publish_failed` `Internal` (R4), `encina.zeromq.send_timeout` `Timeout` (R7), `encina.zeromq.endpoint_not_configured` `Internal` (R1: a configuration entry). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-4. `Log.cs` 40020-40023 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40020, 40039)`; the line `static readonly Encina.Diagnostics.EventIdRanges.ZeroMQ -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40020-40039 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
-5. DI: `AddEncinaZeroMQ` gains the host singleton, its hosted service and `TryAddScoped<IZeroMQMessagePublisher, ZeroMQMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves both with `ValidateOnBuild` and `ValidateScopes`.
+4. `Log.cs` 40020-40023 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40020, 40039)`; the line `static readonly Encina.Diagnostics.EventIdRanges.ZeroMQ -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40020-40039 | Transports | zone |` in the registered ranges table and the Blocks row `| 40020-40039 | Transports | transport-new-2: #610 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
+5. DI: `AddEncinaZeroMQ` gains the host singleton, its hosted service (`TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ...>)` resolving the same singleton host instance, not a second one) and `TryAddScoped<IZeroMQMessagePublisher, ZeroMQMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves both and asserts one host instance with `ValidateOnBuild` and `ValidateScopes`.
 6. Tests: `ZeroMQSocketHostTests` and `ZeroMQMessagePublisherTests` (unit, over in-process `inproc` sockets: the host is concrete, so its tests use real sockets), guard edit, manifest edit with the unit and guard targets (contract, property and integration targets are entered in pull request 6, where those tests land).
 
 </details>
@@ -356,7 +354,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 <details>
 <summary>Tasks</summary>
 
-1. `RequestAsync<TRequest, TResponse>(TRequest request, string? endpointName = null, string? messageId = null, CancellationToken cancellationToken = default)` returning `ValueTask<Either<EncinaError, TResponse>>` (REQ, one request in flight per socket, `RequestTimeout`; after a timeout the host disposes and recreates the REQ socket, Design Choice 8); `RespondAsync<TRequest, TResponse>(Func<TRequest, ValueTask<TResponse>> handler, string? endpointName = null, CancellationToken cancellationToken = default)` (REP loop; a handler that throws sends no reply).
+1. `RequestAsync<TRequest, TResponse>(TRequest request, string? endpointName = null, string? messageId = null, CancellationToken cancellationToken = default)` returning `ValueTask<Either<EncinaError, TResponse>>` (REQ, one request in flight per socket, `RequestTimeout`; after a timeout the host disposes and recreates the REQ socket, Design Choice 8); `RespondAsync<TRequest, TResponse>(Func<TRequest, ValueTask<TResponse>> handler, string? endpointName = null, CancellationToken cancellationToken = default)` (REP loop; the host always sends a reply after a receive: the handler's response, or an error reply when the handler throws or the request cannot be deserialized, so the REP socket never leaves the send state; the requester maps an error reply to `encina.zeromq.request_failed`).
 2. Codes added: `encina.zeromq.request_timeout` `Timeout` (R7), `encina.zeromq.request_failed` `Internal` (R4). `Log.cs` 40031-40034 (requesting, request timed out, socket recreated, responding).
 3. Tests: `ZeroMQRequestReplyTests` (unit over in-process sockets: reply, timeout then recreation, concurrent requests serialized), guard edit, manifest edit.
 
@@ -379,9 +377,9 @@ REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs (RequestAsync),
 <details>
 <summary>Tasks</summary>
 
-1. `Health/ZeroMQHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-zeromq"`, tags `encina`, `messaging`, `zeromq`, `ready`): healthy when the host thread is running and every configured `Bind` endpoint is bound (a brokerless transport has no server to ping); the result text names the check and the exception type only. Registered like `AmazonSQSHealthCheck` when `ProviderHealthCheck.Enabled`.
+1. `Health/ZeroMQHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-zeromq"`, tags `encina`, `messaging`, `zeromq`, `ready`): the host starts lazily on the first operation (pull request 2), so before first use the check reports `Healthy` with the text "not started" and never starts the host itself; after the first use it is healthy when the host thread is running and every configured `Bind` endpoint is bound, and unhealthy after a failed bind or a stopped host (a brokerless transport has no server to ping); the result text names the check and the exception type only. Registered like `AmazonSQSHealthCheck` when `ProviderHealthCheck.Enabled`.
 2. `Diagnostics/ZeroMQActivitySource` and `ZeroMQMetrics`: spans publish, consume, request, respond with a link from consumer to producer through the `traceparent` header; counters `zeromq.published`, `.received`, `.dropped`, `.request_timeouts` with tags `endpoint`, `outcome`; no tenant tag. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `ZeroMQHealthCheckTests`, `ZeroMQDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended (its manifest targets stay at today's unit 90 and guard 35).
+3. Tests: `ZeroMQHealthCheckTests`, `ZeroMQDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended and counted as a file (its manifest targets and justifications stay at today's unit 90 and guard 35).
 
 </details>
 
@@ -405,7 +403,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/Health/AmazonSQSHealthCheck.cs, src/Encina
 1. `tests/Encina.ContractTests/MessageBrokers/ZeroMQ/ZeroMQConformanceTests.cs`, a subclass of `TransportConformanceContractBase` of #240 for the scenarios a brokerless transport can honor (publish with message id, subscribe delivers, cancellation); the redelivery and dead-letter scenarios are not applicable and the subclass opts out of them as the base allows for publish-only transports; `ContractTests.csproj` reference.
 2. `tests/Encina.IntegrationTests/MessageBrokers/ZeroMQ/ZeroMQIntegrationTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","ZeroMQ")]`; real loopback sockets with random ports, Design Choice 10): fan-out to two subscribers, topic exactness, round robin across two pullers, request-reply with timeout and recovery, a CURVE pair, the high-water-mark behavior; `IntegrationTests.csproj` reference.
 3. `tests/Encina.PropertyTests/Messaging/ZeroMQ/ZeroMQEnvelopePropertyTests.cs` (FsCheck round trip of the three frames: topic, headers, message id, payload) and `PropertyTests.csproj` reference.
-4. One manifest edit entering the contract, property and integration targets (the table of Phase 7).
+4. One manifest edit entering the contract, property and integration targets of the table of Phase 7 together with their one-sentence justifications, the package-level contract and integration targets and justifications included.
 
 </details>
 
@@ -426,7 +424,7 @@ REFERENCE FILES: tests/Encina.IntegrationTests/MessageBrokers/AmazonSQS/*.cs, te
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.ZeroMQ.json` in the pull request that adds the tests of each flag: unit and guard with the file in pull requests 1 to 5, contract, property and integration in pull request 6; measured with the commands of AGENTS.md section 9):
+Per-flag targets, each written with its one-sentence justification in `.github/coverage-manifest/Encina.ZeroMQ.json` in the same pull request that adds the tests of the flag (unit and guard with the file in pull requests 1 to 5, contract, property and integration in pull request 6; this pull request adds no target); the table is the final state, measured with the commands of AGENTS.md section 9:
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -459,7 +457,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.ZeroMQ.json` in t
 
 ```text
 CONTEXT: The package is implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest justifications, write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Check that every manifest target already has its justification (run coverage-report.cs --check-justifications), write the two justification files, and hand the README, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer; the README states the NetMQ licence.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.AmazonSQS.json, changelog.d/README.md.
 ```
@@ -507,9 +505,9 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | **Pull request 2** | **14** | interface, publisher, host, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, host and publisher unit tests, guard edit, manifest edit; about 800 lines |
 | **Pull request 3** | **9** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 2 unit tests, guard edit, manifest edit; about 600 lines |
 | **Pull request 4** | **8** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 1 unit test, guard edit, manifest edit; about 450 lines |
-| **Pull request 5** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
+| **Pull request 5** | **10** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
 | **Pull request 6** | **7** | conformance subclass, integration test, property test, `ContractTests.csproj`, `IntegrationTests.csproj`, `PropertyTests.csproj`, manifest; about 650 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 Implementers and callers: `IZeroMQMessagePublisher` is new, so it has no implementers or `new X(` sites to update; the shared edits are additive. Pull request 1 registers the options and their validator, pull request 2 the host, hosted service and scoped publisher (pull requests 3 and 4 add members to the registered types), pull request 5 the health check. Each pull request builds alone in order 1 to 7; pull request 6 also needs #240 pull request 5 (the conformance base).
 
@@ -523,7 +521,7 @@ Implementers and callers: `IZeroMQMessagePublisher` is new, so it has no impleme
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.ZeroMQ adds a brokerless transport on NetMQ (LGPL-3.0, opt-in package).
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, envelope, DI; PR2 the single-owner socket host, publish and the EventId range ZeroMQ 40020-40039; PR3 subscribe, push and pull; PR4 request-reply with timeout and socket recreation; PR5 health check and telemetry; PR6 conformance subclass, property and integration tests with real loopback sockets; PR7 documentation and justification files. Dilemmas D1, D3, D4, D5, D6, D7, D8, D11 and D12 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, envelope, DI; PR2 the single-owner socket host, publish and the EventId range ZeroMQ 40020-40039; PR3 subscribe, push and pull; PR4 request-reply with timeout and socket recreation; PR5 health check and telemetry; PR6 conformance subclass, property and integration tests with real loopback sockets; PR7 documentation and justification files. Dilemmas D1, D2, D3, D4, D5, D6, D7, D8, D9, D11 and D12 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-most-once, never success on a failure; no exception escapes the poller or a receive loop; never block a pool thread on a socket; named ADR-062 category on every error; constant error messages; ids and payloads never logged; CURVE secret [JsonIgnore] with ToString override; targets never go down; CRAP <= 10.
 
@@ -563,7 +561,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Rabbi
 
 ## Next Steps
 
-1. Ask the maintainer D1, D3, D4, D5, D6, D7, D8, D11 and D12 when work on #610 starts, D1 first because it can stop the issue; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D1, D2, D3, D4, D5, D6, D7, D8, D9, D11 and D12 when work on #610 starts, D1 first because it can stop the issue; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (14 files).
-3. Pull requests 2 to 5: publish (14), subscribe and push-pull (9), request-reply (8), health and telemetry (9).
-4. Pull requests 6 and 7: contract, property and integration tests (7), documentation (8).
+3. Pull requests 2 to 5: publish (14), subscribe and push-pull (9), request-reply (8), health and telemetry (10).
+4. Pull requests 6 and 7: contract, property and integration tests (7), documentation (7).
