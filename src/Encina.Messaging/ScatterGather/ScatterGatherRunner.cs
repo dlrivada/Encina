@@ -61,7 +61,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
                 definition,
                 request,
                 operationId,
-                linkedCts).ConfigureAwait(false);
+                linkedCts,
+                timeoutCts.Token).ConfigureAwait(false);
 
             return await scatterResult.MatchAsync(
                 RightAsync: async scatterResults =>
@@ -105,7 +106,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         {
             ScatterGatherLog.ExecutionCancelled(_logger, operationId);
             return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "The scatter-gather operation was cancelled."));
+                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, ErrorCategory.Cancelled, "The scatter-gather operation was cancelled."));
         }
         catch (OperationCanceledException)
         {
@@ -113,13 +114,13 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             var timeout = definition.Timeout ?? _options.DefaultTimeout;
             ScatterGatherLog.ExecutionTimedOut(_logger, operationId, timeout);
             return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.Create(ScatterGatherErrorCodes.Timeout, $"The scatter-gather operation timed out after {timeout}."));
+                EncinaErrors.Create(ScatterGatherErrorCodes.Timeout, ErrorCategory.Timeout, $"The scatter-gather operation timed out after {timeout}."));
         }
         catch (Exception ex)
         {
             ScatterGatherLog.ExecutionException(_logger, operationId, ex.GetType().Name, ex.ForLogging());
             return Left<EncinaError, ScatterGatherResult<TResponse>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.Create(ScatterGatherErrorCodes.HandlerFailed, ex.Message));
+                EncinaErrors.Create(ScatterGatherErrorCodes.HandlerFailed, ErrorCategory.Internal, ex.Message));
         }
     }
 
@@ -127,7 +128,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         BuiltScatterGatherDefinition<TRequest, TResponse> definition,
         TRequest request,
         Guid operationId,
-        CancellationTokenSource linkedCts)
+        CancellationTokenSource linkedCts,
+        CancellationToken timeoutToken)
         where TRequest : class
     {
         var executeInParallel = definition.ExecuteInParallel;
@@ -136,13 +138,13 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         return definition.Strategy switch
         {
             GatherStrategy.WaitForFirst => await ExecuteWaitForFirstAsync(
-                definition, request, operationId, linkedCts).ConfigureAwait(false),
+                definition, request, operationId, linkedCts, timeoutToken).ConfigureAwait(false),
             GatherStrategy.WaitForQuorum => await ExecuteWaitForQuorumAsync(
-                definition, request, operationId, linkedCts).ConfigureAwait(false),
+                definition, request, operationId, linkedCts, timeoutToken).ConfigureAwait(false),
             _ when executeInParallel => await ExecuteParallelScattersAsync(
-                definition, request, operationId, maxParallelism, linkedCts.Token).ConfigureAwait(false),
+                definition, request, operationId, maxParallelism, linkedCts.Token, timeoutToken).ConfigureAwait(false),
             _ => await ExecuteSequentialScattersAsync(
-                definition, request, operationId, linkedCts.Token).ConfigureAwait(false)
+                definition, request, operationId, linkedCts.Token, timeoutToken).ConfigureAwait(false)
         };
     }
 
@@ -151,7 +153,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         TRequest request,
         Guid operationId,
         int maxParallelism,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken timeoutToken)
         where TRequest : class
     {
         var results = new List<ScatterExecutionResult<TResponse>>(definition.ScatterCount);
@@ -173,14 +176,15 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         var completedResults = await Task.WhenAll(tasks).ConfigureAwait(false);
         results.AddRange(completedResults);
 
-        return ValidateScatterResults(results, definition.Strategy, operationId);
+        return ValidateScatterResults(results, definition.Strategy, operationId, timeoutToken);
     }
 
     private async ValueTask<Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>> ExecuteSequentialScattersAsync<TRequest, TResponse>(
         BuiltScatterGatherDefinition<TRequest, TResponse> definition,
         TRequest request,
         Guid operationId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken timeoutToken)
         where TRequest : class
     {
         var results = new List<ScatterExecutionResult<TResponse>>(definition.ScatterCount);
@@ -192,14 +196,15 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             results.Add(result);
         }
 
-        return ValidateScatterResults(results, definition.Strategy, operationId);
+        return ValidateScatterResults(results, definition.Strategy, operationId, timeoutToken);
     }
 
     private async ValueTask<Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>> ExecuteWaitForFirstAsync<TRequest, TResponse>(
         BuiltScatterGatherDefinition<TRequest, TResponse> definition,
         TRequest request,
         Guid operationId,
-        CancellationTokenSource linkedCts)
+        CancellationTokenSource linkedCts,
+        CancellationToken timeoutToken)
         where TRequest : class
     {
         var results = new List<ScatterExecutionResult<TResponse>>();
@@ -253,14 +258,15 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             results.AddRange(await allTask.ConfigureAwait(false));
         }
 
-        return ValidateScatterResults(results, definition.Strategy, operationId);
+        return ValidateScatterResults(results, definition.Strategy, operationId, timeoutToken);
     }
 
     private async ValueTask<Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>> ExecuteWaitForQuorumAsync<TRequest, TResponse>(
         BuiltScatterGatherDefinition<TRequest, TResponse> definition,
         TRequest request,
         Guid operationId,
-        CancellationTokenSource linkedCts)
+        CancellationTokenSource linkedCts,
+        CancellationToken timeoutToken)
         where TRequest : class
     {
         var quorumCount = definition.GetEffectiveQuorumCount();
@@ -269,7 +275,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         var tasks = CreateQuorumHandlerTasks(definition, request, operationId, linkedCts, tracker);
         var results = await CollectQuorumResults(tasks).ConfigureAwait(false);
 
-        return ValidateQuorumReached(results, quorumCount, operationId);
+        return ValidateQuorumReached(results, quorumCount, operationId, timeoutToken);
     }
 
     private List<Task<ScatterExecutionResult<TResponse>>> CreateQuorumHandlerTasks<TRequest, TResponse>(
@@ -341,7 +347,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
     private Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>> ValidateQuorumReached<TResponse>(
         List<ScatterExecutionResult<TResponse>> results,
         int quorumCount,
-        Guid operationId)
+        Guid operationId,
+        CancellationToken timeoutToken)
     {
         var finalSuccessCount = results.Count(r => r.IsSuccess);
 
@@ -351,6 +358,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
                     ScatterGatherErrorCodes.QuorumNotReached,
+                    category: ScatterGatherFailureCategory.Derive(results, timeoutToken.IsCancellationRequested),
                     $"Quorum not reached. Required {quorumCount}, got {finalSuccessCount}."));
         }
 
@@ -410,7 +418,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
 
             return ScatterExecutionResult.Failure<TResponse>(
                 handler.Name,
-                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "Handler was cancelled."),
+                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, ErrorCategory.Cancelled, "Handler was cancelled."),
                 stopwatch.Elapsed,
                 startedAt,
                 _timeProvider.GetUtcNow().UtcDateTime);
@@ -418,7 +426,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         catch (Exception ex)
         {
             stopwatch.Stop();
-            var error = EncinaErrors.Create(ScatterGatherErrorCodes.ScatterFailed, ex.Message);
+            var error = EncinaErrors.Create(ScatterGatherErrorCodes.ScatterFailed, ErrorCategory.Internal, ex.Message);
             ScatterGatherLog.ScatterFailed(_logger, operationId, handler.Name, ex.GetType().Name);
 
             return ScatterExecutionResult.Failure<TResponse>(
@@ -457,11 +465,11 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         catch (OperationCanceledException)
         {
             return Left<EncinaError, TResponse>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "Gather handler was cancelled."));
+                EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, ErrorCategory.Cancelled, "Gather handler was cancelled."));
         }
         catch (Exception ex)
         {
-            var error = EncinaErrors.Create(ScatterGatherErrorCodes.GatherFailed, ex.Message);
+            var error = EncinaErrors.Create(ScatterGatherErrorCodes.GatherFailed, ErrorCategory.Internal, ex.Message);
             ScatterGatherLog.GatherFailed(_logger, operationId, ex.GetType().Name);
             return Left<EncinaError, TResponse>(error); // NOSONAR S6966: LanguageExt Left is a pure function
         }
@@ -470,7 +478,8 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
     private Either<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>> ValidateScatterResults<TResponse>(
         IReadOnlyList<ScatterExecutionResult<TResponse>> results,
         GatherStrategy strategy,
-        Guid operationId)
+        Guid operationId,
+        CancellationToken timeoutToken)
     {
         var successCount = results.Count(r => r.IsSuccess);
 
@@ -480,7 +489,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
             ScatterGatherLog.AllScattersFailed(_logger, operationId);
             return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
                 EncinaErrors.Create(
-                    ScatterGatherErrorCodes.ScatterFailed,
+                    ScatterGatherErrorCodes.ScatterFailed, ErrorCategory.Internal,
                     $"Not all scatter handlers succeeded. {successCount}/{results.Count} succeeded."));
         }
 
@@ -489,7 +498,10 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         {
             ScatterGatherLog.AllScattersFailed(_logger, operationId);
             return Left<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>( // NOSONAR S6966: LanguageExt Left is a pure function
-                EncinaErrors.Create(ScatterGatherErrorCodes.AllScattersFailed, "All scatter handlers failed."));
+                EncinaErrors.Create(
+                    ScatterGatherErrorCodes.AllScattersFailed,
+                    category: ScatterGatherFailureCategory.Derive(results, timeoutToken.IsCancellationRequested),
+                    "All scatter handlers failed."));
         }
 
         return Right<EncinaError, IReadOnlyList<ScatterExecutionResult<TResponse>>>(results); // NOSONAR S6966: LanguageExt Right is a pure function
@@ -500,7 +512,7 @@ public sealed class ScatterGatherRunner : IScatterGatherRunner
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         return ScatterExecutionResult.Failure<TResponse>(
             handlerName,
-            EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, "Handler was cancelled."),
+            EncinaErrors.Create(ScatterGatherErrorCodes.Cancelled, ErrorCategory.Cancelled, "Handler was cancelled."),
             TimeSpan.Zero,
             now,
             now);
