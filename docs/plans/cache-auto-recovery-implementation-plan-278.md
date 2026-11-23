@@ -284,7 +284,7 @@ PR 2 holds exactly these 15 files (PR 2 needs #266 PR 4, because it creates a me
 | 3 | `src/Encina.Caching/CacheAutoRecoveryServiceCollectionExtensions.cs` | new (public `AddEncinaCacheAutoRecovery`, and the validator `IValidateOptions<CacheAutoRecoveryOptions>` registered with `ValidateOnStart`, which runs `Validate()` and the Design Choice 9 rule against the final `CachingOptions`) |
 | 4 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingRecovery = (30000, 30011)`) |
 | 5 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (map `Encina.Caching`) |
-| 6 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `Encina.Diagnostics.EventIdRanges.CachingRecovery`, for the new field) |
+| 6 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `static readonly Encina.Diagnostics.EventIdRanges.CachingRecovery -> (int Min, int Max)`, for the new field) |
 | 7 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 8 | `tests/Encina.UnitTests/Caching/ResilientCacheProviderTests.cs` | new |
 | 9 | `tests/Encina.GuardTests/Caching/CacheAutoRecoveryServiceCollectionExtensionsGuardTests.cs` | new |
@@ -293,7 +293,7 @@ PR 2 holds exactly these 15 files (PR 2 needs #266 PR 4, because it creates a me
 | 12 | `changelog.d/278-cache-circuit-breaker.added.md` | new (`mechanical-fixer`) |
 | 13 | `tests/Encina.ContractTests/Encina.ContractTests.csproj` | modify (`ProjectReference` to `Encina.Caching.Memory`, which the contract project does not reference today) |
 | 14 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Recovery.cs` | new (partial of #266's class: the `encina.cache.circuit_state` gauge and the `encina.cache.circuit_transitions` and `encina.cache.fallback_operations` counters, emitted by the decorator and the breaker callback of this PR) |
-| 15 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingRecovery \| 30000-30011 \| Caching \| zone` in the "Registered ranges" table, and a row `30000-30049 \| Caching \| #278 cache auto-recovery \| registered` in the "Blocks" table (the plan reserved it as `reserved`); `EventIdRegistryAgreementTests` fails when a range of `EventIdRanges.cs` has no row, overlaps a reserved block or lies below 10000 without being historical; read the test and the document first) |
+| 15 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingRecovery \| 30000-30011 \| Caching \| zone` in the "Registered ranges" table, and, in the "Blocks" table, the `reserved` row of the slot is replaced by a `registered` row with the exact bounds of the range, `30000-30011 \| Caching \| #278 cache auto-recovery \| registered` (rule 2 of `EventIdRegistryAgreementTests` requires a `registered` block to match a range of `EventIdRanges.cs` with the same bounds, and rule 3 forbids a `reserved` row overlapping a registered range); the rest of the slot, 30012-30049, is left unlisted or as a `free` row (not checked); read the test and the document first) |
 
 The registration tests (both orders, `ValidateOnBuild`, `ValidateScopes`, the validator) and the metrics `MeterListener` tests are inside `ResilientCacheProviderTests.cs` (row 8). `src/Encina.Caching/Configuration/CachingOptions.cs` is not touched: the options live in `AddEncinaCacheAutoRecovery`'s own `IOptions<CacheAutoRecoveryOptions>`, so the hand-written copy list of `AddEncinaCaching` is unaffected and no `CachingOptions` member is added.
 
@@ -642,7 +642,7 @@ Registry: the EventIds are in the 10000+ zone (AGENTS.md section 7): no range of
 |--------------|--------|-------|
 | `ICacheProvider`, the eight provider registrations, `EncinaHealthCheck` | ✅ Available | On `origin/main` |
 | #266 PR 4 (`CachePatternMetrics.cs`) | Open | PR 2 of this plan needs it (it creates the metrics partial) |
-| Slot 30000-30049 of the Caching block of the EventId registry | Reserved by this plan | A row `30000-30049 \| Caching \| #278 cache auto-recovery \| reserved` in the "Blocks" table, added when the plan merges or by the first code PR |
+| Slot 30000-30049 of the Caching block of the EventId registry | Reserved by this plan | A row `30000-30049 \| Caching \| #278 cache auto-recovery \| reserved` in the "Blocks" table, added when the plan merges or by the first code PR; the code PR in PR 2 replaces it by `30000-30011 ... registered` (exact bounds) |
 | Maintainer answers to Design Choices 1, 3, 4, 5, 6, 7 and 9 | Pending | Asked when work starts |
 
 ---
