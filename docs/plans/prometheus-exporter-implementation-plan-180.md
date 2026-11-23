@@ -195,7 +195,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina.OpenTelemetry.Prometheus/EncinaPrometheusEndpointExtensions.cs`: `public static IEndpointConventionBuilder MapEncinaPrometheus(this IEndpointRouteBuilder endpoints)`: guard; read `IOptions<EncinaPrometheusOptions>` from `endpoints.ServiceProvider`; call `endpoints.MapPrometheusScrapingEndpoint(options.MetricsPath)`; when `AuthorizationPolicy` is set apply `RequireAuthorization(policy)`; when `AllowAnonymous` is set apply `AllowAnonymous()` and log Warning 60051; log Information 60050 with the path. Verify at the start of the phase that the pinned beta returns an `IEndpointConventionBuilder` (the documentation file lists the signatures, not the return type); if it does not, the extension maps a group and applies the conventions to the group.
-2. **Create** `src/Encina.OpenTelemetry.Prometheus/PrometheusLog.cs`: `internal static partial class PrometheusLog` with two `[LoggerMessage]` methods, EventIds 60050 (endpoint mapped, path) and 60051 (anonymous access, path), XML docs naming the range `EventIdRanges.OpenTelemetryPrometheus`.
+2. **Create** `src/Encina.OpenTelemetry.Prometheus/Diagnostics/PrometheusLogMessages.cs` (the `Diagnostics/*LogMessages.cs` convention of `AGENTS.md` section 7): `internal static partial class PrometheusLogMessages` with two `[LoggerMessage]` methods, EventIds 60050 (endpoint mapped, path) and 60051 (anonymous access, path), XML docs naming the range `EventIdRanges.OpenTelemetryPrometheus`.
 3. **Edit** `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) OpenTelemetryPrometheus = (60050, 60099);` with a summary; add a row to `docs/engineering/eventid-block-registry.md` (a registered range row and the block row set to `registered`); add `Encina.OpenTelemetry.Prometheus` to the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`; run `EventIdRegistryAgreementTests` and the architecture tests. The new field goes to `src/Encina/PublicAPI.Unshipped.txt` through `mechanical-fixer`.
 4. **Edit** `src/Encina.OpenTelemetry.Prometheus/PublicAPI/PublicAPI.Unshipped.txt` and `.github/coverage-manifest/Encina.OpenTelemetry.Prometheus.json` (mechanical-fixer); **edit** `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj` to reference the package.
 5. **Create** `tests/Encina.IntegrationTests/Observability/Prometheus/PrometheusEndpointTests.cs` (`[Trait("Category", "Integration")]`, TestHost, no Docker): with an authorization policy and a test authentication handler an unauthenticated scrape is denied and an authorized one returns 200 with `text/plain` Prometheus content containing the series of a test meter; with `AllowAnonymous = true` a scrape returns 200 and Warning 60051 is logged once; a host with neither choice fails to start with `OptionsValidationException`; the scrape body contains no value that the test put in an error message.
@@ -285,7 +285,7 @@ Per-file coverage targets (per flag, one sentence each), written to `.github/cov
 | `EncinaPrometheusOptionsValidator.cs` | 95 | 70 | 0 | 0 | One test per rule drives every branch; guard covers the null options argument; the rules are a short list, not a domain with invariants |
 | `ServiceCollectionExtensions.cs` | 90 | 85 | 0 | 0 | The registration test starts a real meter provider and reads the exporter output; guard covers the null services and the null configure |
 | `EncinaPrometheusEndpointExtensions.cs` | 70 | 80 | 0 | 0 | The mapping branches (policy, anonymous) run in the TestHost integration tests, which count for the integration flag, so unit stays moderate; guard covers the null endpoints |
-| `PrometheusLog.cs` | 0 | 0 | 0 | 0 | Generated `[LoggerMessage]` code with no logic of its own; it is executed through the endpoint tests |
+| `Diagnostics/PrometheusLogMessages.cs` | 0 | 0 | 0 | 0 | Generated `[LoggerMessage]` code with no logic of its own; it is executed through the endpoint tests |
 
 ---
 
@@ -305,7 +305,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. P1: project, EncinaPrometheusOptions, validator, AddEncinaPrometheus, the exporter pin move, solution and test references.
-2. P2: MapEncinaPrometheus with RequireAuthorization or AllowAnonymous, PrometheusLog 60050-60051, the OpenTelemetryPrometheus range
+2. P2: MapEncinaPrometheus with RequireAuthorization or AllowAnonymous, PrometheusLogMessages 60050-60051, the OpenTelemetryPrometheus range
    (60050-60099) in EventIdRanges, registry and AssemblyRanges, TestHost integration tests, README.
 
 KEY PATTERNS:
