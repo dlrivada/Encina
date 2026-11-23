@@ -3,7 +3,7 @@
 > **Issue**: [#310](https://github.com/dlrivada/Encina/issues/310)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: High (9 phases, 9 pull requests of about 13, 15, 11, 14, 14, 14, 15, 7 and 9 files)
+> **Complexity**: High (10 phases, 10 pull requests of about 13, 15, 12, 14, 14, 15, 13, 6, 7 and 8 files)
 > **Estimated Scope**: about 1,900 lines of production code and about 3,000 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). This issue is a pattern, not a transport: it sits on top of the transports and is planned last in the family; "Shared pieces" below says which plan owns what.
 
@@ -119,17 +119,17 @@ A wins as the default of a reliability library; B wins for a fire-and-forget tel
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Dot-separated event type names; `*` matches one segment and `#` matches zero or more (the RabbitMQ topic exchange grammar); subscriptions in the same `ConsumerGroup` compete (round robin), subscriptions in different groups each receive a copy (Kafka consumer-group semantics)** | Two well-known conventions; no new grammar | `#` needs a small matcher |
-| **B) Regular expressions** | Powerful | Unbounded cost per event, a regex-denial-of-service surface on input that crosses a trust boundary |
+| **A) Dot-separated event type names; `*` matches one segment and `#` matches zero or more (the RabbitMQ topic exchange grammar); subscriptions in the same `ConsumerGroup` compete (round robin), subscriptions in different groups each receive a copy (Kafka consumer-group semantics)** | Familiar to users of the two brokers; expressive routing and fan-out | A small matcher to write and test; a grammar that becomes public behavior |
+| **B) Exact event type names only, and every subscription receives a copy (no consumer-group competition)** | Nothing to parse; smallest public surface | No wildcard subscriptions; the issue's `ConsumerGroup` parameter would have no meaning |
+| **C) Regular expressions** | Powerful | Unbounded cost per event, a regex-denial-of-service surface on input that crosses a trust boundary |
 
-### Chosen Option: **A, topic-exchange patterns and consumer groups**
+### Chosen Option: **A, topic-exchange patterns and consumer groups** (recommended, pending the maintainer)
 
 ### Rationale
 
-Pattern syntax and group semantics follow the RabbitMQ topic exchange and Kafka consumer groups, which the issue's `MeshSubscription(Pattern, ConsumerGroup)` mirrors. A pattern is validated when the subscription is created (`encina.eventmesh.invalid_pattern`, `Validation`, R3).
+The pattern grammar and the group semantics are public behavior, so the comparable products (RabbitMQ topic exchange, Apache Kafka consumer groups) inform the choice but do not settle it. A wins when subscribers need wildcard routing and competing consumers, which the issue's `MeshSubscription(Pattern, ConsumerGroup)` implies; B wins for a minimal first release. C is rejected for the matching cost. A pattern is validated when the subscription is created (`encina.eventmesh.invalid_pattern`, `Validation`, R3).
 
-**Class:** Trivial
-**Settled by:** RabbitMQ topic exchange and Apache Kafka consumer groups (named comparable products) and the `MeshSubscription` record of #310
+**Class:** Dilemma
 
 </details>
 
@@ -262,7 +262,7 @@ A wins for event distribution where each region consumes independently; B wins w
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Fail closed: an event with no matching route is rejected (`encina.eventmesh.route_not_found`, `Internal`, R1, a configuration entry is missing) and dead lettered when Design Choice 8 applies; every forward appends the node id to the event's hop list and an event that reaches `MaxHops` (default 8) or revisits a node is rejected (`encina.eventmesh.hop_limit_exceeded`, `InvalidRequest`, R3)** | Nothing is dropped silently; a misrouted or looping event is visible; cycles cannot amplify | A new route must be added before a new event type flows |
+| **A) Fail closed: an event with no matching route is rejected (`encina.eventmesh.route_not_found`, `Internal`, R1, a configuration entry is missing) and dead lettered when Design Choice 8 applies; every forward appends the node id to the hop list of that copy of the event, and a copy that reaches `MaxHops` (default 8) or revisits a node already on its own path is rejected (the visited set is per path, not per event, so a legitimate fan-out that converges on one node through two routes delivers both copies; each copy carries its own path) (`encina.eventmesh.hop_limit_exceeded`, `InvalidRequest`, R3)** | Nothing is dropped silently; a misrouted or looping event is visible; cycles cannot amplify | A new route must be added before a new event type flows |
 | **B) Drop an unroutable event with a counter, and loop guard only by hop count** | A forgiving mesh | A silent loss until someone reads a counter |
 
 ### Chosen Option: **A, reject unroutable events and bound hops** (recommended, pending the maintainer)
@@ -327,7 +327,7 @@ A wins because each deferred item needs a contract another issue defines first; 
 1. `src/Encina.EventMesh/Encina.EventMesh.csproj` (net10.0; packages `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`; project references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`) and the `Encina.slnx` entry. The transports of this family carry no `PublicAPI.*.txt` today; this package is not a transport and its public surface is large, so it follows `Encina.Messaging`: `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt` are created empty here and the later pull requests add their lines, through `mechanical-fixer`.
 2. `EncinaEventMeshOptions` (namespace `Encina.EventMesh`, public sealed): `NodeId` (default the machine name), `Region`, `MaxHops` (default 8), `DefaultSubscriptionCapacity` (default 1,000), `ProviderHealthCheck`; it holds no secret. Internal validator: non-blank `NodeId`, `NodeId` without `.`, `*` or `#`, positive `MaxHops` and capacity.
 3. `ServiceCollectionExtensions.AddEncinaEventMesh(this IServiceCollection, Action<EncinaEventMeshOptions>? configure = null)`: options with `ValidateOnStart`, the validator through `TryAddEnumerable`; a DI test that builds the provider with `ValidateOnBuild` and `ValidateScopes`.
-4. Tests: `EncinaEventMeshOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `EventMeshGuardTests` (guard); manifest `.github/coverage-manifest/Encina.EventMesh.json`; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+4. Tests: `EncinaEventMeshOptionsTests`, `ServiceCollectionExtensionsTests` (unit), `EventMeshGuardTests` (guard); manifest `.github/coverage-manifest/Encina.EventMesh.json` with the unit and guard targets of these files and their one-sentence justifications at file and package level (`coverage-report.cs --check-justifications` fails a target without one; every later pull request adds the targets and justifications of the files and flags it introduces); `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
 
 </details>
 
@@ -373,10 +373,10 @@ REFERENCE FILES: src/Encina.Messaging/ContentRouter/IContentRouter.cs, src/Encin
 <details>
 <summary>Tasks</summary>
 
-1. `LocalEventMesh : IEventMesh` (internal sealed, singleton; it stamps `OccurredAtUtc` from `TimeProvider`, registered with `TryAddSingleton(TimeProvider.System)` in this pull request): a subscription registry; per subscription a bounded `Channel<MeshEvent>` (Design Choice 4); competing consumers inside a group (round robin) and one copy per group; `PublishToMeshAsync` to the local node delivers in process, to another node id returns `encina.eventmesh.node_not_found` unless a gateway adapter owns it (pull request 5); `SubscribeAsync` returns the channel reader as `IAsyncEnumerable<MeshEvent>` and removes the subscription when enumeration ends or the token is cancelled. Zero subscribers is `Right` with a counter (as the notification dispatcher does).
-2. `Log.cs` 40080-40083 (event published, no subscriber, subscription added, subscription removed; no event ids, no payloads). `EventIdRanges.EventMesh = (40080, 40099)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| EventMesh | 40080-40099 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
+1. `LocalEventMesh : IEventMesh` (internal sealed, singleton; it stamps `OccurredAtUtc` from `TimeProvider`, registered with `TryAddSingleton(TimeProvider.System)` in this pull request): a subscription registry; per subscription a bounded `Channel<MeshEvent>` (Design Choice 4); competing consumers inside a group (round robin) and one copy per group; `PublishToMeshAsync` to the local node delivers in process, to another node id returns `encina.eventmesh.node_not_found` unless a gateway adapter owns it (pull request 5); `SubscribeAsync` validates the pattern and returns an `IAsyncEnumerable<MeshEvent>` whose subscription (and bounded channel) is registered when enumeration starts (the first `MoveNextAsync`) and removed when the enumerator is disposed, enumeration ends or the token is cancelled, so a caller that never enumerates leaves nothing registered and cannot block publishers through a full channel; events published before enumeration starts are not delivered (documented). A test covers the never-enumerated case with more events than the capacity. Zero subscribers is `Right` with a counter (as the notification dispatcher does).
+2. `Log.cs` 40080-40083 (event published, no subscriber, subscription added, subscription removed; no event ids, no payloads). `EventIdRanges.EventMesh = (40080, 40099)`; the line `static readonly Encina.Diagnostics.EventIdRanges.EventMesh -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| EventMesh | 40080-40099 | Transports | zone |` in the registered ranges table and the Blocks row `| 40080-40099 | Transports | transport-new-2: #310 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
 3. DI: `AddEncinaEventMesh` registers `IEventMesh` as `LocalEventMesh` (`TryAddSingleton`); the DI test resolves it with `ValidateOnBuild` and `ValidateScopes`.
-4. Tests: `LocalEventMeshTests` (unit: fan-out to groups, competing consumers, backpressure with a bounded capacity, cancellation, unsubscribe on disposal), `LocalEventMeshConcurrencyTests` (unit: concurrent publishers and subscribers), guard edit, manifest edit.
+4. Tests: `LocalEventMeshTests` (unit: fan-out to groups, competing consumers, backpressure with a bounded capacity, cancellation, unsubscribe on disposal), `LocalEventMeshConcurrencyTests` (unit: concurrent publishers and subscribers, the never-enumerated subscription), guard edit, manifest edit with the unit and guard targets of the files and their one-sentence justifications.
 
 </details>
 
@@ -424,7 +424,7 @@ REFERENCE FILES: src/Encina.Messaging/ContentRouter/*.cs, src/Encina.Messaging/R
 1. `IMeshTransportAdapter` (`Name`, `PublishAsync(MeshEvent, MeshTarget, ct)` returning `Either<EncinaError, Unit>`, `SubscribeAsync(pattern, Func<IncomingEvent, ValueTask<Either<EncinaError, Unit>>>, ct)` returning `Either<EncinaError, IAsyncDisposable>`, and `CanSubscribe`); `MeshTransportAdapter.Create(...)` (delegate-based, the way an application adapts any publisher today); `InProcessMeshTransportAdapter` over `IInMemoryMessageBus` is not shipped in `Encina.EventMesh` (it would reference `Encina.InMemory`), the tests build it with `Create`.
 2. The gateway's forward step: for a route whose target is an adapter, call `PublishAsync`; a failure is `encina.eventmesh.forward_failed` (`Internal`, R4); when `IDeadLetterStore` and `IDeadLetterMessageFactory` are registered and the route has `DeadLetterOnFailure`, the event is written there and the result stays a `Left` (Design Choice 8); a failed dead-letter write is `encina.eventmesh.dead_letter_failed` (`Internal`, R4). The ingress side: an adapter subscription feeds `IEventGateway.RouteAsync`, and a `Left` goes back to the adapter so the transport redelivers where it can.
 3. A hosted service starts the ingress subscriptions and stops them with the host; each loop catches per iteration and never lets an exception escape, the stopping token ends it (AGENTS.md section 3). `Log.cs` 40089-40093 (forwarded, forward failed, dead lettered, dead letter failed, ingress iteration failed).
-4. DI: adapters register through `AddEncinaEventMeshAdapter(...)`; the hosted service is registered in `AddEncinaEventMesh`; the DI test builds the provider with an adapter and `ValidateOnBuild`.
+4. DI: adapters register through `AddEncinaEventMeshAdapter(...)`; the hosted service is registered in `AddEncinaEventMesh` with `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ...>)`; the DI test builds the provider with an adapter and `ValidateOnBuild`.
 5. Tests: `MeshTransportAdapterTests`, `EventGatewayForwardingTests` (unit with substituted adapter and dead letter store), `EventMeshIngressTests`, guard edit, manifest edit.
 
 </details>
@@ -449,7 +449,7 @@ REFERENCE FILES: src/Encina.InMemory/IInMemoryMessageBus.cs, src/Encina.Redis.Pu
 1. `GetTopologyAsync` on `LocalEventMesh`: the static view of Design Choice 10 (this node, configured nodes and regions, routes, subscriptions by pattern and group, adapters and whether each can subscribe).
 2. `Health/EventMeshHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-event-mesh"`, tags `encina`, `messaging`, `event-mesh`, `ready`): unhealthy when an ingress subscription has ended abnormally or an adapter reports unhealthy; the result text names the check and the exception type only. Registered when `ProviderHealthCheck.Enabled`.
 3. `Diagnostics/EventMeshActivitySource` and `EventMeshMetrics`: spans publish, route, transform, forward, receive with a link from consumer to producer through the `traceparent` of the event metadata; counters `event_mesh.published`, `.routed`, `.forwarded`, `.rejected`, `.dead_lettered` with tags `route`, `outcome` (route names, never event ids); no tenant tag. `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines. `Log.cs` 40094-40096 (topology requested, adapter unhealthy, ingress subscription ended).
-4. Tests: `EventMeshTopologyTests`, `EventMeshHealthCheckTests`, `EventMeshDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended (its manifest targets stay at today's unit 90 and guard 35).
+4. Tests: `EventMeshTopologyTests`, `EventMeshHealthCheckTests`, `EventMeshDiagnosticsTests` (unit), guard edit, manifest edit; the `Encina.OpenTelemetry` registration test is extended and counted as a file (its manifest targets and justifications stay at today's unit 90 and guard 35).
 
 </details>
 
@@ -465,14 +465,13 @@ REFERENCE FILES: src/Encina.Messaging/Health/EncinaHealthCheck.cs, src/Encina.Me
 
 </details>
 
-### Phase 7: CloudEvents package (pull request 7)
+### Phase 7: CloudEvents package skeleton (pull request 7)
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.EventMesh.CloudEvents/Encina.EventMesh.CloudEvents.csproj` (packages `CloudNative.CloudEvents` and `CloudNative.CloudEvents.SystemTextJson`, new pins 2.9.0 in `Directory.Packages.props`; project reference to `Encina.EventMesh`; `InternalsVisibleTo Encina.UnitTests`), the `Encina.slnx` entry, `EncinaEventMeshCloudEventsOptions` (default `Source` URI, `DataContentType` `application/json`), its validator, `CloudEventsMeshFormatter` (public: `ToCloudEvent(MeshEvent)` and `FromCloudEvent(...)`, both `Either`), `ServiceCollectionExtensions.AddEncinaEventMeshCloudEvents` (registers the formatter the gateway uses to read and write envelopes on adapters that carry CloudEvents), the PublicAPI files (through `mechanical-fixer`) and the manifest `.github/coverage-manifest/Encina.EventMesh.CloudEvents.json`.
-2. Errors (ADR-062): `encina.eventmesh.cloudevents.invalid_event` `Validation` (R3), `encina.eventmesh.cloudevents.unsupported_content` `InvalidRequest` (R3). The mapping: CloudEvents `id` = event id, `type` = event type name, `source` = `Source` option or the node id, `time` = `OccurredAtUtc`, `traceparent` extension, headers as extensions with the prefix `encina`.
-3. Tests: `CloudEventsMeshFormatterTests` (unit: round trip, required attributes, unsupported content), `CloudEventsOptionsTests`, `ServiceCollectionExtensionsTests`, guard test; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits.
+1. `src/Encina.EventMesh.CloudEvents/Encina.EventMesh.CloudEvents.csproj` (packages `CloudNative.CloudEvents` and `CloudNative.CloudEvents.SystemTextJson`, new pins 2.9.0 in `Directory.Packages.props`; project reference to `Encina.EventMesh`; `InternalsVisibleTo Encina.UnitTests`), the `Encina.slnx` entry, the two empty PublicAPI files (through `mechanical-fixer`), `EncinaEventMeshCloudEventsOptions` (default `Source` URI, `DataContentType` `application/json`) with its validator, and `ServiceCollectionExtensions.AddEncinaEventMeshCloudEvents` (options with `ValidateOnStart`, the validator through `TryAddEnumerable`; the formatter it will register arrives in pull request 8, so every pull request builds alone).
+2. Tests: `CloudEventsOptionsAndRegistrationTests` (unit: options, validator, DI with `ValidateOnBuild` and `ValidateScopes`), guard test; `UnitTests.csproj` and `GuardTests.csproj` ProjectReference edits; manifest `.github/coverage-manifest/Encina.EventMesh.CloudEvents.json` with the unit and guard targets of these files and their one-sentence justifications at file and package level.
 
 </details>
 
@@ -481,14 +480,37 @@ REFERENCE FILES: src/Encina.Messaging/Health/EncinaHealthCheck.cs, src/Encina.Me
 
 ```text
 CONTEXT: The mesh exists and uses an internal envelope. CloudNative.CloudEvents 2.9.0 and its SystemTextJson formatter are Apache-2.0.
-TASK: Create Encina.EventMesh.CloudEvents with the mapper between MeshEvent and CloudEvents 1.0 in structured JSON mode, its options and DI, with tests.
-KEY RULES: the library types stay internal; Either for every operation; named ADR-062 categories and constant messages; payloads and ids never logged; no new log ids unless the package logs; PublicAPI through mechanical-fixer.
-REFERENCE FILES: src/Encina.Cdc.Debezium/DebeziumEventMapper.cs, src/Encina.AmazonSQS/ServiceCollectionExtensions.cs, .github/coverage-manifest/Encina.AmazonSQS.json.
+TASK: Create the Encina.EventMesh.CloudEvents package skeleton with validated options and AddEncinaEventMeshCloudEvents, with unit and guard tests.
+KEY RULES: the library types stay internal; validation fails at startup; TryAdd registrations only; a DI test with ValidateOnBuild and ValidateScopes; PublicAPI through mechanical-fixer; the manifest carries a justification for every target it sets.
+REFERENCE FILES: src/Encina.AmazonSQS/ServiceCollectionExtensions.cs, .github/coverage-manifest/Encina.AmazonSQS.json.
 ```
 
 </details>
 
-### Phase 8: Contract, property and integration tests (pull request 8)
+### Phase 8: CloudEvents mapper (pull request 8)
+
+<details>
+<summary>Tasks</summary>
+
+1. `CloudEventsMeshFormatter` (public: `ToCloudEvent(MeshEvent)` and `FromCloudEvent(...)`, both returning `Either`), registered by `AddEncinaEventMeshCloudEvents` with `TryAddSingleton` (the formatter the gateway uses to read and write envelopes on adapters that carry CloudEvents), and its `PublicAPI.Unshipped.txt` lines (through `mechanical-fixer`).
+2. Errors (ADR-062), internal constants inside the formatter, each created with the named argument `category:` and a constant message: `encina.eventmesh.cloudevents.invalid_event` `Validation` (R3), `encina.eventmesh.cloudevents.unsupported_content` `InvalidRequest` (R3). The mapping: CloudEvents `id` = event id, `type` = event type name, `source` = `Source` option or the node id, `time` = `OccurredAtUtc`, `traceparent` extension, headers as extensions with the prefix `encina`.
+3. Tests: `CloudEventsMeshFormatterTests` (unit: round trip, required attributes, unsupported content), the registration test edit (the formatter resolves), guard edit; manifest edit with the unit and guard targets of the formatter and their one-sentence justifications.
+
+</details>
+
+<details>
+<summary>Prompt for AI Agents — Phase 8</summary>
+
+```text
+CONTEXT: The CloudEvents package skeleton exists. CloudNative.CloudEvents 2.9.0 and its SystemTextJson formatter are Apache-2.0.
+TASK: Implement the mapper between MeshEvent and CloudEvents 1.0 in structured JSON mode and its registration, with tests.
+KEY RULES: the library types stay internal; Either for every operation; named ADR-062 categories and constant messages; payloads and ids never logged; PublicAPI through mechanical-fixer; the manifest edit carries a justification for every target.
+REFERENCE FILES: src/Encina.Cdc.Debezium/DebeziumEventMapper.cs, src/Encina.AmazonSQS/ServiceCollectionExtensions.cs.
+```
+
+</details>
+
+### Phase 9: Contract, property and integration tests (pull request 9)
 
 <details>
 <summary>Tasks</summary>
@@ -496,12 +518,12 @@ REFERENCE FILES: src/Encina.Cdc.Debezium/DebeziumEventMapper.cs, src/Encina.Amaz
 1. `tests/Encina.ContractTests/EventMesh/EventMeshContractTests.cs`: the `IEventMesh` and `IEventGateway` contracts run against the real `LocalEventMesh` and `EventGateway` (publish to subscribers, `Left` for an unknown node, no route is a `Left`, cancellation propagates); `ContractTests.csproj` reference.
 2. `tests/Encina.PropertyTests/EventMesh/MeshPatternPropertyTests.cs` (FsCheck: a pattern equals its own type name, `#` matches every type, the matcher agrees with a reference implementation, no input crashes it) and the `PropertyTests.csproj` reference.
 3. `tests/Encina.IntegrationTests/EventMesh/EventMeshCrossTransportIntegrationTests.cs` in the shared `RedisCollection` of the integration project (`[Collection(RedisCollection.Name)]`, as `RedisPubSubMessagePublisherIntegrationTests` does; `[Trait("Category","Integration")]`): the gateway forwards an event from the in-process bus to Redis.PubSub and back through two adapters built with `MeshTransportAdapter.Create`, with transformation and a CloudEvents round trip; `IntegrationTests.csproj` reference. Adapters for MQTT, Kafka, RabbitMQ and Azure Service Bus are the follow-up issue.
-4. One manifest edit entering the contract, property and integration targets (the table of Phase 9).
+4. One manifest edit entering the contract, property and integration targets of the table of Phase 10 together with their one-sentence justifications, the package-level contract and integration targets and justifications included.
 
 </details>
 
 <details>
-<summary>Prompt for AI Agents — Phase 8</summary>
+<summary>Prompt for AI Agents — Phase 9</summary>
 
 ```text
 CONTEXT: The mesh, gateway, adapters and CloudEvents package exist. Redis.PubSub and the in-process bus both subscribe, so they are the two real transports of the cross-transport test.
@@ -512,12 +534,12 @@ REFERENCE FILES: tests/Encina.IntegrationTests/Messaging/RedisPubSub/RedisPubSub
 
 </details>
 
-### Phase 9: Documentation and finalization (pull request 9)
+### Phase 10: Documentation and finalization (pull request 10)
 
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.EventMesh.json` and `Encina.EventMesh.CloudEvents.json` in the pull request that adds the tests of each flag: unit and guard with the file in pull requests 1 to 7, contract, property and integration in pull request 8; measured with the commands of AGENTS.md section 9):
+Per-flag targets, each written with its one-sentence justification in `.github/coverage-manifest/Encina.EventMesh.json` or `Encina.EventMesh.CloudEvents.json` in the same pull request that adds the tests of the flag (unit and guard with the file in pull requests 1 to 8, contract, property and integration in pull request 9; this pull request adds no target); the table is the final state, measured with the commands of AGENTS.md section 9:
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -548,11 +570,11 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.EventMesh.json` a
 </details>
 
 <details>
-<summary>Prompt for AI Agents — Phase 9</summary>
+<summary>Prompt for AI Agents — Phase 10</summary>
 
 ```text
 CONTEXT: The packages are implemented and tested; documentation and the justification files remain.
-TASK: Enter the manifest justifications, write the two justification files, and hand the READMEs, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
+TASK: Check that every manifest target already has its justification (run coverage-report.cs --check-justifications), write the two justification files, and hand the READMEs, feature page, transports page, INVENTORY and changelog fragment to the owning specialists.
 KEY RULES: targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md; docs through docs-writer, fragments through mechanical-fixer; documentation says what is not delivered (adapters, Dapr, dynamic discovery, replication).
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.Messaging.json, changelog.d/README.md.
 ```
@@ -601,17 +623,18 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Documentation | 9 | 2 READMEs, feature page, transports page, INVENTORY, registry rows, changelog, 2 justification files |
 | **Pull request 1** | **13** | csproj, 2 PublicAPI files, options, validator, DI, `Encina.slnx`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, DI test, guard test; about 450 lines |
 | **Pull request 2** | **15** | `IEventMesh`, 7 record files (`MeshTarget`, `MeshSubscription`, `SubscriptionOptions`, `MeshPublishOptions`, `MeshEvent`, `MeshEventMetadata`, `MeshTopology` with `MeshNode`), `MeshPattern`, error codes, `PublicAPI.Unshipped.txt` edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 3** | **11** | `LocalEventMesh` (internal), `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
+| **Pull request 3** | **12** | `LocalEventMesh` (internal), `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
 | **Pull request 4** | **14** | `IEventGateway`, `IncomingEvent`, `GatewayRoute`, `GatewayRouteBuilder`, `EventGateway`, error codes edit, `Log` edit, DI edit, DI test edit, `PublicAPI.Unshipped.txt` edit, 3 unit tests, guard edit, manifest edit; about 900 lines |
 | **Pull request 5** | **14** | adapter port, adapter factory, ingress hosted service, gateway edit, error codes edit, `Log` edit, DI edit, DI test edit, `PublicAPI.Unshipped.txt` edit, 3 unit tests, guard edit, manifest edit; about 800 lines |
-| **Pull request 6** | **14** | `LocalEventMesh` edit (topology), health check, 2 diagnostics, `Log` edit, DI edit, DI test edit, `Encina.OpenTelemetry` edit, `PublicAPI.Unshipped.txt` edit, 3 unit tests, guard edit, manifest edit; about 650 lines |
-| **Pull request 7** | **15** | csproj, 2 PublicAPI files, options, validator, formatter (the error codes are internal constants inside it), DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, 2 unit tests, guard test; about 700 lines |
-| **Pull request 8** | **7** | contract test, property test, integration test, `ContractTests.csproj`, `PropertyTests.csproj`, `IntegrationTests.csproj`, manifest; about 700 lines |
-| **Pull request 9** | **9** | 2 READMEs, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, 2 manifests (justifications); about 450 lines |
+| **Pull request 6** | **15** | `LocalEventMesh` edit (topology), health check, 2 diagnostics, `Log` edit, DI edit, DI test edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, `PublicAPI.Unshipped.txt` edit, 3 unit tests, guard edit, manifest edit; about 650 lines |
+| **Pull request 7** | **13** | CloudEvents csproj, 2 PublicAPI files, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, one unit test file (options, validator, DI), guard test; about 450 lines |
+| **Pull request 8** | **5** | `CloudEventsMeshFormatter` (the error codes are internal constants inside it), `PublicAPI.Unshipped.txt` edit, formatter unit test (the registration test edit in the same file as pull request 7's unit test: 6), guard edit, manifest edit; about 450 lines |
+| **Pull request 9** | **7** | contract test, property test, integration test, `ContractTests.csproj`, `PropertyTests.csproj`, `IntegrationTests.csproj`, manifest; about 700 lines |
+| **Pull request 10** | **8** | 2 READMEs, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 450 lines |
 
-Recount by file name, including PublicAPI files, manifests, DI tests, project references, `Encina.slnx`, `Directory.Packages.props` and the registry: no pull request exceeds 15 files or 1,500 lines. Pull request 2 and pull request 7 are at the limit; if the implementation finds one more file in either, that pull request splits at the records and the options respectively.
+Recount by file name, including PublicAPI files, manifests, DI tests, project references, `Encina.slnx`, `Directory.Packages.props` and the registry: no pull request exceeds 15 files or 1,500 lines. Pull request 2 and pull request 6 are at the limit; if the implementation finds one more file in either, that pull request splits at the records and at the health check respectively.
 
-Implementers and callers: `IEventMesh`, `IEventGateway` and `IMeshTransportAdapter` are new, so they have no implementers or `new X(` sites to update; the shared edits are additive. Pull request 3 registers `TimeProvider` and the local mesh, pull request 4 the gateway, pull request 5 the ingress hosted service, pull request 6 the health check, pull request 7 the CloudEvents formatter. Each pull request builds alone in order 1 to 9 (each needs the previous one).
+Implementers and callers: `IEventMesh`, `IEventGateway` and `IMeshTransportAdapter` are new, so they have no implementers or `new X(` sites to update; the shared edits are additive. Pull request 3 registers `TimeProvider` and the local mesh, pull request 4 the gateway, pull request 5 the ingress hosted service, pull request 6 the health check, pull request 7 the CloudEvents options, pull request 8 the CloudEvents formatter. Each pull request builds alone in order 1 to 10 (each needs the previous one).
 
 ---
 
@@ -623,7 +646,7 @@ Implementers and callers: `IEventMesh`, `IEventGateway` and `IMeshTransportAdapt
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports each have their own publisher interface; Encina.EventMesh adds a mesh and a gateway on top of them through a port that satellite adapters implement.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 contracts, pattern matcher and errors; PR3 local mesh with bounded channels and the EventId range EventMesh 40080-40099; PR4 gateway routing and transformation with hop control; PR5 transport port, delegate adapter, forwarding with dead lettering and ingress; PR6 topology, health check and telemetry; PR7 CloudEvents package; PR8 contract, property and integration tests (in process bus and Redis.PubSub); PR9 documentation. Dilemmas D2, D4, D6, D7, D8, D9, D10, D11, D12, D13 and D14 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, DI; PR2 contracts, pattern matcher and errors; PR3 local mesh with bounded channels and the EventId range EventMesh 40080-40099; PR4 gateway routing and transformation with hop control; PR5 transport port, delegate adapter, forwarding with dead lettering and ingress; PR6 topology, health check and telemetry; PR7 CloudEvents package skeleton; PR8 CloudEvents mapper; PR9 contract, property and integration tests (in process bus and Redis.PubSub); PR10 documentation. Dilemmas D2, D4, D5, D6, D7, D8, D9, D10, D11, D12, D13 and D14 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: fail closed (no route is a Left); never success on a failure; loops catch per iteration; backpressure, never silent loss; named ADR-062 category on every error; constant error messages; ids and payloads never logged; targets never go down; CRAP <= 10.
 
@@ -655,7 +678,7 @@ REFERENCE FILES: src/Encina.Messaging/ContentRouter, src/Encina.Messaging/DeadLe
 
 ## Prerequisites & Dependencies
 
-- None blocking pull request 1; pull requests 2 to 9 follow in order. Dead lettering uses the existing `IDeadLetterStore` and factory when an application registers them.
+- None blocking pull request 1; pull requests 2 to 10 follow in order. Dead lettering uses the existing `IDeadLetterStore` and factory when an application registers them.
 - **Related, not blocking**: #260 (CloudEvents format support, open, no plan), #318 (event streaming abstractions, open), #1609 (the transports that only publish become ingress sources when they gain subscribe), #2385 (outbox bridge; the mesh port is separate), #742 and #725 (resilience and telemetry of transports), #602 (schema registry), #1164 and #1778 (request context and audit store naming).
 - **Sibling plans**: #242 (the Dapr adapter of the mesh builds on its `IDaprMessagePublisher`), #610, #611 and #612 of this family and the five plans of transport-new-1 (each transport becomes an adapter in a follow-up).
 
@@ -664,6 +687,6 @@ REFERENCE FILES: src/Encina.Messaging/ContentRouter, src/Encina.Messaging/DeadLe
 ## Next Steps
 
 1. Ask the maintainer D2, D4, D6, D7, D8, D9, D10, D11, D12, D13 and D14 when work on #310 starts; record the answers in `## Maintainer Decisions`.
-2. Pull requests 1 to 3: package (11), contracts (15), local mesh (12).
-3. Pull requests 4 to 6: gateway (14), transport port and forwarding (11), topology, health and telemetry (12).
-4. Pull requests 7 to 9: CloudEvents (12), contract, property and integration tests (7), documentation (8).
+2. Pull requests 1 to 3: package (13), contracts (15), local mesh (12).
+3. Pull requests 4 to 6: gateway (14), transport port and forwarding (14), topology, health and telemetry (15).
+4. Pull requests 7 to 10: CloudEvents skeleton (13) and mapper (6), contract, property and integration tests (7), documentation (8).
