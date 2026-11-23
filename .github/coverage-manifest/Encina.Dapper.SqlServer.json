@@ -587,11 +587,11 @@
       "reason": "ServiceCollection extensions with conditional registration",
       "targets": {
         "unit": 90,
-        "guard": 0
+        "guard": 25
       },
       "justifications": {
         "unit": "The registration unit tests reach nearly every branch of the tenancy extension, including the wiring of the dead letter tenant column.",
-        "guard": "This file has no separate guard surface, because its only argument checks are reached by the unit registration tests."
+        "guard": "The guard tests reach the null checks of the three public registration methods and the null configureTenancy path of AddEncinaDapperWithTenancy; the registration bodies (tenant connection factory, repository factories, mapping build) are left uncovered and are covered by the unit flag."
       }
     },
     "Tenancy/TenantAwareFunctionalRepositoryDapper.cs": {
