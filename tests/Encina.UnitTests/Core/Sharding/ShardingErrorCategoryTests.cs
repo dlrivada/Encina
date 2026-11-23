@@ -27,12 +27,15 @@ public sealed class ShardingErrorCategoryTests
         return error;
     }
 
-    private static void AssertInternal<T>(Either<EncinaError, T> result, string expectedCode)
+    private static void AssertInternal<T>(Either<EncinaError, T> result, string expectedCode) =>
+        AssertCategory(result, expectedCode, ErrorCategory.Internal);
+
+    private static void AssertCategory<T>(Either<EncinaError, T> result, string expectedCode, ErrorCategory expectedCategory)
     {
         var error = LeftOf(result);
         error.GetCode().IfSome(c => c.ShouldBe(expectedCode));
         error.GetCode().IsSome.ShouldBeTrue();
-        error.GetCategory().ShouldBe(ErrorCategory.Internal);
+        error.GetCategory().ShouldBe(expectedCategory);
     }
 
     private static ShardTierInfo CreateTierInfo(string shardId, ShardTier tier, DateOnly start, DateOnly end) =>
@@ -323,13 +326,13 @@ public sealed class ShardingErrorCategoryTests
     }
 
     [Fact]
-    public async Task TimeBasedShardRouter_WriteToNonHotShard_IsShardReadOnlyInternal()
+    public async Task TimeBasedShardRouter_WriteToNonHotShard_IsShardReadOnlyConflict()
     {
         var router = CreateJanuaryRouter(ShardTier.Warm);
 
         var result = await router.RouteWriteByTimestampAsync(new DateTime(2026, 1, 15, 0, 0, 0, DateTimeKind.Utc));
 
-        AssertInternal(result, ShardingErrorCodes.ShardReadOnly);
+        AssertCategory(result, ShardingErrorCodes.ShardReadOnly, ErrorCategory.Conflict);
     }
 
     [Fact]

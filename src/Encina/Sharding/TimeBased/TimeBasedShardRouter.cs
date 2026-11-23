@@ -339,7 +339,7 @@ public sealed class TimeBasedShardRouter : ITimeBasedShardRouter
                 {
                     return Either<EncinaError, string>.Left(
                         EncinaErrors.Create(
-                            ShardingErrorCodes.ShardReadOnly, ErrorCategory.Internal,
+                            ShardingErrorCodes.ShardReadOnly, ErrorCategory.Conflict,
                             $"Shard '{entry.TierInfo.ShardId}' is in tier '{entry.TierInfo.CurrentTier}' " +
                             $"and does not accept writes. Only Hot-tier shards accept write operations."));
                 }
