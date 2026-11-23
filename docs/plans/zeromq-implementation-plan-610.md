@@ -2,7 +2,7 @@
 
 > **Issue**: [#610](https://github.com/dlrivada/Encina/issues/610)
 > **Type**: Feature
-> **Verified against**: origin/main `20920f60f` (2026-11-23)
+> **Verified against**: origin/main `ce352001f` (2026-11-23)
 > **Complexity**: Medium (7 phases, 7 pull requests of about 14, 13, 9, 8, 9, 7 and 8 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
