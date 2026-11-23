@@ -3,7 +3,7 @@
 > **Issue**: [#241](https://github.com/dlrivada/Encina/issues/241)
 > **Type**: Feature
 > **Verified against**: origin/main `0336d31c7` (2026-11-20)
-> **Complexity**: High (7 phases, 7 pull requests of about 13, 12, 8, 9, 8, 3 and 8 files)
+> **Complexity**: High (7 phases, 7 pull requests of about 14, 15, 9, 11, 9, 3 and 7 files)
 > **Estimated Scope**: about 950 lines of production code and about 1,900 lines of tests
 > **Family**: transport-new-1 (#237, #238, #239, #240, #241). Sibling family transport-new-2 (#242, #610, #611, #612, #310) runs later; "Shared pieces" below says which plan owns what.
 
@@ -136,7 +136,7 @@ Selectors, DLQ, scheduled delivery, priority and transactions appear under Featu
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A singleton connection holder created lazily on first use with the NMS async API and disposed by the container; one session and producer per publish scope serialized by a semaphore, one session per subscription** | NMS sessions are not thread safe, so sessions are never shared across threads; no blocking call at registration | A semaphore on the publish path |
+| **A) A singleton connection holder created lazily on first use with the NMS async API and disposed by the container; the holder owns the one publish session, its producers and the semaphore that serializes publishes across all scopes (the scoped publisher only calls the holder); one session per subscription, owned and disposed by its subscription handle** | NMS sessions are not thread safe, and the single owner is what serializes them; no blocking call at registration | A semaphore on the publish path |
 | **B) A session per publish call** | Simplest | Session creation cost per message |
 
 ### Chosen Option: **A, lazy singleton connection, serialized publish session, session per subscription** (recommended, pending the maintainer)
@@ -180,11 +180,11 @@ Both options satisfy AGENTS.md section 3 (registration completeness, loops that 
 | **A) `Username` and `Password` are `[JsonIgnore]` with a `ToString()` override that prints neither; `BrokerUri` is validated with `EndpointValidator` (schemes `amqp`, `amqps`) with an `AllowLocalEndpoints` flag that logs a warning** | Follows the rule for secrets and the NATS precedent | The default `localhost` endpoint is rejected unless the flag is set |
 | **B) Plain properties** | Simplest | Violates AGENTS.md section 3 |
 
-### Chosen Option: **A, protected credentials and validated endpoint**
+### Chosen Option: **A, protected credentials** (the endpoint rule is Design Choice 11)
 
 ### Rationale
 
-AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an options class with a password.
+AGENTS.md section 3 requires `[JsonIgnore]` and a `ToString()` override for an options class with a password; option B violates it. This entry settles only the protection of `Username` and `Password`.
 
 **Class:** Settled
 **Settled by:** AGENTS.md section 3 (options with secrets) and `src/Encina.MQTT/EncinaMQTTOptions.cs`
@@ -231,6 +231,26 @@ A wins because one design for all transports needs the persisted context of #116
 
 </details>
 
+<details>
+<summary><strong>11. Broker endpoint validation (Dilemma D11)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `BrokerUri` is validated with `EndpointValidator` (schemes `amqp`, `amqps`); a loopback address (including the default `amqp://localhost:5672`) is rejected unless `AllowLocalEndpoints` is set, which logs a startup warning; a URI with user info is rejected, so credentials only travel in `Username` and `Password`** | The NATS and SQS precedent; a mis-set URI cannot reach a link-local or metadata address; no secret in a string that is logged | Local development needs the flag |
+| **B) Accept loopback by default** | Zero setup locally | A copied default reaches production unnoticed |
+
+### Chosen Option: **A, validated endpoint** (recommended, pending the maintainer)
+
+### Rationale
+
+A wins for the same reason as in `Encina.NATS` and `Encina.AmazonSQS` (SSRF-style misconfiguration is caught at startup); B wins for a team that only ever runs against a local broker. `EndpointValidator` does not check user info today, so the validator of this package adds that rule.
+
+**Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -241,9 +261,9 @@ A wins because one design for all transports needs the persisted context of #116
 <summary>Tasks</summary>
 
 1. `src/Encina.ActiveMQ/Encina.ActiveMQ.csproj` (`Apache.NMS.AMQP`, `Microsoft.Extensions.*.Abstractions`, `LanguageExt.Core`, references to `Encina` and `Encina.Messaging`; `InternalsVisibleTo Encina.UnitTests`), `Encina.slnx` entry, `Directory.Packages.props` entries for `Apache.NMS.AMQP` 2.4.0 (and `Apache.NMS` 2.2.0 if it must be pinned).
-2. `EncinaActiveMQOptions`: `BrokerUri` (default `amqp://localhost:5672`), `AllowLocalEndpoints`, `Username` and `Password` (`[JsonIgnore]`), `Destination`, `ActiveMQDestinationType`, `ClientId`, `DurableSubscriptionName`, `MessageSelector`, `ProviderHealthCheck`; `ToString()` prints the destination only; internal validator (`EndpointValidator`, selector length, durable name needs a client id).
-3. `AddEncinaActiveMQ(this IServiceCollection, Action<EncinaActiveMQOptions>? configure = null)` with eager validation and `ValidateOnStart`; the lazy connection holder is registered with `TryAddSingleton`.
-4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `ActiveMQGuardTests`; manifest; `UnitTests.csproj` and `GuardTests.csproj` references.
+2. `EncinaActiveMQOptions`: `BrokerUri` (default `amqp://localhost:5672`), `AllowLocalEndpoints`, `Username` and `Password` (`[JsonIgnore]`), `Destination`, `ActiveMQDestinationType`, `ClientId`, `DurableSubscriptionName`, `MessageSelector`, `ProviderHealthCheck`; `ToString()` prints the destination only; internal validator (`EndpointValidator` and the user-info rule of Design Choice 11, selector length, durable name needs a client id).
+3. `AddEncinaActiveMQ(this IServiceCollection, Action<EncinaActiveMQOptions>? configure = null)` with eager validation and `ValidateOnStart`; this pull request registers only the options and their validator (the connection holder is created, tested and registered in pull request 2, so this pull request builds alone).
+4. Tests: options, validator and DI unit tests (DI with `ValidateOnBuild` and `ValidateScopes`), `ActiveMQGuardTests`; manifest with the package-level `targets` for unit and guard and the per-file targets and one-sentence justifications of the files added (table of Phase 7, rows of pull request 1; `coverage-report.cs --check-justifications` in `ci.yml` fails a manifest without them); `UnitTests.csproj` and `GuardTests.csproj` references. This pull request has 14 files: csproj, options, `ActiveMQDestinationType`, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard test.
 
 </details>
 
@@ -264,10 +284,11 @@ REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNAT
 <details>
 <summary>Tasks</summary>
 
-1. `IActiveMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? destination = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `ActiveMQMessagePublisher` (scoped; the connection holder, options, logger, `TimeProvider`): JSON text message, `message-id` property (a new id only when null or empty), the destination as queue or topic, delivery delay computed from `deliverAt` and `TimeProvider`.
-2. Errors (ADR-062): `ACTIVEMQ_PUBLISH_FAILED` `Internal` (R4), `ACTIVEMQ_DESTINATION_REQUIRED` `InvalidRequest` (R3); cancellation propagates; constant messages; exception to `ForLogging()`.
+1. `IActiveMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? destination = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `ActiveMQConnectionHolder` (singleton, Design Choice 6: owns the lazy connection, the publish session, its producers and the semaphore; disposed by the container) and `ActiveMQMessagePublisher` (scoped; the holder, options, logger, `TimeProvider`): JSON text message, `message-id` property (a new id only when null or empty), the destination as queue or topic, delivery delay computed from `deliverAt` and `TimeProvider`.
+2. Errors (ADR-062), in a new `ActiveMQErrorCodes.cs`: `ACTIVEMQ_PUBLISH_FAILED` `Internal` (R4), `ACTIVEMQ_DESTINATION_REQUIRED` `InvalidRequest` (R3); cancellation propagates; constant messages; exception to `ForLogging()`.
 3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ActiveMQ | 1070-1079 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1070-1079` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
-4. Tests: `ActiveMQMessagePublisherTests`, `ActiveMQMessageIdTests`, guard edit, manifest edit.
+4. DI: `AddEncinaActiveMQ` gains `TryAddSingleton<ActiveMQConnectionHolder>` and `TryAddScoped<IActiveMQMessagePublisher, ActiveMQMessagePublisher>` here (registration completeness, AGENTS.md section 3), with the resolution test under `ValidateOnBuild` and `ValidateScopes` in `ServiceCollectionExtensionsTests`.
+5. Tests: `ActiveMQMessagePublisherTests`, `ActiveMQMessageIdTests`, `ActiveMQConnectionHolderTests` (unit), guard edit, manifest edit with the targets and justifications of the files added. This pull request has 15 files: interface, publisher, connection holder, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -289,9 +310,10 @@ REFERENCE FILES: src/Encina.NATS/NATSMessagePublisher.cs, src/Encina.MQTT/MQTTMe
 <summary>Tasks</summary>
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? destination = null, CancellationToken cancellationToken = default)`: one session per subscription in individual-acknowledge mode; a queue consumer, a topic consumer or a durable topic consumer (`DurableSubscriptionName` with `ClientId`); optional `MessageSelector`; success acknowledges, failure leaves the message unacknowledged and requests redelivery (D4 option A); the receive loop catches per iteration and never lets an exception escape; cancellation ends it.
-2. Codes: `ACTIVEMQ_SUBSCRIBE_FAILED` `Internal` (R4), `ACTIVEMQ_DESERIALIZE_FAILED` `Internal` (R4; the message is rejected so the broker dead letters it after its attempts).
-3. `Log.cs` 1073-1077 (subscription started, handler failed, redelivery requested, rejected, loop iteration failed).
-4. Tests: `ActiveMQConsumerLoopTests`, `ActiveMQDurableSubscriptionTests`, `ActiveMQSelectorTests`, guard edit, manifest edit.
+2. Codes, added to `ActiveMQErrorCodes.cs`: `ACTIVEMQ_SUBSCRIBE_FAILED` `Internal` (R4), `ACTIVEMQ_DESERIALIZE_FAILED` `Internal` (R4). An undeserializable message is settled through the client's reject path; whether Artemis moves a rejected AMQP delivery to the dead-letter address at once or counts it toward `max-delivery-attempts` is not verified at plan time, so the code does not depend on the answer and the dead-letter integration scenario of pull request 5 includes an undeserializable message and asserts the observed behavior, which the feature page then states.
+3. Acceptance mapping for the dead-letter queue (D4 option A): the criterion is met by the broker's address settings, which the transport cannot set or verify from the client; the feature page documents the required `dead-letter-address` and `max-delivery-attempts`, and the integration test configures them on the container.
+4. `Log.cs` 1073-1077 (subscription started, handler failed, redelivery requested, rejected, loop iteration failed).
+5. Tests: `ActiveMQConsumerLoopTests`, `ActiveMQDurableSubscriptionTests`, `ActiveMQSelectorTests`, guard edit, manifest edit with the targets and justifications of the files changed. This pull request has 9 files: interface edit, publisher edit, error codes edit, `Log` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -314,7 +336,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 
 1. `Health/ActiveMQHealthCheck : EncinaHealthCheck` (`DefaultName = "encina-activemq"`, tags `encina`, `messaging`, `activemq`, `ready`; opens or reuses the connection within `ProviderHealthCheck.Timeout`; text names the exception type only), registered when enabled.
 2. `Diagnostics/ActiveMQActivitySource` and `ActiveMQMetrics`: spans publish, consume, acknowledge, reject, consumer-to-producer link through message properties; counters `activemq.published`, `.consumed`, `.rejected` with tags `destination`, `outcome`; `Encina.OpenTelemetry` gains `AddSource`/`AddMeter` lines.
-3. Tests: `ActiveMQHealthCheckTests`, `ActiveMQDiagnosticsTests`; DI edit; manifest edit.
+3. The publisher and the consume loop (pull requests 2 and 3) are the emitters, so the publisher file is edited here to start and stop the spans and increment the counters. Tests: `ActiveMQHealthCheckTests`, `ActiveMQDiagnosticsTests`, an edit of `ActiveMQMessagePublisherTests`, guard edit (health check constructor); DI edit (health check only); manifest edit with the targets and justifications of the files added or changed. This pull request has 11 files: health check, 2 diagnostics, publisher edit, DI edit, `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest.
 
 </details>
 
@@ -357,7 +379,7 @@ REFERENCE FILES: AGENTS.md section 6, docs/architecture/adr/062-error-category-c
 <details>
 <summary>Tasks</summary>
 
-1. Pull request 5 (8 files): `Directory.Packages.props` entry `Testcontainers.ActiveMq` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/ArtemisFixture.cs` (the module's `ArtemisBuilder`, image pinned in the fixture to the latest stable Artemis release, since Apache Artemis publishes no designated LTS line; broker settings with `max-delivery-attempts` small so the dead-letter test is fast), `ArtemisCollection.cs`, `TestInfrastructure.csproj` and `IntegrationTests.csproj` references, `tests/Encina.IntegrationTests/MessageBrokers/ActiveMQ/ActiveMQIntegrationTests.cs` and `ActiveMQDeadLetterIntegrationTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","ActiveMQ")]`): queue and topic, durable subscription across a reconnect, selector, scheduled delivery, redelivery then dead-letter address; manifest.
+1. Pull request 5 (9 files, with a health check scenario): `Directory.Packages.props` entry `Testcontainers.ActiveMq` 4.15.0, `tests/Encina.TestInfrastructure/Fixtures/ArtemisFixture.cs` (the module's `ArtemisBuilder`, image pinned in the fixture to the latest stable Artemis release, since Apache Artemis publishes no designated LTS line; broker settings with `max-delivery-attempts` small so the dead-letter test is fast), `ArtemisCollection.cs`, `TestInfrastructure.csproj` and `IntegrationTests.csproj` references, `tests/Encina.IntegrationTests/MessageBrokers/ActiveMQ/ActiveMQIntegrationTests.cs`, `ActiveMQDeadLetterIntegrationTests.cs` and `ActiveMQHealthCheckIntegrationTests.cs` (`[Trait("Category","Integration")]`, `[Trait("Transport","ActiveMQ")]`): queue and topic, durable subscription across a reconnect, selector, scheduled delivery, redelivery then dead-letter address (with an undeserializable message), one healthy check; manifest with the integration targets and justifications of the publisher, the connection holder and the health check.
 2. Pull request 6 (3 files): `tests/Encina.ContractTests/MessageBrokers/ActiveMQ/ActiveMQConformanceTests.cs` subclassing the shared conformance base (owned by #240), `ContractTests.csproj` reference, manifest edit; it lands after #240's contract pull request.
 
 </details>
@@ -379,24 +401,22 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/RabbitMqFixture.cs, te
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.ActiveMQ.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
+Per-flag targets are entered in `.github/coverage-manifest/Encina.ActiveMQ.json` in the pull request that adds the tests of each flag, each with its one-sentence justification and with the package-level `targets` of that flag in the same pull request (`coverage-report.cs --check-justifications`, run by `ci.yml`, fails a manifest without them). The numbers are planned ceilings; each pull request replaces one with the measured value floored to a multiple of 5 when that is lower (never lowering a target already entered).
 
-| File | unit | guard | contract | property | integration |
-|------|:---:|:---:|:---:|:---:|:---:|
-| `ActiveMQMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 |
-| `EncinaActiveMQOptions.cs`, `...OptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 |
-| `ServiceCollectionExtensions.cs` | 85 | 55 | 0 | 0 | 0 |
-| `Health/ActiveMQHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 |
-| `Diagnostics/*.cs` | 90 | 0 | 0 | 0 | 0 |
-| `IActiveMQMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 |
-
-| File and flag | Justification |
-|---------------|---------------|
-| Publisher unit 85, integration 65 | Unit tests substitute the NMS interfaces for each branch; the integration class runs real publish, durable subscribe, selector, scheduling and redelivery on Artemis, leaving connection-failure branches. |
-| Publisher guard 20, contract 50 | Guard tests reach only argument checks; the conformance base runs the common scenarios, not selectors or scheduling. |
-| Options and validator unit 100 | Pure data and validation. |
-| Health check integration 50 | One real connection check; the failing branch needs a broken broker. |
-| Interface and `Log.cs` 0 | No executable lines or generated delegates. |
+| Pull request | File | unit | guard | contract | property | integration | Justification |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| 1 | `EncinaActiveMQOptions.cs`, `EncinaActiveMQOptionsValidator.cs` | 100 | 0 | 0 | 0 | 0 | Pure data and validation; guard tests have no argument to check. |
+| 1 | `ServiceCollectionExtensions.cs` | 85 | 10 | 0 | 0 | 0 | Unit tests build the provider for each option combination; guard tests reach only the null check of `services`. |
+| 1 | `ActiveMQDestinationType.cs` | 0 | 0 | 0 | 0 | 0 | An enum has no executable lines. |
+| 2 | `ActiveMQMessagePublisher.cs` | 85 | 20 | 0 | 0 | 0 | Unit tests substitute the NMS interfaces for each publish branch; guard tests reach only argument checks. |
+| 2 | `ActiveMQConnectionHolder.cs` | 80 | 0 | 0 | 0 | 0 | A substituted connection factory reaches lazy creation, serialization and disposal; it has no public argument surface beyond the publisher. |
+| 2 | `ActiveMQErrorCodes.cs`, `IActiveMQMessagePublisher.cs`, `Log.cs` | 0 | 0 | 0 | 0 | 0 | Constants, an interface and generated delegates have no executable lines. |
+| 3 | `ActiveMQMessagePublisher.cs` (consume part) | 85 | 20 | 0 | 0 | 0 | The receive loop, redelivery and durable and selector paths are unit tested over substituted sessions. |
+| 4 | `Health/ActiveMQHealthCheck.cs` | 90 | 40 | 0 | 0 | 0 | A substituted holder reaches the healthy and unhealthy branches; guard tests reach the constructor checks. |
+| 4 | `Diagnostics/*.cs` | 80 | 0 | 0 | 0 | 0 | Counters and spans are exercised through publisher and consumer unit tests; the static initializers are the remainder. |
+| 5 | `ActiveMQMessagePublisher.cs`, `ActiveMQConnectionHolder.cs` | 85 | 20 | 0 | 0 | 65 | Integration tests run real publish, durable subscribe, selector, scheduling and redelivery on Artemis, leaving connection-failure branches. |
+| 5 | `Health/ActiveMQHealthCheck.cs` | 90 | 40 | 0 | 0 | 50 | One real connection check; the failing branch needs a broken broker. |
+| 6 | `ActiveMQMessagePublisher.cs` | 85 | 20 | 50 | 0 | 65 | The conformance base runs the common publish and subscribe scenarios, not selectors or scheduling. |
 
 1. `src/Encina.ActiveMQ/README.md`, `docs/features/activemq.md` (including the required broker address settings of D4), the ActiveMQ section of `docs/messaging/transports.md` and `docs/INVENTORY.md` through `docs-writer`; changelog fragment `changelog.d/241-activemq.added.md` through `mechanical-fixer`. Transport packages carry no `PublicAPI.*.txt` today, so none is added.
 2. Load and benchmark justification files under `tests/Encina.LoadTests/Messaging/ActiveMQ/` and `tests/Encina.BenchmarkTests/Messaging/ActiveMQ/` (throughput belongs to the broker).
@@ -409,7 +429,7 @@ Per-flag targets (entered in `.github/coverage-manifest/Encina.ActiveMQ.json` in
 
 ```text
 CONTEXT: The package is implemented and tested; documentation remains.
-TASK: Enter the manifest targets with one-sentence justifications, write the two justification files, hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
+TASK: Write the two justification files (the manifest targets and their justifications were entered in pull requests 1 to 6), hand README, feature page, transports page, INVENTORY and the changelog fragment to the owning specialists.
 KEY RULES: Targets never go down; no hand-typed coverage figures in docs; never edit CHANGELOG.md.
 REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .github/coverage-manifest/Encina.NATS.json, changelog.d/README.md.
 ```
@@ -453,13 +473,13 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Tests | 17 | options, validator, DI, publisher, message id, consumer loop, durable, selector, health, diagnostics, guard, fixture, collection, 2 integration, conformance subclass, manifest |
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props` (twice), 4 test `.csproj`, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry row, changelog, 2 justification files |
-| **Pull request 1** | **13** | csproj, options, enum, validator, DI, slnx, `Directory.Packages.props`, 2 test csproj, manifest, 3 unit tests, guard; about 600 lines |
-| **Pull request 2** | **12** | interface, publisher, connection holder, `Log`, `EventIdRanges.cs`, allocation test, registry row, 2 unit tests, guard edit, manifest edit, DI edit; about 650 lines |
-| **Pull request 3** | **8** | interface edit, publisher edit, `Log` edit, 3 unit tests, guard edit, manifest edit; about 700 lines |
-| **Pull request 4** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, manifest edit; about 500 lines |
-| **Pull request 5** | **8** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 2 integration classes, manifest; about 650 lines |
+| **Pull request 1** | **14** | csproj, options, enum, validator, DI (options only), slnx, `Directory.Packages.props`, 2 test csproj, manifest (package targets, targets and justifications), 3 unit tests, guard; about 600 lines |
+| **Pull request 2** | **15** | interface, publisher, connection holder, `ActiveMQErrorCodes`, `Log`, `EventIdRanges.cs`, allocation test, registry (registered row and split Blocks row), DI edit (holder and scoped publisher), DI test edit, 3 unit tests, guard edit, manifest edit; about 850 lines |
+| **Pull request 3** | **9** | interface edit, publisher edit, error codes edit, `Log` edit, 3 unit tests, guard edit, manifest edit; about 700 lines |
+| **Pull request 4** | **11** | health check, 2 diagnostics, publisher edit (spans and counters), DI edit (health check only), `Encina.OpenTelemetry` edit, 3 unit tests, guard edit, manifest edit; about 600 lines |
+| **Pull request 5** | **9** | `Directory.Packages.props`, `TestInfrastructure.csproj`, fixture, collection, `IntegrationTests.csproj`, 3 integration classes, manifest; about 700 lines |
 | **Pull request 6** | **3** | conformance subclass, `ContractTests.csproj`, manifest; about 120 lines |
-| **Pull request 7** | **8** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files, manifest justifications; about 350 lines |
+| **Pull request 7** | **7** | README, feature page, transports page, INVENTORY, changelog fragment, 2 justification files; about 350 lines |
 
 `IActiveMQMessagePublisher` is new, so there are no implementers or `new X(` sites to update. Pull requests 1 to 5 and 7 build alone in order (each needs the previous one); pull request 6 needs the conformance base of #240.
 
@@ -473,7 +493,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.ActiveMQ adds an Artemis transport over AMQP 1.0.
 
-IMPLEMENTATION OVERVIEW: PR1 package, options with protected credentials, connection holder, DI, client package entry; PR2 publish with message id, properties, delay and the EventId block 1070-1079; PR3 subscriptions, durable topic subscriptions, selectors and redelivery with broker-native dead lettering; PR4 health check and telemetry; PR5 Artemis fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D4, D5 and D9 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options with protected credentials, validator, DI of the options, client package entry; PR2 connection holder, publish with message id, properties, delay and the EventId block 1070-1079; PR3 subscriptions, durable topic subscriptions, selectors and redelivery with broker-native dead lettering; PR4 health check and telemetry; PR5 Artemis fixture and integration tests; PR6 conformance subclass; PR7 documentation. Dilemmas D2, D3, D4, D5, D6, D9, D10 and D11 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-least-once, never success on a failure; background loop catches per iteration; named ADR-062 category on every error; constant error messages; ids, payloads and selectors never logged; secrets [JsonIgnore] with ToString override; TimeProvider; sessions never shared across threads; targets never go down; CRAP <= 10.
 
@@ -513,7 +533,7 @@ REFERENCE FILES: src/Encina.MQTT, src/Encina.NATS, src/Encina.Messaging/Health, 
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D4, D5, D6, D9 and D10 when work on #241 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D9, D10 and D11 when work on #241 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (12), subscribe (8), health and telemetry (9).
 4. Pull requests 5 to 7: fixture and integration tests (8), conformance subclass (3), documentation (8).
