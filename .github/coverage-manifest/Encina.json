@@ -225,7 +225,7 @@
       "targets": { "unit": 100, "guard": 0, "property": 100 },
       "justifications": {
         "unit": "The elevation model members are asserted by the unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "No guard to test: the sealed record's positional constructor takes a string scope but checks no argument, so there is no argument check for a guard test to reach.",
         "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which grants only while the elevation is Active and before ExpiresAtUtc; no generated elevations are checked here (measured 100%)."
       }
     },
@@ -240,7 +240,7 @@
       "targets": { "unit": 100, "guard": 0, "property": 100 },
       "justifications": {
         "unit": "Every denial reason and its code are asserted by the unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "No guard to test: IsOverridable takes only the EncinaError struct, a value type with no null check; the overridable codes are asserted by the unit tests.",
         "property": "Covered incidentally by the FsCheck gate property BreakTheGlassGateProperties, which uses a fixed Forbidden denial; no generated denials are checked here (measured 100%)."
       }
     },
@@ -260,7 +260,7 @@
       "targets": { "unit": 100, "guard": 0, "contract": 100, "property": 0 },
       "justifications": {
         "unit": "The no-op gate returns its fixed decision and is asserted by the unit tests (measured 100%).",
-        "guard": "No parameter validation beyond the constructor of a record/static factory; null handling is asserted in unit tests (measured 0%).",
+        "guard": "No guard to test: the internal no-op gate's TryElevateAsync takes reference-type parameters but checks none of them and always returns the same decision.",
         "contract": "The contract tests run the no-op gate through IAccessElevationGate (measured 100%).",
         "property": "No FsCheck property covers this file; it is covered by example-based unit tests (measured 0%)."
       }
@@ -386,7 +386,7 @@
       "targets": { "unit": 100, "guard": 0, "contract": 76 },
       "justifications": {
         "unit": "Stream dispatch, the missing-handler path and the staged stream behaviors are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "Guard tests never dispatch a stream; the stream entry point is validated in unit tests.",
+        "guard": "No guard to test: the internal static ExecuteAsync takes reference-type parameters (the Encina instance and the request) but checks none of them, so there is no argument check for a guard test to reach.",
         "contract": "Contract tests stream a request through the handler wrapper (measured 76%); the missing-handler path is covered by unit tests."
       }
     },
@@ -1118,11 +1118,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 100, "guard": 29, "contract": 0 },
+      "targets": { "unit": 100, "guard": 29, "contract": 100 },
       "justifications": {
         "unit": "Running the wrapped behavior, skipping for another module and the step identity are exercised by ModuleBehaviorAdapterStepTests and PipelineOrderResolverTests.",
         "guard": "Guard tests cover the three constructor null guards (measured 29%); Handle has no argument validation and is covered by unit tests.",
-        "contract": "Contract tests register no module behaviors, so the adapter never runs there; its behavior is asserted in unit tests."
+        "contract": "Contract tests run the adapter through IPipelineBehavior and IPipelineStepIdentity: the target module runs the wrapped behavior, another module skips it, and the step identity is reported (measured 100%)."
       }
     },
     "Modules/ModuleBehaviorServiceCollectionExtensions.cs": {
@@ -1341,8 +1341,8 @@
       "targets": { "unit": 95, "guard": 0, "contract": 0 },
       "justifications": {
         "unit": "The constructor and both properties are executed by PipelineStageContractTests (measured 100%).",
-        "guard": "The only parameter is an enum, so there is no null check to guard.",
-        "contract": "The attribute is a plain value holder; its usage rules are asserted in unit tests."
+        "guard": "No guard to test: the only constructor parameter is the PipelineStage enum, a value type with no null check.",
+        "contract": "No contract to test: the sealed attribute is a concrete class that implements no Encina-owned interface or abstract class; its values are asserted by unit tests."
       }
     },
     "Pipeline/Ordering/PipelineStepDescription.cs": {
@@ -1354,8 +1354,8 @@
       "targets": { "unit": 95, "guard": 0, "contract": 0 },
       "justifications": {
         "unit": "The record constructor, equality and with-expressions are executed by PipelineStageContractTests (measured 100%).",
-        "guard": "The record accepts any Type value and has no argument validation to guard in this phase.",
-        "contract": "A sealed record without behavior has no contract beyond its shape, asserted in unit tests."
+        "guard": "No guard to test: the sealed record's constructor takes a Type but checks no argument, so there is no argument check for a guard test to reach.",
+        "contract": "No contract to test: the sealed record is a concrete type that implements no Encina-owned interface or abstract class; its shape is asserted by unit tests."
       }
     },
     "Pipeline/PipelineBuilder.cs": {
@@ -1475,7 +1475,7 @@
       "targets": { "unit": 95, "guard": 0, "contract": 85 },
       "justifications": {
         "unit": "Candidate creation for plain, module and processor steps is executed by PipelineOrderResolverTests (measured 100%).",
-        "guard": "The factory only receives instances the builders resolved from DI and cannot be given a meaningful null; there is nothing to guard.",
+        "guard": "No guard to test: the internal For factory takes a reference-type behavior but checks no argument, so there is no argument check for a guard test to reach.",
         "contract": "Contract tests dispatch through the builders, which create a candidate per step (measured 100%)."
       }
     },
@@ -1487,11 +1487,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Error processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "targets": { "unit": 100, "guard": 0, "contract": 100 },
       "justifications": {
         "unit": "Observing only a Left, returning the original error and a cancelled observer are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
-        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "contract": "Contract tests run the step through IPipelineBehavior: a Right never observes, a Left is observed and returned unchanged, a cancelled observer does not replace the error, and the identity is reported (measured 100%)."
       }
     },
     "Pipeline/Steps/PostCommitProcessorStep.cs": {
@@ -1502,11 +1502,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Post-commit processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "targets": { "unit": 100, "guard": 0, "contract": 100 },
       "justifications": {
         "unit": "Running after the commit, never after a rollback, a Left failing the request and the cancellation mapping are exercised by StagedPipelineExecutionTests (measured 100%).",
-        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
-        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "contract": "Contract tests run the step through IPipelineBehavior: a Right keeps the response, a Left fails the request, a Left from the next step skips the processor, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
     "Pipeline/Steps/PostProcessorStep.cs": {
@@ -1517,11 +1517,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Post-processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "targets": { "unit": 100, "guard": 0, "contract": 100 },
       "justifications": {
         "unit": "Run on Right only, Left failing the request and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
-        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
-        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "contract": "Contract tests run the step through IPipelineBehavior: a Right keeps the response, a Left fails the request, a Left from the next step skips the processor, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
     "Pipeline/Steps/PreProcessorStep.cs": {
@@ -1532,11 +1532,11 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Pre-processor adapted into a pipeline step",
-      "targets": { "unit": 100, "guard": 0, "contract": 0 },
+      "targets": { "unit": 100, "guard": 0, "contract": 100 },
       "justifications": {
         "unit": "Abort on Left, continue on Right and the cancellation mapping are exercised by ProcessorSemanticsTests and StagedPipelineExecutionTests (measured 100%).",
-        "guard": "The step is internal, built only by the pipeline builders from DI-resolved processors; guard tests have no public entry to call.",
-        "contract": "Contract tests register no processors, so the step never runs there; its behavior is asserted in unit tests."
+        "guard": "No guard to test: the internal step's primary constructor and Handle take reference-type parameters (the processor, the request) but check none of them, so there is no argument check for a guard test to reach.",
+        "contract": "Contract tests run the step through IPipelineBehavior: a Right continues, a Left aborts, a cancelled processor maps to its error code, and the identity is reported (measured 100%)."
       }
     },
     "Pipeline/StreamPipelineBuilder.cs": {

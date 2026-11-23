@@ -7,7 +7,9 @@ grand_parent: Architecture
 
 # ADR-004: Decision to NOT Implement EncinaResult<T>
 
-**Status:** Rejected
+> **Amendment 2026-11-20 ([#3662](https://github.com/dlrivada/Encina/issues/3662), [ADR-064](064-rop-result-union.md)):** the rejection of a wrapper type over `Either<EncinaError, T>` stands: Encina does not add an abstraction on top of another library's result type. The decision below to keep using LanguageExt `Either` directly does not: [ADR-064](064-rop-result-union.md) replaces the carrier itself with an Encina-owned C# 15 result union, and LanguageExt leaves Encina. The arguments below that rest on LanguageExt (its ecosystem, its documentation, the `Either` learning curve) describe the situation before that decision.
+
+**Status:** Rejected; amended by [ADR-064](064-rop-result-union.md) (2026-11-20)
 **Date:** 2025-12-12
 **Deciders:** Architecture Team
 **Related:** ADR-001 (Railway Oriented Programming)
