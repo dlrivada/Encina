@@ -130,7 +130,7 @@ Selectors, DLQ, scheduled delivery, priority and transactions appear under Featu
 </details>
 
 <details>
-<summary><strong>6. Connection and session lifetime</strong></summary>
+<summary><strong>6. Connection and session lifetime (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
@@ -139,14 +139,13 @@ Selectors, DLQ, scheduled delivery, priority and transactions appear under Featu
 | **A) A singleton connection holder created lazily on first use with the NMS async API and disposed by the container; one session and producer per publish scope serialized by a semaphore, one session per subscription** | NMS sessions are not thread safe, so sessions are never shared across threads; no blocking call at registration | A semaphore on the publish path |
 | **B) A session per publish call** | Simplest | Session creation cost per message |
 
-### Chosen Option: **A, lazy singleton connection, serialized publish session, session per subscription**
+### Chosen Option: **A, lazy singleton connection, serialized publish session, session per subscription** (recommended, pending the maintainer)
 
 ### Rationale
 
-Registration completeness (AGENTS.md section 3) requires every resolved dependency to be registered and the provider to build with `ValidateOnBuild` and `ValidateScopes`; the singleton holder takes no scoped service, and the scoped publisher takes the holder. The consume loop catches per iteration and never lets an exception escape; cancellation ends it.
+Both options satisfy AGENTS.md section 3 (registration completeness, loops that catch per iteration), so the choice is not settled by it. A wins for sustained publishing, where a session per message would dominate the cost; B wins for rare publishing, where a semaphore on a shared session is needless state. Under A the singleton holder takes no scoped service and the scoped publisher takes the holder (the shape of `src/Encina.NATS/ServiceCollectionExtensions.cs`); the consume loop catches per iteration and cancellation ends it.
 
-**Class:** Settled
-**Settled by:** AGENTS.md section 3 (registration completeness; background loops) and `src/Encina.NATS/ServiceCollectionExtensions.cs` for the singleton connection and scoped publisher shape
+**Class:** Dilemma
 
 </details>
 
@@ -213,7 +212,7 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 </details>
 
 <details>
-<summary><strong>10. Multi-tenancy and module headers</strong></summary>
+<summary><strong>10. Multi-tenancy and module headers (Dilemma D10)</strong></summary>
 
 ### Options Considered
 
@@ -222,14 +221,13 @@ A wins because the criterion is in this issue; B wins if #725 should rename ever
 | **A) Defer to an issue: tenant and module properties need #1164 and the route metadata of #2385** | One design for all transports | Not in this plan |
 | **B) Stamp a tenant property now** | Early | Needs the reserved `default` tenant segment and an injective encoding no transport defines yet |
 
-### Chosen Option: **A, defer**
+### Chosen Option: **A, defer** (recommended, pending the maintainer)
 
 ### Rationale
 
-The issue itself defers it ("Tenant context in headers"); the follow-up is an issue file.
+A wins because one design for all transports needs the persisted context of #1164 and the route metadata of #2385, and the issue's own table defers it ("Tenant context in headers"); B wins for a tenant-isolated deployment that needs the header before those land. The follow-up is an issue file.
 
-**Class:** Settled
-**Settled by:** #241 (cross-cutting table: multi-tenancy and module isolation deferred) and #1164
+**Class:** Dilemma
 
 </details>
 
@@ -268,7 +266,7 @@ REFERENCE FILES: src/Encina.MQTT/EncinaMQTTOptions.cs, src/Encina.NATS/EncinaNAT
 
 1. `IActiveMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? destination = null, string? messageId = null, IReadOnlyDictionary<string,string>? properties = null, DateTimeOffset? deliverAt = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, Unit>>`; `ActiveMQMessagePublisher` (scoped; the connection holder, options, logger, `TimeProvider`): JSON text message, `message-id` property (a new id only when null or empty), the destination as queue or topic, delivery delay computed from `deliverAt` and `TimeProvider`.
 2. Errors (ADR-062): `ACTIVEMQ_PUBLISH_FAILED` `Internal` (R4), `ACTIVEMQ_DESTINATION_REQUIRED` `InvalidRequest` (R3); cancellation propagates; constant messages; exception to `ForLogging()`.
-3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ActiveMQ | 1070-1079 | Transports | historical |` in the registered ranges table and the split of the reserved block 1050-1099 so that 1070-1079 is `registered` and no reserved block overlaps a registered range, as `EventIdRegistryAgreementTests` requires (the other four plans edit neighbouring rows of the same table, so the pull requests rebase on each other).
+3. `Log.cs` 1070-1072; `EventIdRanges.ActiveMQ = (1070, 1079)`; `AssemblyRanges` entry; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ActiveMQ | 1070-1079 | Transports | historical |` in the registered ranges table and (Zone is `historical` for every range below 10000; `reserved-pre-zone` is only a status of the Blocks table), and the split of the Blocks row `1050-1099` so that `1070-1079` has status `registered` and the free slices keep `reserved-pre-zone`, with no reserved block overlapping a registered range and the `registered` row matching its range exactly, as `EventIdRegistryAgreementTests` requires. The other four transport plans edit neighbouring rows of the same two tables, so the pull requests are merged one at a time and a later one re-splits the remainder row (a new commit on its branch, never a rebase of a pushed branch).
 4. Tests: `ActiveMQMessagePublisherTests`, `ActiveMQMessageIdTests`, guard edit, manifest edit.
 
 </details>
@@ -381,7 +379,7 @@ REFERENCE FILES: tests/Encina.TestInfrastructure/Fixtures/RabbitMqFixture.cs, te
 <details>
 <summary>Tasks</summary>
 
-Per-flag targets (entered in `.github/coverage-manifest/Encina.ActiveMQ.json` in the pull request that adds each file):
+Per-flag targets (entered in `.github/coverage-manifest/Encina.ActiveMQ.json` in the pull request that adds the tests of each flag: unit and guard targets with the file in pull requests 1 to 4, the integration targets in pull request 5 and the contract targets in pull request 6, because the publisher is added in pull request 2 but those tests land later):
 
 | File | unit | guard | contract | property | integration |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -515,7 +513,7 @@ REFERENCE FILES: src/Encina.MQTT, src/Encina.NATS, src/Encina.Messaging/Health, 
 
 ## Next Steps
 
-1. Ask the maintainer D2, D3, D4, D5 and D9 when work on #241 starts; record the answers in `## Maintainer Decisions`.
+1. Ask the maintainer D2, D3, D4, D5, D6, D9 and D10 when work on #241 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (13 files).
 3. Pull requests 2 to 4: publish (12), subscribe (8), health and telemetry (9).
 4. Pull requests 5 to 7: fixture and integration tests (8), conformance subclass (3), documentation (8).
