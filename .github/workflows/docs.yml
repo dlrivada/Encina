@@ -305,6 +305,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
+      actions: read
 
     # Serializes every Pages deploy (docs pushes and the dashboard publishers,
     # which reach this job through workflow_call). Job level, not workflow
@@ -357,11 +358,27 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: ./_site
+
+      - name: Wait for the Pages artifact to be listed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $name = 'github-pages-${{ github.run_attempt }}'
+          for ($i = 1; $i -le 12; $i++) {
+            $n = gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq "[.artifacts[]|select(.name==`"$name`")]|length"
+            if ($n -eq '1') { exit 0 }
+            Start-Sleep -Seconds 5
+          }
+          throw "Artifact $name was not listed after 60 s"
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
 
       - name: Smoke-check the published site
         # Fails the deploy when a registered site is not rendered as expected (a
