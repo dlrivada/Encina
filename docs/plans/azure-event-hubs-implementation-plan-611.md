@@ -3,7 +3,7 @@
 > **Issue**: [#611](https://github.com/dlrivada/Encina/issues/611)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 7 pull requests of about 12, 13, 6, 12, 9, 13 and 8 files)
+> **Complexity**: Medium (7 phases, 7 pull requests of about 12, 14, 6, 12, 9, 13 and 8 files)
 > **Estimated Scope**: about 900 lines of production code and about 2,000 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -307,7 +307,7 @@ REFERENCE FILES: src/Encina.AzureServiceBus/*.cs, src/Encina.AmazonSQS/EncinaAma
 
 1. `IAzureEventHubsMessagePublisher.PublishAsync<TMessage>(TMessage message, string? partitionKey = null, string? eventHubName = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `AzureEventHubsMessagePublisher` (scoped; `EventHubProducerClient` from the container, `IOptions`, `ILogger`); the producer is a singleton registered with `TryAddSingleton` from the options.
 2. Errors (ADR-062), in `AzureEventHubsErrorCodes.cs` (one constants class, so later pull requests add their codes there), each created with the named argument `category:` and a constant message: `encina.eventhubs.publish_failed` `Internal` (R4), `encina.eventhubs.publish_timeout` `Timeout` (R7, the SDK's service-timeout reason), `encina.eventhubs.publish_throttled` `Unavailable` (R7, the SDK's service-busy and quota reasons), `encina.eventhubs.event_hub_not_configured` `Internal` (R1). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-3. `Log.cs` 40040-40042 (publishing, published, publish failed; no message ids, no payload, no connection string). `EventIdRanges.AzureEventHubs = (40040, 40059)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AzureEventHubs | 40040-40059 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
+3. `Log.cs` 40040-40042 (publishing, published, publish failed; no message ids, no payload, no connection string). `EventIdRanges.AzureEventHubs = (40040, 40059)`; the line `static readonly Encina.Diagnostics.EventIdRanges.AzureEventHubs -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| AzureEventHubs | 40040-40059 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
 4. DI: `AddEncinaAzureEventHubs` gains `TryAddSingleton` of the producer and `TryAddScoped<IAzureEventHubsMessagePublisher, AzureEventHubsMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves the publisher with `ValidateOnBuild` and `ValidateScopes`.
 5. Tests: `AzureEventHubsMessagePublisherTests` and `AzureEventHubsMessageIdTests` (unit, over a substituted `EventHubProducerClient`, which has a protected constructor for mocking), guard edit; manifest edit with the unit and guard targets (contract and integration targets are entered in pull request 6).
 
@@ -503,7 +503,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 10 | `Encina.slnx`, `Directory.Packages.props` (twice), 6 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 9 | README, feature page, transports page, INVENTORY, registry rows, integration-tests page, changelog, 2 justification files |
 | **Pull request 1** | **12** | csproj, options, validator, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, DI test, guard test; about 450 lines |
-| **Pull request 2** | **13** | interface, publisher, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
+| **Pull request 2** | **14** | interface, publisher, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, 2 unit tests, guard edit, manifest edit; about 700 lines |
 | **Pull request 3** | **6** | interface edit, publisher edit, `Log` edit, unit test, guard edit, manifest edit; about 350 lines |
 | **Pull request 4** | **12** | interface edit, consumer host, processor seam, error codes edit, `Log` edit, DI edit, DI test edit, 3 unit tests, guard edit, manifest edit; about 900 lines |
 | **Pull request 5** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
@@ -564,5 +564,5 @@ REFERENCE FILES: src/Encina.AzureServiceBus, src/Encina.Messaging/Health, tests/
 
 1. Ask the maintainer D2, D3, D4, D5, D8, D10, D11 and D12 when work on #611 starts; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (12 files).
-3. Pull requests 2 to 5: publish (13), batch (6), consume (12), health and telemetry (9).
+3. Pull requests 2 to 5: publish (14), batch (6), consume (12), health and telemetry (9).
 4. Pull requests 6 and 7: emulator, contract, property and integration tests (13), documentation (8).
