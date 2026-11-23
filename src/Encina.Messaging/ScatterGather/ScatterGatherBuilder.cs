@@ -464,7 +464,10 @@ public sealed class GatherBuilder<TRequest, TResponse>
             if (first is null)
             {
                 return Prelude.Left<EncinaError, TResponse>(
-                    EncinaErrors.Create(ScatterGatherErrorCodes.AllScattersFailed, "No scatter handlers succeeded."));
+                    EncinaErrors.Create(
+                        ScatterGatherErrorCodes.AllScattersFailed,
+                        category: ScatterGatherFailureCategory.Derive(results, timedOut: false),
+                        "No scatter handlers succeeded."));
             }
 
             return first.Result;
@@ -480,13 +483,16 @@ public sealed class GatherBuilder<TRequest, TResponse>
     public ScatterGatherBuilder<TRequest, TResponse> TakeBest<TKey>(Func<TResponse, TKey> selector)
     {
         ArgumentNullException.ThrowIfNull(selector);
-        return AggregateSuccessful(results =>
+        return Aggregate(results =>
         {
-            var best = results.OrderBy(selector).FirstOrDefault();
+            var best = SuccessfulResponses(results).OrderBy(selector).FirstOrDefault();
             if (best is null)
             {
                 return Prelude.Left<EncinaError, TResponse>(
-                    EncinaErrors.Create(ScatterGatherErrorCodes.AllScattersFailed, "No scatter handlers succeeded."));
+                    EncinaErrors.Create(
+                        ScatterGatherErrorCodes.AllScattersFailed,
+                        category: ScatterGatherFailureCategory.Derive(results, timedOut: false),
+                        "No scatter handlers succeeded."));
             }
 
             return Prelude.Right<EncinaError, TResponse>(best);
@@ -511,16 +517,22 @@ public sealed class GatherBuilder<TRequest, TResponse>
     public ScatterGatherBuilder<TRequest, TResponse> TakeMax<TKey>(Func<TResponse, TKey> selector)
     {
         ArgumentNullException.ThrowIfNull(selector);
-        return AggregateSuccessful(results =>
+        return Aggregate(results =>
         {
-            var best = results.OrderByDescending(selector).FirstOrDefault();
+            var best = SuccessfulResponses(results).OrderByDescending(selector).FirstOrDefault();
             if (best is null)
             {
                 return Prelude.Left<EncinaError, TResponse>(
-                    EncinaErrors.Create(ScatterGatherErrorCodes.AllScattersFailed, "No scatter handlers succeeded."));
+                    EncinaErrors.Create(
+                        ScatterGatherErrorCodes.AllScattersFailed,
+                        category: ScatterGatherFailureCategory.Derive(results, timedOut: false),
+                        "No scatter handlers succeeded."));
             }
 
             return Prelude.Right<EncinaError, TResponse>(best);
         });
     }
+
+    private static IEnumerable<TResponse> SuccessfulResponses(IReadOnlyList<ScatterExecutionResult<TResponse>> results)
+        => results.Where(static r => r.IsSuccess).Select(static r => r.Result.Match(static v => v, static _ => default!));
 }

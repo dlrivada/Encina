@@ -136,7 +136,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
             // Run compensation for completed steps
             await CompensateAsync(context, CancellationToken.None).ConfigureAwait(false);
 
-            return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerCancelled, "Routing slip was cancelled");
+            return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerCancelled, ErrorCategory.Cancelled, "Routing slip was cancelled");
         }
         catch (Exception ex)
         {
@@ -145,7 +145,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
             // Run compensation for completed steps
             await CompensateAsync(context, CancellationToken.None).ConfigureAwait(false);
 
-            return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerFailed, ex.Message);
+            return EncinaErrors.Create(RoutingSlipErrorCodes.HandlerFailed, ErrorCategory.Internal, ex.Message);
         }
     }
 
@@ -220,7 +220,7 @@ public sealed class RoutingSlipRunner : IRoutingSlipRunner
     {
         // Step failed - start compensation
         var error = stepResult.Match(
-            Right: _ => EncinaErrors.Create(RoutingSlipErrorCodes.StepFailed, "Unexpected"),
+            Right: _ => EncinaErrors.Create(RoutingSlipErrorCodes.StepFailed, ErrorCategory.Internal, "Unexpected"),
             Left: e => e);
 
         // Only the error code: EncinaError.Message can carry personal data (#1259 review).

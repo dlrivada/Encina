@@ -80,7 +80,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 5
+      },
+      "justifications": {
+        "unit": "Unit tests drive every route outcome, including the no-match, handler-failure, cancellation, default-route and parallel-evaluation error categories (measured 100%).",
+        "guard": "Guard tests reach only the constructor and RouteAsync argument checks; routing and failure paths are covered by the unit flag (measured 5%)."
+      }
     },
     "ContentRouter/ContentRouterBuilder.cs": {
       "defaultTests": [
@@ -1241,7 +1249,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 95,
+        "guard": 70
+      },
+      "justifications": {
+        "unit": "Unit tests run whole slips, steps, compensation and the cancellation and failure error categories; the unreachable Right branch that builds routingslip.step_failed cannot be asserted through a public result, so the completeness static scan is its check (measured 99%).",
+        "guard": "Guard tests reach the constructor and RunAsync argument checks and the runs they start (measured 72%)."
+      }
     },
     "RoutingSlip/RoutingSlipStatus.cs": {
       "defaultTests": [
@@ -1325,7 +1341,7 @@
       "reason": "Default: assume testable with mocks",
       "targets": { "unit": 95, "guard": 10 },
       "justifications": {
-        "unit": "Every failure path is driven through a stateful in-memory saga store: step failure, throwing compensation, orchestrator errors, cancellation and exception handlers.",
+        "unit": "Every failure path is driven through a stateful in-memory saga store: step failure, throwing compensation, orchestrator errors, cancellation and exception handlers. The unreachable Right branch that builds saga.step_failed cannot be asserted through a public result, so the completeness static scan is its check.",
         "guard": "Only the constructor and RunAsync argument checks are guardable; the rest of the runner takes no external arguments."
       }
     },
@@ -1375,7 +1391,7 @@
         "integration": 65
       },
       "justifications": {
-        "unit": "Unit tests drive pass-through without a handler, handler failure and cancellation, and the dead letter wiring with the flag on and off (measured 100%).",
+        "unit": "Unit tests drive pass-through without a handler, handler failure and cancellation, and the dead letter wiring with the flag on and off (measured 100%). The saga.not_found error embedded in its dead letter record cannot be asserted through a public result, so the completeness static scan is its check.",
         "guard": "Guard tests cover the constructor and DispatchAsync null checks; handler invocation, dead letter wiring and failure branches are covered by the unit and integration flags (measured 24%).",
         "integration": "The ten-provider saga-not-found scenario dispatches through the registered dispatcher; the failure and cancellation branches are unit-only (measured 70%)."
       }
@@ -1393,7 +1409,7 @@
         "integration": 30
       },
       "justifications": {
-        "unit": "Every lifecycle transition, the not-found and invalid-status paths and the dead letter capture of a failed saga run against a fake store (measured 94%).",
+        "unit": "Every lifecycle transition, the not-found and invalid-status paths and the dead letter capture of a failed saga run against a fake store (measured 94%). The error embedded in the dead letter record of FailAsync cannot be asserted through a public result, so the completeness static scan is its check.",
         "guard": "Guard tests reach the constructor and the argument checks of the public operations (measured 48%).",
         "integration": "The saga store and dead letter end-to-end suites start and fail sagas on real databases; stuck and expired saga queries are covered by the store suites and unit tests (measured 35% in the suites run for this change)."
       }
@@ -1460,7 +1476,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 95,
+        "guard": 55
+      },
+      "justifications": {
+        "unit": "Unit tests drive every builder method and the TakeFirst, TakeBest and TakeMax gather handlers, including the derived category of all_scatters_failed (measured 98%).",
+        "guard": "Guard tests cover the null and empty argument checks of the fluent methods; the gather handlers are covered by the unit flag (measured 56%)."
+      }
     },
     "ScatterGather/ScatterGatherErrorCodes.cs": {
       "defaultTests": [
@@ -1468,6 +1492,19 @@
       ],
       "defaultRule": "*ErrorCodes.cs",
       "reason": "Error code constants"
+    },
+    "ScatterGather/ScatterGatherFailureCategory.cs": {
+      "defaultTests": [
+        "unit"
+      ],
+      "defaultRule": "*.cs",
+      "reason": "Internal helper that derives the category of an aggregate scatter-gather failure (ADR-062, #3723)",
+      "targets": {
+        "unit": 95
+      },
+      "justifications": {
+        "unit": "Unit tests reach it through the real runner and builder: same category, mixed categories, no categories, timeout cut (measured 100%)."
+      }
     },
     "ScatterGather/ScatterGatherLog.cs": {
       "defaultTests": [
@@ -1498,7 +1535,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 90,
+        "guard": 35
+      },
+      "justifications": {
+        "unit": "Unit tests run every strategy, timeout, cancellation and failure path through the real runner, including the derived category of quorum_not_reached and all_scatters_failed (measured 91%).",
+        "guard": "Guard tests reach the constructor and ExecuteAsync argument checks (measured 39%)."
+      }
     },
     "Scheduling/CompiledExpressionScheduledMessageDispatcher.cs": {
       "defaultTests": [

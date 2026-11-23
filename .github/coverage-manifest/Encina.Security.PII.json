@@ -86,10 +86,10 @@
     "ServiceCollectionExtensions.cs": {
       "defaultTests": ["unit", "guard"],
       "reason": "DI registration with ThrowIfNull guard",
-      "targets": { "unit": 97, "guard": 0 },
+      "targets": { "unit": 97, "guard": 75 },
       "justifications": {
         "unit": "Unit tests build the provider for AddEncinaPII and resolve every registration (measured 97%).",
-        "guard": "No guard test exists for this registration and this change only edits comments; the ThrowIfNull is executed by the unit tests."
+        "guard": "Guard tests execute the ThrowIfNull on services and the null-configure registration path of AddEncinaPII (measured 79.49%); the remaining lines, the configure-delegate and validation branches, are covered by unit tests."
       }
     },
     "Strategies/AddressMaskingStrategy.cs": {

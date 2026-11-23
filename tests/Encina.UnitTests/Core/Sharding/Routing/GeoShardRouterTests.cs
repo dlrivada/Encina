@@ -255,6 +255,55 @@ public sealed class GeoShardRouterTests
 
     #endregion
 
+    #region FindFallbackShardId
+
+    private static Dictionary<string, GeoRegion> RegionMap(params GeoRegion[] regions) =>
+        regions.ToDictionary(r => r.RegionCode, StringComparer.OrdinalIgnoreCase);
+
+    [Fact]
+    public void FindFallbackShardId_RegionWithFallbackThatExists_ReturnsFallbackShard()
+    {
+        var regions = RegionMap(
+            new GeoRegion("a", "shard-a", FallbackRegionCode: "b"),
+            new GeoRegion("b", "shard-b"));
+
+        GeoShardRouter.FindFallbackShardId(regions, "a").ShouldBe("shard-b");
+    }
+
+    [Fact]
+    public void FindFallbackShardId_UnknownRegion_ReturnsNull()
+    {
+        var regions = RegionMap(new GeoRegion("a", "shard-a"));
+
+        GeoShardRouter.FindFallbackShardId(regions, "zz").ShouldBeNull();
+    }
+
+    [Fact]
+    public void FindFallbackShardId_RegionWithoutFallback_ReturnsNull()
+    {
+        var regions = RegionMap(new GeoRegion("a", "shard-a"));
+
+        GeoShardRouter.FindFallbackShardId(regions, "a").ShouldBeNull();
+    }
+
+    [Fact]
+    public void FindFallbackShardId_FallbackNotConfigured_ReturnsNull()
+    {
+        var regions = RegionMap(new GeoRegion("a", "shard-a", FallbackRegionCode: "missing"));
+
+        GeoShardRouter.FindFallbackShardId(regions, "a").ShouldBeNull();
+    }
+
+    [Fact]
+    public void FindFallbackShardId_SelfReferencingFallback_ReturnsNull()
+    {
+        var regions = RegionMap(new GeoRegion("a", "shard-a", FallbackRegionCode: "a"));
+
+        GeoShardRouter.FindFallbackShardId(regions, "a").ShouldBeNull();
+    }
+
+    #endregion
+
     #region GetShardId - Cycle Detection
 
     [Fact]

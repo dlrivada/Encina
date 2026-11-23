@@ -61,7 +61,7 @@ public sealed class HashShardRouter : IShardRouter, IShardRebalancer
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoActiveShards,
+                    ShardingErrorCodes.NoActiveShards, ErrorCategory.Internal,
                     "No shards are configured in the hash ring."));
         }
 
