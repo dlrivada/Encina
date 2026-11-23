@@ -20,7 +20,7 @@ The git-ignored snapshot `artifacts/decisions/plan-batch/eventid-blocks.md` was 
 2. Every registry row with status `registered` matches a range in `EventIdRanges.cs` with the same bounds.
 3. Reserved blocks (status `reserved` and `reserved-pre-zone`) do not overlap any registered range.
 4. Reserved blocks do not overlap each other.
-5. Nothing is below 10000 unless it is a historical registered range (Zone `historical`) or a block with status `reserved-pre-zone`.
+5. Nothing is below 10000 unless it is a historical registered range (Zone `historical`) or a block with status `reserved-pre-zone`. A range is historical only when its exact name is in the `HistoricalRangeNames` allow-list of `tests/Encina.UnitTests/Testing/Architecture/EventIdRegistryAgreementTests.cs`; the Zone label alone is not trusted, and adding a name is a visible code change. Free gaps below 10000 are not listed on this page and are not allocatable; this page is the place to read free space only for the 10000+ zone.
 
 ## How to add a block
 
