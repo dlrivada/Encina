@@ -3,7 +3,7 @@
 > **Issue**: [#610](https://github.com/dlrivada/Encina/issues/610)
 > **Type**: Feature
 > **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 13, 9, 8, 9, 7 and 8 files)
+> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 14, 9, 8, 9, 7 and 8 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -309,7 +309,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 1. Internal `ZeroMQSocketHost` (Design Choice 6): owns a `NetMQPoller` thread, a `NetMQQueue<T>` of operations, creates and disposes every socket, applies the options (high-water marks, linger, reconnect interval, CURVE), completes each operation through a `TaskCompletionSource`; callbacks catch every exception; disposal stops the poller and fails pending operations with a `Left`. The host is a singleton registered by `AddEncinaZeroMQ` with `IHostedService` start/stop, started lazily on the first operation so an application that registers the package but sends nothing opens no socket.
 2. `IZeroMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `ZeroMQMessagePublisher` (scoped; the host, `IOptions`, `ILogger`).
 3. Errors (ADR-062), in `ZeroMQErrorCodes.cs`, each created with the named argument `category:` and a constant message: `encina.zeromq.publish_failed` `Internal` (R4), `encina.zeromq.send_timeout` `Timeout` (R7), `encina.zeromq.endpoint_not_configured` `Internal` (R1: a configuration entry). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-4. `Log.cs` 40020-40023 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40020, 40039)`; the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40020-40039 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
+4. `Log.cs` 40020-40023 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40020, 40039)`; the line `static readonly Encina.Diagnostics.EventIdRanges.ZeroMQ -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40020-40039 | Transports | zone |` in the registered ranges table and this plan's row of the Blocks table set to `registered` (the five rows of the family block `40000-40099` are added by whichever plan lands first: `40000-40019` #242, `40020-40039` #610, `40040-40059` #611, `40060-40079` #612, `40080-40099` #310, owner `transport-new-2: #<n>`; a conflict is resolved by keeping both rows, never by a rebase of a pushed branch).
 5. DI: `AddEncinaZeroMQ` gains the host singleton, its hosted service and `TryAddScoped<IZeroMQMessagePublisher, ZeroMQMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves both with `ValidateOnBuild` and `ValidateScopes`.
 6. Tests: `ZeroMQSocketHostTests` and `ZeroMQMessagePublisherTests` (unit, over in-process `inproc` sockets: the host is concrete, so its tests use real sockets), guard edit, manifest edit with the unit and guard targets (contract, property and integration targets are entered in pull request 6, where those tests land).
 
@@ -504,7 +504,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props`, 5 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry rows, changelog, 2 justification files |
 | **Pull request 1** | **14** | csproj, options, validator, envelope, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, envelope test, DI test, guard test; about 650 lines |
-| **Pull request 2** | **13** | interface, publisher, host, error codes, `Log`, `EventIdRanges.cs`, allocation test, registry, DI edit, DI test edit, host and publisher unit tests, guard edit, manifest edit; about 800 lines |
+| **Pull request 2** | **14** | interface, publisher, host, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, host and publisher unit tests, guard edit, manifest edit; about 800 lines |
 | **Pull request 3** | **9** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 2 unit tests, guard edit, manifest edit; about 600 lines |
 | **Pull request 4** | **8** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 1 unit test, guard edit, manifest edit; about 450 lines |
 | **Pull request 5** | **9** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
@@ -565,5 +565,5 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Rabbi
 
 1. Ask the maintainer D1, D3, D4, D5, D6, D7, D8, D11 and D12 when work on #610 starts, D1 first because it can stop the issue; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (14 files).
-3. Pull requests 2 to 5: publish (13), subscribe and push-pull (9), request-reply (8), health and telemetry (9).
+3. Pull requests 2 to 5: publish (14), subscribe and push-pull (9), request-reply (8), health and telemetry (9).
 4. Pull requests 6 and 7: contract, property and integration tests (7), documentation (8).
