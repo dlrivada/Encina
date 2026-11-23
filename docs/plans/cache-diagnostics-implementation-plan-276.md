@@ -23,7 +23,7 @@ Issue #276 asks for development-time diagnostics of the query cache: response he
 
 The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277) can offer identically: a bounded, node-local registry of the keys that `QueryCachingPipelineBehavior` itself wrote, with Encina metadata (request type, cached-at, duration, tenant), an outcome carrier for the headers and fail-closed HTTP endpoints modeled on `MapDPIAEndpoints`.
 
-**Shared pieces and ownership (family cache-patterns-1 and -2):** the behavior hook points are small private methods added next to those of #266, #267, #268, #272 and #275; this plan reads the `CacheEntry<T>` fields #266 owns (it works with `CachedAtUtc` only until `ExpiresAtUtc` exists). EventIds, in the 10000+ zone (AGENTS.md section 7): `CachingDiagnostics` 30050-30051 (emitted by `Encina.Caching`, slot 30050-30099 of the Caching block 30000-30999, packed after #278's slot 30000-30049) and `AspNetCoreCachingDiagnostics` 60000-60002 (emitted by `Encina.AspNetCore`, slot 60000-60049 of the Observability and platform block 60000-60999, where ADR-021's area table puts ASP.NET Core).
+**Shared pieces and ownership (family cache-patterns-1 and -2):** the behavior hook points are small private methods added next to those of #266, #267, #268, #272 and #275; this plan reads the `CacheEntry<T>` fields #266 owns (it works with `CachedAtUtc` only until `ExpiresAtUtc` exists). EventIds, in the 10000+ zone (AGENTS.md section 7): `CachingDiagnostics` 30050-30051 (emitted by `Encina.Caching`, slot 30050-30099 of the Caching block 30000-30999, packed after #278's slot 30000-30049) and `AspNetCoreCachingDiagnostics` 60100-60102 (emitted by `Encina.AspNetCore`, slot 60100-60149 of the Observability and platform block 60000-60999, where ADR-021's area table puts ASP.NET Core; the open plans of #182 (60000-60049) and #180 (60050-60099) hold the two slots before it, and the free slot is re-checked against the registry, `docs/plans` on main and the open `docs/plan-*` branches right before the code PR).
 
 **Affected packages:** `Encina.Caching` (registry, inspection API, outcome carrier), `Encina.AspNetCore` (headers and endpoints), `Encina` (EventId registry). **Provider category:** Caching (8): behavior-level, identical on all 8.
 
@@ -87,7 +87,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed ... the only opt-out is explicit and logged") and the existing precedent `DPIAEndpointExtensions.MapDPIAEndpoints` (policy required, validated at startup, no anonymous mode); AGENTS.md section 1 (pay-for-what-you-use).
-- Under multi-tenancy (`MultiTenancyMarker` registered) every endpoint serves only the caller's tenant (`IRequestContext.TenantId` bound by `UseEncinaContext()`); a request with no tenant is denied with `cache.diagnostics_tenant_required` (ADR-062 `ErrorCategory.InvalidRequest`, the category `tenancy.tenant_required` uses) and logged (EventId 60000); there is no all-tenants mode in this version.
+- Under multi-tenancy (`MultiTenancyMarker` registered) every endpoint serves only the caller's tenant (`IRequestContext.TenantId` bound by `UseEncinaContext()`); a request with no tenant is denied with `cache.diagnostics_tenant_required` (ADR-062 `ErrorCategory.InvalidRequest`, the category `tenancy.tenant_required` uses) and logged (EventId 60100); there is no all-tenants mode in this version.
 
 </details>
 
@@ -106,7 +106,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 ### Rationale
 
 - Option B wins for single-tenant operations that must clean a shared cache from one node. The glob is implemented with `*` and `?` only, by an iterative matcher (no regular expression, so no backtracking cost), with a pattern length limit of 200 and a result limit of 1,000; a longer pattern returns `cache.diagnostics_invalid_pattern` (`ErrorCategory.Validation`).
-- Each executed delete is logged with the count only (EventId 60001); the audit trail of administrative deletes is deferred (`artifacts/issues/cache-diagnostics-delete-audit.md`).
+- Each executed delete is logged with the count only (EventId 60101); the audit trail of administrative deletes is deferred (`artifacts/issues/cache-diagnostics-delete-audit.md`).
 - Class: Dilemma
 
 </details>
@@ -226,8 +226,8 @@ PR 1 holds exactly these 15 files (the registry logs its own eviction, so the lo
 | 4 | `src/Encina.Caching/Diagnostics/CacheDiagnosticsLog.cs` | new (EventIds 30050-30051; 30051 eviction is emitted by the registry of this PR, 30050 by `CacheDiagnostics` in PR 2) |
 | 4b | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingDiagnostics = (30050, 30051)`) |
 | 4c | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (map `Encina.Caching`) |
-| 4d | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `Encina.Diagnostics.EventIdRanges.CachingDiagnostics`, for the new field) |
-| 4e | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingDiagnostics \| 30050-30051 \| Caching \| zone` in the "Registered ranges" table and a row `30050-30099 \| Caching \| #276 cache diagnostics \| registered` in the "Blocks" table (reserved by this plan); `EventIdRegistryAgreementTests` fails otherwise; read the test and the document first) |
+| 4d | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `static readonly Encina.Diagnostics.EventIdRanges.CachingDiagnostics -> (int Min, int Max)`, for the new field) |
+| 4e | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingDiagnostics \| 30050-30051 \| Caching \| zone` in the "Registered ranges" table and, in the "Blocks" table, the `reserved` row of the slot is replaced by a `registered` row with the exact bounds of the range, `30050-30051 \| Caching \| #276 cache diagnostics \| registered` (rule 2 of `EventIdRegistryAgreementTests` requires a `registered` block to match a range of `EventIdRanges.cs` with the same bounds, and rule 3 forbids a `reserved` row overlapping a registered range); the rest of the slot, 30052-30099, is left unlisted or as a `free` row (not checked); read the test and the document first) |
 | 5 | `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | modify (optional trailing `ICacheKeyRecorder?` and `CacheOutcomeAccessor?`, both public types because the behavior's constructor is public and an internal parameter type would not compile; record on hit, miss, bypass and write) |
 | 6 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 7 | `tests/Encina.UnitTests/Caching/CacheKeyRegistryTests.cs` | new |
@@ -341,12 +341,12 @@ PR 3 holds exactly these 15 files (the integration test of Design Choice 9 moved
 | 1 | `src/Encina.AspNetCore/CacheDiagnosticHeadersMiddleware.cs` | new (internal sealed) |
 | 1b | `src/Encina.AspNetCore/ApplicationBuilderExtensions.cs` | modify (`UseEncinaCacheDiagnosticHeaders`) |
 | 1c | `tests/Encina.UnitTests/AspNetCore/ApplicationBuilderExtensionsTests.cs` | modify |
-| 1d | `docs/engineering/eventid-block-registry.md` | modify (a row `AspNetCoreCachingDiagnostics \| 60000-60002 \| Observability and platform \| zone` in the "Registered ranges" table and a row `60000-60049 \| Observability and platform \| #276 cache diagnostics (AspNetCore slice) \| registered` in the "Blocks" table; `EventIdRegistryAgreementTests` fails otherwise) |
+| 1d | `docs/engineering/eventid-block-registry.md` | modify (a row `AspNetCoreCachingDiagnostics \| 60100-60102 \| Observability and platform \| zone` in the "Registered ranges" table and, in the "Blocks" table, the `reserved` row of the slot replaced by `60100-60102 \| Observability and platform \| #276 cache diagnostics (AspNetCore slice) \| registered` with the exact bounds, the rest of the slot (60103-60149) unlisted or `free`; `EventIdRegistryAgreementTests` rules 2 and 3 fail otherwise) |
 | 2 | `src/Encina.AspNetCore/CacheDiagnosticsEndpointExtensions.cs` | new (public `MapEncinaCacheDiagnostics`) |
-| 3 | `src/Encina.AspNetCore/CacheDiagnosticsAspNetLog.cs` | new (EventIds 60000-60002) |
-| 4 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`AspNetCoreCachingDiagnostics = (60000, 60002)`) |
+| 3 | `src/Encina.AspNetCore/CacheDiagnosticsAspNetLog.cs` | new (EventIds 60100-60102) |
+| 4 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`AspNetCoreCachingDiagnostics = (60100, 60102)`) |
 | 5 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (map `Encina.AspNetCore`) |
-| 6 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `Encina.Diagnostics.EventIdRanges.AspNetCoreCachingDiagnostics`, for the new field) |
+| 6 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: one line, `static readonly Encina.Diagnostics.EventIdRanges.AspNetCoreCachingDiagnostics -> (int Min, int Max)`, for the new field) |
 | 7 | `src/Encina.AspNetCore/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
 | 8 | `tests/Encina.UnitTests/AspNetCore/CacheDiagnosticHeadersMiddlewareTests.cs` | new |
 | 9 | `tests/Encina.UnitTests/AspNetCore/CacheDiagnosticsEndpointTests.cs` | new (test server) |
@@ -356,9 +356,9 @@ PR 3 holds exactly these 15 files (the integration test of Design Choice 9 moved
 
 Tasks:
 
-1. **Create** `MapEncinaCacheDiagnostics(this IEndpointRouteBuilder, string authorizationPolicy, string prefix = "/cache")` returning a `RouteGroupBuilder`, modeled on `MapDPIAEndpoints`: `ArgumentException.ThrowIfNullOrWhiteSpace(authorizationPolicy)`, `RequireAuthorization(policy)` on the group, startup validation that the policy is registered (throws `InvalidOperationException`) and that `AddEncinaCacheDiagnostics` was called; routes `GET {prefix}/stats`, `GET {prefix}/keys?pattern=&limit=`, `GET {prefix}/keys/{id}`, `DELETE {prefix}/keys/{id}` and `DELETE {prefix}/keys?pattern=`. Each handler reads the tenant from the `IRequestContext` of `UseEncinaContext()`; under multi-tenancy a missing tenant is denied before any registry access (EventId 60000).
+1. **Create** `MapEncinaCacheDiagnostics(this IEndpointRouteBuilder, string authorizationPolicy, string prefix = "/cache")` returning a `RouteGroupBuilder`, modeled on `MapDPIAEndpoints`: `ArgumentException.ThrowIfNullOrWhiteSpace(authorizationPolicy)`, `RequireAuthorization(policy)` on the group, startup validation that the policy is registered (throws `InvalidOperationException`) and that `AddEncinaCacheDiagnostics` was called; routes `GET {prefix}/stats`, `GET {prefix}/keys?pattern=&limit=`, `GET {prefix}/keys/{id}`, `DELETE {prefix}/keys/{id}` and `DELETE {prefix}/keys?pattern=`. Each handler reads the tenant from the `IRequestContext` of `UseEncinaContext()`; under multi-tenancy a missing tenant is denied before any registry access (EventId 60100).
 2. **Create** the middleware: starts a holder (`CacheOutcomeAccessor.Begin`), runs the rest of the pipeline, and writes the headers in `Response.OnStarting` (so they are set before the body) with the prefix from the options; `X-Cache-Key` only with `IncludeKey` and redacted. It is added by `app.UseEncinaCacheDiagnosticHeaders()`, which does nothing when diagnostics are disabled (no `AddEncinaCacheDiagnostics`).
-3. **EventIds:** 60000 request denied (no tenant), 60001 keys deleted (count), 60002 diagnostics endpoints mapped (prefix, once at startup); the policy name is never logged.
+3. **EventIds:** 60100 request denied (no tenant), 60101 keys deleted (count), 60102 diagnostics endpoints mapped (prefix, once at startup); the policy name is never logged.
 4. **Tests:** an unauthenticated request is rejected (401), an authenticated one without the policy is rejected (403), the mapping throws on a blank or unregistered policy, tenant isolation over HTTP, the header set for hit, miss and bypass, a response with several cached requests aggregates as specified, the raw key never appears in a header. Guard tests: null builder, blank policy, blank prefix.
 
 </details>
@@ -373,7 +373,7 @@ MapDPIAEndpoints (src/Encina.AspNetCore/DPIAEndpointExtensions.cs) is the preced
 
 TASK:
 1. Create MapEncinaCacheDiagnostics and the headers middleware with UseEncinaCacheDiagnosticHeaders.
-2. Create CacheDiagnosticsAspNetLog (60000-60002) and register AspNetCoreCachingDiagnostics = (60000, 60002) in EventIdRanges.cs and the assembly map.
+2. Create CacheDiagnosticsAspNetLog (60100-60102) and register AspNetCoreCachingDiagnostics = (60100, 60102) in EventIdRanges.cs and the assembly map.
 3. Write the unit, test-server and guard tests; ask mechanical-fixer for the PublicAPI files, the manifest rows and the changelog fragment.
 
 KEY RULES:
@@ -396,7 +396,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **EventIds:** 30050 keys deleted (count) and 30051 registry eviction in `CachingDiagnostics`; 60000 request denied (no tenant), 60001 diagnostic delete executed, 60002 endpoints mapped in `AspNetCoreCachingDiagnostics`. To keep each id in the assembly that emits it: 30050 and 30051 are emitted by `CacheDiagnostics` and `CacheKeyRegistry` (`Encina.Caching`); 60000-60002 by the endpoints and middleware (`Encina.AspNetCore`). Both ranges are in the 10000+ zone, so `EventIdRegistryAgreementTests` rule 5 holds. Verified free by a repo-wide grep of both assemblies (`Encina.Caching` uses 3500-3513, `Encina.AspNetCore` uses 200-207).
+1. **EventIds:** 30050 keys deleted (count) and 30051 registry eviction in `CachingDiagnostics`; 60100 request denied (no tenant), 60101 diagnostic delete executed, 60102 endpoints mapped in `AspNetCoreCachingDiagnostics`. To keep each id in the assembly that emits it: 30050 and 30051 are emitted by `CacheDiagnostics` and `CacheKeyRegistry` (`Encina.Caching`); 60100-60102 by the endpoints and middleware (`Encina.AspNetCore`). Both ranges are in the 10000+ zone, so `EventIdRegistryAgreementTests` rule 5 holds. Verified free by a repo-wide grep of both assemblies (`Encina.Caching` uses 3500-3513, `Encina.AspNetCore` uses 200-207).
 2. **Telemetry:** none by design (the issue marks OpenTelemetry not applicable: diagnostics are a development tool); node-local counters are exposed through `GetStatsAsync`, and exporting them as metrics belongs to #273 and #723 (open).
 3. **Coverage targets (per flag, set in the PR that adds each file):**
 
@@ -506,7 +506,7 @@ REFERENCE FILES:
 | Package | Range | Notes |
 |---------|-------|-------|
 | `Encina.Caching` (new range `CachingDiagnostics`, slot 30050-30099 of the Caching block 30000-30999) | 30050-30051 | 30050 diagnostic keys deleted (count), 30051 registry eviction at the bound; 30052-30099 stay free in the slot |
-| `Encina.AspNetCore` (new range `AspNetCoreCachingDiagnostics`, slot 60000-60049 of the Observability and platform block 60000-60999) | 60000-60002 | 60000 request denied (no tenant), 60001 diagnostic delete executed over HTTP, 60002 endpoints mapped. #278's slot is 30000-30049 just before this plan's Caching slot. The existing `Caching` range 3500-3549 and `AspNetCore` range 200-249 are untouched |
+| `Encina.AspNetCore` (new range `AspNetCoreCachingDiagnostics`, slot 60100-60149 of the Observability and platform block 60000-60999; the open plans #182 (60000-60049) and #180 (60050-60099) hold the earlier slots) | 60100-60102 | 60100 request denied (no tenant), 60101 diagnostic delete executed over HTTP, 60102 endpoints mapped. #278's slot is 30000-30049 just before this plan's Caching slot. The existing `Caching` range 3500-3549 and `AspNetCore` range 200-249 are untouched |
 
 ### Estimated File Count
 
@@ -534,7 +534,7 @@ the data comes from the behavior, not from the provider.
 IMPLEMENTATION OVERVIEW:
 1. PR 1: CacheKeyRegistry, CacheOutcomeAccessor, CacheDiagnosticsOptions, behavior hooks.
 2. PR 2: ICacheDiagnostics, its implementation, AddEncinaCacheDiagnostics, EventIds 30050-30051.
-3. PR 3: headers middleware and MapEncinaCacheDiagnostics in Encina.AspNetCore, EventIds 60000-60002.
+3. PR 3: headers middleware and MapEncinaCacheDiagnostics in Encina.AspNetCore, EventIds 60100-60102.
 4. PR 4: documentation.
 
 KEY PATTERNS:
@@ -561,7 +561,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ Include | Extends the query-caching behavior; identical on all 8 providers. |
 | 2 | OpenTelemetry | ⏭️ Defer | Node-local counters are returned by `GetStatsAsync`; exporting them as metrics is #273 and #723 (open). |
-| 3 | Structured Logging | ✅ Include | `CacheDiagnosticsLog` (30050-30051) and `CacheDiagnosticsAspNetLog` (60000-60002). |
+| 3 | Structured Logging | ✅ Include | `CacheDiagnosticsLog` (30050-30051) and `CacheDiagnosticsAspNetLog` (60100-60102). |
 | 4 | Health Checks | ❌ N/A | A development tool, not a dependency; provider health is #754. |
 | 5 | Validation | ✅ Include | Pattern length, result limit and option ranges are validated. |
 | 6 | Resilience | ❌ N/A | Read-only tooling off the request path; a failing delete returns its `Left`. |
@@ -582,7 +582,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | `QueryCachingPipelineBehavior`, `CacheKeyRedactor`, `MapDPIAEndpoints` precedent, `Encina.AspNetCore` reference to `Encina.Caching` | ✅ Available | On `origin/main` |
 | #266 PR 1 (`ExpiresAtUtc`) | Open | Only for `X-Cache-TTL`; without it the header is omitted |
-| Slots 30050-30099 (Caching) and 60000-60049 (Observability and platform) of the EventId registry | Reserved by this plan | Rows with status `reserved` in the "Blocks" table, added when the plan merges or by the first code PR of each range |
+| Slots 30050-30099 (Caching) and 60100-60149 (Observability and platform) of the EventId registry | Reserved by this plan; the 60100 slot is re-checked against the registry, `docs/plans` on main and the open `docs/plan-*` branches at code-PR time | Rows with status `reserved` in the "Blocks" table, added when the plan merges or by the first code PR of each range |
 | Maintainer answers to Design Choices 1, 2, 4, 5, 8 and 9 | Pending | Asked when work starts |
 
 ---
