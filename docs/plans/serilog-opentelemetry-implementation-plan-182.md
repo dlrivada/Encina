@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `237a83364`)
+### What exists today (read on 2026-11-23, main `682b1d70b`)
 
 - Serilog appears nowhere in `src/` or `Directory.Packages.props` (the one hit, a comment in `src/Encina.Audit.Marten/ServiceCollectionExtensions.cs:112`, only names it as an example of a logger provider). The package needs new central pins: `Serilog` `4.4.0` and `Serilog.Sinks.OpenTelemetry` `4.2.0`, the latest stable versions on nuget.org on 2026-11-23. The sink targets up to `net9.0`, depends on `Serilog` 4.2.0, and brings `Google.Protobuf` and `Grpc.Net.Client`; the restore audit of the chosen versions is checked at the start of Phase 1.
 - The ambient request context is `IRequestContextAccessor` (`src/Encina/Abstractions/IRequestContextAccessor.cs`), backed by one static `AsyncLocal` (`src/Encina/Core/RequestContextAccessor.cs:53`): "every instance observes the same" value (the class summary, line 12), so an enricher built without DI reads the same context as the dispatcher. `IRequestContext` carries `CorrelationId` (string), `CausationId`, `TenantId` (`string?`) and `Identity` (`context.UserId` is an extension property over it).
@@ -23,7 +23,7 @@
 
 ### What the issue proposes and what changed since
 
-The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`CorrelationId`, `TenantId`, `UserId`), a `TraceContextEnricher`, `AddEncinaSerilog` with `EnableOpenTelemetryExport`, a `LoggingBehavior<,>`, an OTLP sink helper, log levels per request type and sensitive-data filtering. Facts that change it: Serilog cannot be reconfigured after the logger is built, so the sink and the enrichers can only be added on `LoggerConfiguration`, never by a DI call; a user id in every log line is personal data and the project's data-minimisation rule (ADR-054 D4, GDPR Art. 5(1)(c)) points at off by default; Serilog already carries the trace and span ids; the request logging behavior does not depend on Serilog at all; and Serilog's own per-category minimum levels already give "log levels per request type".
+The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`CorrelationId`, `TenantId`, `UserId`), a `TraceContextEnricher`, `AddEncinaSerilog` with `EnableOpenTelemetryExport`, a `LoggingBehavior<,>`, an OTLP sink helper, log levels per request type and sensitive-data filtering. Facts that change it: Serilog cannot be reconfigured after the logger is built, so the sink and the enrichers can only be added on `LoggerConfiguration`, never by a DI call; a user id in every log line is personal data and data minimisation (GDPR Art. 5(1)(c) and Art. 25, the principle ADR-054 D4 applies to baggage) points at off by default; Serilog already carries the trace and span ids; the request logging behavior does not depend on Serilog at all; and Serilog's own per-category minimum levels already give "log levels per request type".
 
 ### What this plan delivers
 
@@ -73,7 +73,7 @@ The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`Corr
 
 ### Rationale
 
-- ADR-054 D4 applies data minimisation (GDPR Art. 5(1)(c) and Art. 25) to tenant ids on telemetry; the same reading applies to user ids on logs.
+- Data minimisation (GDPR Art. 5(1)(c) and Art. 25) is the principle ADR-054 D4 applies to baggage (Encina never propagates or stores it); D4's tenant rule covers span attributes and metric tags only, not logs, so this plan extends the principle to user ids on logs and the maintainer confirms the extension.
 - B wins for a non-regulated internal tool where support needs the user in every line; C wins when logs must correlate one user across systems without storing the raw id and the host can manage a key.
 - Class: Dilemma
 
@@ -185,9 +185,9 @@ The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`Corr
 |----|--------|-------|-------|
 | C1 | `EncinaSerilogOptions`: `EnrichWithEncinaContext` (default true), `EnrichWithTraceContext` (default true), `IncludeUserId` (default false), `EnableRequestLogging` (default false: opt-in), `SuccessLevel` (default `Information`), `FailureLevel` (default `Warning`) | Trivial | The issue's flags; `AGENTS.md` section 3 (every messaging and cross-cutting feature is opt-in) |
 | C2 | Property names are constants of one public class `EncinaLogProperties`: `CorrelationId`, `TenantId`, `UserId`, `TraceId`, `SpanId`, `RequestType`, `ErrorCode`, `ElapsedMs`, `Outcome` | Trivial | ADR-054 D3 (every attribute key lives in one constants class) |
-| C3 | The enricher adds `TenantId` only when `IRequestContext.TenantId` is non-null (multi-tenancy resolved a tenant); with multi-tenancy off no tenant property exists; no tenant-qualified id is composed, so the reserved `default` tenant segment does not apply | Trivial | ADR-054 D4 applied to log properties |
+| C3 | The enricher adds `TenantId` only when `IRequestContext.TenantId` is non-null (multi-tenancy resolved a tenant); with multi-tenancy off no tenant property exists; no tenant-qualified id is composed, so the reserved `default` tenant segment does not apply | Dilemma (recommended, pending the maintainer) | ADR-054 D4 covers span attributes and metric tags only (a tenant id there is the existing practice); a raw tenant id in every log event is an extension of that rule to logs, the same family as Design Choice 2. Alternatives: no tenant property by default (a flag like `IncludeUserId`), or a hashed tenant id. Recommended: the raw tenant id, only when resolved, because a tenant id is an operational key, not a personal identifier of a data subject |
 | C4 | Fail closed has no meaning here (no security gate): a missing request context adds no Encina property and never throws; the enricher swallows nothing because it has nothing to throw | Settled | `AGENTS.md` section 3 (the fail-closed rule is for compliance and security gates; this is neither) |
-| C5 | The behavior logs a failure with the `EncinaError` code only (`GetEncinaCode()`), never `EncinaError.Message`; an exception that escapes `nextStep` is logged with `ex.GetType().Name` and `ex.ForLogging()` and rethrown, never swallowed; elapsed time comes from the injected `TimeProvider` | Settled | `AGENTS.md` section 3 (messages never reach logs; `ForLogging()`; time from `TimeProvider`); ADR-054 settled point 2 |
+| C5 | The behavior logs a failure with the `EncinaError` code only (the public `error.GetCode().IfNone("encina.unknown")`, `src/Encina/Results/EncinaErrors.cs:195`, as `SchemaDriftHealthCheck.cs:128` does; `GetEncinaCode()` is `internal` at `:280` and the new assembly has no `InternalsVisibleTo`), never `EncinaError.Message`; an exception that escapes `nextStep` is logged with `ex.GetType().Name` and `ex.ForLogging()` and rethrown, never swallowed; elapsed time comes from the injected `TimeProvider` | Settled | `AGENTS.md` section 3 (messages never reach logs; `ForLogging()`; time from `TimeProvider`); ADR-054 settled point 2 |
 | C6 | No new `EncinaError` code and no ADR-062 `ErrorCategory`: the behavior returns the `Either` of `nextStep` unchanged | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C7 | The package has no `ActivitySource` and no `Meter`, so no tenant tag on telemetry (ADR-054 D4 concerns spans and metrics) | Settled | ADR-054 D4 |
 | C8 | The sink helper has `Endpoint` (`Uri?`), `Protocol` (default `Grpc`), `ServiceName`, `DeploymentEnvironment` and `ConfigureSink` (`Action<BatchedOpenTelemetrySinkOptions>`, the escape hatch for headers and batching); no header property, so no secret lives in the options class and no `[JsonIgnore]` or `ToString()` override is required; an `Endpoint` with user info is rejected | Trivial | `AGENTS.md` section 3 (options with a token or key); the sink API (`OpenTelemetry(LoggerSinkConfiguration, Action<BatchedOpenTelemetrySinkOptions>)`) |
@@ -208,7 +208,7 @@ The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`Corr
 1. **Create** `src/Encina.Serilog.OpenTelemetry/Encina.Serilog.OpenTelemetry.csproj` (net10.0, nullable, `ManagePackageVersionsCentrally`, `PackageReference` to `Serilog` and the private `Microsoft.CodeAnalysis.PublicApiAnalyzers`, `Microsoft.Extensions.Options`, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Logging.Abstractions`; `ProjectReference` to `Encina`; `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.GuardTests`, `Encina.ContractTests` and `Encina.IntegrationTests`; the two `PublicAPI` files as `AdditionalFiles`), following `src/Encina.Hangfire/Encina.Hangfire.csproj`. The sink package arrives in Phase 4.
 2. **Create** `EncinaSerilogOptions.cs` (register row C1), `EncinaSerilogOptionsValidator.cs` (`internal sealed class : IValidateOptions<EncinaSerilogOptions>`: `SuccessLevel` and `FailureLevel` not `LogLevel.None`, both defined enum values; messages name the option, never a value) and `EncinaLogProperties.cs` (register row C2).
 3. **Edit** `Directory.Packages.props` (add `Serilog` `4.4.0`), `Encina.slnx`, `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` through `mechanical-fixer`; **create** the two `PublicAPI` files and `.github/coverage-manifest/Encina.Serilog.OpenTelemetry.json` through `mechanical-fixer` (the lines come from the Research table).
-4. **Create** `tests/Encina.UnitTests/Serilog/EncinaSerilogOptionsTests.cs`: defaults (each register row C1 value) and one test per validator rule; and a first test that proves the premise of Design Choice 3: a real Serilog `Logger` writing inside an `Activity` yields a `LogEvent` whose `TraceId` and `SpanId` equal the activity's.
+4. **Create** `tests/Encina.UnitTests/Serilog/EncinaSerilogOptionsTests.cs`: defaults (each register row C1 value) and one test per validator rule; and a first test that proves the premise of Design Choice 3: a real Serilog `Logger` writing inside an `Activity` yields a `LogEvent` whose `TraceId` and `SpanId` equal the activity's. The test registers an `ActivityListener` (`ShouldListenTo` true, `Sample` returning `AllDataAndRecorded`) and starts the activity from its own `ActivitySource`, and first asserts `Activity.Current` is not null, otherwise the test would pass vacuously on null ids.
 5. **Create** `tests/Encina.GuardTests/Serilog/EncinaSerilogGuardTests.cs`: the validator with a null options object throws `ArgumentNullException`.
 
 </details>
@@ -226,9 +226,12 @@ TASK:
 1. Create the project, EncinaSerilogOptions, EncinaSerilogOptionsValidator and EncinaLogProperties as the plan lists.
 2. Add Serilog 4.4.0 to Directory.Packages.props, the project to Encina.slnx and the references from Encina.UnitTests and
    Encina.GuardTests; the restore must show no audit warning.
-3. Add the options tests and the test that a Serilog LogEvent carries the current Activity's TraceId and SpanId.
+3. Add the options tests and the test that a Serilog LogEvent carries the current Activity's TraceId and SpanId (register an
+   ActivityListener with sampling on and assert Activity.Current is not null first, or the test is vacuous).
 
 KEY RULES:
+- The package namespace Encina.Serilog.OpenTelemetry and the test namespace Encina.UnitTests.Serilog shadow the root Serilog and
+  OpenTelemetry namespaces: use using directives, never fully qualified Serilog.Core.X or OpenTelemetry.X references.
 - IncludeUserId defaults to false; EnableRequestLogging defaults to false.
 - Messages of validation failures name the option, never a value.
 - Edit source only with Edit/Write; no [Obsolete]; tests use Shouldly through Encina.Testing.Shouldly and execute real code.
@@ -295,11 +298,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `RequestLoggingPipelineBehavior.cs`: `public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(ILoggerFactory loggerFactory, IOptions<EncinaSerilogOptions> options, TimeProvider? timeProvider = null)`; the logger is `loggerFactory.CreateLogger(typeof(TRequest).FullName ?? typeof(TRequest).Name)` so category filters apply (Design Choice 5); `Handle` begins one scope with `RequestType` only (the enricher owns the context properties), logs 60000, awaits `nextStep()`, then logs 60001 or, for a `Left`, 60002 with the error code; an exception is logged with its type name and `ForLogging()` and rethrown (register row C5). The type parameter constraint matches `MessagingEnricherPipelineBehavior`.
+1. **Create** `RequestLoggingPipelineBehavior.cs`: `public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(ILoggerFactory loggerFactory, IOptions<EncinaSerilogOptions> options, TimeProvider? timeProvider = null)`; the logger is `loggerFactory.CreateLogger(typeof(TRequest).FullName ?? typeof(TRequest).Name)` so category filters apply (Design Choice 5); `Handle` begins one scope with `RequestType` only (the enricher owns the context properties), logs 60000, awaits `nextStep()`, then logs 60001 or, for a `Left`, 60002 with `error.GetCode().IfNone("encina.unknown")` (public; the `internal` `GetEncinaCode()` is not reachable from this assembly); an exception is logged with its type name and `ForLogging()` and rethrown (register row C5). The type parameter constraint matches `MessagingEnricherPipelineBehavior`.
 2. **Create** `Diagnostics/RequestLoggingLogMessages.cs`: `internal static partial class` with three `[LoggerMessage]` methods, EventIds 60000-60002, the level of 60001 and 60002 passed as a `LogLevel` parameter, XML docs naming the range `EventIdRanges.SerilogOpenTelemetry`.
 3. **Edit** `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) SerilogOpenTelemetry = (60000, 60049);` with a summary; the registry rows in `docs/engineering/eventid-block-registry.md`; the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`; the line in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); run `EventIdRegistryAgreementTests` and the architecture tests.
-4. **Edit** `ServiceCollectionExtensions.cs`: when `EnableRequestLogging`, `TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingPipelineBehavior<,>)))` as `AddEncinaOpenTelemetry` does for its behavior; verify the position of the behavior against `PipelineOrderResolver` at the start of the phase and state the answer in the PR.
-5. **Create** `tests/Encina.UnitTests/Serilog/RequestLoggingPipelineBehaviorTests.cs` (a real behavior, a real logger factory with a capturing provider: a `Right` logs started and completed at the configured level; a `Left` logs failed with the error code and never the message; a thrown exception is logged with the type name and rethrown; a category filter on the request type suppresses completed; the elapsed time uses a `FakeTimeProvider`); **edit** the guard test file (null `loggerFactory`, null `options`, a null `timeProvider` is valid) and the package `PublicAPI.Unshipped.txt` and manifest through `mechanical-fixer`.
+4. **Edit** `ServiceCollectionExtensions.cs`: `EnableRequestLogging` is bound lazily through `Action<EncinaSerilogOptions>`, so `AddEncinaSerilog` invokes the `configure` action once on a fresh `EncinaSerilogOptions` at registration time to read the flag (the same action is also passed to `services.Configure`; the action must be side-effect free, stated in its XML doc); when the flag is true, `TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingPipelineBehavior<,>)))` as `AddEncinaOpenTelemetry` does for its behavior; verify the position of the behavior against `PipelineOrderResolver` at the start of the phase and state the answer in the PR.
+5. **Create** `tests/Encina.UnitTests/Serilog/RequestLoggingPipelineBehaviorTests.cs` (a real behavior, a real logger factory with a capturing provider: a `Right` logs started and completed at the configured level; a `Left` logs failed with the error code and never the message; a thrown exception is logged with the type name and rethrown; a category filter on the request type suppresses completed; the elapsed time uses a `FakeTimeProvider`; and a registration test: flag false, the behavior is not in the provider and a request writes no request log); **edit** the guard test file (null `loggerFactory`, null `options`, a null `timeProvider` is valid) and the package `PublicAPI.Unshipped.txt` and manifest through `mechanical-fixer`.
 
 </details>
 
@@ -315,9 +318,11 @@ TASK:
 1. Add RequestLoggingPipelineBehavior<,> and RequestLoggingLogMessages (60000-60002) as the plan lists.
 2. Register the range SerilogOpenTelemetry (60000, 60049) in EventIdRanges.cs, the block registry and the AssemblyRanges map; run
    EventIdRegistryAgreementTests and the architecture tests.
-3. Register the behavior when EnableRequestLogging is true; add the unit and guard tests.
+3. Register the behavior when EnableRequestLogging is true (AddEncinaSerilog invokes a copy of configure once at registration to read
+   the flag); add the unit and guard tests, including flag false: no behavior, no log.
 
 KEY RULES:
+- Log the failure code with the public error.GetCode().IfNone("encina.unknown"); GetEncinaCode() is internal to core and not reachable.
 - Registry first, ids packed without gaps; never an id outside 60000-60049.
 - Log the request type, outcome, error code and elapsed time only; never EncinaError.Message, a request, a response or an exception message;
   exceptions go through ForLogging() and are rethrown.
@@ -451,7 +456,7 @@ You are implementing issue #182 - Serilog enrichment, request logging and OTLP l
 PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library; pre-1.0, no backward compatibility, best solution always; edit source only with the
   Edit/Write tools; PublicAPI, manifests, pins and changelog fragments through mechanical-fixer; README through docs-writer.
-- ADR-054: logs carry codes and types, never EncinaError.Message; the tenant appears only when resolved; a user id is personal data
+- ADR-054 settled point 2: logs carry codes and types, never EncinaError.Message; the tenant appears only when resolved (register row C3); a user id is personal data
   and is off by default. EventIds come from the 10000+ zone (base 60000): this package takes 60000-60049.
 
 IMPLEMENTATION OVERVIEW:
@@ -489,7 +494,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ❌ N/A | There is no shared state. |
 | 8 | Transactions | ❌ N/A | Logging is non-transactional. |
 | 9 | Idempotency | ❌ N/A | Log events are append-only. |
-| 10 | Multi-Tenancy | ✅ Phase 2 | `TenantId` is added only when the request context has a resolved tenant, the same rule as ADR-054 D4 for tags. |
+| 10 | Multi-Tenancy | ✅ Phase 2 | `TenantId` is added only when the request context has a resolved tenant, the same rule as the tenant tag on spans and metrics (ADR-054 D4); extending it to logs is register row C3, a Dilemma. |
 | 11 | Module Isolation | ⏭️ #2442 | `ModuleId` is added by one line once `IRequestContext` carries it. |
 | 12 | Audit Trail | ❌ N/A | The user id is off by default, and logs are not an audit store (`IOperationAuditStore` is). |
 
