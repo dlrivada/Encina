@@ -100,6 +100,13 @@ public sealed class AdoErrorCategoryTests
         public bool IsDeleted { get; set; }
     }
 
+    private sealed class ReferenceRow
+    {
+        public Guid Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+    }
+
     #endregion
 
     #region Entity mapping builders
@@ -360,6 +367,33 @@ public sealed class AdoErrorCategoryTests
         var result = await ((IReferenceTableStore)store).GetAllAsync<Widget>();
 
         AssertInternal(result, ReferenceTableErrorCodes.GetAllFailed);
+    }
+
+    // Success path through the synchronous IDbCommand fallback (the connection is not a DbConnection),
+    // so the category change leaves the working path of the store covered next to its error path.
+    [Theory]
+    [InlineData(Provider.SqlServer, true)]
+    [InlineData(Provider.SqlServer, false)]
+    [InlineData(Provider.PostgreSQL, true)]
+    [InlineData(Provider.PostgreSQL, false)]
+    [InlineData(Provider.MySQL, true)]
+    [InlineData(Provider.MySQL, false)]
+    public async Task ReferenceStore_GetAllWithoutDbCommand_ReturnsMappedRows(Provider provider, bool hasRow)
+    {
+        var id = Guid.NewGuid();
+        var reader = Substitute.For<IDataReader>();
+        reader.Read().Returns(hasRow, false);
+        reader.GetValue(Arg.Any<int>()).Returns(call => call.Arg<int>() == 0 ? id : (object)"w");
+        var command = Substitute.For<IDbCommand>();
+        command.ExecuteReader().Returns(reader);
+        var connection = Substitute.For<IDbConnection>();
+        connection.CreateCommand().Returns(command);
+        using var store = (IDisposable)CreateReferenceStore(provider, connection);
+
+        var result = await ((IReferenceTableStore)store).GetAllAsync<ReferenceRow>();
+
+        result.IsRight.ShouldBeTrue();
+        result.IfRight(rows => rows.Count.ShouldBe(hasRow ? 1 : 0));
     }
 
     [Theory]
