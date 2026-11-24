@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-24, main `1a661f5c1`)
+### What exists today (read on 2026-11-24, main `ff9a579c1`)
 
 - No lock provider emits telemetry. `Encina.DistributedLock` has no `Diagnostics/` folder, no `ActivitySource`, no `Meter` and no log class (its csproj references `Microsoft.Extensions.Logging.Abstractions` but no code uses it). `IDistributedLockProvider` still has the pre-ADR-052 shape on main (`Task<IAsyncDisposable?> TryAcquireAsync(resource, expiry, wait, retry, ct)`, `AcquireAsync`, `IsLockedAsync`, `ExtendAsync`); #2667 (open) changes it to `Either`. `ILockHandle` has `Resource`, `LockId`, `AcquiredAtUtc`, `ExpiresAtUtc`, `IsReleased` and `ExtendAsync(TimeSpan, CancellationToken)`. `DistributedLockOptions` (`KeyPrefix`, `DefaultExpiry`, `DefaultWait`, `DefaultRetry`, `ProviderHealthCheck`) is the existing options class; `AddEncinaDistributedLock()` registers nothing.
 - **The #724 plan (merged on main as a plan) already covers most of the issue's catalog.** It plans, in `Encina.DistributedLock/Diagnostics/`, `InstrumentedDistributedLockProvider` and `InstrumentedLockHandle` with spans `encina.distributed_lock.try_acquire|acquire|is_locked|extend|release`, the counter `encina.distributed_lock.acquisitions` (tags `encina.lock.operation`, `encina.lock.outcome` = `acquired`, `contended` or `failed`, `encina.lock.system`, `error.type`), the histogram `encina.distributed_lock.acquisition.duration` (`s`) and the up-down counter `encina.distributed_lock.held`, on `Meter("Encina.DistributedLock")`, applied by a public `AddEncinaDistributedLockTelemetry()`. It never emits the resource name (its Design Choice 3, a Dilemma pending the maintainer) and gives #222 the remainder in its Design Choice 4. The shared `DistributedLockDiagnostics` holder is created by whichever of #724 and #741 lands first.
@@ -40,7 +40,7 @@
 - A public `DistributedLockObservabilityOptions` with `SlowAcquisitionThreshold` (default 5 seconds, validated greater than zero) and a second overload `AddEncinaDistributedLockTelemetry(Action<DistributedLockObservabilityOptions>)` that registers the options with validation on start.
 - Two structured log events in `Diagnostics/DistributedLockLog.cs`: a Warning when an acquire call takes at least the threshold, and a Warning when a handle is disposed after its `ExpiresAtUtc` (the lock may have been lost). Neither logs the resource name or lock id (Design Choice 3).
 - The tenant tag on the four new instruments through the helper of #2676, in its own pull request.
-- Shared pieces and owner: #724 owns the decorator, handle wrapper and the three instruments; this plan edits those two files (so it starts after #724's first pull request); #741 owns `DistributedLockDiagnostics` creation and `EventIdRanges.DistributedLock`; this plan owns the `DistributedLockObservability` range (Design Choice 6, 30350-30399) and the options class.
+- Shared pieces and owner: #724 owns the decorator, handle wrapper and the three instruments; this plan edits those two files (so it starts after #724's first pull request); #741 owns `DistributedLockDiagnostics` creation and `EventIdRanges.DistributedLock`; this plan owns the `DistributedLockObservability` range (Design Choice 6, 30450-30499) and the options class.
 - Affected packages: `Encina.DistributedLock` and `Encina` (range registration). Not delivered: a lock-provider health check (exists: `RedisDistributedLockHealthCheck`, `SqlServerDistributedLockHealthCheck`; the InMemory one is #755), a module dimension (an issue file accompanies this plan), a hit-rate style derived gauge.
 
 ---
@@ -156,15 +156,17 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) The block the maintainer assigned: `DistributedLockObservability` 30000-30049** | As assigned; same area base as the lock providers (Caching and distributed locks, 30000) | `docs/engineering/eventid-block-registry.md` holds 30000-30349 for #4007 (`Caching` CA-1 and the lock providers CA-2); two `reserved` rows would overlap, and `EventIdRegistryAgreementTests` rule 4 (reserved blocks do not overlap each other) fails |
-| **B) The first free 50-slot after the #4007 extent: `DistributedLockObservability` 30350-30399** | Passes the registry test today; the registry text says new blocks go after the #4007 target extents | Differs from the assignment; #273 takes 30400-30449 in the same way |
+| **B) The first free 50-slot after the #4007 extent and after the slots merged or open plans claim: `DistributedLockObservability` 30450-30499** | Passes the registry test today; the registry text says new blocks go after the #4007 target extents | Differs from the assignment. Not 30350-30399 (reserved by the merged plan #276, `CachingDiagnostics`) and not 30400-30449 (claimed by #273 `CachingObservability` and by #278 `CachingRecovery`) |
 
-### Chosen Option: **B - 30350-30399** (free per the registry on main at `1a661f5c1`)
+### Chosen Option: **B - 30450-30499** (no row in the registry on main at `ff9a579c1`, and no merged or open plan claims it)
+
+Re-slotted from 30350-30399 to 30450-30499 on 2026-11-24 after the #4174 reservations and plan #276.
 
 ### Rationale
 
-- Only B satisfies the registry: after #4174 the page reserves Caching 30000-30349 for #4007 and the coordinator confirmed that no new block may use it, so A cannot merge green. 30350-30399 has no row on main at `1a661f5c1`; #273 takes 30400-30449. The pull request adds one `reserved` row (`| 30350-30399 | Caching | #222 DistributedLockObservability (ids 30350-30351) | reserved |`, status `registered` in the code pull request), one field `DistributedLockObservability` in `src/Encina/Diagnostics/EventIdRanges.cs`, **one line in `src/Encina/PublicAPI.Unshipped.txt`** (counted in the size below), the `AssemblyRanges` entry `["Encina.DistributedLock"] = [nameof(EventIdRanges.DistributedLock), nameof(EventIdRanges.DistributedLockObservability)]` (the first element is #741's; whichever pull request lands second merges the two names into the existing entry) and its row in the "Registered ranges" table. Two ids are used (30350 slow acquisition, 30351 handle disposed after expiry), packed from the start of the block.
+- Only B satisfies the registry: after #4174 the page reserves Caching 30000-30349 for #4007 and the coordinator confirmed that no new block may use it, so A cannot merge green. 30350-30399 is reserved by the merged plan #276 and 30400-30449 is claimed by #273 and #278; 30450-30499 has no row on main at `ff9a579c1` and appears in no plan on main or in an open plan pull request. The pull request adds one `reserved` row (`| 30450-30499 | Caching | #222 DistributedLockObservability (ids 30450-30451) | reserved |`, status `registered` in the code pull request), one field `DistributedLockObservability` in `src/Encina/Diagnostics/EventIdRanges.cs`, **one line in `src/Encina/PublicAPI.Unshipped.txt`** (counted in the size below), the `AssemblyRanges` entry `["Encina.DistributedLock"] = [nameof(EventIdRanges.DistributedLock), nameof(EventIdRanges.DistributedLockObservability)]` (the first element is #741's; whichever pull request lands second merges the two names into the existing entry) and its row in the "Registered ranges" table. Two ids are used (30450 slow acquisition, 30451 handle disposed after expiry), packed from the start of the block.
 
-**Class:** Settled
+**Class:** Settled for "not 30000-30349" (a chosen slot inside the #4007 extent fails the registry test); the choice among the free 50-slots after it is Trivial (30450-30499 is the first one no plan claims)
 **Settled by:** `docs/engineering/eventid-block-registry.md` rule 4 (reserved blocks do not overlap) and the #4007 extent Caching 30000-30349 (#4174)
 
 </details>
@@ -194,7 +196,7 @@
 
 1. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs` (field `DistributedLockObservability`, Design Choice 6), `src/Encina/PublicAPI.Unshipped.txt` (one line) and `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the `AssemblyRanges` entry); `docs/engineering/eventid-block-registry.md` (the `reserved` row, the "Registered ranges" row) through `docs-writer`.
 2. **Create** `src/Encina.DistributedLock/Diagnostics/DistributedLockObservabilityOptions.cs` (`public sealed`, `TimeSpan SlowAcquisitionThreshold { get; set; } = TimeSpan.FromSeconds(5)`) and an internal `IValidateOptions<DistributedLockObservabilityOptions>` in the same file (greater than zero, else a failure message that names the property, never a value).
-3. **Create** `src/Encina.DistributedLock/Diagnostics/DistributedLockLog.cs` (`internal static partial`, `[LoggerMessage]`: 30350 `SlowAcquisition` (Warning: operation, outcome, system, elapsed ms, threshold ms), 30351 `HandleDisposedAfterExpiry` (Warning: system, overrun ms); XML docs name the range).
+3. **Create** `src/Encina.DistributedLock/Diagnostics/DistributedLockLog.cs` (`internal static partial`, `[LoggerMessage]`: 30450 `SlowAcquisition` (Warning: operation, outcome, system, elapsed ms, threshold ms), 30451 `HandleDisposedAfterExpiry` (Warning: system, overrun ms); XML docs name the range).
 4. **Modify** `Diagnostics/InstrumentedDistributedLockProvider.cs` (new optional trailing constructor parameters `IOptions<DistributedLockObservabilityOptions>? options = null` and `ILogger<InstrumentedDistributedLockProvider>? logger = null` after `TimeProvider? timeProvider = null`: every `new InstrumentedDistributedLockProvider(inner)` and `(inner, timeProvider)` site created by #724 keeps compiling; the span tag `encina.lock.slow`; the log call) and `ServiceCollectionExtensions.cs` (overload `AddEncinaDistributedLockTelemetry(this IServiceCollection, Action<DistributedLockObservabilityOptions>)` with `ValidateOnStart`); `PublicAPI.Unshipped.txt` of `Encina.DistributedLock` through `mechanical-fixer`.
 5. Tests: new `tests/Encina.UnitTests/DistributedLock/Diagnostics/DistributedLockObservabilityOptionsTests.cs` (default 5 seconds, zero and negative rejected at provider build with `ValidateOnBuild` and `ValidateScopes`); edit `InstrumentedDistributedLockProviderTests.cs` (a `FakeTimeProvider` advanced by a slow inner provider logs once and tags the span, below the threshold nothing, the log text never contains the resource); edit `tests/Encina.GuardTests/Infrastructure/DistributedLock/InstrumentedDistributedLockProviderGuardTests.cs` (null `options` and null `logger` are valid: valid-result tests; null `configure` throws); manifest `Encina.DistributedLock.json` and changelog `changelog.d/222-lock-slow-acquisition.added.md` through `mechanical-fixer`.
 
@@ -211,7 +213,7 @@ src/Encina.DistributedLock/Diagnostics/ on the ADR-052 Either contract.
 
 TASK:
 1. Register the DistributedLockObservability EventId range (block as the plan states), PublicAPI line, AssemblyRanges entry.
-2. Add DistributedLockObservabilityOptions (SlowAcquisitionThreshold, validated) and DistributedLockLog (30350, 30351).
+2. Add DistributedLockObservabilityOptions (SlowAcquisitionThreshold, validated) and DistributedLockLog (30450, 30451).
 3. Add the options and logger as optional trailing constructor parameters and the AddEncinaDistributedLockTelemetry overload.
 4. Tests (unit, guard, DI with ValidateOnBuild and ValidateScopes); manifests, PublicAPI, changelog through mechanical-fixer; registry through docs-writer.
 
@@ -358,7 +360,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.DistributedLock` (`DistributedLockObservability`, new) | 30350-30399, free per the registry on main at `1a661f5c1` | 30350 slow acquisition, 30351 handle disposed after expiry; 30352-30399 free; Design Choice 6 explains why 30000-30049 is not used |
+| `Encina.DistributedLock` (`DistributedLockObservability`, new) | 30450-30499, free per the registry and the plans on main at `ff9a579c1` | 30450 slow acquisition, 30451 handle disposed after expiry; 30452-30499 free; Design Choice 6 explains why 30000-30049 is not used |
 | `Encina.DistributedLock` (`DistributedLock`, #741) | 6250-6299 | Not touched here |
 
 ### Estimated File Count
@@ -424,7 +426,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Lock telemetry is real-time and not cacheable |
 | 2 | OpenTelemetry | ✅ Phases 1-4 | This is the feature (the gap over #724) |
-| 3 | Structured Logging | ✅ Phase 1 | `DistributedLockLog`, ids 30350-30351, no resource name |
+| 3 | Structured Logging | ✅ Phase 1 | `DistributedLockLog`, ids 30450-30451, no resource name |
 | 4 | Health Checks | ❌ N/A | Health checks of the lock providers exist (Redis, SQL Server) and #755 plans the InMemory one; this feature observes operations |
 | 5 | Validation | ✅ Phase 1 | The options are validated at start-up (`SlowAcquisitionThreshold` greater than zero) |
 | 6 | Resilience | ❌ N/A | Passive layer: adds no external call and never retries |
