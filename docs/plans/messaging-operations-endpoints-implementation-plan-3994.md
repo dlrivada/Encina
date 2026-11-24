@@ -2,7 +2,7 @@
 
 > **Issue**: [#3994](https://github.com/dlrivada/Encina/issues/3994)
 > **Type**: Feature (the issue carries `needs-decision`; its own Dilemma D1 is recorded below as recommended, pending the maintainer)
-> **Complexity**: High (7 phases, no provider code, 7 pull requests of 4 to 10 files; more if D1 is answered B)
+> **Complexity**: High (7 phases, no provider code, 8 pull requests of 4 to 11 files; more if D1 is answered B)
 > **Estimated Scope**: ~900 lines of production code + ~2,300 lines of tests and documentation
 > **Family**: operations and Aspire. It extends the endpoint model of #2229 (dead letter admin API) to the other four messaging patterns, depends on the tenant rows of #737, #738, #739 and #760 and on the commit owner of #720, and feeds the Aspire dashboard commands of #419. Siblings are referred to by issue number only.
 
@@ -22,7 +22,7 @@ An operator with a stuck backlog has no way to act on it except custom tooling o
 - HTTP: `MapDPIAEndpoints(authorizationPolicy, prefix)` (`src/Encina.AspNetCore/DPIAEndpointExtensions.cs`) is the fail-closed model: policy required, checked at mapping time (`EnsurePolicyRegistered` is private there; the #2229 plan extracts it to a shared internal helper in its pull request A1). `ToProblemDetails` takes the status from the error category (`error.GetStatusCode()`, `ErrorCategoryHttp`). `Encina.AspNetCore` grants `InternalsVisibleTo` to `Encina.UnitTests`, `Encina.IntegrationTests`, `Encina.ContractTests` and `Encina.PropertyTests` but **not `Encina.GuardTests`**, so guard tests reach only public members.
 - EventIds: `EventIdRanges.AspNetCore` is 200-249; 200-207 are used and the merged plans claim 208-211 (#3443), 212-217 (#710), 218-225 (#2229), 226-229 (#454), 230-231 (#355) and 232 (#141); this plan takes **233-240**.
 
-**What this plan delivers**: `MapEncinaOperationsEndpoints(authorizationPolicy, prefix)` with, in the recommended scope (D1 option A): `POST {prefix}/outbox/requeue-exhausted`, `GET {prefix}/outbox/exhausted-count`, `POST {prefix}/sagas/{sagaId}/compensate` and `POST {prefix}/inbox/purge-expired`; a public `InboxOrchestrator.PurgeExpiredAsync`; five error codes; one counter, one span, eight log messages; the tenant gate; and, after #419, the matching Aspire commands.
+**What this plan delivers**: `MapEncinaOperationsEndpoints(authorizationPolicy, prefix)` with, in the recommended scope (D1 option A): `POST {prefix}/outbox/requeue-exhausted`, `GET {prefix}/outbox/exhausted-count`, `POST {prefix}/sagas/{sagaId}/compensate` and `POST {prefix}/inbox/purge-expired`; a public `InboxOrchestrator.PurgeExpiredAsync` (with a cap parameter added to the internal `MessagePurgeCycle.PurgeInboxAsync`); six error codes; one counter, one span, eight log messages; the tenant gate; and, after #419, the matching Aspire commands.
 
 **Corrections to the issue text**: (1) the metric `encina.operations.requests_total` becomes `encina.operations.requests` (no `_total` suffix, ADR-054); (2) "a repeated call returns a conflict code" holds for the saga (a terminal status is a conflict) but not for the requeue (a second call finds nothing and returns count 0) or the purge; the register below states each operation's repeat behavior; (3) the inbox purge needs a public member first (see above); (4) "runs under the ambient tenant" cannot be implemented for outbox, saga and scheduled rows until their tenant columns exist (Design Choice 2).
 
@@ -32,7 +32,7 @@ An operator with a stuck backlog has no way to act on it except custom tooling o
 
 **Provider category**: Database (10) as a consumer only. The endpoints sit above `IOutboxStore`, `ISagaStore`, `IScheduledMessageStore` and `IInboxStore`, which every database provider implements; the one new store-level need (an exact expired-row count, Design Choice 3 option A) would be provider-dependent and is not part of the recommended scope. Integration tests run one provider per family (ADO.NET, Dapper, EF Core, MongoDB).
 
-**Shared pieces and who owns them**: #2229 owns the shared policy helper, the `Encina.AspNetCore` meter and `ActivitySource` and the problem-details mapping idiom; if this plan lands first it creates the same-named meter and source and #2229 reuses them. #419 owns the command infrastructure in `Encina.Aspire.Hosting`. #737, #738, #739 and #760 own the tenant rows. #720 owns `SagaOrchestrator.CommitAsync`. This plan owns the five `operations.*` error codes, the group, the gate and EventIds 233-240.
+**Shared pieces and who owns them**: #2229 owns the shared policy helper, the `Encina.AspNetCore` meter and `ActivitySource` and the problem-details mapping idiom; if this plan lands first it creates the same-named meter and source and #2229 reuses them. #419 owns the command infrastructure in `Encina.Aspire.Hosting`. #737, #738, #739 and #760 own the tenant rows. #720 owns `SagaOrchestrator.CommitAsync`. This plan owns the six `operations.*` error codes, the group, the gate and EventIds 233-240.
 
 ---
 
@@ -181,6 +181,25 @@ The meter and source are shared with #2229, whose naming is `encina.dlq.api.requ
 
 </details>
 
+<details>
+<summary><strong>8. A state-changing route when the audit port is missing (Dilemma D8)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Fail closed: with no audit port registered, requeue, compensate and purge answer `operations.audit_unavailable` (`FailedPrecondition`) before any orchestrator call; the read-only count route still works** | No destructive operator action without a record, as `AGENTS.md` section 3 requires of gates; the failure names the missing module | The state-changing routes cannot ship before the audit port of #2013 is on `main` (PR3 and the saga route wait for it); an application with no audit port must register one to use them |
+| **B) Run the operation and log the missing port once** | The routes ship now and work in every application | A destructive operator action leaves no record when the port is absent: a fail-open choice on an admin gate |
+
+### Chosen Option: **A — Fail closed** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins because an operator action that deletes or re-queues rows must be attributable; B wins if the maintainer wants the endpoints available before #2013 lands and accepts an unaudited window, with the log line as the only trace.
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -192,8 +211,8 @@ The meter and source are shared with #2229, whose naming is `encina.dlq.api.requ
 <details>
 <summary>Tasks</summary>
 
-1. **Pull request 1** — `src/Encina.Messaging/Inbox/InboxOrchestrator.cs` (edit): `public Task<Either<EncinaError, int>> PurgeExpiredAsync(int maxMessages, CancellationToken cancellationToken = default)` (`maxMessages` at least 1; it runs `MessagePurgeCycle.PurgeInboxAsync` over the orchestrator's store in batches until the cap or a short batch, and returns the count removed; the store call and the `SaveChangesAsync` belong to the cycle, not to the endpoint). `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.Messaging.json`, the changelog fragment, unit and guard tests.
-2. **Pull request 2** — in `src/Encina.AspNetCore/Operations/` (new folder): `OperationsErrorCodes.cs` (five error codes, each with its ADR-062 category in the factory that creates it: `operations.confirmation_mismatch` = `Conflict`; `operations.tenant_scoping_unavailable` = `FailedPrecondition`; `operations.tenant_required` = `Forbidden`; `operations.invalid_request` = `Validation`; `operations.pattern_not_enabled` = `NotFound`; plus the constant `operations.operator_compensation`, a stored saga status code and not an `EncinaError`, so it has no category), `OperationsRequests.cs` and `OperationsResponses.cs` (sealed records: `RequeueExhaustedRequest(IReadOnlyList<Guid>? MessageIds, int? ExpectedCount)`, `PurgeExpiredRequest(int? MaxMessages)`, `OperationResponse(string Pattern, string Operation, int Count)`, `CompensationResponse(Guid SagaId, string Status, int CurrentStep)`), `OperationsTenantGate.cs` (internal static: `Either<EncinaError, Unit> Check(IServiceProvider services, string pattern)`: no multi-tenancy registered returns `Unit`; multi-tenancy registered and no ambient tenant is denied with `operations.tenant_required`; a pattern whose store is not tenant-scoped is `operations.tenant_scoping_unavailable`).
+1. **Pull request 1** — `src/Encina.Messaging/Inbox/InboxOrchestrator.cs` (edit): `public Task<Either<EncinaError, int>> PurgeExpiredAsync(int maxMessages, CancellationToken cancellationToken = default)` (`maxMessages` at least 1; it runs `MessagePurgeCycle.PurgeInboxAsync` over the orchestrator's store in batches until the cap or a short batch, and returns the count removed; the store call and the `SaveChangesAsync` belong to the cycle, not to the endpoint). **`MessagePurgeCycle.PurgeInboxAsync(store, batchSize, logger, ct)` has no total cap today (on `origin/main` it loops until a batch returns fewer rows than `batchSize` or makes no progress), so this pull request also edits `src/Encina.Messaging/Purge/MessagePurgeCycle.cs`**: a new optional parameter `int? maxTotal = null` (null keeps today's unbounded behavior for the timer service, `MessagePurgeService.cs:82`, and for the existing callers in `tests/Encina.ContractTests/Messaging/MessagePurgeContractTests.cs`, `tests/Encina.PropertyTests/Messaging/MessagePurgeCyclePropertyTests.cs` and `tests/Encina.UnitTests/Messaging/Purge/MessagePurgeCycleTests.cs`, so none of them needs an edit to compile); with a value, the cycle requests at most `min(batchSize, maxTotal - total)` rows per batch and stops when the total reaches the cap, so `PurgeExpiredAsync(maxMessages)` honors the cap that Design Choice 3 option B relies on. The cycle is `internal`, so no PublicAPI line. Unit tests: new cases in `tests/Encina.UnitTests/Messaging/Purge/MessagePurgeCycleTests.cs` (cap below one batch, cap spanning batches, cap above the expired rows, null cap unchanged) and new `InboxOrchestrator` purge tests. `PublicAPI.Unshipped.txt`, `.github/coverage-manifest/Encina.Messaging.json`, the changelog fragment, unit and guard tests.
+2. **Pull request 2** — in `src/Encina.AspNetCore/Operations/` (new folder): `OperationsErrorCodes.cs` (six error codes, each with its ADR-062 category in the factory that creates it: `operations.confirmation_mismatch` = `Conflict`; `operations.tenant_scoping_unavailable` = `FailedPrecondition`; `operations.tenant_required` = `Forbidden`; `operations.invalid_request` = `Validation`; `operations.pattern_not_enabled` = `NotFound` (the pattern's module is not registered, so the resource the route addresses does not exist in this application and the client cannot make it exist by changing its request; `FailedPrecondition` also fits ADR-062 and is the alternative, `NotFound` is kept because the operator sees the route as absent, not as a state to retry); `operations.audit_unavailable` = `FailedPrecondition` (Design Choice 8 option A: a state-changing route runs only when the audit port is registered); plus the constant `operations.operator_compensation`, a stored saga status code and not an `EncinaError`, so it has no category), `OperationsRequests.cs` and `OperationsResponses.cs` (sealed records: `RequeueExhaustedRequest(IReadOnlyList<Guid>? MessageIds, int? ExpectedCount)`, `PurgeExpiredRequest(int? MaxMessages)`, `OperationResponse(string Pattern, string Operation, int Count)`, `CompensationResponse(Guid SagaId, string Status, int CurrentStep)`), `OperationsTenantGate.cs` (internal static: `Either<EncinaError, Unit> Check(IServiceProvider services, string pattern)`: no multi-tenancy registered returns `Unit`; multi-tenancy registered and no ambient tenant is denied with `operations.tenant_required`; a pattern whose store is not tenant-scoped is `operations.tenant_scoping_unavailable`).
 3. `OperationsEndpointExtensions.cs` (public static): `RouteGroupBuilder MapEncinaOperationsEndpoints(this IEndpointRouteBuilder endpoints, string authorizationPolicy, string prefix = "/api/operations")`: `ArgumentNullException.ThrowIfNull(endpoints)`, `ArgumentException.ThrowIfNullOrWhiteSpace` on both strings, the shared policy helper of #2229 (authorization registered and the policy exists, else `InvalidOperationException` at mapping time), `RequireAuthorization(authorizationPolicy)` on the group. Public symbols added: the extension method (the `PublicAPI.Unshipped.txt` line) and `OperationsErrorCodes` constants; the request and response records are public so the contract test and the Aspire commands can bind to them (a constructor line each). No constructor takes a reference parameter that needs a guard besides the records' own nullable members.
 4. Repeat behavior register: requeue (a second call finds nothing exhausted and returns count 0: success, no second effect), compensate (`Running` or `Compensating`: the first call moves to `Compensating` and returns the step; a repeat while `Compensating` returns the same step with no new effect, because the status is already set; `Completed`, `Compensated`, `Failed`, `TimedOut`: `saga.invalid_status`, `Conflict`), purge (a second call removes the rows that expired since: count 0 when none).
 
@@ -204,7 +223,7 @@ The meter and source are shared with #2229, whose naming is `encina.dlq.api.requ
 
 ```
 CONTEXT:
-- Encina is a .NET 10 / C# 14 library; Railway Oriented Programming (Either<EncinaError, T>); issue #3994; plan docs/plans/messaging-operations-endpoints-implementation-plan-3994.md. Dilemmas D1 to D3 are recommended, pending the maintainer: read the Maintainer Decisions section first if it exists.
+- Encina is a .NET 10 / C# 14 library; Railway Oriented Programming (Either<EncinaError, T>); issue #3994; plan docs/plans/messaging-operations-endpoints-implementation-plan-3994.md. Dilemmas D1, D2, D3 and D8 are recommended, pending the maintainer: read the Maintainer Decisions section first if it exists.
 - MapDPIAEndpoints is the fail-closed model; #2229 extracts the shared policy helper.
 
 TASK:
@@ -235,7 +254,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `Operations/OutboxOperations.cs` (internal static): `GET {prefix}/outbox/exhausted-count` returns `OperationResponse` from `OutboxOrchestrator.GetExhaustedCountAsync`; `POST {prefix}/outbox/requeue-exhausted` with `RequeueExhaustedRequest`: ids present (1 to 100, `Guid.Empty` rejected) call `RequeueExhaustedAsync(ids)`; no ids require `ExpectedCount` equal to `GetExhaustedCountAsync` (else `409` `operations.confirmation_mismatch`) and call `RequeueExhaustedAsync()`.
-2. `Operations/SagaOperations.cs`: `POST {prefix}/sagas/{sagaId:guid}/compensate` calls `SagaOrchestrator.StartCompensationAsync(sagaId, OperationsErrorCodes.OperatorCompensation)` and then the commit owner `SagaOrchestrator.CommitAsync` of #720 (the endpoint never calls the store's `SaveChangesAsync`); returns `CompensationResponse`. **The route is mapped only after #720 is on `main`**: until then pull request 3 ships the outbox and inbox routes and the saga route waits (the Prerequisites list the order).
+2. `Operations/SagaOperations.cs`: `POST {prefix}/sagas/{sagaId:guid}/compensate` calls `SagaOrchestrator.StartCompensationAsync(sagaId, OperationsErrorCodes.OperatorCompensation)` and then the commit owner `SagaOrchestrator.CommitAsync` of #720 (the endpoint never calls the store's `SaveChangesAsync`); returns `CompensationResponse`. **The route is mapped only after #720 is on `main`**: until then pull request 3 ships the outbox and inbox routes and the saga route waits for its own pull request 3b, which creates `SagaOperations.cs` with its telemetry calls and extends the extension and the contract test (the Prerequisites list the order). Pull request 3 therefore maps only the outbox and inbox routes.
 3. `Operations/InboxOperations.cs`: `POST {prefix}/inbox/purge-expired` with `PurgeExpiredRequest` (default 500, 1 to 5000) calls `InboxOrchestrator.PurgeExpiredAsync`.
 4. Every handler: resolve the orchestrator with `GetService<T>()` from `RequestServices` (scoped; none is injected into a singleton), answer `operations.pattern_not_enabled` when it is not registered, run `OperationsTenantGate.Check` first, map a `Left` with `ToProblemDetails` (status from the error category, never from the code text), map `Right` to the response record. Handlers return `IResult`; no handler swallows a `Left` and none reports success on one.
 5. Add the handlers to `MapEncinaOperationsEndpoints` (edit). Unit tests drive each handler with real orchestrators over substituted stores.
@@ -277,7 +296,7 @@ REFERENCE FILES:
 
 1. Validation: route ids, the id list (at most 100), `ExpectedCount` (not negative) and `MaxMessages` (1 to 5000) are validated before any call; a failure is `operations.invalid_request` (`Validation`) with no echo of the input.
 2. Multi-tenancy: the gate of Design Choice 2; the reserved `default` tenant segment is never invented (no id is built here, so no tenant-qualified key arises); a client can never name a tenant.
-3. Audit: each state-changing call (requeue, compensate, purge) records the operator action through the audit port of #2013 when it is registered (intent before, outcome after), carrying the pattern, the operation, the count and the outcome code, never the actor in a tag; with no port registered the call still runs and the absence is logged once at mapping time (the port is not yet on `main`).
+3. Audit: each state-changing call (requeue, compensate, purge) records the operator action through the audit port of #2013 (intent before, outcome after), carrying the pattern, the operation, the count and the outcome code, never the actor in a tag. With no port registered a state-changing call is denied with `operations.audit_unavailable` (`FailedPrecondition`) before any orchestrator call, and the read-only count route still works (Design Choice 8 option A, recommended, pending the maintainer: a destructive operator action without a record fails closed, `AGENTS.md` section 3; option B runs it and logs the absence once). The port is not yet on `main`, so under option A the state-changing routes depend on #2013 (Prerequisites).
 4. Transactions: no multi-operation atomicity is claimed; each route is one orchestrator call whose commit owner is documented by that orchestrator (the outbox requeue saves through its store per its XML documentation; `StartCompensationAsync` is followed by `SagaOrchestrator.CommitAsync` of #720).
 5. Distributed locks: the claim of a requeue or compensation against concurrent processors follows #713 and #715 (open); this plan adds no lock, and a repeated call is safe by the register of Phase 1.
 
@@ -315,7 +334,7 @@ REFERENCE FILES:
 
 1. `Diagnostics/OperationsApiMetrics.cs`: the counter `encina.operations.requests` (unit `{request}`; tags `pattern`, `operation`, `outcome`; the tenant tag through the tenant telemetry helper of #2676 only when multi-tenancy is on, ADR-054 D4) on the `Encina.AspNetCore` meter; and the `encina.operations.execute` span (`operation`, `outcome`; the error status carries the code only) on the `Encina.AspNetCore` `ActivitySource`, both shared with #2229.
 2. `Diagnostics/OperationsApiLog.cs` (`[LoggerMessage]`, EventIds **233-240**, packed, inside the registered `AspNetCore` range 200-249, XML doc `Event IDs: 233-240`): 233 group mapped, 234 operation succeeded, 235 operation failed with code, 236 confirmation mismatch, 237 tenant scoping unavailable, 238 tenant or identity context missing, 239 unexpected exception (`ForLogging()`), 240 target not found. Ids 241-249 stay free. No new range, no registry row, no `AssemblyRanges` change (`Encina.AspNetCore` is already mapped).
-3. Add the calls to the handlers (edit). No log line holds a saga id, a message id list, a tenant id or an actor; they carry pattern, operation and code.
+3. Add the calls to the outbox and inbox handlers and the extension (edits; the saga handler is created with its calls in pull request 3b). No log line holds a saga id, a message id list, a tenant id or an actor; they carry pattern, operation and code.
 
 </details>
 
@@ -354,7 +373,7 @@ REFERENCE FILES:
 |------|-------|---------------------------------|
 | Unit | the handlers, the gate, the validator, `InboxOrchestrator.PurgeExpiredAsync`, status mapping, the fail-closed mapping check | `OperationsTenantGate.cs` 95, `OutboxOperations.cs` 90, `SagaOperations.cs` 90, `InboxOperations.cs` 90 (every route outcome reachable with real orchestrators over substituted stores); `OperationsEndpointExtensions.cs` 85 (mapping and policy checks); `InboxOrchestrator.cs` keeps its measured baseline and adds the new branches (targets never go down) |
 | Guard | `MapEncinaOperationsEndpoints` (null endpoints; null, empty and whitespace policy and prefix) and `InboxOrchestrator.PurgeExpiredAsync` (`maxMessages` below 1) | `OperationsEndpointExtensions.cs` 90 (only argument checks are reachable by the guard flag; internal handlers are not reachable because `Encina.AspNetCore` does not grant `InternalsVisibleTo` to `Encina.GuardTests`) |
-| Contract | the route table, the status per outcome and the response shapes (`tests/Encina.ContractTests/AspNetCore/OperationsEndpointsContractTests.cs`) | `OperationsEndpointExtensions.cs` 50 (the contract flag reaches the mapping only), `OperationsErrorCodes.cs` 100 (constants pinned with their categories) |
+| Contract | the route table, the status per outcome and the response shapes (`tests/Encina.ContractTests/AspNetCore/OperationsEndpointsContractTests.cs`, created in pull request 3 together with the `Encina.AspNetCore` ProjectReference added to `tests/Encina.ContractTests/Encina.ContractTests.csproj`, which lacks it today, and extended in pull request 3b for the saga route) | `OperationsEndpointExtensions.cs` 50 (the contract flag reaches the mapping only), `OperationsErrorCodes.cs` 100 (constants pinned with their categories) |
 | Property | none: the confirmation arithmetic is one equality | justification in the PR |
 | Integration | one provider per family through `TestServer` and the shared fixtures: `[Collection("ADO-SqlServer")]`, `[Collection("Dapper-SqlServer")]`, `[Collection("EFCore-SqlServer")]`, `[Collection("MongoDB")]` (`ClearAllDataAsync` in `InitializeAsync`): seed exhausted rows, call requeue with the right and a wrong `expectedCount`, compensate a running saga, purge expired inbox rows; an unauthorized and an anonymous request are refused; a request under tenant A cannot reach tenant B rows once the tenant rows exist | the handler files record their integration target in the manifest (80), measured by the pull request |
 
@@ -463,22 +482,23 @@ REFERENCE FILES:
 
 ### Proposed split into pull requests (limit 15 files and 1500 lines each)
 
-Seven pull requests in the recommended scope, in this order (each builds and passes alone; pull request 2 needs the shared policy helper of #2229 pull request A1 on `main`, and the saga route of pull request 3 needs #720):
+Seven numbered pull requests plus the saga-route pull request 3b in the recommended scope, in this order (each builds and passes alone; pull request 2 needs the shared policy helper of #2229 pull request A1 on `main`; pull request 3 ships the outbox and inbox routes and needs the audit port of #2013 under D8 option A; pull request 3b adds `SagaOperations.cs` and needs #720 and #2013; pull request 4 needs only pull request 3 and the routes of 3b take their telemetry calls inside 3b; pull request 5 needs 3b for the compensate test):
 
 <!-- local-draft: D:\Proyectos\Encina\.claude\worktrees\pb-e\artifacts\local-ai\out\p3994-prtable.md -->
 
 | PR | Scope | Source files | Test files | Manifest, PublicAPI, README, changelog | Total |
 |---|---|---|---|---|---|
-| PR1 | Public on-demand inbox purge in `InboxOrchestrator` | 1 | 2 | 3 | 6 |
-| PR2 | Endpoint group, error codes, DTOs, tenant gate | 5 | 3 | 2 | 10 |
-| PR3 | Outbox, saga and inbox routes | 4 | 2 | 1 | 7 |
-| PR4 | Metrics, spans, log messages | 3 | 2 | 1 | 6 |
+| PR1 | Public on-demand inbox purge in `InboxOrchestrator` and the cap in `MessagePurgeCycle` | 2 | 3 | 3 | 8 |
+| PR2 | Endpoint group, error codes, DTOs, tenant gate | 5 | 3 | 3 | 11 |
+| PR3 | Outbox and inbox routes, route-table contract test | 3 | 2 | 3 | 8 |
+| PR3b | Saga compensate route (after #720 and #2013) | 2 | 2 | 2 | 6 |
+| PR4 | Metrics, spans, log messages | 5 | 2 | 2 | 9 |
 | PR5 | Integration tests on four provider families and justification files | 0 | 6 | 1 | 7 |
 | PR6 | Documentation | 0 | 0 | 4 | 4 |
 | PR7 | Aspire dashboard commands in `Encina.Aspire.Hosting` | 2 | 2 | 3 | 7 |
-| All | | 15 | 17 | 15 | 47 |
+| All | | 19 | 20 | 21 | 60 |
 
-Notes on the counts: pull request 3 counts the three handler files and the edit of the extension; pull request 4 counts the metrics class, the log class and the edit of the extension; no csproj and no ProjectReference edit is needed (`Encina.AspNetCore` already references `Encina.Messaging`, and the test projects already reference `Encina.AspNetCore`); the changelog fragments of pull requests 2 to 4 and 7 are counted in the "other" column and the fragment of pull request 5 is not needed (tests only); constructor sites: no constructor with new parameters is added (`InboxOrchestrator` gains a method, not a parameter), so there is no `new X(` site to update; each pull request stays below about 700 changed lines.
+Notes on the counts: the "other" column counts the coverage manifest, `PublicAPI.Unshipped.txt` when a public symbol is added, the changelog fragment and any csproj edit. Pull request 1: `InboxOrchestrator.cs` and `MessagePurgeCycle.cs`; unit tests for the orchestrator, edits to `MessagePurgeCycleTests.cs` and a guard test; manifest, PublicAPI, changelog. Pull request 2: manifest, PublicAPI, changelog. Pull request 3: `OutboxOperations.cs`, `InboxOperations.cs` and the edit of the extension; a unit test and the contract test `OperationsEndpointsContractTests.cs`; manifest, changelog and the edit of `tests/Encina.ContractTests/Encina.ContractTests.csproj`, which has no ProjectReference to `Encina.AspNetCore` on `origin/main` (the UnitTests, GuardTests, PropertyTests and IntegrationTests projects have one), so the contract test needs `<ProjectReference Include="..\..\src\Encina.AspNetCore\Encina.AspNetCore.csproj" />` added. Pull request 3b: `SagaOperations.cs` (new, with its telemetry calls) and the edit of the extension; a unit test and the contract test extended; manifest and changelog. Pull request 4: the metrics class, the log class and the edits of the two handlers of pull request 3 and the extension (the saga handler arrives with its telemetry in 3b); manifest and changelog. Pull request 7: if the unit test project does not yet reference `Encina.Aspire.Hosting` when #419 pull request 2 lands, the reference is one more file (8 files); the check happens before pull request 7. Other notes: the changelog fragments of pull requests 1 to 4, 3b and 7 are counted and the fragment of pull request 5 is not needed (tests only); `Encina.AspNetCore` already references `Encina.Messaging`, and the UnitTests, GuardTests, PropertyTests and IntegrationTests projects already reference `Encina.AspNetCore`; constructor sites: no constructor with new parameters is added (`InboxOrchestrator` gains a method, not a parameter), so there is no `new X(` site to update; each pull request stays below about 700 changed lines.
 
 ---
 
@@ -527,10 +547,10 @@ No provider-specific code is added in the recommended scope (D3 option B avoids 
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Production code | 15 | 1 edit in Messaging (pull request 1), 5 new in pull request 2, 4 in pull request 3 (3 new handler files and the edit of the extension), 3 in pull request 4 (2 new telemetry files and the edit of the extension), 2 in `Encina.Aspire.Hosting` (pull request 7) |
-| Test files | 17 | unit, guard, contract, 4 integration, 2 justification `.md` |
-| Manifest, PublicAPI, README, changelog | 15 | across seven pull requests |
-| Total | 47 | 6 + 10 + 7 + 6 + 7 + 4 + 7 |
+| Production code | 19 | 2 edits in Messaging (pull request 1: `InboxOrchestrator.cs`, `MessagePurgeCycle.cs`), 5 new in pull request 2, 3 in pull request 3 (2 new handler files and the edit of the extension), 2 in pull request 3b (the saga handler and the edit of the extension), 5 in pull request 4 (2 new telemetry files and the edits of the two handlers and the extension), 2 in `Encina.Aspire.Hosting` (pull request 7) |
+| Test files | 20 | unit, guard, contract, 4 integration, 2 justification `.md` |
+| Manifest, PublicAPI, README, changelog, csproj | 21 | across eight pull requests (includes the `Encina.ContractTests` csproj edit in pull request 3) |
+| Total | 60 | 8 + 11 + 8 + 6 + 9 + 7 + 4 + 7 |
 
 ---
 
@@ -542,7 +562,7 @@ No provider-specific code is added in the recommended scope (D3 option B avoids 
 ```
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Railway Oriented Programming (Either<EncinaError, T>); no [Obsolete]; XML docs on every public API; zero warnings; the endpoint layer never calls SaveChangesAsync.
-- Issue #3994: an opt-in HTTP group for outbox, saga and inbox operations behind an authorization policy, the ambient tenant and a confirmation. Plan: docs/plans/messaging-operations-endpoints-implementation-plan-3994.md. Dilemmas D1 to D3 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
+- Issue #3994: an opt-in HTTP group for outbox, saga and inbox operations behind an authorization policy, the ambient tenant and a confirmation. Plan: docs/plans/messaging-operations-endpoints-implementation-plan-3994.md. Dilemmas D1, D2, D3 and D8 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
 
 IMPLEMENTATION OVERVIEW:
 1. Phase 1: InboxOrchestrator.PurgeExpiredAsync (pull request 1); OperationsErrorCodes, request and response records, OperationsTenantGate and MapEncinaOperationsEndpoints (pull request 2).
@@ -554,7 +574,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Fail closed: no policy, no mapping; no tenant context or an unscoped pattern with multi-tenancy on, no operation.
 - Codes only in responses, logs and tags; no payload, no actor, no ids in tags; a client never names a tenant, a status or a reason.
-- Status from ErrorCategory (ADR-062); five operations.* codes with their categories; no _total metric suffix.
+- Status from ErrorCategory (ADR-062); six operations.* codes with their categories; no _total metric suffix.
 - Encina.AspNetCore has no InternalsVisibleTo for GuardTests: guard tests reach public members only.
 - Shared [Collection] integration fixtures; per-flag targets from the Encina.AspNetCore and Encina.Messaging manifests; CRAP at most 10.
 
@@ -595,7 +615,8 @@ REFERENCE FILES:
 
 - **Blocking for pull request 2**: #2229 pull request A1 (the shared policy helper, `MapEncinaDeadLetterEndpoints` and its DTO idiom) on `main`. **Blocking for the saga route**: #720 (`SagaOrchestrator.CommitAsync`). The `dlq.*` and ADR-062 category work of #3419 is already used by `ToProblemDetails` (`error.GetStatusCode()`).
 - **Required for multi-tenant applications**: #737 (outbox), #738 (saga), #739 (scheduled message) and #760 (inbox) tenant rows; without them Design Choice 2 option A refuses the pattern.
-- **Advisable**: #2013 (the audit port), #713 and #715 (locks against concurrent processors), #736 (the saga compensation idempotency plan that states nothing resumes compensation after a restart).
+- **Blocking for the state-changing routes (pull requests 3 and 3b) under D8 option A (recommended)**: #2013 (the audit port: with none registered, requeue, compensate and purge are denied); under D8 option B it is advisable only. **Required for pull request 7**: the test-project reference to `Encina.Aspire.Hosting`, which does not exist on `main` and arrives with #419 pull request 2.
+- **Advisable**: #713 and #715 (locks against concurrent processors), #736 (the saga compensation idempotency plan that states nothing resumes compensation after a restart).
 - **Consumer**: #419 (Aspire dashboard commands; its plan delivers only `retry-dead-letters` and names this issue for the rest) and its pull request 2 for Phase 7.
 - Deferred inside this plan (not new issues): the four missing domain operations of Design Choice 1 option B (Phase 7 item 2); the exact expired-count store method of Design Choice 3 option A (10 providers, its own plan at that time); the scheduled-message routes (`cancel` exists; run-now is part of option B) once #739 lands.
 
@@ -603,6 +624,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers Dilemmas D1 to D3 when work on #3994 starts (D1 is the issue's own `needs-decision`); the answers go into `## Maintainer Decisions` at the end of this plan.
-2. Brief pull request 1 (the inbox purge, independent of the other plans), then pull request 2 once #2229 A1 is on `main`; pull requests 3 to 7 follow in order, the saga route and the Aspire commands waiting for #720 and #419.
+1. The maintainer answers Dilemmas D1, D2, D3 and D8 when work on #3994 starts (D1 is the issue's own `needs-decision`); the answers go into `## Maintainer Decisions` at the end of this plan.
+2. Brief pull request 1 (the inbox purge, independent of the other plans), then pull request 2 once #2229 A1 is on `main`; pull request 3 (outbox and inbox routes) follows, then 3b (the saga route, waiting for #720 and, under D8 option A, #2013), then 4 to 6; pull request 7 (the Aspire commands) waits for #419.
 3. After pull request 6, link the guide page from #3994 and #419.
