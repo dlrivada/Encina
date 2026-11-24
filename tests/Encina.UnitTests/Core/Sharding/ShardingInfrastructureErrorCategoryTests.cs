@@ -183,6 +183,14 @@ public sealed class ShardingInfrastructureErrorCategoryTests
         AssertError(exception.ToEncinaError(), ColocationViolationException.ErrorCode, ErrorCategory.Internal);
     }
 
+    [Fact]
+    public void ColocationViolationException_ToEncinaError_WithKeyTypesAndNoEntities_IsColocationViolationInternal()
+    {
+        var exception = new ColocationViolationException(null, null, "key types differ", "Guid", "string");
+
+        AssertError(exception.ToEncinaError(), ColocationViolationException.ErrorCode, ErrorCategory.Internal);
+    }
+
     #endregion
 
     #region ShardedQueryExecutor
