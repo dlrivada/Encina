@@ -12,7 +12,7 @@ namespace Encina.UnitTests.Core.Identity;
 /// (Design 1 rule order: unauthenticated, stale issuer, a user in the chain, no issuer outside an
 /// active scope of the same identity, a live different identity, the same identity; then the tenant
 /// rule on every accepted context) and the identity- and origin-preserving setter of
-/// <see cref="RequestContextAccessor.RequestContext"/>. Every refusal logs EventId 165 with kinds only.
+/// <see cref="RequestContextAccessor.RequestContext"/>. Every refusal logs EventId 10065 with kinds only.
 /// </summary>
 public sealed class ExplicitContextConflictTests
 {
@@ -163,7 +163,7 @@ public sealed class ExplicitContextConflictTests
 
     private void Expect165(string outcome)
     {
-        var record = _logger.Collector.GetSnapshot().Last(r => r.Id.Id == 165);
+        var record = _logger.Collector.GetSnapshot().Last(r => r.Id.Id == 10065);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain(outcome);
         record.Message.ShouldNotContain("sentinel");
@@ -257,7 +257,7 @@ public sealed class ExplicitContextConflictTests
             result.ShouldBeSuccess().ShouldBe("alice");
         });
 
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065);
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public sealed class ExplicitContextConflictTests
             result.ShouldBeSuccess().ShouldBe("alice");
         });
 
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class ExplicitContextConflictTests
             result.ShouldBeSuccess().ShouldBe(Anonymous);
         });
 
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065);
     }
 
     [Fact]
@@ -538,7 +538,7 @@ public sealed class ExplicitContextConflictTests
             return Task.FromResult(0);
         });
 
-        var record = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 165);
+        var record = logger.Collector.GetSnapshot().Single(r => r.Id.Id == 10065);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain("refused");
         record.Message.ShouldNotContain("sentinel");
@@ -572,7 +572,7 @@ public sealed class ExplicitContextConflictTests
             return Task.FromResult(0);
         });
 
-        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+        logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065);
     }
 
     [Fact]

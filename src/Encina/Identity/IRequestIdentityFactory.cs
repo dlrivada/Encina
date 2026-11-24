@@ -28,7 +28,7 @@ internal interface IRequestIdentityFactory
     /// <summary>
     /// Checks the subject of the authenticated identities of <paramref name="principal"/> and tells apart
     /// the four causes that refuse a scope (fail closed): no subject claim, a malformed subject, a reserved
-    /// <c>service:</c> subject and conflicting subjects. Logs Warning 162, 163 or 164 (claim types and the
+    /// <c>service:</c> subject and conflicting subjects. Logs Warning 10062, 10063 or 10064 (claim types and the
     /// authentication type only, never a value) once per refused principal.
     /// </summary>
     /// <param name="principal">The principal to inspect.</param>

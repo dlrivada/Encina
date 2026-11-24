@@ -35,7 +35,7 @@ public static class EventIdRanges
     // ── CM-1 Core ──────────────────────────────────────────────────────────
 
     /// <summary>Encina — mediator dispatch, streaming and sharding (module isolation has its own range).</summary>
-    public static readonly (int Min, int Max) Core = (100, 199); // moves to 10000-10099 in #4007 CM-1
+    public static readonly (int Min, int Max) Core = (10000, 10099); // moved from 100-199 in #4007 CM-1
 
     // ── CM-2 DomainModeling and Tenancy ────────────────────────────────────
 
