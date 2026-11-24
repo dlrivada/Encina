@@ -31,33 +31,36 @@ The git-ignored snapshot `artifacts/decisions/plan-batch/eventid-blocks.md` was 
 
 ## Registered ranges
 
-Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` in the 10000+ zone. The Area column of a historical range is the provisional target area for the migration into the zone scheme (issue #4007), not a promise.
+Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` in the 10000+ zone. The Area column of a historical range is the target area for the migration into the zone scheme (issue #4007). The table follows the migration order of the map below: rows are grouped by target area and sub-issue, not by old block.
 
 | Name | Block | Area | Zone |
 | --- | --- | --- | --- |
-| Sanitization | 1-99 | Security and compliance | historical |
 | Core | 100-199 | Core and messaging | historical |
-| AspNetCore | 200-249 | Observability and platform | historical |
-| Testing | 250-299 | Testing and tooling | historical |
 | DomainModelingRepository | 1100-1199 | Core and messaging | historical |
 | DomainModelingUnitOfWork | 1200-1299 | Core and messaging | historical |
 | DomainModelingBulkOperations | 1300-1399 | Core and messaging | historical |
 | DomainModelingSpecification | 1400-1499 | Core and messaging | historical |
-| EntityFrameworkCoreSoftDelete | 1500-1599 | Database | historical |
 | DomainModelingAudit | 1600-1699 | Core and messaging | historical |
-| SecurityAuditRead | 1700-1799 | Security and compliance | historical |
 | Tenancy | 1800-1899 | Core and messaging | historical |
+| DomainModelingDomainEvents | 2500-2549 | Core and messaging | historical |
+| TenancyAspNetCore | 3850-3899 | Core and messaging | historical |
 | ModuleIsolation | 1900-1999 | Core and messaging | historical |
 | MessagingOutbox | 2000-2099 | Core and messaging | historical |
 | MessagingInbox | 2100-2199 | Core and messaging | historical |
 | MessagingSaga | 2200-2299 | Core and messaging | historical |
 | MessagingScheduling | 2300-2399 | Core and messaging | historical |
-| EntityFrameworkCoreQueryCache | 2400-2449 | Database | historical |
+| IdGeneration | 8030-8099 | Core and messaging | historical |
+| Messaging | 2800-2999 | Core and messaging | historical |
+| MessagingRecoverability | 5450-5499 | Core and messaging | historical |
 | MessagingEncryption | 2450-2499 | Core and messaging | historical |
-| DomainModelingDomainEvents | 2500-2549 | Core and messaging | historical |
+| Cdc | 4800-4899 | Core and messaging | historical |
+| CdcSqlServer | 4900-4949 | Core and messaging | historical |
+| CdcDebezium | 4950-4999 | Core and messaging | historical |
+| CdcMySql | 5400-5449 | Core and messaging | historical |
 | AuditMarten | 2550-2599 | Core and messaging | historical |
 | Marten | 2600-2799 | Core and messaging | historical |
-| Messaging | 2800-2999 | Core and messaging | historical |
+| EntityFrameworkCoreSoftDelete | 1500-1599 | Database | historical |
+| EntityFrameworkCoreQueryCache | 2400-2449 | Database | historical |
 | EntityFrameworkCore | 3000-3099 | Database | historical |
 | MongoDB | 3100-3199 | Database | historical |
 | ADOSqlServer | 3200-3249 | Database | historical |
@@ -73,11 +76,6 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | DistributedLockInMemory | 3700-3749 | Caching | historical |
 | DistributedLockRedis | 3750-3799 | Caching | historical |
 | DistributedLockSqlServer | 3800-3849 | Caching | historical |
-| TenancyAspNetCore | 3850-3899 | Core and messaging | historical |
-| Polly | 3900-3949 | Observability and platform | historical |
-| ExtensionsResilience | 3950-3999 | Observability and platform | historical |
-| Hangfire | 4000-4049 | Observability and platform | historical |
-| Quartz | 4050-4099 | Observability and platform | historical |
 | RabbitMQ | 4100-4149 | Transports | historical |
 | Kafka | 4150-4199 | Transports | historical |
 | NATS | 4200-4249 | Transports | historical |
@@ -89,24 +87,19 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | GRpc | 4500-4549 | Transports | historical |
 | GraphQL | 4550-4599 | Transports | historical |
 | SignalR | 4600-4649 | Transports | historical |
-| Refit | 4650-4699 | Cloud and integration | historical |
-| AwsLambda | 4700-4749 | Cloud and integration | historical |
-| AzureFunctions | 4750-4799 | Cloud and integration | historical |
-| Cdc | 4800-4899 | Core and messaging | historical |
-| CdcSqlServer | 4900-4949 | Core and messaging | historical |
-| CdcDebezium | 4950-4999 | Core and messaging | historical |
+| Sanitization | 1-99 | Security and compliance | historical |
+| SecurityAuditRead | 1700-1799 | Security and compliance | historical |
 | SecurityAudit | 5000-5099 | Security and compliance | historical |
+| Security | 8000-8009 | Security and compliance | historical |
+| SecurityPII | 8010-8029 | Security and compliance | historical |
 | SecuritySecrets | 5100-5199 | Security and compliance | historical |
 | SecuritySecretsAzureKeyVault | 5200-5249 | Security and compliance | historical |
 | SecuritySecretsAwsSecretsManager | 5250-5299 | Security and compliance | historical |
 | SecuritySecretsHashiCorpVault | 5300-5349 | Security and compliance | historical |
 | SecuritySecretsGoogleCloudSecretManager | 5350-5399 | Security and compliance | historical |
-| CdcMySql | 5400-5449 | Core and messaging | historical |
-| MessagingRecoverability | 5450-5499 | Core and messaging | historical |
-| OpenTelemetry | 7000-7099 | Observability and platform | historical |
-| Security | 8000-8009 | Security and compliance | historical |
-| SecurityPII | 8010-8029 | Security and compliance | historical |
-| IdGeneration | 8030-8099 | Core and messaging | historical |
+| SecurityABAC | 9000-9099 | Security and compliance | historical |
+| SecurityAntiTampering | 9100-9199 | Security and compliance | historical |
+| SecurityBreakTheGlass | 9750-9799 | Security and compliance | historical |
 | ComplianceGDPR | 8100-8199 | Security and compliance | historical |
 | ComplianceConsent | 8200-8299 | Security and compliance | historical |
 | ComplianceDSR | 8300-8349 | Security and compliance | historical |
@@ -118,18 +111,123 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | ComplianceBreachNotification | 8700-8799 | Security and compliance | historical |
 | ComplianceDPIA | 8800-8899 | Security and compliance | historical |
 | CompliancePrivacyByDesign | 8900-8949 | Security and compliance | historical |
-| SecurityABAC | 9000-9099 | Security and compliance | historical |
-| SecurityAntiTampering | 9100-9199 | Security and compliance | historical |
 | ComplianceNIS2 | 9200-9299 | Security and compliance | historical |
 | ComplianceCrossBorderTransfer | 9300-9399 | Security and compliance | historical |
 | ComplianceProcessorAgreements | 9400-9499 | Security and compliance | historical |
 | ComplianceAIAct | 9500-9599 | Security and compliance | historical |
 | ComplianceAttestation | 9600-9699 | Security and compliance | historical |
-| SecurityBreakTheGlass | 9750-9799 | Security and compliance | historical |
+| AspNetCore | 200-249 | Observability and platform | historical |
+| OpenTelemetry | 7000-7099 | Observability and platform | historical |
+| Polly | 3900-3949 | Observability and platform | historical |
+| ExtensionsResilience | 3950-3999 | Observability and platform | historical |
+| Hangfire | 4000-4049 | Observability and platform | historical |
+| Quartz | 4050-4099 | Observability and platform | historical |
+| Testing | 250-299 | Testing and tooling | historical |
+| Refit | 4650-4699 | Cloud and integration | historical |
+| AwsLambda | 4700-4749 | Cloud and integration | historical |
+| AzureFunctions | 4750-4799 | Cloud and integration | historical |
+
+## Migration map (issue #4007)
+
+The 91 historical ranges move into the zone in the merge order of the #4007 sub-issues (CM-1 to CM-6, DB-1, DB-2, CA-1, CA-2, TR-1, TR-2, SC-1 to SC-6, OP-1, OP-2, TT-CI). Until a sub-issue lands, its fields keep their old values and the target is held by a `reserved` row in "Blocks" whose owner is `#4007 <Name> (<sub-issue>)`. Use this table to translate ids found in historical logs, plans and knowledge records. ProcessorAgreements starts at 52000 so that it does not straddle the 51999 boundary; the 50 ids at 51950-51999 stay unused.
+
+| Name | Old range | New range | Sub-issue |
+| --- | --- | --- | --- |
+| Core | 100-199 | 10000-10099 | CM-1 |
+| DomainModelingRepository | 1100-1199 | 10100-10199 | CM-2 |
+| DomainModelingUnitOfWork | 1200-1299 | 10200-10299 | CM-2 |
+| DomainModelingBulkOperations | 1300-1399 | 10300-10399 | CM-2 |
+| DomainModelingSpecification | 1400-1499 | 10400-10499 | CM-2 |
+| DomainModelingAudit | 1600-1699 | 10500-10599 | CM-2 |
+| Tenancy | 1800-1899 | 10600-10699 | CM-2 |
+| DomainModelingDomainEvents | 2500-2549 | 11250-11299 | CM-2 |
+| TenancyAspNetCore | 3850-3899 | 11750-11799 | CM-2 |
+| ModuleIsolation | 1900-1999 | 10700-10799 | CM-3 |
+| MessagingOutbox | 2000-2099 | 10800-10899 | CM-3 |
+| MessagingInbox | 2100-2199 | 10900-10999 | CM-3 |
+| MessagingSaga | 2200-2299 | 11000-11099 | CM-3 |
+| MessagingScheduling | 2300-2399 | 11100-11199 | CM-3 |
+| IdGeneration | 8030-8099 | 12100-12199 | CM-3 |
+| Messaging | 2800-2999 | 11550-11749 | CM-4 |
+| MessagingRecoverability | 5450-5499 | 12050-12099 | CM-4 |
+| MessagingEncryption | 2450-2499 | 11200-11249 | CM-5 |
+| Cdc | 4800-4899 | 11800-11899 | CM-5 |
+| CdcSqlServer | 4900-4949 | 11900-11949 | CM-5 |
+| CdcDebezium | 4950-4999 | 11950-11999 | CM-5 |
+| CdcMySql | 5400-5449 | 12000-12049 | CM-5 |
+| AuditMarten | 2550-2599 | 11300-11349 | CM-6 |
+| Marten | 2600-2799 | 11350-11549 | CM-6 |
+| EntityFrameworkCoreSoftDelete | 1500-1599 | 20000-20099 | DB-1 |
+| EntityFrameworkCoreQueryCache | 2400-2449 | 20100-20149 | DB-1 |
+| EntityFrameworkCore | 3000-3099 | 20150-20249 | DB-1 |
+| MongoDB | 3100-3199 | 20250-20349 | DB-2 |
+| ADOSqlServer | 3200-3249 | 20350-20399 | DB-2 |
+| ADOPostgreSQL | 3250-3299 | 20400-20449 | DB-2 |
+| ADOMySQL | 3300-3349 | 20450-20499 | DB-2 |
+| DapperSqlServer | 3350-3399 | 20500-20549 | DB-2 |
+| DapperPostgreSQL | 3400-3449 | 20550-20599 | DB-2 |
+| DapperMySQL | 3450-3499 | 20600-20649 | DB-2 |
+| Caching | 3500-3549 | 30000-30049 | CA-1 |
+| CachingMemory | 3550-3599 | 30050-30099 | CA-1 |
+| CachingRedis | 3600-3649 | 30100-30149 | CA-1 |
+| CachingHybrid | 3650-3699 | 30150-30199 | CA-1 |
+| DistributedLockInMemory | 3700-3749 | 30200-30249 | CA-2 |
+| DistributedLockRedis | 3750-3799 | 30250-30299 | CA-2 |
+| DistributedLockSqlServer | 3800-3849 | 30300-30349 | CA-2 |
+| RabbitMQ | 4100-4149 | 40000-40049 | TR-1 |
+| Kafka | 4150-4199 | 40050-40099 | TR-1 |
+| NATS | 4200-4249 | 40100-40149 | TR-1 |
+| MQTT | 4250-4299 | 40150-40199 | TR-1 |
+| AzureServiceBus | 4300-4349 | 40200-40249 | TR-1 |
+| AmazonSQS | 4350-4399 | 40250-40299 | TR-1 |
+| RedisPubSub | 4400-4449 | 40300-40349 | TR-2 |
+| InMemory | 4450-4499 | 40350-40399 | TR-2 |
+| GRpc | 4500-4549 | 40400-40449 | TR-2 |
+| GraphQL | 4550-4599 | 40450-40499 | TR-2 |
+| SignalR | 4600-4649 | 40500-40549 | TR-2 |
+| Sanitization | 1-99 | 50000-50099 | SC-1 |
+| SecurityAuditRead | 1700-1799 | 50100-50199 | SC-1 |
+| SecurityAudit | 5000-5099 | 50200-50299 | SC-1 |
+| Security | 8000-8009 | 50600-50649 | SC-1 |
+| SecurityPII | 8010-8029 | 50650-50699 | SC-1 |
+| SecuritySecrets | 5100-5199 | 50300-50399 | SC-2 |
+| SecuritySecretsAzureKeyVault | 5200-5249 | 50400-50449 | SC-2 |
+| SecuritySecretsAwsSecretsManager | 5250-5299 | 50450-50499 | SC-2 |
+| SecuritySecretsHashiCorpVault | 5300-5349 | 50500-50549 | SC-2 |
+| SecuritySecretsGoogleCloudSecretManager | 5350-5399 | 50550-50599 | SC-2 |
+| SecurityABAC | 9000-9099 | 51550-51649 | SC-3 |
+| SecurityAntiTampering | 9100-9199 | 51650-51749 | SC-3 |
+| SecurityBreakTheGlass | 9750-9799 | 52300-52349 | SC-3 |
+| ComplianceGDPR | 8100-8199 | 50700-50799 | SC-4 |
+| ComplianceConsent | 8200-8299 | 50800-50899 | SC-4 |
+| ComplianceDSR | 8300-8349 | 50900-50949 | SC-4 |
+| ComplianceLawfulBasis | 8350-8399 | 50950-50999 | SC-4 |
+| ComplianceAnonymization | 8400-8449 | 51000-51049 | SC-4 |
+| MartenGDPRCryptoShredding | 8450-8499 | 51050-51099 | SC-4 |
+| ComplianceRetention | 8500-8599 | 51100-51199 | SC-5 |
+| ComplianceDataResidency | 8600-8699 | 51200-51299 | SC-5 |
+| ComplianceBreachNotification | 8700-8799 | 51300-51399 | SC-5 |
+| ComplianceDPIA | 8800-8899 | 51400-51499 | SC-5 |
+| CompliancePrivacyByDesign | 8900-8949 | 51500-51549 | SC-5 |
+| ComplianceNIS2 | 9200-9299 | 51750-51849 | SC-6 |
+| ComplianceCrossBorderTransfer | 9300-9399 | 51850-51949 | SC-6 |
+| ComplianceProcessorAgreements | 9400-9499 | 52000-52099 | SC-6 |
+| ComplianceAIAct | 9500-9599 | 52100-52199 | SC-6 |
+| ComplianceAttestation | 9600-9699 | 52200-52299 | SC-6 |
+| AspNetCore | 200-249 | 60000-60049 | OP-1 |
+| OpenTelemetry | 7000-7099 | 60250-60349 | OP-1 |
+| Polly | 3900-3949 | 60050-60099 | OP-2 |
+| ExtensionsResilience | 3950-3999 | 60100-60149 | OP-2 |
+| Hangfire | 4000-4049 | 60150-60199 | OP-2 |
+| Quartz | 4050-4099 | 60200-60249 | OP-2 |
+| Testing | 250-299 | 70000-70049 | TT-CI |
+| Refit | 4650-4699 | 80000-80049 | TT-CI |
+| AwsLambda | 4700-4749 | 80050-80099 | TT-CI |
+| AzureFunctions | 4750-4799 | 80100-80149 | TT-CI |
 
 ## Blocks
 
-Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ zone existed and keep their status `reserved-pre-zone`; blocks recorded from now on are born in the zone. Rows are sorted by block. The Owner column holds the plan family, the ids it uses and the date of the assignment.
+Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ zone existed and keep their status `reserved-pre-zone`; blocks recorded from now on are born in the zone. Rows are sorted by block. The Owner column holds the plan family, the ids it uses and the date of the assignment. The target extents Core and messaging 10000-12199, Database 20000-20649, Caching 30000-30349, Transports 40000-40549, Security and compliance 50000-52349, Observability and platform 60000-60349, Testing and tooling 70000-70049, Cloud and integration 80000-80149 are reserved by #4007 until its Z sub-issue closes the historical zone, so new blocks go after them.
 
 | Block | Area | Owner | Status |
 | --- | --- | --- | --- |
@@ -191,6 +289,97 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 9750-9799 | Transports | wave 3 (plan-batch-2): transport-new-2 Note: assigned Conflict: 9750-9799 is registered as SecurityBreakTheGlass; the plan must take a block in the 10000+ zone. | superseded |
 | 9800-9899 | Security and compliance | compliance-nis2-1 (#822 owns the range) Note: proposed in PR #3509 | reserved-pre-zone |
 | 9900-9949 | Security and compliance | wave 3 (plan-batch-2): audit-stores-1 Note: assigned | reserved-pre-zone |
+| 10000-10099 | Core and messaging | #4007 Core (CM-1) | reserved |
+| 10100-10199 | Core and messaging | #4007 DomainModelingRepository (CM-2) | reserved |
+| 10200-10299 | Core and messaging | #4007 DomainModelingUnitOfWork (CM-2) | reserved |
+| 10300-10399 | Core and messaging | #4007 DomainModelingBulkOperations (CM-2) | reserved |
+| 10400-10499 | Core and messaging | #4007 DomainModelingSpecification (CM-2) | reserved |
+| 10500-10599 | Core and messaging | #4007 DomainModelingAudit (CM-2) | reserved |
+| 10600-10699 | Core and messaging | #4007 Tenancy (CM-2) | reserved |
+| 10700-10799 | Core and messaging | #4007 ModuleIsolation (CM-3) | reserved |
+| 10800-10899 | Core and messaging | #4007 MessagingOutbox (CM-3) | reserved |
+| 10900-10999 | Core and messaging | #4007 MessagingInbox (CM-3) | reserved |
+| 11000-11099 | Core and messaging | #4007 MessagingSaga (CM-3) | reserved |
+| 11100-11199 | Core and messaging | #4007 MessagingScheduling (CM-3) | reserved |
+| 11200-11249 | Core and messaging | #4007 MessagingEncryption (CM-5) | reserved |
+| 11250-11299 | Core and messaging | #4007 DomainModelingDomainEvents (CM-2) | reserved |
+| 11300-11349 | Core and messaging | #4007 AuditMarten (CM-6) | reserved |
+| 11350-11549 | Core and messaging | #4007 Marten (CM-6) | reserved |
+| 11550-11749 | Core and messaging | #4007 Messaging (CM-4) | reserved |
+| 11750-11799 | Core and messaging | #4007 TenancyAspNetCore (CM-2) | reserved |
+| 11800-11899 | Core and messaging | #4007 Cdc (CM-5) | reserved |
+| 11900-11949 | Core and messaging | #4007 CdcSqlServer (CM-5) | reserved |
+| 11950-11999 | Core and messaging | #4007 CdcDebezium (CM-5) | reserved |
+| 12000-12049 | Core and messaging | #4007 CdcMySql (CM-5) | reserved |
+| 12050-12099 | Core and messaging | #4007 MessagingRecoverability (CM-4) | reserved |
+| 12100-12199 | Core and messaging | #4007 IdGeneration (CM-3) | reserved |
+| 20000-20099 | Database | #4007 EntityFrameworkCoreSoftDelete (DB-1) | reserved |
+| 20100-20149 | Database | #4007 EntityFrameworkCoreQueryCache (DB-1) | reserved |
+| 20150-20249 | Database | #4007 EntityFrameworkCore (DB-1) | reserved |
+| 20250-20349 | Database | #4007 MongoDB (DB-2) | reserved |
+| 20350-20399 | Database | #4007 ADOSqlServer (DB-2) | reserved |
+| 20400-20449 | Database | #4007 ADOPostgreSQL (DB-2) | reserved |
+| 20450-20499 | Database | #4007 ADOMySQL (DB-2) | reserved |
+| 20500-20549 | Database | #4007 DapperSqlServer (DB-2) | reserved |
+| 20550-20599 | Database | #4007 DapperPostgreSQL (DB-2) | reserved |
+| 20600-20649 | Database | #4007 DapperMySQL (DB-2) | reserved |
+| 30000-30049 | Caching | #4007 Caching (CA-1) | reserved |
+| 30050-30099 | Caching | #4007 CachingMemory (CA-1) | reserved |
+| 30100-30149 | Caching | #4007 CachingRedis (CA-1) | reserved |
+| 30150-30199 | Caching | #4007 CachingHybrid (CA-1) | reserved |
+| 30200-30249 | Caching | #4007 DistributedLockInMemory (CA-2) | reserved |
+| 30250-30299 | Caching | #4007 DistributedLockRedis (CA-2) | reserved |
+| 30300-30349 | Caching | #4007 DistributedLockSqlServer (CA-2) | reserved |
+| 40000-40049 | Transports | #4007 RabbitMQ (TR-1) | reserved |
+| 40050-40099 | Transports | #4007 Kafka (TR-1) | reserved |
+| 40100-40149 | Transports | #4007 NATS (TR-1) | reserved |
+| 40150-40199 | Transports | #4007 MQTT (TR-1) | reserved |
+| 40200-40249 | Transports | #4007 AzureServiceBus (TR-1) | reserved |
+| 40250-40299 | Transports | #4007 AmazonSQS (TR-1) | reserved |
+| 40300-40349 | Transports | #4007 RedisPubSub (TR-2) | reserved |
+| 40350-40399 | Transports | #4007 InMemory (TR-2) | reserved |
+| 40400-40449 | Transports | #4007 GRpc (TR-2) | reserved |
+| 40450-40499 | Transports | #4007 GraphQL (TR-2) | reserved |
+| 40500-40549 | Transports | #4007 SignalR (TR-2) | reserved |
+| 50000-50099 | Security and compliance | #4007 Sanitization (SC-1) | reserved |
+| 50100-50199 | Security and compliance | #4007 SecurityAuditRead (SC-1) | reserved |
+| 50200-50299 | Security and compliance | #4007 SecurityAudit (SC-1) | reserved |
+| 50300-50399 | Security and compliance | #4007 SecuritySecrets (SC-2) | reserved |
+| 50400-50449 | Security and compliance | #4007 SecuritySecretsAzureKeyVault (SC-2) | reserved |
+| 50450-50499 | Security and compliance | #4007 SecuritySecretsAwsSecretsManager (SC-2) | reserved |
+| 50500-50549 | Security and compliance | #4007 SecuritySecretsHashiCorpVault (SC-2) | reserved |
+| 50550-50599 | Security and compliance | #4007 SecuritySecretsGoogleCloudSecretManager (SC-2) | reserved |
+| 50600-50649 | Security and compliance | #4007 Security (SC-1) | reserved |
+| 50650-50699 | Security and compliance | #4007 SecurityPII (SC-1) | reserved |
+| 50700-50799 | Security and compliance | #4007 ComplianceGDPR (SC-4) | reserved |
+| 50800-50899 | Security and compliance | #4007 ComplianceConsent (SC-4) | reserved |
+| 50900-50949 | Security and compliance | #4007 ComplianceDSR (SC-4) | reserved |
+| 50950-50999 | Security and compliance | #4007 ComplianceLawfulBasis (SC-4) | reserved |
+| 51000-51049 | Security and compliance | #4007 ComplianceAnonymization (SC-4) | reserved |
+| 51050-51099 | Security and compliance | #4007 MartenGDPRCryptoShredding (SC-4) | reserved |
+| 51100-51199 | Security and compliance | #4007 ComplianceRetention (SC-5) | reserved |
+| 51200-51299 | Security and compliance | #4007 ComplianceDataResidency (SC-5) | reserved |
+| 51300-51399 | Security and compliance | #4007 ComplianceBreachNotification (SC-5) | reserved |
+| 51400-51499 | Security and compliance | #4007 ComplianceDPIA (SC-5) | reserved |
+| 51500-51549 | Security and compliance | #4007 CompliancePrivacyByDesign (SC-5) | reserved |
+| 51550-51649 | Security and compliance | #4007 SecurityABAC (SC-3) | reserved |
+| 51650-51749 | Security and compliance | #4007 SecurityAntiTampering (SC-3) | reserved |
+| 51750-51849 | Security and compliance | #4007 ComplianceNIS2 (SC-6) | reserved |
+| 51850-51949 | Security and compliance | #4007 ComplianceCrossBorderTransfer (SC-6) | reserved |
+| 52000-52099 | Security and compliance | #4007 ComplianceProcessorAgreements (SC-6) | reserved |
+| 52100-52199 | Security and compliance | #4007 ComplianceAIAct (SC-6) | reserved |
+| 52200-52299 | Security and compliance | #4007 ComplianceAttestation (SC-6) | reserved |
+| 52300-52349 | Security and compliance | #4007 SecurityBreakTheGlass (SC-3) | reserved |
+| 60000-60049 | Observability and platform | #4007 AspNetCore (OP-1) | reserved |
+| 60050-60099 | Observability and platform | #4007 Polly (OP-2) | reserved |
+| 60100-60149 | Observability and platform | #4007 ExtensionsResilience (OP-2) | reserved |
+| 60150-60199 | Observability and platform | #4007 Hangfire (OP-2) | reserved |
+| 60200-60249 | Observability and platform | #4007 Quartz (OP-2) | reserved |
+| 60250-60349 | Observability and platform | #4007 OpenTelemetry (OP-1) | reserved |
+| 70000-70049 | Testing and tooling | #4007 Testing (TT-CI) | reserved |
+| 80000-80049 | Cloud and integration | #4007 Refit (TT-CI) | reserved |
+| 80050-80099 | Cloud and integration | #4007 AwsLambda (TT-CI) | reserved |
+| 80100-80149 | Cloud and integration | #4007 AzureFunctions (TT-CI) | reserved |
 
 ### Status vocabulary
 
