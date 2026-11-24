@@ -10,7 +10,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `1dee4ba61`)
+### What exists today (read on 2026-11-23, main `6e73e575d`)
 
 - The issue names `ITenantContext`; **that type does not exist in `src`**. The tenant of a dispatch is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs`), the ambient context is held by `IRequestContextAccessor` (`RequestContextAccessor` is a singleton backed by an `AsyncLocal`, `src/Encina/Core/RequestContextAccessor.cs`), and "multi-tenancy is enabled" is the presence of the `MultiTenancyMarker` in the container (`src/Encina/Abstractions/MultiTenancyMarker.cs`, registered by `AddEncinaTenancy`, `src/Encina.Tenancy/ServiceCollectionExtensions.cs:109`). `QueryCachingPipelineBehavior` already uses it the way this plan needs: an optional trailing constructor parameter `MultiTenancyMarker? multiTenancy = null` stored as `_multiTenant` (`src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs:74-86`).
 - **No package applies one rule.** Thirteen sites in ten files tag the tenant today, under three different keys, and none checks that multi-tenancy is enabled:
@@ -24,7 +24,7 @@
 
 ### What this plan delivers
 
-- `Encina.Diagnostics.TenantTelemetry`, a `public static class` in core: the constant `AttributeName` (`encina.tenant_id`, Design Choice 2), `ValueFor(IRequestContext? context, bool multiTenancyEnabled)` and `ValueFor(string? tenantId, bool multiTenancyEnabled)` (return the tag value or `null`), `SetTenantTag(this Activity? activity, string? tenantId, bool multiTenancyEnabled)` and `AddTenantTag(this ref TagList tags, string? tenantId, bool multiTenancyEnabled)`. No tag is emitted when multi-tenancy is off, when the tenant is `null`, empty or whitespace; the helper never invents a tenant (no `default`) and never composes an id.
+- `Encina.Diagnostics.TenantTelemetry`, a `public static class` in core: the constant `AttributeName` (`encina.tenant_id`, Design Choice 2), `ValueFor(IRequestContext? context, bool multiTenancyEnabled)` and `ValueFor(string? tenantId, bool multiTenancyEnabled)` (return the tag value or `null`), `SetTenantTag(this Activity? activity, string? tenantId, bool multiTenancyEnabled)` and `AddTenantTag(this ref TagList tags, string? tenantId, bool multiTenancyEnabled)`. No tag is emitted when multi-tenancy is off, when the tenant is `null`, empty or whitespace; the helper never invents a fallback value and never composes an id; a tenant id that is literally `default` is a real id and, with the flag on, is emitted verbatim.
 - Migration of the 13 sites: each emitter stops writing its own literal and uses `TenantTelemetry.AttributeName`; each behavior that decides the value takes `MultiTenancyMarker? multiTenancy = null` as its last optional constructor parameter and calls `ValueFor`. A host with no marker gets no tenant tag, which is the fail-to-no-tag path of the issue.
 - `ActivityTagNames.Tenancy.TenantId` (public, `Encina.OpenTelemetry`) is removed and its two readers use the helper constant; the `tenancy.*` keys that describe resolution (`strategy`, `entity_type`, `outcome`) are not tenant ids and stay.
 - Shared pieces and owner: this plan owns `TenantTelemetry`; #721, #722, #723, #724, #725, #759, #726, #727, #222 and #273 call it; #906 owns the cardinality paragraph of the guide.
@@ -163,7 +163,7 @@
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
-| C1 | No tag when multi-tenancy is off; none when the tenant is `null`, empty or whitespace (a blank tenant is "no tenant", never the reserved `default` segment); the helper never composes an id and never substitutes `default` (whether the value is verbatim or hashed is Design Choice 3) | Settled | ADR-054 D4; SPEC-002 AC-044; fail to no tag |
+| C1 | No tag when multi-tenancy is off; none when the tenant is `null`, empty or whitespace (a blank tenant is "no tenant", and the helper never substitutes an invented fallback such as `default` for it; a real tenant id that is literally `default` is emitted verbatim when the flag is on); the helper never composes an id (whether the value is verbatim or hashed is Design Choice 3) | Settled | ADR-054 D4; SPEC-002 AC-044; fail to no tag |
 | C2 | No new `EncinaError` code, so no ADR-062 `ErrorCategory`; the helper returns `null` or a string and never throws on a valid argument; null `activity` returns `null` | Settled | ADR-062; `AGENTS.md` section 3 |
 | C3 | No logging and no EventId: the issue puts logs out of scope and the helper is a pure function | Settled | `AGENTS.md` section 7 (no `[LoggerMessage]`, no range) |
 | C4 | Gate semantics: the tenant tag is telemetry, not a gate; a missing tenant never denies or changes an operation, it only omits the tag. The fail-closed gates of the packages are untouched | Settled | `AGENTS.md` section 3 (gates fail closed; this is not one) |
@@ -181,7 +181,7 @@
 
 1. **Create** `src/Encina/Diagnostics/TenantTelemetry.cs` (`public static class TenantTelemetry`, namespace `Encina.Diagnostics`, XML docs with an `<example>`): `public const string AttributeName = "encina.tenant_id"`; `public static string? ValueFor(IRequestContext? context, bool multiTenancyEnabled)`; `public static string? ValueFor(string? tenantId, bool multiTenancyEnabled)` (returns `null` unless the flag is on and `!string.IsNullOrWhiteSpace(tenantId)`); `public static Activity? SetTenantTag(this Activity? activity, string? tenantId, bool multiTenancyEnabled)` (returns the same activity, so it chains with `SetTag`); `public static void AddTenantTag(this ref TagList tags, string? tenantId, bool multiTenancyEnabled)`. Single-question methods carry `// crap-exempt` only where they are one `switch`; none here needs it (two branches each).
 2. **Edit** `src/Encina/PublicAPI.Unshipped.txt` and the manifest `.github/coverage-manifest/Encina.json` (per-file entry, targets below) and the changelog fragment `changelog.d/2676-tenant-telemetry-helper.added.md`, all through `mechanical-fixer`.
-3. Tests: new `tests/Encina.UnitTests/Diagnostics/TenantTelemetryTests.cs` (flag off with a tenant: no tag; flag on with `null`, empty and whitespace: no tag; flag on with a tenant: exactly one tag with the key `encina.tenant_id` and the id as Design Choice 3 settles it (verbatim under the recommended option A); the helper never reads `Activity.Current.Baggage` and sets none; allocation-free when off, measured with `GC.GetAllocatedBytesForCurrentThread`); new `tests/Encina.GuardTests/Core/Diagnostics/TenantTelemetryGuardTests.cs` (null `IRequestContext` is a valid input and returns `null` with a valid-result test; null `Activity` returns `null`).
+3. Tests: new `tests/Encina.UnitTests/Diagnostics/TenantTelemetryTests.cs` (flag off with a tenant: no tag; flag on with `null`, empty and whitespace: no tag; flag on with the literal id `default`: one tag whose value is `default`; flag on with a tenant: exactly one tag with the key `encina.tenant_id` and the id as Design Choice 3 settles it (verbatim under the recommended option A); the helper never reads `Activity.Current.Baggage` and sets none; allocation-free when off, measured with `GC.GetAllocatedBytesForCurrentThread`); new `tests/Encina.GuardTests/Core/Diagnostics/TenantTelemetryGuardTests.cs` (null `IRequestContext` is a valid input and returns `null` with a valid-result test; null `Activity` returns `null`).
 
 </details>
 
@@ -200,7 +200,7 @@ TASK:
 2. Unit tests and guard tests as in the plan; PublicAPI, manifest and changelog through mechanical-fixer.
 
 KEY RULES:
-- No tag when the flag is off or the tenant is null, empty or whitespace; never the string "default"; never baggage.
+- No tag when the flag is off or the tenant is null, empty or whitespace; never an invented fallback value (a real tenant id "default" is emitted verbatim when the flag is on; add a test case); never baggage.
 - Nullable parameters that accept null get valid-result tests in Encina.GuardTests, not exception tests.
 
 REFERENCE FILES:
@@ -217,10 +217,10 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `src/Encina/Recoverability/RetryMetrics.cs` (line 89: `tags.Add(TenantTelemetry.AttributeName, tenantId)`; the signature `RecordAttempt(string requestName, string errorCode, string? tenantId)` is unchanged because the caller passes the already-decided value).
-2. **Modify** `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` (line 28 uses the constant) and `src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs`: add `MultiTenancyMarker? multiTenancy = null` as the last constructor parameter and compute `var tenant = TenantTelemetry.ValueFor(context, _multiTenant)` once, passing it to `RetryMetrics.RecordAttempt` (lines 132, 138, 209) and `RetryTelemetry.StartRetry` (line 74).
-3. `src/Encina.Polly/PublicAPI.Unshipped.txt` (constructor line), changelog `changelog.d/2676-tenant-telemetry-polly.changed.md`, through `mechanical-fixer`.
-4. Tests: edit `tests/Encina.UnitTests/Polly/RetryPipelineBehaviorOutboundTests.cs` (tenant tag present only with the marker; absent without it; blank tenant) and `tests/Encina.UnitTests/Recoverability/OutboundRulesTests.cs` (key constant); new `tests/Encina.GuardTests/Polly/RetryPipelineBehaviorTenantGuardTests.cs` (null marker is valid and yields no tag).
+1. **Modify** `src/Encina/Recoverability/RetryMetrics.cs`: `RecordAttempt` and `RecordSkipped` are public, so the rule must hold for a direct caller, not only for the internal ones. Both gain a trailing `bool multiTenancyEnabled = false` parameter (`RecordAttempt(string requestName, string errorCode, string? tenantId, bool multiTenancyEnabled = false)`, `RecordSkipped(string reason, string requestName, string errorCode, string? tenantId, bool multiTenancyEnabled = false)`), and the private `Tags` replaces line 89 with `tags.AddTenantTag(tenantId, multiTenancyEnabled)`, so the tag is omitted when tenancy is off or the id is null, empty or whitespace. The default `false` keeps `OutboxBatchProcessor` and `DelayedRetryProcessor` (always `tenantId: null`, Design Choice 6) compiling untouched; the other `RetryMetrics.Record*` callers pass the flag explicitly (`RetryPipelineBehavior` here, `RecoverabilityPipelineBehavior` in T3).
+2. **Modify** `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` (line 28 uses the constant) and `src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs`: add `MultiTenancyMarker? multiTenancy = null` as the last constructor parameter, stored as `_multiTenant`. The two `RetryMetrics.RecordAttempt` calls (lines 132 and 138, fed by the local `tenantId`) pass `context.TenantId` and `_multiTenant`; `RetryMetrics.RecordSkipped` (line 209) is called inside the instance method `Skip(string reason, string errorCode, IRequestContext context)`, which cannot see the outer local, so it passes `context.TenantId` and the `_multiTenant` field; `RetryTelemetry.StartRetry` (line 74) gets `TenantTelemetry.ValueFor(context, _multiTenant)`.
+3. `src/Encina/PublicAPI.Unshipped.txt` (the two changed `RetryMetrics` lines), `src/Encina.Polly/PublicAPI.Unshipped.txt` (constructor line), changelog `changelog.d/2676-tenant-telemetry-polly.changed.md`, through `mechanical-fixer`.
+4. Tests: edit `tests/Encina.UnitTests/Polly/RetryPipelineBehaviorOutboundTests.cs` (tenant tag present only with the marker; absent without it; blank tenant; the skipped-retry metric `RecordSkipped` through `Skip` once with the marker and once without) and `tests/Encina.UnitTests/Recoverability/OutboundRulesTests.cs` (key constant; direct calls to the public `RetryMetrics.RecordAttempt` and `RecordSkipped` with `"acme"` and the flag off: no tag; with the flag on and `""` or `"   "`: no tag; flag on and `"acme"`: tag); new `tests/Encina.GuardTests/Polly/RetryPipelineBehaviorTenantGuardTests.cs` (null marker is valid and yields no tag).
 
 </details>
 
@@ -232,16 +232,18 @@ CONTEXT:
 Issue #2676 plan docs/plans/tenant-telemetry-tag-implementation-plan-2676.md, phase 2. Phase 1 merged (TenantTelemetry exists in core).
 
 TASK:
-1. Replace the literal "encina.tenant_id" in RetryMetrics and RetryTelemetry with TenantTelemetry.AttributeName.
-2. RetryPipelineBehavior takes MultiTenancyMarker? multiTenancy = null (last parameter) and passes TenantTelemetry.ValueFor(context, flag).
-3. Tests: tenant tag with and without the marker, blank tenant; PublicAPI and changelog through mechanical-fixer.
+1. Replace the literal "encina.tenant_id" in RetryMetrics and RetryTelemetry with TenantTelemetry.AttributeName. RetryMetrics.RecordAttempt and
+   RecordSkipped (public) gain a trailing "bool multiTenancyEnabled = false"; Tags uses AddTenantTag so a direct caller cannot emit the tag with tenancy off or a blank id.
+2. RetryPipelineBehavior takes MultiTenancyMarker? multiTenancy = null (last parameter, stored as _multiTenant) and passes context.TenantId and _multiTenant to
+   RecordAttempt and, inside the instance method Skip, to RecordSkipped (Skip reads the field, not the outer local); StartRetry gets TenantTelemetry.ValueFor(context, _multiTenant).
+3. Tests: tenant tag with and without the marker, blank tenant, the public RetryMetrics API with tenancy off and blank ids, RecordSkipped with and without the marker; PublicAPI (Encina and Encina.Polly) and changelog through mechanical-fixer.
 
 KEY RULES:
 - Optional parameter last (CS1737); existing "new RetryPipelineBehavior(" sites (15 on main) must still compile.
 - No EncinaError.Message or raw exception message in any tag.
 
 REFERENCE FILES:
-- src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina.Polly/Diagnostics/RetryTelemetry.cs, src/Encina/Recoverability/RetryMetrics.cs
+- src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs (Skip, line 209), src/Encina.Polly/Diagnostics/RetryTelemetry.cs, src/Encina/Recoverability/RetryMetrics.cs
 ```
 
 </details>
@@ -254,7 +256,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Modify** `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` (lines 36 and 54 use the constant) and `src/Encina.Refit/Handlers/RestApiRequestHandler.cs` (optional `MultiTenancyMarker? multiTenancy = null`, value through `ValueFor`).
-2. **Modify** `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs`: the optional parameter on **both** constructors (public, line 65, and internal, line 76) and `TenantTelemetry.ValueFor(context, _multiTenant)` for the `context.TenantId` it already passes at lines 187, 215 and 244. `OutboxBatchProcessor` and `DelayedRetryProcessor` are not changed: they pass `tenantId: null` and have no tenant source (Design Choice 6).
+2. **Modify** `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs`: the optional parameter on **both** constructors (public, line 65, and internal, line 76) and `TenantTelemetry.ValueFor(context, _multiTenant)` for the `context.TenantId` it already passes at lines 187, 215 and 244, and pass `_multiTenant` as the new `multiTenancyEnabled` argument of its `RetryMetrics.RecordSkipped` call (line 259). `OutboxBatchProcessor` and `DelayedRetryProcessor` are not changed: they pass `tenantId: null`, keep the default `multiTenancyEnabled: false` of T2 and have no tenant source (Design Choice 6).
 3. `src/Encina.Refit/PublicAPI.Unshipped.txt` and `src/Encina.Messaging/PublicAPI.Unshipped.txt` (the public constructor line of each; the internal constructor has none) and changelog `changelog.d/2676-tenant-telemetry-refit-messaging.changed.md` through `mechanical-fixer`.
 4. Tests: edit `tests/Encina.UnitTests/Refit/RestApiRequestHandlerOutboundTests.cs`; new `tests/Encina.UnitTests/Messaging/Recoverability/RecoverabilityTenantTagTests.cs` (tag present with the marker and a tenant, absent without the marker, absent for a blank tenant, on the three skip reasons); new guard test `tests/Encina.GuardTests/Messaging/RecoverabilityTenantTagGuardTests.cs` (null marker valid).
 
@@ -326,9 +328,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `src/Encina.Tenancy/Diagnostics/TenancyActivitySource.cs` (lines 61 and 78 use the constant: `AddEncinaTenancy` always registers the marker, so these two sites are on by definition) and `src/Encina.OpenTelemetry/Enrichers/TenancyActivityEnricher.cs` (lines 33 and 53), and **remove** `ActivityTagNames.Tenancy.TenantId` from `src/Encina.OpenTelemetry/ActivityTagNames.cs`.
-2. `src/Encina.OpenTelemetry/PublicAPI.Unshipped.txt` (the removed public constant), the manifest entry of `TenancyActivityEnricher.cs` in `.github/coverage-manifest/Encina.OpenTelemetry.json` (no per-file `targets` today) and changelog `changelog.d/2676-tenant-telemetry-tenancy.changed.md` through `mechanical-fixer`.
-3. Tests: edit `tests/Encina.UnitTests/Tenancy/TenancyActivitySourceTests.cs`, `tests/Encina.UnitTests/OpenTelemetry/Enrichers/TenancyActivityEnricherTests.cs` and `tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs` (line 229 asserts the removed constant).
+1. **Modify** `src/Encina.Tenancy/Diagnostics/TenancyActivitySource.cs` (lines 61 and 78 use the constant and `TenantTelemetry.ValueFor(tenantId, true)`: `AddEncinaTenancy` always registers the marker, so the enabled check is on by definition and only the blank-value check is needed; the class is `internal`) and `src/Encina.OpenTelemetry/Enrichers/TenancyActivityEnricher.cs` (lines 33 and 53). `EnrichWithResolution` and `EnrichWithTenantScope` are public static, so any caller could emit an id on a host without multi-tenancy: both gain a trailing `bool multiTenancyEnabled` parameter (no default, pre-1.0) and tag through `activity.SetTenantTag(tenantId, multiTenancyEnabled)`, which skips the tag when the flag is off or the id is null, empty or whitespace (the `is not null` check of `EnrichWithResolution` is replaced by it). Their `PublicAPI.Unshipped.txt` lines change accordingly; they have no caller in `src` today, only tests. **Remove** `ActivityTagNames.Tenancy.TenantId` from `src/Encina.OpenTelemetry/ActivityTagNames.cs`.
+2. `src/Encina.OpenTelemetry/PublicAPI.Unshipped.txt` (the removed public constant and the two changed enricher signatures), the manifest entry of `TenancyActivityEnricher.cs` in `.github/coverage-manifest/Encina.OpenTelemetry.json` (no per-file `targets` today) and changelog `changelog.d/2676-tenant-telemetry-tenancy.changed.md` through `mechanical-fixer`.
+3. Tests: edit `tests/Encina.UnitTests/Tenancy/TenancyActivitySourceTests.cs`, `tests/Encina.UnitTests/OpenTelemetry/Enrichers/TenancyActivityEnricherTests.cs` and `tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs` (line 229 asserts the removed constant). Cases: enricher with the flag off and a tenant (no tag), flag on with `null`, `""` and `"   "` (no tag), flag on with a tenant (tag); `TenancyActivitySource` with a blank id (no tag).
 
 </details>
 
@@ -341,6 +343,7 @@ Issue #2676 plan docs/plans/tenant-telemetry-tag-implementation-plan-2676.md, ph
 
 TASK:
 1. TenancyActivitySource and TenancyActivityEnricher tag the tenant with TenantTelemetry.AttributeName; remove ActivityTagNames.Tenancy.TenantId.
+   The public enricher methods gain a trailing "bool multiTenancyEnabled" and use SetTenantTag (skips when off or blank); TenancyActivitySource skips blank ids (flag on by definition).
 2. Update the three unit test files; PublicAPI and changelog through mechanical-fixer.
 
 KEY RULES:
@@ -362,6 +365,8 @@ REFERENCE FILES:
 1. **Create** `tests/Encina.IntegrationTests/Observability/TenantTelemetryIntegrationTests.cs` (`[Trait("Category", "Integration")]`, no Docker): two service providers built with `ValidateOnBuild` and `ValidateScopes`, one with `AddEncinaTenancy` and one without; an in-memory exporter asserts that a `Send` that reaches the retry behavior emits `encina.tenant_id` only in the first, and that no baggage item exists in either.
 2. **Edit** `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`: add `<ProjectReference Include="..\..\src\Encina.Tenancy\Encina.Tenancy.csproj" />` (the project references Polly, OpenTelemetry and Refit but not `Encina.Tenancy`, and the test needs `AddEncinaTenancy`).
 3. The observability guide paragraph on the tenant tag and its cardinality, through `docs-writer`, after #906 lands; changelog `changelog.d/2676-tenant-telemetry-docs.added.md` through `mechanical-fixer`. Per-category proof (one span and one metric per database, cache, lock and transport category) lands with #721, #722, #723, #724, #725 and #759, which call the helper.
+4. **Build verification**: `dotnet build Encina.slnx --configuration Release` finishes with zero warnings and zero errors.
+5. **Test verification**: `dotnet test Encina.slnx --configuration Release` passes in full (the suites of the touched packages at least: UnitTests, GuardTests, ContractTests, PropertyTests, IntegrationTests), and each flag reaches its per-file target from the manifests of T1 to T5, measured with the commands of `AGENTS.md` section 9 (`dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage"`, then `coverage-report.cs` and `--check-justifications`); the PR reports the measured values against the targets.
 
 </details>
 
@@ -375,6 +380,8 @@ Issue #2676 plan docs/plans/tenant-telemetry-tag-implementation-plan-2676.md, ph
 TASK:
 1. Integration test with two service providers (with and without AddEncinaTenancy) and an in-memory exporter.
 2. The documentation paragraph goes to docs-writer; changelog to mechanical-fixer.
+3. Build verification: dotnet build Encina.slnx --configuration Release, zero warnings. Test verification: dotnet test Encina.slnx --configuration Release,
+   all pass, then measure each flag's per-file coverage against the manifest targets of T1 to T5 (AGENTS.md section 9) and report it. The phase is not complete without both.
 
 KEY RULES:
 - Tests execute the real behavior and exporter; no Thread.Sleep; no baggage assertion may be skipped.
@@ -419,13 +426,13 @@ REFERENCE FILES:
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | T1 | Phase 1 | 1 | 0 | 2 | 0 | 1 | 2 (PublicAPI, changelog) | 6 | ~330 |
-| T2 | Phase 2 | 0 | 3 | 1 | 2 | 0 | 2 (PublicAPI, changelog) | 8 | ~260 |
+| T2 | Phase 2 | 0 | 3 | 1 | 2 | 0 | 3 (2 PublicAPI, changelog) | 9 | ~290 |
 | T3 | Phase 3 | 0 | 3 | 2 | 1 | 0 | 3 (2 PublicAPI, changelog) | 9 | ~300 |
 | T4a | Phase 4 | 0 | 3 | 1 | 3 | 3 | 4 (3 PublicAPI, changelog) | 14 | ~330 |
 | T4b | Phase 4 | 0 | 3 | 1 | 3 | 1 | 3 (2 PublicAPI, changelog) | 11 | ~280 |
 | T5 | Phase 5 | 0 | 3 | 0 | 3 | 1 | 2 (PublicAPI, changelog) | 9 | ~190 |
 | T6 | Phase 6 | 0 | 0 | 1 | 0 | 0 | 3 (guide page, changelog, `Encina.IntegrationTests.csproj`) | 4 | ~150 |
-| **Total** | | **1** | **15** | **8** | **12** | **6** | **19** | **61** | **~1,840** |
+| **Total** | | **1** | **15** | **8** | **12** | **6** | **20** | **62** | **~1,870** |
 
 Columns sum: 1 + 15 + 8 + 12 + 6 + 19 = 61 = 6 + 8 + 9 + 14 + 11 + 9 + 4. Every PR is at most 15 files (largest T4a, 14) and at most 1500 lines. Test doubles: the optional constructor parameters change no interface, so no fake needs an edit; the `new X(` sites are listed in the Summary. The guard-test `InternalsVisibleTo` question does not arise (the helper is public). Per-file coverage targets (flags not listed are 0 with the reason in the justification):
 
