@@ -1,0 +1,33 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.69GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]     : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                            | Job        | IterationCount | LaunchCount | Mean          | Error         | StdDev       | Ratio  | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|---------------------------------- |----------- |--------------- |------------ |--------------:|--------------:|-------------:|-------:|--------:|-------:|-------:|----------:|------------:|
+| SanitizeHtml_CleanInput           | Job-YFEFPZ | 10             | Default     |  11,344.03 ns |    182.076 ns |   108.350 ns |  1.000 |    0.01 | 0.8545 | 0.0305 |   14432 B |       1.000 |
+| SanitizeHtml_MaliciousInput       | Job-YFEFPZ | 10             | Default     |  14,724.85 ns |     88.303 ns |    52.548 ns |  1.298 |    0.01 | 0.8240 | 0.0153 |   13880 B |       0.962 |
+| SanitizeHtml_ComplexDocument      | Job-YFEFPZ | 10             | Default     | 118,549.44 ns |    497.796 ns |   329.261 ns | 10.451 |    0.10 | 4.5166 | 0.3662 |   76680 B |       5.313 |
+| SanitizeForSql_SimpleInput        | Job-YFEFPZ | 10             | Default     |     145.94 ns |      1.363 ns |     0.811 ns |  0.013 |    0.00 | 0.0114 |      - |     192 B |       0.013 |
+| SanitizeForSql_InjectionAttempt   | Job-YFEFPZ | 10             | Default     |     230.10 ns |      0.475 ns |     0.283 ns |  0.020 |    0.00 | 0.0148 |      - |     248 B |       0.017 |
+| SanitizeForShell_SimpleInput      | Job-YFEFPZ | 10             | Default     |      22.47 ns |      0.541 ns |     0.358 ns |  0.002 |    0.00 | 0.0029 |      - |      48 B |       0.003 |
+| SanitizeForShell_InjectionAttempt | Job-YFEFPZ | 10             | Default     |      21.65 ns |      0.358 ns |     0.237 ns |  0.002 |    0.00 | 0.0029 |      - |      48 B |       0.003 |
+| SanitizeForJson_SimpleInput       | Job-YFEFPZ | 10             | Default     |     325.05 ns |      2.147 ns |     1.278 ns |  0.029 |    0.00 | 0.0124 |      - |     208 B |       0.014 |
+| SanitizeForXml_SimpleInput        | Job-YFEFPZ | 10             | Default     |     206.82 ns |      3.722 ns |     2.215 ns |  0.018 |    0.00 | 0.0386 |      - |     648 B |       0.045 |
+|                                   |            |                |             |               |               |              |        |         |        |        |           |             |
+| SanitizeHtml_CleanInput           | ShortRun   | 3              | 1           |  11,085.32 ns |    396.855 ns |    21.753 ns |  1.000 |    0.00 | 0.8545 | 0.0305 |   14432 B |       1.000 |
+| SanitizeHtml_MaliciousInput       | ShortRun   | 3              | 1           |  14,234.28 ns |  1,054.871 ns |    57.821 ns |  1.284 |    0.01 | 0.8240 | 0.0153 |   13880 B |       0.962 |
+| SanitizeHtml_ComplexDocument      | ShortRun   | 3              | 1           | 119,978.82 ns | 24,786.309 ns | 1,358.621 ns | 10.823 |    0.11 | 4.5166 | 0.3662 |   76680 B |       5.313 |
+| SanitizeForSql_SimpleInput        | ShortRun   | 3              | 1           |     145.51 ns |     15.454 ns |     0.847 ns |  0.013 |    0.00 | 0.0114 |      - |     192 B |       0.013 |
+| SanitizeForSql_InjectionAttempt   | ShortRun   | 3              | 1           |     233.73 ns |     46.255 ns |     2.535 ns |  0.021 |    0.00 | 0.0148 |      - |     248 B |       0.017 |
+| SanitizeForShell_SimpleInput      | ShortRun   | 3              | 1           |      21.51 ns |      3.181 ns |     0.174 ns |  0.002 |    0.00 | 0.0029 |      - |      48 B |       0.003 |
+| SanitizeForShell_InjectionAttempt | ShortRun   | 3              | 1           |      21.59 ns |      2.825 ns |     0.155 ns |  0.002 |    0.00 | 0.0029 |      - |      48 B |       0.003 |
+| SanitizeForJson_SimpleInput       | ShortRun   | 3              | 1           |     322.53 ns |     14.140 ns |     0.775 ns |  0.029 |    0.00 | 0.0124 |      - |     208 B |       0.014 |
+| SanitizeForXml_SimpleInput        | ShortRun   | 3              | 1           |     211.02 ns |     56.114 ns |     3.076 ns |  0.019 |    0.00 | 0.0386 |      - |     648 B |       0.045 |
