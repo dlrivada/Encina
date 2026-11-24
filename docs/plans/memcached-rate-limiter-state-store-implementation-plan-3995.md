@@ -117,7 +117,7 @@ A wins when the number of keys matters more than contention (a very large partit
 
 ### Rationale
 
-B wins for an application that uses Memcached as a cache and Redis for rate limiting (or the reverse) and wants no order dependence; choosing B means the maintainer relaxes the issue's criterion "registered with `TryAdd`; an application's own store wins in any registration order" (the extension is then the application's own call) and the issue's statement that it has no open design choices. A wins by default for consistency and because resolving the type is free until a limiter asks for `IRateLimiterStateStore`. The documentation names the first-registration rule. The registration also adds the options, their validator and the seam the store resolves, proven by a DI test with `ValidateOnBuild` and `ValidateScopes` in both registration orders against an application-supplied store.
+B wins for an application that uses Memcached as a cache and Redis for rate limiting (or the reverse) and wants no order dependence; choosing B means the maintainer relaxes the issue's criterion "registered with `TryAdd`; an application's own store wins in any registration order" (the extension is then the application's own call) and the issue's own list of settled choices. A wins by default for consistency and because resolving the type is free until a limiter asks for `IRateLimiterStateStore`. The documentation names the first-registration rule. The registration also adds the options, their validator and the seam the store resolves, proven by a DI test with `ValidateOnBuild` and `ValidateScopes` in both registration orders against an application-supplied store.
 
 **Class:** Dilemma
 
