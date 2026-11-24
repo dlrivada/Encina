@@ -42,30 +42,7 @@ public sealed class OutboxStoreMongoDBTests
 
     #region Constructor
 
-    [Fact]
-    public void Constructor_NullMongoClient_Throws()
-    {
-        Should.Throw<ArgumentNullException>(() => new OutboxStoreMongoDB(
-            null!, Options.Create(new EncinaMongoDbOptions()), Substitute.For<ILogger<OutboxStoreMongoDB>>()))
-            .ParamName.ShouldBe("mongoClient");
-    }
-
-    [Fact]
-    public void Constructor_NullOptions_Throws()
-    {
-        Should.Throw<ArgumentNullException>(() => new OutboxStoreMongoDB(
-            _client, null!, Substitute.For<ILogger<OutboxStoreMongoDB>>()))
-            .ParamName.ShouldBe("options");
-    }
-
-    [Fact]
-    public void Constructor_NullLogger_Throws()
-    {
-        Should.Throw<ArgumentNullException>(() => new OutboxStoreMongoDB(
-            _client, Options.Create(new EncinaMongoDbOptions()), null!))
-            .ParamName.ShouldBe("logger");
-    }
-
+    // Argument checks of the constructor live in Encina.GuardTests (StoreGuardTests).
     [Fact]
     public void Constructor_ResolvesConfiguredDatabaseAndCollection()
     {

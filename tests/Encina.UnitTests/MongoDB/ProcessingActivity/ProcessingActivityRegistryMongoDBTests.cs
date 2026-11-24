@@ -37,13 +37,6 @@ public sealed class ProcessingActivityRegistryMongoDBTests
     #region Constructor
 
     [Fact]
-    public void Constructor_NullCollection_Throws()
-    {
-        Should.Throw<ArgumentNullException>(() => new ProcessingActivityRegistryMongoDB(null!))
-            .ParamName.ShouldBe("collection");
-    }
-
-    [Fact]
     public void Constructor_WithCollection_DoesNotCreateIndexes()
     {
         _collection.ReceivedCalls().ShouldBeEmpty();
