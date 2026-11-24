@@ -282,8 +282,114 @@ public sealed class CompoundShardKeyExtractorTests
     }
 
     // ────────────────────────────────────────────────────────────
+    //  Characterization: error codes, messages and priorities (#4235)
+    // ────────────────────────────────────────────────────────────
+
+    private static EncinaError LeftOf(Either<EncinaError, CompoundShardKey> result)
+    {
+        result.IsLeft.ShouldBeTrue();
+        return result.Match(Right: _ => default, Left: e => e);
+    }
+
+    private static CompoundShardKey RightOf(Either<EncinaError, CompoundShardKey> result)
+    {
+        result.IsRight.ShouldBeTrue();
+        return result.Match(Right: k => k, Left: _ => null!);
+    }
+
+    [Fact]
+    public void Extract_NoShardKeyConfigured_ReturnsShardKeyNotConfiguredWithTypeName()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new PlainEntity { Id = 1 }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardKeyNotConfigured);
+        error.Message.ShouldBe(
+            "Entity type 'PlainEntity' does not implement ICompoundShardable, IShardable, and has no property marked with [ShardKey].");
+    }
+
+    [Fact]
+    public void Extract_ICompoundShardableNullKey_ReturnsCompoundShardKeyEmpty()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new NullCompoundShardableEntity()));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.CompoundShardKeyEmpty);
+    }
+
+    [Fact]
+    public void Extract_MultipleAttributesNullComponent_ReturnsCompoundShardKeyComponentEmpty()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new MultiAttributeEntity { Region = "eu", CustomerId = null! }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.CompoundShardKeyComponentEmpty);
+    }
+
+    [Fact]
+    public void Extract_IShardableEmptyKey_ReturnsShardKeyEmpty()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new SimpleShardableEntity("")));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardKeyEmpty);
+        error.Message.ShouldBe("IShardable.GetShardKey() returned null or empty for entity type 'SimpleShardableEntity'.");
+    }
+
+    [Fact]
+    public void Extract_SingleAttributeNullValue_ReturnsShardKeyEmpty()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new SingleAttributeEntity { TenantId = null! }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardKeyEmpty);
+        error.Message.ShouldBe("Shard key property 'TenantId' on entity type 'SingleAttributeEntity' has a null value.");
+    }
+
+    [Fact]
+    public void Extract_SingleAttributeEmptyValue_ReturnsShardKeyEmpty()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new SingleAttributeEntity { TenantId = "" }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardKeyEmpty);
+        error.Message.ShouldBe("Shard key property 'TenantId' on entity type 'SingleAttributeEntity' has an empty string value.");
+    }
+
+    [Fact]
+    public void Extract_IShardableTakesPrecedenceOverASingleAttribute()
+    {
+        var key = RightOf(CompoundShardKeyExtractor.Extract(new ShardableWithSingleAttribute { TenantId = "attr", ShardableKey = "iface" }));
+
+        key.ComponentCount.ShouldBe(1);
+        key.PrimaryComponent.ShouldBe("iface");
+    }
+
+    [Fact]
+    public void Extract_IShardableEmptyKeyIsNotRescuedByASingleAttribute()
+    {
+        var error = LeftOf(CompoundShardKeyExtractor.Extract(new ShardableWithSingleAttribute { TenantId = "attr", ShardableKey = "" }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardKeyEmpty);
+    }
+
+    [Fact]
+    public void Extract_AttributesFollowTheStaticTypeWhileInterfacesFollowTheInstance()
+    {
+        object attributeOnly = new SingleAttributeEntity { TenantId = "tenant" };
+        object shardable = new SimpleShardableEntity("key");
+
+        LeftOf(CompoundShardKeyExtractor.Extract(attributeOnly)).Message.ShouldContain("'Object'");
+        RightOf(CompoundShardKeyExtractor.Extract(shardable)).PrimaryComponent.ShouldBe("key");
+    }
+
+    // ────────────────────────────────────────────────────────────
     //  Test entities
     // ────────────────────────────────────────────────────────────
+
+    private sealed class ShardableWithSingleAttribute : IShardable
+    {
+        [ShardKey]
+        public string TenantId { get; set; } = default!;
+
+        public string ShardableKey { get; set; } = default!;
+
+        public string GetShardKey() => ShardableKey;
+    }
 
     private sealed class CompoundShardableEntity(string region, string customerId) : ICompoundShardable
     {
