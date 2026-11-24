@@ -2,15 +2,15 @@
 
 > **Issue**: [#3981](https://github.com/dlrivada/Encina/issues/3981)
 > **Type**: Feature (the issue carries `needs-decision`; every open alternative is a Dilemma below, recommended and pending the maintainer)
-> **Related**: #233 (localization: owns `IValidationCultureResolver` and the localizer), #235 (schema-first validation: owns `AddEncinaSchema<TRequest>`), #236 (two-phase validation, defers tenant and module validators per phase), #230 (owns `IRequestValidator<T>` and `RequestValidatorRunner`), #726 (central validation instrumentation), #2676 (tenant tag helper), #2442 (typed `ModuleId` on the request context), #3978 (audit of rejected requests, planned apart), ADR-054, ADR-062 (merged: error category contract)
+> **Related**: #233 (localization: owns `IValidationCultureResolver` and the localizer), #235 (schema-first validation: owns `AddEncinaSchema<TRequest>`), #236 (two-phase validation, defers tenant and module validators per phase), #230 (owns `IRequestValidator<T>` and `RequestValidatorRunner`), #726 (central validation instrumentation), #2676 (tenant tag helper), #2442 (typed `ModuleId` on the request context), #3978 (audit of rejected requests, planned apart), #3982 (owns the shared validator-applicability pieces: `ValidatorScope`, `ValidatorScopeKinds`, `IScopedRequestValidator<T>`, `ValidatorScopeSelector`, `AddEncinaValidatorScoping()`; this plan consumes them), #4000 (the notification, CDC and saga gates; consumes #3982), #1257 (owns the reserved `default` tenant Dilemma DC2), ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Medium (small core primitives, three thin consumers; no persistence)
-> **Estimated Scope**: ~2,500 lines in total (~520 production, ~1,600 tests and manifests, ~380 documentation and ADR), in six pull requests of at most 12 files and 900 lines each
+> **Estimated Scope**: ~2,200 lines in total (~420 production, ~1,450 tests and manifests, ~330 documentation and ADR), in six pull requests of at most 12 files and 900 lines each
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-24, main `278c164f1`)
+### What exists today (read on 2026-11-24, main `278c164f1`; re-checked after the merge of `origin/main` at the same commit)
 
 - `TenantId` reaches validators only through `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`; `FluentValidationProvider` copies it into `RootContextData`). Nothing under `src/Encina/Validation/` selects a resource by tenant, and validation never reads a module. The module of a request is available as `RequestContextModuleExtensions.GetModuleName` (a metadata key, `src/Encina/Modules/RequestContextModuleExtensions.cs`) and, after #2442, as `IRequestContext.ModuleId`; there is no `IModuleContext` type in `src`.
 - None of the consumers exist on `origin/main` yet: `IRequestValidator<T>` and `RequestValidatorRunner` (#230), `IValidationCultureResolver`, `IValidationMessageLocalizer` and `ValidationCultureScope` (#233), `ISchema<T>` and `AddEncinaSchema<TRequest>(schema)` (#235) are all planned. Each of those plans defers the tenant and module part to this issue: #233 row 10 and 11 (tenant locale, module resource sets), #235 register row C9 and rows 10 and 11 (tenant and module schemas), #236 rows 10 and 11 (tenant and module validators per phase), #230 row 10 and 11 (tenant-scoped validator selection).
@@ -20,18 +20,22 @@
 
 ### What this plan delivers
 
-One shared way to say "this resource applies to this tenant and module", used by the three features, with the global validation always applying:
+One shared way to say "this resource applies to this tenant and module", used by the three features, with the global validation always applying. The work is split by ownership between this plan and #3982, which already plans the validator-applicability pieces:
 
-1. **Primitives in core `Encina.Validation`** (no dependency on the other plans): `ValidationScope` (tenant, module, read from `IRequestContext`), `ValidationScopeKey` (an injective key, `default` reserved) and `ValidationScopeSelector<TChoice>` (a frozen lookup: most specific first, global default).
-2. **Validator and schema filter** (needs #230 and #235): `ScopedRequestValidator<TRequest>` wraps any `IRequestValidator<TRequest>` and runs it only for the scopes it was registered for; `AddRequestValidator<TRequest, TValidator>(scope)` and `AddEncinaSchema<TRequest>(schema, scope)` overloads register it. The global validators always run; a scoped one adds to them.
+- **#3982 owns "does this validator run for this request"**: `ValidatorScope`, `ValidatorScopeKinds`, `ValidatorScopeDecision`, `IScopedRequestValidator<T>`, `ValidatorScopeSelector` and `AddEncinaValidatorScoping()`. This plan defines none of them and consumes them for validators and schemas (S2 and S4).
+- **This plan owns "which value (a culture, a resource set) applies for this tenant and module"**: the key and the lookup of a replaced choice, which #3982 does not provide (it only answers run or skip).
+
+1. **Primitives in core `Encina.Validation`** (no dependency on the other plans): `ValidationScope` (tenant, module, read from `IRequestContext`), `ValidationScopeKey` (an injective key, `default` reserved) and `ValidationScopeSelector<TChoice>` (a frozen lookup of a choice: most specific first, global default). Whether these three types should instead reuse `ValidatorScope` is Design Choice 5.
+2. **Validators and schemas** (needs #3982 S1, #230 and #235): no new filter type. A tenant- or module-scoped request validator implements `IScopedRequestValidator<TRequest>` of #3982 and the runner of #230 skips it through `ValidatorScopeSelector`; a scoped schema is an `IScopedRequestValidator<TRequest>` produced by the `AddEncinaSchema<TRequest>(schema, ...)` overload of #235 that this plan adds in S4. The global validators always run; a scoped one adds to them.
 3. **Locale and resource sets** (needs #233): `ScopedValidationCultureResolver` (a tenant culture, falling back to the ambient resolver) and `ScopedValidationMessageLocalizer` (a module resource set, falling back to the global one for a missing key).
-4. **Registration**: `AddEncinaValidationScoping(options => ...)` with `TryAdd*` registrations proven by a `ValidateOnBuild` and `ValidateScopes` test.
+4. **Registration**: `AddEncinaValidationScoping(options => ...)` with `TryAdd*` registrations proven by a `ValidateOnBuild` and `ValidateScopes` test; it never registers `ValidatorScopeSelector` (that is `AddEncinaValidatorScoping()` of #3982).
 
 An application that registers nothing behaves exactly as before.
 
-- Affected packages: `Encina` (core), `Encina.Validation.Schema` (one overload, from #235). `Encina.FluentValidation`, `Encina.DataAnnotations` and `Encina.MiniValidator` need no code change: the filter sits in the validators the shared runner executes and the culture scope sits in the orchestrator.
-- Provider category: Validation (3) (`AGENTS.md` section 5): a contract test proves the three providers select the same validators and the same culture for the same tenant.
-- Shared pieces, owned by this plan: `ValidationScope`, `ValidationScopeKey`, `ValidationScopeSelector<TChoice>`, `ScopedRequestValidator<TRequest>`, the error codes `validation.scope_*` and EventIds 12350-12353. It consumes the types owned by #230, #233 and #235 and changes none of them.
+- Affected packages: `Encina` (core), `Encina.Validation.Schema` (one overload, from #235). `Encina.FluentValidation`, `Encina.DataAnnotations` and `Encina.MiniValidator` need no code change: the validator selection sits in the shared runner of #230/#3982 and the culture scope sits in the orchestrator.
+- Provider category: Validation (3) (`AGENTS.md` section 5): the S3 integration test proves the three providers follow the same tenant culture (the validator selection contract test belongs to #3982).
+- Shared pieces, owned by this plan: `ValidationScope`, `ValidationScopeKey`, `ValidationScopeSelector<TChoice>`, `ValidationSelection<TChoice>`, `ValidationScopeSelectorBuilder<TChoice>`, the error codes `validation.scope_*` and EventIds 12350-12353. Owned by #3982 and consumed here: the validator-applicability types listed above. Owned by #230, #233 and #235 and consumed here: their contracts, none changed.
+- Dependency order: #3982 S1 (and #230) before S2; #3982 S1 and #235 before S4; #233 before S3; S1a and S1b depend on nothing. #4000 consumes #3982 and does not depend on this plan.
 
 ---
 
@@ -44,7 +48,7 @@ An application that registers nothing behaves exactly as before.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A shared scope, key, selector and filter used by all three features** | One concept and one registration to learn; one place that owns the injective key and the reserved `default` segment; one contract test for the three providers | Needs #230, #233 and #235 to exist; the shared API must serve a lookup (culture) and a filter (validators) |
+| **A) A shared scope, key and selector of choices (culture, resource set), plus the validator applicability of #3982 for validators and schemas** | One concept and one registration to learn; one place that owns the injective key and the reserved `default` segment | Needs #233, #235 and #3982 to exist for their consumers; two scope types (Design Choice 5) |
 | **B) Each feature owns its hook: the localization resolver of #233, a schema registry keyed by tenant in #235, validator selection in #230** | Each ships alone and fits its shape; the first feature does not wait for the others | Three similar APIs to keep equal, three implementations of the key rule, and #233, #235 and #236 each re-decide the reserved segment |
 
 ### Chosen Option: **A - shared primitives, thin consumers** (recommended, pending the maintainer)
@@ -119,18 +123,39 @@ An application that registers nothing behaves exactly as before.
 
 </details>
 
+<details>
+<summary><strong>5. One scope type with #3982, or a separate one for value selection</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Two types with two jobs: `ValidatorScope` of #3982 answers "does this validator run" and `ValidationScope` of this plan keys "which culture or resource set applies"** | Each plan ships alone; `ValidatorScope` carries the whole `IRequestContext` and an ambient module, which a key does not need; the key is a plain value type that can be a dictionary key | Two similarly named scope types in `Encina.Validation` (the names differ by one suffix) |
+| **B) This plan reuses `ValidatorScope` of #3982 and adds only the key and the selector** | One scope concept; one place reads the tenant and the module | S1a and S1b then depend on #3982 S1 and lose their "no dependency" property; `ValidatorScope` holds a reference to the context, which a frozen-lookup key should not retain |
+
+### Chosen Option: **A - two types, one rename pending** (recommended, pending the maintainer)
+
+### Rationale
+
+- A keeps this plan buildable first and keeps the applicability decision (run or skip, with the fail-closed `RunScopeMissing` of #3982) apart from the value lookup (replace, with the global fallback). B wins if the maintainer prefers one scope vocabulary and accepts that #3982 S1 merges first; the cost then is the S1a task 1 (`ValidationScope` is dropped and `ValidationScopeKey.Create` takes the tenant and module strings of a `ValidatorScope`). If A stands the names stay as written in this plan; a rename of `ValidationScope` (for example `ValidationChoiceScope`) to avoid the near-collision with `ValidatorScope` is the maintainer's option and touches only S1a to S4 identifiers.
+
+**Class:** Dilemma
+
+</details>
+
 ### Register of defaults and semantics
 
 | Id | Choice | Class | Settled by |
 |----|--------|-------|------------|
 | C5 | The primitives live in core `Encina.Validation` next to `IValidationProvider` | Trivial | The layout of `src/Encina/Validation/` |
-| C6 | A missing tenant or module context selects the global choice; the selection always carries the global choice, so no consumer can return a weaker one; the global validation is never skipped | Settled | AGENTS.md section 3 (compliance and security gates fail closed when context is missing); the requirement text of #3981 |
-| C7 | The key is `t<len>:<tenant>` or `-` for no tenant, `m<len>:<module>` or `-` for no module, and `k<len>:<key>`, joined with `\|`; every segment is length-prefixed or the single marker, so no two (tenant, module, key) triples share a key (injective). The tenant `default` (ordinal, ignoring case) is reserved for the no-tenant case: `ValidationScopeKey.Create` returns `validation.scope_reserved_tenant` for it, and at request time a context tenant `default` selects the global choice | Settled | The requirement text of #3981 (injective keys, `default` reserved); AGENTS.md section 3 (fail closed) |
-| C8 | New error codes, all `ErrorCategory.InvalidRequest` (ADR-062 R3: a blank or reserved id the module refuses is `InvalidRequest`) except the duplicate registration: `validation.scope_invalid_key` (blank tenant, module or key), `validation.scope_reserved_tenant`, and `validation.scope_conflict` (two choices for one key; `Internal`, a configuration entry per ADR-062 R1). None reaches a client: they surface at startup as an `OptionsValidationException` and from `Create` as a `Left` | Settled | ADR-062 R1, R3 |
+| C6 | A missing tenant or module context selects the global choice, and `ValidationScopeSelector<TChoice>.Select` always carries the global choice, so no consumer can return a weaker one for a missing context. Whether a present scoped validator or schema adds to the global one or replaces it is Design Choice 2, not decided here | Settled | AGENTS.md section 3 (compliance and security gates fail closed when context is missing); the requirement text of #3981 |
+| C7 | The key is `t<len>:<tenant>` or `-` for no tenant, `m<len>:<module>` or `-` for no module, and `k<len>:<key>`, joined with `\|`; every segment is length-prefixed or the single marker, so no two (tenant, module, key) triples share a key (injective) | Settled | The requirement text of #3981 (injective keys), proven by the property test of S1a |
+| C7b | The tenant `default` (ordinal, ignoring case) is reserved for the no-tenant case: `ValidationScopeKey.Create` returns `validation.scope_reserved_tenant` for it, and at request time a context tenant `default` selects the global choice. The reservation follows the Dilemma DC2 of #1257 (a reserved default tenant, recommended and pending the maintainer there); the issue text of #3981 only refers to "the plans of the 1.0 batch" and there is no ADR or SPEC for it. If #1257 settles differently, only `ValidationScopeKey.Create` and `ValidationScope.From` change | Dilemma (recommended, pending the maintainer) | #1257 DC2 |
+| C8 | New error codes: `validation.scope_invalid_key` (blank tenant, module or key) and `validation.scope_reserved_tenant` are `ErrorCategory.Validation` (ADR-062 R3: field rules are `Validation`; both are rules on the value of a field the caller or the configuration supplies, not a missing header, key, id or tenant, which R3 makes `InvalidRequest`); `validation.scope_conflict` (two choices registered for one key) is `ErrorCategory.AlreadyExists` (ADR-062 R2: duplicates are `AlreadyExists`; R1 does not apply because the conflicting entry is not a lookup by a caller-supplied id). None reaches a client: they surface at startup as an `OptionsValidationException` and from `Create` as a `Left` | Settled | ADR-062 R2, R3 |
 | C9 | Telemetry: logs carry codes and counts, never a tenant or module id; the tenant tag on the central validation instrumentation follows ADR-054 D4 through the helper of #2676 and is owned by #726, so this plan adds no instrument | Settled | ADR-054 D4; AGENTS.md section 3 |
 | C10 | The module is read from the request context (`GetModuleName()` today, `ModuleId` after #2442), never from the ambient `IModuleExecutionContext`, which is a scoped `AsyncLocal` and is not set outside the EF Core behavior | Trivial | `src/Encina/Modules/RequestContextModuleExtensions.cs`; `src/Encina/Modules/Isolation/IModuleExecutionContext.cs`; the plan of #2442 |
-| C11 | The selector and the filter are immutable after construction and resolve no scoped service, so they are safe in the singleton orchestrator of two providers | Settled | AGENTS.md section 3 (never a scoped dependency in a singleton; `ValidateScopes`) |
-| C12 | The filter registers with `TryAddEnumerable` so registering the same scoped validator twice runs it once | Trivial | The rule D7 of the plan of #230 (same `TryAddEnumerable` convention) |
+| C11 | The selector and the wrapper are immutable after construction and resolve no scoped service, so they are safe in the singleton orchestrator of two providers | Settled | AGENTS.md section 3 (never a scoped dependency in a singleton; `ValidateScopes`) |
+| C12 | The wrapper registers with `TryAddEnumerable` so registering the same scoped validator twice runs it once | Trivial | The rule D7 of the plan of #230 (same `TryAddEnumerable` convention) |
 
 ---
 
@@ -143,7 +168,7 @@ An application that registers nothing behaves exactly as before.
 
 1. **Create** `src/Encina/Validation/Scoping/ValidationScope.cs`: `public readonly record struct ValidationScope(string? TenantId, string? ModuleId)` with `static ValidationScope Global`, `bool IsGlobal`, and `static ValidationScope From(IRequestContext context)` (blank values and the tenant `default` become null; the module comes from `context.GetModuleName()`); `From` rejects a null context with `ArgumentNullException`.
 2. **Create** `src/Encina/Validation/Scoping/ValidationScopeKey.cs`: `public static class ValidationScopeKey { public static Either<EncinaError, string> Create(string? tenantId, string? moduleId, string key); }` (register rows C7 and C8).
-3. **Create** `src/Encina/Validation/Scoping/ValidationScopeErrors.cs`: the three codes and their `EncinaError` factories with explicit categories (register row C8), constant messages.
+3. **Create** `src/Encina/Validation/Scoping/ValidationScopeErrors.cs`: the three codes and their `EncinaError` factories with explicit categories (`Validation`, `Validation`, `AlreadyExists`; register row C8), constant messages.
 4. **Modify** `src/Encina/PublicAPI.Unshipped.txt` (`mechanical-fixer`).
 5. **Tests**: new `tests/Encina.UnitTests/Validation/Scoping/ValidationScopeTests.cs` and `ValidationScopeKeyTests.cs` (blank and `default` tenants, the exact key format, the error categories); new `tests/Encina.GuardTests/Core/Validation/ValidationScopeGuardTests.cs` (null context, null or blank key, a null tenant or module accepted as a valid result); new `tests/Encina.PropertyTests/Validation/ValidationScopeKeyPropertyTests.cs` (FsCheck: for any two different (tenant, module, key) triples the keys differ, including tenants and keys that contain `:`, `\|` and digits).
 6. **Manifest** `.github/coverage-manifest/Encina.json` through `mechanical-fixer`.
@@ -156,7 +181,7 @@ An application that registers nothing behaves exactly as before.
 ```text
 CONTEXT: Encina (.NET 10, C# 14). Issue #3981: tenant- and module-scoped validation resources. Core validation lives in src/Encina/Validation. This phase has no dependency on other plans.
 TASK: Add ValidationScope, ValidationScopeKey and ValidationScopeErrors in src/Encina/Validation/Scoping, with unit, guard and property tests.
-KEY RULES: The key is injective (length-prefixed segments, a single marker for absent) and the tenant "default" is reserved (ordinal, ignoring case): Create returns a Left with an explicit ErrorCategory (InvalidRequest for blank or reserved, Internal for a conflict), never an exception for business input. A context tenant "default" or blank means no tenant. Constant error messages: no tenant or module id in a message. Update PublicAPI.Unshipped.txt and the manifest through mechanical-fixer.
+KEY RULES: The key is injective (length-prefixed segments, a single marker for absent) and the tenant "default" is reserved (ordinal, ignoring case): Create returns a Left with an explicit ErrorCategory (Validation for blank or reserved, AlreadyExists for a conflict), never an exception for business input. A context tenant "default" or blank means no tenant. Constant error messages: no tenant or module id in a message. Update PublicAPI.Unshipped.txt and the manifest through mechanical-fixer.
 REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs, src/Encina/Modules/RequestContextModuleExtensions.cs, src/Encina/Errors/ErrorCategory.cs, docs/architecture/adr/062-error-category-contract.md, tests/Encina.PropertyTests (an existing FsCheck test for the style).
 ```
 
@@ -167,9 +192,9 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs, src/Encina/Modules/
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina/Validation/Scoping/ValidationScopeSelector.cs`: `public sealed class ValidationScopeSelector<TChoice>` built by `ValidationScopeSelectorBuilder<TChoice>` (`Add(string? tenantId, string? moduleId, TChoice choice)` returns `Either<EncinaError, ValidationScopeSelectorBuilder<TChoice>>`; a duplicate scope is `validation.scope_conflict`; `Build(TChoice global)` freezes into a `FrozenDictionary<string, TChoice>`); `ValidationSelection<TChoice> Select(ValidationScope scope)` returns the global choice and the most specific scoped one (register rows C6 and Design Choice 4); nothing is cached and nothing is allocated for a global scope.
+1. **Create** `src/Encina/Validation/Scoping/ValidationScopeSelector.cs`: `public sealed class ValidationScopeSelector<TChoice>`, built by `ValidationScopeSelectorBuilder<TChoice>` and returning `ValidationSelection<TChoice>` (both public, declared in this same file, so the file counts hold) (`Add(string? tenantId, string? moduleId, TChoice choice)` returns `Either<EncinaError, ValidationScopeSelectorBuilder<TChoice>>`; a duplicate scope is `validation.scope_conflict`; `Build(TChoice global)` freezes into a `FrozenDictionary<string, TChoice>`); `ValidationSelection<TChoice> Select(ValidationScope scope)` returns the global choice and the most specific scoped one (register row C6 and Design Choice 4); nothing is cached and nothing is allocated for a global scope.
 2. **Create** `src/Encina/Validation/Scoping/ValidationScopingOptions.cs` (the entry list that the consumers extend with their own methods; validated at startup by `IValidateOptions`: no reserved tenant, no conflict) and `ValidationScopingServiceCollectionExtensions.cs`: `AddEncinaValidationScoping(this IServiceCollection services, Action<ValidationScopingOptions>? configure = null)` registers the options and `ValidateOnStart` with `TryAdd*`.
-3. **Create** `src/Encina/Validation/Scoping/Diagnostics/ValidationScopingLog.cs`: `internal static partial class`, `[LoggerMessage]` 12350 (Error: reserved tenant in a registration, code only), 12351 (Debug: a scoped choice selected, the kind of scope, no ids), 12352 (Debug: global fallback), 12353 (Error: registration conflict, code only).
+3. **Create** `src/Encina/Validation/Scoping/Diagnostics/ValidationScopingLog.cs`: `internal static partial class`, `[LoggerMessage]` 12350 (Error: reserved tenant in a registration, code only) and 12351 (Error: registration conflict, code only), both logged by the options validator at startup and reached by the registration test. The selector is a frozen type with no logger; the two per-request Debug ids, 12352 (a scoped choice selected, the kind of scope, no ids) and 12353 (global fallback), are added to this class in S3 and logged by its consumers (the culture resolver and the localizer decorators, which receive an `ILogger`), so they are reached by the S3 tests.
 4. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs`: `ValidationScoping = (12350, 12399)` (the first free 50-id slot after `ValidationAudit` 12300-12349 of the plan of #3978, #340's 12200-12249 and the process-manager family's 12250-12299); `src/Encina/PublicAPI.Unshipped.txt`, `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the `Encina` entry) and `docs/engineering/eventid-block-registry.md` (a `reserved` and a `zone` row) follow, mechanical.
 5. **Tests**: new `tests/Encina.UnitTests/Validation/Scoping/ValidationScopeSelectorTests.cs` (precedence, global only, missing context, conflict, a scoped choice never replaces the global one in the selection); new `tests/Encina.UnitTests/Validation/Scoping/ValidationScopingRegistrationTests.cs` (the container builds with `ValidateOnBuild` and `ValidateScopes` in both registration orders; an invalid option fails at startup); new `tests/Encina.GuardTests/Core/Validation/ValidationScopeSelectorGuardTests.cs`.
 6. **Manifest** `.github/coverage-manifest/Encina.json` through `mechanical-fixer`.
@@ -181,7 +206,7 @@ REFERENCE FILES: src/Encina/Abstractions/IRequestContext.cs, src/Encina/Modules/
 
 ```text
 CONTEXT: Encina issue #3981, phase 2 (after phase 1 merged). The selector is a frozen lookup the consumers share; it runs inside a singleton orchestrator.
-TASK: Add ValidationScopeSelector<TChoice> and its builder, ValidationScopingOptions with a startup validator, AddEncinaValidationScoping, the log class (12350-12353) and register EventIdRanges.ValidationScoping (12350, 12399).
+TASK: Add ValidationScopeSelector<TChoice> and its builder, ValidationScopingOptions with a startup validator, AddEncinaValidationScoping, the log class (12350 and 12351 now; 12352 and 12353 arrive with S3) and register EventIdRanges.ValidationScoping (12350, 12399).
 KEY RULES: Select always returns the global choice plus the most specific scoped one; a missing or reserved-tenant context returns global only. No scoped service anywhere. Register the EventId range first, map the assembly in EncinaEventIdAllocationTests, add PublicAPI and registry rows, pack the ids with no gaps. Logs carry codes and counts, never a tenant or module id. TryAdd registrations; prove them with a ValidateOnBuild and ValidateScopes test in both orders.
 REFERENCE FILES: src/Encina/Validation/Scoping/ (phase 1), src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/eventid-block-registry.md, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs.
 ```
@@ -193,9 +218,11 @@ REFERENCE FILES: src/Encina/Validation/Scoping/ (phase 1), src/Encina/Diagnostic
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **S2 create** `src/Encina/Validation/Scoping/ScopedRequestValidator.cs`: `public sealed class ScopedRequestValidator<TRequest> : IRequestValidator<TRequest>`, constructor `(IRequestValidator<TRequest> inner, ValidationScope scope)`; `ValidateAsync` returns `ValidationResult.Success` when the context scope does not match (tenant equal, ordinal, or the registered tenant is null; module likewise) and the inner result otherwise (register row C6: it only adds rules).
-2. **S2 create** `src/Encina/Validation/Scoping/RequestValidatorScopeExtensions.cs`: `AddRequestValidator<TRequest, TValidator>(this IServiceCollection, ValidationScope scope, ServiceLifetime lifetime = ServiceLifetime.Scoped)` with `TryAddEnumerable` (register row C12); `PublicAPI.Unshipped.txt` and the manifest through `mechanical-fixer`.
-3. **S2 tests**: new unit tests of the filter, a guard test, and a contract test (the three real providers with `AddEncinaRequestValidators`: the same scoped validator applies for tenant A and not for tenant B, under each provider), plus an integration test through `IEncina.Send` (two tenants and one module, no container).
+This phase defines no selection mechanism: the decision "does this validator run for this request" is `ValidatorScopeSelector` of #3982, called by the runner of #230. This phase adds only a registration-time wrapper, so an existing validator (a FluentValidation one, a schema validator) can be scoped by registration without implementing `IScopedRequestValidator<T>` itself.
+
+1. **S2 create** `src/Encina/Validation/Scoping/ScopedRequestValidator.cs`: `public sealed class ScopedRequestValidator<TRequest> : IScopedRequestValidator<TRequest>` (the interface is owned by #3982), constructor `(IRequestValidator<TRequest> inner, ValidationScope scope)`; `ScopeKinds` is `Tenant` and/or `Module` according to the non-null members of `scope`; `AppliesTo(ValidatorScope)` compares with `ValidatorScope.IsTenant` and `IsModule` (ordinal; #3982); `ValidateAsync` delegates to `inner`. The skip or run decision, including `RunScopeMissing` (a context that lacks a declared tenant or module runs the validator, so a missing context never skips a rule), belongs to `ValidatorScopeSelector`; the wrapper does not repeat it.
+2. **S2 create** `src/Encina/Validation/Scoping/RequestValidatorScopeExtensions.cs`: `AddRequestValidator<TRequest, TValidator>(this IServiceCollection, ValidationScope scope, ServiceLifetime lifetime = ServiceLifetime.Scoped)` with `TryAddEnumerable` (register row C12); it calls no registration of the selector, because `AddEncinaRequestValidators` of #230 already calls `AddEncinaValidatorScoping()` of #3982; `PublicAPI.Unshipped.txt` and the manifest through `mechanical-fixer`.
+3. **S2 tests**: unit tests of the wrapper, a guard test, and an integration test through `IEncina.Send` (two tenants and one module, no container) with a registration `ValidateOnBuild` and `ValidateScopes` check. The three-provider contract test of the selection itself is #3982's (Phase 3 there); this plan adds none for validators.
 4. **S4 modify** `src/Encina.Validation.Schema/SchemaServiceCollectionExtensions.cs` (from #235): `AddEncinaSchema<TRequest>(this IServiceCollection, ISchema<TRequest> schema, ValidationScope scope)` registers the schema validator wrapped in `ScopedRequestValidator<TRequest>`; PublicAPI, the manifest `Encina.Validation.Schema.json` and unit and guard tests in the same pull request.
 
 </details>
@@ -204,10 +231,10 @@ REFERENCE FILES: src/Encina/Validation/Scoping/ (phase 1), src/Encina/Diagnostic
 <summary><strong>Prompt for AI Agents — Phase 3</strong></summary>
 
 ```text
-CONTEXT: Encina issue #3981, phase 3. Needs IRequestValidator<T> and RequestValidatorRunner from #230 (S2) and AddEncinaSchema from #235 (S4); phases 1 and 2 are merged.
-TASK: Add ScopedRequestValidator<TRequest>, the scoped AddRequestValidator overload and the scoped AddEncinaSchema overload, with unit, guard, contract and integration tests.
-KEY RULES: A scoped validator only adds rules: when the scope does not match it returns Success and the global validators run unchanged. Match tenants ordinally; a context with no tenant never matches a tenant-scoped registration. TryAddEnumerable. Singleton-safe (no scoped service held by the wrapper). The contract test runs the same request under FluentValidation, DataAnnotations and MiniValidator.
-REFERENCE FILES: docs/plans for #230 and #235 (by issue number), src/Encina/Validation/Scoping/ (phases 1 and 2), tests/Encina.ContractTests/Core/Validation/ValidationPipelineBehaviorContractTests.cs.
+CONTEXT: Encina issue #3981, phase 3. Needs IRequestValidator<T> and RequestValidatorRunner from #230 (S2), IScopedRequestValidator<T>, ValidatorScope and ValidatorScopeSelector from #3982 S1 (S2 and S4), and AddEncinaSchema from #235 (S4); phases 1 and 2 are merged. Re-read the plans of #3982 and #230 and verify their types on main first.
+TASK: Add ScopedRequestValidator<TRequest> (an IScopedRequestValidator<TRequest> wrapper), the scoped AddRequestValidator overload and the scoped AddEncinaSchema overload, with unit, guard and integration tests.
+KEY RULES: Do NOT define a second selector, scope-kind or applicability interface: #3982 owns them. The wrapper reports ScopeKinds and AppliesTo; the selector decides (a declared dimension missing from the context runs the validator). Match tenants ordinally. TryAddEnumerable. Singleton-safe (no scoped service held by the wrapper).
+REFERENCE FILES: docs/plans for #230, #235 and #3982 (by issue number), src/Encina/Validation/Scoping/ (phases 1 and 2).
 ```
 
 </details>
@@ -220,7 +247,8 @@ REFERENCE FILES: docs/plans for #230 and #235 (by issue number), src/Encina/Vali
 1. **Create** `src/Encina/Validation/Scoping/ScopedValidationCultureResolver.cs`: `internal sealed class ScopedValidationCultureResolver : IValidationCultureResolver`, constructor `(ValidationScopeSelector<string> cultures, IValidationCultureResolver ambient)`; `Resolve(IRequestContext)` returns the matching tenant culture name resolved through the `SupportedCultures` matching of #233 (a name outside the allow-list is never turned into a `CultureInfo`) or the ambient result.
 2. **Create** `src/Encina/Validation/Scoping/ScopedValidationMessageLocalizer.cs`: `internal sealed class ScopedValidationMessageLocalizer : IValidationMessageLocalizer`, constructor `(ValidationScopeSelector<IValidationMessageLocalizer> modules, IValidationMessageLocalizer global)`; a module localizer is asked first and the global one answers a key the module does not define.
 3. **Create** `src/Encina/Validation/Scoping/ValidationScopingCultureExtensions.cs`: `UseTenantCulture(this ValidationScopingOptions options, string tenantId, string cultureName)` and `UseModuleResources(this ValidationScopingOptions options, string moduleId, Type resourceType)`; the registration decorates the #233 services with `TryAdd*` ordering that keeps an application replacement.
-4. **Tests**: unit tests of both decorators, a guard test, and an integration test in a non-default culture under the three providers (the culture scope of #233 makes the native localization follow the tenant culture); PublicAPI and the manifest through `mechanical-fixer`.
+4. **Modify** `src/Encina/Validation/Scoping/Diagnostics/ValidationScopingLog.cs` (S1b): add 12352 (Debug: a scoped choice selected) and 12353 (Debug: global fallback); both decorators receive an `ILogger` and call them (register row C9: kind of scope only, no ids).
+5. **Tests**: unit tests of both decorators, a guard test, and an integration test in a non-default culture under the three providers (the culture scope of #233 makes the native localization follow the tenant culture); PublicAPI and the manifest through `mechanical-fixer`.
 
 </details>
 
@@ -280,7 +308,8 @@ REFERENCE FILES: docs/features/audit-tracking.md, changelog.d/README.md, docs/ar
 | `IRequestContext.TenantId` | `src/Encina/Abstractions/IRequestContext.cs:125` | The tenant of the scope |
 | `RequestContextModuleExtensions` | `src/Encina/Modules/RequestContextModuleExtensions.cs` | The module of the scope today |
 | `ValidationOrchestrator`, `IValidationProvider` | `src/Encina/Validation/` | Where the culture scope and the validators run (singleton or scoped) |
-| `IRequestValidator<T>`, `RequestValidatorRunner` | #230 (planned) | The filter wraps these |
+| `IRequestValidator<T>`, `RequestValidatorRunner` | #230 (planned) | The wrapper wraps these |
+| `IScopedRequestValidator<T>`, `ValidatorScope`, `ValidatorScopeSelector`, `AddEncinaValidatorScoping()` | #3982 (planned) | The wrapper implements and the runner uses them |
 | `IValidationCultureResolver`, `IValidationMessageLocalizer` | #233 (planned) | The decorators wrap these |
 | `AddEncinaSchema<TRequest>` | #235 (planned) | The scoped overload |
 | `TenantTelemetry.ValueFor` | #2676 (planned) | The tenant tag, used by #726 |
@@ -295,13 +324,13 @@ REFERENCE FILES: docs/features/audit-tracking.md, changelog.d/README.md, docs/ar
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| S1a (scope, key, errors) | 9 (3 production, `PublicAPI.Unshipped.txt`, manifest, 4 tests) | Targets: `ValidationScope.cs` unit 95 guard 90 property 0 (one factory and a null check; no parameter that FsCheck adds anything to); `ValidationScopeKey.cs` unit 100 guard 90 property 90 (every branch plus the injectivity property); `ValidationScopeErrors.cs` unit 100 guard 0 (constant factories, no validated parameter) |
-| S1b (selector, options, log) | 12 (4 production, 4 registration and registry files, manifest, 3 tests: selector unit, registration unit, guard) | Targets: `ValidationScopeSelector.cs` unit 100 guard 90; `ValidationScopingOptions.cs` unit 95 guard 85; `ValidationScopingServiceCollectionExtensions.cs` unit 95 guard 85; `ValidationScopingLog.cs` unit 90 guard 0 (generated bodies reached through the selector tests) |
-| S2 (validators, after #230) | 8 (2 production, PublicAPI, manifest, unit, guard, contract, integration) | `ScopedRequestValidator.cs` unit 100 guard 90 contract 80 integration 80; `RequestValidatorScopeExtensions.cs` unit 95 guard 90 |
-| S3 (culture and resources, after #233) | 9 (3 production, PublicAPI, manifest, unit x2, guard, integration) | `ScopedValidationCultureResolver.cs` unit 95 guard 0 (internal, constructor arguments validated in the registration test); `ScopedValidationMessageLocalizer.cs` unit 95 guard 0; `ValidationScopingCultureExtensions.cs` unit 95 guard 90 |
-| S4 (schemas, after #235) | 5 (1 production edit, PublicAPI, manifest, unit, guard) | `SchemaServiceCollectionExtensions.cs` keeps its own targets, raised to unit 95 guard 90 |
+| S1a (scope, key, errors) | 9 (3 production, `PublicAPI.Unshipped.txt`, manifest, 4 tests) | Guard targets are set from what a guard test can reach: argument checks and the `Left` returns for blank input (the whole file is the coverable base, so a file with one check cannot reach 90). Basis: `Validation/ValidationOrchestrator.cs` in `.github/coverage-manifest/Encina.json` has guard 84 with real null checks on two public methods; these files have fewer. Re-measure with the commands of `AGENTS.md` section 9 when S1a opens and set the measured value if lower. Targets: `ValidationScope.cs` unit 95 guard 50 property 0 (one factory and a null check; FsCheck adds nothing); `ValidationScopeKey.cs` unit 100 guard 40 property 90 (every branch plus the injectivity property; guard reaches only the blank-input returns); `ValidationScopeErrors.cs` unit 100 guard 0 (constant factories, no validated parameter) |
+| S1b (selector, options, log) | 12 (4 production, 4 registration and registry files, manifest, 3 tests: selector unit, registration unit, guard) | Targets: `ValidationScopeSelector.cs` (selector, builder and selection) unit 100 guard 50 (the builder's null and blank checks); `ValidationScopingOptions.cs` unit 95 guard 40; `ValidationScopingServiceCollectionExtensions.cs` unit 95 guard 60 (null `services`); `ValidationScopingLog.cs` unit 90 guard 0 (generated bodies for 12350 and 12351, reached through the registration test) |
+| S2 (validators, after #230 and #3982 S1) | 6 (2 production, PublicAPI, manifest, unit, guard, integration; the contract test belongs to #3982) | `ScopedRequestValidator.cs` unit 100 guard 60 integration 80; `RequestValidatorScopeExtensions.cs` unit 95 guard 60 |
+| S3 (culture and resources, after #233) | 10 (3 production, 1 log edit, PublicAPI, manifest, unit x2, guard, integration) | `ScopedValidationCultureResolver.cs` unit 95 guard 0 (internal, constructor arguments validated in the registration test); `ScopedValidationMessageLocalizer.cs` unit 95 guard 0; `ValidationScopingCultureExtensions.cs` unit 95 guard 60; `ValidationScopingLog.cs` (12352 and 12353) unit 95 |
+| S4 (schemas, after #235 and #3982 S1) | 5 (1 production edit, PublicAPI, manifest, unit, guard) | `SchemaServiceCollectionExtensions.cs` keeps its own targets, raised to unit 95 guard 60 |
 | S5 (documentation) | 4 (feature page, ADR, `INVENTORY.md`, changelog fragment) | Documentation phase |
-| Total | 47 files over six pull requests (9, 12, 8, 9, 5, 4) | At most 15 files and 900 lines each |
+| Total | 46 files over six pull requests (9, 12, 6, 10, 5, 4) | At most 15 files and 900 lines each |
 
 ---
 
@@ -312,9 +341,9 @@ REFERENCE FILES: docs/features/audit-tracking.md, changelog.d/README.md, docs/ar
 
 ```text
 PROJECT CONTEXT: Encina (.NET 10, C# 14, pre-1.0). Issue #3981: tenant- and module-scoped validation resources, to be built after #230 (IRequestValidator<T>), #233 (localization) and #235 (schemas) exist. The three validation providers share one ValidationOrchestrator, a singleton under DataAnnotations and MiniValidator and scoped under FluentValidation.
-IMPLEMENTATION OVERVIEW: (1) Core primitives in src/Encina/Validation/Scoping: ValidationScope, ValidationScopeKey (injective, "default" reserved), ValidationScopeErrors, ValidationScopeSelector<TChoice> and its builder, options, AddEncinaValidationScoping, log 12350-12353 in the new range ValidationScoping (12350, 12399). (2) ScopedRequestValidator<TRequest> and scoped AddRequestValidator and AddEncinaSchema overloads. (3) ScopedValidationCultureResolver and ScopedValidationMessageLocalizer. (4) Contract, integration and property tests; documentation and ADR.
+IMPLEMENTATION OVERVIEW: (1) Core primitives in src/Encina/Validation/Scoping: ValidationScope, ValidationScopeKey (injective, "default" reserved), ValidationScopeErrors, ValidationScopeSelector<TChoice> and its builder, options, AddEncinaValidationScoping, log 12350-12353 in the new range ValidationScoping (12350, 12399). (2) ScopedRequestValidator<TRequest> (a wrapper implementing IScopedRequestValidator<T> of #3982) and scoped AddRequestValidator and AddEncinaSchema overloads; never redefine ValidatorScope, ValidatorScopeKinds, ValidatorScopeSelector or AddEncinaValidatorScoping, which #3982 owns. (3) ScopedValidationCultureResolver and ScopedValidationMessageLocalizer. (4) Contract, integration and property tests; documentation and ADR.
 KEY PATTERNS: The selection always carries the global choice; a scoped validator only adds rules; a missing or reserved tenant selects global and skips nothing. Keys are length-prefixed and injective. Frozen at startup, thread-safe, no scoped dependency. Error codes validation.scope_* with explicit ErrorCategory. Logs carry codes and counts, never a tenant or module id. TryAdd registrations proven with ValidateOnBuild and ValidateScopes. Design Choices 1 to 4 are Dilemmas recommended and pending the maintainer: shared primitives, additive scopes, startup configuration, most-specific-first precedence.
-REFERENCE FILES: src/Encina/Validation/ValidationOrchestrator.cs, src/Encina/Abstractions/IRequestContext.cs, src/Encina/Modules/RequestContextModuleExtensions.cs, src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/eventid-block-registry.md, the plans of #230, #233, #235 and #236 (by issue number).
+REFERENCE FILES: src/Encina/Validation/ValidationOrchestrator.cs, src/Encina/Abstractions/IRequestContext.cs, src/Encina/Modules/RequestContextModuleExtensions.cs, src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/eventid-block-registry.md, the plans of #230, #233, #235, #236 and #3982 (by issue number).
 ```
 
 </details>
@@ -327,7 +356,7 @@ REFERENCE FILES: src/Encina/Validation/ValidationOrchestrator.cs, src/Encina/Abs
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Selection is an in-memory lookup in a frozen registry; cache only if a benchmark shows a cost. |
 | 2 | OpenTelemetry | ⏭️ | #726 instruments the orchestrator centrally; the selection result becomes an attribute there, and the tenant tag comes from the helper of #2676 (ADR-054 D4). |
-| 3 | Structured Logging | ✅ | Four `[LoggerMessage]` ids in the new core range `ValidationScoping` (12350-12399): reserved tenant rejected at registration, scoped choice selected, global fallback used, registration conflict; counts and codes only. |
+| 3 | Structured Logging | ✅ | Four `[LoggerMessage]` ids in the new core range `ValidationScoping` (12350-12399): reserved tenant rejected at registration (12350), registration conflict (12351), scoped choice selected (12352) and global fallback used (12353, the last two added in S3 and logged by the decorators); counts and codes only. |
 | 4 | Health Checks | ❌ | In-process configuration, no checkable dependency. |
 | 5 | Validation | ✅ | This is a validation feature in core `Encina.Validation`, consumed by the three providers. |
 | 6 | Resilience | ❌ | No external call. |
@@ -345,9 +374,11 @@ REFERENCE FILES: src/Encina/Validation/ValidationOrchestrator.cs, src/Encina/Abs
 | Item | Kind | Why |
 |------|------|-----|
 | None for S1a and S1b | - | The primitives stand alone and can ship first |
-| #230 (`IRequestValidator<T>`, runner) | Hard for S2 | The filter wraps its validators |
+| #3982 S1 (`ValidatorScope`, `IScopedRequestValidator<T>`, `ValidatorScopeSelector`, `AddEncinaValidatorScoping()`) | Hard for S2 and S4 | The wrapper implements its interface; the selection is its selector. Order: #3982 S1, then S2 and S4 (#4000 also consumes #3982 and is independent of this plan) |
+| #230 (`IRequestValidator<T>`, runner) | Hard for S2 | The wrapper wraps its validators |
 | #233 (resolver, localizer, `SupportedCultures`) | Hard for S3 | The decorators wrap its services |
 | #235 (`AddEncinaSchema`) | Hard for S4 | The scoped overload |
+| #1257 (Dilemma DC2, reserved `default` tenant) | Soft | Register row C7b follows it |
 | #2442 (`IRequestContext.ModuleId`) | Soft | `GetModuleName()` works today; the typed member replaces it later |
 | #2676, #726 | Soft | The tenant tag and the central instrumentation |
 
@@ -355,6 +386,6 @@ REFERENCE FILES: src/Encina/Validation/ValidationOrchestrator.cs, src/Encina/Abs
 
 ## Next Steps
 
-1. Open S1a, then S1b; S2, S3 and S4 open as their prerequisites merge, in any order; S5 last.
+1. Open S1a, then S1b; S2, S3 and S4 open as their prerequisites merge (S2 and S4 need #3982 S1), in any order; S5 last. Before S2 starts, re-read the merged plans of #3982 and #230 and reconcile any type that changed.
 2. Tenant-scoped configuration read from a store at request time (Design Choice 3, option B) is a follow-on that reuses the key and the selector: a cache of the lookup and its invalidation are designed in that work, which starts only when an application needs tenants that change at runtime.
 3. Tenant-specific phase 2 rules stay application code in the handler (the domain rules of #236); no hook is planned.
