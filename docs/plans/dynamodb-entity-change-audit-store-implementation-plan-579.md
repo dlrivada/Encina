@@ -11,7 +11,7 @@
 
 Implement the entity-change audit store (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036) on Amazon DynamoDB as `EntityChangeAuditStoreDynamoDB`: serverless history of "what did this entity look like before and after each change", queried by entity with consistent reads. The store is built on the **ADR-036 contract** (`Either` results, `TimeProvider`, `TenantId`, `ModuleId`, `PurgeEntriesAsync`, `ChangedAtUtc` as `DateTimeOffset`, the writer's redaction hook), not on the samples of the issue, which use `DynamoDBContext.SaveAsync` (an upsert that silently overwrites), read the history through a GSI (eventually consistent, so a just-written entry can be missing), sort in memory and key the GSI by a concatenated `EntityType#EntityId` that is not injective.
 
-What the code looks like today (main `ce352001f`):
+What the code looks like today (origin/main `1dee4ba61`, re-checked for this revision; the plan branch was cut from `039cd3524`):
 
 - `IAuditLogStore` lives in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs`; `AuditLogEntry` (`Id`, `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc` as `DateTime`, `OldValues`, `NewValues`, `CorrelationId`) and `InMemoryAuditLogStore` sit next to it. ADR-036 renames and reshapes all of it; that work is **#1778, open**.
 - `Directory.Packages.props` pins `AWSSDK.SQS`, `AWSSDK.SimpleNotificationService`, `AWSSDK.SecretsManager`, `AWSSDK.KeyManagementService` (AWSSDK 4 line) and `Testcontainers.LocalStack` 4.15.0, but **not** `AWSSDK.DynamoDBv2` (latest stable on NuGet at the time of writing: 4.1.0.3, Apache-2.0). The #589 (DynamoDB dead letters) and #210 (DynamoDB lock) plans also add it; whichever lands first adds the line.
@@ -63,8 +63,9 @@ What the code looks like today (main `ce352001f`):
 ### Rationale
 
 - The database providers answer history read-your-writes; A keeps that on DynamoDB. B wins when user-activity queries matter more than consistent entity history (a `UserIndex` GSI can be added later without changing A); C wins for small tables.
+- **How each option finds one tenant's items older than its cutoff** (the per-tenant purge of Design Choice 3): A queries `RetentionIndex` on the tenant's day partitions before the cutoff; B needs a tenant-and-time GSI added to the issue's schema; C scans with a filter on the tenant and `changedAtUtc`.
 - **Key encoding (rule).** Each segment is written as `{length}:{value}` so the key is injective (`A#B` + `C` never equals `A` + `B#C`); a key over 2048 bytes (partition key limit) is a `Left` (`Validation`).
-- **Tenant segment (rule).** With tenancy on, the entry's `TenantId` is the first segment; the reserved segment `default` marks tenant-less entries, written only when tenancy is off; a real tenant `default` is rejected on write (`InvalidRequest`, ADR-062 R3); with tenancy on and no tenant resolved, write, read and purge deny (`InvalidRequest`; `AGENTS.md` section 3), never falling back to `default`. Cross-tenant purge needs an explicit, logged opt-in and is denied by default (`Forbidden`, R6).
+- **Tenant segment (rule).** With tenancy on, the entry's `TenantId` is the first segment; the reserved segment `default` marks tenant-less entries, written only when tenancy is off; a real tenant `default` is rejected on write (`InvalidRequest`, ADR-062 R3); with tenancy on and no tenant resolved, write and history read deny (`InvalidRequest`; `AGENTS.md` section 3), never falling back to `default`. The purge is not bound to the ambient tenant and has no cross-tenant opt-in: it receives the tenant explicitly from the retention service (Design Choice 3, #4182).
 
 </details>
 
@@ -77,15 +78,16 @@ What the code looks like today (main `ce352001f`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `PurgeEntriesAsync` (ADR-036 retention service) is authoritative; an opt-in `TtlBackstop` writes an `expiresAtEpoch` attribute = `ChangedAtUtc` + retention + `TtlBackstopMargin` and enables TTL on table creation** | The contract's per-tenant, counted purge stays the mechanism; TTL bounds cost if the service stops; meets the acceptance criterion as an option | Two mechanisms to explain; TTL deletes happen hours to days after expiry and are not logged by Encina |
-| **B) TTL only; `PurgeEntriesAsync` deletes nothing and returns 0** | No delete cost | Not per tenant; deletion is not an audited act; breaks provider coherence (`AGENTS.md` section 5) |
+| **A) A per-tenant `PurgeEntriesAsync` is authoritative: the ADR-036 `EntityChangeAuditRetentionService` runs in a tenant-less scope, enumerates `ITenantStore.GetAllTenantsAsync` and calls the purge once per tenant with that tenant's cutoff (#4182); an opt-in `TtlBackstop` also writes an `expiresAtEpoch` attribute = `ChangedAtUtc` + the writing tenant's retention + `TtlBackstopMargin` and enables TTL on table creation** | The contract's per-tenant, counted purge stays the mechanism; TTL bounds cost if the service stops; meets the acceptance criterion as an option | Two mechanisms to explain; TTL deletes happen hours to days after expiry and are not logged by Encina; a later change of a tenant's policy does not move expiries already written |
+| **B) TTL only; `PurgeEntriesAsync` deletes nothing and returns 0** | No delete cost | Deletion is not an audited, counted act; a policy change never reaches existing items; breaks provider coherence (`AGENTS.md` section 5) |
 | **C) Purge only; no TTL** | One mechanism | Drops an acceptance criterion of the issue |
 
 ### Chosen Option: **A — purge authoritative, TTL as an opt-in backstop** (recommended, pending the maintainer)
 
 ### Rationale
 
-- ADR-036 decision 1 requires `PurgeEntriesAsync` whatever TTL does. A wins over B because per-tenant retention (SPEC-002 REQ-007) needs the purge; C wins when the maintainer prefers one mechanism and drops the criterion. The default `TtlBackstop = false`, so nothing expires behind the contract's back unless opted in (pay-for-what-you-use).
+- ADR-036 decision 1 requires `PurgeEntriesAsync` whatever TTL does. A wins over B because per-tenant retention (SPEC-002 REQ-007, #4182) needs a purge that follows each tenant's current policy; C wins when the maintainer prefers one mechanism and drops the criterion. The default `TtlBackstop = false`, so nothing expires behind the contract's back unless opted in (pay-for-what-you-use).
+- Under every option the purge receives its tenant explicitly (signature from #4182 and #1778), never reads the ambient tenant, and has no cross-tenant opt-in; a call without a tenant while tenancy is on is a `Left` (`InvalidRequest`).
 
 </details>
 
@@ -167,7 +169,7 @@ What the code looks like today (main `ce352001f`):
 
 ### Rationale
 
-- B cannot express the conditional create that section 3 needs (no silent overwrite), and the old `IAuditLogStore` shape is removed by ADR-036 decision 7. Every `EncinaErrors.Create` passes a named `category:` and a constant message; only the AWS error code and HTTP status reach errors and logs, never `AmazonServiceException.Message`.
+- B cannot express the conditional create that section 3 needs (no silent overwrite), and the old `IAuditLogStore` shape is removed by ADR-036 decision 7. The issue's criterion "`AuditLogDynamoItem` with GSI annotations" belongs to the object persistence model B excludes; it is met by the hand-written item mapper (Phase 1) and the GSI definition of the table initializer (Phase 2). Every `EncinaErrors.Create` passes a named `category:` and a constant message; only the AWS error code and HTTP status reach errors and logs, never `AmazonServiceException.Message`.
 
 </details>
 
@@ -181,7 +183,7 @@ What the code looks like today (main `ce352001f`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `PutItem` with `attribute_not_exists(PK)`; on `ConditionalCheckFailedException` compare the returned item's `payloadHash`: identical is success, different is `Left` (`AlreadyExists`)** | Safe retries; collisions and edits never silent; no extra read (the old item comes back with the failure) | None material |
+| **A) `PutItem` with `attribute_not_exists(<the table's partition key>)` (the item's own key under every layout of Design Choice 2); on `ConditionalCheckFailedException` compare the returned item's `payloadHash`: identical is success, different is `Left` (`AlreadyExists`)** | Safe retries; collisions and edits never silent; no extra read (the old item comes back with the failure) | None material |
 | **B) Unconditional `PutItem`** | Simplest | Overwrites an audit entry |
 | **C) Treat every conditional failure as success** | No compare | Loses an entry on a collision |
 
@@ -203,7 +205,7 @@ What the code looks like today (main `ce352001f`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No per-subject delete; items never updated; removal through `PurgeEntriesAsync` (and the opt-in TTL backstop of Design Choice 3); minimisation by the writer's redaction hook** | Matches the audit erasure decision | An exceptional per-person deletion needs a separate capability (Marten counterpart: #2903) |
+| **A) No per-subject delete; items never updated; removal only by retention (the per-tenant `PurgeEntriesAsync`, plus TTL where Design Choice 3 enables it); minimisation by the writer's redaction hook** | Matches the audit erasure decision | An exceptional per-person deletion needs a separate capability (Marten counterpart: #2903) |
 | **B) A per-subject delete method** | Answers erasure directly | Contradicts path C as the default |
 
 ### Chosen Option: **A — retention only, no per-subject delete**
@@ -223,9 +225,9 @@ What the code looks like today (main `ce352001f`):
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.AmazonDynamoDB/Encina.AmazonDynamoDB.csproj` (name per Design Choice 1; `AWSSDK.DynamoDBv2` at the AWSSDK 4 line, `Encina.Security.Audit`, PublicAPI analyzers, XML docs, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.GuardTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.ContractTests`); `Encina.slnx` row; PublicAPI x2; `Directory.Packages.props` line unless #589 or #210 added it.
+1. `src/Encina.AmazonDynamoDB/Encina.AmazonDynamoDB.csproj` (name per Design Choice 1; `AWSSDK.DynamoDBv2` at the AWSSDK 4 line, `Encina.Security.Audit`, PublicAPI analyzers, XML docs, `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.ContractTests`, not `Encina.GuardTests`, so the guard target of 0 for internal types stays valid); `Encina.slnx` row; PublicAPI x2; `Directory.Packages.props` line unless #589 or #210 added it.
 2. `EncinaAmazonDynamoDBOptions` (public, sealed): `Region`, `ServiceUrl`; `ToString()` safe.
-3. `EntityChangeAudit/EntityChangeAuditDynamoDBOptions` (public, sealed): `TableName` (default `EntityChangeAuditEntries`), `CreateTableIfNotExists` (`false`), `TtlBackstop` (`false`), `TtlBackstopMargin` (default 30 days), `CompressionThresholdBytes`, `AllowCrossTenantPurge` (`false`).
+3. `EntityChangeAudit/EntityChangeAuditDynamoDBOptions` (public, sealed): `TableName` (default `EntityChangeAuditEntries`), `CreateTableIfNotExists` (`false`), `TtlBackstop` (`false`), `TtlBackstopMargin` (default 30 days), `CompressionThresholdBytes`. No cross-tenant option: the purge receives its tenant explicitly (Design Choice 3).
 4. `EntityChangeAudit/EntityChangeAuditDynamoKeys` (internal): length-prefixed `PK`, fixed-width `SK`, `RPK` (Design Choice 2).
 5. `EntityChangeAudit/EntityChangeAuditItemMapper` (internal): entry to and from `Dictionary<string, AttributeValue>`, compression (Design Choice 4), `payloadHash`, optional `expiresAtEpoch`; null attributes omitted.
 6. Unit tests (keys with `#` and `:` in segments, colliding concatenations, fixed-width ordering with different offsets; mapper round trip, compression, 400 KB limit), options guard tests, manifest `.github/coverage-manifest/Encina.AmazonDynamoDB.json`.
@@ -266,7 +268,7 @@ REFERENCE FILES:
 1. `EntityChangeAudit/EntityChangeAuditStoreDynamoDB.cs` (public, sealed) `: IEntityChangeAuditStore`; constructor `(IAmazonDynamoDB client, ITenantContext? tenantContext, IOptions<EntityChangeAuditDynamoDBOptions> options, TimeProvider timeProvider, ILogger<EntityChangeAuditStoreDynamoDB> logger)` (tenant abstraction as in #1778).
 2. Write: tenant rules first; conditional `PutItem` (Design Choice 8); `ItemCollectionSizeLimitExceeded` and over-size `Left` (`Validation`); `ProvisionedThroughputExceeded`, `RequestLimitExceeded`, `ThrottlingException` and 5xx `Left` (`Unavailable`); other `AmazonDynamoDBException` `Left` (`Internal`) with the error code only.
 3. History: `Query` on `PK` with `ConsistentRead = true`, `ScanIndexForward = false`, paged through the contract's `PagedResult<T>` with `ExclusiveStartKey` encoded as an opaque token.
-4. `PurgeEntriesAsync`: query `RetentionIndex` per day partition older than the cutoff (from the store's `TimeProvider` where the contract takes a retention), `BatchWriteItem` deletes of 25, retrying `UnprocessedItems` with bounded backoff; any remaining failure is `Left` (`Internal`); returns the count; tenant-bound unless the explicit opt-in.
+4. `PurgeEntriesAsync` with the tenant and cutoff it receives (signature from #4182 and #1778): find that tenant's items older than the cutoff as Design Choice 2 describes (under option A, `RetentionIndex` per day partition of that tenant), `BatchWriteItem` deletes of 25, retrying `UnprocessedItems` with bounded backoff; any remaining failure is `Left` (`Internal`); returns the count; never reads the ambient tenant; with tenancy on and no tenant passed returns `Left` (`InvalidRequest`). The store must be constructible in the tenant-less scope of the retention service.
 5. `EntityChangeAudit/EntityChangeAuditDynamoDBErrors.cs`; `EntityChangeAudit/EntityChangeAuditTableInitializer.cs` (internal `IHostedService`: `CreateTable` with on-demand billing, the GSI, TTL on `expiresAtEpoch` when `TtlBackstop`; only when `CreateTableIfNotExists`).
 6. `ServiceCollectionExtensions`: `AddEncinaAmazonDynamoDB(this IServiceCollection, Action<EncinaAmazonDynamoDBOptions>? configure = null)` (`TryAddSingleton<IAmazonDynamoDB>` built from options unless registered) and `AddEncinaEntityChangeAuditDynamoDB(this IServiceCollection, Action<EntityChangeAuditDynamoDBOptions>? configure = null)`: options with `ValidateOnStart`, `TryAddSingleton(TimeProvider.System)`, the store as `IEntityChangeAuditStore` winning over the in-memory default in any order without overriding an application registration (mechanism from #1778), the initializer through `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EntityChangeAuditTableInitializer>())`.
 7. EventId range and log class registered in this PR (the store and initializer log). DI test with `ValidateOnBuild` and `ValidateScopes`, both orders. CRAP <= 10 per method.
@@ -335,10 +337,10 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. EventId range `DynamoDBEntityChangeAudit = (50100, 50149)` in `src/Encina/Diagnostics/EventIdRanges.cs`, registered in PR 2 with its line in `src/Encina/PublicAPI.Unshipped.txt`, the `AssemblyRanges` entry in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`, and in `docs/engineering/eventid-block-registry.md` a "Registered ranges" row (Zone `zone`) and a "Blocks" row `50100-50149` with status `registered`.
-2. `EntityChangeAudit/Diagnostics/DynamoDBEntityChangeAuditLog.cs`, ids packed from 50100: 50100 table created, 50101 write failed (error code), 50102 duplicate write ignored, 50103 id conflict, 50104 entry too large, 50105 entry compressed, 50106 purge completed (count), 50107 purge unprocessed items retried, 50108 purge failed, 50109 cross-tenant opt-in used. 50110-50149 stay free.
+1. EventId range `DynamoDBEntityChangeAudit = (52450, 52499)` in `src/Encina/Diagnostics/EventIdRanges.cs`, registered in PR 2 with its line in `src/Encina/PublicAPI.Unshipped.txt` (one line for the new field), the `AssemblyRanges` entry in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`, and in `docs/engineering/eventid-block-registry.md` a "Registered ranges" row `DynamoDBEntityChangeAudit | 52450-52499` (Zone `zone`) and a "Blocks" row `52450-52499` with status `registered`.
+2. `EntityChangeAudit/Diagnostics/DynamoDBEntityChangeAuditLog.cs`, ids packed from 52450: 52450 table created, 52451 write failed (error code), 52452 duplicate write ignored, 52453 id conflict, 52454 entry too large, 52455 entry compressed, 52456 tenant purge completed (count), 52457 purge unprocessed items retried, 52458 tenant purge failed. 52459-52499 stay free.
 3. The ADR-036 `InstrumentedEntityChangeAuditStore` decorates the store (DI test asserts it); ADR-054 D4 tenant attribute and tag only when multi-tenancy is on; logs never carry tenant, user or entity ids, values or messages.
-4. **ErrorCategory (ADR-062)**: `entity_change_audit.dynamodb.write_failed` `Internal` (R4); `.unavailable` (throttling, 5xx) `Unavailable`; `.entry_too_large` and `.key_too_long` `Validation` (R3); `.id_conflict` `AlreadyExists` (R2); `.tenant_required` and `.reserved_tenant` `InvalidRequest` (R3); `.cross_tenant_denied` `Forbidden` (R6); `.purge_failed` `Internal`. Cancellation propagates.
+4. **ErrorCategory (ADR-062)**: `entity_change_audit.dynamodb.write_failed` `Internal` (R4); `.unavailable` (throttling, 5xx) `Unavailable`; `.entry_too_large` and `.key_too_long` `Validation` (R3); `.id_conflict` `AlreadyExists` (R2); `.tenant_required` and `.reserved_tenant` `InvalidRequest` (R3); `.purge_failed` `Internal`. Cancellation propagates.
 
 </details>
 
@@ -350,10 +352,10 @@ CONTEXT:
 - AGENTS.md section 7: new ranges only in the 10000+ zone, registered before use; EventIdRegistryAgreementTests read the registry page.
 
 TASK:
-Register DynamoDBEntityChangeAudit 50100-50149 (in PR 2), write the log class, wire the categories and the decorator test.
+Register DynamoDBEntityChangeAudit 52450-52499 (in PR 2), write the log class, wire the categories and the decorator test.
 
 KEY RULES:
-- Ids packed from 50100; nothing outside the range.
+- Ids packed from 52450; nothing outside the range.
 - Never log EncinaError.Message, exception messages, values or ids.
 
 REFERENCE FILES:
@@ -372,12 +374,14 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: keys, mapper, every error mapping (conditional failure with same and different hash, size, throttling, 5xx, other), tenant rules, purge with unprocessed items, initializer branches; `IAmazonDynamoDB` substituted (an interface; the request and response model classes have public constructors and setters), `FakeTimeProvider`.
+1. **Unit**: keys, mapper, every error mapping (conditional failure with same and different hash, size, throttling, 5xx, other), tenant rules, purge of the tenant passed in (never the ambient one; tenancy on and no tenant passed is `Left`), purge with unprocessed items, TTL attribute from the writing tenant's retention, initializer branches; `IAmazonDynamoDB` substituted (an interface; the request and response model classes have public constructors and setters), `FakeTimeProvider`.
 2. **Guard** (`tests/Encina.GuardTests/AmazonDynamoDB/`): store constructor and methods, both registrations, options.
 3. **Contract** (PR 4): a class deriving from the shared entity-change contract base on `[Collection("Cloud-LocalStack")]`.
-4. **Integration** (PR 4, `[Collection("Cloud-LocalStack")]`, `[Trait("Category", "Integration")]`): idempotent repeated write, id conflict, consistent history right after a write, paging, compressed large values, colliding concatenations, tenant isolation, purge through the GSI, TTL attribute present when opted in, table creation, health check. The class deletes its table in `InitializeAsync` (the fixture clears SQS and SNS only) and calls `ClearAllDataAsync`.
+4. **Integration** (PR 4, `[Collection("Cloud-LocalStack")]`, `[Trait("Category", "Integration")]`): idempotent repeated write, id conflict, consistent history right after a write, paging, compressed large values, colliding concatenations, tenant isolation, per-tenant purge from a scope with no ambient tenant (tenant A's cutoff deletes only tenant A's old items; tenant B with a longer retention keeps its own), TTL attribute present when opted in, table creation, health check. The class deletes its table in `InitializeAsync` (the fixture clears SQS and SNS only) and calls `ClearAllDataAsync`. `LocalStackFixture` pins `localstack/localstack:4.14.0`, which starts without a `LOCALSTACK_AUTH_TOKEN` (#2699) and serves DynamoDB in the community edition; `Testcontainers.LocalStack` 4.15.0 (MIT) is pinned.
 5. **Property** (PR 4): key injectivity, `SK` order equals time order, mapper round trip.
 6. **Load/Benchmark**: `.md` justifications (append-only, not a hot path).
+
+**Manifest rule**: the manifest is new (no existing floor to respect). PR 1 creates it with package-level `targets` for unit and guard; PR 4 adds the package-level contract, property and integration targets. Each PR adds the per-file `targets` and `justifications` below for the flags its own tests reach, so `coverage-report.cs --check-justifications` passes on every PR.
 
 **Per-file targets** (`-` = not applicable; "PR" adds the target, its tests and its justification):
 
@@ -467,6 +471,7 @@ REFERENCE FILES:
 | ADR-054 D4 | Telemetry | Tenant attribute and tag only when multi-tenancy is on |
 | SPEC-000 section 6.1, DEC-009 | 1.0 scope | #579 named in 1.0; tested against LocalStack |
 | SPEC-002 REQ-007, REQ-061 | Retention, isolation | Per-category retention; tenant isolation |
+| #4182 (open, `[DEBT]`) | Per-tenant retention | Retention iterates `ITenantStore` with each tenant's policy; never the ambient tenant or a cross-tenant opt-in |
 | GDPR Art. 5(1)(e), 17(3)(b) | Storage limitation, erasure exception | Purge at retention; recorded erasure (decision on #2847) |
 | DynamoDB limits (vendor) | Items, keys, batches, TTL | 400 KB items, 2048-byte partition keys, 25 items per `BatchWriteItem`, TTL deletes asynchronously |
 
@@ -477,7 +482,9 @@ REFERENCE FILES:
 | `IAuditLogStore` (becomes `IEntityChangeAuditStore`) | `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs` | The contract implemented after #1778 |
 | `AuditLogEntry` (becomes `EntityChangeAuditEntry`) | `src/Encina.DomainModeling/Auditing/AuditLogEntry.cs` | The entry mapped to the item |
 | `InMemoryAuditLogStore` | `src/Encina.DomainModeling/Auditing/InMemoryAuditLogStore.cs` | The default the store must win over |
-| `EntityChangeAuditRetentionService`, `InstrumentedEntityChangeAuditStore` | delivered by #1778 | Purge scheduling and tracing |
+| `EntityChangeAuditRetentionService`, `InstrumentedEntityChangeAuditStore` | delivered by #1778 | Per-tenant purge scheduling (#4182) and tracing |
+| `ITenantStore.GetAllTenantsAsync` | `src/Encina.Tenancy/Abstractions/ITenantStore.cs` | Tenant enumeration of the retention service (#4182) |
+| `OperationAuditRetentionService` | `src/Encina.Security.Audit/OperationAuditRetentionService.cs` | Shape of the tenant-less retention scope |
 | `LocalStackFixture`, `Cloud-LocalStack` collection | `tests/Encina.TestInfrastructure/Fixtures/LocalStackFixture.cs`, `tests/Encina.IntegrationTests/MessageBrokers/AmazonSQS/LocalStackCollection.cs`, `tests/Encina.ContractTests/MessageBrokers/AmazonSQS/LocalStackCollection.cs` | Shared emulator |
 | AWSSDK 4 entries, `Testcontainers.LocalStack` | `Directory.Packages.props` | Version line for `AWSSDK.DynamoDBv2` |
 | `EventIdRanges` | `src/Encina/Diagnostics/EventIdRanges.cs` | Registration of the new range |
@@ -486,7 +493,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.AmazonDynamoDB` (entity-change audit) | 50100-50149 (`DynamoDBEntityChangeAudit`) | Third 50-id slot of the Security and compliance block 50000-50999; ids 50100-50109 used, packed; registered by PR 2 with its registry rows |
+| `Encina.AmazonDynamoDB` (entity-change audit) | 52450-52499 (`DynamoDBEntityChangeAudit`) | Third of the five audit-stores-1 slots 52350-52599, the first free Security and compliance space after the #4007 reservations 50000-52349 (registry on origin/main `1dee4ba61`); ids 52450-52458 used, packed; registered by PR 2 with its registry rows |
 
 ### Estimated File Count
 
@@ -512,7 +519,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 Phase 1: package, options, length-prefixed keys, item mapper with compression.
-Phase 2: store (conditional put with compare, consistent paged history, purge through the retention GSI), initializer, registrations, EventId range 50100-50149, log class.
+Phase 2: store (conditional put with compare, consistent paged history, per-tenant purge with the tenant passed by the retention service), initializer, registrations, EventId range 52450-52499, log class.
 Phase 3: health check.
 Phase 4: error categories, instrumentation, telemetry tags.
 Phase 5: unit, guard, contract, integration (Cloud-LocalStack), property tests; manifest targets with justifications.
@@ -521,8 +528,8 @@ Phase 6: docs and changelog fragment.
 KEY PATTERNS:
 - Dilemmas D1-D6 are recommended, pending the maintainer: follow the answers recorded in the plan.
 - Low-level IAmazonDynamoDB, never DynamoDBContext.SaveAsync (silent overwrite).
-- Tenant: reserved segment default, deny without tenant under tenancy, explicit logged cross-tenant opt-in.
-- Append-only; no per-subject delete; purge authoritative, TTL only as an opt-in backstop.
+- Tenant: reserved segment default, deny writes and reads without tenant under tenancy; no cross-tenant opt-in exists.
+- Append-only; no per-subject delete; per-tenant purge authoritative (the retention service iterates ITenantStore and passes each tenant, #4182), TTL only as an opt-in backstop.
 
 REFERENCE FILES:
 - docs/architecture/adr/036-three-audit-stores.md
@@ -541,14 +548,14 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The issue's "cache frequent audit queries" is dropped: an audit read must be exact and current, so no issue is needed. |
 | 2 | OpenTelemetry | ✅ | The ADR-036 `InstrumentedEntityChangeAuditStore` decorates the store; tenant tag per ADR-054 D4. |
-| 3 | Structured logging | ✅ | Range 50100-50149 registered first; AWS error codes only. |
+| 3 | Structured logging | ✅ | Range 52450-52499 registered first; AWS error codes only. |
 | 4 | Health checks | ✅ | Phase 3: `EntityChangeAuditDynamoDBHealthCheck` (`DescribeTable`). |
 | 5 | Validation | ✅ | Argument checks throw before I/O; long keys and oversize items are `Validation` `Left` values. |
 | 6 | Resilience | ✅ | The AWS SDK retry mode (standard, with throttling backoff) applies to every call; `UnprocessedItems` of the purge are retried with bounded backoff; no extra Polly policy. |
 | 7 | Distributed locks | ❌ | Append-only store; the conditional put arbitrates concurrent writes of one key. |
 | 8 | Transactions | ❌ | One entry per item; no unit of work spans DynamoDB. |
 | 9 | Idempotency | ✅ | Conditional put with compare on conflict (Design Choice 8). |
-| 10 | Multi-tenancy | ✅ | Tenant as the first key segment; reserved `default`; deny without tenant; logged cross-tenant opt-in (Design Choice 2). |
+| 10 | Multi-tenancy | ✅ | Tenant as the first key segment; reserved `default`; deny without tenant (Design Choice 2); per-tenant retention purge with the tenant passed explicitly (Design Choice 3, #4182). |
 | 11 | Module isolation | ✅ | `ModuleId` stored on every item (supersedes the issue's "N/A"). |
 | 12 | Audit trail | ✅ | This store IS the entity-change audit trail. |
 
@@ -559,12 +566,14 @@ REFERENCE FILES:
 - **#1778 (open, `[DEBT]`, no `needs-decision`, no blocking dependency)** delivers the contract, the retention service, the decorator, the in-memory default and the shared behavioral contract base. If it merges without a reusable base, the first of #577-#582 to reach its integration pull request adds it (the same fallback as the #582 plan).
 - #589 (DynamoDB dead letters) shares Design Choice 1; #589 and #210 also add `AWSSDK.DynamoDBv2`.
 - #1240 (open) owns the hash chain (Design Choice 6); #2903 (open) is the exceptional subject-scoped erasure path for Marten.
+- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature) before #1778 implements `EntityChangeAuditRetentionService`; Design Choice 3 and Phase 2 task 4 follow it, and the TTL backstop reads the writing tenant's policy from the same source.
+- The EventId slot 52450-52499 lies after the #4007 reservations (50000-52349, #4174 merged).
 
 ---
 
 ## Next Steps
 
 1. The maintainer answers D1 to D6 when work on #579 starts (D1 together with #589); the answers go into `## Maintainer Decisions`.
-2. Wait for #1778; re-check each Design Choice against main; `adversarial-reviewer` verifies the Settled ones.
+2. Wait for #4182 and #1778; re-check each Design Choice against main; `adversarial-reviewer` verifies the Settled ones.
 3. Brief one worker per proposed pull request (5 pull requests).
 4. The final pull request references `Fixes #579`.
