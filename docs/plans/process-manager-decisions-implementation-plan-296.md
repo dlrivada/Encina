@@ -12,7 +12,7 @@
 
 #296 describes a Process Manager that **decides the next step at run time** from the process data and its history (the EIP definition), as opposed to a saga whose steps are a fixed sequence. After the #392 core exists, what #296 adds is exactly the decision loop: an author writes `DecideAsync(data, history)`, the engine executes the chosen action, records it and asks again until the definition says wait, complete or fail.
 
-**What exists today** (`origin/main` at `ff9a579c1`, 2026-11-24):
+**What exists today** (`origin/main` at `2c05dd960`, 2026-11-24):
 
 - No process manager code (`git grep -il ProcessManager origin/main -- src` is empty). The fixed-sequence alternative is `SagaDefinition<TData>`/`BuiltSagaDefinition<TData>` and `SagaRunner` (`src/Encina.Messaging/Sagas/LowCeremony/`), which runs steps in order and compensates in reverse. `src/Encina.Messaging/RoutingSlip/` carries predefined dynamic routes.
 - Commands are sent with `IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)` (`src/Encina/Abstractions/IEncina.cs`).
@@ -32,7 +32,7 @@
 
 **Provider category**: none. The layer is in-memory logic over the #392 store contract, so the 10-provider matrix does not apply to this plan.
 
-**Shared pieces and who owns them**: #392 owns the contract, `ProcessStep`, the error-code class and the EventId range `ProcessManager` (12270-12289). This plan adds to `ProcessManagerErrorCodes` and `ProcessManagerLog` by addition and uses 12284-12289 of that range; #317 uses 12278-12283.
+**Shared pieces and who owns them**: #392 owns the contract, `ProcessStep`, the error-code class and the EventId range `ProcessManager` (12270-12289). This plan adds to `ProcessManagerErrorCodes` and `ProcessManagerLog` by addition and uses 12284-12289 of that range; #317 uses 12278-12283 and #392 12270-12277, so the three claims are contiguous and disjoint. This plan takes the last id of the `ProcessManager` field (12270-12289), which is then full: the next consumer of the family needs a new field in the spare 12290-12299 of the #392 table.
 
 ---
 
@@ -180,6 +180,25 @@ The step table is an audit trail; free text is how an `EncinaError.Message` or a
 
 </details>
 
+<details>
+<summary><strong>8. Redelivery of an event that was fully handled (Dilemma D5)</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The handler saves the event's own step (ordinal 0) before the engine runs; a recorded `(key, 0)` makes the redelivery a no-op before any action is sent** | A fully handled event never re-sends an action; one rule for all managers | An event that crashes between the ordinal-0 save and the first engine step is not resumed by its own redelivery (the next event resumes it through the saved state) |
+| **B) The handler saves the event's own step last, after the engine** | A crash anywhere resumes through the same event's redelivery | A fully handled redelivery re-runs decisions and re-sends actions until its last save is reached; the actions must be idempotent in every case |
+
+### Chosen Option: **A — Event step first** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins because it keeps the at-least-once window as small as possible and gives a duplicate a clear stop; B wins when crash resumption by the same event matters more than duplicate suppression. The choice sets the handler order of the #392/#317 routing handler, so the maintainer's answer is applied to #392 pull request 4 and #317 pull request 1 as well.
+- **Class:** Dilemma
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -205,7 +224,7 @@ The step table is an audit trail; free text is how an `EncinaError.Message` or a
 
 ```
 CONTEXT:
-- Issue #296; plan docs/plans/process-manager-decisions-implementation-plan-296.md. The #392 core exists. Dilemmas D1-D4 are recommended, pending the maintainer: read the Maintainer Decisions section if it exists and follow the answers.
+- Issue #296; plan docs/plans/process-manager-decisions-implementation-plan-296.md. The #392 core exists. Dilemmas D1-D5 are recommended, pending the maintainer: read the Maintainer Decisions section if it exists and follow the answers.
 
 TASK:
 Add the decision contract of Phase 1 Tasks with unit and guard tests.
@@ -236,7 +255,8 @@ REFERENCE FILES:
 1. **`ProcessDecisionEngine`** (internal, scoped; takes `IEncina`, `IProcessManagerStore`, `ProcessDecisionOptions`, `TimeProvider`, a logger): `AdvanceAsync(manager, snapshot, CancellationToken)`: loop { load history (`GetStepsAsync`); `DecideAsync`; `Continue` runs `ExecuteAsync`, applies the result to the data, appends a step; `Wait` records a `waiting` step and stops; `Complete` calls `Complete()`; `Fail` calls `Fail(reasonCode)` }.
 2. **Bounds**: at most `MaxStepsPerAdvance` actions per call (default 32); beyond it the engine stops, saves what was done and returns `processmanager.decision_loop_exceeded`. After `MaxActionAttempts` consecutive failures of the same action name (default 3) the engine sets the process `Failed` and returns `processmanager.action_attempts_exceeded` (Design Choice 4).
 3. **Failed action**: a `Left` from `ExecuteAsync` is recorded as a step with outcome `action_failed` and the error code (never the message), the state is saved, and `DecideAsync` is asked again.
-4. **Hook**: the routing handler of #392/#317 calls the engine after the manager's event handler and before `IsFinished` when the manager is a `ProcessManagerDefinition<TData>`; no change for other managers.
+4. **Hook and order**: for a `ProcessManagerDefinition<TData>` the routing handler of #392/#317 runs, in this order: the manager's event handler; the pending `Dispatch` commands of #317 (sent first); the save of the event's own step (ordinal 0, by the handler, as in #392/#317); the engine; there is no `IsFinished` check, because a definition ends through `Decision.Complete` or `Decision.Fail`, which the engine saves itself. Every other manager keeps the #317 order (dispatch, `IsFinished`, save) unchanged, so each manager kind has one editor of the handler's method in one order.
+   **Ordinals**: the engine saves several steps of one event under the same idempotency key, so each save carries a distinct `ProcessStep.Ordinal` (#392): the n-th save of an `AdvanceAsync` call uses `base + n`, where `base` is the number of steps of the process loaded for `DecideAsync` at the start of the call (the history already includes the event's own step, ordinal 0, so the first engine step is at least 1). Because `base` is read from storage, a redelivery after a crash computes ordinals the earlier attempt never used, so the unsaved actions are persisted and the saved ones are not duplicated (the loaded state already includes them); the unique key `(process, idempotency key, ordinal)` of #392 then drops only a true second save of the same step. A redelivery after a fully handled event is stopped by the handler's own ordinal-0 step, which is saved before the engine runs (see Dilemma D5).
 5. **`ProcessDecisionOptions`** (`MaxStepsPerAdvance`, `MaxActionAttempts`) validated at startup; registration `AddProcessManagerDefinition<TDefinition, TData>()` with `TryAdd*`.
 6. Every `Left` of the store, the engine or an action is returned or recorded, never swallowed; saving uses `SaveAsync(snapshot, expectedVersion, step, idempotencyKey)` of #392, so a concurrent writer gets `processmanager.concurrency_conflict`.
 
@@ -312,7 +332,7 @@ REFERENCE FILES:
 
 1. **Validation**: decisions and reason codes are validated (Phase 1); options validated at startup.
 2. **Transactions**: each action is followed by a `SaveAsync` of the new data and its step, so a crash between two actions resumes from the last saved step; an action is sent before its save (at-least-once, the action's command handler must be idempotent), the same order as #317 Design Choice 2.
-3. **Idempotency**: the idempotency key of the event guards the event; an action is guarded by the command handler's own inbox (documented).
+3. **Idempotency**: the idempotency key of the event with the step ordinal guards each saved step (`(process, key, ordinal)` of #392, ordinals assigned by the engine as in Phase 2 task 4); an action is guarded by the command handler's own inbox (documented).
 4. **Audit trail**: the history is the step list of #392; every decision appends a step.
 
 </details>
@@ -347,7 +367,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. **EventIds** inside the range `ProcessManager` (12270-12289) registered by #392: 12284 decision made, 12285 action executed, 12286 action failed, 12287 action attempts exceeded, 12288 decision loop exceeded, 12289 process failed by decision; packed, no gaps. Added to `ProcessManagerLog` of #392.
-2. **Metrics**: `Counter<long> encina.process_manager.decisions` (tags process type, decision type) and `Counter<long> encina.process_manager.action_failures` (tags process type, error code); no `_total` suffix; the tenant tag only when multi-tenancy is on (ADR-054 D4); never the correlation key, the process id or the reason text.
+2. **Metrics**: `Counter<long> encina.process_manager.decisions` (on the `Encina.ProcessManager` meter and `ProcessManagerLog` landed by #392 pull request 2; any duration histogram uses unit seconds like #392's) (tags process type, decision type) and `Counter<long> encina.process_manager.action_failures` (tags process type, error code); no `_total` suffix; the tenant tag only when multi-tenancy is on (ADR-054 D4); never the correlation key, the process id or the reason text.
 3. **Span**: `encina.process_manager.decide` per `DecideAsync` with the decision type.
 
 </details>
@@ -387,6 +407,7 @@ REFERENCE FILES:
 | Unit | engine loop, bounds, failed action, wait, complete, fail, validation of decisions | `ProcessDecisionEngine.cs` 90, `ProcessDecision.cs` 95, `ProcessAction.cs` 90 (pure logic against the in-memory store) |
 | Guard | public constructors, factories and the extension | `ProcessManagerDefinition.cs` 85, `ServiceCollectionExtensions.cs` 90 (null and empty arguments are the only branches) |
 | Contract | none new (the store contract is #392's) | justification file |
+| Unit (ordinals) | one event with three actions saves three steps with distinct ordinals under the same idempotency key and all three persist; a redelivery after a crash between actions 2 and 3 persists action 3 with a fresh ordinal and does not duplicate 1 and 2 | `ProcessDecisionEngine.cs` (same file target as above, in the engine unit test file) |
 | Property | a bounded engine always terminates: for any decision sequence the number of actions never exceeds `MaxStepsPerAdvance` (FsCheck) | `ProcessDecisionEngine.cs` 70 (one invariant over generated sequences) |
 | Integration | the saga recipe: an action whose handler runs `ISagaRunner` on a real database collection, plus a durable store crash-resume | `ProcessDecisionEngine.cs` 60 (the real paths across a real store) |
 
@@ -460,10 +481,10 @@ REFERENCE FILES:
 | 1 | Phase 1: `ProcessDecisionType`, `ProcessDecision`, `ProcessAction`, `ProcessActionBuilder`, `ProcessManagerDefinition` (5), `ProcessManagerErrorCodes` and `ProcessManagerErrors` (modified), PublicAPI, manifest, 2 unit tests, 1 guard test | 11 | 900 |
 | 2 | Phases 2-3: engine, options, registration (3), routing-handler hook (modified), PublicAPI, manifest, 3 unit tests (engine loop, failure and bounds, hook), DI proof, guard | 11 | 1,200 |
 | 3 | Phase 5: log messages and counters (modified `ProcessManagerLog`, new metrics file), PublicAPI, 2 unit tests | 5 | 400 |
-| 4 | Phases 4 and 6: crash-resume test, property test (`PropertyTests` project reference exists after #392), saga-recipe integration test, 3 justification files | 7 | 800 |
+| 4 | Phases 4 and 6: crash-resume test, property test (`PropertyTests` project reference exists after #392), saga-recipe integration test, ordinal integration test (several steps of one event on a durable store), 3 justification files | 7 | 800 |
 | 5 | Phase 7 documentation: guide section, README, INVENTORY, ROADMAP, changelog fragment | 5 | 350 |
 
-Total: 5 pull requests, 39 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs the #392 pull requests 1 to 3; pull request 3 needs the #392 observability pull request (which registers the range).
+Total: 5 pull requests, 39 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs #392 pull request 1 (contract with `ProcessStep.Ordinal`) and edits no `ProcessManagerLog`; pull request 2 edits the routing handler and so needs #392 pull request 4 and #317 pull request 1 (its dispatch step); pull request 3 needs #392 pull request 2 (the `ProcessManager` range registration, `ProcessManagerLog` and the meter); pull request 4 needs a durable store: #317 pull request 2 (Marten) or one of the #392 provider pull requests 6 to 13 (the in-memory store of #392 pull request 3 is enough only for its non-integration tests).
 
 ---
 
@@ -530,7 +551,7 @@ The block 12250-12299 is the first free 50-id slot of the Core and messaging are
 ```
 PROJECT CONTEXT:
 - Encina is a pre-1.0 .NET 10 / C# 14 library; Railway Oriented Programming (Either<EncinaError, T>); no [Obsolete]; XML docs on every public API; zero warnings.
-- Issue #296: decision-driven process managers on the #392 core. Plan: docs/plans/process-manager-decisions-implementation-plan-296.md. Dilemmas D1-D4 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
+- Issue #296: decision-driven process managers on the #392 core. Plan: docs/plans/process-manager-decisions-implementation-plan-296.md. Dilemmas D1-D5 are recommended, pending the maintainer; read the Maintainer Decisions section first if it exists.
 
 IMPLEMENTATION OVERVIEW:
 1. Phase 1: ProcessDecision, ProcessAction, ProcessActionBuilder, ProcessManagerDefinition<TData>, three error codes.
@@ -585,6 +606,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. The maintainer answers Dilemmas D1 to D4 when work on #296 starts; the answers go into `## Maintainer Decisions` at the end of this plan.
+1. The maintainer answers Dilemmas D1 to D5 when work on #296 starts; the answers go into `## Maintainer Decisions` at the end of this plan.
 2. Open the deferred issue named in the matrix and link it from #296.
 3. Brief pull request 1 after the #392 and #317 pull requests it needs.
