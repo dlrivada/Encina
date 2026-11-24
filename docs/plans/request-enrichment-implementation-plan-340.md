@@ -433,7 +433,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina` (core) | claim `10000-10049` named `RequestEnrichment` (area Core and messaging, first 50-id slot of the 10000 block) | Reserved by this plan; E3 registers it in `EventIdRanges.cs` and the registry (`reserved` to `registered`); packed from 10000, no gaps; three events used, 47 left |
+| `Encina` (core) | claim `12200-12249` named `RequestEnrichment` (area Core and messaging, first free 50-id slot after the #4007 reservations) | Reserved by this plan; E3 registers it in `EventIdRanges.cs` and the registry (`reserved` to `registered`); packed from 12200, no gaps; three events used, 47 left. Re-slotted from 10000-10049 to 12200-12249 on 2026-11-24 after the #4174 reservations |
 | `Encina.AspNetCore` | none | The header source logs nothing |
 
 ### Estimated File Count

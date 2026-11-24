@@ -41,7 +41,7 @@
 
 - `encina.cache.requests` in a new partial file `src/Encina.Caching/Diagnostics/CachePatternMetrics.Requests.cs` (on `Meter("Encina.Caching")` that #266 creates), recorded at the existing log sites of the behavior. Hit ratio per request type derives from the outcome tag.
 - On `Meter("Encina.Caching.Memory")`, owned by the Memory package: `encina.cache.evictions` (counter, tag `encina.cache.eviction.reason` = `expired` or `capacity`; explicit removal and replacement are not evictions) and two observable gauges `encina.cache.entries` and `encina.cache.size` (unit `By`, estimated size, only when the size limit is configured) read from `IMemoryCache.GetCurrentStatistics()`, which returns data only when a new Encina option `MemoryCacheOptions.TrackStatistics` (default false, pay-for-what-you-use) is on.
-- Two log events for the Memory gauge callback (EventIds 30400-30401, Design Choice 7).
+- Two log events for the Memory gauge callback (EventIds 30500-30501, Design Choice 7).
 - The tenant tag on `encina.cache.requests` through the helper of #2676, in its own pull request.
 - Shared pieces and owner: #266 owns `CachePatternMetrics` (this plan adds a partial file after its PR 4); #723 owns the provider decorator; this plan owns `encina.cache.requests` and the Memory meter. Cardinality: the request type is bounded by the number of cacheable request types; no key, user, tenant text or message ever enters a tag.
 - Affected packages: `Encina.Caching`, `Encina.Caching.Memory`, `Encina` (range registration). Not delivered: any instrument already planned by a sibling, value-size, hit-rate gauges, Hybrid L1 and L2, Redis server statistics.
@@ -180,13 +180,14 @@
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) The block the maintainer assigned first: `CachingObservability` 30050-30099** | As assigned | 30000-30349 is reserved by #4007 (`CachingMemory` CA-1 holds 30050-30099 in the registry on main); two `reserved` rows would overlap and `EventIdRegistryAgreementTests` rule 4 fails |
-| **B) `CachingObservability` 30400-30449, the first free 50-slot after the #4007 extent and after #222's 30350-30399** | Free per the registry on main at `1a661f5c1` (no row after 30349); same area base (Caching and distributed locks, 30000) | Differs from the first assignment |
+| **B) `CachingObservability` 30500-30549, the first free 50-slot after the #4007 extent and after the slots of #276 (30350-30399), #278 (30400-30449) and #222 (30450-30499)** | Free per the registry on main and in every plan on main and open plan branch on 2026-11-24 (no row after 30349); same area base (Caching and distributed locks, 30000) | Differs from the first assignment |
 
-### Chosen Option: **B - 30400-30449**
+### Chosen Option: **B - 30500-30549**
 
 ### Rationale
 
-- Only B satisfies the registry (the coordinator confirmed the #4007 extents are not to be used). The pull request adds the `reserved` row `| 30400-30449 | Caching | #273 CachingObservability (ids 30400-30401) | reserved |` (status `registered` in the code pull request), one field `CachingObservability` in `src/Encina/Diagnostics/EventIdRanges.cs`, **one line in `src/Encina/PublicAPI.Unshipped.txt`** (counted in the size), the `AssemblyRanges` entry for `Encina.Caching.Memory` extended with the new name and the "Registered ranges" row. Ids 30400 and 30401 are packed from the start.
+- Only B satisfies the registry (the coordinator confirmed the #4007 extents are not to be used). The pull request adds the `reserved` row `| 30500-30549 | Caching | #273 CachingObservability (ids 30500-30501) | reserved |` (status `registered` in the code pull request), one field `CachingObservability` in `src/Encina/Diagnostics/EventIdRanges.cs`, **one line in `src/Encina/PublicAPI.Unshipped.txt`** (counted in the size), the `AssemblyRanges` entry for `Encina.Caching.Memory` extended with the new name and the "Registered ranges" row. Ids 30500 and 30501 are packed from the start.
+Re-slotted from 30400-30449 to 30500-30549 on 2026-11-24 after plan #278 and the #4174 reservations.
 
 **Class:** Settled
 **Settled by:** `docs/engineering/eventid-block-registry.md` rule 4 (reserved blocks do not overlap) and the #4007 extent Caching 30000-30349 (#4174)
@@ -289,11 +290,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs` (field `CachingObservability = (30400, 30449)`), `src/Encina/PublicAPI.Unshipped.txt` (one line), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the `Encina.Caching.Memory` entry gains the new name) and `docs/engineering/eventid-block-registry.md` (the `reserved` row and the "Registered ranges" row, through `docs-writer`).
-2. **Create** `src/Encina.Caching.Memory/Diagnostics/MemoryCacheObservabilityLog.cs` (`internal static partial`: 30400 `StatisticsCallbackFailed` (Warning, exception through `ex.ForLogging()`), 30401 `StatisticsNotEnabled` (Debug, logged once when the gauges are created and `TrackStatistics` is off)).
-3. **Modify** `MemoryCacheMetrics.cs` (observable gauges `encina.cache.entries` and `encina.cache.size` reading `IMemoryCache.GetCurrentStatistics()`; the callback catches everything, logs 30400 and returns no measurement) the gauges are created once by the `MemoryCacheProvider` constructor through `MemoryCacheMetrics.ObserveStatistics(IMemoryCache, ILogger)` (no new type).
+1. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs` (field `CachingObservability = (30500, 30549)`), `src/Encina/PublicAPI.Unshipped.txt` (one line), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (the `Encina.Caching.Memory` entry gains the new name) and `docs/engineering/eventid-block-registry.md` (the `reserved` row and the "Registered ranges" row, through `docs-writer`).
+2. **Create** `src/Encina.Caching.Memory/Diagnostics/MemoryCacheObservabilityLog.cs` (`internal static partial`: 30500 `StatisticsCallbackFailed` (Warning, exception through `ex.ForLogging()`), 30501 `StatisticsNotEnabled` (Debug, logged once when the gauges are created and `TrackStatistics` is off)).
+3. **Modify** `MemoryCacheMetrics.cs` (observable gauges `encina.cache.entries` and `encina.cache.size` reading `IMemoryCache.GetCurrentStatistics()`; the callback catches everything, logs 30500 and returns no measurement) the gauges are created once by the `MemoryCacheProvider` constructor through `MemoryCacheMetrics.ObserveStatistics(IMemoryCache, ILogger)` (no new type).
 4. **Modify** `MemoryCacheProvider.cs` (the `MemoryCacheOptions` class in the same file gains `bool TrackStatistics { get; set; }`) and `ServiceCollectionExtensions.cs` (`services.AddOptions<Microsoft.Extensions.Caching.Memory.MemoryCacheOptions>().Configure<IOptions<MemoryCacheOptions>>(...)` copies `TrackStatistics`; the registration neither replaces an application's own `AddMemoryCache` nor throws); `PublicAPI.Unshipped.txt` of `Encina.Caching.Memory` through `mechanical-fixer`.
-5. Tests: new `tests/Encina.UnitTests/Caching/Memory/MemoryCacheMetricsTests.cs` (gauges report entry count and estimated size after sets when `TrackStatistics` is on, report nothing and log 30401 once when off, a throwing `IMemoryCache` double logs 30400 and does not throw, no key in any tag); edit `tests/Encina.UnitTests/Caching/Memory/ServiceCollectionExtensionsTests.cs` (provider built with `ValidateOnBuild` and `ValidateScopes`; the statistics option reaches the cache) and `tests/Encina.GuardTests/Infrastructure/Caching/MemoryCacheProviderGuardTests.cs` (the constructor is unchanged; a case proving `TrackStatistics` default false); manifest and changelog `changelog.d/273-memory-cache-gauges.added.md` through `mechanical-fixer`; README of `Encina.Caching.Memory` (metric table, how to enable statistics) through `docs-writer`.
+5. Tests: new `tests/Encina.UnitTests/Caching/Memory/MemoryCacheMetricsTests.cs` (gauges report entry count and estimated size after sets when `TrackStatistics` is on, report nothing and log 30501 once when off, a throwing `IMemoryCache` double logs 30500 and does not throw, no key in any tag); edit `tests/Encina.UnitTests/Caching/Memory/ServiceCollectionExtensionsTests.cs` (provider built with `ValidateOnBuild` and `ValidateScopes`; the statistics option reaches the cache) and `tests/Encina.GuardTests/Infrastructure/Caching/MemoryCacheProviderGuardTests.cs` (the constructor is unchanged; a case proving `TrackStatistics` default false); manifest and changelog `changelog.d/273-memory-cache-gauges.added.md` through `mechanical-fixer`; README of `Encina.Caching.Memory` (metric table, how to enable statistics) through `docs-writer`.
 
 </details>
 
@@ -303,17 +304,17 @@ REFERENCE FILES:
 ```text
 CONTEXT:
 Issue #273 plan docs/plans/cache-metrics-implementation-plan-273.md, phase 3. M2 merged (MemoryCacheMetrics exists).
-Block 30400-30449 is free per the registry on main (1a661f5c1); 30000-30349 belongs to #4007.
+Block 30500-30549 is free per the registry on main and per every plan on main and open plan branch; 30000-30349 belongs to #4007.
 
 TASK:
 1. Register CachingObservability (EventIdRanges, PublicAPI line, AssemblyRanges entry, registry rows through docs-writer).
-2. Add MemoryCacheObservabilityLog (30400, 30401) and the observable gauges encina.cache.entries and encina.cache.size.
+2. Add MemoryCacheObservabilityLog (30500, 30501) and the observable gauges encina.cache.entries and encina.cache.size.
 3. Add MemoryCacheOptions.TrackStatistics and wire it into the Microsoft MemoryCacheOptions without replacing the application's registration.
 4. Tests; PublicAPI, manifest, changelog through mechanical-fixer; README through docs-writer.
 
 KEY RULES:
 - The gauge callback never throws and never blocks; log by code and ex.ForLogging(); no key in any tag.
-- Packed ids from 30400; range registered first (ADR-021).
+- Packed ids from 30500; range registered first (ADR-021).
 - Registration completeness: build the provider with ValidateOnBuild and ValidateScopes.
 
 REFERENCE FILES:
@@ -383,7 +384,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Caching.Memory` (`CachingObservability`, new) | 30400-30449, free per the registry on main at `1a661f5c1` | 30400 gauge callback failed, 30401 statistics not enabled; 30402-30449 free; #222 holds 30350-30399; 30000-30349 is #4007's |
+| `Encina.Caching.Memory` (`CachingObservability`, new) | 30500-30549, free per the registry on main and every plan on 2026-11-24 | 30500 gauge callback failed, 30501 statistics not enabled; 30502-30549 free; #276 holds 30350-30399, #278 30500-30549, #222 30450-30499; 30000-30349 is #4007's |
 | `Encina.Caching` (`Caching`, 3500-3549) | none | The behavior's existing ids 3508-3513 are untouched; no new log in the behavior |
 
 ### Estimated File Count
@@ -428,7 +429,7 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. M1: encina.cache.requests in the pipeline behavior (outcomes hit, miss, stored, error, bypass; tag request type).
 2. M2: Memory evictions counter on Meter "Encina.Caching.Memory". M3: entries and size gauges, TrackStatistics option, range
-   30400-30449 and two logs. M4: tenant tag.
+   30500-30549 and two logs. M4: tenant tag.
 
 KEY PATTERNS:
 - Do not add instruments a sibling owns: operations and duration (#723), stampede (#266), failsafe (#268), invalidations (#2408).
@@ -450,7 +451,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ✅ Phases 1-3 | This is the observability of the caching layer; it adds no cached read |
 | 2 | OpenTelemetry | ✅ Phases 1-4 | This is the feature (the gap over #723) |
-| 3 | Structured Logging | ✅ Phase 3 | `MemoryCacheObservabilityLog`, ids 30400-30401; the behavior's existing logs are unchanged |
+| 3 | Structured Logging | ✅ Phase 3 | `MemoryCacheObservabilityLog`, ids 30500-30501; the behavior's existing logs are unchanged |
 | 4 | Health Checks | ❌ N/A | Provider health checks are #754 and `QueryCacheHealthCheck`; a metrics-based check is Design Choice 6 option B |
 | 5 | Validation | ❌ N/A | No input; the only option is a boolean |
 | 6 | Resilience | ❌ N/A | Passive layer: no external call; the Redis polling that would need it is Design Choice 3 option B |

@@ -198,7 +198,7 @@ Six pull requests; each builds and passes alone with its own tests (counts inclu
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `src/Encina.Actors/Encina.Actors.csproj` (references `Encina` only; `Microsoft.CodeAnalysis.PublicApiAnalyzers`; `InternalsVisibleTo` for UnitTests, GuardTests, ContractTests, PropertyTests), `PublicAPI.Shipped.txt` (empty header) and `PublicAPI.Unshipped.txt`; **modify** `Encina.slnx` (project entry), `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj` (ProjectReference).
-2. **Create** `ActorId.cs` (`readonly struct`, `Type`, `Key`, `Create`, `ToString` returning `Type/Key` without any tenant, `IEquatable<ActorId>`), `IEncinaActor.cs` (marker), `IActorSystem.cs` (`Either<EncinaError, TActor> GetActor<TActor>(ActorId id) where TActor : IEncinaActor`; XML example), `ActorErrorCodes.cs` (the five codes of register row C6); **modify** `docs/engineering/eventid-block-registry.md` (new row to the "Block | Area | Owner | Status" table, sorted after the existing rows: `| 80000-80049 | Cloud and integration | #388 plan: Orleans (Encina.Orleans, ids 80000-80003 used) Note: assigned 2026-11-23 | reserved |`; no 10000+ row exists on main, and if an earlier registry pull request already carries this row, G1 drops the edit).
+2. **Create** `ActorId.cs` (`readonly struct`, `Type`, `Key`, `Create`, `ToString` returning `Type/Key` without any tenant, `IEquatable<ActorId>`), `IEncinaActor.cs` (marker), `IActorSystem.cs` (`Either<EncinaError, TActor> GetActor<TActor>(ActorId id) where TActor : IEncinaActor`; XML example), `ActorErrorCodes.cs` (the five codes of register row C6); **modify** `docs/engineering/eventid-block-registry.md` (new row to the "Block | Area | Owner | Status" table, sorted after the existing rows: `| 80500-80549 | Cloud and integration | #388 plan: Orleans (Encina.Orleans, ids 80500-80503 used) Note: assigned 2026-11-23 | reserved |`; no 10000+ row exists on main, and if an earlier registry pull request already carries this row, G1 drops the edit).
 3. **Create** `.github/coverage-manifest/Encina.Actors.json` and the `PublicAPI` lines through `mechanical-fixer`.
 4. Tests: new `tests/Encina.UnitTests/Actors/ActorIdTests.cs` (valid, separators, length limits, default struct, equality) and `tests/Encina.GuardTests/Actors/ActorIdGuardTests.cs` (null or whitespace type and key through `Create`).
 
@@ -221,7 +221,7 @@ KEY RULES:
 - ActorId.Create returns Either<EncinaError, ActorId>; no exceptions for invalid input; default(ActorId) is invalid.
 - Error codes use the encina.actors. prefix with ADR-062 categories (invalid_actor_id Validation, tenant_required FailedPrecondition,
   reserved_tenant Validation, identity_not_trusted Unauthenticated, tenant_not_verified Forbidden).
-- Add the reserved row 80000-80049 Orleans to docs/engineering/eventid-block-registry.md (the table parsed by EventIdRegistryAgreementTests).
+- Add the reserved row 80500-80549 Orleans to docs/engineering/eventid-block-registry.md (the table parsed by EventIdRegistryAgreementTests).
 - XML docs with examples on every public member; zero warnings.
 
 REFERENCE FILES:
@@ -438,7 +438,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Orleans` | claim `80000-80049` named `Orleans` (area Cloud and integration, first 50-id slot of the 80000 block) | Reserved by this plan; G4 registers it; packed from 80000, four events used (80000-80003: identity trust at startup, tenant trust mode at startup, call failed by code, state write failed); the `reserved` row is added by G1 (see Phase 1) and G4 changes it to `registered`; #459 uses the same range after this plan |
+| `Encina.Orleans` | claim `80500-80549` named `Orleans` (area Cloud and integration, first free 50-id slot after the #4007 and plan reservations) | Reserved by this plan; G4 registers it; packed from 80500, four events used (80500-80503: identity trust at startup, tenant trust mode at startup, call failed by code, state write failed); the `reserved` row is added by G1 (see Phase 1) and G4 changes it to `registered`; #459 uses the same range after this plan. Re-slotted from 80000-80049 to 80500-80549 on 2026-11-24 after the #4174 reservations |
 | `Encina.Actors` | none | Contracts only, no logging |
 
 ### Estimated File Count
