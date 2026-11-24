@@ -16,11 +16,11 @@
 2. **Completion detection**: the manager says when the process is finished; the handler completes it.
 3. **A Marten store**: `MartenProcessManagerStore` in a new satellite package `Encina.ProcessManager.Marten`, with optimistic concurrency, tenant and correlation lookup.
 
-**What exists today** (`origin/main` at `ff9a579c1`, 2026-11-24):
+**What exists today** (`origin/main` at `2c05dd960`, 2026-11-24):
 
 - No process manager code (`git grep -il ProcessManager origin/main -- src` is empty). `IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)` returns `ValueTask<Either<EncinaError, TResponse>>` (`src/Encina/Abstractions/IEncina.cs`).
 - `Encina.Marten` provides `IAggregateRepository`, `MartenSnapshotStore<TAggregate>` (a store over `IDocumentSession`, `src/Encina.Marten/Snapshots/MartenSnapshotStore.cs`), `EncinaMartenOptions.UseOptimisticConcurrency` (default `true`) and registers Marten configuration through `IConfigureMarten` (`EncinaStoreOptionsConfigurator`, `src/Encina.Marten/ServiceCollectionExtensions.cs` lines 47-127).
-- A `MartenFixture` exists for integration tests (`tests/Encina.IntegrationTests/Compliance/BreachNotification/`, collection `Marten-PostgreSQL`).
+- A `MartenFixture` exists for integration tests (`tests/Encina.IntegrationTests/Infrastructure/Marten/Fixtures/MartenFixture.cs`, used through `[Collection(MartenCollection.Name)]`, whose name is `Marten`).
 
 **Corrections to the issue text** (the sketch cannot be built as written):
 
@@ -79,7 +79,7 @@
 
 ### Rationale
 
-- A is the smallest correct design: nothing is lost, and the duplicate-delivery guard of #392 (idempotency key on the step) stops the state from advancing twice. B wins when a command must never repeat, C when #2383 lands and exact atomicity is wanted.
+- A is the smallest correct design: nothing is lost, and the duplicate-delivery guard of #392 (idempotency key and ordinal on the step) stops the state from advancing twice. B wins when a command must never repeat, C when #2383 lands and exact atomicity is wanted.
 - A `Left` from `Send` is returned unchanged (its category is preserved), the state is not saved and the event is retried by its publisher; no error is swallowed (`AGENTS.md` section 3).
 - **Class:** Dilemma
 
@@ -221,11 +221,12 @@ REFERENCE FILES:
 #### New project: `src/Encina.ProcessManager.Marten/` (new)
 
 1. **Project file**: `net10.0`, references `Encina.ProcessManager` and the `Marten` package (central version), `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.GuardTests`, `Encina.IntegrationTests`, `Encina.ContractTests` (as `src/Encina.Marten/Encina.Marten.csproj` lines 14-18); add to `Encina.slnx`.
-2. **`MartenProcessInstance`** (internal document): `Id` (the injective string form of `ProcessId`), `TenantId`, `ProcessType`, `CorrelationKey`, `StateJson`, `Status`, `Version` (long), timestamps; **`MartenProcessStepDocument`** with a unique key `(process id, idempotency key)`.
+2. **`MartenProcessInstance`** (internal document): `Id` (the injective string form of `ProcessId`), `TenantId`, `ProcessType`, `CorrelationKey`, `StateJson`, `Status`, `Version` (long), timestamps; **`MartenProcessStepDocument`** with a unique key `(process id, idempotency key, ordinal)`, the same key as the #392 step table (`ProcessStep.Ordinal`; the routing handler stores one step per event, so a #317 step has ordinal 0 unless #296 stores more).
 3. **`ProcessManagerMartenConfigurator : IConfigureMarten`**: registers both documents, a unique index on `Id`, an index on `(TenantId, ProcessType, Status)` and the optimistic-concurrency setting; added with `TryAddEnumerable` like `EncinaStoreOptionsConfigurator`.
-4. **`MartenProcessManagerStore : IProcessManagerStore`** (scoped; takes `IDocumentSession` and `TimeProvider`): `GetAsync`, `SaveAsync` (state and step stored in one `SaveChangesAsync` of the session, so the store's own two writes are one Marten transaction; a stale `expectedVersion` returns `processmanager.concurrency_conflict`; a duplicate idempotency key returns `Right(Unit)`), `GetStepsAsync`, `ListActiveAsync`, `ListStuckAsync`, `PurgeCompletedAsync`. Every Marten exception becomes `processmanager.store_failed` (`Unavailable`) with the exception type only.
+4. **`MartenProcessManagerStore : IProcessManagerStore`** (scoped; takes `IDocumentSession` and `TimeProvider`): `GetAsync`, `SaveAsync` (state and step stored in one `SaveChangesAsync` of the session, so the store's own two writes are one Marten transaction; like every provider it commits inside `SaveAsync` (#392 Design Choice 8, Dilemma D5, recommended, pending the maintainer), so the Marten store is not the only durable one; a stale `expectedVersion` returns `processmanager.concurrency_conflict`; a duplicate idempotency key returns `Right(Unit)`), `GetStepsAsync`, `ListActiveAsync`, `ListStuckAsync`, `PurgeCompletedAsync`. Every Marten exception becomes `processmanager.store_failed` (`Unavailable`) with the exception type only.
 5. **`ServiceCollectionExtensions.AddEncinaProcessManagerMarten()`**: registers the configurator and the store with `TryAdd*`; a database or in-memory store registered earlier or later does not override the application's own registration.
 6. **Per-file hygiene**: `PublicAPI.Shipped.txt` (empty), `PublicAPI.Unshipped.txt`, manifest `Encina.ProcessManager.Marten.json`.
+7. **Test project references**: `Encina.UnitTests` and `Encina.GuardTests` gain a `ProjectReference` to the new `Encina.ProcessManager.Marten` (#392 pull request 1 adds only the references to `Encina.ProcessManager`); `Encina.IntegrationTests` and `Encina.ContractTests` gain theirs in pull request 4. No `PropertyTests` project is touched (Phase 6 plans no property tests).
 
 </details>
 
@@ -241,9 +242,9 @@ Create the satellite package, the two documents, the configurator, the store and
 
 KEY RULES:
 - Async with CancellationToken only; the session is injected, never IServiceProvider inside a projection.
-- Tenant is a field of every query; a missing tenant with RequireTenant returns processmanager.tenant_required.
+- Tenant is a field of every query; a missing tenant returns processmanager.tenant_required unless the #392 option AllowMissingTenant (default false) is set.
 - Errors are Left; the exception type, never its message, is logged (ForLogging()).
-- Unit tests substitute IDocumentSession with NSubstitute; integration tests use the Marten-PostgreSQL fixture.
+- Unit tests substitute IDocumentSession with NSubstitute; integration tests use the shared `MartenFixture` (`[Collection(MartenCollection.Name)]`, collection `Marten`).
 
 REFERENCE FILES:
 - src/Encina.Marten/Snapshots/MartenSnapshotStore.cs
@@ -298,9 +299,9 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Idempotency**: the step document key `(process id, idempotency key)` is the duplicate guard of #392; a duplicate returns `Right(Unit)`.
+1. **Idempotency**: the step document key `(process id, idempotency key, ordinal)` is the duplicate guard of #392; a duplicate returns `Right(Unit)` without a second state advance. The duplicate integration test also asserts that the commands of a re-delivered event are sent again (Design Choice 2, option A: the guard runs at `SaveAsync`, after the dispatch) while the state version is not advanced twice.
 2. **Validation**: a command that is `null` is rejected by `Dispatch`; the options of #392 are validated at startup.
-3. **Multi-tenancy**: `TenantId` is a document field and in every Marten query; fail closed with `RequireTenant`.
+3. **Multi-tenancy**: `TenantId` is a document field and in every Marten query; fail closed: a missing tenant is `processmanager.tenant_required` unless the #392 option `AllowMissingTenant` (default `false`) is set.
 4. **Audit trail**: the step list; the operation audit is the deferred issue of #392.
 
 </details>
@@ -317,7 +318,7 @@ Add the duplicate-delivery integration test, the tenant isolation test (two tena
 
 KEY RULES:
 - Two tenants with the same (type, key) are two different processes; the test proves it on Marten.
-- Missing tenant with RequireTenant returns processmanager.tenant_required.
+- Missing tenant returns processmanager.tenant_required unless AllowMissingTenant (default false, #392) is set.
 
 REFERENCE FILES:
 - src/Encina.Tenancy/TenancyErrors.cs
@@ -377,7 +378,7 @@ REFERENCE FILES:
 | Guard | `Dispatch(null)`, store and extension arguments | `MartenProcessManagerStore.cs` 85, `ServiceCollectionExtensions.cs` 90 (null and empty arguments are the only branches) |
 | Contract | `IProcessManagerStore` contract run against the Marten store | `MartenProcessManagerStore.cs` 60 (the contract exercises save, conflict, list, purge) |
 | Property | none beyond #392 | no new logic with an invariant of its own; justification file |
-| Integration | Marten on PostgreSQL through the shared `Marten-PostgreSQL` fixture: save, conflict, tenant isolation, duplicate, purge | `MartenProcessManagerStore.cs` 70 (real session and database) |
+| Integration | Marten on PostgreSQL through the shared `MartenFixture` (collection `Marten`): save, conflict, tenant isolation, duplicate (commands re-sent, state not advanced twice), several steps of one event with different ordinals, purge | `MartenProcessManagerStore.cs` 70 (real session and database) |
 
 Load and benchmark: a justification `.md` each (one load and one save per event; concurrency is the version check, covered by integration).
 
@@ -395,7 +396,7 @@ Write the tests of the table, the two justification files and add the project re
 
 KEY RULES:
 - Tests execute real code; Shouldly through Encina.Testing.Shouldly; no Thread.Sleep.
-- Integration tests use the shared Marten-PostgreSQL collection and clear data in InitializeAsync; never IClassFixture.
+- Integration tests use the shared `Marten` collection (`MartenCollection.Name`) and clear data in InitializeAsync; never IClassFixture.
 
 REFERENCE FILES:
 - tests/Encina.IntegrationTests/Compliance/BreachNotification/BreachNotificationAggregateIntegrationTests.cs
@@ -447,12 +448,12 @@ REFERENCE FILES:
 | PR | Content | Files | Lines |
 |----|---------|-------|-------|
 | 1 | Phase 1: `PendingCommand`, `ProcessManagerBase`, routing handler, `ProcessManagerLog` (4 modified or new), PublicAPI, manifest, 2 unit tests, 1 guard test | 9 | 700 |
-| 2 | Phase 2 package and store: csproj, `Encina.slnx`, 2 documents, configurator, store, DI extension (6), 2 PublicAPI, manifest, `UnitTests` and `GuardTests` references (already present from #392 PR 1), unit and guard tests (2) | 12 | 1,100 |
+| 2 | Phase 2 package and store: csproj, `Encina.slnx`, 2 documents, configurator, store, DI extension (6), 2 PublicAPI, manifest, `UnitTests` and `GuardTests` references to the new package (not present: #392 adds only `Encina.ProcessManager`), unit and guard tests (2) | 14 | 1,100 |
 | 3 | Phases 3-5: registration order test, Marten log class, `AssemblyRanges` entry, command counter and span (2 source), 2 unit tests, PublicAPI | 8 | 600 |
-| 4 | Phase 6 integration: 4 integration classes on `Marten-PostgreSQL` (save and conflict, tenant isolation, duplicate, purge), contract registration, `ContractTests` reference if absent, justification files (2) | 9 | 900 |
+| 4 | Phase 6 integration: 4 integration classes on the `Marten` collection (save and conflict, tenant isolation, duplicate, purge), contract registration, `IntegrationTests` and `ContractTests` references to the new package, justification files (2) | 9 | 900 |
 | 5 | Phase 7 documentation: README, guide section, INVENTORY, ROADMAP, changelog fragment | 5 | 400 |
 
-Total: 5 pull requests, 43 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs the #392 pull requests 1 and 3 merged; pull request 2 needs #392 pull request 1.
+Total: 5 pull requests, 45 files (upper estimate: 9 + 14 + 8 + 9 + 5); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs the #392 pull requests 1 to 4 merged (it modifies `ProcessManagerLog` and uses the range, both landed by #392 pull request 2, and the routing handler of #392 pull request 4); pull request 2 needs #392 pull request 1 (the contract) only; pull request 3 needs #392 pull request 2 (range registration, meter) and #317 pull request 2; pull request 4 needs #317 pull request 2.
 
 ---
 
@@ -509,7 +510,7 @@ The block 12250-12299 is the first free 50-id slot of the Core and messaging are
 | Tests | ~19 | Unit, guard, contract, DI, integration x4, justification x2 |
 | Registry and registrations | ~2 | `Encina.slnx`, `AssemblyRanges` test |
 | Documentation | ~5 | README, guide section, INVENTORY, ROADMAP, changelog fragment |
-| **Total** | **~43 in 5 pull requests** | Equals the sum of the split table |
+| **Total** | **~45 in 5 pull requests** | Equals the sum of the split table |
 
 ---
 
@@ -560,7 +561,7 @@ REFERENCE FILES:
 | 7 | Distributed Locks | ⏭️ | Deferred with #392 (optimistic concurrency is integrated; an opt-in lock is the follow-up issue of #392) |
 | 8 | Transactions | ✅ | Phase 2: the state document and the step document are stored by one Marten `SaveChangesAsync` of the session; no atomicity with the sent commands is claimed (Design Choice 2) |
 | 9 | Idempotency | ✅ | Phase 4: unique `(process id, idempotency key)` on the step document; commands may repeat, so their handlers must be idempotent (documented) |
-| 10 | Multi-Tenancy | ✅ | Phase 4: `TenantId` on the document and in every query; fail closed with `RequireTenant`; the issue deferred it, but the shared `ProcessId` is tenant-qualified |
+| 10 | Multi-Tenancy | ✅ | Phase 4: `TenantId` on the document and in every query; fail closed (`AllowMissingTenant` default `false`, #392); the issue deferred it, but the shared `ProcessId` is tenant-qualified |
 | 11 | Module Isolation | ⏭️ | Deferred: `ModuleId` on messaging entities is #747; the document inherits it when #747 lands |
 | 12 | Audit Trail | ✅ | The step documents are the process audit trail (issue: "Audit process state transitions"); the operation audit store is the deferred issue of #392 |
 
@@ -568,7 +569,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- **#392** (the core): this plan edits its types; pull request 1 of this plan follows #392 pull requests 1 and 3, and its Marten store follows the store contract of #392 pull request 1.
+- **#392** (the core): this plan edits its types; pull request 1 of this plan follows #392 pull requests 1 to 4 (the log class, range registration and meter land in #392 pull request 2, the routing handler in pull request 4), and its Marten store (pull request 2) follows the store contract of #392 pull request 1.
 - #2383 (outbox in the Marten session) is the prerequisite of the alternative in Design Choice 2, option C; it does not block this plan.
 - No other blocking issue.
 
