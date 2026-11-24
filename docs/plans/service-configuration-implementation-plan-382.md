@@ -4,7 +4,7 @@
 > **Type**: Feature
 > **Complexity**: Medium (8 phases, 8 pull requests of 15, 15, 6, 13, 15, 6, 14 and 8 files)
 > **Estimated Scope**: ~900 lines of production code + ~2,300 lines of tests
-> **Family**: Aspire (aspire-2): #424, #425, #387, #391. Related, with their plans merged on `main` (no code of them is on `main` yet): #607 (`Encina.ServiceDiscovery`: `IServiceDiscoveryProvider`, `IServiceRegistry`, selector, cache, health check, Consul, Eureka, Kubernetes DNS, Aspire providers), #416/#417/#440 (Aspire packages). The closed duplicate #453 was carried into this issue (load balancing strategies, `SendToService`). **This plan owns the new `Encina.Configuration` and `Encina.Configuration.Consul` packages, the registration lifecycle folder of `Encina.ServiceDiscovery` and the EventId ranges `ConfigurationCore` 80100-80149, `ConfigurationConsul` 80150-80199 and `ServiceDiscoveryRegistration` 80200-80249 (Cloud and integration zone).**
+> **Family**: Aspire (aspire-2): #424, #425, #387, #391. Related, with their plans merged on `main` (no code of them is on `main` yet): #607 (`Encina.ServiceDiscovery`: `IServiceDiscoveryProvider`, `IServiceRegistry`, selector, cache, health check, Consul, Eureka, Kubernetes DNS, Aspire providers), #416/#417/#440 (Aspire packages). The closed duplicate #453 was carried into this issue (load balancing strategies, `SendToService`). **This plan owns the new `Encina.Configuration` and `Encina.Configuration.Consul` packages, the registration lifecycle folder of `Encina.ServiceDiscovery` and the EventId ranges `ConfigurationCore` 80450-80499, `ConfigurationConsul` 80150-80199 and `ServiceDiscoveryRegistration` 80200-80249 (Cloud and integration zone).**
 
 ---
 
@@ -23,7 +23,7 @@ The issue asks for a service-discovery abstraction (`IServiceDiscovery`), provid
 
 Differences from the issue text found while reading: (1) `ResolveAsync` returning one endpoint without `Either` breaks the repository's rules (AGENTS.md section 3: operations return `Either<EncinaError, T>`); the configuration interface here uses `Either`. (2) A watch that yields a plain `ConfigurationChange<T>` could not report a backend failure; elements are `Either<EncinaError, ConfigurationChange<T>>`, the same shape #607 uses for endpoint changes. (3) The sketch's `IDictionary<string, string> Metadata` on a `record` is mutable inside an immutable type; #607 owns that model.
 
-**Delivered**: `Encina.Configuration` (`IEncinaConfigurationProvider`, `ConfigurationChange<T>`, `InMemoryConfigurationProvider`, `ConfigurationBackedProvider` over `Microsoft.Extensions.Configuration.IConfiguration` with change tokens, `AddEncinaConfiguration`); `Encina.Configuration.Consul` (key/value provider with blocking queries, health check, `AddEncinaConfigurationConsul`); in `Encina.ServiceDiscovery` a `Registration/` folder: `ServiceRegistrationOptions`, `ServiceRegistrationHostedService`, `AddEncinaServiceRegistration`; EventIds 80100-80102, 80150-80152 and 80200-80203.
+**Delivered**: `Encina.Configuration` (`IEncinaConfigurationProvider`, `ConfigurationChange<T>`, `InMemoryConfigurationProvider`, `ConfigurationBackedProvider` over `Microsoft.Extensions.Configuration.IConfiguration` with change tokens, `AddEncinaConfiguration`); `Encina.Configuration.Consul` (key/value provider with blocking queries, health check, `AddEncinaConfigurationConsul`); in `Encina.ServiceDiscovery` a `Registration/` folder: `ServiceRegistrationOptions`, `ServiceRegistrationHostedService`, `AddEncinaServiceRegistration`; EventIds 80450-80452, 80150-80152 and 80200-80203.
 
 **Not in scope**: the discovery contract and its backends (#607), `SendToService` (Design Choice 5), a Kubernetes API watcher (Design Choice 3), tenant-scoped and module-scoped registries (deferred in the issue), leader election and registry audit (deferred in the issue; #607 records the audit follow-up).
 
@@ -295,7 +295,7 @@ REFERENCE FILES:
 
 1. `ConfigurationBackedProvider.cs`: reads `IConfiguration` (a section or a flat key), binds with `System.Text.Json` over the key's text or subtree, and watches with `IConfiguration.GetReloadToken()`. The order inside the watch loop is fixed so a change cannot be lost: (1) obtain the reload token, (2) read and snapshot the watched values, (3) wait on the token, (4) on the signal go to (1); a change that lands between the signal and step (1) is seen by the read of step (2), because the new token already exists. The values read in step (2) are compared with the previous snapshot per watched key and one change is yielded for each key that differs. A unit test reloads the source twice in a row (and once between signal and re-read) and asserts every change is yielded exactly once.
 2. `EncinaConfigurationOptions.cs` (`KeyPrefix` `string?`, validated) and `ServiceCollectionExtensions.AddEncinaConfiguration(this IServiceCollection, Action<EncinaConfigurationOptions>? = null)`: registers the options with validation on start, `TimeProvider` with `TryAdd`, the provider with `TryAddSingleton<IEncinaConfigurationProvider, ConfigurationBackedProvider>`, so an application's own registration or a backend registered earlier is kept. The default is registered together with an internal `ConfigurationDefaultMarker` singleton (file `ConfigurationDefaultMarker.cs`, in this pull request's file list), which only `Encina.Configuration` reads; a backend registered **after** it (Phase 4) must also win, through the public seam `UseEncinaConfigurationProvider<TProvider>` of pull request 2b (see the any-order rule of Phase 4).
-3. `Diagnostics/ConfigurationLog.cs` (`[LoggerMessage]`): 80100 watch ended after a failure (Warning: exception through `ForLogging()`), 80101 value could not be bound (Warning: the code only), 80102 reload signal handled (Debug: changed key count). `EventIdRanges.ConfigurationCore = (80100, 80149)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI line, the registry rows; ids 80100-80102 are packed, 80103-80149 spare.
+3. `Diagnostics/ConfigurationLog.cs` (`[LoggerMessage]`): 80450 watch ended after a failure (Warning: exception through `ForLogging()`), 80451 value could not be bound (Warning: the code only), 80452 reload signal handled (Debug: changed key count). `EventIdRanges.ConfigurationCore = (80450, 80499)` registered first, the `AssemblyRanges` entry of `EncinaEventIdAllocationTests`, the `Encina` PublicAPI line, the registry rows; ids 80450-80452 are packed, 80453-80499 spare.
 4. Tests: unit (a reload with one changed key yields one change, a reload with none yields none), guard, a DI test with `ValidateOnBuild` and `ValidateScopes`, a contract suite `IEncinaConfigurationProviderContractTests` that runs against the in-memory and the backed provider; manifests and PublicAPI through `mechanical-fixer`.
 
 </details>
@@ -311,7 +311,7 @@ TASK:
 Write the IConfiguration-backed provider, its options and registration, the log class and the range, with tests and the contract suite.
 
 KEY RULES:
-- Register EventIdRanges.ConfigurationCore (80100-80149) first, with its registry rows and PublicAPI line; ids 80100-80102 packed.
+- Register EventIdRanges.ConfigurationCore (80450-80499) first, with its registry rows and PublicAPI line; ids 80450-80452 packed.
 - The provider is a singleton; it holds no scoped service.
 - Log codes and counts only; no key, no value, no EncinaError.Message.
 - The contract suite executes real providers.
@@ -489,7 +489,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Observability: structured logs of Phases 2, 4 and 5 (ids 80100-80102, 80150-80152, 80200-80203). No `ActivitySource` or `Meter` for configuration reads (they are in-process or one cheap call, and the issue marks OpenTelemetry as included only for service discovery, which is #607's `Encina.ServiceDiscovery` source); a span `encina.configuration.watch` is deferred with the Consul provider's first measured need and recorded as a follow-up in the PR text.
+1. Observability: structured logs of Phases 2, 4 and 5 (ids 80450-80452, 80150-80152, 80200-80203). No `ActivitySource` or `Meter` for configuration reads (they are in-process or one cheap call, and the issue marks OpenTelemetry as included only for service discovery, which is #607's `Encina.ServiceDiscovery` source); a span `encina.configuration.watch` is deferred with the Consul provider's first measured need and recorded as a follow-up in the PR text.
 2. Tests: unit and guard in each pull request; contract suite (Phases 2 and 4); integration on Consul (Phases 4 and 5); property: not applicable (no complex logic); load and benchmark: not applicable, stated in the pull request.
 3. **Per-file targets** (new files; each reached by its own pull request):
 
@@ -587,7 +587,7 @@ REFERENCE FILES:
 | 5 | `ServiceRegistrationOptions`, hosted service, extension class, `ServiceRegistrationLog`, `EventIdRanges.cs` edit, `docs/engineering/eventid-block-registry.md` edit, `Encina` PublicAPI, `Encina.json`, allocation map edit, ServiceDiscovery PublicAPI edit and manifest edit, unit, guard and DI tests | 14 | 1,050 |
 | 6 | Three READMEs (two new, one section), guide page, inventory lines, changelog fragment, two justification files | 8 | 420 |
 
-PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the `Consul` pin and fixture of #607 pull request 5a (or pins the same version first); PR 2b needs PR 2; PR 4 needs PR 2b and PR 3 (it registers through the public seam of 2b, so it edits no `Encina.Configuration` file); PR 4b needs PR 4; PR 5 needs #607 pull requests 1a, 1b and 2a, and 5c (the Consul registry the integration case of the hosted service runs against); PR 6 is last. All of #607 is a plan on `main`, not code: every "#607 pull request" above means its code pull request. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when briefed is split again; PR 1 is exactly at 15 files, counted by name (the `ConfigurationChange` enum lives in the same file). Pull requests 2, 4 and 5 each register an EventId range and therefore also edit `docs/engineering/eventid-block-registry.md` as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains one row per pull request in the Cloud and integration zone (ranges below 10000 are refused by rule 5 of the test; the aspire-2 family takes consecutive 50-id slots of the first block 80000-80999: #424 80000-80049, #425 80050-80099, #382 80100-80249, #387 80250-80349, #391 80350-80399): `| ConfigurationCore | 80100-80149 | Cloud and integration | zone |` (pull request 2), `| ConfigurationConsul | 80150-80199 | Cloud and integration | zone |` (pull request 4) and `| ServiceDiscoveryRegistration | 80200-80249 | Cloud and integration | zone |` (pull request 5); and the "Blocks" table (header `Block | Area | Owner | Status`) gains the matching `registered` row in the same pull request (`| 80100-80149 | Cloud and integration | aspire-2 #382 ConfigurationCore | registered |` and so on). The pre-zone reservation 850-899 is not used by this plan and is not edited here (the orchestrator marks it superseded). Each of these pull requests also adds one line to `src/Encina/PublicAPI.Unshipped.txt` (`static readonly Encina.Diagnostics.EventIdRanges.<Name> -> (int Min, int Max)`), already counted as the `Encina` PublicAPI file of its row. PRs 2 and 4 are exactly at 15 files.
+PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the `Consul` pin and fixture of #607 pull request 5a (or pins the same version first); PR 2b needs PR 2; PR 4 needs PR 2b and PR 3 (it registers through the public seam of 2b, so it edits no `Encina.Configuration` file); PR 4b needs PR 4; PR 5 needs #607 pull requests 1a, 1b and 2a, and 5c (the Consul registry the integration case of the hosted service runs against); PR 6 is last. All of #607 is a plan on `main`, not code: every "#607 pull request" above means its code pull request. No interface is changed, so no implementer or test double is touched. A pull request that measures over 15 files or 1,500 lines when briefed is split again; PR 1 is exactly at 15 files, counted by name (the `ConfigurationChange` enum lives in the same file). Pull requests 2, 4 and 5 each register an EventId range and therefore also edit `docs/engineering/eventid-block-registry.md` as `EventIdRegistryAgreementTests` requires: the "Registered ranges" table (header `Name | Block | Area | Zone`) gains one row per pull request in the Cloud and integration zone (ranges below 10000 are refused by rule 5 of the test; in the first block 80000-80999 #4007 reserves 80000-80149 (Refit, AwsLambda, AzureFunctions); the aspire-2 family takes #382 ConfigurationConsul 80150-80199 and ServiceDiscoveryRegistration 80200-80249, #387 80250-80349, #391 80350-80399, #425 80400-80449 and #382 ConfigurationCore 80450-80499; #424 80000-80049 collides with the reserved Refit block and is tracked in a separate issue): `| ConfigurationCore | 80450-80499 | Cloud and integration | zone |` (pull request 2), `| ConfigurationConsul | 80150-80199 | Cloud and integration | zone |` (pull request 4) and `| ServiceDiscoveryRegistration | 80200-80249 | Cloud and integration | zone |` (pull request 5); and the "Blocks" table (header `Block | Area | Owner | Status`) gains the matching `registered` row in the same pull request (`| 80450-80499 | Cloud and integration | aspire-2 #382 ConfigurationCore | registered |` and so on). The pre-zone reservation 850-899 is not used by this plan and is not edited here (the orchestrator marks it superseded). Each of these pull requests also adds one line to `src/Encina/PublicAPI.Unshipped.txt` (`static readonly Encina.Diagnostics.EventIdRanges.<Name> -> (int Min, int Max)`), already counted as the `Encina` PublicAPI file of its row. PRs 2 and 4 are exactly at 15 files.
 
 ---
 
@@ -599,7 +599,7 @@ PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the 
 |-----------|-----------------|---------------------|
 | `AGENTS.md` sections 3 and 6 | ROP, secrets in options, errors by code, 12 functions | Design Choices 6 and 7 |
 | ADR-001 and ADR-062 | Either results and the error category contract | Error codes and categories |
-| ADR-021 | EventId ranges registered first | 80100-80249 |
+| ADR-021 | EventId ranges registered first | 80150-80249 and 80450-80499 |
 | ADR-054 (D4) | Tenant tag only where multi-tenancy is on | No tenant data |
 | SPEC-000 section 6 and DEC-009 | Cloud services without a free emulator are out; local backends are in | Scope |
 | Consul KV HTTP API (blocking queries with `index` and `wait`) | The watch mechanism | Phase 4 |
@@ -620,7 +620,7 @@ PR 1 and PR 2 are independent of #607 (they need only `Encina`); PR 3 needs the 
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Configuration` (`ConfigurationCore`, new) | 80100-80149, ids 80100-80102 used | Cloud and integration zone, first block 80000-80999, consecutive 50-id slots of the aspire-2 family (#424 80000-80049, #425 80050-80099, #382 80100-80249, #387 80250-80349, #391 80350-80399) |
+| `Encina.Configuration` (`ConfigurationCore`, new) | 80450-80499, ids 80450-80452 used | Cloud and integration zone, first block 80000-80999: #4007 reserves 80000-80149 (Refit, AwsLambda, AzureFunctions); the aspire-2 family takes #382 ConfigurationConsul 80150-80199 and ServiceDiscoveryRegistration 80200-80249, #387 80250-80349, #391 80350-80399, #425 80400-80449 and this range 80450-80499 (#424 80000-80049 collides with the reserved Refit block and is tracked in a separate issue) |
 | `Encina.Configuration.Consul` (`ConfigurationConsul`, new) | 80150-80199, ids 80150-80152 used | Same block |
 | `Encina.ServiceDiscovery` (`ServiceDiscoveryRegistration`, new second range) | 80200-80249, ids 80200-80203 used | Same block; #607 keeps 7340-7343 for the same assembly. Registered before use in `EventIdRanges.cs` and the allocation test map |
 
@@ -648,7 +648,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW (8 pull requests, each builds alone):
 1. Encina.Configuration: contract, models, errors, in-memory provider (Phase 1).
-2. The IConfiguration adapter, registration with the default marker, logs 80100-80102 (Phase 2).
+2. The IConfiguration adapter, registration with the default marker, logs 80450-80452 (Phase 2).
 2b. The public registration seam and the contract suite (Phase 4 text, created here).
 3. Consul package skeleton, options, validator (Phase 3).
 4. Consul provider, registration through the seam, logs 80150-80152 (Phase 4); 4b the health check.
@@ -679,7 +679,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: caching configuration would hide reloads; discovery caching is #607's |
 | 2 | OpenTelemetry | ⏭️ | Deferred: configuration reads need no span now; discovery tracing is #607's `Encina.ServiceDiscovery` source; a watch span is a follow-up named in the pull request when measured need appears (an issue is opened if the maintainer wants it earlier) |
-| 3 | Structured Logging | ✅ | Phases 2, 4, 5: EventIds 80100-80102, 80150-80152, 80200-80203 |
+| 3 | Structured Logging | ✅ | Phases 2, 4, 5: EventIds 80450-80452, 80150-80152, 80200-80203 |
 | 4 | Health Checks | ✅ | Phase 4: `ConsulConfigurationHealthCheck`; the registry health is #607's |
 | 5 | Validation | ✅ | Keys, options, addresses (Design Choices 7 and 9) |
 | 6 | Resilience | ✅ | Phase 4: the Consul pipeline (timeout, retry) shared with #607 |
