@@ -11,7 +11,7 @@
 
 Implement the entity-change audit store (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036) on Azure Table Storage as `EntityChangeAuditStoreAzureTable`: low-cost, append-optimised history of "what did this entity look like before and after each change", queried by entity. The store is built on the **ADR-036 contract** (`Either` results, `TimeProvider`, `TenantId`, `ModuleId`, `PurgeEntriesAsync`, `ChangedAtUtc` as `DateTimeOffset`, the writer's redaction hook), not on the samples of the issue, which build an OData filter by string concatenation, sort the whole history in memory, use an entity type alone as partition key and rely on "built-in lifecycle management policies", which exist for Blob Storage only, not for tables.
 
-What the code looks like today (origin/main `1dee4ba61`, re-checked for this revision; the plan branch was cut from `039cd3524`):
+What the code looks like today (origin/main `ff9a579c1`, re-checked for this revision; the plan branch was cut from `039cd3524`):
 
 - `IAuditLogStore` lives in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs` (`Task LogAsync(AuditLogEntry, CancellationToken)`, `Task<IEnumerable<AuditLogEntry>> GetHistoryAsync(string entityType, string entityId, CancellationToken)`); `AuditLogEntry` (`Id`, `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc` as `DateTime`, `OldValues`, `NewValues`, `CorrelationId`) and `InMemoryAuditLogStore` sit next to it. ADR-036 renames and reshapes all of it; that work is **#1778, open**.
 - `Directory.Packages.props` already pins `Azure.Data.Tables` 12.13.0 (MIT), `Azure.Identity` 1.21.0 and `Testcontainers.Azurite` 4.15.0. `tests/Encina.TestInfrastructure/Fixtures/AzuriteFixture.cs` (image `mcr.microsoft.com/azure-storage/azurite:3.37.0`, exposes `ConnectionString` and `TableEndpoint`, collection `Cloud-Azurite`, `tests/Encina.IntegrationTests/Infrastructure/Azurite/AzuriteCollection.cs`) exists. No package holds a Table Storage store yet; the #588 plan (dead letters, open) and the #582 plan (Cosmos DB audit, open) each propose an Azure package.
@@ -55,15 +55,15 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) PartitionKey = encoded `(tenant, entityType, entityId)`; RowKey = `{inverted ticks:D19}_{entryId}`; plus retention index rows in a per-tenant, per-day partition `rix|{tenant}|{yyyyMMdd}`** | The history of one entity is one partition query in time order (newest first) with continuation tokens; purge reads only the index partitions older than the cutoff | Two writes per entry (index row first, then the entry row), not atomic across partitions |
-| **B) PartitionKey = day (the issue's "by date")** | Purge by partition | Every history read scans many partitions |
-| **C) Option A without index rows; purge scans the table with a `Timestamp` filter** | One write per entry | A full-table scan for every purge; cost grows with the table |
+| **B) PartitionKey = `{tenant}.{day}` (the issue's "by date", with the tenant segment first, as every layout requires)** | Purge by partition | Every history read scans many partitions |
+| **C) Option A without index rows; purge scans the table with a filter on the tenant segment and `ChangedAtUtc`** | One write per entry | A full-table scan for every purge; cost grows with the table |
 
 ### Chosen Option: **A — entity partition, inverted-ticks row key, retention index rows** (recommended, pending the maintainer)
 
 ### Rationale
 
 - The main query is entity history, which A keeps in one partition. B wins when purge cost dominates and history reads are rare; C wins for small tables where a scan costs little.
-- **How each option finds the rows of one tenant older than its cutoff** (the per-tenant purge of Design Choice 8): A reads the tenant's index partitions `rix|{tenant}|{day}` for the days before the cutoff, then deletes the entry rows they point to in 100-operation batches per entity partition, and the index rows after their entries; B deletes the tenant's day partitions before the cutoff; C queries with a filter on the tenant segment and `ChangedAtUtc`, scanning the table.
+- **How each option finds the rows of one tenant older than its cutoff** (the per-tenant purge of Design Choice 8): A reads the tenant's index partitions `rix|{tenant}|{day}` for the days before the cutoff, then deletes the entry rows they point to in 100-operation batches per entity partition, and the index rows after their entries; B deletes that tenant's `{tenant}.{day}` partitions before the cutoff, never another tenant's; C queries with a filter on the tenant segment and `ChangedAtUtc`, scanning the table.
 - **Index rows under option A.** Entity group transactions are limited to one partition, so the index row is written first (write-ahead) with `UpsertEntityAsync` (it holds only keys, so a repeat is harmless), then the entry row; a crash between the two writes leaves an index row without an entry, which the purge treats as already deleted.
 - **Key encoding (rule).** Table keys forbid `/`, `\`, `#`, `?` and control characters and are limited to 1 KiB; each segment is base64url-encoded UTF-8 and the segments are joined with `.` (absent from the base64url alphabet), which is injective; a key over 1 KiB is a `Left` (`Validation`).
 - **Tenant segment (rule).** With tenancy on the entry's `TenantId` is the first segment; the reserved segment `default` marks tenant-less entries, written only when tenancy is off; a real tenant `default` is rejected on write (`InvalidRequest`, ADR-062 R3); with tenancy on and no tenant resolved, write and history read deny (`InvalidRequest`; `AGENTS.md` section 3) and never fall back to `default`. The purge is not bound to the ambient tenant and has no cross-tenant opt-in: it receives the tenant explicitly from the retention service (Design Choice 8, #4182).
@@ -163,7 +163,7 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `AddEntityAsync`; on 409 (`EntityAlreadyExists`) read the stored row and compare `PayloadHash`: identical is success, different is `Left` (`AlreadyExists`)** | Safe retries; a collision or an edited row is never silent | One point read on the rare conflict path |
+| **A) `AddEntityAsync`; on 409 (`EntityAlreadyExists`) read the stored row and compare `PayloadHash`: identical is success, different is `Left` (`AlreadyExists`)** | Safe retries of the same entry; a different payload under the same keys, or an edited row, is never silent | One point read on the rare conflict path |
 | **B) Treat every 409 as success** | Simplest | Loses an entry silently on a key collision |
 | **C) `UpsertEntityAsync`** | No conflict path | Overwrites an existing audit row: never acceptable |
 
@@ -171,7 +171,8 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 
 ### Rationale
 
-- B and C lose or overwrite audit data without a failure. The rule applies to the entry row under every key layout of Design Choice 2 (each layout gives an entry exactly one row whose keys include its entry id); helper rows that hold only keys belong to the layout chosen there.
+- B and C lose or overwrite audit data without a failure. The rule applies to the entry row under every key layout of Design Choice 2; helper rows that hold only keys belong to the layout chosen there.
+- **Scope of the guarantee.** The keys of every layout contain `ChangedAtUtc` as well as the entry id, so the conflict check covers a retry of the same entry (the writer builds an entry once, so a retry carries the same `ChangedAtUtc`) and a different payload under the same keys. The same entry id written again with a different `ChangedAtUtc` lands as a second row and is not detected by the store: entry-id uniqueness across timestamps is the writer's guarantee (ADR-036 entries take a new id per change), and the README says so.
 
 </details>
 
@@ -193,6 +194,7 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 ### Rationale
 
 - The service offers no expiry for tables, so the contract's purge is the only mechanism, whatever key layout Design Choice 2 picks. The exact purge signature and the source of each tenant's policy are decided by #4182 and delivered by #1778; the store never reads the ambient tenant or an opt-in for the purge, and a call without a tenant while tenancy is on is a `Left` (`InvalidRequest`). A failed batch stops that tenant's purge with `Left` (`Internal`) and reports no partial success.
+- **Tenant segments that `ITenantStore` no longer returns (rule).** Enumerating registered tenants alone would never purge two kinds of rows, which GDPR Art. 5(1)(e) and SPEC-002 REQ-007 forbid keeping past their retention: rows of an offboarded tenant (kept under path C of #2847 after its tenant record is removed) and `default`-segment rows written before tenancy was switched on. The store therefore also lists the distinct tenant segments it holds (`ListTenantSegmentsAsync`, or the name #1778 gives it): on the first write of a segment in a process it upserts a key-only row `seg|{segment}` in a `tenants` partition, and the list is a query of that partition. The retention service purges every listed segment that `ITenantStore` does not return, including `default` once tenancy is on, under the residual policy #4182 defines (for example the policy recorded at offboarding, or the default retention of `EntityChangeAuditOptions`). This case is an acceptance item of #4182.
 
 </details>
 
@@ -377,10 +379,10 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: keys, mapper, every error mapping (409 same and different hash, 413, 429, 503, other), tenant rules, purge of the tenant passed in (never the ambient one; tenancy on and no tenant passed is `Left`), purge batching and orphan index rows, initializer branches; `TableClient` and `TableServiceClient` substituted (their members are virtual and `Azure.Response.FromValue`, `TableModelFactory` and the public `RequestFailedException` constructors build results), `FakeTimeProvider`.
+1. **Unit**: keys, mapper, every error mapping (409 same and different hash, 413, 429, 503, other), tenant rules, purge of the tenant passed in (never the ambient one; tenancy on and no tenant passed is `Left`), segment registry row written once per segment and listed, purge batching and orphan index rows, initializer branches; `TableClient` and `TableServiceClient` substituted (their members are virtual and `Azure.Response.FromValue`, `TableModelFactory` and the public `RequestFailedException` constructors build results), `FakeTimeProvider`.
 2. **Guard** (`tests/Encina.GuardTests/AzureTableStorage/`): store constructor and methods, both registrations, options.
 3. **Contract** (PR 4): a class deriving from the shared entity-change contract base on `[Collection("Cloud-Azurite")]`.
-4. **Integration** (PR 4, `[Collection("Cloud-Azurite")]`, `[Trait("Category", "Integration")]`): idempotent repeated write, id conflict, history order and continuation, large values split and reassembled, a key with forbidden characters, colliding concatenations, tenant isolation, per-tenant purge from a scope with no ambient tenant (tenant A's cutoff deletes only tenant A's old rows; tenant B with a longer retention keeps its own), purge with orphan index rows, table creation, health check. The class deletes its own table in `InitializeAsync` and also calls `ClearAllDataAsync`. Azurite (`mcr.microsoft.com/azure-storage/azurite:3.37.0`, MIT) runs through `Testcontainers.Azurite` 4.15.0 (MIT), both already used on main.
+4. **Integration** (PR 4, `[Collection("Cloud-Azurite")]`, `[Trait("Category", "Integration")]`): idempotent repeated write, id conflict, history order and continuation, large values split and reassembled, a key with forbidden characters, colliding concatenations, tenant isolation, per-tenant purge from a scope with no ambient tenant (tenant A's cutoff deletes only tenant A's old rows; tenant B with a longer retention keeps its own), a tenant removed from `ITenantStore` and the `default` segment written before tenancy was enabled are listed and purged under the residual policy, purge with orphan index rows, table creation, health check. The class deletes its own table in `InitializeAsync` and also calls `ClearAllDataAsync`. Azurite (`mcr.microsoft.com/azure-storage/azurite:3.37.0`, MIT) runs through `Testcontainers.Azurite` 4.15.0 (MIT), both already used on main.
 5. **Property** (PR 4): key injectivity and mapper round trip for random strings.
 6. **Load/Benchmark**: `.md` justifications (append-only, not a hot path).
 
@@ -390,16 +392,16 @@ REFERENCE FILES:
 
 | File | Unit | Guard | Contract | Property | Integration | PR | Justification |
 |------|:----:|:-----:|:--------:|:--------:|:-----------:|:--:|---------------|
-| `EncinaAzureTableStorageOptions.cs` | 90 | 50 | - | - | 60 | 1, 4 | Properties and `ToString()`; guard reaches the null checks of the setters that validate. |
-| `EntityChangeAudit/EntityChangeAuditAzureTableOptions.cs` | 90 | 60 | - | - | 60 | 1, 4 | Properties and table-name validation. |
-| `EntityChangeAudit/EntityChangeAuditTableKeys.cs` | 95 | 0 | - | 95 | 80 | 1, 4 | Pure functions; guard 0 because the type is internal with no public parameters; injectivity is the property. |
-| `EntityChangeAudit/EntityChangeAuditTableMapper.cs` | 95 | 0 | - | 90 | 85 | 1, 4 | Pure mapping and splitting; internal, so guard tests cannot reach it. |
-| `EntityChangeAudit/EntityChangeAuditStoreAzureTable.cs` | 90 | 85 | 85 | - | 85 | 2, 4 | Fault paths through substituted clients; contract and Azurite cover the real paths. |
-| `EntityChangeAudit/EntityChangeAuditAzureTableErrors.cs` | 100 | 0 | - | - | - | 2 | Factory methods called by the store tests; internal. |
-| `EntityChangeAudit/EntityChangeAuditTableInitializer.cs` | 90 | 0 | - | - | 80 | 2, 4 | Opt-in branch; internal; Azurite proves creation. |
-| `ServiceCollectionExtensions.cs` | 95 | 90 | - | - | - | 2 | DI wiring with ValidateOnBuild in both orders plus null guards. |
-| `EntityChangeAudit/EntityChangeAuditAzureTableHealthCheck.cs` | 90 | 80 | - | - | 70 | 3, 4 | One probe and a status mapping. |
-| `EntityChangeAudit/Diagnostics/AzureTableEntityChangeAuditLog.cs` | 0 | 0 | - | - | - | 2 | Source-generated `[LoggerMessage]` partial methods with no hand-written executable code. |
+| `EncinaAzureTableStorageOptions.cs` | 90 | 50 | - | - | 60 | 1, 4 | Unit: defaults, validation and the secret-free `ToString()`. Guard: invalid values on each validated property run the validation half of the file. Integration: the Azurite tests build the options through the registration. |
+| `EntityChangeAudit/EntityChangeAuditAzureTableOptions.cs` | 90 | 50 | - | - | 60 | 1, 4 | Unit: defaults and table-name validation. Guard: invalid table names run the validation branches. Integration: built through the registration in the Azurite tests. |
+| `EntityChangeAudit/EntityChangeAuditTableKeys.cs` | 95 | 0 | - | 95 | 80 | 1, 4 | Unit: encoding, forbidden characters and the 1 KiB limit. Guard: 0, internal and `Encina.GuardTests` has no `InternalsVisibleTo`. Property: injectivity over random segments. Integration: every Azurite write uses the keys. |
+| `EntityChangeAudit/EntityChangeAuditTableMapper.cs` | 95 | 0 | - | 90 | 85 | 1, 4 | Unit: round trip, value splitting and the entity limit. Guard: 0, internal with no `InternalsVisibleTo` for guard tests. Property: round trip of random entries. Integration: Azurite round-trips split values. |
+| `EntityChangeAudit/EntityChangeAuditStoreAzureTable.cs` | 90 | 30 | 85 | - | 85 | 2, 4 | Unit: fault paths through substituted clients. Guard: constructor and method argument checks only, about a third of the lines of a store that does I/O. Contract: the shared suite drives every contract method. Integration: Azurite covers write, history, purge and segment listing. |
+| `EntityChangeAudit/EntityChangeAuditAzureTableErrors.cs` | 100 | 0 | - | - | - | 2 | Unit: every factory method is called by the store tests. Guard: 0, internal with no validated parameters. |
+| `EntityChangeAudit/EntityChangeAuditTableInitializer.cs` | 90 | 0 | - | - | 80 | 2, 4 | Unit: opt-in and existing-table branches. Guard: 0, internal with no `InternalsVisibleTo` for guard tests. Integration: Azurite proves creation. |
+| `ServiceCollectionExtensions.cs` | 95 | 40 | - | - | - | 2 | Unit: the DI test builds the provider with ValidateOnBuild in both orders. Guard: null `services` and null `configure` run the argument checks before a short registration body. |
+| `EntityChangeAudit/EntityChangeAuditAzureTableHealthCheck.cs` | 90 | 30 | - | - | 70 | 3, 4 | Unit: healthy, missing-table and failure mappings. Guard: the constructor checks only. Integration: Azurite proves the healthy path. |
+| `EntityChangeAudit/Diagnostics/AzureTableEntityChangeAuditLog.cs` | 0 | 0 | - | - | - | 2 | Unit: 0, source-generated `[LoggerMessage]` partial methods with no hand-written executable code. Guard: 0, same reason. |
 
 </details>
 
@@ -569,8 +571,8 @@ REFERENCE FILES:
 - **#1778 (open, `[DEBT]`, no `needs-decision`, no blocking dependency)** delivers the contract, the retention service, the decorator, the in-memory default and the shared behavioral contract base. If it merges without a reusable base, the first of #577-#582 to reach its integration pull request adds it (the same fallback as the #582 plan).
 - #582 (Cosmos DB) and #588 (Azure dead letters) are siblings; Design Choice 1 is decided for the three together.
 - #1240 (open) owns the hash chain (Design Choice 5); #2903 (open) is the exceptional subject-scoped erasure path for Marten.
-- No new package versions: `Azure.Data.Tables` 12.13.0 (MIT), `Azure.Identity` 1.21.0 (MIT) and `Testcontainers.Azurite` 4.15.0 (MIT) are pinned on origin/main `1dee4ba61`.
-- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature) before #1778 implements `EntityChangeAuditRetentionService`; Design Choice 8 and Phase 2 task 4 follow it.
+- No new package versions: `Azure.Data.Tables` 12.13.0 (MIT), `Azure.Identity` 1.21.0 (MIT) and `Testcontainers.Azurite` 4.15.0 (MIT) are pinned on origin/main `ff9a579c1`.
+- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature, and the residual policy for segments `ITenantStore` no longer returns: offboarded tenants and the legacy `default` segment) before #1778 implements `EntityChangeAuditRetentionService`; Design Choice 8 and Phase 2 task 4 follow it.
 - The EventId slot 52400-52449 lies after the #4007 reservations (50000-52349, #4174 merged).
 
 ---
