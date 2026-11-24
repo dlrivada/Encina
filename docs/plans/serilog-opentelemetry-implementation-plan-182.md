@@ -19,7 +19,7 @@
 - Serilog's own `LogEvent` has `TraceId` and `SpanId` (read from the 4.2.0 documentation file), which Serilog sets from `Activity.Current` when the event is created and which the OpenTelemetry sink reads; Phase 1 proves that with a test before any code relies on it.
 - Log export to OTLP has a second route in `Encina.OpenTelemetry`: #1048 adds `WithLogging` to `WithEncina()` and #1043 wires `AddOtlpExporter` on it, for hosts that log through `Microsoft.Extensions.Logging` providers.
 - `src/Encina.Security.PII` has `IPIIMasker`, `[PII]`, `[SensitiveData]`, `[MaskInLogs]` and `PIILoggerExtensions.LogMasked`, which mask a value for a logger call; no Serilog adapter exists.
-- No EventId range is registered for the package; the block registry has no `10000+` rows yet, so the first free slot of the observability and platform block is 60000.
+- No EventId range is registered for the package; the block registry has no `10000+` rows yet, so the first free slot of the observability and platform block was 60000, and the plans re-slotted to 60400-60449 after the #4174 reservations (the block registry on `main` now reserves 60000-60349 for #4007).
 
 ### What the issue proposes and what changed since
 
@@ -30,7 +30,7 @@ The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`Corr
 - A new package `Encina.Serilog.OpenTelemetry` with `EncinaSerilogOptions`, a validator, the property-name constants, `EncinaLogEnricher` (correlation id, tenant when resolved, user id only on opt-in), `TraceContextEnricher`, `Enrich.WithEncinaContext()`, and `AddEncinaSerilog` (Phases 1 and 2).
 - A `RequestLoggingPipelineBehavior<,>` with three EventIds, registered only when enabled (Phase 3).
 - `WriteTo.EncinaOpenTelemetry()`, a helper over the OpenTelemetry sink with Encina defaults (Phase 4).
-- Shared pieces and owner: this plan owns the package, the log property names and EventIds 60000-60002; #1043 and #1048 own the Microsoft-logging OTLP route; #186 owns trace fields on `IRequestContext`; #2442 owns `ModuleId`; #906 owns the guide; the Prometheus plan of #180 takes 60050-60099 of the same block.
+- Shared pieces and owner: this plan owns the package, the log property names and EventIds 60400-60402; #1043 and #1048 own the Microsoft-logging OTLP route; #186 owns trace fields on `IRequestContext`; #2442 owns `ModuleId`; #906 owns the guide; the Prometheus plan of #180 takes 60450-60499 of the same block.
 - Affected packages: `Encina.Serilog.OpenTelemetry` (new), `Encina` (core, only `EventIdRanges.cs` and its `PublicAPI` line). Provider category: observability (logging); no database or transport provider.
 - Not delivered, with the reason: a destructuring policy that masks `[PII]` properties of logged objects (a follow-up issue file `artifacts/issues/serilog-pii-destructuring-policy.md`, Design Choice 6); a request-payload log (Design Choice 6); a sink endpoint health check (`artifacts/issues/exporter-endpoint-health-checks.md`, matrix row 4); `ModuleId` (#2442).
 
@@ -191,7 +191,7 @@ The issue (2026-era text, `status:proposal`) proposes `EncinaLogEnricher` (`Corr
 | C6 | No new `EncinaError` code and no ADR-062 `ErrorCategory`: the behavior returns the `Either` of `nextStep` unchanged | Settled | ADR-062 (a category is chosen where an `EncinaError` is created; none is created) |
 | C7 | The package has no `ActivitySource` and no `Meter`, so no tenant tag on telemetry (ADR-054 D4 concerns spans and metrics) | Settled | ADR-054 D4 |
 | C8 | The sink helper has `Endpoint` (`Uri?`), `Protocol` (default `Grpc`), `ServiceName`, `DeploymentEnvironment` and `ConfigureSink` (`Action<BatchedOpenTelemetrySinkOptions>`, the escape hatch for headers and batching); no header property, so no secret lives in the options class and no `[JsonIgnore]` or `ToString()` override is required; an `Endpoint` with user info is rejected | Trivial | `AGENTS.md` section 3 (options with a token or key); the sink API (`OpenTelemetry(LoggerSinkConfiguration, Action<BatchedOpenTelemetrySinkOptions>)`) |
-| C9 | EventIds 60000 (request started, Debug), 60001 (request completed, `SuccessLevel`), 60002 (request failed, `FailureLevel`) in the new range `SerilogOpenTelemetry` (60000, 60049); the dynamic levels use the `LogLevel` parameter of `[LoggerMessage]` | Settled | `AGENTS.md` section 7 (ADR-021, the `10000+` zone, base 60000 for observability and platform) |
+| C9 | EventIds 60400 (request started, Debug), 60401 (request completed, `SuccessLevel`), 60402 (request failed, `FailureLevel`) in the new range `SerilogOpenTelemetry` (60400, 60449); the dynamic levels use the `LogLevel` parameter of `[LoggerMessage]` | Settled | `AGENTS.md` section 7 (ADR-021, the `10000+` zone, base 60000 for observability and platform) |
 | C10 | New public names: `EncinaSerilogOptions`, `EncinaLogProperties`, `EncinaLogEnricher`, `TraceContextEnricher`, `RequestLoggingPipelineBehavior<,>`, `WithEncinaContext`, `EncinaOpenTelemetry`, `AddEncinaSerilog` | Dilemma (recommended, pending the maintainer) | Public surface; the issue's names are kept except `LoggingBehavior`, renamed to say what it does |
 
 ---
@@ -240,7 +240,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina.Hangfire/Encina.Hangfire.csproj
 - src/Encina/Abstractions/IRequestContextAccessor.cs
-- docs/engineering/eventid-block-registry.md (block 60000)
+- docs/engineering/eventid-block-registry.md (block 60400-60449)
 ```
 
 </details>
@@ -298,9 +298,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `RequestLoggingPipelineBehavior.cs`: `public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(ILoggerFactory loggerFactory, IOptions<EncinaSerilogOptions> options, TimeProvider? timeProvider = null)`; the logger is `loggerFactory.CreateLogger(typeof(TRequest).FullName ?? typeof(TRequest).Name)` so category filters apply (Design Choice 5); `Handle` begins one scope with `RequestType` only (the enricher owns the context properties), logs 60000, awaits `nextStep()`, then logs 60001 or, for a `Left`, 60002 with `error.GetCode().IfNone("encina.unknown")` (public; the `internal` `GetEncinaCode()` is not reachable from this assembly); an exception is logged with its type name and `ForLogging()` and rethrown (register row C5). The type parameter constraint matches `MessagingEnricherPipelineBehavior`.
-2. **Create** `Diagnostics/RequestLoggingLogMessages.cs`: `internal static partial class` with three `[LoggerMessage]` methods, EventIds 60000-60002, the level of 60001 and 60002 passed as a `LogLevel` parameter, XML docs naming the range `EventIdRanges.SerilogOpenTelemetry`.
-3. **Edit** `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) SerilogOpenTelemetry = (60000, 60049);` with a summary; the registry rows in `docs/engineering/eventid-block-registry.md`; the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`; the line in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); run `EventIdRegistryAgreementTests` and the architecture tests.
+1. **Create** `RequestLoggingPipelineBehavior.cs`: `public sealed class RequestLoggingPipelineBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse> where TRequest : IRequest<TResponse>`; constructor `(ILoggerFactory loggerFactory, IOptions<EncinaSerilogOptions> options, TimeProvider? timeProvider = null)`; the logger is `loggerFactory.CreateLogger(typeof(TRequest).FullName ?? typeof(TRequest).Name)` so category filters apply (Design Choice 5); `Handle` begins one scope with `RequestType` only (the enricher owns the context properties), logs 60400, awaits `nextStep()`, then logs 60401 or, for a `Left`, 60402 with `error.GetCode().IfNone("encina.unknown")` (public; the `internal` `GetEncinaCode()` is not reachable from this assembly); an exception is logged with its type name and `ForLogging()` and rethrown (register row C5). The type parameter constraint matches `MessagingEnricherPipelineBehavior`.
+2. **Create** `Diagnostics/RequestLoggingLogMessages.cs`: `internal static partial class` with three `[LoggerMessage]` methods, EventIds 60400-60402, the level of 60401 and 60402 passed as a `LogLevel` parameter, XML docs naming the range `EventIdRanges.SerilogOpenTelemetry`.
+3. **Edit** `src/Encina/Diagnostics/EventIdRanges.cs`: `public static readonly (int Min, int Max) SerilogOpenTelemetry = (60400, 60449);` with a summary; the registry rows in `docs/engineering/eventid-block-registry.md`; the `AssemblyRanges` map of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`; the line in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); run `EventIdRegistryAgreementTests` and the architecture tests.
 4. **Edit** `ServiceCollectionExtensions.cs`: `EnableRequestLogging` is bound lazily through `Action<EncinaSerilogOptions>`, so `AddEncinaSerilog` invokes the `configure` action once on a fresh `EncinaSerilogOptions` at registration time to read the flag (the same action is also passed to `services.Configure`; the action must be side-effect free, stated in its XML doc); when the flag is true, `TryAddEnumerable(ServiceDescriptor.Transient(typeof(IPipelineBehavior<,>), typeof(RequestLoggingPipelineBehavior<,>)))` as `AddEncinaOpenTelemetry` does for its behavior; verify the position of the behavior against `PipelineOrderResolver` at the start of the phase and state the answer in the PR.
 5. **Create** `tests/Encina.UnitTests/Serilog/RequestLoggingPipelineBehaviorTests.cs` (a real behavior, a real logger factory with a capturing provider: a `Right` logs started and completed at the configured level; a `Left` logs failed with the error code and never the message; a thrown exception is logged with the type name and rethrown; a category filter on the request type suppresses completed; the elapsed time uses a `FakeTimeProvider`; and a registration test: flag false, the behavior is not in the provider and a request writes no request log); **edit** the guard test file (null `loggerFactory`, null `options`, a null `timeProvider` is valid) and the package `PublicAPI.Unshipped.txt` and manifest through `mechanical-fixer`.
 
@@ -312,18 +312,18 @@ REFERENCE FILES:
 ```text
 CONTEXT:
 Issue #182 plan docs/plans/serilog-opentelemetry-implementation-plan-182.md, phase 3. Phases 1 and 2 merged. EventIds come from the
-10000+ zone (base 60000, Observability and platform); this package takes 60000-60049 and #180 takes 60050-60099.
+10000+ zone (base 60000, Observability and platform); this package takes 60400-60449 and #180 takes 60450-60499.
 
 TASK:
-1. Add RequestLoggingPipelineBehavior<,> and RequestLoggingLogMessages (60000-60002) as the plan lists.
-2. Register the range SerilogOpenTelemetry (60000, 60049) in EventIdRanges.cs, the block registry and the AssemblyRanges map; run
+1. Add RequestLoggingPipelineBehavior<,> and RequestLoggingLogMessages (60400-60402) as the plan lists.
+2. Register the range SerilogOpenTelemetry (60400, 60449) in EventIdRanges.cs, the block registry and the AssemblyRanges map; run
    EventIdRegistryAgreementTests and the architecture tests.
 3. Register the behavior when EnableRequestLogging is true (AddEncinaSerilog invokes a copy of configure once at registration to read
    the flag); add the unit and guard tests, including flag false: no behavior, no log.
 
 KEY RULES:
 - Log the failure code with the public error.GetCode().IfNone("encina.unknown"); GetEncinaCode() is internal to core and not reachable.
-- Registry first, ids packed without gaps; never an id outside 60000-60049.
+- Registry first, ids packed without gaps; never an id outside 60400-60449.
 - Log the request type, outcome, error code and elapsed time only; never EncinaError.Message, a request, a response or an exception message;
   exceptions go through ForLogging() and are rethrown.
 - Time from the injected TimeProvider; no DateTime.UtcNow.
@@ -411,7 +411,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Serilog.OpenTelemetry` | 60000-60049 (new range `SerilogOpenTelemetry`, Observability and platform block 60000-60999) | 60000 request started (Debug), 60001 request completed, 60002 request failed (error code only); 60003-60049 free. The plan of #180 claims 60050-60099 in the same block; the code pull request registers the range and the registry row |
+| `Encina.Serilog.OpenTelemetry` | 60400-60449 (new range `SerilogOpenTelemetry`, Observability and platform block 60000-60999) | 60400 request started (Debug), 60401 request completed, 60402 request failed (error code only); 60403-60449 free. Re-slotted from 60000-60049 to 60400-60449 on 2026-11-24 after the #4174 reservations. The plan of #180 claims 60450-60499 in the same block; the code pull request registers the range and the registry row |
 
 ### Estimated File Count
 
@@ -457,12 +457,12 @@ PROJECT CONTEXT:
 - Encina is a .NET 10 / C# 14 library; pre-1.0, no backward compatibility, best solution always; edit source only with the
   Edit/Write tools; PublicAPI, manifests, pins and changelog fragments through mechanical-fixer; README through docs-writer.
 - ADR-054 settled point 2: logs carry codes and types, never EncinaError.Message; the tenant appears only when resolved (register row C3); a user id is personal data
-  and is off by default. EventIds come from the 10000+ zone (base 60000): this package takes 60000-60049.
+  and is off by default. EventIds come from the 10000+ zone (base 60000): this package takes 60400-60449.
 
 IMPLEMENTATION OVERVIEW:
 1. S1: the package project, EncinaSerilogOptions, validator, EncinaLogProperties, Serilog pin, solution and test references.
 2. S2: EncinaLogEnricher, TraceContextEnricher, Enrich.WithEncinaContext(), AddEncinaSerilog.
-3. S3: RequestLoggingPipelineBehavior<,> and RequestLoggingLogMessages (60000-60002), the SerilogOpenTelemetry range in EventIdRanges,
+3. S3: RequestLoggingPipelineBehavior<,> and RequestLoggingLogMessages (60400-60402), the SerilogOpenTelemetry range in EventIdRanges,
    the block registry and the AssemblyRanges map.
 4. S4: WriteTo.EncinaOpenTelemetry() over Serilog.Sinks.OpenTelemetry, an in-process OTLP receiver integration test, README.
 
@@ -487,7 +487,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | Log events are real time and are not cacheable. |
 | 2 | OpenTelemetry | ✅ Phases 2 and 4 | It adds trace and span correlation on every event and an OTLP sink helper, with no own `ActivitySource` or `Meter`. |
-| 3 | Structured Logging | ✅ Phase 3 | This is the structured logging package, using EventIds 60000-60002 for the request logging behavior. |
+| 3 | Structured Logging | ✅ Phase 3 | This is the structured logging package, using EventIds 60400-60402 for the request logging behavior. |
 | 4 | Health Checks | ⏭️ Follow-up issue file | `artifacts/issues/exporter-endpoint-health-checks.md` covers the sink endpoint with the probe of #1049. |
 | 5 | Validation | ✅ Phases 1 and 4 | Options validators for the options of the package and of the sink helper. |
 | 6 | Resilience | ❌ N/A | Batching and failure handling belong to the Serilog OpenTelemetry sink, and failures go to the Serilog `SelfLog`. |
