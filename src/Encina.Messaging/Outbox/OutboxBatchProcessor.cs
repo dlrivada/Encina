@@ -391,7 +391,7 @@ internal sealed class OutboxBatchProcessor
             message.NotificationType,
             message.Content,
             new DeadLetterContext(
-                EncinaErrors.Create(failure.ErrorCode, "Outbox delivery failed"),
+                EncinaErrors.Create(failure.ErrorCode, ErrorCategory.Internal, "Outbox delivery failed"),
                 failure.Exception,
                 DeadLetterSourcePatterns.Outbox,
                 retryCount,

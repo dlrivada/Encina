@@ -485,7 +485,7 @@ public sealed class DelayedRetryProcessor : BackgroundService
 
         if (requestType is null || scheduleMethod is null)
         {
-            return EncinaErrors.Create(RecoverabilityErrorCodes.ScheduleRetryFailed, "The request type or the scheduler method could not be resolved.");
+            return EncinaErrors.Create(RecoverabilityErrorCodes.ScheduleRetryFailed, ErrorCategory.Internal, "The request type or the scheduler method could not be resolved.");
         }
 
         Task<Either<EncinaError, Unit>> task;

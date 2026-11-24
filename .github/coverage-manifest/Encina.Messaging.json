@@ -219,12 +219,12 @@
       "defaultRule": "*.cs",
       "reason": "Dead letter manager with capture, replay and cleanup",
       "targets": {
-        "unit": 92,
+        "unit": 97,
         "guard": 10,
         "integration": 40
       },
       "justifications": {
-        "unit": "Unit tests drive every capture, replay and cleanup branch against a mocked store, including the store-error paths.",
+        "unit": "Unit tests drive every capture, replay and cleanup branch against a mocked store, including the store-error paths, and the category tests of #3724 assert the code and category of each error through the real producer.",
         "guard": "Only the constructor and argument checks are reachable by guard tests.",
         "integration": "The end-to-end tests drive capture, replay and cleanup through the real services, which covers the store interaction paths."
       }
@@ -254,12 +254,12 @@
       "defaultRule": "*.cs",
       "reason": "Dead letter orchestrator coordinating capture and replay",
       "targets": {
-        "unit": 92,
+        "unit": 96,
         "guard": 10,
         "integration": 40
       },
       "justifications": {
-        "unit": "Unit tests drive every orchestration branch against mocked collaborators.",
+        "unit": "Unit tests drive every orchestration branch against mocked collaborators, and the category tests of #3724 assert the code and category of each error through the real producer.",
         "guard": "Only the constructor and argument checks are reachable by guard tests.",
         "integration": "The integration tests run the orchestrator through the real services, which reaches its dispatch and replay paths."
       }
@@ -286,12 +286,12 @@
       "defaultRule": "*.cs",
       "reason": "Captures the terminal failures of the built-in sources into the dead letter queue",
       "targets": {
-        "unit": 95,
+        "unit": 97,
         "guard": 25,
         "integration": 70
       },
       "justifications": {
-        "unit": "Unit tests drive every IntegrateWith* flag, the duplicate capture, a store Left, a throwing capture and the caller's cancellation (measured 98%).",
+        "unit": "Unit tests drive every IntegrateWith* flag, the duplicate capture, a store Left, a throwing capture and the caller's cancellation, and the category tests of #3724 assert the code and category of each error through the real producer (measured 98%).",
         "guard": "Only the constructor and the argument checks of the three capture methods are guard-reachable (measured 29%).",
         "integration": "The ten-provider end-to-end tests capture each source through the real store; the thrown-capture and rejected-capture branches (dlq.capture_failed, dlq.capture_rejected) are reached by unit tests only (measured 72%)."
       }
@@ -696,9 +696,9 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Orchestrator with injectable store, factory and serializer",
-      "targets": { "unit": 95, "guard": 15, "integration": 75 },
+      "targets": { "unit": 98, "guard": 15, "integration": 75 },
       "justifications": {
-        "unit": "Pure-logic part covered without a database; the orchestration paths run against a fake store.",
+        "unit": "Pure-logic part covered without a database; the orchestration paths run against a fake store, and the category tests of #3724 assert the code and category of each error through the real producer.",
         "guard": "Only the constructor and argument checks are guard-reachable.",
         "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches."
       }
@@ -790,7 +790,7 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 98,
+        "unit": 99,
         "guard": 15,
         "integration": 80
       },
@@ -838,12 +838,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 85,
+        "unit": 88,
         "guard": 10,
         "integration": 70
       },
       "justifications": {
-        "unit": "Provider processors run their cycles against fake stores; the host-loop delay and error-logging lines stay uncovered (measured 86%).",
+        "unit": "Provider processors run their cycles against fake stores; the host-loop delay and error-logging lines stay uncovered.",
         "guard": "Only the constructor checks are guard-reachable (measured 13%).",
         "integration": "Provider processor tests run real cycles against the databases (measured 71%)."
       }
@@ -1163,9 +1163,9 @@
       ],
       "defaultRule": "*PipelineBehavior.cs",
       "reason": "Mediator pipeline with mockeable next delegate",
-      "targets": { "unit": 95, "guard": 5, "contract": 65 },
+      "targets": { "unit": 98, "guard": 5, "contract": 65 },
       "justifications": {
-        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure, the re-dispatch marker and the Retry-After ceiling (measured 100%).",
+        "unit": "Unit tests cover immediate retries, delayed scheduling, permanent failure, the re-dispatch marker and the Retry-After ceiling, and the category tests of #3724 assert the code and category of each error through the real producer (measured 100%).",
         "guard": "Only constructor guards exist (measured 6%); Handle takes the pipeline-supplied arguments.",
         "contract": "Contract tests cover the pipeline behavior contract (measured 67%)."
       }
