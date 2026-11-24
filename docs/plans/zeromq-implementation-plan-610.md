@@ -2,8 +2,8 @@
 
 > **Issue**: [#610](https://github.com/dlrivada/Encina/issues/610)
 > **Type**: Feature
-> **Verified against**: origin/main `ce352001f` (2026-11-23)
-> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 14, 9, 8, 10, 7 and 7 files)
+> **Verified against**: origin/main `1a661f5c1` (2026-11-24)
+> **Complexity**: Medium (7 phases, 7 pull requests of about 14, 15, 9, 8, 10, 7 and 7 files)
 > **Estimated Scope**: about 1,000 lines of production code and about 1,800 lines of tests
 > **Family**: transport-new-2 (#242 Dapr, #610 ZeroMQ, #611 Azure Event Hubs, #612 Amazon Kinesis, #310 Event Mesh). Sibling family transport-new-1 (#237, #238, #239, #240, #241) owns the shared transport conformance base (#240); "Shared pieces" below says which plan owns what.
 
@@ -18,11 +18,11 @@ The issue asks for a ZeroMQ transport for low-latency, brokerless messaging: pub
 - Scope: SPEC-000 REQ-030 puts "the new transports" in 1.0 and DEC-009 excludes only AI/LLM and cloud services without a free emulator; ZeroMQ needs neither, and the issue sits in the milestone v0.19.0. `AGENTS.md` section 5 does not list ZeroMQ among the planned transports; the issue file of this family records that gap (Phase 7). The issue is planned, not skipped.
 - A brokerless transport has no durable queue: a PUB socket drops messages that have no connected subscriber, and a socket at its high-water mark drops or blocks. Delivery is at-most-once to the peer; "accepted by the local socket" is all a `Right` means (Design Choice 3).
 
-Delivered: package `Encina.ZeroMQ` with `IZeroMQMessagePublisher` (publish, push, request, subscribe, pull and respond, Design Choice 4), `EncinaZeroMQOptions` (validated, CURVE keys `[JsonIgnore]`), `AddEncinaZeroMQ`, a socket host that owns every socket on one thread (Design Choice 6), a health check, an `ActivitySource` and `Meter`, log messages in the new range `ZeroMQ` 40020-40039, unit, guard, property, contract and integration tests with real loopback sockets, and documentation.
+Delivered: package `Encina.ZeroMQ` with `IZeroMQMessagePublisher` (publish, push, request, subscribe, pull and respond, Design Choice 4), `EncinaZeroMQOptions` (validated, CURVE keys `[JsonIgnore]`), `AddEncinaZeroMQ`, a socket host that owns every socket on one thread (Design Choice 6), a health check, an `ActivitySource` and `Meter`, log messages in the new range `ZeroMQ` 40570-40589, unit, guard, property, contract and integration tests with real loopback sockets, and documentation.
 
 **Provider category**: Messaging transports (AGENTS.md section 5). Brokerless means no broker connectivity check and no broker-side dead letter queue; the transport rule (send/publish, subscription, error handling and DLQ, metadata) is met as Design Choice 3 states.
 
-**Shared pieces (family)**: the shared conformance base is owned by #240 (this plan subclasses it in pull request 6 for the scenarios a brokerless transport can honor). The EventId block `40000-40099` of the Transports zone is shared by the five plans (Event ID Allocation); #242 adds the block's rows to the registry if it lands first. The follow-up issue for tenant and module headers, adoption of #251, #252 and #2385, and the resilience decorators of the new transports is `artifacts/issues/transport-new-2-tenant-module-and-resilience-adoption.md`, owned by the #242 plan of this family.
+**Shared pieces (family)**: the shared conformance base is owned by #240 (this plan subclasses it in pull request 6 for the scenarios a brokerless transport can honor). The EventId block `40550-40649` of the Transports zone is shared by the five plans (Event ID Allocation); #242 adds the block's rows to the registry if it lands first. The follow-up issue for tenant and module headers, adoption of #251, #252 and #2385, and the resilience decorators of the new transports is `artifacts/issues/transport-new-2-tenant-module-and-resilience-adoption.md`, owned by the #242 plan of this family.
 
 ---
 
@@ -156,7 +156,7 @@ A wins for throughput and for never blocking the pool; B wins for a very small f
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Fail closed: a `tcp` endpoint that is not loopback requires CURVE keys, or startup fails; the explicit opt-out `AllowInsecureTransport` is logged as a warning (EventId 40020) when the host starts** | An unauthenticated port is never opened by default; follows the fail-closed rule for gates | Extra setup for a trusted network; key distribution is the user's |
+| **A) Fail closed: a `tcp` endpoint that is not loopback requires CURVE keys, or startup fails; the explicit opt-out `AllowInsecureTransport` is logged as a warning (EventId 40570) when the host starts** | An unauthenticated port is never opened by default; follows the fail-closed rule for gates | Extra setup for a trusted network; key distribution is the user's |
 | **B) Plain sockets by default, CURVE opt-in, a warning in the README** | Zero configuration | Any process that can reach the port can publish or subscribe |
 
 ### Chosen Option: **A, CURVE required off loopback** (recommended, pending the maintainer)
@@ -307,7 +307,7 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 1. Internal `ZeroMQSocketHost` (Design Choice 6): owns a `NetMQPoller` thread, a `NetMQQueue<T>` of operations, creates and disposes every socket, applies the options (high-water marks, linger, reconnect interval, CURVE), completes each operation through a `TaskCompletionSource`; callbacks catch every exception; disposal stops the poller and fails pending operations with a `Left`. The host is a singleton registered by `AddEncinaZeroMQ` with `IHostedService` start/stop, started lazily on the first operation so an application that registers the package but sends nothing opens no socket.
 2. `IZeroMQMessagePublisher.PublishAsync<TMessage>(TMessage message, string? topic = null, string? messageId = null, IReadOnlyDictionary<string,string>? headers = null, CancellationToken cancellationToken = default) where TMessage : class` returning `ValueTask<Either<EncinaError, string>>` (the message id). `ZeroMQMessagePublisher` (scoped; the host, `IOptions`, `ILogger`).
 3. Errors (ADR-062), in `ZeroMQErrorCodes.cs`, each created with the named argument `category:` and a constant message: `encina.zeromq.publish_failed` `Internal` (R4), `encina.zeromq.send_timeout` `Timeout` (R7), `encina.zeromq.endpoint_not_configured` `Internal` (R1: a configuration entry). Cancellation propagates as `OperationCanceledException`, never a `Left` (R5). The exception goes to `ForLogging()`, never its message.
-4. `Log.cs` 40020-40023 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40020, 40039)`; the line `static readonly Encina.Diagnostics.EventIdRanges.ZeroMQ -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40020-40039 | Transports | zone |` in the registered ranges table and the Blocks row `| 40020-40039 | Transports | transport-new-2: #610 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
+4. `Log.cs` 40570-40573 (insecure transport enabled, publishing, published, publish failed; no message ids, no payload, no endpoint credentials). `EventIdRanges.ZeroMQ = (40570, 40589)`; the line `static readonly Encina.Diagnostics.EventIdRanges.ZeroMQ -> (int Min, int Max)` in `src/Encina/PublicAPI.Unshipped.txt` (through `mechanical-fixer`); the `AssemblyRanges` entry in `EncinaEventIdAllocationTests`; `docs/engineering/eventid-block-registry.md` (through `docs-writer`): the row `| ZeroMQ | 40570-40589 | Transports | zone |` in the registered ranges table and the Blocks row `| 40570-40589 | Transports | transport-new-2: #610 | registered |` (exact bounds, as `EventIdRegistryAgreementTests` rules 2 and 3 require; the other four plans of the family add their own disjoint rows, so a conflict is resolved by keeping both, never by a rebase of a pushed branch).
 5. DI: `AddEncinaZeroMQ` gains the host singleton, its hosted service (`TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ...>)` resolving the same singleton host instance, not a second one) and `TryAddScoped<IZeroMQMessagePublisher, ZeroMQMessagePublisher>()` in this pull request (registration completeness, AGENTS.md section 3); the DI test resolves both and asserts one host instance with `ValidateOnBuild` and `ValidateScopes`.
 6. Tests: `ZeroMQSocketHostTests` and `ZeroMQMessagePublisherTests` (unit, over in-process `inproc` sockets: the host is concrete, so its tests use real sockets), guard edit, manifest edit with the unit and guard targets (contract, property and integration targets are entered in pull request 6, where those tests land).
 
@@ -318,8 +318,8 @@ REFERENCE FILES: src/Encina.AmazonSQS/*.cs, src/Encina.Redis.PubSub/*.cs, src/En
 
 ```text
 CONTEXT: The package skeleton and the envelope exist. NetMQ sockets are not thread-safe; one host thread owns them all.
-TASK: Implement the socket host, IZeroMQMessagePublisher.PublishAsync, the error codes, the log messages 40020-40023, the EventId range ZeroMQ, the host and publisher DI registrations, with unit and guard tests.
-KEY RULES: no exception escapes the poller thread or any loop; EncinaErrors.Create with the named category: argument; constant messages; ids and payloads never logged; cancellation propagates and removes the pending operation; EventIds only 40020-40039, registered first in EventIdRanges.cs and in the registry (Zone zone); no tenant tag.
+TASK: Implement the socket host, IZeroMQMessagePublisher.PublishAsync, the error codes, the log messages 40570-40573, the EventId range ZeroMQ, the host and publisher DI registrations, with unit and guard tests.
+KEY RULES: no exception escapes the poller thread or any loop; EncinaErrors.Create with the named category: argument; constant messages; ids and payloads never logged; cancellation propagates and removes the pending operation; EventIds only 40570-40589, registered first in EventIdRanges.cs and in the registry (Zone zone); no tenant tag.
 REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs, src/Encina/Diagnostics/EventIdRanges.cs, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs, docs/engineering/eventid-block-registry.md.
 ```
 
@@ -332,7 +332,7 @@ REFERENCE FILES: src/Encina.RabbitMQ/RabbitMQMessagePublisher.cs, src/Encina/Dia
 
 1. `SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? topic = null, CancellationToken cancellationToken = default)` returning `ValueTask<IAsyncDisposable>` (a SUB socket with the prefix filter, the exact topic check of Design Choice 9, one receive loop on the host); `PushAsync<TMessage>(...)` (PUSH, blocks at the high-water mark up to `SendTimeout`, then `encina.zeromq.send_timeout`); `PullAsync<TMessage>(Func<TMessage, ValueTask> handler, string? endpointName = null, CancellationToken cancellationToken = default)` (PULL).
 2. A handler that throws is logged by exception type and the message is dropped (Design Choice 3); an undeserializable message is dropped with `encina.zeromq.deserialize_failed` `Internal` (R4, logged, never returned to a caller); a receive loop catches per iteration and the stopping token ends it.
-3. Codes added to `ZeroMQErrorCodes.cs`: `encina.zeromq.subscribe_failed` `Internal` (R4), `encina.zeromq.deserialize_failed` `Internal` (R4). `Log.cs` 40024-40030 (subscription started, handler failed, message dropped, subscription ended, receive iteration failed, pushing, pull started).
+3. Codes added to `ZeroMQErrorCodes.cs`: `encina.zeromq.subscribe_failed` `Internal` (R4), `encina.zeromq.deserialize_failed` `Internal` (R4). `Log.cs` 40574-40580 (subscription started, handler failed, message dropped, subscription ended, receive iteration failed, pushing, pull started).
 4. Tests: `ZeroMQSubscribeTests`, `ZeroMQPushPullTests` (unit over in-process sockets), guard edit, manifest edit; DI test unchanged (the publisher is already registered).
 
 </details>
@@ -355,7 +355,7 @@ REFERENCE FILES: src/Encina.MQTT/MQTTMessagePublisher.cs, src/Encina.Redis.PubSu
 <summary>Tasks</summary>
 
 1. `RequestAsync<TRequest, TResponse>(TRequest request, string? endpointName = null, string? messageId = null, CancellationToken cancellationToken = default)` returning `ValueTask<Either<EncinaError, TResponse>>` (REQ, one request in flight per socket, `RequestTimeout`; after a timeout the host disposes and recreates the REQ socket, Design Choice 8); `RespondAsync<TRequest, TResponse>(Func<TRequest, ValueTask<TResponse>> handler, string? endpointName = null, CancellationToken cancellationToken = default)` (REP loop; the host always sends a reply after a receive: the handler's response, or an error reply when the handler throws or the request cannot be deserialized, so the REP socket never leaves the send state; the requester maps an error reply to `encina.zeromq.request_failed`).
-2. Codes added: `encina.zeromq.request_timeout` `Timeout` (R7), `encina.zeromq.request_failed` `Internal` (R4). `Log.cs` 40031-40034 (requesting, request timed out, socket recreated, responding).
+2. Codes added: `encina.zeromq.request_timeout` `Timeout` (R7), `encina.zeromq.request_failed` `Internal` (R4). `Log.cs` 40581-40584 (requesting, request timed out, socket recreated, responding).
 3. Tests: `ZeroMQRequestReplyTests` (unit over in-process sockets: reply, timeout then recreation, concurrent requests serialized), guard edit, manifest edit.
 
 </details>
@@ -491,7 +491,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `ZeroMQ` (new) | 40020-40039 | Second range of the block `40000-40099` of the Transports zone taken by transport-new-2 (`DaprPubSub` 40000-40019 is #242's); ids 40020-40034 used (40020-40023 host and publish, 40024-40030 subscribe, push and pull, 40031-40034 request-reply), 40035-40039 spare. The block `9750-9799` of the batch snapshot is registered as `SecurityBreakTheGlass` on `origin/main` (status `superseded` in the registry). Verified free by a search of the registry and of every `docs/plan-*` branch for `40000`. |
+| `ZeroMQ` (new) | 40570-40589 | Second range of the block `40550-40649` of the Transports zone taken by transport-new-2 (`DaprPubSub` 40550-40569 is #242's); ids 40570-40584 used (40570-40573 host and publish, 40574-40580 subscribe, push and pull, 40581-40584 request-reply), 40585-40589 spare. The block `9750-9799` of the batch snapshot is registered as `SecurityBreakTheGlass` on `origin/main` (status `superseded` in the registry), so the family takes the zone after the `reserved` rows 40000-40549 that #4007 (S0, #4174) holds on `origin/main` for the existing transports (`EventIdRegistryAgreementTests` rule 3 forbids a registered range inside a reserved block). Verified free on `1a661f5c1` by reading the Blocks table of the registry and `EventIdRanges.cs`. |
 
 ### Estimated File Count
 
@@ -502,7 +502,7 @@ REFERENCE FILES: tests/Encina.LoadTests/Messaging/RedisPubSub/RedisPubSub.md, .g
 | Shared edits | 9 | `Encina.slnx`, `Directory.Packages.props`, 5 test `.csproj` files, `EventIdRanges.cs`, allocation test, `Encina.OpenTelemetry` |
 | Documentation | 8 | README, feature page, transports page, INVENTORY, registry rows, changelog, 2 justification files |
 | **Pull request 1** | **14** | csproj, options, validator, envelope, DI, `Encina.slnx`, `Directory.Packages.props`, `UnitTests.csproj`, `GuardTests.csproj`, manifest, options test, envelope test, DI test, guard test; about 650 lines |
-| **Pull request 2** | **14** | interface, publisher, host, error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, host and publisher unit tests, guard edit, manifest edit; about 800 lines |
+| **Pull request 2** | **15** | interface, publisher, host (it implements `IHostedService` itself, so there is no separate hosted-service class), error codes, `Log`, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt` edit, allocation test, registry, DI edit, DI test edit, `ZeroMQSocketHostTests`, `ZeroMQMessagePublisherTests`, guard edit, manifest edit; about 800 lines; at the limit: if one more file appears, `Log.cs`, the range registration (`EventIdRanges.cs`, PublicAPI line, allocation test, registry) move to a pull request 2a |
 | **Pull request 3** | **9** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 2 unit tests, guard edit, manifest edit; about 600 lines |
 | **Pull request 4** | **8** | interface edit, publisher edit, host edit, error codes edit, `Log` edit, 1 unit test, guard edit, manifest edit; about 450 lines |
 | **Pull request 5** | **10** | health check, 2 diagnostics, DI edit, `Encina.OpenTelemetry` edit, `Encina.OpenTelemetry` registration test edit, 2 unit tests, guard edit, manifest edit; about 500 lines |
@@ -521,7 +521,7 @@ Implementers and callers: `IZeroMQMessagePublisher` is new, so it has no impleme
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library; no backward compatibility, zero warnings, ROP (Either<EncinaError, T>). Transports are publisher-only except MQTT and Redis.PubSub; Encina.ZeroMQ adds a brokerless transport on NetMQ (LGPL-3.0, opt-in package).
 
-IMPLEMENTATION OVERVIEW: PR1 package, options, envelope, DI; PR2 the single-owner socket host, publish and the EventId range ZeroMQ 40020-40039; PR3 subscribe, push and pull; PR4 request-reply with timeout and socket recreation; PR5 health check and telemetry; PR6 conformance subclass, property and integration tests with real loopback sockets; PR7 documentation and justification files. Dilemmas D1, D2, D3, D4, D5, D6, D7, D8, D9, D11 and D12 are implemented as the maintainer answers, the recommended options until then.
+IMPLEMENTATION OVERVIEW: PR1 package, options, envelope, DI; PR2 the single-owner socket host, publish and the EventId range ZeroMQ 40570-40589; PR3 subscribe, push and pull; PR4 request-reply with timeout and socket recreation; PR5 health check and telemetry; PR6 conformance subclass, property and integration tests with real loopback sockets; PR7 documentation and justification files. Dilemmas D1, D2, D3, D4, D5, D6, D7, D8, D9, D11 and D12 are implemented as the maintainer answers, the recommended options until then.
 
 KEY PATTERNS: at-most-once, never success on a failure; no exception escapes the poller or a receive loop; never block a pool thread on a socket; named ADR-062 category on every error; constant error messages; ids and payloads never logged; CURVE secret [JsonIgnore] with ToString override; targets never go down; CRAP <= 10.
 
@@ -538,7 +538,7 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Rabbi
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | A transport does not cache messages. |
 | 2 | OpenTelemetry | ✅ | Per-package `ActivitySource` and `Meter` (Design Choice 11); the shared design of #725 may rename them. |
-| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40020-40034 of the range 40020-40039; error codes and exception types only. |
+| 3 | Structured Logging | ✅ | `[LoggerMessage]` in `Log.cs`, EventIds 40570-40584 of the range 40570-40589; error codes and exception types only. |
 | 4 | Health Checks | ✅ | `ZeroMQHealthCheck` checks the host and the bound endpoints (no broker to ping). |
 | 5 | Validation | ❌ | Options are validated at startup; payload validation belongs to the validation behaviors of the consuming handler. |
 | 6 | Resilience | ✅ | ZeroMQ reconnects by itself: `ReconnectInterval` and `Linger` are options and a REQ socket is recreated after a timeout; retry and breaker decorators for the new transports (#742 covers the ten existing ones) are in the issue file `transport-new-2-tenant-module-and-resilience-adoption`. |
@@ -563,5 +563,5 @@ REFERENCE FILES: src/Encina.AmazonSQS, src/Encina.Redis.PubSub, src/Encina.Rabbi
 
 1. Ask the maintainer D1, D2, D3, D4, D5, D6, D7, D8, D9, D11 and D12 when work on #610 starts, D1 first because it can stop the issue; record the answers in `## Maintainer Decisions`.
 2. Pull request 1: package skeleton (14 files).
-3. Pull requests 2 to 5: publish (14), subscribe and push-pull (9), request-reply (8), health and telemetry (10).
+3. Pull requests 2 to 5: publish (15), subscribe and push-pull (9), request-reply (8), health and telemetry (10).
 4. Pull requests 6 and 7: contract, property and integration tests (7), documentation (7).
