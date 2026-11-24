@@ -463,6 +463,34 @@ public sealed class ShardedQueryExecutorTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_TimeoutAndCallerCancellationBothSignalled_ThrowsInsteadOfReportingTimeout()
+    {
+        var options = DefaultOptions();
+        options.Timeout = TimeSpan.FromMilliseconds(50);
+        var executor = new ShardedQueryExecutor(CreateTopology("shard-1"), options, _logger);
+        using var cts = new CancellationTokenSource();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => executor.ExecuteAsync<string>(
+            ["shard-1"],
+            async (_, ct) =>
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    // The timeout has fired; the caller cancels too before the cancellation surfaces.
+                    await cts.CancelAsync();
+                    throw;
+                }
+
+                return Either<EncinaError, IReadOnlyList<string>>.Right((IReadOnlyList<string>)[]);
+            },
+            cts.Token));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_PartialResultsNotAllowed_ReturnsPartialFailureListingFailedShardsInOrder()
     {
         var options = DefaultOptions();
