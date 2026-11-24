@@ -1747,7 +1747,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 40 },
+      "justifications": {
+        "unit": "Unit tests execute ToEncinaError with and without entity and key types and the message building (measured 100%).",
+        "guard": "Guard tests execute the constructor reason guard and part of the exception members (measured 40%)."
+      }
     },
     "Sharding/Colocation/IColocationGroup.cs": {
       "defaultTests": [],
@@ -1768,7 +1773,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 1 },
+      "justifications": {
+        "unit": "Unit tests execute the compound key extraction logic in full (measured 100%).",
+        "guard": "Only the ThrowIfNull argument guard is reachable by guard tests (measured 1%); the extraction logic is covered by unit tests."
+      }
     },
     "Sharding/Configuration/CompoundRoutingBuilder.cs": {
       "defaultTests": [
@@ -1914,7 +1924,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 80 },
+      "justifications": {
+        "unit": "Unit tests execute every query execution path of the sharded executor (measured 100%).",
+        "guard": "Guard tests execute the argument guards and the constructor of the sharded executor (measured 80%)."
+      }
     },
     "Sharding/Extensions/ShardedAggregationExtensions.cs": {
       "defaultTests": [
@@ -2150,7 +2165,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 89, "guard": 19 },
+      "justifications": {
+        "unit": "Unit tests execute the migration coordination flow and its error paths (measured 89%).",
+        "guard": "Guard tests execute only the constructor and entry argument guards (measured 19%)."
+      }
     },
     "Sharding/Migrations/ShardMigrationStatus.cs": {
       "defaultTests": [
@@ -2214,7 +2234,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests execute the sequential migration strategy in full (measured 100%).",
+        "guard": "The strategy validates no arguments, so guard tests cannot reach any executable line; the unit tests execute it fully."
+      }
     },
     "Sharding/Migrations/TableDiff.cs": {
       "defaultTests": [
@@ -2302,7 +2327,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 36, "guard": 14 },
+      "justifications": {
+        "unit": "Unit tests drive the error paths of the primary shard lookup through the real detector (measured 36%); the hash and replication branches are only partly covered by ReferenceTableReplicationService tests.",
+        "guard": "Guard tests execute the constructor and configuration argument guards (measured 14%)."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableAttribute.cs": {
       "defaultTests": [
@@ -2386,7 +2416,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 70, "guard": 11 },
+      "justifications": {
+        "unit": "Unit tests execute the reference table replication paths (measured 70%).",
+        "guard": "Guard tests execute only the constructor and entry argument guards (measured 11%)."
+      }
     },
     "Sharding/ReferenceTables/RefreshStrategy.cs": {
       "defaultTests": [
@@ -3049,7 +3084,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 5 },
+      "justifications": {
+        "unit": "Unit tests execute the shard key extraction in full (measured 100%).",
+        "guard": "Only the ThrowIfNull argument guard is reachable by guard tests (measured 5%)."
+      }
     },
     "Sharding/ShardTopology.cs": {
       "defaultTests": [
@@ -3057,7 +3097,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 47 },
+      "justifications": {
+        "unit": "Unit tests execute the topology members and their error paths (measured 87%).",
+        "guard": "Guard tests execute the topology constructor and argument guards (measured 47%)."
+      }
     },
     "Sharding/TimeBased/ArchiveOptions.cs": {
       "defaultTests": [
