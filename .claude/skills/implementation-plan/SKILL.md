@@ -5,7 +5,7 @@ description: Produce the implementation plan for an Encina [FEATURE] issue with 
 
 # Implementation plan for a feature
 
-`AGENTS.md` §11, Issues, plans and changelog: a `[FEATURE]` issue of any size is opened together with its plan (#4255). This skill runs at FEATURE creation time, by the same actor, right after the issue is created, and ends with the plan PR open and linked from the issue; it is not deferred to a later queue. A `[FEATURE]` with no plan on `main` and no open plan PR 24 hours after creation fails `tools/ai/issues/check-feature-plans.ps1`.
+`AGENTS.md` §11, Issues, plans and changelog: a `[FEATURE]` issue of any size is opened together with its plan (#4255). This skill runs at FEATURE creation time, right after the issue is created: the plan is written (delegated to the plan writer per CLAUDE.md delegation) and its plan PR is opened in the same work step by whoever may open PRs (the orchestrator, or a lane under the own-PR protocol), and the skill ends with the plan PR open and linked from the issue; it is not deferred to a later queue. A worker that finds a follow-up FEATURE writes an issue file, and the orchestrator opens the issue together with its plan. A `[FEATURE]` with no plan on `main` and no open plan PR 24 hours after creation fails `tools/ai/issues/check-feature-plans.ps1`.
 
 ## Inputs
 

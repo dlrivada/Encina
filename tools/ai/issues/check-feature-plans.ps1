@@ -18,6 +18,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# A bare date such as -Since 2026-11-17 binds with Kind Unspecified and would be read as local time; it means UTC.
+if ($Since.Kind -eq [System.DateTimeKind]::Unspecified) { $Since = [datetime]::SpecifyKind($Since, [System.DateTimeKind]::Utc) }
 $Since = $Since.ToUniversalTime()
 
 function Invoke-GhRest {
@@ -46,11 +48,13 @@ try {
     if ($tree.truncated) { throw 'the git tree of main is truncated; cannot list docs/plans' }
     $planNumbers = @{}
     foreach ($entry in $tree.tree) {
-        if ($entry.path -match '^docs/plans/[^/]+-(\d+)\.md$') { $planNumbers[[int]$Matches[1]] = $entry.path }
+        if ($entry.path -match '^docs/plans/[^/]+-implementation-plan-(\d+)\.md$') { $planNumbers[[int]$Matches[1]] = $entry.path }
     }
 
-    # Open pull requests that touch a plan for the issue: candidates are the PRs that name the issue number.
-    $openPrs = $null
+    # Open pull requests that add or change a plan, keyed by issue number. Detection uses the changed files of every
+    # open pull request (title, branch and body are not trusted: a plan PR may omit the issue number). The list is
+    # built once per run; there is no cheap server-side filter on the pulls endpoint for changed paths.
+    $planPrByIssue = $null
     $now = [datetime]::UtcNow
     $rows = foreach ($issue in ($features | Sort-Object number)) {
         $n = [int]$issue.number
@@ -59,12 +63,18 @@ try {
             $status = "plan on main ($($planNumbers[$n]))"
         }
         else {
-            if ($null -eq $openPrs) { $openPrs = @(Invoke-GhRest "repos/$Repo/pulls?state=open&per_page=100" -Paginate) }
-            $needle = "(?<![0-9])$n(?![0-9])"
-            foreach ($pr in ($openPrs | Where-Object { "$($_.title) $($_.head.ref) $($_.body)" -match $needle })) {
-                $files = @(Invoke-GhRest "repos/$Repo/pulls/$($pr.number)/files?per_page=100" -Paginate)
-                if ($files | Where-Object { $_.filename -match "^docs/plans/[^/]+-$n\.md$" }) { $status = "open plan PR #$($pr.number)"; break }
+            if ($null -eq $planPrByIssue) {
+                $planPrByIssue = @{}
+                foreach ($pr in @(Invoke-GhRest "repos/$Repo/pulls?state=open&per_page=100" -Paginate)) {
+                    $files = @(Invoke-GhRest "repos/$Repo/pulls/$($pr.number)/files?per_page=100" -Paginate)
+                    foreach ($file in $files) {
+                        if ($file.filename -match '^docs/plans/[^/]+-implementation-plan-(\d+)\.md$' -and -not $planPrByIssue.ContainsKey([int]$Matches[1])) {
+                            $planPrByIssue[[int]$Matches[1]] = $pr.number
+                        }
+                    }
+                }
             }
+            if ($planPrByIssue.ContainsKey($n)) { $status = "open plan PR #$($planPrByIssue[$n])" }
         }
         $ageHours = [math]::Round(($now - ([datetime]$issue.created_at).ToUniversalTime()).TotalHours, 1)
         [pscustomobject]@{
@@ -79,7 +89,15 @@ try {
     $rows | Format-Table Issue, AgeHours, Plan, Overdue, Title -AutoSize | Out-String -Width 240 | Write-Host
     $missing = @($rows | Where-Object { $_.Plan -eq 'MISSING' })
     $overdue = @($rows | Where-Object { $_.Overdue })
-    Write-Host "check-feature-plans: $($rows.Count) open [FEATURE] issue(s) since $($Since.ToString('u')); $($missing.Count) without plan; $($overdue.Count) older than $GraceHours h"
+    $summary = "check-feature-plans: $($rows.Count) open [FEATURE] issue(s) since $($Since.ToString('u')); $($missing.Count) without plan; $($overdue.Count) older than $GraceHours h"
+    Write-Host $summary
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $markdown = @('### Feature plan check', '', $summary, '', '| Issue | Age (h) | Plan | Overdue | Title |', '|---|---|---|---|---|')
+        foreach ($row in $rows) {
+            $markdown += "| #$($row.Issue) | $($row.AgeHours) | $($row.Plan) | $($row.Overdue) | $($row.Title.Replace('|', '\|')) |"
+        }
+        Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $markdown
+    }
     if ($overdue.Count -gt 0) {
         Write-Host "check-feature-plans: FAIL - no plan on $Branch and no open plan PR for: $(($overdue | ForEach-Object { '#' + $_.Issue }) -join ' ')"
         exit 1
