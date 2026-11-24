@@ -155,15 +155,15 @@ Available via `Encina.OpenTelemetry.ActivityTagNames.Colocation.*`.
 
 ### Structured Logging
 
-Five source-generated log events (EventIds 121-125):
+Five source-generated log events (EventIds 10021-10025):
 
 | EventId | Level | Message |
 |---------|-------|---------|
-| 121 | Information | Co-location group registered |
-| 122 | Error | Co-location validation failed |
-| 123 | Debug | Co-location group routed |
-| 124 | Warning | Co-location group not found |
-| 125 | Debug | Co-location registry initialized |
+| 10021 | Information | Co-location group registered |
+| 10022 | Error | Co-location validation failed |
+| 10023 | Debug | Co-location group routed |
+| 10024 | Warning | Co-location group not found |
+| 10025 | Debug | Co-location registry initialized |
 
 ## User Responsibilities
 

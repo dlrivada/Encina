@@ -35,7 +35,7 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 
 | Name | Block | Area | Zone |
 | --- | --- | --- | --- |
-| Core | 100-199 | Core and messaging | historical |
+| Core | 10000-10099 | Core and messaging | zone |
 | DomainModelingRepository | 1100-1199 | Core and messaging | historical |
 | DomainModelingUnitOfWork | 1200-1299 | Core and messaging | historical |
 | DomainModelingBulkOperations | 1300-1399 | Core and messaging | historical |
@@ -289,7 +289,7 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 9750-9799 | Transports | wave 3 (plan-batch-2): transport-new-2 Note: assigned Conflict: 9750-9799 is registered as SecurityBreakTheGlass; the plan must take a block in the 10000+ zone. | superseded |
 | 9800-9899 | Security and compliance | compliance-nis2-1 (#822 owns the range) Note: proposed in PR #3509 | reserved-pre-zone |
 | 9900-9949 | Security and compliance | wave 3 (plan-batch-2): audit-stores-1 Note: assigned | reserved-pre-zone |
-| 10000-10099 | Core and messaging | #4007 Core (CM-1) | reserved |
+| 10000-10099 | Core and messaging | #4007 Core (CM-1) | registered |
 | 10100-10199 | Core and messaging | #4007 DomainModelingRepository (CM-2) | reserved |
 | 10200-10299 | Core and messaging | #4007 DomainModelingUnitOfWork (CM-2) | reserved |
 | 10300-10399 | Core and messaging | #4007 DomainModelingBulkOperations (CM-2) | reserved |
@@ -456,8 +456,8 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| Core | 177-183 | #2382 |
-| Core | 184-185 | #132 |
+| Core | 10077-10083 | #2382 |
+| Core | 10084-10085 | #132 |
 | Messaging | 2977-2979 (reserved if planned) | #176 |
 
 ## ADR numbers
