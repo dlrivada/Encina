@@ -293,7 +293,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 89,
+        "guard": 72
+      },
+      "justifications": {
+        "unit": "Unit tests drive the builder validation errors and the mapping paths they reach (measured 89%); the MissingColumnMappings branch cannot be reached through the public API because HasId always adds a column mapping.",
+        "guard": "Guard tests exercise the argument checks and chaining of the builder (measured 72%)."
+      }
     },
     "Repository/FunctionalRepositoryADO.cs": {
       "defaultTests": [
@@ -465,7 +473,13 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 48
+      },
+      "justifications": {
+        "unit": "Unit tests drive the connection-failure paths with connection substitutes and assert the error category (measured 48%); the success paths need a real database."
+      }
     },
     "Sharding/Migrations/AdoMigrationHistoryStore.cs": {
       "defaultTests": [
@@ -473,7 +487,13 @@
         "guard"
       ],
       "defaultRule": "*Store.cs",
-      "reason": "Abstract/base store with mockeable deps"
+      "reason": "Abstract/base store with mockeable deps",
+      "targets": {
+        "unit": 32
+      },
+      "justifications": {
+        "unit": "Unit tests drive the connection-failure paths with connection substitutes and assert the error category (measured 32%); the success paths need a real database."
+      }
     },
     "Sharding/Migrations/MigrationServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -489,14 +509,26 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 23
+      },
+      "justifications": {
+        "unit": "Unit tests drive the connection-failure paths with connection substitutes and assert the error category (measured 23%); the success paths need a real database."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableStoreADO.cs": {
       "defaultTests": [
         "integration"
       ],
       "defaultRule": "*StoreADO.cs",
-      "reason": "ADO.NET store with raw SQL — needs real database"
+      "reason": "ADO.NET store with raw SQL — needs real database",
+      "targets": {
+        "unit": 54
+      },
+      "justifications": {
+        "unit": "Unit tests cover the synchronous IDbCommand fallback and the failure paths with connection substitutes (measured 54%); the DbCommand-specific branches need a real database."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableStoreFactoryADO.cs": {
       "defaultTests": [
@@ -524,7 +556,15 @@
       "reason": "Creates DB connections internally — guard tests for constructor, integration for logic",
       "override": [
         "integration"
-      ]
+      ],
+      "targets": {
+        "unit": 44,
+        "guard": 11
+      },
+      "justifications": {
+        "unit": "Unit tests drive every replica selection path of SelectReplicaConnectionString (measured 44%); opening real connections needs a real database.",
+        "guard": "Guard tests cover the constructor and shard id argument checks (measured 11%)."
+      }
     },
     "Sharding/ShardingServiceCollectionExtensions.cs": {
       "defaultTests": [
@@ -545,7 +585,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 8,
+        "guard": 81
+      },
+      "justifications": {
+        "unit": "Unit tests only drive the two validation errors of Build (measured 8%); the other builder methods are covered by the guard tests.",
+        "guard": "Guard tests exercise the argument checks and chaining of the builder (measured 81%)."
+      }
     },
     "SoftDelete/SoftDeleteSpecificationSqlBuilder.cs": {
       "defaultTests": [
@@ -566,7 +614,13 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 12
+      },
+      "justifications": {
+        "unit": "Unit tests only drive the missing primary key error of Build (measured 12%); the other builder paths have no unit tests yet."
+      }
     },
     "Temporal/TemporalRepositoryADO.cs": {
       "defaultTests": [
@@ -654,7 +708,15 @@
         "guard"
       ],
       "defaultRule": "*Builder.cs",
-      "reason": "Fluent builder with validation"
+      "reason": "Fluent builder with validation",
+      "targets": {
+        "unit": 90,
+        "guard": 10
+      },
+      "justifications": {
+        "unit": "Unit tests drive the builder validation errors and the mapping paths they reach (measured 90%); the MissingColumnMappings branch cannot be reached through the public API because HasId always adds a column mapping.",
+        "guard": "Guard tests exercise the argument checks and chaining of the builder (measured 10%)."
+      }
     },
     "UnitOfWork/UnitOfWorkADO.cs": {
       "defaultTests": [
