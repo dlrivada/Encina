@@ -145,7 +145,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
 
             return Either<EncinaError, ShardedQueryResult<T>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ScatterGatherTimeout,
+                    ShardingErrorCodes.ScatterGatherTimeout, ErrorCategory.Timeout,
                     $"Scatter-gather query timed out after {_options.Timeout}."));
         }
 
@@ -189,7 +189,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
 
             return Either<EncinaError, ShardedQueryResult<T>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ScatterGatherPartialFailure,
+                    ShardingErrorCodes.ScatterGatherPartialFailure, ErrorCategory.Internal,
                     $"{failedShards.Count} of {shardIdList.Count} shards failed. " +
                     $"Failed shards: {string.Join(", ", failedShards.Select(f => f.ShardId))}."));
         }
@@ -276,7 +276,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
             return ShardQueryTaskResult<T>.Failure(
                 shardId,
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Query on shard '{shardId}' failed: {ex.Message}",
                     ex));
         }

@@ -74,7 +74,7 @@ public static class CompoundShardKeyExtractor
         // No shard key configured
         return Either<EncinaError, CompoundShardKey>.Left(
             EncinaErrors.Create(
-                ShardingErrorCodes.ShardKeyNotConfigured,
+                ShardingErrorCodes.ShardKeyNotConfigured, ErrorCategory.Internal,
                 $"Entity type '{typeof(TEntity).Name}' does not implement ICompoundShardable, IShardable, and has no property marked with [ShardKey]."));
     }
 
@@ -86,7 +86,7 @@ public static class CompoundShardKeyExtractor
         {
             return Either<EncinaError, CompoundShardKey>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.CompoundShardKeyEmpty,
+                    ShardingErrorCodes.CompoundShardKeyEmpty, ErrorCategory.Internal,
                     $"ICompoundShardable.GetCompoundShardKey() returned null or an empty key for entity type '{entityTypeName}'."));
         }
 
@@ -96,7 +96,7 @@ public static class CompoundShardKeyExtractor
             {
                 return Either<EncinaError, CompoundShardKey>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.CompoundShardKeyComponentEmpty,
+                        ShardingErrorCodes.CompoundShardKeyComponentEmpty, ErrorCategory.Internal,
                         $"Compound shard key component at index {i} is null or empty for entity type '{entityTypeName}'."));
             }
         }
@@ -118,7 +118,7 @@ public static class CompoundShardKeyExtractor
             {
                 return Either<EncinaError, CompoundShardKey>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.DuplicateShardKeyOrder,
+                        ShardingErrorCodes.DuplicateShardKeyOrder, ErrorCategory.Internal,
                         $"Properties '{properties[i - 1].Property.Name}' and '{properties[i].Property.Name}' on entity type '{entityTypeName}' share the same [ShardKey(Order = {properties[i].Order})]."));
             }
         }
@@ -133,7 +133,7 @@ public static class CompoundShardKeyExtractor
             {
                 return Either<EncinaError, CompoundShardKey>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.CompoundShardKeyComponentEmpty,
+                        ShardingErrorCodes.CompoundShardKeyComponentEmpty, ErrorCategory.Internal,
                         $"Shard key property '{properties[i].Property.Name}' (Order={properties[i].Order}) on entity type '{entityTypeName}' has a null value."));
             }
 
@@ -143,7 +143,7 @@ public static class CompoundShardKeyExtractor
             {
                 return Either<EncinaError, CompoundShardKey>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.CompoundShardKeyComponentEmpty,
+                        ShardingErrorCodes.CompoundShardKeyComponentEmpty, ErrorCategory.Internal,
                         $"Shard key property '{properties[i].Property.Name}' (Order={properties[i].Order}) on entity type '{entityTypeName}' has an empty string value."));
             }
 
@@ -162,7 +162,7 @@ public static class CompoundShardKeyExtractor
         return string.IsNullOrEmpty(key)
             ? Either<EncinaError, CompoundShardKey>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyEmpty,
+                    ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                     $"IShardable.GetShardKey() returned null or empty for entity type '{entityTypeName}'."))
             : Either<EncinaError, CompoundShardKey>.Right(new CompoundShardKey(key));
     }
@@ -179,7 +179,7 @@ public static class CompoundShardKeyExtractor
         {
             return Either<EncinaError, CompoundShardKey>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyEmpty,
+                    ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                     $"Shard key property '{propertyInfo.Property.Name}' on entity type '{entityTypeName}' has a null value."));
         }
 
@@ -188,7 +188,7 @@ public static class CompoundShardKeyExtractor
         return string.IsNullOrEmpty(stringValue)
             ? Either<EncinaError, CompoundShardKey>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyEmpty,
+                    ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                     $"Shard key property '{propertyInfo.Property.Name}' on entity type '{entityTypeName}' has an empty string value."))
             : Either<EncinaError, CompoundShardKey>.Right(new CompoundShardKey(stringValue));
     }
