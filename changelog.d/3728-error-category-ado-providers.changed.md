@@ -1,0 +1,1 @@
+- All 64 `EncinaErrors.Create` calls of `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL` and `Encina.ADO.MySQL` (entity mapping builders, sharding migrations, reference table stores and the sharded read/write connection factory) now declare `ErrorCategory.Internal` and keep answering HTTP 500. No status changes; the error codes and messages are unchanged (#3728, ADR-062).
