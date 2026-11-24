@@ -87,6 +87,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed ... the only opt-out is explicit and logged") and the existing precedent `DPIAEndpointExtensions.MapDPIAEndpoints` (policy required, validated at startup, no anonymous mode); AGENTS.md section 1 (pay-for-what-you-use).
+- Tenant scoping of every diagnostic answer, statistics included, is settled by AGENTS.md section 3 (a gate that lacks tenant context denies) and holds under either answer to Design Choice 1: whichever source supplies the data, the counters, search, details and both deletes are per tenant, and `GetStatsAsync(null)` with multi-tenancy on returns `cache.diagnostics_tenant_required`.
 - Under multi-tenancy (`MultiTenancyMarker` registered) every endpoint serves only the caller's tenant (`IRequestContext.TenantId` bound by `UseEncinaContext()`); a request with no tenant is denied with `cache.diagnostics_tenant_required` (ADR-062 `ErrorCategory.InvalidRequest`, the category `tenancy.tenant_required` uses) and logged (EventId 60100); there is no all-tenants mode in this version.
 
 </details>
@@ -145,7 +146,7 @@ The plan builds diagnostics on what every one of the 8 providers (Memory, Hybrid
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the precedent `src/Encina/Core/RequestContextAccessor.cs` (an `AsyncLocal` holder, the `HttpContextAccessor` pattern, flows into `Send`) and the no-scoped-into-singleton rule; it holds under either answer to Design Choice 5.
+- **Settled by:** the precedent `src/Encina/Core/RequestContextAccessor.cs` (an `AsyncLocal` holder, the `HttpContextAccessor` pattern, flows into `Send`) and the no-scoped-into-singleton rule; the holder's thread safety (an `Interlocked` packed counter and a `CompareExchange` first-key slot) holds under either answer to Design Choice 5; if option B of Design Choice 5 is chosen (one status per cached request), the packed counter becomes a bounded list guarded by the same rule (parallel `Send` calls never lose an outcome) and the carrier choice itself is unchanged.
 
 </details>
 
@@ -220,8 +221,8 @@ PR 1 holds exactly these 15 files (the registry logs its own eviction, so the lo
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `src/Encina.Caching/Diagnostics/CacheKeyRegistry.cs` | new (internal sealed, bounded, instance-level) |
-| 2 | `src/Encina.Caching/Diagnostics/CacheOutcomeAccessor.cs` | new (public sealed: the `AsyncLocal` holder, `CacheOutcome` record, and the public interface `ICacheKeyRecorder` that the internal registry implements) |
+| 1 | `src/Encina.Caching/Diagnostics/CacheKeyRegistry.cs` | new (internal sealed, bounded, instance-level; implements `Record`, `RecordOutcome` and the per-tenant statistics rows) |
+| 2 | `src/Encina.Caching/Diagnostics/CacheOutcomeAccessor.cs` | new (public sealed: the `AsyncLocal` holder, `CacheOutcome` record, and the public interface `ICacheKeyRecorder` with `Record` and `RecordOutcome(string? tenantId, CacheOutcomeStatus status)` that the internal registry implements) |
 | 3 | `src/Encina.Caching/Configuration/CacheDiagnosticsOptions.cs` | new (public: `MaxTrackedKeys`, `MaxDeleteBatch`, `IncludeKey`, `HeaderPrefix`; it is the only options source: `AddEncinaCacheDiagnostics(Action<CacheDiagnosticsOptions>)` registers `IOptions<CacheDiagnosticsOptions>` and the registry and middleware read that, so nothing is added to `CachingOptions` and the hand-written copy list of `AddEncinaCaching` is not involved; the diagnostics switch is calling `AddEncinaCacheDiagnostics` itself) |
 | 4 | `src/Encina.Caching/Diagnostics/CacheDiagnosticsLog.cs` | new (EventIds 30050-30051; 30051 eviction is emitted by the registry of this PR, 30050 by `CacheDiagnostics` in PR 2) |
 | 4b | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingDiagnostics = (30050, 30051)`) |
@@ -238,10 +239,10 @@ PR 1 holds exactly these 15 files (the registry logs its own eviction, so the lo
 
 Tasks:
 
-1. **Create** `CacheKeyRegistry`: a `ConcurrentDictionary<string, Entry>` plus an insertion-order queue bounded by `MaxTrackedKeys`; `Record(key, requestType, cachedAtUtc, duration, tenantId)`, `Remove(key)`, `Snapshot(tenantId)`; instance-level state only (a registry per `AddEncinaCaching`, never a static field of a generic class); the stored tenant is the segment used by the key generator, so a tenant filter compares equal strings, never substrings.
-2. **Create** `CacheOutcomeAccessor` (singleton): `Begin()` returns a disposable holder pushed on an `AsyncLocal`, `Record(CacheOutcome)` is a no-op without a holder; `CacheOutcome` carries the status, `CachedAtUtc`, the duration and, only when `IncludeKey` is on, the key redacted by `CacheKeyRedactor` (a nullable `RedactedKey` field), never the value or the raw key. Selection rule for `X-Cache-Key` when one HTTP request runs several cached requests: the header carries the redacted key of the first outcome recorded with a key (completion order), independent of the aggregated status rule; the other keys are not exposed.
+1. **Create** `CacheKeyRegistry`: a `ConcurrentDictionary<string, Entry>` plus an insertion-order queue bounded by `MaxTrackedKeys`; `Record(key, requestType, cachedAtUtc, duration, tenantId)`, `Remove(key)`, `Snapshot(tenantId)`, and the per-tenant statistics table behind `ICacheKeyRecorder.RecordOutcome(string? tenantId, CacheOutcomeStatus status)` (one row of hit, miss, bypass and write counters per tenant string, bounded by `MaxTrackedKeys`; a tenant beyond the bound is not counted, EventId 30051 is logged once per eviction or refusal, and it is never folded into another tenant's row); instance-level state only (a registry per `AddEncinaCaching`, never a static field of a generic class); the stored tenant is the segment used by the key generator, so a tenant filter compares equal strings, never substrings.
+2. **Create** `CacheOutcomeAccessor` (singleton): `Begin()` returns a disposable holder pushed on an `AsyncLocal`, `Record(CacheOutcome)` is a no-op without a holder; `CacheOutcome` carries the status, `CachedAtUtc`, the duration and, only when `IncludeKey` is on, the key redacted by `CacheKeyRedactor` (a nullable `RedactedKey` field), never the value or the raw key. Selection rule for `X-Cache-Key` when one HTTP request runs several cached requests: the header carries the redacted key of the first outcome recorded with a key (completion order), independent of the aggregated status rule; the other keys are not exposed. The holder keeps the status counts as an `Interlocked` packed counter, and the first redacted key in a separate reference slot set once with `Interlocked.CompareExchange`, so parallel `Send` calls of one HTTP request neither lose a count nor replace the first key.
 3. **Modify** the behavior: the existing paths already know hit, miss, bypass and write; each hook is a one-line call to a private method so `Handle` keeps CRAP at 10 or below. With both optional parameters null (diagnostics off) behavior is unchanged.
-4. **Tests (unit):** bound and eviction order, tenant filter is equality, a re-write refreshes an entry, no holder means no work, outcomes for hit, miss, bypass (the three existing bypass reasons) and write, the registry never holds a value. The two new optional parameters of the behavior's public constructor accept null (diagnostics off): `CacheDiagnosticsGuardTests.cs` has a valid-result test for each (the behavior behaves as today), not an exception test. The `AsyncLocal` holder is thread-safe: one HTTP request can run several `Send` calls in parallel, so the holder aggregates with `Interlocked` operations on a packed state (hit, miss, bypass counts), never a plain list. Guard tests: `CacheDiagnosticsOptions` setters reject invalid ranges (`MaxTrackedKeys` at least 1); `ICacheKeyRecorder.Record(string key, ...)` throws `ArgumentNullException` for a null or whitespace key (a key is never recorded blank); `CacheOutcomeAccessor.Record(CacheOutcome)` takes a value-type record, so a default value is a valid input and gets a valid-result test (it records nothing without a holder); `Begin()` has no parameter.
+4. **Tests (unit):** bound and eviction order, tenant filter is equality, a re-write refreshes an entry, no holder means no work, outcomes for hit, miss, bypass (the three existing bypass reasons) and write, the registry never holds a value. The two new optional parameters of the behavior's public constructor accept null (diagnostics off): `CacheDiagnosticsGuardTests.cs` has a valid-result test for each (the behavior behaves as today), not an exception test. The `AsyncLocal` holder is thread-safe: one HTTP request can run several `Send` calls in parallel, so the holder aggregates with `Interlocked` operations on a packed state (hit, miss, bypass counts), never a plain list. Guard tests: `CacheDiagnosticsOptions` setters reject invalid ranges (`MaxTrackedKeys` at least 1); `ICacheKeyRecorder.RecordOutcome(string? tenantId, CacheOutcomeStatus status)` accepts a null tenant (the single-tenant case, counted in the `default` row) and gets a valid-result test, and its enum `status` has a test with every defined value (an undefined value is ignored, never thrown); unit tests cover per-tenant rows, a row never containing another tenant's counts, and the bound with the not-counted-beyond-bound behavior; `ICacheKeyRecorder.Record(string key, ...)` throws `ArgumentNullException` for a null or whitespace key (a key is never recorded blank); `CacheOutcomeAccessor.Record(CacheOutcome)` takes a value-type record, so a default value is a valid input and gets a valid-result test (it records nothing without a holder); `Begin()` has no parameter.
 
 </details>
 
@@ -255,7 +256,7 @@ Encina is a .NET 10 / C# 14 library, pre-1.0. Issue #276 adds cache diagnostics.
 (src/Encina/Core/RequestContextAccessor.cs) is the precedent for an AsyncLocal holder.
 
 TASK:
-1. Create CacheKeyRegistry (with its log, EventIds 30050-30051, and the CachingDiagnostics range registration), CacheOutcomeAccessor (with CacheOutcome and ICacheKeyRecorder) and CacheDiagnosticsOptions; nothing is added to CachingOptions.
+1. Create CacheKeyRegistry (with its log, EventIds 30050-30051, the CachingDiagnostics range registration and the per-tenant statistics rows behind ICacheKeyRecorder.RecordOutcome(tenantId, status)), CacheOutcomeAccessor (with CacheOutcome, an Interlocked packed counter plus a CompareExchange first-key slot, and ICacheKeyRecorder) and CacheDiagnosticsOptions; nothing is added to CachingOptions.
 2. Hook the behavior through optional trailing constructor parameters; keep Handle at CRAP 10 or below.
 3. Write the unit and guard tests; ask mechanical-fixer for PublicAPI.Unshipped.txt, the manifest rows and the changelog fragment.
 
@@ -298,7 +299,7 @@ Tasks:
 1. **Create** `ICacheDiagnostics`: `ValueTask<Either<EncinaError, CacheStats>> GetStatsAsync(string? tenantId, CancellationToken)`, `ValueTask<Either<EncinaError, IReadOnlyList<CacheKeyInfo>>> SearchKeysAsync(string? tenantId, string pattern, int limit, CancellationToken)`, `ValueTask<Either<EncinaError, CacheKeyDetails>> GetKeyDetailsAsync(string? tenantId, string id, CancellationToken)` `ValueTask<Either<EncinaError, int>> DeleteKeysAsync(string? tenantId, string pattern, CancellationToken)` and the exact operation `ValueTask<Either<EncinaError, Unit>> DeleteKeyAsync(string? tenantId, string id, CancellationToken)` (`DELETE {prefix}/keys/{id}` calls it; the id must belong to the caller's tenant, otherwise `cache.diagnostics_key_not_found`, so an id of another tenant is indistinguishable from an absent one); entries are addressed by an opaque `id` (a hash of the key) and shown with the redacted key, so a caller never receives a raw key. The tenant is a parameter, not an ambient read: the endpoint passes the request's tenant.
 2. **Create** `CacheDiagnostics`: glob matcher with `*` and `?` and a 200-character limit, results capped at 1,000, a missing entry returns `cache.diagnostics_key_not_found`, a longer pattern `cache.diagnostics_invalid_pattern`; delete follows Design Choice 4 and logs the count only (EventId 30050 keys deleted); the registry logs 30051 when it evicts at the bound. Cancellation propagates: a cancelled token throws `OperationCanceledException` and is never turned into a `Left`. A delete removes keys with an unconditional `RemoveAsync`, so a concurrent newer write of the same key can be removed; that costs one miss and is accepted for a diagnostic tool.
 3. **Create** `AddEncinaCacheDiagnostics(this IServiceCollection, Action<CacheDiagnosticsOptions>? = null)` (public, `ArgumentNullException.ThrowIfNull(services)`): registers `IOptions<CacheDiagnosticsOptions>` (the only options source), the registry (an `ILogger` and `MaxTrackedKeys` from those options), the accessor and `ICacheDiagnostics` as singletons with `TryAdd`; without this call nothing is registered (pay-for-what-you-use).
-4. **Tests:** statistics counters per node, tenant isolation of search, details and delete (tenant A never sees or removes tenant B's id), the matcher with `*` and `?` and an adversarial long pattern, the limit, the not-found code, DI built with `ValidateOnBuild` and `ValidateScopes`, guard test for `AddEncinaCacheDiagnostics` (null services; a null configure delegate is valid and gets a valid-result test).
+4. **Tests:** statistics rows per tenant (tenant A's `GetStatsAsync` never contains tenant B's counts, whatever the order of the recorded outcomes), `GetStatsAsync(null)` with multi-tenancy on returns `cache.diagnostics_tenant_required` (ADR-062 `ErrorCategory.InvalidRequest`, constant message; fail closed for non-HTTP callers too, and the same rule for every operation) while without multi-tenancy it returns the `default` row, tenant isolation of search, details, delete by pattern and delete by id (tenant A never sees or removes tenant B's id), a single-key delete logs EventId 30050 with count 1, the matcher with `*` and `?` and an adversarial long pattern, the limit, the not-found code, DI built with `ValidateOnBuild` and `ValidateScopes`, guard test for `AddEncinaCacheDiagnostics` (null services; a null configure delegate is valid and gets a valid-result test).
 
 </details>
 
@@ -310,8 +311,8 @@ CONTEXT:
 Phase 1 is merged: CacheKeyRegistry, CacheOutcomeAccessor and CacheDiagnosticsOptions exist and the behavior records into them.
 
 TASK:
-1. Create ICacheDiagnostics (+ records), the internal implementation, CacheDiagnosticsLog (30050-30051) and AddEncinaCacheDiagnostics.
-2. Register CachingDiagnostics = (30050, 30051) in EventIdRanges.cs and the assembly map.
+1. Create ICacheDiagnostics (GetStatsAsync, SearchKeysAsync, GetKeyDetailsAsync, DeleteKeysAsync and the exact DeleteKeyAsync; + records), the internal implementation and AddEncinaCacheDiagnostics; the log class and the CachingDiagnostics range registration were PR 1's.
+2. Emit EventId 30050 for every delete (count 1 for DeleteKeyAsync); GetStatsAsync(null) with multi-tenancy on returns cache.diagnostics_tenant_required.
 3. Write the unit, DI and guard tests; ask mechanical-fixer for the PublicAPI files, the manifest rows and the changelog fragment.
 
 KEY RULES:
@@ -462,7 +463,7 @@ CONTEXT:
 All code PRs are merged. Documentation remains.
 
 TASK:
-Confirm the XML docs and the three changelog fragments; ask docs-writer for the two documentation pages.
+Confirm the XML docs and the three changelog fragments; ask docs-writer for the two documentation pages and the docs/INVENTORY.md update.
 
 KEY RULES:
 - No hand-typed figures; cite tests by name.
@@ -514,7 +515,7 @@ REFERENCE FILES:
 |----------|-----------|----------------|-------|
 | Production code | 10 | 6 | New: registry, accessor, options, inspection API, implementation, registration, two log classes, middleware, endpoints; modified: behavior, options, `ApplicationBuilderExtensions.cs`, `EventIdRanges.cs`, two PublicAPI |
 | Tests | 7 | 3 | Unit (5), guard (3 across PRs); modified: allocation test (twice) |
-| Documentation | 1 | 1 | `docs/features/cache-diagnostics.md`, `docs/features/handler-caching.md` (owned by the #266 family) |
+| Documentation | 1 | 2 | `docs/features/cache-diagnostics.md` (new), `docs/features/handler-caching.md` (owned by the #266 family) and `docs/INVENTORY.md` modified |
 | Configuration | 3 | 3 | Three changelog fragments; manifests edited per PR |
 | **Total** | **21** | **13** | 4 pull requests of 15, 9, 15 and 4 files, each at most 15 files and 1500 lines |
 
@@ -539,7 +540,7 @@ IMPLEMENTATION OVERVIEW:
 
 KEY PATTERNS:
 - Fail closed: the authorization policy is required and validated at startup; no tenant under multi-tenancy is denied.
-- No raw key and no value leave the process: ids are opaque, keys are redacted, values are never returned.
+- No raw key and no value leave the process: ids are opaque, keys are redacted, values are never returned; statistics, search, details and both deletes (DeleteKeysAsync by pattern, DeleteKeyAsync by id) are scoped to the caller's tenant.
 - Everything off unless AddEncinaCacheDiagnostics and the mapping are called; state is bounded and instance-level.
 - Every new public symbol has PublicAPI lines and guard tests; error codes have named ADR-062 categories and constant messages.
 - Follow the maintainer's answers to Design Choices 1, 2 and 4, given in your brief.
