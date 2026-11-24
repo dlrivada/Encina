@@ -11,7 +11,7 @@
 
 Implement the entity-change audit store (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036) on Elasticsearch as `EntityChangeAuditStoreElasticsearch`: the history of "what did this entity look like before and after each change", searchable by structured fields and aggregatable for audit dashboards. The store is built on the **ADR-036 contract** (`Either` results, `TimeProvider`, `TenantId`, `ModuleId`, `PurgeEntriesAsync`, `ChangedAtUtc` as `DateTimeOffset`, the writer's redaction hook), not on the samples of the issue, which return `Task`, cap history at an unpaged 1,000 documents, use a fixed index name and index old and new values as full text.
 
-What the code looks like today (main `ce352001f`):
+What the code looks like today (origin/main `1dee4ba61`, re-checked for this revision; the plan branch was cut from `ce352001f`):
 
 - `IAuditLogStore` lives in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs` (`Task LogAsync(AuditLogEntry, CancellationToken)`, `Task<IEnumerable<AuditLogEntry>> GetHistoryAsync(string entityType, string entityId, CancellationToken)`); `AuditLogEntry` (`Id`, `EntityType`, `EntityId`, `Action`, `UserId`, `TimestampUtc` as `DateTime`, `OldValues`, `NewValues`, `CorrelationId`) and `InMemoryAuditLogStore` sit next to it. ADR-036 (accepted 2026-10-03) renames and reshapes all of it; that work is **#1778, open**. Until #1778 lands, the names and members below are the ADR's, not main's.
 - There is no `Encina.Elasticsearch` package, no Elasticsearch or OpenSearch client and no `Testcontainers.Elasticsearch` in `Directory.Packages.props`, no Elasticsearch service in `docker-compose.yml` and no Elasticsearch fixture in `tests/Encina.TestInfrastructure/Fixtures/`. The plan of #586 (Elasticsearch dead letter store, open) creates the same package; who owns its skeleton is Design Choice 1.
@@ -78,41 +78,42 @@ What the code looks like today (main `ce352001f`):
 |--------|------|------|
 | **A) One index (default `encina-entity-change-audit`) with a `tenantId` keyword; every query of the store adds a `term` filter on the ambient tenant** | One mapping and one shard set; no index explosion with many tenants; cross-tenant reads are possible only through the explicit opt-in | Isolation is a filter, not a physical boundary |
 | **B) One index per tenant (`{prefix}-{encoded tenant}`)** (the issue's deferred item) | Physical isolation; per-tenant deletion is an index delete | Index names must be lowercase and short, so tenant ids need an injective encoding; thousands of tenants mean thousands of shards (cluster limits) |
-| **C) A data stream with time-based backing indices** | Cheap retention by dropping whole backing indices | Retention can no longer differ per tenant; documents in a data stream cannot be addressed by `_id` for the idempotent create |
 
 ### Chosen Option: **A — one index, tenant filter on every query** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A keeps the tenant rules of the family in one place: with tenancy on, the entry's `TenantId` is stored; the reserved segment `default` marks tenant-less entries, written only when tenancy is off; a real tenant whose id is `default` is rejected on write with a `Left` (`InvalidRequest`, ADR-062 R3); with tenancy on and no tenant resolved, write, read, search and purge deny with a `Left` (`InvalidRequest`; `AGENTS.md` section 3: gates fail closed) and never fall back to `default`.
-- A query, search or purge across tenants needs an explicit cross-tenant opt-in on the call, logged by event id only (no ids), and denied by default (`Forbidden`, R6).
-- B wins when a tenant contract demands physical separation or per-tenant index deletion; C wins when one global retention is enough and delete cost dominates.
+- Both options keep the tenant rules of the family: with tenancy on, the entry's `TenantId` is stored; the reserved segment `default` marks tenant-less entries, written only when tenancy is off; a real tenant whose id is `default` is rejected on write with a `Left` (`InvalidRequest`, ADR-062 R3); with tenancy on and no tenant resolved, write, history and search deny with a `Left` (`InvalidRequest`; `AGENTS.md` section 3: gates fail closed) and never fall back to `default`.
+- A history query or search across tenants needs an explicit cross-tenant opt-in on the call, logged by event id only (no ids), and denied by default (`Forbidden`, R6). The retention purge is not a request-time read: it receives the tenant explicitly (Design Choice 4) and never uses the ambient tenant or this opt-in.
+- B wins when a tenant contract demands physical separation or per-tenant index deletion.
+- Not an option: a data stream or rollover aliases with time-based backing indices. `_id` is unique only inside one backing index, so the idempotent create of Design Choice 9 would stop detecting duplicates after a rollover, and retention could not differ per tenant.
 
 </details>
 
 <details>
-<summary><strong>4. How retention is applied (Dilemma D4)</strong></summary>
+<summary><strong>4. How retention is applied</strong></summary>
 
-**Class:** Dilemma
+**Class:** Settled
+**Settled by:** ADR-036 decision 1 (`PurgeEntriesAsync`, 2555-day default), SPEC-002 REQ-007 (retention per data category), #4182 (retention iterates the tenants through `ITenantStore` with each tenant's policy, never the ambient tenant or a cross-tenant opt-in), GDPR Art. 5(1)(e)
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `PurgeEntriesAsync` through `delete_by_query` on `changedAtUtc < cutoff` (plus the tenant filter), called by the ADR-036 `EntityChangeAuditRetentionService`** | Same mechanism as every other provider (`AGENTS.md` section 5); per-tenant retention (SPEC-002 REQ-007); the purge is an explicit, counted act | Deletes cost merges and I/O on large indices |
-| **B) Index lifecycle management (ILM) deletes old indices** | No delete cost | Needs time-based indices (Design Choice 3 option C); not per tenant; bypasses `PurgeEntriesAsync` |
-| **C) A plus an ILM policy as a safety net at twice the retention** | Bounded growth if the retention service stops | Two mechanisms to explain and test |
+| **A) Per-tenant `PurgeEntriesAsync` through `delete_by_query` on `tenantId = <given tenant>` and `changedAtUtc < <that tenant's cutoff>`; the ADR-036 `EntityChangeAuditRetentionService` runs in a tenant-less scope, enumerates `ITenantStore.GetAllTenantsAsync` and calls the purge once per tenant with that tenant's policy (once with the `default` segment when tenancy is off)** | Per-tenant retention; every provider purges the same way (`AGENTS.md` section 5); each purge is an explicit, counted act; the purge never depends on an ambient tenant | Deletes cost merges and I/O on large indices |
+| **B) Index lifecycle management (ILM) deletes whole indices** | No delete cost | Needs time-based indices, which Design Choice 3 excludes; one retention for every tenant; bypasses `PurgeEntriesAsync` |
 
-### Chosen Option: **A — retention through `PurgeEntriesAsync`** (recommended, pending the maintainer)
+### Chosen Option: **A — per-tenant purge with the tenant passed explicitly**
 
 ### Rationale
 
-- `PurgeEntriesAsync` is part of the contract (ADR-036 decision 1, default retention 2555 days) whatever is chosen. `delete_by_query` runs with `conflicts=proceed`, `wait_for_completion=true` and `slices=auto`; its `failures` array or a `version_conflicts` count above zero is a `Left` (`Internal`), never a partial success reported as complete. B wins with option C of Design Choice 3; C wins for unattended clusters that must never grow without bound.
+- B cannot give each tenant its own retention and needs the backing indices that break the idempotent create, so A is the only compliant option. The exact purge signature (the tenant and cutoff it receives, and where each tenant's policy comes from) is decided by #4182 and delivered by #1778; this store filters on the tenant it is given and never reads the ambient tenant or an opt-in for the purge. A store call without a tenant while tenancy is on is a `Left` (`InvalidRequest`).
+- `delete_by_query` runs with `conflicts=proceed`, `wait_for_completion=true` and `slices=auto`; its `failures` array or a `version_conflicts` count above zero is a `Left` (`Internal`), never a partial success reported as complete. A failure for one tenant is reported for that tenant; the retention service's handling of the remaining tenants follows #4182.
 
 </details>
 
 <details>
-<summary><strong>5. Visibility of a write to the history read (Dilemma D5)</strong></summary>
+<summary><strong>5. Visibility of a write to the history read (Dilemma D4)</strong></summary>
 
 **Class:** Dilemma
 
@@ -133,7 +134,7 @@ What the code looks like today (main `ce352001f`):
 </details>
 
 <details>
-<summary><strong>6. The optional search capability of the issue (Dilemma D6)</strong></summary>
+<summary><strong>6. The optional search capability of the issue (Dilemma D5)</strong></summary>
 
 **Class:** Dilemma
 
@@ -154,7 +155,7 @@ What the code looks like today (main `ce352001f`):
 </details>
 
 <details>
-<summary><strong>7. Tamper evidence (Dilemma D7)</strong></summary>
+<summary><strong>7. Tamper evidence (Dilemma D6)</strong></summary>
 
 **Class:** Dilemma
 
@@ -213,6 +214,7 @@ What the code looks like today (main `ce352001f`):
 ### Rationale
 
 - B and C both let an audit entry be lost or duplicated without a failure, which section 3 forbids; A is the only option that keeps retries safe and collisions visible. The length prefix makes the id injective (`A:B` + `C` never equals `A` + `B:C`); custom routing is not used because, with routing, `_id` uniqueness holds per shard only.
+- It holds under both options of Design Choice 3: one index, or one index per tenant (where the tenant-qualified id is unique inside each tenant's index). Data streams and rollover aliases are excluded in Design Choice 3 because they would break it.
 
 </details>
 
@@ -247,7 +249,7 @@ What the code looks like today (main `ce352001f`):
 <summary>Tasks</summary>
 
 1. With locally started containers (Elasticsearch at the vendor's current LTS line and OpenSearch at its LTS line) and a throwaway script that is never committed, run through `Elastic.Clients.Elasticsearch` the calls the store uses: index with `op_type=create` (second call returns 409), GET by `_id`, `delete_by_query` with `conflicts=proceed` and its `failures` field, a `bool` query with `term` filters and `sort` on `changedAtUtc` descending with `search_after`, `terms` and `date_histogram` aggregations, index creation with a strict mapping and `"index": false` fields.
-2. Verify that a real `ElasticsearchClient` can be built over `Elastic.Transport`'s `InMemoryRequestInvoker` with canned JSON responses (the unit-test seam); if it cannot, the store gets an internal `IElasticsearchEntityChangeAuditGateway` with `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests`.
+2. Verify that a real `ElasticsearchClient` can be built over `Elastic.Transport`'s `InMemoryRequestInvoker` with canned JSON responses (the unit-test seam); if it cannot, the store gets an internal `IElasticsearchEntityChangeAuditGateway` with `InternalsVisibleTo` for `Encina.UnitTests` only (guard tests exercise the public surface, so the per-file guard target of 0 for internal types stays valid).
 3. The evidence is a pass/fail table in the worker's report; the orchestrator posts it on #577 (and on #586 for Design Choice 2). A failed criterion returns to the maintainer as an update of the affected Dilemma.
 
 </details>
@@ -281,8 +283,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `src/Encina.Elasticsearch/EntityChangeAudit/EntityChangeAuditDocument.cs` (internal): `tenantId`, `entityType`, `entityId`, `entryId`, `action`, `userId`, `moduleId`, `changedAtUtc` (UTC, ISO 8601 with offset `Z`), `oldValues`, `newValues` (stored, `"index": false`), `correlationId`, `payloadHash`; mapper to and from the ADR-036 entry; `DocumentIdBuilder.Build(tenantSegment, entryId)` (length-prefixed, Design Choice 9).
-2. `EntityChangeAudit/EntityChangeAuditElasticsearchOptions.cs` (public, sealed): `IndexName` (default `encina-entity-change-audit`, validated against Elasticsearch index-name rules), `CreateIndexIfNotExists` (default `false`), `NumberOfShards`, `NumberOfReplicas`, `MaxSearchPageSize` (default 1,000), `AllowCrossTenantQueries` (default `false`). Cluster credentials stay in the package's client options (skeleton, Design Choice 1).
-3. `EntityChangeAudit/EntityChangeAuditIndexInitializer.cs` (internal, `IHostedService`): creates the index only when `CreateIndexIfNotExists`, with `dynamic: strict`, keywords for `tenantId`, `entityType`, `entityId`, `entryId`, `action`, `userId`, `moduleId`, `correlationId`, `payloadHash`, `date` for `changedAtUtc`, and `oldValues`/`newValues` as non-indexed `keyword` with `doc_values: false` (Design Choice 6 option A); an existing index is never changed; a mismatch of the mapping is logged and the initializer fails start-up with a typed exception message that names no value.
+2. `EntityChangeAudit/EntityChangeAuditElasticsearchOptions.cs` (public, sealed): `IndexName` (default `encina-entity-change-audit`, validated against Elasticsearch index-name rules), `CreateIndexIfNotExists` (default `false`), `NumberOfShards`, `NumberOfReplicas`, `MaxSearchPageSize` (default 1,000), `AllowCrossTenantQueries` (default `false`; history and search only, never the purge). Cluster credentials stay in the package's client options (skeleton, Design Choice 1).
+3. `EntityChangeAudit/EntityChangeAuditIndexInitializer.cs` (internal, `IHostedService`): creates the index only when `CreateIndexIfNotExists`, with `dynamic: strict`, keywords for `tenantId`, `entityType`, `entityId`, `entryId`, `action`, `userId`, `moduleId`, `correlationId`, `payloadHash`, `date` for `changedAtUtc`, and `oldValues`/`newValues` as non-indexed `keyword` with `doc_values: false` (Design Choice 6, Dilemma D5, option A); an existing index is never changed; a mismatch of the mapping is logged and the initializer fails start-up with a typed exception message that names no value.
 4. Register the EventId range (Phase 4 numbers) and the log class in this PR, because the initializer logs (index created, mapping mismatch).
 5. No registration in this PR: the initializer is internal and is registered by `AddEncinaEntityChangeAuditElasticsearch` in Phase 2, so Phase 1 ships the types and their tests only (every type is internal except the options).
 6. `PublicAPI.Unshipped.txt` of the package (options only).
@@ -325,7 +327,7 @@ REFERENCE FILES:
 1. `EntityChangeAudit/EntityChangeAuditStoreElasticsearch.cs` (public, sealed) `: IEntityChangeAuditStore`; constructor `(ElasticsearchClient client, ITenantContext? tenantContext, IOptions<EntityChangeAuditElasticsearchOptions> options, TimeProvider timeProvider, ILogger<EntityChangeAuditStoreElasticsearch> logger)` (the exact tenant abstraction is the one #1778 uses for the database providers).
 2. Write: resolve the tenant first (tenancy on and none resolved: `Left`, `InvalidRequest`; a real tenant `default`: `Left`, `InvalidRequest`); compute `payloadHash`; `IndexAsync` with `op_type=create`; 409 reads the stored document and compares (Design Choice 9); 413 or a document over `http.max_content_length` is a `Left` (`Validation`); 429 and 503 are `Left` (`Unavailable`); other transport failures are `Left` (`Internal`, R4) carrying the HTTP status code only.
 3. History: `term` filters on `tenantId`, `entityType`, `entityId`, sort `changedAtUtc` desc then `entryId` desc, paged through the contract's `PagedResult<T>` with `search_after` (never `from` beyond `index.max_result_window`).
-4. `PurgeEntriesAsync`: `delete_by_query` per Design Choice 4, bound to the ambient tenant unless the explicit cross-tenant opt-in is passed; returns the deleted count.
+4. `PurgeEntriesAsync` with the tenant and cutoff it receives (signature from #4182 and #1778): `delete_by_query` per Design Choice 4 filtered on that tenant only; it never reads the ambient tenant and needs no opt-in; with tenancy on and no tenant passed it returns `Left` (`InvalidRequest`); returns the deleted count. The store is resolved by the tenant-less retention service, so it must not depend on a request-scoped tenant context to be constructed.
 5. `EntityChangeAudit/EntityChangeAuditElasticsearchErrors.cs`: the codes and categories of Phase 4.
 6. `EntityChangeAudit/ServiceCollectionExtensions.cs`: `AddEncinaEntityChangeAuditElasticsearch(this IServiceCollection, Action<EntityChangeAuditElasticsearchOptions>? configure = null)` registers the options (`ValidateOnStart`), `TryAddSingleton(TimeProvider.System)`, the store as `IEntityChangeAuditStore` so that it wins over the in-memory default in any registration order without overriding an application registration (the mechanism #1778 defines for the database stores), and the initializer with `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EntityChangeAuditIndexInitializer>())`. It requires `AddEncinaElasticsearch` (the client) and fails at build with a clear message when it is missing.
 7. DI test with `ValidateOnBuild` and `ValidateScopes`, both registration orders. Every method stays at CRAP <= 10.
@@ -344,7 +346,8 @@ Implement EntityChangeAuditStoreElasticsearch, its error codes and AddEncinaEnti
 
 KEY RULES:
 - Either<EncinaError, T> everywhere; an Elasticsearch failure is a Left (fail closed); log status codes and exception types only; cancellation propagates.
-- Every query carries the tenant filter; tenancy on and no tenant denies; cross-tenant only with the explicit, logged opt-in.
+- Every query carries the tenant filter; tenancy on and no tenant denies; cross-tenant history and search only with the explicit, logged opt-in.
+- The purge filters on the tenant passed by the retention service (#4182), never on the ambient tenant or an opt-in.
 - Hosted services through TryAddEnumerable; the store wins over the in-memory default in any order.
 - Keep every method at CRAP <= 10.
 
@@ -399,8 +402,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. EventId range `ElasticsearchEntityChangeAudit = (50000, 50049)` in `src/Encina/Diagnostics/EventIdRanges.cs`, registered in the Phase 1 pull request together with: its line in `src/Encina/PublicAPI.Unshipped.txt`, the assembly entry `["Encina.Elasticsearch"]` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (appended to the #586 range if that entry exists), and in `docs/engineering/eventid-block-registry.md` a "Registered ranges" row (Zone `zone`, area Security and compliance) and a "Blocks" row `50000-50049` with status `registered`.
-2. `EntityChangeAudit/Diagnostics/ElasticsearchEntityChangeAuditLog.cs`: `[LoggerMessage]` ids packed from 50000: 50000 index created, 50001 index mapping mismatch, 50002 write failed (status code), 50003 duplicate write ignored, 50004 id conflict, 50005 document too large, 50006 purge completed (count), 50007 purge failed (status code), 50008 cross-tenant opt-in used, 50009 search failed (status code). Ids 50010-50049 stay free inside the range.
+1. EventId range `ElasticsearchEntityChangeAudit = (52350, 52399)` in `src/Encina/Diagnostics/EventIdRanges.cs`, registered in the Phase 1 pull request together with: its line in `src/Encina/PublicAPI.Unshipped.txt` (one line for the new field), the assembly entry `["Encina.Elasticsearch"]` in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (appended to the #586 range if that entry exists), and in `docs/engineering/eventid-block-registry.md` a "Registered ranges" row `ElasticsearchEntityChangeAudit | 52350-52399` (Zone `zone`, area Security and compliance) and a "Blocks" row `52350-52399` with status `registered`.
+2. `EntityChangeAudit/Diagnostics/ElasticsearchEntityChangeAuditLog.cs`: `[LoggerMessage]` ids packed from 52350: 52350 index created, 52351 index mapping mismatch, 52352 write failed (status code), 52353 duplicate write ignored, 52354 id conflict, 52355 document too large, 52356 tenant purge completed (count), 52357 tenant purge failed (status code), 52358 cross-tenant query opt-in used, 52359 search failed (status code). Ids 52360-52399 stay free inside the range.
 3. The ADR-036 `InstrumentedEntityChangeAuditStore` decorates the store through #1778's registration (a DI test asserts it). Telemetry follows ADR-054 D4: the tenant id is a span attribute and a metric tag only when multi-tenancy is on; logs never carry tenant, user or entity ids, values, exception messages or `EncinaError.Message`.
 4. **ErrorCategory (ADR-062)** per code: `entity_change_audit.elasticsearch.write_failed` `Internal` (R4); `.unavailable` (429, 503, connection failure) `Unavailable`; `.entry_too_large` `Validation` (R3); `.id_conflict` `AlreadyExists` (R2); `.tenant_required` and `.reserved_tenant` `InvalidRequest` (R3); `.cross_tenant_denied` `Forbidden` (R6); `.purge_failed` and `.search_failed` `Internal`; `.invalid_search` `Validation`. Cancellation is not a code: `OperationCanceledException` propagates.
 
@@ -414,10 +417,10 @@ CONTEXT:
 - AGENTS.md section 7 and ADR-021: every range is registered in EventIdRanges.cs before use, new blocks only in the 10000+ zone; the registry page is checked by EventIdRegistryAgreementTests.
 
 TASK:
-Register ElasticsearchEntityChangeAudit 50000-50049, write the log class, add the architecture-test entry and the registry rows, and wire the error categories.
+Register ElasticsearchEntityChangeAudit 52350-52399, write the log class, add the architecture-test entry and the registry rows, and wire the error categories.
 
 KEY RULES:
-- Ids packed from 50000 with no gap; nothing outside the range.
+- Ids packed from 52350 with no gap; nothing outside the range.
 - Never log EncinaError.Message, exception messages, values, user, entity or tenant ids.
 - Run EncinaEventIdAllocationTests and EventIdRegistryAgreementTests.
 
@@ -438,12 +441,14 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit** (PRs 1-3): mapper round trip, id builder (colliding concatenations), options validation, initializer branches, every error mapping (409 same and different hash, 413, 429, 503, other), tenant rules (none resolved denies, real tenant `default` rejected, no fallback, cross-tenant opt-in required and logged), purge failures, search validation; a real `ElasticsearchClient` over `InMemoryRequestInvoker` (or the gateway seam of Phase 0), `FakeTimeProvider`.
+1. **Unit** (PRs 1-3): mapper round trip, id builder (colliding concatenations), options validation, initializer branches, every error mapping (409 same and different hash, 413, 429, 503, other), tenant rules (none resolved denies, real tenant `default` rejected, no fallback, cross-tenant query opt-in required and logged), purge filtered on the tenant passed in and never on the ambient one, purge with tenancy on and no tenant passed returns `Left`, purge failures, search validation; a real `ElasticsearchClient` over `InMemoryRequestInvoker` (or the gateway seam of Phase 0), `FakeTimeProvider`.
 2. **Guard** (`tests/Encina.GuardTests/Elasticsearch/EntityChangeAudit/`): null and invalid arguments of the store constructor and methods, the search methods, the registration method and the options.
 3. **Contract** (PR 4): a class deriving from the shared entity-change contract base (see Prerequisites) on the Elasticsearch collection fixture, refreshing the index before reads (Design Choice 5).
-4. **Integration** (PR 4): idempotent repeated write, id conflict with a different payload, history order and `search_after` paging past `max_result_window`, colliding concatenations, tenant isolation (tenant A never reads tenant B; `default` unreachable with tenancy on), purge count and `failures` handling, search and aggregations, index created with the strict mapping, health check. Shared `[Collection]` fixture `ElasticsearchFixture` in `Encina.TestInfrastructure` (created by the first of #577 and #586 to reach integration), `ClearAllDataAsync` in `InitializeAsync`.
+4. **Integration** (PR 4): idempotent repeated write, id conflict with a different payload, history order and `search_after` paging past `max_result_window`, colliding concatenations, tenant isolation (tenant A never reads tenant B; `default` unreachable with tenancy on), purge of tenant A with its cutoff from a scope with no ambient tenant deletes only tenant A's old entries (tenant B, with a longer retention, keeps its own), purge count and `failures` handling, search and aggregations, index created with the strict mapping, health check. Shared `[Collection]` fixture `ElasticsearchFixture` in `Encina.TestInfrastructure` (created by the first of #577 and #586 to reach integration; `Testcontainers.Elasticsearch` at the `Testcontainers` 4.15.0 line pinned on main, MIT; the Elasticsearch server image is used only in tests), `ClearAllDataAsync` in `InitializeAsync`.
 5. **Property** (PR 4): mapper round trip and id-builder injectivity for random strings.
 6. **Load/Benchmark**: `.md` justifications (append-only writes outside a hot path) per `AGENTS.md` section 9.
+
+**Manifest rule**: `Encina.Elasticsearch.json` holds the package targets and per-file entries of the package skeleton (the #586 skeleton under option A of Design Choice 1, PR 0 of this plan under options B and C); this plan never lowers them. Each PR adds, with its tests, the per-file `targets` and `justifications` below for the flags it reaches, and raises the package-level `targets` for any flag it adds (contract, property and integration arrive in PR 4), so `coverage-report.cs --check-justifications` passes on every PR.
 
 **Per-file targets** (`-` = not applicable to that flag; "PR" is the pull request that adds the target, its tests and its justification):
 
@@ -531,6 +536,7 @@ REFERENCE FILES:
 | ADR-062 | Error categories | Every code carries a category (R2-R6 used here) |
 | ADR-054 D4 | Telemetry | Tenant as attribute and tag only when multi-tenancy is on |
 | SPEC-002 REQ-007, REQ-061 | Retention, tenant isolation | Retention settable per data category; tenant isolation |
+| #4182 (open, `[DEBT]`) | Per-tenant retention | The retention service iterates `ITenantStore` with each tenant's policy; purge never relies on an ambient tenant or a cross-tenant opt-in |
 | GDPR Art. 5(1)(c), 5(1)(e), 17(3)(b), 25 | Minimisation, storage limitation, erasure exception, by design | Values not indexed; retention purge; recorded erasure (decision on #2847) |
 | Elasticsearch reference (vendor) | Index API, `op_type`, `delete_by_query`, `search_after`, refresh | Behaviour verified in Phase 0 |
 
@@ -544,6 +550,8 @@ REFERENCE FILES:
 | `AuditLogStoreMongoDB`, `AuditLogDocument` | `src/Encina.MongoDB/Auditing/` | Document-store precedent for mapping and queries |
 | `EntityChangeAuditOptions`, `EntityChangeAuditRetentionService`, `InstrumentedEntityChangeAuditStore` | delivered by #1778 (`Encina.Security.Audit`) | Retention, purge scheduling and tracing around the store |
 | `AddEncinaAuditMarten` | `src/Encina.Audit.Marten/ServiceCollectionExtensions.cs` | Precedent for an audit store registration that replaces only the default |
+| `ITenantStore.GetAllTenantsAsync` | `src/Encina.Tenancy/Abstractions/ITenantStore.cs` | Tenant enumeration of the retention service (#4182) |
+| `OperationAuditRetentionService` | `src/Encina.Security.Audit/OperationAuditRetentionService.cs` | Shape of the tenant-less retention scope (it calls `PurgeEntriesAsync` from a fresh scope with no tenant) |
 | `IAuditAttestationProvider` | `src/Encina.Compliance.Attestation/Abstractions/IAuditAttestationProvider.cs` | Existing attestation; the persistent chain is #1240 (Design Choice 7) |
 | `EventIdRanges` | `src/Encina/Diagnostics/EventIdRanges.cs` | Registration of the new range |
 
@@ -551,7 +559,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Elasticsearch` (entity-change audit) | 50000-50049 (`ElasticsearchEntityChangeAudit`) | First 50-id slot of the Security and compliance block 50000-50999 (10000+ zone); ids 50000-50009 used, packed; registered by PR 1 with its registry rows; the #586 dead letter store keeps its own range |
+| `Encina.Elasticsearch` (entity-change audit) | 52350-52399 (`ElasticsearchEntityChangeAudit`) | First free 50-id slot of the Security and compliance area after the #4007 reservations 50000-52349 (registry on origin/main `1dee4ba61`); the five audit-stores-1 plans take 52350-52599 packed (#577, #578, #579, #580, #581 in order); ids 52350-52359 used; registered by PR 1 with its registry rows; the #586 dead letter store keeps its own range |
 
 ### Estimated File Count
 
@@ -560,7 +568,7 @@ REFERENCE FILES:
 | Production (Phases 1-4) | ~11 | document and mapper, options, initializer, store, errors, registration, search interface, search records, search implementation, health check, log class |
 | Tests (Phase 5) | ~12 | unit x4, guard x2, DI, contract class, integration, property, fixture and collection |
 | Metadata | ~8 | `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, allocation test, package `PublicAPI.Unshipped.txt`, manifest, `Directory.Packages.props`, test-project references |
-| **Total** | **~36 with edits** | Exceeds 15 files. Every PR starts after #1778 and the package skeleton are on main, builds and passes alone and stays at or below 15 files and 1500 lines. **PR 1** (12 files): document and mapper, options, initializer, log class, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, `EncinaEventIdAllocationTests.cs`, package `PublicAPI.Unshipped.txt`, mapper and initializer unit tests, options guard tests, manifest (the initializer is internal and not yet registered, so the PR adds no service). **PR 2** (9 files): store, errors, registration (store, options, initializer through `TryAddEnumerable`), package `PublicAPI.Unshipped.txt`, store unit tests, DI test, store and registration guard tests, manifest. **PR 3** (9 files): search interface, records, implementation, health check, registration edit, `PublicAPI.Unshipped.txt`, unit tests, guard tests, manifest. **PR 4** (<= 12 files): `Testcontainers.Elasticsearch` pin (if #586 has not added it), fixture and collection, `Encina.IntegrationTests`, `Encina.ContractTests` and `Encina.PropertyTests` project-reference edits (if missing), contract class, integration tests, property tests, two load/benchmark `.md` files, manifest. **PR 5** (docs, 4 files): README, feature page, `docs/INVENTORY.md`, changelog fragment |
+| **Total** | **~36 with edits** | Exceeds 15 files. **PR 0** exists only under options B or C of Design Choice 1 (under option A the #586 skeleton PR plays its role): csproj (with `InternalsVisibleTo` for `Encina.UnitTests`, `Encina.PropertyTests`, `Encina.IntegrationTests`, `Encina.ContractTests`), `Encina.slnx` row, `Directory.Packages.props` (`Elastic.Clients.Elasticsearch` 9.x, Apache-2.0, latest stable 9.5.3 at the time of writing), client options with `[JsonIgnore]` credentials and a safe `ToString()`, `AddEncinaElasticsearch` (one `ElasticsearchClient`, `TryAddSingleton`), `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`, README stub, options and registration unit tests, guard tests, DI test, manifest with package-level targets: 14 files. Every later PR starts after #1778 and the package skeleton are on main, builds and passes alone and stays at or below 15 files and 1500 lines. **PR 1** (12 files): document and mapper, options, initializer, log class, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, `EncinaEventIdAllocationTests.cs`, package `PublicAPI.Unshipped.txt`, mapper and initializer unit tests, options guard tests, manifest (the initializer is internal and not yet registered, so the PR adds no service). **PR 2** (9 files): store, errors, registration (store, options, initializer through `TryAddEnumerable`), package `PublicAPI.Unshipped.txt`, store unit tests, DI test, store and registration guard tests, manifest. **PR 3** (9 files): search interface, records, implementation, health check, registration edit, `PublicAPI.Unshipped.txt`, unit tests, guard tests, manifest. **PR 4** (<= 12 files): `Testcontainers.Elasticsearch` pin (if #586 has not added it), fixture and collection, `Encina.IntegrationTests`, `Encina.ContractTests` and `Encina.PropertyTests` project-reference edits (if missing), contract class, integration tests, property tests, two load/benchmark `.md` files, manifest. **PR 5** (docs, 4 files): README, feature page, `docs/INVENTORY.md`, changelog fragment |
 
 ---
 
@@ -577,17 +585,17 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 Phase 0: client and server checks against local containers; report only.
-Phase 1: document, mapper, id builder, options, index initializer, EventId range 50000-50049 and log class.
-Phase 2: the store (create with compare on conflict, paged history with search_after, purge with delete_by_query) and AddEncinaEntityChangeAuditElasticsearch.
+Phase 1: document, mapper, id builder, options, index initializer, EventId range 52350-52399 and log class.
+Phase 2: the store (create with compare on conflict, paged history with search_after, per-tenant purge with delete_by_query on the tenant passed by the retention service) and AddEncinaEntityChangeAuditElasticsearch.
 Phase 3: IEntityChangeAuditSearch (structured filters, statistics, top users) and the health check.
 Phase 4: error categories, instrumentation, telemetry tags.
 Phase 5: unit, guard, contract, integration, property tests; manifest targets with justifications.
 Phase 6: docs and changelog fragment.
 
 KEY PATTERNS:
-- Dilemmas D1-D7 are recommended, pending the maintainer: follow the answers recorded in the plan.
-- Tenant: reserved segment default, deny when tenancy is on and no tenant resolves, cross-tenant only with an explicit logged opt-in; tenant-qualified, length-prefixed document ids.
-- Values stored, not indexed; no per-subject delete; retention through PurgeEntriesAsync.
+- Dilemmas D1-D6 are recommended, pending the maintainer: follow the answers recorded in the plan.
+- Tenant: reserved segment default, deny when tenancy is on and no tenant resolves, cross-tenant history and search only with an explicit logged opt-in; tenant-qualified, length-prefixed document ids.
+- Values stored, not indexed; no per-subject delete; retention through a per-tenant PurgeEntriesAsync called by the retention service for each tenant of ITenantStore (#4182), never through the ambient tenant.
 - Every error code carries an ADR-062 category; never log values, ids or messages.
 
 REFERENCE FILES:
@@ -608,14 +616,14 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | An audit read must be exact and current; a cache adds staleness to a compliance record. |
 | 2 | OpenTelemetry | ✅ | The ADR-036 `InstrumentedEntityChangeAuditStore` decorates the store; tenant tag only when multi-tenancy is on (ADR-054 D4). |
-| 3 | Structured logging | ✅ | Phase 4: range 50000-50049 registered first; status codes and exception types only. |
+| 3 | Structured logging | ✅ | Phase 4: range 52350-52399 registered first; status codes and exception types only. |
 | 4 | Health checks | ✅ | Phase 3: `EntityChangeAuditElasticsearchHealthCheck` (cluster reachable, index exists). |
 | 5 | Validation | ✅ | Argument checks throw before I/O; oversize documents and invalid search bounds are typed `Left` values. |
 | 6 | Resilience | ✅ | The Elasticsearch transport retries failed nodes; throttling (429) and unavailability are `Unavailable` so the caller's retry policy can act; no extra Polly policy in the store. |
 | 7 | Distributed locks | ❌ | Append-only store; concurrency on one document is arbitrated by `op_type=create`. |
 | 8 | Transactions | ❌ | One entry is one document; Elasticsearch takes part in no unit of work, and the writer's fail-closed rule covers a failed write. |
 | 9 | Idempotency | ✅ | Tenant-qualified `_id` from the entry id; identical retry is success, different payload is `AlreadyExists` (Design Choice 9). |
-| 10 | Multi-tenancy | ✅ | `tenantId` on every document and query; reserved `default`; deny on missing tenant; explicit logged cross-tenant opt-in (Design Choice 3). |
+| 10 | Multi-tenancy | ✅ | `tenantId` on every document and query; reserved `default`; deny on missing tenant; explicit logged cross-tenant opt-in for history and search (Design Choice 3); per-tenant retention purge with the tenant passed explicitly (Design Choice 4, #4182). |
 | 11 | Module isolation | ✅ | The ADR-036 entry carries `ModuleId`; stored as a keyword and filterable in search (supersedes the issue's "deferred"). |
 | 12 | Audit trail | ✅ | This store IS the entity-change audit trail. |
 
@@ -626,13 +634,14 @@ REFERENCE FILES:
 - **#1778 (open, `[DEBT]`, no `needs-decision`, no blocking dependency)** delivers the contract: `IEntityChangeAuditStore`, `EntityChangeAuditEntry`, `EntityChangeAuditQuery`, `EntityChangeAuditOptions`, the retention service, the instrumentation decorator, the in-memory default and the shared behavioral contract base. If #1778 merges without a reusable base, the first of #577-#582 to reach its integration pull request adds it (the #582 plan states the same fallback) and the others derive from it.
 - **#586 (open)** shares `Encina.Elasticsearch`: under Design Choice 1 option A its skeleton pull request merges first. The shared fixture and `Testcontainers.Elasticsearch` pin belong to whichever of the two reaches integration first.
 - **#1240 (open)** owns the persistent hash chain (Design Choice 7); **#2903 (open)** is the exceptional subject-scoped erasure path for Marten.
-- The EventId slot 50000-50049 is new; the orchestrator keeps the block registry free of overlaps between families that plan in the same 1000 block.
+- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature) before #1778 implements `EntityChangeAuditRetentionService`; Design Choice 4 and Phase 2 task 4 follow it.
+- The EventId slot 52350-52399 lies after the #4007 reservations (50000-52349, #4174 merged); the orchestrator keeps the block registry free of overlaps between families that plan in the same 1000 block.
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers D1 to D7 when work on #577 starts (D1 and D2 together with #586), after Phase 0; the answers go into `## Maintainer Decisions`.
-2. Wait for #1778 and the package skeleton; re-check each Design Choice against main; `adversarial-reviewer` verifies the Settled ones.
-3. Brief one worker per proposed pull request (5 pull requests).
+1. The maintainer answers D1 to D6 when work on #577 starts (D1 and D2 together with #586), after Phase 0; the answers go into `## Maintainer Decisions`.
+2. Wait for #4182, #1778 and the package skeleton; re-check each Design Choice against main; `adversarial-reviewer` verifies the Settled ones.
+3. Brief one worker per proposed pull request (5 pull requests, 6 with PR 0 under options B or C of Design Choice 1).
 4. The final pull request references `Fixes #577`.
