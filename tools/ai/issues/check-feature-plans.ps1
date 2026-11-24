@@ -43,6 +43,20 @@ try {
         exit 0
     }
 
+    # Open pull requests that add or change a plan, keyed by issue number. Read BEFORE the main tree, so a plan PR merged
+    # between the two reads is seen in one of them. Detection uses the changed files of every open pull request (title,
+    # branch and body are not trusted: a plan PR may omit the issue number). There is no cheap server-side filter on the
+    # pulls endpoint for changed paths.
+    $planPrByIssue = @{}
+    foreach ($pr in @(Invoke-GhRest "repos/$Repo/pulls?state=open&per_page=100" -Paginate)) {
+        $files = @(Invoke-GhRest "repos/$Repo/pulls/$($pr.number)/files?per_page=100" -Paginate)
+        foreach ($file in $files) {
+            if ($file.filename -match '^docs/plans/[^/]+-implementation-plan-(\d+)\.md$' -and -not $planPrByIssue.ContainsKey([int]$Matches[1])) {
+                $planPrByIssue[[int]$Matches[1]] = $pr.number
+            }
+        }
+    }
+
     # Plans on main: docs/plans/*-<n>.md from the recursive tree.
     $tree = Invoke-GhRest "repos/$Repo/git/trees/${Branch}?recursive=1"
     if ($tree.truncated) { throw 'the git tree of main is truncated; cannot list docs/plans' }
@@ -51,10 +65,6 @@ try {
         if ($entry.path -match '^docs/plans/[^/]+-implementation-plan-(\d+)\.md$') { $planNumbers[[int]$Matches[1]] = $entry.path }
     }
 
-    # Open pull requests that add or change a plan, keyed by issue number. Detection uses the changed files of every
-    # open pull request (title, branch and body are not trusted: a plan PR may omit the issue number). The list is
-    # built once per run; there is no cheap server-side filter on the pulls endpoint for changed paths.
-    $planPrByIssue = $null
     $now = [datetime]::UtcNow
     $rows = foreach ($issue in ($features | Sort-Object number)) {
         $n = [int]$issue.number
@@ -62,26 +72,15 @@ try {
         if ($planNumbers.ContainsKey($n)) {
             $status = "plan on main ($($planNumbers[$n]))"
         }
-        else {
-            if ($null -eq $planPrByIssue) {
-                $planPrByIssue = @{}
-                foreach ($pr in @(Invoke-GhRest "repos/$Repo/pulls?state=open&per_page=100" -Paginate)) {
-                    $files = @(Invoke-GhRest "repos/$Repo/pulls/$($pr.number)/files?per_page=100" -Paginate)
-                    foreach ($file in $files) {
-                        if ($file.filename -match '^docs/plans/[^/]+-implementation-plan-(\d+)\.md$' -and -not $planPrByIssue.ContainsKey([int]$Matches[1])) {
-                            $planPrByIssue[[int]$Matches[1]] = $pr.number
-                        }
-                    }
-                }
-            }
-            if ($planPrByIssue.ContainsKey($n)) { $status = "open plan PR #$($planPrByIssue[$n])" }
+        elseif ($planPrByIssue.ContainsKey($n)) {
+            $status = "open plan PR #$($planPrByIssue[$n])"
         }
-        $ageHours = [math]::Round(($now - ([datetime]$issue.created_at).ToUniversalTime()).TotalHours, 1)
+        $elapsedHours = ($now - ([datetime]$issue.created_at).ToUniversalTime()).TotalHours
         [pscustomobject]@{
             Issue    = $n
-            AgeHours = $ageHours
+            AgeHours = [math]::Round($elapsedHours, 1)
             Plan     = if ($status) { $status } else { 'MISSING' }
-            Overdue  = (-not $status) -and ($ageHours -gt $GraceHours)
+            Overdue  = (-not $status) -and ($elapsedHours -gt $GraceHours)
             Title    = $issue.title
         }
     }
