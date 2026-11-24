@@ -11,7 +11,7 @@
 
 Stream every entity-change audit entry (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036) to an Apache Kafka topic, so SIEM, analytics and other systems receive the trail as it is written and can replay it. A Kafka topic is an append-only log with no random-access query and no per-record delete, while the ADR-036 contract also needs paged history by entity and `PurgeEntriesAsync`. The issue itself recommends Kafka "combined with a queryable store" and asks for a composite store; this plan builds `EntityChangeAuditStoreKafka` as that composite (Design Choice 1): it writes to a queryable inner store and then produces to Kafka, and delegates reads and purge to the inner store. The samples of the issue (`IProducer<string, string>`, `JsonSerializer.Serialize(entry)` with the user id in plain headers, `Task` returns, a non-injective `EntityType:EntityId` key) are replaced by the ADR-036 shapes.
 
-What the code looks like today (origin/main `1dee4ba61`, re-checked for this revision; the plan branch was cut from `039cd3524`):
+What the code looks like today (origin/main `ff9a579c1`, re-checked for this revision; the plan branch was cut from `039cd3524`):
 
 - `IAuditLogStore` lives in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs`; `AuditLogEntry` and `InMemoryAuditLogStore` sit next to it. ADR-036 renames and reshapes all of it; that work is **#1778, open**.
 - `src/Encina.Kafka` (transport) has `KafkaMessagePublisher`, `KafkaHealthCheck`, `EncinaKafkaOptions` and `AddEncinaKafka`, which registers one singleton `IProducer<string, byte[]>` with `TryAddSingleton` (idempotence on by default, acks `all`). It references only `Encina` and `Encina.Messaging` and has no PublicAPI files. EventId range `Kafka` (4150-4199, ids 4150-4155 in use in `src/Encina.Kafka/Log.cs`) moves to 40050-40099 in #4007 TR-1, and the #587 plan (Kafka dead letters, open) claims 4156-4175 of it; this plan uses neither.
@@ -34,7 +34,7 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Composite decorator: `EntityChangeAuditStoreKafka` wraps the registered queryable `IEntityChangeAuditStore` (any of the 10 database providers or another backend); write = inner write, then produce and await delivery; history and `PurgeEntriesAsync` delegate to the inner store** | The full contract holds (history, paging, per-tenant purge); Kafka adds streaming only; matches the issue's recommended architecture and its composite criterion | Two systems per write; a delivery failure after the inner write leaves the entry stored but not streamed until the retried write produces it |
-| **B) Full store on Kafka with a log-backed in-process index (the approach of the #587 plan)** | Kafka is the only system | Rebuilding an index of every audit entry in memory does not scale to audit volumes; purge is impossible per record |
+| **B) Full store on Kafka with a log-backed in-process index (the approach of the #587 plan)** | Kafka is the only system | Rebuilding an index of every audit entry in memory does not scale to audit volumes; purge is impossible per record, so retention needs one topic per tenant whose lifetime equals that tenant's policy (Design Choice 5 does not apply) |
 | **C) Kafka-only sink that answers history and purge with a `Left`** | Simplest | Breaks the contract; the retention service would fail on it |
 
 ### Chosen Option: **A — composite decorator over a queryable store** (recommended, pending the maintainer)
@@ -43,6 +43,7 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 
 - Ordering (rule): the inner write goes first because it is the system of record; if delivery fails, the call returns `Left` (`Unavailable`), so the fail-closed writer fails the unit of work and its retry repeats both steps (the inner write is idempotent; Kafka may see the entry twice and consumers deduplicate by the `encina-entry-id` header). B wins for small, Kafka-only deployments; C wins only if the contract were split into write and read interfaces, which ADR-036 does not do.
 - Retention under A: the composite's `PurgeEntriesAsync` passes the tenant and cutoff it receives straight to the inner store; the retention service calls it once per tenant from a tenant-less scope after enumerating `ITenantStore` (#4182). The composite never reads the ambient tenant for a purge and has no cross-tenant purge opt-in; the Kafka copies are bounded by Design Choice 5.
+- **Tenant segments that `ITenantStore` no longer returns (rule).** Enumerating registered tenants alone would never purge entries of an offboarded tenant (kept under path C of #2847 after its tenant record is removed) or `default`-segment entries written before tenancy was switched on (GDPR Art. 5(1)(e), SPEC-002 REQ-007). The composite delegates `ListTenantSegmentsAsync` (or the name #1778 gives the store's segment listing) to the inner store, and the retention service purges every listed segment that `ITenantStore` does not return, including `default` once tenancy is on, under the residual policy #4182 defines; the topic rule of Design Choice 5 bounds their Kafka copies like any other. This case is an acceptance item of #4182.
 
 </details>
 
@@ -109,7 +110,7 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 </details>
 
 <details>
-<summary><strong>5. Topic retention and compaction check at start-up</strong></summary>
+<summary><strong>5. The topic retention rule (under option A of Design Choice 1)</strong></summary>
 
 **Class:** Settled
 **Settled by:** ADR-036 decision 1 (old and new values are never kept indefinitely by default), GDPR Art. 5(1)(e) (storage limitation), AGENTS.md section 3 (compliance gates fail closed; the only opt-out is explicit and logged), #4182 (retention is per tenant)
@@ -118,14 +119,15 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A start-up validator (hosted service) reads each audit topic's config through `IAdminClient.DescribeConfigsAsync` and fails start-up when `retention.ms` is `-1`, or longer than the shortest retention that applies to the tenants written to that topic (with one shared topic, the shortest tenant policy the #4182 mechanism exposes; with a topic per tenant, that tenant's policy), or when `cleanup.policy` includes `compact`; an explicit opt-out (`AllowRetentionMismatch`) is logged** | Personal data in values is never kept in Kafka longer than any tenant's retention by accident; compaction, which would keep only the last record per key and drop history, is caught | Needs `DescribeConfigs` permission |
-| **B) Log a warning and continue** | Works with restricted credentials | A misconfigured topic keeps audit data indefinitely, which ADR-036 decision 1 forbids by default |
+| **A) Rule: under option A of Design Choice 1 (the inner store is the record), the effective lifetime of a Kafka copy (`retention.ms` plus `segment.ms`, because Kafka deletes only closed segments, plus the broker's retention check interval) never exceeds the shortest retention that applies to the tenants written to that topic, and `cleanup.policy` never includes `compact`; the only exception is the explicit, logged `AllowRetentionMismatch` opt-out. How the rule is enforced is Design Choice 10** | Copies of personal data never outlive any tenant's retention by accident; compaction, which keeps only the last record per key, is excluded | The shortest tenant policy bounds every tenant's copies in a shared topic |
+| **B) No rule: topic retention is the operator's business** | Nothing to enforce | A misconfigured topic keeps audit data indefinitely, which ADR-036 decision 1 forbids by default |
 
-### Chosen Option: **A — fail start-up, explicit logged opt-out**
+### Chosen Option: **A — the rule, with the logged opt-out as the only exception**
 
 ### Rationale
 
-- Kafka copies are outside `PurgeEntriesAsync`, so the topic's retention is the only limit on them; B leaves that limit to chance, so A is the only compliant option. It holds under both topic layouts of Design Choice 3. An identity without `DescribeConfigs` uses the explicit, logged opt-out. A tenant policy that becomes shorter after start-up is checked again at the next start and logged by the retention service when it runs (#4182). The topic is created by Encina only when `CreateTopicIfNotExists` (default `false`), with `cleanup.policy=delete` and `retention.ms` from the shortest applicable policy.
+- Under option A of Design Choice 1, Kafka copies are outside `PurgeEntriesAsync`, so the topic's retention is the only limit on them; B leaves that limit to chance, so A is the only compliant option. Shortening a copy below a tenant's retention is harmless there, because the inner store keeps the record.
+- **Under option B of Design Choice 1 this rule does not apply.** Kafka is then the only copy, so a shared topic at the shortest tenant retention would delete other tenants' audit evidence before their retention ends (GDPR Art. 17(3)(b)). Option B therefore needs one topic per tenant whose effective lifetime equals that tenant's retention; that requirement is part of option B's cost in Design Choice 1.
 
 </details>
 
@@ -191,23 +193,46 @@ What the code looks like today (origin/main `1dee4ba61`, re-checked for this rev
 </details>
 
 <details>
-<summary><strong>9. Erasure requests and the copies in Kafka</strong></summary>
+<summary><strong>9. Erasure requests and the copies in Kafka (under option A of Design Choice 1)</strong></summary>
 
 **Class:** Settled
-**Settled by:** maintainer decision of 2026-10-26 on #2847 (path C is the default for audit data: GDPR Art. 17(3)(b) and 17(3)(e)), ADR-036 decision 1, Design Choice 5 (Settled: topic retention within the applicable tenant retention)
+**Settled by:** maintainer decision of 2026-10-26 on #2847 (path C is the default for audit data: GDPR Art. 17(3)(b) and 17(3)(e)), ADR-036 decision 1, Design Choice 5 (Settled rule: the effective topic lifetime never exceeds the applicable tenant retention, except through the logged opt-out)
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) No per-subject delete: the inner store follows path C, and the Kafka copies expire with the topic retention, which the Settled start-up check of Design Choice 5 keeps within the applicable tenant retention; minimisation by the writer's redaction hook** | Matches the audit erasure decision; Kafka cannot delete single records anyway | An exceptional per-person deletion cannot reach records already streamed |
+| **A) No per-subject delete: the inner store follows path C, and the Kafka copies expire with the topic, whose effective lifetime the rule of Design Choice 5 keeps within the applicable tenant retention (an operator who sets the explicit `AllowRetentionMismatch` opt-out takes that bound out, and the opt-out is logged); minimisation by the writer's redaction hook** | Matches the audit erasure decision; Kafka cannot delete single records anyway | An exceptional per-person deletion cannot reach records already streamed |
 | **B) Tombstones per subject** | — | Requires compaction, which removes the history this store exists to keep |
 
-### Chosen Option: **A — path C, topic retention bounds the copies**
+### Chosen Option: **A — path C, the topic rule bounds the copies**
 
 ### Rationale
 
 - Path C records the request and keeps audit data until retention. The README states that streamed copies follow topic retention and that consumers which persist them inherit the same retention duty.
+- The entry holds under option A of Design Choice 1, which every enforcement option of Design Choice 10 serves. Under option B of Design Choice 1 there is no inner store: path C applies to the per-tenant topics themselves, whose lifetime equals each tenant's retention (Design Choice 5).
+
+</details>
+
+<details>
+<summary><strong>10. How the topic retention rule is enforced (Dilemma D7)</strong></summary>
+
+**Class:** Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Check and refuse: a validator reads each audit topic's `retention.ms`, `segment.ms` and `cleanup.policy` through `IAdminClient.DescribeConfigsAsync` at start-up (fails start-up on a breach) and again whenever the retention service runs or a tenant policy changes (#4182); after a breach found at run time, writes return `Left` (`Internal`) until the topic is fixed; the logged `AllowRetentionMismatch` opt-out skips both** | Encina never changes broker configuration; a policy shortened or a tenant onboarded with a shorter policy is caught at the next retention run instead of the next restart | Needs `DescribeConfigs`; a breach found at run time stops audited writes, which fails the units of work that produce them |
+| **B) Encina sets the configuration: at start-up and whenever the shortest applicable policy changes, `IAdminClient.IncrementalAlterConfigsAsync` sets `retention.ms`, `segment.ms` and `cleanup.policy=delete`** | No manual topic tuning; no write outage after a policy change | Needs `AlterConfigs` on the topic; Encina owns broker configuration that operators may manage elsewhere |
+| **C) One topic per tenant (Design Choice 3 option B), each configured by A or B with its own tenant's policy** | No tenant's copies are shortened by another tenant's policy | Topic count grows with tenants; needs Design Choice 3 option B |
+| **D) Start-up check only** | Simplest | A policy shortened after start-up leaves copies past retention until the next restart |
+
+### Chosen Option: **A — check at start-up and at every retention run, refuse writes after a run-time breach** (recommended, pending the maintainer)
+
+### Rationale
+
+- A, B and C all satisfy the rule of Design Choice 5 continuously; D leaves the run-time gap the rule forbids, so it is listed only for completeness. A wins when operators own topic configuration; B wins when the application owns its topics; C wins when tenant retentions differ widely. The effective lifetime always counts `segment.ms` (default 7 days) and the broker's retention check interval, not `retention.ms` alone. When Encina creates the topic (`CreateTopicIfNotExists`, default `false`) it sets `cleanup.policy=delete`, `retention.ms` and `segment.ms` so that their sum stays within the shortest applicable policy.
 
 </details>
 
@@ -259,7 +284,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `EntityChangeAuditStoreKafka` (public, sealed) `: IEntityChangeAuditStore`; constructor `(IEntityChangeAuditStore inner, IProducer<string, byte[]> producer, ITenantContext? tenantContext, IOptions<EntityChangeAuditKafkaOptions> options, ILogger<EntityChangeAuditStoreKafka> logger)`; write per Design Choice 1; history delegates to `inner`; `PurgeEntriesAsync` passes the tenant and cutoff it receives to `inner` unchanged (signature from #4182 and #1778) and never reads the ambient tenant; the composite must be constructible in the tenant-less scope of the retention service.
-2. `EntityChangeAuditTopicValidator` (internal, `IHostedService`): creates the topic on opt-in and checks retention against the shortest applicable tenant policy and the cleanup policy (Design Choice 5) through an `IAdminClient` built from `EncinaKafkaOptions`.
+2. `EntityChangeAuditTopicValidator` (internal, `IHostedService`): creates the topic on opt-in and enforces the rule of Design Choice 5 (effective lifetime `retention.ms` + `segment.ms` + check interval within the shortest applicable tenant policy, no compaction) through an `IAdminClient` built from `EncinaKafkaOptions`, with the mechanism chosen in Design Choice 10 (under the recommended option: at start-up and on every retention run, with writes refused after a run-time breach).
 3. `EntityChangeAuditKafkaErrors`.
 4. `ServiceCollectionExtensions.AddEncinaEntityChangeAuditKafka(this IServiceCollection, Action<EntityChangeAuditKafkaOptions>? configure = null)`: requires `AddEncinaKafka` (clear build-time error otherwise) and a registered inner `IEntityChangeAuditStore`; decorates it (the decorator must sit inside the ADR-036 `InstrumentedEntityChangeAuditStore` so spans cover both writes; the mechanism follows #1778's registration); options with `ValidateOnStart`; the validator through `TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, EntityChangeAuditTopicValidator>())`. The decorator keeps the inner store's lifetime (a singleton decorator over a scoped store is not allowed).
 5. EventId range and log class in this PR. DI test with `ValidateOnBuild` and `ValidateScopes` (singleton and scoped inner stores). CRAP <= 10 per method.
@@ -331,9 +356,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. EventId range `KafkaEntityChangeAudit = (52500, 52549)` in `src/Encina/Diagnostics/EventIdRanges.cs`, registered in PR 2 with its line in `src/Encina/PublicAPI.Unshipped.txt` (one line for the new field), the `["Encina.Security.Audit.Kafka"]` entry in `AssemblyRanges` of `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`, and in `docs/engineering/eventid-block-registry.md` a "Registered ranges" row `KafkaEntityChangeAudit | 52500-52549` (Zone `zone`) and a "Blocks" row `52500-52549` with status `registered`.
-2. `Diagnostics/KafkaEntityChangeAuditLog.cs`, ids packed from 52500: 52500 topic created, 52501 delivery failed (error code), 52502 topic retention mismatch, 52503 retention mismatch accepted by opt-out, 52504 compaction refused, 52505 replay started, 52506 corrupt record skipped, 52507 cross-tenant replay opt-in used. 52508-52549 stay free.
+2. `Diagnostics/KafkaEntityChangeAuditLog.cs`, ids packed from 52500: 52500 topic created, 52501 delivery failed (error code), 52502 topic retention mismatch, 52503 retention mismatch accepted by opt-out, 52504 compaction refused, 52505 replay started, 52506 corrupt record skipped, 52507 cross-tenant replay opt-in used, 52508 writes refused after a run-time retention breach. 52509-52549 stay free.
 3. The ADR-036 `InstrumentedEntityChangeAuditStore` wraps the composite (DI test); produce spans follow the transport's conventions; ADR-054 D4 tenant attribute and tag only when multi-tenancy is on; no baggage is propagated to the broker (ADR-054 D4).
-4. **ErrorCategory (ADR-062)**: `entity_change_audit.kafka.delivery_failed` `Unavailable`; `.delivery_rejected` (message too large, authorization) `Internal` (R4); `.tenant_required` and `.reserved_tenant` `InvalidRequest` (R3); `.cross_tenant_denied` `Forbidden` (R6); `.corrupt_record` `Internal`; `.invalid_replay` `Validation`. Errors of the inner store pass through unchanged. Cancellation propagates.
+4. **ErrorCategory (ADR-062)**: `entity_change_audit.kafka.delivery_failed` `Unavailable`; `.delivery_rejected` (message too large, authorization) `Internal` (R4); `.tenant_required` and `.reserved_tenant` `InvalidRequest` (R3); `.cross_tenant_denied` `Forbidden` (R6); `.corrupt_record` `Internal`; `.topic_retention_breach` (a configuration fault, R1) `Internal`; `.invalid_replay` `Validation`. Errors of the inner store pass through unchanged. Cancellation propagates.
 
 </details>
 
@@ -367,28 +392,28 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **Unit**: mapper, composite ordering (inner `Left` stops before produce; produce failure after inner success is `Left`), tenant rules, purge passes the given tenant and cutoff to the inner store unchanged (never the ambient tenant), validator branches (infinite retention, retention longer than the shortest applicable tenant policy, compaction, opt-out), replay filter and corrupt records; `IProducer`, `IAdminClient` and `IConsumer` substituted (interfaces; `DeliveryResult` and `ProduceException` have public constructors), a fake inner store.
+1. **Unit**: mapper, composite ordering (inner `Left` stops before produce; produce failure after inner success is `Left`), tenant rules, purge passes the given tenant and cutoff to the inner store unchanged (never the ambient tenant), segment listing delegated to the inner store, validator branches (infinite retention, `retention.ms` + `segment.ms` longer than the shortest applicable tenant policy, compaction, opt-out, a breach found at a retention run refuses writes), replay filter and corrupt records; `IProducer`, `IAdminClient` and `IConsumer` substituted (interfaces; `DeliveryResult` and `ProduceException` have public constructors), a fake inner store.
 2. **Guard** (`tests/Encina.GuardTests/Security/Audit/Kafka/`): constructors, methods, registration, options.
 3. **Contract** (PR 4): the shared entity-change contract base run against the composite over the in-memory inner store and the Kafka container (the contract's history and purge pass through).
-4. **Integration** (PR 4, `[Collection("Kafka")]`, `[Trait("Category", "Integration")]`): entry produced with key and headers, per-entity ordering, delivery failure with the broker paused, topic created with delete policy and finite retention, validator refusing a compacted topic, replay from a time and follow, tenant-filtered replay, health check. Topic names are unique per test class; `ClearAllDataAsync` where the fixture offers it. The `Kafka` collection is defined next to `KafkaFixture` in `Encina.TestInfrastructure`; the PR verifies that `Encina.ContractTests` can use it and adds a collection definition there if it cannot. `Testcontainers.Kafka` 4.15.0 (MIT) and the `confluentinc/cp-kafka:7.6.0` image are already used on main for the transport tests; the image runs only in tests.
-
-**Manifest rule**: the manifest is new (no existing floor; `Encina.Kafka.json` is not touched). PR 1 creates it with package-level `targets` for unit and guard; PR 4 adds the package-level contract, property and integration targets. Each PR adds the per-file `targets` and `justifications` below for the flags its own tests reach, so `coverage-report.cs --check-justifications` passes on every PR.
+4. **Integration** (PR 4, `[Collection("Kafka")]`, `[Trait("Category", "Integration")]`): entry produced with key and headers, per-entity ordering, delivery failure with the broker paused, topic created with delete policy and `retention.ms` + `segment.ms` within the policy, validator refusing a compacted topic and a topic whose segments outlive the policy, replay from a time and follow, tenant-filtered replay, health check. Topic names are unique per test class. Collection definitions are per assembly: the `KafkaCollection` next to `KafkaFixture` in `Encina.TestInfrastructure` is not visible to the test projects, and `Encina.IntegrationTests` has no Kafka collection today (its Kafka tests use `IClassFixture<KafkaFixture>`). PR 4 therefore adds a `Kafka` collection definition over `KafkaFixture` in `Encina.IntegrationTests` and one in `Encina.ContractTests`. `Testcontainers.Kafka` 4.15.0 (MIT) and the `confluentinc/cp-kafka:7.6.0` image are already used on main for the transport tests; the image runs only in tests.
 5. **Property** (PR 4): key injectivity and mapper round trip.
 6. **Load/Benchmark**: `.md` justifications (throughput is the broker's; not a hot path of Encina).
+
+**Manifest rule**: the manifest is new (no existing floor; `Encina.Kafka.json` is not touched). PR 1 creates it with package-level `targets` for unit and guard; PR 4 adds the package-level contract, property and integration targets. Each PR adds the per-file `targets` and one `justifications` sentence per flag (below) for the flags its own tests reach, so `coverage-report.cs --check-justifications` passes on every PR.
 
 **Per-file targets** (`-` = not applicable; "PR" adds the target, its tests and its justification):
 
 | File | Unit | Guard | Contract | Property | Integration | PR | Justification |
 |------|:----:|:-----:|:--------:|:--------:|:-----------:|:--:|---------------|
-| `EntityChangeAuditKafkaOptions.cs` | 90 | 60 | - | - | 60 | 1, 4 | Properties and validation of names and timeouts. |
-| `EntityChangeAuditKafkaMessageMapper.cs` | 95 | 0 | - | 90 | 85 | 1, 4 | Pure mapping; internal, so guard 0; round trip is the property. |
-| `EntityChangeAuditStoreKafka.cs` | 95 | 85 | 85 | - | 85 | 2, 4 | Ordering and failure paths with substitutes; the contract and the broker cover delivery. |
-| `EntityChangeAuditTopicValidator.cs` | 90 | 0 | - | - | 80 | 2, 4 | Every config branch with a substituted admin client; internal; the broker proves real configs. |
-| `EntityChangeAuditKafkaErrors.cs` | 100 | 0 | - | - | - | 2 | Factory methods called by the tests; internal. |
-| `ServiceCollectionExtensions.cs` | 95 | 90 | - | - | - | 2 | DI wiring with ValidateOnBuild for singleton and scoped inner stores. |
-| `EntityChangeAuditStreamKafka.cs` | 85 | 80 | - | - | 80 | 3, 4 | Filter and corrupt-record paths with a substituted consumer; the broker proves offsets for times. |
-| `EntityChangeAuditKafkaHealthCheck.cs` | 90 | 80 | - | - | 70 | 3, 4 | One metadata call and a status mapping. |
-| `Diagnostics/KafkaEntityChangeAuditLog.cs` | 0 | 0 | - | - | - | 2 | Source-generated `[LoggerMessage]` partial methods with no hand-written executable code. |
+| `EntityChangeAuditKafkaOptions.cs` | 90 | 50 | - | - | 60 | 1, 4 | Unit: defaults and validation of names and timeouts. Guard: invalid values on each validated property run the validation half of the file. Integration: built through the registration in the broker tests. |
+| `EntityChangeAuditKafkaMessageMapper.cs` | 95 | 0 | - | 90 | 85 | 1, 4 | Unit: key, headers and payload round trip. Guard: 0, internal and `Encina.GuardTests` has no `InternalsVisibleTo`. Property: injectivity and round trip over random entries. Integration: every produced record goes through it. |
+| `EntityChangeAuditStoreKafka.cs` | 95 | 30 | 85 | - | 85 | 2, 4 | Unit: ordering, failure and delegation paths with substitutes. Guard: constructor and method argument checks only, about a third of the lines. Contract: the shared suite drives every contract method through the composite. Integration: the broker covers delivery. |
+| `EntityChangeAuditTopicValidator.cs` | 90 | 0 | - | - | 80 | 2, 4 | Unit: every configuration branch with a substituted admin client. Guard: 0, internal with no `InternalsVisibleTo` for guard tests. Integration: the broker proves real topic configs. |
+| `EntityChangeAuditKafkaErrors.cs` | 100 | 0 | - | - | - | 2 | Unit: every factory method is called by the tests. Guard: 0, internal with no validated parameters. |
+| `ServiceCollectionExtensions.cs` | 95 | 40 | - | - | - | 2 | Unit: the DI test builds the provider with ValidateOnBuild for singleton and scoped inner stores. Guard: null `services` and null `configure` run the argument checks before a short registration body. |
+| `EntityChangeAuditStreamKafka.cs` | 85 | 30 | - | - | 80 | 3, 4 | Unit: filter and corrupt-record paths with a substituted consumer. Guard: argument and bound checks only. Integration: the broker proves offsets for times and following. |
+| `EntityChangeAuditKafkaHealthCheck.cs` | 90 | 30 | - | - | 70 | 3, 4 | Unit: healthy, missing-topic and failure mappings. Guard: the constructor checks only. Integration: the broker proves the healthy path. |
+| `Diagnostics/KafkaEntityChangeAuditLog.cs` | 0 | 0 | - | - | - | 2 | Unit: 0, source-generated `[LoggerMessage]` partial methods with no hand-written executable code. Guard: 0, same reason. |
 
 </details>
 
@@ -492,7 +517,7 @@ REFERENCE FILES:
 | Production | ~10 | csproj, options, mapper, composite store, validator, errors, registration, stream interface and reader, health check, log class |
 | Tests | ~11 | unit x4, guard x2, DI, contract, integration, property, load/benchmark `.md` x2 |
 | Metadata | ~9 | `Encina.slnx`, PublicAPI x2, manifest, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, allocation test, test-project references |
-| **Total** | **~36 with edits** | Every PR starts after #1778, builds and passes alone, at most 15 files and 1500 lines. **PR 1** (11 files): csproj, `Encina.slnx`, PublicAPI x2, options, mapper, `Encina.UnitTests` and `Encina.GuardTests` project references, mapper unit tests, options guard tests, manifest (no service introduced). **PR 2** (15 files): composite store, validator, errors, `ServiceCollectionExtensions`, log class, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, `EncinaEventIdAllocationTests.cs`, package `PublicAPI.Unshipped.txt`, store unit tests, validator unit tests, DI test, store and registration guard tests, manifest. **PR 3** (9 files): stream interface, reader, health check, registration edit, `PublicAPI.Unshipped.txt`, unit tests x2, guard tests, manifest. **PR 4** (<= 11 files): three test-project references, a `Kafka` collection definition in `Encina.ContractTests` if it has none, contract class, integration tests, property tests, two `.md` justifications, manifest. **PR 5** (4 files): README, feature page, `docs/INVENTORY.md`, changelog fragment |
+| **Total** | **~36 with edits** | Every PR starts after #1778, builds and passes alone, at most 15 files and 1500 lines. **PR 1** (11 files): csproj, `Encina.slnx`, PublicAPI x2, options, mapper, `Encina.UnitTests` and `Encina.GuardTests` project references, mapper unit tests, options guard tests, manifest (no service introduced). **PR 2** (15 files): composite store, validator, errors, `ServiceCollectionExtensions`, log class, `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, registry page, `EncinaEventIdAllocationTests.cs`, package `PublicAPI.Unshipped.txt`, store unit tests, validator unit tests, DI test, store and registration guard tests, manifest. **PR 3** (9 files): stream interface, reader, health check, registration edit, `PublicAPI.Unshipped.txt`, unit tests x2, guard tests, manifest. **PR 4** (12 files): three test-project references, a `Kafka` collection definition in `Encina.IntegrationTests` and one in `Encina.ContractTests`, contract class, integration tests, property tests, two `.md` justifications, manifest. **PR 5** (4 files): README, feature page, `docs/INVENTORY.md`, changelog fragment |
 
 ---
 
@@ -516,9 +541,9 @@ Phase 5: unit, guard, contract, integration (Kafka collection), property tests; 
 Phase 6: docs and changelog fragment.
 
 KEY PATTERNS:
-- Dilemmas D1-D6 are recommended, pending the maintainer: follow the answers recorded in the plan.
+- Dilemmas D1-D7 are recommended, pending the maintainer: follow the answers recorded in the plan.
 - Tenant-qualified, length-prefixed keys; tenant header; reserved default; deny without tenant; explicit logged cross-tenant replay; the purge receives its tenant from the retention service (#4182) and is passed through unchanged.
-- Topic: delete policy only, finite retention within the shortest applicable tenant retention (start-up fails otherwise, logged opt-out); never compaction.
+- Topic rule (under D1 option A): retention.ms + segment.ms within the shortest applicable tenant retention, never compaction, the logged opt-out as the only exception; enforced by the mechanism of D7 (recommended: check at start-up and at every retention run, refuse writes after a run-time breach).
 - Never user ids or values in headers; never log values, ids or reason text.
 
 REFERENCE FILES:
@@ -540,7 +565,7 @@ REFERENCE FILES:
 | 2 | OpenTelemetry | ✅ | The ADR-036 decorator wraps the composite; produce spans; tenant tag per ADR-054 D4, no baggage. |
 | 3 | Structured logging | ✅ | Range 52500-52549 registered first; Kafka error codes only. |
 | 4 | Health checks | ✅ | Phase 3: `EntityChangeAuditKafkaHealthCheck` (topic metadata). |
-| 5 | Validation | ✅ | Argument checks before I/O; replay bounds validated; topic configuration validated at start-up (Design Choice 5). |
+| 5 | Validation | ✅ | Argument checks before I/O; replay bounds validated; topic configuration checked against the rule of Design Choice 5 by the mechanism of Design Choice 10. |
 | 6 | Resilience | ✅ | The idempotent producer retries within `delivery.timeout.ms` without duplicating; a final failure is `Unavailable` for the caller's policy. |
 | 7 | Distributed locks | ❌ | Append-only; partition order arbitrates per-entity ordering. |
 | 8 | Transactions | ⏭️ | Atomic "database write plus stream" would come from the outbox carrying the entry; out of this issue's scope, tracked by an issue to be opened (draft entity-change-audit-outbox-streaming); its number replaces this text when it exists. |
@@ -557,14 +582,14 @@ REFERENCE FILES:
 - A queryable inner store must be registered (any of the 10 database providers from #1778, or #577-#579, #581, #582).
 - #587 (Kafka dead letters) shares the transport producer; no shared files.
 - #1240 (open) owns the hash chain (Design Choice 7); #636 (open) streams CDC changes separately.
-- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature) before #1778 implements `EntityChangeAuditRetentionService`; the purge delegation of Design Choice 1 and the topic check of Design Choice 5 follow it.
+- **#4182 (open, `[DEBT]`)** decides the per-tenant retention mechanism (tenant enumeration through `ITenantStore`, each tenant's policy, the tenant-explicit purge signature, and the residual policy for segments `ITenantStore` no longer returns: offboarded tenants and the legacy `default` segment) before #1778 implements `EntityChangeAuditRetentionService`; the purge delegation of Design Choice 1, the topic rule of Design Choice 5 and the run-time check of Design Choice 10 follow it.
 - The EventId slot 52500-52549 lies after the #4007 reservations (50000-52349, #4174 merged).
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers D1 to D6 when work on #580 starts; the answers go into `## Maintainer Decisions`.
+1. The maintainer answers D1 to D7 when work on #580 starts; the answers go into `## Maintainer Decisions`.
 2. Wait for #4182 and #1778; re-check each Design Choice against main; `adversarial-reviewer` verifies the Settled ones.
 3. Brief one worker per proposed pull request (5 pull requests); the orchestrator opens the deferred transactions issue (draft entity-change-audit-outbox-streaming) and cites its number in matrix row 8.
 4. The final pull request references `Fixes #580`.
