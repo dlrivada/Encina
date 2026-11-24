@@ -51,7 +51,8 @@ public sealed class DeadLetterStoreEFTests : IDisposable
         {
             context.Dispose();
             connection.Dispose();
-        });
+        }
+        );
     }
 
     private static async Task<string> LeftCode<T>(Task<Either<EncinaError, T>> call)
