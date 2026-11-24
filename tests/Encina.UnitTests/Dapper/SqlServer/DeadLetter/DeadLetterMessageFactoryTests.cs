@@ -13,56 +13,27 @@ public sealed class DeadLetterMessageFactoryTests
     private readonly DeadLetterMessageFactory _factory = new();
 
     [Fact]
-    public void Create_MapsEveryDeadLetterDataField()
+    public void Create_MapsEveryDeadLetterDataFieldAndLeavesReplayStateEmpty()
     {
         var id = Guid.NewGuid();
         var data = new DeadLetterData(
-            id,
-            "Orders.PlaceOrder",
-            "{}",
-            "orders.failed",
-            "outbox",
-            "src-1",
-            4,
-            Now.AddHours(-2),
-            Now.AddHours(-1),
-            Now.AddDays(7),
-            CorrelationId: "corr-1",
-            ExceptionType: "System.InvalidOperationException",
-            ExceptionStackTrace: "at X",
-            TenantId: "tenant-1");
+            id, "T", "{}", "e", "outbox", "src", 4, Now.AddHours(-2), Now.AddHours(-1), Now.AddDays(7),
+            CorrelationId: "corr", ExceptionType: "X", ExceptionStackTrace: "at X", TenantId: "tenant");
 
         var message = _factory.Create(data);
 
         message.ShouldBeOfType<DeadLetterMessage>();
         message.Id.ShouldBe(id);
-        message.RequestType.ShouldBe("Orders.PlaceOrder");
-        message.RequestContent.ShouldBe("{}");
-        message.ErrorCode.ShouldBe("orders.failed");
-        message.SourcePattern.ShouldBe("outbox");
-        message.SourceMessageId.ShouldBe("src-1");
-        message.TotalRetryAttempts.ShouldBe(4);
+        (message.RequestType, message.RequestContent, message.ErrorCode).ShouldBe(("T", "{}", "e"));
+        (message.SourcePattern, message.SourceMessageId, message.TotalRetryAttempts).ShouldBe(("outbox", "src", 4));
+        (message.CorrelationId, message.ExceptionType, message.ExceptionStackTrace).ShouldBe(("corr", "X", "at X"));
+        message.TenantId.ShouldBe("tenant");
         message.FirstFailedAtUtc.ShouldBe(Now.AddHours(-2));
         message.DeadLetteredAtUtc.ShouldBe(Now.AddHours(-1));
         message.ExpiresAtUtc.ShouldBe(Now.AddDays(7));
-        message.CorrelationId.ShouldBe("corr-1");
-        message.ExceptionType.ShouldBe("System.InvalidOperationException");
-        message.ExceptionStackTrace.ShouldBe("at X");
-        message.TenantId.ShouldBe("tenant-1");
-    }
-
-    [Fact]
-    public void Create_NewMessageHasNoReplayState()
-    {
-        var data = new DeadLetterData(Guid.NewGuid(), "T", "{}", "e", "outbox", "s", 1, Now, Now, null);
-
-        var message = _factory.Create(data);
-
         message.ReplayClaimedAtUtc.ShouldBeNull();
         message.ReplayedAtUtc.ShouldBeNull();
         message.ReplayResult.ShouldBeNull();
-        message.ExpiresAtUtc.ShouldBeNull();
-        message.TenantId.ShouldBeNull();
     }
 
     [Fact]

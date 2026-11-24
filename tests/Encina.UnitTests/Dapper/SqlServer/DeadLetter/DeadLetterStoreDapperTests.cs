@@ -31,7 +31,23 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
         GuidTypeHandler.EnsureRegistered();
     }
 
+    public static IEnumerable<object[]> FailingOperations() =>
+    [
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.AddAsync(NewMessage()))), DeadLetterErrorCodes.StoreFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.GetAsync(Guid.NewGuid()))), DeadLetterErrorCodes.GetFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.GetCountAsync())), DeadLetterErrorCodes.QueryFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.GetMessagesAsync())), DeadLetterErrorCodes.QueryFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.TryClaimForReplayAsync(Guid.NewGuid(), Start))), DeadLetterErrorCodes.ClaimFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.MarkAsReplayedAsync(Guid.NewGuid(), "ok"))), DeadLetterErrorCodes.MarkReplayedFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.DeleteAsync(Guid.NewGuid()))), DeadLetterErrorCodes.DeleteFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.DeleteManyAsync(new DeadLetterFilter()))), DeadLetterErrorCodes.DeleteFailed],
+        [(Func<DeadLetterStoreDapper, Task<string>>)(s => Code(s.DeleteExpiredAsync())), DeadLetterErrorCodes.CleanupFailed],
+    ];
+
     public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
+
+    private static async Task<string> Code<T>(Task<Either<EncinaError, T>> task) =>
+        (await task).Match(_ => string.Empty, error => error.GetCode().IfNone(string.Empty));
 
     private async Task<DeadLetterStoreDapper> CreateStoreAsync()
     {
@@ -109,23 +125,93 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
 
     #endregion
 
-    #region AddAsync and GetAsync
+    #region Argument checks
 
     [Fact]
-    public async Task AddAsync_NullMessage_ThrowsArgumentNullException()
+    public async Task Operations_InvalidArguments_Throw()
     {
         var store = await CreateStoreAsync();
 
         await Should.ThrowAsync<ArgumentNullException>(() => store.AddAsync(null!));
+        await Should.ThrowAsync<ArgumentException>(() => store.AddAsync(NewMessage(sourceMessageId: "")));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.GetAsync(Guid.Empty));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.TryClaimForReplayAsync(Guid.Empty, Start));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.MarkAsReplayedAsync(Guid.Empty, "ok"));
+        await Should.ThrowAsync<ArgumentException>(() => store.MarkAsReplayedAsync(Guid.NewGuid(), " "));
+        await Should.ThrowAsync<ArgumentNullException>(() => store.MarkAsReplayedAsync(Guid.NewGuid(), null!));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.DeleteAsync(Guid.Empty));
+        await Should.ThrowAsync<ArgumentNullException>(() => store.DeleteManyAsync(null!));
     }
 
-    [Fact]
-    public async Task AddAsync_EmptySourceMessageId_ThrowsArgumentException()
+    [Theory]
+    [InlineData(-1, 10)]
+    [InlineData(0, 0)]
+    [InlineData(0, DeadLetterStoreLimits.MaxPageSize + 1)]
+    public async Task GetMessagesAsync_OutOfRangePaging_ThrowsArgumentOutOfRangeException(int skip, int take)
     {
         var store = await CreateStoreAsync();
 
-        await Should.ThrowAsync<ArgumentException>(() => store.AddAsync(NewMessage(sourceMessageId: "")));
+        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.GetMessagesAsync(skip: skip, take: take));
     }
+
+    #endregion
+
+    #region Failures
+
+    [Theory]
+    [MemberData(nameof(FailingOperations))]
+    public async Task Operation_ConnectionFailsToOpen_ReturnsItsErrorCode(Func<DeadLetterStoreDapper, Task<string>> operation, string expectedCode)
+    {
+        var store = new DeadLetterStoreDapper(FailingOpenConnection());
+
+        (await operation(store)).ShouldBe(expectedCode);
+    }
+
+    [Fact]
+    public async Task GetAsync_CancelledOpen_PropagatesOperationCanceledException()
+    {
+        var connection = Substitute.For<DbConnection>();
+        connection.OpenAsync(Arg.Any<CancellationToken>()).Returns(Task.FromCanceled(new CancellationToken(true)));
+        var store = new DeadLetterStoreDapper(connection);
+
+        await Should.ThrowAsync<OperationCanceledException>(() => store.GetAsync(Guid.NewGuid(), new CancellationToken(true)));
+    }
+
+    [Fact]
+    public async Task AddAsync_DuplicateSource_ReturnsStoreFailedOnTheStandIn()
+    {
+        var store = await CreateStoreAsync();
+        await store.AddAsync(NewMessage());
+
+        (await store.AddAsync(NewMessage())).ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetMessagesAsync_OnTheStandIn_ReturnsQueryFailedBecauseOffsetFetchIsSqlServerOnly(bool newestFirst)
+    {
+        var store = await CreateStoreAsync();
+
+        var result = await store.GetMessagesAsync(new DeadLetterFilter { SourcePattern = "outbox" }, 0, 10, newestFirst);
+
+        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.QueryFailed);
+    }
+
+    [Fact]
+    public async Task ClosedConnection_IsOpenedByTheStoreBeforeTheFirstCommand()
+    {
+        await using var closed = new SqliteConnection("DataSource=:memory:");
+        var store = new DeadLetterStoreDapper(closed, timeProvider: _clock);
+
+        // A fresh in-memory database has no table, so the query fails, but only after OpenAsync ran.
+        (await store.GetCountAsync()).ShouldBeErrorWithCode(DeadLetterErrorCodes.QueryFailed);
+        closed.State.ShouldBe(ConnectionState.Open);
+    }
+
+    #endregion
+
+    #region Add, get, count
 
     [Fact]
     public async Task AddAsync_NewMessage_IsInsertedAndReadBackAsUtc()
@@ -146,85 +232,11 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task AddAsync_DuplicateSource_ReturnsStoreFailedOnTheStandIn()
-    {
-        var store = await CreateStoreAsync();
-        await store.AddAsync(NewMessage());
-
-        var result = await store.AddAsync(NewMessage());
-
-        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
-    }
-
-    [Fact]
-    public async Task AddAsync_ConnectionFailsToOpen_ReturnsStoreFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        var result = await store.AddAsync(NewMessage());
-
-        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.StoreFailed);
-    }
-
-    [Fact]
-    public async Task GetAsync_EmptyId_ThrowsArgumentOutOfRangeException()
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.GetAsync(Guid.Empty));
-    }
-
-    [Fact]
     public async Task GetAsync_UnknownId_ReturnsNone()
     {
         var store = await CreateStoreAsync();
 
         (await store.GetAsync(Guid.NewGuid())).ShouldBeRight().IsNone.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task GetAsync_ConnectionFailsToOpen_ReturnsGetFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.GetAsync(Guid.NewGuid())).ShouldBeErrorWithCode(DeadLetterErrorCodes.GetFailed);
-    }
-
-    [Fact]
-    public async Task GetAsync_CancelledOpen_PropagatesOperationCanceledException()
-    {
-        var connection = Substitute.For<DbConnection>();
-        connection.OpenAsync(Arg.Any<CancellationToken>()).Returns(Task.FromCanceled(new CancellationToken(true)));
-        var store = new DeadLetterStoreDapper(connection);
-
-        await Should.ThrowAsync<OperationCanceledException>(() => store.GetAsync(Guid.NewGuid(), new CancellationToken(true)));
-    }
-
-    #endregion
-
-    #region GetMessagesAsync and GetCountAsync
-
-    [Theory]
-    [InlineData(-1, 10)]
-    [InlineData(0, 0)]
-    [InlineData(0, DeadLetterStoreLimits.MaxPageSize + 1)]
-    public async Task GetMessagesAsync_OutOfRangePaging_ThrowsArgumentOutOfRangeException(int skip, int take)
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.GetMessagesAsync(skip: skip, take: take));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task GetMessagesAsync_OnTheStandIn_ReturnsQueryFailedBecauseOffsetFetchIsSqlServerOnly(bool newestFirst)
-    {
-        var store = await CreateStoreAsync();
-
-        var result = await store.GetMessagesAsync(new DeadLetterFilter { SourcePattern = "outbox" }, 0, 10, newestFirst);
-
-        result.ShouldBeErrorWithCode(DeadLetterErrorCodes.QueryFailed);
     }
 
     [Fact]
@@ -272,58 +284,23 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
         (await store.GetCountAsync(new DeadLetterFilter { ExcludeReplayed = false })).ShouldBeRight().ShouldBe(1);
     }
 
-    [Fact]
-    public async Task GetCountAsync_ConnectionFailsToOpen_ReturnsQueryFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.GetCountAsync()).ShouldBeErrorWithCode(DeadLetterErrorCodes.QueryFailed);
-    }
-
     #endregion
 
-    #region Replay claim and mark
+    #region Replay, delete, expiry
 
     [Fact]
-    public async Task TryClaimForReplayAsync_UnreplayedMessage_ClaimsItAtTheClockTime()
+    public async Task TryClaimForReplayAsync_ClaimsAtTheClockTimeAndHoldsUntilTheClaimExpires()
     {
         var store = await CreateStoreAsync();
         var message = NewMessage();
         await store.AddAsync(message);
 
         (await store.TryClaimForReplayAsync(message.Id, Start.AddMinutes(-5))).ShouldBeRight().ShouldBeTrue();
+        Stored(await store.GetAsync(message.Id)).ReplayClaimedAtUtc.ShouldBe(Start);
 
-        var stored = Stored(await store.GetAsync(message.Id));
-        stored.ReplayClaimedAtUtc.ShouldBe(Start);
-    }
-
-    [Fact]
-    public async Task TryClaimForReplayAsync_FreshClaimHeld_ReturnsFalseUntilItExpires()
-    {
-        var store = await CreateStoreAsync();
-        var message = NewMessage();
-        await store.AddAsync(message);
-        await store.TryClaimForReplayAsync(message.Id, Start.AddMinutes(-5));
         _clock.Advance(TimeSpan.FromMinutes(10));
-
         (await store.TryClaimForReplayAsync(message.Id, Start.AddMinutes(-5))).ShouldBeRight().ShouldBeFalse();
         (await store.TryClaimForReplayAsync(message.Id, Start.AddMinutes(5))).ShouldBeRight().ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task TryClaimForReplayAsync_EmptyId_ThrowsArgumentOutOfRangeException()
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.TryClaimForReplayAsync(Guid.Empty, Start));
-    }
-
-    [Fact]
-    public async Task TryClaimForReplayAsync_ConnectionFailsToOpen_ReturnsClaimFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.TryClaimForReplayAsync(Guid.NewGuid(), Start)).ShouldBeErrorWithCode(DeadLetterErrorCodes.ClaimFailed);
     }
 
     [Fact]
@@ -344,28 +321,6 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task MarkAsReplayedAsync_InvalidArguments_Throw()
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.MarkAsReplayedAsync(Guid.Empty, "success"));
-        await Should.ThrowAsync<ArgumentException>(() => store.MarkAsReplayedAsync(Guid.NewGuid(), " "));
-        await Should.ThrowAsync<ArgumentNullException>(() => store.MarkAsReplayedAsync(Guid.NewGuid(), null!));
-    }
-
-    [Fact]
-    public async Task MarkAsReplayedAsync_ConnectionFailsToOpen_ReturnsMarkReplayedFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.MarkAsReplayedAsync(Guid.NewGuid(), "success")).ShouldBeErrorWithCode(DeadLetterErrorCodes.MarkReplayedFailed);
-    }
-
-    #endregion
-
-    #region Delete
-
-    [Fact]
     public async Task DeleteAsync_ExistingMessage_DeletesItOnce()
     {
         var store = await CreateStoreAsync();
@@ -377,30 +332,6 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_EmptyId_ThrowsArgumentOutOfRangeException()
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentOutOfRangeException>(() => store.DeleteAsync(Guid.Empty));
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ConnectionFailsToOpen_ReturnsDeleteFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.DeleteAsync(Guid.NewGuid())).ShouldBeErrorWithCode(DeadLetterErrorCodes.DeleteFailed);
-    }
-
-    [Fact]
-    public async Task DeleteManyAsync_NullFilter_ThrowsArgumentNullException()
-    {
-        var store = await CreateStoreAsync();
-
-        await Should.ThrowAsync<ArgumentNullException>(() => store.DeleteManyAsync(null!));
-    }
-
-    [Fact]
     public async Task DeleteManyAsync_FilterBySourceMessage_DeletesOnlyTheMatchingMessages()
     {
         var store = await CreateStoreAsync();
@@ -409,14 +340,6 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
 
         (await store.DeleteManyAsync(new DeadLetterFilter { SourceMessageId = "a" })).ShouldBeRight().ShouldBe(1);
         (await store.GetCountAsync()).ShouldBeRight().ShouldBe(1);
-    }
-
-    [Fact]
-    public async Task DeleteManyAsync_ConnectionFailsToOpen_ReturnsDeleteFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.DeleteManyAsync(new DeadLetterFilter())).ShouldBeErrorWithCode(DeadLetterErrorCodes.DeleteFailed);
     }
 
     [Fact]
@@ -435,16 +358,6 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task DeleteExpiredAsync_ConnectionFailsToOpen_ReturnsCleanupFailed()
-    {
-        var store = new DeadLetterStoreDapper(FailingOpenConnection());
-
-        (await store.DeleteExpiredAsync()).ShouldBeErrorWithCode(DeadLetterErrorCodes.CleanupFailed);
-    }
-
-    #endregion
-
-    [Fact]
     public async Task SaveChangesAsync_ReturnsUnit()
     {
         var store = await CreateStoreAsync();
@@ -452,14 +365,5 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
         (await store.SaveChangesAsync()).IsRight.ShouldBeTrue();
     }
 
-    [Fact]
-    public async Task ClosedConnection_IsOpenedByTheStoreBeforeTheFirstCommand()
-    {
-        await using var closed = new SqliteConnection("DataSource=:memory:");
-        var store = new DeadLetterStoreDapper(closed, timeProvider: _clock);
-
-        // A fresh in-memory database has no table, so the query fails, but only after OpenAsync ran.
-        (await store.GetCountAsync()).ShouldBeErrorWithCode(DeadLetterErrorCodes.QueryFailed);
-        closed.State.ShouldBe(ConnectionState.Open);
-    }
+    #endregion
 }

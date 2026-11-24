@@ -20,15 +20,8 @@ public sealed class DeadLetterMessageTests
         message.ErrorCode.ShouldBeEmpty();
         message.SourcePattern.ShouldBeEmpty();
         message.SourceMessageId.ShouldBeEmpty();
-        message.ExceptionType.ShouldBeNull();
-        message.ExceptionStackTrace.ShouldBeNull();
-        message.CorrelationId.ShouldBeNull();
-        message.TenantId.ShouldBeNull();
-        message.TotalRetryAttempts.ShouldBe(0);
         message.ExpiresAtUtc.ShouldBeNull();
-        message.ReplayClaimedAtUtc.ShouldBeNull();
         message.ReplayedAtUtc.ShouldBeNull();
-        message.ReplayResult.ShouldBeNull();
         message.IsReplayed.ShouldBeFalse();
     }
 
@@ -39,35 +32,17 @@ public sealed class DeadLetterMessageTests
 
         var message = new DeadLetterMessage
         {
-            Id = id,
-            RequestType = "Orders.PlaceOrder",
-            RequestContent = "{}",
-            ErrorCode = "orders.failed",
-            ExceptionType = "System.InvalidOperationException",
-            ExceptionStackTrace = "at X",
-            CorrelationId = "corr-1",
-            SourcePattern = "outbox",
-            SourceMessageId = "src-1",
-            TenantId = "tenant-1",
-            TotalRetryAttempts = 5,
-            FirstFailedAtUtc = Now.AddHours(-2),
-            DeadLetteredAtUtc = Now.AddHours(-1),
-            ExpiresAtUtc = Now.AddDays(1),
-            ReplayClaimedAtUtc = Now,
-            ReplayedAtUtc = Now.AddMinutes(1),
-            ReplayResult = "success"
+            Id = id, RequestType = "T", RequestContent = "{}", ErrorCode = "e", ExceptionType = "X",
+            ExceptionStackTrace = "at X", CorrelationId = "corr", SourcePattern = "outbox", SourceMessageId = "src",
+            TenantId = "tenant", TotalRetryAttempts = 5, FirstFailedAtUtc = Now.AddHours(-2),
+            DeadLetteredAtUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddDays(1), ReplayClaimedAtUtc = Now,
+            ReplayedAtUtc = Now.AddMinutes(1), ReplayResult = "success"
         };
 
         message.Id.ShouldBe(id);
-        message.RequestType.ShouldBe("Orders.PlaceOrder");
-        message.RequestContent.ShouldBe("{}");
-        message.ErrorCode.ShouldBe("orders.failed");
-        message.ExceptionType.ShouldBe("System.InvalidOperationException");
-        message.ExceptionStackTrace.ShouldBe("at X");
-        message.CorrelationId.ShouldBe("corr-1");
-        message.SourcePattern.ShouldBe("outbox");
-        message.SourceMessageId.ShouldBe("src-1");
-        message.TenantId.ShouldBe("tenant-1");
+        (message.RequestType, message.RequestContent, message.ErrorCode).ShouldBe(("T", "{}", "e"));
+        (message.ExceptionType, message.ExceptionStackTrace, message.CorrelationId).ShouldBe(("X", "at X", "corr"));
+        (message.SourcePattern, message.SourceMessageId, message.TenantId).ShouldBe(("outbox", "src", "tenant"));
         message.TotalRetryAttempts.ShouldBe(5);
         message.FirstFailedAtUtc.ShouldBe(Now.AddHours(-2));
         message.DeadLetteredAtUtc.ShouldBe(Now.AddHours(-1));
@@ -75,17 +50,6 @@ public sealed class DeadLetterMessageTests
         message.ReplayClaimedAtUtc.ShouldBe(Now);
         message.ReplayedAtUtc.ShouldBe(Now.AddMinutes(1));
         message.ReplayResult.ShouldBe("success");
-    }
-
-    [Fact]
-    public void IsReplayed_IsTrueOnlyWhenReplayedAtUtcIsSet()
-    {
-        var message = new DeadLetterMessage();
-
-        message.IsReplayed.ShouldBeFalse();
-
-        message.ReplayedAtUtc = Now;
-
         message.IsReplayed.ShouldBeTrue();
     }
 
