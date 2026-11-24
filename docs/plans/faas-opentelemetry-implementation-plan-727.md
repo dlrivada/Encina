@@ -11,7 +11,7 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-24, main `5aee5679e`)
+### What exists today (read on 2026-11-24, main `1a661f5c1`)
 
 - **No telemetry exists in either package**: a search of `src/Encina.AwsLambda` and `src/Encina.AzureFunctions` finds no `ActivitySource`, no `Meter`, no `traceparent`, no `faas.*` and no `ColdStart`. `src/Encina.OpenTelemetry/ServiceCollectionExtensions.cs` (`WithEncina`, lines 181-213) subscribes a hard-coded list of sources and meters and knows neither package; it does not reference them.
 - **Azure Functions has one entry point, a middleware**: `EncinaFunctionMiddleware.Invoke(FunctionContext, FunctionExecutionDelegate)` (`src/Encina.AzureFunctions/EncinaFunctionMiddleware.cs`) already wraps every invocation, logs start, completion and failure through `Log` (EventIds 4750-4752) and stores the correlation id in `context.Items`. The worker's `FunctionContext` exposes `TraceContext` (`TraceParent`, `TraceState`) and `FunctionDefinition.Name` (the assembly `Microsoft.Azure.Functions.Worker.Core` declares both). The middleware has no clock and no cold-start signal.
@@ -407,7 +407,7 @@ REFERENCE FILES:
 |---------|-------|-------|
 | `AwsLambda` (existing 4700-4749) | none new | Reuses 4700-4702 (declared, unused today); 4711-4712 are #744's |
 | `AzureFunctions` (existing 4750-4799) | none new | Reuses 4750-4752; 4759-4760 are #744's |
-| Cloud and integration block | none | The maintainer's premise (the next free 50-slot from 80050) is superseded: 80000-80149 is held by #4007 (Refit, `AwsLambda`, `AzureFunctions`); no id is needed here |
+| Cloud and integration block | none | No new block is claimed: the registry on main at `1a661f5c1` reserves 80000-80149 for #4007 (Refit, `AwsLambda`, `AzureFunctions`) and lists no row after it, so 80150 is the first free Cloud slot, but this plan needs no id outside the two existing ranges |
 
 ### Estimated File Count
 
