@@ -122,7 +122,7 @@ public sealed class CompiledExpressionScheduledMessageDispatcher : IScheduledMes
 
         // 3. Unknown shape — return a cached constant Left delegate
         var error = EncinaErrors.Create(
-            SchedulingErrorCodes.UnknownRequestShape,
+            SchedulingErrorCodes.UnknownRequestShape, ErrorCategory.Internal,
             $"Type {requestType.FullName} implements neither IRequest<TResponse> nor INotification.");
         Either<EncinaError, Unit> leftResult = error;
         return (_, _, _) => new ValueTask<Either<EncinaError, Unit>>(leftResult);
