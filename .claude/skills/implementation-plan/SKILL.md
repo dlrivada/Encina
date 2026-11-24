@@ -1,11 +1,11 @@
 ---
 name: implementation-plan
-description: Produce the implementation plan for an Encina [FEATURE] issue with the maintainer's versioned prompt, save it under docs/plans and link it from the issue before any code is written. Use when starting work on a feature issue that has no plan yet, or when asked to plan a feature.
+description: Produce the implementation plan for an Encina [FEATURE] issue with the maintainer's versioned prompt, save it under docs/plans, open the plan PR and link it from the issue, at the moment the issue is created. Use right after opening a feature issue, when a feature issue has no plan yet, or when asked to plan a feature.
 ---
 
 # Implementation plan for a feature
 
-`AGENTS.md` §11, Issues, plans and changelog: a `[FEATURE]` issue of any size gets a plan before implementation starts.
+`AGENTS.md` §11, Issues, plans and changelog: a `[FEATURE]` issue of any size is opened together with its plan (#4255). This skill runs at FEATURE creation time, by the same actor, right after the issue is created, and ends with the plan PR open and linked from the issue; it is not deferred to a later queue. A `[FEATURE]` with no plan on `main` and no open plan PR 24 hours after creation fails `tools/ai/issues/check-feature-plans.ps1`.
 
 ## Inputs
 
