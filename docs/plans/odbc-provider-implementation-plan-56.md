@@ -129,7 +129,7 @@
 | C7 | No pooling option: ODBC pooling is a driver-manager setting (an ODBC administrator setting on Windows, `Pooling` in `odbcinst.ini` for unixODBC); the guide says so | Settled | `System.Data.Odbc` documentation (the issue's References) |
 | C8 | Concurrency parity: like every ADO provider the stores take no claim lock; delivery is at-least-once and the inbox deduplicates, so no portable `SKIP LOCKED` is emulated | Settled | `OutboxStoreADO.GetPendingMessagesAsync` (plain `SELECT`); `AGENTS.md` section 3 (outbox: at-least-once) |
 | C9 | Names: `{Pattern}Store{Provider}` with the provider written `ODBC` (`OutboxStoreODBC`), as `OutboxStoreADO` | Settled | `AGENTS.md` section 4 |
-| C10 | EventIds: a block `20000-20049` named `ODBC` (area Database, first 50-id slot of the 20000 block), used by the health check and the registration log only (three events); claimed here, registered in pull request O5 | Settled | `AGENTS.md` section 7; `docs/engineering/eventid-block-registry.md` |
+| C10 | EventIds: a block `20650-20699` named `ODBC` (area Database, first free 50-id slot after the #4007 reservations), used by the health check and the registration log only (three events); claimed here, registered in pull request O5 | Settled | `AGENTS.md` section 7; `docs/engineering/eventid-block-registry.md` |
 | C11 | No tenant-qualified id is built and nothing is keyed by tenant until #737, #738, #739 and #747 add the columns; the reserved `default` tenant segment does not apply here | Settled | ADR-054 D4 |
 
 ---
@@ -296,7 +296,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `EncinaOdbcOptions.cs` (`ConnectionString` `[JsonIgnore]`, `Dialect`, table names, `ToString()` without the secret), `EncinaOdbcOptionsValidator.cs` (`internal sealed`, `IValidateOptions<EncinaOdbcOptions>`: blank connection string and missing dialect fail at startup), `ServiceCollectionExtensions.cs` (`AddEncinaOdbc(this IServiceCollection, string connectionString, IOdbcSqlDialect dialect, Action<MessagingConfiguration> configure)`: scoped `OdbcConnection` as `IDbConnection`, `AddMessagingServices<OutboxStoreODBC, ..., OutboxProcessor>`, `AddDeadLetterQueueServices<DeadLetterStoreODBC, DeadLetterMessageFactory>`, the health check; throws `InvalidOperationException` naming any unsupported enabled flag; `TryAdd*` so an application's own registration wins), `OdbcHealthCheck.cs` (`IEncinaHealthCheck`, `DefaultName` const, static `Tags`, resolves the connection from a created scope, runs the dialect's health query with `OpenAsync` and a token, reports the exception type only) and `OdbcLog.cs` (`[LoggerMessage]`, EventIds `20000-20002`: dialect configured, health check failed by exception type, unsupported option refused).
+1. **Create** `EncinaOdbcOptions.cs` (`ConnectionString` `[JsonIgnore]`, `Dialect`, table names, `ToString()` without the secret), `EncinaOdbcOptionsValidator.cs` (`internal sealed`, `IValidateOptions<EncinaOdbcOptions>`: blank connection string and missing dialect fail at startup), `ServiceCollectionExtensions.cs` (`AddEncinaOdbc(this IServiceCollection, string connectionString, IOdbcSqlDialect dialect, Action<MessagingConfiguration> configure)`: scoped `OdbcConnection` as `IDbConnection`, `AddMessagingServices<OutboxStoreODBC, ..., OutboxProcessor>`, `AddDeadLetterQueueServices<DeadLetterStoreODBC, DeadLetterMessageFactory>`, the health check; throws `InvalidOperationException` naming any unsupported enabled flag; `TryAdd*` so an application's own registration wins), `OdbcHealthCheck.cs` (`IEncinaHealthCheck`, `DefaultName` const, static `Tags`, resolves the connection from a created scope, runs the dialect's health query with `OpenAsync` and a token, reports the exception type only) and `OdbcLog.cs` (`[LoggerMessage]`, EventIds `20650-20652`: dialect configured, health check failed by exception type, unsupported option refused).
 2. **Modify** `src/Encina/Diagnostics/EventIdRanges.cs` (field `ODBC`), `docs/engineering/eventid-block-registry.md` (row to `registered`), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (map entry `["Encina.ODBC"]`), `src/Encina/PublicAPI.Unshipped.txt` and `src/Encina.ODBC/PublicAPI.Unshipped.txt`; manifest through `mechanical-fixer`.
 3. Tests: new `tests/Encina.UnitTests/ODBC/AddEncinaOdbcRegistrationTests.cs` (provider built with `ValidateOnBuild` and `ValidateScopes`; every `IOutboxStore`, `IInboxStore`, `ISagaStore`, `IScheduledMessageStore` and `IDeadLetterStore` resolves to the ODBC type; an application's own store registration wins in either order; an unsupported flag throws), `OdbcHealthCheckTests.cs` (healthy, failing connection, no exception message in the result), `tests/Encina.GuardTests/ODBC/AddEncinaOdbcGuardTests.cs` (null services, blank connection string, null dialect, null configure).
 
@@ -310,7 +310,7 @@ CONTEXT:
 Issue #56 plan docs/plans/odbc-provider-implementation-plan-56.md, phase 5. O1 to O4 merged.
 
 TASK:
-1. EncinaOdbcOptions (secret hidden), AddEncinaOdbc, OdbcHealthCheck and OdbcLog in the claimed block 20000-20049.
+1. EncinaOdbcOptions (secret hidden), AddEncinaOdbc, OdbcHealthCheck and OdbcLog in the claimed block 20650-20699.
 2. Register the range, the registry row and the allocation-test map; PublicAPI and manifest (mechanical-fixer).
 3. Registration, health and guard tests.
 
@@ -422,7 +422,7 @@ REFERENCE FILES:
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.ODBC` | claim `20000-20049` named `ODBC` (area Database, first 50-id slot of the 20000 block) | Reserved by this plan; O5 registers it; packed from 20000; three events used |
+| `Encina.ODBC` | claim `20650-20699` named `ODBC` (area Database, first free 50-id slot after the #4007 reservations) | Reserved by this plan; O5 registers it; packed from 20650; three events used. Re-slotted from 20000-20049 to 20650-20699 on 2026-11-24 after the #4174 reservations |
 
 ### Estimated File Count
 
@@ -474,7 +474,7 @@ PROJECT CONTEXT:
 
 IMPLEMENTATION OVERVIEW:
 1. O1: package, IOdbcSqlDialect, AnsiOdbcDialect, OdbcSqlTemplate. 2. O2: outbox and inbox. 3. O3: saga and scheduling.
-4. O4: dead letter. 5. O5: options, registration, health check, EventIds 20000-20049. 6. O6: PostgreSQL proof. 7. O7: docs.
+4. O4: dead letter. 5. O5: options, registration, health check, EventIds 20650-20699. 6. O6: PostgreSQL proof. 7. O7: docs.
 
 KEY PATTERNS:
 - Mirror the ADO.NET stores; async with CancellationToken; TimeProvider; Either<EncinaError, T> through EitherHelpers.TryAsync.
@@ -497,7 +497,7 @@ REFERENCE FILES:
 |---|----------|--------|-------|
 | 1 | Caching | ❌ N/A | The stores are write-mostly queues and no other provider caches them (the issue's "cache-aside for store reads" has no consumer) |
 | 2 | OpenTelemetry | ⏭️ | Deferred to a follow-up (issue file `artifacts/issues/odbc-telemetry.md`): the database providers' telemetry follows #721's approach, and ODBC joins it once that design is implemented |
-| 3 | Structured Logging | ✅ Phase 5 | `[LoggerMessage]` in `20000-20049`: dialect configured, health failure by exception type, unsupported option |
+| 3 | Structured Logging | ✅ Phase 5 | `[LoggerMessage]` in `20650-20699`: dialect configured, health failure by exception type, unsupported option |
 | 4 | Health Checks | ✅ Phase 5 | `OdbcHealthCheck` runs the dialect's health query |
 | 5 | Validation | ✅ Phase 5 | `IValidateOptions` for the connection string and dialect; `SqlIdentifierValidator` for table names |
 | 6 | Resilience | ❌ N/A | Retry and backoff are in the processors (`OutboxRetryBackoff`) for every provider; the stores add no retry |
