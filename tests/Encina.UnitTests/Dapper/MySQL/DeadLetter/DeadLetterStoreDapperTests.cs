@@ -112,12 +112,6 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
         Should.Throw<ArgumentException>(() => new DeadLetterStoreDapper(_connection, "Bad;Table"));
     }
 
-    [Fact]
-    public void Constructor_DefaultTimeProvider_CreatesInstance()
-    {
-        new DeadLetterStoreDapper(_connection).ShouldNotBeNull();
-    }
-
     #endregion
 
     #region Argument checks

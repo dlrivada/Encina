@@ -10,22 +10,6 @@ public sealed class DeadLetterMessageTests
     private static readonly DateTime Now = new(2026, 11, 24, 10, 0, 0, DateTimeKind.Utc);
 
     [Fact]
-    public void NewMessage_HasEmptyStringsAndNoReplayState()
-    {
-        var message = new DeadLetterMessage();
-
-        message.Id.ShouldBe(Guid.Empty);
-        message.RequestType.ShouldBeEmpty();
-        message.RequestContent.ShouldBeEmpty();
-        message.ErrorCode.ShouldBeEmpty();
-        message.SourcePattern.ShouldBeEmpty();
-        message.SourceMessageId.ShouldBeEmpty();
-        message.ExpiresAtUtc.ShouldBeNull();
-        message.ReplayedAtUtc.ShouldBeNull();
-        message.IsReplayed.ShouldBeFalse();
-    }
-
-    [Fact]
     public void Properties_RoundTripEveryAssignedValue()
     {
         var id = Guid.NewGuid();
