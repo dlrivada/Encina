@@ -83,7 +83,7 @@ public static class DeadLetterErrorCodes
     /// <summary>
     /// Multi-tenancy is in use, no tenant is resolved and the caller did not set
     /// <see cref="DeadLetterFilter.AllTenants"/>, so <see cref="IDeadLetterManager"/> denied the operation.
-    /// An <c>encina.authorization.*</c> code: transports map it to 403.
+    /// An <c>encina.authorization.*</c> code: the error is <see cref="ErrorCategory.InvalidRequest"/> (HTTP 400).
     /// </summary>
     public const string TenantRequired = "encina.authorization.dlq_tenant_required";
 

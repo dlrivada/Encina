@@ -455,7 +455,7 @@ public sealed class RecoverabilityPipelineBehavior<TRequest, TResponse> : IPipel
     {
         var duration = _timeProvider.GetUtcNow().UtcDateTime - startTime;
         // Only the exception type: its message can carry personal data (AGENTS.md section 3).
-        var error = EncinaErrors.Create(RecoverabilityErrorCodes.ExceptionThrown, ex.GetType().Name, ex);
+        var error = EncinaErrors.Create(RecoverabilityErrorCodes.ExceptionThrown, ErrorCategory.Internal, ex.GetType().Name, ex);
         var classification = _errorClassifier.Classify(error, ex);
 
         recoverabilityContext.RecordFailedAttempt(error, ex, classification, duration);
@@ -653,7 +653,7 @@ internal static class RetryAfterCeiling
     /// </summary>
     internal static EncinaError CreateError(string originalErrorCode) =>
         EncinaErrors.Create(
-            RecoverabilityErrorCodes.RetryAfterExceedsCeiling,
+            RecoverabilityErrorCodes.RetryAfterExceedsCeiling, ErrorCategory.Internal,
             "The Retry-After of the failure exceeds the configured ceiling; the message was dead-lettered.",
             details: new Dictionary<string, object?> { [OriginalErrorCodeKey] = originalErrorCode });
 }

@@ -191,7 +191,7 @@ public sealed class InboxOrchestrator
         {
             Log.MissingIdempotencyKey(_logger, requestType, correlationId);
             return Some(EncinaErrors.Create(
-                InboxErrorCodes.MissingMessageId,
+                InboxErrorCodes.MissingMessageId, ErrorCategory.InvalidRequest,
                 "Idempotent requests require a MessageId (IdempotencyKey)"));
         }
 
@@ -231,7 +231,7 @@ public sealed class InboxOrchestrator
                 return captured.LeftToArray()[0];
 
             return EncinaErrors.Create(
-                InboxErrorCodes.MaxRetriesExceeded,
+                InboxErrorCodes.MaxRetriesExceeded, ErrorCategory.Internal,
                 $"Message has failed {existingMessage.RetryCount} times and will not be retried");
         }
 
@@ -267,7 +267,7 @@ public sealed class InboxOrchestrator
         return _deadLetterCapture.CaptureAsync(
             attempt.Request,
             new DeadLetterContext(
-                EncinaErrors.Create(InboxProcessingFailed, "Inbox message used up its retries"),
+                EncinaErrors.Create(InboxProcessingFailed, ErrorCategory.Internal, "Inbox message used up its retries"),
                 exception,
                 DeadLetterSourcePatterns.Inbox,
                 failedAttempts,
@@ -301,7 +301,7 @@ public sealed class InboxOrchestrator
                 return captured.LeftToArray()[0];
         }
 
-        return EncinaErrors.FromException(InboxProcessingFailed, ex,
+        return EncinaErrors.FromException(InboxProcessingFailed, ErrorCategory.Internal, ex,
             $"Error processing inbox message {attempt.MessageId}");
     }
 
@@ -363,7 +363,7 @@ public sealed class InboxOrchestrator
         if (envelope == null)
         {
             return EncinaErrors.Create(
-                InboxErrorCodes.DeserializationFailed,
+                InboxErrorCodes.DeserializationFailed, ErrorCategory.Internal,
                 "Failed to deserialize cached response");
         }
 
@@ -374,7 +374,7 @@ public sealed class InboxOrchestrator
         }
 
         return EncinaErrors.Create(
-            InboxErrorCodes.CachedError,
+            InboxErrorCodes.CachedError, ErrorCategory.Internal,
             envelope.ErrorMessage ?? "Unknown error in cached response");
     }
 

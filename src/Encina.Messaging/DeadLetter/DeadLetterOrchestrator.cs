@@ -385,7 +385,7 @@ public sealed class DeadLetterOrchestrator
         {
             // The earlier dead letter was deleted between the insert and this read.
             return EncinaErrors.Create(
-                DeadLetterErrorCodes.StoreFailed,
+                DeadLetterErrorCodes.StoreFailed, ErrorCategory.Internal,
                 "The dead letter of the source message disappeared during capture");
         }
 

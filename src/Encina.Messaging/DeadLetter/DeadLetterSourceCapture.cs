@@ -192,7 +192,7 @@ public sealed class DeadLetterSourceCapture
             DeadLetterLog.SourceCaptureThrew(_logger, ex.ForLogging(), sourcePattern);
             DeadLetterMetrics.RecordStoreFailure(CaptureOperation, DeadLetterErrorCodes.CaptureFailed);
             return EncinaErrors.Create(
-                DeadLetterErrorCodes.CaptureFailed,
+                DeadLetterErrorCodes.CaptureFailed, ErrorCategory.Internal,
                 $"Capturing the dead letter threw {ex.GetType().FullName}");
         }
     }
@@ -205,7 +205,7 @@ public sealed class DeadLetterSourceCapture
     {
         DeadLetterLog.SourceCaptureRejected(_logger, exception?.ForLogging(), sourcePattern, DeadLetterErrorCodes.CaptureRejected);
         DeadLetterMetrics.RecordStoreFailure(CaptureOperation, DeadLetterErrorCodes.CaptureRejected);
-        return EncinaErrors.Create(DeadLetterErrorCodes.CaptureRejected, text);
+        return EncinaErrors.Create(DeadLetterErrorCodes.CaptureRejected, ErrorCategory.Internal, text);
     }
 
     private Either<EncinaError, Unit> Failed(string sourcePattern, EncinaError error)
