@@ -2,7 +2,7 @@
 
 > **Issue**: [#128](https://github.com/dlrivada/Encina/issues/128)
 > **Type**: Feature
-> **Complexity**: High (8 phases, 10 database providers, about 147 files in 14 pull requests)
+> **Complexity**: High (8 phases, 10 database providers, about 156 files in 14 pull requests)
 > **Estimated Scope**: ~1,700 lines of production code + ~4,500 lines of tests, scripts and documentation
 > **Family**: the issue also lists a Process Manager and a saga visualizer. The Process Manager is the family of #392 (core), #317 (Marten store, commands) and #296 (decisions); the visualizer is #439. This plan implements only the saga read side and refers to those plans by issue number.
 
@@ -17,13 +17,14 @@ Operators cannot see what a saga did. Today a saga row says where it is (`Curren
 3. **Metrics**: counts by type and status, completed/failed/compensated today, average and p95 completion time (`SagaMetricsSnapshot`), plus OpenTelemetry instruments.
 4. **Configuration and retention**: opt-in switch, history retention, optional step snapshots.
 
-**What exists today** (`origin/main` at `ff9a579c1`, 2026-11-24):
+**What exists today** (`origin/main` at `f2a0692ed`, 2026-11-24):
 
 - `ISagaState` has `SagaId`, `SagaType`, `Data`, `Status` (a string), `CurrentStep` (an int), `StartedAtUtc`, `CompletedAtUtc`, `ErrorMessage`, `LastUpdatedAtUtc`, `TimeoutAtUtc` (`src/Encina.Messaging/Sagas/ISagaState.cs`). The six statuses are string constants in `SagaStatus` (`Running`, `Completed`, `Compensating`, `Compensated`, `Failed`, `TimedOut`; `SagaOrchestrator.cs`), not an enum.
 - `ISagaStore` has `GetAsync`, `AddAsync`, `UpdateAsync`, `GetStuckSagasAsync`, `GetExpiredSagasAsync`, `SaveChangesAsync` and nothing that lists by type or status. Implementers: `SagaStoreADO` x3, `SagaStoreDapper` x3, `SagaStoreEF`, `SagaStoreMongoDB`, `FakeSagaStore` (`src/Encina.Testing.Fakes/Stores/FakeSagaStore.cs`) and the `InstrumentedSagaStore` decorator (`src/Encina.OpenTelemetry/MessagingStores/`); there is no in-memory default store in `Encina.Messaging`.
 - Only `SagaRunner` knows step names (`BuiltSagaDefinition<TData>.Steps`) and can time each one; `SagaOrchestrator.AdvanceAsync` takes a saga id and an optional data function (`SagaRunner.cs` lines 144-275). `new SagaRunner(` has 15 call sites in tests and none in `src/` (DI builds it: `services.AddScoped<ISagaRunner, SagaRunner>()`, `MessagingServiceCollectionExtensions.cs` line 369).
 - **The health check item of the issue already exists**: `SagaHealthCheck` reports stuck and expired sagas (`src/Encina.Messaging/Health/SagaHealthCheck.cs`).
 - `SagaOptions` (stuck-saga threshold and batch, default timeout) is exposed as `MessagingConfiguration.SagaOptions` (`MessagingConfiguration.cs` line 750), enabled by `config.UseSagas`.
+- The metrics meter is `new Meter("Encina", "1.0")` (`MessagingStoreMetrics`, `DeadLetterMetrics`, `MessagePurgeMetrics`); only the activity source is named `Encina.Messaging.Saga` (`SagaActivitySource.cs`). `MessagingStoreMetrics` already has the observable gauge `encina.saga.active_count` (`GetActiveSagaCount` callback) and the counter `encina.saga.transitions_total`.
 - The purge precedent is `MessagePurgeService : BackgroundService` (`src/Encina.Messaging/Purge/`).
 
 **Corrections to the issue text** (the sketch cannot be built as written):
@@ -86,7 +87,7 @@ The Process Manager section of #128 is the same pattern as #296, #317 and #392, 
 ### Rationale
 
 - A wins because three sibling plans are rewriting `ISagaStore` and its nine implementers at the same time, and a read model has different needs (indexes, paging) from the write path. B wins when the maintainer prefers one interface and accepts the ordering with #738 and #720.
-- The new interfaces are registered only when `config.UseSagaVisibility` is on (pay-for-what-you-use).
+- The new interfaces are registered only when `config.UseSagaVisibility` is on (pay-for-what-you-use). The three stores are scoped (they share the request's connection or `DbContext`), so the singleton purge service and the gauge callback open a scope per call through `IServiceScopeFactory` (Phase 2 task 5).
 - **Class:** Dilemma
 
 </details>
@@ -271,10 +272,11 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. **`SagaOptions`** (existing class, `SagaOrchestrator.cs`): add `EnableStepHistory` (default `false`), `StepHistoryRetention` (default 30 days), `SnapshotDataOnEachStep` (default `false`), `MetricsSampleSize` (default 1,000), `StepHistoryPurgeInterval` (default 1 hour) with validation at startup; **`MessagingConfiguration.UseSagaVisibility`** (default `false`, requires `UseSagas`; enforced by startup validation, ADR-050).
+1. **`SagaOptions`** (existing class, `SagaOrchestrator.cs`): add `EnableStepHistory` (default `false`), `StepHistoryRetention` (default 30 days), `SnapshotDataOnEachStep` (default `false`), `MetricsSampleSize` (default 1,000), `StepHistoryPurgeInterval` (default 1 hour) with validation at startup; **`MessagingConfiguration.UseSagaVisibility`** (default `false`, requires `UseSagas`; enforced by startup validation). `UseSagaVisibility` is a requirement that is not in the closed list of ADR-050 ("a requirement that is not in the table does not exist; adding one is an amendment"), so PR 14 amends `docs/architecture/adr/050-modules-may-require-modules.md` with a Messaging row "Saga visibility requires Sagas" (source issue #128) and the registration must not claim the requirement before that amendment is merged. **Which switch gates what**: `UseSagaVisibility` registers the query service, the query store and the purge service; `SagaOptions.EnableStepHistory` decides whether the provider extension registers `ISagaStepStore` at all. The runner receives no options: it records a step only when it was handed a non-null `ISagaStepStore`, so with `EnableStepHistory` off (or visibility off) the store is not registered, the optional parameter stays null and nothing is recorded; `ISagaQueryService.GetHistoryAsync` then returns `saga.step_history_disabled`.
 2. **`SagaQueryService`** (scoped): validates the query, applies the tenant rule (Phase 4), calls the query store, computes the metrics snapshot (Design Choice 4), uses `TimeProvider` for "today" (the UTC day).
-3. **`SagaRunner`** (existing): two optional trailing constructor parameters `ISagaStepStore? stepStore = null, TimeProvider? timeProvider = null`; after each step it builds a `SagaStepRecord` and calls `RecordStepAsync` when the store is not null; a `Left` is returned (Design Choice 7). No existing call site changes.
+3. **`SagaRunner`** (existing): two optional trailing constructor parameters `ISagaStepStore? stepStore = null, TimeProvider? timeProvider = null`; after each step it builds a `SagaStepRecord` and calls `RecordStepAsync` when the store is not null (the single gate in the runner; `EnableStepHistory` acts at registration, task 1); a `Left` is returned (Design Choice 7). No existing call site changes.
 4. **Registration**: `RegisterSagas` in `MessagingServiceCollectionExtensions.cs` registers `ISagaQueryService` and the purge service when `UseSagaVisibility` is on; the provider extensions register `ISagaStepStore` and `ISagaQueryStore` with `TryAdd*`, so a database store wins in any registration order and never overrides the application's own. A DI test with `ValidateOnBuild` and `ValidateScopes` proves it.
+5. **Scoped stores from singletons**: `ISagaStepStore` and `ISagaQueryStore` are scoped (they share the connection or `DbContext` of the scope). `SagaStepHistoryPurgeService` (a singleton hosted service) and the gauge callback must not take them in a constructor: both receive `IServiceScopeFactory` and create a scope per purge cycle or refresh, resolving the store inside it. The existing gauge `encina.saga.active_count` (`GetActiveSagaCount`, a synchronous `Func<long>`) is the only active-saga gauge (no second gauge is added): the purge service cycle reads the status counts inside its scope and publishes the sum of the non-terminal statuses to a cached `long` that the callback returns without blocking on the async store; the value is at most one `StepHistoryPurgeInterval` stale. The DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` with the visibility switches on and proves that neither singleton captures a scoped service.
 
 </details>
 
@@ -291,7 +293,7 @@ Add the options, UseSagaVisibility, SagaQueryService, the optional runner parame
 KEY RULES:
 - Optional parameters go last (CS1737); existing call sites compile unchanged.
 - A Left from RecordStepAsync is returned by the runner, never logged and dropped.
-- Time comes from TimeProvider; no scoped service is injected into a singleton.
+- Time comes from TimeProvider; the purge service and the gauge callback use IServiceScopeFactory, never a scoped store in a singleton.
 - TryAdd* registrations; the DI test builds the provider with ValidateOnBuild and ValidateScopes.
 
 REFERENCE FILES:
@@ -366,7 +368,7 @@ REFERENCE FILES:
 2. **Validation**: `SagaQuery` is validated before any store call (`saga.invalid_query`).
 3. **Idempotency**: `RecordStepAsync` is idempotent by `(SagaId, StepIndex, Result)`: a repeated record of the same step outcome after a retry returns `Right(Unit)` without a second row (unique index).
 4. **Health check**: the existing `SagaHealthCheck` is unchanged; a history-store failure surfaces as the saga operation's `Left`.
-5. **Retention**: `SagaStepHistoryPurgeService : BackgroundService` runs `PurgeOlderThanAsync` per interval; each cycle catches its failure, logs the error code through `ForLogging()` and keeps running; concurrent nodes are safe because the delete is idempotent.
+5. **Retention**: `SagaStepHistoryPurgeService : BackgroundService` runs `PurgeOlderThanAsync` per interval, resolving `ISagaStepStore` from a scope created per cycle through `IServiceScopeFactory`; each cycle catches its failure, logs the error code through `ForLogging()` and keeps running; concurrent nodes are safe because the delete is idempotent.
 
 </details>
 
@@ -404,8 +406,8 @@ REFERENCE FILES:
 
 1. **EventId range**: register `MessagingSagaVisibility = (12250, 12269)` in `src/Encina/Diagnostics/EventIdRanges.cs` BEFORE any `[LoggerMessage]`; add the registry row, the `PublicAPI.Unshipped.txt` line of `Encina` and the `Encina.Messaging` entry of `AssemblyRanges` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`. Ids packed from 12250: step recorded (12250), step record failed (12251), history purged (12252), purge cycle failed (12253), query denied (12254), metrics snapshot failed (12255).
 2. **`SagaVisibilityLog`** (`[LoggerMessage]`) in `src/Encina.Messaging/Diagnostics/`: the saga type and the error code only; never a saga id, tenant id, step name from data, snapshot or `EncinaError.Message`.
-3. **Instruments** in the existing `Encina.Messaging` meter: `Counter<long> encina.saga.steps` (tags saga type, step result), `Histogram<double> encina.saga.step_duration` (ms), `Histogram<double> encina.saga.completion_time` (ms), `ObservableGauge<long> encina.saga.active` fed by the status counts; no `_total` suffix; the tenant tag only when multi-tenancy is on (ADR-054 D4). The saga type is bounded by the registered definitions; step names are not a tag.
-4. **Span**: `encina.saga.query` in the existing `Encina.Messaging.Saga` source with the query kind.
+3. **Instruments** in the existing `Encina` meter (`new Meter("Encina", "1.0")`, as `MessagingStoreMetrics`): `Counter<long> encina.saga.steps` (tags saga type, step result), `Histogram<double> encina.saga.step_duration` (unit `s`, seconds as ADR-054 decision 4 requires; the stored `DurationMs` is converted), `Histogram<double> encina.saga.completion_time` (unit `s`); the active-saga gauge is the existing `encina.saga.active_count` (no new gauge; its callback is fed as Phase 2 task 5 says); no `_total` suffix on the new names (the existing `encina.saga.transitions_total` and `active_count` keep theirs); the tenant tag only when multi-tenancy is on (ADR-054 D4). The saga type is bounded by the registered definitions; step names are not a tag.
+4. **Span**: `encina.saga.query` in the existing `Encina.Messaging.Saga` activity source with the query kind.
 
 </details>
 
@@ -421,7 +423,7 @@ Register the range, add the log class, the instruments and the span, instrument 
 
 KEY RULES:
 - Register in EventIdRanges.cs, the registry page, PublicAPI.Unshipped.txt and AssemblyRanges BEFORE using an id; ids packed from 12250 without gaps.
-- Instruments have no _total suffix; tags are bounded; no raw tenant, saga or user id in a tag or log.
+- Instruments live in Meter("Encina"), durations are seconds (unit s), new names have no _total suffix; tags are bounded; no raw tenant, saga or user id in a tag or log.
 - Run EncinaEventIdAllocationTests and EventIdRegistryAgreementTests.
 
 REFERENCE FILES:
@@ -487,7 +489,7 @@ REFERENCE FILES:
 
 1. XML docs on every public member; `changelog.d/128-saga-visibility.added.md`.
 2. `docs/features/saga-visibility.md` (enabling it, querying, metrics, retention, privacy of snapshots), the `Encina.Messaging` README, `docs/INVENTORY.md`, `ROADMAP.md`.
-3. An ADR for the separate read store (number assigned when the ADR pull request opens).
+3. An ADR for the separate read store (number assigned when the ADR pull request opens) and the ADR-050 amendment row for `UseSagaVisibility` requires Sagas (Phase 2 task 1), an edit of the existing `050-modules-may-require-modules.md`.
 4. `PublicAPI` files; `dotnet build --configuration Release` with zero warnings; per-flag coverage measured against the manifests.
 
 </details>
@@ -521,7 +523,7 @@ Every count includes the tests, manifest edits, PublicAPI lines and `ProjectRefe
 
 | PR | Content | Files | Lines |
 |----|---------|-------|-------|
-| 1 | Phase 1 contract: 8 new types and interfaces, `Encina.Messaging` PublicAPI, manifest, 1 unit test, 1 guard test | 12 | 700 |
+| 1 | Phase 1 contract: 10 new types and interfaces (`SagaStepResult`, `SagaStepRecord`, `ISagaStepStore`, `SagaQuery`, `SagaPage<T>`, `SagaStatusCount`, `ISagaQueryStore`, `SagaDetails`, `SagaMetricsSnapshot`, `ISagaQueryService`), `Encina.Messaging` PublicAPI, manifest, 1 unit test, 1 guard test | 14 | 800 |
 | 2 | Phase 2 options and wiring: `SagaOptions`, `MessagingConfiguration` flag, `SagaErrorCodes` (3 modified), `SagaRunner` hook (modified), `SagaQueryService`, registration (modified), PublicAPI, manifest, 3 unit tests, DI proof, guard | 13 | 1,200 |
 | 3 | Phase 3 fakes: `FakeSagaStepStore`, `FakeSagaQueryStore`, PublicAPI, manifest, unit test, contract test | 6 | 500 |
 | 4 | Phase 5 observability: log class, instruments, span, `EventIdRanges.cs`, registry page, `AssemblyRanges` test, `Encina` PublicAPI, 2 manifests, 2 unit tests | 12 | 800 |
@@ -530,9 +532,9 @@ Every count includes the tests, manifest edits, PublicAPI lines and `ProjectRefe
 | 9-11 | Phase 3 Dapper: one pull request per provider, same shape | 12 each | 1,000 each |
 | 12 | Phase 3 EF Core: 2 stores, entity, configuration, DI line, PublicAPI, manifest, unit, guard, 3 integration classes | 14 | 1,300 |
 | 13 | Phase 3 MongoDB: 2 stores, indexes, DI line, PublicAPI, manifest, unit, guard, integration | 9 | 800 |
-| 14 | Phase 7 documentation: guide, README, INVENTORY, ROADMAP, ADR, changelog fragment, load and benchmark justification files | 8 | 600 |
+| 14 | Phase 7 documentation: guide, README, INVENTORY, ROADMAP, ADR, ADR-050 amendment (existing file), changelog fragment, load and benchmark justification files | 9 | 700 |
 
-Total: 14 pull requests, about 147 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull requests 6 to 13 follow #738's column pull requests and are independent of each other.
+Total: 14 pull requests, 156 files (14 + 13 + 6 + 12 + 7 + 3 x 12 + 3 x 12 + 14 + 9 + 9); no pull request exceeds 15 files or 1,500 lines. Pull requests 6 to 13 follow #738's column pull requests and are independent of each other.
 
 ---
 
@@ -556,7 +558,7 @@ Total: 14 pull requests, about 147 files (upper estimate); no pull request excee
 | `SagaStatus`, `SagaOrchestrator` | `src/Encina.Messaging/Sagas/SagaOrchestrator.cs` | The six status strings; the orchestrator never calls `SaveChangesAsync` |
 | `SagaRunner` | `src/Encina.Messaging/Sagas/LowCeremony/SagaRunner.cs` | The only caller that knows step names and can time each step; place of the recording hook |
 | `SagaHealthCheck` | `src/Encina.Messaging/Health/SagaHealthCheck.cs` | Already reports stuck and expired sagas; unchanged |
-| `SagaActivitySource` and `MessagingStoreMetrics` | `src/Encina.Messaging/Diagnostics/` | Existing source `Encina.Messaging.Saga` and meter with the saga transition counter |
+| `SagaActivitySource` and `MessagingStoreMetrics` | `src/Encina.Messaging/Diagnostics/` | Existing activity source `Encina.Messaging.Saga` and the `Encina` meter with the saga transition counter and `encina.saga.active_count` |
 | `InstrumentedSagaStore` | `src/Encina.OpenTelemetry/MessagingStores/InstrumentedSagaStore.cs` | Decorator over `ISagaStore`; not changed (the new stores are separate interfaces) |
 | `SagaOptions` | `src/Encina.Messaging/Sagas/SagaOrchestrator.cs` | Existing options exposed as `MessagingConfiguration.SagaOptions` |
 | `MessagePurgeService` | `src/Encina.Messaging/Purge/MessagePurgeService.cs` | Shape of the retention loop |
@@ -586,12 +588,12 @@ Total: 14 pull requests, about 147 files (upper estimate); no pull request excee
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| `Encina.Messaging` source (new or modified) | ~22 | Contract, options, service, runner hook, purge, diagnostics, DI |
+| `Encina.Messaging` source (new or modified) | ~24 | Contract, options, service, runner hook, purge, diagnostics, DI |
 | Provider stores and scripts | ~44 | Eight packages: two stores, entity or mapping, script, aggregate script, DI line |
-| Fakes, registry and manifests | ~16 | Fakes, `EventIdRanges.cs`, registry page, `AssemblyRanges` test, manifests, PublicAPI |
-| Tests | ~57 | Unit, guard, contract, property, DI, integration (eight classes), justification files |
-| Documentation | ~8 | Guide, README, INVENTORY, ROADMAP, ADR, changelog fragment |
-| **Total** | **~147 in 14 pull requests** | Equals the sum of the split table |
+| Fakes, registry and manifests | ~18 | Fakes, `EventIdRanges.cs`, registry page, `AssemblyRanges` test, manifests, PublicAPI |
+| Tests | ~61 | Unit, guard, contract, property, DI, integration (eight classes), justification files |
+| Documentation | ~9 | Guide, README, INVENTORY, ROADMAP, ADR, ADR-050 amendment, changelog fragment |
+| **Total** | **156 in 14 pull requests** | Equals the sum of the split table (24 + 44 + 18 + 61 + 9) |
 
 ---
 
@@ -639,7 +641,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ | Deferred (as the issue says): short-lived caching of query results; the saga store cache is #696; issue file `artifacts/issues/saga-visibility-query-cache.md` |
-| 2 | OpenTelemetry | ✅ | Phase 5: counters, histograms, gauge and the `encina.saga.query` span in the existing `Encina.Messaging` source and meter; tenant tag only when multi-tenancy is on |
+| 2 | OpenTelemetry | ✅ | Phase 5: counter, histograms (seconds) and the `encina.saga.query` span; instruments in the `Encina` meter, the span in the `Encina.Messaging.Saga` activity source; the existing `encina.saga.active_count` gauge is reused; tenant tag only when multi-tenancy is on |
 | 3 | Structured Logging | ✅ | Phase 5: `SagaVisibilityLog` in 12250-12269 (registered first); saga type and error code only |
 | 4 | Health Checks | ❌ | Not applicable as new work: the issue's stuck-saga check already exists as `SagaHealthCheck` |
 | 5 | Validation | ✅ | Phase 4: `SagaQuery` validated (`saga.invalid_query`); the issue marked it not applicable because the API is read-only, but a page size and a status are caller input |
