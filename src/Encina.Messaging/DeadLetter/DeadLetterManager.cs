@@ -158,7 +158,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         DeadLetterLog.TenantRequiredDenied(_logger, operation, DeadLetterErrorCodes.TenantRequired);
         return EncinaErrors.Create(
-            DeadLetterErrorCodes.TenantRequired,
+            DeadLetterErrorCodes.TenantRequired, ErrorCategory.InvalidRequest,
             "Multi-tenancy is in use and no tenant is resolved");
     }
 
@@ -204,7 +204,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     private static EncinaError NotFoundError(Guid messageId)
-        => EncinaErrors.Create(DeadLetterErrorCodes.NotFound, $"Dead letter message {messageId} not found");
+        => EncinaErrors.Create(DeadLetterErrorCodes.NotFound, ErrorCategory.NotFound, $"Dead letter message {messageId} not found");
 
     /// <summary>
     /// The outcome of claiming and replaying one message. <c>MessageRejected</c> marks a <c>Left</c> that
@@ -250,13 +250,13 @@ public sealed class DeadLetterManager : IDeadLetterManager
     {
         if (message.IsReplayed)
         {
-            rejection = EncinaErrors.Create(DeadLetterErrorCodes.AlreadyReplayed, $"Message {messageId} has already been replayed");
+            rejection = EncinaErrors.Create(DeadLetterErrorCodes.AlreadyReplayed, ErrorCategory.Conflict, $"Message {messageId} has already been replayed");
             return true;
         }
 
         if (message.IsExpiredAt(now))
         {
-            rejection = EncinaErrors.Create(DeadLetterErrorCodes.Expired, $"Message {messageId} has expired");
+            rejection = EncinaErrors.Create(DeadLetterErrorCodes.Expired, ErrorCategory.Conflict, $"Message {messageId} has expired");
             return true;
         }
 
@@ -322,7 +322,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
                 return new ReplayStep(recorded.LeftToArray()[0]);
 
             DeadLetterMetrics.RecordReplayed(succeeded: false);
-            return new ReplayStep(EncinaErrors.Create(plan.ErrorCode, plan.ErrorText!), MessageRejected: true);
+            return new ReplayStep(EncinaErrors.Create(plan.ErrorCode, ErrorCategory.Internal, plan.ErrorText!), MessageRejected: true);
         }
 
         // Replay through IEncina.Publish (notifications) or IEncina.Send, typed by the runtime type
@@ -581,7 +581,7 @@ public sealed class DeadLetterManager : IDeadLetterManager
     }
 
     private static EncinaError NotDeletedError(Guid messageId)
-        => EncinaErrors.Create(DeadLetterErrorCodes.DeleteFailed, $"Dead letter message {messageId} not found or could not be deleted");
+        => EncinaErrors.Create(DeadLetterErrorCodes.DeleteFailed, ErrorCategory.NotFound, $"Dead letter message {messageId} not found or could not be deleted");
 
     // True when there is no ambient tenant, the message does not exist (the delete reports that) or the
     // message belongs to the ambient tenant.

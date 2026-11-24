@@ -176,7 +176,7 @@ public abstract class OutboxProcessorBase : BackgroundService
         if (notification is not INotification typedNotification)
         {
             return ValueTask.FromResult<Either<EncinaError, Unit>>(EncinaErrors.Create(
-                OutboxErrorCodes.UnknownNotificationType,
+                OutboxErrorCodes.UnknownNotificationType, ErrorCategory.Internal,
                 $"Type {message.NotificationType} does not implement {nameof(INotification)}"));
         }
 
