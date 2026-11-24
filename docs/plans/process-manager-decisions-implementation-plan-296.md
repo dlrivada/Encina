@@ -12,7 +12,7 @@
 
 #296 describes a Process Manager that **decides the next step at run time** from the process data and its history (the EIP definition), as opposed to a saga whose steps are a fixed sequence. After the #392 core exists, what #296 adds is exactly the decision loop: an author writes `DecideAsync(data, history)`, the engine executes the chosen action, records it and asks again until the definition says wait, complete or fail.
 
-**What exists today** (`origin/main` at `2c05dd960`, 2026-11-24):
+**What exists today** (`origin/main` at `6e73e575d`, 2026-11-24):
 
 - No process manager code (`git grep -il ProcessManager origin/main -- src` is empty). The fixed-sequence alternative is `SagaDefinition<TData>`/`BuiltSagaDefinition<TData>` and `SagaRunner` (`src/Encina.Messaging/Sagas/LowCeremony/`), which runs steps in order and compensates in reverse. `src/Encina.Messaging/RoutingSlip/` carries predefined dynamic routes.
 - Commands are sent with `IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)` (`src/Encina/Abstractions/IEncina.cs`).
@@ -187,14 +187,14 @@ The step table is an audit trail; free text is how an `EncinaError.Message` or a
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The handler saves the event's own step (ordinal 0) before the engine runs; a recorded `(key, 0)` makes the redelivery a no-op before any action is sent** | A fully handled event never re-sends an action; one rule for all managers | An event that crashes between the ordinal-0 save and the first engine step is not resumed by its own redelivery (the next event resumes it through the saved state) |
-| **B) The handler saves the event's own step last, after the engine** | A crash anywhere resumes through the same event's redelivery | A fully handled redelivery re-runs decisions and re-sends actions until its last save is reached; the actions must be idempotent in every case |
+| **A) The handler saves the event's own step (ordinal 0) before the engine runs, and the engine always starts from the STORED snapshot (the handler reloads it with `GetAsync` after the save). The store returns `Right(Unit)` for a duplicate with no flag (#392), so the handler never tries to tell a duplicate from a stored step: a redelivery re-applies the event handler to a throw-away in-memory copy, the ordinal-0 save is a silent no-op, and the engine resumes from the persisted state, which already holds every action saved before the crash** | A redelivery after a crash between actions resumes at the first unsaved action; a fully handled redelivery computes `Wait` or `Complete` again and sends no action (the definition is a deterministic function of data and history, a documented rule); no change to the #392 store contract | One extra `GetAsync` per event; a redelivery runs `DecideAsync` once more even when nothing is left to do |
+| **B) The handler saves the event's own step last, after the engine** | A crash anywhere resumes through the same event's redelivery with no reload | A fully handled redelivery re-runs decisions from the pre-event state and re-sends actions until its last save is reached; the actions must be idempotent in every case |
 
-### Chosen Option: **A — Event step first** (recommended, pending the maintainer)
+### Chosen Option: **A — Event step first, engine resumes from stored state** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins because it keeps the at-least-once window as small as possible and gives a duplicate a clear stop; B wins when crash resumption by the same event matters more than duplicate suppression. The choice sets the handler order of the #392/#317 routing handler, so the maintainer's answer is applied to #392 pull request 4 and #317 pull request 1 as well.
+- A wins because a crash resumes through redelivery (as B) and a fully handled event sends nothing again (unlike B), with no contract change. The "already handled" check does not live in the handler: it is the engine's own state-driven decision plus the derived idempotency keys of Phase 2 task 4. B wins when a redelivery must never read the stored state again. Under both options `Dispatch` commands of #317 are sent before the ordinal-0 save and are re-sent on any redelivery (their handlers must be idempotent, #317 Design Choice 2). The choice sets the handler order of the #392/#317 routing handler, so the maintainer's answer is applied to #392 pull request 4 and #317 pull request 1 as well.
 - **Class:** Dilemma
 
 </details>
@@ -238,7 +238,7 @@ KEY RULES:
 REFERENCE FILES:
 - src/Encina/Abstractions/IEncina.cs
 - src/Encina.Messaging/Sagas/LowCeremony/SagaDefinition.cs (builder style)
-- src/Encina.ProcessManager/ProcessManagerErrorCodes.cs (from #392)
+- src/Encina.ProcessManager/ProcessManagerErrors.cs (from #392; it holds the error codes and their factory methods)
 ```
 
 </details>
@@ -255,8 +255,9 @@ REFERENCE FILES:
 1. **`ProcessDecisionEngine`** (internal, scoped; takes `IEncina`, `IProcessManagerStore`, `ProcessDecisionOptions`, `TimeProvider`, a logger): `AdvanceAsync(manager, snapshot, CancellationToken)`: loop { load history (`GetStepsAsync`); `DecideAsync`; `Continue` runs `ExecuteAsync`, applies the result to the data, appends a step; `Wait` records a `waiting` step and stops; `Complete` calls `Complete()`; `Fail` calls `Fail(reasonCode)` }.
 2. **Bounds**: at most `MaxStepsPerAdvance` actions per call (default 32); beyond it the engine stops, saves what was done and returns `processmanager.decision_loop_exceeded`. After `MaxActionAttempts` consecutive failures of the same action name (default 3) the engine sets the process `Failed` and returns `processmanager.action_attempts_exceeded` (Design Choice 4).
 3. **Failed action**: a `Left` from `ExecuteAsync` is recorded as a step with outcome `action_failed` and the error code (never the message), the state is saved, and `DecideAsync` is asked again.
-4. **Hook and order**: for a `ProcessManagerDefinition<TData>` the routing handler of #392/#317 runs, in this order: the manager's event handler; the pending `Dispatch` commands of #317 (sent first); the save of the event's own step (ordinal 0, by the handler, as in #392/#317); the engine; there is no `IsFinished` check, because a definition ends through `Decision.Complete` or `Decision.Fail`, which the engine saves itself. Every other manager keeps the #317 order (dispatch, `IsFinished`, save) unchanged, so each manager kind has one editor of the handler's method in one order.
-   **Ordinals**: the engine saves several steps of one event under the same idempotency key, so each save carries a distinct `ProcessStep.Ordinal` (#392): the n-th save of an `AdvanceAsync` call uses `base + n`, where `base` is the number of steps of the process loaded for `DecideAsync` at the start of the call (the history already includes the event's own step, ordinal 0, so the first engine step is at least 1). Because `base` is read from storage, a redelivery after a crash computes ordinals the earlier attempt never used, so the unsaved actions are persisted and the saved ones are not duplicated (the loaded state already includes them); the unique key `(process, idempotency key, ordinal)` of #392 then drops only a true second save of the same step. A redelivery after a fully handled event is stopped by the handler's own ordinal-0 step, which is saved before the engine runs (see Dilemma D5).
+4. **Hook and order**: for a `ProcessManagerDefinition<TData>` the routing handler of #392/#317 runs, in this order: the manager's event handler; the pending `Dispatch` commands of #317 (sent first); the save of the event's own step (ordinal 0, by the handler, as in #392/#317); a reload of the stored snapshot by the handler (`GetAsync`; this plan's addition to the hook, needed because `SaveAsync` returns `Right(Unit)` for a duplicate with no flag, #392); the engine; there is no `IsFinished` check, because a definition ends through `Decision.Complete` or `Decision.Fail`, which the engine saves itself. Every other manager keeps the #317 order (dispatch, `IsFinished`, save) unchanged, so each manager kind has one editor of the handler's method in one order.
+   **Crash and redelivery (Dilemma D5-A)**: the engine always works on the STORED snapshot and its history, never on the in-memory copy the event handler mutated. A redelivery therefore re-applies the event handler to a copy that is discarded, finds its ordinal-0 save a silent no-op, reloads the stored state and lets `DecideAsync` choose the next action from it: after a crash that saved actions 1 and 2 of 4, the redelivery decides action 3 and then 4, and never repeats 1 or 2, because the decision function sees them in the data and history. Nothing in the handler or the engine needs to know whether a save was a duplicate. A redelivery of a fully handled event decides `Wait` or `Complete` again (the waiting step is dropped as a duplicate, a terminal process is left alone) and sends no action; this relies on the rule that a definition is a deterministic function of data and history, stated in the XML docs and the guide.
+   **Idempotency keys of engine steps**: the engine saves each step with `ordinal = 0` and a derived key `"{eventKey}/a{position}"`, where `position` is the process-wide step count at that save (the history length loaded for `DecideAsync` plus one). `position` only grows, so a key is never reused by a later step, and the unique `(process, key, ordinal)` guard of #392 drops only a retried identical save of the same step (for example a lost response); concurrent writers are stopped by `expectedVersion` (`processmanager.concurrency_conflict`). A null event key gives a null derived key (no guard, as #392). This stays inside the #392 contract (any recorded `(key, ordinal)` pair of a process is a no-op, any other is persisted), so #392 needs no change; the `Ordinal` of #392 stays "the position within one event" and the engine does not use values above 0.
 5. **`ProcessDecisionOptions`** (`MaxStepsPerAdvance`, `MaxActionAttempts`) validated at startup; registration `AddProcessManagerDefinition<TDefinition, TData>()` with `TryAdd*`.
 6. Every `Left` of the store, the engine or an action is returned or recorded, never swallowed; saving uses `SaveAsync(snapshot, expectedVersion, step, idempotencyKey)` of #392, so a concurrent writer gets `processmanager.concurrency_conflict`.
 
@@ -274,6 +275,7 @@ Implement the engine, its options, the registration and the hook, with unit test
 
 KEY RULES:
 - The loop is bounded; both bounds return a Left with an ADR-062 category.
+- The handler reloads the stored snapshot after the ordinal-0 save and the engine decides from it; engine steps use ordinal 0 and the derived key "{eventKey}/a{position}" (task 4); SaveAsync gives no duplicate flag, so no code tests for one.
 - A failed action is recorded with its error code only, then the definition decides again.
 - No scoped service is injected into a singleton; the engine is scoped and created per event.
 - TimeProvider for timestamps; tests use FakeTimeProvider, no Thread.Sleep.
@@ -332,7 +334,7 @@ REFERENCE FILES:
 
 1. **Validation**: decisions and reason codes are validated (Phase 1); options validated at startup.
 2. **Transactions**: each action is followed by a `SaveAsync` of the new data and its step, so a crash between two actions resumes from the last saved step; an action is sent before its save (at-least-once, the action's command handler must be idempotent), the same order as #317 Design Choice 2.
-3. **Idempotency**: the idempotency key of the event with the step ordinal guards each saved step (`(process, key, ordinal)` of #392, ordinals assigned by the engine as in Phase 2 task 4); an action is guarded by the command handler's own inbox (documented).
+3. **Idempotency**: the event's own step is guarded by `(process, eventKey, 0)` of #392; each engine step by its derived key `"{eventKey}/a{position}"` (Phase 2 task 4). Neither stops a redelivery from resuming: the engine decides from the stored state. An action is guarded by the command handler's own inbox (documented), and the `Dispatch` commands of #317 are re-sent on a redelivery.
 4. **Audit trail**: the history is the step list of #392; every decision appends a step.
 
 </details>
@@ -345,10 +347,11 @@ CONTEXT:
 - Issue #296, Phase 4.
 
 TASK:
-Add the crash-resume test (the second action is not re-run after a saved first action) and the duplicate event test.
+Add the crash-resume test (a definition of four actions, the store fails after the second save, the redelivery of the same event with the same idempotency key completes actions 3 and 4, and the history holds exactly four action steps, none duplicated) and the fully-handled-redelivery test (no action is sent again).
 
 KEY RULES:
-- Actions are at-least-once; the test proves a crash after an action re-runs only the unsaved one.
+- Actions are at-least-once; the test proves a crash after an action re-runs only the unsaved ones (D5-A: the engine resumes from the stored snapshot).
+- Do not assert that the ordinal-0 save is "a duplicate" anywhere: the store gives no such signal.
 - No EncinaError.Message in any step, log or tag.
 
 REFERENCE FILES:
@@ -407,7 +410,7 @@ REFERENCE FILES:
 | Unit | engine loop, bounds, failed action, wait, complete, fail, validation of decisions | `ProcessDecisionEngine.cs` 90, `ProcessDecision.cs` 95, `ProcessAction.cs` 90 (pure logic against the in-memory store) |
 | Guard | public constructors, factories and the extension | `ProcessManagerDefinition.cs` 85, `ServiceCollectionExtensions.cs` 90 (null and empty arguments are the only branches) |
 | Contract | none new (the store contract is #392's) | justification file |
-| Unit (ordinals) | one event with three actions saves three steps with distinct ordinals under the same idempotency key and all three persist; a redelivery after a crash between actions 2 and 3 persists action 3 with a fresh ordinal and does not duplicate 1 and 2 | `ProcessDecisionEngine.cs` (same file target as above, in the engine unit test file) |
+| Unit (crash and redelivery) | one event with four actions saves four steps with distinct derived keys and all four persist; a crash after action 2 (the store fails the third save) and a redelivery of the same event: actions 3 and 4 are completed, 1 and 2 are not repeated, exactly four action steps exist; a redelivery of a fully handled event sends no action and adds no step | `ProcessDecisionEngine.cs` (same file target as above, in the engine unit test file) |
 | Property | a bounded engine always terminates: for any decision sequence the number of actions never exceeds `MaxStepsPerAdvance` (FsCheck) | `ProcessDecisionEngine.cs` 70 (one invariant over generated sequences) |
 | Integration | the saga recipe: an action whose handler runs `ISagaRunner` on a real database collection, plus a durable store crash-resume | `ProcessDecisionEngine.cs` 60 (the real paths across a real store) |
 
@@ -423,7 +426,7 @@ CONTEXT:
 - Issue #296, Phase 6.
 
 TASK:
-Write the tests of the table and the two justification files.
+Write the tests of the table and the three justification files (contract, load, benchmark).
 
 KEY RULES:
 - Tests execute real code; Shouldly through Encina.Testing.Shouldly; FakeTimeProvider; no Thread.Sleep.
@@ -478,13 +481,13 @@ REFERENCE FILES:
 
 | PR | Content | Files | Lines |
 |----|---------|-------|-------|
-| 1 | Phase 1: `ProcessDecisionType`, `ProcessDecision`, `ProcessAction`, `ProcessActionBuilder`, `ProcessManagerDefinition` (5), `ProcessManagerErrorCodes` and `ProcessManagerErrors` (modified), PublicAPI, manifest, 2 unit tests, 1 guard test | 11 | 900 |
+| 1 | Phase 1: `ProcessDecisionType`, `ProcessDecision`, `ProcessAction`, `ProcessActionBuilder`, `ProcessManagerDefinition` (5), `ProcessManagerErrors.cs` (1 modified file, #392 task 7), PublicAPI, manifest, 2 unit tests, 1 guard test | 11 | 900 |
 | 2 | Phases 2-3: engine, options, registration (3), routing-handler hook (modified), PublicAPI, manifest, 3 unit tests (engine loop, failure and bounds, hook), DI proof, guard | 11 | 1,200 |
 | 3 | Phase 5: log messages and counters (modified `ProcessManagerLog`, new metrics file), PublicAPI, 2 unit tests | 5 | 400 |
 | 4 | Phases 4 and 6: crash-resume test, property test (`PropertyTests` project reference exists after #392), saga-recipe integration test, ordinal integration test (several steps of one event on a durable store), 3 justification files | 7 | 800 |
 | 5 | Phase 7 documentation: guide section, README, INVENTORY, ROADMAP, changelog fragment | 5 | 350 |
 
-Total: 5 pull requests, 39 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs #392 pull request 1 (contract with `ProcessStep.Ordinal`) and edits no `ProcessManagerLog`; pull request 2 edits the routing handler and so needs #392 pull request 4 and #317 pull request 1 (its dispatch step); pull request 3 needs #392 pull request 2 (the `ProcessManager` range registration, `ProcessManagerLog` and the meter); pull request 4 needs a durable store: #317 pull request 2 (Marten) or one of the #392 provider pull requests 6 to 13 (the in-memory store of #392 pull request 3 is enough only for its non-integration tests).
+Total: 5 pull requests, 39 files (upper estimate); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs #392 pull request 1 (contract with `ProcessStep.Ordinal`) and edits no `ProcessManagerLog`; pull request 2 edits the routing handler and so needs #392 pull request 4 and #317 pull request 1 (its dispatch step); pull request 3 needs #392 pull request 2 (the `ProcessManager` range registration, `ProcessManagerLog` and the meter) and #296 pull request 2 (the engine the counters and logs instrument); pull request 4 needs a durable store: #317 pull request 2 (Marten) or one of the #392 provider pull requests 6 to 13 (the in-memory store of #392 pull request 3 is enough only for its non-integration tests).
 
 ---
 
