@@ -2,6 +2,7 @@ using Encina.Messaging.DeadLetter;
 using Encina.Messaging.Inbox;
 using Encina.Messaging.Recoverability;
 using Encina.Messaging.Serialization;
+using Encina.Recoverability;
 
 using LanguageExt;
 
@@ -200,7 +201,8 @@ public sealed class MessagingInfrastructureErrorCategoryTests
     {
         var orchestrator = NewInbox(Substitute.For<IInboxStore>());
 
-        var error = orchestrator.ValidateMessageId(null, "Req", "corr").ShouldBeSome();
+        var error = orchestrator.ValidateMessageId(null, "Req", "corr")
+            .IfNone(() => throw new InvalidOperationException("Expected an error."));
 
         error.GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.MissingMessageId);
         error.GetCategory().ShouldBe(ErrorCategory.InvalidRequest);
@@ -220,7 +222,7 @@ public sealed class MessagingInfrastructureErrorCategoryTests
         var result = await orchestrator.ProcessAsync<InboxResponse>(
             new InboxRequest("v"), "m-1", "Req", "corr", null, () => throw new InvalidOperationException("boom"));
 
-        CodeOf(result).ShouldBe(InboxErrorCodes.ProcessingFailed);
+        CodeOf(result).ShouldBe("inbox.processing_failed");
         CategoryOf(result).ShouldBe(ErrorCategory.Internal);
     }
 
