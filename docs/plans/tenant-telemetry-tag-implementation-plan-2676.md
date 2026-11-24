@@ -10,14 +10,14 @@
 
 ## Summary
 
-### What exists today (read on 2026-11-23, main `38204119d`)
+### What exists today (read on 2026-11-23, main `1dee4ba61`)
 
 - The issue names `ITenantContext`; **that type does not exist in `src`**. The tenant of a dispatch is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs`), the ambient context is held by `IRequestContextAccessor` (`RequestContextAccessor` is a singleton backed by an `AsyncLocal`, `src/Encina/Core/RequestContextAccessor.cs`), and "multi-tenancy is enabled" is the presence of the `MultiTenancyMarker` in the container (`src/Encina/Abstractions/MultiTenancyMarker.cs`, registered by `AddEncinaTenancy`, `src/Encina.Tenancy/ServiceCollectionExtensions.cs:109`). `QueryCachingPipelineBehavior` already uses it the way this plan needs: an optional trailing constructor parameter `MultiTenancyMarker? multiTenancy = null` stored as `_multiTenant` (`src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs:74-86`).
 - **No package applies one rule.** Thirteen sites in ten files tag the tenant today, under three different keys, and none checks that multi-tenancy is enabled:
   - `encina.tenant_id`: `RetryMetrics.cs:89` (core, `src/Encina/Recoverability/`), `RetryTelemetry.cs:28` (`Encina.Polly`), `OutboundTelemetry.cs:36` and `:54` (`Encina.Refit`), `TransferBlockingPipelineBehavior.cs:196` (`Encina.Compliance.CrossBorderTransfer`), `DPIARequiredPipelineBehavior.cs:197` (`Encina.Compliance.DPIA`), `DataMinimizationPipelineBehavior.cs:237` (`Encina.Compliance.PrivacyByDesign`), `ProcessorValidationPipelineBehavior.cs:199` (`Encina.Compliance.ProcessorAgreements`).
   - `tenancy.tenant_id`: `TenancyActivitySource.cs:61` and `:78` (`Encina.Tenancy`) and the public constant `ActivityTagNames.Tenancy.TenantId` used by `TenancyActivityEnricher.cs:33` and `:53` (`Encina.OpenTelemetry`).
   - `dsr.tenant_id`: `DataSubjectRightsDiagnostics.TagTenantId`, set at `DefaultDSRService.cs:429`.
-- The callers of the shared emitters are `RetryPipelineBehavior` (three calls to `RetryMetrics`, one to `RetryTelemetry`), `RecoverabilityPipelineBehavior`, `DelayedRetryProcessor`, `OutboxBatchProcessor` and `RestApiRequestHandler`; all are built by DI, so an optional trailing constructor parameter keeps every `new X(` site compiling (counted on main: `OutboxBatchProcessor` 4 sites, `DelayedRetryProcessor` 28, `RecoverabilityPipelineBehavior` 17, `RetryPipelineBehavior` 15, `RestApiRequestHandler` 14, `TransferBlockingPipelineBehavior` 8, `DPIARequiredPipelineBehavior` 12, `DataMinimizationPipelineBehavior` 13, `ProcessorValidationPipelineBehavior` 12, `DefaultDSRService` 31).
+- The callers of the shared emitters are `RetryPipelineBehavior` (three calls to `RetryMetrics`, one to `RetryTelemetry`), `RecoverabilityPipelineBehavior` (`context.TenantId`, lines 187, 215, 244), `RestApiRequestHandler`, `DelayedRetryProcessor` and `OutboxBatchProcessor`. The last two call `RetryMetrics.RecordSkipped(..., tenantId: null)` (`OutboxBatchProcessor.cs:329`, `DelayedRetryProcessor.cs:384`) because they work on stored messages and neither the outbox message nor the delayed-retry entry carries a tenant (grep of `src/Encina.Messaging/Outbox` and `Recoverability`: no `TenantId` besides these two nulls). They have no tenant source, so this plan does not touch them (Design Choice 6). The other behaviors are built by DI, so an optional trailing constructor parameter keeps every `new X(` site compiling (counted on main: `RecoverabilityPipelineBehavior` 17, `RetryPipelineBehavior` 15, `RestApiRequestHandler` 14, `TransferBlockingPipelineBehavior` 8, `DPIARequiredPipelineBehavior` 12, `DataMinimizationPipelineBehavior` 13, `ProcessorValidationPipelineBehavior` 12, `DefaultDSRService` 31).
 - The new instrumentation of the sibling plans (#721 `StoreTelemetry`, #723 `CacheTelemetry`, #724 `InstrumentedDistributedLockProvider`, #725 `TransportTelemetry`) all say "tenant tag through the helper of #2676, in its own pull request". Nothing in them writes a tag of its own, so this plan is the only owner of the key, the on/off rule and the value.
 - The issue's provider matrix lists the 10 database providers because their stores will be instrumented by #721, #722 and #759. The `parameters.Add("TenantId", ...)` lines in the ADO.NET and Dapper providers are SQL parameters of tenant isolation, not telemetry, and are not touched.
 - `ActivityTagNames` in core is `internal` (`src/Encina/Diagnostics/ActivityTagNames.cs`), so a package other than `Encina.OpenTelemetry` cannot read a constant from it; the helper must be public in core. #177 puts `MessagingSemanticConventions` in the same namespace (`Encina.Diagnostics`), so the namespace is settled by precedent.
@@ -25,7 +25,7 @@
 ### What this plan delivers
 
 - `Encina.Diagnostics.TenantTelemetry`, a `public static class` in core: the constant `AttributeName` (`encina.tenant_id`, Design Choice 2), `ValueFor(IRequestContext? context, bool multiTenancyEnabled)` and `ValueFor(string? tenantId, bool multiTenancyEnabled)` (return the tag value or `null`), `SetTenantTag(this Activity? activity, string? tenantId, bool multiTenancyEnabled)` and `AddTenantTag(this ref TagList tags, string? tenantId, bool multiTenancyEnabled)`. No tag is emitted when multi-tenancy is off, when the tenant is `null`, empty or whitespace; the helper never invents a tenant (no `default`) and never composes an id.
-- Migration of the 13 sites: each emitter stops writing its own literal and uses `TenantTelemetry.AttributeName`; each behavior or processor that decides the value takes `MultiTenancyMarker? multiTenancy = null` as its last optional constructor parameter and calls `ValueFor`. A host with no marker gets no tenant tag, which is the fail-to-no-tag path of the issue.
+- Migration of the 13 sites: each emitter stops writing its own literal and uses `TenantTelemetry.AttributeName`; each behavior that decides the value takes `MultiTenancyMarker? multiTenancy = null` as its last optional constructor parameter and calls `ValueFor`. A host with no marker gets no tenant tag, which is the fail-to-no-tag path of the issue.
 - `ActivityTagNames.Tenancy.TenantId` (public, `Encina.OpenTelemetry`) is removed and its two readers use the helper constant; the `tenancy.*` keys that describe resolution (`strategy`, `entity_type`, `outcome`) are not tenant ids and stay.
 - Shared pieces and owner: this plan owns `TenantTelemetry`; #721, #722, #723, #724, #725, #759, #726, #727, #222 and #273 call it; #906 owns the cardinality paragraph of the guide.
 - Affected packages: `Encina` (core), `Encina.Polly`, `Encina.Refit`, `Encina.Messaging`, `Encina.Tenancy`, `Encina.OpenTelemetry`, and the compliance packages `CrossBorderTransfer`, `DPIA`, `PrivacyByDesign`, `ProcessorAgreements`, `DataSubjectRights`. Provider category: none (the helper is provider-independent; the database providers call it through the instrumentation of #721, #722 and #759).
@@ -41,7 +41,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Pure functions that take the flag as a `bool`; each emitter obtains it from the `MultiTenancyMarker` through an optional trailing constructor parameter (the precedent of `QueryCachingPipelineBehavior`)** | No global state; parallel tests and several containers in one process cannot disturb each other; works for singleton, scoped and static emitters alike; fails to no tag when the marker is absent | Ten emitters gain one optional constructor parameter |
+| **A) Pure functions that take the flag as a `bool`; each emitter obtains it from the `MultiTenancyMarker` through an optional trailing constructor parameter (the precedent of `QueryCachingPipelineBehavior`)** | No global state; parallel tests and several containers in one process cannot disturb each other; works for singleton, scoped and static emitters alike; fails to no tag when the marker is absent | Eight classes gain one optional constructor parameter |
 | **B) A static flag set by `AddEncinaTenancy`** | No constructor change | Process-wide mutable state; two containers (a test host with tenancy and one without) read the last writer; hidden coupling to registration order |
 | **C) A singleton policy object registered by `AddEncina` and injected everywhere** | One object to mock | A new registered type; emitters that are static (`RetryMetrics`) cannot take it without a signature change; `AddEncina` would have to know about tenancy |
 
@@ -62,7 +62,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `encina.tenant_id`** | Already used by 8 of the 13 sites (7 files), including the SPEC-002 compliance behaviors; lowercase dotted, in the `encina.*` namespace of ADR-054 D3 | The two `tenancy.tenant_id` sites and the `dsr.tenant_id` site are renamed |
+| **A) `encina.tenant_id`** | Already used by 8 of the 13 sites (7 files), including the SPEC-002 compliance behaviors; lowercase dotted, in the `encina.*` namespace of ADR-054 D3 | The four `tenancy.tenant_id` sites (2 in `TenancyActivitySource`, 2 in the enricher) and the `dsr.tenant_id` site are renamed |
 | **B) `tenancy.tenant_id`** | Already a public constant of `Encina.OpenTelemetry` | Renames the 9 other sites; the `tenancy.*` prefix names a package, not the cross-cutting rule |
 | **C) `tenant.id`** | Short; matches the shape of OpenTelemetry names | No OpenTelemetry semantic convention defines a tenant attribute today, so it would look standard and not be; renames all 13 sites |
 
@@ -104,7 +104,7 @@
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Migrate all 13 sites in this issue, in small pull requests, and remove `ActivityTagNames.Tenancy.TenantId`** | One rule everywhere; no package keeps its own key or its own unconditional tag | Ten constructors gain an optional parameter |
+| **A) Migrate all 13 sites in this issue, in small pull requests, and remove `ActivityTagNames.Tenancy.TenantId`** | One rule everywhere; no package keeps its own key or its own unconditional tag | Eight classes gain an optional parameter |
 | **B) Add the helper and let each package migrate later** | Smallest first pull request | Three keys and an unconditional tag live on until someone remembers; the acceptance criterion "every package applies it" stays false |
 
 ### Chosen Option: **A - Migrate now**
@@ -139,11 +139,31 @@
 
 </details>
 
+<details>
+<summary><strong>6. The batch processors that have no tenant</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `OutboxBatchProcessor` and `DelayedRetryProcessor` stay un-tagged: their skipped-retry counter keeps `tenantId: null` and this plan does not touch them** | No constructor parameter, no PublicAPI line and no `new X(` churn (28 sites) for a tag that could never be emitted; the honest statement is that stored messages carry no tenant | The skipped-retry counter of the two background processors has no tenant dimension |
+| **B) Add a `TenantId` to the outbox message and the delayed-retry entry, then tag per message** | Tenant dimension everywhere | A schema and entity change across all 10 database providers, outside the scope of a telemetry rule; its own issue |
+
+### Chosen Option: **A - Stay un-tagged, no change** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins because a marker on a processor whose tenant is always `null` can never emit a tag (review of this plan, PR #4183). B wins if the maintainer wants tenant visibility on background retries: it needs a per-message tenant, which belongs to the stores of every provider and is a separate issue.
+
+**Class:** Dilemma
+
+</details>
+
 ### Register of defaults and semantics
 
 | Id | Choice | Class | Basis |
 |----|--------|-------|-------|
-| C1 | No tag when multi-tenancy is off; none when the tenant is `null`, empty or whitespace (a blank tenant is "no tenant", never the reserved `default` segment); the id is passed verbatim, never composed, so no two tenant and key pairs can map to one id | Settled | ADR-054 D4; SPEC-002 AC-044; fail to no tag |
+| C1 | No tag when multi-tenancy is off; none when the tenant is `null`, empty or whitespace (a blank tenant is "no tenant", never the reserved `default` segment); the helper never composes an id and never substitutes `default` (whether the value is verbatim or hashed is Design Choice 3) | Settled | ADR-054 D4; SPEC-002 AC-044; fail to no tag |
 | C2 | No new `EncinaError` code, so no ADR-062 `ErrorCategory`; the helper returns `null` or a string and never throws on a valid argument; null `activity` returns `null` | Settled | ADR-062; `AGENTS.md` section 3 |
 | C3 | No logging and no EventId: the issue puts logs out of scope and the helper is a pure function | Settled | `AGENTS.md` section 7 (no `[LoggerMessage]`, no range) |
 | C4 | Gate semantics: the tenant tag is telemetry, not a gate; a missing tenant never denies or changes an operation, it only omits the tag. The fail-closed gates of the packages are untouched | Settled | `AGENTS.md` section 3 (gates fail closed; this is not one) |
@@ -161,7 +181,7 @@
 
 1. **Create** `src/Encina/Diagnostics/TenantTelemetry.cs` (`public static class TenantTelemetry`, namespace `Encina.Diagnostics`, XML docs with an `<example>`): `public const string AttributeName = "encina.tenant_id"`; `public static string? ValueFor(IRequestContext? context, bool multiTenancyEnabled)`; `public static string? ValueFor(string? tenantId, bool multiTenancyEnabled)` (returns `null` unless the flag is on and `!string.IsNullOrWhiteSpace(tenantId)`); `public static Activity? SetTenantTag(this Activity? activity, string? tenantId, bool multiTenancyEnabled)` (returns the same activity, so it chains with `SetTag`); `public static void AddTenantTag(this ref TagList tags, string? tenantId, bool multiTenancyEnabled)`. Single-question methods carry `// crap-exempt` only where they are one `switch`; none here needs it (two branches each).
 2. **Edit** `src/Encina/PublicAPI.Unshipped.txt` and the manifest `.github/coverage-manifest/Encina.json` (per-file entry, targets below) and the changelog fragment `changelog.d/2676-tenant-telemetry-helper.added.md`, all through `mechanical-fixer`.
-3. Tests: new `tests/Encina.UnitTests/Diagnostics/TenantTelemetryTests.cs` (flag off with a tenant: no tag; flag on with `null`, empty and whitespace: no tag; flag on with a tenant: exactly one tag with the key `encina.tenant_id` and the id verbatim; the helper never reads `Activity.Current.Baggage` and sets none; allocation-free when off, measured with `GC.GetAllocatedBytesForCurrentThread`); new `tests/Encina.GuardTests/Core/Diagnostics/TenantTelemetryGuardTests.cs` (null `IRequestContext` is a valid input and returns `null` with a valid-result test; null `Activity` returns `null`).
+3. Tests: new `tests/Encina.UnitTests/Diagnostics/TenantTelemetryTests.cs` (flag off with a tenant: no tag; flag on with `null`, empty and whitespace: no tag; flag on with a tenant: exactly one tag with the key `encina.tenant_id` and the id as Design Choice 3 settles it (verbatim under the recommended option A); the helper never reads `Activity.Current.Baggage` and sets none; allocation-free when off, measured with `GC.GetAllocatedBytesForCurrentThread`); new `tests/Encina.GuardTests/Core/Diagnostics/TenantTelemetryGuardTests.cs` (null `IRequestContext` is a valid input and returns `null` with a valid-result test; null `Activity` returns `null`).
 
 </details>
 
@@ -228,15 +248,15 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Refit and the Messaging Callers (pull request T3)
+### Phase 3: Refit and the Recoverability Behavior (pull request T3)
 
 <details>
 <summary><strong>Tasks</strong></summary>
 
 1. **Modify** `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` (lines 36 and 54 use the constant) and `src/Encina.Refit/Handlers/RestApiRequestHandler.cs` (optional `MultiTenancyMarker? multiTenancy = null`, value through `ValueFor`).
-2. **Modify** `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs`, `src/Encina.Messaging/Recoverability/DelayedRetryProcessor.cs` and `src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs`: the same optional parameter and `ValueFor` call before each `RetryMetrics.Record*`. The processors are hosted or singleton services, so the flag is read once in the constructor.
-3. `src/Encina.Refit/PublicAPI.Unshipped.txt` and `src/Encina.Messaging/PublicAPI.Unshipped.txt` (constructor lines) and changelog `changelog.d/2676-tenant-telemetry-refit-messaging.changed.md` through `mechanical-fixer`.
-4. Tests: edit `tests/Encina.UnitTests/Refit/RestApiRequestHandlerOutboundTests.cs`; new `tests/Encina.UnitTests/Messaging/Recoverability/RetryTenantTagTests.cs` (the three Messaging classes with and without the marker); new guard test `tests/Encina.GuardTests/Messaging/RetryTenantTagGuardTests.cs` (null marker valid).
+2. **Modify** `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs`: the optional parameter on **both** constructors (public, line 65, and internal, line 76) and `TenantTelemetry.ValueFor(context, _multiTenant)` for the `context.TenantId` it already passes at lines 187, 215 and 244. `OutboxBatchProcessor` and `DelayedRetryProcessor` are not changed: they pass `tenantId: null` and have no tenant source (Design Choice 6).
+3. `src/Encina.Refit/PublicAPI.Unshipped.txt` and `src/Encina.Messaging/PublicAPI.Unshipped.txt` (the public constructor line of each; the internal constructor has none) and changelog `changelog.d/2676-tenant-telemetry-refit-messaging.changed.md` through `mechanical-fixer`.
+4. Tests: edit `tests/Encina.UnitTests/Refit/RestApiRequestHandlerOutboundTests.cs`; new `tests/Encina.UnitTests/Messaging/Recoverability/RecoverabilityTenantTagTests.cs` (tag present with the marker and a tenant, absent without the marker, absent for a blank tenant, on the three skip reasons); new guard test `tests/Encina.GuardTests/Messaging/RecoverabilityTenantTagGuardTests.cs` (null marker valid).
 
 </details>
 
@@ -248,16 +268,17 @@ CONTEXT:
 Issue #2676 plan docs/plans/tenant-telemetry-tag-implementation-plan-2676.md, phase 3. Phases 1 and 2 merged.
 
 TASK:
-1. OutboundTelemetry uses TenantTelemetry.AttributeName; RestApiRequestHandler, RecoverabilityPipelineBehavior, DelayedRetryProcessor and
-   OutboxBatchProcessor take MultiTenancyMarker? multiTenancy = null (last parameter) and compute the value with ValueFor once.
+1. OutboundTelemetry uses TenantTelemetry.AttributeName; RestApiRequestHandler and RecoverabilityPipelineBehavior (both constructors)
+   take MultiTenancyMarker? multiTenancy = null (last parameter) and compute the value with ValueFor once.
+   Do not touch OutboxBatchProcessor or DelayedRetryProcessor (tenantId: null, no tenant source, Design Choice 6).
 2. Unit and guard tests; PublicAPI and changelog through mechanical-fixer.
 
 KEY RULES:
-- Existing "new X(" sites (OutboxBatchProcessor 4, DelayedRetryProcessor 28, RecoverabilityPipelineBehavior 17, RestApiRequestHandler 14) still compile.
-- Singletons and hosted services read the marker in the constructor; no scoped service is injected.
+- Existing "new X(" sites (RecoverabilityPipelineBehavior 17, RestApiRequestHandler 14) still compile.
+- The marker is read in the constructor; no scoped service is injected.
 
 REFERENCE FILES:
-- src/Encina.Messaging/Recoverability/*.cs, src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs, src/Encina.Refit/
+- src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs, src/Encina.Refit/
 ```
 
 </details>
@@ -269,9 +290,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. T4a: **Modify** `TransferBlockingPipelineBehavior.cs` (line 196), `DPIARequiredPipelineBehavior.cs` (line 197), `DataMinimizationPipelineBehavior.cs` (line 237): the key constant, the optional marker parameter and `ValueFor`. T4b: **Modify** `ProcessorValidationPipelineBehavior.cs` (line 199) and `DefaultDSRService.cs` (line 429; `DataSubjectRightsDiagnostics.TagTenantId` is removed and the service uses `ValueFor(aggregate.TenantId, flag)`).
-2. The five `PublicAPI.Unshipped.txt` files of the packages (constructor lines) and two changelog fragments (`changelog.d/2676-tenant-telemetry-compliance-a.changed.md` and `...-b.changed.md`) through `mechanical-fixer`.
-3. Tests: edit the existing behavior tests of each class (tag present only with the marker); new guard tests for the null marker (one file per pull request).
+1. T4a: **Modify** `TransferBlockingPipelineBehavior.cs` (line 196), `DPIARequiredPipelineBehavior.cs` (line 197), `DataMinimizationPipelineBehavior.cs` (line 237): the key constant, the optional marker parameter and `ValueFor`. T4b: **Modify** `ProcessorValidationPipelineBehavior.cs` (line 199) and `DefaultDSRService.cs` (line 429; the service uses `ValueFor(aggregate.TenantId, flag)`) and `src/Encina.Compliance.DataSubjectRights/Diagnostics/DataSubjectRightsDiagnostics.cs` (the internal constant `TagTenantId` is removed; this is the third changed src file of T4b).
+2. The five `PublicAPI.Unshipped.txt` files of the packages (constructor lines) and two changelog fragments (`changelog.d/2676-tenant-telemetry-compliance-a.changed.md` and `...-b.changed.md`) through `mechanical-fixer`. Manifest entries (`.github/coverage-manifest/`, through `mechanical-fixer`) for the four files that have no per-file `targets` today: `TransferBlockingPipelineBehavior.cs`, `DPIARequiredPipelineBehavior.cs`, `DataMinimizationPipelineBehavior.cs` (T4a, three manifests) and `ProcessorValidationPipelineBehavior.cs` (T4b); values in the targets table.
+3. Tests: edit the existing behavior tests of each class (tag present only with the marker); new guard tests for the null marker (one file per pull request). T4b also edits `tests/Encina.UnitTests/Compliance/DataSubjectRights/DataSubjectRightsDenyTelemetryTests.cs` (line 65 reads `DataSubjectRightsDiagnostics.TagTenantId`; it reads `TenantTelemetry.AttributeName` and asserts the tag only with the marker, so the removal compiles in the same pull request).
 4. The compliance behaviors keep their fail-closed gates: the helper only decides the tag, never whether the request runs.
 
 </details>
@@ -306,7 +327,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Modify** `src/Encina.Tenancy/Diagnostics/TenancyActivitySource.cs` (lines 61 and 78 use the constant: `AddEncinaTenancy` always registers the marker, so these two sites are on by definition) and `src/Encina.OpenTelemetry/Enrichers/TenancyActivityEnricher.cs` (lines 33 and 53), and **remove** `ActivityTagNames.Tenancy.TenantId` from `src/Encina.OpenTelemetry/ActivityTagNames.cs`.
-2. `src/Encina.OpenTelemetry/PublicAPI.Unshipped.txt` (the removed public constant) and changelog `changelog.d/2676-tenant-telemetry-tenancy.changed.md` through `mechanical-fixer`.
+2. `src/Encina.OpenTelemetry/PublicAPI.Unshipped.txt` (the removed public constant), the manifest entry of `TenancyActivityEnricher.cs` in `.github/coverage-manifest/Encina.OpenTelemetry.json` (no per-file `targets` today) and changelog `changelog.d/2676-tenant-telemetry-tenancy.changed.md` through `mechanical-fixer`.
 3. Tests: edit `tests/Encina.UnitTests/Tenancy/TenancyActivitySourceTests.cs`, `tests/Encina.UnitTests/OpenTelemetry/Enrichers/TenancyActivityEnricherTests.cs` and `tests/Encina.UnitTests/OpenTelemetry/ActivityTagNamesTests.cs` (line 229 asserts the removed constant).
 
 </details>
@@ -339,7 +360,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **Create** `tests/Encina.IntegrationTests/Observability/TenantTelemetryIntegrationTests.cs` (`[Trait("Category", "Integration")]`, no Docker): two service providers built with `ValidateOnBuild` and `ValidateScopes`, one with `AddEncinaTenancy` and one without; an in-memory exporter asserts that a `Send` that reaches the retry behavior emits `encina.tenant_id` only in the first, and that no baggage item exists in either.
-2. The observability guide paragraph on the tenant tag and its cardinality, through `docs-writer`, after #906 lands; changelog `changelog.d/2676-tenant-telemetry-docs.added.md` through `mechanical-fixer`. Per-category proof (one span and one metric per database, cache, lock and transport category) lands with #721, #722, #723, #724, #725 and #759, which call the helper.
+2. **Edit** `tests/Encina.IntegrationTests/Encina.IntegrationTests.csproj`: add `<ProjectReference Include="..\..\src\Encina.Tenancy\Encina.Tenancy.csproj" />` (the project references Polly, OpenTelemetry and Refit but not `Encina.Tenancy`, and the test needs `AddEncinaTenancy`).
+3. The observability guide paragraph on the tenant tag and its cardinality, through `docs-writer`, after #906 lands; changelog `changelog.d/2676-tenant-telemetry-docs.added.md` through `mechanical-fixer`. Per-category proof (one span and one metric per database, cache, lock and transport category) lands with #721, #722, #723, #724, #725 and #759, which call the helper.
 
 </details>
 
@@ -398,23 +420,29 @@ REFERENCE FILES:
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | T1 | Phase 1 | 1 | 0 | 2 | 0 | 1 | 2 (PublicAPI, changelog) | 6 | ~330 |
 | T2 | Phase 2 | 0 | 3 | 1 | 2 | 0 | 2 (PublicAPI, changelog) | 8 | ~260 |
-| T3 | Phase 3 | 0 | 5 | 2 | 1 | 0 | 3 (2 PublicAPI, changelog) | 11 | ~380 |
-| T4a | Phase 4 | 0 | 3 | 1 | 3 | 0 | 4 (3 PublicAPI, changelog) | 11 | ~300 |
-| T4b | Phase 4 | 0 | 2 | 1 | 2 | 0 | 3 (2 PublicAPI, changelog) | 8 | ~230 |
-| T5 | Phase 5 | 0 | 3 | 0 | 3 | 0 | 2 (PublicAPI, changelog) | 8 | ~160 |
-| T6 | Phase 6 | 0 | 0 | 1 | 0 | 0 | 2 (guide page, changelog) | 3 | ~140 |
-| **Total** | | **1** | **16** | **8** | **11** | **1** | **18** | **55** | **~1,800** |
+| T3 | Phase 3 | 0 | 3 | 2 | 1 | 0 | 3 (2 PublicAPI, changelog) | 9 | ~300 |
+| T4a | Phase 4 | 0 | 3 | 1 | 3 | 3 | 4 (3 PublicAPI, changelog) | 14 | ~330 |
+| T4b | Phase 4 | 0 | 3 | 1 | 3 | 1 | 3 (2 PublicAPI, changelog) | 11 | ~280 |
+| T5 | Phase 5 | 0 | 3 | 0 | 3 | 1 | 2 (PublicAPI, changelog) | 9 | ~190 |
+| T6 | Phase 6 | 0 | 0 | 1 | 0 | 0 | 3 (guide page, changelog, `Encina.IntegrationTests.csproj`) | 4 | ~150 |
+| **Total** | | **1** | **15** | **8** | **12** | **6** | **19** | **61** | **~1,840** |
 
-Columns sum: 1 + 16 + 8 + 11 + 1 + 18 = 55 = 6 + 8 + 11 + 11 + 8 + 8 + 3. Test doubles: the optional constructor parameters change no interface, so no fake needs an edit; the `new X(` sites are listed in the Summary. The guard-test `InternalsVisibleTo` question does not arise (the helper is public). Per-file coverage targets (flags not listed are 0 with the reason in the justification):
+Columns sum: 1 + 15 + 8 + 12 + 6 + 19 = 61 = 6 + 8 + 9 + 14 + 11 + 9 + 4. Every PR is at most 15 files (largest T4a, 14) and at most 1500 lines. Test doubles: the optional constructor parameters change no interface, so no fake needs an edit; the `new X(` sites are listed in the Summary. The guard-test `InternalsVisibleTo` question does not arise (the helper is public). Per-file coverage targets (flags not listed are 0 with the reason in the justification):
 
 | File | Unit | Guard | Contract | Property | Integration | Justification |
 |------|------|-------|----------|----------|-------------|---------------|
 | `src/Encina/Diagnostics/TenantTelemetry.cs` | 100 | 80 | 0 | 0 | 60 | Every branch (flag off, blank, valid, `Activity` null) is a unit case; guard covers the nullable-argument valid results; contract is 0 because the helper has no interface or abstract class to keep; property is 0 because there is no complex logic; integration drives the real marker detection |
-| `src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs` | 90 | 40 | 0 | 0 | 0 | The tenant branch is table-driven; guard covers the constructor parameters |
-| `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` | 90 | 0 | 0 | 0 | 0 | Internal static with no validated parameter |
-| `src/Encina/Recoverability/RetryMetrics.cs` | 90 | 40 | 0 | 0 | 0 | The tag branch is covered; existing guard tests cover the public arguments |
-| `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` | 90 | 0 | 0 | 0 | 0 | Internal static; both tag sites run in the unit tests |
-| `src/Encina.Refit/Handlers/RestApiRequestHandler.cs`, the three Messaging classes, the five compliance classes, `TenancyActivitySource.cs`, `TenancyActivityEnricher.cs` | the current per-file target of each (a rise only where the new branch is above it, never a lowering) | 40 | 0 | 0 | 0 | Each new branch has a with-marker and a without-marker unit case; the new optional parameter has a guard valid-result test |
+| `src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs` | 95 | 5 | 0 | 0 | 75 | Current manifest values, unchanged (never lowered); the tenant branch is table-driven in unit tests, the null marker is a guard valid-result test |
+| `src/Encina.Polly/Diagnostics/RetryTelemetry.cs` | 95 | 0 | 0 | 0 | 30 | Current values; internal static with no validated parameter |
+| `src/Encina/Recoverability/RetryMetrics.cs` | 98 | 15 | 0 | 0 | 95 | Current values; the tag branch is covered, existing guard tests cover the public arguments |
+| `src/Encina.Refit/Diagnostics/OutboundTelemetry.cs` | 95 | 0 | 0 | 60 | 60 | Current values (property 60, integration 60); internal static, both tag sites run in the unit tests |
+| `src/Encina.Refit/Handlers/RestApiRequestHandler.cs` | 95 | 5 | 0 | 70 | 85 | Current values; the new parameter has with and without-marker unit cases and a guard valid-result test |
+| `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs` | 95 | 5 | 65 | 0 | 0 | Current values (contract 65); both constructors take the parameter, three skip reasons each have a tagged and an untagged unit case |
+| `src/Encina.Compliance.DataSubjectRights/Services/DefaultDSRService.cs` | 97 | 7 | 52 | 38 | 61 | Current values; the tag branch has a with-marker and a without-marker unit case |
+| `src/Encina.Compliance.DataSubjectRights/Diagnostics/DataSubjectRightsDiagnostics.cs` | 100 | 0 | 73 | 61 | 65 | Current values; only a constant is removed |
+| `src/Encina.Tenancy/Diagnostics/TenancyActivitySource.cs` | 90 | 0 | 0 | 0 | 0 | Current value (unit 90); the two sites change a key only, no parameter is added |
+| `src/Encina.Compliance.CrossBorderTransfer/Pipeline/TransferBlockingPipelineBehavior.cs`, `src/Encina.Compliance.DPIA/DPIARequiredPipelineBehavior.cs`, `src/Encina.Compliance.PrivacyByDesign/DataMinimizationPipelineBehavior.cs`, `src/Encina.Compliance.ProcessorAgreements/ProcessorValidationPipelineBehavior.cs` (each, new manifest entry) | 90 | 40 | 0 | 0 | 0 | No per-file targets exist today; each new branch has with-marker and without-marker unit cases and the optional parameter has a guard valid-result test; contract is 0 because the behavior implements only the pipeline interface already covered by the shared contract tests, property and integration are 0 because there is no complex logic and the integration proof is T6 |
+| `src/Encina.OpenTelemetry/Enrichers/TenancyActivityEnricher.cs` (new manifest entry) | 90 | 0 | 0 | 0 | 0 | No per-file targets exist today; the two sites change a key only; guard is 0 because no parameter is added |
 
 The migration pull requests record each file's measured values against its manifest target in their description; a target is never lowered (`target-ratchet`).
 
@@ -494,6 +522,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Link this plan from #2676 and ask the maintainer to answer Design Choices 1 to 3 when work starts.
+1. Link this plan from #2676 and ask the maintainer to answer Design Choices 1, 2, 3 and 6 when work starts.
 2. Implement T1 first (the siblings wait only for it), then T2 to T5 in any order, then T6.
 3. Maintainer action: amend the issue text that names `ITenantContext` and the "36 packages" scope to this plan's helper and 13-site migration (this plan never comments on an issue).
