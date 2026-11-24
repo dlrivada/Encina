@@ -3,7 +3,7 @@
 > **Issue**: [#3989](https://github.com/dlrivada/Encina/issues/3989) (`area-cdc`, `p1-recommended`, `needs-decision`)
 > **Type**: Feature
 > **Complexity**: Medium (one routing seam, one tenant extractor, a startup validator, tenant tags on the stream telemetry)
-> **Estimated Scope**: ~700-900 lines of production code + ~1,500-2,000 lines of tests (about 48 files and up to about 3,400 line-changes in total with manifests, PublicAPI and documentation), delivered in six pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~700-900 lines of production code + ~1,500-2,000 lines of tests (about 47 files and up to about 3,350 line-changes in total with manifests, PublicAPI and documentation), delivered in six pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family**: builds on the plan of #636 (the audit stream: `CdcAuditEntry`, `ICdcAuditSink`, `AuditStreamObserver`, `CdcAuditOptions`), which owns every type this plan extends. #633 and #3995 are unrelated plans written in the same run. Sibling plans are referred to by issue number only.
 
 ---
@@ -12,7 +12,7 @@
 
 The audit stream of #636 writes every entry to the same sinks. In a multi-tenant deployment each entry must carry the tenant it belongs to and, where a tenant requires its own destination, reach only that tenant's sinks. A row without a tenant is rejected (the gate fails closed).
 
-### What the code does today (2026-11-24, `main` at `09c85f62b`)
+### What the code does today (2026-11-24, `main` at `278c164f1`)
 
 1. **Nothing of the stream exists yet.** `src/Encina.Cdc/Auditing` is absent; #636 is open and its plan is on `main`. The types named here (`CdcAuditEntry`, `ICdcAuditSink`, `AuditStreamObserver`, `CdcAuditOptions`, `AuditFieldPolicy`, `CdcAuditErrors`, `CdcAuditLog`) are the ones that plan specifies, and every pull request below lands after the pull request of #636 that creates the type it edits. If #636 renames one of them, this plan follows the rename.
 2. **`ChangeEvent` has no tenant.** It carries `TableName`, `Operation`, `Before`, `After` (`object?`) and `ChangeMetadata` (`src/Encina.Cdc/ChangeEvent.cs`). A tenant can only come from a column of the row: a `JsonElement` from the SQL Server and Debezium connectors, a dictionary from the PostgreSQL and MySQL connectors, a JSON `string` from MongoDB.
@@ -27,18 +27,18 @@ The audit stream of #636 writes every entry to the same sinks. In a multi-tenant
 - **Affected packages**: `Encina.Cdc` only (`Auditing/`, `CdcConfiguration`, `ServiceCollectionExtensions`, diagnostics). Nothing changes in the dispatcher, the processors or the connectors.
 - **Provider category**: Database through the four CDC connectors (SQL Server, PostgreSQL, MySQL, MongoDB; Debezium carries the same shapes); the ten providers collapse onto them (provider matrix in Phase 6). No caching, transport, lock or validation category applies.
 - **Corrections to the issue text**: the "sink selector by tenant" is a resolver returning a list of sinks, so that an entry can go to a tenant sink and to nothing else; the tenant column is read before projection and, under the recommended Design Choice 2, is subject to the allow list like every other field.
-- **Split into pull requests** (counts include tests, manifest edits and PublicAPI lines; the numbering is the merge order; every pull request builds alone and keeps today's shared-sink behavior until the registration of PR 3):
+- **Split into pull requests** (counts include tests, manifest edits and PublicAPI lines; the numbering is the merge order; every pull request builds alone and keeps today's shared-sink behavior until the registration of PR 3, and the optional resolver parameter of PR 2 keeps the DI container valid in either merge order with #636 PR 7):
 
   | PR | Content (phase) | Files | Lines (est.) | Depends on |
   |----|-----------------|-------|--------------|------------|
-  | 1 | `CdcAuditEntry.TenantId`, per-table `TenantIdField` and `TenantRouting` options with validation, three error codes with categories, `CdcAuditLog` ids 4892-4895, `AuditTenantExtractor`, PublicAPI, manifest, tests (Phase 1) | 12 | ~650 | #636 PRs 1 and 4 |
-  | 2 | `ICdcAuditSinkResolver`, `SharedSinkResolver`, `TenantSinkResolver`, `AuditStreamObserver` change, PublicAPI, manifest, unit, guard, contract and property tests (Phase 2) | 12 | ~900 | 1, #636 PRs 3 and 5 |
-  | 3 | `CdcConfiguration` registration methods, `ServiceCollectionExtensions`, the startup validator rules, PublicAPI, manifest, DI proof and validator tests (Phase 3) | 8 | ~550 | 2, #636 PR 7 |
+  | 1 | `CdcAuditEntry.TenantId`, per-table `TenantIdField` and `TenantRouting` options with validation, three error codes with categories, `CdcAuditLog` ids 4886-4889, `AuditTenantExtractor`, PublicAPI, manifest, tests (Phase 1) | 12 | ~650 | #636 PRs 1 and 4 |
+  | 2 | `ICdcAuditSinkResolver`, `TenantSinkResolver`, `AuditStreamObserver` change (the resolver is an optional constructor parameter, so an observer registered by #636 PR 7 before or after this PR still resolves; without a resolver it writes to every sink, as #636), PublicAPI, manifest, unit, guard, contract and property tests (Phase 2) | 10 | ~800 | 1, #636 PRs 3 and 5 |
+  | 3 | `CdcConfiguration` registration methods, `ServiceCollectionExtensions` (registers `TenantSinkResolver` with `TryAdd`, in the PR that depends on #636 PR 7), the startup validator rules, PublicAPI, manifest, DI proof and validator tests (Phase 3) | 8 | ~550 | 2, #636 PR 7 |
   | 4 | Tenant tags on `CdcAuditMetrics` and `CdcAuditActivitySource`, rejection counter, PublicAPI, manifest, two unit tests (Phase 4) | 6 | ~350 | 3, #636 PR 8 |
-  | 5 | Tenant cases in the cross-connector shape contract test, four connector-driven isolation integration classes, benchmark case, load justification edit (Phase 5) | 7 | ~800 | 3, 4, #636 PR 9 |
+  | 5 | Tenant cases in the cross-connector shape contract test, four connector-driven isolation integration classes, benchmark case, load justification edit, manifest (the integration targets of the observer and the resolver are set here, with their tests) (Phase 5) | 8 | ~850 | 3, 4, #636 PR 9 |
   | 6 | Changelog fragment, `Encina.Cdc` README, `docs/features/cdc.md` (Phase 6) | 3 | ~200 | 5 |
 
-  Total: 6 PRs, 48 files, about 3,450 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. If the maintainer chooses option 1 of Design Choice 1 (one shared sink), PR 2 drops `TenantSinkResolver` and PR 3 drops the per-tenant registration, about 14 files fewer.
+  Total: 6 PRs, 47 files, about 3,350 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. If the maintainer chooses option A of Design Choice 1 (one shared sink set), PR 2 drops `TenantSinkResolver` and PR 3 drops the per-tenant registration, about 12 files fewer.
 
 ---
 
@@ -165,18 +165,56 @@ B wins where availability of the audit stream for all tenants outweighs the sepa
 
 </details>
 
+<details>
+<summary><strong>7. A table with no <code>TenantIdField</code></strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Unset means untenanted: the table streams exactly as #636, with `TenantId` null** | Pay-for-what-you-use: nothing changes for a table that does not opt in; reference tables with no tenant need no configuration | A multi-tenant application that enables the stream and forgets the field streams untenanted rows silently, against the issue's "a row without a tenant is rejected" |
+| **B) When `MultiTenancyMarker` is registered, startup validation fails if any audited table has no `TenantIdField`, unless the table is listed in an explicit opt-out (`AuditUntenantedTable(name)`), which is logged once at startup (id 4889) and counted** | Fails closed: the unsafe case needs an explicit, logged choice; the issue's criterion holds by default | Tables without a tenant (shared reference data) need one line of configuration; the check depends on the marker being registered (`AddEncinaTenancy`) |
+
+### Chosen Option: **B — required when multi-tenancy is registered** (recommended, pending the maintainer)
+
+### Rationale
+
+The only opt-out of a compliance gate is explicit and logged (AGENTS.md section 3), so a default that lets the unsafe case through needs a reason; A wins where the stream is enabled by deployments that are single-tenant by nature and the marker is never registered (B then changes nothing for them), or where the maintainer prefers fewer startup failures. An application that resolves tenants by hand without the marker is not covered by B; the documentation says so, and the shared-activation rule of #1257 (marker or an ambient tenant) is the place that would extend it.
+
+**Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>8. The tenant tag on the stream telemetry</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A tenant tag only for tenants resolved to a configured sink (under option B of Design Choice 1; no tenant tag under option A of Design Choice 1); rejected rows are counted by `reason` with no tenant tag** | The tag set is bounded by configuration; row values cannot create tag values | A rejected row cannot be attributed to a tenant in the metric |
+| **B) The tenant tag carries the tenant of every row, including rows that are rejected** | Literal reading of ADR-054 D4 and SPEC-002 AC-044 (the tenant tag in every package when multi-tenancy is on) | Cardinality is bounded only by what a table contains: one bad column creates unbounded tag values |
+
+### Chosen Option: **A — bounded tag** (recommended, pending the maintainer)
+
+### Rationale
+
+ADR-054 D4 requires the tenant tag when multi-tenancy is on and documents the cardinality cost (#906), so both options comply and the rule does not choose. B wins where operators must see which unrouted tenant is failing and the metrics backend caps cardinality; A wins by default because the tag values of A are the configured tenants.
+
+**Class:** Dilemma
+
+</details>
+
 ### Smaller decisions (register)
 
-Every entry below holds under options A and B of Design Choice 1 and under every option of Design Choices 2 to 6, so none rests on a pending Dilemma.
+Each entry holds whichever option is chosen in Design Choices 1 to 8; choices that depend on an option are written inside that Design Choice.
 
 | Id | Decision | Class | Basis |
 |----|----------|-------|-------|
-| R1 | A row whose tenant column is absent, null, blank or whitespace is rejected with `encina.cdc.audit_tenant_missing`, `ErrorCategory.InvalidRequest` | Settled | ADR-062 rule R3 (a missing tenant is `InvalidRequest`); AGENTS.md section 3 (gates fail closed) |
+| R1 | In a table that has a `TenantIdField`, a row whose tenant column is absent, null, blank or whitespace is rejected with `encina.cdc.audit_tenant_missing`, `ErrorCategory.InvalidRequest` | Settled | ADR-062 rule R3 (a missing tenant is `InvalidRequest`); AGENTS.md section 3 (gates fail closed) |
 | R2 | A cancellation while resolving or writing propagates as `OperationCanceledException`; it is never converted into a `Left` | Settled | AGENTS.md section 3 (cancellation is not an error and propagates, ADR-052); ADR-062 rule R5 |
-| R3 | The new log ids are 4892-4895 of the `Cdc` range 4800-4899, packed after the six ids 4880-4885 of #636; they log the error code and the table name, never a tenant value, row content or `EncinaError.Message` | Trivial | AGENTS.md section 7 (ids inside the package's registered range, packed) and section 3 (`EncinaError.Message` never reaches logs) |
-| R4 | Per-tenant routing is off unless a table sets `TenantIdField`; with it unset the stream behaves exactly as #636 | Trivial | AGENTS.md section 1 (pay-for-what-you-use) |
-| R5 | Any option holding a path or a key of a tenant sink is `[JsonIgnore]` with a `ToString()` override | Settled | AGENTS.md section 3 (options with secrets, #851) |
-| R6 | The tenant tag on the stream telemetry is emitted only when the tenant set is bounded by configuration: under option B of Design Choice 1, for tenants that resolved to a configured sink; under option A no tenant tag is emitted (row values are unbounded). Rejected rows are counted without a tenant tag | Settled | ADR-054 D4 (tenant tag when multi-tenancy is on; cardinality documented, #906); a tag fed by arbitrary row values is unbounded, so only a configured set may feed it |
+| R3 | The new log ids are 4886-4889 of the `Cdc` range 4800-4899, packed directly after the six ids 4880-4885 of #636 (4886-4891 are the slice the #636 plan leaves unassigned inside its block 4854-4891 of the registry's family table, so no registry edit is needed); they log the error code and the table name, never a tenant value, row content or `EncinaError.Message` | Trivial | AGENTS.md section 7 (ids inside the package's registered range, packed) and section 3 (`EncinaError.Message` never reaches logs) |
+| R4 | Sink option members that hold a connection string or a key (the outbox target of a tenant sink) are `[JsonIgnore]` with a `ToString()` override; a file directory is not a secret but, as in #636, it is kept out of logs and error messages | Settled | AGENTS.md section 3 (options with secrets, #851) |
 
 ---
 
@@ -192,7 +230,7 @@ Every entry below holds under options A and B of Design Choice 1 and under every
 1. `Auditing/CdcAuditEntry.cs` (#636 PR 1): add `string? TenantId` (null when per-tenant routing is off).
 2. `Auditing/CdcAuditOptions.cs`: per-table `TenantIdField` (nullable) and `TenantRouting` (`Shared` or `PerTenant`, default `Shared`, Design Choice 1); `CdcAuditOptionsValidator.cs`: a `PerTenant` table needs a `TenantIdField`, and the field must be on the table's allow list (Design Choice 2).
 3. `Auditing/CdcAuditErrors.cs`: `encina.cdc.audit_tenant_missing` (`InvalidRequest`, R1), `encina.cdc.audit_tenant_unrouted` (`Internal`, Design Choice 6 option A) and `encina.cdc.audit_tenant_conflict` (`Forbidden`, Design Choice 4 option A), each declared through `EncinaErrors.Create(code, ErrorCategory.X, ...)` with a constant message and a `GetCategory` test. Under other options of Design Choices 4 and 6 the code is dropped or re-categorised.
-4. `Auditing/CdcAuditLog.cs`: ids 4892 tenant missing, 4893 tenant unrouted, 4894 tenant changed by an update, 4895 per-tenant routing enabled (startup, count of tenants only).
+4. `Auditing/CdcAuditLog.cs`: ids 4886 tenant missing, 4887 tenant unrouted, 4888 tenant changed by an update, 4889 per-tenant routing enabled or an untenanted table opted out (startup, counts only; Design Choice 7).
 5. `Auditing/AuditTenantExtractor.cs` (`internal sealed`): reads the configured field from `After`, or from `Before` for a delete, in each connector shape (`JsonElement`, dictionary, JSON string) through the projector of #636; compares both images when both exist (Design Choice 4); applies the `default` rule (Design Choice 5); a malformed row is a `Left`, never an exception. Returns `Either<EncinaError, string?>`.
 6. Tests: extractor unit tests for the four shapes and every rejection; options validator cases; `GetCategory` cases; guard tests for the new public members. Manifest rows and PublicAPI lines through `mechanical-fixer`.
 
@@ -205,7 +243,7 @@ Every entry below holds under options A and B of Design Choice 1 and under every
 CONTEXT: The CDC audit stream (#636) writes redacted entries to sinks. A tenant can only come from a column of the row;
 connectors hand over JsonElement, dictionaries or a JSON string.
 TASK: Add TenantId to CdcAuditEntry, the per-table TenantIdField and TenantRouting options with validation, the three error
-codes with ErrorCategory, ids 4892-4895 of CdcAuditLog and the internal AuditTenantExtractor.
+codes with ErrorCategory, ids 4886-4889 of CdcAuditLog and the internal AuditTenantExtractor.
 KEY RULES: fail closed (missing tenant is a Left); error codes declared with ADR-062 categories and constant messages;
 never log a tenant value, row content or EncinaError.Message; cancellation propagates; no [Obsolete]; Either returns.
 REFERENCE FILES: docs/plans/audit-log-streaming-cdc-implementation-plan-636.md, src/Encina.Cdc/ChangeEvent.cs,
@@ -222,10 +260,10 @@ src/Encina.Cdc/Errors/CdcErrors.cs, src/Encina.Cdc/CdcLog.cs.
 <summary><strong>Tasks</strong></summary>
 
 1. `Auditing/ICdcAuditSinkResolver.cs` (public): `ValueTask<Either<EncinaError, IReadOnlyList<ICdcAuditSink>>> ResolveAsync(string? tenantId, CancellationToken)`.
-2. `Auditing/SharedSinkResolver.cs`: returns the registered sinks whatever the tenant (today's behavior; `TenantRouting.Shared`).
+2. No shared resolver class: the observer takes `ICdcAuditSinkResolver? resolver = null` as an optional constructor parameter and, when it is null (`TenantRouting.Shared`, today's behavior), writes to every registered sink, so the DI container stays valid whether #636 PR 7 or this PR 2 merges first.
 3. `Auditing/TenantSinkResolver.cs` (Design Choices 1 and 3): `GetKeyedServices<ICdcAuditSink>(tenantId)` from the processor's scope (the dispatcher is a singleton and `OutboxAuditSink` is scoped; observers and resolvers come from the scope in the context, #636 R6); a tenant with no keyed sink returns `audit_tenant_unrouted` (Design Choice 6); the lookup uses the exact tenant id, never a prefix or a case-folded form.
 4. `Auditing/AuditStreamObserver.cs`: per table, extract the tenant (Phase 1), resolve the sinks, write the entry (with `TenantId`) to the resolved sinks only; the first `Left` fails the event; with `Shared` routing and no `TenantIdField` the path is unchanged.
-5. Tests: unit (each rejection, order, only the tenant's sinks written), guard, contract (the same cases against both resolvers), property (for any generated rows and tenants no entry is written to a sink of another tenant, and an entry's `TenantId` equals the sink's tenant). Manifest and PublicAPI through `mechanical-fixer`.
+5. Tests: unit (each rejection, order, only the tenant's sinks written, a null resolver writes to every sink), guard (the optional resolver parameter accepts null: valid-result test), contract (`ICdcAuditSinkResolver` cases against `TenantSinkResolver`), property (for any generated rows and tenants no entry is written to a sink of another tenant, and an entry's `TenantId` equals the sink's tenant). Manifest and PublicAPI through `mechanical-fixer`.
 
 </details>
 
@@ -234,7 +272,7 @@ src/Encina.Cdc/Errors/CdcErrors.cs, src/Encina.Cdc/CdcLog.cs.
 
 ```
 CONTEXT: AuditStreamObserver (#636) writes each entry to every sink and returns the first Left.
-TASK: Add ICdcAuditSinkResolver, SharedSinkResolver and TenantSinkResolver and make the observer write only to the resolved
+TASK: Add ICdcAuditSinkResolver (an optional observer constructor parameter) and TenantSinkResolver and make the observer write only to the resolved
 sinks of the entry's tenant.
 KEY RULES: resolve from the processor's scope, never the root provider; exact tenant-id lookup (no concatenated string keys);
 a tenant with no sink is a Left, never a fallback to another tenant's or a shared sink; ValueTask/Either returns; a property
@@ -252,7 +290,7 @@ REFERENCE FILES: docs/plans/audit-log-streaming-cdc-implementation-plan-636.md (
 <summary><strong>Tasks</strong></summary>
 
 1. `CdcConfiguration.cs` (#636 PR 7): `AuditTenantField(table, field)` and `AuditTenantSink<TSink>(tenantId, Action<TSinkOptions>)`; `ServiceCollectionExtensions.cs`: register the resolver by routing mode (`TryAdd`, so an application's own `ICdcAuditSinkResolver` wins in any order) and the keyed sinks; the sinks and the resolver are registered together with the services they resolve, so the provider builds under `ValidateOnBuild` and `ValidateScopes`.
-2. `CdcAuditStreamingStartupValidator.cs`: every `PerTenant` table has a tenant field on its allow list; at least one tenant sink exists; no tenant id is blank, `default` or duplicated; no two tenants share a destination (file directories compared as normalized full paths, case-insensitively and by containment; the same outbox target; the same connection); the outbox sink per tenant needs the outbox module (ADR-050). Failures name the table and tenant position, never print a destination.
+2. `CdcAuditStreamingStartupValidator.cs`: every `PerTenant` table has a tenant field on its allow list; under Design Choice 7 option B, when `MultiTenancyMarker` is registered every audited table has a `TenantIdField` or is listed with `AuditUntenantedTable(name)` (logged once, id 4889); at least one tenant sink exists; no tenant id is blank, `default` or duplicated; no two tenants share a destination (file directories compared as normalized full paths, case-insensitively and by containment; the same outbox target; the same connection); the outbox sink per tenant needs the outbox module (ADR-050). Failures name the table and tenant position, never print a destination.
 3. DI test per sink type with `ValidateOnBuild` and `ValidateScopes`; validator unit tests for every rejection.
 
 </details>
@@ -279,7 +317,7 @@ docs/plans/audit-log-streaming-cdc-implementation-plan-636.md (Phase 5).
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `Diagnostics/CdcAuditMetrics.cs` (#636 PR 8): the existing counter `encina.cdc.audit.entries` gets a `tenant` tag only in `PerTenant` mode and only for a tenant resolved to a configured sink (R6); new counter `encina.cdc.audit.rejected` (tag `reason`: `tenant_missing`, `tenant_unrouted`, `tenant_conflict`; no tenant tag).
+1. `Diagnostics/CdcAuditMetrics.cs` (#636 PR 8): the existing counter `encina.cdc.audit.entries` gets a `tenant` tag only in `PerTenant` mode and only for a tenant resolved to a configured sink (Design Choice 8, option A); new counter `encina.cdc.audit.rejected` (tag `reason`: `tenant_missing`, `tenant_unrouted`, `tenant_conflict`; no tenant tag).
 2. `Diagnostics/CdcAuditActivitySource.cs`: the tenant attribute on the entry span in the same cases, through the helper of #2676 once it exists (until then a local constant in one place).
 3. Unit tests with a meter and an activity listener; manifest and PublicAPI through `mechanical-fixer`.
 
@@ -398,7 +436,7 @@ REFERENCE FILES: .claude/skills/encina-docs/SKILL.md, changelog.d/README.md, doc
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Cdc` (existing range 4800-4899, moving to 11800-11899 in #4007 CM-5) | 4892-4895 used, packed sequentially | `CdcAuditLog` of #636 owns 4880-4885; 4886-4891 stay unassigned inside the #636 slice; 4896-4899 spare. `Encina.Cdc` is already mapped in `AssemblyRanges`, so no map change is needed |
+| `Encina.Cdc` (existing range 4800-4899, moving to 11800-11899 in #4007 CM-5) | 4886-4889 used, packed directly after #636's 4880-4885 | `CdcAuditLog` of #636 owns 4880-4885; 4886-4891 are the slice its plan leaves unassigned inside its family block 4854-4891, so this follow-up uses 4886-4889 and 4890-4891 stay spare; 4892-4899 are untouched. `Encina.Cdc` is already mapped in `AssemblyRanges`, so no map change is needed, and the registry document needs no edit |
 
 ### Per-file coverage targets (AGENTS.md section 9)
 
@@ -407,18 +445,18 @@ Per flag: U unit, G guard, C contract, P property, I integration; each row is en
 | File | PR | U | G | C | P | I | Justification |
 |------|----|---|---|---|---|---|---------------|
 | `CdcAuditEntry.cs` (whole file) | 1 | 85 | 0 | 0 | 0 | 0 | Record with one more property; no parameters to guard beyond the record |
-| `CdcAuditOptions.cs` (whole file) | 1 | 90 | 90 | 0 | 0 | 0 | Plain options and defaults reachable |
-| `CdcAuditOptionsValidator.cs` (whole file) | 1 | 95 | 90 | 0 | 0 | 0 | Pure validation, every branch reachable |
+| `CdcAuditOptions.cs` (whole file) | 1 | 90 | 0 | 0 | 0 | 0 | Plain options and defaults reachable; no parameters to guard |
+| `CdcAuditOptionsValidator.cs` (whole file) | 1 | 95 | 30 | 0 | 0 | 0 | Pure validation, every branch reachable; guard tests reach argument checks only (evidence on `main`: the package guard target of `Encina.Cdc.json` is 15 and `OutboxCdcHandler.cs` guard measures 15.3 %) |
 | `CdcAuditErrors.cs` (whole file) | 1 | 90 | 0 | 0 | 0 | 0 | Factories plus the `GetCategory` test |
 | `CdcAuditLog.cs` (whole file) | 1 | 70 | 0 | 0 | 0 | 0 | Generated methods reached by the extractor, resolver and validator tests |
-| `AuditTenantExtractor.cs` | 1 | 95 | 90 | 85 | 0 | 0 | Pure extraction over four shapes; contract case per connector shape |
+| `AuditTenantExtractor.cs` | 1 | 95 | 30 | 0 | 0 | 0 | Pure extraction over four shapes; guard reaches argument checks only; the per-connector contract case belongs to the shape test of PR 5 |
 | `ICdcAuditSinkResolver.cs` | 2 | 0 | 0 | 0 | 0 | 0 | Interface, no executable lines |
-| `SharedSinkResolver.cs` | 2 | 95 | 90 | 85 | 0 | 0 | Returns the registered sinks |
-| `TenantSinkResolver.cs` | 2 | 95 | 90 | 85 | 85 | 0 | Keyed lookup; the isolation property test runs it |
-| `AuditStreamObserver.cs` (whole file) | 2 | 90 | 90 | 85 | 0 | 70 | Tenant branch, rejections and writes with fake sinks; connector-driven integration from PR 5 |
-| `CdcConfiguration.cs` (whole file) | 3 | 90 | 90 | 0 | 0 | 0 | Fluent registration, all branches reachable |
-| `ServiceCollectionExtensions.cs` (whole file) | 3 | 90 | 90 | 0 | 0 | 0 | DI proof with `ValidateOnBuild` and `ValidateScopes` |
-| `CdcAuditStreamingStartupValidator.cs` (whole file) | 3 | 95 | 90 | 0 | 0 | 0 | Every rejection (shared destination, `default`, duplicate) is unit-testable |
+| `TenantSinkResolver.cs` | 2 | 95 | 25 | 85 | 85 | 0 | Keyed lookup with a fake scope; contract cases and the isolation property test run it; guard reaches the constructor and argument checks |
+| `AuditStreamObserver.cs` (whole file) | 2 | 90 | 25 | 0 | 0 | 0 | Tenant branch, rejections and writes with fake sinks; guard reaches the constructor checks; its integration target is set in PR 5 |
+| `CdcConfiguration.cs` (whole file) | 3 | 60 or the current value if higher | 15 | 0 | 0 | 0 | The new fluent methods are fully covered; the untouched rest of the file keeps its own target and is not raised here |
+| `ServiceCollectionExtensions.cs` (whole file) | 3 | 60 or the current value if higher | 15 | 0 | 0 | 0 | DI proof with `ValidateOnBuild` and `ValidateScopes` covers the new registration; the rest of the file is not touched |
+| `CdcAuditStreamingStartupValidator.cs` (whole file) | 3 | 95 | 30 | 0 | 0 | 0 | Every rejection (shared destination, `default`, duplicate, untenanted table) is unit-testable |
+| `AuditStreamObserver.cs`, `TenantSinkResolver.cs` | 5 | n/a | n/a | n/a | n/a | 70 | Integration flag only: the connector-driven two-tenant tests run both files; set in PR 5 with its tests and its manifest edit |
 | `CdcAuditMetrics.cs` (whole file) | 4 | 90 | 0 | 0 | 0 | 0 | Meter listener asserts every tag |
 | `CdcAuditActivitySource.cs` (whole file) | 4 | 85 | 0 | 0 | 0 | 0 | Spans asserted with an activity listener |
 
@@ -428,13 +466,13 @@ CRAP stays at or below 10 on every changed method: the tenant branch of the obse
 
 | Category | Files | Notes |
 |----------|-------|-------|
-| Production, new or edited under `src/` | 15 | PR 1: 6; PR 2: 4; PR 3: 3; PR 4: 2 |
-| PublicAPI and manifests | 8 | PRs 1-4: two each (PR 5 only edits tests; its manifest rows are the tests' own) |
-| Tests | 20 | PR 1: 4; PR 2: 6; PR 3: 3; PR 4: 2; PR 5: 5 (shape contract edit, four integration classes) |
+| Production, new or edited under `src/` | 14 | PR 1: 6; PR 2: 3 (resolver interface, tenant resolver, observer); PR 3: 3; PR 4: 2 |
+| PublicAPI and manifests | 9 | PRs 1-4: two each; PR 5: one manifest |
+| Tests | 19 | PR 1: 4; PR 2: 5 (observer tenant unit, resolver unit, guard, contract, property); PR 3: 3; PR 4: 2; PR 5: 5 (shape contract edit, four integration classes) |
 | Benchmark and load justification edits | 2 | PR 5 |
 | Docs, changelog | 3 | PR 6 |
 
-PR rows add to 48 distinct touches: 12 + 12 + 8 + 6 + 7 + 3.
+PR rows add to 47 distinct touches: 12 + 10 + 8 + 6 + 8 + 3.
 
 ---
 
@@ -447,8 +485,8 @@ PR rows add to 48 distinct touches: 12 + 12 + 8 + 6 + 7 + 3.
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library with nullable reference types. You are implementing issue #3989:
 tenant-aware CDC audit streaming on top of the stream of #636. Read AGENTS.md first.
 
-IMPLEMENTATION OVERVIEW: Phase 1 adds TenantId, the per-table tenant field, error codes, ids 4892-4895 and the tenant extractor.
-Phase 2 adds ICdcAuditSinkResolver with the shared and per-tenant resolvers and changes AuditStreamObserver. Phase 3 adds the
+IMPLEMENTATION OVERVIEW: Phase 1 adds TenantId, the per-table tenant field, error codes, ids 4886-4889 and the tenant extractor.
+Phase 2 adds ICdcAuditSinkResolver (optional observer parameter) with the per-tenant resolver and changes AuditStreamObserver. Phase 3 adds the
 registration methods and the startup validator. Phase 4 adds tenant tags and the rejection counter. Phase 5 proves the four
 connector shapes with two-tenant isolation tests. Phase 6 documents. Deliver as the six pull requests of the Summary, after the
 pull requests of #636 each one names.
@@ -471,7 +509,7 @@ src/Encina.Cdc/ChangeEvent.cs, src/Encina.Cdc/Errors/CdcErrors.cs, .github/cover
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable: a write-only stream |
 | 2 | OpenTelemetry | ✅ | Phase 4: tenant tag only for configured tenants, rejection counter, tenant span attribute (ADR-054 D4) |
-| 3 | Structured Logging | ✅ | `CdcAuditLog` ids 4892-4895; error code and table only |
+| 3 | Structured Logging | ✅ | `CdcAuditLog` ids 4886-4889; error code and table only |
 | 4 | Health Checks | ⏭️ | Sink reachability per tenant joins the processor liveness work of #2396 (open) |
 | 5 | Validation | ✅ | Options validator and startup validator (tenant field on the allow list, no shared destination, no `default`) |
 | 6 | Resilience | ✅ | A failed write fails the event and follows the retry and dead-letter path of #2343 (open); sinks add no hidden retry |
@@ -498,7 +536,7 @@ src/Encina.Cdc/ChangeEvent.cs, src/Encina.Cdc/Errors/CdcErrors.cs, .github/cover
 
 ## Next Steps
 
-1. Review and approve this plan; the maintainer answers the Dilemmas (choices 1 to 6) when work on the issue starts; none is decided here.
+1. Review and approve this plan; the maintainer answers the Dilemmas (choices 1 to 8) when work on the issue starts; none is decided here.
 2. Publish the plan link as a comment on #3989.
 3. Begin PR 1 after the pull requests of #636 that it names.
 4. Each phase is a self-contained commit; the final commit references `Fixes #3989`.
