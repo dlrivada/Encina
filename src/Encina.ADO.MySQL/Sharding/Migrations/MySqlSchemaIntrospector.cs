@@ -44,7 +44,7 @@ internal sealed class MySqlSchemaIntrospector : ISchemaIntrospector
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.SchemaComparisonFailed,
+                MigrationErrorCodes.SchemaComparisonFailed, ErrorCategory.Internal,
                 $"Schema comparison failed between shard '{shard.ShardId}' and baseline '{baselineShard.ShardId}': {ex.Message}",
                 ex);
         }
