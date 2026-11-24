@@ -2,7 +2,7 @@
 
 > **Issue**: [#317](https://github.com/dlrivada/Encina/issues/317)
 > **Type**: Feature
-> **Complexity**: Medium (8 phases on top of the #392 core, one new satellite package, about 38 files in 5 pull requests)
+> **Complexity**: Medium (8 phases on top of the #392 core, one new satellite package, about 46 files in 5 pull requests)
 > **Estimated Scope**: ~900 lines of production code + ~1,800 lines of tests
 > **Family**: this plan builds on the Process Manager core owned by #392 (package `Encina.ProcessManager`, `ProcessId`, `ProcessManagerBase<TState>`, `IProcessManagerStore`, routing handler) and is read together with it; #296 is the third plan of the family. Siblings are referred to by issue number only.
 
@@ -16,7 +16,7 @@
 2. **Completion detection**: the manager says when the process is finished; the handler completes it.
 3. **A Marten store**: `MartenProcessManagerStore` in a new satellite package `Encina.ProcessManager.Marten`, with optimistic concurrency, tenant and correlation lookup.
 
-**What exists today** (`origin/main` at `2c05dd960`, 2026-11-24):
+**What exists today** (`origin/main` at `6e73e575d`, 2026-11-24):
 
 - No process manager code (`git grep -il ProcessManager origin/main -- src` is empty). `IEncina.Send<TResponse>(IRequest<TResponse>, CancellationToken)` returns `ValueTask<Either<EncinaError, TResponse>>` (`src/Encina/Abstractions/IEncina.cs`).
 - `Encina.Marten` provides `IAggregateRepository`, `MartenSnapshotStore<TAggregate>` (a store over `IDocumentSession`, `src/Encina.Marten/Snapshots/MartenSnapshotStore.cs`), `EncinaMartenOptions.UseOptimisticConcurrency` (default `true`) and registers Marten configuration through `IConfigureMarten` (`EncinaStoreOptionsConfigurator`, `src/Encina.Marten/ServiceCollectionExtensions.cs` lines 47-127).
@@ -392,7 +392,7 @@ CONTEXT:
 - Issue #317, Phase 6.
 
 TASK:
-Write the tests of the table, the two justification files and add the project references the new tests need.
+Write the tests of the table, the three justification files (property, load, benchmark) and add the project references the new tests need.
 
 KEY RULES:
 - Tests execute real code; Shouldly through Encina.Testing.Shouldly; no Thread.Sleep.
@@ -448,12 +448,12 @@ REFERENCE FILES:
 | PR | Content | Files | Lines |
 |----|---------|-------|-------|
 | 1 | Phase 1: `PendingCommand`, `ProcessManagerBase`, routing handler, `ProcessManagerLog` (4 modified or new), PublicAPI, manifest, 2 unit tests, 1 guard test | 9 | 700 |
-| 2 | Phase 2 package and store: csproj, `Encina.slnx`, 2 documents, configurator, store, DI extension (6), 2 PublicAPI, manifest, `UnitTests` and `GuardTests` references to the new package (not present: #392 adds only `Encina.ProcessManager`), unit and guard tests (2) | 14 | 1,100 |
+| 2 | Phase 2 package and store: csproj, `Encina.slnx`, 2 documents, configurator, store, DI extension (7 files), 2 PublicAPI, manifest, `UnitTests` and `GuardTests` references to the new package (not present: #392 adds only `Encina.ProcessManager`), unit and guard tests (2) | 14 | 1,100 |
 | 3 | Phases 3-5: registration order test, Marten log class, `AssemblyRanges` entry, command counter and span (2 source), 2 unit tests, PublicAPI | 8 | 600 |
-| 4 | Phase 6 integration: 4 integration classes on the `Marten` collection (save and conflict, tenant isolation, duplicate, purge), contract registration, `IntegrationTests` and `ContractTests` references to the new package, justification files (2) | 9 | 900 |
+| 4 | Phase 6 integration: 4 integration classes on the `Marten` collection (save and conflict, tenant isolation, duplicate, purge), contract registration, `IntegrationTests` and `ContractTests` references to the new package, 3 justification files (property, load, benchmark) | 10 | 900 |
 | 5 | Phase 7 documentation: README, guide section, INVENTORY, ROADMAP, changelog fragment | 5 | 400 |
 
-Total: 5 pull requests, 45 files (upper estimate: 9 + 14 + 8 + 9 + 5); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs the #392 pull requests 1 to 4 merged (it modifies `ProcessManagerLog` and uses the range, both landed by #392 pull request 2, and the routing handler of #392 pull request 4); pull request 2 needs #392 pull request 1 (the contract) only; pull request 3 needs #392 pull request 2 (range registration, meter) and #317 pull request 2; pull request 4 needs #317 pull request 2.
+Total: 5 pull requests, 46 files (upper estimate: 9 + 14 + 8 + 10 + 5); no pull request exceeds 15 files or 1,500 lines. Pull request 1 needs the #392 pull requests 1 to 4 merged (it modifies `ProcessManagerLog` and uses the range, both landed by #392 pull request 2, and the routing handler of #392 pull request 4); pull request 2 needs #392 pull request 1 (the contract) only; pull request 3 needs #392 pull request 2 (range registration, meter), #317 pull request 1 (the dispatch path the counter and span instrument) and #317 pull request 2; pull request 4 needs #317 pull request 2.
 
 ---
 
@@ -477,7 +477,7 @@ Total: 5 pull requests, 45 files (upper estimate: 9 + 14 + 8 + 9 + 5); no pull r
 | `MartenSnapshotStore<TAggregate>` | `src/Encina.Marten/Snapshots/MartenSnapshotStore.cs` | Pattern for a Marten document store over `IDocumentSession` |
 | `EncinaStoreOptionsConfigurator`, `IConfigureMarten` | `src/Encina.Marten/EncinaStoreOptionsConfigurator.cs` | Pattern for registering documents and indexes |
 | `EncinaMartenOptions.UseOptimisticConcurrency` | `src/Encina.Marten/EncinaMartenOptions.cs` | Optimistic concurrency switch (default true) |
-| `MartenFixture` | `tests/Encina.IntegrationTests/Compliance/BreachNotification/` | Shared PostgreSQL Marten fixture for integration tests |
+| `MartenFixture` | `tests/Encina.IntegrationTests/Infrastructure/Marten/Fixtures/MartenFixture.cs` | Shared PostgreSQL Marten fixture for integration tests |
 | `TenancyErrors` | `src/Encina.Tenancy/TenancyErrors.cs` | `tenancy.tenant_required` is `InvalidRequest`; mirrored by #392 |
 | `ProcessManagerBase`, `IProcessManagerStore`, routing handler | `src/Encina.ProcessManager/` (after #392) | The shared core this plan extends |
 | `EventIdRanges` | `src/Encina/Diagnostics/EventIdRanges.cs` | Registry; the range is registered by #392 |
@@ -507,10 +507,10 @@ The block 12250-12299 is the first free 50-id slot of the Core and messaging are
 |----------|-------|-------|
 | Core additions | ~5 | Modified or new files in `Encina.ProcessManager` |
 | Marten package source | ~12 | csproj, documents, configurator, store, DI, log, PublicAPI x2, manifest |
-| Tests | ~19 | Unit, guard, contract, DI, integration x4, justification x2 |
+| Tests | ~22 | Unit, guard, contract, DI, integration x4, justification x3 (property, load, benchmark), project references |
 | Registry and registrations | ~2 | `Encina.slnx`, `AssemblyRanges` test |
 | Documentation | ~5 | README, guide section, INVENTORY, ROADMAP, changelog fragment |
-| **Total** | **~45 in 5 pull requests** | Equals the sum of the split table |
+| **Total** | **~46 in 5 pull requests** | Equals the sum of the split table |
 
 ---
 
