@@ -18,7 +18,7 @@ namespace Encina.Diagnostics;
 /// </list>
 /// </para>
 /// <para>
-/// Migration into the 10000+ zone (issue #4007): the 91 ranges below are the historical ranges. They are grouped
+/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1) keeps its field but now lies in the zone. They are grouped
 /// by the area and sub-issue that moves them, in the merge order of #4007 (CM-1 to CM-6, DB-1, DB-2, CA-1, CA-2,
 /// TR-1, TR-2, SC-1 to SC-6, OP-1, OP-2, TT-CI). Each field keeps its current value until its sub-issue lands;
 /// the trailing comment names the sub-issue and the range the field moves to. The target extents are reserved in
