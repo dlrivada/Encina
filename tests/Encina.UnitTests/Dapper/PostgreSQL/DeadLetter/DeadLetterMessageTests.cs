@@ -32,11 +32,23 @@ public sealed class DeadLetterMessageTests
 
         var message = new DeadLetterMessage
         {
-            Id = id, RequestType = "T", RequestContent = "{}", ErrorCode = "e", ExceptionType = "X",
-            ExceptionStackTrace = "at X", CorrelationId = "corr", SourcePattern = "outbox", SourceMessageId = "src",
-            TenantId = "tenant", TotalRetryAttempts = 5, FirstFailedAtUtc = Now.AddHours(-2),
-            DeadLetteredAtUtc = Now.AddHours(-1), ExpiresAtUtc = Now.AddDays(1), ReplayClaimedAtUtc = Now,
-            ReplayedAtUtc = Now.AddMinutes(1), ReplayResult = "success"
+            Id = id,
+            RequestType = "T",
+            RequestContent = "{}",
+            ErrorCode = "e",
+            ExceptionType = "X",
+            ExceptionStackTrace = "at X",
+            CorrelationId = "corr",
+            SourcePattern = "outbox",
+            SourceMessageId = "src",
+            TenantId = "tenant",
+            TotalRetryAttempts = 5,
+            FirstFailedAtUtc = Now.AddHours(-2),
+            DeadLetteredAtUtc = Now.AddHours(-1),
+            ExpiresAtUtc = Now.AddDays(1),
+            ReplayClaimedAtUtc = Now,
+            ReplayedAtUtc = Now.AddMinutes(1),
+            ReplayResult = "success"
         };
 
         message.Id.ShouldBe(id);

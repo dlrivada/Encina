@@ -70,21 +70,21 @@ public sealed class DeadLetterStoreDapperTests : IAsyncDisposable
         string sourceMessageId = "src-1",
         DateTime? expiresAtUtc = null,
         DateTime? deadLetteredAtUtc = null) => new()
-    {
-        Id = Guid.NewGuid(),
-        RequestType = "Orders.PlaceOrder",
-        RequestContent = "{}",
-        ErrorCode = "orders.failed",
-        ExceptionType = "System.InvalidOperationException",
-        CorrelationId = "corr-1",
-        SourcePattern = "outbox",
-        SourceMessageId = sourceMessageId,
-        TenantId = "tenant-1",
-        TotalRetryAttempts = 3,
-        FirstFailedAtUtc = Start.AddHours(-2),
-        DeadLetteredAtUtc = deadLetteredAtUtc ?? Start.AddHours(-1),
-        ExpiresAtUtc = expiresAtUtc
-    };
+        {
+            Id = Guid.NewGuid(),
+            RequestType = "Orders.PlaceOrder",
+            RequestContent = "{}",
+            ErrorCode = "orders.failed",
+            ExceptionType = "System.InvalidOperationException",
+            CorrelationId = "corr-1",
+            SourcePattern = "outbox",
+            SourceMessageId = sourceMessageId,
+            TenantId = "tenant-1",
+            TotalRetryAttempts = 3,
+            FirstFailedAtUtc = Start.AddHours(-2),
+            DeadLetteredAtUtc = deadLetteredAtUtc ?? Start.AddHours(-1),
+            ExpiresAtUtc = expiresAtUtc
+        };
 
     private static IDeadLetterMessage Stored(Either<EncinaError, Option<IDeadLetterMessage>> result) =>
         result.ShouldBeRight().IfNone(() => throw new InvalidOperationException("The message was not found."));
