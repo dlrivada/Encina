@@ -22,7 +22,7 @@ namespace Encina.Messaging.DeadLetter;
 /// Tenancy fails closed: when multi-tenancy is in use (<see cref="MultiTenancyMarker"/> is registered, which
 /// <c>AddEncinaTenancy</c> does) and no tenant is resolved, an operation that names no tenant and does not set
 /// <see cref="DeadLetterFilter.AllTenants"/> is denied with <see cref="DeadLetterErrorCodes.TenantRequired"/>
-/// (an <c>encina.authorization.*</c> code, 403). Operations by message id and
+/// (an <c>encina.authorization.*</c> code of category <see cref="ErrorCategory.InvalidRequest"/>, HTTP 400). Operations by message id and
 /// <see cref="GetStatisticsAsync"/> have no filter to opt out with, so they are denied too. With no tenancy
 /// registered the manager works across the whole queue when there is no ambient tenant.
 /// </para>
