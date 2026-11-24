@@ -121,9 +121,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
             cancellationToken, timeoutCts.Token);
         var linkedToken = linkedCts.Token;
 
-        var maxParallelism = _options.MaxParallelism <= 0
-            ? shardIdList.Count
-            : Math.Min(_options.MaxParallelism, shardIdList.Count);
+        var maxParallelism = GetMaxParallelism(shardIdList.Count);
 
         using var semaphore = new SemaphoreSlim(maxParallelism, maxParallelism);
 
@@ -136,7 +134,7 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
         {
             results = await Task.WhenAll(tasks);
         }
-        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (IsTimeout(timeoutCts, cancellationToken))
         {
             _logger.LogWarning(
                 "Scatter-gather query timed out after {Timeout}", _options.Timeout);
@@ -150,6 +148,28 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
         }
 
         // Aggregate results
+        var (allResults, successfulShards, failedShards) = AggregateResults(results);
+
+        // Record scatter-gather metrics
+        var scatterElapsed = Stopwatch.GetElapsedTime(scatterStart);
+        RecordScatterGatherMetrics(shardIdList.Count, allResults.Count, failedShards.Count, scatterElapsed);
+
+        ShardingActivitySource.CompleteScatterGather(
+            scatterActivity, successfulShards.Count, failedShards.Count, allResults.Count);
+
+        return BuildResult(allResults, successfulShards, failedShards, shardIdList.Count);
+    }
+
+    private int GetMaxParallelism(int shardCount) => _options.MaxParallelism <= 0
+        ? shardCount
+        : Math.Min(_options.MaxParallelism, shardCount);
+
+    private static bool IsTimeout(CancellationTokenSource timeoutCts, CancellationToken cancellationToken)
+        => timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested;
+
+    private static (List<T> AllResults, List<string> SuccessfulShards, List<ShardFailure> FailedShards) AggregateResults<T>(
+        ShardQueryTaskResult<T>[] results)
+    {
         var allResults = new List<T>();
         var successfulShards = new List<string>();
         var failedShards = new List<ShardFailure>();
@@ -167,30 +187,37 @@ public sealed class ShardedQueryExecutor : IShardedQueryExecutor
             }
         }
 
-        // Record scatter-gather metrics
-        var scatterElapsed = Stopwatch.GetElapsedTime(scatterStart);
-        _metrics?.RecordScatterGatherDuration(shardIdList.Count, allResults.Count, scatterElapsed.TotalMilliseconds);
+        return (allResults, successfulShards, failedShards);
+    }
 
-        if (failedShards.Count > 0)
+    private void RecordScatterGatherMetrics(int shardCount, int resultCount, int failedCount, TimeSpan scatterElapsed)
+    {
+        _metrics?.RecordScatterGatherDuration(shardCount, resultCount, scatterElapsed.TotalMilliseconds);
+
+        if (failedCount > 0)
         {
-            _metrics?.RecordPartialFailure(failedShards.Count, shardIdList.Count);
+            _metrics?.RecordPartialFailure(failedCount, shardCount);
         }
+    }
 
-        ShardingActivitySource.CompleteScatterGather(
-            scatterActivity, successfulShards.Count, failedShards.Count, allResults.Count);
-
+    private Either<EncinaError, ShardedQueryResult<T>> BuildResult<T>(
+        List<T> allResults,
+        List<string> successfulShards,
+        List<ShardFailure> failedShards,
+        int shardCount)
+    {
         // If partial results are not allowed and any shard failed, return error
         if (!_options.AllowPartialResults && failedShards.Count > 0)
         {
             _logger.LogError(
                 "Scatter-gather failed: {FailedCount}/{TotalCount} shards failed and AllowPartialResults is false",
                 failedShards.Count,
-                shardIdList.Count);
+                shardCount);
 
             return Either<EncinaError, ShardedQueryResult<T>>.Left(
                 EncinaErrors.Create(
                     ShardingErrorCodes.ScatterGatherPartialFailure,
-                    $"{failedShards.Count} of {shardIdList.Count} shards failed. " +
+                    $"{failedShards.Count} of {shardCount} shards failed. " +
                     $"Failed shards: {string.Join(", ", failedShards.Select(f => f.ShardId))}."));
         }
 
