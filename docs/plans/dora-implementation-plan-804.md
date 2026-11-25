@@ -4,7 +4,7 @@
 > **Type**: Feature (new package)
 > **Complexity**: Very High (four event-sourced aggregates, classification and deadline rules, shared incident reporting; 8 pull requests)
 > **Estimated Scope**: 118 file touches and about 9,800 lines including tests and per-PR metadata; split into 8 pull requests, see "Pull request split"
-> **Milestone**: post-1.0 (label `post-1.0`; SPEC-002 DEC-015 keeps DORA out of 1.0, SPEC-000 section 6 lists the exclusions)
+> **Milestone**: v0.17.0 — Compliance Lifecycle. In the 1.0 scope since SPEC-000 DEC-009 (2026-10-23, REQ-030, which supersedes SPEC-002 DEC-015); the issue's `post-1.0` label and the issue comment "stays post-1.0" are stale
 > **Provider Category**: None for databases (Marten on PostgreSQL, ADR-027; AGENTS.md section 5 excludes event sourcing from the database matrix)
 > **Family**: `compliance-nis2-2` (regulatory compliance packages after NIS2). Shares the incident reporting port of the #812 plan and the event-sourcing conventions of #822.
 
