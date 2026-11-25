@@ -297,23 +297,36 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
         var includeColumnDiffs = options?.IncludeColumnDiffs ?? true;
 
         // Select baseline shard
-        ShardInfo baselineShard;
+        var baselineResult = SelectBaselineShard(options, activeShards);
+        if (baselineResult.IsLeft)
+        {
+            return Either<EncinaError, SchemaDriftReport>.Left(
+                baselineResult.Match(Right: _ => default, Left: e => e));
+        }
+
+        var baselineShard = baselineResult.Match(Right: s => s, Left: _ => default!);
+
+        return await CompareWithBaselineAsync(activeShards, baselineShard, includeColumnDiffs, cancellationToken);
+    }
+
+    private Either<EncinaError, ShardInfo> SelectBaselineShard(
+        DriftDetectionOptions? options,
+        IReadOnlyList<ShardInfo> activeShards)
+    {
         if (options?.BaselineShardId is not null)
         {
-            var baselineResult = _topology.GetShard(options.BaselineShardId);
-            if (baselineResult.IsLeft)
-            {
-                return Either<EncinaError, SchemaDriftReport>.Left(
-                    baselineResult.Match(Right: _ => default, Left: e => e));
-            }
-
-            baselineShard = baselineResult.Match(Right: s => s, Left: _ => default!);
-        }
-        else
-        {
-            baselineShard = activeShards[0];
+            return _topology.GetShard(options.BaselineShardId);
         }
 
+        return activeShards[0];
+    }
+
+    private async Task<Either<EncinaError, SchemaDriftReport>> CompareWithBaselineAsync(
+        IReadOnlyList<ShardInfo> activeShards,
+        ShardInfo baselineShard,
+        bool includeColumnDiffs,
+        CancellationToken cancellationToken)
+    {
         var diffs = new List<ShardSchemaDiff>();
         var shardsToCompare = activeShards.Where(s => s.ShardId != baselineShard.ShardId).ToList();
 

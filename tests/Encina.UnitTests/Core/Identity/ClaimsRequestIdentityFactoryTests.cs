@@ -63,7 +63,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
 
         refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.MissingSubjectClaim);
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
-        record.Id.Id.ShouldBe(162);
+        record.Id.Id.ShouldBe(10062);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain("bearer");
         record.Message.ShouldContain("sub");
@@ -114,7 +114,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
         var refusal = CreateFactory().CheckSubject(principal);
 
         refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ConflictingSubjectClaims);
-        _logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(164);
+        _logger.Collector.GetSnapshot().ShouldHaveSingleItem().Id.Id.ShouldBe(10064);
         AssertNoSentinelLogged();
     }
 
@@ -145,7 +145,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
 
         refusal.GetValueOrDefault().GetCode().IfNone("none").ShouldBe(code);
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
-        record.Id.Id.ShouldBe(163);
+        record.Id.Id.ShouldBe(10063);
         record.Message.ShouldContain("sub");
         AssertNoSentinelLogged();
     }
@@ -312,7 +312,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
             .ShouldBe(RequestIdentityErrorCodes.ConflictingSubjectClaims);
 
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
-        record.Id.Id.ShouldBe(164);
+        record.Id.Id.ShouldBe(10064);
         record.Message.ShouldContain("subject");
         AssertNoSentinelLogged();
     }
@@ -332,7 +332,7 @@ public sealed class ClaimsRequestIdentityFactoryTests
         tenantId.ShouldBeNull();
 
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
-        record.Id.Id.ShouldBe(164);
+        record.Id.Id.ShouldBe(10064);
         record.Message.ShouldContain("tenant");
         AssertNoSentinelLogged();
     }

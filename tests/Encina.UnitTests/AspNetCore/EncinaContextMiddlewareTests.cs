@@ -59,8 +59,8 @@ public sealed class EncinaContextMiddlewareTests
         _seen.Issued().Permissions.ShouldContain("orders:read");
         ((RequestContext)_seen).Origin.ShouldBe(RequestOrigin.Inbound);
         _seen.Timestamp.ShouldBe(_host.Time.GetUtcNow());
-        _host.EventIds.ShouldContain(172);
-        _host.EventIds.ShouldNotContain(175);
+        _host.EventIds.ShouldContain(10072);
+        _host.EventIds.ShouldNotContain(10075);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class EncinaContextMiddlewareTests
         _seen.Issued().Issuer!.IsLive.ShouldBeFalse();
         _seen!.Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
         _host.Accessor.RequestContext.ShouldBeNull();
-        _host.EventIds.ShouldContain(168);
+        _host.EventIds.ShouldContain(10068);
     }
 
     [Fact]
@@ -101,8 +101,8 @@ public sealed class EncinaContextMiddlewareTests
         refused.IsLeft.ShouldBeTrue();
         refused.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.ScopeConflict));
         optedIn.ShouldBeSuccess().ShouldBe(2);
-        _host.EventIds.ShouldContain(167);
-        _host.EventIds.ShouldContain(174);
+        _host.EventIds.ShouldContain(10067);
+        _host.EventIds.ShouldContain(10074);
     }
 
     // ── What the request carries (task 11 builder) ────────────────────────
@@ -186,7 +186,7 @@ public sealed class EncinaContextMiddlewareTests
 
         anonymousTenant.ShouldBe("header-tenant");
         _seen!.TenantId.ShouldBe("header-tenant");
-        _host.EventIds.ShouldNotContain(176);
+        _host.EventIds.ShouldNotContain(10076);
     }
 
     [Fact]
@@ -197,14 +197,14 @@ public sealed class EncinaContextMiddlewareTests
 
         await InvokeAsync(CreateMiddleware(), new DefaultHttpContext());
         var withoutHeaderTenant = _seen!.TenantId;
-        var debugBefore = _host.EventIds.Count(static id => id == 176);
+        var debugBefore = _host.EventIds.Count(static id => id == 10076);
         await InvokeAsync(CreateMiddleware(), withHeader);
 
         withoutHeaderTenant.ShouldBeNull();
         debugBefore.ShouldBe(0);
         _seen!.TenantId.ShouldBeNull();
-        _host.EventIds.Count(static id => id == 176).ShouldBe(1);
-        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 176).Level.ShouldBe(LogLevel.Debug);
+        _host.EventIds.Count(static id => id == 10076).ShouldBe(1);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 10076).Level.ShouldBe(LogLevel.Debug);
     }
 
     [Theory]
@@ -270,7 +270,7 @@ public sealed class EncinaContextMiddlewareTests
         var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
         body.ShouldContain("403");
         body.ShouldNotContain(Sentinel);
-        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 167).Message.ShouldContain(code);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 10067).Message.ShouldContain(code);
     }
 
     [Fact]
@@ -304,8 +304,8 @@ public sealed class EncinaContextMiddlewareTests
         body.ShouldNotContain("tenant-b");
         body.ShouldNotContain("claim-tenant");
         body.ShouldNotContain("other-tenant");
-        _host.EventIds.ShouldContain(167);
-        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 167).Message
+        _host.EventIds.ShouldContain(10067);
+        _host.Logger.Collector.GetSnapshot().Single(static r => r.Id.Id == 10067).Message
             .ShouldContain(RequestIdentityErrorCodes.InboundTenantConflict);
     }
 
@@ -452,7 +452,7 @@ public sealed class EncinaContextMiddlewareTests
         _seen.ShouldNotBeNull();
         _seen.Identity.Kind.ShouldBe(IdentityKind.Anonymous);
         ((RequestContext)_seen).Origin.ShouldBe(RequestOrigin.Connection);
-        _host.EventIds.ShouldNotContain(172);
+        _host.EventIds.ShouldNotContain(10072);
         context.Response.Headers.ContainsKey("X-Correlation-ID").ShouldBeFalse();
     }
 
@@ -495,7 +495,7 @@ public sealed class EncinaContextMiddlewareTests
 
         _nextCalls.ShouldBe(0);
         context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
-        _host.EventIds.ShouldNotContain(167);
+        _host.EventIds.ShouldNotContain(10067);
         MiddlewareEventIds.ShouldBeEmpty();
     }
 
@@ -524,7 +524,7 @@ public sealed class EncinaContextMiddlewareTests
 
         _nextCalls.ShouldBe(0);
         context.Response.StatusCode.ShouldBe(StatusCodes.Status500InternalServerError);
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
     }
 
     [Fact]

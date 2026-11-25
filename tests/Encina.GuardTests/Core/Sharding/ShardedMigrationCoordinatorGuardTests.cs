@@ -223,6 +223,42 @@ public sealed class ShardedMigrationCoordinatorGuardTests
 
     #endregion
 
+    #region DetectDriftAsync Guards
+
+    /// <summary>
+    /// Verifies that DetectDriftAsync accepts null options: it compares the other active shards with the first one,
+    /// including column diffs, and returns a report.
+    /// </summary>
+    [Fact]
+    public async Task DetectDriftAsync_NullOptions_ComparesWithTheFirstActiveShardAndReturnsReport()
+    {
+        var baseline = _topology.GetActiveShards()[0];
+        _introspector.CompareAsync(Arg.Any<ShardInfo>(), Arg.Any<ShardInfo>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(call => Either<EncinaError, ShardSchemaDiff>.Right(
+                new ShardSchemaDiff(call.ArgAt<ShardInfo>(0).ShardId, call.ArgAt<ShardInfo>(1).ShardId, [])));
+        var coordinator = CreateCoordinator();
+
+        var result = await coordinator.DetectDriftAsync(null);
+
+        result.IsRight.ShouldBeTrue();
+        await _introspector.Received(1).CompareAsync(Arg.Any<ShardInfo>(), baseline, true, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Verifies that DetectDriftAsync returns the topology error for an unknown baseline shard.
+    /// </summary>
+    [Fact]
+    public async Task DetectDriftAsync_UnknownBaselineShard_ReturnsLeftError()
+    {
+        var coordinator = CreateCoordinator();
+
+        var result = await coordinator.DetectDriftAsync(new DriftDetectionOptions { BaselineShardId = "missing" });
+
+        result.IsLeft.ShouldBeTrue();
+    }
+
+    #endregion
+
     #region Test Helpers
 
     private ShardedMigrationCoordinator CreateCoordinator() =>

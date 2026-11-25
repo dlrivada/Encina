@@ -58,22 +58,22 @@ public sealed partial class Encina
 
     internal static partial class Log
     {
-        [LoggerMessage(EventId = 100, Level = LogLevel.Error, Message = "The stream request cannot be null.")]
+        [LoggerMessage(EventId = 10000, Level = LogLevel.Error, Message = "The stream request cannot be null.")]
         public static partial void NullStreamRequest(ILogger logger);
 
-        [LoggerMessage(EventId = 101, Level = LogLevel.Error, Message = "No registered IStreamRequestHandler was found for {RequestType} -> {ItemType}.")]
+        [LoggerMessage(EventId = 10001, Level = LogLevel.Error, Message = "No registered IStreamRequestHandler was found for {RequestType} -> {ItemType}.")]
         public static partial void StreamHandlerMissing(ILogger logger, string requestType, string itemType);
 
-        [LoggerMessage(EventId = 102, Level = LogLevel.Debug, Message = "Processing stream {RequestType} with {HandlerType}.")]
+        [LoggerMessage(EventId = 10002, Level = LogLevel.Debug, Message = "Processing stream {RequestType} with {HandlerType}.")]
         public static partial void ProcessingStreamRequest(ILogger logger, string requestType, string handlerType);
 
-        [LoggerMessage(EventId = 103, Level = LogLevel.Debug, Message = "Stream {RequestType} completed by {HandlerType}: {ItemCount} items yielded.")]
+        [LoggerMessage(EventId = 10003, Level = LogLevel.Debug, Message = "Stream {RequestType} completed by {HandlerType}: {ItemCount} items yielded.")]
         public static partial void StreamCompleted(ILogger logger, string requestType, string handlerType, int itemCount);
 
-        [LoggerMessage(EventId = 104, Level = LogLevel.Warning, Message = "The {RequestType} stream was cancelled.")]
+        [LoggerMessage(EventId = 10004, Level = LogLevel.Warning, Message = "The {RequestType} stream was cancelled.")]
         public static partial void StreamCancelled(ILogger logger, string requestType, Exception? exception);
 
-        [LoggerMessage(EventId = 105, Level = LogLevel.Error, Message = "Unexpected error while processing stream {RequestType}.")]
+        [LoggerMessage(EventId = 10005, Level = LogLevel.Error, Message = "Unexpected error while processing stream {RequestType}.")]
         public static partial void StreamProcessingError(ILogger logger, string requestType, Exception exception);
     }
 }
