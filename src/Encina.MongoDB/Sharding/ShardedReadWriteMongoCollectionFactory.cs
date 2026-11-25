@@ -282,24 +282,24 @@ public sealed class ShardedReadWriteMongoCollectionFactory : IShardedReadWriteMo
         {
             var schemeSeparatorIndex = connectionString.IndexOf("://", StringComparison.Ordinal);
             var authorityStart = schemeSeparatorIndex >= 0 ? schemeSeparatorIndex + 3 : 0;
-            var pathStart = connectionString.IndexOf('/', authorityStart);
+            var authority = connectionString.AsSpan(authorityStart);
+            var pathStart = authority.IndexOf('/');
 
-            if (pathStart < 0 || pathStart + 1 >= connectionString.Length)
+            if (pathStart < 0 || pathStart + 1 >= authority.Length)
             {
                 return null;
             }
 
-            var queryStart = connectionString.IndexOf('?', pathStart);
-            var rawDatabaseName = queryStart >= 0
-                ? connectionString[(pathStart + 1)..queryStart]
-                : connectionString[(pathStart + 1)..];
+            var path = authority[(pathStart + 1)..];
+            var queryStart = path.IndexOf('?');
+            var rawDatabaseName = queryStart >= 0 ? path[..queryStart] : path;
 
-            if (string.IsNullOrWhiteSpace(rawDatabaseName))
+            if (rawDatabaseName.IsWhiteSpace())
             {
                 return null;
             }
 
-            return Uri.UnescapeDataString(rawDatabaseName);
+            return Uri.UnescapeDataString(rawDatabaseName.ToString());
         }
         catch
         {
