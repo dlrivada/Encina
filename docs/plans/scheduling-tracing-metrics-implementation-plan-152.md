@@ -2,20 +2,20 @@
 
 > **Issue**: [#152](https://github.com/dlrivada/Encina/issues/152)
 > **Type**: Feature (observability; the issue is `status:proposal`, part of the scheduling family)
-> **Complexity**: Low-Medium (observability only, no schema and no provider code; 4 pull requests of 5 to 8 files)
-> **Estimated Scope**: ~330 lines of production code + ~700 lines of tests, documentation and manifests; 26 file touches (20 distinct files) in 4 pull requests
+> **Complexity**: Low-Medium (observability only, no schema and no provider code; 4 pull requests of 6 to 8 files)
+> **Estimated Scope**: ~330 lines of production code + ~700 lines of tests, documentation and manifests; 29 file touches (21 distinct files) in 4 pull requests
 > **Family**: scheduling-3. Siblings are cited by issue number only: #176 (restores the producer trace at dispatch), #132 and #1164 (propagation API and persisted envelope), #177 (messaging attribute constants), #721 (store instrumentation and the `Encina.Messaging` meter), #1222, #146, #150, #133, #147 (scheduling features that add counters and spans of their own), #735 (dispatch context), #739 (tenant on the row), #159 (analytics, owns the pending count)
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-25, `origin/main` `dfa55c93e`)
+### What exists today (read on 2026-11-25, `origin/main` `1c067b45b`)
 
 - The issue's premise is half true. Scheduling already has telemetry, but most of it is not wired:
   - `SchedulingActivitySource` (`src/Encina.Messaging/Diagnostics/SchedulingActivitySource.cs`, internal, source `Encina.Messaging.Scheduling`) has `StartSchedule`, `StartProcessDue`, `StartExecute`, `StartCancel` and the processor-cycle helpers. Only `StartProcessingCycle`, `CompleteProcessingCycle` and `Failed` are called, by `ScheduledMessageProcessor` (`ScheduledMessageProcessor.cs` lines 147, 166, 172). `SchedulerOrchestrator` calls none of the others.
   - `InstrumentedScheduledMessageStore` (`src/Encina.OpenTelemetry/MessagingStores/InstrumentedScheduledMessageStore.cs`, internal) creates its own second `ActivitySource` with the same name and the same span names (`encina.scheduling.schedule`, `process_due`, `execute`, `cancel`). Its `execute` span wraps only the `MarkAsProcessedAsync` store call, not the dispatch of the request, so a trace reader sees an "execute" that took a database round trip.
-  - `MessagingStoreMetrics` (meter `Encina`) declares `encina.scheduling.messages_scheduled_total` and `encina.scheduling.messages_executed_total` with `RecordScheduled` and `RecordExecuted`; a search of `src` finds no caller of either method (only the declarations, the initializer that creates the class and a guard test).
+  - `MessagingStoreMetrics` (meter `Encina`) declares `encina.scheduling.messages_scheduled_total` and `encina.scheduling.messages_executed_total` with `RecordScheduled` and `RecordExecuted`; a search of `src` finds no caller of either method (only the declarations, the two public API lines `src/Encina.Messaging/PublicAPI.Unshipped.txt:733-734` and the initializer that creates the class; no test calls either method).
   - `SchedulingProcessorMetrics` (`encina.scheduling.processor.messages_total` and `cycle_duration_seconds`) is fed by `ScheduledMessageProcessor`, which always passes `failureCount: 0` (`RecordBatch(successCount: count, failureCount: 0)`): the orchestrator returns only the number of dispatched messages, so the `failure` outcome is never recorded.
 - No trace context is persisted or propagated: a search of `src` for `TraceContext`, `traceparent` and `TextMapPropagator` finds nothing. ADR-054 D1 puts the persisted trace in the #1164 envelope and not in a column of each message type, and the plans of #132 and #176 own the propagation API and the two processor call sites (`encina.scheduling.dispatch`, kind `Scheduled`, a new trace linked to the producer span).
 - Today the structured logs the issue asks for exist: `SchedulerOrchestrator`'s `Log` class (EventIds 2931-2941 and 2989) logs scheduled, executed, failed, dispatch-failed and dead-letter paths; `SchedulingProcessorLog` and `SchedulingStoreLog` use 2300-2306 and 2320-2325.
@@ -90,7 +90,7 @@ The issue proposes a public `SchedulingActivitySource` and `SchedulingMetrics`, 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Replace: delete `encina.scheduling.messages_scheduled_total` and `messages_executed_total` with `RecordScheduled` and `RecordExecuted` (no caller), and delete `encina.scheduling.processor.messages_total` (its `failure` outcome is always zero); keep `cycle_duration_seconds`; the new counter carries all four outcomes** | One counter, no `_total`, no duplicate series; follows "no legacy code" (`AGENTS.md` section 1) | A dashboard built on the old names breaks; there is no released user (pre-1.0) |
+| **A) Replace: delete `encina.scheduling.messages_scheduled_total` and `messages_executed_total` with `RecordScheduled` and `RecordExecuted` (no caller), and delete `encina.scheduling.processor.messages_total` (its `failure` outcome is always zero); keep `cycle_duration_seconds` (it stays on the plain `Encina` meter, which ADR-054 D3 retires: its move to the `Encina.Messaging` meter belongs to the ADR-054 D3 retirement of the plain meter, not to this plan; `WithEncina()` keeps `AddMeter("Encina")` until then, and #1787 checks that every meter is subscribed); the new counter carries all four outcomes** | One counter, no `_total`, no duplicate series; follows "no legacy code" (`AGENTS.md` section 1) | A dashboard built on the old names breaks; there is no released user (pre-1.0) |
 | **B) Keep them and wire them: call `RecordScheduled` and `RecordExecuted` from the orchestrator and fix the processor's failure count** | No rename | Two series for the same fact; the `_total` names stay; the processor cannot know the failure count without changing `ProcessDueMessagesAsync`'s return type (32 call sites in 9 files) |
 
 ### Chosen Option: **A — replace** (recommended, pending the maintainer)
@@ -272,7 +272,8 @@ REFERENCE FILES:
 
 1. `src/Encina.Messaging/Diagnostics/MessagingStoreMetrics.cs`: delete the two scheduling counters, `RecordScheduled` and `RecordExecuted` (Design Choice 3, option A).
 2. `src/Encina.Messaging/Diagnostics/SchedulingProcessorMetrics.cs`: delete `messages_total` and `RecordBatch`; keep `cycle_duration_seconds`. `src/Encina.Messaging/Scheduling/ScheduledMessageProcessor.cs`: delete the `RecordBatch` call and keep `RecordCycleDuration` and the log.
-3. Tests: edit `tests/Encina.GuardTests/Messaging/Diagnostics/MessagingStoreMetricsGuardTests.cs` (remove the scheduling cases), check `tests/Encina.UnitTests/OpenTelemetry/MessagingStores/MessagingStoreMetricsInitializerTests.cs` and the processor tests for the two removed members (grep `RecordBatch(` and `RecordScheduled(` on `origin/main` first: the worker lists every caller), and `.github/coverage-manifest/Encina.Messaging.json` through `mechanical-fixer`. If the maintainer answers Design Choice 3 with B, this phase becomes "wire `RecordScheduled` and `RecordExecuted` and fix the failure count" instead.
+3. `src/Encina.Messaging/PublicAPI.Unshipped.txt`: remove lines 733 and 734 (`MessagingStoreMetrics.RecordScheduled` and `RecordExecuted` are public API; leaving them is RS0017 and fails the build), through `mechanical-fixer`.
+4. Tests: a grep of `src` and `tests` on `origin/main` (`RecordScheduled`, `RecordExecuted`, `messages_scheduled_total`, `messages_executed_total`, `RecordBatch(`) finds no test that calls the removed members: `MessagingStoreMetricsGuardTests.cs` has no scheduling case, and the only `RecordBatch` caller besides the processor is the outbox's own `OutboxProcessorMetrics.RecordBatch`, which is not touched. The pull request adds `tests/Encina.UnitTests/Messaging/Diagnostics/SchedulingProcessorMetricsTests.cs` (a `MeterListener` asserts that `cycle_duration_seconds` is still recorded and that no `messages_total` instrument is created), and the `.github/coverage-manifest/Encina.Messaging.json` entries through `mechanical-fixer`. T2 is 6 files: the three source files, the new test, `PublicAPI.Unshipped.txt` and the manifest. If the maintainer answers Design Choice 3 with B, this phase becomes "wire `RecordScheduled` and `RecordExecuted` and fix the failure count" instead.
 
 </details>
 
@@ -337,7 +338,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `SchedulingExecutionMetrics` methods gain `string? tenantId` and add the tag only when `TenantTelemetry.ValueFor(tenantId, multiTenancyEnabled)` returns a value; the spans set `encina.tenant_id` through the same helper (`TenantTelemetry`, #2676). `SchedulerOrchestrator` takes `MultiTenancyMarker? multiTenancy = null` as its last optional constructor parameter, after the optional parameters #739 and #735 add (all optional: no existing call site breaks, and the order rule CS1737 is kept by appending last).
+1. `SchedulingExecutionMetrics` methods gain `string? tenantId` and add the tag only when `TenantTelemetry.ValueFor(tenantId, multiTenancyEnabled)` returns a value; the spans set `encina.tenant_id` through the same helper (`TenantTelemetry`, #2676). `SchedulerOrchestrator` takes `MultiTenancyMarker? multiTenancy = null` as its last optional constructor parameter, after the optional parameters #739 and #735 add (all optional: no existing call site breaks, and the order rule CS1737 is kept by appending last). The public constructor line `src/Encina.Messaging/PublicAPI.Unshipped.txt:870` is edited in this pull request (RS0016/RS0017); #739 (12b) and #749 (PR 6) edit the same line, so whichever merges later rebases it and appends its parameter last. A guard test edit (`SchedulerOrchestratorGuardTests.cs`: a null `multiTenancy` is accepted and valid) goes in the same pull request.
+4. T4 is 8 files: `SchedulingExecutionMetrics.cs`, `SchedulingActivitySource.cs`, `SchedulerOrchestrator.cs`, `SchedulerOrchestratorTelemetryTests.cs` (edit), `SchedulingExecutionMetricsTests.cs` (edit), `SchedulerOrchestratorGuardTests.cs` (edit), `PublicAPI.Unshipped.txt` and `Encina.Messaging.json`.
 2. The tenant comes from `message.TenantId` on the dispatch path and from the stamped value on the schedule path (#739), never from the ambient context of the background processor.
 3. Tests: the telemetry tests add a two-tenant case (tag present and equal to the row's tenant when the marker is registered; no tag when it is not) and a test that an application tenant literally named `default` is tagged as `default` (the reserved id is a value, not a missing tenant).
 
@@ -375,10 +377,10 @@ REFERENCE FILES:
 | --- | --- | --- | --- |
 | `Diagnostics/SchedulingExecutionMetrics.cs` | T1 | unit 95, guard 40 | A `MeterListener` drives every method and outcome; guard tests reach the string validation through `InternalsVisibleTo`. |
 | `Diagnostics/SchedulingTelemetryNames.cs` | T1 | unit 0 | Constants only, no executable code. |
-| `Diagnostics/SchedulingActivitySource.cs` | T1, T4 | unit: the current manifest target, not lowered, plus the new span attributes | The telemetry tests read every attribute the helper sets. |
-| `Scheduling/SchedulerOrchestrator.cs` | T1, T4 | unit 90 and guard 30 (current targets, never lowered); integration: the current target | The telemetry paths are unit-tested with a mocked store; the EF Core scenario drives a real cycle. |
-| `Diagnostics/MessagingStoreMetrics.cs`, `Diagnostics/SchedulingProcessorMetrics.cs`, `Scheduling/ScheduledMessageProcessor.cs` | T2 | the current targets, not lowered | Smaller files; remaining members keep their tests. |
-| `MessagingStores/InstrumentedScheduledMessageStore.cs` | T3 | unit: the current target, not lowered | The renamed spans are asserted per method. |
+| `Diagnostics/SchedulingActivitySource.cs` | T1, T4 | unit 70, guard 20 (the package defaults, not lowered; the file has no per-file target) | The telemetry tests read every attribute the helper sets. |
+| `Scheduling/SchedulerOrchestrator.cs` | T1, T4 | unit 90, guard 30, integration 65 (current, never lowered) | The telemetry paths are unit-tested with a mocked store; the EF Core scenario drives a real cycle. |
+| `Diagnostics/MessagingStoreMetrics.cs`, `Diagnostics/SchedulingProcessorMetrics.cs`, `Scheduling/ScheduledMessageProcessor.cs` | T2 | unit 70, guard 20 (the package defaults, not lowered) | Smaller files; remaining members keep their tests and the new `SchedulingProcessorMetricsTests`. |
+| `MessagingStores/InstrumentedScheduledMessageStore.cs` | T3 | unit 76, guard 71 (current, not lowered) | The renamed spans are asserted per method. |
 
 Measure with `dotnet test tests\Encina.UnitTests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\UnitTests` (and the guard and integration projects) and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`. CRAP: the changed orchestrator methods stay at comp 10 or less by extracting the span and metric calls into small private helpers; the worker runs the local crap-gate table before the PR.
 
@@ -444,10 +446,11 @@ REFERENCE FILES:
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production | 9 | 2 new (`SchedulingTelemetryNames`, `SchedulingExecutionMetrics`), 7 modified; 12 touches over the four PRs |
-| Tests | 7 | 3 new (metrics unit, metrics guard, orchestrator telemetry), 4 edited; 9 touches |
-| Coverage manifests | 2 | `Encina.Messaging.json`, `Encina.OpenTelemetry.json`; 3 touches |
+| Tests | 9 | 4 new (metrics unit, metrics guard, orchestrator telemetry, processor metrics), 5 edited (including the two guard and unit edits of T4); 12 touches |
+| Coverage manifests | 2 | `Encina.Messaging.json`, `Encina.OpenTelemetry.json`; 4 touches |
+| PublicAPI | 1 | `Encina.Messaging` `PublicAPI.Unshipped.txt`, in T2 (two removed lines) and T4 (the orchestrator constructor line); 2 touches |
 | Documentation and changelog | 2 | Guide section and fragment, in T3 |
-| **Total** | **20** | 26 touches in four pull requests of 8, 6, 7 and 5 files |
+| **Total** | **21** | 29 touches in four pull requests of 8, 6, 7 and 8 files |
 
 ---
 
