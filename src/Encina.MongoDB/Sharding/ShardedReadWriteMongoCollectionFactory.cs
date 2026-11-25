@@ -285,11 +285,12 @@ public sealed class ShardedReadWriteMongoCollectionFactory : IShardedReadWriteMo
             var authority = connectionString.AsSpan(authorityStart);
             var pathStart = authority.IndexOf('/');
 
-            if (pathStart < 0 || pathStart + 1 >= authority.Length)
+            if (pathStart < 0)
             {
                 return null;
             }
 
+            // An empty path ("host/") yields an empty segment, which the blank check below maps to null.
             var path = authority[(pathStart + 1)..];
             var queryStart = path.IndexOf('?');
             var rawDatabaseName = queryStart >= 0 ? path[..queryStart] : path;
