@@ -121,12 +121,14 @@
       }
     },
     "Diagnostics/TenancyLog.cs": {
-      "defaultTests": [
-        "unit",
-        "guard"
-      ],
+      "defaultTests": [],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 0, "guard": 0 },
+      "justifications": {
+        "unit": "Source-generated [LoggerMessage] partials are not measured as hand-written lines; the call sites are asserted with a fake logger in the unit tests.",
+        "guard": "Source-generated [LoggerMessage] partials have no parameters to guard."
+      }
     },
     "Diagnostics/TenancyMetrics.cs": {
       "defaultTests": [
