@@ -511,7 +511,10 @@ static int SelfTest()
         && ZeroSource.ParseVerdict(1, "not exempt: method body\n") is { Answered: true, Exempt: false }
         && ZeroSource.ParseVerdict(1, "error CS1002: build failed\n") is { Answered: false }
         && ZeroSource.ParseVerdict(0, "garbage") is { Answered: false }
-        && ZeroSource.ParseVerdict(2, "exempt: x") is { Answered: false });
+        && ZeroSource.ParseVerdict(2, "exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(2, "not exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(1, "exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(0, "not exempt: x") is { Answered: false });
 
     var reads = 0;
     var seen = new List<string>();
@@ -600,8 +603,8 @@ sealed class ZeroSource(
     public ZeroVerdict Classify(string package, string file, string flag)
     {
         var key = file.Replace('\\', '/');
-        if (key.Split('/').Contains("..")) return new ZeroVerdict(false, false);
         var path = $"src/{package}/{key}";
+        // The head tree lists normalized paths, so a key with ".." or one outside src/ is not in it.
         if (!headTree.Contains(path)) return new ZeroVerdict(false, false);
         if (!files.TryGetValue(path, out var local))
         {
