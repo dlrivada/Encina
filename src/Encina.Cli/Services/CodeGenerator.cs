@@ -225,15 +225,7 @@ public static class CodeGenerator
         var dir = Path.GetDirectoryName(normalized) ?? string.Empty;
         var parts = dir.Split(Path.DirectorySeparatorChar).Where(s => !string.IsNullOrEmpty(s)).ToList();
 
-        var srcIndex = -1;
-        for (var i = parts.Count - 1; i >= 0; i--)
-        {
-            if (parts[i].Equals("src", StringComparison.OrdinalIgnoreCase))
-            {
-                srcIndex = i;
-                break;
-            }
-        }
+        var srcIndex = parts.FindLastIndex(s => s.Equals("src", StringComparison.OrdinalIgnoreCase));
 
         if (srcIndex < 0)
         {
