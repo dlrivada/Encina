@@ -242,7 +242,7 @@ public sealed class ScenarioResult<TResponse>
 
             Xunit.Assert.True(
                 containsProperty,
-                $"Scenario '{_description}' expected validation error for property '{propertyName}' but error was: {message}");
+                $"Scenario '{_description}' expected validation error for property '{propertyName}' but it was not found in the error.");
         }
 
         return error;

@@ -335,7 +335,7 @@ public static class EitherAssertions
 
         Assert.True(
             containsProperty,
-            message ?? $"Expected validation error for property '{propertyName}' but error was: {error.Message}");
+            message ?? $"Expected validation error for property '{propertyName}' but it was not found in the error.");
 
         return error;
     }

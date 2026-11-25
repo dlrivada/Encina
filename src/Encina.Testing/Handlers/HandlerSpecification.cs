@@ -320,15 +320,13 @@ public abstract class HandlerSpecification<TRequest, TResponse>
             category == ErrorCategory.Validation,
             $"Expected validation error but got error with category: {category}");
 
-        var message = error.Message;
-
         foreach (var propertyName in expectedPropertyNames)
         {
             var containsProperty = ErrorContainsProperty(error, propertyName);
 
             Assert.True(
                 containsProperty,
-                $"Expected validation error for property '{propertyName}' but error was: {message}");
+                $"Expected validation error for property '{propertyName}' but it was not found in the error.");
         }
 
         return error;
