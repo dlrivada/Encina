@@ -3,7 +3,7 @@
 > **Issue**: [#3989](https://github.com/dlrivada/Encina/issues/3989) (`area-cdc`, `p1-recommended`, `needs-decision`)
 > **Type**: Feature
 > **Complexity**: Medium (one routing seam, one tenant extractor, a startup validator, tenant tags on the stream telemetry)
-> **Estimated Scope**: ~700-900 lines of production code + ~1,500-2,000 lines of tests (about 47 files and up to about 3,350 line-changes in total with manifests, PublicAPI and documentation), delivered in six pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~700-900 lines of production code + ~1,500-2,000 lines of tests (about 48 files and up to about 3,400 line-changes in total with manifests, PublicAPI and documentation), delivered in six pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family**: builds on the plan of #636 (the audit stream: `CdcAuditEntry`, `ICdcAuditSink`, `AuditStreamObserver`, `CdcAuditOptions`), which owns every type this plan extends. #633 and #3995 are unrelated plans written in the same run. Sibling plans are referred to by issue number only.
 
 ---
@@ -33,12 +33,12 @@ The audit stream of #636 writes every entry to the same sinks. In a multi-tenant
   |----|-----------------|-------|--------------|------------|
   | 1 | `CdcAuditEntry.TenantId`, per-table `TenantIdField` and `TenantRouting` options with validation, three error codes with categories, `CdcAuditLog` ids 4886-4889, `AuditTenantExtractor`, PublicAPI, manifest, tests (Phase 1) | 12 | ~650 | #636 PRs 1 and 4 |
   | 2 | `ICdcAuditSinkResolver`, `TenantSinkResolver`, `AuditStreamObserver` change (the resolver is an optional constructor parameter, so an observer registered by #636 PR 7 before or after this PR still resolves; without a resolver it writes to every sink, as #636), PublicAPI, manifest, unit, guard, contract and property tests (Phase 2) | 10 | ~800 | 1, #636 PRs 3 and 5 |
-  | 3 | `CdcConfiguration` registration methods, `ServiceCollectionExtensions` (registers `TenantSinkResolver` with `TryAdd`, in the PR that depends on #636 PR 7), the startup validator rules, PublicAPI, manifest, DI proof and validator tests (Phase 3) | 8 | ~550 | 2, #636 PR 7 |
+  | 3 | `CdcConfiguration` registration methods, `ServiceCollectionExtensions` (registers `TenantSinkResolver` with `TryAdd`, in the PR that depends on #636 PR 7), the startup validator rules, PublicAPI, manifest, DI proof, validator and guard tests (Phase 3) | 9 | ~600 | 2, #636 PR 7 |
   | 4 | Tenant tags on `CdcAuditMetrics` and `CdcAuditActivitySource`, rejection counter, PublicAPI, manifest, two unit tests (Phase 4) | 6 | ~350 | 3, #636 PR 8 |
   | 5 | Tenant cases in the cross-connector shape contract test, four connector-driven isolation integration classes, benchmark case, load justification edit, manifest (the integration targets of the observer and the resolver are set here, with their tests) (Phase 5) | 8 | ~850 | 3, 4, #636 PR 9 |
   | 6 | Changelog fragment, `Encina.Cdc` README, `docs/features/cdc.md` (Phase 6) | 3 | ~200 | 5 |
 
-  Total: 6 PRs, 47 files, about 3,350 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. If the maintainer chooses option A of Design Choice 1 (one shared sink set), PR 2 drops `TenantSinkResolver` and PR 3 drops the per-tenant registration, about 12 files fewer.
+  Total: 6 PRs, 48 files, about 3,400 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. If the maintainer chooses option A of Design Choice 1 (one shared sink set), PR 2 drops `TenantSinkResolver` and PR 3 drops the per-tenant registration, about 12 files fewer.
 
 ---
 
@@ -173,7 +173,7 @@ B wins where availability of the audit stream for all tenants outweighs the sepa
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Unset means untenanted: the table streams exactly as #636, with `TenantId` null** | Pay-for-what-you-use: nothing changes for a table that does not opt in; reference tables with no tenant need no configuration | A multi-tenant application that enables the stream and forgets the field streams untenanted rows silently, against the issue's "a row without a tenant is rejected" |
-| **B) When `MultiTenancyMarker` is registered, startup validation fails if any audited table has no `TenantIdField`, unless the table is listed in an explicit opt-out (`AuditUntenantedTable(name)`), which is logged once at startup (id 4889) and counted** | Fails closed: the unsafe case needs an explicit, logged choice; the issue's criterion holds by default | Tables without a tenant (shared reference data) need one line of configuration; the check depends on the marker being registered (`AddEncinaTenancy`) |
+| **B) When `MultiTenancyMarker` is registered, startup validation fails if any audited table has no `TenantIdField`, unless the table is listed in an explicit opt-out (`AuditUntenantedTable(name)`), which is logged once at startup (id 4889; no counter, the log is the record)** | Fails closed: the unsafe case needs an explicit, logged choice; the issue's criterion holds by default | Tables without a tenant (shared reference data) need one line of configuration; the check depends on the marker being registered (`AddEncinaTenancy`) |
 
 ### Chosen Option: **B — required when multi-tenancy is registered** (recommended, pending the maintainer)
 
@@ -289,9 +289,9 @@ REFERENCE FILES: docs/plans/audit-log-streaming-cdc-implementation-plan-636.md (
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `CdcConfiguration.cs` (#636 PR 7): `AuditTenantField(table, field)` and `AuditTenantSink<TSink>(tenantId, Action<TSinkOptions>)`; `ServiceCollectionExtensions.cs`: register the resolver by routing mode (`TryAdd`, so an application's own `ICdcAuditSinkResolver` wins in any order) and the keyed sinks; the sinks and the resolver are registered together with the services they resolve, so the provider builds under `ValidateOnBuild` and `ValidateScopes`.
+1. `CdcConfiguration.cs` (#636 PR 7): `AuditTenantField(table, field)`, `AuditTenantSink<TSink>(tenantId, Action<TSinkOptions>)` and `AuditUntenantedTable(name)` (Design Choice 7 option B), all three new public members listed in `PublicAPI.Unshipped.txt` and covered by argument tests in `tests/Encina.GuardTests` (null and blank checks); `ServiceCollectionExtensions.cs`: register the resolver by routing mode (`TryAdd`, so an application's own `ICdcAuditSinkResolver` wins in any order) and the keyed sinks; the sinks and the resolver are registered together with the services they resolve, so the provider builds under `ValidateOnBuild` and `ValidateScopes`.
 2. `CdcAuditStreamingStartupValidator.cs`: every `PerTenant` table has a tenant field on its allow list; under Design Choice 7 option B, when `MultiTenancyMarker` is registered every audited table has a `TenantIdField` or is listed with `AuditUntenantedTable(name)` (logged once, id 4889); at least one tenant sink exists; no tenant id is blank, `default` or duplicated; no two tenants share a destination (file directories compared as normalized full paths, case-insensitively and by containment; the same outbox target; the same connection); the outbox sink per tenant needs the outbox module (ADR-050). Failures name the table and tenant position, never print a destination.
-3. DI test per sink type with `ValidateOnBuild` and `ValidateScopes`; validator unit tests for every rejection.
+3. DI test per sink type with `ValidateOnBuild` and `ValidateScopes`; validator unit tests for every rejection; two guard test files in `tests/Encina.GuardTests` (one for the `CdcConfiguration` methods, one for the registration extension and the validator constructor).
 
 </details>
 
@@ -453,8 +453,8 @@ Per flag: U unit, G guard, C contract, P property, I integration; each row is en
 | `ICdcAuditSinkResolver.cs` | 2 | 0 | 0 | 0 | 0 | 0 | Interface, no executable lines |
 | `TenantSinkResolver.cs` | 2 | 95 | 25 | 85 | 85 | 0 | Keyed lookup with a fake scope; contract cases and the isolation property test run it; guard reaches the constructor and argument checks |
 | `AuditStreamObserver.cs` (whole file) | 2 | 90 | 25 | 0 | 0 | 0 | Tenant branch, rejections and writes with fake sinks; guard reaches the constructor checks; its integration target is set in PR 5 |
-| `CdcConfiguration.cs` (whole file) | 3 | 60 or the current value if higher | 15 | 0 | 0 | 0 | The new fluent methods are fully covered; the untouched rest of the file keeps its own target and is not raised here |
-| `ServiceCollectionExtensions.cs` (whole file) | 3 | 60 or the current value if higher | 15 | 0 | 0 | 0 | DI proof with `ValidateOnBuild` and `ValidateScopes` covers the new registration; the rest of the file is not touched |
+| `CdcConfiguration.cs` (whole file) | 3 | unchanged: the current manifest value, read when the PR opens | 15 | 0 | 0 | 0 | The new fluent methods are covered by the DI and validator tests, the rest of the file keeps its own target and is not raised; guard 15 is the share reached by the argument tests of the three new methods (package guard target 15, `OutboxCdcHandler.cs` measured 15.3 %) |
+| `ServiceCollectionExtensions.cs` (whole file) | 3 | unchanged: the current manifest value, read when the PR opens | 15 | 0 | 0 | 0 | DI proof with `ValidateOnBuild` and `ValidateScopes` covers the new registration; the rest of the file is not touched; guard reaches the argument checks only |
 | `CdcAuditStreamingStartupValidator.cs` (whole file) | 3 | 95 | 30 | 0 | 0 | 0 | Every rejection (shared destination, `default`, duplicate, untenanted table) is unit-testable |
 | `AuditStreamObserver.cs`, `TenantSinkResolver.cs` | 5 | n/a | n/a | n/a | n/a | 70 | Integration flag only: the connector-driven two-tenant tests run both files; set in PR 5 with its tests and its manifest edit |
 | `CdcAuditMetrics.cs` (whole file) | 4 | 90 | 0 | 0 | 0 | 0 | Meter listener asserts every tag |
@@ -468,11 +468,11 @@ CRAP stays at or below 10 on every changed method: the tenant branch of the obse
 |----------|-------|-------|
 | Production, new or edited under `src/` | 14 | PR 1: 6; PR 2: 3 (resolver interface, tenant resolver, observer); PR 3: 3; PR 4: 2 |
 | PublicAPI and manifests | 9 | PRs 1-4: two each; PR 5: one manifest |
-| Tests | 19 | PR 1: 4; PR 2: 5 (observer tenant unit, resolver unit, guard, contract, property); PR 3: 3; PR 4: 2; PR 5: 5 (shape contract edit, four integration classes) |
+| Tests | 20 | PR 1: 4; PR 2: 5 (observer tenant unit, resolver unit, guard, contract, property); PR 3: 4 (DI proof, validator, configuration guard, extension guard); PR 4: 2; PR 5: 5 (shape contract edit, four integration classes) |
 | Benchmark and load justification edits | 2 | PR 5 |
 | Docs, changelog | 3 | PR 6 |
 
-PR rows add to 47 distinct touches: 12 + 10 + 8 + 6 + 8 + 3.
+PR rows add to 48 distinct touches: 12 + 10 + 9 + 6 + 8 + 3.
 
 ---
 
