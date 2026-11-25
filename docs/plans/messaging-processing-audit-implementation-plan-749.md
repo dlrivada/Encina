@@ -3,14 +3,14 @@
 > **Issue**: [#749](https://github.com/dlrivada/Encina/issues/749)
 > **Type**: Feature (compliance and operations; background processing is outside the request pipeline)
 > **Complexity**: Medium (a port in `Encina.Messaging`, one adapter in `Encina.Security.Audit`, three hook points; no schema and no provider code; 7 pull requests of 5 to 9 files)
-> **Estimated Scope**: ~420 lines of production code + ~1,100 lines of tests, documentation and manifests; 47 file touches in 7 pull requests
+> **Estimated Scope**: ~420 lines of production code + ~1,100 lines of tests, documentation and manifests; 50 file touches in 7 pull requests
 > **Family**: scheduling-3 (the scheduled-message processor documents #749 as its audit item). Siblings are cited by issue number only: #751 (the precedent of reusing `IOperationAuditStore` with `FailClosed` and an explicit `BestEffort` opt-out), #737, #739 and #760 (tenant on the three rows), #1164 (envelope and restored context), #720 (commit owner of the saga family), #152 (telemetry of the scheduler)
 
 ---
 
 ## Summary
 
-### What exists today (read on 2026-11-25, `origin/main` `dfa55c93e`)
+### What exists today (read on 2026-11-25, `origin/main` `1c067b45b`)
 
 - The issue's premise holds for the outbox and the scheduled messages, and holds in part for the inbox. `AuditPipelineBehavior<,>` (`src/Encina.Security.Audit/AuditPipelineBehavior.cs`) audits commands and queries inside `IEncina.Send`. The outbox is published by `OutboxProcessorBase` (a `BackgroundService`, one subclass per provider: 8 `OutboxProcessor` classes) through `OutboxBatchProcessor.ProcessAsync`, and scheduled messages are dispatched by `ScheduledMessageProcessor` through `SchedulerOrchestrator.ProcessDueMessagesAsync`; neither passes through a pipeline, so neither is audited. The inbox runs **inside** the pipeline (`InboxPipelineBehavior` calls `InboxOrchestrator.ProcessAsync`), so the request is audited by the request audit, but the idempotency decisions (a duplicate answered from the cache, a message rejected for a missing id or for exhausted retries) are not.
 - The issue says to emit "via `IAuditStore`". That type does not exist. The operation audit abstraction is `IOperationAuditStore` (`src/Encina.Security.Audit/Abstractions/IOperationAuditStore.cs`, `RecordAsync(OperationAuditEntry, ct)` returning `ValueTask<Either<EncinaError, Unit>>`), with `OperationAuditEntry` (`Id`, `CorrelationId`, `UserId`, `TenantId`, `Action`, `EntityType`, `EntityId`, `Outcome`, `ErrorMessage`, `TimestampUtc`, `StartedAtUtc`, `CompletedAtUtc`, payload fields, `Metadata`) and `AuditOutcome` (`Success`, `Failure`, `Denied`, `Error`). `AGENTS.md` section 6 names it as the audit integration point. It is implemented by the 10 database providers, Marten and an in-memory default (`AddEncinaAudit` registers `InMemoryOperationAuditStore` with `TryAdd`).
@@ -26,7 +26,7 @@ The issue proposes four events, `IAuditStore` and `config.AuditMessaging = true`
 
 ### What this plan delivers
 
-- In `Encina.Messaging`: the port `IMessageProcessingAuditRecorder`, the record `MessageProcessingAuditEvent`, `MessagingAuditOptions` and `MessagingConfiguration.AuditMessaging` (default `false`), the internal `MessageAuditor` that applies the options, a startup validator, and hooks at the three outcome points.
+- In `Encina.Messaging`: the port `IMessageProcessingAuditRecorder`, the record `MessageProcessingAuditEvent`, `MessagingAuditOptions` and `MessagingConfiguration.AuditMessaging` (default `false`), the public sealed `MessageAuditor` that applies the options (public because it is an optional parameter of three public constructors: CS0051; Design Choice 8), a startup validator, and hooks at the three outcome points.
 - In `Encina.Security.Audit`: `OperationAuditMessageRecorder`, the adapter that maps an event to an `OperationAuditEntry` and writes it to `IOperationAuditStore`, registered by `AddEncinaAudit`.
 - Events: `OutboxMessagePublished`, `OutboxMessageFailed`, `InboxMessageProcessed`, `InboxMessageFailed`, `InboxMessageRejected` (reasons `duplicate`, `max_retries_exceeded`, `invalid_message_id`), `ScheduledMessageExecuted`, `ScheduledMessageFailed`. Each carries message id, request or notification type name, timestamps, duration, outcome and the error **code** (never `EncinaError.Message`, never the payload).
 - Shared pieces and owner: this plan owns the port, the event record and the three hooks; #751 owns the precedent; #737, #739 and #760 own the tenant columns (the entries carry the row's tenant once those land: Design Choice 6); #1164 owns the restored user and correlation (the entries carry them when the envelope provides them).
@@ -75,7 +75,7 @@ The issue proposes four events, `IAuditStore` and `config.AuditMessaging = true`
 
 ### Rationale
 
-- Only A complies. `messaging.audit_failed` is a new error code with ADR-062 category `Internal` (an infrastructure failure of the audit store, the category the inbox uses for `inbox.max_retries_exceeded`).
+- Only A complies, and this choice holds for either answer of Design Choice 3 (the order of the audit write and the mark changes where the `Left` is returned, not whether it is). `messaging.audit_failed` is a new error code with ADR-062 category `Internal` (an infrastructure failure of the audit store, the category the inbox uses for `inbox.max_retries_exceeded`).
 
 </details>
 
@@ -88,7 +88,7 @@ The issue proposes four events, `IAuditStore` and `config.AuditMessaging = true`
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Audit first, then mark: the outbox records `OutboxMessagePublished` after the publish and before `MarkAsProcessedAsync`; a failed audit write leaves the message unmarked, so it is published again (at-least-once, the outbox contract)** | A marked message always has its audit record; fail-closed is real | A duplicate publish after an audit outage; consumers need the idempotency the outbox already requires |
+| **A) Audit first, then mark: the outbox records `OutboxMessagePublished` after the publish and before `MarkAsProcessedAsync`; a failed audit write leaves the message unmarked, so it is published again (at-least-once, the outbox contract)** | A marked message always has its audit record; fail-closed is real | A duplicate publish after an audit outage; consumers need the idempotency the outbox already requires; and a message that was delivered can still exhaust its retries while the audit store stays down, so it ends dead-lettered although the broker received it (documented in the audit guide) |
 | **B) Mark first, then audit** | No duplicate publish | An audit failure after the mark is lost or must be reported without failing anything: the gap fail-closed forbids |
 
 ### Chosen Option: **A — audit before the mark** (recommended, pending the maintainer)
@@ -182,6 +182,29 @@ The issue proposes four events, `IAuditStore` and `config.AuditMessaging = true`
 
 </details>
 
+<details>
+<summary><strong>8. Visibility of the type the orchestrators take (Dilemma)</strong></summary>
+
+**Class:** Dilemma
+
+`InboxOrchestrator`, `SchedulerOrchestrator` and `OutboxOrchestrator` are `public sealed class` with public constructors (read on `origin/main`: `OutboxOrchestrator.cs:55`, `PublicAPI.Unshipped.txt` lines 90, 106 and 870). An optional parameter of an internal type on a public constructor is error CS0051, so the auditor cannot be internal as first drafted. The precedent for an optional hook parameter is `DeadLetterSourceCapture`, a public class.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A public sealed `MessageAuditor` (constructor `(IMessageProcessingAuditRecorder, MessagingAuditOptions, ILogger<MessageAuditor>)`, one public method `RecordAsync`)** | One type; the same shape as `DeadLetterSourceCapture`; no extra interface | The applying logic becomes public API (PublicAPI lines, XML docs, guard tests on a public constructor) |
+| **B) A public interface `IMessageAuditor` and an internal `MessageAuditor` implementing it; the orchestrators take the interface** | Public surface is one method; the implementation stays internal and mockable | One more public type and one more registration |
+| **C) The orchestrators take the public `IMessageProcessingAuditRecorder` and `MessagingAuditOptions` directly (two optional parameters) and apply the mode inline** | No auditor type | The failure-mode logic is copied into three orchestrators and the batch processor: the drift risk the auditor exists to remove |
+
+### Chosen Option: **A — a public sealed `MessageAuditor`** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on the precedent and on one place for the failure-mode rule; B wins if the maintainer wants the smallest public surface. The plan below is written for A; B changes the type name in the three constructors and adds one interface file and one PublicAPI line to PR 2.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -205,7 +228,7 @@ The issue proposes four events, `IAuditStore` and `config.AuditMessaging = true`
 
 ```
 CONTEXT:
-- Issue #749, plan docs/plans/messaging-processing-audit-implementation-plan-749.md. Dilemmas 1, 3 and 4 are recommended, pending the maintainer.
+- Issue #749, plan docs/plans/messaging-processing-audit-implementation-plan-749.md. Dilemmas 1, 3, 4 and 8 are recommended, pending the maintainer.
 - Encina.Messaging cannot reference Encina.Security.Audit (the reverse reference exists): the port lives in Messaging.
 
 TASK:
@@ -228,7 +251,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.Messaging/Audit/MessageAuditor.cs` (`internal sealed class`, constructor `(IMessageProcessingAuditRecorder recorder, MessagingAuditOptions options, ILogger<MessageAuditor> logger)`): `ValueTask<Either<EncinaError, Unit>> RecordAsync(MessageProcessingAuditEvent e, CancellationToken ct)`. A `Left` from the recorder returns `Left(messaging.audit_failed, ErrorCategory.Internal)` under `FailClosed`; under `BestEffort` it logs the drop (EventIds below, error code only through the recorder's code) and returns `Right`. An exception from the recorder is converted to the same `Left` (the recorder contract is `Either`, a throw is a defect handled at this boundary and logged by `ForLogging()`).
+1. **Create** `src/Encina.Messaging/Audit/MessageAuditor.cs` (`public sealed class`, with XML docs and its constructor and `RecordAsync` lines in `PublicAPI.Unshipped.txt` of `Encina.Messaging`; Design Choice 8; constructor `(IMessageProcessingAuditRecorder recorder, MessagingAuditOptions options, ILogger<MessageAuditor> logger)`): `ValueTask<Either<EncinaError, Unit>> RecordAsync(MessageProcessingAuditEvent e, CancellationToken ct)`. A `Left` from the recorder returns `Left(messaging.audit_failed, ErrorCategory.Internal)` under `FailClosed`; under `BestEffort` it logs the drop (EventIds below, error code only through the recorder's code) and returns `Right`. An exception from the recorder is converted to the same `Left` (the recorder contract is `Either`, a throw is a defect handled at this boundary and logged by `ForLogging()`).
 2. **Create** `src/Encina.Messaging/Audit/MessagingAuditStartupValidator.cs` (`IHostedService`; `StartAsync` throws `InvalidOperationException` when `AuditMessaging` is on and no recorder is registered) and **modify** `MessagingServiceCollectionExtensions.cs`: when `config.AuditMessaging`, register `MessagingAuditOptions` (singleton), `MessageAuditor` (scoped; the recorder may be scoped) and the validator; nothing is registered when it is off.
 3. **Create** `src/Encina.Messaging/Diagnostics/MessagingAuditLog.cs` (`internal static partial class`, `[LoggerMessage]`): outbox 2010 `OutboxAuditDropped` (Warning, code) and 2011 `OutboxAuditRecordFailed` (Warning, code); inbox 2116 and 2117; scheduling 2393 and 2394; all inside registered ranges (2010-2099, 2116-2199, 2393-2399), each range packed from the first free id after the sibling claims; registry rows and the claims table of the batch registry updated in this pull request.
 4. Tests: `MessageAuditorTests` (`FailClosed` returns the code, `BestEffort` returns `Right` and logs, a throwing recorder is a `Left`, no log or result contains an error message), `MessagingAuditRegistrationTests` (provider built with `ValidateOnBuild` and `ValidateScopes` for enabled and disabled; enabled with no recorder fails at start), guard tests, manifest through `mechanical-fixer`.
@@ -240,7 +263,7 @@ REFERENCE FILES:
 
 ```
 CONTEXT:
-- Phase 1 merged. The auditor is internal; Encina.Messaging grants InternalsVisibleTo to the unit, guard, contract and property test projects.
+- Phase 1 merged. The auditor is public (it is a parameter of public constructors, CS0051); MessagingAuditLog stays internal, and Encina.Messaging grants InternalsVisibleTo to the unit, guard, contract, property and integration test projects.
 
 TASK:
 Create MessageAuditor, the startup validator, MessagingAuditLog and the conditional registration.
@@ -297,7 +320,8 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. `src/Encina.Messaging/Outbox/OutboxBatchProcessor.cs`: a trailing optional constructor parameter `MessageAuditor? auditor = null` after `deadLetterCapture` (4 `new OutboxBatchProcessor(` sites: 2 source, 2 tests; none changes). In `ProcessMessageAsync` time the publish with `_timeProvider`; after a successful publish call `auditor.RecordAsync(OutboxMessagePublished)` **before** `MarkAsProcessedAsync` (Design Choice 3); a `Left` becomes `FailAsync` with the code `messaging.audit_failed`; the failure outcomes (`FailAsync`, retry, exhaustion) record `OutboxMessageFailed` with the error code and retry count (a `Left` of that record is logged with 2011 and does not mask the original failure).
-2. `src/Encina.Messaging/Outbox/OutboxProcessorBase.cs` (`ProcessPendingMessagesAsync`): `services.GetService<MessageAuditor>()` passed to the batch processor (null when auditing is off), and the same in `OutboxOrchestrator`'s creation of the batch processor.
+2. `src/Encina.Messaging/Outbox/OutboxProcessorBase.cs` (`ProcessPendingMessagesAsync`): `services.GetService<MessageAuditor>()` passed to the batch processor (null when auditing is off), and the same in `OutboxOrchestrator`: the public sealed class (constructor at `src/Encina.Messaging/Outbox/OutboxOrchestrator.cs:55`, 11 `new OutboxOrchestrator(` sites in 4 test files, counted by grep) gains its own trailing optional parameter `MessageAuditor? auditor = null` after `deadLetterCapture`, passed to the `OutboxBatchProcessor` it creates in `ProcessPendingMessagesAsync` (line 151), and its constructor line `PublicAPI.Unshipped.txt:106` is edited in the same pull request with a guard test edit in `OutboxOrchestratorGuardTests.cs`.
+2b. PR 4 file list (8 files): `OutboxBatchProcessor.cs`, `OutboxProcessorBase.cs`, `OutboxOrchestrator.cs`, `OutboxBatchProcessorAuditTests.cs`, the property test, `OutboxOrchestratorGuardTests.cs` (edit), `PublicAPI.Unshipped.txt` of `Encina.Messaging` (line 106) and `Encina.Messaging.json`.
 3. The tenant of the entry is read from the row after #737 (`IOutboxMessage.TenantId`); the code compiles without it (null).
 4. Tests: `OutboxBatchProcessorAuditTests` (published, failed, exhausted, cancellation records nothing, an audit `Left` under `FailClosed` leaves the message pending with the code, under `BestEffort` marks it processed and logs 2010), a property test (every processed message yields exactly one `Published` or one `Failed` event), manifest through `mechanical-fixer`.
 
@@ -331,8 +355,8 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **PR 5**, `InboxOrchestrator` (`src/Encina.Messaging/Inbox/InboxOrchestrator.cs`): trailing optional `MessageAuditor? auditor = null` after `deadLetterCapture` (15 `new InboxOrchestrator(` sites in 5 files; none changes). Record `InboxMessageProcessed` after the response is cached in `ProcessAndCacheResponseAsync`, `InboxMessageFailed` for a failed handler attempt, `InboxMessageRejected` with reason `duplicate` in the cached-response branch, `max_retries_exceeded` in the retry-exhausted branch and `invalid_message_id` for a missing id. The `CorrelationId` and `TenantId` come from the existing `InboxAttempt` and `InboxMetadata`. A `Left` from the recorder under `FailClosed` is returned in place of the response (the handler's effect already happened: documented; Design Choice 3 note).
-2. **PR 6**, `SchedulerOrchestrator`: trailing optional `MessageAuditor? auditor = null` after the last optional parameter that exists when the work starts (28 sites in 8 files; optional last, so none changes; the parameters other plans append (#739, #152) are also optional and last, the later merger appends after the earlier). Record `ScheduledMessageExecuted` after the dispatch and before the mark or reschedule, `ScheduledMessageFailed` in `MarkAsFailedAsync` (with whether it was dead-lettered in `Reason`).
+1. **PR 5**, `InboxOrchestrator` (`src/Encina.Messaging/Inbox/InboxOrchestrator.cs`): trailing optional `MessageAuditor? auditor = null` after `deadLetterCapture` (15 `new InboxOrchestrator(` sites in 5 files; none changes; the constructor line `PublicAPI.Unshipped.txt:90` is edited in the same pull request; PR 5 is 5 files: the orchestrator, its audit test class, the guard test edit, the PublicAPI file and the manifest). Record `InboxMessageProcessed` after the response is cached in `ProcessAndCacheResponseAsync`, `InboxMessageFailed` for a failed handler attempt, `InboxMessageRejected` with reason `duplicate` in the cached-response branch, `max_retries_exceeded` in the retry-exhausted branch and `invalid_message_id` for a missing id. The `CorrelationId` and `TenantId` come from the existing `InboxAttempt` and `InboxMetadata`. A `Left` from the recorder under `FailClosed` is returned in place of the response (the handler's effect already happened: documented; Design Choice 3 note).
+2. **PR 6**, `SchedulerOrchestrator`: trailing optional `MessageAuditor? auditor = null` after the last optional parameter that exists when the work starts (28 sites in 8 files; optional last, so none changes; the constructor line `PublicAPI.Unshipped.txt:870` is edited in the same pull request, and PR 6 is 6 files: the orchestrator, `ScheduledMessageProcessor.cs` (the documentation note), the audit test class, the guard test edit, the PublicAPI file and the manifest; the parameters other plans append (#739, #152) are also optional and last, the later merger appends after the earlier). Record `ScheduledMessageExecuted` after the dispatch and before the mark or reschedule, `ScheduledMessageFailed` in `MarkAsFailedAsync` (with whether it was dead-lettered in `Reason`).
 3. Tests per pull request: orchestrator audit tests (each kind, `FailClosed` and `BestEffort`, no content or error text in any event), guard edit for the new optional parameter (null accepted and valid), manifests through `mechanical-fixer`.
 
 </details>
@@ -366,7 +390,7 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. Integration test (`tests/Encina.IntegrationTests/Messaging/MessagingAuditScenario.cs` plus one family class on the EF Core collection and the in-memory store): an outbox message published and one that fails to exhaustion, an inbox duplicate and a max-retries rejection, a scheduled message executed, each yields the expected `OperationAuditEntry` (`GetByEntityAsync`), and a failing audit store under `FailClosed` leaves the outbox message pending. Load and benchmark: `.md` justifications (one extra write per processed message; not a concurrent hot path of its own).
-2. Documentation through `docs-writer` (the messaging audit section of the audit guide: opt-in, failure modes, the duplicate-publish consequence of fail-closed, what an entry holds) and `changelog.d/749-messaging-processing-audit.added.md` through `mechanical-fixer`; the XML docs of `ScheduledMessageProcessor` drop the "deferred" note for #749.
+2. Documentation through `docs-writer` (the messaging audit section of the audit guide: opt-in, failure modes, the duplicate-publish and dead-letter-after-delivery consequences of fail-closed, what an entry holds) and `changelog.d/749-messaging-processing-audit.added.md` through `mechanical-fixer`; the XML docs of `ScheduledMessageProcessor` drop the "deferred" note for #749.
 3. Build verification (`dotnet build --configuration Release`, zero warnings) and the tests of every flag.
 
 </details>
@@ -400,14 +424,16 @@ REFERENCE FILES:
 
 | File | PR | Flag and target | Justification |
 | --- | --- | --- | --- |
-| `Audit/MessageAuditor.cs` | 2 | unit 95, guard 90 | Every mode and failure path runs against a substitute recorder; constructor guards are reachable through `InternalsVisibleTo`. |
+| `Audit/MessageAuditor.cs` | 2 | unit 95, guard 90 | Every mode and failure path runs against a substitute recorder; the public constructor's null guards are reached directly. |
+| `Outbox/OutboxOrchestrator.cs` | 4 | unit 95, guard 85, integration 85 (current, not lowered) | The new constructor parameter is passed to the batch processor and covered by the existing orchestrator tests plus one audit case. |
+| `Outbox/OutboxProcessorBase.cs` | 4 | unit 88, guard 10, integration 70 (current, not lowered) | One resolved service passed through; the existing processor tests run it. |
 | `Audit/MessagingAuditStartupValidator.cs` | 2 | unit 95 | Started with and without a recorder. |
 | `Audit/MessageProcessingAuditEvent.cs`, `Audit/MessagingAuditOptions.cs`, `Audit/IMessageProcessingAuditRecorder.cs` | 1 | unit 0 | Property bags and an interface: no executable branch. |
 | `Diagnostics/MessagingAuditLog.cs` | 2 | unit 0 | `[LoggerMessage]` declarations; generated bodies are not in the file. |
 | `OperationAuditMessageRecorder.cs` | 3 | unit 95, guard 90 | One mapping per kind and the guards. |
 | `Outbox/OutboxBatchProcessor.cs` | 4 | unit 99, guard 15, integration 80 (current, not lowered) | The new branches are unit tests; the scenario adds integration. |
 | `Inbox/InboxOrchestrator.cs` | 5 | unit 98, guard 15, integration 75 (current, not lowered) | One test per kind and mode. |
-| `Scheduling/SchedulerOrchestrator.cs` | 6 | unit 90, guard 30 (current, not lowered) | Executed and failed paths with a mocked store. |
+| `Scheduling/SchedulerOrchestrator.cs` | 6 | unit 90, guard 30, integration 65 (current, not lowered) | Executed and failed paths with a mocked store. |
 
 Measure with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`. CRAP: the hook in each changed method is one call to a private helper so the method complexity does not grow past 10; the worker runs the local crap-gate table.
 
@@ -475,9 +501,9 @@ REFERENCE FILES:
 | Production | 16 | 7 new (port, event record, options, auditor, validator, log, adapter) and 9 modified (configuration, registration, `AddEncinaAudit`, outbox batch processor, outbox base, outbox orchestrator, inbox orchestrator, scheduler orchestrator, processor docs note counted in the scheduler PR) |
 | Tests | 18 | Unit, guard, DI, property and integration files across the pull requests |
 | Coverage manifests | 7 | One per pull request touching a package |
-| PublicAPI files | 3 | `Encina.Messaging` (PR 1 and 2) and `Encina.Security.Audit` (PR 3) |
+| PublicAPI files | 6 | `Encina.Messaging` in PR 1, 2, 4, 5 and 6 (PR 4 to 6 edit one orchestrator constructor line each: 106, 90, 870) and `Encina.Security.Audit` in PR 3 |
 | Documentation and changelog | 3 | Guide section, processor note, fragment |
-| **Total touches** | **47** | In 7 pull requests of 8, 9, 7, 6, 5, 5 and 7 files |
+| **Total touches** | **50** | In 7 pull requests of 8, 9, 7, 8, 5, 6 and 7 files |
 
 ---
 
@@ -543,6 +569,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Review this plan; the Dilemmas (choices 1, 3 and 4: where the port lives, audit-before-mark ordering and whether scheduled messages are included) are answered by the maintainer when work starts; the answers are then recorded in a `## Maintainer Decisions` section added at that time.
+1. Review this plan; the Dilemmas (choices 1, 3, 4 and 8: where the port lives, audit-before-mark ordering, whether scheduled messages are included and the visibility of the auditor type) are answered by the maintainer when work starts; the answers are then recorded in a `## Maintainer Decisions` section added at that time.
 2. Implement pull requests 1 to 7 in order.
 3. Link the plan from #749.
