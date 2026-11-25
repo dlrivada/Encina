@@ -3,7 +3,7 @@
 > **Issue**: [#3991](https://github.com/dlrivada/Encina/issues/3991) (`area-database`, `area-multi-tenancy`, `p1-recommended`, `needs-decision`)
 > **Type**: Feature
 > **Complexity**: Medium-High (a tenant-aware routing seam in `Encina.Messaging`, registration edits in the seven provider packages, an extension of the lag probe service)
-> **Estimated Scope**: ~800-1,000 lines of production code + ~1,700-2,300 lines of tests (about 64 files and up to about 5,000 line-changes in total with manifests, PublicAPI and documentation), delivered in seven pull requests of at most 15 files and 1,500 lines each
+> **Estimated Scope**: ~800-1,000 lines of production code + ~1,700-2,300 lines of tests (about 65 files and up to about 5,050 line-changes in total with manifests, PublicAPI and documentation), delivered in seven pull requests of at most 15 files and 1,500 lines each
 > **Related plans of the same family**: builds on the plan of #633 (replication lag detection: `IReplicationLagProbe`, `ReplicationLagProbeService`, `LagAwareReplicaSelector`, the tracker scope `readwrite`), which owns every type this plan extends. #3989 and #3995 are unrelated plans written in the same run. Sibling plans are referred to by issue number only.
 
 ---
@@ -35,12 +35,12 @@
   | 1 | `ITenantReplicaSetSource`, `TenantReplicaSet`, `OptionsTenantReplicaSetSource`, `TenantReplicaScopeId`, `TenantReplicaSetsValidator`, error code, `ReadWriteSeparationOptions.Tenants` and `AllowTenantlessRequests` (neither registered nor read until PR 2), PublicAPI, manifest, unit, property and guard tests (Phase 1) | 14 | ~750 | #633 PR 1 |
   | 2 | `ITenantReplicaRouter`, `TenantReplicaRouter`, `ReadWriteConnectionSelector` optional router parameter, `AddEncinaTenantReplicaSets` (registers the source, the router and what they resolve), `ReplicationLagLog` ids 7110-7112, PublicAPI, manifest, unit, property, guard and DI proof tests (Phase 2) | 12 | ~1,050 | 1, #633 PRs 2 and 3, the #1257 PR that adds `TenantScopeErrors` |
   | 3 | Registration edit in seven provider packages (six identical edits in the ADO.NET and Dapper packages; the EF Core edit differs, see Phase 3), the seven provider manifests, one DI test that builds each provider (Phase 3) | 15 | ~450 | 2 |
-  | 4 | Probe service extension, `MaxConcurrentProbes` with its validator rule, PublicAPI, manifest, unit tests and the DI case with `AddEncinaReplicationLagDetection` (Phase 4) | 8 | ~600 | 2, #633 PR 3 |
+  | 4 | Probe service extension, `MaxConcurrentProbes` with its validator rule, PublicAPI, manifest, unit and guard tests and the DI case with `AddEncinaReplicationLagDetection` (Phase 4) | 9 | ~650 | 2, #633 PR 3 |
   | 5 | Tenant tag and span attribute on the #633 metrics and activity source, health check per tenant scope, unit tests, manifest (Phase 5) | 6 | ~400 | 4, #633 PR 7 |
   | 6 | Two-tenant integration tests on PostgreSQL and MySQL replicas and the SQL Server unknown path, benchmark case, load justification edit, manifest (Phase 6) | 6 | ~1,000 | 4, 5, #633 PR 8 |
   | 7 | Changelog fragment, `Encina.Messaging` README, read/write separation page (Phase 7) | 3 | ~250 | 6 |
 
-  Total: 7 PRs, 64 files, about 5,000 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PR 3 is at the file limit (7 provider sources, their 7 manifests and 1 test) and is one package family per edit, not a pure sweep: the six ADO.NET and Dapper edits are identical, the `Encina.EntityFrameworkCore` edit has another shape (Phase 3). The files are `src/Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` and `Encina.EntityFrameworkCore`, each `ServiceCollectionExtensions.cs`, and `.github/coverage-manifest/` of the same seven packages. If the maintainer chooses the decorator of Design Choice 5, PR 3 disappears and PR 2 and PR 4 change.
+  Total: 7 PRs, 65 files, about 5,000 line-changes (sum of the per-PR upper estimates); no PR exceeds 15 files or 1,500 lines. PR 3 is at the file limit (7 provider sources, their 7 manifests and 1 test) and is one package family per edit, not a pure sweep: the six ADO.NET and Dapper edits are identical, the `Encina.EntityFrameworkCore` edit has another shape (Phase 3). The files are `src/Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL` and `Encina.EntityFrameworkCore`, each `ServiceCollectionExtensions.cs`, and `.github/coverage-manifest/` of the same seven packages. If the maintainer chooses the decorator of Design Choice 5, PR 3 disappears and PR 2 and PR 4 change.
 
 ---
 
@@ -305,7 +305,7 @@ REFERENCE FILES: src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs (Regist
 
 1. `ReplicationLagProbeService` (#633): each iteration builds the work list from the global replicas and every tenant of `ITenantReplicaSetSource.TenantIds` (a snapshot), probes each distinct replica connection string once with `ProbeTimeout`, at most `MaxConcurrentProbes` at a time (new option, default 4, validated positive), and reports the reading to the scope of every tenant that lists it; the iteration body stays inside `try/catch` (cancellation ends the loop, other exceptions are logged by error code); no probe runs when no tenant set exists beyond #633's behavior.
 2. The log ids of this feature were added in PR 2 (7110-7112); this phase adds none.
-3. The probe service resolves `ITenantReplicaSetSource` with `GetService` (optional): when the source is registered (PR 2) it probes tenants, otherwise it behaves exactly as #633; `MaxConcurrentProbes` joins the options validator of #633. The DI proof of PR 2 gains a case with `AddEncinaReplicationLagDetection` registered before and after `AddEncinaTenantReplicaSets` (a test edit, no extra file).
+3. The probe service resolves `ITenantReplicaSetSource` with `GetService` (optional): when the source is registered (PR 2) it probes tenants, otherwise it behaves exactly as #633; `MaxConcurrentProbes` joins the options validator of #633; a guard test file covers the constructor checks of the probe service and the null check of the options validator. The DI proof of PR 2 gains a case with `AddEncinaReplicationLagDetection` registered before and after `AddEncinaTenantReplicaSets` (a test edit, no extra file).
 
 </details>
 
@@ -465,7 +465,7 @@ Per flag: U unit, G guard, C contract, P property, I integration; entered in `.g
 | `ReadWriteConnectionSelector.cs` (whole file) | 2 | 95 | 25 | 0 | 0 | 0 | Existing 19 unit tests plus the router path; guard reaches the constructor checks |
 | `ReplicationLagLog.cs` (whole file) | 2 | 70 | 0 | 0 | 0 | 0 | Generated methods reached by the router tests (ids 7110-7112) |
 | `AddEncinaTenantReplicaSets` file | 2 | 90 | 15 | 0 | 0 | 0 | DI proof builds the provider with `ValidateOnBuild` and `ValidateScopes`; guard reaches the null checks |
-| Seven provider `ServiceCollectionExtensions.cs` (whole files) | 3 | 60 or the current value if higher | 0 | 0 | 0 | 0 | One DI test covers only the changed constructor calls; the other methods of these large files already carry their own targets and are not raised here |
+| Seven provider `ServiceCollectionExtensions.cs` (whole files) | 3 | unchanged: the current manifest value of each file, read when the PR opens | 0 | 0 | 0 | 0 | One DI test covers only the changed constructor calls; the other methods of these large files already carry their own targets, so the PR adds a justification sentence and raises nothing |
 | `ReplicationLagProbeService.cs` (whole file) | 4 | 90 | 25 | 0 | 0 | 0 | Loop body with fake timer and probe; guard reaches the constructor checks |
 | `ReplicationLagOptions.cs` and its validator (whole files) | 4 | 90 | 30 | 0 | 0 | 0 | Options and validation, every rejection reachable |
 | `TenantReplicaRouter.cs`, `ReadWriteConnectionSelector.cs`, `ReplicationLagProbeService.cs` | 6 | n/a | n/a | n/a | n/a | 70 | Integration flag only: the two-tenant tests on real replicas run these files; set in PR 6 with its tests |
@@ -479,11 +479,11 @@ CRAP stays at or below 10 on every changed method: the router has one private me
 |----------|-------|-------|
 | Production, new or edited under `src/` | 25 | PR 1: 7; PR 2: 5 (interface, router, selector, registration extension, log); PR 3: 7; PR 4: 3 (probe service, options, options validator); PR 5: 3 (metrics, activity source, health check) |
 | PublicAPI and manifests | 15 | PRs 1, 2, 4: two each (PublicAPI and manifest); PR 3: seven provider manifests; PR 5: one manifest; PR 6: one manifest |
-| Tests | 16 | PR 1: 5; PR 2: 5; PR 3: 1; PR 4: 3 (probe tenant unit, options validator unit, the DI case edit); PR 5: 2 |
+| Tests | 17 | PR 1: 5; PR 2: 5; PR 3: 1; PR 4: 4 (probe tenant unit, options validator unit, guard for the probe service and the options validator, the DI case edit); PR 5: 2 |
 | Integration, benchmark, load justification | 5 | PR 6: three integration classes, one benchmark edit, one load justification edit |
 | Docs, changelog | 3 | PR 7 |
 
-PR rows add to 64 distinct touches: 14 + 12 + 15 + 8 + 6 + 6 + 3.
+PR rows add to 65 distinct touches: 14 + 12 + 15 + 9 + 6 + 6 + 3.
 
 ---
 
