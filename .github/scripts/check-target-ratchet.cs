@@ -158,12 +158,7 @@ static Options? ParseArgs(string[] a, out string error)
 
 // Control and non-ASCII characters are replaced and the length capped: a manifest key, a path or an
 // argument is untrusted text that ends up on a CI console line and in the job summary.
-static string Safe(string value)
-{
-    var sb = new StringBuilder(Math.Min(value.Length, 240));
-    foreach (var c in value.Take(240)) sb.Append(c is >= ' ' and <= '~' ? c : '?');
-    return sb.ToString();
-}
+static string Safe(string value) => Text.Safe(value);
 
 static string FindRoot(string start)
 {
@@ -500,6 +495,12 @@ static int SelfTest()
     Check("a control character in a file key is replaced on the line",
         Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=90"), ("B\\u0001.cs", "guard=0")), live, code) is [{ Scope: "B?.cs" }]);
 
+    Check("differently cased manifest keys (Files, Targets) do not hide a zero",
+        Eval(same, bz, "{\"Package\":\"Pkg\",\"Targets\":{\"unit\":50},\"Files\":{\"A.cs\":{\"targets\":{\"unit\":90}},\"B.cs\":{\"Targets\":{\"guard\":0}}}}", live, code)
+            is [{ Scope: "B.cs", Flag: "guard" }]);
+    Check("a package name with control characters or backticks is sanitized on the line",
+        new Violation("P\u001b[0m`\n::x", "A.cs", "guard", null, 0).Format().StartsWith("P?[0m??::x  A.cs"));
+
     var zero = new List<Violation> { new("Pkg", "A.cs", "guard", null, 0, "file has executable code") };
     Check("R-ZERO without the label exits 1", Decide(1, zero, () => LabelResult.Absent, "target-change-approved").Exit == 1);
     Check("R-ZERO with the label exits 0 and prints it as approved",
@@ -567,6 +568,17 @@ record Change(string? BasePath, string? HeadPath);
 
 record Outcome(int Exit, List<string> Lines);
 
+static class Text
+{
+    // Backticks are replaced too: the violations are written inside a fenced block of the job summary.
+    public static string Safe(string value)
+    {
+        var sb = new StringBuilder(Math.Min(value.Length, 240));
+        foreach (var c in value.Take(240)) sb.Append(c is >= ' ' and <= '~' and not '`' ? c : '?');
+        return sb.ToString();
+    }
+}
+
 record Options(string? BaseRef, string HeadRef, string? Root, int? Pr, bool SelfTest, bool NoLabel, bool AssumeLabel);
 
 // Answered: the classifier of #2890 gave a verdict. Exempt: it says the file has no executable code.
@@ -575,7 +587,7 @@ record ZeroVerdict(bool Answered, bool Exempt);
 record Violation(string Package, string Scope, string Flag, double? Base, double? Head, string? Note = null)
 {
     public string Format() =>
-        $"{Package}  {Scope}  {Flag}  {(Base is { } b ? b.ToString("0.##") : "absent")} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}"
+        $"{Text.Safe(Package)}  {Text.Safe(Scope)}  {Text.Safe(Flag)}{(Base is { } b ? b.ToString("0.##") : "absent")} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}"
         + (Note is null ? "" : $"  ({Note})");
 }
 
@@ -645,16 +657,16 @@ sealed class Manifest
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
-            var name = root.TryGetProperty("package", out var p) && p.ValueKind == JsonValueKind.String
+            var name = Prop(root, "package", out var p) && p.ValueKind == JsonValueKind.String
                 ? p.GetString()! : Path.GetFileNameWithoutExtension(path);
             var m = new Manifest { Package = name };
-            if (root.TryGetProperty("targets", out var t)) Read(t, m.Targets);
-            if (root.TryGetProperty("files", out var f) && f.ValueKind == JsonValueKind.Object)
+            if (Prop(root, "targets", out var t)) Read(t, m.Targets);
+            if (Prop(root, "files", out var f) && f.ValueKind == JsonValueKind.Object)
             {
                 foreach (var file in f.EnumerateObject())
                 {
                     var flags = new Dictionary<string, double>(StringComparer.Ordinal);
-                    if (file.Value.ValueKind == JsonValueKind.Object && file.Value.TryGetProperty("targets", out var ft)) Read(ft, flags);
+                    if (file.Value.ValueKind == JsonValueKind.Object && Prop(file.Value, "targets", out var ft)) Read(ft, flags);
                     m.Files[file.Name] = flags;
                 }
             }
@@ -665,6 +677,19 @@ sealed class Manifest
         {
             return null;
         }
+    }
+
+    // coverage-report.cs deserializes with PropertyNameCaseInsensitive, so "Targets" and "Files" are
+    // loaded there; matching case-insensitively here keeps a differently cased key from hiding a target.
+    private static bool Prop(JsonElement obj, string name, out JsonElement value)
+    {
+        foreach (var kv in obj.EnumerateObject())
+        {
+            if (string.Equals(kv.Name, name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; return true; }
+        }
+
+        value = default;
+        return false;
     }
 
     private static void Read(JsonElement obj, Dictionary<string, double> into)
