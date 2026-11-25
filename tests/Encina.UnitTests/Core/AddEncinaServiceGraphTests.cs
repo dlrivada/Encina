@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using Encina.Modules;
+using Microsoft.Extensions.Hosting;
 
 namespace Encina.UnitTests.Core;
 
@@ -30,7 +31,6 @@ public sealed class AddEncinaServiceGraphTests
         typeof(TimeProvider),
         typeof(IRequestIdentityFactory),
         typeof(IOptions<RequestIdentityOptions>),
-        typeof(IStartupValidator),
         typeof(IRequestContextScopeFactory),
         typeof(IInternalRequestContextScopeFactory),
         typeof(IServiceIdentityCatalog),
@@ -70,8 +70,13 @@ public sealed class AddEncinaServiceGraphTests
         var services = new ServiceCollection();
         services.AddLogging();
         var added = Capture(services, s => s.AddEncina(typeof(IEncina).Assembly));
+        // Services the options stack registers itself (the startup validator that ValidateOnStart adds, a
+        // different type per SDK) are not AddEncina's own registrations: nothing resolves them unless the
+        // host starts, which the host-start tests cover.
+        var optionsAssembly = typeof(IOptions<>).Assembly;
         return added
             .Where(d => !d.ServiceType.IsGenericType && !d.ServiceType.IsGenericTypeDefinition)
+            .Where(d => d.ServiceType.Assembly != optionsAssembly)
             .GroupBy(d => d.ServiceType)
             .Where(g => g.Count() == 1)
             .Select(g => g.Key)
@@ -269,6 +274,42 @@ public sealed class AddEncinaServiceGraphTests
 
         // Assert
         act.ShouldThrow<Exception>().Message.ShouldContain(missing.FullName!);
+    }
+
+    // Startup validation is asserted through the host's real start path, which runs whichever startup
+    // validator the platform registers; the validator type is deliberately not named here because it
+    // differs per SDK (IStartupValidator is obsolete on .NET 11, IAsyncStartupValidator is absent on .NET 10).
+    [Fact]
+    public async Task AddEncina_WithInvalidOptions_FailsHostStartup()
+    {
+        // Arrange
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncina(typeof(IEncina).Assembly);
+        builder.Services.Configure<RequestIdentityOptions>(options => options.UserIdClaimTypes.Clear());
+        using var host = builder.Build();
+
+        // Act
+        var exception = await Should.ThrowAsync<OptionsValidationException>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        // Assert
+        exception.Message.ShouldContain(nameof(RequestIdentityOptions.UserIdClaimTypes));
+    }
+
+    [Fact]
+    public async Task AddEncina_WithValidOptions_StartsAndStopsTheHost()
+    {
+        // Arrange
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncina(typeof(IEncina).Assembly);
+        using var host = builder.Build();
+
+        // Act
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+
+        // Assert
+        host.Services.GetRequiredService<IEncina>().ShouldNotBeNull();
     }
 
     [Fact]
