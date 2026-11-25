@@ -33,24 +33,41 @@ public sealed class ProcessingActivityRegistryMongoDB : IProcessingActivityRegis
     /// <param name="connectionString">The MongoDB connection string.</param>
     /// <param name="databaseName">The database name.</param>
     /// <param name="collectionName">The collection name (default: processing_activities).</param>
-    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "MongoClient is a long-lived singleton connection pool, disposed when the application shuts down")]
     public ProcessingActivityRegistryMongoDB(
         string connectionString,
         string databaseName,
         string collectionName = "processing_activities")
+        : this(CreateCollection(connectionString, databaseName, collectionName))
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
-
-        var client = new MongoClient(connectionString);
-        var database = client.GetDatabase(databaseName);
-        _collection = database.GetCollection<ProcessingActivityDocument>(collectionName);
-
         // Ensure unique index on request_type_name (idempotent — no-op if already exists)
         _collection.Indexes.CreateOne(
             new CreateIndexModel<ProcessingActivityDocument>(
                 Builders<ProcessingActivityDocument>.IndexKeys.Ascending(d => d.RequestTypeName),
                 new CreateIndexOptions { Name = "IX_ProcessingActivity_RequestTypeName", Unique = true }));
+    }
+
+    /// <summary>
+    /// Initializes the registry over an existing collection. The unique index is the caller's responsibility;
+    /// the public constructor creates it. Lets unit tests drive the registry without a MongoDB server.
+    /// </summary>
+    /// <param name="collection">The collection that stores the processing activity documents.</param>
+    internal ProcessingActivityRegistryMongoDB(IMongoCollection<ProcessingActivityDocument> collection)
+    {
+        ArgumentNullException.ThrowIfNull(collection);
+        _collection = collection;
+    }
+
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "MongoClient is a long-lived singleton connection pool, disposed when the application shuts down")]
+    private static IMongoCollection<ProcessingActivityDocument> CreateCollection(
+        string connectionString,
+        string databaseName,
+        string collectionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        ArgumentException.ThrowIfNullOrWhiteSpace(databaseName);
+
+        var client = new MongoClient(connectionString);
+        return client.GetDatabase(databaseName).GetCollection<ProcessingActivityDocument>(collectionName);
     }
 
     /// <inheritdoc />
