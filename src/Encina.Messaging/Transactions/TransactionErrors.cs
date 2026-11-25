@@ -33,13 +33,13 @@ public static class TransactionErrors
     /// <param name="exception">The exception raised by the connection.</param>
     /// <returns>The error, with code <see cref="BeginFailedCode"/>.</returns>
     public static EncinaError BeginFailed(Exception exception)
-        => EncinaErrors.FromException(BeginFailedCode, exception, "The transaction could not be begun.");
+        => EncinaErrors.FromException(BeginFailedCode, ErrorCategory.Internal, exception, "The transaction could not be begun.");
 
     /// <summary>Creates the error for a commit that failed.</summary>
     /// <param name="exception">The exception raised by the commit.</param>
     /// <returns>The error, with code <see cref="CommitFailedCode"/>.</returns>
     public static EncinaError CommitFailed(Exception exception)
-        => EncinaErrors.FromException(CommitFailedCode, exception, "The transaction could not be committed.");
+        => EncinaErrors.FromException(CommitFailedCode, ErrorCategory.Internal, exception, "The transaction could not be committed.");
 
     /// <summary>The detail key under which <see cref="CommitFailed(Exception, string?)"/> carries the provider's error label.</summary>
     public const string ErrorLabelDetailKey = "errorLabel";
@@ -60,13 +60,13 @@ public static class TransactionErrors
             ? null
             : new Dictionary<string, object?> { [ErrorLabelDetailKey] = errorLabel };
 
-        return EncinaErrors.FromException(CommitFailedCode, exception, "The transaction could not be committed.", details);
+        return EncinaErrors.FromException(CommitFailedCode, ErrorCategory.Internal, exception, "The transaction could not be committed.", details);
     }
 
     /// <summary>Creates the error for a commit refused because a participant rolled back.</summary>
     /// <returns>The error, with code <see cref="RollbackOnlyCode"/>.</returns>
     public static EncinaError RollbackOnly()
-        => EncinaErrors.Create(RollbackOnlyCode, "A participant rolled the shared transaction back, so it was not committed.");
+        => EncinaErrors.Create(RollbackOnlyCode, ErrorCategory.Internal, "A participant rolled the shared transaction back, so it was not committed.");
 
     /// <summary>Creates the error for a joiner asking for another isolation level than the owner's.</summary>
     /// <param name="requested">The isolation level the joiner asked for.</param>
@@ -74,13 +74,13 @@ public static class TransactionErrors
     /// <returns>The error, with code <see cref="IsolationLevelMismatchCode"/>.</returns>
     public static EncinaError IsolationLevelMismatch(IsolationLevel requested, IsolationLevel active)
         => EncinaErrors.Create(
-            IsolationLevelMismatchCode,
+            IsolationLevelMismatchCode, ErrorCategory.Internal,
             $"The active transaction runs at {active}; a participant cannot join it at {requested}.");
 
     /// <summary>Creates the error for a lease used after it was disposed or its transaction ended.</summary>
     /// <returns>The error, with code <see cref="LeaseDisposedCode"/>.</returns>
     public static EncinaError LeaseDisposed()
-        => EncinaErrors.Create(LeaseDisposedCode, "The transaction lease was already disposed or its transaction has ended.");
+        => EncinaErrors.Create(LeaseDisposedCode, ErrorCategory.Internal, "The transaction lease was already disposed or its transaction has ended.");
 
     /// <summary>
     /// Gets the exception behind a transaction error, or an exception named after its code when the error was
@@ -98,7 +98,7 @@ public static class TransactionErrors
     {
         ArgumentNullException.ThrowIfNull(connectionType);
         return EncinaErrors.Create(
-            NotSupportedCode,
+            NotSupportedCode, ErrorCategory.Internal,
             $"{connectionType.Name} is not a System.Data.Common.DbConnection, so it cannot begin a transaction asynchronously.");
     }
 }

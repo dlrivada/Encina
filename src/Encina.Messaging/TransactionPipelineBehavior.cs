@@ -112,7 +112,7 @@ public sealed class TransactionPipelineBehavior<TRequest, TResponse> : IPipeline
         catch (Exception ex)
         {
             await RollbackAsync(lease, context).ConfigureAwait(false);
-            return EncinaErrors.FromException("transaction.failed", ex);
+            return EncinaErrors.FromException("transaction.failed", ErrorCategory.Internal, ex);
         }
     }
 

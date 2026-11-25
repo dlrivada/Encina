@@ -14,7 +14,7 @@ namespace Encina.Sharding.Logging;
 internal static partial class ShardReplicaLogEvents
 {
     [LoggerMessage(
-        EventId = 126,
+        EventId = 10026,
         Level = LogLevel.Debug,
         Message = "Replica selected for shard '{ShardId}': replica '{ReplicaId}' using strategy '{Strategy}', estimated latency {LatencyEstimateMs}ms")]
     public static partial void ReplicaSelected(
@@ -25,7 +25,7 @@ internal static partial class ShardReplicaLogEvents
         double latencyEstimateMs);
 
     [LoggerMessage(
-        EventId = 127,
+        EventId = 10027,
         Level = LogLevel.Warning,
         Message = "Replica marked unhealthy for shard '{ShardId}': replica '{ReplicaId}', reason '{FailureReason}', remaining healthy replicas: {RemainingHealthyCount}")]
     public static partial void ReplicaMarkedUnhealthy(
@@ -36,7 +36,7 @@ internal static partial class ShardReplicaLogEvents
         int remainingHealthyCount);
 
     [LoggerMessage(
-        EventId = 128,
+        EventId = 10028,
         Level = LogLevel.Information,
         Message = "Replica recovered for shard '{ShardId}': replica '{ReplicaId}', downtime duration {DowntimeDurationMs}ms")]
     public static partial void ReplicaRecovered(
@@ -46,7 +46,7 @@ internal static partial class ShardReplicaLogEvents
         double downtimeDurationMs);
 
     [LoggerMessage(
-        EventId = 129,
+        EventId = 10029,
         Level = LogLevel.Debug,
         Message = "Scatter-gather using replicas: query type '{QueryType}', targeting {ShardCount} shard(s) with {ReplicasPerShard} replica(s) per shard")]
     public static partial void ScatterGatherUsingReplicas(
@@ -56,7 +56,7 @@ internal static partial class ShardReplicaLogEvents
         int replicasPerShard);
 
     [LoggerMessage(
-        EventId = 130,
+        EventId = 10030,
         Level = LogLevel.Warning,
         Message = "Replication lag exceeded threshold for shard '{ShardId}': replica '{ReplicaId}', observed lag {ObservedLagMs}ms, threshold {ThresholdMs}ms")]
     public static partial void ReplicationLagExceeded(
@@ -67,7 +67,7 @@ internal static partial class ShardReplicaLogEvents
         double thresholdMs);
 
     [LoggerMessage(
-        EventId = 131,
+        EventId = 10031,
         Level = LogLevel.Warning,
         Message = "All replicas stale for shard '{ShardId}', falling back to primary. Configured threshold: {ThresholdMs}ms")]
     public static partial void AllReplicasStale(
@@ -76,7 +76,7 @@ internal static partial class ShardReplicaLogEvents
         double thresholdMs);
 
     [LoggerMessage(
-        EventId = 132,
+        EventId = 10032,
         Level = LogLevel.Warning,
         Message = "No healthy replicas for shard '{ShardId}', falling back to primary. Total replicas: {TotalReplicaCount}")]
     public static partial void FallbackToPrimaryNoReplicas(

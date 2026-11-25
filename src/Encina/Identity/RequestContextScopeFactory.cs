@@ -17,9 +17,9 @@ namespace Encina;
 /// <para>
 /// Every member checks, in order: the accessor is the default one; the token is not cancelled; the
 /// arguments; the facts of the current holder chain. A refusal returns <c>Left</c> without invoking
-/// <c>work</c> and logs EventId 167 (except cancellation). Otherwise one private <c>async</c> method
+/// <c>work</c> and logs EventId 10067 (except cancellation). Otherwise one private <c>async</c> method
 /// pushes a new scope holder, awaits <c>work</c> and, in its <c>finally</c>, ends the holder (logs
-/// 168, and 170 when an enclosing scope had already ended). Ending only invalidates: the caller's
+/// 10068, and 10070 when an enclosing scope had already ended). Ending only invalidates: the caller's
 /// holder comes back through the <c>async</c> frame, because the push happens inside that
 /// <c>async</c> body and never in a synchronous wrapper.
 /// </para>
@@ -48,7 +48,7 @@ internal sealed partial class RequestContextScopeFactory : IRequestContextScopeF
     /// <param name="identityFactory">The claim mapper.</param>
     /// <param name="options">The claim map.</param>
     /// <param name="timeProvider">The clock that stamps every scope context.</param>
-    /// <param name="logger">The logger (EventIds 166-176); none by default.</param>
+    /// <param name="logger">The logger (EventIds 10066-10076); none by default.</param>
     public RequestContextScopeFactory(
         IRequestContextAccessor accessor,
         IServiceIdentityCatalog catalog,

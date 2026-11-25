@@ -122,8 +122,8 @@ public sealed class AuthorizationIdentityTests
 
         status.ShouldBe(HttpStatusCode.Forbidden);
         body.ShouldNotContain("alice@example.test");
-        EventIds(host).ShouldContain(162);
-        EventIds(host).ShouldContain(167);
+        EventIds(host).ShouldContain(10062);
+        EventIds(host).ShouldContain(10067);
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public sealed class AuthorizationIdentityTests
 
         status.ShouldBe(HttpStatusCode.Forbidden);
         body.ShouldNotContain("billing-job");
-        EventIds(host).ShouldContain(163);
-        EventIds(host).ShouldContain(167);
+        EventIds(host).ShouldContain(10063);
+        EventIds(host).ShouldContain(10067);
     }
 
     private static async Task<(HttpStatusCode Status, string Body)> SendRawAsync(IHost host, string claims)

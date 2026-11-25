@@ -166,7 +166,7 @@ public sealed class InboundExplicitContextAndLivenessTests
 
     private void Expect167WithTheCodeOnly()
     {
-        var record = _logger.Collector.GetSnapshot().Last(r => r.Id.Id == 167);
+        var record = _logger.Collector.GetSnapshot().Last(r => r.Id.Id == 10067);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain(RequestIdentityErrorCodes.ScopeConflict);
         record.Message.ShouldNotContain(Sentinel);
@@ -187,7 +187,7 @@ public sealed class InboundExplicitContextAndLivenessTests
         ShouldBeLeftWith(outcome, RequestIdentityErrorCodes.ScopeConflict);
         _invocations.Count.ShouldBe(0);
         Expect167WithTheCodeOnly();
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065);
         await release();
     }
 
@@ -298,7 +298,7 @@ public sealed class InboundExplicitContextAndLivenessTests
 
         outcome.ShouldBeSuccess().ShouldBe("service:test-job");
         _invocations.Count.ShouldBe(1);
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 165 || r.Id.Id == 167);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10065 || r.Id.Id == 10067);
     }
 
     [Fact]

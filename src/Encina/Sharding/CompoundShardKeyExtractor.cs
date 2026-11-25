@@ -54,11 +54,16 @@ public static class CompoundShardKeyExtractor
         // Priority 2 & 4: [ShardKey] attributes (multiple → compound, single → wrapped)
         var properties = ShardKeyPropertyCache.GetOrAdd(typeof(TEntity), FindShardKeyProperties);
 
-        if (properties is { Length: > 1 })
-        {
-            return ExtractFromMultipleAttributes(entity, properties);
-        }
+        return properties is { Length: > 1 }
+            ? ExtractFromMultipleAttributes(entity, properties)
+            : ExtractFromShardableOrSingleAttribute(entity, properties);
+    }
 
+    private static Either<EncinaError, CompoundShardKey> ExtractFromShardableOrSingleAttribute<TEntity>(
+        TEntity entity,
+        ShardKeyPropertyInfo[]? properties)
+        where TEntity : notnull
+    {
         // Priority 3: IShardable interface
         if (entity is IShardable shardable)
         {
