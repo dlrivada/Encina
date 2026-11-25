@@ -206,31 +206,32 @@ public sealed class ShardedMongoCollectionFactory : IShardedMongoCollectionFacto
 
         try
         {
-            var schemeSeparatorIndex = connectionString.IndexOf("://", StringComparison.Ordinal);
-            var authorityStart = schemeSeparatorIndex >= 0 ? schemeSeparatorIndex + 3 : 0;
-            var authority = connectionString.AsSpan(authorityStart);
-            var pathStart = authority.IndexOf('/');
-
-            if (pathStart < 0)
-            {
-                return null;
-            }
-
-            // An empty path ("host/") yields an empty segment, which the blank check below maps to null.
-            var path = authority[(pathStart + 1)..];
-            var queryStart = path.IndexOf('?');
-            var rawDatabaseName = queryStart >= 0 ? path[..queryStart] : path;
-
-            if (rawDatabaseName.IsWhiteSpace())
-            {
-                return null;
-            }
-
-            return Uri.UnescapeDataString(rawDatabaseName.ToString());
+            var rawDatabaseName = ExtractRawDatabaseName(connectionString);
+            return rawDatabaseName is null ? null : Uri.UnescapeDataString(rawDatabaseName);
         }
         catch
         {
             return null;
         }
+    }
+
+    private static string? ExtractRawDatabaseName(string connectionString)
+    {
+        var schemeSeparatorIndex = connectionString.IndexOf("://", StringComparison.Ordinal);
+        var authorityStart = schemeSeparatorIndex >= 0 ? schemeSeparatorIndex + 3 : 0;
+        var authority = connectionString.AsSpan(authorityStart);
+        var pathStart = authority.IndexOf('/');
+
+        if (pathStart < 0)
+        {
+            return null;
+        }
+
+        // An empty path ("host/") yields an empty segment, which the blank check below maps to null.
+        var path = authority[(pathStart + 1)..];
+        var queryStart = path.IndexOf('?');
+        var rawDatabaseName = queryStart >= 0 ? path[..queryStart] : path;
+
+        return rawDatabaseName.IsWhiteSpace() ? null : rawDatabaseName.ToString();
     }
 }
