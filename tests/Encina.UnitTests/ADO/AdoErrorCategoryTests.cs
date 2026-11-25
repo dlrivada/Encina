@@ -589,7 +589,11 @@ public sealed class AdoErrorCategoryTests
 
         var result = await factory.GetReadConnectionAsync("shard-1");
 
-        AssertInternal(result, ShardingErrorCodes.AllReplicasUnhealthy);
+        // D11 (decided 2026-11-25): a transient replica outage answers 503, not 500.
+        var error = LeftOf(result);
+        error.GetCode().IfSome(c => c.ShouldBe(ShardingErrorCodes.AllReplicasUnhealthy));
+        error.GetCode().IsSome.ShouldBeTrue();
+        error.GetCategory().ShouldBe(ErrorCategory.Unavailable);
     }
 
     // The three paths below select a connection string and then construct the provider connection,

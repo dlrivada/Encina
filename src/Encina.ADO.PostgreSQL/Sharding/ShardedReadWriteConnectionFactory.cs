@@ -239,7 +239,7 @@ public sealed class ShardedReadWriteConnectionFactory :
                 ? Either<EncinaError, string>.Right(shard.ConnectionString)
                 : Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.AllReplicasUnhealthy, ErrorCategory.Internal,
+                        ShardingErrorCodes.AllReplicasUnhealthy, ErrorCategory.Unavailable,
                         $"All replicas for shard '{shard.ShardId}' are currently unhealthy."));
         }
 
