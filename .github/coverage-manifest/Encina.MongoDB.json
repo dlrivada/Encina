@@ -747,7 +747,17 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 55,
+        "guard": 30,
+        "integration": 65
+      },
+      "justifications": {
+        "unit": "The database-name extraction tests and the factory unit tests drive the application-level paths with a lazily connecting MongoClient (measured 57.3%); the rest is the native-mode and GetAllCollections paths.",
+        "guard": "Guard tests cover the constructor and method argument checks (measured 31.1%).",
+        "integration": "The sharded repository integration tests run the factory against a real MongoDB (measured 68.9%)."
+      }
     },
     "Sharding/ShardedMongoDbDatabaseHealthMonitor.cs": {
       "defaultTests": [
@@ -763,7 +773,15 @@
         "guard"
       ],
       "defaultRule": "*Factory.cs",
-      "reason": "Factory with creation logic"
+      "reason": "Factory with creation logic",
+      "targets": {
+        "unit": 58,
+        "guard": 33
+      },
+      "justifications": {
+        "unit": "The database-name extraction tests drive the read, write and shard-resolution paths through a lazily connecting MongoClient (measured 59.9%); the rest is native mode and the read-preference conversion branches.",
+        "guard": "Guard tests cover the constructor and method argument checks (measured 34.3%)."
+      }
     },
     "Sharding/ShardingServiceCollectionExtensions.cs": {
       "defaultTests": [
