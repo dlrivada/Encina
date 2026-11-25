@@ -222,6 +222,132 @@ public sealed class AdoErrorCategoryTests
 
     #endregion
 
+    #region Entity mapping builders: success path
+
+    private static T RightOf<T>(Either<EncinaError, T> result)
+    {
+        result.IsRight.ShouldBeTrue();
+        T value = default!;
+        _ = result.IfRight(v => value = v);
+        return value;
+    }
+
+    private static void AssertMapping(string tableName, string idColumnName, IReadOnlyDictionary<string, string> columns, Guid expectedId, Guid actualId)
+    {
+        tableName.ShouldBe("Widgets");
+        idColumnName.ShouldBe("Id");
+        columns["Id"].ShouldBe("Id");
+        columns["Name"].ShouldBe("WidgetName");
+        actualId.ShouldBe(expectedId);
+    }
+
+    [Theory]
+    [InlineData(Provider.SqlServer)]
+    [InlineData(Provider.PostgreSQL)]
+    [InlineData(Provider.MySQL)]
+    public void RepositoryBuilder_Configured_BuildsMapping(Provider provider)
+    {
+        var widget = new Widget { Id = Guid.NewGuid() };
+
+        switch (provider)
+        {
+            case Provider.SqlServer:
+                var sql = RightOf(new SqlRepo.EntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(sql.TableName, sql.IdColumnName, sql.ColumnMappings, widget.Id, sql.GetId(widget));
+                break;
+            case Provider.PostgreSQL:
+                var npg = RightOf(new NpgRepo.EntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(npg.TableName, npg.IdColumnName, npg.ColumnMappings, widget.Id, npg.GetId(widget));
+                break;
+            default:
+                var my = RightOf(new MySqlRepo.EntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(my.TableName, my.IdColumnName, my.ColumnMappings, widget.Id, my.GetId(widget));
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData(Provider.SqlServer)]
+    [InlineData(Provider.PostgreSQL)]
+    [InlineData(Provider.MySQL)]
+    public void SoftDeleteBuilder_Configured_BuildsMapping(Provider provider)
+    {
+        var widget = new Widget { Id = Guid.NewGuid() };
+
+        switch (provider)
+        {
+            case Provider.SqlServer:
+                var sql = RightOf(new SqlSoftDelete.SoftDeleteEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(sql.TableName, sql.IdColumnName, sql.ColumnMappings, widget.Id, sql.GetId(widget));
+                break;
+            case Provider.PostgreSQL:
+                var npg = RightOf(new NpgSoftDelete.SoftDeleteEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(npg.TableName, npg.IdColumnName, npg.ColumnMappings, widget.Id, npg.GetId(widget));
+                break;
+            default:
+                var my = RightOf(new MySqlSoftDelete.SoftDeleteEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(my.TableName, my.IdColumnName, my.ColumnMappings, widget.Id, my.GetId(widget));
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData(Provider.SqlServer)]
+    [InlineData(Provider.PostgreSQL)]
+    [InlineData(Provider.MySQL)]
+    public void TenantBuilder_Configured_BuildsMapping(Provider provider)
+    {
+        var widget = new Widget { Id = Guid.NewGuid() };
+
+        switch (provider)
+        {
+            case Provider.SqlServer:
+                var sql = RightOf(new SqlTenancy.TenantEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(sql.TableName, sql.IdColumnName, sql.ColumnMappings, widget.Id, sql.GetId(widget));
+                break;
+            case Provider.PostgreSQL:
+                var npg = RightOf(new NpgTenancy.TenantEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(npg.TableName, npg.IdColumnName, npg.ColumnMappings, widget.Id, npg.GetId(widget));
+                break;
+            default:
+                var my = RightOf(new MySqlTenancy.TenantEntityMappingBuilder<Widget, Guid>()
+                    .ToTable("Widgets").HasId(w => w.Id).MapProperty(w => w.Name, "WidgetName").Build());
+                AssertMapping(my.TableName, my.IdColumnName, my.ColumnMappings, widget.Id, my.GetId(widget));
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData(Provider.SqlServer)]
+    [InlineData(Provider.PostgreSQL)]
+    public void TemporalBuilder_Configured_BuildsMapping(Provider provider)
+    {
+        var widget = new Widget { Id = Guid.NewGuid() };
+
+        if (provider == Provider.SqlServer)
+        {
+            var sql = RightOf(new SqlTemporal.TemporalEntityMappingBuilder<Widget, Guid>()
+                .ToTable("Widgets").HasId(w => w.Id, "Id").MapProperty(w => w.Name, "WidgetName").Build());
+            AssertMapping(sql.TableName, sql.IdColumnName, sql.ColumnMappings, widget.Id, sql.GetId(widget));
+        }
+        else
+        {
+            var npg = RightOf(new NpgTemporal.TemporalEntityMappingBuilder<Widget, Guid>()
+                .ToTable("Widgets").HasId(w => w.Id, "Id").MapProperty(w => w.Name, "WidgetName").Build());
+            AssertMapping(npg.TableName, npg.IdColumnName, npg.ColumnMappings, widget.Id, npg.GetId(widget));
+        }
+    }
+
+    #endregion
+
     #region Migration executor, history store and schema introspector
 
     private static IMigrationExecutor CreateExecutor(Provider provider, IShardedConnectionFactory factory) => provider switch
