@@ -153,7 +153,7 @@ Decisions: <every design choice already made, with its reason; say which ones th
 Acceptance: <numbered, checkable criteria; the tests or commands that prove each one>.
 ```
 
-Bug briefs (#4348): when the issue is a `[BUG]`, the Acceptance starts with the regression test, written and run red on the unfixed code before any fix (the worker records the command and the failing output for the PR body), and ends with the same test green; `AGENTS.md` §9 makes it a condition of the PR.
+Bug briefs (#4348): when the issue is a `[BUG]`, the Acceptance starts with the regression test, written and run red on the unfixed code before any fix (the worker records the command and the failing output for the PR body), and ends with the same test green; the test must fail on an assertion or exception (not a compile error), and a nondeterministic bug gets a deterministic test (fake clock, forced interleaving). When the defect cannot be tested (docs, workflow YAML, configuration) the brief says so and the PR body carries `Regression test: not applicable, <reason>`. `AGENTS.md` §9 makes it a condition of the PR.
 
 Decompose first (#2900): when the issue is an EPIC or its file list or estimate exceeds 15 files or 1500 lines, do not write this part; split it into ready sub-issues (section 1, Size rule) and brief one of them. The `Size:` line of the fixed part states the sub-issue's size.
 
