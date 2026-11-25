@@ -1,7 +1,7 @@
 # Implementation Plan: Bot registry (`tools/ai/bots.json`) and automatic `BOT-UNAVAILABLE` detection with fallback
 
 > **Issue**: [#1448](https://github.com/dlrivada/Encina/issues/1448) - [FEATURE] Bot registry (tools/ai/bots.json) and automatic BOT-UNAVAILABLE detection with fallback
-> **Status**: Draft plan (written against `origin/main` 4b0a600c7, 2026-11-25)
+> **Status**: Draft plan (written against `origin/main` 3bccacc1c, 2026-11-25)
 > **Piece**: 2 of the "Fallback system for external review bots" epic ([#1453](https://github.com/dlrivada/Encina/issues/1453)). Piece 1 (`pr-reviewer`, `.claude/agents/pr-reviewer.md`) is already on `main`.
 > **Scope note**: repository tooling only. No `src/` code, no .NET package, no EventIds.
 
@@ -17,7 +17,7 @@
 - `tools/ai/watch-pr-events.ps1` (per PR) already reads issue comments and reviews over REST and echoes `ISSUE-COMMENT <user> <160 chars>`; `tools/ai/watch-open-prs.ps1` (all open PRs) emits `CHECK-FAIL`, `NEW-THREAD`, `MERGED|CLOSED`. Both dot-source `tools/ai/gh-quota.ps1` and are REST-only (#2568).
 - `tools/ai/bots.json` does not exist. `tools/ai/sites.json` and `dashboard-freshness.cs --check-registry` are the model for a registry plus its validation.
 
-**Estimated scope.** 5 new files, 6 modified files, about 700 changed lines, in two pull requests (see the split under Estimated File Count).
+**Estimated scope.** 6 new files, 6 modified files and the `ci.yml` step the orchestrator applies, about 700 changed lines, in two pull requests (see the split under Estimated File Count).
 
 **Affected packages.** None of the Encina packages. Paths: `tools/ai/`, `.claude/skills/`, `.claude/agents/`, `docs/engineering/`.
 
@@ -105,6 +105,8 @@
 
 ### Chosen Option: **A - Observation time (recommended, pending the maintainer)**
 
+The clock of `no-review-<N>m` restarts also at the time of the latest `@coderabbitai review` trigger comment on the current head SHA (CodeRabbit first reviews are not automatic and need that comment), so a silence that precedes the trigger never counts. The scenarios of this Dilemma are therefore: push then immediate trigger (clock from the trigger), push with no trigger yet (clock from the first observation), monitor re-armed late (clock from the first observation, or from the committer date under B).
+
 ### Rationale
 
 - A wins when the orchestrator arms the monitor right after `gh pr create` (the pr-cycle rule); B wins when monitors are restarted often (the 30-minute re-arm). The cost of a late detection is minutes; the cost of a false one is a paid review.
@@ -183,8 +185,8 @@
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`tools/ai/bots.json`** (new): `{ "schema": 1, "healthWindowPrs": 10, "bots": [ { "id", "name", "role", "phase", "login", "failureSignals": [...], "fallback" } ] }`. Entries: `coderabbit` (login `coderabbitai[bot]`, signals `Review limit reached`, `rate limited`, `no-review-5m`, fallback `pr-reviewer`) and `copilot` (login `copilot-pull-request-reviewer[bot]`, signal `no-review-10m`, fallback `pr-reviewer`). Signal grammar: a string `no-review-<N>m` is time-based (N minutes without a review of the bot on the current head SHA); any other string is a case-insensitive literal searched in the bot's own comments. No `//` comments (JSON): the schema is documented in the docs page of Phase 5.
-2. **`tools/ai/bot-signals.ps1`** (new, library): `Read-BotRegistry -Path` (validates and returns the entries; throws on a missing file, schema other than 1, empty `id`, duplicate `id`, a `fallback` with no `.claude/agents/<name>.md`, a signal that is empty or `no-review-0m`), `Test-BotTextSignal -Bot -Comments` (author-bound match), `Test-BotNoReview -Bot -HeadSha -FirstSeenUtc -NowUtc -Reviews -Comments`, `Get-BotUnavailableLines`.
+1. **`tools/ai/bots.json`** (new): `{ "schema": 1, "healthWindowPrs": 10, "bots": [ { "id", "name", "role", "phase", "login", "failureSignals": [...], "fallback" } ] }`. Entries: `coderabbit` (login `coderabbitai[bot]`, signals `Review limit reached`, `rate limited`, `no-review-5m`, fallback `pr-reviewer`) and `copilot` (login `copilot-pull-request-reviewer[bot]`, signal `no-review-10m`, fallback `pr-reviewer`). Signal grammar: a string `no-review-<N>m` is time-based (N minutes without a review of the bot on the current head SHA); any other string is a case-insensitive literal searched in the bot's own comments created after the head commit time (a comment older than the current head never matches). No `//` comments (JSON): the schema is documented in the docs page of Phase 5.
+2. **`tools/ai/bot-signals.ps1`** (new, library): `Read-BotRegistry -Path` (validates and returns the entries; throws on a missing file, schema other than 1, empty `id`, duplicate `id`, a `fallback` with no `.claude/agents/<name>.md`, a signal that is empty or `no-review-0m`), `Test-BotTextSignal -Bot -Comments -HeadCommitUtc` (author-bound and time-bound match: only a comment by the bot's `login` created after the head commit's committer time counts, so an old "Review limit reached" comment cannot re-fire the fallback on every later push), `Test-BotNoReview -Bot -HeadSha -FirstSeenUtc -NowUtc -Reviews -Comments`, `Get-BotUnavailableLines`.
 3. **`tools/ai/bots-selftest.ps1`** (new): the self-test (Phase 4).
 
 </details>
@@ -204,7 +206,7 @@ Create tools/ai/bots.json and tools/ai/bot-signals.ps1 (functions listed in the 
 
 KEY RULES:
 - PowerShell only (AGENTS.md section 2). Edit with the Edit/Write tools.
-- Text signals match only comments authored by the bot's `login`; never echo comment text.
+- Text signals match only comments authored by the bot's `login` and created after the head commit time; never echo comment text.
 - A malformed registry must not be silently treated as "no bots": the caller gets an exception.
 
 REFERENCE FILES:
@@ -254,7 +256,7 @@ REFERENCE FILES:
 
 1. **`.claude/skills/pr-cycle/SKILL.md`** (modify): replace the manual "CodeRabbit Review rate limited" row by `BOT-UNAVAILABLE <bot> <pr>`: read `fallback` of the bot in `tools/ai/bots.json`, spawn that agent in the foreground with the PR number, post `artifacts/pr-review/<n>.md` as one review that starts with the marker `<!-- bot-fallback:<bot>:<headSha7> -->`, record in the PR that the bot was skipped. The existing sentence about `adversarial-reviewer` for gates and workflows stays.
 2. **`tools/ai/check-bot-health.ps1`** (new): for each bot, count how many of the last `healthWindowPrs` closed PRs have a review or comment by its `login` (REST, paginated); prints one line per bot (`OK`, `SILENT <n>/<N>`) and writes `bots-health.md` into `-OutDir`; exit 0 always (information), exit 2 for a bad registry.
-3. **`.claude/skills/site-health/SKILL.md`** and **`.claude/agents/site-steward.md`** (modify): a sixth step "bot health" running the script with `-OutDir artifacts/site-health/bots` (inside the steward's write allow-list); a bot `SILENT` for the whole window is drafted as a note for the maintainer, never acted on by the steward.
+3. **`.claude/skills/site-health/SKILL.md`** and **`.claude/agents/site-steward.md`** (modify): a new section "5. Bot health" (the skill has sections 1 When, 2 Freshness, 3 Snapshots, 4 Route, 5 Report; the new section goes before Report, which becomes 6) running the script with `-OutDir artifacts/site-health/bots` (inside the steward's write allow-list); a bot `SILENT` for the whole window is drafted as a note for the maintainer, never acted on by the steward.
 
 </details>
 
@@ -285,7 +287,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`tools/ai/bots-selftest.ps1`**: stubs `gh` (function override, no network, like `tools/ai/gh-quota-selftest.ps1`) and asserts: valid registry loads; each rejection of Phase 1 task 2 throws; a text signal from the bot's login fires; the same text from another login does not; `no-review-5m` fires at 5 minutes, not at 4, and not when a bot review of the current SHA exists; a new SHA restarts the timer; one `BOT-UNAVAILABLE` per bot and SHA; the marker found on the PR suppresses the line; the line never contains comment text.
+1. **`tools/ai/bots-selftest.ps1`**: stubs `gh` (function override, no network, like `tools/ai/gh-quota-selftest.ps1`) and asserts: valid registry loads; each rejection of Phase 1 task 2 throws; a text signal from the bot's login fires; the same text from another login does not; the same text from the bot's login created before the head commit time does not fire (the stale "Review limit reached" case after a new push); `no-review-5m` fires at 5 minutes, not at 4, and not when a bot review of the current SHA exists; a new SHA restarts the timer; one `BOT-UNAVAILABLE` per bot and SHA; the marker found on the PR suppresses the line; the line never contains comment text.
 2. **CI wiring** (`.github/workflows/ci.yml`, a shared hot spot): one step `pwsh -NoProfile -File tools/ai/bots-selftest.ps1` next to the other tool self-tests of the `knowledge-records` job. **The orchestrator applies this edit**; the PR that carries the self-test lists it as a post-merge step.
 3. Run the live smoke: `pwsh tools/ai/watch-open-prs.ps1 -Once` against the real repository prints no error.
 
