@@ -143,7 +143,7 @@ A file entry under `files` may carry two extra keys:
 - `targets`: `{ "<flag>": <whole number 0-100> }`, where the flag is one of `unit`, `guard`, `contract`, `property` or `integration`.
 - `justifications`: `{ "<flag>": "<one sentence>" }`, the reason for each target.
 
-Per-file targets are an additional obligation for that file on top of the package-level targets; they override nothing. Every target requires a justification. A target of `0` needs a justification that says why the flag cannot exercise the file. The existing `reason` field is unchanged and still explains the `defaultTests` classification.
+Per-file targets are an additional obligation for that file on top of the package-level targets; they override nothing. Every target requires a justification. A target of `0` needs a justification that says why the flag cannot exercise the file; `--check-zeros` tests that claim for `unit`, `guard` and `contract` (see [Zero-target check](#zero-target-check---check-zeros)). The existing `reason` field is unchanged and still explains the `defaultTests` classification.
 
 The entry for `DataAnnotationsValidationProvider.cs` in `.github/coverage-manifest/Encina.DataAnnotations.json` is a real example (the numbers are targets, not measurements):
 
@@ -228,6 +228,34 @@ To verify the script's own logic without repository data, run `dotnet run --file
 ```powershell
 pwsh -NoProfile -File .github/scripts/coverage-report-selftest.ps1
 ```
+
+#### Zero-target check (`--check-zeros`)
+
+A per-file target of `0` is only legitimate when the flag has nothing to cover in the file. `--check-zeros` (#2890) tests that claim for every `0` on `unit`, `guard` or `contract`. It reads the manifests and the source files, runs a Roslyn syntax pass over each source file (no compilation, no coverage data) and reports the zeros whose file still has something executable or contractual. `integration` and `property` zeros are outside the rule.
+
+A zero is exempt only when the file matches the closed list below. The list is extended only by a reviewed pull request (maintainer decision of 2026-10-26 on #2890); there is no marker in the source that waives it. A generated `*.g.cs` file is exempt for all three flags.
+
+| Flag | The zero is exempt when the file has only |
+| --- | --- |
+| `unit` | Interfaces, enums, delegates, body-less records, constants, auto-properties, abstract members, field-like events, `[LoggerMessage]` partial methods and static `Meter` or `ActivitySource` holder fields with no lambda in them. Any method, constructor or accessor body, any other initializer and any class or struct primary constructor is executable code. |
+| `guard` | No non-private method, constructor, indexer or primary constructor with a body that takes a reference-type parameter. Value types and `out` parameters do not count; a type name the syntax pass cannot resolve counts as a reference type. |
+| `contract` | Nothing that is a public interface or an abstract type, and nothing that implements or extends a type outside a closed list of BCL and `Microsoft.Extensions` bases. An unknown base might be an Encina-owned contract, so it is not exempt. |
+
+```powershell
+dotnet run .github/scripts/coverage-report.cs -- --check-zeros [--enforce] [--manifest <dir>] [--output <dir>]
+dotnet run .github/scripts/coverage-report.cs -- --classify-zero <source-file> <unit|guard|contract>
+```
+
+- `--check-zeros` is report-only by default: it prints each finding with the construct it found and a count per package, writes `<output>/check-zeros.json` (fields `enforce`, `checkedZeros`, `rejectedZeros`, `passed`, `byPackage`, `findings`) and exits 0. With `--enforce` it exits 1 on any finding.
+- Finding kinds: `rejected-zero` (the file is not exempt), `no-source` (the source file cannot be read from under `src/`) and `no-manifest` (no manifest was loaded, or one did not parse). It cannot be combined with another `--check-*` mode.
+- `--classify-zero` classifies one file for one flag: it prints `exempt: <construct>` and exits 0, or prints `not exempt: <reason>` and exits 1; a bad argument exits 2. It is the code path the R-ZERO ratchet (#2898) shares with `--check-zeros`.
+
+Rollout state: the mode is not part of `--check-justifications` (which CI runs on every PR) and no workflow enforces it, because the dry run over the current manifests still lists rejected zeros that the follow-up issues (#4107, #4108, #4109 and the other zero-family issues) must clear first. The decision rule is to wire it into `--check-justifications` only when the dry run lists none; adding `--enforce` to a workflow is a separate step. Run the command to see the current list; this page does not type it.
+
+Limits of a syntax pass:
+
+- It is conservative: an unknown type name counts as a reference type, so an enum-typed parameter makes a `guard` zero rejected.
+- It cannot judge whether a zero is reasonable for any other reason; that judgement belongs to a future agent (option D on #2890).
 
 #### Target attainment
 
