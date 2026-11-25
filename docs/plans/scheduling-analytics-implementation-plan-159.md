@@ -3,7 +3,7 @@
 > **Issue**: [#159](https://github.com/dlrivada/Encina/issues/159)
 > **Type**: Feature (observability and operations; `status:proposal`, part of EPIC #3405)
 > **Complexity**: Medium-High (10 database providers for one read member, a snapshot service, gauges, one endpoint; 17 pull requests of 5 to 15 files)
-> **Estimated Scope**: ~700 lines of production code + ~1,900 lines of tests, SQL and manifests; about 123 file touches in 17 pull requests (PR 1, 2 to 9, 10, 11a to 11c, 12, 13a to 13c), none above 15 files
+> **Estimated Scope**: ~700 lines of production code + ~1,900 lines of tests, SQL and manifests; about 129 file touches in 17 pull requests (PR 1, 2 to 9, 10, 11a to 11c, 12, 13a to 13c), none above 15 files
 > **Family**: scheduling-3. Siblings are cited by issue number only: #152 (spans and the three execution instruments; defers the pending gauge to this plan), #3994 (operations endpoints group in `Encina.AspNetCore`), #2229 (shared endpoint policy helper), #739 (tenant on the row), #1251 (row claiming), #906 (observability guide), #160 (webhooks, blocked on #3389)
 
 ---
@@ -108,7 +108,7 @@ The issue proposes `IScheduledMessageMetrics` with `Task<long>` and `Task<TimeSp
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A hosted `SchedulingStatisticsRefresher` in `Encina.Messaging`, registered only when `SchedulingOptions.PublishStatisticsGauges` is `true` (default `false`), polls `GetStatisticsAsync` every `StatisticsRefreshInterval` (default 30 seconds) in a fresh scope and stores the result in a singleton cache; the gauge callbacks read the cache** | The callback never touches the database; the cost exists only when asked for; the loop catches every failure and logs the code | Values are up to one interval old; each instance polls |
+| **A) A hosted `SchedulingStatisticsRefresher` in `Encina.Messaging`, registered only when `SchedulingOptions.PublishStatisticsGauges` is `true` (default `false`), polls `GetStatisticsAsync` every `StatisticsRefreshInterval` (default 30 seconds) in a fresh scope and stores the result in a singleton cache; the gauge callbacks read the cache** | The callback never touches the database; the cost exists only when asked for; the loop catches every failure and logs the code | While refreshes succeed, values are at most one interval old; the cache keeps the last successful snapshot on a `Left` with no expiry and the gauges carry no age, so while refreshes keep failing staleness is unbounded (stated in the documentation; each failed cycle logs its error code, so the failure is visible in the logs); each instance polls |
 | **B) The refresher in `Encina.OpenTelemetry`, registered by `WithEncina()`** | No option | Every host that adds OpenTelemetry pays a query per interval even when nobody scrapes |
 | **C) No gauges; the snapshot endpoint and the health check only** | No loop | The pending gauge of the issue stays missing |
 | **D) The callback blocks on the async store** | Fresh values | Sync-over-async in a metrics callback: thread-pool starvation risk (`AGENTS.md` section 3 on asynchronous database calls) |
@@ -230,7 +230,7 @@ REFERENCE FILES:
 
 Per package, one pull request each: `Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.ADO.MySQL`, `Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `Encina.Dapper.MySQL`, `Encina.EntityFrameworkCore` (one store, three databases), `Encina.MongoDB`.
 
-1. `Scheduling/ScheduledMessageStoreADO.cs` or `ScheduledMessageStoreDapper.cs` (or `ScheduledMessageStoreEF.cs`, `ScheduledMessageStoreMongoDB.cs`): the concrete public method `GetStatisticsAsync(SchedulingStatisticsQuery query, CancellationToken cancellationToken = default)` (null query throws `ArgumentNullException`). SQL Server: conditional `COUNT_BIG` aggregates in one statement and `SELECT TOP (@Top)` for the by-type group; PostgreSQL and MySQL: `COUNT(*) FILTER (WHERE ...)` and `SUM(CASE WHEN ... THEN 1 ELSE 0 END)` respectively, `LIMIT @Top`; EF Core: `CountAsync` and `GroupBy` over `Set<ScheduledMessage>()`; MongoDB: `CountDocumentsAsync` with filters and an aggregation `$group` with `$sort` and `$limit`. Asynchronous calls with the token, `DbLease.Enlisted` like the existing members, the failure code `scheduling.statistics_failed` with ADR-062 category `Unavailable` (a database failure while reading; 503 at the endpoint): `EitherHelpers.TryAsync` takes no category, so the member catches the exception itself and builds the error with the categorized overload `EncinaErrors.FromException("scheduling.statistics_failed", ErrorCategory.Unavailable, exception)`; an `OperationCanceledException` from the caller's token propagates. The request type key of the dictionary is the stored string; the endpoint shortens it.
+1. `Scheduling/ScheduledMessageStoreADO.cs` or `ScheduledMessageStoreDapper.cs` (or `ScheduledMessageStoreEF.cs`, `ScheduledMessageStoreMongoDB.cs`): the concrete public method `GetStatisticsAsync(SchedulingStatisticsQuery query, CancellationToken cancellationToken = default)` (null query throws `ArgumentNullException`). SQL Server: conditional `COUNT_BIG` aggregates in one statement and `SELECT TOP (@Top)` for the by-type group; PostgreSQL and MySQL: `COUNT(*) FILTER (WHERE ...)` and `SUM(CASE WHEN ... THEN 1 ELSE 0 END)` respectively, `LIMIT @Top`; EF Core: `CountAsync` and `GroupBy` over `Set<ScheduledMessage>()`; MongoDB: one `AggregateAsync` with a `$facet` stage, so the pending, failing, dead-lettered, processed and by-type groups are computed from one read of the collection in one database operation and a row cannot be counted in two states by interleaved reads (separate `CountDocumentsAsync` calls are not used for the counts; the by-type facet holds the `$group`, `$sort` and `$limit`). Asynchronous calls with the token, `DbLease.Enlisted` like the existing members, the failure code `scheduling.statistics_failed` with ADR-062 category `Unavailable` (a database failure while reading; 503 at the endpoint): `EitherHelpers.TryAsync` takes no category, so the member catches the exception itself and builds the error with the categorized overload `EncinaErrors.FromException("scheduling.statistics_failed", ErrorCategory.Unavailable, exception)`; an `OperationCanceledException` from the caller's token propagates. The request type key of the dictionary is the stored string; the endpoint shortens it.
 2. Index review: the due and pending predicates use the existing `IX_ScheduledMessages_ScheduledAt_Processed` (SQL Server) and its peers; no new index is planned, and each pull request records the measured plan on the integration database in its description.
 3. Per package: `PublicAPI.Unshipped.txt` line, manifest entry, an integration test in the shared collection (`[Collection("ADO-SqlServer")]` and its peers, `ClearAllDataAsync` in `InitializeAsync`, never `IClassFixture`): rows in every state give the exact counts, an empty table gives zeros and a null `OldestDueAtUtc`, `TopRequestTypes` truncates, a row exactly at the tolerance boundary is not overdue; a guard test edit (null query). Each provider pull request is 5 files (the store, its integration test class, the guard test edit, `PublicAPI.Unshipped.txt` and the package manifest); the EF Core pull request is 7 (three integration test classes, one per database collection, instead of one). The eight pull requests total 42 files. No schema change, so no inline test DDL edit is needed.
 
@@ -300,11 +300,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **Create** `src/Encina.Messaging/Scheduling/ISchedulingAnalytics.cs` and `SchedulingAnalytics.cs` (public; constructor `(IScheduledMessageStore store, SchedulingOptions options, SchedulingHealthCheckOptions? health = null, TimeProvider? timeProvider = null)`; `GetSnapshotAsync` builds the query, calls the store and returns `SchedulingHealthSnapshot`), and **create** `SchedulingHealthSnapshot.cs` (public sealed record: the counts, `FailureRate` = (failing + dead-lettered) divided by (pending + dead-lettered + processed in window), 0 when the denominator is 0; `Status` Unhealthy at the critical overdue threshold, Degraded at the warning threshold, else Healthy, using `SchedulingHealthCheckOptions`; `GeneratedAtUtc`).
+1. **Create** `src/Encina.Messaging/Scheduling/ISchedulingAnalytics.cs` and `SchedulingAnalytics.cs` (public; constructor `(IScheduledMessageStore store, SchedulingOptions options, SchedulingHealthCheckOptions? health = null, TimeProvider? timeProvider = null)`; `GetSnapshotAsync` builds the query, calls the store and returns `SchedulingHealthSnapshot`), and **create** `SchedulingHealthSnapshot.cs` (public sealed record: the counts, `FailureRate` = (failing + dead-lettered) divided by (pending + dead-lettered + processed in window), 0 when the denominator is 0; as a defence for any provider whose counts are not read atomically, the numerator is capped at the denominator so `FailureRate` stays in [0, 1] whatever the store returned; `Status` Unhealthy at the critical overdue threshold, Degraded at the warning threshold, else Healthy, using `SchedulingHealthCheckOptions`; `GeneratedAtUtc`).
 2. `SchedulingOptions`: `PublishStatisticsGauges` (false) and `StatisticsRefreshInterval` (30 seconds). **Create** `SchedulingStatisticsCache` (internal singleton, volatile snapshot) and `SchedulingStatisticsRefresher` (internal `BackgroundService`, Design Choice 4) and `SchedulingStatisticsGauges` (internal, `Meter("Encina.Messaging")`, four `ObservableGauge<long>` reading the cache; no tags).
 3. `src/Encina.Messaging/MessagingServiceCollectionExtensions.cs` `RegisterScheduling` (line 377): `TryAddScoped<ISchedulingAnalytics, SchedulingAnalytics>()`; when `PublishStatisticsGauges`, the cache, the gauges and `AddHostedService<SchedulingStatisticsRefresher>()` (singleton using `IServiceScopeFactory`). A DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` for both settings. `Encina.OpenTelemetry` `WithEncina` adds `AddMeter("Encina.Messaging")` if #152 or #721 has not.
 4. EventIds 2307-2308 (Design: Event ID Allocation), packed without a gap: 2307 refresher started (Information, interval), 2308 a refresh failed (Warning, error code through `ForLogging()` or the code only); a "gauges disabled after repeated `Left`" event is not added: failures keep the last good snapshot and log 2308 each cycle. The two ids are `MessagingScheduling` ids; `SchedulingStatisticsLog` is a new internal log class; `EncinaEventIdAllocationTests` needs no map change (the range exists).
-5. Tests: unit (snapshot arithmetic, thresholds, null window means 24 hours, a store `Left` is returned, the refresher keeps the last snapshot on `Left` and never throws out of a cycle: use `FakeTimeProvider` and assert the failure is logged and the loop continues), guard (constructor parameters), DI test, a property test (FailureRate is in [0, 1] and monotone in dead-lettered).
+5. Tests: unit (snapshot arithmetic, thresholds, null window means 24 hours, a store `Left` is returned, the refresher keeps the last snapshot on `Left` and never throws out of a cycle: use `FakeTimeProvider` and assert the failure is logged and the loop continues), guard (constructor parameters), DI test, a property test (FailureRate is in [0, 1], including for inconsistent store counts where failing plus dead-lettered exceeds the denominator, and monotone in dead-lettered).
 
 </details>
 
@@ -368,12 +368,12 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. `SchedulingStatisticsQuery` gains `TenantId` (`string?`, null only for the platform view); the eight stores add `AND TenantId = @TenantId` when it is set (binary collation, as the column of #739); `SchedulingAnalytics.GetSnapshotAsync` takes the tenant from `ITenantScopeResolver.ResolveRead` (#1257); a multi-tenant call without a tenant returns `Left(encina.tenancy.tenant_required)` (`InvalidRequest`); the platform view requires the explicit policy of the endpoint.
+1. Rule for every provider at every point of the sequence: a query with a non-null `TenantId` counts only that tenant's rows, or the store rejects it (fail closed, `AGENTS.md` section 3); a store never ignores `TenantId`. `SchedulingStatisticsQuery` gains `TenantId` (`string?`, null only for the platform view); the eight stores add `AND TenantId = @TenantId` when it is set (binary collation, as the column of #739); `SchedulingAnalytics.GetSnapshotAsync` takes the tenant from `ITenantScopeResolver.ResolveRead` (#1257); a multi-tenant call without a tenant returns `Left(encina.tenancy.tenant_required)` (`InvalidRequest`); the platform view requires the explicit policy of the endpoint.
 2. Tests: a two-tenant integration test on the 10 providers (tenant A never counts tenant B's rows; a tenant named `default` is a real value), unit tests of the denial.
 3. The change touches the eight stores again, so it is three pull requests (the original single pull request was about 27 files), in this order, each at most 15 files and building alone because the query's new member is optional:
-   - **13a, 9 files**: `SchedulingStatisticsQuery.cs` (`TenantId`), its unit test edit, `PublicAPI.Unshipped.txt` (Messaging), and the three ADO.NET stores with their three integration test classes edited (the two-tenant cases).
-   - **13b, 6 files**: the three Dapper stores and their three integration test classes edited.
-   - **13c, 11 files**: `ScheduledMessageStoreEF.cs` and its three integration test classes, `ScheduledMessageStoreMongoDB.cs` and its integration test, `SchedulingAnalytics.cs` (the optional trailing `ITenantScopeResolver? tenantScopeResolver = null` constructor parameter, with its line edited in `PublicAPI.Unshipped.txt`), `SchedulingAnalyticsTenantTests.cs` (new: denial and resolver cases), the guard test edit (a null resolver is accepted and valid) and `Encina.Messaging.json`.
+   - **13a, 15 files**: `SchedulingStatisticsQuery.cs` (`TenantId`), its unit test edit, `PublicAPI.Unshipped.txt` (Messaging), the three ADO.NET stores with their three integration test classes edited (the two-tenant cases), and, so that no store ever returns other tenants' rows once the member is public, the fail-closed edit of the five stores that do not filter yet (three Dapper, EF Core, MongoDB): each returns `Left(scheduling.statistics_tenant_unsupported)` (`ErrorCategory.Validation`, a constant message with no tenant id) before any I/O when `query.TenantId` is non-null, asserted by one new unit test class `SchedulingStatisticsTenantRejectionTests.cs` (the rejection runs before any connection is opened, so it needs no database).
+   - **13b, 6 files**: the three Dapper stores (the rejection is replaced by the predicate) and their three integration test classes edited.
+   - **13c, 11 files** (the EF Core and MongoDB stores replace the rejection by the predicate; once 13c merges no store rejects a tenant): `ScheduledMessageStoreEF.cs` and its three integration test classes, `ScheduledMessageStoreMongoDB.cs` and its integration test, `SchedulingAnalytics.cs` (the optional trailing `ITenantScopeResolver? tenantScopeResolver = null` constructor parameter, with its line edited in `PublicAPI.Unshipped.txt`), `SchedulingAnalyticsTenantTests.cs` (new: denial and resolver cases), the guard test edit (a null resolver is accepted and valid) and `Encina.Messaging.json`.
    The manifests of the eight store packages are not edited in 13a to 13c: the tenant predicate adds cases to files whose targets were entered in pull requests 2 to 9, and a target that must change moves to its own follow-up pull request of the same package.
 
 </details>
@@ -404,21 +404,24 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-| File | PR | Flag and target | Justification |
+Target rule, stated once: this page types no coverage figure (a number here would duplicate the package manifests and drift, and a citation of a file this plan creates would dangle). The pull request that carries each file's tests enters its per-flag targets in the package manifest, demanding and realistic, with the one-sentence justification below; a file that already has a target keeps it and a target is never lowered (`target-ratchet`); a file with no executable branch to cover takes a zero only with the reason given. The pull request reports the measured value against the manifest entry.
+
+| File | PR | Flags | Justification |
 | --- | --- | --- | --- |
-| `Scheduling/SchedulingStatisticsQuery.cs` | 1 | unit 95, guard 90 | Every validation branch is a test. |
-| `Scheduling/SchedulingStatistics.cs` | 1 | unit 0, guard 0 | A property-only record: no executable branch to cover. |
-| `Scheduling/SchedulingAnalytics.cs`, `Scheduling/SchedulingHealthSnapshot.cs` | 11a | unit 95, guard 90 | Arithmetic, thresholds and the `Left` path run against a substitute store. |
-| `Scheduling/SchedulingStatisticsRefresher.cs` | 11c | unit 85 | `FakeTimeProvider` drives cycles, failure and cancellation. |
-| `Scheduling/SchedulingStatisticsCache.cs`, `Diagnostics/SchedulingStatisticsGauges.cs` | 11b | unit 90 | A `MeterListener` reads the gauges. |
-| `Diagnostics/SchedulingStatisticsLog.cs` | 11c | unit 0, guard 0 | `[LoggerMessage]` declarations with no parameters to guard; the generated bodies are not in the file. |
-| `ScheduledMessageStoreADO.cs` of the three ADO.NET packages | 2 to 4 | integration 90, guard 10 (current, not lowered) | Integration tests on real databases cover the SQL; guard covers the null query. |
-| `ScheduledMessageStoreDapper.cs` of the three Dapper packages | 5 to 7 | integration 90, guard 9 (current, not lowered) | Same cases. |
-| `ScheduledMessageStoreEF.cs` | 8 | integration 90 (no per-file target today; the package default is 25, raised), guard 10 | Three database collections cover the new member. |
-| `ScheduledMessageStoreMongoDB.cs` | 9 | unit 92, guard 10, integration 95 (current, not lowered) | The MongoDB fixture covers the aggregation. |
-| `SchedulingStatisticsEndpointExtensions.cs` | 12 | unit 85, integration 80, guard 80 | `TestServer` drives 401, 200 and a `Left`. |
-| `FakeScheduledMessageStore.cs` | 10 | unit 60, guard 15 (current, not lowered) | The in-memory statistics are unit-tested with the same cases as the stores. |
-| `InstrumentedScheduledMessageStore.cs` | 10 | unit 76, guard 71 (current, not lowered) | The new pass-through and span are unit-tested. |
+| `Scheduling/SchedulingStatisticsQuery.cs` | 1 | unit, guard | Every validation branch is a test. |
+| `Scheduling/SchedulingStatistics.cs` | 1 | none (zero, with this reason) | A property-only record: no executable branch to cover. |
+| `Scheduling/SchedulingAnalytics.cs`, `Scheduling/SchedulingHealthSnapshot.cs` | 11a | unit, guard | Arithmetic, thresholds and the `Left` path run against a substitute store. |
+| `Scheduling/SchedulingStatisticsRefresher.cs` | 11c | unit | `FakeTimeProvider` drives cycles, failure and cancellation. |
+| `Scheduling/SchedulingStatisticsCache.cs`, `Diagnostics/SchedulingStatisticsGauges.cs` | 11b | unit | A `MeterListener` reads the gauges. |
+| `Diagnostics/SchedulingStatisticsLog.cs` | 11c | none (zero, with this reason) | `[LoggerMessage]` declarations with no parameters to guard; the generated bodies are not in the file. |
+| `ScheduledMessageStoreADO.cs` of the three ADO.NET packages | 2 to 4 | integration, guard (current guard target kept) | Integration tests on real databases cover the SQL; guard covers the null query. |
+| `ScheduledMessageStoreDapper.cs` of the three Dapper packages | 5 to 7 | integration, guard (current guard target kept) | Same cases. |
+| `ScheduledMessageStoreEF.cs` | 8 | integration, guard (the integration target is new: no per-file target exists today and the package default is raised) | Three database collections cover the new member. |
+| `ScheduledMessageStoreMongoDB.cs` | 9 | unit, integration, guard (current targets kept) | The MongoDB fixture covers the aggregation. |
+| `SchedulingStatisticsEndpointExtensions.cs` | 12 | unit, integration, guard | `TestServer` drives 401, 200 and a `Left`. |
+| `FakeScheduledMessageStore.cs` | 10 | unit, guard (current targets kept) | The in-memory statistics are unit-tested with the same cases as the stores. |
+| The rejection branch added to the five stores not yet filtering (the same store files as rows above) | 13a | unit | The rejection returns a `Left` before any I/O and is asserted by `SchedulingStatisticsTenantRejectionTests.cs`; 13b and 13c replace it with the predicate. |
+| `InstrumentedScheduledMessageStore.cs` | 10 | unit, guard (current targets kept) | The new pass-through and span are unit-tested. |
 
 Measure with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`. CRAP: each store member stays at comp 10 or less by extracting the query building.
 
@@ -449,7 +452,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. XML docs with an `<example>` on every public type; the scheduling feature page (what the snapshot answers and does not, the gauge option and its one-interval staleness, the endpoint and its policy) and the observability guide cross-reference through `docs-writer`; `changelog.d/159-scheduling-analytics.added.md` through `mechanical-fixer`. Files `PublicAPI.Unshipped.txt` in each package.
+1. XML docs with an `<example>` on every public type; the scheduling feature page (what the snapshot answers and does not, the gauge option and its staleness (one interval while refreshes succeed, unbounded while they keep failing, since the last snapshot is kept and no age is exposed), the endpoint and its policy) and the observability guide cross-reference through `docs-writer`; `changelog.d/159-scheduling-analytics.added.md` through `mechanical-fixer`. Files `PublicAPI.Unshipped.txt` in each package.
 2. The deferred execution-history feature (Design Choice 1, option B) is recorded in Next Steps; no issue file is written.
 3. Build verification (`dotnet build --configuration Release`, zero warnings) and the tests of every flag.
 
@@ -515,12 +518,12 @@ REFERENCE FILES:
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production | 24 | 14 new (2 records, 3 snapshot and service types, cache, refresher, gauges, 2 log classes, endpoint, `ISchedulingAnalytics`), 10 modified (8 stores, interface, options and registration counted in the 10); 38 touches |
-| Tests | 38 | Per provider 1 integration plus 1 guard edit (16) and the tenant cases of PR 13 (10 edits), core unit, guard, property, DI, endpoint, fake, decorator, contract |
+| Tests | 39 | Per provider 1 integration plus 1 guard edit (16) and the tenant cases of PR 13 (10 edits, plus the new rejection unit test class), core unit, guard, property, DI, endpoint, fake, decorator, contract |
 | SQL scripts | 0 | No schema change |
 | Coverage manifests | 14 | One per touched package per pull request |
 | PublicAPI files | 14 | Per pull request that adds or edits public API |
 | Registry and documentation | 3 | Two registry rows, the page, the guide cross-reference, the fragment (counted in PR 11c and 12) |
-| **Total touches** | **about 123** | In 17 pull requests, one by one: 6, 5, 5, 5, 5, 5, 5, 7, 5 (PR 1 to 9), 11 (PR 10), 10, 10, 7 (PR 11a to 11c), 11 (PR 12), 9, 6, 11 (PR 13a to 13c); none above 15 files |
+| **Total touches** | **about 129** | In 17 pull requests, one by one: 6, 5, 5, 5, 5, 5, 5, 7, 5 (PR 1 to 9), 11 (PR 10), 10, 10, 7 (PR 11a to 11c), 11 (PR 12), 15, 6, 11 (PR 13a to 13c); none above 15 files |
 
 ---
 
@@ -535,7 +538,7 @@ PROJECT CONTEXT:
 - Issue #159: analytics for scheduled messages; only state-derived statistics are possible without history.
 
 IMPLEMENTATION OVERVIEW:
-PR1 records; PR2-9 one provider each (concrete GetStatisticsAsync, integration tests); PR10 interface, decorator, fake; PR11a snapshot service; PR11b options, cache, gauges, AddMeter; PR11c refresher, log, EventIds; PR12 fail-closed endpoint and docs; PR13a ADO.NET and the query's tenant, PR13b Dapper, PR13c EF Core, MongoDB and the analytics service (tenant predicate, after #739).
+PR1 records; PR2-9 one provider each (concrete GetStatisticsAsync, integration tests); PR10 interface, decorator, fake; PR11a snapshot service; PR11b options, cache, gauges, AddMeter; PR11c refresher, log, EventIds; PR12 fail-closed endpoint and docs; PR13a ADO.NET, the query's tenant and the fail-closed rejection in the five stores not yet filtering, PR13b Dapper, PR13c EF Core, MongoDB and the analytics service (tenant predicate, after #739).
 
 KEY PATTERNS:
 - Implementers first, interface last. Optional parameters last.
