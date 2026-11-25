@@ -217,9 +217,11 @@ public static class EitherAssertions
         string? message = null)
     {
         var error = result.ShouldBeError(message);
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
-        Assert.StartsWith("encina.validation", code, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            category == ErrorCategory.Validation,
+            message ?? $"Expected an error of category {ErrorCategory.Validation} but the category was {category}.");
         return error;
     }
 
@@ -245,9 +247,11 @@ public static class EitherAssertions
         string? message = null)
     {
         var error = result.ShouldBeError(message);
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
-        Assert.StartsWith("encina.notfound", code, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            category == ErrorCategory.NotFound,
+            message ?? $"Expected an error of category {ErrorCategory.NotFound} but the category was {category}.");
         return error;
     }
 

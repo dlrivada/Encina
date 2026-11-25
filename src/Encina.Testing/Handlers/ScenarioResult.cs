@@ -190,7 +190,7 @@ public sealed class ScenarioResult<TResponse>
     /// <example>
     /// <code>
     /// result.ShouldBeErrorAnd()
-    ///     .ShouldSatisfy(e => Assert.StartsWith("encina.validation", e.GetCode().IfNone("")));
+    ///     .ShouldSatisfy(e => Assert.Equal(ErrorCategory.Validation, e.GetCategory()));
     /// </code>
     /// </example>
     public AndConstraint<EncinaError> ShouldBeErrorAnd()
@@ -223,11 +223,11 @@ public sealed class ScenarioResult<TResponse>
         }
 
         var error = ShouldBeError();
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
         Xunit.Assert.True(
-            code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase),
-            $"Scenario '{_description}' expected validation error but got error with code: {code}");
+            category == ErrorCategory.Validation,
+            $"Scenario '{_description}' expected validation error but got error with category: {category}");
 
         var metadata = error.GetMetadata();
         var message = error.Message;
@@ -256,7 +256,7 @@ public sealed class ScenarioResult<TResponse>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="expectedCode"/> is null.</exception>
     /// <example>
     /// <code>
-    /// result.ShouldBeErrorWithCode("encina.notfound");
+    /// result.ShouldBeErrorWithCode("orders.not_found");
     /// </code>
     /// </example>
     public EncinaError ShouldBeErrorWithCode(string expectedCode)
