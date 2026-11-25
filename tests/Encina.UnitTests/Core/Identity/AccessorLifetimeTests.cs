@@ -251,7 +251,7 @@ public sealed class AccessorLifetimeTests
         Should.Throw<InvalidOperationException>(() => accessor.RequestContext = null);
 
         accessor.RequestContext!.UserId.ShouldBe("scope");
-        logger.Collector.GetSnapshot().Single().Id.Id.ShouldBe(165);
+        logger.Collector.GetSnapshot().Single().Id.Id.ShouldBe(10065);
         RequestContextAccessor.End(scope);
     }
 

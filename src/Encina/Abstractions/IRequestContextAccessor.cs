@@ -41,7 +41,7 @@ namespace Encina;
 /// reads the context; it never sets an identity. The default implementation accepts a set only
 /// when it preserves the identity and the origin of the readable context (anonymous with no origin
 /// when none is readable), never clears it, and accepts a tenant change only while no dispatch is
-/// in flight; any other set logs Warning 165 and throws <see cref="InvalidOperationException"/>.
+/// in flight; any other set logs Warning 10065 and throws <see cref="InvalidOperationException"/>.
 /// </para>
 /// <para>
 /// The default implementation (<see cref="RequestContextAccessor"/>) stores the value in an

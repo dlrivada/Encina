@@ -28,7 +28,7 @@ namespace Encina.AspNetCore.Blazor;
 /// <c>ReservedSubjectClaim</c>, <c>ConflictingSubjectClaims</c>) or with conflicting tenant claims
 /// (<c>InboundTenantConflict</c>) never runs the activity as anonymous. The handler does not call the
 /// next handler and throws an <see cref="InvalidOperationException"/> whose fixed text carries only the
-/// error code (never a claim value or the error message); the factory has logged Warning 167. For a
+/// error code (never a claim value or the error message); the factory has logged Warning 10067. For a
 /// JavaScript interop call (and the UI events that travel through it) Blazor reports the exception as an
 /// unhandled circuit exception: it notifies the client, which shows the error UI, and terminates the
 /// circuit. Two paths are not reported to the client: the initialization of a circuit in the legacy

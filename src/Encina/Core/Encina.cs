@@ -205,49 +205,49 @@ public sealed partial class Encina(
 
     internal static partial class Log
     {
-        [LoggerMessage(EventId = 106, Level = LogLevel.Error, Message = "The request cannot be null.")]
+        [LoggerMessage(EventId = 10006, Level = LogLevel.Error, Message = "The request cannot be null.")]
         public static partial void NullRequest(ILogger logger);
 
-        [LoggerMessage(EventId = 107, Level = LogLevel.Error, Message = "No registered IRequestHandler was found for {RequestType} -> {ResponseType}.")]
+        [LoggerMessage(EventId = 10007, Level = LogLevel.Error, Message = "No registered IRequestHandler was found for {RequestType} -> {ResponseType}.")]
         public static partial void HandlerMissing(ILogger logger, string requestType, string responseType);
 
-        [LoggerMessage(EventId = 108, Level = LogLevel.Debug, Message = "Processing {RequestType} with {HandlerType}.")]
+        [LoggerMessage(EventId = 10008, Level = LogLevel.Debug, Message = "Processing {RequestType} with {HandlerType}.")]
         public static partial void ProcessingRequest(ILogger logger, string requestType, string handlerType);
 
-        [LoggerMessage(EventId = 109, Level = LogLevel.Error, Message = "Handler {HandlerType} returned an unexpected type while processing {RequestType}.")]
+        [LoggerMessage(EventId = 10009, Level = LogLevel.Error, Message = "Handler {HandlerType} returned an unexpected type while processing {RequestType}.")]
         public static partial void HandlerReturnedUnexpectedType(ILogger logger, string handlerType, string requestType);
 
-        [LoggerMessage(EventId = 110, Level = LogLevel.Warning, Message = "The {RequestType} request was cancelled.")]
+        [LoggerMessage(EventId = 10010, Level = LogLevel.Warning, Message = "The {RequestType} request was cancelled.")]
         public static partial void RequestCancelledDuringSend(ILogger logger, string requestType);
 
-        [LoggerMessage(EventId = 111, Level = LogLevel.Error, Message = "Unexpected error while processing {RequestType}.")]
+        [LoggerMessage(EventId = 10011, Level = LogLevel.Error, Message = "Unexpected error while processing {RequestType}.")]
         public static partial void RequestProcessingError(ILogger logger, string requestType, Exception exception);
 
-        [LoggerMessage(EventId = 112, Level = LogLevel.Error, Message = "The notification cannot be null.")]
+        [LoggerMessage(EventId = 10012, Level = LogLevel.Error, Message = "The notification cannot be null.")]
         public static partial void NotificationNull(ILogger logger);
 
-        [LoggerMessage(EventId = 113, Level = LogLevel.Debug, Message = "No handlers were found for the {NotificationType} notification.")]
+        [LoggerMessage(EventId = 10013, Level = LogLevel.Debug, Message = "No handlers were found for the {NotificationType} notification.")]
         public static partial void NoNotificationHandlers(ILogger logger, string notificationType);
 
-        [LoggerMessage(EventId = 114, Level = LogLevel.Debug, Message = "Sending notification {NotificationType} to {HandlerType}.")]
+        [LoggerMessage(EventId = 10014, Level = LogLevel.Debug, Message = "Sending notification {NotificationType} to {HandlerType}.")]
         public static partial void SendingNotification(ILogger logger, string notificationType, string handlerType);
 
-        [LoggerMessage(EventId = 115, Level = LogLevel.Warning, Message = "Publishing {NotificationType} with {HandlerType} was cancelled.")]
+        [LoggerMessage(EventId = 10015, Level = LogLevel.Warning, Message = "Publishing {NotificationType} with {HandlerType} was cancelled.")]
         public static partial void NotificationCancelled(ILogger logger, string notificationType, string handlerType, Exception? exception);
 
-        [LoggerMessage(EventId = 116, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType}.")]
+        [LoggerMessage(EventId = 10016, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType}.")]
         public static partial void NotificationHandlerException(ILogger logger, string notificationType, string handlerType, Exception exception);
 
-        [LoggerMessage(EventId = 117, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType} ({Reason}).")]
+        [LoggerMessage(EventId = 10017, Level = LogLevel.Error, Message = "Error while publishing notification {NotificationType} with {HandlerType} ({Reason}).")]
         public static partial void NotificationHandlerFailure(ILogger logger, string notificationType, string handlerType, string reason);
 
-        [LoggerMessage(EventId = 118, Level = LogLevel.Debug, Message = "Request {RequestType} completed by {HandlerType}.")]
+        [LoggerMessage(EventId = 10018, Level = LogLevel.Debug, Message = "Request {RequestType} completed by {HandlerType}.")]
         public static partial void RequestCompleted(ILogger logger, string requestType, string handlerType);
 
-        [LoggerMessage(EventId = 119, Level = LogLevel.Warning, Message = "The {RequestType} request was cancelled ({Reason}).")]
+        [LoggerMessage(EventId = 10019, Level = LogLevel.Warning, Message = "The {RequestType} request was cancelled ({Reason}).")]
         public static partial void RequestCancelled(ILogger logger, string requestType, string reason, Exception? exception);
 
-        [LoggerMessage(EventId = 120, Level = LogLevel.Error, Message = "The {RequestType} request failed ({Reason}).")]
+        [LoggerMessage(EventId = 10020, Level = LogLevel.Error, Message = "The {RequestType} request failed ({Reason}).")]
         public static partial void RequestFailed(ILogger logger, string requestType, string reason, Exception? exception);
     }
 }

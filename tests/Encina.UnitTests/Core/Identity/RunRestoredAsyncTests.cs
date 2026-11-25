@@ -42,7 +42,7 @@ public sealed class RunRestoredAsyncTests
         context.CorrelationId.ShouldBe("corr-1");
         context.CausationId.ShouldBe("cause-1");
         ((RequestContext)context).Origin.ShouldBe(RequestOrigin.Restored);
-        _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 171).Level.ShouldBe(LogLevel.Information);
+        _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 10071).Level.ShouldBe(LogLevel.Information);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class RunRestoredAsyncTests
 
         result.IsLeft.ShouldBeTrue();
         invoked.ShouldBeFalse();
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
     }
 
     [Theory]
@@ -170,7 +170,7 @@ public sealed class RunRestoredAsyncTests
         });
 
         outcome.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
-        _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 174).Message.ShouldContain(ScopeTestHost.Job);
+        _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 10074).Message.ShouldContain(ScopeTestHost.Job);
     }
 
     [Fact]

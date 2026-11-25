@@ -36,7 +36,7 @@ namespace Encina;
 /// A <c>Left</c> returned by <c>work</c> passes through unchanged, and an exception thrown by
 /// <c>work</c> (<see cref="OperationCanceledException"/> included) propagates unchanged after the
 /// scope has ended. Every opening, refusal and ending is logged with identity kinds, error codes,
-/// correlation ids and declared service names only (EventIds 166-175).
+/// correlation ids and declared service names only (EventIds 10066-10075).
 /// </para>
 /// <para>
 /// The scope API guards against accidental misuse; it is not a security boundary against hostile
@@ -144,7 +144,7 @@ public interface IRequestContextScopeFactory
     /// only when <see cref="InboundRequestInfo.TenantHeaderTrusted"/> is set, otherwise none.
     /// The context is marked as inbound, so service and principal scopes opened inside it need
     /// <see cref="IdentityScopeOptions.AllowOverInbound"/>. Each call is logged at Information
-    /// (EventId 175) as an application binding path.
+    /// (EventId 10075) as an application binding path.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="request"/> or <paramref name="work"/> is <see langword="null"/>.</exception>
     Task<Either<EncinaError, T>> RunInboundAsync<T>(

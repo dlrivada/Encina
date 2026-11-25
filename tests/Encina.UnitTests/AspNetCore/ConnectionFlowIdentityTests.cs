@@ -291,8 +291,8 @@ public sealed class ConnectionFlowIdentityTests
         var (_, body) = await GetAsync(host, "/sse-optin", user: "alice", accept: "text/event-stream");
 
         body.ShouldBe("alice|Inbound;anonymous|Connection;alice|Inbound;anonymous|Connection;alice|Inbound;anonymous|Connection");
-        EventIds(host, 175).Count.ShouldBe(3);
-        EventIds(host, 172).ShouldBeEmpty();
+        EventIds(host, 10075).Count.ShouldBe(3);
+        EventIds(host, 10072).ShouldBeEmpty();
     }
 
     // ── SignalR over WebSockets, raw WebSockets ───────────────────────────

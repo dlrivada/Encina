@@ -59,8 +59,8 @@ public sealed class RequestIdentityCircuitHandlerTests
         seen.Issued().UserId.ShouldBe("circuit-user");
         seen.Issued().Roles.ShouldContain("Admin");
         ((RequestContext)seen).Origin.ShouldBe(RequestOrigin.Inbound);
-        _host.EventIds.ShouldContain(172);
-        _host.EventIds.ShouldNotContain(167);
+        _host.EventIds.ShouldContain(10072);
+        _host.EventIds.ShouldNotContain(10067);
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public sealed class RequestIdentityCircuitHandlerTests
         seen.ShouldNotBeNull();
         seen.Identity.Kind.ShouldBe(IdentityKind.Anonymous);
         ((RequestContext)seen).Origin.ShouldBe(RequestOrigin.Scope);
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
         service.IsLeft.ShouldBeTrue("the mask keeps the user fact of the chain it hides");
     }
 
@@ -187,7 +187,7 @@ public sealed class RequestIdentityCircuitHandlerTests
         ran.ShouldBeFalse();
         thrown.Message.ShouldContain(code);
         thrown.Message.ShouldNotContain(sentinel);
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
     }
 
     [Fact]

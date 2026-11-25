@@ -223,19 +223,19 @@ All metrics use the `Encina` meter. Available via `ShadowShardingMetrics`:
 
 ### Logs
 
-High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventIds **138-146**, inside `EventIdRanges.Core`.
+High-performance structured logging via `LoggerMessage` source generators (zero-allocation). EventIds **10038-10046**, inside `EventIdRanges.Core`.
 
 | EventId | Level | Message |
 |---------|-------|---------|
-| 138 | Warning | Shadow routing failed for shard key `{ShardKey}` |
-| 139 | Warning | Shadow routing mismatch: production=`{ProductionShardId}`, shadow=`{ShadowShardId}` |
-| 140 | Warning | Shadow write failed for command `{CommandType}` |
-| 141 | Warning | Shadow write timed out after `{TimeoutMs}`ms |
-| 142 | Warning | Shadow read discrepancy for query `{QueryType}` |
-| 143 | Warning | Shadow read failed for query `{QueryType}` |
-| 144 | Warning | Shadow discrepancy handler failed for query `{QueryType}` |
-| 145 | Information | Shadow sharding enabled with configuration summary |
-| 146 | Information | Shadow comparison summary with mismatch rate |
+| 10038 | Warning | Shadow routing failed for shard key `{ShardKey}` |
+| 10039 | Warning | Shadow routing mismatch: production=`{ProductionShardId}`, shadow=`{ShadowShardId}` |
+| 10040 | Warning | Shadow write failed for command `{CommandType}` |
+| 10041 | Warning | Shadow write timed out after `{TimeoutMs}`ms |
+| 10042 | Warning | Shadow read discrepancy for query `{QueryType}` |
+| 10043 | Warning | Shadow read failed for query `{QueryType}` |
+| 10044 | Warning | Shadow discrepancy handler failed for query `{QueryType}` |
+| 10045 | Information | Shadow sharding enabled with configuration summary |
+| 10046 | Information | Shadow comparison summary with mismatch rate |
 
 ---
 
@@ -341,7 +341,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Shadow Write Timeouts
 
-**Symptom**: EventId 141 warnings in logs (`Shadow write timed out`).
+**Symptom**: EventId 10041 warnings in logs (`Shadow write timed out`).
 
 **Cause**: The shadow topology is slower than `ShadowWriteTimeout` allows.
 
@@ -353,7 +353,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Shadow Read Failures
 
-**Symptom**: EventId 143 warnings (`Shadow read failed`).
+**Symptom**: EventId 10043 warnings (`Shadow read failed`).
 
 **Cause**: The shadow router encountered an error for a shard key that succeeds on production.
 
@@ -365,7 +365,7 @@ Shadow errors are returned as `Either<EncinaError, string>.Left` from `RouteShad
 
 ### Discrepancy Handler Errors
 
-**Symptom**: EventId 144 warnings (`Shadow discrepancy handler failed`).
+**Symptom**: EventId 10044 warnings (`Shadow discrepancy handler failed`).
 
 **Cause**: The custom `DiscrepancyHandler` delegate threw an exception.
 
@@ -385,7 +385,7 @@ Yes. Set `ShadowRouterFactory` to create any `IShardRouter` implementation. For 
 
 **Q: What happens if the shadow topology is unavailable?**
 
-Nothing visible to users. Shadow failures are caught, logged (EventId 138/140/143), and discarded. Production routing continues normally.
+Nothing visible to users. Shadow failures are caught, logged (EventId 10038/10040/10043), and discarded. Production routing continues normally.
 
 **Q: Can I shadow-test with compound shard keys?**
 
@@ -398,7 +398,7 @@ Monitor these signals over a sustained period (recommended: 48--72 hours at 100%
 - `routing_mismatches_total` is stable and understood
 - `write_total{outcome=failure}` is zero
 - `write_latency_diff_ms` and `read_latency_diff_ms` are within acceptable bounds
-- No EventId 138/140/143 warnings in logs
+- No EventId 10038/10040/10043 warnings in logs
 
 ---
 
