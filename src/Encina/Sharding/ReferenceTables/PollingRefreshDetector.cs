@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LanguageExt;
 using Microsoft.Extensions.Logging;
 
@@ -50,28 +51,13 @@ internal sealed class PollingRefreshDetector(
 
         using var activity = ReferenceTableDiagnostics.StartDetectChangesActivity(config.EntityType.Name);
 
-        var topology = _topologyProvider.GetTopology();
-
-        // Determine primary shard
-        var allShardIds = topology.AllShardIds;
-        var primaryShardId = config.Options.PrimaryShardId ?? (allShardIds.Count > 0 ? allShardIds[0] : null);
-
-        if (primaryShardId is null)
-        {
-            var error = EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
-                $"No primary shard found for reference table '{config.EntityType.Name}'.");
-            ReferenceTableDiagnostics.Complete(activity, false, error.GetEncinaCode());
-            return error;
-        }
-
-        var primaryShardResult = topology.GetShard(primaryShardId);
+        var primaryShardResult = ResolvePrimaryShard(config);
 
         if (primaryShardResult.IsLeft)
         {
-            var error = EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
-                $"Primary shard '{primaryShardId}' not found in topology.");
+            var error = primaryShardResult.Match(
+                Right: _ => default,
+                Left: e => e);
             ReferenceTableDiagnostics.Complete(activity, false, error.GetEncinaCode());
             return error;
         }
@@ -98,26 +84,56 @@ internal sealed class PollingRefreshDetector(
             Right: h => h,
             Left: _ => string.Empty);
 
+        return await ReplicateIfChangedAsync(config, currentHash, activity, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private Either<EncinaError, ShardInfo> ResolvePrimaryShard(ReferenceTableConfiguration config)
+    {
+        var topology = _topologyProvider.GetTopology();
+
+        // Determine primary shard
+        var primaryShardId = GetPrimaryShardId(config, topology.AllShardIds);
+
+        if (primaryShardId is null)
+        {
+            return EncinaErrors.Create(
+                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                $"No primary shard found for reference table '{config.EntityType.Name}'.");
+        }
+
+        var primaryShardResult = topology.GetShard(primaryShardId);
+
+        if (primaryShardResult.IsLeft)
+        {
+            return EncinaErrors.Create(
+                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                $"Primary shard '{primaryShardId}' not found in topology.");
+        }
+
+        return primaryShardResult;
+    }
+
+    private static string? GetPrimaryShardId(ReferenceTableConfiguration config, IReadOnlyList<string> allShardIds)
+        => config.Options.PrimaryShardId ?? (allShardIds.Count > 0 ? allShardIds[0] : null);
+
+    private async Task<Either<EncinaError, ReplicationResult?>> ReplicateIfChangedAsync(
+        ReferenceTableConfiguration config,
+        string currentHash,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
         // Compare with last known hash
         var lastHash = await _stateStore.GetLastHashAsync(config.EntityType, cancellationToken)
             .ConfigureAwait(false);
 
         if (string.Equals(currentHash, lastHash, StringComparison.Ordinal))
         {
-            ReferenceTableLog.NoChangesDetected(_logger, config.EntityType.Name, currentHash);
-            activity?.SetTag("reference_table.change_detected", false);
-            activity?.SetTag("reference_table.hash", currentHash);
-            ReferenceTableDiagnostics.Complete(activity, true);
+            CompleteUnchanged(config, currentHash, activity);
             return (ReplicationResult?)null;
         }
 
-        ReferenceTableLog.ChangeDetected(
-            _logger,
-            config.EntityType.Name,
-            lastHash ?? "(none)",
-            currentHash);
-        activity?.SetTag("reference_table.change_detected", true);
-        activity?.SetTag("reference_table.hash", currentHash);
+        RecordChangeDetected(config, lastHash, currentHash, activity);
 
         // Trigger replication via reflection (we only have Type at runtime)
         var replicationResult = await ReplicateByTypeAsync(config.EntityType, cancellationToken)
@@ -134,6 +150,29 @@ internal sealed class PollingRefreshDetector(
 
         ReferenceTableDiagnostics.Complete(activity, replicationResult.IsRight);
         return replicationResult.Map<ReplicationResult?>(r => r);
+    }
+
+    private void CompleteUnchanged(ReferenceTableConfiguration config, string currentHash, Activity? activity)
+    {
+        ReferenceTableLog.NoChangesDetected(_logger, config.EntityType.Name, currentHash);
+        activity?.SetTag("reference_table.change_detected", false);
+        activity?.SetTag("reference_table.hash", currentHash);
+        ReferenceTableDiagnostics.Complete(activity, true);
+    }
+
+    private void RecordChangeDetected(
+        ReferenceTableConfiguration config,
+        string? lastHash,
+        string currentHash,
+        Activity? activity)
+    {
+        ReferenceTableLog.ChangeDetected(
+            _logger,
+            config.EntityType.Name,
+            lastHash ?? "(none)",
+            currentHash);
+        activity?.SetTag("reference_table.change_detected", true);
+        activity?.SetTag("reference_table.hash", currentHash);
     }
 
     private static Task<Either<EncinaError, string>> ComputeHashAsync(

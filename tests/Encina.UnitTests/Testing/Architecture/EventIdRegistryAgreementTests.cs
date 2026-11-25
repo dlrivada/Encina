@@ -46,9 +46,9 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_RegistryWithRangeMissing_NamesTheRange()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"]);
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199), ("Marten", 2600, 2799)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199), ("Marten", 2600, 2799)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("Marten");
@@ -59,20 +59,20 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_RegisteredRowWithDifferentBounds_NamesTheRow()
     {
         var registry = Registry(
-            registered: ["| Core | 100-198 | Core and messaging | historical |"]);
+            registered: ["| Sanitization | 100-198 | Core and messaging | historical |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
-        violations.ShouldContain(v => v.Contains("'Core'", StringComparison.Ordinal) && v.Contains("100-198", StringComparison.Ordinal));
+        violations.ShouldContain(v => v.Contains("'Sanitization'", StringComparison.Ordinal) && v.Contains("100-198", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Check_RegisteredRowWithoutRangeInCode_NamesTheRow()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |", "| Ghost | 300-349 | Core and messaging | historical |"]);
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |", "| Ghost | 300-349 | Core and messaging | historical |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("Ghost");
@@ -82,10 +82,10 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_BlockRowMarkedRegisteredWithoutMatchingRange_NamesTheRow()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks: ["| 10000-10049 | Core and messaging | plan #1 | registered |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("10000-10049");
@@ -95,28 +95,28 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_ReservedBlockOverlappingRegisteredRange_NamesBoth()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks: ["| 150-170 | Core and messaging | plan #1 | reserved-pre-zone |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("150-170");
-        violation.ShouldContain("'Core'");
+        violation.ShouldContain("'Sanitization'");
     }
 
     [Fact]
     public void Check_ReservedBlocksOverlappingEachOther_NamesBoth()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks:
             [
                 "| 10000-10049 | Core and messaging | plan #1 | reserved |",
                 "| 10040-10099 | Core and messaging | plan #2 | reserved |",
             ]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("10000-10049");
@@ -127,10 +127,10 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_ReservedBlockBelowZoneWithoutPreZoneMarker_IsRejected()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks: ["| 5500-5549 | Core and messaging | plan #1 | reserved |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("5500-5549");
@@ -141,12 +141,12 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_RegisteredRangeBelowZoneNotMarkedHistorical_IsRejected()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | zone |"]);
+            registered: ["| Sanitization | 100-199 | Core and messaging | zone |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         var violation = violations.ShouldHaveSingleItem();
-        violation.ShouldContain("'Core'");
+        violation.ShouldContain("'Sanitization'");
         violation.ShouldContain("historical");
     }
 
@@ -158,11 +158,11 @@ public sealed class EventIdRegistryAgreementTests
         var registry = Registry(
             registered:
             [
-                "| Core | 100-199 | Core and messaging | historical |",
+                "| Sanitization | 100-199 | Core and messaging | historical |",
                 "| BrandNewFeature | 5970-5999 | Core and messaging | historical |",
             ]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199), ("BrandNewFeature", 5970, 5999)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199), ("BrandNewFeature", 5970, 5999)]);
 
         var violation = violations.ShouldHaveSingleItem();
         violation.ShouldContain("'BrandNewFeature'");
@@ -194,10 +194,10 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_PreZoneMarkerInsideTheZone_IsRejected()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks: ["| 10000-10049 | Core and messaging | plan #1 | reserved-pre-zone |"]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         violations.ShouldHaveSingleItem().ShouldContain("10000-10049");
     }
@@ -208,7 +208,7 @@ public sealed class EventIdRegistryAgreementTests
         var registry = Registry(
             registered:
             [
-                "| Core | 100-199 | Core and messaging | historical |",
+                "| Sanitization | 100-199 | Core and messaging | historical |",
                 "| MessagingOutbox | 10000-10049 | Core and messaging | zone |",
             ],
             blocks:
@@ -218,7 +218,7 @@ public sealed class EventIdRegistryAgreementTests
                 "| 20000-20049 | Database | plan #3 | reserved |",
             ]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199), ("MessagingOutbox", 10000, 10049)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199), ("MessagingOutbox", 10000, 10049)]);
 
         violations.ShouldBeEmpty(string.Join(Environment.NewLine, violations));
     }
@@ -226,7 +226,7 @@ public sealed class EventIdRegistryAgreementTests
     [Fact]
     public void Check_RegistryWithoutTheTables_ReportsBoth()
     {
-        var violations = EventIdBlockRegistry.Check("# Empty page", [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check("# Empty page", [("Sanitization", 100, 199)]);
 
         violations.ShouldContain(v => v.Contains("registered ranges", StringComparison.Ordinal));
         violations.ShouldContain(v => v.Contains("blocks", StringComparison.Ordinal));
@@ -236,14 +236,14 @@ public sealed class EventIdRegistryAgreementTests
     public void Check_UnknownStatusOrMalformedBlock_IsRejected()
     {
         var registry = Registry(
-            registered: ["| Core | 100-199 | Core and messaging | historical |"],
+            registered: ["| Sanitization | 100-199 | Core and messaging | historical |"],
             blocks:
             [
                 "| 10000-10049 | Core and messaging | plan #1 | maybe |",
                 "| 10100-10050 | Core and messaging | plan #2 | reserved |",
             ]);
 
-        var violations = EventIdBlockRegistry.Check(registry, [("Core", 100, 199)]);
+        var violations = EventIdBlockRegistry.Check(registry, [("Sanitization", 100, 199)]);
 
         violations.ShouldContain(v => v.Contains("maybe", StringComparison.Ordinal));
         violations.ShouldContain(v => v.Contains("10100-10050", StringComparison.Ordinal));
@@ -307,7 +307,7 @@ internal static class EventIdBlockRegistry
     /// </summary>
     internal static readonly System.Collections.Generic.HashSet<string> HistoricalRangeNames = new(StringComparer.Ordinal)
     {
-        "Sanitization", "Core", "AspNetCore", "Testing", "DomainModelingRepository", "DomainModelingUnitOfWork",
+        "Sanitization", "AspNetCore", "Testing", "DomainModelingRepository", "DomainModelingUnitOfWork",
         "DomainModelingBulkOperations", "DomainModelingSpecification", "EntityFrameworkCoreSoftDelete",
         "DomainModelingAudit", "SecurityAuditRead", "Tenancy", "ModuleIsolation", "MessagingOutbox",
         "MessagingInbox", "MessagingSaga", "MessagingScheduling", "EntityFrameworkCoreQueryCache",

@@ -46,7 +46,7 @@ public sealed class RequestContextScopeFactorySubjectTests
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(code));
         invoked.ShouldBeFalse();
-        var record = _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 167);
+        var record = _host.Logger.Collector.GetSnapshot().Single(r => r.Id.Id == 10067);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain(code);
         foreach (var logged in _host.Logger.Collector.GetSnapshot().Concat(_host.IdentityLogger.Collector.GetSnapshot()))

@@ -14,7 +14,7 @@ namespace Encina.Sharding.Colocation;
 internal static partial class ColocationLog
 {
     [LoggerMessage(
-        EventId = 121,
+        EventId = 10021,
         Level = LogLevel.Information,
         Message = "Co-location group registered: root entity '{RootEntityName}' with {ColocatedCount} co-located entities (shared key property: '{SharedKeyProperty}')")]
     public static partial void ColocationGroupRegistered(
@@ -24,7 +24,7 @@ internal static partial class ColocationLog
         string sharedKeyProperty);
 
     [LoggerMessage(
-        EventId = 122,
+        EventId = 10022,
         Level = LogLevel.Error,
         Message = "Co-location validation failed for entity '{FailedEntityName}' in group rooted at '{RootEntityName}': {Reason}")]
     public static partial void ColocationValidationFailed(
@@ -34,7 +34,7 @@ internal static partial class ColocationLog
         string reason);
 
     [LoggerMessage(
-        EventId = 123,
+        EventId = 10023,
         Level = LogLevel.Debug,
         Message = "Co-location group routed: entity '{EntityName}' resolved to group '{RootEntityName}' on shard '{ShardId}'")]
     public static partial void ColocationGroupRouted(
@@ -44,7 +44,7 @@ internal static partial class ColocationLog
         string shardId);
 
     [LoggerMessage(
-        EventId = 124,
+        EventId = 10024,
         Level = LogLevel.Warning,
         Message = "Co-location group lookup failed: entity '{EntityName}' does not belong to any co-location group")]
     public static partial void ColocationGroupNotFound(
@@ -52,7 +52,7 @@ internal static partial class ColocationLog
         string entityName);
 
     [LoggerMessage(
-        EventId = 125,
+        EventId = 10025,
         Level = LogLevel.Debug,
         Message = "Co-location registry initialized with {GroupCount} groups covering {TotalEntityCount} entity types")]
     public static partial void ColocationRegistryInitialized(

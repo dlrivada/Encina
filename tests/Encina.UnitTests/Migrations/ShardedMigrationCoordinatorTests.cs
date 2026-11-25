@@ -472,6 +472,198 @@ public sealed class ShardedMigrationCoordinatorTests
         report.Diffs[0].TableDiffs[0].DiffType.ShouldBe(TableDiffType.Missing);
     }
 
+    // Characterization tests (#4235): baseline selection, comparison arguments and order, failures and cancellation.
+
+    private static ISchemaIntrospector CreateIntrospector(Func<ShardInfo, ShardInfo, Either<EncinaError, ShardSchemaDiff>?>? compare = null)
+    {
+        var introspector = Substitute.For<ISchemaIntrospector>();
+        introspector.CompareAsync(Arg.Any<ShardInfo>(), Arg.Any<ShardInfo>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo =>
+            {
+                var shard = callInfo.ArgAt<ShardInfo>(0);
+                var baseline = callInfo.ArgAt<ShardInfo>(1);
+                return compare?.Invoke(shard, baseline)
+                    ?? Either<EncinaError, ShardSchemaDiff>.Right(new ShardSchemaDiff(shard.ShardId, baseline.ShardId, []));
+            });
+        return introspector;
+    }
+
+    private static List<(string Shard, string Baseline, bool IncludeColumns)> ComparisonsOf(ISchemaIntrospector introspector)
+        => introspector.ReceivedCalls()
+            .Select(call => call.GetArguments())
+            .Select(args => (((ShardInfo)args[0]!).ShardId, ((ShardInfo)args[1]!).ShardId, (bool)args[2]!))
+            .ToList();
+
+    [Fact]
+    public async Task DetectDriftAsync_TwoShardsButOneInactive_ReturnsEmptyReportWithoutComparing()
+    {
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(
+            CreateTopology(CreateShard("shard-0"), CreateShard("shard-1", isActive: false)),
+            introspector: introspector);
+
+        var report = ExtractRight(await coordinator.DetectDriftAsync());
+
+        report.Diffs.ShouldBeEmpty();
+        introspector.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_NoOptions_ComparesEveryOtherActiveShardWithTheFirstIncludingColumns()
+    {
+        var topology = CreateTopology(CreateShard("shard-0"), CreateShard("shard-1"), CreateShard("shard-2"), CreateShard("shard-3", isActive: false));
+        var active = topology.GetActiveShards().Select(s => s.ShardId).ToList();
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(topology, introspector: introspector);
+
+        await coordinator.DetectDriftAsync();
+
+        ComparisonsOf(introspector).ShouldBe(active.Skip(1).Select(id => (id, active[0], true)).ToList());
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_IncludeColumnDiffsFalse_IsPassedToTheIntrospector()
+    {
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(CreateTopology(2), introspector: introspector);
+
+        await coordinator.DetectDriftAsync(new DriftDetectionOptions { IncludeColumnDiffs = false });
+
+        ComparisonsOf(introspector).ShouldAllBe(c => !c.IncludeColumns);
+        ComparisonsOf(introspector).Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_OptionsWithoutBaseline_UsesTheFirstActiveShard()
+    {
+        var topology = CreateTopology(3);
+        var first = topology.GetActiveShards()[0].ShardId;
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(topology, introspector: introspector);
+
+        await coordinator.DetectDriftAsync(new DriftDetectionOptions());
+
+        ComparisonsOf(introspector).ShouldAllBe(c => c.Baseline == first && c.IncludeColumns);
+        ComparisonsOf(introspector).Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_ConfiguredBaseline_ComparesTheOtherActiveShardsAgainstIt()
+    {
+        var topology = CreateTopology(CreateShard("shard-0"), CreateShard("shard-1"), CreateShard("shard-2"));
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(topology, introspector: introspector);
+
+        await coordinator.DetectDriftAsync(new DriftDetectionOptions { BaselineShardId = "shard-1" });
+
+        var comparisons = ComparisonsOf(introspector);
+        string.Join(",", comparisons.Select(c => c.Shard).OrderBy(id => id, StringComparer.Ordinal)).ShouldBe("shard-0,shard-2");
+        comparisons.ShouldAllBe(c => c.Baseline == "shard-1");
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_InactiveBaseline_ComparesEveryActiveShardAgainstIt()
+    {
+        var topology = CreateTopology(CreateShard("shard-0"), CreateShard("shard-1"), CreateShard("old", isActive: false));
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(topology, introspector: introspector);
+
+        await coordinator.DetectDriftAsync(new DriftDetectionOptions { BaselineShardId = "old" });
+
+        var comparisons = ComparisonsOf(introspector);
+        string.Join(",", comparisons.Select(c => c.Shard).OrderBy(id => id, StringComparer.Ordinal)).ShouldBe("shard-0,shard-1");
+        comparisons.ShouldAllBe(c => c.Baseline == "old");
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_UnknownBaseline_ReturnsTheTopologyErrorWithoutComparing()
+    {
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(CreateTopology(2), introspector: introspector);
+
+        var error = ExtractLeft(await coordinator.DetectDriftAsync(new DriftDetectionOptions { BaselineShardId = "missing" }));
+
+        error.GetEncinaCode().ShouldBe(ShardingErrorCodes.ShardNotFound);
+        error.Message.ShouldBe("Shard 'missing' was not found in the topology.");
+        introspector.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_ComparisonFails_ReturnsSchemaComparisonFailedAndStops()
+    {
+        var topology = CreateTopology(4);
+        var active = topology.GetActiveShards().Select(s => s.ShardId).ToList();
+        var failing = active[1];
+        var introspector = CreateIntrospector((shard, _) => shard.ShardId == failing
+            ? Either<EncinaError, ShardSchemaDiff>.Left(EncinaErrors.Create("test.compare_failed", "compare failed"))
+            : (Either<EncinaError, ShardSchemaDiff>?)null);
+        var coordinator = CreateCoordinator(topology, introspector: introspector);
+
+        var error = ExtractLeft(await coordinator.DetectDriftAsync());
+
+        error.GetEncinaCode().ShouldBe(MigrationErrorCodes.SchemaComparisonFailed);
+        error.Message.ShouldBe($"Schema comparison failed for shard '{failing}'.");
+        ComparisonsOf(introspector).Select(c => c.Shard).ShouldBe(new[] { failing });
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_CancelledToken_ThrowsBeforeTheFirstComparison()
+    {
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(CreateTopology(3), introspector: introspector);
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => coordinator.DetectDriftAsync(cancellationToken: cts.Token));
+
+        introspector.ReceivedCalls().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_PassesTheCancellationTokenToTheIntrospector()
+    {
+        var introspector = CreateIntrospector();
+        var coordinator = CreateCoordinator(CreateTopology(2), introspector: introspector);
+        using var cts = new CancellationTokenSource();
+
+        await coordinator.DetectDriftAsync(cancellationToken: cts.Token);
+
+        await introspector.Received(1).CompareAsync(Arg.Any<ShardInfo>(), Arg.Any<ShardInfo>(), true, cts.Token);
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_Drift_KeepsOnlyShardsWithTableDiffsAndLogsAWarning()
+    {
+        var topology = CreateTopology(4);
+        var active = topology.GetActiveShards().Select(s => s.ShardId).ToList();
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<ShardedMigrationCoordinator>();
+        var introspector = CreateIntrospector((shard, baseline) => shard.ShardId == active[1] || shard.ShardId == active[3]
+            ? Either<EncinaError, ShardSchemaDiff>.Right(new ShardSchemaDiff(
+                shard.ShardId, baseline.ShardId, [new TableDiff("orders", TableDiffType.Missing), new TableDiff("lines", TableDiffType.Extra)]))
+            : (Either<EncinaError, ShardSchemaDiff>?)null);
+        var coordinator = CreateCoordinator(topology, introspector: introspector, logger: logger);
+
+        var report = ExtractRight(await coordinator.DetectDriftAsync());
+
+        report.Diffs.Select(d => d.ShardId).ShouldBe(new[] { active[1], active[3] });
+        var warning = logger.Collector.GetSnapshot().ShouldHaveSingleItem();
+        warning.Level.ShouldBe(LogLevel.Warning);
+        warning.Message.ShouldBe(
+            $"Schema drift detected. ShardIdsWithDrift={active[1]}, {active[3]}, DiffSummary=2 shard(s) with 4 table diff(s)");
+    }
+
+    [Fact]
+    public async Task DetectDriftAsync_NoDrift_LogsNothing()
+    {
+        var logger = new Microsoft.Extensions.Logging.Testing.FakeLogger<ShardedMigrationCoordinator>();
+        var coordinator = CreateCoordinator(CreateTopology(3), introspector: CreateIntrospector(), logger: logger);
+
+        var report = ExtractRight(await coordinator.DetectDriftAsync());
+
+        report.HasDrift.ShouldBeFalse();
+        logger.Collector.GetSnapshot().ShouldBeEmpty();
+    }
+
     #endregion
 
     #region GetProgressAsync

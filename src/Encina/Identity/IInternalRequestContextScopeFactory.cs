@@ -20,7 +20,7 @@ internal interface IInternalRequestContextScopeFactory
 
     /// <summary>
     /// The host-adapter twin of <see cref="IRequestContextScopeFactory.RunInboundAsync{T}"/> (request
-    /// middleware, circuit handler): the same scope, logged at Debug (EventId 172) because it runs
+    /// middleware, circuit handler): the same scope, logged at Debug (EventId 10072) because it runs
     /// once per request or activity.
     /// </summary>
     Task<Either<EncinaError, T>> RunHostInboundAsync<T>(

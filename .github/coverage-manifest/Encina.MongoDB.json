@@ -399,11 +399,11 @@
       ],
       "defaultRule": "*StoreMongoDB.cs",
       "reason": "MongoDB store — needs real MongoDB",
-      "targets": { "unit": 90, "guard": 10, "contract": 0, "property": 0, "integration": 92 },
+      "targets": { "unit": 100, "guard": 10, "contract": 0, "property": 0, "integration": 92 },
       "justifications": {
-        "unit": "The unit tests drive the store against a mocked collection and cover its branches without a database (measured 95%).",
+        "unit": "OutboxStoreMongoDBTests drive every method and every Left path against a substituted collection and reach every executable line (measured 100%); the integration flag covers the same paths against a real MongoDB.",
         "guard": "Guard tests reject the invalid arguments of MarkAsExhaustedAsync before any driver call (measured 13%).",
-        "contract": "Internal behavior is covered by the integration flag; there is no separate public contract beyond IOutboxStore (a 0 with this reason).",
+        "contract": "no IOutboxStore behavioural contract base exists; StoreContractTests is reflection-only",
         "property": "No numeric invariants beyond the integration scenarios (a 0 with this reason).",
         "integration": "The shared outbox scenarios run every method against a real MongoDB container (measured 98%)."
       }
@@ -424,12 +424,12 @@
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
       "targets": {
-        "unit": 0,
-        "guard": 5
+        "unit": 85,
+        "guard": 10
       },
       "justifications": {
-        "unit": "The constructor creates the MongoClient and an index, so the class cannot be built without a MongoDB server; every method, including the driver-failure branch (Operations_WhenTheDriverThrows_ActivityStatusIsTheExceptionTypeNotTheMessage), is exercised by ProcessingActivityRegistryMongoDBTests (integration).",
-        "guard": "Guard tests only assert argument checks; the remaining lines are driven by unit and integration tests."
+        "unit": "ProcessingActivityRegistryMongoDBTests drive every method through the internal collection seam (measured 87.95%); the public constructor that builds the MongoClient and creates the unique index needs a server and is left to the integration flag.",
+        "guard": "Guard tests reject null arguments of the constructors and of RegisterActivityAsync, UpdateActivityAsync and GetActivityByRequestTypeAsync before any driver call (measured 12%); the remaining lines are driven by the unit and integration flags."
       }
     },
     "ReadWriteSeparation/IReadWriteMongoCollectionFactory.cs": {

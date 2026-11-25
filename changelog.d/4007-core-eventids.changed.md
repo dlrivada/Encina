@@ -1,0 +1,1 @@
+- The EventIds of the Encina core (mediator dispatch, streaming, sharding logs and request-identity logs) moved from the range 100-199 to 10000-10099: every id N is now 10000 + (N - 100) (for example 167 is now 10067). Only the numbers change; templates, levels and names stay. Update log filters and alerts that match the old ids (#4007, #4111).

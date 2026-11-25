@@ -792,7 +792,7 @@
       "reason": "Security-critical scope factory: refusals, frame, logs (unit), argument guards (guard), invalidate-on-completion and no-work-on-Left contract",
       "targets": { "unit": 95, "guard": 40, "contract": 80 },
       "justifications": {
-        "unit": "Security-critical: every refusal (including conflicting principal tenant claims and the four subject refusals on both paths), the frame, the logs 166-175 and the tenant rules have unit tests (measured 100%).",
+        "unit": "Security-critical: every refusal (including conflicting principal tenant claims and the four subject refusals on both paths), the frame, the logs 10066-10075 and the tenant rules have unit tests (measured 100%).",
         "guard": "The constructor and member null guards plus the inbound tenant-resolution guard test reach this file (measured 52%).",
         "contract": "The contract drives every member, refusals (including conflicting principal tenant claims, the four subject refusals on both paths and subject-over-tenant precedence) and invalidation (measured 80.69% on 2026-10-28)."
       }
@@ -1768,7 +1768,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 1 },
+      "justifications": {
+        "unit": "The extractor unit tests run every priority and error branch of Extract and its helpers (measured 100% on 2026-11-24, #4235).",
+        "guard": "Extract has one guarded parameter, so guard tests reach only its null check (measured 1.8% on 2026-11-24, #4235)."
+      }
     },
     "Sharding/Configuration/CompoundRoutingBuilder.cs": {
       "defaultTests": [
@@ -1914,7 +1919,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 75 },
+      "justifications": {
+        "unit": "The executor unit tests cover success, partial failure, timeout, cancellation, ordering, activities and metrics (measured 100% on 2026-11-24, #4235).",
+        "guard": "The guard tests run the null checks and a successful scatter-gather through most of the executor (measured 81.13% on 2026-11-24, #4235)."
+      }
     },
     "Sharding/Extensions/ShardedAggregationExtensions.cs": {
       "defaultTests": [
@@ -2150,7 +2160,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 90, "guard": 30 },
+      "justifications": {
+        "unit": "The coordinator unit tests cover apply, rollback, drift detection, progress and history; the uncovered lines are unknown-strategy defaults (measured 92.13% on 2026-11-24, #4235).",
+        "guard": "The guard tests run the argument checks and the empty, unknown-id and drift-detection results (measured 32.13% on 2026-11-24, #4235)."
+      }
     },
     "Sharding/Migrations/ShardMigrationStatus.cs": {
       "defaultTests": [
@@ -2302,7 +2317,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 25 },
+      "justifications": {
+        "unit": "The detector characterization tests cover primary resolution, hash comparison, replication, state saving and activities; two never-run Left lambdas stay uncovered (measured 98.13% on 2026-11-24, #4235).",
+        "guard": "The guard tests run the five constructor null checks, the null configuration and the empty-topology result (measured 29.91% on 2026-11-24, #4235)."
+      }
     },
     "Sharding/ReferenceTables/ReferenceTableAttribute.cs": {
       "defaultTests": [
@@ -2386,7 +2406,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 95, "guard": 8 },
+      "justifications": {
+        "unit": "The replicator characterization tests cover planning, primary read, per-shard outcomes, parallelism, the aggregate result and ReplicateAllAsync; two never-run Left lambdas stay uncovered (measured 99.17% on 2026-11-24, #4235).",
+        "guard": "The guard tests run the constructor null checks and the unregistered and empty-registry results; replication itself is unit-tested (measured 9.92% on 2026-11-24, #4235)."
+      }
     },
     "Sharding/ReferenceTables/RefreshStrategy.cs": {
       "defaultTests": [

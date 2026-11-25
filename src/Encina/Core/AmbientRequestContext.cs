@@ -86,19 +86,19 @@ internal static class AmbientRequestContext
     /// <item><description>The chain has an inbound fact (an inbound request, an <c>External</c>
     /// restored message or a connection marker) and the explicit identity is not the readable
     /// ambient identity: refused like <c>RunAsServiceAsync</c> without
-    /// <see cref="IdentityScopeOptions.AllowOverInbound"/> (EventId 167 with the error code). The
+    /// <see cref="IdentityScopeOptions.AllowOverInbound"/> (EventId 10067 with the error code). The
     /// legitimate path is a scope opened with that opt-in.</description></item>
     /// <item><description>It has no issuer (built outside a scope): accepted only inside an active
     /// scope of the same identity, otherwise refused.</description></item>
     /// <item><description>It differs from the ambient identity (and the chain has neither a user nor
-    /// an inbound fact): accepted, Warning 165.</description></item>
+    /// an inbound fact): accepted, Warning 10065.</description></item>
     /// <item><description>Otherwise (the same identity): accepted silently.</description></item>
     /// </list>
     /// <para>
-    /// Refusals return <see cref="RequestIdentityErrorCodes.ScopeConflict"/> and log Warning 165
-    /// with both kinds (rule 4: EventId 167 with the code; never ids). Then, on every accepted context, when the chain has a user and
+    /// Refusals return <see cref="RequestIdentityErrorCodes.ScopeConflict"/> and log Warning 10065
+    /// with both kinds (rule 4: EventId 10067 with the code; never ids). Then, on every accepted context, when the chain has a user and
     /// the explicit tenant differs from the ambient tenant, the dispatch is refused with
-    /// <see cref="RequestIdentityErrorCodes.TenantConflict"/> (Warning 165).
+    /// <see cref="RequestIdentityErrorCodes.TenantConflict"/> (Warning 10065).
     /// </para>
     /// </remarks>
     public static Either<EncinaError, IRequestContext> Resolve(
@@ -154,8 +154,8 @@ internal static class AmbientRequestContext
         return Right<EncinaError, IRequestContext>(snapshot);
     }
 
-    // The identity refusals: Warning 165 for rules 2, 3 and 5; for rule 4 (an inbound fact), the
-    // refusal RunAsServiceAsync gives over an inbound chain without AllowOverInbound (167 with the code).
+    // The identity refusals: Warning 10065 for rules 2, 3 and 5; for rule 4 (an inbound fact), the
+    // refusal RunAsServiceAsync gives over an inbound chain without AllowOverInbound (10067 with the code).
     private static EncinaError? Refusal(ExplicitIdentityVerdict verdict, IdentityKind requestedKind, IdentityKind currentKind, ILogger logger)
     {
         switch (verdict)
@@ -241,7 +241,7 @@ internal static class AmbientRequestContext
     /// </summary>
     /// <param name="current">The readable ambient context, or <see langword="null"/> when none is readable.</param>
     /// <param name="value">The value being set.</param>
-    /// <param name="logger">The logger for Warning 165.</param>
+    /// <param name="logger">The logger for Warning 10065.</param>
     /// <returns>The immutable snapshot of <paramref name="value"/>.</returns>
     /// <exception cref="InvalidOperationException">
     /// <paramref name="value"/> is <see langword="null"/>, or its identity or origin differs from the

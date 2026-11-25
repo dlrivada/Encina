@@ -102,7 +102,7 @@ Registers the request identity model (`AddEncinaRequestIdentity()`) and a scoped
 | The authentication state changed | The new state, applied at the next activity |
 | Outside an activity (a continuation that outlives it, a timer) | Anonymous |
 | The host refuses the scope (`ScopeConflict`, `UnsupportedAccessor`) | The activity still runs, anonymous, under a masking scope |
-| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), the factory logs Warning 167. What the client sees depends on the path (see the note below) |
+| An authenticated principal has no usable subject (`MissingSubjectClaim`, `MalformedSubjectClaim`, `ReservedSubjectClaim`, `ConflictingSubjectClaims`) or conflicting tenant claims (`InboundTenantConflict`) | The activity does not run, never as anonymous: the handler throws an `InvalidOperationException` whose fixed text carries only the error code (no claim value), the factory logs Warning 10067. What the client sees depends on the path (see the note below) |
 | The principal is null or unauthenticated | Anonymous; this is not a refusal |
 
 What Blazor does with the refusal exception:

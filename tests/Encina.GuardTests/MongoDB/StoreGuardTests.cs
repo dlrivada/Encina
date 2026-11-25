@@ -36,17 +36,20 @@ public class StoreGuardTests
     [Fact]
     public void OutboxStore_NullClient_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new OutboxStoreMongoDB(null!, Opts, NullLogger<OutboxStoreMongoDB>.Instance));
+            new OutboxStoreMongoDB(null!, Opts, NullLogger<OutboxStoreMongoDB>.Instance))
+            .ParamName.ShouldBe("mongoClient");
 
     [Fact]
     public void OutboxStore_NullOptions_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new OutboxStoreMongoDB(Substitute.For<IMongoClient>(), null!, NullLogger<OutboxStoreMongoDB>.Instance));
+            new OutboxStoreMongoDB(Substitute.For<IMongoClient>(), null!, NullLogger<OutboxStoreMongoDB>.Instance))
+            .ParamName.ShouldBe("options");
 
     [Fact]
     public void OutboxStore_NullLogger_Throws()
         => Should.Throw<ArgumentNullException>(() =>
-            new OutboxStoreMongoDB(Substitute.For<IMongoClient>(), Opts, null!));
+            new OutboxStoreMongoDB(Substitute.For<IMongoClient>(), Opts, null!))
+            .ParamName.ShouldBe("logger");
 
     #endregion
 

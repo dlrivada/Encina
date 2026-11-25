@@ -228,7 +228,7 @@ builder.Services.AddEncinaRequestIdentity(options =>
 
 #### Subject refusal
 
-An authenticated principal whose subject is unusable is refused, never opened as anonymous. The refusal applies to `IRequestContextScopeFactory.RunAsPrincipalAsync` and to `RunInboundAsync` and to the internal host adapter `RunHostInboundAsync` (the path `UseEncinaContext()` uses). The work is not invoked, and a Warning (EventId 167) logs the code only, never a claim value. The cause-specific Warnings 162 to 164 precede it; they carry claim types, never values. An unauthenticated principal still opens the anonymous scope.
+An authenticated principal whose subject is unusable is refused, never opened as anonymous. The refusal applies to `IRequestContextScopeFactory.RunAsPrincipalAsync` and to `RunInboundAsync` and to the internal host adapter `RunHostInboundAsync` (the path `UseEncinaContext()` uses). The work is not invoked, and a Warning (EventId 10067) logs the code only, never a claim value. The cause-specific Warnings 10062 to 10064 precede it; they carry claim types, never values. An unauthenticated principal still opens the anonymous scope.
 
 | Cause | Condition | Code (`RequestIdentityErrorCodes`) |
 | --- | --- | --- |
@@ -250,7 +250,7 @@ The verified tenant claim always wins. The tenant header (`TenantIdHeader`, defa
 | Request | Result |
 | --- | --- |
 | Principal has a tenant claim, no header | The claim is the tenant |
-| Principal has no tenant claim, `TrustTenantIdHeader = false` (default) | The header is ignored (logged at Debug, EventId 176, no values); no tenant |
+| Principal has no tenant claim, `TrustTenantIdHeader = false` (default) | The header is ignored (logged at Debug, EventId 10076, no values); no tenant |
 | Principal has no tenant claim, `TrustTenantIdHeader = true` | The header is the tenant |
 | Header disagrees with the claim, trusted or not | Refused with 403 |
 | The principal's identities carry different tenant claims, including differing values across the default claim types (`tenant_id`, `tid`, ...) and several values inside one identity | Refused with 403 |
