@@ -11,7 +11,7 @@
 
 Implement the tenant catalog of #596 on three cloud-native stores: `TenantStoreCosmosDB`, `TenantStoreAzureTable` and `TenantStoreDynamoDB`, each tested against a free local emulator. SPEC-000 section 6.1 lists #598 among the cloud-backed stores that are in 1.0 because an emulator exists (Azurite for Table Storage, LocalStack for DynamoDB, the Cosmos DB emulator for Cosmos DB). The issue's samples are replaced where they do not fit today's contract: they implement an interface (`GetByIdAsync`, `Task<Tenant>`) that does not exist, build a DynamoDB key by string interpolation with no encoding rule, use the tenant id as a Table row key although `/`, `\`, `#` and `?` are forbidden in row keys, and catch the SDK exceptions for "not found" without saying what the writes do.
 
-What the code looks like today (`origin/main` `915db384e`):
+What the code looks like today (`origin/main` `4b0a600c7`):
 
 - `ITenantStore` is read-only (`GetTenantAsync`, `GetAllTenantsAsync`, `ExistsAsync`; `ValueTask`, no `Either`); `InMemoryTenantStore` is the only implementation. The persistent contract, the id rules (`TenantIdRules`: 1-128 characters, ordinal and case-sensitive, never the reserved `default`), `ITenantStoreWriter`, `ITenantSecretProtector` for the connection string, `TenantStoreRegistration.Replace`, the `InstrumentedTenantStore` decorator and the behavior suite `TenantStoreBehaviorSuite` are **owned by the #596 plan**; this plan consumes them. The Redis store of #597 is the sibling that follows the same contract.
 - `Directory.Packages.props` pins `Azure.Data.Tables` 12.13.0, `Azure.Identity` 1.21.0, `Testcontainers.Azurite` 4.15.0 and `Testcontainers.LocalStack` 4.15.0; it pins no Cosmos DB package, no `AWSSDK.DynamoDBv2` and no `Testcontainers.CosmosDb`. `tests/Encina.TestInfrastructure/Fixtures/AzuriteFixture.cs` (exposes `ConnectionString`, `TableEndpoint`) and `LocalStackFixture.cs` (image `localstack/localstack:4.14.0`, exposes `Endpoint`, collection `Cloud-LocalStack`) exist; there is no Cosmos DB fixture.
@@ -64,7 +64,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 ### Rationale
 
-- A wins because lookups dominate and a catalog is small; B wins only if the catalog is listed far more often than looked up, which no consumer does (#4182 retention lists it once per cycle). Create is `CreateItemAsync` (HTTP 409 maps to `Left(tenancy.tenant_exists)`); update is `PatchItemAsync` setting `name`, `strategy`, `connectionString`, `schemaName` and `updatedAtUtc`, which preserves `createdAtUtc` without a read and answers 404 as `Left(tenancy.tenant_not_found)`; delete maps 404 to the same code. A missing item on a read returns `null`, every other status throws (fail closed).
+- A wins because lookups dominate and a catalog is small; B wins only if the catalog is listed far more often than looked up, which no consumer does (#4182 retention lists it once per cycle). Create is `CreateItemAsync` (HTTP 409 maps to `Left(tenancy.tenant_exists)`); update is `PatchItemAsync` setting `name`, `strategy`, `connectionString`, `schemaName` (JSON null when cleared, see Design Choice 3) and `updatedAtUtc`, which preserves `createdAtUtc` without a read and answers 404 as `Left(tenancy.tenant_not_found)`; delete maps 404 to the same code. A missing item on a read returns `null`, every other status throws (fail closed).
 
 </details>
 
@@ -77,7 +77,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Table: `PartitionKey = tenants`, `RowKey = base64url(tenantId)`; DynamoDB: single-table `pk = TENANT#{tenantId}`, `sk = METADATA`, strongly consistent reads for lookups, listing through a sparse GSI (`gsi1pk = TENANTS` set only on tenant items)** | Row keys obey the forbidden characters and 1 KiB limit (an id of 128 characters encodes to at most 171); the `TENANT#` prefix plus the whole id is injective; a lookup is a point read; the sparse GSI lists only tenants without a scan | Table: one partition per catalog (2,000 entities/s ceiling per partition, fine behind the #711 cache); DynamoDB: the GSI is eventually consistent, so a tenant created a moment ago may be missing from a list |
+| **A) Table: `PartitionKey = tenants`, `RowKey = base64url(tenantId)`; DynamoDB: single-table `pk = TENANT#{tenantId}`, `sk = METADATA`, strongly consistent reads for lookups, listing through a sparse GSI (`gsi1pk = TENANTS` set only on tenant items)** | Row keys obey the forbidden characters and the 1 KiB limit for any id the rules of #596 admit, not only ASCII: an id is at most 128 UTF-16 characters, so at most 384 UTF-8 bytes (3 bytes per character in the worst case, a surrogate pair is 2 characters for 4 bytes), which base64url encodes to at most 512 ASCII characters, inside the Table row key (1 KiB), the Cosmos item id (1,023 characters) and the DynamoDB partition key (2,048 bytes for `TENANT#` plus the id; an ASCII id encodes to at most 171); the store still checks the encoded length against the service limit before any I/O and returns `Left(tenancy.tenant_id_invalid)` (`InvalidRequest`) when it is exceeded; the `TENANT#` prefix plus the whole id is injective; a lookup is a point read; the sparse GSI lists only tenants without a scan | Table: one partition per catalog (2,000 entities/s ceiling per partition, fine behind the #711 cache); DynamoDB: the GSI is eventually consistent, so a tenant created a moment ago may be missing from a list |
 | **B) Table: partition by the first character of the encoded id; DynamoDB: `Scan` with a filter** | Spreads Table load; no GSI | Table: listing is a multi-partition query and a lookup needs the computed partition; DynamoDB: a scan reads the whole table, which also holds non-tenant data in a single-table design |
 | **C) DynamoDB with a strongly consistent listing through a base-table partition (`pk = TENANTS`, one item per tenant)** | Consistent listing | A second item per tenant to keep in step on every write, so create and delete need a transaction |
 
@@ -86,7 +86,8 @@ What the code looks like today (`origin/main` `915db384e`):
 ### Rationale
 
 - A wins when lookups are the hot path and listing is administrative; C wins if the retention service (#4182) must see a tenant in the same second it was created. Lookups use `ConsistentRead = true` on DynamoDB so a deleted or changed tenant is never read from a stale replica. A listing that fails midway (a page error) throws and never returns a shorter list as complete.
-- Table create is `AddEntityAsync` (409 is `tenant_exists`), update is `UpdateEntityAsync` in `UpdateMode.Merge` with `ETag.All` (preserves `createdAtUtc`; 404 is `tenant_not_found`), delete is `DeleteEntityAsync`. DynamoDB create is `PutItem` with `attribute_not_exists(pk)`, update is `UpdateItem` with `attribute_exists(pk)`, delete is `DeleteItem` with `attribute_exists(pk)`; a `ConditionalCheckFailedException` maps to the matching `Left`.
+- Table create is `AddEntityAsync` (409 is `tenant_exists`), update is `UpdateEntityAsync` in `UpdateMode.Merge` with `ETag.All` (preserves `createdAtUtc` without a read; 404 is `tenant_not_found`), delete is `DeleteEntityAsync`. DynamoDB create is `PutItem` with `attribute_not_exists(pk)`, update is `UpdateItem` with `attribute_exists(pk)`, delete is `DeleteItem` with `attribute_exists(pk)`; a `ConditionalCheckFailedException` maps to the matching `Left`.
+- Clearing a field on update (a tenant moves from `DatabasePerTenant` to `SharedSchema`: connection string and schema name become null) must really clear it, or the old protected credential and schema stay in the record. Per provider: **Cosmos** `PatchItemAsync` uses `PatchOperation.Set` with a JSON null (or `Remove`) for each cleared field, which Cosmos applies; **Azure Table** `Merge` omits null properties from the payload and so would keep the old value, so the writer sends an explicit empty-string marker for a cleared field (`connectionString = ""`, `schemaName = ""`) and the mapper reads an empty string as null (a protected connection string is never empty, it carries the `tp1:` marker of #596; a schema name is never empty by `TenantInfo`); **DynamoDB** `UpdateItem` builds the update expression per call: `SET` for present fields and a `REMOVE` clause for each null field. The `TenantStoreBehaviorSuite` of #596 gets the case "update from `DatabasePerTenant` to `SharedSchema` returns a tenant with null connection string and schema name", which every store runs and which is the confirming test for the Table `Merge` behavior (documented, not run when this plan was written).
 
 </details>
 
@@ -201,8 +202,8 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. PR 2: `TenantStoreCosmosDB.cs` (new; implements `ITenantStore` and `ITenantStoreWriter`; constructor `(Container container, ITenantSecretProtector? protector = null, TimeProvider? timeProvider = null)`; point reads, `PatchItemAsync`, cross-partition `GetItemQueryIterator` for listing, every call with the `CancellationToken`), `ServiceCollectionExtensions.cs` (new; `AddEncinaTenantStoreCosmosDB`, through `TenantStoreRegistration.Replace`, wrapped by `InstrumentedTenantStore` with provider tag `cosmosdb`), unit tests with a substituted `Container`, registration test (`ValidateOnBuild`, `ValidateScopes`, both orders), guard tests, package `PublicAPI.Unshipped.txt`, manifest. Files: 7.
-2. PR 3: `Diagnostics/TenantStoreCosmosDBLog.cs` (new), `EventIdRanges.cs` (edit: `TenancyCosmosDB = (80550, 80599)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit), `EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`), `Health/TenantStoreCosmosDBHealthCheck.cs` (new; read of the container properties, status code only), emulator fixture `tests/Encina.TestInfrastructure/Fixtures/CosmosDbFixture.cs` (new, gateway mode, shared collection; reused if #582 created it first), `TenantStoreCosmosDBIntegrationTests.cs` (derives from `TenantStoreBehaviorSuite`), health and log unit tests, package `PublicAPI.Unshipped.txt`, manifest, `Encina.IntegrationTests.csproj` (edit), `Testcontainers.CosmosDb` pin (edit). Files: 15.
+1. PR 2: `TenantStoreCosmosDB.cs` (new; implements `ITenantStore` and `ITenantStoreWriter`; constructor `(Container container, ITenantSecretProtector? protector = null, TimeProvider? timeProvider = null)`; point reads, `PatchItemAsync`, cross-partition `GetItemQueryIterator` for listing, every call with the `CancellationToken`), `ServiceCollectionExtensions.cs` (new; `AddEncinaTenantStoreCosmosDB`, through `TenantStoreRegistration.Replace<TenantStoreCosmosDB>(services, provider: "cosmosdb")` of #596, wrapped by `InstrumentedTenantStore`; it also registers the health check below), `Health/TenantStoreCosmosDBHealthCheck.cs` (new; read of the container properties, status code only), unit tests with a substituted `Container`, health check unit tests, registration test (`ValidateOnBuild`, `ValidateScopes`, both orders, health check resolved), guard tests, package `PublicAPI.Unshipped.txt`, manifest. Files: 9 (store, extensions, health check, 4 test files, PublicAPI, manifest).
+2. PR 3: `Diagnostics/TenantStoreCosmosDBLog.cs` (new), `EventIdRanges.cs` (edit: `TenancyCosmosDB = (80550, 80599)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit), `EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`), emulator fixture `tests/Encina.TestInfrastructure/Fixtures/CosmosDbFixture.cs` (new, gateway mode, shared collection; reused if #582 created it first) and its `[CollectionDefinition]` in `tests/Encina.IntegrationTests` (new: each test assembly declares its own, as for `AzuriteCollection`), `TenantStoreCosmosDBIntegrationTests.cs` (derives from `TenantStoreBehaviorSuite`), log unit tests, package `PublicAPI.Unshipped.txt`, manifest, `Encina.IntegrationTests.csproj` (edit), `Directory.Packages.props` (edit: `Testcontainers.CosmosDb` pin). Files: 13.
 
 </details>
 
@@ -215,7 +216,7 @@ CONTEXT:
 - Writes are conditional (Design Choice 6); a missing item on a read is null; every other status throws.
 
 TASK:
-Implement TenantStoreCosmosDB and its registration, then its diagnostics, health check, emulator fixture and integration tests.
+Implement TenantStoreCosmosDB, its registration and health check, then its diagnostics, emulator fixture and integration tests.
 
 KEY RULES:
 - CreateItemAsync 409 to Left(tenancy.tenant_exists); PatchItemAsync or DeleteItemAsync 404 to Left(tenancy.tenant_not_found).
@@ -239,8 +240,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. PR 4 (skeleton): `src/Encina.Tenancy.AzureTableStorage/*.csproj` (new), `Encina.slnx` (edit), options, `Internal/TenantEntity.cs` (row key encoding), PublicAPI x2, manifest, 2 test csproj edits, unit and guard tests. Files: 11. `Azure.Data.Tables` is already pinned.
-2. PR 5 (store): `TenantStoreAzureTable.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaTenantStoreAzureTable`, provider tag `azuretable`), unit tests with a substituted `TableClient`, registration test, guard tests, PublicAPI, manifest. Files: 7.
-3. PR 6 (diagnostics and integration): log class, `EventIdRanges.cs` (`TenancyAzureTable = (80600, 80649)`), `src/Encina/PublicAPI.Unshipped.txt`, registry, `AssemblyRanges`, health check, `TenantStoreAzureTableIntegrationTests` on the `Cloud-Azurite` collection (deletes its own table in `InitializeAsync`), unit tests, PublicAPI, manifest, `Encina.IntegrationTests.csproj` edit. Files: 14.
+2. PR 5 (store): `TenantStoreAzureTable.cs`, `ServiceCollectionExtensions.cs` (`AddEncinaTenantStoreAzureTable`, provider tag `azuretable`, which also registers the health check), the health check (`Health/TenantStoreAzureTableHealthCheck.cs`), unit tests with a substituted `TableClient`, health check tests, registration test, guard tests, PublicAPI, manifest. Files: 9.
+3. PR 6 (diagnostics and integration): log class, `EventIdRanges.cs` (`TenancyAzureTable = (80600, 80649)`), `src/Encina/PublicAPI.Unshipped.txt`, registry, `AssemblyRanges`, `TenantStoreAzureTableIntegrationTests` on the `Cloud-Azurite` collection (its `[CollectionDefinition]` already exists as `AzuriteCollection` in `tests/Encina.IntegrationTests`; the class deletes its own table in `InitializeAsync`), log unit tests, package PublicAPI, manifest, `Encina.IntegrationTests.csproj` edit. Files: 10.
 
 </details>
 
@@ -255,7 +256,7 @@ TASK:
 Implement the Azure Table store in three pull requests: skeleton, store and registration, diagnostics and integration tests.
 
 KEY RULES:
-- AddEntityAsync 409 to tenant_exists; UpdateEntityAsync in Merge mode with ETag.All, 404 to tenant_not_found; DeleteEntityAsync 404 to tenant_not_found.
+- AddEntityAsync 409 to tenant_exists; UpdateEntityAsync in Merge mode with ETag.All, 404 to tenant_not_found, a cleared field written as an empty string that the mapper reads as null (Merge never clears a null); DeleteEntityAsync 404 to tenant_not_found.
 - Listing reads every page of the partition; a failed page throws, never a shorter list.
 - The integration class deletes its table in InitializeAsync and calls the fixture's cleanup; never disposes the fixture.
 
@@ -274,8 +275,8 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. PR 7 (skeleton): `src/Encina.Tenancy.DynamoDB/*.csproj` (new), `Directory.Packages.props` (edit: `AWSSDK.DynamoDBv2` on the AWSSDK 4 line, shared with #579, #589 and #210: whichever lands first adds it), `Encina.slnx`, options, `Internal/TenantItem.cs` (attribute mapping, `TENANT#` key), PublicAPI x2, manifest, 2 test csproj edits, unit and guard tests. Files: 12.
-2. PR 8 (store): `TenantStoreDynamoDB.cs` (low-level `IAmazonDynamoDB`; conditional expressions of Design Choice 3; `ConsistentRead = true` on lookups; paged GSI query for listing), registration (`AddEncinaTenantStoreDynamoDB`, provider tag `dynamodb`), unit tests with a substituted client, registration test, guard tests, PublicAPI, manifest. Files: 7.
-3. PR 9 (diagnostics and integration): log class, `EventIdRanges.cs` (`TenancyDynamoDB = (80650, 80699)`), `src/Encina/PublicAPI.Unshipped.txt`, registry, `AssemblyRanges`, health check, `TenantStoreDynamoDBIntegrationTests` on `Cloud-LocalStack` (creates the table and the GSI, deletes it in `InitializeAsync`, because `LocalStackFixture.ClearAllDataAsync` clears SQS and SNS only), unit tests, PublicAPI, manifest, `Encina.IntegrationTests.csproj` edit. Files: 14.
+2. PR 8 (store): `TenantStoreDynamoDB.cs` (low-level `IAmazonDynamoDB`; conditional expressions of Design Choice 3; `ConsistentRead = true` on lookups; paged GSI query for listing), registration (`AddEncinaTenantStoreDynamoDB`, provider tag `dynamodb`, which also registers the health check), `Health/TenantStoreDynamoDBHealthCheck.cs`, unit tests with a substituted client, health check tests, registration test, guard tests, PublicAPI, manifest. Files: 9. The `UpdateItem` expression is built per call with a `REMOVE` clause for each null field (Design Choice 3).
+3. PR 9 (diagnostics and integration): log class, `EventIdRanges.cs` (`TenancyDynamoDB = (80650, 80699)`), `src/Encina/PublicAPI.Unshipped.txt`, registry, `AssemblyRanges`, `TenantStoreDynamoDBIntegrationTests` on `Cloud-LocalStack` (its `[CollectionDefinition]` already exists in `tests/Encina.IntegrationTests/MessageBrokers/AmazonSQS/LocalStackCollection.cs`; the class creates the table and the GSI and deletes it in `InitializeAsync`, because `LocalStackFixture.ClearAllDataAsync` clears SQS and SNS only), log unit tests, package PublicAPI, manifest, `Encina.IntegrationTests.csproj` edit. Files: 10.
 
 </details>
 
@@ -290,7 +291,7 @@ TASK:
 Implement the DynamoDB store in three pull requests: skeleton, store and registration, diagnostics and integration tests.
 
 KEY RULES:
-- PutItem with attribute_not_exists(pk); UpdateItem and DeleteItem with attribute_exists(pk); ConditionalCheckFailedException maps to the matching Left.
+- PutItem with attribute_not_exists(pk); UpdateItem and DeleteItem with attribute_exists(pk); ConditionalCheckFailedException maps to the matching Left; UpdateItem uses REMOVE for every null field so a cleared connection string is deleted.
 - Lookups use ConsistentRead; listing pages the GSI and a failed page throws.
 - The unit tests substitute IAmazonDynamoDB; the integration tests build the client on LocalStackFixture.Endpoint.
 
@@ -308,7 +309,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. All three stores are wrapped by the `InstrumentedTenantStore` of #596 (spans, `encina.tenancy.store.operations`, `encina.tenancy.store.duration`, tag `provider`); the store-specific logs are the ids of Event ID Allocation; the record's tenant id and `EncinaError.Message` never reach a tag or a log.
+1. All three stores are wrapped by the `InstrumentedTenantStore` of #596 (spans, `encina.tenancy.store.operations`, `encina.tenancy.store.duration` in seconds, tag `provider` set by the `provider` argument of `TenantStoreRegistration.Replace`; the names have no `_total` suffix because ADR-054 decision 4 binds new instruments, and #596 explains why the older `encina.tenancy.resolutions_total` keeps its name); the store-specific logs are the ids of Event ID Allocation; the record's tenant id and `EncinaError.Message` never reach a tag or a log.
 2. The contract test for all three stores is the `TenantStoreBehaviorSuite` (create, duplicate, update, missing update, delete, missing delete, exists, list, ordinal ids, reserved id, protector round trip).
 3. Integration of the health checks: each package registers its check under `DefaultName` (`encina-tenant-store-cosmosdb`, `encina-tenant-store-azuretable`, `encina-tenant-store-dynamodb`) with static `Tags`.
 
@@ -343,10 +344,10 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. By `docs-writer`: one README per package (3 files), the cloud section of the tenancy feature page, `docs/INVENTORY.md` (edit); the pages state the provisioning each store needs (container, table, GSI), the roles or policies for least privilege, the DynamoDB listing consistency and the GCP gap.
-2. `changelog.d/598-tenant-store-cloud.added.md` (in the last store pull request, not here).
+2. `changelog.d/598-tenant-store-cloud.added.md` (in this pull request: it completes the feature, and every store pull request stays under 15 files).
 3. Verification: `dotnet build --configuration Release` with 0 warnings; each flag against the Research targets.
 
-Files: 5.
+Files: 6 (3 READMEs, the feature page edit, `docs/INVENTORY.md`, the changelog fragment).
 
 </details>
 
@@ -380,7 +381,7 @@ REFERENCE FILES:
 |----------|-----------|
 | SPEC-000 section 6.1, REQ-028 | Cloud stores with a free emulator are in 1.0 (#598 named); GCP is post-1.0 |
 | SPEC-002 REQ-061 | Multi-tenancy in 1.0; reserved `default` tenant |
-| ADR-062 | `tenancy.tenant_exists` AlreadyExists and `tenancy.tenant_not_found` NotFound (both defined by #596; this plan adds no error code) |
+| ADR-062 | `tenancy.tenant_exists` AlreadyExists (defined by #596) and `tenancy.tenant_not_found` NotFound (already on `origin/main` as `TenancyErrors.TenantNotFoundCode`, reused); this plan adds no error code |
 | ADR-054 D4 | Tenant tag only through #2676; the record's id is never a tag |
 | Azure Table Storage key rules; Cosmos DB id rules; DynamoDB expressions | Forbidden characters, key limits, conditional writes |
 
@@ -417,10 +418,10 @@ Per-file coverage targets (numeric, per flag):
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Cosmos DB: skeleton, store, diagnostics and integration (PRs 1-3) | 12 / 7 / 15 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2 counted in PR 3 |
-| Azure Table: skeleton, store, diagnostics and integration (PRs 4-6) | 11 / 7 / 14 | |
-| DynamoDB: skeleton, store, diagnostics and integration (PRs 7-9) | 12 / 7 / 14 | Includes the `AWSSDK.DynamoDBv2` pin |
-| Documentation (PR 10) | 5 | `docs-writer`; the changelog fragment sits in the last store pull request |
+| Cosmos DB: skeleton, store, diagnostics and integration (PRs 1-3) | 12 / 9 / 13 | Health check and its registration in PR 2; registry, `EventIdRanges.cs`, `AssemblyRanges`, `src/Encina/PublicAPI.Unshipped.txt`, the fixture, its `[CollectionDefinition]` and the pins counted in PR 3 |
+| Azure Table: skeleton, store, diagnostics and integration (PRs 4-6) | 11 / 9 / 10 | |
+| DynamoDB: skeleton, store, diagnostics and integration (PRs 7-9) | 12 / 9 / 10 | The `AWSSDK.DynamoDBv2` pin is in PR 7 |
+| Documentation (PR 10) | 6 | `docs-writer` for the pages; the changelog fragment is in this pull request |
 
 Every pull request is at most 15 files and passes alone; PR 2 depends on PR 1, PR 3 on PR 2, and the same within each store. All depend on the contract of #596.
 
