@@ -1,7 +1,7 @@
 # Implementation Plan: `dependency-audit` skill, scheduled vulnerable/outdated package audit (the Dependabot fallback)
 
 > **Issue**: [#1451](https://github.com/dlrivada/Encina/issues/1451) - [FEATURE] dependency-audit skill: scheduled vulnerable/outdated package audit as the Dependabot fallback
-> **Status**: Draft plan (written against `origin/main` 4b0a600c7, 2026-11-25)
+> **Status**: Draft plan (written against `origin/main` 3bccacc1c, 2026-11-25)
 > **Epic**: [#1453](https://github.com/dlrivada/Encina/issues/1453) (Fallback system for external review bots)
 > **Scope note**: repository tooling and one new workflow. No `src/` code, no EventIds.
 
@@ -195,7 +195,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-1. **`.github/workflows/dependency-audit.yml`** (new, **applied by the orchestrator**: `.github/workflows/*` is a shared hot spot): `schedule` cron `23 4 * * *` (vulnerable) and `23 5 * * 1` (adds outdated, after Dependabot's Monday run), plus `workflow_dispatch`; one job, `permissions: contents: read` declared on the job (AGENTS.md section 10), `timeout-minutes: 30`; steps: checkout, setup-dotnet (10.0.x), `dotnet restore Encina.slnx`, `dotnet run --file tools/ai/dependency-audit.cs -- --no-restore ...`, upload the report artifact (retention 30 days), write the Markdown to the job summary. The job fails on exit 1 or 2.
+1. **`.github/workflows/dependency-audit.yml`** (new, **applied by the orchestrator**: `.github/workflows/*` is a shared hot spot): `schedule` cron `23 4 * * *` (vulnerable) and `23 5 * * 1` (adds outdated, after Dependabot's Monday run), plus `workflow_dispatch`; one job, `permissions: contents: read` declared on the job (AGENTS.md section 10), `timeout-minutes: 30`; steps: checkout, setup-dotnet (10.0.x), `dotnet restore Encina.slnx "-p:WarningsNotAsErrors=NU1901%3BNU1902%3BNU1903%3BNU1904"` (`Directory.Build.props` line 25 adds `NU*` to `WarningsAsErrors`, so without this property a restore that meets a vulnerable package fails and no report is produced; the property keeps NU1901-NU1904 as warnings for this audit job only and the normal build is unchanged; the app's own `dotnet list package` calls pass the same property), `dotnet run --file tools/ai/dependency-audit.cs -- --no-restore ...` with the cron that fired passed as `env: SCHEDULE: ${{ github.event.schedule }}` (never interpolated into the `run` text): the app adds `--outdated` only when `SCHEDULE` equals `23 5 * * 1` or the run is `workflow_dispatch` with that input; package ids, titles and advisory text from the feed are allow-listed (ids and URLs) and Markdown-escaped before they reach the report or the job summary, upload the report artifact (retention 30 days), write the Markdown to the job summary. The job fails on exit 1 or 2.
 2. A self-test step in `.github/workflows/ci.yml` (orchestrator): `dotnet run --file tools/ai/dependency-audit.cs -- --self-test`.
 
 </details>
