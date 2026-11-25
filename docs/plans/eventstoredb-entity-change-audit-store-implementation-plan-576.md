@@ -11,7 +11,7 @@
 
 Implement the entity-change audit store (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036, work item #1778) on EventStoreDB as `EntityChangeAuditStoreEventStoreDB`, in the `Encina.EventStoreDB` package that the plan of #585 creates. The issue's sample is replaced where it does not hold: it says EventStoreDB "is already integrated in Encina" (it is not: no package and no client use exist), appends with `Uuid.NewUuid()` so a retry writes a duplicate, builds the stream name `audit-{EntityType}-{EntityId}` (not injective, no tenant, and EventStoreDB derives the category from the text before the first hyphen), serializes the whole entry in clear into an immutable event although old and new values are personal data that must be removable at the end of retention, and lists "built-in retention policies" without saying what they remove and when.
 
-What the code looks like today (`origin/main` `915db384e`):
+What the code looks like today (`origin/main` `4b0a600c7`):
 
 - `src/Encina.EventStoreDB` does not exist. `Directory.Packages.props` pins `EventStore.Client.Grpc.Streams` 23.3.9 and no `Testcontainers.EventStoreDb`; `docker-compose.yml` has no EventStoreDB service. The #585 plan (dead letters, open) creates the package skeleton as its own first pull request and states that #576 depends on it; this plan is written on that basis.
 - `IAuditLogStore` is in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs` (`LogAsync`, `GetHistoryAsync(entityType, entityId)`); ADR-036 reshapes it (`Either`, `TimeProvider`, `TenantId`, `ModuleId`, `PurgeEntriesAsync`, redaction hook, `ChangedAtUtc` as `DateTimeOffset`) and moves it to `Encina.Security.Audit` as work item #1778 (open). The sibling backends #577-#582 are built on the same contract.
@@ -75,7 +75,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Stream `entitychange.{hex(tenant)}-{b64url(type)}.{b64url(id)}`; the event id is the entry id (`Uuid.FromGuid`), appended with `StreamState.Any`; the tenant is the entry's `TenantId`, the reserved `default` when tenancy is off; with tenancy on and no tenant, write and read deny (`InvalidRequest`, ADR-062 R3), never falling back to `default`; a real tenant `default` is rejected on write** | Injective (hex has no `-`, `.` is outside the base64url alphabet, so the category `entitychange.{hex(tenant)}` is exactly one tenant and no two triples collide); a retry of the same entry id is deduplicated by the server (to be verified in Phase 0); one category per tenant for the purge | A different payload under an existing entry id is not detected (the server deduplicates by event id only): entry-id uniqueness is the writer's guarantee, as in #578; stream names are longer |
+| **A) Stream `entitychange.{hex(tenant)}-{b64url(type)}.{b64url(id)}`; the event id is the entry id (`Uuid.FromGuid`), appended with `StreamState.Any`; the tenant is the entry's `TenantId`, the reserved `default` when tenancy is off; with tenancy on and no tenant, write and read deny (`InvalidRequest`, ADR-062 R3), never falling back to `default`; a real tenant `default` is rejected on write** | Injective (hex has no `-`, `.` is outside the base64url alphabet, so the category `entitychange.{hex(tenant)}` is exactly one tenant and no two triples collide); a retry of the same entry id is deduplicated by the server within its duplicate-detection window (a cache of recent event ids, not unbounded; to be verified in Phase 0, including how long the window lasts); one category per tenant for the purge | A different payload under an existing entry id is not detected (the server deduplicates by event id only), and a retry after the window appends a second event: entry-id uniqueness is the writer's guarantee, as in #578, unless Phase 0 (a) shows the window too short, in which case the store reads the stream's last event id before appending; stream names are longer |
 | **B) The issue's `audit-{EntityType}-{EntityId}` with `Uuid.NewUuid()`** | As written | Not injective; no tenant; every retry appends a duplicate; the category would be `audit` for every tenant |
 | **C) One stream per tenant** | Few streams | Reading one entity's history means scanning the tenant's whole stream |
 
@@ -146,7 +146,28 @@ What the code looks like today (`origin/main` `915db384e`):
 
 ### Rationale
 
-- ADR-036 says follow-up issues apply the names and do not revisit them. New error codes (all `EncinaErrors.Create` with a named category and a constant message): `entitychange.eventstoredb_unavailable` (`Unavailable`), `entitychange.eventstoredb_timeout` (`Timeout`), `entitychange.entry_id_invalid` and `entitychange.stream_name_too_long` and `entitychange.tenant_required` (`InvalidRequest`), `entitychange.projection_required` (`FailedPrecondition`: `$by_category` not running).
+- ADR-036 says follow-up issues apply the names and do not revisit them. The error codes are a separate Trivial entry (Design Choice 7); this choice settles only the contract.
+
+</details>
+
+<details>
+<summary><strong>7. Error codes of the store</strong></summary>
+
+**Class:** Trivial
+**Settled by:** ADR-062 (every code is created with `EncinaErrors.Create`, a named `ErrorCategory` and a constant message; the code prefix is the family prefix) and the sibling plans of the same contract, which use `entity_change_audit.<backend>.*` (#578 `entity_change_audit.azure_table.write_failed`, #582 `entity_change_audit.cosmos.*`, #579 `entity_change_audit.dynamodb.*`), not `entitychange.*`, so dashboards over the one contract share a prefix
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) `entity_change_audit.eventstoredb.*`, listed in `EntityChangeAudit/EntityChangeAuditErrors.cs` (new, PR 1)** | Same family prefix as the siblings | None |
+| **B) `entitychange.*` (the first draft)** | Shorter | A third scheme for one contract next to `entity_change_audit.*` and Marten's `audit.marten.*`: fragments dashboards and alerts |
+
+### Chosen Option: **A**
+
+### Rationale
+
+- Codes and categories (all exist in `ErrorCategory`): `entity_change_audit.eventstoredb.unavailable` (`Unavailable`), `entity_change_audit.eventstoredb.timeout` (`Timeout`), `entity_change_audit.eventstoredb.entry_id_invalid`, `entity_change_audit.eventstoredb.stream_name_too_long` and `entity_change_audit.eventstoredb.tenant_required` (`InvalidRequest`), `entity_change_audit.eventstoredb.projection_required` (`FailedPrecondition`: `$by_category` not running).
 
 </details>
 
@@ -194,9 +215,10 @@ REFERENCE FILES:
 1. `EntityChangeAudit/Internal/EntityChangeStreamNames.cs` (new, internal): stream and category builders of Design Choice 3, the tenant rule and the length check.
 2. `EntityChangeAudit/Internal/EntityChangeEventData.cs` (new, internal): JSON mapping of the contract's entry to event data and back (`System.Text.Json`, camel case, ISO 8601 `DateTimeOffset`), event type `EntityChangeAuditEntry`, the entry id as `Uuid`.
 3. `EntityChangeAudit/EntityChangeAuditEventStoreDBOptions.cs` (new): `MaxScanEvents` (default 100,000), `RequireProjection` (default `true`); validated.
-4. Tests: `EntityChangeStreamNamesTests` (colliding triples, hyphens, dots and `%` in ids, reserved tenant, over-long name), `EntityChangeEventDataTests` (round trip, bad id), options guard tests; `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.EventStoreDB.json` (edit).
+4. `EntityChangeAudit/EntityChangeAuditErrors.cs` (new): the six `entity_change_audit.eventstoredb.*` codes of Design Choice 7 with their ADR-062 categories and constant messages.
+5. Tests: `EntityChangeStreamNamesTests` (colliding triples, hyphens, dots and `%` in ids, reserved tenant, over-long name), `EntityChangeEventDataTests` (round trip, bad id), options guard tests; `PublicAPI.Unshipped.txt` (the errors class, options, names are covered); `.github/coverage-manifest/Encina.EventStoreDB.json` (edit).
 
-Files: 8.
+Files: 9 (names, event data, options, errors, 3 test files, PublicAPI, manifest). PR 1 depends on the #585 skeleton (the csproj, the manifest `Encina.EventStoreDB.json`, the `Encina.slnx` row do not exist before it) and on #1778 (`EntityChangeAuditEntry`): it does not build alone before both merge.
 
 </details>
 
@@ -261,17 +283,16 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Retention, health and EventIds (pull request 3)
+### Phase 3: Retention and EventIds (pull request 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `PurgeEntriesAsync` in the store (edit) per Design Choice 4: per entity stream under the tenant's category, set `TruncateBefore` or soft-delete, count the entries made unreadable, return the count; the tenant is passed explicitly by the retention service of #1778 and #4182, with no cross-tenant opt-in.
-2. `EntityChangeAudit/EntityChangeAuditEventStoreDBHealthCheck.cs` (new): a read-only probe plus the `$by_category` check; `DefaultName`, static `Tags`.
-3. `EntityChangeAudit/Diagnostics/EntityChangeAuditEventStoreDBLog.cs` (new, `[LoggerMessage]`); `src/Encina/Diagnostics/EventIdRanges.cs` (edit: `EventStoreDBEntityChangeAudit = (52700, 52749)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit), `EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`).
-4. Tests for purge (truncate, soft delete, mixed streams, a failed metadata write), health and logs; package `PublicAPI.Unshipped.txt`; manifest.
+2. `EntityChangeAudit/Diagnostics/EntityChangeAuditEventStoreDBLog.cs` (new, `[LoggerMessage]`); `src/Encina/Diagnostics/EventIdRanges.cs` (edit: `EventStoreDBEntityChangeAudit = (52700, 52749)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit), `EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`).
+3. Tests for purge (truncate, soft delete, mixed streams, a failed metadata write) and logs; package `PublicAPI.Unshipped.txt`; manifest.
 
-Files: 13.
+Files: 10 (store edit, log, 4 registry/API edits, 2 test files, package PublicAPI, manifest). The health check and its registration moved to PR 4 so this pull request stays small.
 
 </details>
 
@@ -283,7 +304,7 @@ CONTEXT:
 - The store writes and reads; retention is a per-tenant purge of the tenant's category.
 
 TASK:
-Implement PurgeEntriesAsync, the health check, the log class and the EventId range.
+Implement PurgeEntriesAsync, the log class and the EventId range.
 
 KEY RULES:
 - Register EventStoreDBEntityChangeAudit (52700, 52749) in EventIdRanges.cs before using an id; ids packed from 52700; map the assembly in AssemblyRanges.
@@ -300,15 +321,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 4: Subscriber (pull request 4)
+### Phase 4: Health check and subscriber (pull request 4)
 
 <details>
 <summary>Tasks</summary>
 
 1. `EntityChangeAudit/EntityChangeAuditSubscriber.cs` (new): `SubscribeAsync(string? tenant, Func<EntityChangeAuditEntry, CancellationToken, ValueTask> handler, FromAll position, CancellationToken)` over `SubscribeToStream` on the tenant category; the checkpoint belongs to the caller; a handler exception is caught per event and logged by type and does not end the subscription (a background loop never lets an exception escape); a dropped subscription is reported through a callback.
-2. Tests (substituted client), guard tests, `PublicAPI.Unshipped.txt`, manifest.
+2. `EntityChangeAudit/EntityChangeAuditEventStoreDBHealthCheck.cs` (new): a read-only probe plus the `$by_category` check; `DefaultName`, static `Tags`.
+3. `ServiceCollectionExtensions.cs` (edit): registers the health check and the subscriber; `EntityChangeAuditRegistrationTests` (edit) builds the provider with `ValidateOnBuild` and `ValidateScopes` and resolves both.
+4. Tests (substituted client) for the subscriber and the health check, guard tests, `PublicAPI.Unshipped.txt`, manifest.
 
-Files: 5.
+Files: 9 (subscriber, health check, extensions edit, registration test edit, subscriber tests, health check tests, guard tests, PublicAPI, manifest).
 
 </details>
 
@@ -412,7 +435,7 @@ REFERENCE FILES:
 | ADR-027, ADR-019 | EventStoreDB deprecated; event-sourced stores have no InMemory variant |
 | SPEC-000 DEC-009, section 6 | Scope: anything not listed is in 1.0; #585 named |
 | GDPR Art. 5(1)(e), SPEC-002 REQ-007 | Storage limitation of old and new values |
-| ADR-062 | Categories of the six new `entitychange.*` codes (Design Choice 6) |
+| ADR-062 | Categories of the six new `entity_change_audit.eventstoredb.*` codes (Design Choice 7) |
 
 ### Existing Encina Infrastructure to Leverage
 
@@ -443,10 +466,10 @@ Per-file coverage targets (numeric, per flag):
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Mapping, names, options (PR 1) | 8 | |
+| Mapping, names, options, error codes (PR 1) | 9 | Includes `EntityChangeAuditErrors.cs`; depends on #585 and #1778 |
 | Store and registration (PR 2) | 7 | |
-| Retention, health, EventIds (PR 3) | 13 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2 counted |
-| Subscriber (PR 4) | 5 | |
+| Retention and EventIds (PR 3) | 10 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2 counted |
+| Health check and subscriber (PR 4) | 9 | Includes the `ServiceCollectionExtensions.cs` and registration test edits |
 | Integration tests and changelog (PR 5) | 3 | |
 | Documentation (PR 6) | 3 | `docs-writer`, includes the ADR amendments |
 
@@ -465,8 +488,8 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. Phase 0: verify five server behaviors locally; Phase 1: stream names, event mapping, options.
 2. Phase 2: EntityChangeAuditStoreEventStoreDB and registration.
-3. Phase 3: purge by truncate or soft delete, health check, EventIds 52700-52749.
-4. Phase 4: optional subscriber; Phase 5: integration tests; Phase 6: docs and ADR amendments.
+3. Phase 3: purge by truncate or soft delete, EventIds 52700-52749.
+4. Phase 4: health check and optional subscriber; Phase 5: integration tests; Phase 6: docs and ADR amendments.
 
 KEY PATTERNS:
 - Stream entitychange.{hex(tenant)}-{b64url(type)}.{b64url(id)}; event id is the entry id; tenant default reserved; deny without tenant under tenancy.
@@ -492,12 +515,12 @@ REFERENCE FILES:
 | 1 | Caching | ❌ | Audit history is read rarely and must be fresh |
 | 2 | OpenTelemetry | ✅ | Through `InstrumentedEntityChangeAuditStore` (#1778); no tenant id or entity id as a tag |
 | 3 | Structured Logging | ✅ | `EntityChangeAuditEventStoreDBLog` 52700-52706 (Phase 3) |
-| 4 | Health Checks | ✅ | Read probe and `$by_category` check (Phase 3) |
+| 4 | Health Checks | ✅ | Read probe and `$by_category` check (Phase 4) |
 | 5 | Validation | ✅ | Entry id, tenant and stream-name checks before any I/O (Phase 1) |
 | 6 | Resilience | ❌ | A failed write is a `Left` that fails the unit of work; the client's own deadlines apply; a retry layer would hide it |
 | 7 | Distributed Locks | ❌ | Append with a deterministic event id needs no lock |
 | 8 | Transactions | ❌ | One event per append; not atomic with an entity change in another database (documented) |
-| 9 | Idempotency | ✅ | Deterministic event id; the server deduplicates a retry (verified in Phase 0) |
+| 9 | Idempotency | ✅ | Deterministic event id; the server deduplicates a retry within its duplicate-detection window (verified in Phase 0); a retry after the window can append a second event unless the writer checks the stream's last event id |
 | 10 | Multi-Tenancy | ✅ | Injective tenant-qualified streams, one category per tenant, deny without tenant under tenancy, reserved `default` |
 | 11 | Module Isolation | ✅ | `ModuleId` is part of the stored entry, as ADR-036 requires |
 | 12 | Audit Trail | ✅ | This is the entity-change audit trail |
@@ -506,7 +529,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- **Hard prerequisites**: the package skeleton of #585 (first pull request of its plan) and #1778 (the contract in `Encina.Security.Audit`). Phase 0 and Phase 1 (names and mapping) can start before either merges.
+- **Hard prerequisites**: the package skeleton of #585 (first pull request of its plan) and #1778 (the contract in `Encina.Security.Audit`). Only Phase 0 (the throwaway server verification, which commits nothing) can start before either merges; PR 1 needs the #585 skeleton (the package, its manifest and its `Encina.slnx` row) and #1778 (`EntityChangeAuditEntry`), so it cannot start in parallel.
 - **Decision prerequisite**: Design Choice 1 (ADR-027 and ADR-036 decision 6); under B nothing in this plan is built.
 - #4182 (per-tenant retention design) fixes how the retention service passes each tenant; #575 and #577-#582 are the sibling backends.
 
