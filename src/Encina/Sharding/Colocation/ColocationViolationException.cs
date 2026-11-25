@@ -121,7 +121,7 @@ public sealed class ColocationViolationException : Exception
             details["actualShardKeyType"] = ActualShardKeyType;
         }
 
-        return EncinaErrors.Create(ErrorCode, Message, this, details);
+        return EncinaErrors.Create(ErrorCode, ErrorCategory.Internal, Message, this, details);
     }
 
     private static string BuildMessage(
