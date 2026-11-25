@@ -2934,6 +2934,7 @@ static class ZeroSelfTest
         ("unit: [LoggerMessage] partial", "unit", "internal static partial class L { [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = \"m\")] public static partial void Warn(ILogger logger, string a); }"),
         ("unit: Meter holder", "unit", "internal static class M { internal const string N = \"n\"; internal static readonly Meter Meter = new(N, \"1.0\"); internal static readonly Counter<long> T = Meter.CreateCounter<long>(\"t\"); }"),
         ("unit: ActivitySource holder", "unit", "internal static class A { internal static readonly ActivitySource Source = new ActivitySource(\"s\", \"1.0\"); }"),
+        ("unit: field-like event and uninitialised field", "unit", "public abstract class B { public event EventHandler Changed; protected int count; }"),
         ("unit: no types (usings and assembly attribute)", "unit", "using System; [assembly: CLSCompliant(true)]"),
         ("guard: no parameters", "guard", "public class G { public void Run() { } public G() { } }"),
         ("guard: value-type parameters only", "guard", "public class G { public int Add(int a, long b, DateTime c, CancellationToken t, int? n) => 1; }"),
