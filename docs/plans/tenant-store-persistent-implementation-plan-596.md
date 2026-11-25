@@ -2,8 +2,8 @@
 
 > **Issue**: [#596](https://github.com/dlrivada/Encina/issues/596)
 > **Type**: Feature
-> **Complexity**: High (7 phases, 10 providers, 10 pull requests)
-> **Estimated Scope**: ~1,900 lines of production code + ~3,000 lines of tests, split over 10 pull requests of at most 15 files each
+> **Complexity**: High (7 phases, 10 providers, 11 pull requests)
+> **Estimated Scope**: ~1,900 lines of production code + ~3,000 lines of tests, split over 11 pull requests of at most 15 files each
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities (SPEC-002 DEC-009 (b), REQ-061, AC-043)
 
 ---
@@ -12,11 +12,11 @@
 
 Implement a persistent tenant catalog: `TenantStoreADO`, `TenantStoreDapper`, `TenantStoreEF` and `TenantStoreMongoDB` on the 10 providers of the database matrix, so that `ITenantStore` stops having `InMemoryTenantStore` as its only implementation. SPEC-002 AC-043 lists #596 among the issues that must be closed before multi-tenancy is accepted. The issue is written against an interface that does not exist (`Task<Tenant?> GetByIdAsync`, `CreateAsync` returning `Tenant`, 13 providers including SQLite, a `tenant_features` table and a `metadata` column); this plan replaces it with what the code needs.
 
-What the code looks like today (`origin/main` `915db384e`):
+What the code looks like today (`origin/main` `4b0a600c7`):
 
 - `ITenantStore` (`src/Encina.Tenancy/Abstractions/ITenantStore.cs`) is **read-only**: `ValueTask<TenantInfo?> GetTenantAsync`, `ValueTask<IReadOnlyList<TenantInfo>> GetAllTenantsAsync`, `ValueTask<bool> ExistsAsync` (default implementation over `GetTenantAsync`). It has no write method and no `Either`. `TenantInfo` is `(TenantId, Name, Strategy, ConnectionString, SchemaName)`; `ConnectionString` is `[JsonIgnore]` and masked by `ToString()` because it is a credential.
 - The only implementation is `InMemoryTenantStore` (`src/Encina.Tenancy/Stores/InMemoryTenantStore.cs`), registered by `AddEncinaTenancy` with `TryAddSingleton` from `TenancyOptions.Tenants`; it compares ids with `StringComparer.OrdinalIgnoreCase` and `InMemoryTenantStoreTests.GetTenantAsync_IsCaseInsensitive` pins that. `AddTenantStore<TStore>()` does `RemoveAll<ITenantStore>()` and so overrides whatever the application registered before it.
-- 10 production classes depend on the interface (`TenantConnectionFactory` in ADO and Dapper x3 each, `TenantDbContextFactory`, `TenantAwareMongoCollectionFactory`, `TenantResolutionMiddleware`, `DefaultTenantProvider`) and none catches an exception of the store: a lookup that throws fails the request, which is the fail-closed behavior `AGENTS.md` section 3 asks for.
+- 11 production classes take the interface (counted by grep on `origin/main`: `TenantConnectionFactory` in ADO and Dapper x3 each, `TenantDbContextFactory`, `TenantAwareMongoCollectionFactory`, `TenantResolutionMiddleware`, `DefaultTenantProvider`, `TenantConnectionFactoryBase`) and none catches an exception of the store: a lookup that throws fails the request, which is the fail-closed behavior `AGENTS.md` section 3 asks for.
 - The tenancy EventId range is `Tenancy = (1800, 1899)`; `TenancyLog` uses 1800-1804 and #711 owns 1805-1810.
 - Siblings, cited by number and not duplicated: #346 (pipeline gate), #1257 (reserved `default` tenant), #752 (tenant lifecycle administration and its audit; it recommends a write port plus an administration service), #711 (tenant connection cache), #2676 (tenant telemetry tag), #4182 (retention enumerates tenants through `ITenantStore`), #597 (Redis store) and #598 (cloud stores), which reuse the contract this plan owns.
 
@@ -35,7 +35,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A new `ITenantStoreWriter` (Encina.Tenancy) with `CreateAsync`, `UpdateAsync`, `DeleteAsync` returning `ValueTask<Either<EncinaError, Unit>>`; `ITenantStore` stays read-only; persistent stores and `InMemoryTenantStore` implement both** | Read-only stores (options, claims, a custom adapter) stay valid; the 12 consumers do not change; matches the write port that the #752 plan recommends; ROP on every write (`AGENTS.md` section 3) | A second interface to register and resolve; a store class implements two interfaces |
+| **A) A new `ITenantStoreWriter` (Encina.Tenancy) with `CreateAsync`, `UpdateAsync`, `DeleteAsync` returning `ValueTask<Either<EncinaError, Unit>>`; `ITenantStore` stays read-only; persistent stores and `InMemoryTenantStore` implement both** | Read-only stores (options, claims, a custom adapter) stay valid; the 11 consumers do not change; matches the write port that the #752 plan recommends; ROP on every write (`AGENTS.md` section 3) | A second interface to register and resolve; a store class implements two interfaces |
 | **B) Add the write methods to `ITenantStore`** (the issue's shape) | One abstraction | Every read-only implementer must implement or reject writes; the issue's `Task<Tenant>`/`Task` signatures do not match the existing `ValueTask<TenantInfo?>` style and have no `Either` |
 | **C) Write through `ITenantAdministration` only (#752) and give the persistent stores no public write API** | One place that audits every lifecycle change | #596 cannot be closed or tested on its own; the administration service is a larger prerequisite than this issue |
 
@@ -57,7 +57,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Ordinal and case-sensitive everywhere: `InMemoryTenantStore` switches to `StringComparer.Ordinal`; the id column uses a binary collation on SQL Server (`Latin1_General_100_BIN2`) and MySQL (`utf8mb4_bin`); PostgreSQL and MongoDB are already case-sensitive; the id is 1-128 characters, no control characters, never `default`** | Identity is injective: no two ids map to one catalog row, and the catalog agrees with the outbox, inbox and saga tenant columns, which compare ordinally; the same behavior on all 10 providers | `GetTenantAsync("ACME")` no longer finds `acme` (it fails closed); one existing test and the documented behavior of `InMemoryTenantStore` change |
+| **A) Ordinal and case-sensitive everywhere: `InMemoryTenantStore` switches to `StringComparer.Ordinal`; the id column uses a binary collation on SQL Server (`Latin1_General_100_BIN2`) and MySQL (`utf8mb4_bin`); PostgreSQL and MongoDB are already case-sensitive; the id is 1-128 characters, no control characters, no leading or trailing whitespace, never `default`** | Identity is injective: no two ids map to one catalog row (a binary collation fixes case, and the whitespace rule fixes trailing spaces, which SQL Server and MySQL `PAD SPACE` comparison ignores even under a binary collation), and the catalog agrees with the outbox, inbox and saga tenant columns, which compare ordinally; the same behavior on all 10 providers | `GetTenantAsync("ACME")` no longer finds `acme` (it fails closed); one existing test and the documented behavior of `InMemoryTenantStore` change |
 | **B) Case-insensitive everywhere** (today's in-memory behavior): store a case-folded key next to the id, unique on the folded key | Header, claim and route spellings resolve to the same tenant | Two spellings resolve to one catalog row while the data stores treat them as two tenants (ordinal), so the catalog and the data disagree; a folded key per provider |
 | **C) Whatever each database's default collation gives** | Least code | Different behavior per provider (SQL Server and MySQL case-insensitive, PostgreSQL and MongoDB case-sensitive); the same application behaves differently when the provider is switched, which `AGENTS.md` section 5 (provider coherence) forbids |
 
@@ -66,7 +66,7 @@ What the code looks like today (`origin/main` `915db384e`):
 ### Rationale
 
 - A wins when the tenant id is also the key of tenant-stamped data (outbox, inbox, saga, audit, SPEC-002 stores), which it is: those stores compare the id as the application supplied it. B wins if tenant ids come from user-typed input with no canonical spelling; that case is better solved by the resolver normalizing the spelling before lookup, not by the catalog. C is rejected by provider coherence.
-- The reserved id `default` (SPEC-002 REQ-061 "a fixed default tenant applies"; #1257 plan, which also makes the options validator reject it) is rejected on write with `tenancy.tenant_id_reserved` (`ErrorCategory.InvalidRequest`, ADR-062 rule R3); `TenantIdRules` in `Encina.Tenancy` holds the one rule set that every provider calls.
+- The reserved id `default` (SPEC-002 REQ-061 "a fixed default tenant applies"; #1257 plan, which also makes the options validator reject it) is rejected on write with `tenancy.tenant_id_reserved` (`ErrorCategory.InvalidRequest`, ADR-062 rule R3); `TenantIdRules` in `Encina.Tenancy` holds the one rule set that every provider calls and **this plan (PR 1) owns it**: 1-128 characters, no control characters, leading or trailing whitespace rejected with `tenancy.tenant_id_invalid` (never trimmed; without it `acme` and `acme ` are two ids on PostgreSQL and MongoDB but one row on SQL Server and MySQL, whose `=` and unique comparisons ignore trailing spaces even under `Latin1_General_100_BIN2` and `utf8mb4_bin`), and not `default`. The #1257 plan decides the same padded-id rejection for the resolver and the options validator; its validator (PR 1257-A2) calls `TenantIdRules` instead of keeping a second copy, so there is one rule set.
 
 </details>
 
@@ -110,6 +110,8 @@ What the code looks like today (`origin/main` `915db384e`):
 
 - A wins when the application already has an encryption or key-management story (it must, for SPEC-002 column encryption, #1250); B wins when the application keeps database credentials in a vault and never wants them in the catalog; C is rejected on security grounds and listed only to show it was weighed.
 - A tenant with `SharedSchema` or `SchemaPerTenant` has a null connection string and needs no protector.
+- Protected versus plaintext: the stored text carries a version marker prefix (`tp1:`); a read accepts only a marked value, and a non-null unmarked value is never returned as a connection string (the read throws, fail closed), so a plaintext value written by hand cannot pass as a protected one. `Protect` and `Unprotect` return `Either<EncinaError, string>`: a failing protector is a `Left` on write (`tenancy.protector_failed`, `ErrorCategory.Unavailable`, exception type only in the log) and a throw on read, never an exception from a business rule.
+- `TenantRecord` (the EF entity) and every row type that holds the protected text mark the property `[JsonIgnore]` and override `ToString()` to mask it, like `TenantInfo` (`AGENTS.md` section 3, #851).
 
 </details>
 
@@ -165,7 +167,7 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `InstrumentedTenantStore` in `Encina.Tenancy` wraps any `ITenantStore` and `ITenantStoreWriter`; logging, spans, counters and the health check live there, using `TenancyLog` ids 1811-1816** | One implementation of telemetry for 10 providers and for #597 and #598; the stores stay free of logging and need no new EventId range | One more wrapper in the resolution chain |
+| **A) `InstrumentedTenantStore` in `Encina.Tenancy` wraps the store that `TenantStoreRegistration.Replace<TStore>(services, provider)` registers (only those stores, never the default `InMemoryTenantStore`); logging, spans, counters and the health check live there, using `TenancyLog` ids 1811-1816** | One implementation of telemetry for 10 providers and for #597 and #598; the stores stay free of logging and need no new EventId range; the `provider` tag is the `provider` argument of `Replace` (`"sqlserver-ado"`, `"redis"`, `"cosmosdb"`...), passed to the decorator's constructor, so #597 and #598 have a defined way to set it; `GetRequiredService<InMemoryTenantStore>()` and its tests (`ServiceCollectionExtensionsTests`, `TenancyServiceCollectionExtensionsGuardTests`) keep resolving the undecorated default | One more wrapper in the resolution chain of persistent stores |
 | **B) Each store logs and traces itself** | No wrapper | Ten copies of the same telemetry; ten EventId ranges in the database zone |
 
 ### Chosen Option: **A — the decorator**
@@ -186,11 +188,11 @@ What the code looks like today (`origin/main` `915db384e`):
 <summary>Tasks</summary>
 
 1. `src/Encina.Tenancy/Abstractions/ITenantStoreWriter.cs` (new): `CreateAsync(TenantInfo, CancellationToken)`, `UpdateAsync(TenantInfo, CancellationToken)`, `DeleteAsync(string tenantId, CancellationToken)`, each `ValueTask<Either<EncinaError, Unit>>`.
-2. `src/Encina.Tenancy/Abstractions/ITenantSecretProtector.cs` (new): `string Protect(string plaintext)`, `string Unprotect(string protectedValue)`.
-3. `src/Encina.Tenancy/Core/TenantIdRules.cs` (new, public static): `Validate(string? tenantId)` returning `Either<EncinaError, string>`; rules of Design Choice 2.
-4. `src/Encina.Tenancy/TenancyErrors.cs` (edit): `TenantExistsCode = "tenancy.tenant_exists"` (`AlreadyExists`), `TenantIdInvalidCode` and `TenantIdReservedCode` (`InvalidRequest`), `ProtectorRequiredCode` (`FailedPrecondition`); fixed messages with no tenant id.
+2. `src/Encina.Tenancy/Abstractions/ITenantSecretProtector.cs` (new): `Either<EncinaError, string> Protect(string plaintext)`, `Either<EncinaError, string> Unprotect(string protectedValue)`; the stored text carries the `tp1:` marker of Design Choice 4.
+3. `src/Encina.Tenancy/Core/TenantIdRules.cs` (new, public static, owned by this plan): `Validate(string? tenantId)` returning `Either<EncinaError, string>`; rules of Design Choice 2 (length, control characters, leading or trailing whitespace, reserved `default`).
+4. `src/Encina.Tenancy/TenancyErrors.cs` (edit): `TenantExistsCode = "tenancy.tenant_exists"` (`AlreadyExists`), `TenantIdInvalidCode` and `TenantIdReservedCode` (`InvalidRequest`), `ProtectorRequiredCode` (`FailedPrecondition`), `ProtectorFailedCode = "tenancy.protector_failed"` (`Unavailable`); fixed messages with no tenant id. A missing update or delete target returns the existing `TenancyErrors.TenantNotFoundCode` (`tenancy.tenant_not_found`, `NotFound`, already on `origin/main`), not a new code.
 5. `src/Encina.Tenancy/Stores/InMemoryTenantStore.cs` (edit): ordinal comparer; implements `ITenantStoreWriter`; `RegisterTenant`, `RemoveTenant` and `Clear` stay for tests.
-6. `tests/Encina.TestInfrastructure/Tenancy/TenantStoreBehaviorSuite.cs` (new): the abstract behavior suite every store runs (create, duplicate, update, missing update, delete, missing delete, exists, get-all, case-sensitivity, reserved id, over-long id, protector round trip, no protector with connection string), over a `CreateStore()` factory.
+6. `tests/Encina.TestInfrastructure/Tenancy/TenantStoreBehaviorSuite.cs` (new): the abstract behavior suite every store runs (create, duplicate, update, missing update, delete, missing delete, exists, get-all, case-sensitivity, padded id (`acme` and `acme ` are rejected, so two ids can never share a row on SQL Server and MySQL), reserved id, over-long id, protector round trip, tampered unmarked value, no protector with connection string), over a `CreateStore()` factory.
 7. Tests: `InMemoryTenantStoreTests` (edit: the case test becomes the ordinal test), `TenantIdRulesTests` (new), `InMemoryTenantStoreBehaviorTests` (new, derives from the suite), `TenantStoreWriterGuardTests` (new, `Encina.GuardTests`), `.github/coverage-manifest/Encina.Tenancy.json` (edit), `src/Encina.Tenancy/PublicAPI.Unshipped.txt` (edit), changelog fragment `changelog.d/596-persistent-tenant-store.added.md`.
 
 Files: 13. No call site of `new InMemoryTenantStore(` changes.
@@ -230,13 +232,13 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Tenancy/ServiceCollectionExtensions.cs` (edit): the default registration becomes a marked descriptor; new public `TenantStoreRegistration.Replace<TStore>` helper (in `Stores/TenantStoreRegistration.cs`, new) and `AddEncinaTenantSecretProtector<T>()`.
-2. `src/Encina.Tenancy/Diagnostics/InstrumentedTenantStore.cs` (new): decorates `ITenantStore` and `ITenantStoreWriter`; `ActivitySource` "Encina.Tenancy" spans `tenancy.store.{operation}`; counter `encina.tenancy.store.operations` (tags `operation`, `outcome`, `provider`) and histogram `encina.tenancy.store.duration` (ms) added to `TenancyMetrics`; no `_total` suffix.
+1. `src/Encina.Tenancy/ServiceCollectionExtensions.cs` (edit): the default registration becomes a marked descriptor (the direct `InMemoryTenantStore` registration that resolves `ITenantStore as InMemoryTenantStore` stays as it is, because the default is never decorated); new public `TenantStoreRegistration.Replace<TStore>(IServiceCollection services, string provider)` helper (in `Stores/TenantStoreRegistration.cs`, new), which registers `TStore` and a factory for `ITenantStore` and `ITenantStoreWriter` that wraps it in `InstrumentedTenantStore` with the `provider` tag, and `AddEncinaTenantSecretProtector<T>()`.
+2. `src/Encina.Tenancy/Diagnostics/InstrumentedTenantStore.cs` (new): decorates `ITenantStore` and `ITenantStoreWriter`; constructor `(ITenantStore inner, ITenantStoreWriter? writer, string provider, ...)`; `ActivitySource` "Encina.Tenancy" spans `tenancy.store.{operation}`; counter `encina.tenancy.store.operations` (tags `operation`, `outcome`, `provider`; unit `{operations}`) and histogram `encina.tenancy.store.duration` (unit `s`) added to `TenancyMetrics`. Naming decision, with evidence: ADR-054 decision 4 ("durations in seconds with unit `s`; no `_total` suffix on counters; the unit lives in the metadata") binds every instrument created after it, and these are new instruments, so they follow it. The existing `encina.tenancy.resolutions_total` and `encina.tenancy.resolution_duration_ms` in `TenancyMetrics` pre-date the ADR and are not renamed by this plan (a rename of existing instruments belongs to the ADR-054 meter migration, not to a catalog feature); #597 and #598 inherit the new names.
 3. `src/Encina.Tenancy/Diagnostics/TenancyLog.cs` (edit): ids 1811 lookup failed (exception type, never its message), 1812 tenant created, 1813 tenant updated, 1814 tenant deleted, 1815 write rejected (error code), 1816 protector missing. Inside `Tenancy = (1800, 1899)`; #711 owns 1805-1810.
 4. `src/Encina.Tenancy/Health/TenantStoreHealthCheck.cs` (new): `DefaultName = "encina-tenant-store"`, static `Tags`, probes `ExistsAsync` with the reserved id `default` (never present, so no tenant data is read); a throw is `Unhealthy` with the exception type only.
 5. Tests: `TenantStoreRegistrationTests` (DI with `ValidateOnBuild` and `ValidateScopes`, both orders, application registration kept), `InstrumentedTenantStoreTests`, `TenantStoreHealthCheckTests`, `PublicAPI.Unshipped.txt`, manifest.
 
-Files: 10 (`ServiceCollectionExtensions.cs`, `TenantStoreRegistration.cs`, `InstrumentedTenantStore.cs`, `TenancyMetrics.cs`, `TenancyLog.cs`, `TenantStoreHealthCheck.cs`, three test files, `PublicAPI.Unshipped.txt`) plus the manifest edit makes 11.
+Files: 10 (`ServiceCollectionExtensions.cs`, `TenantStoreRegistration.cs`, `InstrumentedTenantStore.cs`, `TenancyMetrics.cs`, `TenancyLog.cs`, `TenantStoreHealthCheck.cs`, three test files, `PublicAPI.Unshipped.txt`) plus the manifest edit makes 11. The `TenantStoreHealthCheck` is registered by the same `ServiceCollectionExtensions.cs` edit and covered by the DI test (inside `TenantStoreRegistrationTests`).
 
 </details>
 
@@ -278,9 +280,9 @@ Per provider package (`Encina.ADO.SqlServer`, `Encina.ADO.PostgreSQL`, `Encina.A
 1. `Tenancy/TenantStoreADO.cs` (new): `sealed class TenantStoreADO : ITenantStore, ITenantStoreWriter`; constructor `(IDbConnection connection, ITenantSecretProtector? protector = null, string tableName = "Tenants", TimeProvider? timeProvider = null)`; async ADO calls with `CancellationToken` (`OpenAsync`, `ExecuteReaderAsync`, `ExecuteNonQueryAsync`), never the synchronous overloads; parameters only; the duplicate-key violation of the provider maps to `tenancy.tenant_exists` (SQL Server error 2627/2601, PostgreSQL `23505`, MySQL 1062).
 2. `Scripts/<next>_CreateTenantsTable.sql` (new) and the same table in `Scripts/000_CreateAllTables.sql` (edit). `<next>` is the next free number when the pull request is cut: the last script is 030 on SqlServer and PostgreSQL and 029 on MySQL today, and the plans of #1234 and #1220 each name 031, so the number is taken then and never fixed here.
 3. `Tenancy/TenancyServiceCollectionExtensions.cs` (edit): `AddEncinaTenantStoreADO()` through `TenantStoreRegistration.Replace`.
-4. Tests: `TenantStoreADOTests` (unit, throwing and stubbed connection), `TenantStoreADOGuardTests`, `TenantStoreADOIntegrationTests` (derives from `TenantStoreBehaviorSuite`; `[Collection("ADO-SqlServer")]` and its siblings, `ClearAllDataAsync` in `InitializeAsync`), `PublicAPI.Unshipped.txt`, manifest.
+4. Tests: `TenantStoreADOTests` (unit, throwing and stubbed connection), `TenantStoreADOGuardTests`, `TenantStoreADOIntegrationTests` (derives from `TenantStoreBehaviorSuite`; `[Collection("ADO-SqlServer")]` and its siblings, `ClearAllDataAsync` in `InitializeAsync`), `TenantStoreADORegistrationTests` (DI test for `AddEncinaTenantStoreADO`: builds the provider with `ValidateOnBuild` and `ValidateScopes`, registered before and after `AddEncinaTenancy`, application registration kept), `PublicAPI.Unshipped.txt`, manifest.
 
-Files per pull request: 9. Provider details: SQL Server `nvarchar(128) COLLATE Latin1_General_100_BIN2`; PostgreSQL `varchar(128)`; MySQL `varchar(128) COLLATE utf8mb4_bin`; the connection string column holds the protected text, `nvarchar(max)`/`text`.
+Files per pull request: 10. Provider details: SQL Server `nvarchar(128) COLLATE Latin1_General_100_BIN2`; PostgreSQL `varchar(128)`; MySQL `varchar(128) COLLATE utf8mb4_bin`; the connection string column holds the protected text, `nvarchar(max)`/`text`.
 
 </details>
 
@@ -322,9 +324,9 @@ Per provider package (`Encina.Dapper.SqlServer`, `Encina.Dapper.PostgreSQL`, `En
 1. `Tenancy/TenantStoreDapper.cs` (new), same contract and error mapping as Phase 3, `QueryAsync`/`ExecuteAsync` with `CommandDefinition` carrying the token.
 2. `Scripts/<next>_CreateTenantsTable.sql` (new) and the table in `Scripts/000_CreateAllTables.sql` (edit) of the Dapper package, which has its own `Scripts/` folder (`src/Encina.Dapper.SqlServer/Scripts/029_CreateDeadLetterMessagesTable.sql` is the precedent).
 3. `Tenancy/TenancyServiceCollectionExtensions.cs` (edit): `AddEncinaTenantStoreDapper()`.
-4. Tests: unit, guard, integration (`[Collection("Dapper-SqlServer")]` and siblings), `PublicAPI.Unshipped.txt`, manifest.
+4. Tests: unit, guard, integration (`[Collection("Dapper-SqlServer")]` and siblings), the DI registration test (`ValidateOnBuild`, `ValidateScopes`, both orders), `PublicAPI.Unshipped.txt`, manifest.
 
-Files per pull request: 9.
+Files per pull request: 10.
 
 </details>
 
@@ -359,10 +361,10 @@ REFERENCE FILES:
 
 1. `Tenancy/TenantRecord.cs` and `Tenancy/TenantRecordConfiguration.cs` (new): entity and `IEntityTypeConfiguration`; table `Tenants`; id `HasMaxLength(128)` with the provider's binary collation applied through `UseCollation` per provider (`Latin1_General_100_BIN2`, `utf8mb4_bin`; PostgreSQL none).
 2. `Tenancy/TenantStoreEF.cs` (new): takes a `DbContext` type through `IDbContextFactory<TCatalogContext>`-style options, `ITenantSecretProtector?`, `TimeProvider?`; no `SaveChanges` call outside its own method (the store owns its unit of work, it is not the orchestrator).
-3. `Tenancy/EfCoreTenancyOptions.cs` or the extensions file (edit): `AddEncinaTenantStoreEF<TContext>()`.
-4. Tests: unit (in-memory provider is not used; a substituted context), guard, three integration classes (`EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`), `PublicAPI.Unshipped.txt`, manifest.
+3. `Tenancy/TenancyServiceCollectionExtensions.cs` (new: `src/Encina.EntityFrameworkCore/Tenancy/` holds only `EfCoreTenancyOptions.cs`, `ITenantSchemaConfigurator.cs`, `TenantDbContext.cs` and `TenantDbContextFactory.cs` today, and `EfCoreTenancyOptions.cs` is an options class): `AddEncinaTenantStoreEF<TContext>()` through `TenantStoreRegistration.Replace`.
+4. Tests: unit (in-memory provider is not used; a substituted context), guard, three integration classes (`EFCore-SqlServer`, `EFCore-PostgreSQL`, `EFCore-MySQL`), the DI registration test (`ValidateOnBuild`, `ValidateScopes`, both orders), `PublicAPI.Unshipped.txt`, manifest.
 
-Files: 12.
+Files: 13.
 
 </details>
 
@@ -396,9 +398,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `Tenancy/TenantStoreMongoDB.cs` (new): collection `tenants`, `_id` is the tenant id (unique by construction, ordinal), `InsertOneAsync` duplicate-key to `tenancy.tenant_exists`; the registration `AddEncinaTenantStoreMongoDB()` in `Tenancy/TenancyServiceCollectionExtensions.cs` (edit).
-2. Tests: unit (substituted driver interfaces), guard, integration (`MongoDB` collection), `PublicAPI.Unshipped.txt`, manifest.
+2. Tests: unit (substituted driver interfaces), guard, integration (`MongoDB` collection), the DI registration test (`ValidateOnBuild`, `ValidateScopes`, both orders), `PublicAPI.Unshipped.txt`, manifest.
 
-Files: 7.
+Files: 8.
 
 </details>
 
@@ -429,7 +431,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Documentation by `docs-writer`: `src/Encina.Tenancy/README.md` (edit: persistent stores, the write port, the protector, id rules), a feature page under `docs/features/` for the catalog (create the tenants table, register the store, register a protector), `docs/INVENTORY.md` (edit).
+1. Documentation by `docs-writer`: `src/Encina.Tenancy/README.md` (create: it does not exist on `origin/main`; persistent stores, the write port, the protector, id rules), a feature page under `docs/features/` for the catalog (create the tenants table, register the store, register a protector), `docs/INVENTORY.md` (edit).
 2. Cross-cutting: the matrix below; the deferred items point to #711 (cache), #752 (audit) and the issue files named there.
 3. Build and test verification: `dotnet build --configuration Release` with 0 warnings, `dotnet test` per flag against the targets of the Research section.
 
@@ -477,7 +479,7 @@ REFERENCE FILES:
 | Component | Location | Usage |
 |-----------|----------|-------|
 | `ITenantStore`, `InMemoryTenantStore`, `TenantInfo` | `src/Encina.Tenancy/` | The read contract and default; the writer extends the in-memory store |
-| `TenantConnectionFactory` (x6), `TenantDbContextFactory`, `TenantAwareMongoCollectionFactory`, `TenantResolutionMiddleware` | provider packages, `Encina.Tenancy.AspNetCore` | The 12 consumers; they keep working unchanged |
+| `TenantConnectionFactory` (x6), `TenantDbContextFactory`, `TenantAwareMongoCollectionFactory`, `TenantResolutionMiddleware` | provider packages, `Encina.Tenancy.AspNetCore` | `TenantConnectionFactoryBase` is the 11th consumer; all 11 keep working unchanged |
 | `DeadLetterStoreADO` and siblings | `src/Encina.*/DeadLetter/` | Pattern for constructor, table name validation, error mapping and tests |
 | `InstrumentedDeadLetterStore` | `src/Encina.OpenTelemetry/MessagingStores/` | Pattern for the telemetry decorator |
 | `TenancyLog`, `TenancyMetrics`, `TenancyActivitySource` | `src/Encina.Tenancy/Diagnostics/` | Extended, not duplicated |
@@ -517,10 +519,10 @@ Per-file coverage targets (numeric, per flag; from the `DeadLetterStore*` rows o
 |----------|------:|-------|
 | Contract, rules and in-memory (PR 1) | 13 | Includes the shared behavior suite and the changelog fragment |
 | Registration, decorator, health (PR 2) | 11 | One PublicAPI, one manifest |
-| ADO.NET x3 (PRs 3-5) | 9 each | Store, script, `000` edit, registration, PublicAPI, manifest, 3 test files |
-| Dapper x3 (PRs 6-8) | 9 each | Same shape as ADO: each Dapper package has its own `Scripts/` folder |
-| EF Core (PR 9) | 12 | Entity, configuration, store, registration, 3 integration classes |
-| MongoDB (PR 10) | 7 | |
+| ADO.NET x3 (PRs 3-5) | 10 each | Store, script, `000` edit, registration, PublicAPI, manifest, 4 test files (unit, guard, integration, DI) |
+| Dapper x3 (PRs 6-8) | 10 each | Same shape as ADO: each Dapper package has its own `Scripts/` folder |
+| EF Core (PR 9) | 13 | Entity, configuration, store, new registration file, 3 integration classes, unit, guard, DI test, PublicAPI, manifest |
+| MongoDB (PR 10) | 8 | |
 | Documentation (PR 11) | 3 | Written by `docs-writer` |
 
 Every pull request is at most 15 files and builds and passes alone; PR 2 depends on PR 1, and PRs 3-10 on PR 2.
