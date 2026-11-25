@@ -1,0 +1,29 @@
+```
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+INTEL XEON PLATINUM 8573C 3.00GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]     : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  Job-YFEFPZ : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+
+WarmupCount=3  
+
+```
+| Method                                | Job        | IterationCount | LaunchCount | Mean        | Error       | StdDev    | Ratio | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
+|-------------------------------------- |----------- |--------------- |------------ |------------:|------------:|----------:|------:|--------:|-------:|-------:|----------:|------------:|
+| &#39;Key generation (simple query)&#39;       | Job-YFEFPZ | 10             | Default     | 15,428.0 ns |   408.67 ns | 270.31 ns |  1.00 |    0.02 | 0.0763 | 0.0610 |    8600 B |        1.00 |
+| &#39;Key generation (complex JOIN query)&#39; | Job-YFEFPZ | 10             | Default     | 25,942.9 ns |   822.80 ns | 544.23 ns |  1.68 |    0.04 | 0.1526 | 0.1221 |   16360 B |        1.90 |
+| &#39;Key generation with tenant&#39;          | Job-YFEFPZ | 10             | Default     | 24,587.7 ns |   139.19 ns |  72.80 ns |  1.59 |    0.03 | 0.1831 | 0.1526 |   16496 B |        1.92 |
+| &#39;Cache hit (memory)&#39;                  | Job-YFEFPZ | 10             | Default     | 16,026.4 ns |   281.16 ns | 147.05 ns |  1.04 |    0.02 | 0.0916 | 0.0610 |    8744 B |        1.02 |
+| &#39;Cache miss (memory)&#39;                 | Job-YFEFPZ | 10             | Default     |    701.7 ns |     4.30 ns |   2.84 ns |  0.05 |    0.00 | 0.0010 |      - |     120 B |        0.01 |
+| &#39;CachedDataReader read (5 rows)&#39;      | Job-YFEFPZ | 10             | Default     |  6,809.7 ns |    11.34 ns |   5.93 ns |  0.44 |    0.01 | 0.0305 |      - |    2712 B |        0.32 |
+| &#39;CachedDataReader read (1000 rows)&#39;   | Job-YFEFPZ | 10             | Default     | 29,452.9 ns |   116.32 ns |  69.22 ns |  1.91 |    0.03 | 0.0916 |      - |    8592 B |        1.00 |
+|                                       |            |                |             |             |             |           |       |         |        |        |           |             |
+| &#39;Key generation (simple query)&#39;       | ShortRun   | 3              | 1           | 15,102.7 ns | 8,526.75 ns | 467.38 ns |  1.00 |    0.04 | 0.0763 | 0.0610 |    7576 B |        1.00 |
+| &#39;Key generation (complex JOIN query)&#39; | ShortRun   | 3              | 1           | 26,269.6 ns | 4,893.96 ns | 268.25 ns |  1.74 |    0.05 | 0.1526 | 0.1221 |   14568 B |        1.92 |
+| &#39;Key generation with tenant&#39;          | ShortRun   | 3              | 1           | 24,897.6 ns | 2,830.67 ns | 155.16 ns |  1.65 |    0.05 | 0.1831 | 0.1526 |   15472 B |        2.04 |
+| &#39;Cache hit (memory)&#39;                  | ShortRun   | 3              | 1           | 16,872.2 ns | 8,812.22 ns | 483.03 ns |  1.12 |    0.04 | 0.0916 | 0.0610 |    7720 B |        1.02 |
+| &#39;Cache miss (memory)&#39;                 | ShortRun   | 3              | 1           |    697.3 ns |    18.99 ns |   1.04 ns |  0.05 |    0.00 | 0.0010 |      - |     120 B |        0.02 |
+| &#39;CachedDataReader read (5 rows)&#39;      | ShortRun   | 3              | 1           |  6,937.2 ns |   131.93 ns |   7.23 ns |  0.46 |    0.01 | 0.0305 |      - |    2712 B |        0.36 |
+| &#39;CachedDataReader read (1000 rows)&#39;   | ShortRun   | 3              | 1           | 29,820.8 ns | 1,721.21 ns |  94.35 ns |  1.98 |    0.05 | 0.0916 |      - |    8592 B |        1.13 |
