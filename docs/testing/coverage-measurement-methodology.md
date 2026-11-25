@@ -307,6 +307,7 @@ The target ratchet stops a pull request from lowering or removing a coverage tar
 | --- | --- |
 | R-LOW | The head value of a target is lower than its base value. |
 | R-DROP | The base has a target for a flag or file and the head has none, while the source still exists in the head tree (`src/<Package>/<file>` for a file target; a `src/**/<Package>.csproj` for a package target). |
+| R-ZERO | A `unit`, `guard` or `contract` per-file target is `0` in the head and absent in the base (a new file entry, a new flag or a new manifest), and the source file has executable code for that flag. |
 
 What is allowed:
 
@@ -317,12 +318,24 @@ What is allowed:
 
 Only top-level `*.json` files under `.github/coverage-manifest/`, except `defaults.json`, count as manifests; this is the set `coverage-report.cs` loads. A manifest renamed to a name that is not a top-level `.json` (for example `Encina.Foo.json.disabled`) or moved into a subfolder is treated as a deleted manifest, so it is an R-DROP while the package's `src` project still exists. A rename to another top-level `.json` name is compared old against new.
 
-A new `0` in `unit`, `guard` or `contract` is not covered by these rules; it is tracked separately in #2898 and is not implemented.
+R-ZERO (#2898) stops a new zero from entering a manifest:
+
+- A base value above `0` lowered to `0` is already R-LOW, so it is reported once, not twice. A zero that is unchanged from the base is never touched; the existing rejected zeros are tracked in #4343.
+- The zero is accepted automatically when the closed-list classifier of #2890 (see the zero classifier above) says the source file has no executable code for that flag, for example an interface, an enum, a constants-only file or a generated `*.g.cs` file. The script does not carry its own copy of that test: it writes the head revision of the source file to a temporary file and runs `dotnet run --file .github/scripts/coverage-report.cs -- --classify-zero <file> <flag>`.
+- It fails closed: when the source file is not in the head tree, cannot be read, or the classifier gives no verdict (a build failure or a bad argument), the zero is a violation.
+- Otherwise the pull request needs the maintainer label `target-change-approved`, with the same label lookup, job summary and fail-closed behaviour as R-LOW and R-DROP.
+- `integration` and `property` zeros are outside the rule.
 
 The script prints one line per violation, for example the real case from commit `1309055ef` (#2780):
 
 ```text
 Encina.Cdc.PostgreSql  package  unit  50 -> 41
+```
+
+An R-ZERO violation prints the base side as `absent`, followed by the reason:
+
+```text
+Encina.X  Path/File.cs  guard  absent -> 0  (file has executable code)
 ```
 
 A dropped target prints the head side as `(dropped)`, for example `50 -> (dropped)`. Exit codes: 0 when clean or approved by the label, 1 on a violation without the label or on any git, parse or `gh` failure, 2 for invalid arguments.
