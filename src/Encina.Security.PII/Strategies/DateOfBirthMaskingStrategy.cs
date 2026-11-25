@@ -53,24 +53,11 @@ internal sealed class DateOfBirthMaskingStrategy : IMaskingStrategy
             // Append separator between parts
             if (i > 0)
             {
-                var sepPos = currentPos;
-                while (sepPos < value.Length && !DateSeparators.Contains(value[sepPos]))
-                {
-                    sepPos++;
-                }
-
-                if (sepPos < value.Length)
-                {
-                    result.Append(value[sepPos]);
-                    currentPos = sepPos + 1;
-                }
+                currentPos = AppendSeparator(value, currentPos, result);
             }
 
             // Skip to the start of this part
-            while (currentPos < value.Length && DateSeparators.Contains(value[currentPos]))
-            {
-                currentPos++;
-            }
+            currentPos = SkipSeparators(value, currentPos);
 
             if (i == yearIndex)
             {
@@ -87,6 +74,33 @@ internal sealed class DateOfBirthMaskingStrategy : IMaskingStrategy
         }
 
         return result.ToString();
+    }
+
+    private static int AppendSeparator(string value, int currentPos, StringBuilder result)
+    {
+        var sepPos = currentPos;
+        while (sepPos < value.Length && !DateSeparators.Contains(value[sepPos]))
+        {
+            sepPos++;
+        }
+
+        if (sepPos >= value.Length)
+        {
+            return currentPos;
+        }
+
+        result.Append(value[sepPos]);
+        return sepPos + 1;
+    }
+
+    private static int SkipSeparators(string value, int currentPos)
+    {
+        while (currentPos < value.Length && DateSeparators.Contains(value[currentPos]))
+        {
+            currentPos++;
+        }
+
+        return currentPos;
     }
 
     private static int FindYearPartIndex(string[] parts)
