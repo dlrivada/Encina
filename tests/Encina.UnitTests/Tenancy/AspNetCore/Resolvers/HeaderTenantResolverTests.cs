@@ -162,7 +162,7 @@ public class HeaderTenantResolverTests
         result.ShouldBeNull();
         var record = _logger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Level.ShouldBe(LogLevel.Debug);
-        record.Id.Id.ShouldBe(3850);
+        record.Id.Id.ShouldBe(11750);
         record.Message.ShouldNotContain("acme");
     }
 
