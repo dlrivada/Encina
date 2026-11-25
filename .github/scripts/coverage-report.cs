@@ -119,6 +119,12 @@ for (int i = 0; i < args.Length; i++)
     }
     if (args[i] == "--check-justifications") checkJustifications = true;
     if (args[i] == "--self-test") selfTest = true;
+    // A value-taking flag with no value is an argument error, never a silent fall back to the default (#2890).
+    if (args[i] is "--output" or "--input" or "--manifest" && i + 1 >= args.Length)
+    {
+        Console.WriteLine($"\nERROR: {args[i]} needs a value.");
+        Environment.Exit(1);
+    }
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) { manifestDir = args[++i]; manifestDirExplicit = true; }
@@ -2705,6 +2711,9 @@ static class ZeroClassifier
             return new(false, "the source does not parse, so no construct could be found");
 
         var root = tree.GetRoot();
+        // No build symbol is defined here, so the code of an #if branch would be invisible: refuse such a file.
+        if (root.DescendantTrivia(descendIntoTrivia: true).Any(t => t.Kind() is SyntaxKind.IfDirectiveTrivia or SyntaxKind.ElifDirectiveTrivia))
+            return new(false, "the file has conditional compilation (#if), which a syntax pass cannot judge");
         var verdict = lowered switch
         {
             "unit" => ClassifyUnit(root),
@@ -2747,6 +2756,7 @@ static class ZeroClassifier
     static string? ExecutableReason(SyntaxNode node) => node switch
     {
         GlobalStatementSyntax => "top-level statements",
+        PrimaryConstructorBaseTypeSyntax { ArgumentList.Arguments.Count: > 0 } => "base constructor arguments",
         TypeDeclarationSyntax { ParameterList: not null } t when t.Kind() is SyntaxKind.ClassDeclaration or SyntaxKind.StructDeclaration
             => $"primary constructor of {t.Identifier.Text}",
         MethodDeclarationSyntax m => MethodReason(m),
@@ -2779,10 +2789,11 @@ static class ZeroClassifier
 
     static string? FieldReason(BaseFieldDeclarationSyntax f)
     {
-        if (f is EventFieldDeclarationSyntax || f.Modifiers.Any(SyntaxKind.ConstKeyword)) return null;
-        var withInitializer = ((FieldDeclarationSyntax)f).Declaration.Variables.FirstOrDefault(
-            v => v.Initializer is { } i && !IsHolderInitializer(f, ((FieldDeclarationSyntax)f).Declaration.Type, i.Value));
-        return withInitializer is null ? null : $"field {withInitializer.Identifier.Text} with an initializer";
+        if (f.Modifiers.Any(SyntaxKind.ConstKeyword)) return null;
+        var isEvent = f is EventFieldDeclarationSyntax;
+        var withInitializer = f.Declaration.Variables.FirstOrDefault(
+            v => v.Initializer is { } i && (isEvent || !IsHolderInitializer(f, f.Declaration.Type, i.Value)));
+        return withInitializer is null ? null : $"{(isEvent ? "event" : "field")} {withInitializer.Identifier.Text} with an initializer";
     }
 
     // A static Meter / ActivitySource holder member: `new Meter(...)`, `new ActivitySource(...)` or
@@ -2790,15 +2801,25 @@ static class ZeroClassifier
     static bool IsHolderInitializer(MemberDeclarationSyntax member, TypeSyntax declaredType, ExpressionSyntax value)
     {
         if (member.Parent is not TypeDeclarationSyntax owner || !owner.Modifiers.Any(SyntaxKind.StaticKeyword)) return false;
-        if (value.DescendantNodesAndSelf().OfType<AnonymousFunctionExpressionSyntax>().Any()) return false;
+        if (HasNestedCode(value)) return false;
         return value switch
         {
             ObjectCreationExpressionSyntax c => IsHolderType(RightmostName(c.Type)),
             ImplicitObjectCreationExpressionSyntax => IsHolderType(RightmostName(declaredType)),
-            InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax a } => a.Name.Identifier.Text.StartsWith("Create", StringComparison.Ordinal),
+            InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } a } =>
+                receiver.Identifier.Text.Contains("meter", StringComparison.OrdinalIgnoreCase) && InstrumentFactories.Contains(a.Name.Identifier.Text),
             _ => false
         };
     }
+
+    // The Meter factory methods a holder may call on its own Meter field.
+    static readonly HashSet<string> InstrumentFactories = new(
+        ["CreateCounter", "CreateHistogram", "CreateUpDownCounter", "CreateGauge"], StringComparer.Ordinal);
+
+    // A lambda, a call (other than nameof) or a creation inside the initializer's arguments is code.
+    static bool HasNestedCode(ExpressionSyntax value) => value.DescendantNodes().Any(n =>
+        n is AnonymousFunctionExpressionSyntax or BaseObjectCreationExpressionSyntax
+        || n is InvocationExpressionSyntax { Expression: not IdentifierNameSyntax { Identifier.Text: "nameof" } });
 
     static bool IsHolderType(string name) => name is "Meter" or "ActivitySource";
 
@@ -2841,9 +2862,9 @@ static class ZeroClassifier
             => ReferenceParameter(m.ParameterList, Describe(m)),
         IndexerDeclarationSyntax ix when !IsPrivateMember(ix) && (ix.ExpressionBody is not null || ix.AccessorList?.Accessors.Any(a => a.Body is not null || a.ExpressionBody is not null) == true)
             => ReferenceParameter(ix.ParameterList, Describe(ix)),
-        TypeDeclarationSyntax { ParameterList: { } pl } t when !IsPrivateMember(t)
-            && t.Kind() is SyntaxKind.ClassDeclaration or SyntaxKind.StructDeclaration or SyntaxKind.RecordDeclaration or SyntaxKind.RecordStructDeclaration
-            => ReferenceParameter(pl, $"primary constructor of {t.Identifier.Text}"),
+        // A primary constructor, or the receiver of a C# 14 extension block (the only other type with a parameter list).
+        TypeDeclarationSyntax { ParameterList: { } pl } t when t.Kind() == SyntaxKind.ExtensionBlockDeclaration || !IsPrivateMember(t)
+            => ReferenceParameter(pl, t.Kind() == SyntaxKind.ExtensionBlockDeclaration ? "extension block" : $"primary constructor of {t.Identifier.Text}"),
         _ => null
     };
 
@@ -2961,6 +2982,12 @@ static class ZeroSelfTest
         ("unit: Meter field in a class that is not static", "unit", "public class C { readonly Meter M = new(\"n\"); }", "field M with an initializer"),
         ("unit: holder with a callback", "unit", "internal static class M { static readonly Meter Meter = new(\"n\"); static readonly ObservableGauge<int> G = Meter.CreateObservableGauge(\"g\", () => 1); }", "field G with an initializer"),
         ("unit: partial method without [LoggerMessage]", "unit", "public static partial class L { public static partial void Run(string a); }", "partial method Run without [LoggerMessage]"),
+        ("unit: static factory call that is not a Meter", "unit", "public static class K { public static readonly Order D = OrderFactory.CreateDefault(); }", "field D with an initializer"),
+        ("unit: holder whose arguments call code", "unit", "internal static class M { internal static readonly Meter Meter = new(Name()); }", "field Meter with an initializer"),
+        ("unit: event with an initializer", "unit", "public class C { public event EventHandler E = Make(); }", "event E with an initializer"),
+        ("unit: record with base constructor arguments", "unit", "public record R(int A) : Base(Compute());", "base constructor arguments"),
+        ("unit: conditional compilation", "unit", "#if NET10_0_OR_GREATER\npublic class C { public void A() { } }\n#endif", "conditional compilation"),
+        ("guard: extension block receiver", "guard", "public static class E { extension(IServiceCollection s) { public IServiceCollection AddX() { return s; } } }", "extension block takes the reference-type parameter 's'"),
         ("unit: primary constructor of a class", "unit", "public class C(string a);", "primary constructor of C"),
         ("unit: top-level statements", "unit", "System.Console.WriteLine(1);", "top-level statements"),
         ("unit: default interface method", "unit", "public interface I { int A() => 1; }", "method A with a body"),
