@@ -237,8 +237,8 @@ A zero is exempt only when the file matches the closed list below. The list is e
 
 | Flag | The zero is exempt when the file has only |
 | --- | --- |
-| `unit` | Interfaces, enums, delegates, body-less records, constants, auto-properties, abstract members, field-like events, `[LoggerMessage]` partial methods and static `Meter` or `ActivitySource` holder fields with no lambda in them. Any method, constructor or accessor body, any other initializer and any primary constructor is executable code. |
-| `guard` | No non-private method, constructor or primary constructor with a body that takes a reference-type parameter. Value types and `out` parameters do not count; a type name the syntax pass cannot resolve counts as a reference type. |
+| `unit` | Interfaces, enums, delegates, body-less records, constants, auto-properties, abstract members, field-like events, `[LoggerMessage]` partial methods and static `Meter` or `ActivitySource` holder fields with no lambda in them. Any method, constructor or accessor body, any other initializer and any class or struct primary constructor is executable code. |
+| `guard` | No non-private method, constructor, indexer or primary constructor with a body that takes a reference-type parameter. Value types and `out` parameters do not count; a type name the syntax pass cannot resolve counts as a reference type. |
 | `contract` | Nothing that is a public interface or an abstract type, and nothing that implements or extends a type outside a closed list of BCL and `Microsoft.Extensions` bases. An unknown base might be an Encina-owned contract, so it is not exempt. |
 
 ```powershell
