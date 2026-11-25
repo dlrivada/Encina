@@ -36,14 +36,14 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | Name | Block | Area | Zone |
 | --- | --- | --- | --- |
 | Core | 10000-10099 | Core and messaging | zone |
-| DomainModelingRepository | 1100-1199 | Core and messaging | historical |
-| DomainModelingUnitOfWork | 1200-1299 | Core and messaging | historical |
-| DomainModelingBulkOperations | 1300-1399 | Core and messaging | historical |
-| DomainModelingSpecification | 1400-1499 | Core and messaging | historical |
-| DomainModelingAudit | 1600-1699 | Core and messaging | historical |
-| Tenancy | 1800-1899 | Core and messaging | historical |
-| DomainModelingDomainEvents | 2500-2549 | Core and messaging | historical |
-| TenancyAspNetCore | 3850-3899 | Core and messaging | historical |
+| DomainModelingRepository | 10100-10199 | Core and messaging | zone |
+| DomainModelingUnitOfWork | 10200-10299 | Core and messaging | zone |
+| DomainModelingBulkOperations | 10300-10399 | Core and messaging | zone |
+| DomainModelingSpecification | 10400-10499 | Core and messaging | zone |
+| DomainModelingAudit | 10500-10599 | Core and messaging | zone |
+| Tenancy | 10600-10699 | Core and messaging | zone |
+| DomainModelingDomainEvents | 11250-11299 | Core and messaging | zone |
+| TenancyAspNetCore | 11750-11799 | Core and messaging | zone |
 | ModuleIsolation | 1900-1999 | Core and messaging | historical |
 | MessagingOutbox | 2000-2099 | Core and messaging | historical |
 | MessagingInbox | 2100-2199 | Core and messaging | historical |
@@ -290,23 +290,23 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 9800-9899 | Security and compliance | compliance-nis2-1 (#822 owns the range) Note: proposed in PR #3509 | reserved-pre-zone |
 | 9900-9949 | Security and compliance | wave 3 (plan-batch-2): audit-stores-1 Note: assigned | reserved-pre-zone |
 | 10000-10099 | Core and messaging | #4007 Core (CM-1) | registered |
-| 10100-10199 | Core and messaging | #4007 DomainModelingRepository (CM-2) | reserved |
-| 10200-10299 | Core and messaging | #4007 DomainModelingUnitOfWork (CM-2) | reserved |
-| 10300-10399 | Core and messaging | #4007 DomainModelingBulkOperations (CM-2) | reserved |
-| 10400-10499 | Core and messaging | #4007 DomainModelingSpecification (CM-2) | reserved |
-| 10500-10599 | Core and messaging | #4007 DomainModelingAudit (CM-2) | reserved |
-| 10600-10699 | Core and messaging | #4007 Tenancy (CM-2) | reserved |
+| 10100-10199 | Core and messaging | #4007 DomainModelingRepository (CM-2) | registered |
+| 10200-10299 | Core and messaging | #4007 DomainModelingUnitOfWork (CM-2) | registered |
+| 10300-10399 | Core and messaging | #4007 DomainModelingBulkOperations (CM-2) | registered |
+| 10400-10499 | Core and messaging | #4007 DomainModelingSpecification (CM-2) | registered |
+| 10500-10599 | Core and messaging | #4007 DomainModelingAudit (CM-2) | registered |
+| 10600-10699 | Core and messaging | #4007 Tenancy (CM-2) | registered |
 | 10700-10799 | Core and messaging | #4007 ModuleIsolation (CM-3) | reserved |
 | 10800-10899 | Core and messaging | #4007 MessagingOutbox (CM-3) | reserved |
 | 10900-10999 | Core and messaging | #4007 MessagingInbox (CM-3) | reserved |
 | 11000-11099 | Core and messaging | #4007 MessagingSaga (CM-3) | reserved |
 | 11100-11199 | Core and messaging | #4007 MessagingScheduling (CM-3) | reserved |
 | 11200-11249 | Core and messaging | #4007 MessagingEncryption (CM-5) | reserved |
-| 11250-11299 | Core and messaging | #4007 DomainModelingDomainEvents (CM-2) | reserved |
+| 11250-11299 | Core and messaging | #4007 DomainModelingDomainEvents (CM-2) | registered |
 | 11300-11349 | Core and messaging | #4007 AuditMarten (CM-6) | reserved |
 | 11350-11549 | Core and messaging | #4007 Marten (CM-6) | reserved |
 | 11550-11749 | Core and messaging | #4007 Messaging (CM-4) | reserved |
-| 11750-11799 | Core and messaging | #4007 TenancyAspNetCore (CM-2) | reserved |
+| 11750-11799 | Core and messaging | #4007 TenancyAspNetCore (CM-2) | registered |
 | 11800-11899 | Core and messaging | #4007 Cdc (CM-5) | reserved |
 | 11900-11949 | Core and messaging | #4007 CdcSqlServer (CM-5) | reserved |
 | 11950-11999 | Core and messaging | #4007 CdcDebezium (CM-5) | reserved |
@@ -409,7 +409,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 | Cdc 4800-4899 | 4854-4891 | #2393, #634, #635, #636 |
 | Kafka | 4156-4175 | #587 |
 | Security 8000-8009 | 8005-8007 | #204 |
-| Tenancy | 1805-1810 | #711 |
+| Tenancy | 10605-10610 | #711 |
 | SecurityAuditRead | 1750-1755 | #1194 |
 | AspNetCore 200-249 | 226-229 | #454 |
 | AspNetCore 200-249 | 230-231 | #355 |
