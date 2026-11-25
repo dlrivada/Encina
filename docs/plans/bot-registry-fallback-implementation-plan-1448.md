@@ -2,7 +2,7 @@
 
 > **Issue**: [#1448](https://github.com/dlrivada/Encina/issues/1448) - [FEATURE] Bot registry (tools/ai/bots.json) and automatic BOT-UNAVAILABLE detection with fallback
 > **Status**: Draft plan (written against `origin/main` 4b0a600c7, 2026-11-25)
-> **Piece**: 2 of the "Fallback system for external review bots" epic. Piece 1 (`pr-reviewer`, `.claude/agents/pr-reviewer.md`) is already on `main`.
+> **Piece**: 2 of the "Fallback system for external review bots" epic ([#1453](https://github.com/dlrivada/Encina/issues/1453)). Piece 1 (`pr-reviewer`, `.claude/agents/pr-reviewer.md`) is already on `main`.
 > **Scope note**: repository tooling only. No `src/` code, no .NET package, no EventIds.
 
 ---
