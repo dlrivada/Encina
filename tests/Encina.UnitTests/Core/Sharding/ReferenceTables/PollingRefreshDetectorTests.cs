@@ -143,7 +143,7 @@ public sealed class PollingRefreshDetectorTests
         await _replicator.DidNotReceiveWithAnyArgs().ReplicateAsync<Country>(default);
         await _stateStore.DidNotReceiveWithAnyArgs().SaveHashAsync(default!, default!, default);
         await _stateStore.DidNotReceiveWithAnyArgs().SaveReplicationTimeAsync(default!, default, default);
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 136 && r.Message.Contains("same-hash"));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10036 && r.Message.Contains("same-hash"));
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class PollingRefreshDetectorTests
             Arg.Is<DateTime>(t => t.Kind == DateTimeKind.Utc && t >= before && t <= DateTime.UtcNow),
             Arg.Any<CancellationToken>());
         _logger.Collector.GetSnapshot().ShouldContain(r =>
-            r.Id.Id == 137 && r.Message.Contains("'old-hash'") && r.Message.Contains("'new-hash'"));
+            r.Id.Id == 10037 && r.Message.Contains("'old-hash'") && r.Message.Contains("'new-hash'"));
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public sealed class PollingRefreshDetectorTests
 
         await sut.CheckAndReplicateAsync(Config());
 
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 137 && r.Message.Contains("'(none)'"));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10037 && r.Message.Contains("'(none)'"));
     }
 
     [Fact]
