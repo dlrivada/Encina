@@ -11,7 +11,7 @@
 
 Implement the entity-change audit store (today `IAuditLogStore`, becoming `IEntityChangeAuditStore` under ADR-036, work item #1778) on Marten as `MartenEntityChangeAuditStore`, inside the existing `Encina.Audit.Marten` package. The issue's sample is replaced where it does not hold: it appends the old and new values of every change in clear text to an event stream named `{EntityType}-{EntityId}` (a key that is not injective and has no tenant), calls `SaveChangesAsync` for every entry, and presents "time travel" and "immutability" as features although the entries contain personal data that GDPR Art. 5(1)(e) and SPEC-002 REQ-007 oblige the system to be able to erase at the end of retention, which an immutable event stream cannot do without crypto-shredding.
 
-What the code looks like today (`origin/main` `915db384e`):
+What the code looks like today (`origin/main` `4b0a600c7`):
 
 - `IAuditLogStore` is in `src/Encina.DomainModeling/Auditing/IAuditLogStore.cs` (`Task LogAsync(AuditLogEntry, ...)`, `Task<IEnumerable<AuditLogEntry>> GetHistoryAsync(string entityType, string entityId, ...)`); its implementations are `AuditLogStoreADO` and `AuditLogStoreDapper` (x3 each), `AuditLogStoreEF`, `AuditLogStoreMongoDB` and `InMemoryAuditLogStore`. ADR-036 reshapes it (`Either`, `TimeProvider`, `TenantId`, `ModuleId`, `PurgeEntriesAsync`, a redaction hook for old and new values, `ChangedAtUtc` as `DateTimeOffset`) and moves it to `Encina.Security.Audit`; that work is **#1778, open**. Its only writer is the EF Core `AuditInterceptor`.
 - `src/Encina.Audit.Marten` already holds `MartenOperationAuditStore` and `MartenReadAuditStore`, an `AuditEventEncryptor` (field encryption per temporal period), `ITemporalKeyProvider` with `DestroyKeysBeforeAsync(olderThanUtc, granularity, reference, ...)` (crypto-shredding), async projections registered by `ConfigureMartenOperationAuditProjections`, and `MartenOperationAuditRetentionService`. The package references `Encina.Marten`, `Encina.Marten.GDPR`, `Encina.Security.Audit` and `Encina.Security.Encryption`, and grants `InternalsVisibleTo` to the unit, integration, contract, property and guard test projects. `MartenReadAuditStore` builds stream ids as `read-audit:{entityType}:{entityId}` (no tenant segment) and calls `SaveChangesAsync` itself.
@@ -117,15 +117,15 @@ What the code looks like today (`origin/main` `915db384e`):
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `PurgeEntriesAsync` destroys the temporal keys older than the cutoff through the existing `DestroyKeysBeforeAsync`, with one retention (`EntityChangeAuditOptions`, 2555 days by default) for every tenant; it returns the number of entries it made unreadable** | Works with today's key provider; the retention service of the package already runs it | The keys are per period, not per tenant: one tenant's shorter retention cannot be honored alone |
-| **B) Tenant-scoped temporal keys (a tenant argument on `ITemporalKeyProvider`) so that `PurgeEntriesAsync(tenant, cutoff)` shreds one tenant** | Per-tenant retention, as the retention design of #4182 expects | Changes the key provider contract and the keys of the operation and read stores; a prerequisite larger than this issue |
+| **A) `PurgeEntriesAsync(tenant, cutoff)` destroys the temporal keys older than the cutoff through the existing `DestroyKeysBeforeAsync(cutoff, granularity, reference, ...)`, which has no tenant parameter (`src/Encina.Audit.Marten/Crypto/ITemporalKeyProvider.cs`): a destroyed period is destroyed for every tenant. So under A the store accepts only a cutoff that is not later than the global retention cutoff (`EntityChangeAuditOptions`, 2555 days by default, from `TimeProvider`); a later, tenant-specific cutoff returns `Left(audit.marten.purge_cutoff_invalid)` (`ErrorCategory.InvalidRequest`) because it would shred another tenant's entries that are still inside retention; the tenant argument is validated (required under tenancy, reserved `default`) and scopes only the read model rows removed; it returns the number of entries it made unreadable** | Works with today's key provider; no tenant's retained entries can be destroyed by another tenant's call; the retention service of the package already runs it | The keys are per period, not per tenant: one tenant's shorter retention cannot be honored alone; A is cross-tenant by construction for the keys, and the README says so |
+| **B) Tenant-scoped temporal keys (a tenant argument on `ITemporalKeyProvider.DestroyKeysBeforeAsync` and a key per tenant and period) so that `PurgeEntriesAsync(tenant, cutoff)` shreds one tenant** | Per-tenant retention, as the retention design of #4182 expects | Changes the key provider contract and the keys of the operation and read stores; the contract change would be owned by #4182 (its design) and #800 (the key provider), not by this plan; a prerequisite larger than this issue |
 | **C) Delete events and read model rows** | Per-tenant | Breaks the append-only guarantee and leaves events that cannot be proven deleted |
 
 ### Chosen Option: **A — one retention through the existing key destruction** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins when one legal retention applies to all tenants (the ADR-036 default); B wins when tenants must have different retentions, which is #4182's open design; the plan takes the tenant argument of the contract so that moving to B is a change inside the key provider, not in this store. The read model rows of destroyed periods are removed by the same service. The destruction carries a `KeyDestructionReference` (`RetentionReference`), recorded by the #2847 recorder.
+- A wins when one legal retention applies to all tenants (the ADR-036 default); B wins when tenants must have different retentions, which is #4182's open design; the plan takes the tenant argument of the contract so that moving to B is a change inside the key provider (owned by #4182 and #800), not in this store; under A the argument never scopes the key destruction and the cutoff guard above keeps the call safe for every tenant. The read model rows of destroyed periods are removed by the same service. The destruction carries a `KeyDestructionReference` (`RetentionReference`), recorded by the #2847 recorder.
 
 </details>
 
@@ -166,7 +166,8 @@ What the code looks like today (`origin/main` `915db384e`):
 
 ### Rationale
 
-- B would let an entry vanish without an error, which the fail-closed rule forbids. A duplicate entry id is detected by the write: the event id equals the entry id, so a retry of the same entry is idempotent and a different payload under the same id is a `Left` (`AlreadyExists`, ADR-062).
+- B would let an entry vanish without an error, which the fail-closed rule forbids. Idempotent retry has an explicit mechanism: the event id equals the entry id; before appending, the store looks the event id up in the raw event table (`session.Events.QueryAllRawEvents()` filtered by id, an indexed primary-key read, not the eventually consistent read model). When the event exists, the store compares the ciphertext-independent fields (entity type, entity id, action, user id, `ChangedAtUtc`, tenant, module, correlation id; the encrypted values differ per call because of the nonce): equal means success without a second append, different means `Left(audit.marten.entry_conflict)` (`ErrorCategory.AlreadyExists`, ADR-062). When two writers race, the loser's `SaveChangesAsync` fails on the unique event id (a PostgreSQL `23505` in the exception chain); the store catches exactly that and repeats the lookup and comparison once, so the loser gets the same answer; any other exception is a `Left(audit.marten.store_unavailable)`, never swallowed. The integration test of Phase 5 covers retry, different payload and the race.
+- New error codes in `MartenAuditErrors.cs` (which today holds `audit.marten.*` codes such as `encryption_failed`, `key_not_found`, `query_failed`, `store_unavailable`; none for tenants, conflicts, keys or purge cutoffs), each with its ADR-062 category: `audit.marten.tenant_required` (`InvalidRequest`: tenancy is on and the entry has no tenant, or the tenant is the reserved `default`), `audit.marten.entry_conflict` (`AlreadyExists`), `audit.marten.stream_key_too_long` (`InvalidRequest`: the encoded stream id exceeds the 250-character limit the plan sets, checked before any I/O) in PR 1, and `audit.marten.purge_cutoff_invalid` (`InvalidRequest`, Design Choice 5) in PR 4. The `audit.marten.` prefix is the package's own, as `entity_change_audit.*` is #578's.
 
 </details>
 
@@ -182,9 +183,10 @@ What the code looks like today (`origin/main` `915db384e`):
 1. `Events/EntityChangeAuditEntryRecordedEvent.cs` (new): id, entity type, entity id, action, user id, `ChangedAtUtc`, tenant id, module id, encrypted old and new values (`EncryptedField`), correlation id.
 2. `AuditEventEncryptor.cs` (edit): `EncryptEntityChangeEntryAsync(EntityChangeAuditEntry, ct)` using the temporal key of `ChangedAtUtc`'s period; no key is a `Left`.
 3. `Internal/EntityChangeStreamKeys.cs` (new, internal): the injective stream id of Design Choice 4 and the tenant rule (`default` reserved, deny without tenant under tenancy).
-4. Tests: `AuditEventEncryptorEntityChangeTests` (round trip, no key, destroyed key), `EntityChangeStreamKeysTests` (colliding triples, `:` and `%` in ids, reserved tenant), `EntityChangeAuditEntryRecordedEventTests`; `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Audit.Marten.json` (edit).
+4. `MartenAuditErrors.cs` (edit): `TenantRequiredCode`, `EntryConflictCode`, `StreamKeyTooLongCode` with the ADR-062 categories of Design Choice 7.
+5. Tests: `AuditEventEncryptorEntityChangeTests` (round trip, no key, destroyed key), `AuditEventEncryptorEntityChangeGuardTests` (new, `Encina.GuardTests`: null entry, cancelled token), `EntityChangeStreamKeysTests` (colliding triples, `:` and `%` in ids, reserved tenant, over-long key), `EntityChangeAuditEntryRecordedEventTests`; `PublicAPI.Unshipped.txt`; `.github/coverage-manifest/Encina.Audit.Marten.json` (edit).
 
-Files: 8.
+Files: 10 (event, encryptor edit, stream keys, errors edit, 4 test files, PublicAPI, manifest). Hard prerequisite: #1778 (`EntityChangeAuditEntry` comes from `Encina.Security.Audit`), so PR 1 cannot start before it merges.
 
 </details>
 
@@ -222,9 +224,9 @@ REFERENCE FILES:
 
 1. `Projections/EntityChangeAuditEntryProjection.cs` and `Projections/EntityChangeAuditEntryReadModel.cs` (new): decrypt while projecting, `TenantId`, `EntityType`, `EntityId`, `ChangedAtUtc` indexed; a destroyed key projects a marker row (as `TemporalKeyDestroyedMarker` does for the other stores), never an exception.
 2. `Projections/ConfigureMartenEntityChangeAuditProjections.cs` (new): registers the async projection; the `AuditProjectionErrorPolicyStartupGuard` already checks the error policy for the package.
-3. Tests, `PublicAPI.Unshipped.txt`, manifest.
+3. Tests (`EntityChangeAuditEntryProjectionTests`, `EntityChangeAuditEntryProjectionRegistrationTests` with a real store, `EntityChangeAuditEntryReadModelGuardTests` in `Encina.GuardTests`), `PublicAPI.Unshipped.txt`, manifest.
 
-Files: 7.
+Files: 8.
 
 </details>
 
@@ -257,7 +259,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `MartenEntityChangeAuditStore.cs` (new): implements `IEntityChangeAuditStore`; constructor `(IDocumentSession session, AuditEventEncryptor encryptor, ITemporalKeyProvider keyProvider, IOptions<...> options, ILogger<MartenEntityChangeAuditStore> logger, TimeProvider? timeProvider = null)`; write, history and purge per Design Choices 4, 5 and 7.
-2. `ServiceCollectionExtensions.cs` (edit): `AddEncinaAuditMarten` registers the store when `UseEntityChangeAuditStore` is on, replacing the in-memory default in any registration order and never the application's own registration (the store of the package wins over `InMemoryEntityChangeAuditStore`).
+2. `ServiceCollectionExtensions.cs` (edit): a new explicit opt-in method `AddEncinaMartenEntityChangeAudit(this IServiceCollection)` (no options flag, so no options class is edited; `MartenOperationAuditOptions` belongs to the operation store). The existing `services.Replace(ServiceDescriptor.Scoped<IOperationAuditStore, ...>())` at `ServiceCollectionExtensions.cs:125-126` would override an application registration, so it is not reused: the method uses the marked-default-descriptor mechanism of #596's `TenantStoreRegistration` (the in-memory default `InMemoryEntityChangeAuditStore` is registered by #1778 as a marked descriptor, and the Marten store replaces only that marked default, in either order, never an application's own registration). The helper for `IEntityChangeAuditStore` is added by #1778 or by the first backend plan that lands (#575-#582 share it); when none exists at PR 3, PR 3 adds the small internal helper itself, which is already inside the 8 files counted below.
 3. Tests: `MartenEntityChangeAuditStoreTests` (NSubstitute `IDocumentSession`: every `Left` path), registration test with `ValidateOnBuild` and `ValidateScopes`, guard tests, `PublicAPI.Unshipped.txt`, manifest.
 
 Files: 8.
@@ -294,13 +296,13 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. Retention adds no new service: the `EntityChangeAuditRetentionService` of #1778 calls `PurgeEntriesAsync`; `MartenEntityChangeAuditStore.PurgeEntriesAsync` calls `DestroyKeysBeforeAsync` with a `RetentionReference` and removes the read model rows of the destroyed periods.
+1. Retention adds no new service: the `EntityChangeAuditRetentionService` of #1778 calls `PurgeEntriesAsync`; `MartenEntityChangeAuditStore.PurgeEntriesAsync` first checks the cutoff against the global retention cutoff (a later cutoff is `Left(audit.marten.purge_cutoff_invalid)`, Design Choice 5), then calls `DestroyKeysBeforeAsync` with a `RetentionReference` (it has no tenant parameter, so the destruction is cross-tenant by construction and safe only because of that check) and removes the given tenant's read model rows of the destroyed periods. `MartenAuditErrors.cs` (edit) adds `PurgeCutoffInvalidCode`.
 2. `Health/MartenEntityChangeAuditHealthCheck.cs` (new): `DefaultName`, static `Tags`; read-only probe of the read model.
 3. `Diagnostics/MartenEntityChangeAuditLog.cs` (new, `[LoggerMessage]`); `src/Encina/Diagnostics/EventIdRanges.cs` (edit: `AuditMartenEntityChange = (52650, 52699)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`).
 4. Spans and counters through the `InstrumentedEntityChangeAuditStore` of #1778, which wraps any store; the Marten-specific meter instruments of the package are not extended.
 5. Tests for purge (count, no keys, a failed destruction), health and logs; package `PublicAPI.Unshipped.txt`; manifest.
 
-Files: 12.
+Files: 13 (the 12 of the first version plus the `MartenAuditErrors.cs` edit).
 
 </details>
 
@@ -317,7 +319,7 @@ Implement PurgeEntriesAsync through DestroyKeysBeforeAsync, the health check, th
 KEY RULES:
 - Register AuditMartenEntityChange (52650, 52699) in EventIdRanges.cs before using an id; pack ids from 52650; map Encina.Audit.Marten's new range in AssemblyRanges.
 - A purge failure is a Left, never reported as success; logs carry codes and exception types only, never EncinaError.Message.
-- The tenant is passed explicitly by the retention service (#4182); there is no cross-tenant opt-in.
+- The tenant is passed explicitly by the retention service (#4182); DestroyKeysBeforeAsync has no tenant parameter, so a cutoff later than the global retention cutoff is refused with audit.marten.purge_cutoff_invalid and never shreds another tenant's retained entries.
 
 REFERENCE FILES:
 - src/Encina.Audit.Marten/MartenOperationAuditRetentionService.cs
@@ -407,7 +409,7 @@ REFERENCE FILES:
 | ADR-036 | The three stores, the entity-change contract, decision 6 (Marten not in 1.0) |
 | ADR-019, ADR-027 | Event-sourced stores have no InMemory variant; Marten is the event-sourcing provider |
 | GDPR Art. 5(1)(e), SPEC-002 REQ-007 | Storage limitation: old and new values must be erasable at the end of retention |
-| ADR-062 | Categories: `AlreadyExists` for a conflicting id, `InvalidRequest` for a missing tenant under tenancy, existing `MartenAuditErrors` codes for store failures (this plan adds no error code) |
+| ADR-062 | Categories of the four new `MartenAuditErrors` codes: `audit.marten.entry_conflict` `AlreadyExists`; `audit.marten.tenant_required`, `audit.marten.stream_key_too_long` and `audit.marten.purge_cutoff_invalid` `InvalidRequest`; existing `MartenAuditErrors` codes cover store failures |
 | SPEC-000 section 6 (DEC-009) | The only list of 1.0 exclusions; not listing #575 puts it in 1.0 |
 
 ### Existing Encina Infrastructure to Leverage
@@ -440,10 +442,10 @@ Per-file coverage targets (numeric, per flag):
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Event, encryptor, keys (PR 1) | 8 | |
-| Projection and read model (PR 2) | 7 | |
+| Event, encryptor, keys, error codes (PR 1) | 10 | Includes `MartenAuditErrors.cs` and the guard tests; depends on #1778 |
+| Projection and read model (PR 2) | 8 | Includes a guard test file |
 | Store and registration (PR 3) | 8 | |
-| Retention, health, EventIds (PR 4) | 12 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2 counted |
+| Retention, health, EventIds (PR 4) | 13 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2, `MartenAuditErrors.cs` counted |
 | Integration tests and changelog (PR 5) | 2 | |
 | Documentation (PR 6) | 3 | `docs-writer`; includes the ADR-036 amendment |
 
@@ -494,7 +496,7 @@ REFERENCE FILES:
 | 6 | Resilience | ❌ | A failed write is a `Left` that fails the unit of work; retrying inside the store would hide it |
 | 7 | Distributed Locks | ❌ | Append to a stream and the entry-id check need no coordination |
 | 8 | Transactions | ✅ | One Marten `SaveChangesAsync` per entry; not atomic with an entity change in another database (documented) |
-| 9 | Idempotency | ✅ | The event id is the entry id: a retry is idempotent, a different payload is a `Left` |
+| 9 | Idempotency | ✅ | The event id is the entry id; a lookup of the event id by primary key plus a ciphertext-independent comparison makes a retry idempotent, a different payload is `Left(audit.marten.entry_conflict)`, a race is resolved by catching the unique violation once (Design Choice 7) |
 | 10 | Multi-Tenancy | ✅ | Tenant-qualified injective stream id, `TenantId` on the read model, deny without tenant under tenancy, reserved `default` |
 | 11 | Module Isolation | ✅ | `ModuleId` is carried on the event and the read model, as ADR-036 requires |
 | 12 | Audit Trail | ✅ | This is the entity-change audit trail |
@@ -503,7 +505,7 @@ REFERENCE FILES:
 
 ## Prerequisites & Dependencies
 
-- **Hard prerequisite**: #1778 (open): `IEntityChangeAuditStore`, `EntityChangeAuditEntry`, `EntityChangeAuditOptions` and the redaction hook in `Encina.Security.Audit`. Phase 1 can start with the event and keys before it merges; Phase 3 cannot.
+- **Hard prerequisite for every pull request**: #1778 (open): `IEntityChangeAuditStore`, `EntityChangeAuditEntry`, `EntityChangeAuditOptions` and the redaction hook in `Encina.Security.Audit`. Phase 1 already uses `EntityChangeAuditEntry` (`EncryptEntityChangeEntryAsync`), which does not exist before #1778 (today the type is `AuditLogEntry` in `Encina.DomainModeling`), so no pull request of this plan builds before #1778 merges.
 - **Decision prerequisite**: Design Choice 1 (ADR-036 decision 6); under B nothing in this plan is built.
 - #4182 (open) decides per-tenant retention (Design Choice 5 option B); #800 and #2847 own the temporal keys and the erasure recording this plan reuses; #1257 owns the reserved tenant.
 
