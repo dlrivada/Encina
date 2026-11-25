@@ -154,7 +154,7 @@ public abstract class ABACDecisionAuditRoundTripTestsBase
         exported.Match(Right: count => count, Left: error => throw new ShouldAssertException(error.GetCode().IfNone("<none>"))).ShouldBe(2);
         var lines = Encoding.UTF8.GetString(stream.ToArray()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         lines.Length.ShouldBe(2);
-        lines.ShouldAllBe(line => JsonDocument.Parse(line).RootElement.GetProperty("schema").GetString() == ABACDecisionAuditSchema.SchemaVersion);
+        lines.ShouldAllBe(line => JsonElement.Parse(line).GetProperty("schema").GetString() == ABACDecisionAuditSchema.SchemaVersion);
     }
 
     [Fact]
