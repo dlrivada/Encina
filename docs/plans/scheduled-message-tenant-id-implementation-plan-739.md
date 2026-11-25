@@ -2,7 +2,7 @@
 
 > **Issue**: [#739](https://github.com/dlrivada/Encina/issues/739)
 > **Type**: Feature (SPEC-002 REQ-061, AC-043; delivered with #1164, tracked by #1186)
-> **Complexity**: High (8 phases, 10 database providers, 15 pull requests, about 112 file touches)
+> **Complexity**: High (8 phases, 10 database providers, 15 pull requests, about 119 file touches)
 > **Estimated Scope**: ~600 lines of production code + ~3,200 lines of tests, SQL scripts, manifests and documentation
 > **Related plans** (cited by issue number, not by link): #737 (the outbox row, the template of this plan), #738 (the saga row, the template of the split), #760 (the inbox row), #1257 (the shared tenant-scope primitive and the default-tenant rule), #346 (the tenant gate and `[TenantAgnostic]`), #2676 (tenant telemetry helper), #735 (the dispatch context built in the processor), #1222 and #146 (schedule key and cancel and reschedule; both wait for this plan), #152 (tenant tag on scheduling telemetry), #159 (tenant-scoped statistics), #1164 (envelope; restores user and correlation)
 
@@ -12,7 +12,7 @@
 
 Give the scheduled message a tenant: `IScheduledMessage.TenantId`, stamped when `SchedulerOrchestrator` creates the row, persisted by all 10 database providers, readable through a strict tenant-filtered query, cancellable only by its tenant, restored in the dispatch context, and fail-closed when a multi-tenant application schedules a message with no tenant. Multi-tenancy is required in 1.0 for every capability SPEC-002 adds or changes (REQ-061, AC-043, reference scenario S11); #737, #739 and #760 are delivered with #1164, and #738 adds the saga row.
 
-**State of `origin/main` (`dfa55c93e`), verified by reading and grep (corrects the issue text).**
+**State of `origin/main` (`1c067b45b`), verified by reading and grep (corrects the issue text).**
 
 - The issue says "13 database providers" and "`ITenantContext`". The matrix is 10 (`AGENTS.md` section 5): ADO.NET x3, Dapper x3, EF Core x3 (one `ScheduledMessageStoreEF` serves SQL Server, PostgreSQL and MySQL) and MongoDB. `ITenantContext` does not exist; the ambient tenant is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`, `WithTenantId` at line 185).
 - `IScheduledMessage` (`src/Encina.Messaging/Scheduling/IScheduledMessage.cs`) has `Id`, `RequestType`, `Content`, `ScheduledAtUtc`, `CreatedAtUtc`, `ProcessedAtUtc`, `ErrorMessage`, `RetryCount`, `NextRetryAtUtc`, `IsRecurring`, `CronExpression`, `LastExecutedAtUtc` and two computed members; there is no tenant. `ScheduledMessageProcessor.cs` documents it ("`IScheduledMessage` does not carry TenantId yet. See Issue #739").
@@ -200,14 +200,37 @@ The change touches interfaces with many implementers (13 `IScheduledMessage`, 10
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) Implementers first, interface last: each provider pull request adds the `TenantId` property, `GetPendingByTenantAsync` and `CancelForTenantAsync` to its concrete classes with SQL and integration test; the interfaces, the decorator and the orchestrator come after every implementer has the members; the factory is untouched** | Every pull request builds and carries its own tests and manifest entries | The members exist on classes before the interfaces have them; 15 pull requests |
-| **B) One pull request** | One review | About 112 file touches: over the limits (needs `size-exception-approved`) |
+| **B) One pull request** | One review | About 119 file touches: over the limits (needs `size-exception-approved`) |
 | **C) Default interface members as a scaffold** | The interface goes first | A compatibility layer merges (`AGENTS.md` section 1) with untested defaults |
 
 ### Chosen Option: **A — implementers first, interface last** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins because the limits are hard gates and a half-wired interface breaks the build; it is the order of #737, #738 and #1222. B wins if the maintainer prefers one large review; C is rejected by the compatibility rule, which is the maintainer's to relax.
+- A wins because the limits are hard gates and a half-wired interface breaks the build; it is the order of #737, #738 and #1222. B wins if the maintainer prefers one large review; C is rejected by the compatibility rule, which is the maintainer's to relax. The same build-order choice is a Dilemma in #159 too (one classification across the family).
+
+</details>
+
+<details>
+<summary><strong>9. Cancelling a stored `[TenantAgnostic]` row (Dilemma D7)</strong></summary>
+
+**Class:** Dilemma
+
+Design Choice 4 stores a row with no tenant for a `[TenantAgnostic]` request type while tenancy is on. `SchedulerOrchestrator.CancelAsync` calls `CancelForTenantAsync` with the resolved tenant when tenancy is on, and with no resolved tenant it denies (fail closed), so such a row cannot be cancelled through the orchestrator.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The orchestrator stays strict; a platform caller with no tenant cancels through the store's system-scope `CancelAsync(Guid)` (the id-only member, kept for the processor and operators)** | No new member; the strict path never touches a null-tenant row; the opt-out stays explicit because a platform caller injects the store, not the tenant-scoped orchestrator | The platform caller bypasses the orchestrator (no logging there) |
+| **B) A second orchestrator method `CancelTenantAgnosticAsync(Guid)` that deletes only rows whose `TenantId IS NULL` and whose request type is `[TenantAgnostic]`** | One public, logged path; cannot touch any tenant's row | One more public method and one more store member (`CancelAgnosticAsync`) on 10 implementers |
+| **C) `CancelAsync` with no tenant cancels a null-tenant row** | One method | Fail open for a caller that merely lost its tenant |
+
+### Chosen Option: **A — the system-scope store member for platform callers** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins on size and on failing closed in the tenant-scoped API; B wins if platform jobs must be audited through the orchestrator; C is rejected by `AGENTS.md` section 3.
 
 </details>
 
@@ -217,7 +240,7 @@ The change touches interfaces with many implementers (13 `IScheduledMessage`, 10
 
 ### Phase 1: ADO.NET and Dapper providers (pull requests 1 to 6)
 
-> **Goal**: The column, the state class and the two tenant members in the six packages, one pull request per package, each carrying its tests and manifest entries (8 files each).
+> **Goal**: The column, the state class and the two tenant members in the six packages, one pull request per package, each carrying its tests and manifest entries. Pull requests 1 to 3 are the ADO.NET packages (SQL Server, PostgreSQL, MySQL) and 4 to 6 the Dapper packages in the same database order; each Dapper pull request merges after the ADO.NET pull request of its database, because both share one inline test schema (task 5). Size: 9 files for pull requests 1 to 3 (8 plus the test schema file) and for pull request 4 (8 plus `DapperStoreEnlistmentTests.cs`), 8 for pull requests 5 and 6.
 
 <details>
 <summary>Tasks</summary>
@@ -228,6 +251,7 @@ Per package (`Encina.ADO.SqlServer|PostgreSQL|MySQL`, `Encina.Dapper.SqlServer|P
 2. `Scheduling/ScheduledMessage.cs`: `public string? TenantId { get; set; }` (compiles against the old interface).
 3. `Scheduling/ScheduledMessageStoreADO.cs` or `ScheduledMessageStoreDapper.cs`: add `TenantId` to the `INSERT` column and parameter lists and to `MapToScheduledMessage` (ADO.NET; Dapper maps by name), and the public methods `GetPendingByTenantAsync(string tenantId, int batchSize, CancellationToken)` and `CancelForTenantAsync(Guid messageId, string tenantId, CancellationToken)` with the strict predicates of Design Choices 2 and 6 and the existing argument checks (`StoreValidationMessages`); a blank tenant throws `ArgumentException`. Database calls stay asynchronous with a `CancellationToken`. The members are concrete until pull request 12a adds them to `IScheduledMessageStore`.
 4. The package's `PublicAPI.Unshipped.txt`, its `.github/coverage-manifest/<Package>.json` entries, a store-level integration test (`[Collection("ADO-<Db>")]` or `[Collection("Dapper-<Db>")]`; `ClearAllDataAsync` in `InitializeAsync`; never `IClassFixture`): tenant round trip, `GetPendingByTenantAsync` isolation between two tenants including a recurring and a future message, a tenant differing only by case is another tenant, `CancelForTenantAsync` of another tenant's id leaves the row, and a guard test edit (null tenant, blank tenant, non-positive batch size, empty id).
+5. The integration tests do not run the `Scripts/*.sql` files: the ADO.NET and Dapper integration fixtures build `ScheduledMessages` from inline DDL in `tests/Encina.TestInfrastructure/Schemas/`. Pull request 1 edits `SqlServerSchema.cs` (line 101, `CREATE TABLE ScheduledMessages`), pull request 2 edits `PostgreSqlSchema.cs` (line 101, `CREATE TABLE IF NOT EXISTS scheduledmessages`, lowercase columns) and pull request 3 edits `MySqlSchema.cs` (line 91): each adds the `TenantId` column with the binary collation of task 1 (lowercase `tenantid` in PostgreSQL) and the tenant index. The Dapper pull request of the same database reuses that edit. Pull request 4 also edits `tests/Encina.UnitTests/Dapper/Messaging/DapperStoreEnlistmentTests.cs` (the SQLite DDL at line 272 of `ScheduledMessages` lacks the column, and the store's `INSERT` now writes it). Verified with `git grep -n -i -E "create table[^;]*scheduledmessages" -- . ":!*.md"` on `origin/main`: the other creators are the 12 SQL scripts of the six packages (task 1), the three CREATE statements in each of `AdoSchemaBuilder.cs` and `DapperSchemaBuilder.cs` (pull request 11), and nothing else; there is no EF migration or model snapshot in the repository, and the EF contexts of the tests (`TestEFDbContext`, `TestPostgreSqlDbContext`, `ContractTestDbContext`, the two `BenchmarkDbContext` classes) map the entity by convention or through `ScheduledMessageConfiguration`, so the new property needs no edit there.
 
 </details>
 
@@ -299,7 +323,7 @@ REFERENCE FILES:
 
 1. PR 9, `Encina.Testing.Fakes`: `FakeScheduledMessage.TenantId`; `FakeScheduledMessageStore` implements the two members in memory with the same predicates; unit tests, PublicAPI, manifest.
 2. PR 10: `ScheduledMessageFaker` (Bogus, class at line 181) and `ArbitraryMessages` (FsCheck, line 132) gain the property with a generator that includes `default`, case-only variants and null; PublicAPI x2 and manifests x2.
-3. PR 11: the two `BenchmarkEntityFactory` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks` and `Encina.Dapper.Benchmarks`), `Infrastructure/BenchmarkEntityFactory.cs` line 301 in each, gain the property (they build against the old interface).
+3. PR 11: the two `BenchmarkEntityFactory` classes (`tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks` and `Encina.Dapper.Benchmarks`), `Infrastructure/BenchmarkEntityFactory.cs` line 301 in each, gain the property (they build against the old interface). The benchmark DDL builders `tests/Encina.BenchmarkTests/Encina.ADO.Benchmarks/Infrastructure/AdoSchemaBuilder.cs` and `tests/Encina.BenchmarkTests/Encina.Dapper.Benchmarks/Infrastructure/DapperSchemaBuilder.cs` (each with the SQL Server, PostgreSQL and MySQL `CREATE TABLE ScheduledMessages` statements at lines 236, 251 and 266) gain the column and the index in the same pull request; benchmarks are not part of the test run, so the gap between pull requests 1 to 6 and 11 breaks no gate. PR 11 is 4 files (the two factories and the two builders).
 
 </details>
 
@@ -333,8 +357,9 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. **PR 12a**: `IScheduledMessage.TenantId` and the two `IScheduledMessageStore` members; `InstrumentedScheduledMessageStore` pass-throughs with spans carrying the error code only; its unit test; a contract test over the fake and one real store; PublicAPI and manifests.
-2. **PR 12b** (needs #1257's first pull request, #346's attribute and #735's pull request A): `SchedulerOrchestrator` takes `ITenantScopeResolver? tenantScopeResolver = null` last (Design Choice 3), stamps the tenant in `ScheduleAsync` and `ScheduleRecurringAsync`, and `CancelAsync` uses `CancelForTenantAsync` when tenancy is on; `ScheduledMessageProcessor` adds `.WithTenantId(message.TenantId)` to the dispatch context of #735; `SchedulingTenantLog` (internal static partial, EventIds 2390-2392: 2390 no-tenant row accepted for a `[TenantAgnostic]` type, once per type, Information, type name only; 2391 schedule denied for a missing tenant, Warning, error code only; 2392 dispatch of a row with no tenant, Debug, message id only); tests: `SchedulerOrchestratorTenantTests` (the six-row matrix of Design Choice 4, recurring, cancel of another tenant's id), `ScheduledMessageProcessorTenantTests` (the context carries the row's tenant; a null-tenant row yields no tenant), guard test for the new optional parameter (null accepted and valid), property test (the stored tenant equals the resolved tenant for any non-blank id).
+2. **PR 12b** (needs #1257's first pull request, #346's attribute and #735's pull request A): `SchedulerOrchestrator` takes `ITenantScopeResolver? tenantScopeResolver = null` last (Design Choice 3; the constructor line at `src/Encina.Messaging/PublicAPI.Unshipped.txt:870` is edited in the same pull request, RS0016/RS0017), stamps the tenant in `ScheduleAsync` and `ScheduleRecurringAsync`, and `CancelAsync` uses `CancelForTenantAsync` when tenancy is on; `ScheduledMessageProcessor` adds `.WithTenantId(message.TenantId)` to the dispatch context of #735; `SchedulingTenantLog` (internal static partial, EventIds 2390-2392: 2390 no-tenant row accepted for a `[TenantAgnostic]` type, once per type, Information, type name only; 2391 schedule denied for a missing tenant, Warning, error code only; 2392 dispatch of a row with no tenant, Debug, message id only); tests: `SchedulerOrchestratorTenantTests` (the six-row matrix of Design Choice 4, recurring, cancel of another tenant's id), `ScheduledMessageProcessorTenantTests` (the context carries the row's tenant; a null-tenant row yields no tenant), guard test for the new optional parameter (null accepted and valid), property test (the stored tenant equals the resolved tenant for any non-blank id).
 3. The EventIds are inside the registered `MessagingScheduling` (2300-2399); the registry row for 2390-2392 is added in this pull request.
+4. PR 12b file list (10 files): `SchedulerOrchestrator.cs`, `ScheduledMessageProcessor.cs`, `SchedulingTenantLog.cs`, the registry row (`docs/engineering/eventid-block-registry.md`), `SchedulerOrchestratorTenantTests.cs`, `ScheduledMessageProcessorTenantTests.cs`, the guard test edit (`SchedulerOrchestratorGuardTests.cs`), the property test, `PublicAPI.Unshipped.txt` of `Encina.Messaging` and the `Encina.Messaging.json` manifest.
 
 </details>
 
@@ -368,7 +393,7 @@ REFERENCE FILES:
 <details>
 <summary>Tasks</summary>
 
-1. A shared two-tenant scenario (`tests/Encina.IntegrationTests/Messaging/Scheduling/TenantScheduledMessageScenario.cs`, like `OutboxAtomicityScenario`) run on the 10 providers: tenant A schedules, tenant B sees none of it, B cannot cancel it, the processor dispatches A's message with A's tenant in the context, a tenant named `default` is a real value, and tenancy off stamps the reserved tenant. Per-family classes (ADO.NET, Dapper, EF Core x3 collections, MongoDB). Load test: tenant-filtered query under concurrent schedule (the table of `AGENTS.md` section 9 asks load for multi-tenancy); benchmark: justification `.md` (the strict query is the indexed path of a non-hot loop).
+1. A shared two-tenant scenario (`tests/Encina.IntegrationTests/Messaging/Scheduling/TenantScheduledMessageScenario.cs`, like `OutboxAtomicityScenario`) run on the 10 providers: tenant A schedules, tenant B sees none of it, B cannot cancel it, the processor dispatches A's message with A's tenant in the context, a tenant named `default` is a real value, and tenancy off stamps the reserved tenant. Per-family classes (ADO.NET, Dapper, EF Core x3 collections, MongoDB). Load test: tenant-filtered query under concurrent schedule (the table of `AGENTS.md` section 9 asks load for multi-tenancy); benchmark: justification `.md` (the strict query is the indexed path of a non-hot loop). PR 13 is 13 files: the scenario, 10 per-provider classes (3 ADO.NET, 3 Dapper, 3 EF Core, 1 MongoDB), the load test and the benchmark `.md`; it adds no source, so no manifest or fixture edit; a fixture edit that turns out to be needed moves to PR 14 to stay at 15 files or fewer.
 2. Cross-tenant follow-ups to existing plans: #1222's unique index becomes `(TenantId, ScheduleKey)`; #146 and #1222 lift their wait on this plan; #152 and #159 add their tenant dimension. These are edits in their pull requests, listed in their plans.
 
 </details>
@@ -435,13 +460,16 @@ REFERENCE FILES:
 
 | File | PR | Flag and target | Justification |
 | --- | --- | --- | --- |
-| each of the 8 `ScheduledMessageStore*.cs` | 1 to 8 | the current manifest targets, not lowered; integration raised by the new cases | Real-database tests cover every predicate, the case-only tenant and the strict cancel. |
-| each of the 8 `ScheduledMessage.cs` | 1 to 8 | unit 0 | Property bags with no executable branch. |
-| `Scheduling/SchedulerOrchestrator.cs` | 12b | unit 90, guard 30 (current, not lowered), integration: the current target | The six-row matrix and the cancel paths are unit tests with a substitute store and resolver. |
-| `Scheduling/ScheduledMessageProcessor.cs` | 12b | unit: the current target, not lowered | The context assertion drives the real processor loop with `FakeTimeProvider`. |
-| `Diagnostics/SchedulingTenantLog.cs` | 12b | unit 0 | `[LoggerMessage]` declarations; generated bodies are not in the file. |
-| `FakeScheduledMessageStore.cs` | 9 | unit 95 | The fake mirrors the predicates and is tested with the same cases. |
-| `InstrumentedScheduledMessageStore.cs` | 12a | unit: the current target, not lowered | The pass-through and span are unit-tested. |
+| `ScheduledMessageStoreADO.cs` of the three ADO.NET packages | 1 to 3 | integration 90, guard 10 (the current per-file targets, not lowered) | Real-database tests cover every predicate, the case-only tenant and the strict cancel. |
+| `ScheduledMessageStoreDapper.cs` of the three Dapper packages | 4 to 6 | integration 90, guard 9 (current, not lowered) | Same real-database cases. |
+| `ScheduledMessageStoreEF.cs` | 7 | integration 90 (the file has no per-file target; the package default is 25, raised here) | Three database collections cover the two members. |
+| `ScheduledMessageStoreMongoDB.cs` | 8 | unit 92, guard 10, integration 95 (current, not lowered) | The MongoDB fixture covers both filters and the index. |
+| each of the 8 `ScheduledMessage.cs` | 1 to 8 | unit 30 and guard 10 (the package defaults, unchanged; 40 and 10 for EF Core, 30 and 10 for MongoDB) | The property bag gains one auto-property with no branch; the stores' tests construct it. |
+| `Scheduling/SchedulerOrchestrator.cs` | 12b | unit 90, guard 30, integration 65 (current, not lowered) | The six-row matrix and the cancel paths are unit tests with a substitute store and resolver. |
+| `Scheduling/ScheduledMessageProcessor.cs` | 12b | unit 70, guard 20 (the package defaults, not lowered) | The context assertion drives the real processor loop with `FakeTimeProvider`. |
+| `Diagnostics/SchedulingTenantLog.cs` (new) | 12b | unit 0, guard 0 | `[LoggerMessage]` declarations with no parameters to guard and no executable body in the file. |
+| `FakeScheduledMessageStore.cs` | 9 | unit 95 (the package default is 60, raised), guard 15 | The fake mirrors the predicates and is tested with the same cases. |
+| `InstrumentedScheduledMessageStore.cs` | 12a | unit 76, guard 71 (current, not lowered) | The pass-through and span are unit-tested. |
 
 Measure with `dotnet test tests\Encina.<Flag>Tests --collect "XPlat Code Coverage" --results-directory artifacts\coverage\<Flag>Tests` and `dotnet run --file .github/scripts/coverage-report.cs -- --input artifacts/coverage --output artifacts/coverage-report`. CRAP: keep each store member at comp 10 or less; the orchestrator's tenant step is one private method.
 
@@ -537,11 +565,12 @@ REFERENCE FILES:
 | Category | Files | Notes |
 |----------|------:|-------|
 | Production | 38 | 8 `ScheduledMessage.cs`, 8 stores, 12 SQL scripts counted as 12 (6 packages x 2), EF configuration, Mongo index creator, interfaces 2, orchestrator, processor, log, decorator, fake x2 |
+| Test infrastructure DDL | 5 | The 3 `TestInfrastructure/Schemas` files, `DapperStoreEnlistmentTests.cs`, and the 2 benchmark schema builders (counted here once, not in the other rows) |
 | Tests | 40 | 8 store integration classes plus 2 extra EF databases, 8 guard edits, orchestrator, processor, contract, property, scenario files, fake and decorator tests |
 | Coverage manifests | 16 | One per touched package per pull request |
-| PublicAPI files | 12 | Per touched package |
+| PublicAPI files | 13 | Per touched package, plus the `SchedulerOrchestrator` constructor line in 12b |
 | Documentation and changelog | 6 | Guide, schema docs, fragment and lines |
-| **Total touches** | **112** | In 15 pull requests: 6 x 8, then 9, 7, 6, 6, 3, 8, 9, 12, 4 |
+| **Total touches** | **119** | In 15 pull requests, in order PR 1 to 6: 9, 9, 9, 9, 8, 8; PR 7 to 11: 9, 7, 6, 6, 4; PR 12a: 8; PR 12b: 10; PR 13: 13; PR 14: 4 (every one at most 15) |
 
 ---
 
@@ -556,7 +585,7 @@ PROJECT CONTEXT:
 - Issue #739: tenant on the scheduled message, following the plan of #737 (outbox) and #738 (saga).
 
 IMPLEMENTATION OVERVIEW:
-PR1-6 ADO.NET and Dapper (column, scripts, concrete members, tests); PR7 EF Core; PR8 MongoDB; PR9 Fakes; PR10 Bogus and FsCheck; PR11 benchmark doubles; PR12a interfaces and decorator; PR12b orchestrator, processor, log; PR13 two-tenant scenario; PR14 docs.
+PR1-6 ADO.NET and Dapper (column, scripts, inline test schema, concrete members, tests; a Dapper PR merges after the ADO.NET PR of its database); PR7 EF Core; PR8 MongoDB; PR9 Fakes; PR10 Bogus and FsCheck; PR11 benchmark doubles and their DDL builders; PR12a interfaces and decorator; PR12b orchestrator, processor, log; PR13 two-tenant scenario; PR14 docs.
 
 KEY PATTERNS:
 - Implementers first, interface last; optional parameters last (CS1737); the factory signature does not change.
@@ -610,6 +639,6 @@ REFERENCE FILES:
 
 ## Next Steps
 
-1. Review this plan; the Dilemmas (choices 1, 2, 3, 6, 7 and 8: tenancy-off value, the strict query, the write-time source, strict cancel, the dispatch tenant and the build order) are answered by the maintainer when work starts; the answers are then recorded in a `## Maintainer Decisions` section added at that time.
-2. Implement pull requests 1 to 11 in any order after the previous merges, then 12a, 12b (after #1257, #346 and #735), 13 and 14.
+1. Review this plan; the Dilemmas (choices 1, 2, 3, 6, 7, 8 and 9: tenancy-off value, the strict query, the write-time source, strict cancel, the dispatch tenant, the build order and the cancel of a `[TenantAgnostic]` row) are answered by the maintainer when work starts; the answers are then recorded in a `## Maintainer Decisions` section added at that time.
+2. Implement pull requests 1 to 3 (ADO.NET), then 4 to 6 (Dapper, each after the ADO.NET pull request of its database), then 7 to 11 in any order, then 12a, 12b (after #1257, #346 and #735), 13 and 14.
 3. Link the plan from #739.
