@@ -180,7 +180,7 @@ public sealed class ReferenceTableReplicatorTests
             .ShouldBe("shard-2:3,shard-3:4");
         await _stores["shard-2"].Received(1).UpsertAsync<Country>(_rows, Arg.Any<CancellationToken>());
         await _stores["shard-3"].Received(1).UpsertAsync<Country>(_rows, Arg.Any<CancellationToken>());
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 133 && r.Message.Contains("7 rows to 2 shards"));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10033 && r.Message.Contains("7 rows to 2 shards"));
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class ReferenceTableReplicatorTests
         var failure = replication.FailedShards.ShouldHaveSingleItem();
         failure.ShardId.ShouldBe("shard-3");
         failure.Error.GetEncinaCode().ShouldBe("test.upsert_failed");
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 134 && r.Message.Contains("1/2 shards succeeded, 1 failed"));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10034 && r.Message.Contains("1/2 shards succeeded, 1 failed"));
     }
 
     [Fact]
@@ -400,7 +400,7 @@ public sealed class ReferenceTableReplicatorTests
         replication.RowsSynced.ShouldBe(0);
         replication.ShardResults.ShouldBeEmpty();
         _logger.Collector.GetSnapshot().ShouldContain(r =>
-            r.Id.Id == 135 && r.Message.Contains(ReferenceTableErrorCodes.PrimaryShardNotFound));
+            r.Id.Id == 10035 && r.Message.Contains(ReferenceTableErrorCodes.PrimaryShardNotFound));
     }
 
     private static void InterlockedMax(ref int target, int value)
