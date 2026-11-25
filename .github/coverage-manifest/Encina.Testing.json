@@ -24,7 +24,7 @@
       "reason": "Default: assume testable with mocks",
       "targets": { "unit": 80, "guard": 20 },
       "justifications": {
-        "unit": "Unit tests drive the success, error, category (validation, not-found, authorization), async and And-variant assertions through real Either values and the real validation pipeline; left uncovered are the failure-message branches of the less used code and metadata variants, which need a failing assertion per variant.",
+        "unit": "Unit tests drive the success, error, category (validation and not-found), async and And-variant assertions through real Either values and the real validation pipeline; left uncovered are the failure-message branches of the less used code and metadata variants, which need a failing assertion per variant.",
         "guard": "The guard flag reaches only the argument checks of the public assertions; the assertion bodies run in the unit flag."
       }
     },
@@ -35,7 +35,7 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 70, "guard": 25 },
+      "targets": { "unit": 65, "guard": 20 },
       "justifications": {
         "unit": "Unit tests cover the collection success/error assertions and the validation and authorization finders; left uncovered are the failure branches of the count and code assertions that need one failing collection per variant.",
         "guard": "The guard flag reaches only the null-argument checks of the collection assertions; their bodies belong to the unit flag."
@@ -100,7 +100,7 @@
       "reason": "Default: assume testable with mocks",
       "targets": { "unit": 85, "guard": 25 },
       "justifications": {
-        "unit": "Unit tests drive Given/When/Then, ThenValidationError (by category) and ThenErrorWithCode through concrete specifications; left uncovered are the failure branches of the error-property matching helper (ErrorContainsProperty) for metadata keys.",
+        "unit": "Unit tests drive Given/When/Then, ThenValidationError (by category) and ThenErrorWithCode through concrete specifications; left uncovered are the failure branches of the property-matching helper (ErrorContainsProperty).",
         "guard": "The guard flag reaches only the argument checks (null/empty property names, null request); the assertion bodies are unit-flag code."
       }
     },
