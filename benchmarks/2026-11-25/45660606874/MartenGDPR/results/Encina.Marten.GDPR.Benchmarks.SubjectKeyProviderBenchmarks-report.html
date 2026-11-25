@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Encina.Marten.GDPR.Benchmarks.SubjectKeyProviderBenchmarks-20261125-174657</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V45 4.11GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+</code></pre>
+<pre><code>Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>SubjectCount</th><th>Mean </th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>GetOrCreateExistingKey</td><td>10</td><td>123.66 ns</td><td>45.104 ns</td><td>2.472 ns</td><td>0.94</td><td>0.03</td><td>2</td><td>0.0200</td><td>-</td><td>336 B</td><td>1.02</td>
+</tr><tr><td>CreateNewKey</td><td>10</td><td>3,506.60 ns</td><td>2,546.291 ns</td><td>139.571 ns</td><td>26.55</td><td>1.18</td><td>3</td><td>0.0534</td><td>0.0496</td><td>952 B</td><td>2.90</td>
+</tr><tr><td>CheckIsForgotten</td><td>10</td><td>65.31 ns</td><td>9.199 ns</td><td>0.504 ns</td><td>0.49</td><td>0.01</td><td>1</td><td>0.0067</td><td>-</td><td>112 B</td><td>0.34</td>
+</tr><tr><td>GetExistingKey</td><td>10</td><td>132.15 ns</td><td>78.810 ns</td><td>4.320 ns</td><td>1.00</td><td>0.04</td><td>2</td><td>0.0196</td><td>-</td><td>328 B</td><td>1.00</td>
+</tr><tr><td>GetOrCreateExistingKey</td><td>100</td><td>134.27 ns</td><td>36.123 ns</td><td>1.980 ns</td><td>0.98</td><td>0.02</td><td>2</td><td>0.0200</td><td>-</td><td>336 B</td><td>1.02</td>
+</tr><tr><td>CreateNewKey</td><td>100</td><td>3,311.52 ns</td><td>381.900 ns</td><td>20.933 ns</td><td>24.08</td><td>0.34</td><td>3</td><td>0.0534</td><td>0.0496</td><td>952 B</td><td>2.90</td>
+</tr><tr><td>CheckIsForgotten</td><td>100</td><td>64.07 ns</td><td>38.319 ns</td><td>2.100 ns</td><td>0.47</td><td>0.01</td><td>1</td><td>0.0067</td><td>-</td><td>112 B</td><td>0.34</td>
+</tr><tr><td>GetExistingKey</td><td>100</td><td>137.53 ns</td><td>37.080 ns</td><td>2.032 ns</td><td>1.00</td><td>0.02</td><td>2</td><td>0.0196</td><td>-</td><td>328 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>
