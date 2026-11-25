@@ -2,8 +2,8 @@
 
 > **Issue**: [#159](https://github.com/dlrivada/Encina/issues/159)
 > **Type**: Feature (observability and operations; `status:proposal`, part of EPIC #3405)
-> **Complexity**: Medium-High (10 database providers for one read member, a snapshot service, gauges, one endpoint; 16 pull requests of 5 to 15 files)
-> **Estimated Scope**: ~700 lines of production code + ~1,900 lines of tests, SQL and manifests; about 124 file touches in 16 pull requests (PR 1, 2 to 9, 10, 11a to 11c, 12, 13a to 13c), none above 15 files
+> **Complexity**: Medium-High (10 database providers for one read member, a snapshot service, gauges, one endpoint; 17 pull requests of 5 to 15 files)
+> **Estimated Scope**: ~700 lines of production code + ~1,900 lines of tests, SQL and manifests; about 123 file touches in 17 pull requests (PR 1, 2 to 9, 10, 11a to 11c, 12, 13a to 13c), none above 15 files
 > **Family**: scheduling-3. Siblings are cited by issue number only: #152 (spans and the three execution instruments; defers the pending gauge to this plan), #3994 (operations endpoints group in `Encina.AspNetCore`), #2229 (shared endpoint policy helper), #739 (tenant on the row), #1251 (row claiming), #906 (observability guide), #160 (webhooks, blocked on #3389)
 
 ---
@@ -373,7 +373,7 @@ REFERENCE FILES:
 3. The change touches the eight stores again, so it is three pull requests (the original single pull request was about 27 files), in this order, each at most 15 files and building alone because the query's new member is optional:
    - **13a, 9 files**: `SchedulingStatisticsQuery.cs` (`TenantId`), its unit test edit, `PublicAPI.Unshipped.txt` (Messaging), and the three ADO.NET stores with their three integration test classes edited (the two-tenant cases).
    - **13b, 6 files**: the three Dapper stores and their three integration test classes edited.
-   - **13c, 12 files**: `ScheduledMessageStoreEF.cs` and its three integration test classes, `ScheduledMessageStoreMongoDB.cs` and its integration test, `SchedulingAnalytics.cs` (the optional trailing `ITenantScopeResolver? tenantScopeResolver = null` constructor parameter, with its line edited in `PublicAPI.Unshipped.txt`), `SchedulingAnalyticsTenantTests.cs` (new: denial and resolver cases), the guard test edit (a null resolver is accepted and valid) and `Encina.Messaging.json`.
+   - **13c, 11 files**: `ScheduledMessageStoreEF.cs` and its three integration test classes, `ScheduledMessageStoreMongoDB.cs` and its integration test, `SchedulingAnalytics.cs` (the optional trailing `ITenantScopeResolver? tenantScopeResolver = null` constructor parameter, with its line edited in `PublicAPI.Unshipped.txt`), `SchedulingAnalyticsTenantTests.cs` (new: denial and resolver cases), the guard test edit (a null resolver is accepted and valid) and `Encina.Messaging.json`.
    The manifests of the eight store packages are not edited in 13a to 13c: the tenant predicate adds cases to files whose targets were entered in pull requests 2 to 9, and a target that must change moves to its own follow-up pull request of the same package.
 
 </details>
@@ -520,7 +520,7 @@ REFERENCE FILES:
 | Coverage manifests | 14 | One per touched package per pull request |
 | PublicAPI files | 14 | Per pull request that adds or edits public API |
 | Registry and documentation | 3 | Two registry rows, the page, the guide cross-reference, the fragment (counted in PR 11c and 12) |
-| **Total touches** | **about 124** | In 16 pull requests, one by one: 6, 5, 5, 5, 5, 5, 5, 7, 5 (PR 1 to 9), 11 (PR 10), 10, 10, 7 (PR 11a to 11c), 11 (PR 12), 9, 6, 12 (PR 13a to 13c); none above 15 files |
+| **Total touches** | **about 123** | In 17 pull requests, one by one: 6, 5, 5, 5, 5, 5, 5, 7, 5 (PR 1 to 9), 11 (PR 10), 10, 10, 7 (PR 11a to 11c), 11 (PR 12), 9, 6, 11 (PR 13a to 13c); none above 15 files |
 
 ---
 
