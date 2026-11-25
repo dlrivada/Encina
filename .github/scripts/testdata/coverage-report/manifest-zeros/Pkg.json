@@ -1,0 +1,20 @@
+{
+  "package": "Pkg",
+  "targets": { "unit": 70, "guard": 50, "integration": 40 },
+  "files": {
+    "A.cs": {
+      "defaultTests": [ "unit", "guard" ],
+      "targets": { "unit": 0, "guard": 0, "integration": 0 },
+      "justifications": {
+        "unit": "Fixture: A has an expression-bodied method, so the closed list rejects this zero.",
+        "guard": "Fixture: the only parameter is a bool, so the closed list exempts this zero.",
+        "integration": "Fixture: integration zeros are outside the rule."
+      }
+    },
+    "../../Outside.cs": {
+      "defaultTests": [ "unit" ],
+      "targets": { "unit": 0 },
+      "justifications": { "unit": "Fixture: a key that leaves src/ is an unreadable source, never read." }
+    }
+  }
+}
