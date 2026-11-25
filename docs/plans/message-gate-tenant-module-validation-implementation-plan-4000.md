@@ -4,7 +4,7 @@
 > **Type**: Feature (validation, multi-tenancy, messaging, CDC)
 > **Related**: #3982 (owns the shared pieces: `ValidatorScope`, `ValidatorScopeKinds`, `ValidatorScopeDecision`, `ValidatorScopeSelector`, `AddEncinaValidatorScoping()`; this plan consumes them and opens its pull requests after its S1), #729 (notification gate, owns `ValidationOrchestrator.EvaluateMessageAsync` and the `encina.tenant_id` tag on `Encina.Publish`), #730 (CDC gate, owns `ICdcEventValidator<TEntity>` and the dispatcher stage), #732 (saga gate, owns `ISagaStepValidator<TData>` and the runner stage), #230 (owns `IRequestValidator<T>` and the runner), #738 (saga `TenantId`), #726 (central validation instrumentation), ADR-054, ADR-062 (merged: error category contract)
 > **Complexity**: Medium-high (three gates in three packages, one new CDC contract, no persistence change of its own)
-> **Estimated Scope**: ~900 lines of production code + ~3,050 lines of tests + ~420 lines of documentation (~4,370 lines in total, as the Estimated File Count table), in seven pull requests of at most 15 files and 1,000 lines each (S1 is delivered as S1a and S1b)
+> **Estimated Scope**: ~900 lines of production code + ~3,050 lines of tests + ~420 lines of documentation (~4,420 lines in total, as the Estimated File Count table), in seven pull requests of at most 15 files and 1,000 lines each (S1 is delivered as S1a and S1b)
 > **Note on #729, #730, #732, #230, #3982**: every statement about their types (`NotificationValidationGate`, `ICdcEventValidator<TEntity>`, `ISagaStepValidator<TData>`, `RequestValidatorRunner`, `ValidatorScopeSelector`) follows their plans (plan pull requests, not code on `main`); each is re-verified against `main` when the pull request that uses it starts
 
 ---
@@ -166,7 +166,7 @@ S1b:
 4. **Modify** `src/Encina.Cdc/Processing/CdcProcessor.cs`: the code `encina.cdc.tenant_unresolved` joins `encina.cdc.validation_failed` in the dead-letter-at-once branch of #730 (register row C3).
 5. **Modify** `src/Encina.Cdc/Errors/CdcErrorCodes.cs` and `CdcErrors.cs`: the two codes with `ErrorCategory.InvalidRequest` (ADR-062 rule R3, register row C1) and `ErrorCategory.Internal` through `EncinaErrors.Create` and `EncinaErrors.FromException` with a constant message (details: table, operation only). **Modify** `src/Encina.Cdc/Validation/CdcValidationLog.cs` (#730): 662 and 663 (by table, operation, `HasTenant`; exception through `ForLogging()`; register rows C9, C12).
 6. **Modify** `src/Encina.Cdc/PublicAPI.Unshipped.txt` (the two public code constants) and `.github/coverage-manifest/Encina.Cdc.json` (through `mechanical-fixer`).
-7. Tests (S1b): `CdcTenantStageTests` (resolved tenant reaches the validator context; null, blank, over-length and, per register row C2, `default` are unresolved; required plus unresolved rejects with the `InvalidRequest` `Left`; optional plus unresolved runs anonymously and logs 662; a resolver that throws gives the `Internal` `Left`; two events resolve independently; the rendered logs carry no tenant value), `CdcErrorsTenantTests` (codes, categories, constant message). S1b is 9 files: 0 new src, 6 changed (stage, processor, error codes, errors, log, PublicAPI), 1 manifest, 2 tests.
+7. Tests (S1b): `CdcTenantStageTests` (resolved tenant reaches the validator context; null, blank, over-length and, per register row C2, `default` are unresolved; required plus unresolved rejects with the `InvalidRequest` `Left`; optional plus unresolved runs anonymously and logs 662; a resolver that throws gives the `Internal` `Left`; two events resolve independently; the rendered logs carry no tenant value), `CdcErrorsTenantTests` (codes, categories, constant message), `CdcErrorsTenantGuardTests` in `Encina.GuardTests` (null table name and null exception of the two factories). S1b is 10 files: 0 new src, 6 changed (stage, processor, error codes, errors, log, PublicAPI), 1 manifest, 3 tests.
 
 </details>
 
@@ -412,7 +412,7 @@ REFERENCE FILES:
 | `IModuleExecutionContext.CurrentModule` | `src/Encina/Modules/Isolation/` | Ambient module fallback |
 | `ValidatorScope`, `ValidatorScopeSelector`, `AddEncinaValidatorScoping` (#3982) | `src/Encina/Validation/` (after #3982) | Selection in all three gates |
 | `NotificationValidationGate`, `ICdcEventValidator<T>`, `ISagaStepValidator<T>` (#729, #730, #732) | their plans | The gates this plan extends |
-| `FluentValidationProvider`, `DataAnnotationsValidationProvider`, `MiniValidationProvider` | `src/Encina.FluentValidation`, `src/Encina.DataAnnotations`, `src/Encina.MiniValidator` | Tenant reach per provider (`:60-62`, `:41-43`, none) |
+| `FluentValidationProvider`, `DataAnnotationsValidationProvider`, `MiniValidationProvider` | `src/Encina.FluentValidation`, `src/Encina.DataAnnotations`, `src/Encina.MiniValidator` | Tenant reach per provider (`:60-62`, `:39-41`, none) |
 
 ### Event ID Allocation
 
@@ -427,29 +427,34 @@ Every count includes tests, coverage manifest edits, PublicAPI files, READMEs an
 | PR | Content | New src | Changed src | New tests | Edited tests | Manifest | Other | Files | Lines (est.) |
 |----|---------|---------|-------------|-----------|--------------|----------|-------|-------|--------------|
 | S1a | CDC tenant contract and registration | 3 (`ICdcTenantResolver`, `TenantRequirement`, `ConstantCdcTenantResolver`) | 3 (`CdcConfiguration`, `Cdc/ServiceCollectionExtensions`, PublicAPI) | 3 (guard, DI, resolver contract) | 0 | 1 | 0 | 10 | ~600 |
-| S1b | CDC tenant stage, codes, log | 0 | 6 (dispatcher stage, `CdcProcessor`, `CdcErrorCodes`, `CdcErrors`, `CdcValidationLog`, PublicAPI) | 2 (stage, errors) | 0 | 1 | 0 | 9 | ~450 |
+| S1b | CDC tenant stage, codes, log | 0 | 6 (dispatcher stage, `CdcProcessor`, `CdcErrorCodes`, `CdcErrors`, `CdcValidationLog`, PublicAPI) | 3 (stage, errors, errors guard) | 0 | 1 | 0 | 10 | ~500 |
 | S2 | CDC scoped validators and module | 1 (`IScopedCdcEventValidator`) | 4 (`CdcConfiguration`, dispatcher stage, `Cdc/ServiceCollectionExtensions`, PublicAPI) | 4 (scoped, guard, DI, provider integration) | 0 | 1 | 0 | 10 | ~800 |
 | S3 | Saga scoped validators and module | 1 (`IScopedSagaStepValidator`) | 4 (`SagaDefinition`, `SagaRunner`, `MessagingServiceCollectionExtensions`, PublicAPI) | 4 (scoped, definition, guard, DI) | 0 | 1 | 0 | 10 | ~850 |
 | S4 | Saga tenant from state (conditional) | 0 | 1 (`SagaRunner`) | 2 (unit, property) | 1 (the saga scenarios class) | 1 | 0 | 5 | ~450 |
 | S5 | Notification gate scoping | 0 | 4 (`NotificationValidationGate`, its registration extension, `RequestValidatorRunner`, PublicAPI) | 5 (scoped unit, DI, 3 integration) | 1 (`RequestValidatorRunnerGuardTests`) | 1 | 0 | 11 | ~800 |
 | S6 | Documentation | 0 | 2 (the two READMEs) | 0 | 0 | 0 | 4 (feature page, fragment, 2 justification `.md`) | 6 | ~420 |
-| **Total** | | **5** | **24** | **20** | **2** | **6** | **4** | **61** | **~4,370** |
+| **Total** | | **5** | **24** | **21** | **2** | **6** | **4** | **62** | **~4,420** |
 
-The columns sum to the total (5 + 24 + 20 + 2 + 6 + 4 = 61) and the rows sum to 61 files (10 + 9 + 10 + 10 + 5 + 11 + 6) and about 4,370 lines (600 + 450 + 800 + 850 + 450 + 800 + 420). The largest pull request is S5 at 11 files; none exceeds 1,000 lines. S1a comes first; S1b needs S1a; S2 needs S1b and #3982 S1; S3 needs #732 S1 to S3 and #3982 S1; S4 needs S3 and #738; S5 needs #729, #230 and #3982 S2; S6 needs the rest.
+The columns sum to the total (5 + 24 + 21 + 2 + 6 + 4 = 62) and the rows sum to 62 files (10 + 10 + 10 + 10 + 5 + 11 + 6) and about 4,420 lines (600 + 500 + 800 + 850 + 450 + 800 + 420). The largest pull request is S5 at 11 files; none exceeds 1,000 lines. S1a comes first; S1b needs S1a; S2 needs S1b and #3982 S1; S3 needs #732 S1 to S3 and #3982 S1; S4 needs S3 and #738; S5 needs #729, #230 and #3982 S2; S6 needs the rest.
 
 Per-file coverage targets (per flag, with a one-sentence justification), written into the package manifests by the pull request that adds or changes the file:
 
 | File (entered by) | Unit | Guard | Contract | Integration | Justification |
 |------|------|-------|----------|-------------|---------------|
-| `ICdcTenantResolver.cs` (S1) | 0 | 0 | 0 | 0 | An interface with no executable code; behavior is covered through the implementations |
+| `ICdcTenantResolver.cs`, `TenantRequirement.cs` (S1a) | 0 | 0 | 0 | 0 | An interface with no executable code; behavior is covered through the implementations |
 | `ConstantCdcTenantResolver.cs` (S1a) | 90 | 0 | 40 | 0 | One return, covered by the S1a contract test and the S1b stage tests; guard 0 because the type is internal without `InternalsVisibleTo` for `Encina.GuardTests` |
-| `CdcConfiguration.cs` (S1a, S2: changed members) | 85 | 85 | 0 | 0 | The new registration members have argument checks reached by the S1a guard test and registration effects reached by the S1a DI test |
+| `CdcConfiguration.cs` (S1a, S2: changed members) | 85 | 20 | 0 | 0 | The new registration members are reached by the S1a DI test and unit tests; guard 20 because the S1a guard test reaches only the argument checks of two methods in a large configuration class (measured evidence for the rule: the `Encina.Cdc` manifest guard target is 15 and `OutboxCdcHandler.cs` measures 15.3 %) |
+| `Cdc/ServiceCollectionExtensions.cs` (S1a, S2: changed registrations) | 85 | 15 | 0 | 0 | The new resolver and scoping registrations are reached by the S1a and S2 DI tests; guard 15 because the existing file is large and its guard tests own the argument checks, the S1a guard file adds none for it |
+| `CdcValidationLog.cs` (S1b, changed) | 90 | 0 | 0 | 0 | The two new log methods are exercised by the stage tests; guard 0 because source-generated log methods have no guarded parameters |
 | The dispatcher stage (S1b enters Unit 90; S2 enters Integration 50) | 90 | 0 | 0 | 50 | Every tenant branch (resolved, unresolved required, optional, throws) is reachable with fakes in S1b and every selector decision in S2; guard 0 because the stage is internal without `InternalsVisibleTo` for the guard project; the Integration 50 is written by S2, whose provider integration test reaches the main path |
-| `CdcProcessor.cs` (S1, changed branch) | 85 | 0 | 0 | 0 | One new dead-letter condition, reached by a stage-to-processor unit case; the processor's guards are #730's |
-| `CdcErrors.cs`, `CdcErrorCodes.cs` (S1, changed) | 95 | 85 | 0 | 0 | Two factories with argument checks, reached by the S1 errors and guard tests |
+| `CdcProcessor.cs` (S1b, changed branch) | 85 | 0 | 0 | 0 | One new dead-letter condition, reached by a stage-to-processor unit case; the processor's guards are #730's |
+| `CdcErrors.cs` (S1b, changed) | 95 | 30 | 0 | 0 | Two factories reached by the S1b errors tests; guard 30 because the S1b guard file reaches the argument checks of the two new factories in a file that holds many other factories |
+| `CdcErrorCodes.cs` (S1b, changed) | 100 | 0 | 0 | 0 | Two constants, covered through the factories; no parameters to guard |
 | `IScopedCdcEventValidator.cs`, `IScopedSagaStepValidator.cs` (S2, S3) | 0 | 0 | 0 | 0 | Interfaces with no executable code; behavior is covered through the stages |
-| `SagaDefinition.cs` (S3, changed members) | 90 | 85 | 0 | 0 | `WithModule` and `ModuleName` are reached by the S3 definition and guard tests |
-| `SagaRunner.cs` (S3: Unit 90, Guard 70; S4, built only under option B of Design Choice 4: Integration 50) | 90 | 70 | 0 | 0 | The selector branches are reached with fakes in S3; guard 70 because the remaining lines are saga flow covered by unit tests; the Integration 50 is entered only by S4, whose scenario reaches the main path on the ten stores, so it does not exist when option A stands |
+| `SagaDefinition.cs` (S3, changed members) | 90 | 25 | 0 | 0 | `WithModule` and `ModuleName` are reached by the S3 definition tests; guard 25 because the S3 guard file reaches only the `WithModule` argument check of a file that is mostly the definition builder |
+| `MessagingServiceCollectionExtensions.cs` (S3, changed registration) | 85 | 0 | 0 | 0 | The saga registration call is reached by the S3 DI test; guard 0 because the change is one call in a large file whose argument checks belong to the package's existing guard tests |
+| `SagaRunner.cs` (S3: Unit 90, Guard 15; S4, built only under option B of Design Choice 4: Integration 50) | 90 | 15 | 0 | 0 | The selector branches are reached with fakes in S3; guard 15 because the S3 guard file reaches only the optional constructor parameter of a file that is saga flow; the Integration 50 is entered only by S4, whose scenario reaches the main path on the ten stores, so it does not exist when option A stands |
+| `RequestValidatorRunner.cs` (S5, the new non-generic entry; its Unit and Guard targets here extend #230's and #3982's rows) | 90 | 20 | 0 | 0 | The entry's branches (cached delegate, equality with the generic entry) are reached by the S5 unit tests; guard 20 because the edited `RequestValidatorRunnerGuardTests` reaches the null checks of the new entry only |
 | `NotificationValidationGate.cs` (S5, changed method) | 90 | 0 | 0 | 50 | The runner branch is reached by the S5 unit tests; guard 0 because the gate is internal (#729) without `InternalsVisibleTo` for the guard project (the non-generic runner entry it calls is public and guard-tested in S5); the S5 integration tests reach the main path |
 
 Property targets are entered only for the S4 saga tenant rule (`SagaRunner.cs` property 40, from the S4 property test: for any pair of tenants the effective tenant is deterministic and never invented); the other files carry no property target.
