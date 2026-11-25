@@ -11,7 +11,7 @@
 
 Implement the tenant catalog on Redis: `TenantStoreRedis` implements `ITenantStore` and the `ITenantStoreWriter` of #596 with one Redis hash per tenant and a set as the index, and publishes a change notification on every write so other instances learn that a tenant changed. The issue's sample is replaced where it is wrong: its key layout lets the tenant id `index` collide with the index key (`encina:tenants:index`), its create overwrites an existing tenant, its multi-key transaction fails on Redis Cluster, and it reads `GetAllAsync` one tenant at a time.
 
-What the code looks like today (`origin/main` `915db384e`):
+What the code looks like today (`origin/main` `4b0a600c7`):
 
 - `ITenantStore` is read-only, `InMemoryTenantStore` is the only implementation, and `TenantInfo` carries a connection string that is a credential (`src/Encina.Tenancy/Abstractions/`). The contract that a persistent store implements (`ITenantStoreWriter`, `ITenantSecretProtector`, `TenantIdRules`, `TenantStoreRegistration.Replace`, the `InstrumentedTenantStore` decorator and the shared behavior suite `TenantStoreBehaviorSuite`) is **owned by the #596 plan**; this plan consumes it and does not redefine it.
 - `Encina.Caching.Redis` (`src/Encina.Caching.Redis/`) references `Encina.Caching`, `Encina.DistributedLock`, `Encina.Messaging` and `StackExchange.Redis`, registers an `IConnectionMultiplexer` through `AddEncinaRedisCache`, and has `RedisPubSubProvider` (channel publish with `RedisChannel.Literal`). `Encina.Caching.Valkey` and `Encina.Caching.Garnet` are thin packages that reference it. No Redis package references `Encina.Tenancy`.
@@ -200,7 +200,7 @@ REFERENCE FILES:
 <summary>Tasks</summary>
 
 1. `TenantStoreRedis.cs` (new): `sealed class TenantStoreRedis : ITenantStore, ITenantStoreWriter`; constructor `(IConnectionMultiplexer multiplexer, IOptions<TenantStoreRedisOptions> options, ITenantSecretProtector? protector = null, TimeProvider? timeProvider = null)`; transactions with conditions per Design Choice 5; ids validated with `TenantIdRules` before any command; `ExistsAsync` is `KeyExistsAsync` on the record; `GetAllTenantsAsync` pipelines the reads in one `IBatch`.
-2. `ServiceCollectionExtensions.cs` (new): `AddEncinaTenantStoreRedis(this IServiceCollection, Action<TenantStoreRedisOptions>? configure = null)`; registers the options, the store as a singleton and, through `TenantStoreRegistration.Replace` of #596, makes it the `ITenantStore` (and `ITenantStoreWriter`) wrapped by `InstrumentedTenantStore` with provider tag `redis`; it requires an `IConnectionMultiplexer` in DI (`AddEncinaRedisCache` or the application's own) and fails at `ValidateOnBuild` when it is missing.
+2. `ServiceCollectionExtensions.cs` (new): `AddEncinaTenantStoreRedis(this IServiceCollection, Action<TenantStoreRedisOptions>? configure = null)`; registers the options, the store as a singleton and, through `TenantStoreRegistration.Replace<TenantStoreRedis>(services, provider: "redis")` of #596 (its `provider` parameter is the telemetry tag), makes it the `ITenantStore` (and `ITenantStoreWriter`) wrapped by `InstrumentedTenantStore`; it requires an `IConnectionMultiplexer` in DI (`AddEncinaRedisCache` or the application's own) and fails at `ValidateOnBuild` when it is missing.
 3. Tests: `TenantStoreRedisTests` (substituted `IDatabase`, `ITransaction`, `IBatch`: every `Left` path, orphan index entry, corrupt hash), `TenantStoreRedisRegistrationTests` (provider built with `ValidateOnBuild` and `ValidateScopes`, both registration orders, application registration kept), `TenantStoreRedisGuardTests`; `PublicAPI.Unshipped.txt`, manifest.
 
 Files: 7.
@@ -233,18 +233,17 @@ REFERENCE FILES:
 
 ---
 
-### Phase 3: Change notifications, health check and EventIds (pull request 3)
+### Phase 3: Change notifications and EventIds (pull request 3)
 
 <details>
 <summary>Tasks</summary>
 
 1. `TenantChange.cs`, `TenantChangeKind.cs` (new, public) and `RedisTenantChangeSubscriber.cs` (new): `SubscribeAsync(Func<TenantChange, CancellationToken, ValueTask> handler, CancellationToken)`; a handler exception is caught per message, logged by type, and never ends the subscription (a background loop never lets an exception escape).
 2. `TenantStoreRedis.cs` (edit): publishes after the transaction commits; a publish failure is logged and does not undo the committed write (the write is the truth, the notification an optimization).
-3. `Health/TenantStoreRedisHealthCheck.cs` (new): `PingAsync` plus `CONFIG GET maxmemory-policy` as data when permitted; `DefaultName`, static `Tags`.
-4. `Diagnostics/TenancyRedisLog.cs` (new, `[LoggerMessage]`) with the ids of the Event ID Allocation table; `src/Encina/Diagnostics/EventIdRanges.cs` (edit: `TenancyRedis = (12400, 12449)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit: registered-ranges row and block row `registered`), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`).
-5. Tests: subscriber, health check and publish-failure unit tests; guard tests; package `PublicAPI.Unshipped.txt`; manifest.
+3. `Diagnostics/TenancyRedisLog.cs` (new, `[LoggerMessage]`) with the ids of the Event ID Allocation table; `src/Encina/Diagnostics/EventIdRanges.cs` (edit: `TenancyRedis = (12400, 12449)`), `src/Encina/PublicAPI.Unshipped.txt` (edit), `docs/engineering/eventid-block-registry.md` (edit: registered-ranges row and block row `registered`), `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` (edit: `AssemblyRanges`).
+4. Tests: `RedisTenantChangeSubscriberTests` (new), the publish-failure cases in `TenantStoreRedisTests` (edit), `RedisTenantChangeSubscriberGuardTests` (new); package `PublicAPI.Unshipped.txt`; manifest. The subscriber is registered and the health check added in PR 4, so this pull request never edits `ServiceCollectionExtensions.cs`.
 
-Files: 15 (4 new source files, 1 store edit, 5 registry/API edits, 3 test files, package PublicAPI, manifest).
+Files: 14 (3 new source files `TenantChange.cs`, `TenantChangeKind.cs`, `RedisTenantChangeSubscriber.cs`; `TenancyRedisLog.cs`; the `TenantStoreRedis.cs` edit; 4 registry/API edits: `EventIdRanges.cs`, `src/Encina/PublicAPI.Unshipped.txt`, `docs/engineering/eventid-block-registry.md`, `EncinaEventIdAllocationTests.cs`; 3 test files; package `PublicAPI.Unshipped.txt`; manifest).
 
 </details>
 
@@ -256,7 +255,7 @@ CONTEXT:
 - The store commits writes atomically; notifications are at-most-once and never the source of truth.
 
 TASK:
-Add the publisher, the subscriber, the health check, the log class and register the EventId range first.
+Add the publisher, the subscriber and the log class, and register the EventId range first (the health check and the registrations follow in the next pull request).
 
 KEY RULES:
 - Register TenancyRedis (12400, 12449) in EventIdRanges.cs before using any id; pack ids without gaps; map the assembly in AssemblyRanges.
@@ -267,23 +266,23 @@ REFERENCE FILES:
 - src/Encina.Caching.Redis/RedisPubSubProvider.cs
 - src/Encina/Diagnostics/EventIdRanges.cs
 - docs/engineering/eventid-block-registry.md
-- src/Encina.Caching.Redis/Health/RedisHealthCheck.cs
 ```
 
 </details>
 
 ---
 
-### Phase 4: Integration tests and the Valkey fixture (pull request 4)
+### Phase 4: Health check, registration, integration tests and the Valkey fixture (pull request 4)
 
 <details>
 <summary>Tasks</summary>
 
-1. `tests/Encina.TestInfrastructure/Fixtures/ValkeyFixture.cs` (new) and its collection (new): vendor LTS image, started once per collection.
-2. `tests/Encina.IntegrationTests/Tenancy/Redis/TenantStoreRedisIntegrationTests.cs` (new): derives from `TenantStoreBehaviorSuite` (#596), once per fixture (`[Collection("Redis")]` and the Valkey collection), `ClearAllDataAsync`-style flush in `InitializeAsync`; plus notification and orphan-entry tests, `[Trait("Category", "Integration")]`.
-3. `changelog.d/597-tenant-store-redis.added.md`.
+1. `Health/TenantStoreRedisHealthCheck.cs` (new): `PingAsync` plus `CONFIG GET maxmemory-policy` as data when permitted; `DefaultName`, static `Tags`. `ServiceCollectionExtensions.cs` (edit) registers the health check and the `RedisTenantChangeSubscriber`; `TenantStoreRedisRegistrationTests` (edit) covers both under `ValidateOnBuild` and `ValidateScopes`; `TenantStoreRedisHealthCheckTests` (new); `PublicAPI.Unshipped.txt` and manifest (edit).
+2. `tests/Encina.TestInfrastructure/Fixtures/ValkeyFixture.cs` (new) and its collection (new): latest stable Valkey image tag (Valkey has no LTS designation; `AGENTS.md` says stable when there is none), started once per collection.
+3. `tests/Encina.IntegrationTests/Tenancy/Redis/TenantStoreRedisIntegrationTests.cs` (new): derives from `TenantStoreBehaviorSuite` (#596), once per fixture (`[Collection("Redis")]` and the Valkey collection), `ClearAllDataAsync`-style flush in `InitializeAsync`; plus notification and orphan-entry tests, `[Trait("Category", "Integration")]`.
+4. `changelog.d/597-tenant-store-redis.added.md`.
 
-Files: 5.
+Files: 10 (health check, its test, `ServiceCollectionExtensions.cs`, registration test, `PublicAPI.Unshipped.txt`, manifest, `ValkeyFixture.cs`, its collection, the integration tests, the changelog fragment).
 
 </details>
 
@@ -292,7 +291,7 @@ Files: 5.
 
 ```
 CONTEXT:
-- The store, subscriber and health check exist and pass their unit tests.
+- The store and the subscriber exist and pass their unit tests; this pull request adds the health check and registers both.
 
 TASK:
 Add the Valkey fixture and the integration tests that run the shared behavior suite on Redis and Valkey.
@@ -353,7 +352,7 @@ REFERENCE FILES:
 |----------|-----------|
 | Redis Cluster specification | Hash tags and the single-slot rule for `MULTI` |
 | SPEC-002 REQ-061 | Multi-tenancy in 1.0; reserved `default` tenant (`TenantIdRules`, #596) |
-| ADR-062 | Categories: `tenancy.tenant_exists` AlreadyExists, `tenancy.tenant_not_found` NotFound, `tenancy.tenant_id_invalid`/`tenant_id_reserved` InvalidRequest, `tenancy.protector_required` FailedPrecondition (all defined by #596; this plan adds no error code) |
+| ADR-062 | Categories: `tenancy.tenant_exists` AlreadyExists, `tenancy.tenant_not_found` NotFound, `tenancy.tenant_id_invalid`/`tenant_id_reserved` InvalidRequest, `tenancy.protector_required` FailedPrecondition and `tenancy.protector_failed` Unavailable (defined by #596) and `tenancy.tenant_not_found` NotFound (already on `origin/main` as `TenancyErrors.TenantNotFoundCode`, reused); this plan adds no error code |
 | ADR-054 D4 | Tenant tag only through #2676; no record id as a tag |
 
 ### Existing Encina Infrastructure to Leverage
@@ -380,7 +379,7 @@ Per-file coverage targets (numeric, per flag):
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Tenancy.Redis` | `TenancyRedis = (12400, 12449)` | New block in the Core and messaging zone: 12200-12399 are claimed by #340, the process manager plans, #3978 and #3981, so 12400 is the first free slot (checked on `origin/main` and the open `docs/plan-*` heads). Ids: 12400 notification publish failed, 12401 subscription started, 12402 subscription failed, 12403 handler failed (exception type), 12404 orphan index entry skipped, 12405 malformed payload ignored; 12406-12449 free. Registry row and `EventIdRanges.cs` field in pull request 3 |
+| `Encina.Tenancy.Redis` | `TenancyRedis = (12400, 12449)` | New block in the Core and messaging zone: 12200-12399 are claimed by #340, the process manager plans, #3978 and #3981, so 12400 is the first free slot (checked on `origin/main` and the open `docs/plan-*` heads). Ids: 12400 notification publish failed, 12401 subscription started, 12402 subscription failed, 12403 handler failed (exception type), 12404 orphan index entry skipped, 12405 malformed payload ignored; 12406-12449 free. The whole tenancy family is one area (`Tenancy` 1800-1899, moving to 10600-10699 under #4007; #597 takes 12400 here as the batch assigned it and #598 takes 80550+ in the Cloud zone), so the zone of each package is recorded and not re-decided per plan. Registry row and `EventIdRanges.cs` field in pull request 3 |
 
 ### Estimated File Count
 
@@ -388,8 +387,8 @@ Per-file coverage targets (numeric, per flag):
 |----------|------:|-------|
 | Package skeleton, keys, mapper (PR 1) | 14 | Includes `Encina.slnx`, manifest and 3 test-project references |
 | Store and registration (PR 2) | 7 | |
-| Notifications, health, EventIds (PR 3) | 15 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, PublicAPI x2 counted |
-| Integration tests and fixture (PR 4) | 5 | Includes the changelog fragment |
+| Notifications and EventIds (PR 3) | 14 | Registry, `EventIdRanges.cs`, `AssemblyRanges`, `src/Encina/PublicAPI.Unshipped.txt`, package PublicAPI, manifest counted once each |
+| Health check, registration, integration tests and fixture (PR 4) | 10 | Includes the `ServiceCollectionExtensions.cs` edit and the changelog fragment |
 | Documentation (PR 5) | 3 | `docs-writer` |
 
 ---
@@ -407,8 +406,8 @@ PROJECT CONTEXT:
 IMPLEMENTATION OVERVIEW:
 1. Phase 1: package skeleton, options, injective cluster-safe keys, hash mapper.
 2. Phase 2: TenantStoreRedis (conditional transactions) and AddEncinaTenantStoreRedis through TenantStoreRegistration.Replace.
-3. Phase 3: change notifications, subscriber, health check, TenancyRedis EventIds (12400-12449).
-4. Phase 4: Valkey fixture and integration tests running the shared behavior suite.
+3. Phase 3: change notifications, subscriber, TenancyRedis EventIds (12400-12449).
+4. Phase 4: health check, registrations, Valkey fixture and integration tests running the shared behavior suite.
 5. Phase 5: README and documentation.
 
 KEY PATTERNS:
@@ -433,7 +432,7 @@ REFERENCE FILES:
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ⏭️ | Deferred to #711 (open): `CachedTenantStore` consumes the notifications of this plan; Redis is the store here, not a cache of it |
-| 2 | OpenTelemetry | ✅ | Spans and counters from `InstrumentedTenantStore` (provider tag `redis`); the record's tenant id is never a tag |
+| 2 | OpenTelemetry | ✅ | Spans and counters from `InstrumentedTenantStore` (provider tag `redis`, the `provider` argument of `TenantStoreRegistration.Replace`); the record's tenant id is never a tag |
 | 3 | Structured Logging | ✅ | `TenancyRedisLog` 12400-12405, exception type and code only |
 | 4 | Health Checks | ✅ | `TenantStoreRedisHealthCheck`: ping, and the eviction policy as data when `CONFIG GET` is allowed |
 | 5 | Validation | ✅ | `TenantIdRules` on every write; options validated at startup |
