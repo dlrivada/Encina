@@ -9,7 +9,7 @@ namespace Encina.UnitTests.Core.Identity;
 
 /// <summary>
 /// Unit tests for <see cref="RequestContextScopeFactory"/>: the delegate-only scope, its check order
-/// (accessor, cancellation, arguments, holder chain), its results, its logs (EventIds 166-175) and
+/// (accessor, cancellation, arguments, holder chain), its results, its logs (EventIds 10066-10075) and
 /// the tenant and correlation rules.
 /// </summary>
 public sealed class RequestContextScopeFactoryTests
@@ -118,7 +118,7 @@ public sealed class RequestContextScopeFactoryTests
 
         ShouldBeLeftWith(result, "test.failure");
         inside.Issued().Issuer!.IsLive.ShouldBeFalse();
-        _host.EventIds.ShouldContain(168);
+        _host.EventIds.ShouldContain(10068);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class RequestContextScopeFactoryTests
         }));
 
         inside.Issued().Issuer!.IsLive.ShouldBeFalse();
-        _host.EventIds.ShouldContain(168);
+        _host.EventIds.ShouldContain(10068);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class RequestContextScopeFactoryTests
             RequestIdentityErrorCodes.UnsupportedAccessor);
 
         invoked.ShouldBeFalse();
-        _host.EventIds.Count(id => id == 167).ShouldBe(6);
+        _host.EventIds.Count(id => id == 10067).ShouldBe(6);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public sealed class RequestContextScopeFactoryTests
         var result = await Factory.RunAsServiceAsync("not-declared", Ok);
 
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.UnknownServiceIdentity);
-        var record = Records.Single(r => r.Id.Id == 167);
+        var record = Records.Single(r => r.Id.Id == 10067);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain(RequestIdentityErrorCodes.UnknownServiceIdentity);
     }
@@ -225,7 +225,7 @@ public sealed class RequestContextScopeFactoryTests
         context.Issued().UserId.ShouldBe("service:encina.test.seeding");
         context.Issued().Permissions.ShouldContain("policies:seed");
         ShouldBeLeftWith(application, RequestIdentityErrorCodes.UnknownServiceIdentity);
-        Records.ShouldContain(r => r.Id.Id == 166 && r.Message.Contains(ScopeTestHost.BuiltIn));
+        Records.ShouldContain(r => r.Id.Id == 10066 && r.Message.Contains(ScopeTestHost.BuiltIn));
     }
 
     [Fact]
@@ -255,7 +255,7 @@ public sealed class RequestContextScopeFactoryTests
 
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.ConflictingTenantClaims);
         invoked.ShouldBeFalse();
-        var record = Records.Single(r => r.Id.Id == 167);
+        var record = Records.Single(r => r.Id.Id == 10067);
         record.Level.ShouldBe(LogLevel.Warning);
         record.Message.ShouldContain(RequestIdentityErrorCodes.ConflictingTenantClaims);
         NoSentinelInAnyRecord();
@@ -381,12 +381,12 @@ public sealed class RequestContextScopeFactoryTests
             return 0;
         });
 
-        var overInbound = Records.Where(r => r.Id.Id == 174).ToList();
+        var overInbound = Records.Where(r => r.Id.Id == 10074).ToList();
         overInbound.Count.ShouldBe(2);
         overInbound.ShouldAllBe(r => r.Level == LogLevel.Warning);
         overInbound[0].Message.ShouldContain(ScopeTestHost.Job);
         overInbound[0].Message.ShouldContain(nameof(IRequestContextScopeFactory.RunAsServiceAsync));
-        Records.ShouldNotContain(r => r.Id.Id == 166 || r.Id.Id == 169);
+        Records.ShouldNotContain(r => r.Id.Id == 10066 || r.Id.Id == 10069);
     }
 
     [Fact]
@@ -416,7 +416,7 @@ public sealed class RequestContextScopeFactoryTests
             await Factory.RunAsServiceAsync(ScopeTestHost.OtherJob, ScopeTestHost.Capture, cancellationToken: ct));
 
         result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:other-job");
-        var opened = Records.Where(r => r.Id.Id == 166).ToList();
+        var opened = Records.Where(r => r.Id.Id == 10066).ToList();
         opened[0].Level.ShouldBe(LogLevel.Information);
         opened[1].Level.ShouldBe(LogLevel.Warning);
     }
@@ -428,7 +428,7 @@ public sealed class RequestContextScopeFactoryTests
             await Factory.RunAsPrincipalAsync(TestIdentity.Principal("alice"), ScopeTestHost.Capture, cancellationToken: ct));
 
         result.ShouldBeSuccess().Issued().UserId.ShouldBe("alice");
-        Records.Single(r => r.Id.Id == 169).Level.ShouldBe(LogLevel.Warning);
+        Records.Single(r => r.Id.Id == 10069).Level.ShouldBe(LogLevel.Warning);
     }
 
     [Fact]
@@ -437,10 +437,10 @@ public sealed class RequestContextScopeFactoryTests
         var result = await Factory.RunAsPrincipalAsync(new ClaimsPrincipal(new ClaimsIdentity()), ScopeTestHost.Capture);
 
         result.ShouldBeSuccess().Identity.ShouldBeSameAs(RequestIdentity.Anonymous);
-        Records.Single(r => r.Id.Id == 169).Level.ShouldBe(LogLevel.Information);
+        Records.Single(r => r.Id.Id == 10069).Level.ShouldBe(LogLevel.Information);
     }
 
-    // ── Ending: 168 and 170 ──────────────────────────────────────────────
+    // ── Ending: 10068 and 10070 ──────────────────────────────────────────────
 
     [Fact]
     public async Task AScopeThatOutlivesItsEnclosingScope_ReadsAnonymous_AndLogs170()
@@ -463,9 +463,9 @@ public sealed class RequestContextScopeFactoryTests
         gate.SetResult();
 
         (await inner!).ShouldBeSuccess().ShouldBe("(anonymous)");
-        var outlived = Records.Single(r => r.Id.Id == 170);
+        var outlived = Records.Single(r => r.Id.Id == 10070);
         outlived.Level.ShouldBe(LogLevel.Warning);
-        Records.Count(r => r.Id.Id == 168).ShouldBe(2);
+        Records.Count(r => r.Id.Id == 10068).ShouldBe(2);
     }
 
     // ── Tenant and correlation ───────────────────────────────────────────
@@ -482,8 +482,8 @@ public sealed class RequestContextScopeFactoryTests
         withTenant.ShouldBeSuccess().TenantId.ShouldBe("job-tenant");
         withoutTenant.ShouldBeSuccess().TenantId.ShouldBeNull();
         withTenant.ShouldBeSuccess().CorrelationId.ShouldBe("ambient-correlation");
-        Records.Count(r => r.Id.Id == 173).ShouldBe(2);
-        Records.Where(r => r.Id.Id == 173).ShouldAllBe(r => !r.Message.Contains("tenant-") && r.Level == LogLevel.Information);
+        Records.Count(r => r.Id.Id == 10073).ShouldBe(2);
+        Records.Where(r => r.Id.Id == 10073).ShouldAllBe(r => !r.Message.Contains("tenant-") && r.Level == LogLevel.Information);
     }
 
     [Fact]
@@ -529,13 +529,13 @@ public sealed class RequestContextScopeFactoryTests
         context.Issued().Permissions.ShouldBe(["jobs:run"]);
         context.Issued().Principal!.IsInRole("job").ShouldBeTrue();
         context.Issued().HasClaim(RequestIdentity.IdentityKindClaimType, "service").ShouldBeTrue();
-        var record = Records.Single(r => r.Id.Id == 166);
+        var record = Records.Single(r => r.Id.Id == 10066);
         record.Message.ShouldContain(ScopeTestHost.Job);
         record.Message.ShouldContain("True");
         NoSentinelInAnyRecord();
     }
 
-    // ── Inbound input: normalized, never refused; 172 and 175 ────────────
+    // ── Inbound input: normalized, never refused; 10072 and 10075 ────────────
 
     [Fact]
     public async Task RunInboundAsync_MapsThePrincipal_AndLogs175_WhileTheHostTwinLogs172()
@@ -549,8 +549,8 @@ public sealed class RequestContextScopeFactoryTests
         application.TenantId.ShouldBe(Sentinel + "-t");
         ((RequestContext)application).Origin.ShouldBe(RequestOrigin.Inbound);
         host.Issued().UserId.ShouldBe(Sentinel);
-        Records.Single(r => r.Id.Id == 175).Level.ShouldBe(LogLevel.Information);
-        Records.Single(r => r.Id.Id == 172).Level.ShouldBe(LogLevel.Debug);
+        Records.Single(r => r.Id.Id == 10075).Level.ShouldBe(LogLevel.Information);
+        Records.Single(r => r.Id.Id == 10072).Level.ShouldBe(LogLevel.Debug);
         NoSentinelInAnyRecord();
     }
 
@@ -575,8 +575,8 @@ public sealed class RequestContextScopeFactoryTests
 
         anonymous.TenantId.ShouldBeNull();
         noHeader.TenantId.ShouldBeNull();
-        Records.Count(r => r.Id.Id == 176).ShouldBe(1);
-        Records.Single(r => r.Id.Id == 176).Level.ShouldBe(LogLevel.Debug);
+        Records.Count(r => r.Id.Id == 10076).ShouldBe(1);
+        Records.Single(r => r.Id.Id == 10076).Level.ShouldBe(LogLevel.Debug);
     }
 
     [Theory]
@@ -615,7 +615,7 @@ public sealed class RequestContextScopeFactoryTests
         worked.ShouldBeFalse();
         result.IsLeft.ShouldBeTrue();
         result.IfLeft(error => error.GetCode().IfNone("none").ShouldBe(RequestIdentityErrorCodes.InboundTenantConflict));
-        Records.Single(r => r.Id.Id == 167).Level.ShouldBe(LogLevel.Warning);
+        Records.Single(r => r.Id.Id == 10067).Level.ShouldBe(LogLevel.Warning);
     }
 
     [Theory]

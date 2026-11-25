@@ -120,7 +120,7 @@ public sealed class SchedulerOrchestrator
         if (executeAt < _timeProvider.GetUtcNow().UtcDateTime)
         {
             return EncinaErrors.Create(
-                SchedulingErrorCodes.InvalidScheduleTime,
+                SchedulingErrorCodes.InvalidScheduleTime, ErrorCategory.Validation,
                 "Scheduled time must be in the future.");
         }
 
@@ -169,7 +169,7 @@ public sealed class SchedulerOrchestrator
         {
             return Task.FromResult<Either<EncinaError, Guid>>(
                 EncinaErrors.Create(
-                    SchedulingErrorCodes.InvalidDelay,
+                    SchedulingErrorCodes.InvalidDelay, ErrorCategory.Validation,
                     "Delay must be positive."));
         }
 
@@ -196,14 +196,14 @@ public sealed class SchedulerOrchestrator
         if (!_options.EnableRecurringMessages)
         {
             return EncinaErrors.Create(
-                SchedulingErrorCodes.RecurringDisabled,
+                SchedulingErrorCodes.RecurringDisabled, ErrorCategory.Internal,
                 "Recurring messages are disabled");
         }
 
         if (_cronParser == null)
         {
             return EncinaErrors.Create(
-                SchedulingErrorCodes.NoCronParser,
+                SchedulingErrorCodes.NoCronParser, ErrorCategory.Internal,
                 "No cron parser configured for recurring messages");
         }
 
@@ -573,7 +573,7 @@ public sealed class SchedulerOrchestrator
             message.RequestType,
             message.Content,
             new DeadLetterContext(
-                EncinaErrors.Create(failure.ErrorCode, "Scheduled message used up its retries"),
+                EncinaErrors.Create(failure.ErrorCode, ErrorCategory.Internal, "Scheduled message used up its retries"),
                 failure.Exception,
                 DeadLetterSourcePatterns.Scheduling,
                 message.RetryCount + 1,

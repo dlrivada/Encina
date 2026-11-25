@@ -15,16 +15,16 @@ namespace Encina;
 /// <item><description>Only authenticated <see cref="ClaimsIdentity"/> instances contribute the subject, roles, permissions and tenant.</description></item>
 /// <item><description>No authenticated identity: <see cref="RequestIdentity.Anonymous"/>.</description></item>
 /// <item><description>No user-id claim on any authenticated identity: <see cref="CheckSubject"/> refuses it with
-/// <see cref="RequestIdentityErrorCodes.MissingSubjectClaim"/> and logs Warning 162.</description></item>
+/// <see cref="RequestIdentityErrorCodes.MissingSubjectClaim"/> and logs Warning 10062.</description></item>
 /// <item><description>A malformed user id or a reserved (<c>service:</c>) one: refused with
 /// <see cref="RequestIdentityErrorCodes.MalformedSubjectClaim"/> or
-/// <see cref="RequestIdentityErrorCodes.ReservedSubjectClaim"/>; Warning 163.</description></item>
+/// <see cref="RequestIdentityErrorCodes.ReservedSubjectClaim"/>; Warning 10063.</description></item>
 /// <item><description>Authenticated identities with different subjects, or several values of the winning claim type
-/// in one identity: refused with <see cref="RequestIdentityErrorCodes.ConflictingSubjectClaims"/>; Warning 164.
+/// in one identity: refused with <see cref="RequestIdentityErrorCodes.ConflictingSubjectClaims"/>; Warning 10064.
 /// Per identity the first claim type of the list with a non-blank value wins, so <c>sub</c> and <c>oid</c> of
 /// one identity never conflict.</description></item>
 /// <item><description><see cref="Create"/> keeps <see cref="RequestIdentity.Anonymous"/> as a last-resort floor for
-/// these cases and for conflicting tenants (Warning 164); the scope factory refuses before it gets there.</description></item>
+/// these cases and for conflicting tenants (Warning 10064); the scope factory refuses before it gets there.</description></item>
 /// </list>
 /// Logs carry claim types and the authentication type only, never claim values.
 /// </remarks>

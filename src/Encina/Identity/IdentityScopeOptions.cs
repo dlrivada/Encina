@@ -15,7 +15,7 @@ namespace Encina;
 /// <param name="AllowOverInbound">
 /// Opts in, for this call only, to opening the scope inside an inbound request (or a flow forked
 /// from one, ended or not), which is refused by default so an anonymous or untrusted request cannot
-/// elevate itself into a service identity. The opening is logged at Warning (EventId 174). It never
+/// elevate itself into a service identity. The opening is logged at Warning (EventId 10074). It never
 /// allows opening over a user identity.
 /// </param>
 /// <example>

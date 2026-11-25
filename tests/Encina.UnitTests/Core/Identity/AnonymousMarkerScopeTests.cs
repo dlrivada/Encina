@@ -62,7 +62,7 @@ public sealed class AnonymousMarkerScopeTests
         captured.ShouldNotBeNull();
         _host.Accessor.RequestContext.ShouldBeNull();
         RequestContextAccessor.CurrentFacts.ShouldBe(ChainFacts.None);
-        _host.EventIds.ShouldContain(168);
+        _host.EventIds.ShouldContain(10068);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class AnonymousMarkerScopeTests
         var result = await UnderMarker(AnonymousMarker.Connection, () => Factory.RunAsServiceAsync(ScopeTestHost.Job, Ok));
 
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.ScopeConflict);
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public sealed class AnonymousMarkerScopeTests
             ScopeTestHost.Job, ScopeTestHost.Capture, new IdentityScopeOptions(AllowOverInbound: true)));
 
         result.ShouldBeSuccess().Issued().UserId.ShouldBe("service:test-job");
-        _host.EventIds.ShouldContain(174);
-        _host.EventIds.ShouldNotContain(166);
+        _host.EventIds.ShouldContain(10074);
+        _host.EventIds.ShouldNotContain(10066);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class AnonymousMarkerScopeTests
         var context = result.ShouldBeSuccess();
         context.Issued().UserId.ShouldBe("alice");
         ((RequestContext)context).Origin.ShouldBe(RequestOrigin.Inbound);
-        _host.EventIds.ShouldContain(172);
+        _host.EventIds.ShouldContain(10072);
     }
 
     [Fact]
@@ -122,8 +122,8 @@ public sealed class AnonymousMarkerScopeTests
             new InboundRequestInfo(TestIdentity.Principal("alice")), ScopeTestHost.Capture));
 
         result.ShouldBeSuccess().Issued().UserId.ShouldBe("alice");
-        _host.EventIds.ShouldContain(175);
-        _host.EventIds.ShouldNotContain(172);
+        _host.EventIds.ShouldContain(10075);
+        _host.EventIds.ShouldNotContain(10072);
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public sealed class AnonymousMarkerScopeTests
 
         ShouldBeLeftWith(result, EncinaErrorCodes.RequestCancelled);
         invoked.ShouldBeFalse();
-        _host.EventIds.ShouldNotContain(167);
+        _host.EventIds.ShouldNotContain(10067);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public sealed class AnonymousMarkerScopeTests
 
         ShouldBeLeftWith(result, RequestIdentityErrorCodes.UnsupportedAccessor);
         invoked.ShouldBeFalse();
-        _host.EventIds.ShouldContain(167);
+        _host.EventIds.ShouldContain(10067);
     }
 
     [Fact]

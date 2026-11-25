@@ -57,7 +57,7 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     /// <summary>
     /// Initializes a new instance of the <see cref="RequestContextAccessor"/> class.
     /// </summary>
-    /// <param name="logger">The logger for refused sets (Warning 165); none by default.</param>
+    /// <param name="logger">The logger for refused sets (Warning 10065); none by default.</param>
     public RequestContextAccessor(ILogger<RequestContextAccessor>? logger = null)
     {
         _logger = logger ?? (ILogger)NullLogger.Instance;
@@ -72,7 +72,7 @@ public sealed class RequestContextAccessor : IRequestContextAccessor
     /// is the anonymous identity with no origin, which is what
     /// <see cref="global::Encina.RequestContext.CreateAnonymousAt"/> builds. A tenant change is accepted only
     /// while no dispatch is in flight in this flow (entry-point middleware), so a handler cannot
-    /// retarget its own dispatch. Any other set, and <see langword="null"/>, logs Warning 165 (kinds
+    /// retarget its own dispatch. Any other set, and <see langword="null"/>, logs Warning 10065 (kinds
     /// only) and throws <see cref="InvalidOperationException"/>.
     /// </para>
     /// <para>

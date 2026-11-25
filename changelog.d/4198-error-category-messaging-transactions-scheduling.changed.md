@@ -1,0 +1,3 @@
+- Scheduling and transaction errors of `Encina.Messaging` now declare an explicit `ErrorCategory` instead of the inferred one (ADR-062, #4198, part of #3419); the code strings and messages are unchanged.
+- HTTP status changes: `scheduling.invalid_schedule_time` and `scheduling.invalid_delay` answer `Validation` (400) instead of 500.
+- The other 12 calls declare `Internal` and keep answering 500: `scheduling.unknown_request_shape`, `scheduling.recurring_disabled`, `scheduling.no_cron_parser`, the dead letter error of a scheduled message that used up its retries, `transaction.failed`, `transaction.begin_failed`, `transaction.commit_failed`, `transaction.lease_disposed`, `transaction.not_supported`, `transaction.rollback_only` and `transaction.isolation_level_mismatch`.

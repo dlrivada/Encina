@@ -19,7 +19,7 @@ namespace Encina.Security.ABAC;
 /// </para>
 /// <para>
 /// Seeding runs under the built-in service identity <see cref="ServiceIdentityName"/>, opened
-/// through the internal scope API (core EventId 166 logs the opening), so the persistent PAP
+/// through the internal scope API (core EventId 10066 logs the opening), so the persistent PAP
 /// records <c>service:encina.abac.policy-seeding</c> as the actor of every seeded change. When the
 /// scope cannot be opened, a cancelled start surfaces as <see cref="OperationCanceledException"/>
 /// and any other refusal as <see cref="InvalidOperationException"/> carrying the error code only.

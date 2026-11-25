@@ -14,7 +14,7 @@ namespace Encina.Sharding.ReferenceTables;
 internal static partial class ReferenceTableLog
 {
     [LoggerMessage(
-        EventId = 133,
+        EventId = 10033,
         Level = LogLevel.Information,
         Message = "Reference table '{EntityType}' replicated: {RowsSynced} rows to {ShardCount} shards in {DurationMs}ms")]
     public static partial void ReplicationCompleted(
@@ -25,7 +25,7 @@ internal static partial class ReferenceTableLog
         double durationMs);
 
     [LoggerMessage(
-        EventId = 134,
+        EventId = 10034,
         Level = LogLevel.Warning,
         Message = "Reference table '{EntityType}' replication partially failed: {SuccessCount}/{TotalCount} shards succeeded, {FailedCount} failed")]
     public static partial void ReplicationPartialFailure(
@@ -36,7 +36,7 @@ internal static partial class ReferenceTableLog
         int failedCount);
 
     [LoggerMessage(
-        EventId = 135,
+        EventId = 10035,
         Level = LogLevel.Error,
         Message = "Reference table '{EntityType}' replication failed: {ErrorCode}")]
     public static partial void ReplicationFailed(
@@ -45,7 +45,7 @@ internal static partial class ReferenceTableLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 136,
+        EventId = 10036,
         Level = LogLevel.Debug,
         Message = "No changes detected for reference table '{EntityType}' — hash unchanged ({Hash})")]
     public static partial void NoChangesDetected(
@@ -54,7 +54,7 @@ internal static partial class ReferenceTableLog
         string hash);
 
     [LoggerMessage(
-        EventId = 137,
+        EventId = 10037,
         Level = LogLevel.Information,
         Message = "Change detected for reference table '{EntityType}' — hash changed from '{PreviousHash}' to '{CurrentHash}', triggering replication")]
     public static partial void ChangeDetected(
