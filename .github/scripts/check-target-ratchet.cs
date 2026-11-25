@@ -587,7 +587,7 @@ record ZeroVerdict(bool Answered, bool Exempt);
 record Violation(string Package, string Scope, string Flag, double? Base, double? Head, string? Note = null)
 {
     public string Format() =>
-        $"{Text.Safe(Package)}  {Text.Safe(Scope)}  {Text.Safe(Flag)}{(Base is { } b ? b.ToString("0.##") : "absent")} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}"
+        $"{Text.Safe(Package)}  {Text.Safe(Scope)}  {Text.Safe(Flag)}  {(Base is { } b ? b.ToString("0.##") : "absent")} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}"
         + (Note is null ? "" : $"  ({Note})");
 }
 
