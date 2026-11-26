@@ -21,7 +21,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 25,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests (in Encina.UnitTests, compiled from the linked source file) drive the category-based validation and not-found assertions in their Either and Task overloads plus the shared helper; left uncovered are the success, collection, code, message, authorization, conflict and internal assertions, which are not changed by this fix.",
+        "guard": "0: the changed public methods take only an Either struct or a Task and have no validated reference or nullable parameters, so there is no argument guard for the guard flag to cover."
+      }
     },
     "TUnitEitherCollectionAssertions.cs": {
       "defaultTests": [
