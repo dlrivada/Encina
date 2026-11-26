@@ -2,7 +2,7 @@
 
 > **Issue**: [#4411](https://github.com/dlrivada/Encina/issues/4411)
 > **Type**: Feature
-> **Complexity**: High (12 pull requests: 8, 12, 15, eight provider pull requests of 11 or fewer files, and a closing one of 6 files)
+> **Complexity**: High (12 pull requests: 8, 12, 15, eight provider pull requests of 12, 12, 12, 11, 11, 11, 14 and 12 files, and a closing one of 6 files; PR 1 has 10)
 > **Estimated Scope**: about 1,500 lines of production code, about 2,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272, so queued writes survive a process crash, with an `IWriteBehindQueue` abstraction extracted from the internal in-memory queue and a durable implementation per provider of the 10-provider database matrix. Re-checked against `origin/main` (19b761ffa):
+Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272, so queued writes survive a process crash, with an `IWriteBehindQueue` abstraction extracted from the internal in-memory queue and a durable implementation per provider of the 10-provider database matrix. Re-checked against `origin/main` (0a7ce2ae1):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -44,6 +44,7 @@ Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272
 ### Rationale
 
 - The evidence in the Summary shows reuse (B) needs the same provider-wide work as A plus a risk to two shipped patterns. Option B wins when the application already runs the scheduler and accepts a tenant and type filter on it; option C wins when a documented crash window is acceptable (the #272 default).
+- Under option A, AGENTS.md section 5 ("every provider-dependent feature MUST be implemented for all 10 providers"; tests must cover all 10) means the store is implemented in all eight packages, each with the same contract tests. Registration follows the existing store flags (`config.UseAuditLogStore`, `config.UseReadAuditStore`, `src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs:93-120`): a flag `MessagingConfiguration.UseWriteBehindStore` (default false, also listed in `PatternFlags()` at `MessagingConfiguration.cs:1017-1050` with a test) registers `IWriteBehindStore` with `TryAdd`; MongoDB has its own options class, so it gets `EncinaMongoDbOptions.UseWriteBehindStore` instead.
 - The rest of this plan describes A in detail; under C the plan closes with no code, and the follow-up work of the other two plans of this batch is unaffected.
 - Class: Dilemma
 
@@ -116,7 +117,7 @@ Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The enqueue returns `Left` `cache.write_behind_store_unavailable` (ADR-062 `ErrorCategory.Unavailable`, constant message "The write-behind store is unavailable."), the handler does not run, EventId 520 logs the code** | The durability promise is never silently dropped (fail closed) | A database outage turns write-behind requests into errors |
+| **A) The enqueue returns `Left` `cache.write_behind_store_failed` (ADR-062 R4: "Store, serialization, crypto and provider failures ... are `Internal`", so `ErrorCategory.Internal`, constant message "The write-behind store failed."), the handler does not run, EventId 520 logs the code** | The durability promise is never silently dropped (fail closed) | A database outage turns write-behind requests into errors |
 | **B) Fall back to the in-memory queue for that item** | Requests keep working | The item loses durability exactly when the store is failing; the caller sees success |
 
 ### Chosen Option: **A - reject** (recommended, pending the maintainer)
@@ -129,22 +130,21 @@ Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272
 </details>
 
 <details>
-<summary><strong>6. Every provider of the matrix implements the store</strong></summary>
+<summary><strong>6. Operational defaults (Dilemma D6)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) All ten providers (eight packages), each with the same `IWriteBehindStore` contract tests** | Switching provider means changing the DI registration | Nine provider pull requests |
-| **B) A subset** | Fewer pull requests | Breaks provider coherence |
+| **A) `LeaseDuration` default 5 minutes (validated greater than the flush retry budget `FlushRetryCount * FlushRetryDelay` of #272); a completed batch is deleted; the health check is Degraded when the oldest claimable item is older than 10 minutes** | Transient rows only; no purge job; the lease outlives a normal flush | A crashed node's batch waits up to 5 minutes before another node takes it |
+| **B) Completed rows are kept with `ProcessedAtUtc` for inspection and removed by a retention job; shorter lease (30 seconds)** | The backlog history is queryable; faster takeover | A purge job and retention option per provider; a lease shorter than a slow handler duplicates its batch |
 
-### Chosen Option: **A - all providers**
+### Chosen Option: **A - short-lived rows, 5-minute lease** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 5 ("every provider-dependent feature MUST be implemented for all 10 providers"; "Tests of a provider-dependent feature MUST cover all 10 database providers"). It applies to any durable store, whichever option D1 chooses; under D1 option C there is no store and nothing to implement.
-- Registration follows the existing store flags (`config.UseAuditLogStore`, `config.UseReadAuditStore`, `src/Encina.ADO.SqlServer/ServiceCollectionExtensions.cs:93-120`): a new flag `MessagingConfiguration.UseWriteBehindStore` (default false) makes each provider register `IWriteBehindStore` with `TryAdd`.
+- Option B wins when operators need to inspect delivered items. The defaults are options (`LeaseDuration`, the health age) validated at start.
+- Class: Dilemma
 
 </details>
 
@@ -157,24 +157,26 @@ Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 holds exactly these 8 files:
+PR 1 holds exactly these 10 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Messaging/WriteBehind/WriteBehindItem.cs` | new (public sealed record: `Id`, `RequestType`, `TenantId`, `Content`, `CreatedAtUtc`, `RetryCount`, `NextRetryAtUtc`, `BatchId`, `LeaseOwner`, `LeasedUntilUtc`, `LastErrorCode`) |
 | 2 | `src/Encina.Messaging/WriteBehind/IWriteBehindStore.cs` | new (public interface, ROP) |
-| 3 | `src/Encina.Messaging/MessagingConfiguration.cs` | modify (`UseWriteBehindStore`) |
-| 4 | `src/Encina.Messaging/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
-| 5 | `tests/Encina.UnitTests/Messaging/MessagingConfigurationPatternFlagsTests.cs` | modify (default false) |
-| 6 | `tests/Encina.UnitTests/Messaging/WriteBehindItemTests.cs` | new |
-| 7 | `tests/Encina.IntegrationTests/Infrastructure/Messaging/WriteBehindStoreContractTestsBase.cs` | new (abstract contract tests every provider test class derives from; it runs from PR 4) |
-| 8 | `.github/coverage-manifest/Encina.Messaging.json` | modify (`mechanical-fixer`) |
+| 3 | `src/Encina.Messaging/WriteBehind/WriteBehindErrorCodes.cs` | new (public static constants, the shared home of every store code, like `DeadLetterErrorCodes.cs` and `SagaErrorCodes.cs`: `messaging.write_behind_add_failed`, `messaging.write_behind_claim_failed`, `messaging.write_behind_complete_failed`, `messaging.write_behind_release_failed`, `messaging.write_behind_backlog_failed`, all `ErrorCategory.Internal` per ADR-062 R4, constant messages) |
+| 4 | `src/Encina.Messaging/MessagingConfiguration.cs` | modify (`UseWriteBehindStore`, added to `PatternFlags()`) |
+| 5 | `src/Encina.Messaging/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 6 | `tests/Encina.UnitTests/Messaging/MessagingConfigurationPatternFlagsTests.cs` | modify (default false and the flag counts in `IsAnyPatternEnabled`) |
+| 7 | `tests/Encina.UnitTests/Messaging/WriteBehindItemTests.cs` | new (also asserts every error code constant is distinct and non-empty) |
+| 8 | `tests/Encina.IntegrationTests/Infrastructure/Messaging/WriteBehindStoreContractTestsBase.cs` | new (abstract contract tests every provider test class derives from; it runs from PR 4) |
+| 9 | `.github/coverage-manifest/Encina.Messaging.json` | modify (`mechanical-fixer`) |
+| 10 | `src/Encina.Messaging/README.md` | modify (`docs-writer`: the new store flag next to the other `Use*Store` flags) |
 
 Tasks:
 
 1. **Create** `IWriteBehindStore`: `Task<Either<EncinaError, Unit>> AddAsync(WriteBehindItem item, CancellationToken)`; `Task<Either<EncinaError, IReadOnlyList<WriteBehindItem>>> ClaimBatchAsync(string leaseOwner, int batchSize, TimeSpan leaseDuration, CancellationToken)` (Design Choice 2: expired-lease batches first, whole and with their `BatchId`; otherwise the oldest group, tenant never mixed); `CompleteAsync(IReadOnlyCollection<Guid> ids, CancellationToken)` deletes; `ReleaseAsync(IReadOnlyCollection<Guid> ids, string errorCode, DateTime nextRetryAtUtc, CancellationToken)` clears the lease and adds one retry; `GetBacklogAsync(CancellationToken)` returns the count and the oldest `CreatedAtUtc` (no tenant breakdown, so no per-tenant metric series). Every method is asynchronous with a token and returns `Either`; time is passed in or read from `TimeProvider`, never `DateTime.UtcNow`.
 2. **Create** `WriteBehindItem` (`TenantId` is stored verbatim in its own column; the implicit single-tenant mode stores the reserved segment `default`, a convention of #275 and #272; grouping compares `(RequestType, TenantId)` as two columns, so no two pairs can collide, and under multi-tenancy a request with no tenant never reaches the store, #272).
-3. **Modify** `MessagingConfiguration` (`public bool UseWriteBehindStore { get; set; }` with XML docs).
+3. **Modify** `MessagingConfiguration` (`public bool UseWriteBehindStore { get; set; }` with XML docs and an entry in `PatternFlags()`); the completeness scan of ADR-062 needs each code created with one category, so the constants file is the only place the provider stores take their codes from.
 4. **Tests:** record equality and `with`; the abstract contract base (claim never mixes tenants, an expired lease redelivers the same `BatchId`, complete deletes, release adds a retry, concurrent claims never return the same row twice) is exercised by the provider pull requests; the flag default is asserted in the existing test class.
 
 </details>
@@ -288,9 +290,9 @@ The health check change and the changelog fragment are in PR 12, which has room,
 
 Tasks:
 
-1. **Create** `DurableWriteBehindQueue`: `EnqueueAsync` serializes the request with the registry's stable name and adds a `WriteBehindItem` (tenant verbatim, `default` in single-tenant mode); a store `Left` returns `cache.write_behind_store_unavailable` (Design Choice 5) and logs EventId 520 with the code only; `ClaimAsync` maps rows back through the registry, dead-letters an unknown name or undecodable payload (EventId 521, request type name only), and logs EventId 522 when a claim carries an already-used `BatchId` (a reclaimed batch).
+1. **Create** `DurableWriteBehindQueue`: `EnqueueAsync` serializes the request with the registry's stable name and adds a `WriteBehindItem` (tenant verbatim, `default` in single-tenant mode); a store `Left` returns `cache.write_behind_store_failed` (`ErrorCategory.Internal`, ADR-062 R4, constant message; Design Choice 5) and logs EventId 520 with the code only (the store's own `messaging.write_behind_*` code of PR 1 is what is logged, never `EncinaError.Message`); `ClaimAsync` maps rows back through the registry, dead-letters an unknown name or undecodable payload (EventId 521, request type name only), and logs EventId 522 when a claim carries an already-used `BatchId` (a reclaimed batch).
 2. **Create** `WriteBehindRequestRegistry` from the request types that have a registered `IWriteBehindBatchHandler<TRequest>`.
-3. **Modify** `AddEncinaWriteBehind`: with `Queue = Durable` it registers the durable queue as scoped, replaces the in-memory registration of PR 2 (`Replace`, because the application chose it explicitly), and fails at host start when no `IWriteBehindStore` is registered (the startup check uses `IServiceProviderIsService`; DI test built with `ValidateOnBuild` and `ValidateScopes`).
+3. **Modify** `AddEncinaWriteBehind`: `IWriteBehindQueue` is registered once as a scoped factory that reads `CachingOptions.WriteBehind.Queue` at resolve time and returns the singleton in-memory queue or the durable queue, so the result never depends on the order of `AddEncinaWriteBehind` and `AddEncinaCaching(options => ...)` calls (the issue's example `options.Queue = Durable` is that option); the registration fails at host start when no `IWriteBehindStore` is registered (the startup check uses `IServiceProviderIsService`; DI test built with `ValidateOnBuild` and `ValidateScopes`).
 4. **Observability (ADR-054 D4):** the gauge `encina.cache.write_behind.durable_backlog` reports the total, with no tenant tag; the replay span `encina.cache.write_behind.replay` carries `encina.tenant_id` only when multi-tenancy is on; EventId 523 logs a store failure during replay (retried on the next tick, never swallowed as success).
 5. **Tests:** enqueue maps tenant and type, a failing store returns the `Left` with the constant message, unknown types are dead-lettered, a batch is redelivered whole with the same `BatchId`, a tenant-less request never reaches the queue (the #272 rule), the startup check, the gauge and tag rules.
 
@@ -309,7 +311,7 @@ TASK:
 3. Add the backlog gauge and the replay span; write the unit and DI tests; ask mechanical-fixer for PublicAPI and manifest rows.
 
 KEY RULES:
-- Store failure on enqueue returns Left cache.write_behind_store_unavailable (ErrorCategory.Unavailable, constant message); never fall back silently.
+- Store failure on enqueue returns Left cache.write_behind_store_failed (ErrorCategory.Internal per ADR-062 R4, constant message); never fall back silently.
 - No type is created from stored text outside the registry; the singleton flush service never holds the scoped queue.
 - Metrics carry the tenant tag only with multi-tenancy on; logs carry codes and request type names only.
 - Follow the maintainer's answers to Design Choices 4 and 5 given in your brief.
@@ -327,7 +329,9 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-One pull request per provider package, in this order: ADO.SqlServer (4), ADO.PostgreSQL (5), ADO.MySQL (6), Dapper.SqlServer (7), Dapper.PostgreSQL (8), Dapper.MySQL (9), EntityFrameworkCore (10, three databases), MongoDB (11). Each starts after PR 1 and is independent of PR 2 and PR 3. Each pull request holds 11 files or fewer; the ADO.SqlServer one:
+One pull request per provider package, in this order: ADO.SqlServer (4), ADO.PostgreSQL (5), ADO.MySQL (6), Dapper.SqlServer (7), Dapper.PostgreSQL (8), Dapper.MySQL (9), EntityFrameworkCore (10, three databases), MongoDB (11). Each starts after PR 1 and is independent of PR 2 and PR 3. The Dapper pull request of a database depends on the ADO one of the same database, because both use the same `tests/Encina.TestInfrastructure/Schemas/<Db>Schema.cs` and that file is edited once, in the ADO pull request (so 7 starts after 4, 8 after 5 and 9 after 6, and the ADO and Dapper pull requests of one database never run in parallel); the pull requests of different databases and the EF Core and MongoDB ones can run in parallel (EF Core edits `EFCoreSchema.cs`, which is its own file). Each ADO or Dapper pull request holds 12 files or fewer (the ADO.SqlServer one below; the Dapper ones drop the schema row); the EF Core and MongoDB lists follow. In every pull request the store is public sealed, named `WriteBehindStore{Provider}` (AGENTS.md section 4), and the provider's `README.md` row for the flag is part of the file list (`docs-writer`).
+
+ADO.SqlServer (12 files):
 
 | # | File | Change |
 |---|------|--------|
@@ -342,6 +346,41 @@ One pull request per provider package, in this order: ADO.SqlServer (4), ADO.Pos
 | 9 | `tests/Encina.UnitTests/ADO/SqlServer/ServiceCollectionExtensionsTests.cs` | modify (flag registers the store; flag off does not) |
 | 10 | `.github/coverage-manifest/Encina.ADO.SqlServer.json` | modify (`mechanical-fixer`) |
 | 11 | `changelog.d/4411-cache-write-behind-store-ado-sqlserver.added.md` | new (`mechanical-fixer`) |
+| 12 | `src/Encina.ADO.SqlServer/README.md` | modify (`docs-writer`: the `UseWriteBehindStore` flag) |
+
+EntityFrameworkCore (14 files):
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.EntityFrameworkCore/WriteBehind/WriteBehindMessage.cs` | new (internal entity) |
+| 2 | `src/Encina.EntityFrameworkCore/WriteBehind/WriteBehindMessageConfiguration.cs` | new |
+| 3 | `src/Encina.EntityFrameworkCore/WriteBehind/WriteBehindStoreEF.cs` | new (public sealed over the scope's `DbContext`) |
+| 4 | `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs` | modify (flag registration) |
+| 5 | `src/Encina.EntityFrameworkCore/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 6 | `tests/Encina.TestInfrastructure/Fixtures/EntityFrameworkCore/EFCoreSchema.cs` | modify (table and clean-up for the three databases) |
+| 7-9 | `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/{SqlServer,PostgreSQL,MySQL}/WriteBehind/WriteBehindStoreEF{SqlServer,PostgreSql,MySql}Tests.cs` | new (three classes deriving the contract base, each on its own shared `EFCore-<Db>` collection) |
+| 10 | `tests/Encina.GuardTests/EntityFrameworkCore/Stores/WriteBehindStoreEFGuardTests.cs` | new |
+| 11 | `tests/Encina.UnitTests/EntityFrameworkCore/ServiceCollectionExtensionsTests.cs` | modify |
+| 12 | `.github/coverage-manifest/Encina.EntityFrameworkCore.json` | modify (`mechanical-fixer`) |
+| 13 | `changelog.d/4411-cache-write-behind-store-efcore.added.md` | new (`mechanical-fixer`) |
+| 14 | `src/Encina.EntityFrameworkCore/README.md` | modify (`docs-writer`) |
+
+MongoDB (12 files):
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.MongoDB/WriteBehind/WriteBehindMessage.cs` | new (BSON document, like `Scheduling/ScheduledMessage.cs`) |
+| 2 | `src/Encina.MongoDB/WriteBehind/WriteBehindStoreMongoDB.cs` | new (public sealed) |
+| 3 | `src/Encina.MongoDB/EncinaMongoDbOptions.cs` | modify (`UseWriteBehindStore`; MongoDB does not use `MessagingConfiguration`) |
+| 4 | `src/Encina.MongoDB/ServiceCollectionExtensions.cs` | modify (registration behind the flag) |
+| 5 | `src/Encina.MongoDB/MongoDbIndexCreator.cs` | modify (indexes on the claim fields) |
+| 6 | `src/Encina.MongoDB/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`) |
+| 7 | `tests/Encina.IntegrationTests/Infrastructure/MongoDB/Stores/WriteBehindStoreMongoDBIntegrationTests.cs` | new (derives the contract base on the shared Mongo collection) |
+| 8 | `tests/Encina.GuardTests/MongoDB/WriteBehindStoreMongoDBGuardTests.cs` | new |
+| 9 | `tests/Encina.UnitTests/MongoDB/EncinaMongoDbOptionsTests.cs` | modify (flag default and registration with `ValidateOnBuild`) |
+| 10 | `.github/coverage-manifest/Encina.MongoDB.json` | modify (`mechanical-fixer`) |
+| 11 | `changelog.d/4411-cache-write-behind-store-mongodb.added.md` | new (`mechanical-fixer`) |
+| 12 | `src/Encina.MongoDB/README.md` | modify (`docs-writer`) |
 
 Provider differences (every one proven by the contract base against the real database):
 
@@ -353,7 +392,7 @@ Provider differences (every one proven by the contract base against the real dat
 | EF Core (SqlServer, PostgreSQL, MySQL) | the three statements above through `FromSql` inside one transaction | one entity, configuration and store in `src/Encina.EntityFrameworkCore/WriteBehind/`; schema through `EFCoreSchema.cs`; three integration test classes |
 | MongoDB | `findOneAndUpdate` claim per candidate with a unique claim token, then a find by token | no script; collection and indexes created like the other Mongo stores |
 
-Common rules: every database call is asynchronous with a `CancellationToken` (no `Open()`); a `DbException` becomes a `Left` created by `EncinaErrors.FromException` with `ErrorCategory.Unavailable` and a constant message (the existing `ScheduledMessageStoreADO.cs` has no `Left` or `catch`, so the new stores deliberately follow the interface documentation, not that file); cancellation propagates as `OperationCanceledException`; time from `TimeProvider`; the `Content` column is never logged.
+Common rules: every database call is asynchronous with a `CancellationToken` (no `Open()`); a `DbException` becomes a `Left` created by the categorized `EncinaErrors.FromException` overload with the matching `messaging.write_behind_*` code of `WriteBehindErrorCodes` (PR 1), `ErrorCategory.Internal` (ADR-062 R4: store failures are `Internal`, whether the database is down or not) and a constant message (the existing `ScheduledMessageStoreADO.cs` has no `Left` or `catch`, so the new stores deliberately follow the interface documentation, not that file); cancellation propagates as `OperationCanceledException`; time from `TimeProvider`; the `Content` column is never logged.
 
 </details>
 
@@ -370,7 +409,7 @@ test schema and cleanup, the integration test deriving the contract base, the gu
 
 KEY RULES:
 - The claim is atomic in the database (table in the plan); a batch never mixes tenants; a redelivered batch keeps its BatchId.
-- Async calls with CancellationToken only; failures become Left (ErrorCategory.Unavailable, constant message); cancellation propagates.
+- Async calls with CancellationToken only; failures become Left with the WriteBehindErrorCodes code (ErrorCategory.Internal per ADR-062 R4, constant message); cancellation propagates.
 - Integration tests use the shared [Collection] fixture of the family; never a per-class container.
 - One package per pull request, 15 files or fewer.
 
@@ -388,7 +427,7 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 12 holds exactly these 6 files (plus the two moved from PR 3 if the worker moved them):
+PR 12 holds exactly these 6 files:
 
 | # | File | Change |
 |---|------|--------|
@@ -434,7 +473,7 @@ REFERENCE FILES:
 |----------|-----------|
 | AGENTS.md section 3 | ROP, async database calls, background errors never swallowed, loops never throw, time from `TimeProvider`, no message stored in plaintext |
 | AGENTS.md section 5 | The store is implemented for all 10 database providers; the 8 cache providers are not involved |
-| ADR-062 | `cache.write_behind_store_unavailable` is `Unavailable`; the completeness scan needs one category per code and a constant message |
+| ADR-062 | R4: store and provider failures are `Internal`, so `cache.write_behind_store_failed` and the `messaging.write_behind_*` codes are `Internal`; the completeness scan needs one category per code and a constant message |
 | ADR-054 D4 | Tenant tag on telemetry only with multi-tenancy on |
 | ADR-021 | Range registered before use |
 | Hazelcast MapStore write-behind and NCache write-behind (named in the issue) | Comparable products that persist the queue; at-least-once with replay |
@@ -485,11 +524,11 @@ IMPLEMENTATION OVERVIEW:
 5. PR 12: restart integration test, health backlog age, documentation.
 
 KEY PATTERNS:
-- Fail closed: a store failure on enqueue returns Left (Unavailable, constant message); no silent fallback; no tenant means no enqueue (#272).
+- Fail closed: a store failure on enqueue returns Left (Internal per ADR-062 R4, constant message); no silent fallback; no tenant means no enqueue (#272).
 - Claims are atomic in the database; a batch never mixes tenants; a redelivered batch keeps its BatchId (at-least-once).
 - No type is created from stored text outside the allow-list; no EncinaError.Message is stored or logged.
 - Singletons never inject scoped services; time from TimeProvider; async database calls with tokens.
-- Follow the maintainer's answers to Design Choices 1 to 5 given in your brief.
+- Follow the maintainer's answers to Design Choices 1 to 6 given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Messaging/Scheduling/IScheduledMessageStore.cs
@@ -530,23 +569,25 @@ REFERENCE FILES:
 | #272 PR 3 (queue, behavior, abstractions) and PR 4 (flush service, `AddEncinaWriteBehind`) | Open | PR 2 and PR 3 of this plan need them; PR 1 and the provider pull requests (4 to 11) need only PR 1 of this plan |
 | `IScheduledMessageStore` pattern, `IDbTransactionAccessor`, shared fixtures | ✅ Available | On `origin/main` |
 | Block 500-549 of the EventId registry | ✅ Assigned | Plan batch registry; 520-523 free |
-| Maintainer answers to Design Choices 1 to 5 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 6 | Pending | Asked when work starts |
 
-Coverage targets (per flag, set in the pull request that adds each file; every row's test file is in the same pull request):
+Coverage targets (per flag, each set in the pull request named in the row, whose test file is in that same pull request; "on main" numbers are read from the manifests today, "#272" numbers are the ones the #272 plan sets, which do not exist in the manifest until its pull requests land):
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Messaging/WriteBehind/WriteBehindItem.cs` | 90 | 0 | 0 | 0 | A data record with no validated parameter: no guard surface; equality and `with` are unit tested |
-| `Encina.Messaging/WriteBehind/IWriteBehindStore.cs` | 0 | 0 | 0 | 0 | An interface has no executable lines |
-| `Encina.Messaging/MessagingConfiguration.cs` | keep | keep | 0 | 0 | The existing targets are never lowered (`target-ratchet`); one property added and its default tested |
-| `Encina.Caching/Patterns/DurableWriteBehindQueue.cs` | 95 | 0 | 0 | 40 | Driven by a fake store; internal, no `InternalsVisibleTo` for the guard project; integration 40 is set in PR 12, the pull request that adds the restart test |
-| `Encina.Caching/Patterns/WriteBehindRequestRegistry.cs` | 95 | 0 | 0 | 0 | Pure mapping with unit tests; internal |
-| `Encina.Caching/Patterns/WriteBehindQueue.cs`, `Services/WriteBehindFlushService.cs` | keep | 0 | keep | 0 | The targets #272 sets are kept; the changed lines are covered by the updated tests |
-| `Encina.Caching/Diagnostics/CacheWriteBehindDurableLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the queue tests |
-| `Encina.Caching/Health/WriteBehindHealthCheck.cs` | keep | 0 | 0 | 0 | The target #272 sets (100) is kept; the new branch is tested in PR 12 |
-| Each store, for example `Encina.ADO.SqlServer/WriteBehind/WriteBehindStoreADO.cs` | 0 | 25 | 0 | 85 | SQL runs only against a real database (the integration flag drives every statement); the guard tests reach the constructor and argument checks that precede the SQL (about a quarter of the file, in line with the 15 to 40 guard shares of other stores); unit 0 because a mocked connection executes none of the SQL |
-| `Encina.EntityFrameworkCore/WriteBehind/WriteBehindStoreEF.cs`, `Encina.MongoDB/WriteBehind/WriteBehindStoreMongoDB.cs` | 0 | 25 | 0 | 85 | Same reasoning: real database tests, argument guards only |
-| Provider `ServiceCollectionExtensions.cs` files | keep | keep | 0 | 0 | Existing targets kept; the flag branch is tested by the DI unit test of the same pull request |
+| `Encina.Messaging/WriteBehind/WriteBehindItem.cs` and `WriteBehindErrorCodes.cs` (PR 1) | 90 | 0 | 0 | 0 | A data record and constants with no validated parameter: no guard surface; equality, `with` and the constants test are unit tests |
+| `Encina.Messaging/WriteBehind/IWriteBehindStore.cs` (PR 1) | 0 | 0 | 0 | 0 | An interface has no executable lines |
+| `Encina.Messaging/MessagingConfiguration.cs` (PR 1) | 95 | 0 | 0 | 0 | The manifest has unit 95 on main and it is kept; the new property and its `PatternFlags()` entry are asserted in the flags test |
+| `Encina.Caching/Patterns/WriteBehindQueue.cs` (PR 2) | 100 | 0 | 80 | 0 | The #272 values (unit 100, contract 80) are kept; the changed lines are covered by the updated tests |
+| `Encina.Caching/Services/WriteBehindFlushService.cs` (PR 2) | 90 | 0 | 0 | 0 | The #272 value is kept; the per-scope resolution and claim loop are driven with `FakeTimeProvider` |
+| `Encina.Caching/Patterns/DurableWriteBehindQueue.cs` (PR 3; integration raised in PR 12) | 95 | 0 | 0 | 0, then 40 | Driven by a fake store in PR 3, which has no integration test, so integration is 0 there; PR 12 adds the restart test and raises it to 40; internal, no `InternalsVisibleTo` for the guard project |
+| `Encina.Caching/Patterns/WriteBehindRequestRegistry.cs` (PR 3) | 95 | 0 | 0 | 0 | Pure mapping with unit tests; internal |
+| `Encina.Caching/Diagnostics/CacheWriteBehindDurableLog.cs` (PR 3) | 90 | 0 | 0 | 0 | Generated bodies run in the queue tests |
+| `Encina.Caching/Health/WriteBehindHealthCheck.cs` (PR 12) | 100 | 0 | 0 | 0 | The #272 value (100) is kept; the new backlog-age branch is tested in the same pull request |
+| Each ADO.NET, Dapper, EF Core and MongoDB store (PRs 4 to 11) | 0 | 10 | 0 | 90 | Same numbers as the sibling scheduled stores on main (integration 90, guard 10; Dapper PostgreSQL has guard 9): SQL runs only against a real database, so the integration flag drives every statement and a mocked connection executes none (unit 0); the guard tests reach only the argument checks that precede the SQL, a tenth of the file |
+| Provider `ServiceCollectionExtensions.cs` files (PRs 4 to 11) | per package on main: ADO SqlServer 55/55/40, ADO PostgreSQL and MySQL 60/55/40, Dapper SqlServer 52/5/0, Dapper PostgreSQL and MySQL 60/5/0, EF Core 64/60/40, MongoDB 55/2/20 (unit/guard/integration) | | | | The numbers on main are kept as written in the three columns; the flag branch is tested by the DI unit test of the same pull request |
+| `Encina.MongoDB/EncinaMongoDbOptions.cs` (PR 11) | 95 | 65 | 0 | 85 | The manifest has these values on main and they are kept; the new property is asserted in `EncinaMongoDbOptionsTests.cs` |
+| `Encina.MongoDB/MongoDbIndexCreator.cs` (PR 11) | 80 | 0 | 0 | 0 | The manifest has these values on main and they are kept; the new index definitions run in the options test |
 
 The worker measures every flag with `coverage-report.cs` per pull request and reports the numbers; no target is lowered.
 
@@ -554,5 +595,5 @@ The worker measures every flag with `coverage-report.cs` per pull request and re
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 5) when work starts, records the answers under `## Maintainer Decisions`, then briefs PR 1; PR 2 and PR 3 wait for #272 PR 4, the eight provider pull requests can run in parallel after PR 1 (one lane each, ADO and Dapper of the same database serialize on the shared test schema file).
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 6) when work starts, records the answers under `## Maintainer Decisions`, then briefs PR 1; PR 2 and PR 3 wait for #272 PR 4; the provider pull requests start after PR 1 (the Dapper one of a database after the ADO one of that database, because they share its test schema file; the other pairs run in parallel).
 2. No issue file is written for this plan: the module dimension is #746 (open) and the load test belongs to the pull request that lands the first provider.
