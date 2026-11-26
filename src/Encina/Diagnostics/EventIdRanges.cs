@@ -18,7 +18,7 @@ namespace Encina.Diagnostics;
 /// </list>
 /// </para>
 /// <para>
-/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1; DomainModeling and Tenancy, CM-2; module isolation, messaging stores and IdGeneration, CM-3) keeps its field but now lies in the zone. They are grouped
+/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1; DomainModeling and Tenancy, CM-2; module isolation, messaging stores and IdGeneration, CM-3; messaging core and recoverability, CM-4) keeps its field but now lies in the zone. They are grouped
 /// by the area and sub-issue that moves them, in the merge order of #4007 (CM-1 to CM-6, DB-1, DB-2, CA-1, CA-2,
 /// TR-1, TR-2, SC-1 to SC-6, OP-1, OP-2, TT-CI). Each field keeps its current value until its sub-issue lands;
 /// the trailing comment names the sub-issue and the range the field moves to. The target extents are reserved in
@@ -86,13 +86,13 @@ public static class EventIdRanges
     // ── CM-4 Messaging core and recoverability ─────────────────────────────
 
     /// <summary>Encina.Messaging — orchestrators and runners (the stores have their own ranges above).</summary>
-    public static readonly (int Min, int Max) Messaging = (2800, 2999); // moves to 11550-11749 in #4007 CM-4
+    public static readonly (int Min, int Max) Messaging = (11550, 11749); // moved from 2800-2999 in #4007 CM-4
 
     /// <summary>
     /// Encina.Messaging — delayed-retry processor and recoverability pipeline diagnostics added after
     /// the original recoverability ids (2845-2871, inside <see cref="Messaging"/>).
     /// </summary>
-    public static readonly (int Min, int Max) MessagingRecoverability = (5450, 5499); // moves to 12050-12099 in #4007 CM-4
+    public static readonly (int Min, int Max) MessagingRecoverability = (12050, 12099); // moved from 5450-5499 in #4007 CM-4
 
     // ── CM-5 Messaging encryption and change data capture ──────────────────
 
