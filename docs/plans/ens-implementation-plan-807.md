@@ -2,8 +2,8 @@
 
 > **Issue**: [#807](https://github.com/dlrivada/Encina/issues/807)
 > **Type**: Feature (new package)
-> **Complexity**: High (a 73-entry measure registry, two event-sourced aggregates, evaluators; 7 pull requests)
-> **Estimated Scope**: 70 file touches and about 5,600 lines including tests and per-PR metadata; split into 7 pull requests, see "Pull request split"
+> **Complexity**: High (a 73-entry measure registry, two event-sourced aggregates, evaluators; 10 pull requests)
+> **Estimated Scope**: 108 file touches and about 8,150 lines including tests and per-PR metadata; split into 10 pull requests, see "Pull request split"
 > **Milestone**: v0.17.0 — Compliance Lifecycle. In the 1.0 scope since SPEC-000 DEC-009 (2026-10-23, REQ-030, which supersedes SPEC-002 DEC-015); the issue's `post-1.0` label and the issue comment "stays post-1.0" are stale
 > **Provider Category**: None for databases (Marten on PostgreSQL, ADR-027; AGENTS.md section 5 excludes event sourcing from the database matrix)
 > **Family**: `compliance-nis2-2`. ENS is Spain's regime for the public sector and its suppliers; it follows the conventions of the NIS2 family (#822 to #826) and reuses the evaluator idea of `Encina.Compliance.NIS2`.
@@ -12,14 +12,16 @@
 
 ## Summary
 
+> **Legal values in this plan.** Checked on 2026-11-26 against the official BOE text of RD 311/2022 (legal-facts check of the plan batch): VERIFIED are the publication and entry-into-force dates, the five dimensions and three levels, the category rule of Annex I (plus its yearly reassessment or reassessment after a significant change), art. 2(3), the 73 measures of Annex II (4 `org`, 33 `op`, 36 `mp`) and the audit rule of art. 31 (ordinary audit at least every two years plus an extraordinary one after substantial changes, which restarts the two-year count). The split "Basic self-assessment, Medium and High formal audit" is art. 38(1) and Annex III sections 2.1 and 2.2, not art. 31. UNVERIFIED: the validity period (expiry) of a declaration or certificate of conformity, which the RD does not state (art. 38(2) only publishes them) and which sits in the Instruccion Tecnica de Seguridad de Conformidad con el ENS, not yet read. The applicability data shape of the measures is Design Choice 8.
+
 ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measures; five security dimensions: confidentiality, integrity, traceability, authenticity, availability; applies to private suppliers of the public sector, art. 2(3), per the issue comment of 2026-09-23) requires a system to be categorised and its measures to be applied and audited. Encina has no ENS code today. It has the building blocks for evidence: `Encina.Security.Audit` (#395, closed) for the activity log of op.exp.8, `Encina.Security.ABAC` (#401, closed) for access control, and `Encina.Compliance.NIS2` for the evaluator pattern (`INIS2MeasureEvaluator`, `NIS2MeasureResult`).
 
 **What it implements**:
 
 - `ENSCategory` (`Basic`, `Medium`, `High`), `ENSDimension` and `ENSDimensionLevel` (`Low`, `Medium`, `High`) with a pure `ENSCategoryCalculator`: the category of a system is the highest level among its dimensions (Annex I).
-- `ENSMeasureRegistry`: the 73 measures of Annex II as an embedded data file (id such as `op.exp.8`, framework `org`, `op` or `mp`, Spanish official name, English name, the dimensions it protects, applicability per category: not applicable, applies, applies reinforced).
+- `ENSMeasureRegistry`: the 73 measures of Annex II as an embedded data file (id such as `op.exp.8`, framework `org`, `op` or `mp`, Spanish official name, English name, the dimensions it protects, applicability as Annex II states it: a measure is tied either to the system category or to one or more dimensions with a value per level (`aplica`, `n.a.`, plus reinforcements `+R1` to `+R5` chosen after risk analysis); the data shape is Design Choice 8).
 - `ENSSystemAggregate` (event sourced): categorisation, declaration of applicability (which measures apply and why a measure is excluded) and per-measure implementation status; cloud provider records for op.nub.
-- `ENSConformityAssessmentAggregate` (event sourced): self-assessment or audit, findings with CCN-STIC reference, report, conformity declaration or certificate and its expiry.
+- `ENSConformityAssessmentAggregate` (event sourced): self-assessment or audit (art. 31, art. 38(1) and Annex III), findings with CCN-STIC reference, report (art. 31(4)-(5): degree of compliance, conformities and non-conformities, methodology, scope), conformity declaration or certificate (art. 38(2)) and its expiry (the validity rule is UNVERIFIED, see the banner; it is a configurable value until verified).
 - `IENSMeasureEvaluator` implementations that gather automatic evidence for the measures Encina can prove (op.exp.8 audit logging through the audit store, op.acc access control through the ABAC engine).
 - Category completeness validation (`IENSComplianceValidator`): a system of category X must have every measure that applies at X implemented or justified.
 - Services, inline projections, a review-due monitor, a health check and OpenTelemetry metrics, registered by `AddEncinaENS(...)`.
@@ -30,7 +32,7 @@ ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measur
 
 **Provider category**: none. The 12-function check is in the matrix at the end.
 
-### Corrections to the issue text (checked against `origin/main` 4b0a600c7)
+### Corrections to the issue text (checked against `origin/main` 356c8cd62)
 
 | Issue text | Today's code and verified facts | Plan decision |
 |---|---|---|
@@ -38,7 +40,7 @@ ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measur
 | "Security dimension assessment" and "Category determination" as two items | Annex I derives the category from the dimension levels | One calculator |
 | "Full Annex II measure registry" | The comment of 2026-09-23 verifies 73 measures | Data file with exactly 73 entries, count asserted by a test |
 | "CCN-STIC measure mapping" | CCN-STIC guides are documents, not data Encina can ship | `CcnStic` reference code per measure and per finding (a string), not the guide text |
-| "Caching N/A", "Multi-tenancy deferred" | A per-system stream contract cannot add tenancy later without a migration | Tenant and module ids on every event from PR 1 |
+| "Caching N/A", "Multi-tenancy deferred" | A per-system stream contract cannot add tenancy later without a migration | Tenant and module ids on every event from PR 4 (the first aggregate PR). The tenant comes from `ITenantScopeResolver` (#1257, PR 1257-A1; not yet in `src`) and the module from `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs`); `ITenantContext` and `IModuleContext` do not exist in `src` |
 | "ENS logging per op.exp.8" as a new logging feature | `Encina.Security.Audit` already stores audit entries | An evaluator proves op.exp.8 by the presence and use of the audit store; no second log |
 
 ---
@@ -96,43 +98,42 @@ ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measur
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Embedded JSON resource `ens-measures.json` loaded once into an immutable `ENSMeasureRegistry`; a test asserts 73 entries, unique ids and a complete applicability row** | Reviewable line by line against the BOE text; no logic mixed with data | A loader and a resource entry in the csproj |
+| **A) Embedded JSON resource `ens-measures.json`, one measure per line (73 entries plus the array brackets, so the file stays about 80 lines whatever the number of fields per entry), loaded once into an immutable `ENSMeasureRegistry`; a test asserts 73 entries, unique ids and a complete applicability row** | Reviewable line by line against the BOE text; no logic mixed with data; the file is small enough to share a pull request with the loader | A loader and a resource entry in the csproj; long lines |
 | B) A static C# table | No loader; compile-time checked | 73 rows of Spanish text in code; harder to review against the source |
 
 ### Chosen Option: **A (recommended, pending the maintainer)**
 
 ### Rationale
 
-- B wins if the maintainer wants no resource loading in a library; A wins for reviewability against the legal source. The registry content is transcribed from Annex II of the BOE text in its own PR (PR 2) and checked entry by entry; the 73 count comes from the issue comment.
+- B wins if the maintainer wants no resource loading in a library; A wins for reviewability against the legal source. The registry content is transcribed from Annex II of the BOE text in PR 3 and checked entry by entry; the 73 count is verified against the BOE text (4 `org`, 33 `op`, 36 `mp`). The data file is the thing under review: the registry test asserts 73 entries and the per-framework counts 4, 33 and 36, which checks the transcription is complete and consistent.
 
 </details>
 
 <details>
-<summary><strong>4. Audit cadence and conformity kinds — options with the regulation's values</strong></summary>
+<summary><strong>4. Audit cadence and conformity kinds — configurable defaults, or constants</strong></summary>
 
-- **Class**: Trivial
-- **Settled by**: RD 311/2022 art. 31 and Annex III (basic systems: self-assessment; medium and high systems: audit, at least every two years and after substantial changes).
+- **Class**: Dilemma
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `ENSOptions` hold `AuditInterval` (default two years) and the rule "audit required for Medium and High"; the aggregate computes `NextAssessmentDueAtUtc` from `TimeProvider` instants** | Auditable, amendable by configuration | The values are verified against the BOE text at the adversarial review |
+| **A) `ENSOptions` hold `AuditInterval` (default two years) and the rule "audit required for Medium and High"; the aggregate computes `NextAssessmentDueAtUtc` from `TimeProvider` instants** | Auditable, amendable by configuration | A configurable value can be set below what the regulation requires unless the validator rejects it |
 | B) Constants in code | Simpler | An amendment needs a release |
 
-### Chosen Option: **A**
+### Chosen Option: **A (recommended, pending the maintainer)**
 
 ### Rationale
 
-- The adversarial review checks art. 31 and Annex III and sets the `Verified` line only then.
+- Both options satisfy the legal rule (its values are the same either way), so this is not Settled by a citation. A wins when the rule may be amended or an entity wants a stricter cadence (the options validator rejects an interval longer than the regulation allows); B wins for the least moving parts.
+- Legal values (checked 2026-11-26, see the banner): art. 31(1) sets the ordinary audit at least every two years and an extraordinary audit after substantial changes (which restarts the count; force majeure may extend the deadline by three months); the Basic self-assessment versus Medium and High formal audit split is art. 38(1) and Annex III sections 2.1 and 2.2, and Annex III sets no interval. The aggregate's rules cite the article that holds each rule. The validity period of a declaration or certificate is UNVERIFIED (ITS de Conformidad not read), so its default is not fixed by this plan.
 
 </details>
 
 <details>
 <summary><strong>5. Personal data in events</strong></summary>
 
-- **Class**: Trivial
-- **Settled by**: GDPR Art. 5(1)(c) data minimisation and the outcome recommended for Dilemma 6 of the #822 plan (ids only in immutable streams).
+- **Class**: Dilemma (follows the outcome of the personal-data Dilemma of the #822 plan)
 
 ### Options Considered
 
@@ -141,11 +142,11 @@ ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measur
 | **A) Events hold ids, enums, dates and codes; the four ENS roles (information owner, service owner, security officer, system owner) are person ids, never names** | Nothing personal in the stream | The application keeps the people registry |
 | B) Names and contacts in events | Self-contained | Personal data in an immutable stream |
 
-### Chosen Option: **A**
+### Chosen Option: **A (recommended, pending the maintainer)**
 
 ### Rationale
 
-- If the maintainer chooses crypto-shredding in the #822 Dilemma, this package follows the same outcome in a later change; the default here is the minimal one.
+- A wins on GDPR Art. 5(1)(c) data minimisation; B wins only for an entity that wants a self-contained stream and accepts crypto-shredding. The choice follows the outcome the maintainer gives to the personal-data Dilemma of #822, whichever it is; if that outcome is crypto-shredding, this package follows it in a later change. No other design choice of this plan rests on this one.
 
 </details>
 
@@ -191,25 +192,50 @@ ENS (RD 311/2022, BOE of 4 May 2022, in force 5 May 2022; Annex II has 73 measur
 
 </details>
 
+<details>
+<summary><strong>8. Measure applicability data shape — a basis per measure, or flat rows per dimension and level</strong></summary>
+
+- **Class**: Dilemma
+
+Annex II (section 2, selection table) ties a measure either to the system category (for example org.1) or to one or more dimensions with a value per level (for example op.exp.8 depends on dimension T, op.acc.1 on T and A); the values are `aplica`, `n.a.` and reinforcements `+R1` to `+R5` that are chosen after risk analysis. A row of "applicability per category" cannot represent op.exp.8 or op.acc.1 (legal-facts check, 2026-11-26).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Each `ENSMeasure` has a `Basis` (`Category` or `Dimensions`); a category-based measure holds the applicability for Basic, Medium and High; a dimension-based measure holds, per protected dimension, the value for Low, Medium and High and the ids of the reinforcements it offers; the system's selected reinforcements are recorded on the system aggregate** | Mirrors the shape of the legal table; one line per measure in the data file | Two shapes in one type; the completeness validator evaluates a dimension-based measure against the level of each of its dimensions in the system |
+| B) Flat rows `(measure, dimension or category, level, value, reinforcements)` | One uniform row type | About 150 or more rows instead of 73; the "73 measures" test needs a grouping step; harder to review against the table |
+
+### Chosen Option: **A (recommended, pending the maintainer)**
+
+### Rationale
+
+- B wins if the maintainer prefers a uniform row type and accepts a longer file; A wins on reviewability against the BOE table and on the 73-entry file. Under both options the category is still computed from the dimension levels (Design Choice 2), the registry is immutable and a missing level returns `Left`; the choice is made before PR 3 fixes the data shape. The old "applies reinforced" flag is replaced by explicit reinforcement ids in both.
+
+</details>
+
 ---
 
 ## Implementation Phases
 
 ### Pull request split (read first)
 
-Each PR builds and passes alone. Test project edits are `ProjectReference` additions (UnitTests and GuardTests in PR 1, PropertyTests in PR 2, ContractTests and IntegrationTests in PR 4).
+Each PR builds and passes alone, is at most 15 files and 1,500 lines, and counts tests, metadata, README, changelog fragment and docs. Test project edits are `ProjectReference` additions (UnitTests in PR 1, PropertyTests and GuardTests in PR 2, ContractTests and IntegrationTests in PR 6). The data file `ens-measures.json` is written one measure per line, so it is about 80 lines whatever the shape of Design Choice 8 (a pretty-printed file of 73 entries would be 900 to 1,100 lines and is not used).
 
 | PR | Phases | Files (production, metadata) | Test files | Files / lines (approx.) |
 |---|---|---|---|---|
-| 1 | 1 | `EventIdRanges.cs`, registry row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.slnx`, csproj, two PublicAPI files, manifest, `ENSErrors`, `ENSOptions` (10) | `AssemblyRanges` entry, UnitTests and GuardTests csproj references, unit options test (4) | 14 files / 650 |
-| 2 | 2 | `ENSCategory`, `ENSDimension`, `ENSDimensionLevel`, `ENSCategoryCalculator`, `ENSMeasure`, `ENSMeasureRegistry`, `ens-measures.json`, csproj edit (embedded resource), `PublicAPI.Unshipped.txt`, manifest (11) | unit calculator, unit registry (73 entries, unique ids), property calculator, PropertyTests csproj reference (4) | 15 files / 1,400 |
-| 3 | 3 | `ENSSystemEvents`, `ENSSystemAggregate`, status and justification models, `PublicAPI.Unshipped.txt`, manifest (5) | unit aggregate, guard, property (3) | 8 files / 1,000 |
-| 4 | 4 | `ENSConformityAssessmentEvents`, `ENSConformityAssessmentAggregate`, finding models, `PublicAPI.Unshipped.txt`, manifest (6) | unit aggregate, guard, property (3) | 9 files / 1,000 |
-| 5 | 5 | `IENSSystemService`, `IENSAssessmentService`, two default services, two read models, two projections, `ENSMartenExtensions` (8) | unit services, unit projections, guard, contract, integration Marten, ContractTests and IntegrationTests csproj references (6) | 14 files / 1,500 |
-| 6 | 6 | `IENSMeasureEvaluator`, `OperationLogEvaluator`, `AccessControlEvaluator`, `IENSComplianceValidator`, `DefaultENSComplianceValidator`, `PublicAPI.Unshipped.txt`, manifest (7) | unit evaluators, unit validator, guard (3) | 10 files / 1,000 |
-| 7 | 7, 8 | `ServiceCollectionExtensions` (`AddEncinaENS`), options validator, `ENSReviewMonitorService`, health check, `ENSDiagnostics`, `ENSLogMessages`, `PublicAPI.Unshipped.txt`, manifest, changelog fragment, README, feature page (11) | DI test, unit monitor and health check (3) | 14 files / 1,100 |
+| 1 | 1 | `EventIdRanges.cs`, `eventid-block-registry.md` row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.json` manifest, `Encina.slnx`, ENS csproj, ENS `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`, ENS manifest, `ENSErrors`, `ENSOptions` (11) | `AssemblyRanges` entry, UnitTests csproj reference, unit options test, unit errors test (one `GetCategory` case per code) (4) | 15 files / 700 |
+| 2 | 2 | `ENSCategory`, `ENSDimension`, `ENSDimensionLevel`, `ENSCategoryCalculator`, `PublicAPI.Unshipped.txt`, manifest (6) | unit calculator, property calculator, guard calculator, PropertyTests and GuardTests csproj references (5) | 11 files / 650 |
+| 3 | 2 (registry) | `ENSMeasureApplicability`, `ENSMeasure`, `ENSMeasureRegistry`, `ens-measures.json` (one measure per line, about 80 lines), csproj edit (embedded resource), `PublicAPI.Unshipped.txt`, manifest (7) | unit registry (73 entries, 4/33/36 per framework, unique ids, complete applicability), guard registry (2) | 9 files / 850 |
+| 4 | 3 | `ENSSystemEvents`, `ENSSystemAggregate`, status and justification models, `PublicAPI.Unshipped.txt`, manifest (5) | unit aggregate, guard, property (3) | 8 files / 1,000 |
+| 5 | 4 | `ENSConformityAssessmentEvents`, `ENSConformityAssessmentAggregate`, finding models, `PublicAPI.Unshipped.txt`, manifest (6) | unit aggregate, guard, property (3) | 9 files / 1,000 |
+| 6 | 5 (system side) | `IENSSystemService`, `DefaultENSSystemService`, `ENSSystemReadModel`, `ENSSystemProjection`, `ENSMartenExtensions` (created here), `PublicAPI.Unshipped.txt`, manifest (7) | unit service, unit projection, guard service, contract `IENSSystemService`, integration Marten, ContractTests and IntegrationTests csproj references (7) | 14 files / 1,000 |
+| 7 | 5 (assessment side) | `IENSAssessmentService`, `DefaultENSAssessmentService`, `ENSAssessmentReadModel`, `ENSAssessmentProjection`, `ENSMartenExtensions` edit, `PublicAPI.Unshipped.txt`, manifest (7) | unit service, unit projection, guard service, contract `IENSAssessmentService`, integration Marten (5) | 12 files / 900 |
+| 8 | 6 | `IENSMeasureEvaluator`, `OperationLogEvaluator`, `AccessControlEvaluator`, `IENSComplianceValidator`, `DefaultENSComplianceValidator`, `PublicAPI.Unshipped.txt`, manifest (7) | unit evaluators, unit validator, guard (3) | 10 files / 1,000 |
+| 9 | 7 (registration, monitor, diagnostics) | `ServiceCollectionExtensions` (`AddEncinaENS`), `ENSOptionsValidator`, `ENSReviewMonitorService`, `ENSDiagnostics`, `ENSLogMessages`, `PublicAPI.Unshipped.txt`, manifest (7) | DI test, unit monitor, unit diagnostics, guard validator and monitor (4) | 11 files / 900 |
+| 10 | 7 (health check), 8 | `ENSComplianceHealthCheck`, `ServiceCollectionExtensions` edit, manifest, changelog fragment, package README, `docs/features/ens.md`, `docs/INVENTORY.md` (7) | unit health check, DI test edit (2) | 9 files / 500 |
 
-PR 5 carries the services, read models, projections and the Marten registration; PR 4 carries the assessment aggregate only.
+PR 6 carries the system service, read model, projection and the Marten registration; PR 7 the assessment side; PR 5 carries the assessment aggregate only. The sum is 15 + 11 + 9 + 8 + 9 + 14 + 12 + 10 + 11 + 9 = 108 file touches.
 
 ### Phase 1: Package Skeleton, EventIds & Errors (PR 1)
 
@@ -218,7 +244,7 @@ PR 5 carries the services, read models, projections and the Marten registration;
 
 1. `EventIdRanges.cs`: `ComplianceENS = (53000, 53049)` registered first (ADR-021), registry row, `Encina` PublicAPI line, `AssemblyRanges` entry for `Encina.Compliance.ENS`.
 2. csproj (references of Design Choice 1), `Encina.slnx` entry, PublicAPI files.
-3. `ENSErrors` with ADR-062 categories: `SystemNotFound` NotFound, `CategoryBelowComputed` Validation, `DimensionLevelMissing` Validation, `MeasureUnknown` NotFound, `InvalidTransition` FailedPrecondition, `TenantMissing` Forbidden, `EventStoreFailed` UpstreamFailure.
+3. `ENSErrors` with ADR-062 categories (rule in brackets): `SystemNotFound` `NotFound` (R1: a runtime entity addressed by the system id the caller supplies), `AssessmentNotFound` `NotFound` (R1, same reason), `CategoryBelowComputed` `Validation` (R3), `DimensionLevelMissing` `Validation` (R3), `MeasureUnknown` `Validation` (R3: the caller supplies a measure id that is not in the legal catalogue, a field rule; R1 excludes `NotFound` because a catalogue entry is static configuration data, not a runtime entity, and `Internal` would blame the server for a caller's value), `InvalidTransition` `Conflict` (R2: an invalid transition is `Conflict`; `FailedPrecondition` is not used before #3420), `EventStoreFailed` `Internal` (R4: a store failure, never `UpstreamFailure`). There is no own tenant-missing code: the `Left` of `ITenantScopeResolver` (`encina.tenancy.tenant_required`, `InvalidRequest`, R3) is returned unchanged.
 4. `ENSOptions` (`AuditInterval`, `EnableReviewMonitor` default false, monitor interval).
 
 </details>
@@ -243,14 +269,14 @@ REFERENCE FILES: src/Encina.Compliance.NIS2/NIS2Errors.cs, src/Encina.Compliance
 
 </details>
 
-### Phase 2: Categorisation & Measure Registry (PR 2)
+### Phase 2: Categorisation (PR 2) & Measure Registry (PR 3)
 
 <details>
 <summary>Tasks</summary>
 
-1. `Model/ENSCategory.cs`, `ENSDimension.cs`, `ENSDimensionLevel.cs`, `ENSMeasureApplicability.cs` (`NotApplicable`, `Applies`, `AppliesReinforced`).
-2. `Services/ENSCategoryCalculator.cs` (pure): highest level among the five dimensions; a missing dimension returns `Left`.
-3. `Registry/ENSMeasure.cs`, `ENSMeasureRegistry.cs` (loads the embedded resource once; `Get(id)`, `For(category)`), `Registry/ens-measures.json` with the 73 measures of Annex II (`org`, `op`, `mp` frameworks), csproj `EmbeddedResource` entry.
+1. PR 2: `Model/ENSCategory.cs`, `ENSDimension.cs`, `ENSDimensionLevel.cs`. PR 3: `Registry/ENSMeasureApplicability.cs` (`NotApplicable`, `Applies`, with reinforcement ids `R1` to `R5` as data, not an enum value; shape per Design Choice 8).
+2. PR 2: `Services/ENSCategoryCalculator.cs` (pure): highest level among the five dimensions (Annex I); a missing dimension returns `Left`.
+3. PR 3: `Registry/ENSMeasure.cs` (`Basis` and the applicability data of Design Choice 8), `ENSMeasureRegistry.cs` (loads the embedded resource once; `Get(id)`, `For(system levels)`), `Registry/ens-measures.json` with the 73 measures of Annex II (4 `org`, 33 `op`, 36 `mp`), one measure per line, csproj `EmbeddedResource` entry. The registry test asserts the 73 total and the 4/33/36 split.
 
 </details>
 
@@ -264,18 +290,18 @@ CONTEXT:
 - Phase 1 merged. Annex I defines the category as the highest dimension level; Annex II lists the measures.
 
 TASK:
-1. Create the category types and the pure calculator.
-2. Create the measure model, the registry loader and the data file transcribed entry by entry from Annex II of RD 311/2022.
+1. (PR 2) Create the category types and the pure calculator.
+2. (PR 3) Create the measure model, the registry loader and the one-line-per-measure data file transcribed entry by entry from Annex II of RD 311/2022, in the shape the maintainer chose for Design Choice 8.
 
 KEY RULES:
-- A test asserts 73 entries, unique ids and an applicability value for each of the three categories; the registry is immutable; no Spanish text outside NameEs.
+- A test asserts 73 entries (4 org, 33 op, 36 mp), unique ids and a complete applicability value for every category or dimension level the measure's basis requires; the registry is immutable; no Spanish text outside NameEs.
 
 REFERENCE FILES: src/Encina.Compliance.NIS2/Model/NIS2Measure.cs
 ```
 
 </details>
 
-### Phase 3: ENS System Aggregate (PR 3)
+### Phase 3: ENS System Aggregate (PR 4)
 
 <details>
 <summary>Tasks</summary>
@@ -305,13 +331,13 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 
 </details>
 
-### Phase 4: Conformity Assessment Aggregate (PR 4)
+### Phase 4: Conformity Assessment Aggregate (PR 5)
 
 <details>
 <summary>Tasks</summary>
 
 1. `Model/ENSAssessmentKind.cs` (`SelfAssessment`, `Audit`), `ENSAssessmentStatus.cs`, `ENSFinding.cs` (measure id, severity, `CcnStic` reference code, status), `ENSConformityOutcome.cs`.
-2. Events and `ENSConformityAssessmentAggregate`: `Plan`, `Start`, `RecordFinding`, `ResolveFinding`, `IssueReport`, `DeclareConformity` or `RecordCertificate`, `Expire`; an audit is required for Medium and High (Design Choice 4).
+2. Events and `ENSConformityAssessmentAggregate`: `Plan`, `Start`, `RecordFinding`, `ResolveFinding`, `IssueReport`, `DeclareConformity` or `RecordCertificate`, `Expire`; an audit is required for Medium and High (Design Choice 4; art. 38(1), Annex III), and an illegal transition returns `Left` with `ENSErrors.InvalidTransition` (`Conflict`). `Expire` follows a validity period that is a configurable value until the ITS de Conformidad is read (UNVERIFIED).
 
 </details>
 
@@ -335,14 +361,14 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 
 </details>
 
-### Phase 5: Services, Read Models & Projections (PR 5)
+### Phase 5: Services, Read Models & Projections (PR 6: system side; PR 7: assessment side)
 
 <details>
 <summary>Tasks</summary>
 
-1. `IENSSystemService` and `IENSAssessmentService` with internal default services taking `IAggregateRepository<T>`, `TimeProvider`, `ITenantContext?`, `IModuleContext?`, `ILogger` (optional parameters last, CS1737). A registered `ITenantContext` without a tenant returns `Left` `Forbidden`.
-2. `ENSSystemReadModel` (category, measure status counts, `NextAssessmentDueAtUtc`), `ENSAssessmentReadModel` and idempotent inline projections (constructor-injected).
-3. `ENSMartenExtensions` (`AddENSEventSourcing()`).
+1. `IENSSystemService` and `IENSAssessmentService` with internal default services taking `IAggregateRepository<T>`, `ITenantScopeResolver` (#1257; required), `TimeProvider`, `ILogger` and, last, `IModuleExecutionContext? moduleContext = null` (optional parameters last and written with `= null`, CS1737 and `ValidateOnBuild`). Commands call `ResolveWrite(null)` and queries `ResolveRead(null)`; a `Left` (`tenant_required`, `InvalidRequest`) is returned unchanged and nothing is appended or read (fail closed). The module id stamped on events is `moduleContext?.CurrentModule` (null when no module context is active).
+2. PR 6: `ENSSystemReadModel` (category, measure status counts, `NextAssessmentDueAtUtc`) and its idempotent inline projection (constructor-injected). PR 7: `ENSAssessmentReadModel` and its projection.
+3. `ENSMartenExtensions` (`AddENSEventSourcing()`), created in PR 6 with the system aggregate and projection and extended in PR 7.
 
 </details>
 
@@ -356,23 +382,23 @@ CONTEXT:
 - Aggregates exist (Phases 3 and 4). Pattern: src/Encina.Compliance.BreachNotification/Services/DefaultBreachNotificationService.cs.
 
 TASK:
-1. Create the services, read models, projections and Marten registration.
+1. Create the services, read models, projections and Marten registration (system side in PR 6, assessment side in PR 7).
 
 KEY RULES:
-- Missing tenant denies; a Left from a store fails the operation; integration tests use Marten on PostgreSQL via Testcontainers (no InMemory store).
+- ITenantScopeResolver first, its Left returned unchanged (missing tenant denies); a Left from a store fails the operation; integration tests use Marten on PostgreSQL via Testcontainers (no InMemory store).
 
 REFERENCE FILES: src/Encina.Marten/Projections/IReadModelRepository.cs
 ```
 
 </details>
 
-### Phase 6: Evidence Evaluators & Completeness Validation (PR 6)
+### Phase 6: Evidence Evaluators & Completeness Validation (PR 8)
 
 <details>
 <summary>Tasks</summary>
 
 1. `IENSMeasureEvaluator` (`MeasureId`, `EvaluateAsync`) returning `Satisfied`, `NotSatisfied` or `NotEvaluable`; `OperationLogEvaluator` (op.exp.8) and `AccessControlEvaluator` (op.acc) resolving their dependencies optionally.
-2. `IENSComplianceValidator` and `DefaultENSComplianceValidator`: for a system, every measure that applies at its category is `Implemented` or `Justified`; the result lists the gaps and a `NotEvaluable` evaluator never counts as satisfied.
+2. `IENSComplianceValidator` and `DefaultENSComplianceValidator`: for a system, every measure that applies at its category (category-based measures) or at the level of each of its dimensions (dimension-based measures, Design Choice 8) is `Implemented` or `Justified`; the result lists the gaps and a `NotEvaluable` evaluator never counts as satisfied.
 
 </details>
 
@@ -396,14 +422,14 @@ REFERENCE FILES: src/Encina.Compliance.NIS2/Evaluators/RiskAnalysisEvaluator.cs,
 
 </details>
 
-### Phase 7: Configuration, DI, Cross-Cutting Integration & Observability (PR 7)
+### Phase 7: Configuration, DI, Cross-Cutting Integration & Observability (PR 9: registration, monitor, diagnostics; PR 10: health check and documentation)
 
 <details>
 <summary>Tasks</summary>
 
-1. `AddEncinaENS(...)`: options, validator, registry (singleton), services, evaluators, validator, `AddENSEventSourcing()`, `TryAdd*`; DI test with `ValidateOnBuild` and `ValidateScopes`.
+1. `AddEncinaENS(...)`: options, validator, registry (singleton), services, evaluators, validator, `AddENSEventSourcing()`, `TryAdd*`; DI test with `ValidateOnBuild` and `ValidateScopes` (it registers `ITenantScopeResolver` through #1257's registration method).
 2. `ENSReviewMonitorService` (opt-in `BackgroundService`, `PeriodicTimer` on `TimeProvider`, per-iteration catch; optional `IDistributedLockProvider` lock per iteration) escalating overdue assessments.
-3. `ENSDiagnostics` (meter and `ActivitySource` `Encina.Compliance.ENS`; instruments `ens.system.*`, `ens.assessment.*`, `ens.measure.*`; no `_total`; tenant tag with multi-tenancy), `ENSLogMessages` ids 53000-53029 packed from 53000 (53030-53049 free), health check (overdue assessment gives `Degraded`).
+3. `ENSDiagnostics` (meter and `ActivitySource` `Encina.Compliance.ENS`; instruments `ens.system.*`, `ens.assessment.*`, `ens.measure.*`; no `_total`; tenant tag with multi-tenancy), `ENSLogMessages` ids 53000-53029 packed from 53000 (53030-53049 free) in PR 9; health check `ENSComplianceHealthCheck` (overdue assessment gives `Degraded`) in PR 10.
 
 </details>
 
@@ -427,13 +453,13 @@ REFERENCE FILES: src/Encina.Compliance.NIS2/ServiceCollectionExtensions.cs, src/
 
 </details>
 
-### Phase 8: Testing & Documentation (PRs 1 to 7)
+### Phase 8: Testing & Documentation (PRs 1 to 10)
 
 <details>
 <summary>Tasks</summary>
 
 1. Unit, guard (public constructors and methods; nullable parameters that accept null get a valid-result test), contract (`IENSSystemService`, `IENSMeasureEvaluator`), property (category equals the maximum level for any dimension levels; applicability monotone from Basic to High), integration (Marten on PostgreSQL, rebuild from history).
-2. Per-file targets: `ENSCategoryCalculator` unit 95, property 85; `ENSMeasureRegistry` unit 95, guard 85; aggregates unit 90, guard 80; services unit 90, guard 85, contract 70; projections unit 90, integration 80; evaluators unit 90, guard 85; validator unit 90; options validator unit 95, guard 90; monitor unit 85. Load and benchmark: `.md` justification (low-throughput compliance operations).
+2. Per-file targets (numeric, required by AGENTS.md section 9; no measured figure is typed here, and any baseline is quoted only as "measured on <date> with <command>"; each target is justified in one sentence in the manifest): `ENSCategoryCalculator` unit 95 (a pure function, every branch a case), property 85, guard 85 (null and missing-level arguments); `ENSMeasureRegistry` unit 95, guard 85 (the loader is a pure function of the embedded file); aggregates unit 90, guard 80 (every transition and illegal transition is a unit case); services unit 90, guard 85, contract 70 (the `Left` paths of the public interfaces); projections unit 90, integration 80 (the Marten run covers registration); evaluators unit 90, guard 85; validator unit 90; options validator unit 95, guard 90; monitor unit 85, guard 80 (constructor arguments); health check unit 90. Load and benchmark: `.md` justification (low-throughput compliance operations).
 3. Docs: XML docs, `changelog.d/807-ens-compliance.added.md`, package README, `docs/features/ens.md` (by `docs-writer`), `docs/INVENTORY.md`; the ADR number is assigned when the ADR pull request opens.
 4. CRAP of every changed method at most 10.
 
@@ -469,7 +495,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 | :--- | :--- | :--- |
 | RD 311/2022 Annex I | Categories and dimensions | `ENSCategoryCalculator` |
 | RD 311/2022 Annex II | The 73 security measures (`org`, `op`, `mp`) | `ENSMeasureRegistry` |
-| RD 311/2022 art. 31, Annex III | Conformity assessment and audit | `ENSConformityAssessmentAggregate` |
+| RD 311/2022 art. 31, art. 38, Annex III | Art. 31: ordinary audit at least every two years, extraordinary after substantial changes; art. 38(1) and Annex III sections 2.1 and 2.2: Basic self-assessment, Medium and High formal audit; art. 38(2): declarations and certifications are published | `ENSConformityAssessmentAggregate` |
 | Measure `op.nub` | Cloud services | `ENSCloudProviderRecord` |
 | Measures `op.exp.8`, `op.mon`, `op.exp.7` | Activity log, monitoring, incident management | Evaluator for `op.exp.8`; `op.exp.7` linked, not rebuilt |
 
@@ -488,16 +514,17 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 
 | Package | Range | Notes |
 |---|---|---|
-| `Encina.Compliance.ENS` | `53000-53049` (`ComplianceENS`, new, Security and compliance zone) | Phase 7 uses 53000-53029; 53030-53049 free. After the claims known on 2026-11-25 (up to 52749, 52750-52799 for #827, 52800-52899 for #804, 52900-52949 for #805, 52950-52999 for #806); the orchestrator confirms against the registry when the PR opens |
+| `Encina.Compliance.ENS` | `53000-53049` (`ComplianceENS`, new, Security and compliance zone) | Phase 7 uses 53000-53029; 53030-53049 free. After the claims known on 2026-11-25 (up to 52749, 52750-52799 for #827, 52800-52899 for #804, 52900-52949 for #805, 52950-52999 for #806); verified free on 2026-11-26 against `eventid-block-registry.md`, `EventIdRanges.cs`, every plan on `main` and the open plan heads (#4381, #4383 and #4385 claim 52800-52999; none touches 53000-53049) |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |---|---|---|
-| Production | 32 | Models, registry and data file, aggregates, services, projections, evaluators |
-| Metadata (csproj, slnx, PublicAPI, manifest, registry, README, fragment) | 20 | Counted per PR |
-| Tests | 17 | Unit, guard, contract, property, integration, `.md` justifications, project references |
-| Documentation page | 1 | |
+| Production | 40 | Models, registry and data file, aggregates, services, projections, evaluators, diagnostics, health check |
+| Metadata (csproj, slnx, PublicAPI, manifests, registry row, README, fragment) | 28 | Counted per PR (PublicAPI and manifest recur) |
+| Tests | 38 | Unit, guard, contract, property, integration, project references |
+| Documentation (feature page, INVENTORY) | 2 | |
+| Total | 108 | Matches the split: 15 + 11 + 9 + 8 + 9 + 14 + 12 + 10 + 11 + 9 |
 
 ---
 
@@ -509,7 +536,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 ```text
 PROJECT CONTEXT: Encina is a .NET 10 / C# 14 pre-1.0 library with ROP. Issue #807 adds Encina.Compliance.ENS (RD 311/2022): category calculator, 73-measure registry, two Marten event-sourced aggregates (system, conformity assessment), evidence evaluators and a completeness validator.
 
-IMPLEMENTATION OVERVIEW: seven pull requests (skeleton, categorisation and registry, system aggregate, assessment aggregate, services and projections, evaluators and validator, DI and observability).
+IMPLEMENTATION OVERVIEW: ten pull requests (skeleton, categorisation, registry, system aggregate, assessment aggregate, system service and projection, assessment service and projection, evaluators and validator, DI and observability, health check and documentation).
 
 KEY PATTERNS: category computed from dimension levels (fail closed on a missing level); NotEvaluable never counts as satisfied; tenant and module ids on every event; missing tenant denies; no personal data in events; no _total counters (ADR-054); ErrorCategory per ADR-062; no InMemory store (Marten and PostgreSQL via Testcontainers); optional constructor parameters last; opt-in monitor.
 
@@ -533,8 +560,8 @@ REFERENCE FILES: src/Encina.Compliance.NIS2; src/Encina.Compliance.BreachNotific
 | 7 | Distributed Locks | ✅ | The opt-in monitor takes an optional `IDistributedLockProvider` lock per iteration when one is registered |
 | 8 | Transactions | ❌ | Each command appends to one stream; the repository commit is the owner |
 | 9 | Idempotency | ❌ | Commands carry the aggregate's expected version; a duplicate transition is an invalid transition (`Left`) |
-| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model; missing tenant denies |
-| 11 | Module Isolation | ✅ | `ModuleId` on every event and read model |
+| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model, from `ITenantScopeResolver` (#1257); its `Left` is returned unchanged, so a missing tenant denies |
+| 11 | Module Isolation | ✅ | `ModuleId` on every event and read model, from `IModuleExecutionContext.CurrentModule` (null when no module is active) |
 | 12 | Audit Trail | ✅ | The event stream is the immutable audit trail of categorisation and certification; op.exp.8 evidence reads the audit store |
 
 ---
@@ -542,10 +569,11 @@ REFERENCE FILES: src/Encina.Compliance.NIS2; src/Encina.Compliance.BreachNotific
 ## Prerequisites & Dependencies
 
 - #822 (open, plan on main): event-sourcing conventions and the personal-data outcome. #2668 (open) builds the shared rule-code catalogue; this plan adds its codes to `ENSErrors`.
+- #1257 PR 1257-A1 (open, plan on main): `ITenantScopeResolver` and `TenantScope`, a hard prerequisite of PR 6 and PR 7; it does not exist in `src` today.
 - #395 and #401 (closed) are referenced packages; #414 (closed) is context; #1186 (open EPIC, SPEC-002) is context.
 
 ## Next Steps
 
-1. Maintainer answers Dilemma 3 when work on #807 starts; it is marked "recommended, pending the maintainer".
-2. Brief PR 1 after #822 PR 1 has merged; PR 2 to PR 7 follow in order.
-3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines (including art. 31 and Annex III, and the 73 measures against the BOE text).
+1. Maintainer answers Dilemmas 3, 4, 5 and 8 when work on #807 starts; each is marked "recommended, pending the maintainer". Dilemma 8 (data shape) is answered before PR 3.
+2. Brief PR 1 after #822 PR 1 has merged; PR 2 to PR 10 follow in order.
+3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines; the remaining UNVERIFIED value is the validity period of a conformity declaration or certificate (ITS de Conformidad).
