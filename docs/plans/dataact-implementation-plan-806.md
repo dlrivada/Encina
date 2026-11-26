@@ -3,7 +3,7 @@
 > **Issue**: [#806](https://github.com/dlrivada/Encina/issues/806)
 > **Type**: Feature (new package)
 > **Complexity**: High (four event-sourced aggregates plus an export writer family; 11 pull requests)
-> **Estimated Scope**: about 128 file touches and about 11,000 lines including tests and per-PR metadata; split into 11 pull requests (each at most 15 files and 1,500 lines, with explicit file lists), see "Pull request split"
+> **Estimated Scope**: 136 file touches (the per-PR table sum; a shared file such as `PublicAPI.Unshipped.txt` counts in every PR that edits it) and about 12,300 lines including tests and per-PR metadata; split into 11 pull requests (each at most 15 files and 1,500 lines, with explicit file lists), see "Pull request split"
 > **Milestone**: v0.17.0 — Compliance Lifecycle. In the 1.0 scope since SPEC-000 DEC-009 (2026-10-23, REQ-030, which supersedes SPEC-002 DEC-015); the issue's `post-1.0` label and the issue comment "stays post-1.0" are stale
 > **Provider Category**: None for databases (Marten on PostgreSQL, ADR-027; AGENTS.md section 5 excludes event sourcing from the database matrix)
 > **Family**: `compliance-nis2-2`. Reuses the conventions of #822 and the export vocabulary of `Encina.Compliance.DataSubjectRights` (#404).
@@ -20,7 +20,7 @@ The Data Act (applicable since 12 September 2025; switching charges abolished fr
 - `DataSharingAgreementAggregate` (Chapter III): parties, scope, fair-reasonable-non-discriminatory terms record (Art. 8), compensation (Art. 9), term and termination.
 - `CloudSwitchingAggregate` (Chapter VI): switching request, notice, transition, data retrieval and completion with the periods of Art. 25 as options.
 - `IDataActExportWriter` with JSON and CSV writers for machine-readable exports (Art. 4(1) and 5(1) "structured, commonly used and machine-readable format").
-- `ThirdCountryAccessAggregate` (Art. 32): a log of third-country government access requests and the assessment outcome (PR 11, the last one).
+- `ThirdCountryAccessAggregate` (Art. 32): a log of third-country government access requests and the assessment outcome (PR 9, before the registration PR so `AddEncinaDataAct` registers all four services).
 - Services, inline projections, a deadline monitor, a health check and OpenTelemetry metrics, registered by `AddEncinaDataAct(...)`.
 
 **Not in scope**: the personal-data case (GDPR portability stays in #404), technical interoperability specifications for data spaces, smart contracts (Art. 36), and automated transfer of the data itself (the package records and checks the decision; moving the bytes is the application's).
@@ -37,7 +37,7 @@ The Data Act (applicable since 12 September 2025; switching charges abolished fr
 | "Portability export format abstractions" | `IExportFormatWriter` writes `PersonalDataLocation` lists | New `IDataActExportWriter` (Design Choice 4) |
 | Alternatives: "extend DataSubjectRights" rejected | Agreed: the scope is non-personal data | A package of its own |
 | Caching N/A; Idempotency, Multi-tenancy deferred | Tenancy changes the stream contract if added later | Tenancy and a caller-supplied idempotency reference are included from PR 1 |
-| `Chapter VII` safeguards | Art. 32 concerns third-country government access | `ThirdCountryAccessAggregate` in PR 11 |
+| `Chapter VII` safeguards | Art. 32 concerns third-country government access | `ThirdCountryAccessAggregate` in PR 9 |
 | Related `#809` EPIC | Closed | Context only |
 
 ---
@@ -88,8 +88,8 @@ The Data Act (applicable since 12 September 2025; switching charges abolished fr
 <details>
 <summary><strong>3. Deadlines and periods — options with the regulation's values, working-day calendar</strong></summary>
 
-- **Class**: Settled
-- **Settled by**: Data Act Art. 18(2) and Art. 25(2), (4) and (5), with the values written below and verified against the Official Journal text (mirror) in the batch's legal-facts record of 2026-11-26 (rows A4 to A7 and its Art. 25(4) and (5) notes).
+- **Class**: Dilemma for the choice between options and constants; the values themselves are Settled by the articles cited
+- **Values settled by**: Data Act Art. 18(2) and Art. 25(2), (4) and (5), with the values written below and verified against the Official Journal text (mirror) in the batch's legal-facts record of 2026-11-26 (rows A4 to A7 and its Art. 25(4) and (5) notes).
 
 | Option name (`DataActOptions`) | Default | Source |
 |---|---|---|
@@ -110,11 +110,11 @@ The customer may extend the transitional period once, for any length it consider
 | **A) `DataActOptions` hold the periods of the table as defaults; working days come from `IWorkingDayCalendar` (Design Choice 8); pure `DataActDeadlineCalculator` takes instants** | Auditable, testable, amendable by configuration (the Digital Omnibus proposals may change Chapter V; re-check the status before coding it) | The defaults must be re-checked against the Official Journal text at each review |
 | B) Constants in code | Simpler | An amendment needs a release |
 
-### Chosen Option: **A**
+### Chosen Option: **A (recommended, pending the maintainer)**
 
 ### Rationale
 
-- Time comes from `TimeProvider`; the calculator never reads the clock. B is not chosen because the regulation can be amended and a deadline is a legal value, not a code constant.
+- Time comes from `TimeProvider`; the calculator never reads the clock. A wins because the regulation can be amended (the Digital Omnibus may change Chapter V) and a deadline is a legal value; B wins on simplicity if the maintainer prefers a release per amendment. The articles fix the values, not this choice; the working-day calendar abstraction of Design Choice 8 exists under both options.
 
 </details>
 
@@ -226,21 +226,21 @@ The customer may extend the transitional period once, for any length it consider
 
 ### Pull request split (read first)
 
-Each PR builds and passes alone. Test project edits are `ProjectReference` additions (UnitTests and GuardTests in PR 1, PropertyTests in PR 2, IntegrationTests in PR 5, ContractTests in PR 9), each counted in its PR. Every file the plan names is assigned to exactly one PR (the options validator and its tests to PR 9, the guard test of each service to its service PR, the log-message files to the PR whose code logs). No PR exceeds 15 files or 1,500 lines.
+Each PR builds and passes alone. Test project edits are `ProjectReference` additions (UnitTests and GuardTests in PR 1, PropertyTests in PR 2, IntegrationTests in PR 5, ContractTests in PR 10), each counted in its PR. A guard test is one file per PR (the files-per-PR counts assume it; per-class guard files would break the 15-file limit of PRs 2 and 9). Every file the plan names is assigned to exactly one PR (the options validator and its tests to PR 10, the guard test of each service to its service PR, the log-message files to the PR whose code logs). No PR exceeds 15 files or 1,500 lines.
 
 | PR | Phases | Files (production, metadata), explicit | Test files, explicit | Files / lines (approx.) |
 |---|---|---|---|---|
-| 1 | 1 | `src/Encina/Diagnostics/EventIdRanges.cs`, `docs/engineering/eventid-block-registry.md` row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.slnx`, `Encina.Compliance.DataAct.csproj`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, `DataActErrors`, `DataActOptions` (10) | `AssemblyRanges` entry in `EncinaEventIdAllocationTests`, UnitTests and GuardTests csproj references, unit options test (4) | 14 files / 650 |
-| 2 | 2 | `DataSharingRequestKind`, `DataSharingRequestStatus`, `TradeSecretProtection`, `DataSharingRequestEvents`, `DataSharingRequestAggregate`, `DataActDeadlineCalculator`, `IWorkingDayCalendar`, `DefaultWorkingDayCalendar`, `PublicAPI.Unshipped.txt`, manifest (10) | unit aggregate, unit calculator, guard (aggregate, calculator), property deadlines, PropertyTests csproj reference (5) | 15 files / 1,450 |
+| 1 | 1 | `src/Encina/Diagnostics/EventIdRanges.cs`, `docs/engineering/eventid-block-registry.md` row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.slnx`, `Encina.Compliance.DataAct.csproj`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest, `DataActErrors`, `DataActOptions` (with `RequireTenantContext`) (10) | `AssemblyRanges` entry in `EncinaEventIdAllocationTests`, UnitTests and GuardTests csproj references, unit options test (4) | 14 files / 650 |
+| 2 | 2 | `DataSharingRequestKind`, `DataSharingRequestStatus`, `TradeSecretProtection`, `DataSharingRequestEvents`, `DataSharingRequestAggregate`, `DataActDeadlineCalculator`, `IWorkingDayCalendar`, `DefaultWorkingDayCalendar`, `PublicAPI.Unshipped.txt`, manifest (10) | unit aggregate, unit calculator (one file, also covering `DefaultWorkingDayCalendar`: weekends, holidays, the interval boundaries), one guard file (aggregate, calculator), property deadlines, PropertyTests csproj reference (5) | 15 files / 1,450 |
 | 3 | 3 | `AgreementTerms`, `DataSharingAgreementStatus`, `DataSharingAgreementEvents`, `DataSharingAgreementAggregate`, `PublicAPI.Unshipped.txt`, manifest (6) | unit aggregate, guard, property (3) | 9 files / 900 |
 | 4 | 4 | `CloudSwitchingStatus`, `CloudSwitchingChoice`, `CloudSwitchingEvents`, `CloudSwitchingAggregate`, `PublicAPI.Unshipped.txt`, manifest (6) | unit aggregate, guard, property periods (3) | 9 files / 1,000 |
 | 5 | 5 (request) | `IDataSharingRequestService`, `DefaultDataSharingRequestService`, `DataSharingRequestReadModel`, `DataSharingRequestProjection`, `DataActMartenExtensions` (new), `DataActScopeResolver` (internal, tenant and module, Phase 5 task 1), `DataActRequestLogMessages`, `PublicAPI.Unshipped.txt`, manifest (9) | unit service, unit projection, guard service, integration Marten, IntegrationTests csproj reference (5) | 14 files / 1,400 |
 | 6 | 5 (agreement) | `IDataSharingAgreementService`, `DefaultDataSharingAgreementService`, `DataSharingAgreementReadModel`, `DataSharingAgreementProjection`, `DataActMartenExtensions` (edit), `DataActAgreementLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,100 |
 | 7 | 5 (switching) | `ICloudSwitchingService`, `DefaultCloudSwitchingService`, `CloudSwitchingReadModel`, `CloudSwitchingProjection`, `DataActMartenExtensions` (edit), `DataActSwitchingLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,100 |
 | 8 | 6 | `IDataActExportWriter`, `DataActExportFormat`, `DataActExport`, `DataActExportDescriptor`, `JsonDataActExportWriter`, `CsvDataActExportWriter`, `PublicAPI.Unshipped.txt`, manifest (8) | unit JSON writer, unit CSV writer, guard writers (3) | 11 files / 1,100 |
-| 9 | 7 (registration) | `ServiceCollectionExtensions` (`AddEncinaDataAct`), `DataActOptionsValidator`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test (`ValidateOnBuild`, `ValidateScopes`), unit validator, guard (validator, registration), contract (the three services and the writer port; one file), ContractTests csproj reference, load and benchmark `.md` justifications (2) (7) | 11 files / 900 |
-| 10 | 7 (monitor), 8, 9 (docs) | `DataActDeadlineMonitorService`, `DataActHealthCheck`, `DataActDiagnostics`, `DataActMonitorLogMessages`, `ServiceCollectionExtensions` (edit), `PublicAPI.Unshipped.txt`, manifest, `changelog.d/806-dataact-compliance.added.md`, package README, `docs/features/dataact.md`, `docs/INVENTORY.md` (11) | unit monitor, unit health check, guard (monitor, health check, diagnostics) (3) | 14 files / 1,300 |
-| 11 | 9 (third country) | `ThirdCountryAccessEvents`, `ThirdCountryAccessAggregate`, `IThirdCountryAccessService`, `DefaultThirdCountryAccessService`, `ThirdCountryAccessReadModel`, `ThirdCountryAccessProjection`, `DataActMartenExtensions` (edit), `DataActThirdCountryLogMessages`, `PublicAPI.Unshipped.txt`, manifest (10) | unit aggregate, unit service, unit projection, guard service, integration Marten (5) | 15 files / 1,400 |
+| 9 | 9 (third country) | `ThirdCountryAccessEvents`, `ThirdCountryAccessAggregate`, `IThirdCountryAccessService`, `DefaultThirdCountryAccessService`, `ThirdCountryAccessReadModel`, `ThirdCountryAccessProjection`, `DataActMartenExtensions` (edit), `DataActThirdCountryLogMessages`, `PublicAPI.Unshipped.txt`, manifest (10) | unit aggregate, unit service, unit projection, guard service, integration Marten (5) | 15 files / 1,400 |
+| 10 | 7 (registration) | `ServiceCollectionExtensions` (`AddEncinaDataAct`: registers all four services, the writers and the options; `TryAdd*`), `DataActOptionsValidator`, `PublicAPI.Unshipped.txt`, manifest (4) | DI test (`ValidateOnBuild`, `ValidateScopes`; resolves all four services), unit validator, one guard file (validator, registration), contract (the four services and the writer port; one file), ContractTests csproj reference, load and benchmark `.md` justifications (2) (7) | 11 files / 900 |
+| 11 | 7 (monitor), 8, 9 (docs) | `DataActDeadlineMonitorService`, `DataActHealthCheck`, `DataActDiagnostics`, `DataActMonitorLogMessages`, `ServiceCollectionExtensions` (edit), `PublicAPI.Unshipped.txt`, manifest, `changelog.d/806-dataact-compliance.added.md`, package README, `docs/features/dataact.md`, `docs/INVENTORY.md` (11) | unit monitor, unit health check, guard (monitor, health check, diagnostics) (3) | 14 files / 1,300 |
 
 Log-message ids are packed from 52950 in merge order with no gaps; each PR's partial `DataActLogMessages` file takes the next ids (52950-52982 in all, 52983-52999 free).
 
@@ -372,7 +372,7 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 <details>
 <summary>Tasks</summary>
 
-1. `IDataSharingRequestService`, `IDataSharingAgreementService`, `ICloudSwitchingService` and internal default services taking `IAggregateRepository<T>`, `TimeProvider`, `IRequestContextAccessor`, `ILogger`, then the optional `MultiTenancyMarker? multiTenancy = null` and `IModuleExecutionContext? moduleContext = null` (optional parameters last, CS1737). `ITenantContext` and `IModuleContext` do not exist in `src` and are not used. The tenant comes from the ambient `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`) read through `IRequestContextAccessor.RequestContext` (`src/Encina/Abstractions/IRequestContextAccessor.cs:54`), the pattern of `DefaultConsentService.TryResolveWriteTenantScope`; the module id comes from `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs:58`). The internal `DataActScopeResolver` (PR 5) holds that rule once: with a registered `MultiTenancyMarker` and no tenant the command returns `Left` `TenantMissing` (`InvalidRequest`, ADR-062 R3; fail closed) and an explicit tenant that differs from the ambient one is `Left` `TenantMismatch`. No `ProjectReference` is added: the package already references `Encina`; the typed resolver of #1257 (`ITenantScopeResolver`) replaces the helper when that plan merges. The request service applies Design Choice 6.
+1. `IDataSharingRequestService`, `IDataSharingAgreementService`, `ICloudSwitchingService` and internal default services taking `IAggregateRepository<T>`, `TimeProvider`, `IRequestContextAccessor`, `ILogger`, then the optional `MultiTenancyMarker? multiTenancy = null` and `IModuleExecutionContext? moduleContext = null` (optional parameters last, CS1737). `ITenantContext` and `IModuleContext` do not exist in `src` and are not used. The tenant comes from the ambient `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`) read through `IRequestContextAccessor.RequestContext` (`src/Encina/Abstractions/IRequestContextAccessor.cs:70`), the pattern of `DefaultConsentService.TryResolveWriteTenantScope` (`DefaultConsentService.cs:605-632`); the module id comes from `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs:80`). The Consent pattern denies only when `RequireTenantContext ?? MultiTenancyMarker registered` (`DefaultConsentService.cs:128`), so an application with neither is not denied there. This package fails closed on its own: `DataActOptions.RequireTenantContext` (`bool`, default `true`, PR 1) makes a missing tenant deny unless the application sets it to `false` explicitly (logged by code when a `MultiTenancyMarker` is registered, SPEC-002 DEC-006). The internal `DataActScopeResolver` (PR 5) holds that rule once: with `RequireTenantContext` true and no tenant the command returns `Left` `TenantMissing` (`InvalidRequest`, ADR-062 R3; fail closed) and an explicit tenant that differs from the ambient one is `Left` `TenantMismatch` (`Forbidden`, R6, deliberately unlike Consent's `TenantRequired`). No `ProjectReference` is added: the package already references `Encina`; the typed resolver of #1257 (`ITenantScopeResolver`) replaces the helper when that plan merges. The request service applies Design Choice 6.
 2. Read models and idempotent inline projections (constructor-injected, never `IServiceProvider`): request, agreement and switching overdue and list queries.
 3. `DataActMartenExtensions` (`AddDataActEventSourcing()`).
 
@@ -428,14 +428,14 @@ REFERENCE FILES: src/Encina.Compliance.DataSubjectRights/Abstractions/IExportFor
 
 </details>
 
-### Phase 7: Configuration, DI, Cross-Cutting Integration & Observability (PRs 9 and 10)
+### Phase 7: Configuration, DI, Cross-Cutting Integration & Observability (PRs 10 and 11)
 
 <details>
 <summary>Tasks</summary>
 
-1. `AddEncinaDataAct(...)`: options, validator, services, `AddDataActEventSourcing()`, `TryAdd*`; DI test with `ValidateOnBuild` and `ValidateScopes` (PR 9, with `DataActOptionsValidator`; the monitor and health check registration is added in PR 10).
-2. `DataActDeadlineMonitorService` (PR 10) (opt-in `BackgroundService`, `PeriodicTimer` on `TimeProvider`, per-iteration catch; a missed deadline appends an escalation event; optional `IDistributedLockProvider` lock per iteration).
-3. `DataActDiagnostics` (instruments of Design Choice 7), `DataActMonitorLogMessages` (a partial of `DataActLogMessages`, the earlier PRs add theirs; ids packed from 52950 in merge order, 52950-52979 for PRs 5 to 10, 52980-52982 for PR 11, 52983-52999 free), health check (overdue request or switching period gives `Degraded`).
+1. `AddEncinaDataAct(...)`: options, validator, the four services (the third-country service of PR 9 included, so no PR adds a service without a registration), the writers, `AddDataActEventSourcing()`, `TryAdd*`; DI test with `ValidateOnBuild` and `ValidateScopes` (PR 10, with `DataActOptionsValidator`; the monitor and health check registration is added in PR 11). PRs 5 to 9 prove their service with a hand-built test provider because `AddEncinaDataAct` lands in PR 10; the PR 5 brief says so.
+2. `DataActDeadlineMonitorService` (PR 11) (opt-in `BackgroundService`, `PeriodicTimer` on `TimeProvider`, per-iteration catch; a missed deadline appends an escalation event; optional `IDistributedLockProvider` lock per iteration).
+3. `DataActDiagnostics` (instruments of Design Choice 7), `DataActMonitorLogMessages` (a partial of `DataActLogMessages`, the earlier PRs add theirs; ids packed from 52950 in merge order, never past 52982, 52983-52999 free), health check (overdue request or switching period gives `Degraded`).
 
 </details>
 
@@ -490,7 +490,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 
 </details>
 
-### Phase 9: Third-Country Access Log (PR 11) & Documentation (PR 10)
+### Phase 9: Third-Country Access Log (PR 9) & Documentation (PR 11)
 
 <details>
 <summary>Tasks</summary>
@@ -549,13 +549,13 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 
 | Package | Range | Notes |
 |---|---|---|
-| `Encina.Compliance.DataAct` | `52950-52999` (`ComplianceDataAct`, new, Security and compliance zone) | PRs 5 to 10 use 52950-52979; PR 11 adds three ids inside the range (52980-52982); 52983-52999 free. Checked on 2026-11-26 against `docs/engineering/eventid-block-registry.md`, `EventIdRanges.cs` on `origin/main` and the open plan heads: nothing else claims 52800-52999 except #804 (52800-52899), #805 (52900-52949) and this plan; the orchestrator confirms again when the PR opens |
+| `Encina.Compliance.DataAct` | `52950-52999` (`ComplianceDataAct`, new, Security and compliance zone) | ids are packed in merge order with no gaps from 52950 and never pass 52982 (PRs 5 to 9 and 11 together); 52983-52999 free. Checked on 2026-11-26 against `docs/engineering/eventid-block-registry.md`, `EventIdRanges.cs` on `origin/main` and the open plan heads: nothing else claims 52800-52999 except #804 (52800-52899), #805 (52900-52949) and this plan; the orchestrator confirms again when the PR opens |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |---|---|---|
-| Production | 52 | Models, events, aggregates, services, projections, writers, log-message files |
+| Production | 52 | Models, events, aggregates, services, projections, writers, log-message files (distinct files; the PR table above counts a shared file in each PR that edits it, so its 136 is higher than this table's 127) |
 | Metadata (csproj, slnx, PublicAPI, manifest, registry, README, fragment) | 25 | Counted per PR |
 | Tests | 49 | Unit, guard, contract, property, integration, `.md` justifications, project references |
 | Documentation page | 1 | |
@@ -570,7 +570,7 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 ```text
 PROJECT CONTEXT: Encina is a .NET 10 / C# 14 pre-1.0 library with ROP. Issue #806 adds Encina.Compliance.DataAct: Marten event-sourced aggregates for data sharing requests, agreements, cloud switching and third-country access, plus JSON and CSV export writers.
 
-IMPLEMENTATION OVERVIEW: eleven pull requests (skeleton, request aggregate, agreement, switching, three service and projection PRs, writers, DI, observability and docs, third-country log).
+IMPLEMENTATION OVERVIEW: eleven pull requests (skeleton, request aggregate, agreement, switching, three service and projection PRs, writers, third-country log, DI, observability and docs).
 
 KEY PATTERNS: aggregates return Either with rule codes (ADR-053); tenant and module ids on every event; missing tenant denies; no personal data or free text in events; injective tenant-qualified request references with the reserved 'default' segment; no _total counters (ADR-054); ErrorCategory per ADR-062; no InMemory store; optional constructor parameters last; opt-in monitor.
 
@@ -594,7 +594,7 @@ REFERENCE FILES: src/Encina.Compliance.BreachNotification; src/Encina.Compliance
 | 7 | Distributed Locks | ✅ | The opt-in monitor takes an optional `IDistributedLockProvider` lock per iteration when one is registered |
 | 8 | Transactions | ❌ | Each command appends to one stream; the repository commit is the owner |
 | 9 | Idempotency | ✅ | Caller-supplied `RequestReference` per tenant (Design Choice 6) |
-| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model, read from `IRequestContext.TenantId` through `IRequestContextAccessor` (Phase 5 task 1); missing tenant denies (`InvalidRequest`, ADR-062 R3) |
+| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model, read from `IRequestContext.TenantId` through `IRequestContextAccessor` (Phase 5 task 1); missing tenant denies while `DataActOptions.RequireTenantContext` is true, its default (`InvalidRequest`, ADR-062 R3) |
 | 11 | Module Isolation | ✅ | `ModuleId` on every event and read model, from `IModuleExecutionContext.CurrentModule` |
 | 12 | Audit Trail | ✅ | The event stream is the immutable audit trail of every sharing decision |
 
