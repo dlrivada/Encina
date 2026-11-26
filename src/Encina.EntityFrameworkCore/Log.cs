@@ -59,7 +59,7 @@ internal static partial class Log
     public static partial void SkippingOutboxStorageDueToError(ILogger logger, int count, string errorCode, string correlationId);
 
     // Outbox Processor: EventIds 3026-3034 were retired when the EF Core processor moved onto
-    // Encina.Messaging.Outbox.OutboxProcessorBase, which logs through MessagingLog (2827-2833, 2958).
+    // Encina.Messaging.Outbox.OutboxProcessorBase, which logs through MessagingLog (11577-11583, 11708).
 
     // Module Isolation (40-49)
     [LoggerMessage(EventId = 3035, Level = LogLevel.Error, Message = "Module isolation violation detected: Module '{ModuleName}' attempted to access unauthorized schemas [{UnauthorizedSchemas}]. Allowed schemas: [{AllowedSchemas}]")]

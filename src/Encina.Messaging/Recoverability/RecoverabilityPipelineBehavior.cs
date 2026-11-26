@@ -665,7 +665,7 @@ internal static class RetryAfterCeiling
 internal static partial class RecoverabilityLog
 {
     [LoggerMessage(
-        EventId = 2861,
+        EventId = 11611,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} succeeded after {AttemptCount} retries")]
     public static partial void SucceededAfterRetry(
@@ -676,7 +676,7 @@ internal static partial class RecoverabilityLog
     /// (#1259 review).
     /// </remarks>
     [LoggerMessage(
-        EventId = 2862,
+        EventId = 11612,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} transient error on attempt {Attempt}/{MaxAttempts}: {ErrorCode}")]
     public static partial void TransientErrorOnAttempt(
@@ -687,35 +687,35 @@ internal static partial class RecoverabilityLog
     /// (#1259 review).
     /// </remarks>
     [LoggerMessage(
-        EventId = 2863,
+        EventId = 11613,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent error on attempt {Attempt}: {ErrorCode}")]
     public static partial void PermanentErrorOnAttempt(
         ILogger logger, string correlationId, string requestType, int attempt, string errorCode);
 
     [LoggerMessage(
-        EventId = 2864,
+        EventId = 11614,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] {RequestType} transient exception on attempt {Attempt}/{MaxAttempts}")]
     public static partial void TransientExceptionOnAttempt(
         ILogger logger, Exception ex, string correlationId, string requestType, int attempt, int maxAttempts);
 
     [LoggerMessage(
-        EventId = 2865,
+        EventId = 11615,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent exception on attempt {Attempt}")]
     public static partial void PermanentExceptionOnAttempt(
         ILogger logger, Exception ex, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 2866,
+        EventId = 11616,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] {RequestType} immediate retries exhausted after {RetryCount} attempts")]
     public static partial void ImmediateRetriesExhausted(
         ILogger logger, string correlationId, string requestType, int retryCount);
 
     [LoggerMessage(
-        EventId = 2867,
+        EventId = 11617,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] {RequestType} scheduling delayed retry {Attempt}/{MaxAttempts} in {Delay}")]
     public static partial void SchedulingDelayedRetry(
@@ -726,21 +726,21 @@ internal static partial class RecoverabilityLog
     /// (#1259 review).
     /// </remarks>
     [LoggerMessage(
-        EventId = 2868,
+        EventId = 11618,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} permanent error detected: {ErrorCode}")]
     public static partial void PermanentErrorDetected(
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 2869,
+        EventId = 11619,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} permanently failed after {TotalAttempts} attempts")]
     public static partial void MessagePermanentlyFailed(
         ILogger logger, string correlationId, string requestType, int totalAttempts);
 
     [LoggerMessage(
-        EventId = 2870,
+        EventId = 11620,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
@@ -751,32 +751,32 @@ internal static partial class RecoverabilityLog
     /// (#1259 review).
     /// </remarks>
     [LoggerMessage(
-        EventId = 2871,
+        EventId = 11621,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} failed to schedule delayed retry: {ErrorCode}")]
     public static partial void SchedulingDelayedRetryFailed(
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 5452,
+        EventId = 12052,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} scheduling the delayed retry threw")]
     public static partial void SchedulingDelayedRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
 
     [LoggerMessage(
-        EventId = 5453,
+        EventId = 12053,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} not retried automatically: ambiguous failure of a non-idempotent send ({ErrorCode})")]
     public static partial void NonIdempotentRetrySkipped(
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     /// <remarks>
-    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability). Only the original error code is
+    /// Event IDs: 12050-12099 (see EventIdRanges.MessagingRecoverability). Only the original error code is
     /// logged, never <c>EncinaError.Message</c>.
     /// </remarks>
     [LoggerMessage(
-        EventId = 5454,
+        EventId = 12054,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} not retried: Retry-After {RetryAfter} exceeds the ceiling {MaxRetryAfter}, dead-lettered ({ErrorCode})")]
     public static partial void RetryAfterExceedsCeiling(

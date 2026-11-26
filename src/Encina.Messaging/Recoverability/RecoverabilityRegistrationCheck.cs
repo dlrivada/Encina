@@ -25,7 +25,7 @@ internal sealed class RecoverabilityDescriptorSnapshot(IServiceCollection servic
 /// Checks, when the host starts, that Recoverability is registered once: the behavior
 /// (<see cref="RecoverabilityPipelineBehavior{TRequest, TResponse}"/>) exactly once and no
 /// <see cref="RecoverabilityOptions"/> instance registered directly
-/// (ADR-050, Critical log with EventId 5458, see EventIdRanges.MessagingRecoverability).
+/// (ADR-050, Critical log with EventId 12058, see EventIdRanges.MessagingRecoverability).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -123,10 +123,10 @@ internal sealed class RecoverabilityRegistrationCheck : IHostedService
 internal static partial class RecoverabilityRegistrationCheckLog
 {
     /// <remarks>
-    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability).
+    /// Event IDs: 12050-12099 (see EventIdRanges.MessagingRecoverability).
     /// </remarks>
     [LoggerMessage(
-        EventId = 5458,
+        EventId = 12058,
         Level = LogLevel.Critical,
         Message = "Recoverability is registered more than once: {Duplicate}. Register it once with AddEncinaRecoverability or UseRecoverability and configure RecoverabilityOptions with Configure")]
     public static partial void DuplicateRegistration(ILogger logger, string duplicate);

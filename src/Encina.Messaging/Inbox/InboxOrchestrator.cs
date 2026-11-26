@@ -484,37 +484,37 @@ public static class InboxErrorCodes
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 2812,
+        EventId = 11562,
         Level = LogLevel.Warning,
         Message = "Missing IdempotencyKey for idempotent request {RequestType} (correlation: {CorrelationId})")]
     public static partial void MissingIdempotencyKey(ILogger logger, string requestType, string correlationId);
 
     [LoggerMessage(
-        EventId = 2813,
+        EventId = 11563,
         Level = LogLevel.Debug,
         Message = "Processing idempotent request {RequestType} with MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ProcessingIdempotentRequest(ILogger logger, string requestType, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 2814,
+        EventId = 11564,
         Level = LogLevel.Debug,
         Message = "Returning cached response for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ReturningCachedResponse(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 2815,
+        EventId = 11565,
         Level = LogLevel.Warning,
         Message = "Max retries ({MaxRetries}) exceeded for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void MaxRetriesExceeded(ILogger logger, string messageId, int maxRetries, string correlationId);
 
     [LoggerMessage(
-        EventId = 2816,
+        EventId = 11566,
         Level = LogLevel.Debug,
         Message = "Processed and cached response for MessageId {MessageId} (correlation: {CorrelationId})")]
     public static partial void ProcessedAndCachedMessage(ILogger logger, string messageId, string correlationId);
 
     [LoggerMessage(
-        EventId = 2817,
+        EventId = 11567,
         Level = LogLevel.Error,
         Message = "Error processing message {MessageId} (correlation: {CorrelationId})")]
     public static partial void ErrorProcessingMessage(ILogger logger, Exception ex, string messageId, string correlationId);

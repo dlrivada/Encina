@@ -705,96 +705,96 @@ public sealed class DelayedRetryProcessor : BackgroundService
 internal static partial class DelayedRetryProcessorLog
 {
     [LoggerMessage(
-        EventId = 2845,
+        EventId = 11595,
         Level = LogLevel.Information,
         Message = "Delayed retry processor started")]
     public static partial void ProcessorStarted(ILogger logger);
 
     [LoggerMessage(
-        EventId = 2846,
+        EventId = 11596,
         Level = LogLevel.Information,
         Message = "Delayed retry processor stopped")]
     public static partial void ProcessorStopped(ILogger logger);
 
     [LoggerMessage(
-        EventId = 2847,
+        EventId = 11597,
         Level = LogLevel.Error,
         Message = "Error during delayed retry processing")]
     public static partial void ProcessingError(ILogger logger, Exception ex);
 
     [LoggerMessage(
-        EventId = 2850,
+        EventId = 11600,
         Level = LogLevel.Debug,
         Message = "[{CorrelationId}] Processing delayed retry #{Attempt} for {RequestType}")]
     public static partial void ProcessingRetry(
         ILogger logger, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 2851,
+        EventId = 11601,
         Level = LogLevel.Warning,
         Message = "Unknown request type for delayed retry {MessageId}: {RequestType}")]
     public static partial void UnknownRequestType(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 2852,
+        EventId = 11602,
         Level = LogLevel.Warning,
         Message = "Failed to deserialize delayed retry {MessageId} of type {RequestType}")]
     public static partial void DeserializationFailed(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 2853,
+        EventId = 11603,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] Delayed retry #{Attempt} succeeded for {RequestType}")]
     public static partial void RetrySucceeded(
         ILogger logger, string correlationId, string requestType, int attempt);
 
     [LoggerMessage(
-        EventId = 2854,
+        EventId = 11604,
         Level = LogLevel.Information,
         Message = "[{CorrelationId}] Scheduling next delayed retry #{Attempt}/{MaxAttempts} for {RequestType} in {Delay}")]
     public static partial void SchedulingNextRetry(
         ILogger logger, string correlationId, string requestType, int attempt, int maxAttempts, TimeSpan delay);
 
     [LoggerMessage(
-        EventId = 2855,
+        EventId = 11605,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} permanently failed after {Attempts} delayed retries")]
     public static partial void PermanentFailure(
         ILogger logger, string correlationId, string requestType, int attempts);
 
     [LoggerMessage(
-        EventId = 2857,
+        EventId = 11607,
         Level = LogLevel.Error,
         Message = "Exception processing delayed retry {MessageId} of type {RequestType}")]
     public static partial void ProcessingException(ILogger logger, Exception ex, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 2858,
+        EventId = 11608,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} OnPermanentFailure callback failed")]
     public static partial void OnPermanentFailureCallbackFailed(
         ILogger logger, Exception ex, string correlationId, string requestType);
 
     [LoggerMessage(
-        EventId = 5450,
+        EventId = 12050,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} failed to schedule the next delayed retry: {ErrorCode}")]
     public static partial void SchedulingNextRetryFailed(
         ILogger logger, string correlationId, string requestType, string errorCode);
 
     [LoggerMessage(
-        EventId = 5451,
+        EventId = 12051,
         Level = LogLevel.Error,
         Message = "[{CorrelationId}] {RequestType} scheduling the next delayed retry threw")]
     public static partial void SchedulingNextRetryThrew(
         ILogger logger, Exception ex, string correlationId, string requestType);
 
     /// <remarks>
-    /// Event IDs: 5450-5499 (see EventIdRanges.MessagingRecoverability). Only the original error code is
+    /// Event IDs: 12050-12099 (see EventIdRanges.MessagingRecoverability). Only the original error code is
     /// logged, never <c>EncinaError.Message</c>.
     /// </remarks>
     [LoggerMessage(
-        EventId = 5455,
+        EventId = 12055,
         Level = LogLevel.Warning,
         Message = "[{CorrelationId}] {RequestType} next delayed retry not scheduled: Retry-After {RetryAfter} exceeds the ceiling {MaxRetryAfter}, dead-lettered ({ErrorCode})")]
     public static partial void RetryAfterExceedsCeiling(

@@ -693,73 +693,73 @@ public static class SchedulingErrorCodes
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 2931,
+        EventId = 11681,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} scheduled for {ScheduledAt} (type: {RequestType})")]
     public static partial void MessageScheduled(ILogger logger, Guid messageId, string requestType, DateTime scheduledAt);
 
     [LoggerMessage(
-        EventId = 2932,
+        EventId = 11682,
         Level = LogLevel.Debug,
         Message = "Recurring message {MessageId} scheduled with cron '{CronExpression}', next: {NextExecution} (type: {RequestType})")]
     public static partial void RecurringMessageScheduled(ILogger logger, Guid messageId, string requestType, string cronExpression, DateTime nextExecution);
 
     [LoggerMessage(
-        EventId = 2933,
+        EventId = 11683,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} cancelled")]
     public static partial void MessageCancelled(ILogger logger, Guid messageId);
 
     [LoggerMessage(
-        EventId = 2934,
+        EventId = 11684,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} executed successfully")]
     public static partial void MessageExecuted(ILogger logger, Guid messageId);
 
     [LoggerMessage(
-        EventId = 2935,
+        EventId = 11685,
         Level = LogLevel.Debug,
         Message = "Recurring message {MessageId} rescheduled for {NextExecution}")]
     public static partial void RecurringMessageRescheduled(ILogger logger, Guid messageId, DateTime nextExecution);
 
     [LoggerMessage(
-        EventId = 2936,
+        EventId = 11686,
         Level = LogLevel.Information,
         Message = "Recurring message {MessageId} ended (no more occurrences)")]
     public static partial void RecurringMessageEnded(ILogger logger, Guid messageId);
 
     [LoggerMessage(
-        EventId = 2937,
+        EventId = 11687,
         Level = LogLevel.Warning,
         Message = "Unknown request type for message {MessageId}: {RequestType}")]
     public static partial void UnknownRequestType(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 2938,
+        EventId = 11688,
         Level = LogLevel.Warning,
         Message = "Failed to deserialize message {MessageId} of type {RequestType}")]
     public static partial void DeserializationFailed(ILogger logger, Guid messageId, string requestType);
 
     [LoggerMessage(
-        EventId = 2939,
+        EventId = 11689,
         Level = LogLevel.Error,
         Message = "Failed to execute message {MessageId}")]
     public static partial void ExecutionFailed(ILogger logger, Exception ex, Guid messageId);
 
     [LoggerMessage(
-        EventId = 2940,
+        EventId = 11690,
         Level = LogLevel.Warning,
         Message = "Dispatch returned failure for message {MessageId} with error code {ErrorCode}")]
     public static partial void DispatchFailed(ILogger logger, Guid messageId, string errorCode);
 
     [LoggerMessage(
-        EventId = 2941,
+        EventId = 11691,
         Level = LogLevel.Error,
         Message = "Failed to update store for message {MessageId} after dispatch failure: error code {StoreErrorCode}")]
     public static partial void StoreMarkAsFailedError(ILogger logger, Guid messageId, string storeErrorCode);
 
     [LoggerMessage(
-        EventId = 2989,
+        EventId = 11739,
         Level = LogLevel.Error,
         Message = "Failed to save the outcomes of {MessageCount} scheduled messages: error code {StoreErrorCode}")]
     public static partial void StoreSaveChangesFailed(ILogger logger, int messageCount, string storeErrorCode);

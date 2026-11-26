@@ -143,7 +143,7 @@ public sealed class RecoverabilityOptions
     /// A <c>Retry-After</c> at or below the ceiling replaces the configured delay of the next delayed retry and is
     /// never shortened. A <c>Retry-After</c> strictly above it schedules nothing: the message is dead-lettered
     /// through the permanent-failure path with the error code
-    /// <see cref="RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, a warning (EventIds 5454 and 5455) is
+    /// <see cref="RecoverabilityErrorCodes.RetryAfterExceedsCeiling"/>, a warning (EventIds 12054 and 12055) is
     /// logged and the <c>encina.retry.skipped_total</c> counter records the reason
     /// <see cref="RetryMetrics.ReasonRetryAfterExceedsCeiling"/>.
     /// </para>

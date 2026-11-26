@@ -27,7 +27,7 @@ namespace Encina.Messaging.Outbox;
 /// <see cref="OutboxRetryBackoff"/> (exponential, capped by <see cref="OutboxOptions.MaxRetryDelay"/>,
 /// with <see cref="OutboxOptions.RetryJitterRatio"/> jitter).</description></item>
 /// <item><description>When the failure uses up <see cref="OutboxOptions.MaxRetries"/>, the message is
-/// logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/> (EventId 2958) and counted in
+/// logged with <see cref="OutboxErrorCodes.MaxRetriesExceeded"/> (EventId 11708) and counted in
 /// <c>encina.outbox.processor.messages_total{outcome="exhausted"}</c>. With the dead letter queue registered
 /// and <c>DeadLetterOptions.IntegrateWithOutbox</c> on, the message is first captured into the dead letter
 /// queue; a retryable capture failure leaves it unexhausted for a later cycle.</description></item>
@@ -37,8 +37,8 @@ namespace Encina.Messaging.Outbox;
 /// </para>
 /// <para>
 /// After the batch, the outcomes are committed with <see cref="IOutboxStore.SaveChangesAsync"/>. When the
-/// save returns <c>Left</c>, nothing was persisted: the processor logs EventId 2960 instead of the batch
-/// summary (2833) and counts every message of the batch as
+/// save returns <c>Left</c>, nothing was persisted: the processor logs EventId 11710 instead of the batch
+/// summary (11583) and counts every message of the batch as
 /// <c>encina.outbox.processor.messages_total{outcome="unsaved"}</c>; the messages are delivered again in a
 /// later cycle. The per-outcome counts are recorded only for a batch that was saved.
 /// </para>

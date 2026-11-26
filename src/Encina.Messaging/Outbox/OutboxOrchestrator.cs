@@ -133,7 +133,7 @@ public sealed class OutboxOrchestrator
     /// </para>
     /// <para>
     /// A <c>Left</c> from <see cref="IOutboxStore.MarkAsProcessedAsync"/> or <see cref="IOutboxStore.MarkAsFailedAsync"/>
-    /// is logged (EventId 2961) and the message is not counted as processed. A cancellation (the token, or
+    /// is logged (EventId 11711) and the message is not counted as processed. A cancellation (the token, or
     /// <see cref="EncinaErrorCodes.NotificationCancelled"/> from the callback) stops the batch without marking
     /// the interrupted message failed.
     /// </para>
@@ -189,7 +189,7 @@ public sealed class OutboxOrchestrator
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of messages requeued, or an error.</returns>
     /// <remarks>
-    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 11709 and
     /// counted by <c>encina.outbox.messages_requeued_total</c>.
     /// </remarks>
     public Task<Either<EncinaError, int>> RequeueExhaustedAsync(CancellationToken cancellationToken = default)
@@ -206,7 +206,7 @@ public sealed class OutboxOrchestrator
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The number of messages requeued, or an error.</returns>
     /// <remarks>
-    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 2959 and
+    /// The change is saved with <see cref="IOutboxStore.SaveChangesAsync"/>, logged with EventId 11709 and
     /// counted by <c>encina.outbox.messages_requeued_total</c>.
     /// </remarks>
     public Task<Either<EncinaError, int>> RequeueExhaustedAsync(
@@ -314,11 +314,11 @@ public static class OutboxErrorCodes
 internal static partial class Log
 {
     [LoggerMessage(
-        EventId = 2837,
+        EventId = 11587,
         Level = LogLevel.Debug,
         Message = "Message {MessageId} added to outbox (type: {NotificationType})")]
     public static partial void MessageAddedToOutbox(ILogger logger, Guid messageId, string notificationType);
 
-    // EventIds 2838-2841 (per-message processing) were retired when message processing moved to
-    // OutboxBatchProcessor, which logs through MessagingLog (2830-2832, 2958).
+    // EventIds 11588-11591 (per-message processing) were retired when message processing moved to
+    // OutboxBatchProcessor, which logs through MessagingLog (11580-11582, 11708).
 }
