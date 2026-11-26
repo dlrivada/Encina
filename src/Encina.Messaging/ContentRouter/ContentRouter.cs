@@ -408,73 +408,73 @@ public sealed class ContentRouter : IContentRouter
 internal static partial class ContentRouterLog
 {
     [LoggerMessage(
-        EventId = 2800,
+        EventId = 11550,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} started (message type: {MessageType}, routes: {RouteCount})")]
     public static partial void RoutingStarted(ILogger logger, Guid routingId, string messageType, int routeCount);
 
     [LoggerMessage(
-        EventId = 2801,
+        EventId = 11551,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} route matched: {RouteName}")]
     public static partial void RouteMatched(ILogger logger, Guid routingId, string routeName);
 
     [LoggerMessage(
-        EventId = 2802,
+        EventId = 11552,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} executing route: {RouteName}")]
     public static partial void RouteExecuting(ILogger logger, Guid routingId, string routeName);
 
     [LoggerMessage(
-        EventId = 2803,
+        EventId = 11553,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} route {RouteName} executed ({Duration})")]
     public static partial void RouteExecuted(ILogger logger, Guid routingId, string routeName, TimeSpan duration);
 
     [LoggerMessage(
-        EventId = 2804,
+        EventId = 11554,
         Level = LogLevel.Warning,
         Message = "Content routing {RoutingId} route {RouteName} failed: {ErrorCode}")]
     public static partial void RouteExecutionFailed(ILogger logger, Guid routingId, string routeName, string errorCode);
 
     [LoggerMessage(
-        EventId = 2805,
+        EventId = 11555,
         Level = LogLevel.Information,
         Message = "Content routing {RoutingId} completed ({MatchedRoutes} routes executed, {Duration})")]
     public static partial void RoutingCompleted(ILogger logger, Guid routingId, int matchedRoutes, TimeSpan duration);
 
     [LoggerMessage(
-        EventId = 2806,
+        EventId = 11556,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} using default route")]
     public static partial void UsingDefaultRoute(ILogger logger, Guid routingId);
 
     [LoggerMessage(
-        EventId = 2807,
+        EventId = 11557,
         Level = LogLevel.Warning,
         Message = "Content routing {RoutingId} no matching route for message type: {MessageType}")]
     public static partial void NoMatchingRoute(ILogger logger, Guid routingId, string messageType);
 
     [LoggerMessage(
-        EventId = 2808,
+        EventId = 11558,
         Level = LogLevel.Debug,
         Message = "Content routing {RoutingId} completed with no matches ({Duration})")]
     public static partial void RoutingCompletedNoMatch(ILogger logger, Guid routingId, TimeSpan duration);
 
     [LoggerMessage(
-        EventId = 2809,
+        EventId = 11559,
         Level = LogLevel.Warning,
         Message = "Content routing {RoutingId} was cancelled")]
     public static partial void RoutingCancelled(ILogger logger, Guid routingId);
 
     [LoggerMessage(
-        EventId = 2810,
+        EventId = 11560,
         Level = LogLevel.Error,
         Message = "Content routing {RoutingId} failed with exception: {ExceptionType}")]
     public static partial void RoutingException(ILogger logger, Guid routingId, string exceptionType, Exception exception);
 
     [LoggerMessage(
-        EventId = 2811,
+        EventId = 11561,
         Level = LogLevel.Warning,
         Message = "Content routing {RoutingId} condition evaluation failed for route {RouteName}: {ExceptionType}")]
     public static partial void ConditionEvaluationFailed(ILogger logger, Guid routingId, string routeName, string exceptionType, Exception exception);

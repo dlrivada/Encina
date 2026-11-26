@@ -77,7 +77,7 @@ public sealed class DeadLetterOptions
     /// <c>RecoverabilityPipelineBehavior</c> after a permanent error or when immediate retries are exhausted and
     /// no delayed retry is scheduled, and in <c>DelayedRetryProcessor</c> when the last delayed retry fails or a
     /// row cannot be re-dispatched (then its stored type name and content are kept). A failed capture is
-    /// logged (EventId 2996, 2997 or 2998): in the behavior the request already returns its failure; in the
+    /// logged (EventId 11746, 11747 or 11748): in the behavior the request already returns its failure; in the
     /// processor a retryable failure leaves the row pending for a later cycle, and a capture the queue rejects
     /// (<see cref="DeadLetterErrorCodes.CaptureRejected"/>) fails the row anyway.
     /// </remarks>

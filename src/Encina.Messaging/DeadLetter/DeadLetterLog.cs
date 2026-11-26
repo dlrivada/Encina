@@ -8,14 +8,14 @@ namespace Encina.Messaging.DeadLetter;
 /// </summary>
 /// <remarks>
 /// This class uses source generators to create optimized logging methods.
-/// Event IDs: 2945-2957 and 2990-2998 (see EventIdRanges.Messaging).
+/// Event IDs: 11695-11707 and 11740-11748 (see EventIdRanges.Messaging).
 /// Excluded from code coverage as the generated code is boilerplate.
 /// </remarks>
 [ExcludeFromCodeCoverage]
 internal static partial class DeadLetterLog
 {
     [LoggerMessage(
-        EventId = 2945,
+        EventId = 11695,
         Level = LogLevel.Warning,
         Message = "Message {MessageId} added to DLQ. Type: {RequestType}, Source: {SourcePattern}, ErrorCode: {ErrorCode}, Attempts: {TotalAttempts}, CorrelationId: {CorrelationId}")]
     public static partial void MessageAddedToDLQ(
@@ -28,7 +28,7 @@ internal static partial class DeadLetterLog
         string? correlationId);
 
     [LoggerMessage(
-        EventId = 2946,
+        EventId = 11696,
         Level = LogLevel.Error,
         Message = "OnDeadLetter callback failed for message {MessageId}")]
     public static partial void OnDeadLetterCallbackFailed(
@@ -37,7 +37,7 @@ internal static partial class DeadLetterLog
         Guid messageId);
 
     [LoggerMessage(
-        EventId = 2947,
+        EventId = 11697,
         Level = LogLevel.Information,
         Message = "Replaying dead letter message {MessageId}. Type: {RequestType}")]
     public static partial void ReplayingMessage(
@@ -46,7 +46,7 @@ internal static partial class DeadLetterLog
         string requestType);
 
     [LoggerMessage(
-        EventId = 2948,
+        EventId = 11698,
         Level = LogLevel.Information,
         Message = "Message {MessageId} replayed successfully")]
     public static partial void MessageReplayedSuccessfully(
@@ -54,7 +54,7 @@ internal static partial class DeadLetterLog
         Guid messageId);
 
     [LoggerMessage(
-        EventId = 2949,
+        EventId = 11699,
         Level = LogLevel.Warning,
         Message = "Message {MessageId} replay failed. ErrorCode: {ErrorCode}")]
     public static partial void MessageReplayFailed(
@@ -63,7 +63,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2950,
+        EventId = 11700,
         Level = LogLevel.Error,
         Message = "Exception during message {MessageId} replay")]
     public static partial void MessageReplayException(
@@ -72,7 +72,7 @@ internal static partial class DeadLetterLog
         Guid messageId);
 
     [LoggerMessage(
-        EventId = 2951,
+        EventId = 11701,
         Level = LogLevel.Information,
         Message = "Batch replay started. Messages to process: {Count}")]
     public static partial void BatchReplayStarted(
@@ -80,7 +80,7 @@ internal static partial class DeadLetterLog
         int count);
 
     [LoggerMessage(
-        EventId = 2952,
+        EventId = 11702,
         Level = LogLevel.Information,
         Message = "Batch replay completed. Processed: {TotalProcessed}, Success: {SuccessCount}, Failed: {FailureCount}")]
     public static partial void BatchReplayCompleted(
@@ -90,7 +90,7 @@ internal static partial class DeadLetterLog
         int failureCount);
 
     [LoggerMessage(
-        EventId = 2953,
+        EventId = 11703,
         Level = LogLevel.Information,
         Message = "{Count} expired dead letter messages cleaned up")]
     public static partial void ExpiredMessagesCleanedUp(
@@ -98,7 +98,7 @@ internal static partial class DeadLetterLog
         int count);
 
     [LoggerMessage(
-        EventId = 2954,
+        EventId = 11704,
         Level = LogLevel.Information,
         Message = "{Count} dead letter messages deleted")]
     public static partial void MessagesDeleted(
@@ -106,14 +106,14 @@ internal static partial class DeadLetterLog
         int count);
 
     [LoggerMessage(
-        EventId = 2955,
+        EventId = 11705,
         Level = LogLevel.Information,
         Message = "DLQ cleanup processor is disabled")]
     public static partial void CleanupProcessorDisabled(
         ILogger logger);
 
     [LoggerMessage(
-        EventId = 2956,
+        EventId = 11706,
         Level = LogLevel.Debug,
         Message = "DLQ cleanup processor running. Interval: {Interval}")]
     public static partial void CleanupProcessorRunning(
@@ -121,7 +121,7 @@ internal static partial class DeadLetterLog
         TimeSpan interval);
 
     [LoggerMessage(
-        EventId = 2957,
+        EventId = 11707,
         Level = LogLevel.Error,
         Message = "Error during DLQ cleanup")]
     public static partial void CleanupError(
@@ -129,7 +129,7 @@ internal static partial class DeadLetterLog
         Exception exception);
 
     [LoggerMessage(
-        EventId = 2990,
+        EventId = 11740,
         Level = LogLevel.Warning,
         Message = "Dead letter store write failed. Source: {SourcePattern}, ErrorCode: {ErrorCode}")]
     public static partial void StoreWriteFailed(
@@ -138,7 +138,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2991,
+        EventId = 11741,
         Level = LogLevel.Debug,
         Message = "Source message already dead-lettered as {MessageId} (Source: {SourcePattern}); duplicate ignored")]
     public static partial void DuplicateIgnored(
@@ -147,7 +147,7 @@ internal static partial class DeadLetterLog
         string sourcePattern);
 
     [LoggerMessage(
-        EventId = 2992,
+        EventId = 11742,
         Level = LogLevel.Warning,
         Message = "Replay outcome of dead letter message {MessageId} was not recorded. ErrorCode: {ErrorCode}")]
     public static partial void ReplayOutcomeNotRecorded(
@@ -156,7 +156,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2993,
+        EventId = 11743,
         Level = LogLevel.Warning,
         Message = "Dead letter operation {Operation} ran across all tenants (explicit AllTenants opt-out)")]
     public static partial void AllTenantsOptOut(
@@ -164,7 +164,7 @@ internal static partial class DeadLetterLog
         string operation);
 
     [LoggerMessage(
-        EventId = 2994,
+        EventId = 11744,
         Level = LogLevel.Warning,
         Message = "Dead letter operation {Operation} denied: multi-tenancy is in use and no tenant is resolved. ErrorCode: {ErrorCode}")]
     public static partial void TenantRequiredDenied(
@@ -173,7 +173,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2995,
+        EventId = 11745,
         Level = LogLevel.Error,
         Message = "Batch replay aborted by a store failure. Processed: {TotalProcessed}, Success: {SuccessCount}, Failed: {FailureCount}, ErrorCode: {ErrorCode}")]
     public static partial void BatchReplayAborted(
@@ -184,7 +184,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2996,
+        EventId = 11746,
         Level = LogLevel.Error,
         Message = "Dead letter capture from {SourcePattern} failed. ErrorCode: {ErrorCode}")]
     public static partial void SourceCaptureFailed(
@@ -193,7 +193,7 @@ internal static partial class DeadLetterLog
         string errorCode);
 
     [LoggerMessage(
-        EventId = 2997,
+        EventId = 11747,
         Level = LogLevel.Error,
         Message = "Dead letter capture from {SourcePattern} threw")]
     public static partial void SourceCaptureThrew(
@@ -202,7 +202,7 @@ internal static partial class DeadLetterLog
         string sourcePattern);
 
     [LoggerMessage(
-        EventId = 2998,
+        EventId = 11748,
         Level = LogLevel.Error,
         Message = "Dead letter capture from {SourcePattern} rejected: the dead letter queue cannot store the message. ErrorCode: {ErrorCode}")]
     public static partial void SourceCaptureRejected(
