@@ -37,7 +37,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: |
+            10.0.x
+            11.0.x
 
       - name: Restore dependencies
         run: dotnet restore tests/Encina.Testing.Examples/Encina.Testing.Examples.csproj
@@ -89,7 +91,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: |
+            10.0.x
+            11.0.x
 
       - name: Build package
         run: dotnet build src/${{ matrix.package }}/${{ matrix.package }}.csproj --configuration Release

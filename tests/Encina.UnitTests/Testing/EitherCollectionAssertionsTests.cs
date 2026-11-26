@@ -297,7 +297,7 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "The field 'Email' is required"),
+            EncinaErrors.Validation("The field 'Email' is required"),
             Right(3)
         };
 
@@ -315,12 +315,43 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "Field is required")
+            EncinaErrors.Validation("Field is required")
         };
 
         // Act & Assert
         Action act = () => results.ShouldContainValidationErrorFor("Email");
         Should.Throw<Xunit.Sdk.FailException>(act);
+    }
+
+    [Fact]
+    public void ShouldContainValidationErrorFor_WhenOnlyOtherCategoryMentionsProperty_Throws()
+    {
+        // Arrange: the property is in the text of a NotFound error, which is not a validation error
+        var results = new List<Either<EncinaError, int>>
+        {
+            EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "The field 'Email' was not found")
+        };
+
+        // Act & Assert
+        Action act = () => results.ShouldContainValidationErrorFor("Email");
+        Should.Throw<Xunit.Sdk.FailException>(act);
+    }
+
+    [Fact]
+    public void ShouldContainValidationErrorFor_WhenPropertyInMetadata_ReturnsError()
+    {
+        // Arrange
+        var details = new Dictionary<string, object?> { ["PropertyName"] = "Email" };
+        var results = new List<Either<EncinaError, int>>
+        {
+            EncinaErrors.Validation("Invalid value", details)
+        };
+
+        // Act
+        var error = results.ShouldContainValidationErrorFor("email");
+
+        // Assert
+        error.GetCategory().ShouldBe(ErrorCategory.Validation);
     }
 
     [Fact]
@@ -330,7 +361,7 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "Field is required")
+            EncinaErrors.Validation("Field is required")
         };
 
         // Act & Assert (should not throw)

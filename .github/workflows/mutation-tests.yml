@@ -28,7 +28,11 @@ concurrency:
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
-  DOTNET_SDK_VERSION: '10.0.x'
+  DOTNET_SDK_VERSION: |
+    10.0.x
+    11.0.x
+  # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+  DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
 
 jobs:
   # Phase 1 — Select matrix shards.
@@ -427,9 +431,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Restore
@@ -497,18 +501,18 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Cache dotnet tools
         uses: actions/cache@v6
         with:
           path: ~/.dotnet/tools
-          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_CACHE_KEY }}
           restore-keys: |
-            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-dotnet-tools
 
       # Stryker builds tests/Encina.UnitTests (Debug, the project's default

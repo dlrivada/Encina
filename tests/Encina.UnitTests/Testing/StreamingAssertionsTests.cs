@@ -42,7 +42,7 @@ public sealed class StreamingAssertionsTests
         await Task.Yield();
         yield return Right(1);
         await Task.Yield();
-        yield return EncinaErrors.Create("encina.validation.required", "The field 'Email' is required");
+        yield return EncinaErrors.Validation("The field 'Email' is required");
         await Task.Yield();
         yield return Right(3);
     }

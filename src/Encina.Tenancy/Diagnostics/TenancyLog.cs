@@ -8,7 +8,7 @@ namespace Encina.Tenancy.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 1800-1899 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10600-10699 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -24,7 +24,7 @@ public static partial class TenancyLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="strategy">The tenant resolution strategy being used.</param>
     [LoggerMessage(
-        EventId = 1800,
+        EventId = 10600,
         Level = LogLevel.Debug,
         Message = "Resolving tenant using strategy {Strategy}")]
     public static partial void ResolvingTenant(
@@ -38,7 +38,7 @@ public static partial class TenancyLog
     /// <param name="tenantId">The identifier of the resolved tenant.</param>
     /// <param name="strategy">The tenant resolution strategy that was used.</param>
     [LoggerMessage(
-        EventId = 1801,
+        EventId = 10601,
         Level = LogLevel.Information,
         Message = "Tenant {TenantId} resolved using {Strategy}")]
     public static partial void TenantResolved(
@@ -53,7 +53,7 @@ public static partial class TenancyLog
     /// <param name="strategy">The tenant resolution strategy that was attempted.</param>
     /// <param name="errorMessage">The error message describing the failure.</param>
     [LoggerMessage(
-        EventId = 1802,
+        EventId = 10602,
         Level = LogLevel.Warning,
         Message = "Tenant resolution failed using {Strategy}: {ErrorMessage}")]
     public static partial void TenantResolutionFailed(
@@ -68,7 +68,7 @@ public static partial class TenancyLog
     /// <param name="entityType">The type name of the entity being queried.</param>
     /// <param name="tenantId">The identifier of the tenant scoping the query.</param>
     [LoggerMessage(
-        EventId = 1803,
+        EventId = 10603,
         Level = LogLevel.Debug,
         Message = "Executing tenant-scoped query for {EntityType} (TenantId: {TenantId})")]
     public static partial void ExecutingTenantScopedQuery(
@@ -82,7 +82,7 @@ public static partial class TenancyLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="exception">The exception that caused the failure.</param>
     [LoggerMessage(
-        EventId = 1804,
+        EventId = 10604,
         Level = LogLevel.Error,
         Message = "Tenant resolution failed with unexpected exception")]
     public static partial void TenantResolutionException(

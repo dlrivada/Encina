@@ -31,9 +31,10 @@ namespace Encina.UnitTests.Messaging;
 /// the variable-code error of <c>OutboxBatchProcessor</c> and the <c>inbox.processing_failed</c> error of the inbox
 /// dead letter capture (both embedded in a <c>DeadLetterContext</c>, read for their code alone) and
 /// <c>recoverability.schedule_retry_failed</c> (the delayed retry processor logs its code and answers a boolean).
-/// <c>dlq.capture_rejected</c>, <c>inbox.max_retries_exceeded</c>, <c>inbox.cached_error</c> and
+/// <c>dlq.capture_rejected</c>, <c>inbox.max_retries_exceeded</c> and
 /// <c>recoverability.retry_after_exceeds_ceiling</c> are pending a maintainer decision and keep the category they
-/// have today, <c>Internal</c>.
+/// have today, <c>Internal</c>. <c>inbox.cached_error</c> replays the stored category of the original error (#4247);
+/// a row written before the field existed reads <c>Internal</c>.
 /// </remarks>
 public sealed class MessagingInfrastructureErrorCategoryTests
 {
@@ -261,7 +262,7 @@ public sealed class MessagingInfrastructureErrorCategoryTests
     }
 
     [Fact]
-    public async Task InboxOrchestrator_ReplayOfACachedHandlerLeft_IsInternalAndPendingDecision()
+    public async Task InboxOrchestrator_ReplayOfACachedHandlerLeftWithoutACategoryField_IsInternal()
     {
         var store = Substitute.For<IInboxStore>();
         var cached = new JsonMessageSerializer().Serialize(new { IsSuccess = false, ErrorMessage = "biz.rule" });

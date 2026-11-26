@@ -20,7 +20,7 @@ public sealed class GetOrderHandler : IRequestHandler<GetOrderQuery, OrderDto>
 
         if (order is null)
         {
-            return EncinaErrors.Create("encina.notfound.order", $"Order '{request.OrderId}' not found");
+            return EncinaErrors.Create("encina.notfound.order", ErrorCategory.NotFound, $"Order '{request.OrderId}' not found");
         }
 
         return order;

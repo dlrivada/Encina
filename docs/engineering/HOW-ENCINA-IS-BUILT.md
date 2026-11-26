@@ -317,7 +317,7 @@ This section is the conceptual checklist, in the order that worked here. It is d
 ## Evidence index
 
 - Specifications: [SPEC-000](../specifications/SPEC-000-encina-1.0-baseline-and-release-scope.md), [SPEC-001](../specifications/SPEC-001-coverage-docref-citations.md).
-- Internal method documents: [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), [`ai-task-routing.md`](ai-task-routing.md), [`ENCINA-1.0-RECONCILIATION.md`](ENCINA-1.0-RECONCILIATION.md), [`PHASE0-BASELINE.md`](PHASE0-BASELINE.md).
+- Internal method documents: [`AI-DEVELOPMENT-MODEL.md`](AI-DEVELOPMENT-MODEL.md), [`ai-task-routing.md`](ai-task-routing.md), [`ENCINA-1.0-RECONCILIATION.md`](ENCINA-1.0-RECONCILIATION.md), [`PHASE0-BASELINE.md`](PHASE0-BASELINE.md), [`rop-migration-branch-rules.md`](rop-migration-branch-rules.md).
 - Agent definitions: [`.claude/agents/`](../../.claude/agents/README.md).
 - Issues cited: #1088, #1089, #1090, #1092, #1096, #1097, #1099, #1100, #1102, #1103, #1104.
 - Pull requests cited: #1093, #1098, #1099, #1101.

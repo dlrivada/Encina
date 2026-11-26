@@ -217,9 +217,11 @@ public static class EitherAssertions
         string? message = null)
     {
         var error = result.ShouldBeError(message);
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
-        Assert.StartsWith("encina.validation", code, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            category == ErrorCategory.Validation,
+            message ?? $"Expected an error of category {ErrorCategory.Validation} but the category was {category}.");
         return error;
     }
 
@@ -245,9 +247,11 @@ public static class EitherAssertions
         string? message = null)
     {
         var error = result.ShouldBeError(message);
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
-        Assert.StartsWith("encina.notfound", code, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            category == ErrorCategory.NotFound,
+            message ?? $"Expected an error of category {ErrorCategory.NotFound} but the category was {category}.");
         return error;
     }
 
@@ -322,18 +326,27 @@ public static class EitherAssertions
         string? message = null)
     {
         var error = result.ShouldBeValidationError(message);
-        var metadata = error.GetMetadata();
-
-        // Check if property name is in the error message or metadata
-        var containsProperty = error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                               metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                                 m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
 
         Assert.True(
-            containsProperty,
-            message ?? $"Expected validation error for property '{propertyName}' but error was: {error.Message}");
+            ErrorMentionsProperty(error, propertyName),
+            message ?? $"Expected validation error for property '{propertyName}' but it was not found in the error.");
 
         return error;
+    }
+
+    /// <summary>
+    /// Returns whether the property name is in the error message or in its <c>PropertyName</c> metadata entry.
+    /// </summary>
+    internal static bool ErrorMentionsProperty(EncinaError error, string propertyName)
+    {
+        if (error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return error.GetMetadata().Any(m =>
+            m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
+            m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
     }
 
     /// <summary>

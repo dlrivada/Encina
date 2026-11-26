@@ -48,7 +48,7 @@ has_children: true
 | [047](047-abac-decision-audit.md) | ABAC Decisions Are Audited Write-Ahead at the Enforcement Point, Fail-Closed |
 | [048](048-inbox-record-vs-business-transaction.md) | The Inbox Record and the Business Transaction: Enlisted and Independent Writes |
 | [050](050-modules-may-require-modules.md) | A Module May Require Other Modules When It Needs Them for Its Guarantees |
-| [051](051-languageext-version-for-1-0.md) | Which LanguageExt Version Encina 1.0 Ships On (Accepted) |
+| [051](051-languageext-version-for-1-0.md) | Which LanguageExt Version Encina 1.0 Ships On (Accepted) - amended by [064](064-rop-result-union.md) |
 | [052](052-distributed-lock-failure-contract.md) | Distributed Lock Providers Report Outcomes Through Either; Contention Is Not an Error (Accepted) |
 | [053](053-aggregate-rule-violations-return-either.md) | Compliance Aggregate Rule Violations Are a Left, Not an Exception (Accepted) |
 | [054](054-observability-conventions-and-trace-propagation.md) | Observability Conventions and Cross-Boundary Trace Propagation (Accepted) |
@@ -59,7 +59,7 @@ has_children: true
 | [060](060-cpm-transitive-pinning-non-packable.md) | Central Package Management Transitive Pinning Only in Non-Packable Projects (Accepted) |
 | [062](062-error-category-contract.md) | Error Category Contract on EncinaError (Accepted) |
 | [063](063-in-repo-coverage-comment-replaces-codecov.md) | An In-Repository Coverage Comment Replaces Codecov (Accepted, supersedes 023) |
-| [064](064-rop-result-union.md) | An Encina-Owned Result Union Replaces LanguageExt Either as the ROP Carrier (Accepted, amends 001 and 004) |
+| [064](064-rop-result-union.md) | An Encina-Owned Result Union Replaces LanguageExt Either as the ROP Carrier (Accepted, amends 001, 004 and 051) |
 
 ## Reserved numbers
 

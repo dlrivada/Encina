@@ -200,7 +200,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeValidationError_WhenValidationCode_ReturnsError()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create("encina.validation.required", "Field is required");
+        Either<EncinaError, int> result = EncinaErrors.Validation("Field is required");
 
         // Act
         var error = result.ShouldBeValidationError();
@@ -217,7 +217,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         Action act = () => { _ = result.ShouldBeValidationError(); };
-        Should.Throw<Xunit.Sdk.StartsWithException>(act);
+        Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
     [Fact]
@@ -237,7 +237,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeNotFoundError_WhenNotFoundCode_ReturnsError()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create("encina.notfound.resource", "Resource not found");
+        Either<EncinaError, int> result = EncinaErrors.Create("encina.notfound.resource", ErrorCategory.NotFound, "Resource not found");
 
         // Act
         var error = result.ShouldBeNotFoundError();
@@ -295,7 +295,7 @@ public sealed class EitherAssertionsTests
     {
         // Arrange
         var resultTask = Task.FromResult<Either<EncinaError, int>>(
-            EncinaErrors.Create("encina.validation.async", "Async validation error"));
+            EncinaErrors.Validation("Async validation error"));
 
         // Act
         var error = await resultTask.ShouldBeValidationErrorAsync();
@@ -420,7 +420,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeValidationErrorAnd_ReturnsAndConstraint()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create("encina.validation.required", "Field is required");
+        Either<EncinaError, int> result = EncinaErrors.Validation("Field is required");
 
         // Act
         var constraint = result.ShouldBeValidationErrorAnd();
@@ -476,9 +476,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeValidationErrorForProperty_WhenPropertyInMessage_ReturnsError()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create(
-            "encina.validation.required",
-            "The field 'Email' is required");
+        Either<EncinaError, int> result = EncinaErrors.Validation("The field 'Email' is required");
 
         // Act
         var error = result.ShouldBeValidationErrorForProperty("Email");
@@ -491,9 +489,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeValidationErrorForProperty_WhenPropertyNotInMessage_Throws()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create(
-            "encina.validation.required",
-            "Field is required");
+        Either<EncinaError, int> result = EncinaErrors.Validation("Field is required");
 
         // Act & Assert
         Action act = () => result.ShouldBeValidationErrorForProperty("Email");
@@ -504,9 +500,7 @@ public sealed class EitherAssertionsTests
     public void ShouldBeValidationErrorForPropertyAnd_ReturnsAndConstraint()
     {
         // Arrange
-        Either<EncinaError, int> result = EncinaErrors.Create(
-            "encina.validation.required",
-            "The field 'Name' is required");
+        Either<EncinaError, int> result = EncinaErrors.Validation("The field 'Name' is required");
 
         // Act
         var constraint = result.ShouldBeValidationErrorForPropertyAnd("Name");

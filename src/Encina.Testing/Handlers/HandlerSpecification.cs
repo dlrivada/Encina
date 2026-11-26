@@ -282,7 +282,7 @@ public abstract class HandlerSpecification<TRequest, TResponse>
     /// <example>
     /// <code>
     /// ThenErrorAnd()
-    ///     .ShouldSatisfy(e => Assert.StartsWith("encina.validation", e.GetCode().IfNone("")))
+    ///     .ShouldSatisfy(e => Assert.Equal(ErrorCategory.Validation, e.GetCategory()))
     ///     .And.ShouldSatisfy(e => Assert.Contains("required", e.Message));
     /// </code>
     /// </example>
@@ -314,13 +314,11 @@ public abstract class HandlerSpecification<TRequest, TResponse>
         }
 
         var error = ThenError();
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
         Assert.True(
-            code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase),
-            $"Expected validation error but got error with code: {code}");
-
-        var message = error.Message;
+            category == ErrorCategory.Validation,
+            $"Expected validation error but got error with category: {category}");
 
         foreach (var propertyName in expectedPropertyNames)
         {
@@ -328,7 +326,7 @@ public abstract class HandlerSpecification<TRequest, TResponse>
 
             Assert.True(
                 containsProperty,
-                $"Expected validation error for property '{propertyName}' but error was: {message}");
+                $"Expected validation error for property '{propertyName}' but it was not found in the error.");
         }
 
         return error;
@@ -341,7 +339,7 @@ public abstract class HandlerSpecification<TRequest, TResponse>
     /// <returns>The error for further assertions.</returns>
     /// <example>
     /// <code>
-    /// ThenErrorWithCode("encina.notfound");
+    /// ThenErrorWithCode("orders.not_found");
     /// </code>
     /// </example>
     protected EncinaError ThenErrorWithCode(string expectedCode)

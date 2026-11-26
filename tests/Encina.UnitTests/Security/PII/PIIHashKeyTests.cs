@@ -4,6 +4,7 @@ using Encina.Security.PII.Abstractions;
 using Encina.Security.PII.Attributes;
 using Encina.Security.PII.Strategies;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -155,54 +156,50 @@ public sealed class PIIHashKeyTests
     }
 
     [Fact]
-    public void AddEncinaPII_HashWithKey_RegistersAndBuildsWithValidateOnBuildAndScopes()
+    public async Task AddEncinaPII_HashWithKey_RegistersAndBuildsWithValidateOnBuildAndScopes()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaPII(o =>
+        using var host = BuildHost(services => services.AddEncinaPII(o =>
         {
             o.DefaultMode = MaskingMode.Hash;
             o.HashKey = Secret;
+        }));
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+
+        host.Services.GetRequiredService<IPIIMasker>().ShouldBeOfType<PIIMasker>();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task AddEncinaPII_OptionsChangedAfterRegistration_FailValidationOnStart()
+    {
+        using var host = BuildHost(services =>
+        {
+            services.AddEncinaPII();
+            services.Configure<PIIOptions>(o => o.DefaultMode = MaskingMode.Hash);
         });
 
-        using var provider = services.BuildServiceProvider(
-            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-
-        provider.GetRequiredService<IStartupValidator>().Validate();
-        provider.GetRequiredService<IPIIMasker>().ShouldBeOfType<PIIMasker>();
+        await Should.ThrowAsync<OptionsValidationException>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
-    public void AddEncinaPII_OptionsChangedAfterRegistration_FailValidationOnStart()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaPII();
-        services.Configure<PIIOptions>(o => o.DefaultMode = MaskingMode.Hash);
-
-        using var provider = services.BuildServiceProvider(
-            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-
-        Should.Throw<OptionsValidationException>(
-            () => provider.GetRequiredService<IStartupValidator>().Validate());
-    }
-
-    [Fact]
-    public void AddEncinaPII_AllowUnkeyedHash_BuildsAndLogsWarningOnStart()
+    public async Task AddEncinaPII_AllowUnkeyedHash_BuildsAndLogsWarningOnStart()
     {
         var logger = new CapturingLogger<PIIOptionsValidator>();
-        var services = new ServiceCollection();
-        services.AddSingleton<ILogger<PIIOptionsValidator>>(logger);
-        services.AddLogging();
-        services.AddEncinaPII(o =>
+        using var host = BuildHost(services =>
         {
-            o.DefaultMode = MaskingMode.Hash;
-            o.AllowUnkeyedHash = true;
+            services.AddSingleton<ILogger<PIIOptionsValidator>>(logger);
+            services.AddEncinaPII(o =>
+            {
+                o.DefaultMode = MaskingMode.Hash;
+                o.AllowUnkeyedHash = true;
+            });
         });
 
-        using var provider = services.BuildServiceProvider(
-            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-        provider.GetRequiredService<IStartupValidator>().Validate();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         logger.Entries.Count(e => e.EventId.Id == 8019).ShouldBe(1);
     }
@@ -326,46 +323,64 @@ public sealed class PIIHashKeyTests
     }
 
     [Fact]
-    public void AddEncinaPII_CalledTwice_StillBuildsAndValidates()
+    public async Task AddEncinaPII_CalledTwice_StillBuildsAndValidates()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddEncinaPII(o => o.HashKey = Secret);
-        services.AddEncinaPII(o => o.HashKey = Secret);
+        using var host = BuildHost(services =>
+        {
+            services.AddEncinaPII(o => o.HashKey = Secret);
+            services.AddEncinaPII(o => o.HashKey = Secret);
+        });
 
-        using var provider = services.BuildServiceProvider(
-            new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
-        provider.GetRequiredService<IStartupValidator>().Validate();
-        provider.GetRequiredService<IPIIMasker>().ShouldBeOfType<PIIMasker>();
+        host.Services.GetRequiredService<IPIIMasker>().ShouldBeOfType<PIIMasker>();
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public void AddEncinaPII_WithoutLoggingRegistered_ValidatesOnStart()
+    public async Task AddEncinaPII_AllowUnkeyedHashWithScopeValidationOnly_ValidatesOnStart()
     {
-        var services = new ServiceCollection();
-        services.AddEncinaPII(o => o.AllowUnkeyedHash = true);
-
-        using var provider = services.BuildServiceProvider(
+        // A host always registers logging, so the validator's no-logger fallback is not reachable
+        // from the start path; what remains is validation on start with ValidateOnBuild off.
+        using var host = BuildHost(
+            services => services.AddEncinaPII(o => o.AllowUnkeyedHash = true),
             new ServiceProviderOptions { ValidateOnBuild = false, ValidateScopes = true });
 
-        Should.NotThrow(() => provider.GetRequiredService<IStartupValidator>().Validate());
+        await Should.NotThrowAsync(() => host.StartAsync(TestContext.Current.CancellationToken));
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
-    public void AddEncinaPII_AllowUnkeyedHash_WarnsOnceAcrossStartupAndOptionsResolution()
+    public async Task AddEncinaPII_AllowUnkeyedHash_WarnsOnceAcrossStartupAndOptionsResolution()
     {
         var logger = new CapturingLogger<PIIOptionsValidator>();
-        var services = new ServiceCollection();
-        services.AddSingleton<ILogger<PIIOptionsValidator>>(logger);
-        services.AddLogging();
-        services.AddEncinaPII(o => o.AllowUnkeyedHash = true);
+        using var host = BuildHost(
+            services =>
+            {
+                services.AddSingleton<ILogger<PIIOptionsValidator>>(logger);
+                services.AddEncinaPII(o => o.AllowUnkeyedHash = true);
+            },
+            new ServiceProviderOptions());
 
-        using var provider = services.BuildServiceProvider();
-        provider.GetRequiredService<IStartupValidator>().Validate();
-        _ = provider.GetRequiredService<IOptions<PIIOptions>>().Value;
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        _ = host.Services.GetRequiredService<IOptions<PIIOptions>>().Value;
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         logger.Entries.Count(e => e.EventId.Id == 8019).ShouldBe(1);
+    }
+
+    // Builds the host whose start path runs the ValidateOnStart validation, so no test names the
+    // startup validator type (its identity differs between .NET 10 and .NET 11, SYSLIB0066).
+    private static IHost BuildHost(Action<IServiceCollection> register, ServiceProviderOptions? providerOptions = null)
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.ConfigureContainer(
+            new DefaultServiceProviderFactory(
+                providerOptions ?? new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }));
+        register(builder.Services);
+        return builder.Build();
     }
 
     private sealed class HashedDto

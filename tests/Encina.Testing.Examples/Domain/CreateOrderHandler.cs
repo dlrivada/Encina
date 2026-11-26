@@ -28,12 +28,12 @@ public sealed class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Gui
         // Validate
         if (string.IsNullOrWhiteSpace(request.CustomerId))
         {
-            return EncinaErrors.Create("encina.validation.customerid", "Customer ID is required");
+            return EncinaErrors.Validation("Customer ID is required");
         }
 
         if (request.Amount <= 0)
         {
-            return EncinaErrors.Create("encina.validation.amount", "Amount must be greater than zero");
+            return EncinaErrors.Validation("Amount must be greater than zero");
         }
 
         // Create order

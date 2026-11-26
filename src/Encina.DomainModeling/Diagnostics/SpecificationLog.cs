@@ -8,7 +8,7 @@ namespace Encina.DomainModeling.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 1400-1499 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10400-10499 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -20,7 +20,7 @@ public static partial class SpecificationLog
 {
     /// <summary>Logs when a specification evaluation begins.</summary>
     [LoggerMessage(
-        EventId = 1400,
+        EventId = 10400,
         Level = LogLevel.Debug,
         Message = "Evaluating specification {SpecificationName} with {CriteriaCount} criteria")]
     public static partial void EvaluatingSpecification(
@@ -30,7 +30,7 @@ public static partial class SpecificationLog
 
     /// <summary>Logs when a specification evaluation completes.</summary>
     [LoggerMessage(
-        EventId = 1401,
+        EventId = 10401,
         Level = LogLevel.Debug,
         Message = "Specification {SpecificationName} evaluation completed")]
     public static partial void SpecificationEvaluationCompleted(
