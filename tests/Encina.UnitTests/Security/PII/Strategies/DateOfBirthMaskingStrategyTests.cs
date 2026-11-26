@@ -150,6 +150,17 @@ public sealed class DateOfBirthMaskingStrategyTests
         dashResult.ShouldContain("-");
     }
 
+    [Theory]
+    [InlineData("03/15/90", "**/**/90")]
+    [InlineData("19900/03/15", "19900/**/**")]
+    [InlineData("03//1990", "**/1990")]
+    public void Apply_UnusualDateShapes_MasksAllPartsButTheYear(string input, string expected)
+    {
+        var result = _sut.Apply(input, DefaultPartial());
+
+        result.ShouldBe(expected);
+    }
+
     [Fact]
     public void Apply_TwoPartDate_MasksAllDigits()
     {

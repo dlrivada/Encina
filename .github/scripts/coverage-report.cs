@@ -1,4 +1,5 @@
 // coverage-report.cs — Encina Weighted Coverage Analysis
+#:package Microsoft.CodeAnalysis.CSharp
 #pragma warning disable CA1305, CA1310, CA1852 // Globalization/sealed warnings not relevant for standalone scripts
 // Reads Cobertura XML reports from multiple test types and generates
 // a weighted coverage report where only applicable test types count per package.
@@ -11,7 +12,18 @@
 //        dotnet run .github/scripts/coverage-report.cs -- --check-flag-assignment [--min-lines <n>] [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --files-from <list> [--input <dir>] [--output <dir>]
 //        dotnet run .github/scripts/coverage-report.cs -- --check-targets [--files-from <list>] [--enforce] [--require-all-flags] [--input <dir>] [--output <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --check-zeros [--enforce] [--manifest <dir>] [--output <dir>]
+//        dotnet run .github/scripts/coverage-report.cs -- --classify-zero <source-file> <unit|guard|contract>
 //        dotnet run .github/scripts/coverage-report.cs -- --self-test
+//
+// --check-zeros (#2890) lists every per-file target of 0 on unit, guard or contract whose source file the closed
+// list of constructs (ZeroClassifier below, decided on the issue 2026-10-26) does not exempt, with the construct it
+// found, and writes <output>/check-zeros.json. The classification is a Roslyn SYNTAX pass (no compilation, no
+// coverage data). Report-only (exit 0) unless --enforce is given, which exits 1 when any zero is rejected or
+// unreadable. integration and property zeros are outside the rule. Not part of --check-justifications yet: the
+// dry run on main still lists rejected zeros (see docs/testing/coverage-measurement-methodology.md).
+// --classify-zero prints "exempt: <construct>" (exit 0) or "not exempt: <reason>" (exit 1) for one file and flag;
+// a bad argument exits 2. It is the shared code path of the R-ZERO ratchet (#2898).
 //
 // --check-targets (#1651) judges the per-file targets of the manifest against the measured Cobertura data and
 // writes <output>/check-targets.json. It is report-only (prints the findings, exit 0) unless --enforce is given,
@@ -49,6 +61,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Xml.Linq;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -67,9 +82,25 @@ var checkTargets = false;
 var enforce = false;
 var requireAllFlags = false;
 string? filesFrom = null;
+var checkZeros = false;
+string? classifyFile = null;
+string? classifyFlag = null;
 
 for (int i = 0; i < args.Length; i++)
 {
+    if (args[i] == "--check-zeros") checkZeros = true;
+    if (args[i] == "--classify-zero")
+    {
+        // Both values are required: a missing one must be an argument error, never a silent no-op (#2890).
+        if (i + 2 >= args.Length)
+        {
+            Console.WriteLine("\nERROR: --classify-zero needs a source file and a flag (unit, guard or contract).");
+            Environment.Exit(2);
+        }
+        classifyFile = args[++i];
+        classifyFlag = args[++i];
+        continue;
+    }
     if (args[i] == "--files-from")
     {
         // A missing value must never silently disable the touched-file check of --enforce (#3860).
@@ -88,6 +119,12 @@ for (int i = 0; i < args.Length; i++)
     }
     if (args[i] == "--check-justifications") checkJustifications = true;
     if (args[i] == "--self-test") selfTest = true;
+    // A value-taking flag with no value is an argument error, never a silent fall back to the default (#2890).
+    if (args[i] is "--output" or "--input" or "--manifest" && i + 1 >= args.Length)
+    {
+        Console.WriteLine($"\nERROR: {args[i]} needs a value.");
+        Environment.Exit(1);
+    }
     if (args[i] == "--output" && i + 1 < args.Length) outputDir = args[++i];
     if (args[i] == "--input" && i + 1 < args.Length) inputDir = args[++i];
     if (args[i] == "--manifest" && i + 1 < args.Length) { manifestDir = args[++i]; manifestDirExplicit = true; }
@@ -101,6 +138,17 @@ for (int i = 0; i < args.Length; i++)
 
 if (selfTest)
     Environment.Exit(RunSelfTest());
+
+// --classify-zero (#2890) reads one source file and nothing else, so it runs before any manifest is loaded.
+if (classifyFile is not null)
+{
+    if (checkZeros || checkTargets || checkJustifications || checkStaleManifest || checkMissingManifest || checkUnmeasured || checkFlagAssignment)
+    {
+        Console.WriteLine("\nERROR: --classify-zero cannot be combined with another mode; run it as its own step.");
+        Environment.Exit(2);
+    }
+    Environment.Exit(RunClassifyZero(classifyFile, classifyFlag!));
+}
 
 // Categories removed — all configuration comes from per-package manifests
 
@@ -247,11 +295,28 @@ if (checkTargets && (checkUnmeasured || checkFlagAssignment || checkStaleManifes
     Environment.Exit(1);
 }
 
-if ((enforce || requireAllFlags) && !checkTargets)
+// --check-zeros (#2890) reads the manifests and the source files only, has its own exit code and runs alone.
+if (checkZeros && (checkTargets || checkUnmeasured || checkFlagAssignment || checkStaleManifest || checkMissingManifest || checkJustifications))
 {
-    Console.WriteLine("\nERROR: --enforce and --require-all-flags only apply to --check-targets.");
+    Console.WriteLine("\nERROR: --check-zeros cannot be combined with another --check-* mode; run it as its own step.");
     Environment.Exit(1);
 }
+
+if (requireAllFlags && !checkTargets)
+{
+    Console.WriteLine("\nERROR: --require-all-flags only applies to --check-targets.");
+    Environment.Exit(1);
+}
+
+if (enforce && !checkTargets && !checkZeros)
+{
+    Console.WriteLine("\nERROR: --enforce only applies to --check-targets and --check-zeros.");
+    Environment.Exit(1);
+}
+
+if (checkZeros)
+    Environment.Exit(RunCheckZeros(fileObligations, manifest.Count, manifestParseFailures,
+        Path.GetFullPath(Path.Combine(manifestDir, "..", "..")), enforce, outputDir));
 
 if (checkStaleManifest || checkMissingManifest || checkJustifications)
 {
@@ -597,6 +662,110 @@ static bool RunCheckTargets(
         ? $"  FAIL: {findings.Count} finding(s)."
         : $"  {findings.Count} finding(s); report-only, pass --enforce to fail the run.");
     return enforce;
+}
+
+// ─── Zero targets (#2890): --check-zeros and --classify-zero ─────────────────────────────────────────
+
+// Prints the verdict of one source file and flag; 0 exempt, 1 not exempt, 2 bad argument (for #2898).
+static int RunClassifyZero(string file, string flag)
+{
+    if (!File.Exists(file))
+    {
+        Console.WriteLine("ERROR: the source file does not exist.");
+        return 2;
+    }
+    if (!ZeroClassifier.CheckedFlags.Contains(flag.ToLowerInvariant()))
+    {
+        Console.WriteLine("ERROR: the flag must be unit, guard or contract.");
+        return 2;
+    }
+    var verdict = ZeroClassifier.Classify(file, File.ReadAllText(file), flag);
+    Console.WriteLine($"{(verdict.Exempt ? "exempt" : "not exempt")}: {verdict.Construct}");
+    return verdict.Exempt ? 0 : 1;
+}
+
+// The per-file targets of 0 on unit, guard or contract in the manifests (flags folded to lower case),
+// in a stable order: (package, manifest key, flag).
+static List<(string Package, string Key, string Flag)> ZeroTargets(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations)
+{
+    var zeros = new List<(string, string, string)>();
+    foreach (var (package, files) in fileObligations.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        foreach (var (key, entry) in files.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+            foreach (var (flag, value) in NormaliseFlagKeys(entry.Targets, []).OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                if (value == 0 && ZeroClassifier.CheckedFlags.Contains(flag))
+                    zeros.Add((package, key, flag));
+    return zeros;
+}
+
+// One finding per zero the closed list does not exempt (kind rejected-zero) or whose source file cannot be
+// read from under src/ (kind no-source). The subject is "<package>: <key> <flag>" with control characters
+// replaced, because it comes from a manifest key.
+static (List<TargetFinding> Findings, int Checked) FindRejectedZeros(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations, string repoRoot)
+{
+    var zeros = ZeroTargets(fileObligations);
+    var findings = new List<TargetFinding>();
+    foreach (var (package, key, flag) in zeros)
+    {
+        var subject = ZeroClassifier.Safe($"{package}: {key.Replace('\\', '/')} {flag}");
+        var text = ZeroClassifier.ReadSource(repoRoot, package, key);
+        if (text is null)
+        {
+            findings.Add(new TargetFinding("no-source", subject, "the source file was not found under src/ or cannot be read"));
+            continue;
+        }
+        var verdict = ZeroClassifier.Classify(key, text, flag);
+        if (!verdict.Exempt)
+            findings.Add(new TargetFinding("rejected-zero", subject, verdict.Construct));
+    }
+    return (findings, zeros.Count);
+}
+
+// Prints the findings by package, writes <outputDir>/check-zeros.json (deterministic: no clock, stable order)
+// and returns the exit code: 1 only when enforcing with at least one finding, a manifest that did not parse,
+// or no manifest at all (never a vacuous pass).
+static int RunCheckZeros(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations, int manifestCount,
+    List<string> manifestParseFailures, string repoRoot, bool enforce, string outputDir)
+{
+    var (findings, checkedZeros) = FindRejectedZeros(fileObligations, repoRoot);
+    if (manifestCount == 0 || manifestParseFailures.Count > 0)
+        findings.Add(new TargetFinding("no-manifest", "manifest",
+            manifestParseFailures.Count > 0
+                ? $"{manifestParseFailures.Count} coverage manifest(s) could not be parsed, so their zeros were not checked"
+                : "no coverage manifest was loaded; nothing was checked"));
+
+    var byPackage = findings.Where(f => f.Kind != "no-manifest")
+        .GroupBy(f => f.Subject.Split(':')[0], StringComparer.Ordinal)
+        .OrderBy(g => g.Key, StringComparer.Ordinal)
+        .ToDictionary(g => g.Key, g => g.Count());
+
+    Console.WriteLine($"\n--check-zeros: {checkedZeros} zero target(s) on unit, guard or contract; {findings.Count} finding(s)");
+    foreach (var finding in findings)
+        Console.WriteLine($"  {finding.Kind.ToUpperInvariant()}: {finding.Subject}: {finding.Message}");
+    foreach (var (package, count) in byPackage)
+        Console.WriteLine($"  {package}: {count}");
+
+    var payload = new
+    {
+        enforce,
+        checkedZeros,
+        rejectedZeros = findings.Count(f => f.Kind != "no-manifest"),
+        passed = findings.Count == 0,
+        byPackage,
+        findings
+    };
+    Directory.CreateDirectory(outputDir);
+    File.WriteAllText(Path.Combine(outputDir, "check-zeros.json"), JsonSerializer.Serialize(payload, SummaryJsonOptions()));
+
+    if (findings.Count == 0)
+    {
+        Console.WriteLine("  No findings.");
+        return 0;
+    }
+    Console.WriteLine(enforce ? $"  FAIL: {findings.Count} finding(s)." : $"  {findings.Count} finding(s); report-only, pass --enforce to fail the run.");
+    return enforce ? 1 : 0;
 }
 
 // ─── Target attainment (#2542): how close a (file, flag) pair is to its own target ───────────────────
@@ -1224,6 +1393,12 @@ int RunSelfTest()
     {
         if (Directory.Exists(assignOut)) Directory.Delete(assignOut, true);
     }
+
+    // --- zero-target classifier (#2890) ---
+    failures.AddRange(ZeroSelfTest.Run(out var zeroChecks));
+    passed += zeroChecks;
+    failures.AddRange(ZeroSelfTest.CheckFiles(FindRejectedZeros, RunCheckZeros, out var zeroFileChecks));
+    passed += zeroFileChecks;
 
     foreach (var failure in failures) Console.WriteLine($"  FAIL: {failure}");
     if (failures.Count > 0)
@@ -2471,4 +2646,463 @@ record ManifestFileEntry
     public Dictionary<string, double>? Targets { get; init; }
     [JsonPropertyName("justifications")]
     public Dictionary<string, string>? Justifications { get; init; }
+}
+
+// ─── Zero-target classifier (#2890) ──────────────────────────────────────────────────────────────────
+// Decides, by Roslyn SYNTAX analysis only (no compilation, no coverage data), whether a source file may keep a
+// per-file target of 0 on unit, guard or contract. The list of exempt constructs is CLOSED (maintainer decision
+// of 2026-10-26, option D): it is extended only by a reviewed pull request, never by a marker in the source.
+// Per flag, a file is exempt when it has:
+//   unit      no executable code: only interfaces, enums, delegates, body-less records, constants,
+//             auto-properties, abstract members, [LoggerMessage] partial methods and static
+//             Meter / ActivitySource holder fields (any other body or initializer is executable);
+//   guard     no non-private method, constructor or primary constructor with a body that takes a
+//             reference-type parameter;
+//   contract  no public interface, no abstract type, and nothing that implements or extends a type outside the
+//             closed list of non-Encina bases.
+// A file generated as *.g.cs is exempt for all three (the methodology excludes it from the obligations).
+
+// The verdict for one file and flag: Exempt, and the construct found (what exempts it, or what rejects it).
+record ZeroVerdict(bool Exempt, string Construct);
+
+// The shapes of FindRejectedZeros and RunCheckZeros (local functions of the script), for the self-test.
+delegate (List<TargetFinding> Findings, int Checked) ZeroFinder(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations, string repoRoot);
+delegate int ZeroRunner(
+    Dictionary<string, Dictionary<string, ManifestFileEntry>> fileObligations, int manifestCount,
+    List<string> manifestParseFailures, string repoRoot, bool enforce, string outputDir);
+
+static class ZeroClassifier
+{
+    public static readonly HashSet<string> CheckedFlags = new(["unit", "guard", "contract"], StringComparer.Ordinal);
+
+    // Value types named by an identifier (the predefined keywords other than string and object are value types
+    // by construction). A name a syntax pass cannot resolve is treated as a reference type: more rejections.
+    static readonly HashSet<string> ValueTypeNames = new(
+    [
+        "DateTime", "DateTimeOffset", "TimeSpan", "Guid", "CancellationToken", "DateOnly", "TimeOnly",
+        "Span", "ReadOnlySpan", "Memory", "ReadOnlyMemory", "ArraySegment", "KeyValuePair", "ValueTask", "Nullable"
+    ], StringComparer.Ordinal);
+
+    // Base types and interfaces that are not Encina-owned contracts (BCL and Microsoft.Extensions); any other name
+    // might be an Encina interface or abstract class, so a type that names one is not exempt for contract.
+    static readonly HashSet<string> NonEncinaBases = new(
+    [
+        "object", "Attribute", "Exception", "ApplicationException", "SystemException", "ArgumentException",
+        "InvalidOperationException", "NotSupportedException", "NotImplementedException", "TimeoutException",
+        "IDisposable", "IAsyncDisposable", "IEquatable", "IComparable", "IComparer", "IEqualityComparer", "IFormattable",
+        "ICloneable", "IConvertible", "IEnumerable", "IEnumerator", "IAsyncEnumerable", "IAsyncEnumerator",
+        "ICollection", "IList", "IReadOnlyList", "IReadOnlyCollection", "IDictionary", "IReadOnlyDictionary",
+        "ISet", "IReadOnlySet", "ISpanFormattable", "IParsable", "IStructuralEquatable", "ValueType", "Enum",
+        "IHostedService", "IHealthCheck", "IValidateOptions", "IConfigureOptions", "IPostConfigureOptions", "JsonConverter"
+    ], StringComparer.Ordinal);
+
+    // The entry point: the verdict for the text of one source file under the given flag.
+    public static ZeroVerdict Classify(string path, string text, string flag)
+    {
+        var lowered = flag.ToLowerInvariant();
+        if (!CheckedFlags.Contains(lowered))
+            return new(false, "the flag is outside the rule (only unit, guard and contract are checked)");
+        if (path.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
+            return new(true, "generated file (*.g.cs)");
+
+        var tree = CSharpSyntaxTree.ParseText(text, new CSharpParseOptions(LanguageVersion.Preview));
+        if (tree.GetDiagnostics().Any(d => d.Severity == DiagnosticSeverity.Error))
+            return new(false, "the source does not parse, so no construct could be found");
+
+        var root = tree.GetRoot();
+        // No build symbol is defined here, so the code of an #if branch would be invisible: refuse such a file.
+        if (root.DescendantTrivia(descendIntoTrivia: true).Any(t => t.Kind() is SyntaxKind.IfDirectiveTrivia or SyntaxKind.ElifDirectiveTrivia))
+            return new(false, "the file has conditional compilation (#if), which a syntax pass cannot judge");
+        var verdict = lowered switch
+        {
+            "unit" => ClassifyUnit(root),
+            "guard" => ClassifyGuard(root),
+            _ => ClassifyContract(root)
+        };
+        return verdict with { Construct = Safe(verdict.Construct) };
+    }
+
+    // Replaces control and non-ASCII characters (a manifest key or a source identifier is untrusted text that ends
+    // up on a CI console line) and caps the length.
+    public static string Safe(string value)
+    {
+        var sb = new StringBuilder(Math.Min(value.Length, 240));
+        foreach (var c in value.Take(240))
+            sb.Append(c is >= ' ' and <= '~' ? c : '?');
+        return sb.ToString();
+    }
+
+    // The text of src/<package>/<key>, or null when the file is missing, unreadable or resolves outside src/.
+    public static string? ReadSource(string repoRoot, string package, string key)
+    {
+        var srcRoot = Path.GetFullPath(Path.Combine(repoRoot, "src"));
+        var full = Path.GetFullPath(Path.Combine(srcRoot, package, key.Replace('\\', '/')));
+        if (!full.StartsWith(srcRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null;
+        try { return File.Exists(full) ? File.ReadAllText(full) : null; }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+    }
+
+    // ── unit ────────────────────────────────────────────────────────────────────────────────────────
+
+    static ZeroVerdict ClassifyUnit(SyntaxNode root)
+    {
+        var reason = root.DescendantNodes().Select(ExecutableReason).FirstOrDefault(r => r is not null);
+        return reason is not null ? new(false, reason) : new(true, UnitConstructs(root));
+    }
+
+    // Why a node is executable code (a body, an initializer, a primary constructor, a top-level statement), or null.
+    static string? ExecutableReason(SyntaxNode node) => node switch
+    {
+        GlobalStatementSyntax => "top-level statements",
+        PrimaryConstructorBaseTypeSyntax { ArgumentList.Arguments.Count: > 0 } => "base constructor arguments",
+        TypeDeclarationSyntax { ParameterList: not null } t when t.Kind() is SyntaxKind.ClassDeclaration or SyntaxKind.StructDeclaration
+            => $"primary constructor of {t.Identifier.Text}",
+        MethodDeclarationSyntax m => MethodReason(m),
+        BaseMethodDeclarationSyntax m => m is ConstructorDeclarationSyntax || HasBody(m) ? $"{Describe(m)} with a body" : null,
+        BasePropertyDeclarationSyntax p => PropertyReason(p),
+        BaseFieldDeclarationSyntax f => FieldReason(f),
+        _ => null
+    };
+
+    static bool HasBody(BaseMethodDeclarationSyntax m) => m.Body is not null || m.ExpressionBody is not null;
+
+    static string? MethodReason(MethodDeclarationSyntax m)
+    {
+        if (HasBody(m)) return $"{Describe(m)} with a body";
+        if (m.Modifiers.Any(SyntaxKind.PartialKeyword) && !HasLoggerMessage(m))
+            return $"partial method {m.Identifier.Text} without [LoggerMessage]";
+        return null;
+    }
+
+    static string? PropertyReason(BasePropertyDeclarationSyntax p)
+    {
+        if (p is PropertyDeclarationSyntax { ExpressionBody: not null } || p is IndexerDeclarationSyntax { ExpressionBody: not null })
+            return $"{Describe(p)} with an expression body";
+        if (p is PropertyDeclarationSyntax { Initializer: { } init } prop && !IsHolderInitializer(prop, prop.Type, init.Value))
+            return $"{Describe(p)} with an initializer";
+        if (p.AccessorList?.Accessors.Any(a => a.Body is not null || a.ExpressionBody is not null) == true)
+            return $"{Describe(p)} with an accessor body";
+        return null;
+    }
+
+    static string? FieldReason(BaseFieldDeclarationSyntax f)
+    {
+        if (f.Modifiers.Any(SyntaxKind.ConstKeyword)) return null;
+        var isEvent = f is EventFieldDeclarationSyntax;
+        var withInitializer = f.Declaration.Variables.FirstOrDefault(
+            v => v.Initializer is { } i && (isEvent || !IsHolderInitializer(f, f.Declaration.Type, i.Value)));
+        return withInitializer is null ? null : $"{(isEvent ? "event" : "field")} {withInitializer.Identifier.Text} with an initializer";
+    }
+
+    // A static Meter / ActivitySource holder member: `new Meter(...)`, `new ActivitySource(...)` or
+    // `<meter>.Create...(...)` in a static class, with no lambda in it (a callback is code).
+    static bool IsHolderInitializer(MemberDeclarationSyntax member, TypeSyntax declaredType, ExpressionSyntax value)
+    {
+        if (member.Parent is not TypeDeclarationSyntax owner || !owner.Modifiers.Any(SyntaxKind.StaticKeyword)) return false;
+        if (HasNestedCode(value)) return false;
+        return value switch
+        {
+            ObjectCreationExpressionSyntax c => IsHolderType(RightmostName(c.Type)),
+            ImplicitObjectCreationExpressionSyntax => IsHolderType(RightmostName(declaredType)),
+            InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } a } =>
+                receiver.Identifier.Text.Contains("meter", StringComparison.OrdinalIgnoreCase) && InstrumentFactories.Contains(a.Name.Identifier.Text),
+            _ => false
+        };
+    }
+
+    // The Meter factory methods a holder may call on its own Meter field.
+    static readonly HashSet<string> InstrumentFactories = new(
+        ["CreateCounter", "CreateHistogram", "CreateUpDownCounter", "CreateGauge"], StringComparer.Ordinal);
+
+    // A lambda, a call (other than nameof) or a creation inside the initializer's arguments is code.
+    static bool HasNestedCode(ExpressionSyntax value) => value.DescendantNodes().Any(n =>
+        n is AnonymousFunctionExpressionSyntax or BaseObjectCreationExpressionSyntax
+        || n is InvocationExpressionSyntax { Expression: not IdentifierNameSyntax { Identifier.Text: "nameof" } });
+
+    static bool IsHolderType(string name) => name is "Meter" or "ActivitySource";
+
+    static bool HasLoggerMessage(MethodDeclarationSyntax m)
+        => m.AttributeLists.SelectMany(l => l.Attributes).Any(a => RightmostName(a.Name) is "LoggerMessage" or "LoggerMessageAttribute");
+
+    // The constructs that make a file exempt for unit, sorted, for the report ("no type declarations" when empty).
+    static string UnitConstructs(SyntaxNode root)
+    {
+        var labels = root.DescendantNodes().Select(UnitLabel).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        return labels.Count == 0 ? "no executable members" : string.Join(", ", labels.Order(StringComparer.Ordinal));
+    }
+
+    static string? UnitLabel(SyntaxNode node) => node switch
+    {
+        InterfaceDeclarationSyntax => "interface",
+        EnumDeclarationSyntax => "enum",
+        DelegateDeclarationSyntax => "delegate",
+        RecordDeclarationSyntax { ParameterList: not null, Members.Count: 0 } => "body-less record",
+        FieldDeclarationSyntax f when f.Modifiers.Any(SyntaxKind.ConstKeyword) => "constants",
+        MethodDeclarationSyntax m when m.Modifiers.Any(SyntaxKind.PartialKeyword) && HasLoggerMessage(m) => "[LoggerMessage] partial methods",
+        FieldDeclarationSyntax f when f.Declaration.Variables.Any(v => v.Initializer is not null) => "Meter/ActivitySource holder",
+        PropertyDeclarationSyntax { Initializer: not null } => "Meter/ActivitySource holder",
+        PropertyDeclarationSyntax { Parent: not InterfaceDeclarationSyntax, AccessorList: not null } => "auto-properties",
+        _ => null
+    };
+
+    // ── guard ───────────────────────────────────────────────────────────────────────────────────────
+
+    static ZeroVerdict ClassifyGuard(SyntaxNode root)
+    {
+        var hit = root.DescendantNodes().Select(GuardHit).FirstOrDefault(h => h is not null);
+        return hit is not null ? new(false, hit)
+            : new(true, "no non-private method or constructor with a body takes a reference-type parameter");
+    }
+
+    static string? GuardHit(SyntaxNode node) => node switch
+    {
+        BaseMethodDeclarationSyntax m when !IsPrivateMember(m) && (m is ConstructorDeclarationSyntax || HasBody(m))
+            => ReferenceParameter(m.ParameterList, Describe(m)),
+        IndexerDeclarationSyntax ix when !IsPrivateMember(ix) && (ix.ExpressionBody is not null || ix.AccessorList?.Accessors.Any(a => a.Body is not null || a.ExpressionBody is not null) == true)
+            => ReferenceParameter(ix.ParameterList, Describe(ix)),
+        // A primary constructor, or the receiver of a C# 14 extension block (the only other type with a parameter list).
+        TypeDeclarationSyntax { ParameterList: { } pl } t when t.Kind() == SyntaxKind.ExtensionBlockDeclaration || !IsPrivateMember(t)
+            => ReferenceParameter(pl, t.Kind() == SyntaxKind.ExtensionBlockDeclaration ? "extension block" : $"primary constructor of {t.Identifier.Text}"),
+        _ => null
+    };
+
+    static string? ReferenceParameter(BaseParameterListSyntax list, string owner)
+    {
+        var p = list.Parameters.FirstOrDefault(p => !p.Modifiers.Any(SyntaxKind.OutKeyword) && p.Type is not null && IsReferenceType(p.Type));
+        return p is null ? null : $"{owner} takes the reference-type parameter '{p.Identifier.Text}'";
+    }
+
+    static bool IsReferenceType(TypeSyntax type) => type switch
+    {
+        PredefinedTypeSyntax p => p.Keyword.Text is "string" or "object",
+        NullableTypeSyntax n => IsReferenceType(n.ElementType),
+        RefTypeSyntax r => IsReferenceType(r.Type),
+        _ => !ValueTypeNames.Contains(RightmostName(type))
+    };
+
+    // A member without public, protected or internal is private (inside a type) or public (in an interface);
+    // an explicit interface implementation is reachable through the interface.
+    static bool IsPrivateMember(MemberDeclarationSyntax m)
+    {
+        if (m.Modifiers.Any(k => k.Kind() is SyntaxKind.PublicKeyword or SyntaxKind.ProtectedKeyword or SyntaxKind.InternalKeyword)) return false;
+        if (m is MethodDeclarationSyntax { ExplicitInterfaceSpecifier: not null }) return false;
+        return m.Parent is TypeDeclarationSyntax and not InterfaceDeclarationSyntax;
+    }
+
+    // ── contract ────────────────────────────────────────────────────────────────────────────────────
+
+    static ZeroVerdict ClassifyContract(SyntaxNode root)
+    {
+        var hit = root.DescendantNodes().OfType<BaseTypeDeclarationSyntax>().Where(t => t is not EnumDeclarationSyntax)
+            .Select(ContractHit).FirstOrDefault(h => h is not null);
+        return hit is not null ? new(false, hit)
+            : new(true, "not a public interface or abstract type, and implements nothing outside the closed non-Encina list");
+    }
+
+    static string? ContractHit(BaseTypeDeclarationSyntax type)
+    {
+        var name = type.Identifier.Text;
+        if (type is InterfaceDeclarationSyntax && type.Modifiers.Any(SyntaxKind.PublicKeyword)) return $"public interface {name}";
+        if (type is not InterfaceDeclarationSyntax && type.Modifiers.Any(SyntaxKind.AbstractKeyword)) return $"abstract type {name}";
+        var contract = type.BaseList?.Types.Select(b => RightmostName(b.Type)).FirstOrDefault(n => !NonEncinaBases.Contains(n));
+        return contract is null ? null : $"{name} implements or extends '{contract}', which may be an Encina-owned contract";
+    }
+
+    // ── shared ──────────────────────────────────────────────────────────────────────────────────────
+
+    static string RightmostName(TypeSyntax type) => type switch
+    {
+        IdentifierNameSyntax i => i.Identifier.Text,
+        GenericNameSyntax g => g.Identifier.Text,
+        QualifiedNameSyntax q => RightmostName(q.Right),
+        AliasQualifiedNameSyntax a => RightmostName(a.Name),
+        PredefinedTypeSyntax p => p.Keyword.Text,
+        NullableTypeSyntax n => RightmostName(n.ElementType),
+        _ => type.ToString()
+    };
+
+    // "method Foo", "constructor Bar", "property Baz": a short name of the member for the finding.
+    static string Describe(MemberDeclarationSyntax m) => m switch
+    {
+        MethodDeclarationSyntax x => $"method {x.Identifier.Text}",
+        ConstructorDeclarationSyntax x => $"constructor {x.Identifier.Text}",
+        PropertyDeclarationSyntax x => $"property {x.Identifier.Text}",
+        IndexerDeclarationSyntax => "indexer",
+        OperatorDeclarationSyntax => "operator",
+        ConversionOperatorDeclarationSyntax => "conversion operator",
+        DestructorDeclarationSyntax => "destructor",
+        EventDeclarationSyntax x => $"event {x.Identifier.Text}",
+        _ => m.Kind().ToString()
+    };
+}
+
+// The self-test of the classifier (#2890): one passing fixture for EACH exempt construct, so that removing the
+// branch that recognises it makes its fixture fail, and a rejected fixture for each way a file leaves the list.
+static class ZeroSelfTest
+{
+    // (name, flag, source): every one must be exempt.
+    static readonly (string Name, string Flag, string Source)[] Exempt =
+    [
+        ("unit: interface", "unit", "public interface IA { string Name { get; } void Run(string a); }"),
+        ("unit: enum", "unit", "public enum E { A = 1, B }"),
+        ("unit: delegate", "unit", "public delegate void D(string a);"),
+        ("unit: constants-only class", "unit", "public static class C { public const int A = 1; public const string B = \"b\"; }"),
+        ("unit: body-less record", "unit", "public sealed record R(int A, string B);"),
+        ("unit: auto-properties", "unit", "public sealed class P { public string A { get; set; } public int B { get; init; } }"),
+        ("unit: abstract members", "unit", "public abstract class B { public abstract void Run(string a); public abstract int X { get; } }"),
+        ("unit: [LoggerMessage] partial", "unit", "internal static partial class L { [LoggerMessage(EventId = 1, Level = LogLevel.Warning, Message = \"m\")] public static partial void Warn(ILogger logger, string a); }"),
+        ("unit: Meter holder", "unit", "internal static class M { internal const string N = \"n\"; internal static readonly Meter Meter = new(N, \"1.0\"); internal static readonly Counter<long> T = Meter.CreateCounter<long>(\"t\"); }"),
+        ("unit: ActivitySource holder", "unit", "internal static class A { internal static readonly ActivitySource Source = new ActivitySource(\"s\", \"1.0\"); }"),
+        ("unit: field-like event and uninitialised field", "unit", "public abstract class B { public event EventHandler Changed; protected int count; }"),
+        ("unit: no types (usings and assembly attribute)", "unit", "using System; [assembly: CLSCompliant(true)]"),
+        ("guard: no parameters", "guard", "public class G { public void Run() { } public G() { } }"),
+        ("guard: value-type parameters only", "guard", "public class G { public int Add(int a, long b, DateTime c, CancellationToken t, int? n) => 1; }"),
+        ("guard: out parameter", "guard", "public static class G { public static bool Try(out string value) { value = null; return false; } }"),
+        ("guard: private method", "guard", "public class G { private void Run(string a) { } void Other(object o) { } }"),
+        ("guard: bodiless interface and abstract members", "guard", "public interface IG { void Run(string a); } public abstract class B { public abstract void Run(string a); }"),
+        ("guard: record with value-type primary constructor", "guard", "public sealed record R(int A, bool B);"),
+        ("contract: static class", "contract", "public static class C { public static void Run(string a) { } }"),
+        ("contract: concrete class with no base", "contract", "public sealed class C { public void Run() { } }"),
+        ("contract: enum", "contract", "public enum E : byte { A }"),
+        ("contract: internal interface", "contract", "internal interface I { void Run(); }"),
+        ("contract: BCL bases only", "contract", "public sealed class X : Exception, IDisposable, IEquatable<X> { public void Dispose() { } public bool Equals(X o) => true; }"),
+    ];
+
+    // (name, flag, source, fragment of the construct found): every one must be rejected, naming the construct.
+    static readonly (string Name, string Flag, string Source, string Found)[] Rejected =
+    [
+        ("unit: method with a body", "unit", "public class C { public int A() => 1; }", "method A with a body"),
+        ("unit: constructor", "unit", "public class C { public C() { } }", "constructor C with a body"),
+        ("unit: property with an initializer", "unit", "public class C { public string A { get; set; } = string.Empty; }", "property A with an initializer"),
+        ("unit: property with an expression body", "unit", "public class C { public int A => 1; }", "property A with an expression body"),
+        ("unit: property accessor body", "unit", "public class C { int f; public int A { get { return f; } } }", "accessor body"),
+        ("unit: field initializer outside a holder", "unit", "public class C { static readonly string A = \"a\"; }", "field A with an initializer"),
+        ("unit: Meter field in a class that is not static", "unit", "public class C { readonly Meter M = new(\"n\"); }", "field M with an initializer"),
+        ("unit: holder with a callback", "unit", "internal static class M { static readonly Meter Meter = new(\"n\"); static readonly ObservableGauge<int> G = Meter.CreateObservableGauge(\"g\", () => 1); }", "field G with an initializer"),
+        ("unit: partial method without [LoggerMessage]", "unit", "public static partial class L { public static partial void Run(string a); }", "partial method Run without [LoggerMessage]"),
+        ("unit: static factory call that is not a Meter", "unit", "public static class K { public static readonly Order D = OrderFactory.CreateDefault(); }", "field D with an initializer"),
+        ("unit: holder whose arguments call code", "unit", "internal static class M { internal static readonly Meter Meter = new(Name()); }", "field Meter with an initializer"),
+        ("unit: event with an initializer", "unit", "public class C { public event EventHandler E = Make(); }", "event E with an initializer"),
+        ("unit: record with base constructor arguments", "unit", "public record R(int A) : Base(Compute());", "base constructor arguments"),
+        ("unit: conditional compilation", "unit", "#if NET10_0_OR_GREATER\npublic class C { public void A() { } }\n#endif", "conditional compilation"),
+        ("guard: extension block receiver", "guard", "public static class E { extension(IServiceCollection s) { public IServiceCollection AddX() { return s; } } }", "extension block takes the reference-type parameter 's'"),
+        ("unit: primary constructor of a class", "unit", "public class C(string a);", "primary constructor of C"),
+        ("unit: top-level statements", "unit", "System.Console.WriteLine(1);", "top-level statements"),
+        ("unit: default interface method", "unit", "public interface I { int A() => 1; }", "method A with a body"),
+        ("guard: method with a reference-type parameter", "guard", "public class G { public void Run(string a) { } }", "method Run takes the reference-type parameter 'a'"),
+        ("guard: expression-bodied method", "guard", "public static class G { public static int Len(object o) => 1; }", "method Len takes the reference-type parameter 'o'"),
+        ("guard: constructor", "guard", "public class G { public G(IFoo foo) { } }", "constructor G takes the reference-type parameter 'foo'"),
+        ("guard: positional record with a reference-type parameter", "guard", "public sealed record R(string A);", "primary constructor of R takes the reference-type parameter 'A'"),
+        ("guard: internal method", "guard", "internal static class G { internal static void Run(Foo foo) { } }", "method Run takes the reference-type parameter 'foo'"),
+        ("guard: explicit interface implementation", "guard", "class G : IG { void IG.Run(string a) { } }", "method Run takes the reference-type parameter 'a'"),
+        ("guard: indexer", "guard", "public class G { public int this[string k] { get { return 1; } } }", "indexer takes the reference-type parameter 'k'"),
+        ("contract: public interface", "contract", "public interface IA { }", "public interface IA"),
+        ("contract: abstract class", "contract", "public abstract class B { }", "abstract type B"),
+        ("contract: class implementing an interface", "contract", "public sealed class S : IOutboxStore { }", "S implements or extends 'IOutboxStore'"),
+        ("contract: generic and qualified base", "contract", "public sealed record Q : Encina.IRequest<int> { }", "Q implements or extends 'IRequest'"),
+        ("contract: derived from an unknown base", "contract", "public class D : SaveChangesInterceptor { }", "D implements or extends 'SaveChangesInterceptor'"),
+        ("a flag outside the rule", "integration", "public enum E { A }", "outside the rule"),
+        ("source that does not parse", "unit", "public class { ", "does not parse"),
+    ];
+
+    // Returns the failed checks; passedChecks is how many held.
+    public static List<string> Run(out int passedChecks)
+    {
+        var failures = new List<string>();
+        var passed = 0;
+        void Check(bool ok, string name) { if (ok) passed++; else failures.Add(name); }
+
+        foreach (var (name, flag, source) in Exempt)
+        {
+            var verdict = ZeroClassifier.Classify("F.cs", source, flag);
+            Check(verdict.Exempt, $"zero classifier exempts: {name} (got: {verdict.Construct})");
+        }
+        foreach (var (name, flag, source, found) in Rejected)
+        {
+            var verdict = ZeroClassifier.Classify("F.cs", source, flag);
+            Check(!verdict.Exempt && verdict.Construct.Contains(found, StringComparison.Ordinal),
+                $"zero classifier rejects: {name} (got: {verdict.Construct})");
+        }
+
+        Check(ZeroClassifier.Classify("Gen.g.cs", "public class C { public void A(string s) { } }", "guard").Exempt, "a generated *.g.cs file is exempt");
+        Check(!ZeroClassifier.Classify("Gen.cs", "public class C { public void A(string s) { } }", "guard").Exempt, "a file that only looks generated is not");
+        Check(ZeroClassifier.Classify("F.cs", "public interface I { }", "UNIT").Exempt, "the flag is case-insensitive");
+        Check(ZeroClassifier.Classify("F.cs", "public enum E { A }", "unit").Construct == "enum", "the construct of an exempt file is named");
+        Check(ZeroClassifier.Safe("a\r\nb\u0001cé") == "a??b?c?", "control and non-ASCII characters are replaced");
+        Check(ZeroClassifier.Safe(new string('x', 500)).Length == 240, "a long text is capped");
+
+        passedChecks = passed;
+        return failures;
+    }
+
+    // ReadSource, FindRejectedZeros and RunCheckZeros against a temporary repository. The two runners are local
+    // functions of the script, so they come in as delegates.
+    public static List<string> CheckFiles(
+        ZeroFinder findRejected, ZeroRunner runCheck, out int passedChecks)
+    {
+        var failures = new List<string>();
+        var passed = 0;
+        void check(bool ok, string name) { if (ok) passed++; else failures.Add(name); }
+        FilesScenario(check, findRejected, runCheck);
+        passedChecks = passed;
+        return failures;
+    }
+
+    static void FilesScenario(Action<bool, string> check, ZeroFinder FindRejectedZeros, ZeroRunner RunCheckZeros)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "coverage-report-selftest-zeros-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var pkg = Directory.CreateDirectory(Path.Combine(root, "src", "Pkg"));
+            File.WriteAllText(Path.Combine(pkg.FullName, "Exempt.cs"), "public enum E { A }");
+            File.WriteAllText(Path.Combine(pkg.FullName, "Code.cs"), "public class C { public void A(string s) { } }");
+            File.WriteAllText(Path.Combine(root, "Outside.cs"), "public enum E { A }");
+
+            check(ZeroClassifier.ReadSource(root, "Pkg", "Exempt.cs") is not null, "a source under src/ is read");
+            check(ZeroClassifier.ReadSource(root, "Pkg", "Missing.cs") is null, "a missing source reads as null");
+            check(ZeroClassifier.ReadSource(root, "Pkg", "../../Outside.cs") is null, "a key that leaves src/ is refused");
+            check(ZeroClassifier.ReadSource(root, "..", "Outside.cs") is null, "a package that leaves src/ is refused");
+
+            static ManifestFileEntry Entry(params (string Flag, double Value)[] targets) => new()
+            {
+                Targets = targets.ToDictionary(t => t.Flag, t => t.Value),
+                Justifications = targets.ToDictionary(t => t.Flag, _ => "x")
+            };
+            var obligations = new Dictionary<string, Dictionary<string, ManifestFileEntry>>
+            {
+                ["Pkg"] = new()
+                {
+                    ["Exempt.cs"] = Entry(("unit", 0), ("guard", 50)),
+                    ["Code.cs"] = Entry(("Guard", 0), ("integration", 0), ("property", 0), ("unit", 80)),
+                    ["Missing.cs"] = Entry(("contract", 0)),
+                    ["../../Outside.cs"] = Entry(("unit", 0))
+                }
+            };
+            var (findings, checkedZeros) = FindRejectedZeros(obligations, root);
+            check(checkedZeros == 4, "only unit, guard and contract zeros are checked (integration, property and non-zero targets are not)");
+            check(findings.Count == 3 && findings.Count(f => f.Kind == "rejected-zero") == 1 && findings.Count(f => f.Kind == "no-source") == 2,
+                "one rejected zero and two unreadable sources are findings; the exempt zero is not");
+            check(findings.Any(f => f.Kind == "rejected-zero" && f.Subject == "Pkg: Code.cs guard" && f.Message.Contains("'s'", StringComparison.Ordinal)),
+                "a rejected zero names the file, the flag and the construct");
+
+            var outDir = Path.Combine(root, "out");
+            check(RunCheckZeros(obligations, 1, [], root, enforce: false, outDir) == 0, "report-only never fails the run");
+            var first = File.ReadAllText(Path.Combine(outDir, "check-zeros.json"));
+            check(RunCheckZeros(obligations, 1, [], root, enforce: true, outDir) == 1, "enforce fails the run on a finding");
+            check(File.ReadAllText(Path.Combine(outDir, "check-zeros.json")).Replace("\"enforce\": true", "\"enforce\": false") == first,
+                "check-zeros.json is deterministic apart from the enforce flag");
+            var written = JsonNode.Parse(first)!.AsObject();
+            check(string.Join(",", written.Select(kv => kv.Key).Order(StringComparer.Ordinal)) == "byPackage,checkedZeros,enforce,findings,passed,rejectedZeros",
+                "check-zeros.json has exactly the documented fields");
+            check(RunCheckZeros([], 1, [], root, enforce: true, outDir) == 0, "enforce passes with no zero");
+            check(RunCheckZeros([], 0, [], root, enforce: true, outDir) == 1, "no manifest at all is a finding, never a pass");
+            check(RunCheckZeros([], 1, ["Broken.json"], root, enforce: true, outDir) == 1, "an unparsed manifest is a finding, never a pass");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    }
 }

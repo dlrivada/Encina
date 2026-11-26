@@ -44,7 +44,7 @@ public static class ShardKeyExtractor
             return string.IsNullOrEmpty(key)
                 ? Either<EncinaError, string>.Left(
                     EncinaErrors.Create(
-                        ShardingErrorCodes.ShardKeyEmpty,
+                        ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                         $"IShardable.GetShardKey() returned null or empty for entity type '{typeof(TEntity).Name}'."))
                 : Either<EncinaError, string>.Right(key);
         }
@@ -55,7 +55,7 @@ public static class ShardKeyExtractor
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyNotConfigured,
+                    ShardingErrorCodes.ShardKeyNotConfigured, ErrorCategory.Internal,
                     $"Entity type '{typeof(TEntity).Name}' does not implement IShardable and has no property marked with [ShardKey]."));
         }
 
@@ -65,7 +65,7 @@ public static class ShardKeyExtractor
         {
             return Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyEmpty,
+                    ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                     $"Shard key property '{property.Name}' on entity type '{typeof(TEntity).Name}' has a null value."));
         }
 
@@ -74,7 +74,7 @@ public static class ShardKeyExtractor
         return string.IsNullOrEmpty(stringValue)
             ? Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardKeyEmpty,
+                    ShardingErrorCodes.ShardKeyEmpty, ErrorCategory.Internal,
                     $"Shard key property '{property.Name}' on entity type '{typeof(TEntity).Name}' has an empty string value."))
             : Either<EncinaError, string>.Right(stringValue);
     }

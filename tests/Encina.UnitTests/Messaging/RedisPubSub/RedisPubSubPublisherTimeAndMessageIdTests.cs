@@ -32,7 +32,7 @@ public sealed class RedisPubSubPublisherTimeAndMessageIdTests
     {
         var call = _subscriber.ReceivedCalls().Single(c => c.GetMethodInfo().Name == nameof(ISubscriber.PublishAsync));
         var payload = call.GetArguments().OfType<RedisValue>().Single();
-        return JsonDocument.Parse(payload.ToString()).RootElement;
+        return JsonElement.Parse(payload.ToString());
     }
 
     [Fact]
