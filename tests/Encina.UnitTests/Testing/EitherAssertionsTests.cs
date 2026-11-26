@@ -282,6 +282,16 @@ public sealed class EitherAssertionsTests
         result.ShouldBeNotFoundError().GetCategory().ShouldBe(ErrorCategory.NotFound);
     }
 
+    [Fact]
+    public void ShouldBeValidationError_WhenValidationCategoryWithPackageSpecificCode_ReturnsError()
+    {
+        // Arrange: producers other than the orchestrator carry their own code; the category is the contract
+        Either<EncinaError, int> result = EncinaErrors.Create("consent.invalid_purpose", ErrorCategory.Validation, "invalid");
+
+        // Act & Assert
+        result.ShouldBeValidationError().GetCategory().ShouldBe(ErrorCategory.Validation);
+    }
+
     private sealed record RejectedCommand : ICommand<string>;
 
     private sealed class RejectingValidationProvider : IValidationProvider
