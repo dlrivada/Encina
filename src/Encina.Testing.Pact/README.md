@@ -228,7 +228,7 @@ An `EncinaError` is mapped to an HTTP status by its `ErrorCategory`, through `Er
 | `Cancelled` | 499 |
 | `Internal` | 500 |
 
-The error code string is still written to the interaction body as `errorCode`, but it never decides the status. An error created without a category is `Internal` and maps to 500. Declare the category when you create the error:
+The error code string is still written to the interaction body as `errorCode`, but it never decides the status. An error created without a category currently has its category inferred from the code text (for example a `.not_found` suffix gives `NotFound`) and is `Internal` (500) only when no rule matches; this inference is transitional, so declare the category when you create the error:
 
 ```csharp
 EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "Order 42 was not found.");
