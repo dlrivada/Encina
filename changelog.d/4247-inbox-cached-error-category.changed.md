@@ -1,0 +1,1 @@
+- The inbox now replays the original error category (and so the HTTP status) of a cached failed response under `inbox.cached_error` instead of always answering `Internal` (500); the category is stored inside the cached response envelope (no schema change), and older rows without it still replay `Internal` (#4247).
