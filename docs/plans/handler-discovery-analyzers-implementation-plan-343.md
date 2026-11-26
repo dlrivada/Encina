@@ -17,7 +17,7 @@ What exists today (read on `origin/main` at `326e65ebf`, after `git fetch`):
 - Of the issue's eight rules, three are already covered or contradicted by the code, so this plan drops them (Design Choice 1):
   - **ENCINA005 (missing validator)** is the same rule as ENC002 of #438.
   - **ENCINA007 (behavior order)**: `PipelineStage` fixes the order independent of call order (`Validation = 900`, `Transaction = 1300`, `src/Encina/Pipeline/Ordering/PipelineStage.cs`), and `PipelineOrderValidationHostedService` validates the registered steps at startup. The issue's example, `AddBehavior<TransactionBehavior>()` before `AddBehavior<ValidationBehavior>()`, is not a mistake today.
-  - **ENCINA008 (CancellationToken not propagated)** is the .NET analyzer CA2016 ("Forward the CancellationToken parameter to methods that take one"), which ships with the .NET SDK analyzers that Encina builds already run (`EnableNETAnalyzers` in `Directory.Build.props`) and that user projects get from their SDK; ENC001 of #438 covers the missing parameter.
+  - **ENCINA008 (CancellationToken not propagated)** is the .NET analyzer CA2016 ("Forward the CancellationToken parameter to methods that take one"), which ships with the .NET SDK analyzers that Encina builds already run (`EnableNETAnalyzers` in `Directory.Build.props`) and that user projects get from their SDK; a missing token parameter cannot occur on an interface handler (the compiler requires it), and ENC001 of #438 (redefined there as a token parameter never used) covers the unused case.
 - The compiler already rejects the issue's example of ENCINA004 (`Handle` returning `Either<EncinaError, string>` for `ICommandHandler<CreateOrderCommand, OrderDto>`): the interface method fixes the return type (`src/Encina/Abstractions/IRequestHandler.cs:57`), so the error is CS0535. The rule only has a purpose for convention-based handlers (#333), whose `Handle` is found by name and not by interface.
 - Discovery is by assembly scan: `AddEncina(services, configure, params Assembly[] assemblies)` scans the assemblies given and, when none is given, scans only `typeof(ServiceCollectionExtensions).Assembly`, the core assembly (`src/Encina/Core/ServiceCollectionExtensions.cs`, `AddEncina`), so `services.AddEncina()` with no assembly registers no application handler at all. `EncinaAssemblyScanner` (`src/Encina/Dispatchers/MediatorAssemblyScanner.cs`) registers every non-abstract class implementing `IRequestHandler<,>`, `INotificationHandler<>` or `IStreamRequestHandler<,>`, nested and internal included.
 - Handler interfaces are `ICommandHandler<,>`, `ICommandHandler<>`, `IQueryHandler<,>`, `IQueryHandler<>` (`src/Encina/Abstractions/CqrsContracts.cs:79-105`); `ICommand<>` and `IQuery<>` are at `:29` and `:60`.
@@ -27,15 +27,15 @@ What this plan delivers: ENC011 to ENC015 as defined below, two code fixes (regi
 
 | Rule | Detects | Default severity | Fix |
 |------|---------|------------------|-----|
-| ENC011 | `AddEncina` called with no assembly argument and no `RegisterServicesFromAssembly(...)` in its configure lambda, in a compilation that declares at least one handler | Warning | add `typeof(<handler>).Assembly` as an argument |
+| ENC011 | `AddEncina` called with no assembly argument and none of the three registration calls in its configure lambda (`RegisterServicesFromAssembly`, `RegisterServicesFromAssemblies`, `RegisterServicesFromAssemblyContaining<T>`, `src/Encina/Core/EncinaConfiguration.cs:91,101,122`), in a compilation that declares at least one handler | Warning | add `typeof(<handler>).Assembly` as an argument |
 | ENC012 | Handler class name that does not match its request name (Design Choice 2) | Suggestion | rename the class (Roslyn `Renamer`) |
-| ENC013 | A query handler that calls a state-changing member (Design Choice 3) | Warning | none |
+| ENC013 | A query handler that calls a state-changing member (Design Choice 3) | Suggestion (a heuristic Warning would break `TreatWarningsAsErrors` builds on its false positives; raise it after measuring over `Encina.slnx`) | none |
 | ENC014 | A convention-based handler (#333) whose `Handle` return type does not carry the response its request declares | Error | none |
 | ENC015 | A handler whose constructor has more parameters than `encina_max_handler_dependencies` (default 6) | Suggestion | none |
 
 - **Affected packages**: `Encina.Analyzers` (new in #438), `Encina.UnitTests`, `Encina.GuardTests`. The core package is not changed.
 - **Provider category**: none.
-- **Prerequisites**: #438 Phase 1 (package and harness); #333 for ENC014 (PR-3 follows #333's convention handlers).
+- **Prerequisites**: #438 PR-1 (package, harness, `EncinaKnownTypes`, the `Tooling` coverage category and the manifest this plan edits) merges before this plan's PR-1; #333 merges before PR-3 (ENC014 needs its `[Handler]` convention), and #333's pending Dilemma 1 can remove PR-3 (see Phase 3).
 
 ### Shared Pieces and Ownership (family dev-experience)
 
@@ -104,11 +104,11 @@ State change is not decidable in general. The issue's example calls `_repository
 | **B) Flow analysis through the callees to find writes to fields or I/O** | More precise | Whole-program analysis a per-compilation analyzer cannot do across assemblies; expensive in the IDE |
 | **C) Do not ship ENC013** | No heuristic noise | Drops the CQRS separation rule the issue names |
 
-### Chosen Option: **A — Name and type heuristic, excluding calls on locals and `System.Collections` types** (recommended, pending the maintainer)
+### Chosen Option: **A — Name and type heuristic, excluding calls on locals and `System.Collections` types, default severity Suggestion** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins when an imperfect warning that is easy to configure beats no rule; C wins when the team judges a heuristic rule more costly than the mistake it prevents.
+- A wins when an imperfect diagnostic that is easy to configure beats no rule; C wins when the team judges a heuristic rule more costly than the mistake it prevents. Under A the default is Suggestion, not Warning: a Warning on a heuristic fails builds that treat warnings as errors on every false positive, so the severity is raised to Warning only after the rule has been measured over `Encina.slnx` and the false-positive rate is known.
 - **Class:** Dilemma
 
 </details>
@@ -142,7 +142,7 @@ State change is not decidable in general. The issue's example calls `_repository
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Analyzers/HandlerNotDiscoveredAnalyzer.cs` (ENC011): `RegisterCompilationStartAction`; collect handler types of the compilation through `EncinaKnownTypes`; an `InvocationOperation` action on `AddEncina` (extension of `IServiceCollection`) checks the arguments and the configure lambda for `RegisterServicesFromAssembly(es)`.
+1. `src/Encina.Analyzers/HandlerNotDiscoveredAnalyzer.cs` (ENC011): `RegisterCompilationStartAction`; collect handler types of the compilation through `EncinaKnownTypes`; an `InvocationOperation` action on `AddEncina` (extension of `IServiceCollection`) checks the arguments and the configure lambda for the three accepted shapes: `RegisterServicesFromAssembly`, `RegisterServicesFromAssemblies` and `RegisterServicesFromAssemblyContaining<T>`. A negative test per shape (and one for an assembly passed as an argument) proves none is flagged; without the third shape the documented `RegisterServicesFromAssemblyContaining<T>()` call would be a false positive.
 2. `src/Encina.Analyzers/RegisterHandlerAssemblyCodeFix.cs`: appends `typeof(<handler>).Assembly`.
 3. `src/Encina.Analyzers/HandlerNamingAnalyzer.cs` (ENC012) and `RenameHandlerCodeFix.cs` (uses `Renamer.RenameSymbolAsync`).
 4. Edit `DiagnosticDescriptors.cs` (two descriptors); tests `HandlerNotDiscoveredAnalyzerTests.cs`, `HandlerNamingAnalyzerTests.cs` (positive, negative, fix output compiles); guard tests added to `EncinaAnalyzersGuardTests.cs`; manifest targets; changelog fragment `changelog.d/343-handler-convention-analyzers.added.md` (through `mechanical-fixer`).
@@ -182,7 +182,7 @@ File count 9; about 500 lines.
 ```text
 CONTEXT: ENC011 and ENC012 are merged.
 TASK: Add ENC013 and ENC015 and the AnalyzerOptionsReader. ENC013 flags a call from an IQueryHandler to a member whose name starts with a configured prefix or to SaveChanges/ExecuteSql on a DbContext, excluding calls on locals and System.Collections types. ENC015 flags constructors above encina_max_handler_dependencies (default 6).
-KEY RULES: Invalid .editorconfig values fall back to defaults and never throw. Document the heuristic limits in the descriptor description.
+KEY RULES: Invalid .editorconfig values fall back to defaults and never throw. ENC013 defaults to Suggestion. Document the heuristic limits in the descriptor description.
 REFERENCE FILES: src/Encina.Analyzers/*, src/Encina/Abstractions/CqrsContracts.cs.
 ```
 
@@ -193,7 +193,7 @@ REFERENCE FILES: src/Encina.Analyzers/*, src/Encina/Abstractions/CqrsContracts.c
 <details>
 <summary>Tasks</summary>
 
-1. `ConventionHandlerResponseAnalyzer.cs` (ENC014): for a type that the convention of #333 marks as a handler (`[Handler]` or a class named `*Handler` with a `Handle` method), compare the `Handle` return type (through `EncinaKnownTypes`, which names the carrier) with the response declared by the request type (`IRequest<TResponse>`). Starts after #333 defines the attribute and the convention; if #333's Dilemma 1 keeps interface-only handlers, this rule is not built and PR-3 is dropped.
+1. `ConventionHandlerResponseAnalyzer.cs` (ENC014): for a type that the convention of #333 marks as a handler (`[Handler]` or a class named `*Handler` with a `Handle` method), compare the `Handle` return type (through `EncinaKnownTypes`, which names the carrier) with the response declared by the request type (`IRequest<TResponse>`). Starts after #333 defines the attribute and the convention. If #333's pending Dilemma 1 keeps interface-only handlers, this rule is not built and PR-3 is dropped: the plan then has 3 pull requests and four analyzers (ENC011, ENC012, ENC013, ENC015), while the issue's acceptance reads "At least 5 analyzers implemented", so the acceptance is then met only if the maintainer accepts four (or adds a fifth rule); that is the maintainer's word, not this plan's.
 2. One descriptor, one test file, manifest targets. About 4 files and 200 lines.
 
 </details>
@@ -317,5 +317,5 @@ REFERENCE FILES: src/Encina.Analyzers/*, src/Encina/Core/ServiceCollectionExtens
 ## Next Steps
 
 1. The maintainer answers Dilemmas 2 and 3 when work starts (the id prefix Dilemma of #438 comes first).
-2. Wait for #438 Phase 1 (package and harness) before briefing Phase 1; wait for #333 before Phase 3.
+2. Wait for #438 PR-1 (package and harness) before briefing Phase 1; wait for #333 (and its Dilemma 1) before Phase 3.
 3. Open the sub-issues for PR-1 to PR-4 and brief Phase 1.
