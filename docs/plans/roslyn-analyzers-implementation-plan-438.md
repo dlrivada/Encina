@@ -3,14 +3,14 @@
 > **Issue**: [#438](https://github.com/dlrivada/Encina/issues/438)
 > **Type**: Feature (new package, developer experience)
 > **Complexity**: High by breadth (10 analyzers, 5 code fixes, 5 pull requests), low by runtime risk (compile-time only, no provider, no store)
-> **Estimated Scope**: ~2,200 lines of production code + ~1,500 lines of tests + ~250 lines of documentation
+> **Estimated Scope**: ~3,300 lines over 5 pull requests (production code, tests and documentation, summed per pull request in "Estimated File Count")
 > **Family**: dev-experience. **This plan owns the package `Encina.Analyzers`, its test harness, the id prefix and the shared symbol helper.** The plan of #343 (handler discovery and CQRS convention rules) adds its rules to this package and reads the pieces below by issue number.
 
 ---
 
 ## Summary
 
-Add a dedicated, opt-in Roslyn analyzer package, `Encina.Analyzers`, so the common Encina mistakes fail or warn in the IDE and in CI instead of at runtime: ten rules (ENC001 to ENC010 of the issue) and code fixes for the five most useful, configurable through `.editorconfig`.
+Add a dedicated, opt-in Roslyn analyzer package, `Encina.Analyzers`, so the common Encina mistakes fail or warn in the IDE and in CI instead of at runtime: ten rules (ENC001 to ENC010 of the issue) and code fixes for the most useful, configurable through `.editorconfig`. The issue's ENC001 ("handler `Handle` without a `CancellationToken`") cannot fire on an interface handler, because `IRequestHandler<,>.Handle` already requires the token (`src/Encina/Abstractions/IRequestHandler.cs:57`; a class without it does not compile, CS0535). Design Choice 6 redefines the rule and decides what happens to its fix.
 
 What exists today (read on `origin/main` at `326e65ebf`, after `git fetch`):
 
@@ -20,18 +20,19 @@ What exists today (read on `origin/main` at `326e65ebf`, after `git fetch`):
 - Startup validation of the pipeline already exists at runtime: `PipelineOrderValidationHostedService` and `PipelineOrderResolver` (`src/Encina/Pipeline/Ordering/`) order behaviors by `PipelineStage`; there is no user-declared "run after" graph, so a literal cycle between behaviors cannot be declared today (see Dilemma 3 for ENC009).
 - The handler return type is `Task<Either<EncinaError, TResponse>>` today, and [ADR-064](../architecture/adr/064-rop-result-union.md) replaces `Either<EncinaError, T>` by an Encina-owned result union during the 1.0 migration (#3662). Every rule and fix that names the carrier reads it from one place, `EncinaKnownTypes`, so the migration changes one file here.
 
-What this plan delivers: the package (project, descriptors, `EncinaKnownTypes`), the ten analyzers, the five code fixes (add `CancellationToken`, implement `IIdempotentRequest`, generate a validator, add `[Cache]`, generate a handler skeleton), the in-process test harness, and the documentation page of every rule. Diagnostic ids use the prefix `ENC` (Dilemma 2).
+What this plan delivers: the package (project, descriptors, `EncinaKnownTypes`), the ten analyzers, four code fixes (implement `IIdempotentRequest`, generate a validator, add `[Cache]`, generate a handler skeleton; the issue's fifth fix, "add `CancellationToken`", has no diagnostic to attach to, Design Choice 6), the in-process test harness, and the documentation page of every rule. Diagnostic ids use the prefix `ENC` (Dilemma 2).
 
 - **Affected packages**: `Encina.Analyzers` (new), `Encina.UnitTests` and `Encina.GuardTests` (a `ProjectReference` and the Roslyn packages), `Encina.slnx`, `.github/scripts/coverage-weights.json`. The core `Encina` package is not changed.
+- **Release tracking**: the project does not use `AnalyzerReleases.Shipped.md` / `AnalyzerReleases.Unshipped.md` (Research table). No such file exists anywhere in the repository, so no file is added or dropped in any pull request.
 - **Provider category**: none (compile-time tooling; no database, cache, transport, lock or validation provider code).
 - **Estimated size**: 5 pull requests, see "Implementation Phases" and the file count table.
-- **Prerequisites**: none blocking. #2842 (open, test setup for the ABAC analyzer package) wants the same harness; whichever lands first creates it (Phase 1 owns it if #2842 has not).
+- **Prerequisites**: no code prerequisite. #2842 (open, test setup for the ABAC analyzer package) wants the same harness; whichever lands first creates it (Phase 1 owns it if #2842 has not). Decision gate: the maintainer answers Dilemma 2 (id prefix) before Phase 1 starts, because ids are public once shipped; Dilemmas 3, 4 and 6 are answered before the phase that builds the affected rule.
 
 ### Shared Pieces and Ownership (family dev-experience)
 
 | Shared piece | Owner | Used by |
 |--------------|-------|---------|
-| Package `Encina.Analyzers`, `DiagnosticDescriptors` partial class, `EncinaKnownTypes`, option reader for `.editorconfig` keys | **This plan (#438)** | #343 (adds ENC011 to ENC018 and its own code fixes) |
+| Package `Encina.Analyzers`, `DiagnosticDescriptors` partial class, `EncinaKnownTypes`, option reader for `.editorconfig` keys | **This plan (#438)** | #343 (adds ENC011 to ENC015 and its own code fixes; its ENC011 and ENC014 start only after PR-1 of this plan) |
 | In-process analyzer test harness (`AnalyzerTestHost`) | **This plan** (or #2842, whichever lands first) | #343, #2842 |
 | Rule overlap decisions between the two issues (CancellationToken, validator, behavior order, notification without handler) | **This plan** (the table in Dilemma 3) | #343 |
 | Rules about convention-based handlers ([Handler], static handlers, naming) | #343 and #333 (sibling plans, by number) | none |
@@ -92,14 +93,14 @@ Four rules of the issue have no decidable definition as written, and the two iss
 
 | Rule | Definition used by this plan | Overlap with #343 |
 |------|------------------------------|-------------------|
-| ENC001 | A class implementing `IRequestHandler<,>` (or a derived handler interface) whose `Handle` method has no `CancellationToken` parameter. Warning. | #343 ENCINA008 (token not propagated) is a different rule: it becomes ENC011 there |
+| ENC001 | Redefined by Design Choice 6 (the issue's definition cannot fire): recommended, the `CancellationToken` parameter of a handler's `Handle` is never referenced in the method body. Warning. | #343 dropped its ENCINA008 (token not propagated) as a duplicate of the SDK analyzer CA2016, see its plan; ENC001 flags a token never used at all, which CA2016 does not |
 | ENC002 | A request type (`ICommand<>` or `IQuery<>`) with no class named `<Request>Validator` and none deriving from or implementing a validator of that request in the same compilation (`AbstractValidator<T>` by metadata name, or `IValidator<T>`). Warning, off when no validation package is referenced. | #343 ENCINA005 is the same rule; it is dropped there |
 | ENC003 | A `SagaDefinition<TData>` fluent chain with a step that has no `.Compensate(...)` while a later step can fail. Error. | none |
-| ENC004 | A `Publish` call whose notification type has no `INotificationHandler<>` implementation in the compilation. Warning. | none |
+| ENC004 | A `Publish` call whose notification type is declared in the compilation and has no `INotificationHandler<>` implementation in it. Tolerance: when the notification type is declared outside the compilation (a referenced assembly), or when any `INotificationHandler<>` implementer in the compilation is open generic or abstract, the rule does nothing, because handlers may live in another assembly. Warning. | none |
 | ENC005 | `Task.Result`, `.Wait()`, `.GetAwaiter().GetResult()` inside a handler or behavior method. Error. | none |
 | ENC006 | A query handler (`IQueryHandler<,>`) with no `[Cache]` whose body awaits a call on a type deriving `DbContext`, `IDbConnection` or `DbCommand`. Info. A heuristic: "slow" is not decidable at compile time. | none |
 | ENC007 | `UseOutbox = true` assigned in an `AddEncinaMessaging`-style options lambda with no `MaxRetries` assignment in the same lambda. Warning. A heuristic on configuration code. | none |
-| ENC008 | A request handled through the inbox (the project references `Encina.Messaging`) whose type implements neither `IIdempotentRequest` nor carries an idempotency key by design. Warning. | none |
+| ENC008 | Exact test: the project references `Encina.Messaging` (`IIdempotentRequest` resolves), and a request type (`ICommand<>` or `IQuery<>` implementer) declared in the compilation does not implement `IIdempotentRequest` but declares a public property named `IdempotencyKey`, `MessageId` or `RequestId`, which shows the author intended deduplication. The inbox behavior only deduplicates requests that implement the marker (`src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs:50`). A request with no such property is never flagged (most commands are not idempotent by design). A heuristic. Warning. | none |
 | ENC009 | A pipeline behavior that calls `Send` with the same `TRequest` it handles (unbounded recursion). Error. A literal cycle between behaviors cannot be declared today (the stage resolver orders by `PipelineStage`). | #343 ENCINA007 (behavior order) is about stage order, which the runtime resolver already validates; it is dropped there |
 | ENC010 | An `ICommandHandler<,>` whose `TResponse` is not `Unit`. The default severity is the question (see below). | none |
 
@@ -134,13 +135,12 @@ The analyzer targets `netstandard2.0`; the tests need a way to compile a source 
 | **A) In-process helper `AnalyzerTestHost`: build a `CSharpCompilation` from a snippet plus metadata references, run `CompilationWithAnalyzers`, apply a code fix through an `AdhocWorkspace` (`Microsoft.CodeAnalysis.CSharp.Workspaces` 5.0.0, already pinned); tests live in `Encina.UnitTests` and `Encina.GuardTests`** | No new package pin; the coverage flags come from the existing consolidated projects, as `coverage-report.cs` classifies by project name | The helper (about 120 lines) is ours to maintain; fix-all and batch behavior are not covered by a library |
 | **B) Add `Microsoft.CodeAnalysis.CSharp.Analyzer.Testing` and `.CodeFix.Testing` to `Directory.Packages.props` and a new test project** | Maintained verifier with markup (`{|ENC001:...|}`) | A new pin (exact version, clean restore audit); a project name `coverage-report.cs` does not classify as a flag; transitive pins may be needed (ADR-060) |
 
-### Chosen Option: **A — In-process helper in the consolidated test projects**
+### Chosen Option: **A — In-process helper in the consolidated test projects** (recommended, pending the maintainer)
 
 ### Rationale
 
-- AGENTS.md section 9 fixes the test projects and the flag names `coverage-report.cs` classifies; a new test project would have no flag. A also avoids a new package pin.
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 9 ("Test projects (consolidated, one per type, under `tests/`)", "Coverage is per flag"), and #2842's own "or an in-process `CSharpCompilation` plus `CompilationWithAnalyzers` helper if the project prefers no new package".
+- AGENTS.md section 9 fixes the test projects and the flag names `coverage-report.cs` classifies; a new test project would have no flag, and A also avoids a new package pin. B is still valid if the maintainer wants the maintained verifier with markup and accepts a new pin, with its tests placed in the consolidated projects as well; #2842 lists both routes, so no rule excludes either.
+- **Class:** Dilemma
 
 </details>
 
@@ -162,7 +162,29 @@ ENC004 to ENC008 need types from `Encina.Messaging`, `Encina.Caching` and valida
 
 - A guard test in the unit suite resolves each name in `EncinaKnownTypes` against the real assemblies (`typeof(IRequestHandler<,>).FullName` and siblings), so a rename fails a test.
 - **Class:** Trivial
-- **Settled by:** the precedent `RequireConditionAnalyzer.cs` (metadata-name lookup on `SyntaxKind.Attribute`) and the `netstandard2.0` target of `Encina.Security.ABAC.Analyzers.csproj`.
+- **Reason:** the precedent `RequireConditionAnalyzer.cs` (metadata-name lookup on `SyntaxKind.Attribute`) and the `netstandard2.0` target of `Encina.Security.ABAC.Analyzers.csproj` show B cannot work for a package that must load in every IDE.
+
+</details>
+
+<details>
+<summary><strong>6. ENC001: the issue's rule cannot fire, what replaces it</strong></summary>
+
+`IRequestHandler<TRequest, TResponse>.Handle(TRequest, CancellationToken)` (`src/Encina/Abstractions/IRequestHandler.cs:57`) requires the token, so a class implementing the interface without it does not compile (CS0535). The only places a "`Handle` without a token" rule could fire are a convention handler (#333, not built, and its finder treats a missing token as an unsupported shape) or an unrelated `Handle` overload, both of which are noise or dependent. The #343 plan drops its own token rule for the same family of reason (CA2016 covers propagation).
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Redefine ENC001: the `CancellationToken` parameter of a handler's `Handle` is never referenced in the body (neither passed on nor observed). Warning. No code fix (the fix "pass the token to calls" is CA2016's)** | Can fire today on code that compiles; independent of #333; a real defect (cancellation silently ignored) | The issue's "add CancellationToken" fix disappears: four code fixes instead of five, and the acceptance "fixes for the top 5" needs the maintainer's word |
+| **B) ENC001 flags a class that looks like a convention handler (public `Handle(request, ...)` method on a type that implements nothing) without a `CancellationToken`, because #333's discovery would skip it; its fix adds the parameter** | Keeps the issue's fix and meaning | Depends on #333 and on its Dilemma 1; useless if #333 is not built or keeps interface-only handlers |
+| **C) Drop ENC001 and keep ids ENC002 to ENC010** | No vacuous rule | A gap in the id sequence and nine rules against the issue's ten |
+
+### Chosen Option: **A — Redefine as "token parameter never used"** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when a rule that fires today matters more than the issue's literal fix list; B wins if #333 is accepted and the maintainer wants the fix; C wins if the maintainer prefers fewer rules. Phase 1 builds A; the choice is made before Phase 1 starts because the first pull request and the acceptance mapping depend on it.
+- **Class:** Dilemma
 
 </details>
 
@@ -170,22 +192,21 @@ ENC004 to ENC008 need types from `Encina.Messaging`, `Encina.Caching` and valida
 
 ## Implementation Phases
 
-### Phase 1: Package, symbols and test harness (PR-1, ENC001 and its fix)
+### Phase 1: Package, symbols and test harness (PR-1, ENC001 as redefined by Design Choice 6)
 
 <details>
 <summary>Tasks</summary>
 
-1. New `src/Encina.Analyzers/Encina.Analyzers.csproj`: copy of the ABAC analyzer project file (`netstandard2.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, `DevelopmentDependency`, pack under `analyzers/dotnet/cs`), new `ProjectGuid`, `PackageId` `Encina.Analyzers`.
+1. New `src/Encina.Analyzers/Encina.Analyzers.csproj`: copy of the ABAC analyzer project file (`netstandard2.0`, `IsRoslynComponent`, `EnforceExtendedAnalyzerRules`, `DevelopmentDependency`, pack under `analyzers/dotnet/cs`), new `ProjectGuid`, `PackageId` `Encina.Analyzers`, and `InternalsVisibleTo` items for `Encina.UnitTests` and `Encina.GuardTests` (`EncinaKnownTypes` is `internal`, and its guard test calls it from `Encina.GuardTests`; the ABAC csproj has none, so this is new; it is an item in the same csproj, no extra file). Release tracking stays off, as in the ABAC project, which builds with zero warnings and no `AnalyzerReleases.*.md`.
 2. `src/Encina.Analyzers/DiagnosticDescriptors.cs` (`public static partial class`, one `DiagnosticDescriptor` per rule, `HelpLinkUri` to the rule page, `customTags: WellKnownDiagnosticTags.Telemetry` omitted): ENC001 first.
 3. `src/Encina.Analyzers/EncinaKnownTypes.cs` (`internal sealed class`): resolves `IRequestHandler<,>`, `ICommandHandler<,>`, `IQueryHandler<,>`, `ICommand<>`, `IQuery<>`, `INotification`, `INotificationHandler<>`, `IPipelineBehavior<,>`, `IIdempotentRequest`, `CacheAttribute`, `SagaDefinition<>` and the result carrier by metadata name; `TryCreate(Compilation, out EncinaKnownTypes)`.
-4. `src/Encina.Analyzers/HandlerCancellationTokenAnalyzer.cs` (`[DiagnosticAnalyzer(LanguageNames.CSharp)]`, `Initialize(AnalysisContext)` with `ConfigureGeneratedCodeAnalysis(None)` and `EnableConcurrentExecution()`, `ArgumentNullException.ThrowIfNull(context)`): `RegisterCompilationStartAction` then `RegisterSymbolAction` on `SymbolKind.Method` for `Handle`.
-5. `src/Encina.Analyzers/AddCancellationTokenCodeFix.cs` (`CodeFixProvider`, `FixableDiagnosticIds` = ENC001): adds `CancellationToken cancellationToken` as the last parameter and updates the single call chain it can see.
-6. `src/Encina.Analyzers/README.md` (package readme, rule table).
-7. `tests/Encina.UnitTests/Analyzers/AnalyzerTestHost.cs` (snippet to compilation to diagnostics, and code-fix application), `tests/Encina.UnitTests/Analyzers/HandlerCancellationTokenAnalyzerTests.cs` (positive, negative, the fix), `tests/Encina.GuardTests/Analyzers/EncinaAnalyzersGuardTests.cs` (`Initialize(null)`, `EncinaKnownTypes.TryCreate(null, ...)`, the name-pinning test of Design Choice 5).
-8. Edit `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj`: `ProjectReference` to the analyzer project and the two Roslyn `PackageReference`s (versions come from `Directory.Packages.props`, no new pin).
-9. Edit `Encina.slnx` and `.github/scripts/coverage-weights.json` (one entry each); new `.github/coverage-manifest/Encina.Analyzers.json` (through `mechanical-fixer`); changelog fragment `changelog.d/438-roslyn-analyzers.added.md` (through `mechanical-fixer`).
+4. `src/Encina.Analyzers/HandlerCancellationTokenAnalyzer.cs` (`[DiagnosticAnalyzer(LanguageNames.CSharp)]`, `Initialize(AnalysisContext)` with `ConfigureGeneratedCodeAnalysis(None)` and `EnableConcurrentExecution()`, `ArgumentNullException.ThrowIfNull(context)`): `RegisterCompilationStartAction` then `RegisterSymbolAction` on `SymbolKind.Method` for `Handle` of a type implementing a handler interface; ENC001 reports when the `CancellationToken` parameter is never referenced in the body (Design Choice 6, option A). No code fix: the issue's "add `CancellationToken`" fix has nothing to attach to.
+5. `src/Encina.Analyzers/README.md` (package readme, rule table).
+6. `tests/Encina.UnitTests/Analyzers/AnalyzerTestHost.cs` (snippet to compilation to diagnostics, and code-fix application, which PR-3 first uses), `tests/Encina.UnitTests/Analyzers/HandlerCancellationTokenAnalyzerTests.cs` (positive, negative, token passed on, token observed), `tests/Encina.GuardTests/Analyzers/EncinaAnalyzersGuardTests.cs` (`Initialize(null)`, `EncinaKnownTypes.TryCreate(null, ...)`, the name-pinning test of Design Choice 5).
+7. Edit `tests/Encina.UnitTests/Encina.UnitTests.csproj` and `tests/Encina.GuardTests/Encina.GuardTests.csproj`: `ProjectReference` to the analyzer project and the two Roslyn `PackageReference`s (versions come from `Directory.Packages.props`, no new pin).
+8. Edit `Encina.slnx` (one entry) and `.github/scripts/coverage-weights.json`: add `"Encina.Analyzers"` to the `patterns` of the existing `Tooling` category (unit and guard apply, target 60.0). The ABAC analyzer sits in the `Excluded` category (`applicableTests: []`, "not measured", `coverage-weights.json` lines 146-153), so copying its entry would leave the new package unmeasured; the `Tooling` category (`Encina.Cli`) is the one with unit and guard. New `.github/coverage-manifest/Encina.Analyzers.json` (through `mechanical-fixer`) carries the per-file targets; changelog fragment `changelog.d/438-roslyn-analyzers.added.md` (through `mechanical-fixer`).
 
-File count of PR-1: 14 (csproj, descriptors, known types, analyzer, fix, README, three test files, two test csproj, slnx, weights, manifest) plus the fragment = 15 files; about 650 lines.
+File count of PR-1: csproj, descriptors, known types, analyzer, README (5), three test files (8), two test csproj (10), slnx, weights, manifest (13), fragment (14) = 14 files; about 600 lines. The `InternalsVisibleTo` items live in the csproj already counted. PR-3 adds the first code fixes and uses the host's fix application.
 
 </details>
 
@@ -194,7 +215,7 @@ File count of PR-1: 14 (csproj, descriptors, known types, analyzer, fix, README,
 
 ```text
 CONTEXT: Encina is a pre-1.0 .NET 10 library. src/Encina.Security.ABAC.Analyzers is the template for a Roslyn analyzer package (netstandard2.0). Rules are in AGENTS.md; no backward compatibility, zero warnings, XML docs on every public type.
-TASK: Create src/Encina.Analyzers with the descriptor class, EncinaKnownTypes, the ENC001 analyzer and its code fix, the in-process test host and tests (unit and guard), and register the project in Encina.slnx and coverage-weights.json. ENC001: handler Handle method without a CancellationToken parameter, Warning.
+TASK: Create src/Encina.Analyzers with the descriptor class, EncinaKnownTypes, the ENC001 analyzer, the in-process test host and tests (unit and guard), InternalsVisibleTo for Encina.UnitTests and Encina.GuardTests in the csproj, and register the project in Encina.slnx and in the Tooling category of coverage-weights.json (never Excluded). ENC001 (Design Choice 6, option A): the CancellationToken parameter of a handler's Handle is never referenced in the body, Warning, no code fix. Use the maintainer's answer to Dilemma 6 if it differs.
 KEY RULES: Look types up by metadata name and do nothing when absent. Never read DateTime.UtcNow. Tests execute the real analyzer through CompilationWithAnalyzers (no reflection-only tests). Guard tests cover Initialize(null) and TryCreate(null). Keep every method at cyclomatic complexity 8 or less (CRAP gate). PR at most 15 files and 1500 lines.
 REFERENCE FILES: src/Encina.Security.ABAC.Analyzers/*, src/Encina/Abstractions/IRequestHandler.cs, src/Encina/Abstractions/CqrsContracts.cs, Directory.Packages.props, tests/Encina.UnitTests/Encina.UnitTests.csproj.
 ```
@@ -309,7 +330,7 @@ REFERENCE FILES: docs/features/abac, docs/INVENTORY.md, .github/coverage-manifes
 | Standard / Specification | Relevance | Where it applies in the feature |
 |--------------------------|-----------|---------------------------------|
 | Roslyn `DiagnosticAnalyzer` and `CodeFixProvider` APIs (Microsoft.CodeAnalysis 5.0.0) | The only supported way to ship compile-time rules for every IDE | All analyzers and fixes |
-| Analyzer release tracking (`AnalyzerReleases.Shipped.md` / `Unshipped.md`, RS2000 family) | Rule ids are public once shipped | Decision at Phase 1 whether the project turns the tracking on (the ABAC project does not) |
+| Analyzer release tracking (`AnalyzerReleases.Shipped.md` / `Unshipped.md`, RS2000 family) | Rule ids are public once shipped | Trivial: tracking stays off. The ABAC project has six rules, no `AnalyzerReleases.*.md` and suppresses only RS1038 and NU5128 (`Encina.Security.ABAC.Analyzers.csproj`), so RS2008 stays at zero warnings the same way; no `AnalyzerReleases.*` file exists anywhere in the repository. Revisit when the package ships a 1.0 id set |
 | `.editorconfig` severity keys (`dotnet_diagnostic.<id>.severity`) | Configurable severity is an acceptance criterion | Every descriptor is enabled by default with a configurable severity |
 | ADR-064 (result union) | The handler return type changes during the 1.0 migration | `EncinaKnownTypes` is the single place that names the carrier |
 
@@ -333,13 +354,13 @@ REFERENCE FILES: docs/features/abac, docs/INVENTORY.md, .github/coverage-manifes
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production (`src/Encina.Analyzers`) | 22 | csproj, descriptors, known types, 10 analyzers, 5 fixes or refactorings, README, plus helper files |
+| Production (`src/Encina.Analyzers`) | 20 | csproj, descriptors, known types, 10 analyzers, 4 fixes or refactorings, README, plus helper files |
 | Tests | 17 | harness, 10 analyzer test files, fix tests inside them, guard test file, 2 csproj edits |
-| Manifest, weights, slnx | 3 | `Encina.Analyzers.json`, `coverage-weights.json`, `Encina.slnx` |
+| Manifest, weights, slnx | 3 | `Encina.Analyzers.json`, `coverage-weights.json` (the `Tooling` category), `Encina.slnx` |
 | Documentation and fragment | 5 | `docs/features/analyzers.md`, INVENTORY, ROADMAP, README, `changelog.d/438-roslyn-analyzers.added.md` |
-| **Total** | **~47 over 5 pull requests** | PR-1 15, PR-2 10, PR-3 13, PR-4 8, PR-5 5 files; about 650 + 700 + 1,100 + 600 + 350 = 3,400 lines in total (each pull request is under 1,500) |
+| **Total** | **~45 distinct files, 49 file touches over 5 pull requests** | PR-1 14, PR-2 10, PR-3 13, PR-4 8, PR-5 4 files (`analyzers.md`, INVENTORY, ROADMAP and the README completed; the fragment is in PR-1); a file edited in several pull requests (descriptors, manifest, README) counts in each; about 600 + 700 + 1,100 + 600 + 350 = 3,350 lines in total (each pull request is under 1,500) |
 
-Coverage targets per file (unit and guard are the flags that apply; no contract, property or integration flag, see below): every analyzer and fix file unit 85 and guard 25. Justification: the analyzer logic is pure and fully testable through `CompilationWithAnalyzers`; the guard flag reaches only `Initialize` and the null checks, as the ABAC package's guard target of 20 does. `DiagnosticDescriptors.cs` and `EncinaKnownTypes.cs`: unit 90, guard 25 (static data and one factory with a null check). Contract, property and integration tests are justified as not applicable: no public interface is added, there is no complex numeric logic, and no database or transport is involved. Load and benchmark: not applicable (compile-time, per-compilation cost is measured once by running the analyzers over `Encina.slnx` in Phase 5).
+How the package enters measurement: PR-1 adds `Encina.Analyzers` to the `Tooling` category of `.github/scripts/coverage-weights.json` (applicable tests unit and guard) and creates its manifest; the ABAC analyzer package stays in `Excluded` (not measured), which is why its coverage targets have no effect today (#2842). Coverage targets per file (unit and guard are the flags that apply; no contract, property or integration flag, see below): every analyzer and fix file unit 85 and guard 25. Justification: the analyzer logic is pure and fully testable through `CompilationWithAnalyzers`; the guard flag reaches only `Initialize` and the null checks, as the ABAC package's guard target of 20 does. `DiagnosticDescriptors.cs` and `EncinaKnownTypes.cs`: unit 90, guard 25 (static data and one factory with a null check). Contract, property and integration tests are justified as not applicable: no public interface is added, there is no complex numeric logic, and no database or transport is involved. Load and benchmark: not applicable (compile-time, per-compilation cost is measured once by running the analyzers over `Encina.slnx` in Phase 5).
 
 ---
 
@@ -351,7 +372,7 @@ Coverage targets per file (unit and guard are the flags that apply; no contract,
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 / C# 14 library (AGENTS.md rules apply: zero warnings, XML docs, tests execute real code, per-flag coverage targets from .github/coverage-manifest). Issue #438 adds the opt-in package Encina.Analyzers (netstandard2.0 Roslyn analyzers and code fixes). Issue #343 later adds ENC011 and up to the same package.
 
-IMPLEMENTATION OVERVIEW: Phase 1 package, EncinaKnownTypes, test host, ENC001 and its fix. Phase 2 ENC004, ENC005, ENC009, ENC010. Phase 3 ENC002, ENC006, ENC008, generate-handler refactoring. Phase 4 ENC003, ENC007. Phase 5 docs through docs-writer. Five pull requests, each at most 15 files and 1500 lines, each building and passing alone.
+IMPLEMENTATION OVERVIEW: Phase 1 package, EncinaKnownTypes, test host, ENC001 (Design Choice 6). Phase 2 ENC004, ENC005, ENC009, ENC010. Phase 3 ENC002, ENC006, ENC008, generate-handler refactoring. Phase 4 ENC003, ENC007. Phase 5 docs through docs-writer. Five pull requests, each at most 15 files and 1500 lines, each building and passing alone.
 
 KEY PATTERNS: Metadata-name lookup with no-op when absent; CompilationStartAction; severity through .editorconfig; the result carrier named only in EncinaKnownTypes (ADR-064); tests through AnalyzerTestHost in Encina.UnitTests and Encina.GuardTests; cyclomatic complexity 8 or less per method.
 
@@ -383,7 +404,7 @@ REFERENCE FILES: src/Encina.Security.ABAC.Analyzers/*, src/Encina/Abstractions/I
 
 ## Next Steps
 
-1. The maintainer answers Dilemmas 2 and 3 when work starts; Phase 1 does not start before Dilemma 2 (ids are public).
+1. The maintainer answers Dilemmas 2, 3, 4 and 6 when work starts; Phase 1 does not start before Dilemmas 2 and 6 (ids are public, and ENC001's definition fixes PR-1).
 2. Open the sub-issues for PR-1 to PR-5 (each within 15 files and 1500 lines) and brief Phase 1.
 3. Coordinate with #2842 (the ABAC package needs the same harness) and #343 (starts after Phase 1).
 4. Existing finding to track separately: `Encina.Security.ABAC.Analyzers` has coverage targets and no tests (#2842, open).
