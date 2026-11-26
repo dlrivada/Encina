@@ -1,4 +1,5 @@
 using Encina.AmazonSQS;
+using Encina.Caching;
 using Encina.Cdc.Debezium;
 using Encina.Cdc.MySql;
 using Encina.Messaging.Encryption.AzureKeyVault;
@@ -6,6 +7,7 @@ using Encina.NATS;
 using Encina.Security.Secrets.AzureKeyVault;
 using Encina.Security.Secrets.HashiCorpVault;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using VaultSharp.V1.AuthMethods.Token;
@@ -37,9 +39,20 @@ public sealed class LateConfigureEndpointValidationTests
     public async Task LateForbiddenEndpoint_FailsStartupValidation(string package)
     {
         var (services, _) = Register(package);
-        await using var provider = services.BuildServiceProvider();
 
-        var ex = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+        // The host's real start path runs the ValidateOnStart checks; the validator type itself differs per SDK.
+        var builder = Host.CreateApplicationBuilder();
+        foreach (var descriptor in services)
+        {
+            builder.Services.Add(descriptor);
+        }
+
+        // The secrets packages start a cache-invalidation hosted service that needs a cache provider.
+        builder.Services.AddSingleton(Substitute.For<ICacheProvider>());
+
+        using var host = builder.Build();
+
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
 
         ex.Message.ShouldNotContain("s3cr3t");
     }
