@@ -297,7 +297,7 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "The field 'Email' is required"),
+            EncinaErrors.Validation("The field 'Email' is required"),
             Right(3)
         };
 
@@ -315,7 +315,7 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "Field is required")
+            EncinaErrors.Validation("Field is required")
         };
 
         // Act & Assert
@@ -330,7 +330,7 @@ public sealed class EitherCollectionAssertionsTests
         var results = new List<Either<EncinaError, int>>
         {
             Right(1),
-            EncinaErrors.Create("encina.validation.required", "Field is required")
+            EncinaErrors.Validation("Field is required")
         };
 
         // Act & Assert (should not throw)

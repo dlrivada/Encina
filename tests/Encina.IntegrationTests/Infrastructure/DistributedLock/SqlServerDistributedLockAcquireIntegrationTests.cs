@@ -31,6 +31,20 @@ public sealed class SqlServerDistributedLockAcquireIntegrationTests
 
     private static string NewResource() => $"acquire-{Guid.NewGuid()}";
 
+    // Task.WaitAsync(timeout) disposes its timer when the task completes, unlike Task.WhenAny(task, Task.Delay(timeout)) (CA2027).
+    private static async Task<bool> CompletesWithinAsync(Task task, TimeSpan timeout)
+    {
+        try
+        {
+            await task.WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+    }
+
     [Fact]
     public async Task AcquireAsync_OnFreeResource_HoldsTheLockUntilTheHandleIsDisposed()
     {
@@ -82,7 +96,7 @@ public sealed class SqlServerDistributedLockAcquireIntegrationTests
         var blocked = _provider.AcquireAsync(resource, Expiry, CancellationToken.None);
 
         // Act
-        var completedWhileHeld = await Task.WhenAny(blocked, Task.Delay(TimeSpan.FromMilliseconds(500))) == blocked;
+        var completedWhileHeld = await CompletesWithinAsync(blocked, TimeSpan.FromMilliseconds(500));
         await holder.DisposeAsync();
         var handle = await blocked.WaitAsync(TimeSpan.FromSeconds(30));
 
