@@ -147,6 +147,29 @@ public sealed class BulkOperationsADOPostgreSQLIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BulkInsertAsync_AlreadyQuotedTableName_InsertsWithoutRequoting()
+    {
+        // Arrange: a pre-quoted identifier must be used as is (re-quoting would look for a table named ""name"")
+        var quotedMapping = new BulkTestOrderMapping(GetQuotedTableName());
+        var bulkOps = new BulkOperationsPostgreSQL<BulkTestOrder, Guid>(_connection, quotedMapping);
+        var order = new BulkTestOrder
+        {
+            Id = Guid.NewGuid(),
+            CustomerName = "Quoted Table",
+            Amount = 1.25m,
+            IsActive = true,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        // Act
+        var result = await bulkOps.BulkInsertAsync([order]);
+
+        // Assert
+        result.IsRight.ShouldBeTrue();
+        (await GetRowCountAsync()).ShouldBe(1);
+    }
+
+    [Fact]
     public async Task BulkInsertAsync_SingleEntity_InsertsSuccessfully()
     {
         // Arrange

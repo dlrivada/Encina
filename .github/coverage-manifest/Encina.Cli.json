@@ -49,7 +49,17 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 100,
+        "guard": 95,
+        "integration": 0
+      },
+      "justifications": {
+        "unit": "Unit tests exercise every Stryker and generator code path of the file (measured 100.0%).",
+        "guard": "Guard tests reach the argument checks and most of the file (measured 99.5%); 95 leaves room for two lines only the unit tests cover.",
+        "integration": "No integration test drives CodeGenerator (the integration tests cover the project scaffolder); the file is pure string and path generation covered by unit tests, so a 0 is explicit."
+      }
     },
     "Services/PackageManager.cs": {
       "defaultTests": [

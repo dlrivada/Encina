@@ -62,9 +62,7 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         await _provider.PublishAsync(channel, expectedMessage, CancellationToken.None);
 
         // Wait for message with timeout
-        var received = await Task.WhenAny(
-            messageReceived.Task,
-            Task.Delay(TimeSpan.FromSeconds(5))) == messageReceived.Task;
+        var received = await CompletesWithinAsync(messageReceived.Task, TimeSpan.FromSeconds(5));
 
         // Cleanup
         await _provider.UnsubscribeAsync(channel, CancellationToken.None);
@@ -111,9 +109,7 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         await _provider!.PublishAsync(channel, expectedMessage, CancellationToken.None);
 
         // Wait for all messages with timeout
-        var received = await Task.WhenAny(
-            allReceived.Task,
-            Task.Delay(TimeSpan.FromSeconds(5))) == allReceived.Task;
+        var received = await CompletesWithinAsync(allReceived.Task, TimeSpan.FromSeconds(5));
 
         // Cleanup
         foreach (var provider in providers)
@@ -146,7 +142,7 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
 
         // Act - Send first message
         await _provider.PublishAsync(channel, "first-message", CancellationToken.None);
-        await Task.WhenAny(firstReceived.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        await CompletesWithinAsync(firstReceived.Task, TimeSpan.FromSeconds(3));
 
         var countAfterFirst = receiveCount;
 
@@ -195,7 +191,7 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         // Act - Only publish to channel1
         await _provider.PublishAsync(channel1, "message", CancellationToken.None);
 
-        await Task.WhenAny(channel1Task.Task, Task.Delay(TimeSpan.FromSeconds(3)));
+        await CompletesWithinAsync(channel1Task.Task, TimeSpan.FromSeconds(3));
 
         // Wait a bit to see if channel2 gets anything
         await Task.Delay(300);
@@ -207,5 +203,19 @@ public class RedisPubSubProviderIntegrationTests : IAsyncLifetime
         // Assert
         channel1Received.ShouldBeTrue();
         channel2Received.ShouldBeFalse();
+    }
+
+    // Task.WaitAsync(timeout) disposes its timer when the task completes, unlike Task.WhenAny(task, Task.Delay(timeout)) (CA2027).
+    private static async Task<bool> CompletesWithinAsync(Task task, TimeSpan timeout)
+    {
+        try
+        {
+            await task.WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 }

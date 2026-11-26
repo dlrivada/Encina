@@ -69,7 +69,15 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": {
+        "unit": 80,
+        "guard": 0
+      },
+      "justifications": {
+        "unit": "Unit tests drive the real loopback listener through 200, 400 (malformed and blank body), 401, 405 and 503 responses (measured 83.5%); only the listener start-retry and the 500 fallback paths are uncovered.",
+        "guard": "Internal type without InternalsVisibleTo for Encina.GuardTests and not part of the public API, so guard tests cannot reach it."
+      }
     },
     "Health/DebeziumCdcHealthCheck.cs": {
       "defaultTests": [

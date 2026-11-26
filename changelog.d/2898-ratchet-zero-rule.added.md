@@ -1,0 +1,1 @@
+- The target ratchet gains rule R-ZERO: a new unit, guard or contract per-file target of 0 fails the `target-ratchet` job unless the closed-list classifier of #2890 says the file has no executable code, or the pull request carries the `target-change-approved` label (#2898).
