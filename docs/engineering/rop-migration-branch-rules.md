@@ -21,8 +21,8 @@ The base-branch rule of 2026-11-25 splits the migration items between two bases.
 | `EncinaError` struct-to-class change (E family) | `main` | Valid on the old carrier. |
 | `RequestIdentity` hierarchy (C4) | `main` | Valid on the old carrier. |
 | K-items: K0 measures the per-package CRAP backlog, `K-<P>` lowers it | `main` | `K-<P>` blocks the first src slice of package `<P>`. |
-| R02a through R04, the S slices, Z (except Z1d and Z4) | `feat/rop-union-migration` | The carrier change itself. |
-| Z1d, Z4 | `main` | Z4 is on `main`. |
+| R02a through R04, the S slices, Z slices other than Z0, Z1d and Z4 | `feat/rop-union-migration` | The carrier change itself. Z slices other than Z0, Z1d and Z4 go to the branch. |
+| Z0, Z1d, Z4 | `main` | Z0, Z1d and Z4 are PRs into `main`. |
 
 Three consequences follow.
 
@@ -63,7 +63,7 @@ Rules of the sync:
 | --- | --- |
 | Conversion | Incoming carrier hunks in files of packages the branch has changed are converted to the R01 recipe inside the merge commit. |
 | Review | An adversarial-reviewer reviews `git diff <merge>^1 <merge> -- <converted paths>` before the branch moves. |
-| Publishing | Push `sync/<date>`; when its CI is green and the review is done, fast-forward the branch with `git push origin sync/<date>:feat/rop-union-migration`. Never force, never rebase. |
+| Publishing | Push `sync/<date>`; when its CI is green and the review is done, fast-forward the branch with `git push origin sync/<date>:feat/rop-union-migration`. Never force, never rebase. The `sync/<date>` push is validated by the branch's `ci.yml` push trigger, added by I03 (a sub-issue of #3667). |
 | 300-line cap | At most 300 converted lines per sync. When one `main` squash commit brings more, the sync merges `main` up to the commit before it, and that commit gets its own sync. |
 | Branch protection | A pull request with the required checks (`ci-result`) for slice PRs; not enforced for administrators, so the sync merge can be pushed. A direct push to the branch is for verified sync merges only. The setting itself is made at B0. |
 
@@ -94,8 +94,9 @@ Z0 is a single squash pull request into `main` carrying the label `size-exceptio
 | Parameters | `-Base` (default `feat/rop-union-migration`), `-Repository` (default `dlrivada/Encina`), `-Limit` (read only the first N merged PRs the API returns, newest created first; 0, the default, reads all). |
 | Source | REST only, `gh api --paginate` on `repos/dlrivada/Encina/pulls?state=closed&base=<b>&per_page=100`; never `gh pr list`, per [the GitHub API quota note](github-api-quota.md). |
 | Selection | Keeps PRs with a non-null `merged_at`; a null body is treated as empty. |
-| Matching | Every GitHub closing keyword, case-insensitive: close, closes, closed, fix, fixes, fixed, resolve, resolves, resolved; optional colon; `#N` or `dlrivada/Encina#N`, always separated from the keyword (or its colon) by whitespace, so `Fixes#12` does not match. |
+| Matching | Every GitHub closing keyword, case-insensitive: close, closes, closed, fix, fixes, fixed, resolve, resolves, resolved; optional colon; `#N`, `dlrivada/Encina#N` or the issue URL form `https://github.com/dlrivada/Encina/issues/N` (for example `Fixes https://github.com/dlrivada/Encina/issues/12`), always separated from the keyword (or its colon) by whitespace, so `Fixes#12` does not match. `GH-N` is not matched, because this repository does not use it. |
 | Output | stdout: the de-duplicated set sorted numerically ascending, one `Fixes #N` per line and nothing else. stderr: a one-line summary. |
+| Base check | Before reading pull requests, it checks that the base branch exists (`gh api repos/<repo>/branches/<b>`), because a mistyped or missing base would otherwise return an empty list with HTTP 200. A missing branch prints an error to stderr and exits 1. An existing base with 0 merged PRs prints an empty set and exits 0. |
 | Failure | A failed API call exits non-zero and prints no partial set, because an incomplete set would leave slice issues open. |
 
 ```powershell
