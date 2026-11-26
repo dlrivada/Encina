@@ -10,16 +10,16 @@
 
 ## Summary
 
-Issue #4417 adds the `UseSecondaryProvider` fallback strategy to the cache auto-recovery of #278 (open, plan merged): while the primary circuit is open, reads and writes go to a second registered cache provider. Re-checked against `origin/main` (d099efe3e):
+Issue #4417 adds the `UseSecondaryProvider` fallback strategy to the cache auto-recovery of #278 (open, plan merged): while the primary circuit is open, reads and writes go to a second registered cache provider. Re-checked against `origin/main` (326e65ebf):
 
 | Premise of the issue | State in the code and the plans |
 |----------------------|---------------------------------|
 | A second `ICacheProvider` registration is available | Every provider registers `ICacheProvider` with `TryAdd` and one default instance (`src/Encina.Caching.Redis/ServiceCollectionExtensions.cs` builds one `IConnectionMultiplexer` singleton); a second instance of the same family needs its own multiplexer. `RedisCacheProvider` has a public constructor over `IConnectionMultiplexer` (`src/Encina.Caching.Redis/RedisCacheProvider.cs:36`), so an application can build a second provider itself; the plan adds a helper that registers it as a keyed singleton. |
-| The decorator can switch backends | #278 puts recovery in `ResilientCacheProvider`, a singleton decorator over the registered `ICacheProvider` with a `CacheFallbackStrategy` (`SkipCache`, and `UseLocalMemory` in its PR 3) and a `CacheCircuitBreaker`; the secondary is one more strategy there. |
+| The decorator can switch backends | #278 puts recovery in `ResilientCacheProvider`, a singleton decorator over the registered `ICacheProvider` with a `CacheFallbackStrategy` and a `CacheCircuitBreaker`; the secondary is one more strategy there. The enum holds `SkipCache` and, only if #278 Design Choice 5 is answered B or C, `UseLocalMemory` (its PR 3); under #278's answer B its plan turns the secondary into this very issue, and under answer C #278 itself delivers a secondary provider and this plan has nothing left to add. So this plan is implemented only if #278 Design Choice 5 is answered A or B: under A the enum then holds `SkipCache` and `UseSecondaryProvider` and PR 1 needs #278 PR 2; under B PR 1 needs #278 PR 3 and the secondary branch sits next to the local-memory one. |
 | The metric and the log range are new | #278 PR 2 already creates the counter `encina.cache.fallback_operations` (tag `strategy`) and PR 4 the recovery health check. The plan adds a tag value and a health data entry, no instrument. The range `CachingRecovery` 30400-30411 is full (twelve ids, all assigned by #278), so this plan takes its own range from block 500-549. |
 | On recovery the secondary's entries are not copied back | True, and it creates a staleness question: an entry written to the secondary during an outage survives in the secondary after the primary recovers, and invalidations that run while the primary is healthy never reach it (Design Choice 3). |
 | Keyed services in .NET | `AddKeyedSingleton<ICacheProvider>(key, factory)` and `IServiceProviderIsKeyedService` exist in the .NET 10 DI container; the decorator singleton resolves the keyed provider by key. |
-| Tenants | The cache keys are tenant-qualified by the key generator (`sm:t:{tenant}:...`), identical on both providers, so tenant isolation holds on the secondary. The breaker is per backend, not per tenant (#278 Design Choice 8, ADR-054 D4): no tenant tag. |
+| Tenants | The cache keys are tenant-qualified by the key generator (`sm:t:{tenant}:...`), identical on both providers, so tenant isolation holds on the secondary. The breaker is per backend, not per tenant: ADR-054 D4 (the tenant tag is for tenant-scoped facts; a backend outage is not one), so no tenant tag. |
 
 The plan adds, in `Encina.Caching`, the strategy value, two options, an internal `SecondaryProviderFallback` (own circuit breaker, lifetime cap, tenant-neutral), a registration helper, a validation rule and a log range, and extends the health data. Caching (8): the decorator is provider-agnostic, so any pair of Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277 works as primary and secondary.
 
@@ -52,22 +52,40 @@ The plan adds, in `Encina.Caching`, the strategy value, two options, an internal
 </details>
 
 <details>
-<summary><strong>2. What happens to reads and writes while the primary circuit is open</strong></summary>
+<summary><strong>2. What the secondary serves while the primary circuit is open (Dilemma D2)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Reads try the secondary, writes go to the secondary only; the half-open probe goes to the primary; the secondary has its own `CacheCircuitBreaker` (same options, its own instance) and a secondary failure behaves as `SkipCache` for that operation (a miss, a skipped write, the factory runs); a failure of the secondary never counts against the primary breaker; a caller's cancellation counts against neither** | The issue's behavior; the application never fails because the standby is down | Two breakers to reason about |
+| **A) Reads try the secondary, writes go to the secondary only; the half-open probe goes to the primary; the secondary has its own breaker (same options, its own instance) and a secondary failure behaves as `SkipCache` for that operation (a miss, a skipped write, the factory runs); `RemoveByPatternAsync` is forwarded to the secondary** | The issue's proposed behavior; the application never fails because the standby is down; no write pays the primary's timeout | Two breakers to reason about |
 | **B) Dual writes: also write to the primary while it is open** | The primary is warm on recovery | Every write pays the primary's timeout during the outage, which is what the breaker avoids |
 
-### Chosen Option: **A - secondary only while open**
+### Chosen Option: **A - secondary only while open** (recommended, pending the maintainer)
+
+### Rationale
+
+- Option B wins when the primary's warm-up after recovery matters more than write latency during the outage. `RemoveByPatternAsync` pattern support differs per provider (Hybrid removes tracked keys only, #2402), which is the provider's contract.
+- Class: Dilemma
+
+</details>
+
+<details>
+<summary><strong>2b. Cancellation and the user factory are never counted</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A caller's cancellation rethrows `OperationCanceledException` and counts against neither breaker; in `GetOrSetAsync` the factory's exception is captured, rethrown unchanged and counts nowhere, and when the secondary cannot be used the factory runs directly** | The breakers measure the backends only | A flag per call to know where an exception came from |
+| **B) Count every exception** | Simplest | A throwing handler or a cancelling caller opens a breaker |
+
+### Chosen Option: **A - backend failures only**
 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** the issue text ("writes go to the secondary only"), AGENTS.md section 3 (cancellation is not an error and propagates; a user factory's exception propagates untouched, as in #278 Design Choice 2) and AGENTS.md section 1 (pay-for-what-you-use). Option B contradicts the issue and the breaker's purpose, so only A complies.
-- `GetOrSetAsync` calls the secondary's `GetOrSetAsync` with the factory wrapped as #278 wraps it (a factory exception is captured, rethrown unchanged and never counted). `RemoveByPatternAsync` is forwarded to the secondary while open; pattern support differs per provider (Hybrid removes tracked keys only, #2402), which is the provider's contract.
+- **Settled by:** AGENTS.md section 3 (cancellation is not an error and propagates; exceptions of user code are not swallowed) and the signature `Task<T> GetOrSetAsync<T>(string key, Func<CancellationToken, Task<T>> factory, ...)` in `src/Encina.Caching/Abstractions/ICacheProvider.cs` (the factory is the caller's code). Only A complies, whichever option Design Choice 2 takes.
 
 </details>
 
@@ -92,22 +110,23 @@ The plan adds, in `Encina.Caching`, the strategy value, two options, an internal
 </details>
 
 <details>
-<summary><strong>4. Validation, cancellation and the same-instance check</strong></summary>
+<summary><strong>4. A missing or self-referencing secondary (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The `IValidateOptions<CacheAutoRecoveryOptions>` of #278 (`ValidateOnStart`) gets one rule: `UseSecondaryProvider` requires a keyed `ICacheProvider` under `SecondaryProviderKey` (checked with `IServiceProviderIsKeyedService`), a positive `SecondaryMaxDuration`; the decorator constructor throws `InvalidOperationException` when the secondary is the same instance as the primary** | A missing or self-referencing secondary stops the host, never degrades silently | Validation needs the final option values, so it runs at start, not at registration |
-| **B) Fall back to `SkipCache` when the secondary is missing** | Never fails | A configured standby that does nothing |
+| **A) Fail at start: the `IValidateOptions<CacheAutoRecoveryOptions>` of #278 (`ValidateOnStart`) gets one rule, `UseSecondaryProvider` requires the secondary registration chosen in Design Choice 1 (under option A of D1: a keyed `ICacheProvider` under `SecondaryProviderKey`, checked with `IServiceProviderIsKeyedService`) and a positive `SecondaryMaxDuration`; the decorator factory throws `InvalidOperationException` naming the key when the secondary is the same instance as the inner primary** | A configured standby that cannot work stops the host instead of degrading silently | A cache configuration error stops a host that could run without a cache |
+| **B) Log a warning and behave as `SkipCache`** | The host always starts; availability first | A configured standby that does nothing, found only in the logs |
 
-### Chosen Option: **A - fail at start**
+### Chosen Option: **A - fail at start** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 3 (registration completeness and "compliance and security gates fail closed": a configured protection that cannot work denies the start) and #278 Design Choice 9 (validation with `ValidateOnStart` against the final values). Option B leaves a configured feature inert, so only A complies.
+- Option B wins where a cache setting must never stop the host. AGENTS.md section 3 requires registration completeness for what a registration resolves; it does not decide between failing and degrading for an availability feature, so this is a Dilemma.
+- A helper factory that resolves `ICacheProvider` from the container returns the decorator itself: the container reports a circular dependency while the decorator is being built, which the DI test asserts; the same-instance comparison covers a factory that returns the inner primary.
 - No error code is created: validation failures are `OptionsValidationException` messages naming the option, never a value; operations never return a `Left` (a backend failure becomes a miss or a skipped write). So no ADR-062 category applies.
+- Class: Dilemma
 
 </details>
 
@@ -126,7 +145,7 @@ The plan adds, in `Encina.Caching`, the strategy value, two options, an internal
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** #278 Design Choices 7 and 8 (the state is `Degraded`, the failure domain is the shared backend, so no tenant tag, ADR-054 D4) and AGENTS.md section 3 (health results never carry a key or an exception message).
+- **Settled by:** ADR-054 D4 (a backend failure domain is not a tenant fact, so no tenant tag) and AGENTS.md section 3 (health results, logs and tags never carry a key or an exception message). The plan changes no status rule: whatever #278 Design Choice 7 decides about `Healthy` or `Degraded` applies unchanged, and `secondary_state` is data only.
 
 </details>
 
@@ -139,14 +158,14 @@ The plan adds, in `Encina.Caching`, the strategy value, two options, an internal
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 1 needs #278 PR 3 merged and holds exactly these 15 files:
+PR 1 needs #278 PR 2 merged (PR 3 too when #278 Design Choice 5 is answered B, see the Summary) and holds exactly these 15 files:
 
 | # | File | Change |
 |---|------|--------|
 | 1 | `src/Encina.Caching/Recovery/CacheAutoRecoveryOptions.cs` | modify (the enum value `UseSecondaryProvider`, `SecondaryProviderKey`, `SecondaryMaxDuration`) |
-| 2 | `src/Encina.Caching/Recovery/SecondaryProviderFallback.cs` | new (internal sealed) |
-| 3 | `src/Encina.Caching/Recovery/ResilientCacheProvider.cs` | modify (the strategy branch next to the local-memory one; the tag value `secondary`) |
-| 4 | `src/Encina.Caching/CacheAutoRecoveryServiceCollectionExtensions.cs` | modify (`AddEncinaCacheSecondaryProvider`, the keyed lookup in the decorator factory, the validator rule) |
+| 2 | `src/Encina.Caching/Recovery/SecondaryProviderFallback.cs` | new (two internal sealed types in one file: `SecondaryProviderFallback` and the state holder `CacheSecondaryState`) |
+| 3 | `src/Encina.Caching/Recovery/ResilientCacheProvider.cs` | modify (the strategy branch next to the existing fallback branches; the tag value `secondary`) |
+| 4 | `src/Encina.Caching/CacheAutoRecoveryServiceCollectionExtensions.cs` | modify (`AddEncinaCacheSecondaryProvider`, the keyed lookup in the decorator factory, `TryAddSingleton<CacheSecondaryState>`, the validator rule) |
 | 5 | `src/Encina.Caching/Recovery/CacheSecondaryFallbackLog.cs` | new (EventIds 538-541) |
 | 6 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingSecondaryFallback = (538, 541)`) |
 | 7 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range to the `Encina.Caching` entry) |
@@ -161,10 +180,10 @@ PR 1 needs #278 PR 3 merged and holds exactly these 15 files:
 
 Tasks:
 
-1. **Create** `SecondaryProviderFallback(ICacheProvider secondary, CacheCircuitBreaker breaker, ICacheFailureClassifier classification, TimeSpan maxDuration, ILogger<...>)`: one method per `ICacheProvider` operation; each acquires its own breaker, calls the secondary, records success or failure when the classifier says backend failure and the token is not cancelled, and on failure answers as `SkipCache` does (a default read, a skipped write, `ExistsAsync` false, `RefreshAsync` false, the factory runs). Expirations are capped per Design Choice 3. A cancelled caller token rethrows `OperationCanceledException` and counts nowhere.
+1. **Create** `CacheSecondaryState` (internal sealed, a distinct service type registered with `TryAddSingleton` in PR 1, built from `IOptions<CacheAutoRecoveryOptions>` and `TimeProvider`): it owns the secondary's own `CacheCircuitBreaker` instance and exposes its `State` and `OpenedAtUtc`, so the decorator and the PR 2 health check resolve the same holder (the primary breaker stays #278's registered singleton; the secondary one is reachable only through this holder). **Create** `SecondaryProviderFallback(ICacheProvider secondary, CacheSecondaryState state, CacheFailureClassification classification, TimeSpan maxDuration, ILogger<...>)`, taking the internal composite `CacheFailureClassification` of #278 (a distinct type from `ICacheFailureClassifier`, so the Redis classifier adds to the defaults and `ValidateOnBuild` finds no cycle): one method per `ICacheProvider` operation; each acquires the holder's breaker, calls the secondary, records success or failure when the classification says backend failure and the token is not cancelled, and on failure answers as `SkipCache` does (a default read, a skipped write, `ExistsAsync` false, `RefreshAsync` false, the factory runs). Expirations are capped per Design Choice 3. A cancelled caller token rethrows `OperationCanceledException` and counts nowhere.
 2. **Modify** `ResilientCacheProvider`: when the primary breaker is not acquirable and the strategy is `UseSecondaryProvider`, delegate to the fallback instead of `SkipCache`; the half-open probe still goes to the primary; the counter is incremented with `strategy = secondary`. The branch is one private method per operation so each method stays at CRAP 10 or below.
-3. **Modify** the registration: `AddEncinaCacheSecondaryProvider(this IServiceCollection services, Func<IServiceProvider, ICacheProvider> factory)` (public; null services or factory throws `ArgumentNullException`) registers a keyed singleton under `SecondaryProviderKey` with `TryAdd`-style semantics (an existing keyed registration is kept); the decorator factory resolves the keyed provider only when the strategy is `UseSecondaryProvider`, and the secondary breaker is created there from the same breaker options. The validator rule is Design Choice 4. EventIds: 538 secondary fallback active (once per outage, operation name only), 539 secondary operation failed (operation and exception type), 540 secondary circuit opened, 541 secondary circuit closed; no key, no value and no exception message is logged.
-4. **Tests:** reads and writes hit only the secondary while the primary is open and only the primary when closed; the probe goes to the primary; the secondary's failures never open the primary breaker and a primary failure never opens the secondary one; a failing secondary behaves as skip; a factory exception propagates unchanged and counts nowhere; cancellation counts nowhere; the cap holds for absolute and sliding expiration (`FakeTimeProvider`); removals while open reach the secondary; the same instance is rejected; a missing keyed registration fails host start; the helper registers a singleton; DI is built with `ValidateOnBuild` and `ValidateScopes` in both registration orders of #278; tenant-qualified keys reach the secondary unchanged. Guard tests: null services and null factory throw; the fallback class is internal (no `InternalsVisibleTo` for `Encina.GuardTests`).
+3. **Modify** the registration: `AddEncinaCacheSecondaryProvider(this IServiceCollection services, Func<IServiceProvider, ICacheProvider> factory)` (public; null services or factory throws `ArgumentNullException`) registers a keyed singleton under `SecondaryProviderKey` with `TryAdd`-style semantics (an existing keyed registration is kept); the decorator factory resolves the keyed provider only when the strategy is `UseSecondaryProvider` and throws `InvalidOperationException` naming the key when the result is the inner primary (a factory that resolves `ICacheProvider` returns the decorator itself, which the container reports as a circular dependency; both are tested). The validator rule is Design Choice 4. EventIds: 538 secondary fallback active (once per outage, operation name only), 539 secondary operation failed (operation and exception type), 540 secondary circuit opened, 541 secondary circuit closed; no key, no value and no exception message is logged.
+4. **Tests:** reads and writes hit only the secondary while the primary is open and only the primary when closed; the probe goes to the primary; the secondary's failures never open the primary breaker and a primary failure never opens the secondary one; a failing secondary behaves as skip; a factory exception propagates unchanged and counts nowhere; cancellation counts nowhere; the cap holds for absolute and sliding expiration (`FakeTimeProvider`); removals while open reach the secondary; the same instance is rejected; a missing keyed registration fails host start; the helper registers a singleton; `CacheSecondaryState` is resolvable and shared (`ValidateOnBuild`); a helper factory that resolves `ICacheProvider` fails with the circular-dependency error; DI is built with `ValidateOnBuild` and `ValidateScopes` in both registration orders of #278; tenant-qualified keys reach the secondary unchanged. Guard tests: null services and null factory throw; the fallback class is internal (no `InternalsVisibleTo` for `Encina.GuardTests`).
 
 </details>
 
@@ -186,7 +205,8 @@ KEY RULES:
 - The secondary has its own breaker; its failures never count against the primary.
 - The secondary is a singleton; no scoped service is injected into a singleton; time from TimeProvider; no static state.
 - Logs carry operation names and exception types only, never a key, a value or a message.
-- Follow the maintainer's answers to Design Choices 1 and 3, given in your brief.
+- Follow the maintainer's answers to Design Choices 1 to 4, given in your brief.
+- Use the internal composite CacheFailureClassification of #278, never a bare ICacheFailureClassifier.
 
 REFERENCE FILES:
 - src/Encina.Caching/Abstractions/ICacheProvider.cs
@@ -214,7 +234,7 @@ PR 2 needs PR 1 and #278 PR 4 merged and holds exactly these 6 files:
 | 6 | `changelog.d/4417-cache-secondary-health.added.md` | new (`mechanical-fixer`) |
 No public symbol is added in this PR, so no PublicAPI file changes. Tasks:
 
-1. **Modify** the health check: the data carries `state` and, with the strategy on, `secondary_state`, both state names only (never a key or an exception message).
+1. **Modify** the health check: it takes `CacheSecondaryState?` optionally (registered by PR 1; null when the strategy is off) and the data carries `state` and, with the strategy on, `secondary_state`, both state names only (never a key or an exception message).
 2. **Contract test:** while the primary circuit is forced open, the decorator over two memory providers keeps the `ICacheProvider` contract on the secondary (get, set, remove, exists, refresh, get-or-set) and the entries expire at the cap.
 3. **Integration test:** the primary is a `RedisCacheProvider` over an unreachable endpoint with a short connect timeout, the secondary a `RedisCacheProvider` over the shared container; after the primary breaker opens, writes and reads are served from the shared container (checked through a third client on the same container), the handler never runs twice for a cached value, and the primary breaker closes again when a reachable primary replaces the unreachable one in a second host. The test never creates its own container and never calls the fixture's `DisposeAsync`; it carries `[Trait("Category", "Integration")]` and the shared Redis collection attribute.
 
@@ -283,11 +303,12 @@ REFERENCE FILES:
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Caching/Recovery/SecondaryProviderFallback.cs` | 95 | 0 | 40 | 0 | One method per operation with failure, cap and cancellation paths unit tested; the contract test drives it through the real decorator; internal, no `InternalsVisibleTo` for the guard project |
+| `Encina.Caching/Recovery/SecondaryProviderFallback.cs` (with `CacheSecondaryState`) | 95 | 0 | 0 in PR 1, 40 in PR 2 | 0 | One method per operation with failure, cap and cancellation paths unit tested in PR 1; the contract target of 40 is set in PR 2, the PR that adds `SecondaryFallbackContractTests.cs`; internal, and `Encina.Caching` grants no `InternalsVisibleTo` to the guard project |
 | `Encina.Caching/Recovery/CacheSecondaryFallbackLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the fallback tests; internal |
-| `Encina.Caching/Recovery/ResilientCacheProvider.cs` | keep | 0 | keep | 40 | Rows are created by #278 (unit 95, contract 70, integration 40 in its PR 5; none exists on `origin/main` today); never lowered; the new branch is covered in PR 1 and PR 2 |
-| `Encina.Caching/CacheAutoRecoveryServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | Row created by #278 (unit 100, guard 85 there); the helper's null guards are guard tested |
-| `Encina.Caching/Recovery/CacheAutoRecoveryOptions.cs`, `Health/CacheRecoveryHealthCheck.cs` | keep | keep | 0 | 0 | Rows created by #278; two properties and one data entry are added and unit tested |
+| `Encina.Caching/Recovery/ResilientCacheProvider.cs` | 95 | 0 | 70 | 40 | The numbers #278 sets (unit 95, contract 70, integration 40 from its PR 5; no row exists on `origin/main` today); never lowered; the new branch is covered by PR 1 unit tests and PR 2's contract and integration tests |
+| `Encina.Caching/CacheAutoRecoveryServiceCollectionExtensions.cs` | 100 | 85 | 0 | 0 | The numbers #278 sets (unit 100, guard 85); the helper's null guards are guard tested |
+| `Encina.Caching/Recovery/CacheAutoRecoveryOptions.cs` | 100 | 85 | 0 | 0 | The numbers #278 sets; two properties and one enum value are added and unit tested |
+| `Encina.Caching/Health/CacheRecoveryHealthCheck.cs` | 100 | 0 | 0 | 0 | The number #278 sets (unit 100); one data entry is added and unit tested in PR 2 |
 
    The worker measures every flag per PR with `coverage-report.cs`; no target is lowered (`target-ratchet`) and the CRAP table of changed methods stays at 10 or below.
 4. **Property, load, benchmark:** no property test (the cap and the routing are covered by unit grids); no load test or benchmark: the branch runs only while the primary is down and adds one breaker lock like #278's.
@@ -375,7 +396,7 @@ IMPLEMENTATION OVERVIEW:
 KEY PATTERNS:
 - Only backend failures count; cancellation propagates and counts nowhere; a factory exception is never counted.
 - The secondary is a singleton, bounded by a lifetime cap, never copied back; validation fails the host start when it is missing.
-- Follow the maintainer's answers to Design Choices 1 and 3, given in your brief.
+- Follow the maintainer's answers to Design Choices 1 to 4, given in your brief.
 
 REFERENCE FILES:
 - src/Encina.Caching/Abstractions/ICacheProvider.cs
@@ -411,10 +432,10 @@ REFERENCE FILES:
 
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
-| #278 PRs 1 to 4 (decorator, local fallback, health check) | Open | Plan merged; PR 1 of this plan needs PR 3, PR 2 needs PR 4 |
+| #278 PRs 1 to 4 (decorator, local fallback, health check) | Open | Plan merged; PR 3 (local memory) exists only if #278 Design Choice 5 is B or C; this plan is implemented only under #278 answer A or B (under C #278 delivers the secondary itself); PR 1 of this plan needs #278 PR 2 (and PR 3 under B), PR 2 needs the PR of #278 that creates the health check (its PR 4) |
 | #4413 forwarding of `ILeveledCacheProvider` | Open | Independent; the secondary branch forwards nothing leveled |
 | Block 500-549 of the EventId registry | ✅ Assigned | 538-541 are this plan's |
-| Maintainer answers to Design Choices 1 and 3 | Pending | Asked when work starts; option C of Design Choice 1 ends the work |
+| Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts; option C of Design Choice 1 ends the work |
 
 Order inside the family: independent of #4414, #4416 and #4415.
 
