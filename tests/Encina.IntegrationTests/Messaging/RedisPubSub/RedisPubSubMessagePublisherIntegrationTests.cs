@@ -70,7 +70,7 @@ public sealed class RedisPubSubMessagePublisherIntegrationTests : IAsyncLifetime
 
         result.IsRight.ShouldBeTrue();
         var json = await received.Task.WaitAsync(Timeout);
-        var envelope = JsonDocument.Parse(json).RootElement;
+        var envelope = JsonElement.Parse(json);
         envelope.GetProperty("MessageId").GetString().ShouldBe("outbox-42");
         envelope.GetProperty("Payload").GetProperty("Text").GetString().ShouldBe("hello");
         envelope.GetProperty("TimestampUtc").GetDateTime().ShouldBeGreaterThan(DateTime.UnixEpoch);
@@ -94,7 +94,7 @@ public sealed class RedisPubSubMessagePublisherIntegrationTests : IAsyncLifetime
         await scope.ServiceProvider.GetRequiredService<IRedisPubSubMessagePublisher>()
             .PublishAsync(new Payload("hello"), channel);
 
-        var envelope = JsonDocument.Parse(await received.Task.WaitAsync(Timeout)).RootElement;
+        var envelope = JsonElement.Parse(await received.Task.WaitAsync(Timeout));
         Guid.TryParse(envelope.GetProperty("MessageId").GetString(), out _).ShouldBeTrue();
         await queue.UnsubscribeAsync();
     }

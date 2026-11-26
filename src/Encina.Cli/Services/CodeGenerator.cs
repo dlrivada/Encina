@@ -225,15 +225,7 @@ public static class CodeGenerator
         var dir = Path.GetDirectoryName(normalized) ?? string.Empty;
         var parts = dir.Split(Path.DirectorySeparatorChar).Where(s => !string.IsNullOrEmpty(s)).ToList();
 
-        var srcIndex = -1;
-        for (var i = parts.Count - 1; i >= 0; i--)
-        {
-            if (parts[i].Equals("src", StringComparison.OrdinalIgnoreCase))
-            {
-                srcIndex = i;
-                break;
-            }
-        }
+        var srcIndex = parts.FindLastIndex(s => s.Equals("src", StringComparison.OrdinalIgnoreCase));
 
         if (srcIndex < 0)
         {
@@ -242,7 +234,7 @@ public static class CodeGenerator
 
         parts[srcIndex] = "tests";
         var root = Path.GetPathRoot(normalized) ?? string.Empty;
-        var testDir = Path.Combine(root, Path.Combine(parts.ToArray()));
+        var testDir = Path.Combine([root, .. parts]);
         var projectName = Path.GetFileNameWithoutExtension(normalized);
         var testProjPath = Path.Combine(testDir, projectName + ".Tests", projectName + ".Tests.csproj");
         return $"\"{testProjPath.Replace(Path.DirectorySeparatorChar, '/')}\"";

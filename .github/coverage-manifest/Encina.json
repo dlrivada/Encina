@@ -1747,7 +1747,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 40 },
+      "justifications": {
+        "unit": "Unit tests execute ToEncinaError with and without entity and key types and the message building (measured 100%).",
+        "guard": "Guard tests execute the constructor reason guard and part of the exception members (measured 40%)."
+      }
     },
     "Sharding/Colocation/IColocationGroup.cs": {
       "defaultTests": [],
@@ -1769,7 +1774,7 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 95, "guard": 1 },
+      "targets": { "unit": 100, "guard": 1 },
       "justifications": {
         "unit": "The extractor unit tests run every priority and error branch of Extract and its helpers (measured 100% on 2026-11-24, #4235).",
         "guard": "Extract has one guarded parameter, so guard tests reach only its null check (measured 1.8% on 2026-11-24, #4235)."
@@ -1920,7 +1925,7 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Default: assume testable with mocks",
-      "targets": { "unit": 95, "guard": 75 },
+      "targets": { "unit": 100, "guard": 80 },
       "justifications": {
         "unit": "The executor unit tests cover success, partial failure, timeout, cancellation, ordering, activities and metrics (measured 100% on 2026-11-24, #4235).",
         "guard": "The guard tests run the null checks and a successful scatter-gather through most of the executor (measured 81.13% on 2026-11-24, #4235)."
@@ -2229,7 +2234,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 0 },
+      "justifications": {
+        "unit": "Unit tests execute the sequential migration strategy in full (measured 100%).",
+        "guard": "The strategy validates no arguments, so guard tests cannot reach any executable line; the unit tests execute it fully."
+      }
     },
     "Sharding/Migrations/TableDiff.cs": {
       "defaultTests": [
@@ -3074,7 +3084,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 100, "guard": 5 },
+      "justifications": {
+        "unit": "Unit tests execute the shard key extraction in full (measured 100%).",
+        "guard": "Only the ThrowIfNull argument guard is reachable by guard tests (measured 5%)."
+      }
     },
     "Sharding/ShardTopology.cs": {
       "defaultTests": [
@@ -3082,7 +3097,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 87, "guard": 47 },
+      "justifications": {
+        "unit": "Unit tests execute the topology members and their error paths (measured 87%).",
+        "guard": "Guard tests execute the topology constructor and argument guards (measured 47%)."
+      }
     },
     "Sharding/TimeBased/ArchiveOptions.cs": {
       "defaultTests": [

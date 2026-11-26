@@ -183,14 +183,14 @@ public sealed class TemporalEntityMappingBuilder<TEntity, TId>
         if (_idExtractor is null)
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingPrimaryKey,
+                EntityMappingErrorCodes.MissingPrimaryKey, ErrorCategory.Internal,
                 $"ID mapping not configured. Call HasId() before Build() for entity {typeof(TEntity).Name}.");
         }
 
         if (_columnMappings.Count == 0)
         {
             return EncinaErrors.Create(
-                EntityMappingErrorCodes.MissingColumnMappings,
+                EntityMappingErrorCodes.MissingColumnMappings, ErrorCategory.Internal,
                 $"No column mappings configured. Call MapProperty() at least once for entity {typeof(TEntity).Name}.");
         }
 

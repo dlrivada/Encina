@@ -67,7 +67,7 @@ public class HttpResponseDataExtensionsTests
 
         // Assert
         ((int)response.StatusCode).ShouldBe(expectedStatus);
-        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        var body = JsonElement.Parse(response.ReadBody());
         body.GetProperty("status").GetInt32().ShouldBe(expectedStatus);
         body.GetProperty("title").GetString().ShouldBe(expectedTitle);
         response.Headers.GetValues("Content-Type").ShouldBe(["application/problem+json"]);
@@ -198,7 +198,7 @@ public class HttpResponseDataExtensionsTests
 
         // Assert
         ((int)response.StatusCode).ShouldBe(418);
-        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        var body = JsonElement.Parse(response.ReadBody());
         body.GetProperty("status").GetInt32().ShouldBe(418);
         body.GetProperty("title").GetString().ShouldBe("An error occurred");
     }
@@ -230,7 +230,7 @@ public class HttpResponseDataExtensionsTests
         var response = (TestResponse)await error.ToProblemDetailsResponse(NewRequest());
 
         // Assert
-        var body = JsonDocument.Parse(response.ReadBody()).RootElement;
+        var body = JsonElement.Parse(response.ReadBody());
         body.GetProperty("extensions").GetProperty("errorCode").GetString().ShouldBe("order.not_found");
         body.GetProperty("extensions").GetProperty("traceId").GetString().ShouldBe("invocation-1");
     }
@@ -247,7 +247,7 @@ public class HttpResponseDataExtensionsTests
         var response = (TestResponse)await error.ToProblemDetailsResponse(new TestRequest(context));
 
         // Assert
-        var extensions = JsonDocument.Parse(response.ReadBody()).RootElement.GetProperty("extensions");
+        var extensions = JsonElement.Parse(response.ReadBody()).GetProperty("extensions");
         extensions.GetProperty("correlationId").GetString().ShouldBe("corr-1");
     }
 
