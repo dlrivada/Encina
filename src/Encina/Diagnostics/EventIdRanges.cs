@@ -18,7 +18,7 @@ namespace Encina.Diagnostics;
 /// </list>
 /// </para>
 /// <para>
-/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1) keeps its field but now lies in the zone. They are grouped
+/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1; DomainModeling and Tenancy, CM-2) keeps its field but now lies in the zone. They are grouped
 /// by the area and sub-issue that moves them, in the merge order of #4007 (CM-1 to CM-6, DB-1, DB-2, CA-1, CA-2,
 /// TR-1, TR-2, SC-1 to SC-6, OP-1, OP-2, TT-CI). Each field keeps its current value until its sub-issue lands;
 /// the trailing comment names the sub-issue and the range the field moves to. The target extents are reserved in
@@ -40,28 +40,28 @@ public static class EventIdRanges
     // ── CM-2 DomainModeling and Tenancy ────────────────────────────────────
 
     /// <summary>Encina.DomainModeling — repository operations.</summary>
-    public static readonly (int Min, int Max) DomainModelingRepository = (1100, 1199); // moves to 10100-10199 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingRepository = (10100, 10199); // moved from 1100-1199 in #4007 CM-2
 
     /// <summary>Encina.DomainModeling — unit of work / transaction operations.</summary>
-    public static readonly (int Min, int Max) DomainModelingUnitOfWork = (1200, 1299); // moves to 10200-10299 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingUnitOfWork = (10200, 10299); // moved from 1200-1299 in #4007 CM-2
 
     /// <summary>Encina.DomainModeling — bulk operations.</summary>
-    public static readonly (int Min, int Max) DomainModelingBulkOperations = (1300, 1399); // moves to 10300-10399 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingBulkOperations = (10300, 10399); // moved from 1300-1399 in #4007 CM-2
 
     /// <summary>Encina.DomainModeling — specification evaluation.</summary>
-    public static readonly (int Min, int Max) DomainModelingSpecification = (1400, 1499); // moves to 10400-10499 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingSpecification = (10400, 10499); // moved from 1400-1499 in #4007 CM-2
 
     /// <summary>Encina.DomainModeling — audit trail operations.</summary>
-    public static readonly (int Min, int Max) DomainModelingAudit = (1600, 1699); // moves to 10500-10599 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingAudit = (10500, 10599); // moved from 1600-1699 in #4007 CM-2
 
     /// <summary>Encina.Tenancy — multi-tenancy operations.</summary>
-    public static readonly (int Min, int Max) Tenancy = (1800, 1899); // moves to 10600-10699 in #4007 CM-2
+    public static readonly (int Min, int Max) Tenancy = (10600, 10699); // moved from 1800-1899 in #4007 CM-2
 
     /// <summary>Encina.DomainModeling — domain event operations.</summary>
-    public static readonly (int Min, int Max) DomainModelingDomainEvents = (2500, 2549); // moves to 11250-11299 in #4007 CM-2
+    public static readonly (int Min, int Max) DomainModelingDomainEvents = (11250, 11299); // moved from 2500-2549 in #4007 CM-2
 
     /// <summary>Encina.Tenancy.AspNetCore — tenant resolution middleware and resolvers.</summary>
-    public static readonly (int Min, int Max) TenancyAspNetCore = (3850, 3899); // moves to 11750-11799 in #4007 CM-2
+    public static readonly (int Min, int Max) TenancyAspNetCore = (11750, 11799); // moved from 3850-3899 in #4007 CM-2
 
     // ── CM-3 Module isolation, messaging stores and IdGeneration ───────────
 

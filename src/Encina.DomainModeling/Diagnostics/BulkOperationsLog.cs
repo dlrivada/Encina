@@ -8,7 +8,7 @@ namespace Encina.DomainModeling.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 1300-1399 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10300-10399 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -20,7 +20,7 @@ public static partial class BulkOperationsLog
 {
     /// <summary>Logs when a bulk operation begins execution.</summary>
     [LoggerMessage(
-        EventId = 1300,
+        EventId = 10300,
         Level = LogLevel.Debug,
         Message = "Starting bulk {Operation} for {EntityType} using {Provider}")]
     public static partial void StartingBulkOperation(
@@ -31,7 +31,7 @@ public static partial class BulkOperationsLog
 
     /// <summary>Logs when a bulk operation completes successfully.</summary>
     [LoggerMessage(
-        EventId = 1301,
+        EventId = 10301,
         Level = LogLevel.Information,
         Message = "Bulk {Operation} for {EntityType} completed: {RowsAffected} rows affected in {DurationMs}ms")]
     public static partial void BulkOperationCompleted(
@@ -43,7 +43,7 @@ public static partial class BulkOperationsLog
 
     /// <summary>Logs when a bulk operation fails with a domain error.</summary>
     [LoggerMessage(
-        EventId = 1302,
+        EventId = 10302,
         Level = LogLevel.Warning,
         Message = "Bulk {Operation} for {EntityType} failed with error {ErrorCode}: {ErrorMessage}")]
     public static partial void BulkOperationFailed(
@@ -55,7 +55,7 @@ public static partial class BulkOperationsLog
 
     /// <summary>Logs when a bulk operation throws an unexpected exception.</summary>
     [LoggerMessage(
-        EventId = 1303,
+        EventId = 10303,
         Level = LogLevel.Error,
         Message = "Bulk {Operation} for {EntityType} threw an unexpected exception")]
     public static partial void BulkOperationException(
