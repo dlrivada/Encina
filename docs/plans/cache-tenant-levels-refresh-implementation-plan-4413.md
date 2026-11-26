@@ -330,6 +330,26 @@ Until then a Hybrid wrapped by the recovery decorator reports `SupportsLevels` f
 
 </details>
 
+<details>
+<summary><strong>Prompt for AI Agents — Phase 4</strong></summary>
+
+```
+CONTEXT:
+PR 1 of this plan (ILeveledCacheProvider) and #278 PR 2 (ResilientCacheProvider) are merged; the decorator does not yet forward levels.
+
+TASK:
+Make ResilientCacheProvider implement ILeveledCacheProvider by forwarding the three leveled methods through its retry and breaker, with SupportsLevels taken from the inner provider; add the unit tests; ask mechanical-fixer for the manifest rows.
+
+KEY RULES:
+- A decorator over a single-level provider reports SupportsLevels false and never silently ignores a level; cancellation is never a Left.
+
+REFERENCE FILES:
+- src/Encina.Caching/Recovery/ResilientCacheProvider.cs
+- src/Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs
+```
+
+</details>
+
 ---
 
 ## Research
