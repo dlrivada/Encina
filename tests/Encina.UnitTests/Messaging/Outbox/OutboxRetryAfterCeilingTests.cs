@@ -74,7 +74,7 @@ public sealed class OutboxRetryAfterCeilingTests
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 1, 0, 0));
         await _store.Received(1).MarkAsFailedAsync(
             message.Id, RateLimited, Now.UtcDateTime.AddMinutes(minutes), Arg.Any<CancellationToken>());
-        _logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 5456);
+        _logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 12056);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class OutboxRetryAfterCeilingTests
             message.Id, RecoverabilityErrorCodes.RetryAfterExceedsCeiling, 10, Arg.Any<CancellationToken>());
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
 
-        var entry = _logger.Collector.GetSnapshot().Single(e => e.Id.Id == 5456);
+        var entry = _logger.Collector.GetSnapshot().Single(e => e.Id.Id == 12056);
         entry.Level.ShouldBe(LogLevel.Warning);
         entry.Message.ShouldContain(RateLimited);
         entry.Message.ShouldContain(message.Id.ToString());
@@ -166,7 +166,7 @@ public sealed class OutboxRetryAfterCeilingTests
         Outcome(result).ShouldBe(new OutboxBatchResult(0, 0, 0, 1));
         await _store.DidNotReceiveWithAnyArgs().MarkAsFailedAsync(default, default!, default, default);
         await _store.DidNotReceiveWithAnyArgs().MarkAsExhaustedAsync(default, default!, default, default);
-        _logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 5456);
+        _logger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 12056);
         metrics.Tags("encina.retry.skipped_total", nameof(TestNotification)).ShouldBeEmpty();
     }
 
@@ -200,7 +200,7 @@ public sealed class OutboxRetryAfterCeilingTests
         stored.RetryCount.ShouldBe(options.MaxRetries);
         stored.NextRetryAtUtc.ShouldBeNull();
         (await fakeStore.GetExhaustedCountAsync(options.MaxRetries)).RightToArray()[0].ShouldBe(1);
-        _logger.Collector.GetSnapshot().Count(e => e.Id.Id == 5456).ShouldBe(1);
+        _logger.Collector.GetSnapshot().Count(e => e.Id.Id == 12056).ShouldBe(1);
         metrics.Tags("encina.retry.skipped_total", nameof(TestNotification)).Count.ShouldBe(1);
     }
 

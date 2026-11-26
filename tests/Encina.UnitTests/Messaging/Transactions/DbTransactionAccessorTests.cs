@@ -201,7 +201,7 @@ public sealed class DbTransactionAccessorTests : IAsyncDisposable
 
         logger.Entries.ShouldHaveSingleItem();
         var entry = logger.Entries[0];
-        entry.EventId.ShouldBe(2970);
+        entry.EventId.ShouldBe(11720);
         entry.Level.ShouldBe(LogLevel.Warning);
         entry.Text.ShouldNotContain("rollback failed");
     }

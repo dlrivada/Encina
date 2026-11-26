@@ -543,7 +543,7 @@ public sealed class SchedulerOrchestratorTests
         // Assert
         logger.Messages.Where(x => x.Contains("scheduling.save_failed")).Count().ShouldBe(1);
         logger.Messages.ShouldNotContain(x => x.Contains("secret detail"));
-        logger.EventIds.ShouldContain(2989);
+        logger.EventIds.ShouldContain(11739);
     }
 
     [Fact]

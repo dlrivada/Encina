@@ -19,9 +19,9 @@ namespace Encina.UnitTests.Messaging.DeadLetter;
 /// </summary>
 public sealed class DeadLetterManagerTenancyAndBatchTests
 {
-    private const int AllTenantsOptOutEvent = 2993;
-    private const int TenantRequiredDeniedEvent = 2994;
-    private const int BatchReplayAbortedEvent = 2995;
+    private const int AllTenantsOptOutEvent = 11743;
+    private const int TenantRequiredDeniedEvent = 11744;
+    private const int BatchReplayAbortedEvent = 11745;
 
     private static readonly DateTime FixedUtcNow = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 

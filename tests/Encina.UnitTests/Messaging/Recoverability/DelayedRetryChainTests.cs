@@ -771,7 +771,7 @@ public sealed class DelayedRetryChainTests
         fixture.PermanentFailures.Count.ShouldBe(1);
         ShouldBeDeadLetteredAtTheCeiling(fixture.PermanentFailures[0]);
 
-        var entry = fixture.BehaviorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 5454);
+        var entry = fixture.BehaviorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 12054);
         entry.Level.ShouldBe(LogLevel.Warning);
         entry.Message.ShouldContain(OutboundErrorCodes.ServerError);
         entry.Message.ShouldNotContain("outbound failure");
@@ -822,7 +822,7 @@ public sealed class DelayedRetryChainTests
         ShouldBeDeadLetteredAtTheCeiling(fixture.PermanentFailures[0]);
         fixture.Store.FailedCount.ShouldBe(1);
 
-        var entry = fixture.ProcessorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 5455);
+        var entry = fixture.ProcessorLogger.Collector.GetSnapshot().Single(e => e.Id.Id == 12055);
         entry.Level.ShouldBe(LogLevel.Warning);
         entry.Message.ShouldContain(OutboundErrorCodes.ServerError);
         SkippedTags(metrics)["error_code"].ShouldBe(OutboundErrorCodes.ServerError);
@@ -847,7 +847,7 @@ public sealed class DelayedRetryChainTests
         // Assert
         fixture.Scheduled[1].ShouldBe((1, TimeSpan.FromSeconds(45)));
         fixture.Scheduled[2].ShouldBe((2, TimeSpan.FromSeconds(45)));
-        fixture.ProcessorLogger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 5455);
+        fixture.ProcessorLogger.Collector.GetSnapshot().ShouldNotContain(e => e.Id.Id == 12055);
     }
 
     #endregion
