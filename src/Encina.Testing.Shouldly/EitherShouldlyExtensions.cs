@@ -234,7 +234,7 @@ public static class EitherShouldlyExtensions
     }
 
     /// <summary>
-    /// Asserts that the result is a validation error (code starts with "encina.validation").
+    /// Asserts that the result is a validation error (its category is <see cref="ErrorCategory.Validation"/>, whatever its code).
     /// </summary>
     /// <typeparam name="TRight">The success type.</typeparam>
     /// <param name="either">The Either result to assert.</param>
@@ -245,15 +245,19 @@ public static class EitherShouldlyExtensions
         string? customMessage = null)
     {
         var error = either.ShouldBeError(customMessage);
-        var code = error.GetCode().IfNone(string.Empty);
+        ShouldHaveCategory(error, ErrorCategory.Validation, customMessage);
+        return error;
+    }
 
-        if (!code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
+    private static void ShouldHaveCategory(EncinaError error, ErrorCategory expected, string? customMessage)
+    {
+        var category = error.GetCategory();
+
+        if (category != expected)
         {
             throw new ShouldAssertException(
-                customMessage ?? $"Expected validation error but got code '{code}'");
+                customMessage ?? $"Expected an error of category {expected} but the category was {category}.");
         }
-
-        return error;
     }
 
     /// <summary>
@@ -280,7 +284,7 @@ public static class EitherShouldlyExtensions
     }
 
     /// <summary>
-    /// Asserts that the result is a not found error (code starts with "encina.notfound").
+    /// Asserts that the result is a not found error (its category is <see cref="ErrorCategory.NotFound"/>, whatever its code).
     /// </summary>
     /// <typeparam name="TRight">The success type.</typeparam>
     /// <param name="either">The Either result to assert.</param>
@@ -291,14 +295,7 @@ public static class EitherShouldlyExtensions
         string? customMessage = null)
     {
         var error = either.ShouldBeError(customMessage);
-        var code = error.GetCode().IfNone(string.Empty);
-
-        if (!code.StartsWith("encina.notfound", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ShouldAssertException(
-                customMessage ?? $"Expected not found error but got code '{code}'");
-        }
-
+        ShouldHaveCategory(error, ErrorCategory.NotFound, customMessage);
         return error;
     }
 

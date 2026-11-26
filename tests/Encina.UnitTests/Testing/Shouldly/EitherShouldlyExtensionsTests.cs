@@ -1,5 +1,7 @@
 using Encina.Testing.Shouldly;
+using Encina.Validation;
 using LanguageExt;
+using ValidationResult = Encina.Validation.ValidationResult;
 
 namespace Encina.UnitTests.Testing.Shouldly;
 
@@ -9,10 +11,10 @@ namespace Encina.UnitTests.Testing.Shouldly;
 internal static class TestEncinaErrors
 {
     public static EncinaError NotFound(string code, string message) =>
-        EncinaErrors.Create(code, message);
+        EncinaErrors.Create(code, ErrorCategory.NotFound, message);
 
     public static EncinaError Validation(string code, string message) =>
-        EncinaErrors.Create(code, message);
+        EncinaErrors.Create(code, ErrorCategory.Validation, message);
 
     public static EncinaError Authorization(string code, string message) =>
         EncinaErrors.Create(code, message);
@@ -29,6 +31,17 @@ internal static class TestEncinaErrors
 /// </summary>
 public sealed class EitherShouldlyExtensionsTests
 {
+    private sealed record RejectedCommand : ICommand<string>;
+
+    private sealed class RejectingValidationProvider : IValidationProvider
+    {
+        public ValueTask<ValidationResult> ValidateAsync<TRequest>(
+            TRequest request,
+            IRequestContext context,
+            CancellationToken cancellationToken)
+            => ValueTask.FromResult(ValidationResult.Failure("Name", "Name is required"));
+    }
+
     #region Success Assertions Tests
 
     [Fact]
@@ -271,6 +284,82 @@ public sealed class EitherShouldlyExtensionsTests
 
         // Assert
         error.ShouldBe(encinaError);
+    }
+
+    [Fact]
+    public async Task ShouldBeValidationError_WhenRealValidationPipelineRejects_ReturnsError()
+    {
+        // Arrange: the real behavior and orchestrator produce the error, not a hand-built one
+        var orchestrator = new ValidationOrchestrator(new RejectingValidationProvider());
+        var behavior = new ValidationPipelineBehavior<RejectedCommand, string>(orchestrator);
+
+        // Act
+        var result = await behavior.Handle(
+            new RejectedCommand(),
+            RequestContext.Create(),
+            () => ValueTask.FromResult(LanguageExt.Prelude.Right<EncinaError, string>("unreachable")),
+            CancellationToken.None);
+
+        // Assert
+        result.ShouldBeValidationError().GetCategory().ShouldBe(ErrorCategory.Validation);
+    }
+
+    [Fact]
+    public void ShouldBeValidationError_WhenValidationCategoryWithPackageSpecificCode_ReturnsError()
+    {
+        // Arrange: the category is the contract, not the code (ADR-062)
+        Either<EncinaError, int> result = EncinaErrors.Create("consent.invalid_purpose", ErrorCategory.Validation, "invalid");
+
+        // Act & Assert
+        result.ShouldBeValidationError().GetCategory().ShouldBe(ErrorCategory.Validation);
+    }
+
+    [Fact]
+    public void ShouldBeNotFoundError_WhenNotFoundCategoryWithPackageSpecificCode_ReturnsError()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create("saga.not_found", ErrorCategory.NotFound, "missing");
+
+        // Act & Assert
+        result.ShouldBeNotFoundError().GetCategory().ShouldBe(ErrorCategory.NotFound);
+    }
+
+    [Fact]
+    public void ShouldBeValidationError_WhenOtherCategory_FailsNamingTheCategoryNotTheMessage()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "secret detail");
+
+        // Act
+        var exception = Should.Throw<ShouldAssertException>(() => result.ShouldBeValidationError());
+
+        // Assert
+        exception.Message.ShouldContain(nameof(ErrorCategory.NotFound));
+        exception.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public void ShouldBeNotFoundError_WhenOtherCategory_FailsNamingTheCategoryNotTheMessage()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Validation("secret detail");
+
+        // Act
+        var exception = Should.Throw<ShouldAssertException>(() => result.ShouldBeNotFoundError());
+
+        // Assert
+        exception.Message.ShouldContain(nameof(ErrorCategory.Validation));
+        exception.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public void ShouldBeValidationError_WhenOnlyEncinaValidationCodeWithoutCategory_Throws()
+    {
+        // Arrange: a hand-built error with the legacy code prefix and no category no longer satisfies the assertion
+        Either<EncinaError, int> result = EncinaErrors.Create("encina.validation.failed", "legacy");
+
+        // Act & Assert
+        Should.Throw<ShouldAssertException>(() => result.ShouldBeValidationError());
     }
 
     [Fact]

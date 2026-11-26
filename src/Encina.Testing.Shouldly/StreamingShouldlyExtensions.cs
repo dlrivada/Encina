@@ -321,7 +321,7 @@ public static class StreamingShouldlyExtensions
         var errors = results.GetErrors();
 
         var validationError = errors
-            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
+            .Where(e => e.GetCategory() == ErrorCategory.Validation)
             .Where(e =>
             {
                 var metadata = e.GetMetadata();
