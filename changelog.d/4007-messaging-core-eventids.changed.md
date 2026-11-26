@@ -1,0 +1,1 @@
+- The EventIds of the messaging core (Encina.Messaging orchestrators and runners) and its recoverability pipeline moved into the 10000+ zone: 2800-2999 is now 11550-11749 and 5450-5499 is now 12050-12099 (each id keeps its offset inside the range). Only the numbers change; templates, levels and names stay. Update log filters and alerts that match the old ids (#4007, #4114).
