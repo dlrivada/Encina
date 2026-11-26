@@ -3,7 +3,7 @@
 > **Issue**: [#804](https://github.com/dlrivada/Encina/issues/804)
 > **Type**: Feature (new package)
 > **Complexity**: Very High (four event-sourced aggregates, classification and deadline rules, shared incident reporting; 11 pull requests)
-> **Estimated Scope**: about 138 file touches and about 12,000 lines including tests and per-PR metadata; split into 11 pull requests (each at most 15 files and 1,500 lines, with explicit file lists), see "Pull request split"
+> **Estimated Scope**: 142 file touches (the per-PR table sum; a shared file such as `PublicAPI.Unshipped.txt` counts in every PR that edits it) and about 12,250 lines including tests and per-PR metadata; split into 11 pull requests (each at most 15 files and 1,500 lines, with explicit file lists), see "Pull request split"
 > **Milestone**: v0.17.0 — Compliance Lifecycle. In the 1.0 scope since SPEC-000 DEC-009 (2026-10-23, REQ-030, which supersedes SPEC-002 DEC-015); the issue's `post-1.0` label and the issue comment "stays post-1.0" are stale
 > **Provider Category**: None for databases (Marten on PostgreSQL, ADR-027; AGENTS.md section 5 excludes event sourcing from the database matrix)
 > **Family**: `compliance-nis2-2` (regulatory compliance packages after NIS2). Shares the incident reporting port of the #812 plan and the event-sourcing conventions of #822.
@@ -28,7 +28,7 @@ DORA is lex specialis for financial entities and their ICT third-party providers
 
 **Provider category**: none of the database, caching, transport, lock or validation categories. The 12-function check is in the matrix at the end.
 
-### Corrections to the issue text (checked against `origin/main` 37b2edd32)
+### Corrections to the issue text (checked against `origin/main` 19b761ffa)
 
 | Issue text | Today's code and verified facts | Plan decision |
 |---|---|---|
@@ -209,6 +209,27 @@ DORA is lex specialis for financial entities and their ICT third-party providers
 
 </details>
 
+<details>
+<summary><strong>9. Where the Art. 45 information-sharing arrangement lives</strong></summary>
+
+- **Class**: Dilemma
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A small entity-level stream, `InformationSharingArrangementAggregate`, with one stream per tenant (stream id derived from the injective tenant key of Design Choice 8, reserved segment `default` without a tenant)** | Art. 45 is an arrangement of the financial entity with other financial entities, not a fact about one ICT provider; one record per entity, no duplication; no read model needed (the service loads the aggregate by its derived id) | A fifth aggregate: two more files in PR 4 and one more `AddAggregateRepository<T>()` in PR 8 |
+| B) Inside `ICTThirdPartyProviderAggregate` | No extra aggregate | The stream is keyed by tenant plus provider LEI, so the entity-level arrangement would repeat per provider or sit on an arbitrary one |
+| C) Inside `ICTRiskAggregate` | No extra aggregate | The stream is per risk assessment, the same repetition problem |
+
+### Chosen Option: **A (recommended, pending the maintainer)**
+
+### Rationale
+
+- A wins on correctness of the model; B or C win only if the maintainer prefers four aggregates over one record per entity. The PR split below assumes A; choosing B or C removes two files from PR 4 and no other PR changes. Design Choice 2 does not depend on this answer.
+
+</details>
+
 ---
 
 ## Implementation Phases
@@ -219,16 +240,16 @@ The package is built bottom-up; each PR builds and passes alone. Test project ed
 
 | PR | Phases | Files (production, metadata), explicit | Test files, explicit | Files / lines (approx.) |
 |---|---|---|---|---|
-| 1 | 1 | `src/Encina/Diagnostics/EventIdRanges.cs`, `docs/engineering/eventid-block-registry.md` row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.slnx`, `Encina.Compliance.DORA.csproj`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest `Encina.Compliance.DORA.json`, `DORAOptions`, `DORAErrors` (10) | `AssemblyRanges` entry in `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj` references, unit options test (4) | 14 files / 700 |
-| 2 | 2 | `ICTIncidentClassification`, `ICTIncidentStatus`, `DORAClassificationCriteria`, `DORAIncidentClassifier`, `DORAIncidentDeadlineCalculator`, `ICTIncidentEvents`, `ICTIncidentAggregate`, `PublicAPI.Unshipped.txt`, manifest (9) | unit classifier, unit deadlines, unit aggregate, guard (classifier, calculator, aggregate), property deadlines, `Encina.PropertyTests.csproj` reference (6) | 15 files / 1,400 |
+| 1 | 1 | `src/Encina/Diagnostics/EventIdRanges.cs`, `docs/engineering/eventid-block-registry.md` row, `Encina` `PublicAPI.Unshipped.txt`, `Encina.slnx`, `Encina.Compliance.DORA.csproj`, `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, manifest `Encina.Compliance.DORA.json`, `DORAOptions` (with the TLPT, weekend-rule and `RequireTenantContext` options), `DORAErrors` (10) | `AssemblyRanges` entry in `EncinaEventIdAllocationTests`, `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj` references, unit options test (4) | 14 files / 750 |
+| 2 | 2 | `ICTIncidentClassification`, `ICTIncidentStatus`, `DORAClassificationCriteria`, `DORAIncidentClassifier`, `DORAIncidentDeadlineCalculator`, `ICTIncidentEvents`, `ICTIncidentAggregate`, `PublicAPI.Unshipped.txt`, manifest (9) | unit classifier, unit deadlines, unit aggregate, one guard file (classifier, calculator, aggregate), property deadlines, `Encina.PropertyTests.csproj` reference (6) | 15 files / 1,400 |
 | 3 | 3 | `ICTAsset`, `ICTAssetCriticality`, `ICTRiskLevel`, `ContinuityTestKind`, `ICTRiskEvents`, `ICTRiskAggregate`, `PublicAPI.Unshipped.txt`, manifest (8) | unit aggregate, guard, property score (3) | 11 files / 1,000 |
-| 4 | 4 | `ICTProviderCriticality`, `ContractualRequirement`, `ConcentrationLevel`, `ExitStrategyStatus`, `ICTThreatInformationSharingArrangement`, `ICTThirdPartyProviderEvents`, `ICTThirdPartyProviderAggregate`, `PublicAPI.Unshipped.txt`, manifest (9) | unit aggregate, guard, property concentration (3) | 12 files / 1,100 |
+| 4 | 4 | `ICTProviderCriticality`, `ContractualRequirement`, `ConcentrationLevel`, `ExitStrategyStatus`, `ICTThreatInformationSharingArrangement`, `ICTThirdPartyProviderEvents`, `ICTThirdPartyProviderAggregate`, `InformationSharingArrangementEvents`, `InformationSharingArrangementAggregate` (Dilemma 9, option A), `PublicAPI.Unshipped.txt`, manifest (11) | unit provider aggregate, unit arrangement aggregate, guard (one file, both aggregates), property concentration (4) | 15 files / 1,300 |
 | 5 | 5 | `ResilienceTestKind`, `ResilienceFinding`, `FindingSeverity`, `ResilienceTestEvents`, `ResilienceTestAggregate`, `PublicAPI.Unshipped.txt`, manifest (7) | unit aggregate, guard, property (3) | 10 files / 900 |
 | 6 | 6 (incident) | `IICTIncidentService`, `DefaultICTIncidentService`, `ICTIncidentReadModel`, `ICTIncidentProjection`, `DORAScopeResolver` (internal, tenant and module, Phase 6 task 1), `DORAMartenExtensions` (new, registers the incident aggregate and projection), `DORAIncidentLogMessages`, `PublicAPI.Unshipped.txt`, manifest (9) | unit service, unit projection, guard service, integration Marten, `Encina.IntegrationTests.csproj` reference (5) | 14 files / 1,300 |
 | 7 | 6 (risk) | `IICTRiskService`, `DefaultICTRiskService`, `ICTRiskReadModel`, `ICTRiskProjection`, `DORAMartenExtensions` (edit), `DORARiskLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,000 |
-| 8 | 6 (third party) | `IICTThirdPartyProviderService`, `DefaultICTThirdPartyProviderService`, `ICTProviderRegisterReadModel`, `ICTProviderRegisterProjection` (includes the Art. 45 arrangement), `DORAMartenExtensions` (edit), `DORAProviderLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,100 |
+| 8 | 6 (third party) | `IICTThirdPartyProviderService`, `DefaultICTThirdPartyProviderService`, `ICTProviderRegisterReadModel`, `ICTProviderRegisterProjection`, `DORAMartenExtensions` (edit: also `AddAggregateRepository` for the arrangement aggregate; the service reads it by its derived stream id, no read model), `DORAProviderLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,100 |
 | 9 | 6 (resilience test) | `IResilienceTestService`, `DefaultResilienceTestService`, `ResilienceTestReadModel`, `ResilienceTestProjection`, `DORAMartenExtensions` (edit), `DORAResilienceLogMessages`, `PublicAPI.Unshipped.txt`, manifest (8) | unit service, unit projection, guard service, integration Marten (4) | 12 files / 1,000 |
-| 10 | 7 | `ServiceCollectionExtensions` (`AddEncinaDORA`), `DORAOptionsValidator`, `DORAIncidentReportMapper`, `PublicAPI.Unshipped.txt`, manifest (5) | DI test with `ValidateOnBuild` and `ValidateScopes`, unit validator, unit mapper, guard (validator, registration, mapper), contract `IICT*` services (one file), `Encina.ContractTests.csproj` reference, load and benchmark `.md` justifications (2) (8) | 13 files / 1,200 |
+| 10 | 7 | `ServiceCollectionExtensions` (`AddEncinaDORA`), `DORAOptionsValidator`, `DORAIncidentReportMapper`, `PublicAPI.Unshipped.txt`, manifest (5) | DI test with `ValidateOnBuild` and `ValidateScopes`, unit validator, unit mapper, one guard file (validator, registration, mapper, `DORAMartenExtensions`), contract `IICT*` services (one file), `Encina.ContractTests.csproj` reference, load and benchmark `.md` justifications (2) (8) | 13 files / 1,200 |
 | 11 | 8, 9 | `DORADiagnostics`, `DORAHealthCheck`, `DORADeadlineMonitorService`, `DORAMonitorLogMessages`, `ServiceCollectionExtensions` (edit: monitor and health check registration), `PublicAPI.Unshipped.txt`, manifest, `changelog.d/804-dora-compliance.added.md`, package README, `docs/features/dora.md`, `docs/INVENTORY.md` (11) | unit monitor, unit health check, guard (diagnostics, health check, monitor) (3) | 14 files / 1,300 |
 
 The split is recounted with `git ls-tree` before each brief; a PR that would exceed 15 files or 1,500 lines hands its last aggregate's projection to the next PR. Services of PRs 6 to 9 log through the `[LoggerMessage]` ids of their own partial `DORALogMessages` file; ids are packed from 52800 in merge order with no gaps and never pass 52849 (52850-52899 stay free).
@@ -240,7 +261,7 @@ The split is recounted with `git ls-tree` before each brief; a PR that would exc
 
 1. `src/Encina/Diagnostics/EventIdRanges.cs`: `ComplianceDORA = (52800, 52899)` registered first (ADR-021), registry row, `Encina` PublicAPI line, `AssemblyRanges` entry for `Encina.Compliance.DORA` in `EncinaEventIdAllocationTests`.
 2. `src/Encina.Compliance.DORA/Encina.Compliance.DORA.csproj` (project references of Design Choice 1, `InternalsVisibleTo` for the six test assemblies, PublicAPI `AdditionalFiles`), `Encina.slnx` entry, `PublicAPI.Shipped.txt` and `PublicAPI.Unshipped.txt`.
-3. `DORAOptions` (enforcement of classification thresholds, monitor interval, `EnableDeadlineMonitor` default false) and `DORAErrors` (codes with ADR-062 categories: `IncidentNotFound` NotFound (R1, an incident addressed by the id the caller supplies), `IncidentInvalidTransition` Conflict (R2, an invalid transition; `FailedPrecondition` is not used before #3420), `ClassificationInputIncomplete` Validation (R3, a field rule), `ProviderAlreadyRegistered` AlreadyExists (R2, Design Choice 8), `TenantMissing` InvalidRequest (R3, a missing tenant; the gate still denies), `TenantMismatch` Forbidden (R6, an explicit tenant that differs from the ambient one), `EventStoreFailed` Internal (R4, a store failure). A missed deadline is not an error code: a late report is still accepted (reporting late beats not reporting), so the deadline breach is state, recorded as an escalation event by the monitor (Design Choice 6) and shown by the health check; there is no `DeadlineMissed` error. The version mismatch of two concurrent appends to one stream is `Conflict` (R2).
+3. `DORAOptions` (enforcement of classification thresholds, monitor interval, `EnableDeadlineMonitor` default false; `RequireTenantContext` default true, Phase 6 task 1; `TlptApplicable` default false and `TlptCycleMonths` default 36 for Art. 26(1), overridable per entity; the weekend and bank-holiday rule of RTS 2025/301 Art. 5: `ApplyWeekendRule` default false so deadlines stay strict until the entity opts in, `EntityKind` (credit institution, central counterparty, trading venue, NIS2 essential or important entity, other) to exclude initial and intermediate reports, and `BankHolidays` (a set of `DateOnly` for the entity's Member State, supplied by the application; no calendar abstraction); the authority's disapplication is `ApplyWeekendRule = false`) and `DORAErrors` (codes with ADR-062 categories: `IncidentNotFound` NotFound (R1, an incident addressed by the id the caller supplies), `IncidentInvalidTransition` Conflict (R2, an invalid transition; `FailedPrecondition` is not used before #3420), `ClassificationInputIncomplete` Validation (R3, a field rule), `ProviderAlreadyRegistered` AlreadyExists (R2, Design Choice 8), `TenantMissing` InvalidRequest (R3, a missing tenant; the gate still denies), `TenantMismatch` Forbidden (R6, an explicit tenant that differs from the ambient one), `EventStoreFailed` Internal (R4, a store failure). A missed deadline is not an error code: a late report is still accepted (reporting late beats not reporting), so the deadline breach is state, recorded as an escalation event by the monitor (Design Choice 6) and shown by the health check; there is no `DeadlineMissed` error. The version mismatch of two concurrent appends to one stream is `Conflict` (R2).
 4. Test project references and the unit test of the options.
 
 </details>
@@ -273,7 +294,7 @@ REFERENCE FILES: src/Encina.Compliance.NIS2/NIS2Errors.cs, src/Encina.Compliance
 <summary>Tasks</summary>
 
 1. `Model/ICTIncidentClassification.cs`, `ICTIncidentStatus.cs` (`Detected`, `Classified`, `InitialReportSent`, `IntermediateReportSent`, `FinalReportSent`, `Closed`), `DORAClassificationCriteria.cs`.
-2. `Services/DORAIncidentClassifier.cs` (pure) and `DORAIncidentDeadlineCalculator.cs` (pure, takes the instants; RTS 2025/301).
+2. `Services/DORAIncidentClassifier.cs` (pure) and `DORAIncidentDeadlineCalculator.cs` (pure, takes the instants, the `ApplyWeekendRule`, `EntityKind` and `BankHolidays` values of PR 1; RTS 2025/301). `Escalate` carries a `MissedDeadlineReason` code (an enum, no free text) so the entity can tell the authority why a deadline was missed (duty cited as RTS 2025/301 Art. 5; re-read at the PR 2 brief); the late report is still accepted.
 3. `Events/ICTIncidentEvents.cs` (`INotification` records, every event carries `TenantId`, `ModuleId`) and `Aggregates/ICTIncidentAggregate.cs` (`AggregateBase`; static `Detect(...)` returning `Either`; `Classify`, `SendInitialReport`, `SendIntermediateReport`, `SendFinalReport`, `Escalate`, `Close`, each returning `Either<EncinaError, Unit>`).
 
 </details>
@@ -337,7 +358,7 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 <summary>Tasks</summary>
 
 1. `Model/ICTProviderCriticality.cs`, `ContractualRequirement.cs` (the Art. 30 checklist), `ConcentrationLevel.cs`, `ExitStrategyStatus.cs`, `ICTThreatInformationSharingArrangement.cs`.
-2. `Events/ICTThirdPartyProviderEvents.cs` and `Aggregates/ICTThirdPartyProviderAggregate.cs`: `Register`, `UpdateRegisterEntry` (ITS 2024/2956 fields), `RecordContractReview`, `FlagConcentration`, `DefineExitStrategy`, `RecordInformationSharingArrangement` (Art. 45: the single `ICTThreatInformationSharingArrangement` record, arrangement exists, date, anonymisation confirmed; event `InformationSharingArrangementRecorded`; no exchange protocol), `Terminate`.
+2. `Events/ICTThirdPartyProviderEvents.cs` and `Aggregates/ICTThirdPartyProviderAggregate.cs`: `Register`, `UpdateRegisterEntry` (ITS 2024/2956 fields), `RecordContractReview`, `FlagConcentration`, `DefineExitStrategy`, and the Art. 45 record ( the single `ICTThreatInformationSharingArrangement` record, arrangement exists, date, anonymisation confirmed; no exchange protocol; per Dilemma 9 option A this command lives on the new `InformationSharingArrangementAggregate` (`Record`, event `InformationSharingArrangementRecorded`, one stream per tenant), not on the provider aggregate), `Terminate`.
 
 </details>
 
@@ -396,7 +417,7 @@ REFERENCE FILES: src/Encina.Compliance.DPIA/Aggregates/DPIAAggregate.cs
 <details>
 <summary>Tasks</summary>
 
-1. Interfaces `IICTIncidentService`, `IICTRiskService`, `IICTThirdPartyProviderService`, `IResilienceTestService` (commands plus overdue and list queries) and default internal implementations taking `IAggregateRepository<T>`, `TimeProvider`, `IRequestContextAccessor`, `ILogger`, then the optional `MultiTenancyMarker? multiTenancy = null` and `IModuleExecutionContext? moduleContext = null` (optional parameters last, CS1737). `ITenantContext` and `IModuleContext` do not exist in `src` and are not used. The tenant comes from the ambient `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`) read through `IRequestContextAccessor.RequestContext` (`src/Encina/Abstractions/IRequestContextAccessor.cs:54`), the pattern of `DefaultConsentService.TryResolveWriteTenantScope`; the module id comes from `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs:58`). The internal `DORAScopeResolver` (PR 6) holds that rule once: when a `MultiTenancyMarker` is registered and no tenant is present the command returns `Left` `TenantMissing` (`InvalidRequest`, ADR-062 R3; fail closed), and an explicit tenant that differs from the ambient one is `Left` `Forbidden` (R6). No `ProjectReference` is added: `Encina.Compliance.DORA` already references `Encina`, and the typed resolver of #1257 (`ITenantScopeResolver`) replaces the helper when that plan merges, with no change to the services' public surface.
+1. Interfaces `IICTIncidentService`, `IICTRiskService`, `IICTThirdPartyProviderService`, `IResilienceTestService` (commands plus overdue and list queries) and default internal implementations taking `IAggregateRepository<T>`, `TimeProvider`, `IRequestContextAccessor`, `ILogger`, then the optional `MultiTenancyMarker? multiTenancy = null` and `IModuleExecutionContext? moduleContext = null` (optional parameters last, CS1737). `ITenantContext` and `IModuleContext` do not exist in `src` and are not used. The tenant comes from the ambient `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`) read through `IRequestContextAccessor.RequestContext` (`src/Encina/Abstractions/IRequestContextAccessor.cs:70`), the pattern of `DefaultConsentService.TryResolveWriteTenantScope` (`DefaultConsentService.cs:605-632`); the module id comes from `IModuleExecutionContext.CurrentModule` (`src/Encina/Modules/Isolation/IModuleExecutionContext.cs:80`). The Consent pattern fails closed only under a condition: `_options.RequireTenantContext ?? _isMultiTenantApplication` (`DefaultConsentService.cs:128`, true when `MultiTenancyMarker` is registered or the option is set), so an application with neither gets no denial. This package does not copy that default: `DORAOptions.RequireTenantContext` (`bool`, default `true`) makes a missing tenant deny unless the application sets it to `false` explicitly, and setting it to `false` while a `MultiTenancyMarker` is registered is logged by code (SPEC-002 DEC-006). The internal `DORAScopeResolver` (PR 6) holds that rule once: when `RequireTenantContext` is true and no tenant is present the command returns `Left` `TenantMissing` (`InvalidRequest`, ADR-062 R3; fail closed), and an explicit tenant that differs from the ambient one is `Left` `Forbidden` (R6; deliberately not Consent's `TenantRequired`, which ADR-062 R6 replaces for mismatches). No `ProjectReference` is added: `Encina.Compliance.DORA` already references `Encina`, and the typed resolver of #1257 (`ITenantScopeResolver`) replaces the helper when that plan merges, with no change to the services' public surface.
 2. Read models `ICTIncidentReadModel`, `ICTRiskReadModel`, `ICTProviderRegisterReadModel`, `ResilienceTestReadModel` and inline projections, idempotent, constructor-injected.
 3. `DORAMartenExtensions` (`AddDORAEventSourcing()`): one `AddAggregateRepository<T>()` and `AddProjection<,>()` per aggregate.
 
@@ -462,7 +483,7 @@ REFERENCE FILES: src/Encina.Compliance.NIS2/ServiceCollectionExtensions.cs
 1. `Diagnostics/DORADiagnostics.cs` (meter and `ActivitySource` `Encina.Compliance.DORA`) and `DORAMonitorLogMessages.cs` (a partial of `DORALogMessages`; the service files of PRs 6 to 9 add theirs; `[LoggerMessage]` ids packed from 52800 in merge order, no gaps, ceiling 52849; 52850-52899 stay free).
 2. `Health/DORAHealthCheck.cs`: overdue incident report or overdue resilience-test remediation gives `Degraded`.
 3. `DORADeadlineMonitorService` (Design Choice 6), with the optional lock of matrix row 7.
-4. Art. 45 information sharing needs nothing here: its record, command and event are in Phase 4 (PR 4) and its read-model projection in PR 8.
+4. Art. 45 information sharing needs nothing here: its record, command and event are in Phase 4 (PR 4) and its service access and repository registration in PR 8. PRs 6 to 9 prove their service only with a hand-built test provider because `AddEncinaDORA` lands in PR 10; the PR 6 brief says so.
 
 </details>
 
@@ -530,7 +551,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 | DORA Arts. 17-23, RTS 2024/1772, RTS 2025/301, ITS 2025/302 | Incident classification and reporting | `ICTIncidentAggregate`, classifier, deadlines, report mapper |
 | DORA Arts. 24-27, RTS 2025/1190 | Resilience and TLPT testing | `ResilienceTestAggregate` |
 | DORA Arts. 28-44, ITS 2024/2956 | Third-party risk and register of information | `ICTThirdPartyProviderAggregate` |
-| DORA Art. 45 | Information sharing | Arrangement record only (Phase 4, event and command; read model in PR 8) |
+| DORA Art. 45 | Information sharing | Arrangement record only (Phase 4, event and command; Dilemma 9) |
 
 The article numbers, periods and Level 2 act numbers above and in the phases (4 h, 24 h, 72 h, one month, the three-year TLPT cycle of Art. 26(1), the chapter ranges, RTS and ITS numbers) are verified against the Official Journal text (mirror) in the batch's legal-facts record of 2026-11-26. Not read there and therefore UNVERIFIED: the recurring-incident rule of RTS 2024/1772 (the plan does not model it; a later issue may), and the proportionality regime (simplified ICT risk framework of RTS 2024/1774 and Art. 16, microenterprises), which the plan does not model either. The brief of each PR re-reads the values against EUR-Lex before the constants are coded.
 
@@ -554,7 +575,7 @@ The article numbers, periods and Level 2 act numbers above and in the phases (4 
 
 | Category | Files | Notes |
 |---|---|---|
-| Production | 52 | Models, events, aggregates, services, projections, diagnostics |
+| Production | 54 | Models, events, aggregates, services, projections, diagnostics (distinct files; the PR table above counts a shared file in each PR that edits it) |
 | Metadata (csproj, slnx, PublicAPI, manifest, registry, README, fragment) | 22 | Counted per PR |
 | Tests | 38 | Unit, guard, contract, property, integration, `.md` justifications, project references |
 | Documentation page | 1 | |
@@ -593,7 +614,7 @@ REFERENCE FILES: src/Encina.Compliance.BreachNotification; src/Encina.Compliance
 | 7 | Distributed Locks | ✅ | The opt-in monitor takes an optional `IDistributedLockProvider` lock per iteration when one is registered, so a multi-instance deployment runs one evaluation; without a provider it runs unguarded |
 | 8 | Transactions | ❌ | Each command appends to one stream; the repository commit is the owner (the orchestrator never calls `SaveChangesAsync`) |
 | 9 | Idempotency | ✅ | Report submission is keyed by incident id, phase and sequence number through `IncidentReport.ReportId` (#812) |
-| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model, read from `IRequestContext.TenantId` through `IRequestContextAccessor`; missing tenant denies (`InvalidRequest`, ADR-062 R3) |
+| 10 | Multi-Tenancy | ✅ | `TenantId` on every event and read model, read from `IRequestContext.TenantId` through `IRequestContextAccessor`; missing tenant denies while `DORAOptions.RequireTenantContext` is true, its default (`InvalidRequest`, ADR-062 R3) |
 | 11 | Module Isolation | ✅ | `ModuleId` on every event and read model, from `IModuleExecutionContext.CurrentModule` |
 | 12 | Audit Trail | ✅ | The event stream is the immutable audit trail; reads are not audited |
 
@@ -606,6 +627,6 @@ REFERENCE FILES: src/Encina.Compliance.BreachNotification; src/Encina.Compliance
 
 ## Next Steps
 
-1. Maintainer answers Dilemmas 3 and 4 when work on #804 starts; both are marked "recommended, pending the maintainer".
+1. Maintainer answers Dilemmas 3, 4 and 9 when work on #804 starts; all are marked "recommended, pending the maintainer".
 2. Brief PR 1 after #812 PR 1 is merged; PR 2 to PR 11 follow in order.
 3. Run `check-plan.ps1` without `-Draft` after the adversarial review sets the `Verified` lines.
