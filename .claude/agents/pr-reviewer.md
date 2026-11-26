@@ -75,6 +75,13 @@ decision, never bypassed (#1345; the #1346 worker bypassed `block-main-checkout-
    Guard tests (#3798): public methods or constructors with reference-type or validated parameters added or changed in the diff (`PublicAPI.Unshipped.txt`
    lines, new public constructors or methods) without argument tests in `tests/Encina.GuardTests` is a
    `major` finding (a null test is required only for a parameter the code checks for null; a nullable parameter that accepts null gets a test of the valid result, not an exception test); argument-check assertions placed in `UnitTests` instead of `GuardTests` are a `minor` finding.
+   Bug-fix PRs (#4348): when a closing keyword (`Fixes`/`Closes`/`Resolves`) names a `[BUG]`-prefixed or `bug`-labeled
+   issue ([DEBT]/[TEST] are out of scope), the diff must add or change at least one test, in the test project of the
+   changed code (`Test-Hooks.ps1` for a hook), that fails on an assertion or exception (not a compile error) with the
+   fix reverted and the test unchanged, and the PR body must name it with the command and failing output on the parent
+   (`AGENTS.md` §9). Deleted-code fixes assert the behavior is gone; nondeterministic bugs need a deterministic test.
+   A missing test, or one that passes without the fix, is a `blocker`; so is an unjustified
+   `Regression test: not applicable, <reason>` (docs, workflow YAML, configuration are valid reasons).
 3. Check every acceptance criterion of the linked issue against the diff: `met` (name the file/line
    evidence), `not met`, or `not verifiable` (state what evidence is missing).
    **Decision register (#2470).** Find the register of the linked issue: the Design Choices of its plan

@@ -100,7 +100,7 @@ public sealed class ShardTopology
             ? Either<EncinaError, ShardInfo>.Right(shard)
             : Either<EncinaError, ShardInfo>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the topology."));
     }
 
@@ -117,7 +117,7 @@ public sealed class ShardTopology
             ? Either<EncinaError, string>.Right(shard.ConnectionString)
             : Either<EncinaError, string>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the topology."));
     }
 

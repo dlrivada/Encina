@@ -148,17 +148,11 @@ internal sealed class DebeziumHttpListener : BackgroundService
         }
 
         // Validate bearer token if configured
-        if (!string.IsNullOrEmpty(_options.BearerToken))
+        if (!IsAuthorized(request))
         {
-            var authHeader = request.Headers["Authorization"];
-            if (string.IsNullOrEmpty(authHeader) ||
-                !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
-                authHeader["Bearer ".Length..] != _options.BearerToken)
-            {
-                response.StatusCode = 401;
-                response.Close();
-                return;
-            }
+            response.StatusCode = 401;
+            response.Close();
+            return;
         }
 
         // Read and parse the event
@@ -172,28 +166,45 @@ internal sealed class DebeziumHttpListener : BackgroundService
             return;
         }
 
+        response.StatusCode = EnqueueEvent(body);
+        response.Close();
+    }
+
+    private bool IsAuthorized(HttpListenerRequest request)
+    {
+        if (string.IsNullOrEmpty(_options.BearerToken))
+        {
+            return true;
+        }
+
+        var authHeader = request.Headers["Authorization"];
+        return !string.IsNullOrEmpty(authHeader) &&
+            authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
+            authHeader["Bearer ".Length..] == _options.BearerToken;
+    }
+
+    /// <summary>
+    /// Parses the body and writes it to the channel; returns the HTTP status code to answer with.
+    /// </summary>
+    private int EnqueueEvent(string body)
+    {
         try
         {
-            var eventJson = JsonDocument.Parse(body).RootElement.Clone();
+            var eventJson = JsonElement.Parse(body);
 
             // Apply backpressure: return 503 when the bounded channel is full
             if (!_channelWriter.TryWrite(eventJson))
             {
                 DebeziumCdcLog.ChannelFull(_logger, _options.ChannelCapacity);
-                response.StatusCode = 503;
-                response.Close();
-                return;
+                return 503;
             }
 
             DebeziumCdcLog.EventReceived(_logger);
-
-            response.StatusCode = 200;
+            return 200;
         }
         catch (JsonException)
         {
-            response.StatusCode = 400;
+            return 400;
         }
-
-        response.Close();
     }
 }
