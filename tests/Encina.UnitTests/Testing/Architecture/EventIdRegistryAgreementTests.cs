@@ -308,8 +308,7 @@ internal static class EventIdBlockRegistry
     internal static readonly System.Collections.Generic.HashSet<string> HistoricalRangeNames = new(StringComparer.Ordinal)
     {
         "Sanitization", "AspNetCore", "Testing", "EntityFrameworkCoreSoftDelete",
-        "SecurityAuditRead", "ModuleIsolation", "MessagingOutbox",
-        "MessagingInbox", "MessagingSaga", "MessagingScheduling", "EntityFrameworkCoreQueryCache",
+        "SecurityAuditRead", "EntityFrameworkCoreQueryCache",
         "MessagingEncryption", "AuditMarten", "Marten", "Messaging",
         "EntityFrameworkCore", "MongoDB", "ADOSqlServer", "ADOPostgreSQL", "ADOMySQL", "DapperSqlServer",
         "DapperPostgreSQL", "DapperMySQL", "Caching", "CachingMemory", "CachingRedis", "CachingHybrid",
@@ -319,7 +318,7 @@ internal static class EventIdBlockRegistry
         "AwsLambda", "AzureFunctions", "Cdc", "CdcSqlServer", "CdcDebezium", "SecurityAudit", "SecuritySecrets",
         "SecuritySecretsAzureKeyVault", "SecuritySecretsAwsSecretsManager", "SecuritySecretsHashiCorpVault",
         "SecuritySecretsGoogleCloudSecretManager", "CdcMySql", "MessagingRecoverability", "OpenTelemetry",
-        "Security", "SecurityPII", "IdGeneration", "ComplianceGDPR", "ComplianceConsent", "ComplianceDSR",
+        "Security", "SecurityPII", "ComplianceGDPR", "ComplianceConsent", "ComplianceDSR",
         "ComplianceLawfulBasis", "ComplianceAnonymization", "MartenGDPRCryptoShredding", "ComplianceRetention",
         "ComplianceDataResidency", "ComplianceBreachNotification", "ComplianceDPIA", "CompliancePrivacyByDesign",
         "SecurityABAC", "SecurityAntiTampering", "ComplianceNIS2", "ComplianceCrossBorderTransfer",

@@ -19,7 +19,7 @@ namespace Encina.PropertyTests.Messaging;
 public class MessagePurgeCyclePropertyTests
 {
     /// <summary>The EventId of the no-progress warning (<c>MessagePurgeLog.NoProgress</c>).</summary>
-    private const int NoProgressEventId = 2112;
+    private const int NoProgressEventId = 10912;
 
     /// <summary>
     /// Invariant: whatever the backlog and the batch size, the cycle removes every expired message, returns

@@ -421,7 +421,7 @@ flowchart TB
 - `InboxOrchestrator`, `InboxPipelineBehavior`
 - `IIdempotentRequest` - Marker interface
 - Configuration: `InboxOptions` (MaxRetries, MessageRetentionPeriod, EnableAutomaticPurge, PurgeInterval, PurgeBatchSize)
-- `MessagePurgeService` (internal hosted service): purges processed, expired inbox messages in batches on all 10 database providers; EventIds 2107-2112 (`EventIdRanges.MessagingInbox`); counters `encina.messaging.purge.messages_deleted_total` and `encina.messaging.purge.cycle_failures_total`
+- `MessagePurgeService` (internal hosted service): purges processed, expired inbox messages in batches on all 10 database providers; EventIds 10907-10912 (`EventIdRanges.MessagingInbox`); counters `encina.messaging.purge.messages_deleted_total` and `encina.messaging.purge.cycle_failures_total`
 
 **Saga Pattern:**
 

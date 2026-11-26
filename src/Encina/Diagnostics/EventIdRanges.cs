@@ -18,7 +18,7 @@ namespace Encina.Diagnostics;
 /// </list>
 /// </para>
 /// <para>
-/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1; DomainModeling and Tenancy, CM-2) keeps its field but now lies in the zone. They are grouped
+/// Migration into the 10000+ zone (issue #4007): the ranges below, 91 at the start of the migration, are the historical ranges, and a range that has moved (Core, CM-1; DomainModeling and Tenancy, CM-2; module isolation, messaging stores and IdGeneration, CM-3) keeps its field but now lies in the zone. They are grouped
 /// by the area and sub-issue that moves them, in the merge order of #4007 (CM-1 to CM-6, DB-1, DB-2, CA-1, CA-2,
 /// TR-1, TR-2, SC-1 to SC-6, OP-1, OP-2, TT-CI). Each field keeps its current value until its sub-issue lands;
 /// the trailing comment names the sub-issue and the range the field moves to. The target extents are reserved in
@@ -66,22 +66,22 @@ public static class EventIdRanges
     // ── CM-3 Module isolation, messaging stores and IdGeneration ───────────
 
     /// <summary>Encina — module isolation operations.</summary>
-    public static readonly (int Min, int Max) ModuleIsolation = (1900, 1999); // moves to 10700-10799 in #4007 CM-3
+    public static readonly (int Min, int Max) ModuleIsolation = (10700, 10799); // moved from 1900-1999 in #4007 CM-3
 
     /// <summary>Encina.Messaging — outbox store operations.</summary>
-    public static readonly (int Min, int Max) MessagingOutbox = (2000, 2099); // moves to 10800-10899 in #4007 CM-3
+    public static readonly (int Min, int Max) MessagingOutbox = (10800, 10899); // moved from 2000-2099 in #4007 CM-3
 
     /// <summary>Encina.Messaging — inbox store operations.</summary>
-    public static readonly (int Min, int Max) MessagingInbox = (2100, 2199); // moves to 10900-10999 in #4007 CM-3
+    public static readonly (int Min, int Max) MessagingInbox = (10900, 10999); // moved from 2100-2199 in #4007 CM-3
 
     /// <summary>Encina.Messaging — saga store operations.</summary>
-    public static readonly (int Min, int Max) MessagingSaga = (2200, 2299); // moves to 11000-11099 in #4007 CM-3
+    public static readonly (int Min, int Max) MessagingSaga = (11000, 11099); // moved from 2200-2299 in #4007 CM-3
 
     /// <summary>Encina.Messaging — scheduled message store operations.</summary>
-    public static readonly (int Min, int Max) MessagingScheduling = (2300, 2399); // moves to 11100-11199 in #4007 CM-3
+    public static readonly (int Min, int Max) MessagingScheduling = (11100, 11199); // moved from 2300-2399 in #4007 CM-3
 
     /// <summary>Encina.IdGeneration — distributed ID generation.</summary>
-    public static readonly (int Min, int Max) IdGeneration = (8030, 8099); // moves to 12100-12199 in #4007 CM-3
+    public static readonly (int Min, int Max) IdGeneration = (12100, 12199); // moved from 8030-8099 in #4007 CM-3
 
     // ── CM-4 Messaging core and recoverability ─────────────────────────────
 

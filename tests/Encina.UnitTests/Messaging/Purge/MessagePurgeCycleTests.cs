@@ -108,8 +108,8 @@ public sealed class MessagePurgeCycleTests
         await _store.Received(2).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
         await _store.Received(1).RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
         var records = _logger.Collector.GetSnapshot();
-        records.Count(r => r.Id.Id == 2112).ShouldBe(1);
-        records.Single(r => r.Id.Id == 2112).Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
+        records.Count(r => r.Id.Id == 10912).ShouldBe(1);
+        records.Single(r => r.Id.Id == 10912).Level.ShouldBe(Microsoft.Extensions.Logging.LogLevel.Warning);
     }
 
     [Fact]
@@ -122,7 +122,7 @@ public sealed class MessagePurgeCycleTests
         ((int)result).ShouldBe(4);
         await _store.Received(3).GetExpiredMessagesAsync(2, Arg.Any<CancellationToken>());
         await _store.Received(2).RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
-        _logger.Collector.GetSnapshot().Count(r => r.Id.Id == 2112).ShouldBe(1);
+        _logger.Collector.GetSnapshot().Count(r => r.Id.Id == 10912).ShouldBe(1);
     }
 
     [Fact]
@@ -133,7 +133,7 @@ public sealed class MessagePurgeCycleTests
         var result = await MessagePurgeCycle.PurgeInboxAsync(_store, 2, _logger, CancellationToken.None);
 
         ((int)result).ShouldBe(5);
-        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 2112);
+        _logger.Collector.GetSnapshot().ShouldNotContain(r => r.Id.Id == 10912);
     }
 
     [Fact]
