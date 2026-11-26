@@ -8,7 +8,7 @@ namespace Encina.DomainModeling.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 2500-2549 range reserved for domain events
+/// Event IDs are allocated in the 11250-11299 range reserved for domain events
 /// (see <c>EventIdRanges.DomainModelingDomainEvents</c>).
 /// </para>
 /// <para>
@@ -21,7 +21,7 @@ public static partial class DomainEventLog
 {
     /// <summary>Logs when a domain event is being raised.</summary>
     [LoggerMessage(
-        EventId = 2500,
+        EventId = 11250,
         Level = LogLevel.Debug,
         Message = "Raising domain event {EventType}")]
     public static partial void RaisingEvent(
@@ -30,7 +30,7 @@ public static partial class DomainEventLog
 
     /// <summary>Logs when a domain event has been handled.</summary>
     [LoggerMessage(
-        EventId = 2501,
+        EventId = 11251,
         Level = LogLevel.Debug,
         Message = "Domain event {EventType} handled")]
     public static partial void EventHandled(
@@ -39,7 +39,7 @@ public static partial class DomainEventLog
 
     /// <summary>Logs when dispatching multiple domain events.</summary>
     [LoggerMessage(
-        EventId = 2502,
+        EventId = 11252,
         Level = LogLevel.Debug,
         Message = "Dispatching {Count} domain events")]
     public static partial void DispatchingEvents(
@@ -48,7 +48,7 @@ public static partial class DomainEventLog
 
     /// <summary>Logs when a domain event handler fails with a domain error.</summary>
     [LoggerMessage(
-        EventId = 2503,
+        EventId = 11253,
         Level = LogLevel.Warning,
         Message = "Domain event {EventType} handler failed: {ErrorMessage}")]
     public static partial void HandlerFailed(
@@ -58,7 +58,7 @@ public static partial class DomainEventLog
 
     /// <summary>Logs when domain event dispatch throws an unexpected exception.</summary>
     [LoggerMessage(
-        EventId = 2504,
+        EventId = 11254,
         Level = LogLevel.Error,
         Message = "Domain event dispatch failed")]
     public static partial void DispatchException(
