@@ -98,7 +98,7 @@ internal sealed class PollingRefreshDetector(
         if (primaryShardId is null)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                ReferenceTableErrorCodes.PrimaryShardNotFound, ErrorCategory.Internal,
                 $"No primary shard found for reference table '{config.EntityType.Name}'.");
         }
 
@@ -107,7 +107,7 @@ internal sealed class PollingRefreshDetector(
         if (primaryShardResult.IsLeft)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                ReferenceTableErrorCodes.PrimaryShardNotFound, ErrorCategory.Internal,
                 $"Primary shard '{primaryShardId}' not found in topology.");
         }
 

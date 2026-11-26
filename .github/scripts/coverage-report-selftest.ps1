@@ -30,6 +30,9 @@ plus <tmp>/src copied from the fixtures. Nothing reads the network, the clock or
   13-16. (#3860) a touched src C# path with a space is a dropped-path finding; --files-from without a value
      exits 1; an empty manifest directory is a no-manifest finding; a missing input directory rewrites
      check-targets.json with a no-coverage finding (a stale file is never left behind).
+  17-19. (#2890) --check-zeros lists a rejected zero and an unreadable source (report-only exit 0, --enforce
+     exit 1, check-zeros.json), passes when every zero is exempt, is never a vacuous pass without a manifest and
+     cannot be combined with another mode; --classify-zero exits 0 (exempt), 1 (not exempt) or 2 (bad argument).
 
 Exit code: 0 if every assertion passes, 1 otherwise.
 #>
@@ -287,8 +290,39 @@ try {
     Assert-Run '16b. --check-targets --enforce with a missing input directory' (Get-TargetsArgs $missingInput -Enforce) 1 'NO-COVERAGE'
     Assert-Findings '16b. missing input under --enforce' $missingInput 'no-coverage'
 
-    Assert-Run '12a. --enforce without --check-targets is rejected' @('--enforce', '--manifest', $good.Manifest, '--input', $good.Input, '--output', $good.Output) 1 'only apply to --check-targets'
+    Assert-Run '12a. --enforce without --check-targets or --check-zeros is rejected' @('--enforce', '--manifest', $good.Manifest, '--input', $good.Input, '--output', $good.Output) 1 'only applies to --check-targets and --check-zeros'
     Assert-Run '12b. --check-targets cannot be combined with --check-justifications' @('--check-targets', '--check-justifications', '--manifest', $good.Manifest) 1 'cannot be combined'
+
+    # --check-zeros and --classify-zero (#2890). Fixture sources: A.cs has an expression-bodied method with a
+    # bool parameter, B.cs a parameterless one; Extra.cs (staged) is an empty static class.
+    $zerosBad = New-Scenario -Name 'zeros-bad' -ManifestFixture 'manifest-zeros'
+    $zerosBadOut = Join-Path $stagingRoot 'zeros-bad-out'
+    Assert-Run '17a. --check-zeros report-only lists a rejected zero and an unreadable source (exit 0)' @('--check-zeros', '--manifest', $zerosBad, '--output', $zerosBadOut) 0 'REJECTED-ZERO: Pkg: A\.cs unit: method Pick with a body'
+    Assert-Run '17b. --check-zeros --enforce fails on a rejected zero' @('--check-zeros', '--enforce', '--manifest', $zerosBad, '--output', $zerosBadOut) 1 'NO-SOURCE: Pkg: \.\./\.\./Outside\.cs unit'
+    $zerosJson = Get-Content (Join-Path $zerosBadOut 'check-zeros.json') -Raw | ConvertFrom-Json
+    $zerosKinds = (@($zerosJson.findings | ForEach-Object { $_.kind }) | Sort-Object -Unique) -join ','
+    if ($zerosKinds -ne 'no-source,rejected-zero' -or $zerosJson.checkedZeros -ne 3 -or $zerosJson.findings.Count -ne 2) {
+        Write-Host "FAIL: 17c. check-zeros.json kinds '$zerosKinds', checkedZeros $($zerosJson.checkedZeros), findings $($zerosJson.findings.Count)"
+        $script:failures++
+    }
+    else { Write-Host "PASS: 17c. check-zeros.json lists the two findings and checks the 3 unit/guard/contract zeros (integration is outside the rule)" }
+
+    $zerosOk = New-Scenario -Name 'zeros-ok' -ManifestFixture 'manifest-zeros-ok' -ExtraSourceFiles @('Extra.cs')
+    $zerosOkOut = Join-Path $stagingRoot 'zeros-ok-out'
+    Assert-Run '18a. --check-zeros --enforce passes when every zero is exempt' @('--check-zeros', '--enforce', '--manifest', $zerosOk, '--output', $zerosOkOut) 0 'No findings'
+    Assert-Run '18b. --check-zeros --enforce with an empty manifest directory is never a vacuous pass' @('--check-zeros', '--enforce', '--manifest', $empty, '--output', $zerosOkOut) 1 'NO-MANIFEST'
+    Assert-Run '18c. --check-zeros cannot be combined with --check-targets' @('--check-zeros', '--check-targets', '--manifest', $zerosOk) 1 'cannot be combined'
+    Assert-Run '18d. --require-all-flags does not apply to --check-zeros' @('--check-zeros', '--require-all-flags', '--manifest', $zerosOk, '--output', $zerosOkOut) 1 'only applies to --check-targets'
+
+    $srcA = Join-Path $stagingRoot 'zeros-bad/src/Pkg/A.cs'
+    $srcExtra = Join-Path $stagingRoot 'zeros-ok/src/Pkg/Extra.cs'
+    Assert-Run '19a. --classify-zero: an empty static class is exempt for unit' @('--classify-zero', $srcExtra, 'unit') 0 'exempt: no executable members'
+    Assert-Run '19b. --classify-zero: a method with a body is not exempt for unit' @('--classify-zero', $srcA, 'unit') 1 'not exempt: method Pick with a body'
+    Assert-Run '19c. --classify-zero: a bool parameter is exempt for guard' @('--classify-zero', $srcA, 'GUARD') 0 'exempt:'
+    Assert-Run '19d. --classify-zero without a flag is an argument error' @('--classify-zero', $srcA) 2 'needs a source file and a flag'
+    Assert-Run '19e. --classify-zero with a flag outside the rule is an argument error' @('--classify-zero', $srcA, 'integration') 2 'must be unit, guard or contract'
+    Assert-Run '19f. --classify-zero with a missing file is an argument error' @('--classify-zero', (Join-Path $stagingRoot 'nope.cs'), 'unit') 2 'does not exist'
+    Assert-Run '19g. --classify-zero cannot be combined with a check mode' @('--classify-zero', $srcA, 'unit', '--check-zeros') 2 'cannot be combined'
 }
 finally {
     Remove-Item -Recurse -Force $stagingRoot -ErrorAction SilentlyContinue

@@ -372,7 +372,7 @@ public sealed class ABACDecisionAuditReaderTests
         first.RootElement.GetProperty("schema").GetString().ShouldBe(ABACDecisionAuditSchema.SchemaVersion);
         first.RootElement.GetProperty("outcome").GetString().ShouldBe("Success");
         first.RootElement.GetProperty("requestType").GetString().ShouldBe("GetOrderQuery");
-        lines.Select(line => JsonDocument.Parse(line).RootElement.GetProperty("decisionId").GetGuid()).Distinct().Count().ShouldBe(total);
+        lines.Select(line => JsonElement.Parse(line).GetProperty("decisionId").GetGuid()).Distinct().Count().ShouldBe(total);
     }
 
     [Fact]
