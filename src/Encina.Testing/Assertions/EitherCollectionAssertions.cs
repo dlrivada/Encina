@@ -337,14 +337,8 @@ public static class EitherCollectionAssertions
         var errors = results.GetErrors();
 
         var validationError = errors
-            .Where(e => e.GetCode().IfNone(string.Empty).StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase))
-            .Where(error =>
-            {
-                var metadata = error.GetMetadata();
-                return error.Message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                       metadata.Any(m => m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                                         m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
-            })
+            .Where(e => e.GetCategory() == ErrorCategory.Validation)
+            .Where(error => EitherAssertions.ErrorMentionsProperty(error, propertyName))
             .Cast<EncinaError?>()
             .FirstOrDefault();
 

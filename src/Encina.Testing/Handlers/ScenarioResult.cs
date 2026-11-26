@@ -190,7 +190,7 @@ public sealed class ScenarioResult<TResponse>
     /// <example>
     /// <code>
     /// result.ShouldBeErrorAnd()
-    ///     .ShouldSatisfy(e => Assert.StartsWith("encina.validation", e.GetCode().IfNone("")));
+    ///     .ShouldSatisfy(e => Assert.Equal(ErrorCategory.Validation, e.GetCategory()));
     /// </code>
     /// </example>
     public AndConstraint<EncinaError> ShouldBeErrorAnd()
@@ -223,26 +223,17 @@ public sealed class ScenarioResult<TResponse>
         }
 
         var error = ShouldBeError();
-        var code = error.GetCode().IfNone(string.Empty);
+        var category = error.GetCategory();
 
         Xunit.Assert.True(
-            code.StartsWith("encina.validation", StringComparison.OrdinalIgnoreCase),
-            $"Scenario '{_description}' expected validation error but got error with code: {code}");
-
-        var metadata = error.GetMetadata();
-        var message = error.Message;
+            category == ErrorCategory.Validation,
+            $"Scenario '{_description}' expected validation error but got error with category: {category}");
 
         foreach (var propertyName in expectedPropertyNames)
         {
-            var containsProperty =
-                message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                metadata.Any(m =>
-                    m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                    m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
-
             Xunit.Assert.True(
-                containsProperty,
-                $"Scenario '{_description}' expected validation error for property '{propertyName}' but error was: {message}");
+                EitherAssertions.ErrorMentionsProperty(error, propertyName),
+                $"Scenario '{_description}' expected validation error for property '{propertyName}' but it was not found in the error.");
         }
 
         return error;
@@ -256,7 +247,7 @@ public sealed class ScenarioResult<TResponse>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="expectedCode"/> is null.</exception>
     /// <example>
     /// <code>
-    /// result.ShouldBeErrorWithCode("encina.notfound");
+    /// result.ShouldBeErrorWithCode("orders.not_found");
     /// </code>
     /// </example>
     public EncinaError ShouldBeErrorWithCode(string expectedCode)
