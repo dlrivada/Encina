@@ -1,6 +1,7 @@
 using LanguageExt;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
+using Assert = TUnit.Assertions.Assert;
 
 namespace Encina.Testing.TUnit;
 
