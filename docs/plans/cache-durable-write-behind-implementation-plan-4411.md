@@ -2,7 +2,7 @@
 
 > **Issue**: [#4411](https://github.com/dlrivada/Encina/issues/4411)
 > **Type**: Feature
-> **Complexity**: High (12 pull requests: 8, 12, 15, eight provider pull requests of 12, 12, 12, 11, 11, 11, 14 and 12 files, and a closing one of 6 files; PR 1 has 10)
+> **Complexity**: High (12 pull requests: 8, 12, 15, eight provider pull requests of 12, 12, 12, 11, 11, 11, 15 and 12 files, and a closing one of 6 files; PR 1 has 10)
 > **Estimated Scope**: about 1,500 lines of production code, about 2,800 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272, so queued writes survive a process crash, with an `IWriteBehindQueue` abstraction extracted from the internal in-memory queue and a durable implementation per provider of the 10-provider database matrix. Re-checked against `origin/main` (0a7ce2ae1):
+Issue #4411 adds an opt-in durable queue under the write-behind strategy of #272, so queued writes survive a process crash, with an `IWriteBehindQueue` abstraction extracted from the internal in-memory queue and a durable implementation per provider of the 10-provider database matrix. Re-checked against `origin/main` (326e65ebf):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -273,8 +273,8 @@ PR 3 holds exactly these 15 files:
 | 1 | `src/Encina.Caching/Patterns/DurableWriteBehindQueue.cs` | new (internal sealed, scoped, over `IWriteBehindStore`) |
 | 2 | `src/Encina.Caching/Patterns/WriteBehindRequestRegistry.cs` | new (internal sealed: stable name to request type, built at startup) |
 | 3 | `src/Encina.Caching/Configuration/WriteBehindQueueKind.cs` | new (public enum `InMemory`, `Durable`) |
-| 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`WriteBehind.Queue`, `LeaseDuration`) |
-| 5 | `src/Encina.Caching/WriteBehindServiceCollectionExtensions.cs` | modify (durable registration and the startup check that an `IWriteBehindStore` is registered) |
+| 4 | `src/Encina.Caching/Configuration/CachingOptions.cs` | modify (`WriteBehind.Queue`, `LeaseDuration` and `HealthBacklogAge`, default 10 minutes, validated positive; the health check of PR 12 only reads it; the copy lines in `AddEncinaCaching` are part of the registration row below) |
+| 5 | `src/Encina.Caching/WriteBehindServiceCollectionExtensions.cs` | modify (durable registration, the startup check that an `IWriteBehindStore` is registered, and the validation of the three new option members; the existing `AddEncinaCaching` copy of `WriteBehind` is by reference to the sub-options object of #272, so no `ServiceCollectionExtensions.cs` edit is needed) |
 | 6 | `src/Encina.Caching/Diagnostics/CacheWriteBehindDurableLog.cs` | new (EventIds 520-523) |
 | 7 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` | modify (gauge `encina.cache.write_behind.durable_backlog`, replay span) |
 | 8 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingWriteBehindDurable = (520, 523)`) |
@@ -348,7 +348,7 @@ ADO.SqlServer (12 files):
 | 11 | `changelog.d/4411-cache-write-behind-store-ado-sqlserver.added.md` | new (`mechanical-fixer`) |
 | 12 | `src/Encina.ADO.SqlServer/README.md` | modify (`docs-writer`: the `UseWriteBehindStore` flag) |
 
-EntityFrameworkCore (14 files):
+EntityFrameworkCore (15 files):
 
 | # | File | Change |
 |---|------|--------|
@@ -364,6 +364,7 @@ EntityFrameworkCore (14 files):
 | 12 | `.github/coverage-manifest/Encina.EntityFrameworkCore.json` | modify (`mechanical-fixer`) |
 | 13 | `changelog.d/4411-cache-write-behind-store-efcore.added.md` | new (`mechanical-fixer`) |
 | 14 | `src/Encina.EntityFrameworkCore/README.md` | modify (`docs-writer`) |
+| 15 | `tests/Encina.IntegrationTests/Infrastructure/EntityFrameworkCore/WriteBehind/WriteBehindTestDbContext.cs` | new (a dedicated test context that maps only the write-behind entity; the shared `TestEFDbContext.cs` and `PostgreSQL/TestPostgreSqlDbContext.cs`, which map `ScheduledMessage` by hand, are not touched, so the pull request stays at 15 files) |
 
 MongoDB (12 files):
 
@@ -427,11 +428,11 @@ REFERENCE FILES:
 <details>
 <summary><strong>Tasks</strong></summary>
 
-PR 12 holds exactly these 6 files:
+PR 12 depends on PR 3 and on the ADO.PostgreSQL store pull request (PR 5), because the restart test runs on `WriteBehindStoreADO` with the shared `ADO-PostgreSQL` fixture (one provider is enough: the contract base proves the others). It holds exactly these 6 files; the health age member (`HealthBacklogAge`) and its `PublicAPI.Unshipped.txt` line already came with PR 3:
 
 | # | File | Change |
 |---|------|--------|
-| 1 | `tests/Encina.IntegrationTests/Infrastructure/Caching/DurableWriteBehindRestartTests.cs` | new (PostgreSQL shared fixture: enqueue, dispose the service provider, build a new one, the flush service replays; the handler sees the same `BatchId`) |
+| 1 | `tests/Encina.IntegrationTests/Infrastructure/Caching/DurableWriteBehindRestartTests.cs` | new (`[Collection("ADO-PostgreSQL")]` shared fixture, on `WriteBehindStoreADO` of PR 5: enqueue, dispose the service provider, build a new one, the flush service replays; the handler sees the same `BatchId`) |
 | 2 | `docs/features/handler-caching.md` | modify (`docs-writer`: "Durable write-behind" section) |
 | 3 | `changelog.d/4411-cache-durable-write-behind.added.md` | new (`mechanical-fixer`) |
 | 4 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`: the integration targets below) |
@@ -450,7 +451,7 @@ CONTEXT:
 All provider stores and the durable queue are merged.
 
 TASK:
-Write the restart integration test on the shared PostgreSQL fixture, move the health check backlog-age change here if PR 3 left it, ask docs-writer for the handler-caching.md section, and ask mechanical-fixer for the fragment and manifest rows.
+Write the restart integration test on the shared PostgreSQL fixture, make the health check read the HealthBacklogAge option that PR 3 added, ask docs-writer for the handler-caching.md section, and ask mechanical-fixer for the fragment and manifest rows.
 
 KEY RULES:
 - The test never creates its own container; it never sleeps (FakeTimeProvider drives the lease).
@@ -567,6 +568,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
 | #272 PR 3 (queue, behavior, abstractions) and PR 4 (flush service, `AddEncinaWriteBehind`) | Open | PR 2 and PR 3 of this plan need them; PR 1 and the provider pull requests (4 to 11) need only PR 1 of this plan |
+| PR 5 of this plan (ADO.PostgreSQL store) | Open | PR 12's restart test runs on it |
 | `IScheduledMessageStore` pattern, `IDbTransactionAccessor`, shared fixtures | ✅ Available | On `origin/main` |
 | Block 500-549 of the EventId registry | ✅ Assigned | Plan batch registry; 520-523 free |
 | Maintainer answers to Design Choices 1 to 6 | Pending | Asked when work starts |
@@ -578,13 +580,21 @@ Coverage targets (per flag, each set in the pull request named in the row, whose
 | `Encina.Messaging/WriteBehind/WriteBehindItem.cs` and `WriteBehindErrorCodes.cs` (PR 1) | 90 | 0 | 0 | 0 | A data record and constants with no validated parameter: no guard surface; equality, `with` and the constants test are unit tests |
 | `Encina.Messaging/WriteBehind/IWriteBehindStore.cs` (PR 1) | 0 | 0 | 0 | 0 | An interface has no executable lines |
 | `Encina.Messaging/MessagingConfiguration.cs` (PR 1) | 95 | 0 | 0 | 0 | The manifest has unit 95 on main and it is kept; the new property and its `PatternFlags()` entry are asserted in the flags test |
+| `Encina.Caching/Abstractions/IWriteBehindQueue.cs` including the public record `WriteBehindClaim` (PR 2) | 0 | 0 | 0 | 0 | An interface and a data record: no executable lines worth a target and no validated parameter, so no guard surface; the record is built by the queues and covered through them |
+| `Encina.Caching/Behaviors/WriteBehindPipelineBehavior.cs` (PR 2) | 95 | 0 | 70 | 0 | The #272 values are kept; the enqueue now goes through the interface and the existing tests cover it; internal, no guard surface |
+| `Encina.Caching/WriteBehindServiceCollectionExtensions.cs` (PR 2 and PR 3) | 100 | 100 | 0 | 0 | The #272 values are kept; the registrations are run by the DI tests and the null guard by the guard test of #272 |
+| `Encina.Caching/Configuration/CachingOptions.cs` (PR 3) | 0 | 85 | 0 | 0 | The manifest has guard 85 on main and it is kept (a unit target of 0 as today: the file has no unit row); the three new members are asserted in the registration test |
+| `Encina.Caching/Configuration/WriteBehindQueueKind.cs` (PR 3) | 0 | 0 | 0 | 0 | An enum has no executable lines |
+| `Encina.Caching/Diagnostics/CachePatternMetrics.Strategies.cs` (PR 3) | 90 | 0 | 0 | 0 | The #272 value is kept; the backlog gauge callback and the replay span run in the durable queue tests |
 | `Encina.Caching/Patterns/WriteBehindQueue.cs` (PR 2) | 100 | 0 | 80 | 0 | The #272 values (unit 100, contract 80) are kept; the changed lines are covered by the updated tests |
 | `Encina.Caching/Services/WriteBehindFlushService.cs` (PR 2) | 90 | 0 | 0 | 0 | The #272 value is kept; the per-scope resolution and claim loop are driven with `FakeTimeProvider` |
 | `Encina.Caching/Patterns/DurableWriteBehindQueue.cs` (PR 3; integration raised in PR 12) | 95 | 0 | 0 | 0, then 40 | Driven by a fake store in PR 3, which has no integration test, so integration is 0 there; PR 12 adds the restart test and raises it to 40; internal, no `InternalsVisibleTo` for the guard project |
 | `Encina.Caching/Patterns/WriteBehindRequestRegistry.cs` (PR 3) | 95 | 0 | 0 | 0 | Pure mapping with unit tests; internal |
 | `Encina.Caching/Diagnostics/CacheWriteBehindDurableLog.cs` (PR 3) | 90 | 0 | 0 | 0 | Generated bodies run in the queue tests |
 | `Encina.Caching/Health/WriteBehindHealthCheck.cs` (PR 12) | 100 | 0 | 0 | 0 | The #272 value (100) is kept; the new backlog-age branch is tested in the same pull request |
-| Each ADO.NET, Dapper, EF Core and MongoDB store (PRs 4 to 11) | 0 | 10 | 0 | 90 | Same numbers as the sibling scheduled stores on main (integration 90, guard 10; Dapper PostgreSQL has guard 9): SQL runs only against a real database, so the integration flag drives every statement and a mocked connection executes none (unit 0); the guard tests reach only the argument checks that precede the SQL, a tenth of the file |
+| Each ADO.NET and Dapper store (PRs 4 to 9) | 0 | 10 (9 for Dapper PostgreSQL) | 0 | 90 | The sibling scheduled stores on main have exactly these values (`ScheduledMessageStoreADO` SqlServer integration 90 guard 10; `ScheduledMessageStoreDapper` PostgreSQL integration 90 guard 9): SQL runs only against a real database, so the integration flag drives every statement and a mocked connection executes none (unit 0); the guard tests reach only the argument checks that precede the SQL |
+| `Encina.EntityFrameworkCore/WriteBehind/WriteBehindStoreEF.cs` (PR 10) | 0 | 10 | 0 | 90 | `ScheduledMessageStoreEF.cs` has no per-file entry in the manifest, so the ADO values are used for the same reasons; the package defaults (guard 10, integration 25) are never lowered |
+| `Encina.MongoDB/WriteBehind/WriteBehindStoreMongoDB.cs` (PR 11) | 90 | 10 | 0 | 95 | The sibling `ScheduledMessageStoreMongoDB.cs` has unit 92, guard 10, integration 95 on main; the new store takes unit 90 (its mapping helpers run in unit tests against a mocked collection) and the same guard and integration values |
 | Provider `ServiceCollectionExtensions.cs` files (PRs 4 to 11) | per package on main: ADO SqlServer 55/55/40, ADO PostgreSQL and MySQL 60/55/40, Dapper SqlServer 52/5/0, Dapper PostgreSQL and MySQL 60/5/0, EF Core 64/60/40, MongoDB 55/2/20 (unit/guard/integration) | | | | The numbers on main are kept as written in the three columns; the flag branch is tested by the DI unit test of the same pull request |
 | `Encina.MongoDB/EncinaMongoDbOptions.cs` (PR 11) | 95 | 65 | 0 | 85 | The manifest has these values on main and they are kept; the new property is asserted in `EncinaMongoDbOptionsTests.cs` |
 | `Encina.MongoDB/MongoDbIndexCreator.cs` (PR 11) | 80 | 0 | 0 | 0 | The manifest has these values on main and they are kept; the new index definitions run in the options test |
