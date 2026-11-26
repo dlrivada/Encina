@@ -137,12 +137,8 @@ public sealed class CreateOrderHandlerSpecs : HandlerSpecification<CreateOrderCo
         // When
         await When();
 
-        // Then - Check error starts with validation prefix
-        ThenError(error =>
-        {
-            var code = error.GetCode().IfNone("");
-            code.ShouldStartWith("encina.validation");
-        });
+        // Then - Check the error category is Validation
+        ThenError(error => error.GetCategory().ShouldBe(ErrorCategory.Validation));
     }
 
     /// <summary>
