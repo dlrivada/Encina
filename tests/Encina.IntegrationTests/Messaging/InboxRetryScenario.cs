@@ -74,7 +74,7 @@ public static class InboxRetryScenario
         Func<ValueTask<Either<EncinaError, string>>> handler = () =>
         {
             runs++;
-            return ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", "business rule"));
+            return ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", ErrorCategory.Validation, "business rule"));
         };
 
         var first = await orchestrator.ProcessAsync(new object(), messageId, "TestRequest", "corr", null, handler);
@@ -85,6 +85,7 @@ public static class InboxRetryScenario
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
         second.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
+        second.LeftToArray()[0].GetCategory().ShouldBe(ErrorCategory.Validation);
         runs.ShouldBe(1);
 
         var stored = (await store.GetMessageAsync(messageId)).ShouldBeRight();
