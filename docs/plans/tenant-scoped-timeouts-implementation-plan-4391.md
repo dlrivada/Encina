@@ -11,7 +11,7 @@
 
 Let the total and the optional per-attempt timeout of a request type take a per-tenant value, so a premium tenant can have a longer budget than a free tier. The plan of #335 applies one timeout per request type to every tenant and defers this item; its only tenant element is the tenant tag on telemetry ([ADR-054](../architecture/adr/054-observability-conventions-and-trace-propagation.md) D4). This plan adds a tenant-aware resolver, `ITenantTimeoutResolver`, consulted once per call before the timeout strategy and the deadline contributor of #335 compute their value, an options-based default implementation with named tiers, and the rule that a resolved value can never extend a deadline that is already set (earliest deadline wins, [ADR-055](../architecture/adr/055-resilience-family.md) R6).
 
-What exists today (read in `origin/main` at `4047d9a8a`):
+What exists today (read in `origin/main` at `0a7ce2ae1`):
 
 - No timeout code at all: `git grep -i "TimeoutAttribute\|IHasTimeout\|TenantTimeout" -- src` returns no match. `Encina.Resilience` does not exist in `src/` (`ls src` lists only `Encina.Polly` and `Encina.Extensions.Resilience` for this family) and its plan is #4380; the token and deadline of R6 are the plan of #4382; the timeout strategy this plan extends is the plan of #335 (on `main`, not implemented).
 - The tenant of a call is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`). "Multi-tenancy is on" is the registration of `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs:25`), the signal `QueryCachingPipelineBehavior` already uses (`src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs:141-150`).
@@ -152,29 +152,29 @@ ADR-055 R6 states that the timeout behavior shortens the context deadline and th
 
 - B does not comply with ADR-055 R6; A is the only option that does. It holds under every option of choices 1 to 4 that builds the feature (A and B of choice 1; under C nothing is built) because it concerns the deadline arithmetic, not the source of the value. Time comes from `TimeProvider` (AGENTS.md section 3).
 - **Class:** Settled
-- **Settled by:** ADR-055 R6 ("the earliest deadline winning"); the #335 plan, choice 7 (the contributor "never extends one")
+- **Settled by:** ADR-055 R6 ("the earliest deadline winning")
 
 </details>
 
 <details>
-<summary><strong>6. Telemetry: the tenant tag</strong></summary>
+<summary><strong>6. Telemetry: a tier tag on the #335 span event</strong></summary>
 
-ADR-055 R5 has the enricher add the tenant "only when multi-tenancy is on"; ADR-054 D4 makes the tenant an attribute and a tag only when multi-tenancy is on, and never baggage. The #335 span event `timeout` carries the kind and the limit.
+The tenant tag, only when multi-tenancy is on, follows ADR-055 R5 and ADR-054 D4 and is the telemetry element of #335 itself; this plan adds nothing to it. What is new is the tier name, which neither ADR-055 R5 nor ADR-054 D4 names (they name the tenant).
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Tag the existing #335 `timeout` span event with the tenant (and the tier name) only when `MultiTenancyMarker` is registered; create no Encina instrument** | Follows R5 and D4; no double counting of Polly's instruments (ADR-054 D6.2) | Names wait for the #728 choices |
-| **B) Never tag the tenant** | No cardinality risk | Operators cannot see which tenant's budget fired; contradicts R5's enricher rule |
+| **A) A `tenant.tier` tag (bounded by the number of tiers) on the existing #335 `timeout` span event, only when `MultiTenancyMarker` is registered; no Encina instrument** | Operators see which tier's budget fired without the cardinality of the tenant id; no double counting of Polly's instruments (ADR-054 D6.2) | A tag beyond what the ADRs name; the name waits for #728 |
+| **B) No tier tag; operators read the tenant tag of #335** | Nothing beyond the ADRs | Per-tier views need a join outside the telemetry |
 
-### Chosen Option: **A - Tenant tag only with multi-tenancy**
+### Chosen Option: **A - Tier tag only with multi-tenancy** (recommended, pending the maintainer)
 
 ### Rationale
 
-- B does not comply with ADR-055 R5, which has the enricher add the tenant when multi-tenancy is on; A is the only option that does, and it holds under every option of choices 1 to 4 (it concerns the tag, not the source). The tag carries the tenant id and the tier name, never `EncinaError.Message`, never request data (ADR-054 settled point 2).
-- **Class:** Settled
-- **Settled by:** ADR-055 R5; ADR-054 D4
+- A wins when tiers are few and tenants many; B wins for a deployment with a handful of tenants. Tags never carry `EncinaError.Message` or request data (ADR-054 settled point 2).
+
+- **Class:** Dilemma
 
 </details>
 
@@ -182,14 +182,14 @@ ADR-055 R5 has the enricher add the tenant "only when multi-tenancy is on"; ADR-
 
 ## Implementation Phases
 
-Three pull requests, in order: **PR-1** Phases 1 and 2 (resolver contract, options, validator, default implementation; it needs the foundation project of #4380 PR-1); **PR-2** Phases 3 and 5 (the contributor, the get-or-resolve helper, the changes to the two #335 components, the registration, the logs; it needs the #335 implementation PR-3 merged); **PR-3** Phase 7 (documentation and changelog). Phase 4 and 6 add no separate PR: their items are inside PR-1 and PR-2.
+Three pull requests, in order: **PR-1** Phases 1 and 2 and the opt-in registration `AddEncinaTenantTimeouts` (resolver contract, options, validator, default implementation; the extension registers the options, validator and resolver so the validator runs; it needs the foundation project of #4380 PR-1); **PR-2** Phases 3 and 5 (the contributor, the get-or-resolve helper, the changes to the two #335 components, the registration, the logs; it needs the #335 implementation PR-3 merged); **PR-3** Phase 7 (documentation and changelog). Phase 4 and 6 add no separate PR: their items are inside PR-1 and PR-2.
 
 ### Phase 1: Core Models and Contracts
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Resilience/Timeouts/Tenants/ITenantTimeoutResolver.cs`: `public interface ITenantTimeoutResolver { ValueTask<Either<EncinaError, TenantTimeout?>> ResolveAsync(string tenantId, Type requestType, CancellationToken cancellationToken); }`. A `null` result means "no tenant-specific value" (the type value applies). No `TenantId` of the request context is passed as nullable: the caller checks it first (choice 3).
+1. `src/Encina.Resilience/Timeouts/Tenants/ITenantTimeoutResolver.cs`: `public interface ITenantTimeoutResolver { ValueTask<Either<EncinaError, TenantTimeout?>> ResolveAsync(string tenantId, Type requestType, CancellationToken cancellationToken); }`. A `null` result means "no tenant-specific value" (the type value applies). The issue proposes a `TimeSpan?` result; this plan returns `TenantTimeout?` (total and optional attempt value) because the issue also asks for the per-attempt timeout to be tenant-scoped, a deviation recorded here. No `TenantId` of the request context is passed as nullable: the caller checks it first (choice 3).
 2. `TenantTimeout.cs`: `public readonly record struct TenantTimeout(TimeSpan Total, TimeSpan? Attempt)`; no executable branch (validation is the validator's).
 3. `TenantTimeoutOptions.cs`: `Dictionary<string, TenantTimeoutTier> Tiers` (name to `Total`, `Attempt`), `Dictionary<string, string> Tenants` (tenant id to tier name), both `StringComparer.Ordinal`; `TenantTimeoutOptionsValidator.cs` (internal `IValidateOptions<TenantTimeoutOptions>`): positive values, `Attempt` below `Total`, every mapped tenant names an existing tier, tenant id not blank and at most 128 characters, tier count and tenant count bounded (a documented default of 10,000 tenants).
 
@@ -237,8 +237,9 @@ REFERENCE FILES: src/Encina.Security.Secrets (an options-driven decorator), docs
 1. `Timeouts/Tenants/TenantTimeoutLookup.cs` (internal static): `GetOrResolveAsync(IServiceProvider services, ResilienceContext context, IRequestContext request, CancellationToken ct)` resolves the value once per call and stores it under an internal `ResiliencePropertyKey<TenantTimeout?>` (`TenantTimeoutPropertyKeys.cs`, internal, inside the same file to keep the count); returns the stored value on later calls, so the result does not depend on the order of the two #335 components. Steps: multi-tenancy off (no `MultiTenancyMarker` in `services`) returns null; blank `request.TenantId` returns null and logs (choice 3); resolver `Left` returns null and logs the error code; an invalid value is ignored and logged.
 2. `Timeouts/TimeoutStrategyFactory.cs` (modified, file of #335 PR-2): the compiled generator applies choice 4 (replace the type value, cap an `IHasTimeout` value) when `TenantTimeoutLookup` returns a value.
 3. `Timeouts/TimeoutDeadlineContributor.cs` (modified, file of #335 PR-3): calls `TenantTimeoutLookup.GetOrResolveAsync` before computing `min(existing, now + effective total)` (choice 5).
+3b. One shared function computes the effective values for both consumers, so they cannot drift: `Timeouts/Tenants/EffectiveTimeout.cs` (internal static; `EffectiveTimeout.Compute(TenantTimeout? tenantValue, TimeSpan? typeValue, TimeSpan? instanceValue, TimeSpan? existingRemaining)` implements choices 4 and 5); the strategy generator of `TimeoutStrategyFactory` and `TimeoutDeadlineContributor` both call it (this file is counted in PR-2).
 4. `Timeouts/Tenants/TenantTimeoutCallContributor.cs` (internal sealed, implements `IResilienceCallContributor`; no constructor parameters, the services come from the `IServiceProvider` the hook passes): performs the get-or-resolve at the start of the call so the span event of #335 can carry the tier.
-5. `Timeouts/Tenants/TenantTimeoutServiceCollectionExtensions.cs` (public static): `AddEncinaTenantTimeouts(this IServiceCollection services, Action<TenantTimeoutOptions>? configure = null)`; `ArgumentNullException.ThrowIfNull(services)`; registers the validator, `OptionsTenantTimeoutResolver` (`TryAddSingleton<ITenantTimeoutResolver>` so an application's own resolver wins in any order) and `TryAddEnumerable` of the contributor; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` (AGENTS.md section 3), including a scoped custom resolver resolved per call from the request's provider (no scoped service is captured by the singleton pipeline).
+5. `Timeouts/Tenants/TenantTimeoutServiceCollectionExtensions.cs` (public static; created in PR-1 with the validator and resolver registrations, and modified in PR-2 to add the contributor): `AddEncinaTenantTimeouts(this IServiceCollection services, Action<TenantTimeoutOptions>? configure = null)`; `ArgumentNullException.ThrowIfNull(services)`; registers the validator, `OptionsTenantTimeoutResolver` (`TryAddSingleton<ITenantTimeoutResolver>` so an application's own resolver wins in any order) and `TryAddEnumerable` of the contributor; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes` (AGENTS.md section 3), including a scoped custom resolver resolved per call from the request's provider (no scoped service is captured by the singleton pipeline).
 
 </details>
 
@@ -282,8 +283,8 @@ REFERENCE FILES: docs/architecture/adr/054-observability-conventions-and-trace-p
 <details>
 <summary>Tasks</summary>
 
-1. `Diagnostics/TenantTimeoutLogMessages.cs`: three `[LoggerMessage]` definitions: `TenantTimeoutTenantMissing` (Debug; request type), `TenantTimeoutResolverFailed` (Warning; request type and error code), `TenantTimeoutValueInvalid` (Warning; request type and tier name). EventIds: to be assigned by the orchestrator; the issue asks to reuse the range `ResilienceTimeout` (950-959) that the #335 plan registers in its PR-3, where ids 955-959 are spare. The ids are three consecutive ones from that spare run when #335 PR-3 has merged and the range exists in `src/Encina/Diagnostics/EventIdRanges.cs`; no new range is created by this plan.
-2. The `timeout` span event of #335 (`TimeoutStrategyFactory.cs`, modified) gains `tenant` and `tenant.tier` tags only when `MultiTenancyMarker` is registered (choice 6); no Encina instrument is added.
+1. `Diagnostics/TenantTimeoutLogMessages.cs`: three `[LoggerMessage]` definitions: `TenantTimeoutTenantMissing` (Debug; request type), `TenantTimeoutResolverFailed` (Warning; request type and error code), `TenantTimeoutValueInvalid` (Warning; request type and tier name). EventIds: 955 `TenantTimeoutTenantMissing`, 956 `TenantTimeoutResolverFailed`, 957 `TenantTimeoutValueInvalid`, inside the range `ResilienceTimeout` (950-959) that the #335 plan registers in its PR-3 (950-954 used, 955-959 spare); the registry rows and the #139 and #145 plans claim none of 955-957. They are valid once #335 PR-3 has merged and the range exists in `src/Encina/Diagnostics/EventIdRanges.cs`; no new range is created by this plan.
+2. The `timeout` span event of #335 (`TimeoutStrategyFactory.cs`, modified) gains the `tenant.tier` tag only when `MultiTenancyMarker` is registered (choice 6); the tenant tag is #335's; no Encina instrument is added.
 
 </details>
 
@@ -305,7 +306,7 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/event
 <summary>Tasks</summary>
 
 1. Unit (`tests/Encina.UnitTests/Resilience/Timeouts/Tenants/`, `FakeTimeProvider`): replace and cap (choice 4: tenant value replaces the type value; `IHasTimeout` value above the tenant value is capped; no timeout configured for the type stays none), missing tenant, unknown tenant, failing resolver and invalid value all use the type value and log, multi-tenancy off never calls the resolver, the two #335 components give the same result in either order and the resolver is called once, a cancelled token during the lookup propagates.
-2. Guard (`tests/Encina.GuardTests/Resilience/Timeouts/Tenants/`): `AddEncinaTenantTimeouts` with a null `services`; the validator and resolver constructors with a null; the contributor and lookup parameters.
+2. Guard (`tests/Encina.GuardTests/Resilience/Timeouts/Tenants/TenantTimeoutGuardTests.cs`, created in PR-1 for `AddEncinaTenantTimeouts` with a null `services` and the validator and resolver constructors with a null, and modified in PR-2 for the contributor and lookup parameters).
 3. Property (`tests/Encina.PropertyTests/Resilience/Timeouts/`): for any existing deadline, any `now` and any resolved total, the effective deadline is never later than the existing one (choice 5).
 4. DI (`tests/Encina.UnitTests/Resilience/Timeouts/Tenants/TenantTimeoutRegistrationTests.cs`): `ValidateOnBuild`, `ValidateScopes`, an application resolver registered before and after the call.
 5. Contract, integration, load, benchmark: not applicable; the feature is arithmetic over a dictionary and a Polly generator; the contract flag has no public abstraction beyond the resolver interface, whose default is exercised by the unit tests; justification files for load and benchmark under `tests/Encina.LoadTests/Resilience/Timeouts/` and `tests/Encina.BenchmarkTests/Resilience/Timeouts/`.
@@ -377,17 +378,17 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` | to be assigned by the orchestrator | Three ids; the issue asks to reuse the `ResilienceTimeout` range (950-959) of the #335 plan, whose spare ids are 955-959; no new range is created here |
+| `Encina.Resilience` (`ResilienceTimeout`, registered by #335 PR-3) | 955-957 | Three ids from the spare 955-959 of the #335 range; no registry row or sibling plan claims them; no new range is created here |
 
 ### Estimated File Count
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 9 | `ITenantTimeoutResolver.cs`, `TenantTimeout.cs`, `TenantTimeoutOptions.cs`, `TenantTimeoutOptionsValidator.cs`, `OptionsTenantTimeoutResolver.cs`, `OptionsTenantTimeoutResolverTests.cs`, `TenantTimeoutOptionsValidatorTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-2 | 14 | `TenantTimeoutLookup.cs`, `TenantTimeoutCallContributor.cs`, `TenantTimeoutServiceCollectionExtensions.cs`, `Diagnostics/TenantTimeoutLogMessages.cs`, `TimeoutStrategyFactory.cs` and `TimeoutDeadlineContributor.cs` (modified), `TenantTimeoutLookupTests.cs`, `TenantTimeoutRegistrationTests.cs`, `TimeoutStrategyFactoryTests.cs` and `TimeoutDeadlineContributorTests.cs` (modified), `TenantTimeoutGuardTests.cs`, `TenantTimeoutDeadlineProperties.cs`, `PublicAPI.Unshipped.txt` and manifest rows counted as two files |
+| PR-1 | 12 | `ITenantTimeoutResolver.cs`, `TenantTimeout.cs`, `TenantTimeoutOptions.cs`, `TenantTimeoutOptionsValidator.cs`, `OptionsTenantTimeoutResolver.cs`, `TenantTimeoutServiceCollectionExtensions.cs`, `OptionsTenantTimeoutResolverTests.cs`, `TenantTimeoutOptionsValidatorTests.cs`, `TenantTimeoutRegistrationTests.cs`, `TenantTimeoutGuardTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-2 | 15 | `EffectiveTimeout.cs`, `TenantTimeoutLookup.cs`, `TenantTimeoutCallContributor.cs`, `Diagnostics/TenantTimeoutLogMessages.cs`, `TenantTimeoutServiceCollectionExtensions.cs`, `TimeoutStrategyFactory.cs` and `TimeoutDeadlineContributor.cs` (modified); `TenantTimeoutLookupTests.cs` (also covers the contributor and `EffectiveTimeout`), `TenantTimeoutRegistrationTests.cs`, `TimeoutStrategyFactoryTests.cs`, `TimeoutDeadlineContributorTests.cs` and `TenantTimeoutGuardTests.cs` (modified), `TenantTimeoutDeadlineProperties.cs`, `PublicAPI.Unshipped.txt`, manifest rows (counted as one) |
 | PR-3 | 6 | feature page (modified), README section, changelog fragment, two justification `.md` (load, benchmark), manifest rows |
 
-Each PR is within 15 files and 1,500 lines. The `ProjectReference` of the test projects to `Encina.Resilience` and `InternalsVisibleTo` are acceptance items of #4380 (PR-1 of the foundation adds the `Encina.UnitTests` reference; the `Encina.GuardTests` and `Encina.IntegrationTests` references arrive in its PR-2 and PR-4); the property test needs the `Encina.PropertyTests` reference: if the foundation has not added it, PR-2 adds that one `csproj` line and stays at 15 files. No test double is affected (no interface of core changes; `ITenantTimeoutResolver` is new and has no implementer other than the default).
+Each PR is within 15 files and 1,500 lines. The `ProjectReference` of the test projects to `Encina.Resilience` and `InternalsVisibleTo` are acceptance items of #4380 (PR-1 of the foundation adds the `Encina.UnitTests` reference; the `Encina.GuardTests` and `Encina.IntegrationTests` references arrive in its PR-2 and PR-4); the property test needs the `Encina.PropertyTests` reference: if the foundation has not added it, that one `csproj` line moves the property test to PR-3 (PR-2 stays at 15 files, the limit, and the property target of `TenantTimeoutLookup.cs` is then set in PR-3). No test double is affected (no interface of core changes; `ITenantTimeoutResolver` is new and has no implementer other than the default).
 
 Per-file targets (new files; baseline: none exists on `origin/main`, and `.github/coverage-manifest/Encina.Resilience.json` is created by #4380 PR-1):
 
@@ -399,7 +400,8 @@ Per-file targets (new files; baseline: none exists on `origin/main`, and `.githu
 | `TenantTimeoutOptionsValidator.cs` | 95 | 15 | 0 | 0 | 0 | One test per rule; the guard flag reaches the single null check |
 | `OptionsTenantTimeoutResolver.cs` | 95 | 15 | 0 | 0 | 0 | Known tenant, unknown tenant, reload; the guard flag reaches the constructor check |
 | `TenantTimeoutLookup.cs` | 92 | 20 | 0 | 55 | 0 | Every branch of choice 3 with a fake resolver; the property test drives the arithmetic of choice 5 |
-| `TenantTimeoutCallContributor.cs` | 90 | 25 | 0 | 0 | 0 | Registered through DI; guard flag reaches the argument checks of the contributor method |
+| `EffectiveTimeout.cs` | 100 | 0 | 0 | 55 | 0 | Pure function of choices 4 and 5; unit tests per rule and the deadline property |
+| `TenantTimeoutCallContributor.cs` | 90 | 25 | 0 | 0 | 0 | Covered by `TenantTimeoutLookupTests.cs` (PR-2) and registered through DI; the guard file of PR-2 reaches the argument checks of the contributor method |
 | `TenantTimeoutServiceCollectionExtensions.cs` | 85 | 40 | 0 | 0 | 0 | The null check is a large share of a ten-line method; the DI test reaches the registrations |
 | `TenantTimeoutLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger; generated code with no parameters to guard |
 | `TimeoutStrategyFactory.cs`, `TimeoutDeadlineContributor.cs` (modified, files of #335) | the targets written by #335 are kept and never lowered (#335 plan: factory unit 90 and contract 80, contributor unit 90) | 0 | as #335 | 0 | 0 | The new branches are covered by the modified tests of this PR |
@@ -432,8 +434,8 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Abst
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The default resolver reads in-memory options with no I/O; an application's remote resolver caches its own lookups; no caching code is built here |
-| 2 | OpenTelemetry | ✅ | Tenant and tier tags on the #335 `timeout` span event, only with multi-tenancy (choice 6) |
-| 3 | Structured Logging | ✅ | Three definitions in the range of #335 (EventIds to be assigned by the orchestrator) |
+| 2 | OpenTelemetry | ✅ | The tenant tag is #335's; this plan adds a `tenant.tier` tag on its `timeout` span event, only with multi-tenancy (choice 6) |
+| 3 | Structured Logging | ✅ | Three definitions, EventIds 955-957 of the #335 range |
 | 4 | Health Checks | ❌ | No dependency or persistent state |
 | 5 | Validation | ✅ | Options validated on start; an invalid resolved value is ignored and logged |
 | 6 | Resilience | ✅ | Extends the #335 timeout strategy |
@@ -450,8 +452,9 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Abst
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| #4380 (`Encina.Resilience` foundation) | Plan open (PR #4388); not implemented | Blocks PR-1 (project, hooks) |
-| #4382 (token and deadline, R6) | Plan open (PR #4387); not implemented | Blocks the deadline part of PR-2 through #335 |
+| #4380 (`Encina.Resilience` foundation) | Plan on `main`; not implemented | Blocks PR-1 (project, hooks) |
+| #4382 (token and deadline, R6) | Plan on `main`; not implemented | Blocks the deadline part of PR-2 through #335 |
+| #335 choice 7 (how the shortened deadline becomes visible: a contributor that sets and restores the accessor, option A; or R6 carrying the context, option B) | Pending Dilemma | PR-2 modifies the contributor that option A creates; if the maintainer picks option B there, PR-2 is re-planned |
 | #335 implementation (timeout strategy, deadline contributor, EventIds) | Plan on `main`; not implemented | Blocks PR-2 (the two files it modifies) |
 | #740 (tenant rate limiting) | Plan on `main`; Dilemma 3 (tiers) pending | Choice 2 option B only |
 | #728 (telemetry names) | Plan on `main`; choices pending | Tag and event names of choice 6 |
@@ -461,5 +464,5 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina/Abst
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #4391.
-2. When #4391 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 4).
+2. When #4391 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 4 and 6).
 3. Brief workers for PR-1 to PR-3 in order, after #4380, #4382 and the #335 implementation are merged.
