@@ -66,7 +66,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Failed to get applied migrations for shard '{shardId}': {ex.Message}",
                 ex);
         }
@@ -116,7 +116,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Failed to record applied migration '{script.Id}' for shard '{shardId}': {ex.Message}",
                 ex);
         }
@@ -162,7 +162,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.RollbackFailed,
+                MigrationErrorCodes.RollbackFailed, ErrorCategory.Internal,
                 $"Failed to record rollback of migration '{migrationId}' for shard '{shardId}': {ex.Message}",
                 ex);
         }
@@ -212,7 +212,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Failed to create history table on shard '{shardInfo.ShardId}': {ex.Message}",
                 ex);
         }
@@ -267,7 +267,7 @@ internal sealed class AdoMigrationHistoryStore : IMigrationHistoryStore
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             return EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Failed to apply historical migrations for shard '{shardId}': {ex.Message}",
                 ex);
         }
