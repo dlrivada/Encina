@@ -1,0 +1,39 @@
+
+BenchmarkDotNet v0.15.8, Linux Ubuntu 26.04.1 LTS (Resolute Raccoon)
+AMD EPYC 9V74 3.63GHz, 1 CPU, 4 logical and 2 physical cores
+.NET SDK 10.0.404
+  [Host]   : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+  ShortRun : .NET 10.0.15 (10.0.15, 10.0.1526.53008), X64 RyuJIT x86-64-v4
+
+Job=ShortRun  IterationCount=3  LaunchCount=1  
+WarmupCount=3  
+
+ Method                               | CriteriaCount | Mean         | Error       | StdDev     | Ratio  | RatioSD | Rank | Gen0   | Allocated | Alloc Ratio |
+------------------------------------- |-------------- |-------------:|------------:|-----------:|-------:|--------:|-----:|-------:|----------:|------------:|
+ **'Simple Where (single criterion)'**    | **2**             |    **11.472 μs** |   **0.3364 μs** |  **0.0184 μs** |   **1.00** |    **0.00** |    **3** | **0.3815** |   **6.45 KB** |        **1.00** |
+ 'Direct LINQ Where (baseline)'       | 2             |     9.443 μs |   0.3876 μs |  0.0212 μs |   0.82 |    0.00 |    2 | 0.3204 |   5.26 KB |        0.82 |
+ 'Complex predicates (parameterized)' | 2             |    13.257 μs |   2.4758 μs |  0.1357 μs |   1.16 |    0.01 |    3 | 0.3662 |   6.14 KB |        0.95 |
+ 'Two criteria (AND)'                 | 2             |    13.430 μs |   3.2450 μs |  0.1779 μs |   1.17 |    0.01 |    3 | 0.3662 |   6.14 KB |        0.95 |
+ 'Five criteria (AND)'                | 2             |    29.775 μs |   1.3713 μs |  0.0752 μs |   2.60 |    0.01 |    6 | 0.7019 |  11.55 KB |        1.79 |
+ 'Ten criteria (AND)'                 | 2             |    56.332 μs |   5.1025 μs |  0.2797 μs |   4.91 |    0.02 |    8 | 1.2817 |  21.07 KB |        3.27 |
+ 'Keyset pagination'                  | 2             |    21.528 μs |   6.4786 μs |  0.3551 μs |   1.88 |    0.03 |    5 | 0.6104 |  10.43 KB |        1.62 |
+ 'Keyset pagination (fresh cursor)'   | 2             | 3,248.151 μs | 255.1974 μs | 13.9882 μs | 283.15 |    1.13 |    9 | 3.9063 | 108.85 KB |       16.89 |
+ 'Lambda Include'                     | 2             |     7.273 μs |   0.4044 μs |  0.0222 μs |   0.63 |    0.00 |    1 | 0.2594 |   4.26 KB |        0.66 |
+ 'String Include'                     | 2             |     7.096 μs |   0.5021 μs |  0.0275 μs |   0.62 |    0.00 |    1 | 0.2594 |   4.26 KB |        0.66 |
+ 'Multi-column ordering'              | 2             |    16.155 μs |   5.2964 μs |  0.2903 μs |   1.41 |    0.02 |    4 | 0.5188 |   8.77 KB |        1.36 |
+ 'Offset pagination (Skip/Take)'      | 2             |    16.987 μs |   0.7690 μs |  0.0422 μs |   1.48 |    0.00 |    4 | 0.5493 |   9.36 KB |        1.45 |
+ 'Full specification (all features)'  | 2             |    46.007 μs |   1.7940 μs |  0.0983 μs |   4.01 |    0.01 |    7 | 1.2207 |  20.04 KB |        3.11 |
+                                      |               |              |             |            |        |         |      |        |           |             |
+ **'Simple Where (single criterion)'**    | **10**            |    **11.496 μs** |   **5.7884 μs** |  **0.3173 μs** |   **1.00** |    **0.03** |    **3** | **0.3815** |   **6.45 KB** |        **1.00** |
+ 'Direct LINQ Where (baseline)'       | 10            |     9.529 μs |   3.0837 μs |  0.1690 μs |   0.83 |    0.02 |    2 | 0.3204 |   5.26 KB |        0.82 |
+ 'Complex predicates (parameterized)' | 10            |    55.933 μs |   5.2434 μs |  0.2874 μs |   4.87 |    0.12 |    7 | 1.2817 |  21.07 KB |        3.27 |
+ 'Two criteria (AND)'                 | 10            |    13.060 μs |   0.7439 μs |  0.0408 μs |   1.14 |    0.03 |    3 | 0.3662 |   6.14 KB |        0.95 |
+ 'Five criteria (AND)'                | 10            |    30.036 μs |   6.5238 μs |  0.3576 μs |   2.61 |    0.07 |    6 | 0.7019 |  11.71 KB |        1.82 |
+ 'Ten criteria (AND)'                 | 10            |    55.428 μs |   4.2739 μs |  0.2343 μs |   4.82 |    0.11 |    7 | 1.2817 |  21.07 KB |        3.27 |
+ 'Keyset pagination'                  | 10            |    20.512 μs |   2.4870 μs |  0.1363 μs |   1.79 |    0.04 |    5 | 0.6104 |  10.43 KB |        1.62 |
+ 'Keyset pagination (fresh cursor)'   | 10            | 3,242.259 μs | 300.9690 μs | 16.4971 μs | 282.17 |    6.75 |    8 | 3.9063 | 109.61 KB |       17.01 |
+ 'Lambda Include'                     | 10            |     7.138 μs |   1.3926 μs |  0.0763 μs |   0.62 |    0.02 |    1 | 0.2594 |   4.26 KB |        0.66 |
+ 'String Include'                     | 10            |     7.113 μs |   0.7205 μs |  0.0395 μs |   0.62 |    0.01 |    1 | 0.2594 |   4.26 KB |        0.66 |
+ 'Multi-column ordering'              | 10            |    16.247 μs |   1.1000 μs |  0.0603 μs |   1.41 |    0.03 |    4 | 0.5188 |   8.77 KB |        1.36 |
+ 'Offset pagination (Skip/Take)'      | 10            |    17.083 μs |   0.8469 μs |  0.0464 μs |   1.49 |    0.04 |    4 | 0.5493 |   9.36 KB |        1.45 |
+ 'Full specification (all features)'  | 10            |    46.822 μs |   1.8681 μs |  0.1024 μs |   4.07 |    0.10 |    7 | 1.2207 |  20.18 KB |        3.13 |
