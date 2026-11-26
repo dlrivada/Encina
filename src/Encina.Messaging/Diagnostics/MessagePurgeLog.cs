@@ -8,7 +8,7 @@ namespace Encina.Messaging.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs: 2107-2112 (see <c>EventIdRanges.MessagingInbox</c>, 2100-2199). No message carries the text of
+/// Event IDs: 10907-10912 (see <c>EventIdRanges.MessagingInbox</c>, 10900-10999). No message carries the text of
 /// an error or an exception: only the error code or the exception type reaches the log.
 /// </para>
 /// <para>
@@ -20,7 +20,7 @@ internal static partial class MessagePurgeLog
 {
     /// <summary>Logs when a purge loop starts.</summary>
     [LoggerMessage(
-        EventId = 2107,
+        EventId = 10907,
         Level = LogLevel.Information,
         Message = "Message purge for {Pattern} started: every {Interval}, in batches of {BatchSize}")]
     internal static partial void Started(
@@ -31,14 +31,14 @@ internal static partial class MessagePurgeLog
 
     /// <summary>Logs when the service has no pattern with its automatic purge on and does nothing.</summary>
     [LoggerMessage(
-        EventId = 2108,
+        EventId = 10908,
         Level = LogLevel.Information,
         Message = "Message purge service has no pattern with automatic purge enabled and will not run")]
     internal static partial void NothingToPurge(ILogger logger);
 
     /// <summary>Logs how many messages one cycle purged.</summary>
     [LoggerMessage(
-        EventId = 2109,
+        EventId = 10909,
         Level = LogLevel.Information,
         Message = "Message purge for {Pattern} removed {Count} expired messages")]
     internal static partial void Purged(
@@ -48,7 +48,7 @@ internal static partial class MessagePurgeLog
 
     /// <summary>Logs when a store returned an error during a purge cycle; the next cycle still runs.</summary>
     [LoggerMessage(
-        EventId = 2110,
+        EventId = 10910,
         Level = LogLevel.Warning,
         Message = "Message purge cycle for {Pattern} failed with error code {ErrorCode}")]
     internal static partial void CycleFailed(
@@ -58,7 +58,7 @@ internal static partial class MessagePurgeLog
 
     /// <summary>Logs when a purge cycle threw an unexpected exception; the next cycle still runs.</summary>
     [LoggerMessage(
-        EventId = 2111,
+        EventId = 10911,
         Level = LogLevel.Error,
         Message = "Message purge cycle for {Pattern} threw an unexpected exception")]
     internal static partial void CycleException(
@@ -68,7 +68,7 @@ internal static partial class MessagePurgeLog
 
     /// <summary>Logs when a store returned a batch whose ids this cycle already tried to remove in an earlier batch; the cycle ends.</summary>
     [LoggerMessage(
-        EventId = 2112,
+        EventId = 10912,
         Level = LogLevel.Warning,
         Message = "Message purge for {Pattern} made no progress: a batch of up to {BatchSize} contained only ids already tried in this cycle, the cycle ends and the next interval runs normally")]
     internal static partial void NoProgress(

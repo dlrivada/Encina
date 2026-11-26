@@ -41,7 +41,7 @@ public sealed class MessagePurgeServiceTests
         await sut.StopAsync(CancellationToken.None);
 
         await _store.DidNotReceiveWithAnyArgs().GetExpiredMessagesAsync(default, default);
-        _logger.Collector.GetSnapshot().Select(r => r.Id.Id).ShouldContain(2108);
+        _logger.Collector.GetSnapshot().Select(r => r.Id.Id).ShouldContain(10908);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public sealed class MessagePurgeServiceTests
             _store.SaveChangesAsync(Arg.Any<CancellationToken>());
         });
         await _store.Received(3).GetExpiredMessagesAsync(BatchSize, Arg.Any<CancellationToken>());
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 2109 && r.Message.Contains('5'));
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10909 && r.Message.Contains('5'));
 
         await sut.StopAsync(CancellationToken.None);
     }
@@ -103,7 +103,7 @@ public sealed class MessagePurgeServiceTests
         await _clock.WaitForTimersAsync(3);
 
         var records = _logger.Collector.GetSnapshot();
-        records.ShouldContain(r => r.Id.Id == 2110 && r.Message.Contains("inbox.purge_failed"));
+        records.ShouldContain(r => r.Id.Id == 10910 && r.Message.Contains("inbox.purge_failed"));
         records.ShouldNotContain(r => r.Message.Contains("secret patient name"));
         await _store.Received(2).GetExpiredMessagesAsync(BatchSize, Arg.Any<CancellationToken>());
         await _store.Received(1).RemoveExpiredMessagesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>());
@@ -126,9 +126,9 @@ public sealed class MessagePurgeServiceTests
         await _clock.WaitForTimersAsync(3);
 
         var records = _logger.Collector.GetSnapshot();
-        records.ShouldContain(r => r.Id.Id == 2111);
+        records.ShouldContain(r => r.Id.Id == 10911);
         records.ShouldNotContain(r => r.Message.Contains("boom with patient data"));
-        records.Where(r => r.Id.Id == 2111).ShouldAllBe(r => r.Exception == null
+        records.Where(r => r.Id.Id == 10911).ShouldAllBe(r => r.Exception == null
             || !r.Exception.Message.Contains("boom with patient data"));
         calls.ShouldBe(2);
 
@@ -149,7 +149,7 @@ public sealed class MessagePurgeServiceTests
         _clock.Advance(Interval);
         await _clock.WaitForTimersAsync(3);
 
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 2111);
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10911);
         calls.ShouldBe(2);
 
         await sut.StopAsync(CancellationToken.None);
@@ -196,7 +196,7 @@ public sealed class MessagePurgeServiceTests
         _clock.Advance(MessagePurgeService.MaxStartupJitter);
         await _clock.WaitForTimersAsync(2);
 
-        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 2111);
+        _logger.Collector.GetSnapshot().ShouldContain(r => r.Id.Id == 10911);
         await sut.StopAsync(CancellationToken.None);
     }
 

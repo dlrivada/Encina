@@ -8,7 +8,7 @@ namespace Encina.Modules.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 1900-1999 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10700-10799 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -24,7 +24,7 @@ public static partial class ModuleLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="moduleName">The name of the module that is starting.</param>
     [LoggerMessage(
-        EventId = 1900,
+        EventId = 10700,
         Level = LogLevel.Information,
         Message = "Module {ModuleName} starting")]
     public static partial void ModuleStarting(
@@ -37,7 +37,7 @@ public static partial class ModuleLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="moduleName">The name of the module that started.</param>
     [LoggerMessage(
-        EventId = 1901,
+        EventId = 10701,
         Level = LogLevel.Information,
         Message = "Module {ModuleName} started")]
     public static partial void ModuleStarted(
@@ -50,7 +50,7 @@ public static partial class ModuleLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="moduleName">The name of the module that is stopping.</param>
     [LoggerMessage(
-        EventId = 1902,
+        EventId = 10702,
         Level = LogLevel.Information,
         Message = "Module {ModuleName} stopping")]
     public static partial void ModuleStopping(
@@ -63,7 +63,7 @@ public static partial class ModuleLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="moduleName">The name of the module that stopped.</param>
     [LoggerMessage(
-        EventId = 1903,
+        EventId = 10703,
         Level = LogLevel.Information,
         Message = "Module {ModuleName} stopped")]
     public static partial void ModuleStopped(
@@ -77,7 +77,7 @@ public static partial class ModuleLog
     /// <param name="requestType">The type name of the request being dispatched.</param>
     /// <param name="moduleName">The name of the target module.</param>
     [LoggerMessage(
-        EventId = 1904,
+        EventId = 10704,
         Level = LogLevel.Debug,
         Message = "Dispatching {RequestType} to module {ModuleName}")]
     public static partial void Dispatching(
@@ -91,7 +91,7 @@ public static partial class ModuleLog
     /// <param name="logger">The logger instance.</param>
     /// <param name="moduleName">The name of the module that handled the dispatch.</param>
     [LoggerMessage(
-        EventId = 1905,
+        EventId = 10705,
         Level = LogLevel.Debug,
         Message = "Dispatch to module {ModuleName} completed")]
     public static partial void DispatchCompleted(
@@ -106,7 +106,7 @@ public static partial class ModuleLog
     /// <param name="moduleName">The name of the module that failed.</param>
     /// <param name="operation">The operation that was being performed when the failure occurred.</param>
     [LoggerMessage(
-        EventId = 1906,
+        EventId = 10706,
         Level = LogLevel.Error,
         Message = "Module {ModuleName} failed during {Operation}")]
     public static partial void ModuleFailed(
