@@ -96,8 +96,13 @@ public sealed class EncinaPactProviderVerifierVerificationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("validation", 400, "encina.validation.invalid")]
+    [InlineData("validation", 400, "orders.invalid_id")]
     [InlineData("forbidden", 403, "encina.authorization.forbidden")]
+    [InlineData("notfound", 404, "orders.lookup_failed")]
+    [InlineData("conflict", 409, "orders.stale")]
+    [InlineData("ratelimited", 429, "orders.throttled")]
+    [InlineData("timeout", 504, "orders.slow")]
+    [InlineData("legacyvalidation", 500, "encina.validation.invalid")]
     [InlineData("unmapped", 500, "custom.failure")]
     public async Task VerifyAsync_HandlerError_MapsToExpectedStatusAndCarriesErrorCode(
         string scenario,
@@ -154,7 +159,7 @@ public sealed class EncinaPactProviderVerifierVerificationTests : IDisposable
             NotificationPath,
             $$"""{"orderId":"{{OrderId}}","customerName":"reject"}""",
             400,
-            """{"isSuccess":false,"errorCode":"encina.validation.rejected"}""");
+            """{"isSuccess":false,"errorCode":"customers.rejected"}""");
 
         var result = await VerifyAsync(interaction);
 
