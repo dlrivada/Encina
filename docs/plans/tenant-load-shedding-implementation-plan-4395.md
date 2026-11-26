@@ -11,7 +11,7 @@
 
 Let load shedding use a per-tenant priority, so a premium tenant keeps service while a free tier is shed first. The plan of #138 keeps shedding process-wide, with the priority taken from the request instance, the per-type option or the default (`Degraded`), and defers the tenant dimension. This plan adds `ITenantPriorityResolver`, consulted by the shedding strategy of #138 when multi-tenancy is on, an options-based default with named tiers, and a documented rule that combines the request's own priority with the tenant's priority. The thresholds, the utilization signals and the manager of #138 stay process-wide.
 
-What exists today (read in `origin/main` at `4047d9a8a`):
+What exists today (read in `origin/main` at `0a7ce2ae1`):
 
 - No shedding code: `git grep -E "LoadShed|RequestPriority|IPrioritizedRequest" -- src` returns no match. `Encina.Resilience` does not exist in `src/` (its plan is #4380); the shedding plan of #138 is on `main` and not implemented.
 - The tenant of a call is `IRequestContext.TenantId` (`src/Encina/Abstractions/IRequestContext.cs:125`); "multi-tenancy is on" is the registration of `MultiTenancyMarker` (`src/Encina/Abstractions/MultiTenancyMarker.cs:25`).
@@ -19,7 +19,7 @@ What exists today (read in `origin/main` at `4047d9a8a`):
 - There is no tier concept in code: the plan of #740 states that `TenantInfo` has no tier and keeps tiers as its own pending Dilemma 3.
 - The rejection `Left` (code, category, details) is decided by choice 10 of the #138 plan; this plan adds no error code and no ADR-062 row: a tenant priority changes who is shed, not how the rejection looks.
 
-What this plan delivers, all in `Encina.Resilience`: `ITenantPriorityResolver`, `TenantPriorityOptions` (named tiers and a tenant to tier map) with its validator, the default `OptionsTenantPriorityResolver`, the internal combination rule, the change to the #138 strategy factory, the opt-in registration `AddEncinaTenantLoadShedding`, three `[LoggerMessage]` definitions, the tenant tag on the #138 instruments, and the tests.
+What this plan delivers, all in `Encina.Resilience`: `ITenantPriorityResolver`, `TenantPriorityOptions` (named tiers and a tenant to tier map) with its validator, the default `OptionsTenantPriorityResolver`, the internal combination rule, the change to the #138 strategy factory, the opt-in registration `AddEncinaTenantLoadShedding`, three `[LoggerMessage]` definitions, a tier tag on the #138 instruments (the tenant tag itself is #138's), and the tests.
 
 - **Affected packages**: `Encina.Resilience` (planned). The issue ticks only that package.
 - **Provider category**: Resilience (AGENTS.md section 5, "Other categories"); no database, caching, transport, lock or validation matrix applies.
@@ -66,7 +66,7 @@ The #138 plan has one threshold per priority and one process-wide utilization. T
 <details>
 <summary><strong>2. Combining the request's priority with the tenant's priority</strong></summary>
 
-A premium tenant also sends background work, and a request type can declare `Bulk` on its instance. The effective priority needs a rule.
+A premium tenant also sends background work, and a request type can declare `Bulk` on its instance. The effective priority needs a rule. The issue says the resolver returns "a `RequestPriority` floor per tenant" without defining which direction a floor has on the scale of #138 (lower number is more important). This plan states the deviation: option A below is a ceiling of importance (a tenant cannot be treated as more important than its tier), and the reading of the issue as a floor (a tenant is treated as at least as important as its tier) is option C.
 
 ### Options Considered
 
@@ -74,13 +74,14 @@ A premium tenant also sends background work, and a request type can declare `Bul
 |--------|------|------|
 | **A) The effective priority is the less important of the two: a request never rises above its tenant's priority, and a premium tenant's `Bulk` request is still shed first** | A tier is a ceiling of importance; it closes the trust problem of #138 choice 5 for tenant-bound traffic (a request cannot claim `Critical` above its tenant's level) | A premium request type declared `Degraded` stays `Degraded`: a tier never raises a request |
 | **B) The tenant priority replaces the request's priority** | One level per tenant; simple to explain | A premium tenant's batch jobs are as protected as its interactive calls; a per-type `Bulk` is ignored |
-| **C) The tenant priority only applies to requests that declare none** | Instance and type priorities stay authoritative | A free tenant's client-controlled instance priority can still claim `Critical` |
+| **C) A floor: the effective priority is the more important of the two (a premium tenant's `Bulk` request is treated as at least the tenant's tier)** | Reads the issue literally; a premium tenant is guaranteed at least its tier even for background work | Per-type `Bulk` is ignored for premium tenants, and it widens the trust problem of #138 choice 5: a request that claims `Critical` keeps it |
+| **D) The tenant priority only applies to requests that declare none** | Instance and type priorities stay authoritative | A free tenant's client-controlled instance priority can still claim `Critical` |
 
 ### Chosen Option: **A - Less important of the two** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins when a tier means "the most important treatment this tenant may receive"; B wins when the tier is the only classification the product has; C wins when request classification is trusted (computed by the application from the request type and the authenticated identity, the rule of #138 choice 5).
+- A wins when a tier means "the most important treatment this tenant may receive"; B wins when the tier is the only classification the product has; C wins when a premium contract guarantees a minimum level of service even for the tenant's background work; D wins when request classification is trusted (computed by the application from the request type and the authenticated identity, the rule of #138 choice 5).
 - The comparison uses `RequestPriority.Compare` of #138 (never the raw number); a unit test pins the orientation.
 
 - **Class:** Dilemma
@@ -155,24 +156,24 @@ Shedding runs at `PipelineStage.Admission` on the hot path of every request. The
 </details>
 
 <details>
-<summary><strong>6. Telemetry: the tenant tag</strong></summary>
+<summary><strong>6. Telemetry: a tier tag on the #138 instruments</strong></summary>
 
-ADR-055 R5 has the enricher add the tenant "only when multi-tenancy is on"; ADR-054 D4 makes the tenant an attribute and a tag only when multi-tenancy is on, and never baggage. The counters and the span event of #138 (its choice 13) carry the priority and the request type.
+The tenant tag on the #138 counters and span event, only when multi-tenancy is on, is already specified by #138 (its choice 13 option A and Phase 4 task 2) following ADR-055 R5 and ADR-054 D4; this plan adds nothing to it. What is new is the tier name, which neither ADR-055 R5 nor ADR-054 D4 names (they name the tenant).
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The existing #138 counters and the `loadshedding.rejected` span event gain the tenant and tier tags (ADR-054 D4) only when `MultiTenancyMarker` is registered; no new instrument** | Follows R5 and D4; shed counts per tenant tier | Names wait for #728 choices |
-| **B) Never tag the tenant** | No cardinality risk | Operators cannot see which tier is shed; contradicts R5's rule |
+| **A) A `tenant.tier` tag (bounded by the number of tiers) on the same counters and span event, only when `MultiTenancyMarker` is registered; name from the convention #728 settles; no new instrument** | Shed counts per tier without the cardinality of the tenant id | A tag beyond what the ADRs name; the name waits for #728 |
+| **B) No tier tag; operators read the tenant tag of #138** | Nothing beyond the ADRs | Per-tier views need a join outside the telemetry |
 
-### Chosen Option: **A - Tenant tag only with multi-tenancy**
+### Chosen Option: **A - Tier tag only with multi-tenancy** (recommended, pending the maintainer)
 
 ### Rationale
 
-- B does not comply with ADR-055 R5, which has the enricher add the tenant when multi-tenancy is on; A is the only option that does, and it holds under every option of choices 1 to 5 that builds the feature (A and B of choice 1; under C nothing is built). Tags carry the tenant id and the tier name, never `EncinaError.Message` or request data (ADR-054 settled point 2).
-- **Class:** Settled
-- **Settled by:** ADR-055 R5; ADR-054 D4
+- A wins when tiers are few and tenants many; B wins for a deployment with a handful of tenants where the tenant tag already answers the question. Tags never carry `EncinaError.Message` or request data (ADR-054 settled point 2).
+
+- **Class:** Dilemma
 
 </details>
 
@@ -180,7 +181,7 @@ ADR-055 R5 has the enricher add the tenant "only when multi-tenancy is on"; ADR-
 
 ## Implementation Phases
 
-Three pull requests, in order: **PR-1** Phases 1 and 2 (resolver contract, options, validator, default implementation, combination rule; it needs the foundation project of #4380 PR-1 and `RequestPriority` of the #138 PR-1); **PR-2** Phases 3, 4 and 5 (the change to the strategy factory, registration, logs and tags; it needs the #138 PR-2 and PR-4 merged); **PR-3** Phase 7 (documentation and changelog). Phase 6 tests are inside PR-1 and PR-2.
+Three pull requests, in order: **PR-1** Phases 1 and 2 and the registration of Phase 3 (resolver contract, options, validator, default implementation, combination rule and `AddEncinaTenantLoadShedding`, which registers the options, validator and resolver so the validator runs; it needs the foundation project of #4380 PR-1 and `RequestPriority` of the #138 PR-1); **PR-2** the factory change of Phase 3 and Phases 4 and 5 (the change to the strategy factory, logs and the tier tag; it needs the #138 PR-2 and PR-4 merged); **PR-3** Phase 7 (documentation and changelog). Phase 6 tests are inside PR-1 and PR-2, each PR carrying the tests of the files it adds.
 
 ### Phase 1: Core Models and Contracts
 
@@ -232,8 +233,8 @@ REFERENCE FILES: docs/en/guides/TESTING.md
 <details>
 <summary>Tasks</summary>
 
-1. `LoadShedding/LoadSheddingStrategyFactory.cs` (modified, file of #138 PR-2): the factory takes `ITenantPriorityResolver?` through an optional constructor parameter (null when the opt-in registration is absent, so nothing changes without it); when `MultiTenancyMarker` is registered it reads the tenant from the `ResilienceContext` request key of #4380, calls the resolver once per request, applies choices 2 and 3 and passes `EffectivePriority.Combine(...)` to `ILoadSheddingManager.ShouldShed`. A cancelled caller token propagates.
-2. `LoadShedding/Tenants/TenantPriorityServiceCollectionExtensions.cs` (public static): `AddEncinaTenantLoadShedding(this IServiceCollection services, Action<TenantPriorityOptions>? configure = null)`; `ArgumentNullException.ThrowIfNull(services)`; registers the validator and `TryAddSingleton<ITenantPriorityResolver, OptionsTenantPriorityResolver>` so an application's own resolver wins in any order; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
+1. `LoadShedding/LoadSheddingStrategyFactory.cs` (modified, file of #138 PR-2; PR-2 of this plan): the factory takes `ITenantPriorityResolver?` and `MultiTenancyMarker?` through optional trailing constructor parameters (null when the opt-in registration is absent or multi-tenancy is off, so nothing changes without them); when the marker is present it reads the tenant from the `ResilienceContext` request key of #4380, calls the resolver once per request, applies choices 2 and 3 and passes `EffectivePriority.Combine(...)` to `ILoadSheddingManager.ShouldShed`. A cancelled caller token propagates.
+2. `LoadShedding/Tenants/TenantPriorityServiceCollectionExtensions.cs` (public static; PR-1): `AddEncinaTenantLoadShedding(this IServiceCollection services, Action<TenantPriorityOptions>? configure = null)`; `ArgumentNullException.ThrowIfNull(services)`; registers the validator and `TryAddSingleton<ITenantPriorityResolver, OptionsTenantPriorityResolver>` so an application's own resolver wins in any order; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
 
@@ -277,8 +278,8 @@ REFERENCE FILES: docs/architecture/adr/054-observability-conventions-and-trace-p
 <details>
 <summary>Tasks</summary>
 
-1. `Diagnostics/TenantPriorityLogMessages.cs`: three `[LoggerMessage]` definitions: `TenantPriorityTenantMissing` (Debug), `TenantPriorityResolverFailed` (Warning; error code only), `TenantPriorityApplied` (Debug; request priority, tenant priority, effective priority; no tenant id). EventIds: to be assigned by the orchestrator; the issue asks to reuse the `ResilienceLoadShedding` range (912-923) that the #138 plan registers in its PR-4, where ids 917-923 are spare. The ids are three consecutive ones from that spare run once that PR has merged and the range exists in `src/Encina/Diagnostics/EventIdRanges.cs`; this plan creates no range.
-2. `LoadShedding/LoadSheddingTelemetry.cs` (modified, file of #138 PR-4): the counters and the span event gain the tenant and tier tags only when `MultiTenancyMarker` is registered (choice 6).
+1. `Diagnostics/TenantPriorityLogMessages.cs`: three `[LoggerMessage]` definitions: 917 `TenantPriorityTenantMissing` (Debug), 918 `TenantPriorityResolverFailed` (Warning; error code only), 919 `TenantPriorityApplied` (Debug; request priority, tenant priority, effective priority; no tenant id). The ids are inside the `ResilienceLoadShedding` range (912-923) that the #138 plan registers in its PR-4 (912-916 used, 917-923 spare); a search of the block registry rows 900-949 and the #139 and #141 plans found no other claim on 917-919. They are valid only once #138 PR-4 has merged and the range exists in `src/Encina/Diagnostics/EventIdRanges.cs`; this plan creates no range.
+2. `LoadShedding/LoadSheddingTelemetry.cs` (modified, file of #138 PR-4): the counters and the span event gain the `tenant.tier` tag only when `MultiTenancyMarker` is registered (choice 6); the tenant tag is #138's.
 
 </details>
 
@@ -299,8 +300,8 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/event
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/Resilience/LoadShedding/Tenants/`): the 16 combinations of choice 2, missing tenant, unknown tenant, failing resolver (logged by code) and multi-tenancy off (resolver never called); the factory with a fake manager shows the effective priority reaches `ShouldShed`; cancellation propagates.
-2. Guard (`tests/Encina.GuardTests/Resilience/LoadShedding/Tenants/`): `AddEncinaTenantLoadShedding` with a null `services`; the resolver constructor with a null; the nullable `configure` accepted as null (valid result, not an exception test).
+1. Unit (`tests/Encina.UnitTests/Resilience/LoadShedding/Tenants/`): the 20 combinations of choice 2 (four request priorities by four tenant priorities and by a null tenant priority), missing tenant, unknown tenant, failing resolver (logged by code) and multi-tenancy off (resolver never called); the factory with a fake manager shows the effective priority reaches `ShouldShed`; cancellation propagates.
+2. Guard (`tests/Encina.GuardTests/Resilience/LoadShedding/Tenants/TenantPriorityGuardTests.cs`, in PR-1): `AddEncinaTenantLoadShedding` with a null `services`; the validator and the resolver constructors with a null; the nullable `configure` accepted as null (valid result, not an exception test). The factory's new optional constructor parameters accept null and are covered by a valid-result test in PR-2.
 3. Property (`tests/Encina.PropertyTests/Resilience/LoadShedding/TenantPriorityProperties.cs`): for any request priority and tenant priority the effective priority is never more important than either input (monotonicity per tenant), and for a fixed tenant the shed probability is monotone in utilization.
 4. DI (`TenantPriorityRegistrationTests.cs`): `ValidateOnBuild`, `ValidateScopes`, an application resolver registered before and after the call.
 5. Contract, integration, load, benchmark: not applicable (arithmetic over a dictionary, no new public abstraction beyond the resolver interface); justification files for load and benchmark.
@@ -369,17 +370,17 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` | to be assigned by the orchestrator | Three ids; the issue asks to reuse the `ResilienceLoadShedding` range (912-923) of the #138 plan, whose spare ids are 917-923; no new range is created here |
+| `Encina.Resilience` (`ResilienceLoadShedding`, registered by #138 PR-4) | 917-919 | Three ids from the spare 917-923 of the #138 range; no other plan or registry row claims them; no new range is created here |
 
 ### Estimated File Count
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 11 | `ITenantPriorityResolver.cs`, `TenantPriorityOptions.cs`, `TenantPriorityOptionsValidator.cs`, `OptionsTenantPriorityResolver.cs`, `EffectivePriority.cs`, `OptionsTenantPriorityResolverTests.cs`, `TenantPriorityOptionsValidatorTests.cs`, `EffectivePriorityTests.cs`, `TenantPriorityProperties.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-2 | 10 | `LoadSheddingStrategyFactory.cs` and `LoadSheddingTelemetry.cs` (modified), `TenantPriorityServiceCollectionExtensions.cs`, `Diagnostics/TenantPriorityLogMessages.cs`, `LoadSheddingStrategyFactoryTests.cs` and `LoadSheddingTelemetryTests.cs` (modified), `TenantPriorityRegistrationTests.cs`, `TenantPriorityGuardTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-1 | 14 | `ITenantPriorityResolver.cs`, `TenantPriorityOptions.cs`, `TenantPriorityOptionsValidator.cs`, `OptionsTenantPriorityResolver.cs`, `EffectivePriority.cs`, `TenantPriorityServiceCollectionExtensions.cs`, `OptionsTenantPriorityResolverTests.cs`, `TenantPriorityOptionsValidatorTests.cs`, `EffectivePriorityTests.cs`, `TenantPriorityProperties.cs`, `TenantPriorityRegistrationTests.cs`, `TenantPriorityGuardTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-2 | 8 | `LoadSheddingStrategyFactory.cs` and `LoadSheddingTelemetry.cs` (modified), `Diagnostics/TenantPriorityLogMessages.cs`, `LoadSheddingStrategyFactoryTests.cs` and `LoadSheddingTelemetryTests.cs` (modified), `TenantPriorityLogMessagesTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
 | PR-3 | 5 | feature page (modified), README section, changelog fragment, two justification `.md` (load, benchmark) |
 
-Each PR is within 15 files and 1,500 lines. The `ProjectReference` of the test projects to `Encina.Resilience` are acceptance items of #4380; the `Encina.PropertyTests` reference is added by this plan's PR-1 as one `csproj` line if the foundation has not added it (PR-1 then has 12 files). No test double is affected (`ITenantPriorityResolver` is new; the factory takes an optional constructor parameter, and its `new` sites in the #138 tests are unchanged).
+Each PR is within 15 files and 1,500 lines. The `ProjectReference` of the test projects to `Encina.Resilience` are acceptance items of #4380; the `Encina.PropertyTests` reference is added by this plan's PR-1 as one `csproj` line if the foundation has not added it (PR-1 then has 15 files, the limit). No test double is affected (`ITenantPriorityResolver` is new; the factory takes optional trailing constructor parameters, and its `new` sites in the #138 tests are unchanged).
 
 Per-file targets (new files; baseline: none exists on `origin/main`, and `.github/coverage-manifest/Encina.Resilience.json` is created by #4380 PR-1):
 
@@ -391,8 +392,9 @@ Per-file targets (new files; baseline: none exists on `origin/main`, and `.githu
 | `OptionsTenantPriorityResolver.cs` | 95 | 15 | 0 | 0 | 0 | Known tenant, unknown tenant, reload; the guard flag reaches the constructor check |
 | `EffectivePriority.cs` | 100 | 0 | 0 | 90 | 0 | Pure function; all combinations by unit test and the monotonicity property |
 | `TenantPriorityServiceCollectionExtensions.cs` | 85 | 40 | 0 | 0 | 0 | The null check is a large share of a short method; the DI test reaches the registrations |
-| `TenantPriorityLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger; generated code with no parameters to guard |
-| `LoadSheddingStrategyFactory.cs`, `LoadSheddingTelemetry.cs` (modified, files of #138) | the targets written by #138 are kept and never lowered (#138 plan: factory unit 90, guard 0) | as #138 | as #138 | 0 | 0 | The new branches are covered by the modified tests of PR-2 |
+| `TenantPriorityLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Log assertions with a fake logger (`TenantPriorityLogMessagesTests.cs`, PR-2); generated code with no parameters to guard |
+| `LoadSheddingStrategyFactory.cs` (modified, file of #138) | 90 | 0 | 0 | 0 | 0 | The #138 plan's table row (unit 90, guard 0, contract 0, property 0, integration 0) is kept and never lowered; the new branches are covered by the modified factory tests of PR-2 |
+| `LoadSheddingTelemetry.cs` (modified, file of #138) | 85 | 0 | 0 | 0 | 0 | The #138 plan's per-file table has no row for it; this PR sets one so the touched file has its own targets; the tier tag is asserted in the modified telemetry tests |
 
 CRAP of each added method is at most 10 (the factory moves the tenant steps into one small method).
 
@@ -422,8 +424,8 @@ REFERENCE FILES: docs/plans/load-shedding-implementation-plan-138.md, docs/archi
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | The default resolver reads in-memory options with no I/O; an application's remote resolver caches its own lookups |
-| 2 | OpenTelemetry | ✅ | Tenant and tier tags on the #138 counters and span event, only with multi-tenancy (choice 6) |
-| 3 | Structured Logging | ✅ | Three definitions in the #138 range (EventIds to be assigned by the orchestrator) |
+| 2 | OpenTelemetry | ✅ | The tenant tag is #138's; this plan adds a `tenant.tier` tag on the same counters and span event, only with multi-tenancy (choice 6) |
+| 3 | Structured Logging | ✅ | Three definitions, EventIds 917-919 of the #138 range |
 | 4 | Health Checks | ❌ | The #138 health check reports process-wide state; no tenant dimension |
 | 5 | Validation | ✅ | Options validated on start |
 | 6 | Resilience | ✅ | Extends the #138 load shedding strategy |
@@ -440,9 +442,9 @@ REFERENCE FILES: docs/plans/load-shedding-implementation-plan-138.md, docs/archi
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| #4380 (`Encina.Resilience` foundation) | Plan open (PR #4388); not implemented | Blocks PR-1 (project, `ResilienceContext` keys) |
+| #4380 (`Encina.Resilience` foundation) | Plan on `main`; not implemented | Blocks PR-1 (project, `ResilienceContext` keys) |
 | #138 implementation (`RequestPriority`, manager, factory, telemetry) | Plan on `main`; not implemented | Blocks PR-1 (`RequestPriority`) and PR-2 (the two files it modifies) |
-| #4382 (token and deadline, R6) | Plan open (PR #4387) | Indirect: the #138 strategy needs it |
+| #4382 (token and deadline, R6) | Plan on `main`; not implemented | Indirect: the #138 strategy needs it |
 | #4391 (tenant-scoped timeouts) | Plan, by number | Choice 4 is asked once for both |
 | #740 (tenant rate limiting) | Plan on `main`; Dilemma 3 (tiers) pending | Choice 4 option B only |
 | #728 (telemetry names) | Plan on `main`; choices pending | Tag and event names of choice 6 |
@@ -452,5 +454,5 @@ REFERENCE FILES: docs/plans/load-shedding-implementation-plan-138.md, docs/archi
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #4395.
-2. When #4395 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 5).
+2. When #4395 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 6).
 3. Brief workers for PR-1 to PR-3 in order, after #4380 and the #138 implementation are merged.
