@@ -5,6 +5,7 @@ using Encina.Compliance.Attestation.Providers;
 using Encina.Compliance.Attestation.Validation;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Encina.UnitTests.Compliance.Attestation;
@@ -189,18 +190,39 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddEncinaAttestation_UseHashChain_UnsupportedAlgorithm_FailsStartupValidation()
+    public async Task AddEncinaAttestation_UseHashChain_UnsupportedAlgorithm_FailsHostStart()
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        services.AddEncinaAttestation(options => options.UseHashChain(hc =>
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncinaAttestation(options => options.UseHashChain(hc =>
             hc.HashAlgorithm = System.Security.Cryptography.HashAlgorithmName.MD5));
 
-        using var provider = services.BuildServiceProvider();
+        using var host = builder.Build();
 
-        Should.Throw<OptionsValidationException>(() =>
-            provider.GetRequiredService<IStartupValidator>().Validate());
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() =>
+            host.StartAsync(TestContext.Current.CancellationToken));
+        ex.Message.ShouldContain("MD5");
+        ex.Message.ShouldContain("HashAlgorithm");
+    }
+
+    [Fact]
+    public async Task AddEncinaAttestation_UseHashChain_SupportedAlgorithm_HostStartsAndStops()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncinaAttestation(options => options.UseHashChain(hc =>
+            hc.HashAlgorithm = System.Security.Cryptography.HashAlgorithmName.SHA256));
+
+        using var host = builder.Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            host.Services.GetRequiredService<IOptions<HashChainOptions>>().Value
+                .HashAlgorithm.Name.ShouldBe("SHA256");
+        }
+        finally
+        {
+            await host.StopAsync(TestContext.Current.CancellationToken);
+        }
     }
 
     [Theory]

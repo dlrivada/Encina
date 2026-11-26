@@ -696,10 +696,10 @@
       ],
       "defaultRule": "*.cs",
       "reason": "Orchestrator with injectable store, factory and serializer",
-      "targets": { "unit": 98, "guard": 15, "integration": 75 },
+      "targets": { "unit": 100, "guard": 30, "integration": 75 },
       "justifications": {
-        "unit": "Pure-logic part covered without a database; the orchestration paths run against a fake store, and the category tests of #3724 assert the code and category of each error through the real producer.",
-        "guard": "Only the constructor and argument checks are guard-reachable.",
+        "unit": "The orchestration paths run against a fake store with the real serializer; the round trip of every cached error category, the missing-field and the unknown-value replay of #4247 are asserted through the real orchestrator (measured 100% unit).",
+        "guard": "The constructor and argument checks plus one guard test that replays a cached error through the real orchestrator and serializer with null metadata (measured 34%); the store and retry paths are not guard-reachable.",
         "integration": "Real-database retry contract tests drive the store through the orchestrator; the uncovered lines are provider error branches."
       }
     },

@@ -305,25 +305,28 @@ public sealed class RecoverabilityOptionsCompositionTests
         created.DisposeCount.ShouldBeGreaterThan(0);
     }
 
+    // Injecting the classifier into a RecoverabilityOptions configure action is a cycle (the classifier is decided
+    // from these options): it fails loudly on every runtime, by this factory's guard or by the container (#4220).
     [Fact]
-    public void ConfigureAction_InjectingTheClassifier_ReceivesTheEarlierRegistrationWithoutACycle()
+    public void ConfigureAction_InjectingTheClassifier_WithAnEarlierRegistration_ThrowsACircularDependency()
     {
-        var earlier = new MarkerClassifier();
         IErrorClassifier? received = null;
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddSingleton<IErrorClassifier>(earlier);
+        services.AddSingleton<IErrorClassifier>(new MarkerClassifier());
         services.AddOptions<RecoverabilityOptions>().Configure<IErrorClassifier>((_, c) => received = c);
         services.AddEncinaRecoverability();
 
         using var provider = services.BuildServiceProvider(Validate);
 
-        provider.GetRequiredService<IErrorClassifier>().ShouldBeSameAs(earlier);
-        received.ShouldBeSameAs(earlier);
+        var ex = Should.Throw<InvalidOperationException>(() => provider.GetRequiredService<IErrorClassifier>());
+        ex.Message.ShouldContain("circular dependency");
+        ex.Message.ShouldContain(typeof(IErrorClassifier).FullName!);
+        received.ShouldBeNull();
     }
 
     [Fact]
-    public void ConfigureAction_InjectingTheClassifier_WithNoEarlierRegistration_ReceivesTheDefault()
+    public void ConfigureAction_InjectingTheClassifier_WithNoEarlierRegistration_ThrowsACircularDependency()
     {
         IErrorClassifier? received = null;
         var services = new ServiceCollection();
@@ -333,8 +336,10 @@ public sealed class RecoverabilityOptionsCompositionTests
 
         using var provider = services.BuildServiceProvider(Validate);
 
-        provider.GetRequiredService<IErrorClassifier>().ShouldBeOfType<DefaultErrorClassifier>();
-        received.ShouldBeOfType<DefaultErrorClassifier>();
+        var ex = Should.Throw<InvalidOperationException>(() => provider.GetRequiredService<IErrorClassifier>());
+        ex.Message.ShouldContain("circular dependency");
+        ex.Message.ShouldContain(typeof(IErrorClassifier).FullName!);
+        received.ShouldBeNull();
     }
 
     [Fact]

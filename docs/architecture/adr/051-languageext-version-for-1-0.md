@@ -1,8 +1,10 @@
 # ADR-051: Which LanguageExt Version Encina 1.0 Ships On
 
+> **Amendment 2026-11-20 ([#3662](https://github.com/dlrivada/Encina/issues/3662), [ADR-064](064-rop-result-union.md)):** [ADR-064](064-rop-result-union.md) decides that LanguageExt leaves Encina entirely: an Encina-owned result union replaces `Either<EncinaError, T>`, and the unused LanguageExt surface is removed in [#3847](https://github.com/dlrivada/Encina/issues/3847). This ADR's question, which LanguageExt version 1.0 ships on, therefore stops applying when the last LanguageExt reference is gone, as ADR-064 states in its migration consequences. Until then the decision below stands. The two follow-up issues of this ADR are still open: [#2626](https://github.com/dlrivada/Encina/issues/2626) (idiomatic cleanup on 4.4.9) and [#2627](https://github.com/dlrivada/Encina/issues/2627) (the stable 5.0 check at the start of rc.1 and the option C re-evaluation); ADR-064 does not close them, and what remains of their scope is settled in those issues. The spike evidence, the measured costs and the alternatives below are historical; where the text names `Either` as the carrier, read the carrier defined by ADR-064.
+
 ## Status
 
-**Accepted** - 2026-10-21, maintainer decision on [#1899](https://github.com/dlrivada/Encina/issues/1899): option D. The spike that produced the evidence is [#1899](https://github.com/dlrivada/Encina/issues/1899); its measurements are in the [spike report](../../engineering/languageext-v5-spike-1899.md).
+**Accepted; amended by [ADR-064](064-rop-result-union.md) (2026-11-20)** - 2026-10-21, maintainer decision on [#1899](https://github.com/dlrivada/Encina/issues/1899): option D. The spike that produced the evidence is [#1899](https://github.com/dlrivada/Encina/issues/1899); its measurements are in the [spike report](../../engineering/languageext-v5-spike-1899.md).
 
 ## Context
 

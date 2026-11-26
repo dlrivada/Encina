@@ -74,6 +74,64 @@ public sealed class InboxOrchestratorRetryTests
         store.MarkProcessedCalls.ShouldBe(0);
     }
 
+    [Theory]
+    [InlineData(ErrorCategory.Internal)]
+    [InlineData(ErrorCategory.Validation)]
+    [InlineData(ErrorCategory.NotFound)]
+    [InlineData(ErrorCategory.Conflict)]
+    [InlineData(ErrorCategory.Forbidden)]
+    public async Task ProcessAsync_CachedLeft_ReplaysOriginalCategoryAndStatus(ErrorCategory category)
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+        Func<ValueTask<Either<EncinaError, string>>> handler = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", category, "business rule"));
+
+        var first = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+        var second = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+
+        first.LeftToArray()[0].GetCategory().ShouldBe(category);
+        var replayed = second.LeftToArray()[0];
+        replayed.GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
+        replayed.GetCategory().ShouldBe(category);
+        replayed.GetStatusCode().ShouldBe(first.LeftToArray()[0].GetStatusCode());
+    }
+
+    [Fact]
+    public async Task ProcessAsync_CachedLeftWithoutCategoryField_ReplaysInternal()
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+        Func<ValueTask<Either<EncinaError, string>>> handler = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", ErrorCategory.Validation, "business rule"));
+        await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+
+        // A row written before the category field existed.
+        store.Message!.Response = "{\"isSuccess\":false,\"errorMessage\":\"biz.rule\"}";
+        var replayed = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+
+        var error = replayed.LeftToArray()[0];
+        error.GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
+        error.GetCategory().ShouldBe(ErrorCategory.Internal);
+    }
+
+    [Theory]
+    [InlineData(9999)]
+    [InlineData(-1)]
+    public async Task ProcessAsync_CachedLeftWithUnknownCategoryValue_ReplaysInternal(int unknown)
+    {
+        var store = new StatefulInboxStore();
+        var orchestrator = CreateOrchestrator(store, 3);
+        Func<ValueTask<Either<EncinaError, string>>> handler = () =>
+            ValueTask.FromResult<Either<EncinaError, string>>(EncinaErrors.Create("biz.rule", ErrorCategory.Validation, "business rule"));
+        await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+
+        store.Message!.Response = $"{{\"isSuccess\":false,\"errorMessage\":\"biz.rule\",\"errorCategory\":{unknown}}}";
+        var replayed = await orchestrator.ProcessAsync(new object(), MessageId, "Req", "corr", null, handler);
+
+        replayed.LeftToArray()[0].GetCategory().ShouldBe(ErrorCategory.Internal);
+    }
+
     [Fact]
     public async Task ProcessAsync_HandlerRight_IsMarkedProcessedNotCachedAsError()
     {

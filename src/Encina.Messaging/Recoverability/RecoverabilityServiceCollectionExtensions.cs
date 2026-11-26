@@ -47,7 +47,8 @@ public static class RecoverabilityServiceCollectionExtensions
     /// </para>
     /// <para>
     /// Injecting <c>IErrorClassifier</c> into a configuration action for <see cref="RecoverabilityOptions"/> is not
-    /// supported, because the registered classifier is itself decided from these options.
+    /// supported, because the registered classifier is itself decided from these options: resolving the classifier
+    /// then throws an <see cref="InvalidOperationException"/> that names the circular dependency.
     /// </para>
     /// </remarks>
     /// <example>
@@ -178,15 +179,20 @@ public static class RecoverabilityServiceCollectionExtensions
     // else the default. A scoped or transient earlier registration keeps its lifetime.
     private sealed class OptionsClassifierFactory(ServiceDescriptor? previous)
     {
-        // Guards only against recursion: a configure action that injects IErrorClassifier re-enters this factory,
-        // and the re-entrant call answers from the earlier registration. That pattern is not supported.
+        // Detects recursion: a configure action that injects IErrorClassifier re-enters this factory while the
+        // options are being built. The re-entry fails loudly, the same way the .NET 11 container fails it before
+        // this factory runs again (#4220), instead of answering from the earlier registration.
         private readonly AsyncLocal<bool> _creating = new();
 
         public IErrorClassifier Create(IServiceProvider provider)
         {
             if (_creating.Value)
             {
-                return FromPrevious(provider);
+                throw new InvalidOperationException(
+                    $"A circular dependency was detected for the service of type '{typeof(IErrorClassifier).FullName}': "
+                    + $"injecting {nameof(IErrorClassifier)} into a configuration action for {nameof(RecoverabilityOptions)} "
+                    + "is not supported, because the registered classifier is itself decided from these options. Set "
+                    + $"{nameof(RecoverabilityOptions)}.{nameof(RecoverabilityOptions.ErrorClassifier)} instead.");
             }
 
             _creating.Value = true;

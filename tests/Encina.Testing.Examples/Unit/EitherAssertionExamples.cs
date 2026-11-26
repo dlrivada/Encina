@@ -53,7 +53,7 @@ public sealed class EitherAssertionExamples
     public void ShouldBeError_ExtractsError()
     {
         // Arrange
-        Either<EncinaError, string> result = EncinaErrors.Create("encina.validation.field", "Invalid value");
+        Either<EncinaError, string> result = EncinaErrors.Validation("Invalid value");
 
         // Act & Assert - ShouldBeError returns the error
         var error = result.ShouldBeError();
@@ -67,9 +67,9 @@ public sealed class EitherAssertionExamples
     public void ShouldBeValidationError_ChecksErrorCode()
     {
         // Arrange
-        Either<EncinaError, string> result = EncinaErrors.Create("encina.validation.email", "Invalid format");
+        Either<EncinaError, string> result = EncinaErrors.Validation("Invalid format");
 
-        // Assert - Checks error code starts with "encina.validation"
+        // Assert - Checks the error category is Validation
         result.ShouldBeValidationError();
     }
 
@@ -80,9 +80,9 @@ public sealed class EitherAssertionExamples
     public void ShouldBeNotFoundError_ChecksErrorCode()
     {
         // Arrange
-        Either<EncinaError, string> result = EncinaErrors.Create("encina.notfound.user", "User 123 not found");
+        Either<EncinaError, string> result = EncinaErrors.Create("encina.notfound.user", ErrorCategory.NotFound, "User 123 not found");
 
-        // Assert - Checks error code starts with "encina.notfound"
+        // Assert - Checks the error category is NotFound
         result.ShouldBeNotFoundError();
     }
 
@@ -93,7 +93,7 @@ public sealed class EitherAssertionExamples
     public void ShouldBeErrorWithCode_ChecksSpecificCode()
     {
         // Arrange
-        Either<EncinaError, string> result = EncinaErrors.Create("encina.notfound.order", "Order ORD-001 not found");
+        Either<EncinaError, string> result = EncinaErrors.Create("encina.notfound.order", ErrorCategory.NotFound, "Order ORD-001 not found");
 
         // Assert - Check specific error code
         result.ShouldBeErrorWithCode("encina.notfound.order");
@@ -106,7 +106,7 @@ public sealed class EitherAssertionExamples
     public void ChainedErrorAssertions()
     {
         // Arrange
-        Either<EncinaError, string> result = EncinaErrors.Create("encina.validation.customerid", "Customer ID is required");
+        Either<EncinaError, string> result = EncinaErrors.Validation("Customer ID is required");
 
         // Assert - Chain multiple assertions
         result
