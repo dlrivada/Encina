@@ -2,7 +2,7 @@
 
 > **Issue**: [#4380](https://github.com/dlrivada/Encina/issues/4380)
 > **Type**: Feature (ADR-055 R1 to R4)
-> **Complexity**: Very high (8 phases, no database providers, 23 pull requests)
+> **Complexity**: Very high (8 phases, no database providers, 24 pull requests)
 > **Estimated Scope**: ~2,300 lines of production code, ~3,200 lines of tests, and the deletion of two packages (28 source files, 28 test files, 2 benchmark projects)
 
 ---
@@ -11,21 +11,21 @@
 
 Create the package `Encina.Resilience` that [ADR-055](../architecture/adr/055-resilience-family.md) R1 names and that no issue builds yet: at startup the attributes and options of each request type compile once into a Polly pipeline in the fixed order of R2 (rate limiter, total timeout, retry or hedging, circuit breaker, per-attempt timeout, chaos last), two behaviors at `PipelineStage.Admission` and `PipelineStage.Resilience` consume it, and two front-ends (attributes and `AddEncinaResilience(o => o.Default(...).For<T>(...))`) feed one model with the precedence options for a type > attributes > defaults (R3). The package then absorbs the retry, circuit breaker, rate limit and bulkhead of `Encina.Polly`, removes `Encina.Polly` and `Encina.Extensions.Resilience` completely (no alias, ADR-055 context: nothing of either shipped), and re-homes their EventIds. Every capability plan of the family (#136, #137, #138, #139, #141, #145, #335, #742, #744) is written against the contract this plan defines.
 
-What exists today (read on `origin/main` at `19b761ffa`, after `git fetch`; the file lists were checked at `37b2edd32` and no listed file changed since):
+What exists today (read on `origin/main` at `19b761ffa`, after `git fetch`):
 
 - `src/Encina.Resilience` does not exist (`src/` has only `Encina.Polly` and `Encina.Extensions.Resilience`). `Encina.Polly` holds 21 files: the attributes `[Retry]`, `[CircuitBreaker]`, `[RateLimit]`, `[Bulkhead]` (`src/Encina.Polly/Attributes/`), five behaviors (`Behaviors/`), `BulkheadManager` and `AdaptiveRateLimiter`. `AddEncinaPolly` registers four open-generic behaviors with no `[PipelineStage]` (`src/Encina.Polly/ServiceCollectionExtensions.cs:46-72`), and each behavior builds its Polly pipeline per call (`RetryPipelineBehavior.cs`, `BuildRetryPipeline`). `Encina.Extensions.Resilience` holds `StandardResiliencePipelineBehavior`, `StandardResilienceOptions` and `AddEncinaStandardResilience` (`ServiceCollectionExtensions.cs:35,66`).
 - `PipelineStage.Admission = 200` and `PipelineStage.Resilience = 1100` exist (`src/Encina/Pipeline/Ordering/PipelineStage.cs:47,95`) and `PipelineBuilder` orders steps by stage (`src/Encina/Pipeline/PipelineBuilder.cs:30`).
 - Every rejection of the old behaviors is an uncoded `EncinaError.New(message)` (`BulkheadPipelineBehavior.cs:120,137,153`, `CircuitBreakerPipelineBehavior.cs:67`, `RateLimitingPipelineBehavior.cs:79`); the code `encina.ratelimit.exceeded` exists (`src/Encina/Errors/EncinaErrorCodes.cs:93`), `encina.timeout` exists (`:63`), and no code exists for an open circuit or a full bulkhead (open bug #3424).
 - The continuation has no token: `RequestHandlerCallback<TResponse>()` (`src/Encina/Abstractions/RequestHandlerDelegate.cs:9`); the sibling plan #4382 changes it.
 - The EventId ranges `Polly` 3900-3949 and `ExtensionsResilience` 3950-3999 are registered (`src/Encina/Diagnostics/EventIdRanges.cs:358,361`), used up to 3921 and 3950-3955; 3922-3924 are reserved by the #740 plan; the assembly map has the rows `Encina.Polly` and `Encina.Extensions.Resilience` (`tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs:82,100`).
-- Direct Polly users: `Encina.Security.Secrets` (`ResilientSecretReaderDecorator.cs:38`, a `ResiliencePipeline`) and `Encina.Compliance.NIS2` (`Encina.Compliance.NIS2.csproj:24`, a `PackageReference` with no `using Polly` in its code).
+- Direct Polly users: `Encina.Security.Secrets` (`ResilientSecretReaderDecorator.cs:38`, a `ResiliencePipeline`) and `Encina.Compliance.NIS2` (`NIS2ResilienceHelper.cs:3-4` has `using Polly;` and `using Polly.Registry;`; `Encina.Compliance.NIS2.csproj:24` is a `PackageReference` to `Polly`). Both reference the `Polly` package, not `Encina.Polly`.
 - `Encina.Messaging` runs its own immediate-retry loop (`RecoverabilityPipelineBehavior.cs:117,325`, `RecoverabilityOptions.ImmediateRetries` at `:45`, `MaxJitterPercent` at `:135`).
 
 What this plan delivers, all in `Encina.Resilience` unless said: the project, the contracts the sibling plans assume (strategy-factory per slot, rejection mapper, per-call contributor, `ResilienceContext` property keys, startup validation), the options model and `ResilienceTypeBuilder<TRequest>`, the compiler and registry, the conflict collector, the two behaviors and `AddEncinaResilience`, the retry, circuit breaker, bulkhead and rate limit strategies moved over, the removal of both old packages with their tests, benchmarks, manifests and references, the re-homed EventIds and the rejection codes. Documentation follows.
 
-- **Affected packages**: `Encina.Resilience` (new), `Encina.Polly` and `Encina.Extensions.Resilience` (removed), `Encina.Security.Secrets` and `Encina.Compliance.NIS2` (their `Polly` package references, PR-20), `Encina.Cli` and core `PipelineOrderValidator` (names of the removed packages, PR-15), `Encina` core (`EventIdRanges.cs` summary text only), `Encina.Messaging` (Phase 8 only, Dilemma 7).
+- **Affected packages**: `Encina.Resilience` (new), `Encina.Polly` and `Encina.Extensions.Resilience` (removed), `Encina.Security.Secrets` and `Encina.Compliance.NIS2` (their `Polly` package references become project references, PR-20), `Encina.Cli` and core `PipelineOrderValidator` (names of the removed packages, PR-15), `Encina` core (`EventIdRanges.cs` summary text only), `Encina.Messaging` (Phase 8 only, Dilemma 7).
 - **Provider category**: Resilience (AGENTS.md section 5, "Other categories"); no database, caching, transport, lock or validation matrix applies. The decorators over transports, cloud functions and shards are #742, #744 and #643 (R7).
-- **Estimated size**: 23 pull requests of at most 15 files and 1,500 lines (table in "Implementation Phases").
+- **Estimated size**: 24 pull requests of at most 15 files and 1,500 lines (table in "Implementation Phases").
 - **Prerequisites**: #4382 (token and deadline) for PR-4 and later; the #2414 partitioned core has no implementation issue and is a prerequisite of the final rate-limit design (PR-11 and PR-13 use stand-ins); see "Prerequisites & Dependencies".
 
 ### Shared Pieces and Ownership (family resilience, ADR-055)
@@ -189,14 +189,17 @@ The issue title says R1 to R4 but its body lists only the conflict collection. R
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Include it as Phase 8 of this plan (PR-21 and PR-22). `RecoverabilityOptions.ImmediateRetries` stays as the switch and the count; `ImmediateRetryDelay`, `UseExponentialBackoffForImmediateRetries` and `MaxJitterPercent` are removed (delays come from Polly's delay types, D5); Messaging registers an options configurator that gives the request types its behavior wraps a default `RetryOptions` of `MaxAttempts = ImmediateRetries + 1` unless the type has its own entry** | One owner; the conflict check has its second layer; no orphan; one place to tune delays | The mapping is a new Messaging-to-Resilience dependency; 3 options disappear |
+| **A) Include it as Phase 8 of this plan (PR-21 to PR-23). `RecoverabilityOptions.ImmediateRetries` stays as the switch and the count but its default changes from 3 (`RecoverabilityOptions.cs:45`) to 0, so immediate retries are opt-in and the startup registration error (ADR-055 R4) fires only for an application that sets it above 0 without registering `Encina.Resilience`, never for a default `AddEncinaRecoverability` user; `ImmediateRetryDelay`, `UseExponentialBackoffForImmediateRetries` and `MaxJitterPercent` are removed (delays come from Polly's delay types, D5); Messaging registers an options configurator that gives the request types its behavior wraps a default `RetryOptions` of `MaxAttempts = ImmediateRetries + 1` unless the type has its own entry** | One owner; the conflict check has its second layer; no orphan; one place to tune delays | The mapping is a new Messaging-to-Resilience dependency; 3 options disappear |
 | **B) Leave it to a separate plan under a new issue** | This plan stays at 21 pull requests | A new FEATURE issue without an owner today; the immediate retry loop stays beside the new engine until then |
+| **C) As A but keep the default `ImmediateRetries = 3` and have `AddEncinaRecoverability` auto-register `Encina.Resilience` (ADR-050 allows auto-registration)** | No default changes; no existing registration test is touched | ADR-055 R4 says the requirement is "enforced as a registration error"; every Recoverability user then takes the Polly dependency whether or not it uses immediate retries, against opt-in |
 
 ### Chosen Option: **A — Include as Phase 8** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins when R4 must be closed with the engine (ADR-055 title of R4); B wins when the maintainer wants Messaging changes planned by the messaging family.
+- A wins when R4 must be closed with the engine (ADR-055 title of R4) and every messaging pattern stays opt-in (AGENTS.md section 3); C wins if keeping three immediate retries by default matters more than the opt-in rule; B wins when the maintainer wants Messaging changes planned by the messaging family.
+- The six registration tests that call `AddEncinaRecoverability` without setting `ImmediateRetries` (`MessagingServiceCollectionExtensionsRecoverabilityTests`, `DelayedRetryRegistrationTests`, `RecoverabilityDuplicateRegistrationTests`, `RecoverabilityOptionsCompositionTests`, `RetryAfterCeilingRegistrationTests`, `MessageSerializerRegistrationTests`) keep passing under A (default 0 raises no error) and under C; under the unchanged default of 3 with a registration error they would all fail, which is why that combination is not an option.
+- PR-22 and PR-23 merge back to back: between them the configurator and the old loop would both retry (nested attempts), which only an application that already set `ImmediateRetries > 0` can see.
 - **Class:** Dilemma
 
 </details>
@@ -313,7 +316,9 @@ ADR-055 R2 compiles one model per request type and consumes it with two behavior
 
 ## Implementation Phases
 
-Twenty-three pull requests, in this order; each builds alone with its own tests and registers every service it introduces (a DI test with `ValidateOnBuild` and `ValidateScopes` from PR-2 on). A capability is first added to `Encina.Resilience` (the new code is a copy, the old code still works in `Encina.Polly`), then the old copy is deleted in a later pull request, so no pull request leaves the build broken. Counts are by file name (production, tests, `PublicAPI`, coverage manifest, project and solution edits, `ProjectReference` and `<Using>` edits, READMEs), recounted against the files that exist on `origin/main` at `37b2edd32`.
+Twenty-four pull requests, in this order; each builds alone with its own tests and registers every service it introduces (a DI test with `ValidateOnBuild` and `ValidateScopes` from PR-2 on). A capability is first added to `Encina.Resilience` (the new code is a copy, the old code still works in `Encina.Polly`), then the old copy is deleted in a later pull request, so no pull request leaves the build broken. Counts are by file name (production, tests, `PublicAPI`, coverage manifest, project and solution edits, `ProjectReference` and `<Using>` edits, READMEs), recounted against the files that exist on `origin/main` at `19b761ffa`.
+
+Ambiguous names until PR-16: `Encina.GuardTests.csproj:72` and `Encina.IntegrationTests.csproj:92` carry a global `<Using Include="Encina.Polly" />` (and `Encina.GuardTests.csproj:85` one for `Encina.Extensions.Resilience`) that stays until PR-16 and PR-19. A new test file in those projects that names a type that exists in both namespaces (`RetryAttribute` and `AdaptiveRateLimiter` in `Encina.Polly` and `Encina.Resilience.*`, `DatabaseTransientErrorPredicate` in `Encina.Polly.Predicates` and `Encina.Resilience.Database`) gets CS0104. The new files add no global using; they write the type with a `using` alias (`using NewRetryAttribute = Encina.Resilience.Retry.RetryAttribute;`) or the full name. This applies to `RetryEndToEndTests` (PR-5, IntegrationTests), the predicate guard copy (PR-9, GuardTests) and the limiter guard copy (PR-13, GuardTests); the unit tests of the copies live in `Encina.UnitTests`, which has no such global using. Once the old type is deleted the alias is removed with the old using (PR-16).
 
 | PR | Phase | Content | Files |
 |----|-------|---------|-------|
@@ -325,7 +330,7 @@ Twenty-three pull requests, in this order; each builds alone with its own tests 
 | 6 | 3 | Remove the `Encina.Polly.Benchmarks` project | 9 |
 | 7 | 3 | Remove the retry behavior and the combined and registration tests from `Encina.Polly` | 15 |
 | 8 | 4 | Circuit breaker attribute, options, factory, rejection mapper | 11 |
-| 9 | 4 | Database breaker strategy (Dilemma 6) | 11 |
+| 9 | 4 | Database breaker strategy (Dilemma 6) | 9 |
 | 10 | 4 | Remove both breaker behaviors and the database predicate from `Encina.Polly` | 13 |
 | 11 | 5 | Bulkhead strategy over `ConcurrencyLimiter` (Dilemma 1) | 12 |
 | 12 | 5 | Remove bulkhead behavior and `BulkheadManager` | 12 |
@@ -336,10 +341,11 @@ Twenty-three pull requests, in this order; each builds alone with its own tests 
 | 17 | 6 | Remove the tests and benchmarks of `Encina.Extensions.Resilience` | 10 |
 | 18 | 6 | Remove the behavior and options of `Encina.Extensions.Resilience`; drop its assembly row | 6 |
 | 19 | 6 | Remove the `Encina.Extensions.Resilience` source package | 13 |
-| 20 | 7 | Secrets and NIS2 drop their direct `Polly` reference (ADR-055 R1) | 2 |
-| 21 | 8 | Messaging: registration requirement and retry defaults (Dilemma 7) | 8 |
-| 22 | 8 | Messaging: remove the immediate-retry loop and its options (Dilemma 7) | 12 |
-| 23 | 8 | ADR-050 row, README, guide, contract tests, fragments | 14 |
+| 20 | 7 | Secrets and NIS2 take a `ProjectReference` to `Encina.Resilience` instead of the `Polly` package (ADR-055 R1) | 2 |
+| 21 | 8 | Messaging: `ImmediateRetries` becomes opt-in (default 0) and the tests that depended on the default (Dilemma 7) | 13 at most |
+| 22 | 8 | Messaging: registration requirement and retry defaults (Dilemma 7) | 8 |
+| 23 | 8 | Messaging: remove the immediate-retry loop and its options (Dilemma 7); merges right after PR-22 | 12 |
+| 24 | 8 | ADR-050 row, README, guide, contract tests, fragments | 14 |
 
 Edits to `.github/workflows/benchmarks.yml` (lines 173 and 174 name the two benchmark projects) are the orchestrator's: PR-6 and PR-17 list the lines and the orchestrator applies them. `AssemblyRanges_HasNoStaleEntries` (`EncinaEventIdAllocationTests.cs:223-236`) fails when a mapped assembly declares no EventId, so the row of a package is removed in the pull request that deletes its last logger: `Encina.Polly` in PR-14 (its last logger, `RateLimitingPipelineBehavior`, ids 3915-3917) and `Encina.Extensions.Resilience` in PR-18 (`StandardResiliencePipelineBehavior`, 3950-3955).
 
@@ -398,7 +404,7 @@ PR-5 (11 files): `Retry/RetryAttribute.cs` (with `BackoffType`, no `RetryOnAllEx
 
 PR-6 (9 files): delete the benchmark project `tests/Encina.BenchmarkTests/Encina.Polly.Benchmarks/` (`Encina.Polly.Benchmarks.csproj`, `Program.cs`, `GlobalSuppressions.cs`, `RetryBenchmarks.cs`, `CircuitBreakerBenchmarks.cs`, `BulkheadBenchmarks.cs`, `RateLimitingBenchmarks.cs`), `.github/perf-manifest/Encina.Polly.Benchmarks.json` and its `Encina.slnx` row (line 150). It goes first because every benchmark file references a behavior a later pull request deletes. Line 173 of `benchmarks.yml` is the orchestrator's.
 
-PR-7 (15 files): delete `RetryPipelineBehavior.cs`, `Diagnostics/RetryTelemetry.cs` and `Attributes/RetryAttribute.cs` from `Encina.Polly`; edit its `ServiceCollectionExtensions.cs`, `PublicAPI.Unshipped.txt` and manifest; delete `RetryPipelineBehaviorTests.cs`, `RetryPipelineBehaviorOutboundTests.cs`, `RetryAttributeTests.cs`, `BackoffTypeTests.cs`, `tests/Encina.GuardTests/Infrastructure/Polly/RetryPipelineBehaviorGuardsTests.cs`, `PolicyCombinationTests.cs` (its order cases are the compiler order test of PR-3), the Polly `tests/Encina.UnitTests/Polly/ServiceCollectionExtensionsTests.cs` (its assertions are the registration tests of `Encina.Resilience`) and `tests/Encina.IntegrationTests/Observability/Polly/EndToEndIntegrationTests.cs`; edit `ErrorClassifierRegistrationTests.cs`. `RetryTelemetry` (manifest unit 95, integration 30) goes with its file: its counters become Polly instruments (#728 R5), which is intended.
+PR-7 (15 files): delete `RetryPipelineBehavior.cs`, `Diagnostics/RetryTelemetry.cs` and `Attributes/RetryAttribute.cs` from `Encina.Polly`; edit its `ServiceCollectionExtensions.cs`, `PublicAPI.Unshipped.txt` and manifest; delete `RetryPipelineBehaviorTests.cs`, `RetryPipelineBehaviorOutboundTests.cs`, `RetryAttributeTests.cs`, `BackoffTypeTests.cs`, `tests/Encina.GuardTests/Infrastructure/Polly/RetryPipelineBehaviorGuardsTests.cs`, `PolicyCombinationTests.cs` (its order cases are the compiler order test of PR-3), the Polly `tests/Encina.UnitTests/Polly/ServiceCollectionExtensionsTests.cs` (its assertions are the registration tests of `Encina.Resilience`) and `tests/Encina.IntegrationTests/Observability/Polly/EndToEndIntegrationTests.cs`; edit `ErrorClassifierRegistrationTests.cs`: its three Polly cases (`AddEncinaPolly_RegistersTheDefaultClassifierAndTheRetryBehaviorResolves`, `AddEncinaPolly_KeepsAClassifierTheApplicationRegisteredFirst` and `Recoverability_WithACustomClassifierOption_ReplacesThePollyDefaultInEitherOrder`, which call `AddEncinaPolly` and use `using Encina.Polly;` at line 2) move to `AddEncinaResilience` in this pull request, so nothing in that file needs `Encina.Polly` when PR-14 empties its registration. `RetryTelemetry` (manifest unit 95, integration 30) goes with its file: its counters become Polly instruments (#728 R5), which is intended.
 
 </details>
 
@@ -421,7 +427,7 @@ REFERENCE FILES: src/Encina.Polly/Behaviors/RetryPipelineBehavior.cs, src/Encina
 
 PR-8 (11 files): `CircuitBreaker/CircuitBreakerAttribute.cs`, `CircuitBreakerOptions.cs`, `CircuitBreakerStrategyFactory.cs`, `CircuitBreakerRejectionMapper.cs` (maps `BrokenCircuitException` to the coded `Left` `encina.circuitbreaker.open`, `ErrorCategory.Unavailable`, constant message), the registration edit, `PublicAPI`, manifest, `CircuitBreakerStrategyFactoryTests.cs`, `CircuitBreakerRejectionMapperTests.cs`, `CircuitBreakerGuardTests.cs`, `ResilienceRegistrationTests.cs`. State is per container, never a static field (#2411): the breaker lives in the singleton pipeline of the registry.
 
-PR-9 (11 files): `DatabaseBreakerStrategyFactory.cs`, `DatabaseTransientErrorPredicate.cs` (copied; the old one is deleted in PR-10), registration, `PublicAPI` and manifest of `Encina.Resilience`, tests (factory, predicate copy `DatabaseTransientErrorPredicateTests.cs`, its guard test copy, DI test); wires `DatabaseResilienceOptions.EnableCircuitBreaker` (Dilemma 6).
+PR-9 (9 files; recounted: 2 production, registration, `PublicAPI`, manifest, 4 tests): `DatabaseBreakerStrategyFactory.cs`, `DatabaseTransientErrorPredicate.cs` (copied; the old one is deleted in PR-10), registration, `PublicAPI` and manifest of `Encina.Resilience`, tests (factory, predicate copy `DatabaseTransientErrorPredicateTests.cs`, its guard test copy, DI test); wires `DatabaseResilienceOptions.EnableCircuitBreaker` (Dilemma 6).
 
 PR-10 (13 files): delete `CircuitBreakerPipelineBehavior.cs`, `DatabaseCircuitBreakerPipelineBehavior.cs`, `CircuitBreakerAttribute.cs`, `Predicates/DatabaseTransientErrorPredicate.cs` and their six test classes (`CircuitBreakerPipelineBehaviorTests.cs`, `CircuitBreakerAttributeTests.cs`, `DatabaseCircuitBreakerPipelineBehaviorTests.cs`, `DatabaseTransientErrorPredicateTests.cs`, `tests/Encina.GuardTests/Database/DatabaseTransientErrorPredicateGuardsTests.cs`, `tests/Encina.GuardTests/Infrastructure/Polly/CircuitBreakerPipelineBehaviorGuardsTests.cs`) from `Encina.Polly`; edit its registration (`ServiceCollectionExtensions.cs`), `PublicAPI.Unshipped.txt` and its manifest.
 
@@ -500,7 +506,7 @@ REFERENCE FILES: Encina.slnx, .github/scripts/coverage-weights.json, tests/Encin
 <details>
 <summary>Tasks</summary>
 
-PR-20 (2 files): `src/Encina.Security.Secrets/Encina.Security.Secrets.csproj` (the `Polly` package reference becomes a `ProjectReference` to `Encina.Resilience`; its decorator keeps using Polly types, which arrive transitively) and `src/Encina.Compliance.NIS2/Encina.Compliance.NIS2.csproj` (`:24`, a `Polly` package reference with no Polly code in the project: removed, no reference added). Both reference only the `Polly` package today, not `Encina.Polly`, so nothing breaks when the packages go; the change follows ADR-055 R1 ("`Encina.Security.Secrets` and `Encina.Compliance.NIS2` reference `Encina.Resilience` instead of Polly directly"), which is why it is Settled by that text and not a new dependency decision. The `Encina.Resilience` assembly row and the summary comment of `EventIdRanges.cs` were added in PR-3. The EventIds: the ids 3900-3921 of the deleted behaviors stay registered and unused (retry attempts, breaker transitions and rejections become Polly telemetry and span events, #728 R5); new ids are 3925-3930 (`PipelineCompiled`, `PipelineReloaded`, `PipelineReloadFailed`, `ConflictsCollected`, `CallContributorFailed`, `PipelineUnavailable`), packed, inside the registered `Polly` range after the 3922-3924 reserved by #740. If #4007 OP-2 lands first the same offsets apply in 60050-60099.
+PR-20 (2 files): `src/Encina.Security.Secrets/Encina.Security.Secrets.csproj` and `src/Encina.Compliance.NIS2/Encina.Compliance.NIS2.csproj` (`:24`): in both, the `Polly` package reference becomes a `ProjectReference` to `Encina.Resilience`. Their code keeps compiling because it uses Polly types (`ResilientSecretReaderDecorator.cs:38`; `NIS2ResilienceHelper.cs:3-4`, `using Polly;` and `using Polly.Registry;`), which `Encina.Resilience` brings in transitively through its own `Polly` and `Polly.Extensions` references (choice 12). Both reference only the `Polly` package today, not `Encina.Polly`, so nothing breaks when the old packages go; the change follows ADR-055 R1 ("`Encina.Security.Secrets` and `Encina.Compliance.NIS2` reference `Encina.Resilience` instead of Polly directly"), which is why it is Settled by that text and not a new dependency decision. The worker builds both projects after the edit to prove the transitive flow. The `Encina.Resilience` assembly row and the summary comment of `EventIdRanges.cs` were added in PR-3. The EventIds: the ids 3900-3921 of the deleted behaviors stay registered and unused (retry attempts, breaker transitions and rejections become Polly telemetry and span events, #728 R5); new ids are 3925-3930 (`PipelineCompiled`, `PipelineReloaded`, `PipelineReloadFailed`, `ConflictsCollected`, `CallContributorFailed`, `PipelineUnavailable`), packed, inside the registered `Polly` range after the 3922-3924 reserved by #740. If #4007 OP-2 lands first the same offsets apply in 60050-60099.
 
 </details>
 
@@ -521,11 +527,13 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/event
 <details>
 <summary>Tasks</summary>
 
-PR-21 (8 files, Dilemma 7 option A, added first so immediate retries never stop working): `src/Encina.Messaging/Recoverability/RecoverabilityRetryConfigurator.cs` (an `IConfigureOptions<ResilienceOptions>` that applies the mapping `MaxAttempts = ImmediateRetries + 1` to the request types the behavior wraps, unless the type has its own entry), `RecoverabilityServiceCollectionExtensions.cs` (modified: a registration error, coded and raised at startup, when `ImmediateRetries > 0` and `Encina.Resilience` is not registered, ADR-050), `Encina.Messaging.csproj` (the `ProjectReference`), `PublicAPI.Unshipped.txt`, the Messaging manifest, `RecoverabilityRetryConfiguratorTests.cs`, `RecoverabilityResilienceRequirementTests.cs` and the Messaging DI test (modified).
+PR-21 (at most 13 files, Dilemma 7 option A): `RecoverabilityOptions.cs` (default of `ImmediateRetries` from 3 to 0, with its XML doc) and the Messaging `README.md`, plus the tests that read or rely on the default of 3. The tests found by `Select-String` for `ImmediateRetries` on `origin/main` are: `RecoverabilityOptionsTests.cs:19` (asserts 3), `RecoverabilityOptionsCompositionTests.cs`, `RecoverabilityDuplicateRegistrationTests.cs`, `RecoverabilityPipelineBehaviorTests.cs`, `DelayedRetryChainTests.cs`, `DeadLetterSourcesCaptureTests.cs`, `DeadLetterSourcesEndToEndScenario.cs`, `ErrorMessageLeakTests.cs`, `MessagingInfrastructureErrorCategoryTests.cs`, `RecoverabilityPipelineBehaviorContractTests.cs`, `RecoverabilityGuardTests.cs` (11 files at most; those that already set the value explicitly are not edited, the worker keeps the ones that fail by running the Messaging test projects). The six registration tests named in Dilemma 7 are verified, not edited (`MessagingServiceCollectionExtensionsRecoverabilityTests.cs`, `DelayedRetryRegistrationTests.cs`, `RetryAfterCeilingRegistrationTests.cs`, `MessageSerializerRegistrationTests.cs` do not mention `ImmediateRetries`). The count is 2 production files plus at most 11 tests = 13.
 
-PR-22 (12 files): `RecoverabilityPipelineBehavior.cs` (remove `ExecuteWithImmediateRetriesAsync`, `:325`), `RecoverabilityOptions.cs` (remove `ImmediateRetryDelay`, `UseExponentialBackoffForImmediateRetries` and `MaxJitterPercent`; `ImmediateRetries` stays), `PublicAPI.Unshipped.txt`, `README.md` of `Encina.Messaging`, the Messaging manifest, and the seven test files that use a removed member (found by `Select-String` on `origin/main` at `37b2edd32`): `RecoverabilityGuardTests.cs`, `DeadLetterSourcesEndToEndScenario.cs`, `DeadLetterSourcesCaptureTests.cs`, `RecoverabilityPipelineBehaviorTests.cs`, `DelayedRetryChainTests.cs`, `RecoverabilityOptionsCompositionTests.cs`, `RecoverabilityOptionsTests.cs` (the `Handle_JitterAboveHundredPercent_FloorsDelayAtZero` test goes, #2714). The other eleven files that mention only `ImmediateRetries` keep compiling and are untouched.
+PR-22 (8 files, Dilemma 7 option A): `src/Encina.Messaging/Recoverability/RecoverabilityRetryConfigurator.cs` (an `IConfigureOptions<ResilienceOptions>` that applies the mapping `MaxAttempts = ImmediateRetries + 1` to the request types the behavior wraps, unless the type has its own entry), `RecoverabilityServiceCollectionExtensions.cs` (modified: a registration error, coded and raised at startup, when `ImmediateRetries > 0` and `Encina.Resilience` is not registered, ADR-050), `Encina.Messaging.csproj` (the `ProjectReference`), `PublicAPI.Unshipped.txt`, the Messaging manifest, `RecoverabilityRetryConfiguratorTests.cs`, `RecoverabilityResilienceRequirementTests.cs` and the Messaging DI test (modified).
 
-PR-23 (14 files): `docs/architecture/adr/050-modules-may-require-modules.md` (the closed-list row), package `README.md`, `docs/en/guides/resilience.md`, contract tests (`ResilienceStrategyFactoryContractTests.cs`, `ResilienceBehaviorContractTests.cs`) with their manifest targets, justification files for load and benchmark tests, `ROADMAP.md` if applicable, changelog fragments `4380-encina-resilience.added.md` and `4380-resilience-packages-removed.removed.md`. Documentation goes through `docs-writer`.
+PR-23 (12 files; merges back to back with PR-22): `RecoverabilityPipelineBehavior.cs` (remove `ExecuteWithImmediateRetriesAsync`, `:325`), `RecoverabilityOptions.cs` (remove `ImmediateRetryDelay`, `UseExponentialBackoffForImmediateRetries` and `MaxJitterPercent`; `ImmediateRetries` stays), `PublicAPI.Unshipped.txt`, `README.md` of `Encina.Messaging`, the Messaging manifest, and the seven test files that use a removed member (found by `Select-String` on `origin/main` at `37b2edd32`): `RecoverabilityGuardTests.cs`, `DeadLetterSourcesEndToEndScenario.cs`, `DeadLetterSourcesCaptureTests.cs`, `RecoverabilityPipelineBehaviorTests.cs`, `DelayedRetryChainTests.cs`, `RecoverabilityOptionsCompositionTests.cs`, `RecoverabilityOptionsTests.cs` (the `Handle_JitterAboveHundredPercent_FloorsDelayAtZero` test goes, #2714). The other eleven files that mention only `ImmediateRetries` keep compiling and are untouched.
+
+PR-24 (14 files): `docs/architecture/adr/050-modules-may-require-modules.md` (the closed-list row), package `README.md`, `docs/en/guides/resilience.md`, contract tests (`ResilienceStrategyFactoryContractTests.cs`, `ResilienceBehaviorContractTests.cs`) with their manifest targets, justification files for load and benchmark tests, `ROADMAP.md` if applicable, changelog fragments `4380-encina-resilience.added.md` and `4380-resilience-packages-removed.removed.md`. Documentation goes through `docs-writer`.
 
 Test coverage per PR: unit, guard and integration tests are in their pull requests (above); property tests are justified (no invariant beyond the order test); load and benchmark tests are a `.md` justification (the compiled pipeline is built once; the per-call allocation benchmark is #728 R5).
 
@@ -535,7 +543,7 @@ Test coverage per PR: unit, guard and integration tests are in their pull reques
 <summary>Prompt for AI Agents — Phase 8</summary>
 
 ```text
-CONTEXT: PR-1 to PR-20 merged.
+CONTEXT: PR-1 to PR-20 merged. PR-22 and PR-23 merge back to back.
 TASK: Make Encina.Resilience the only owner of immediate retries, then document and finish.
 KEY RULES: delayed retries and the dead letter queue stay in Messaging; a Left from a store fails the operation (never success); the registration error is a coded startup failure; docs by docs-writer with covref markers, no typed coverage figures.
 REFERENCE FILES: src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs, docs/architecture/adr/050-modules-may-require-modules.md, docs/architecture/adr/055-resilience-family.md
@@ -616,9 +624,9 @@ Every new file has a row, each set in the pull request that adds it and its test
 | `RateLimit/RateLimitStrategyFactory.cs` (13) | 90 | 15 | 0 | Strategy over the copied limiter; guard is the constructor checks |
 | `RateLimit/AdaptiveRateLimiter.cs` (13) | 90 | 40 | 0 | Copied with its unit and guard tests (the old file had the package default); `AdaptiveRateLimiterGuardsTests` reach its argument checks |
 | `RateLimit/IRateLimiter.cs`, `RateLimitResult.cs`, `RateLimitState.cs` (13) | 90 | 0 | 0 | Interface and small records driven by the limiter tests; no argument checks |
-| `Messaging/Recoverability/RecoverabilityRetryConfigurator.cs` (21, in `Encina.Messaging`) | 95 | 30 | 0 | One mapping and two null checks, driven by `RecoverabilityRetryConfiguratorTests` |
+| `Messaging/Recoverability/RecoverabilityRetryConfigurator.cs` (22, in `Encina.Messaging`) | 95 | 30 | 0 | One mapping and two null checks, driven by `RecoverabilityRetryConfiguratorTests` |
 
-The deleted files carry their old manifest rows away with them (a target is removed only together with its source file, the ratchet rule); `RetryTelemetry` (unit 95, integration 30) goes with its file because its counters become Polly instruments (#728 R5), which is intended. The package-level targets of the new `Encina.Resilience.json` are unit 85, guard 20 and integration 60, and every per-file row above is at or above them where it has coverable lines. Edits to `RecoverabilityPipelineBehavior.cs` and `RecoverabilityOptions.cs` in PR-22 only delete code and leave their existing rows unchanged.
+The deleted files carry their old manifest rows away with them (a target is removed only together with its source file, the ratchet rule); `RetryTelemetry` (unit 95, integration 30) goes with its file because its counters become Polly instruments (#728 R5), which is intended. The package-level targets of the new `Encina.Resilience.json` are unit 85, guard 20 and integration 60, and every per-file row above is at or above them where it has coverable lines. Edits to `RecoverabilityPipelineBehavior.cs` and `RecoverabilityOptions.cs` in PR-21 and PR-23 only delete code and leave their existing rows unchanged.
 
 ---
 
@@ -665,7 +673,7 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina.Poll
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
 | #4382: token on the continuation, `IRequestContext.Deadline` | Open; plan by number | PR-4 and later; PR-1 to PR-3 do not need it |
-| The current `origin/main` (`37b2edd32` when this plan was revised) | Moves | Re-run the counts of "Implementation Phases" with `Select-String` at brief time |
+| The current `origin/main` (`19b761ffa` when this plan was revised) | Moves | Re-run the counts of "Implementation Phases" with `Select-String` at brief time |
 | #728 telemetry plan | On main, choices pending | Instrument and enricher names; none created here |
 | #2414 partitioned core | Open SPIKE with decisions D1 to D3; no implementation issue exists | Prerequisite of the final rate-limit and bulkhead design: PR-11 and PR-13 use the stand-ins of Dilemma 1 until the maintainer opens its issue and plan |
 | #3424 (uncoded rejections) | Open bug | Closed by PR-8, PR-11 and the removals |
@@ -679,4 +687,4 @@ REFERENCE FILES: docs/architecture/adr/055-resilience-family.md, src/Encina.Poll
 
 1. Commit this plan, open its PR and link it from #4380.
 2. When #4380 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 7).
-3. Brief workers for PR-1 to PR-23 in order, after #4382 PR-2 for PR-4 and later.
+3. Brief workers for PR-1 to PR-24 in order, after #4382 PR-2 for PR-4 and later.
