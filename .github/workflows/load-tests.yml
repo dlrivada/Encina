@@ -84,7 +84,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -100,9 +104,9 @@ jobs:
           path: |
             ~/.nuget/packages
             %USERPROFILE%\.nuget\packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Cache dotnet tools
@@ -111,9 +115,9 @@ jobs:
           path: |
             ~/.dotnet/tools
             %USERPROFILE%\.dotnet\tools
-          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_CACHE_KEY }}
           restore-keys: |
-            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-dotnet-tools
 
       - name: Restore
@@ -216,7 +220,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
       # Database connection strings for Testcontainers bypass
       SQLSERVER_CONNECTION_STRING: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
       POSTGRES_CONNECTION_STRING: "Host=localhost;Port=5432;Database=encina_test;Username=postgres;Password=postgres"
@@ -235,9 +243,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Restore
@@ -311,7 +319,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -325,9 +337,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Restore
@@ -409,7 +421,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
       REDIS_CONNECTION_STRING: "localhost:6379"
     steps:
       - name: Checkout
@@ -424,9 +440,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Restore
@@ -512,7 +528,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
       REDIS_CONNECTION_STRING: "localhost:6379"
       SQLSERVER_CONNECTION_STRING: "Server=localhost,1433;Database=encina_test;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True"
     steps:
@@ -528,9 +548,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Restore
@@ -623,7 +643,11 @@ jobs:
     env:
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
       DOTNET_NOLOGO: true
-      DOTNET_SDK_VERSION: '10.0.x'
+      DOTNET_SDK_VERSION: |
+        10.0.x
+        11.0.x
+      # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+      DOTNET_SDK_CACHE_KEY: '10.0.x-11.0.x'
       RABBITMQ_CONNECTION_STRING: "amqp://guest:guest@localhost:5672"
       NATS_CONNECTION_STRING: "nats://localhost:4222"
       MQTT_HOST: "localhost"
@@ -641,9 +665,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json') }}
+          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}
+            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_CACHE_KEY }}
             ${{ runner.os }}-nuget
 
       - name: Start Kafka (Testcontainers)
