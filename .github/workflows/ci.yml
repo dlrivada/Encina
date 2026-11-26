@@ -14,7 +14,11 @@ concurrency:
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
   DOTNET_NOLOGO: true
-  DOTNET_SDK_VERSION: "10.0.x"
+  DOTNET_SDK_VERSION: |
+    10.0.x
+    11.0.x
+  # Single-line form of DOTNET_SDK_VERSION for cache keys (restore-keys is newline-separated)
+  DOTNET_SDK_CACHE_KEY: "10.0.x-11.0.x"
 
 jobs:
   # Detect which areas changed to skip unaffected test jobs
