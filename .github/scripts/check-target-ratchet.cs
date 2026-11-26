@@ -8,8 +8,13 @@
 //   R-DROP  the base has a target and the head has none while the source still exists in the head
 //           tree: src/<Package>/<file> for a file target, a src/**/<Package>.csproj for a package
 //           target. A deleted or renamed source file, or a retired package, may drop its entry.
-// A value equal to its base value is not a change, so existing zeros are never touched. The rule
-// for a NEW 0 is a separate issue (#2898) and is not implemented here.
+//   R-ZERO  (#2898) a unit, guard or contract file target that is 0 in the head and absent in the
+//           base (a base value above 0 lowered to 0 is R-LOW). Accepted automatically when the
+//           closed-list classifier of #2890 says the source file has no executable code for that
+//           flag, by asking `coverage-report.cs --classify-zero` (no second copy of the test); the
+//           source is read from the head revision. If the source or the verdict is missing, the
+//           zero is a violation (fail closed). integration and property zeros are out of the rule.
+// A value equal to its base value is not a change, so existing zeros are never touched.
 //
 // The base used for every read is the merge base of --base and --head, so commits that landed on
 // the base branch after the pull request branched are not mistaken for lowerings. A path absent
@@ -33,7 +38,8 @@
 //
 // Exit codes: 0 no violation, or every violation approved by the label; 1 a violation without the
 // label, or any failure (git, parse, gh: fail closed); 2 invalid arguments.
-// Requires: .NET 10+ (C# 14 file-based app) and git; gh only when there are violations and a --pr.
+// Requires: .NET 10+ (C# 14 file-based app) and git; gh only when there are violations and a --pr;
+// `dotnet run` of coverage-report.cs once per new zero of a file that is not yet classified.
 #pragma warning disable CA1305, CA1310, CA1859, CA1852, CA1307, CA1861
 
 using System.Diagnostics;
@@ -43,27 +49,14 @@ using System.Text.Json;
 const string LabelName = "target-change-approved";
 const string ManifestDir = ".github/coverage-manifest/";
 
-string? baseRef = null, headRef = "HEAD", rootArg = null;
-int? pr = null;
-bool selfTest = false, noLabel = false, assumeLabel = false;
-
-for (var i = 0; i < args.Length; i++)
+var parsed = ParseArgs(args, out var argError);
+if (parsed is null)
 {
-    switch (args[i])
-    {
-        case "--self-test": selfTest = true; break;
-        case "--no-label-lookup": noLabel = true; break;
-        case "--assume-label": assumeLabel = true; break;
-        case "--base" when i + 1 < args.Length: baseRef = args[++i]; break;
-        case "--head" when i + 1 < args.Length: headRef = args[++i]; break;
-        case "--root" when i + 1 < args.Length: rootArg = args[++i]; break;
-        case "--pr" when i + 1 < args.Length && int.TryParse(args[i + 1], out var n): pr = n; i++; break;
-        default:
-            Console.Error.WriteLine($"Unknown or incomplete argument: {args[i]}");
-            return 2;
-    }
+    Console.Error.WriteLine(argError);
+    return 2;
 }
 
+var (baseRef, headRef, rootArg, pr, selfTest, noLabel, assumeLabel) = parsed;
 if (selfTest) return SelfTest();
 
 if (baseRef is null || (noLabel && assumeLabel))
@@ -105,7 +98,13 @@ string? ReadAt(string rev, string path)
     return r.Exit == 0 ? r.Out : null; // a failing `git show` means "absent at that revision"
 }
 
-var violations = Evaluate(changes, p => ReadAt(baseSha, p), p => ReadAt(headRef, p), headTree, errors);
+using var classifier = new ZeroSource(headRef, headTree, ReadAt, (file, flag) =>
+{
+    var r = Run("dotnet", root, "run", "--file", Path.Combine(root, ".github", "scripts", "coverage-report.cs"),
+        "--", "--classify-zero", file, flag);
+    return (r.Exit, r.Out);
+});
+var violations = Evaluate(changes, p => ReadAt(baseSha, p), p => ReadAt(headRef, p), headTree, errors, classifier.Classify);
 if (errors.Count > 0)
 {
     foreach (var e in errors) Console.Error.WriteLine($"ERROR: {e}");
@@ -130,6 +129,36 @@ if (!string.IsNullOrEmpty(summary) && violations.Count > 0)
 return outcome.Exit;
 
 // ---------------------------------------------------------------------------------------------
+
+static Options? ParseArgs(string[] a, out string error)
+{
+    string? baseRef = null, headRef = "HEAD", rootArg = null;
+    int? pr = null;
+    bool selfTest = false, noLabel = false, assumeLabel = false;
+    error = "";
+    for (var i = 0; i < a.Length; i++)
+    {
+        switch (a[i])
+        {
+            case "--self-test": selfTest = true; break;
+            case "--no-label-lookup": noLabel = true; break;
+            case "--assume-label": assumeLabel = true; break;
+            case "--base" when i + 1 < a.Length: baseRef = a[++i]; break;
+            case "--head" when i + 1 < a.Length: headRef = a[++i]; break;
+            case "--root" when i + 1 < a.Length: rootArg = a[++i]; break;
+            case "--pr" when i + 1 < a.Length && int.TryParse(a[i + 1], out var n): pr = n; i++; break;
+            default:
+                error = $"Unknown or incomplete argument: {Safe(a[i])}";
+                return null;
+        }
+    }
+
+    return new Options(baseRef, headRef, rootArg, pr, selfTest, noLabel, assumeLabel);
+}
+
+// Control and non-ASCII characters are replaced and the length capped: a manifest key, a path or an
+// argument is untrusted text that ends up on a CI console line and in the job summary.
+static string Safe(string value) => Text.Safe(value);
 
 static string FindRoot(string start)
 {
@@ -220,7 +249,7 @@ static List<Change> ParseDiff(string raw)
 
 static List<Violation> Evaluate(
     List<Change> changes, Func<string, string?> readBase, Func<string, string?> readHead,
-    HashSet<string> headTree, List<string> errors)
+    HashSet<string> headTree, List<string> errors, Func<string, string, string, ZeroVerdict> classify)
 {
     var csprojNames = new HashSet<string>(StringComparer.Ordinal);
     foreach (var p in headTree)
@@ -231,12 +260,17 @@ static List<Violation> Evaluate(
     var result = new List<Violation>();
     foreach (var c in changes)
     {
-        if (!IsManifest(c.BasePath)) continue; // new manifest (or one moved in): nothing to ratchet against
-        var baseJson = readBase(c.BasePath!);
-        if (baseJson is null) { errors.Add($"base manifest {c.BasePath} could not be read"); continue; }
+        // A new manifest (or one moved in) has nothing to ratchet against for R-LOW and R-DROP, but
+        // every one of its zeros is new for R-ZERO.
+        Manifest? b = null;
+        if (IsManifest(c.BasePath))
+        {
+            var baseJson = readBase(c.BasePath!);
+            if (baseJson is null) { errors.Add($"base manifest {c.BasePath} could not be read"); continue; }
 
-        var b = Manifest.Parse(baseJson, c.BasePath!);
-        if (b is null) { errors.Add($"base manifest {c.BasePath} is not a readable manifest"); continue; }
+            b = Manifest.Parse(baseJson, c.BasePath!);
+            if (b is null) { errors.Add($"base manifest {c.BasePath} is not a readable manifest"); continue; }
+        }
 
         Manifest? h = null;
         // A head path the coverage report does not load (renamed to .json.disabled, moved into a
@@ -248,10 +282,33 @@ static List<Violation> Evaluate(
             if (h is null) { errors.Add($"head manifest {c.HeadPath} is not a readable manifest"); continue; }
         }
 
-        Compare(b, h, csprojNames, headTree, result);
+        if (b is not null) Compare(b, h, csprojNames, headTree, result);
+        if (h is not null) CompareZeros(b, h, classify, result);
     }
 
     return result;
+}
+
+// R-ZERO (#2898): a unit, guard or contract file target that is 0 in the head and absent in the base.
+// A base value above 0 lowered to 0 is already an R-LOW violation with the same label gate, so it is
+// not reported twice. A file the closed-list classifier of #2890 says has no executable code for the
+// flag is accepted; one it cannot answer for (source missing or unreadable, no verdict) fails closed.
+static void CompareZeros(Manifest? b, Manifest h, Func<string, string, string, ZeroVerdict> classify, List<Violation> result)
+{
+    foreach (var (file, flags) in h.Files)
+    {
+        var baseFlags = new HashSet<string>(StringComparer.Ordinal);
+        if (b is not null && b.Files.TryGetValue(file, out var bf)) baseFlags.UnionWith(bf.Keys.Select(k => k.ToLowerInvariant()));
+        foreach (var (flag, hv) in flags)
+        {
+            var lowered = flag.ToLowerInvariant();
+            if (hv != 0 || lowered is not ("unit" or "guard" or "contract") || baseFlags.Contains(lowered)) continue;
+            var verdict = classify(h.Package, file, lowered);
+            if (verdict is { Answered: true, Exempt: true }) continue;
+            result.Add(new Violation(h.Package, Safe(file), lowered, null, 0,
+                verdict.Answered ? "file has executable code" : "source not readable or not classified; failing closed"));
+        }
+    }
 }
 
 static void Compare(Manifest b, Manifest? h, HashSet<string> csprojNames, HashSet<string> headTree, List<Violation> result)
@@ -343,10 +400,14 @@ static int SelfTest()
     HashSet<string> Tree(params string[] paths) => new(paths);
     var live = Tree("src/Pkg/Pkg.csproj", "src/Pkg/A.cs", "src/Pkg/B.cs");
 
-    List<Violation> Eval(Change c, string? baseJson, string? headJson, HashSet<string> tree)
+    var exempt = new ZeroVerdict(true, true);
+    var code = new ZeroVerdict(true, false);
+    var unanswered = new ZeroVerdict(false, false);
+
+    List<Violation> Eval(Change c, string? baseJson, string? headJson, HashSet<string> tree, ZeroVerdict? verdict = null)
     {
         var errs = new List<string>();
-        var r = Evaluate([c], _ => baseJson, _ => headJson, tree, errs);
+        var r = Evaluate([c], _ => baseJson, _ => headJson, tree, errs, (_, _, _) => verdict ?? exempt);
         if (errs.Count > 0) r.Add(new Violation("ERR", errs[0], "", 0, null));
         return r;
     }
@@ -407,6 +468,78 @@ static int SelfTest()
     Check("manifest changed to invalid JSON fails closed",
         Eval(same, b0, "{ not json", live) is [{ Package: "ERR" }]);
 
+    // R-ZERO (#2898)
+    var bz = J("Pkg", "unit=50", ("A.cs", "unit=90"));
+    var newGuardZero = J("Pkg", "unit=50", ("A.cs", "unit=90,guard=0"));
+    var zeroCode = Eval(same, bz, newGuardZero, live, code);
+    Check("a new 0 on a file with executable code is R-ZERO and prints the issue's line",
+        zeroCode is [{ Scope: "A.cs", Flag: "guard", Base: null, Head: 0 }] && zeroCode[0].Format() == "Pkg  A.cs  guard  absent -> 0  (file has executable code)");
+    Check("a new 0 on a file with no executable code is accepted",
+        Eval(same, bz, newGuardZero, live, exempt).Count == 0);
+    Check("a 0 unchanged from the base is accepted without asking the classifier",
+        Eval(same, b0, b0, live, code).Count == 0);
+    Check("a new 0 on integration or property is out of the rule",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=90,integration=0,property=0")), live, code).Count == 0);
+    Check("a new 0 on unit and on contract is R-ZERO too",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=0,contract=0")), live, code) is [{ Flag: "unit" }, { Flag: "contract" }]);
+    Check("a new 0 the classifier cannot answer for fails closed",
+        Eval(same, bz, newGuardZero, live, unanswered) is [{ Flag: "guard", Note: "source not readable or not classified; failing closed" }]);
+    Check("a new file entry with a 0 is R-ZERO",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=90"), ("B.cs", "guard=0")), live, code) is [{ Scope: "B.cs", Flag: "guard" }]);
+    Check("a new manifest with a 0 is R-ZERO",
+        Eval(new Change(null, P("Pkg")), null, newGuardZero, live, code) is [{ Scope: "A.cs", Flag: "guard" }]);
+    Check("the flag name is folded to lower case",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=90,Guard=0")), live, code) is [{ Flag: "guard" }]);
+    Check("a target lowered to 0 is reported once, by R-LOW",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=0")), live, code) is [{ Flag: "unit", Base: 90, Head: 0, Note: null }]);
+    Check("a control character in a file key is replaced on the line",
+        Eval(same, bz, J("Pkg", "unit=50", ("A.cs", "unit=90"), ("B\\u0001.cs", "guard=0")), live, code) is [{ Scope: "B?.cs" }]);
+
+    Check("differently cased manifest keys (Files, Targets) do not hide a zero",
+        Eval(same, bz, "{\"Package\":\"Pkg\",\"Targets\":{\"unit\":50},\"Files\":{\"A.cs\":{\"targets\":{\"unit\":90}},\"B.cs\":{\"Targets\":{\"guard\":0}}}}", live, code)
+            is [{ Scope: "B.cs", Flag: "guard" }]);
+    Check("a package name with control characters or backticks is sanitized on the line",
+        new Violation("P\u001b[0m`\n::x", "A.cs", "guard", null, 0).Format().StartsWith("P?[0m??::x  A.cs"));
+
+    var zero = new List<Violation> { new("Pkg", "A.cs", "guard", null, 0, "file has executable code") };
+    Check("R-ZERO without the label exits 1", Decide(1, zero, () => LabelResult.Absent, "target-change-approved").Exit == 1);
+    Check("R-ZERO with the label exits 0 and prints it as approved",
+        Decide(1, zero, () => LabelResult.Present, "target-change-approved") is { Exit: 0, Lines: [var z, ..] }
+        && z == "APPROVED by target-change-approved  Pkg  A.cs  guard  absent -> 0  (file has executable code)");
+
+    Check("the classifier verdict: exempt, not exempt, and anything else fails closed",
+        ZeroSource.ParseVerdict(0, "exempt: interface\n") is { Answered: true, Exempt: true }
+        && ZeroSource.ParseVerdict(1, "not exempt: method body\n") is { Answered: true, Exempt: false }
+        && ZeroSource.ParseVerdict(1, "error CS1002: build failed\n") is { Answered: false }
+        && ZeroSource.ParseVerdict(0, "garbage") is { Answered: false }
+        && ZeroSource.ParseVerdict(2, "exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(2, "not exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(1, "exempt: x") is { Answered: false }
+        && ZeroSource.ParseVerdict(0, "not exempt: x") is { Answered: false });
+
+    var reads = 0;
+    var seen = new List<string>();
+    using (var src = new ZeroSource("HEAD", Tree("src/Pkg/A.cs"), (_, _) => { reads++; return "interface I { }"; },
+        (file, flag) => { seen.Add($"{Path.GetFileName(file)}:{flag}:{File.ReadAllText(file)}"); return (0, "exempt: interface"); }))
+    {
+        Check("the classifier reads the head source once per file and asks the CLI per flag",
+            src.Classify("Pkg", "A.cs", "guard") is { Exempt: true } && src.Classify("Pkg", "A.cs", "unit") is { Exempt: true }
+            && reads == 1 && seen is ["A.cs:guard:interface I { }", "A.cs:unit:interface I { }"]);
+        Check("a key that leaves the package folder or is not in the head tree is not classified",
+            src.Classify("Pkg", "../Other/A.cs", "guard") is { Answered: false } && src.Classify("Pkg", "Missing.cs", "guard") is { Answered: false });
+    }
+
+    Check("a head source that cannot be read is not classified",
+        new ZeroSource("HEAD", Tree("src/Pkg/A.cs"), (_, _) => null, (_, _) => (0, "exempt: x")).Classify("Pkg", "A.cs", "guard") is { Answered: false });
+
+    Check("arguments: a valid command line parses",
+        ParseArgs(["--base", "origin/main", "--pr", "7", "--assume-label"], out _) is { BaseRef: "origin/main", Pr: 7, AssumeLabel: true, HeadRef: "HEAD" });
+    Check("arguments: a trailing option with no value is an error",
+        ParseArgs(["--base"], out var e1) is null && e1.StartsWith("Unknown or incomplete argument: --base")
+        && ParseArgs(["--base", "x", "--head"], out _) is null && ParseArgs(["--root"], out _) is null && ParseArgs(["--pr"], out _) is null);
+    Check("arguments: a non-numeric --pr and an unknown option are errors, echoed safely",
+        ParseArgs(["--pr", "x"], out _) is null && ParseArgs(["--bad\u001b[31m"], out var e2) is null && e2.EndsWith("--bad?[31m"));
+
     Check("ParseDiff follows renames, adds and deletes, and ignores defaults.json",
         ParseDiff($"R100\0{P("Old")}\0{P("Pkg")}\0A\0{P("New")}\0D\0{P("Gone")}\0M\0.github/coverage-manifest/defaults.json\0")
             is [{ BasePath: var a1, HeadPath: var a2 }, { BasePath: null }, { HeadPath: null }]
@@ -435,10 +568,80 @@ record Change(string? BasePath, string? HeadPath);
 
 record Outcome(int Exit, List<string> Lines);
 
-record Violation(string Package, string Scope, string Flag, double Base, double? Head)
+static class Text
+{
+    // Backticks are replaced too: the violations are written inside a fenced block of the job summary.
+    public static string Safe(string value)
+    {
+        var sb = new StringBuilder(Math.Min(value.Length, 240));
+        foreach (var c in value.Take(240)) sb.Append(c is >= ' ' and <= '~' and not '`' ? c : '?');
+        return sb.ToString();
+    }
+}
+
+record Options(string? BaseRef, string HeadRef, string? Root, int? Pr, bool SelfTest, bool NoLabel, bool AssumeLabel);
+
+// Answered: the classifier of #2890 gave a verdict. Exempt: it says the file has no executable code.
+record ZeroVerdict(bool Answered, bool Exempt);
+
+record Violation(string Package, string Scope, string Flag, double? Base, double? Head, string? Note = null)
 {
     public string Format() =>
-        $"{Package}  {Scope}  {Flag}  {Base:0.##} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}";
+        $"{Text.Safe(Package)}  {Text.Safe(Scope)}  {Text.Safe(Flag)}  {(Base is { } b ? b.ToString("0.##") : "absent")} -> {(Head is { } h ? h.ToString("0.##") : "(dropped)")}"
+        + (Note is null ? "" : $"  ({Note})");
+}
+
+// Asks the ONE classifier of #2890 (`coverage-report.cs --classify-zero`) about a source file of the head
+// tree. The file is read from the head revision (git show), not from the working tree, so --head can be
+// any revision; it is written to a temp folder under its own file name and its path goes to the CLI.
+sealed class ZeroSource(
+    string headRef, HashSet<string> headTree, Func<string, string, string?> readAt,
+    Func<string, string, (int Exit, string Out)> cli) : IDisposable
+{
+    // "exempt: <construct>" with exit 0 and "not exempt: <reason>" with exit 1 are the only answers of
+    // `coverage-report.cs --classify-zero` (#2890). Anything else (a build failure also exits 1, a bad
+    // argument exits 2) is no answer: the caller fails closed.
+    public static ZeroVerdict ParseVerdict(int exit, string stdout)
+    {
+        var lines = stdout.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (exit == 0 && lines.Any(l => l.StartsWith("exempt:", StringComparison.Ordinal))) return new ZeroVerdict(true, true);
+        if (exit == 1 && lines.Any(l => l.StartsWith("not exempt:", StringComparison.Ordinal))) return new ZeroVerdict(true, false);
+        return new ZeroVerdict(false, false);
+    }
+
+    readonly Dictionary<string, string?> files = new(StringComparer.Ordinal);
+    string? tempDir;
+
+    public ZeroVerdict Classify(string package, string file, string flag)
+    {
+        var key = file.Replace('\\', '/');
+        var path = $"src/{package}/{key}";
+        // The head tree lists normalized paths, so a key with ".." or one outside src/ is not in it.
+        if (!headTree.Contains(path)) return new ZeroVerdict(false, false);
+        if (!files.TryGetValue(path, out var local))
+        {
+            var text = readAt(headRef, path);
+            local = null;
+            if (text is not null)
+            {
+                tempDir ??= Directory.CreateTempSubdirectory("ratchet-zero-").FullName;
+                var dir = Directory.CreateDirectory(Path.Combine(tempDir, files.Count.ToString())).FullName;
+                local = Path.Combine(dir, Path.GetFileName(key));
+                File.WriteAllText(local, text);
+            }
+
+            files[path] = local;
+        }
+
+        if (local is null) return new ZeroVerdict(false, false);
+        var r = cli(local, flag);
+        return ParseVerdict(r.Exit, r.Out);
+    }
+
+    public void Dispose()
+    {
+        if (tempDir is not null) Directory.Delete(tempDir, recursive: true);
+    }
 }
 
 sealed class Manifest
@@ -454,16 +657,16 @@ sealed class Manifest
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return null;
-            var name = root.TryGetProperty("package", out var p) && p.ValueKind == JsonValueKind.String
+            var name = Prop(root, "package", out var p) && p.ValueKind == JsonValueKind.String
                 ? p.GetString()! : Path.GetFileNameWithoutExtension(path);
             var m = new Manifest { Package = name };
-            if (root.TryGetProperty("targets", out var t)) Read(t, m.Targets);
-            if (root.TryGetProperty("files", out var f) && f.ValueKind == JsonValueKind.Object)
+            if (Prop(root, "targets", out var t)) Read(t, m.Targets);
+            if (Prop(root, "files", out var f) && f.ValueKind == JsonValueKind.Object)
             {
                 foreach (var file in f.EnumerateObject())
                 {
                     var flags = new Dictionary<string, double>(StringComparer.Ordinal);
-                    if (file.Value.ValueKind == JsonValueKind.Object && file.Value.TryGetProperty("targets", out var ft)) Read(ft, flags);
+                    if (file.Value.ValueKind == JsonValueKind.Object && Prop(file.Value, "targets", out var ft)) Read(ft, flags);
                     m.Files[file.Name] = flags;
                 }
             }
@@ -474,6 +677,19 @@ sealed class Manifest
         {
             return null;
         }
+    }
+
+    // coverage-report.cs deserializes with PropertyNameCaseInsensitive, so "Targets" and "Files" are
+    // loaded there; matching case-insensitively here keeps a differently cased key from hiding a target.
+    private static bool Prop(JsonElement obj, string name, out JsonElement value)
+    {
+        foreach (var kv in obj.EnumerateObject())
+        {
+            if (string.Equals(kv.Name, name, StringComparison.OrdinalIgnoreCase)) { value = kv.Value; return true; }
+        }
+
+        value = default;
+        return false;
     }
 
     private static void Read(JsonElement obj, Dictionary<string, double> into)

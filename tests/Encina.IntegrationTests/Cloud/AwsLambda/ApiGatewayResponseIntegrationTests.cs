@@ -91,7 +91,7 @@ public sealed class ApiGatewayResponseIntegrationTests
 
         // Assert
         response.StatusCode.ShouldBe(422);
-        JsonDocument.Parse(response.Body).RootElement.GetProperty("title").GetString().ShouldBe("Unprocessable Entity");
+        JsonElement.Parse(response.Body).GetProperty("title").GetString().ShouldBe("Unprocessable Entity");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public sealed class ApiGatewayResponseIntegrationTests
         ok.Headers["Content-Type"].ShouldBe("application/json");
         failed.StatusCode.ShouldBe(400);
         failed.Headers["Content-Type"].ShouldBe("application/problem+json");
-        JsonDocument.Parse(failed.Body).RootElement.GetProperty("extensions").GetProperty("errorCode").GetString()
+        JsonElement.Parse(failed.Body).GetProperty("extensions").GetProperty("errorCode").GetString()
             .ShouldBe("validation.invalid_amount");
     }
 

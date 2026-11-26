@@ -238,7 +238,7 @@ public sealed class OutboxCdcHandlerIntegrationTests
 
         // Use PascalCase property names (as might come from SQL Server CDC)
         var notification = new TestNotification("PascalCase Test");
-        var outboxRow = JsonDocument.Parse($$"""
+        var outboxRow = JsonElement.Parse($$"""
         {
             "Id": "{{Guid.NewGuid()}}",
             "NotificationType": "{{typeof(TestNotification).AssemblyQualifiedName}}",
@@ -248,7 +248,7 @@ public sealed class OutboxCdcHandlerIntegrationTests
             "ErrorMessage": null,
             "RetryCount": 0
         }
-        """).RootElement;
+        """);
 
         var position = new TestCdcPosition(1);
         var metadata = new ChangeMetadata(position, DateTime.UtcNow, null, null, null);
