@@ -229,19 +229,10 @@ public sealed class ScenarioResult<TResponse>
             category == ErrorCategory.Validation,
             $"Scenario '{_description}' expected validation error but got error with category: {category}");
 
-        var metadata = error.GetMetadata();
-        var message = error.Message;
-
         foreach (var propertyName in expectedPropertyNames)
         {
-            var containsProperty =
-                message.Contains(propertyName, StringComparison.OrdinalIgnoreCase) ||
-                metadata.Any(m =>
-                    m.Key.Equals("PropertyName", StringComparison.OrdinalIgnoreCase) &&
-                    m.Value?.ToString()?.Equals(propertyName, StringComparison.OrdinalIgnoreCase) is true);
-
             Xunit.Assert.True(
-                containsProperty,
+                EitherAssertions.ErrorMentionsProperty(error, propertyName),
                 $"Scenario '{_description}' expected validation error for property '{propertyName}' but it was not found in the error.");
         }
 
