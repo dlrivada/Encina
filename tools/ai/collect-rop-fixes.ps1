@@ -38,8 +38,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# keyword, optional colon, whitespace, optional owner/repo, then #N
-$closingPattern = '(?i)(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:' + [regex]::Escape($Repository) + ')?#(?<n>\d+)'
+# keyword, optional colon, whitespace, then #N, owner/repo#N or the issue URL form.
+# GH-N is not matched: this repository does not use it.
+$repoEsc = [regex]::Escape($Repository)
+$closingPattern = '(?i)(?<![\w-])(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:(?:' + $repoEsc + ')?#|https://github\.com/' + $repoEsc + '/issues/)(?<n>\d+)'
+
+# A mistyped or not yet created base returns an empty list with HTTP 200, so check the branch first.
+& gh api ('repos/{0}/branches/{1}' -f $Repository, $Base) --silent
+if ($LASTEXITCODE -ne 0) {
+    [Console]::Error.WriteLine("collect-rop-fixes: base branch '$Base' not found in $Repository (or the API failed); no set printed.")
+    exit 1
+}
 
 $uri = 'repos/{0}/pulls?state=closed&base={1}&per_page=100' -f $Repository, [uri]::EscapeDataString($Base)
 $jq = '.[] | select(.merged_at != null) | {number: .number, body: .body}'
