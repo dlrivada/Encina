@@ -195,7 +195,7 @@ public class AwsLambdaErrorCategoryTests
     {
         var context = Substitute.For<ILambdaContext>();
 
-        var result = context.ResolveTenantId(TenantRequest(null, JsonDocument.Parse("123").RootElement), new EncinaAwsLambdaOptions(), new FakeLogger());
+        var result = context.ResolveTenantId(TenantRequest(null, JsonElement.Parse("123")), new EncinaAwsLambdaOptions(), new FakeLogger());
 
         var error = Left(result);
         error.GetCode().IfNone(string.Empty).ShouldBe(LambdaContextExtensions.InvalidTenantClaimErrorCode);

@@ -94,7 +94,17 @@
         "integration"
       ],
       "defaultRule": "*BulkOperations*.cs",
-      "reason": "Bulk operations need real DB"
+      "reason": "Bulk operations need real DB",
+      "targets": {
+        "unit": 0,
+        "guard": 9,
+        "integration": 80
+      },
+      "justifications": {
+        "unit": "No unit tests exist for this type: it needs an open NpgsqlConnection and a live PostgreSQL to run, so its behavior is covered by the integration tests.",
+        "guard": "Guard tests cover the constructor and argument checks of the bulk operations (measured 9.9%).",
+        "integration": "Integration tests run every bulk operation against PostgreSQL through Testcontainers, including the identifier quoting path (measured 82.1%)."
+      }
     },
     "EntityMappingErrorCodes.cs": {
       "defaultTests": [

@@ -639,9 +639,9 @@ public sealed class BulkOperationsPostgreSQL<TEntity, TId> : IBulkOperations<TEn
 
     private static string QuoteIdentifierIfNeeded(string identifier)
     {
-        if (identifier.StartsWith('"') &&
-            identifier.EndsWith('"') &&
-            identifier.Length >= 2)
+        if (identifier.Length >= 2 &&
+            identifier[0] == '"' &&
+            identifier[^1] == '"')
         {
             return identifier;
         }
