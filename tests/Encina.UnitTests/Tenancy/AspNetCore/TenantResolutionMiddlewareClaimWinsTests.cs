@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Options;
 
@@ -249,15 +250,44 @@ public sealed class TenantResolutionMiddlewareClaimWinsTests
     }
 
     [Fact]
-    public void AddEncinaTenancyAspNetCore_HeaderEnabledWithoutTrust_FailsStartupValidation()
+    public async Task AddEncinaTenancyAspNetCore_HeaderEnabledWithoutTrust_FailsHostStart()
     {
-        var services = BuildServices(o => o.HeaderResolver.Enabled = true);
+        // ValidateOnStart makes the host validate the options before it starts
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncinaTenancy();
+        builder.Services.AddEncinaTenancyAspNetCore(o => o.HeaderResolver.Enabled = true);
 
-        using var provider = services.BuildServiceProvider();
+        using var host = builder.Build();
 
-        // ValidateOnStart registers the IStartupValidator the host runs before it starts
-        var validator = provider.GetRequiredService<IStartupValidator>();
-        Should.Throw<OptionsValidationException>(() => validator.Validate());
+        var ex = await Should.ThrowAsync<OptionsValidationException>(() =>
+            host.StartAsync(TestContext.Current.CancellationToken));
+        ex.Message.ShouldContain("TrustedProxies");
+        ex.Message.ShouldContain("TrustAnyPeer");
+    }
+
+    [Fact]
+    public async Task AddEncinaTenancyAspNetCore_HeaderEnabledWithTrustedProxies_HostStartsAndStops()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddEncinaTenancy();
+        builder.Services.AddEncinaTenancyAspNetCore(o =>
+        {
+            o.HeaderResolver.Enabled = true;
+            o.HeaderResolver.TrustedProxies.Add(IPNetwork.Parse("10.0.0.0/24"));
+        });
+
+        using var host = builder.Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        try
+        {
+            host.Services.GetRequiredService<IOptions<TenancyAspNetCoreOptions>>().Value
+                .HeaderResolver.Enabled.ShouldBeTrue();
+        }
+        finally
+        {
+            await host.StopAsync(TestContext.Current.CancellationToken);
+        }
     }
 
     [Theory]
