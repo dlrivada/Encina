@@ -201,14 +201,14 @@ public static class TUnitEitherAssertions
     }
 
     /// <summary>
-    /// Asserts that the result is a validation error (code starts with "encina.validation").
+    /// Asserts that the result is a validation error (its category is <see cref="ErrorCategory.Validation"/>, whatever its code).
     /// </summary>
     /// <typeparam name="TRight">The success type.</typeparam>
     /// <param name="either">The Either result to assert.</param>
     /// <returns>A task that completes with the error for further assertions.</returns>
     public static Task<EncinaError> ShouldBeValidationErrorAsync<TRight>(
         this Either<EncinaError, TRight> either)
-        => ShouldBeErrorWithCodePrefixAsync(either, "encina.validation", "validation");
+        => ShouldBeErrorWithCategoryAsync(either, ErrorCategory.Validation);
 
     /// <summary>
     /// Asserts that the result is an authorization error (code starts with "encina.authorization").
@@ -221,14 +221,14 @@ public static class TUnitEitherAssertions
         => ShouldBeErrorWithCodePrefixAsync(either, "encina.authorization", "authorization");
 
     /// <summary>
-    /// Asserts that the result is a not found error (code starts with "encina.notfound").
+    /// Asserts that the result is a not found error (its category is <see cref="ErrorCategory.NotFound"/>, whatever its code).
     /// </summary>
     /// <typeparam name="TRight">The success type.</typeparam>
     /// <param name="either">The Either result to assert.</param>
     /// <returns>A task that completes with the error for further assertions.</returns>
     public static Task<EncinaError> ShouldBeNotFoundErrorAsync<TRight>(
         this Either<EncinaError, TRight> either)
-        => ShouldBeErrorWithCodePrefixAsync(either, "encina.notfound", "not found");
+        => ShouldBeErrorWithCategoryAsync(either, ErrorCategory.NotFound);
 
     /// <summary>
     /// Asserts that the result is a conflict error (code starts with "encina.conflict").
@@ -249,6 +249,20 @@ public static class TUnitEitherAssertions
     public static Task<EncinaError> ShouldBeInternalErrorAsync<TRight>(
         this Either<EncinaError, TRight> either)
         => ShouldBeErrorWithCodePrefixAsync(either, "encina.internal", "internal");
+
+    private static async Task<EncinaError> ShouldBeErrorWithCategoryAsync<TRight>(
+        Either<EncinaError, TRight> either,
+        ErrorCategory expected)
+    {
+        var error = await either.ShouldBeErrorAsync();
+        var category = error.GetCategory();
+
+        await Assert.That(category == expected)
+            .IsTrue()
+            .Because($"Expected an error of category {expected} but the category was {category}.");
+
+        return error;
+    }
 
     private static async Task<EncinaError> ShouldBeErrorWithCodePrefixAsync<TRight>(
         Either<EncinaError, TRight> either,
