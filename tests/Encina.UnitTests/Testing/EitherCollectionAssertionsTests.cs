@@ -324,6 +324,37 @@ public sealed class EitherCollectionAssertionsTests
     }
 
     [Fact]
+    public void ShouldContainValidationErrorFor_WhenOnlyOtherCategoryMentionsProperty_Throws()
+    {
+        // Arrange: the property is in the text of a NotFound error, which is not a validation error
+        var results = new List<Either<EncinaError, int>>
+        {
+            EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "The field 'Email' was not found")
+        };
+
+        // Act & Assert
+        Action act = () => results.ShouldContainValidationErrorFor("Email");
+        Should.Throw<Xunit.Sdk.FailException>(act);
+    }
+
+    [Fact]
+    public void ShouldContainValidationErrorFor_WhenPropertyInMetadata_ReturnsError()
+    {
+        // Arrange
+        var details = new Dictionary<string, object?> { ["PropertyName"] = "Email" };
+        var results = new List<Either<EncinaError, int>>
+        {
+            EncinaErrors.Validation("Invalid value", details)
+        };
+
+        // Act
+        var error = results.ShouldContainValidationErrorFor("email");
+
+        // Assert
+        error.GetCategory().ShouldBe(ErrorCategory.Validation);
+    }
+
+    [Fact]
     public void ShouldNotContainAuthorizationErrors_WhenNoAuthErrors_Succeeds()
     {
         // Arrange

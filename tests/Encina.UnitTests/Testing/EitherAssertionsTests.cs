@@ -1,7 +1,9 @@
 using Encina.Testing;
+using Encina.Validation;
 using LanguageExt;
 using Shouldly;
 using static LanguageExt.Prelude;
+using ValidationResult = Encina.Validation.ValidationResult;
 
 namespace Encina.UnitTests.Testing;
 
@@ -217,7 +219,88 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         Action act = () => { _ = result.ShouldBeValidationError(); };
-        Should.Throw<Xunit.Sdk.StartsWithException>(act);
+        Should.Throw<Xunit.Sdk.TrueException>(act);
+    }
+
+    [Fact]
+    public async Task ShouldBeValidationError_WhenRealValidationPipelineRejects_ReturnsError()
+    {
+        // Arrange: the real behavior and orchestrator produce the error, not a hand-built one
+        var orchestrator = new ValidationOrchestrator(new RejectingValidationProvider());
+        var behavior = new ValidationPipelineBehavior<RejectedCommand, string>(orchestrator);
+
+        // Act
+        var result = await behavior.Handle(
+            new RejectedCommand(),
+            RequestContext.Create(),
+            () => ValueTask.FromResult(Right<EncinaError, string>("unreachable")),
+            CancellationToken.None);
+
+        // Assert
+        var error = result.ShouldBeValidationError();
+        error.GetCategory().ShouldBe(ErrorCategory.Validation);
+        result.ShouldBeValidationErrorForProperty("Name");
+    }
+
+    [Fact]
+    public void ShouldBeValidationError_WhenOtherCategory_FailsNamingTheCategory()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Create("orders.not_found", ErrorCategory.NotFound, "secret detail");
+
+        // Act
+        Action act = () => { _ = result.ShouldBeValidationError(); };
+
+        // Assert
+        var exception = Should.Throw<Xunit.Sdk.TrueException>(act);
+        exception.Message.ShouldContain(nameof(ErrorCategory.NotFound));
+        exception.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public void ShouldBeNotFoundError_WhenOtherCategory_FailsNamingTheCategory()
+    {
+        // Arrange
+        Either<EncinaError, int> result = EncinaErrors.Validation("secret detail");
+
+        // Act
+        Action act = () => { _ = result.ShouldBeNotFoundError(); };
+
+        // Assert
+        var exception = Should.Throw<Xunit.Sdk.TrueException>(act);
+        exception.Message.ShouldContain(nameof(ErrorCategory.Validation));
+        exception.Message.ShouldNotContain("secret detail");
+    }
+
+    [Fact]
+    public void ShouldBeNotFoundError_WhenNotFoundCategoryWithAnyCode_ReturnsError()
+    {
+        // Arrange: package-specific code, category is the contract (ADR-062 R1)
+        Either<EncinaError, int> result = EncinaErrors.Create("saga.not_found", ErrorCategory.NotFound, "missing");
+
+        // Act & Assert
+        result.ShouldBeNotFoundError().GetCategory().ShouldBe(ErrorCategory.NotFound);
+    }
+
+    [Fact]
+    public void ShouldBeValidationError_WhenValidationCategoryWithPackageSpecificCode_ReturnsError()
+    {
+        // Arrange: producers other than the orchestrator carry their own code; the category is the contract
+        Either<EncinaError, int> result = EncinaErrors.Create("consent.invalid_purpose", ErrorCategory.Validation, "invalid");
+
+        // Act & Assert
+        result.ShouldBeValidationError().GetCategory().ShouldBe(ErrorCategory.Validation);
+    }
+
+    private sealed record RejectedCommand : ICommand<string>;
+
+    private sealed class RejectingValidationProvider : IValidationProvider
+    {
+        public ValueTask<ValidationResult> ValidateAsync<TRequest>(
+            TRequest request,
+            IRequestContext context,
+            CancellationToken cancellationToken)
+            => ValueTask.FromResult(ValidationResult.Failure("Name", "Name is required"));
     }
 
     [Fact]

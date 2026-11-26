@@ -217,7 +217,7 @@ public sealed class EitherAssertionsTests
 
         // Act & Assert
         Action act = () => { _ = result.ShouldBeValidationError(); };
-        Should.Throw<Xunit.Sdk.StartsWithException>(act);
+        Should.Throw<Xunit.Sdk.TrueException>(act);
     }
 
     [Fact]
