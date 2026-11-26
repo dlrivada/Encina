@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4396 completes two items that #269 deferred: a health check that reports whether cache warming finished, and an optional distributed lock so several nodes do not warm the same warmer at the same time. Re-checked against `origin/main` (37b2edd32); #269 is open and its plan is merged, so none of its code exists yet (`src/Encina.Caching` has no `Warming/` folder) and this plan builds on the types that plan defines.
+Issue #4396 completes two items that #269 deferred: a health check that reports whether cache warming finished, and an optional distributed lock so several nodes do not warm the same warmer at the same time. Re-checked against `origin/main` (4047d9a8a); #269 is open and its plan is merged, so none of its code exists yet (`src/Encina.Caching` has no `Warming/` folder) and this plan builds on the types that plan defines.
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -65,7 +65,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 
 ### Rationale
 
-- The data of the result carries counts only (state, succeeded, failed, timed out, skipped, duration in seconds): no warmer name, tenant or `EncinaError.Message` (AGENTS.md section 3). The body reads the in-memory snapshot and does no I/O, so the base class never converts it to `Unhealthy`; a test with a throwing status double asserts the documented behavior (the base catch maps it to `Unhealthy`, so the body wraps nothing and the status implementation must not throw: the internal class has no throwing member).
+- The data of the result carries counts only (state, succeeded, failed, timed out, skipped, duration in seconds): no warmer name, tenant or `EncinaError.Message` (AGENTS.md section 3). The body reads the in-memory snapshot and does no I/O, so the base class never converts it to `Unhealthy`; the internal status class has no throwing member, and a theory over every snapshot asserts the result is never `Unhealthy`.
 - Option B wins for deployments that gate traffic on readiness (the case #269 Design Choice 5 option B serves).
 - Class: Dilemma
 
@@ -78,7 +78,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Skip the warmer and count it skipped (outcome `skipped_locked`, EventId 488); the lock is requested with a zero wait** | As the issue states; the node finishes quickly; no extra load | The skipping node reports `Completed` while the holder may still be warming, so the readiness signal can be early for the skipped warmers |
+| **A) Skip the warmer and count it skipped (outcome `skipped_locked`, EventId 488); the lock is requested with a zero wait (the wait value belongs to this option: under option B it is `WarmingTimeout`)** | As the issue states; the node finishes quickly; no extra load | The skipping node reports `Completed` while the holder may still be warming, so the readiness signal can be early for the skipped warmers |
 | **B) Wait for the lock up to `WarmingTimeout`, then run the warmer** | The node reports `Completed` only after the holder released; the run dispatches cheap cache hits; readiness stays truthful | Startup of the waiting nodes lasts as long as the slowest holder; a holder that crashed holds the lock until its expiry |
 
 ### Chosen Option: **A - skip** (recommended, pending the maintainer)
@@ -97,7 +97,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `CacheWarmingHealthCheck : EncinaHealthCheck` in `Encina.Caching.Health` (constant `DefaultName = "encina-cache-warming"`, tags `["cache", "cache-warming", "ready"]` passed to `base`), constructor `(IServiceProvider)` like `QueryCacheHealthCheck`, and `AddEncinaCacheWarming(this IHealthChecksBuilder, name, tags, failureStatus)` in `Encina.AspNetCore` next to `AddEncinaQueryCache`** | The same shape as the existing cache check and its registration | None |
+| **A) `CacheWarmingHealthCheck : EncinaHealthCheck` in `Encina.Caching.Health` (constant `DefaultName = "encina-cache-warming"`, tags `["cache", "cache-warming", "ready"]` passed to `base`), constructor `(IServiceProvider)` like `QueryCacheHealthCheck`, and an `AddEncinaCacheWarming(this IHealthChecksBuilder, ...)` registration in `Encina.AspNetCore` next to `AddEncinaQueryCache`** | The same shape as the existing cache check and its registration | None |
 | **B) Implement `Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck` directly** | No dependency on `Encina.Messaging.Health` | Breaks the convention and the `EncinaHealthCheckAdapter` that every other Encina check uses |
 
 ### Chosen Option: **A - the existing shape**
@@ -105,7 +105,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 ### Rationale
 
 - **Class:** Trivial
-- **Settled by:** the precedent `QueryCacheHealthCheck` (`src/Encina.Caching/Health/QueryCacheHealthCheck.cs`) and `AddEncinaQueryCache` (`src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs:751`), and the health-check rule of the plan prompt (section 3, "Health checks": `DefaultName` const, resolution through `IServiceProvider`). The constructor resolves `ICacheWarmingStatus` and `IOptions<CachingOptions>` with `GetService`, so a host without warming registered gets `Healthy` ("cache warming is disabled") instead of a resolution exception. This holds under every option of Design Choices 1 to 3.
+- **Settled by:** the precedent `QueryCacheHealthCheck` (`src/Encina.Caching/Health/QueryCacheHealthCheck.cs`) and `AddEncinaQueryCache` (`src/Encina.AspNetCore/Health/HealthCheckBuilderExtensions.cs:751`), and the health-check rule of the plan prompt (section 3, "Health checks": `DefaultName` const, resolution through `IServiceProvider`). This entry fixes only the SHAPE (base class, `DefaultName`, tags, `IServiceProvider` constructor, registration next to `AddEncinaQueryCache`), which holds under every option of Design Choices 1 to 3. What the check reads (`ICacheWarmingStatus` under Design Choice 1 option A, the engine interface under option B) and the parameters of the registration method (a `CacheWarmingHealthCheckOptions` under Design Choice 2 option B) follow the maintainer's answers; the tasks below are written for the recommended options. It resolves its dependencies with `GetService`, so a host without warming registered gets `Healthy` ("cache warming is disabled") instead of a resolution exception.
 
 </details>
 
@@ -135,7 +135,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `{LockKeyPrefix}:warming:{hash}`, with `hash` the first 32 lowercase hex characters of the SHA-256 of the length-prefixed fields `warmer.GetType().FullName` and `warmer.Name`; expiry `WarmingTimeout`; wait zero** | Injective for distinct warmers (the length prefix makes two field pairs never concatenate to the same text, and the hash is collision-resistant); generic request warmers get distinct resources; the lock providers log the raw resource and see no identifier | Not human readable in a lock browser |
+| **A) `{LockKeyPrefix}:warming:{hash}`, with `hash` the first 32 lowercase hex characters of the SHA-256 of the length-prefixed fields `warmer.GetType().FullName` and `warmer.Name`; expiry `WarmingTimeout`** | Injective for distinct warmers (the length prefix makes two field pairs never concatenate to the same text, and the hash is collision-resistant); generic request warmers get distinct resources; the lock providers log the raw resource and see no identifier | Not human readable in a lock browser |
 | **B) `{LockKeyPrefix}:warming:{warmer.Name}` as in the issue** | Readable | `Name` defaults to `GetType().Name`, identical for every `RequestCacheWarmer<,>` and for same-named types of different namespaces: warmers would block each other |
 
 ### Chosen Option: **A - hashed identity**
@@ -154,7 +154,7 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) With `WarmingUseDistributedLock` on and no `IDistributedLockProvider` registered, or a provider call that throws (other than the caller's cancellation), the warmer is counted failed and EventId 489 is logged with the constant error-code text `cache.warming.lock_unavailable` (and `ex.ForLogging()` for an exception); no warmer runs unlocked** | Never swallows the error in background infrastructure; a misconfiguration is visible in the report and the health check | The warming of that node is lost until fixed |
+| **A) With `WarmingUseDistributedLock` on and no `IDistributedLockProvider` registered, or a provider call that fails (a thrown exception other than the caller's cancellation today; a `Left` once ADR-052 / #2667 changes the contract), the warmer is counted failed and EventId 489 is logged with the constant error-code text `cache.warming.lock_unavailable` (and `ex.ForLogging()` for an exception, the error code for a `Left`); no warmer runs unlocked** | Never swallows the error in background infrastructure; a misconfiguration is visible in the report and the health check | The warming of that node is lost until fixed |
 | **B) Log and run the warmer without the lock** | Warming still happens | Hides the misconfiguration and defeats the purpose of the option; AGENTS.md section 3 forbids reporting success after a failure |
 
 ### Chosen Option: **A - fail the warmer**
@@ -162,7 +162,27 @@ The plan adds `ICacheWarmingStatus` (read-only snapshot) written by the engine, 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3, "Errors are NEVER swallowed in background infrastructure": a failure of a store or provider inside a background job fails that operation, never reports success; only option A complies. The caller's cancellation (host shutdown) is not an error and never a failure count (the cancellation rule of #269 Design Choice 6). No `EncinaError` is created here (the code text is a log constant), so no ADR-062 `ErrorCategory` is assigned; if a later change surfaces it as a `Left`, it must use `EncinaErrors.Create` with `ErrorCategory.FailedPrecondition` and the constant message "Cache warming lock provider is not available."
+- **Settled by:** AGENTS.md section 3, "Errors are NEVER swallowed in background infrastructure": a failure of a store or provider inside a background job fails that operation, never reports success; only option A complies. The caller's cancellation (host shutdown) is not an error and never a failure count (the cancellation rule of #269 Design Choice 6). No `EncinaError` is created here (the code text is a log constant), so no ADR-062 `ErrorCategory` is assigned; if a later change surfaces it as a `Left`, it uses `ErrorCategory.Internal` (ADR-062 R1: a missing configuration entry is `Internal`; R4: a provider failure is `Internal`; R2 forbids `FailedPrecondition` before #3420) and the constant message "Cache warming lock provider is not available."
+- **Lock contract, today and after #2667.** `IDistributedLockProvider.TryAcquireAsync` returns `Task<IAsyncDisposable?>` today (null means contention). ADR-052 (accepted; implementation #2667, open) changes it to `Either<EncinaError, Option<ILockHandle>>`: `Right(None)` is contention (skip), a `Left` is an infrastructure fault and counts the warmer failed with EventId 489 and the error code, never a skip. PR 3 is written for the shape on `main` when it starts; if #2667 has merged it takes the `Either` form (a prerequisite, see below), and a unit test covers `Right(Some)`, `Right(None)` and `Left`.
+
+</details>
+
+<details>
+<summary><strong>8. The lock and the existing lock options</strong></summary>
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) The warming lock is governed only by `WarmingUseDistributedLock`; `CachingOptions.EnableDistributedLocks` is not consulted; the retry interval, used only when a wait is non-zero (Design Choice 3 option B), is `CachingOptions.DefaultLockRetry` (200 ms)** | One switch per feature; no hidden coupling | A user who set `EnableDistributedLocks = false` and `WarmingUseDistributedLock = true` gets a lock |
+| **B) Require both options** | Respects a global off switch | `EnableDistributedLocks` is read nowhere today, so the global switch has no defined meaning to honor |
+
+### Chosen Option: **A - own switch, existing retry option**
+
+### Rationale
+
+- **Class:** Trivial
+- **Settled by:** the code: `EnableDistributedLocks` is declared and copied only (`CachingOptions.cs:30`, `ServiceCollectionExtensions.cs:58`) and gates nothing, and `DefaultLockRetry` is the existing 200 ms retry option (`CachingOptions.cs`); the XML doc of the new option states the independence. Holds under every option of Design Choices 1 to 3 (the retry is unused under Design Choice 3 option A).
 
 </details>
 
@@ -193,8 +213,8 @@ PR 1 holds exactly these 10 files:
 Tasks:
 
 1. **Create** `enum CacheWarmingState { NotStarted = 0, Running = 1, Completed = 2 }`, `sealed record CacheWarmingStatusSnapshot(CacheWarmingState State, CacheWarmingReport? LastReport, bool LastRunCancelled)` and `interface ICacheWarmingStatus { CacheWarmingStatusSnapshot Current { get; } }` (Design Choice 1 option A). `CacheWarmingStatus` keeps an active-run counter and publishes a new immutable snapshot under one lock: `RunStarted()` increments the counter and sets `Running`; `RunFinished(CacheWarmingReport? report, bool cancelled)` decrements it and, when the counter reaches zero, sets `Completed` with the report (a `null` report means the run ended by an unexpected exception). Overlapping runs (the hosted service and a manual `RunAsync`) keep `Running` until the last one ends.
-2. **Modify** the engine: `RunAsync` calls `RunStarted()` after the disabled and no-warmers early exits (those return the empty report and leave the status untouched, so a disabled feature stays `NotStarted`) and `RunFinished` in a `finally` with the report or `null` and the caller's cancellation flag.
-3. **Tests:** transitions (not started, running, completed), overlapping runs, a cancelled run sets `LastRunCancelled`, an exception in the planning scope ends with `Completed` and a `null` report and still decrements; the DI test resolves both types with `ValidateOnBuild` and `ValidateScopes` and proves one shared instance.
+2. **Modify** the engine: `RunAsync` returns the empty report and leaves the status untouched ONLY when `EnableCacheWarming` is false (a disabled feature stays `NotStarted`). When warming is enabled it calls `RunStarted()` first, BEFORE the planning scope that resolves the warmers, and `RunFinished` in a `finally` with the report or `null` and the caller's cancellation flag; an enabled run with zero registered warmers returns the empty report and ends `Completed` with it (so a valid configuration with no warmers is `Healthy`, never `Degraded` forever).
+3. **Tests:** transitions (not started, running, completed), overlapping runs, a cancelled run sets `LastRunCancelled`, an enabled run with zero warmers ends `Completed` with an empty report, a disabled engine leaves `NotStarted`, an exception thrown while resolving the warmers in the planning scope (after `RunStarted()`) ends with `Completed` and a `null` report and still decrements; the DI test resolves both types with `ValidateOnBuild` and `ValidateScopes` and proves one shared instance.
 
 </details>
 
@@ -308,9 +328,9 @@ Tasks:
 
 1. **Option:** `CachingOptions.WarmingUseDistributedLock` (bool, default false, XML doc naming the lock providers and the single-instance limit of Memory). A bool has no validation, so no guard test is needed for it.
 2. **`WarmingLockResource.Create(string lockKeyPrefix, ICacheWarmer warmer)`** returns `$"{prefix}:warming:{hash}"`; the hashed text is `"{len}:{FullName}|{len}:{Name}"` (length-prefixed), SHA-256, lowercase hex, 32 characters (Design Choice 6).
-3. **Engine:** inside the scope created for each warmer (#269 Phase 2), when the option is on: resolve `IDistributedLockProvider` with `GetService`; a null provider logs 489 once per run with the constant `cache.warming.lock_unavailable` and counts the warmer failed; otherwise `TryAcquireAsync(resource, expiry: WarmingTimeout, wait: TimeSpan.Zero, retry: TimeSpan.FromMilliseconds(200), ct)` (a zero wait still tries once: `RedisDistributedLockProvider.TryAcquireAsync` and `MemoryDistributedLockProvider.TryAcquireAsync` always attempt at least once); a `null` handle logs 488 (Information), counts `skipped` and the outcome `skipped_locked`, and moves on (Design Choice 3 option A); a thrown exception other than the caller's cancellation logs 489 with `ex.ForLogging()` and counts failed (Design Choice 7); the handle is disposed in a `finally` after the warmer completes or its timeout fires. The lock call runs inside the linked token of the warmer so shutdown cancels it, and a cancellation is never a failure.
-4. **Tests (unit, `FakeTimeProvider`):** the resource is stable for one warmer, differs for two warmers of one generic type with different closed types, differs for two types with the same `Name`, never contains the warmer name or type name (the lock providers log the resource), and every length-prefixed pair is distinct; with a fake lock provider: a held lock skips the warmer and counts `skipped_locked`, a free lock runs and disposes the handle, a throwing provider fails the warmer and the others still run, a missing provider fails every warmer once-logged, cancellation is not a failure, the option off never touches the provider. **Integration (shared `RedisCollection`):** two engines with a real `RedisDistributedLockProvider` and one counting handler start concurrently; the warmer's handler runs once (the second engine reports skipped), and with the option off both dispatch (the second dispatch is a cache hit). Valkey, Dragonfly, Garnet and KeyDB share `RedisDistributedLockProvider` and are covered by it; Memory and Hybrid are covered by unit tests; Memcached follows #277.
-5. **Docs:** `docs-writer` adds the sections "Readiness" and "Running on several nodes" to `docs/features/handler-caching.md`, stating the limits found above (Memory lock is single-instance, the lock excludes concurrency and is not once per cluster, a skipped warmer can leave a node declared warm).
+3. **Engine:** inside the scope created for each warmer (#269 Phase 2), when the option is on: resolve `IDistributedLockProvider` with `GetService`; a null provider logs 489 once per run with the constant `cache.warming.lock_unavailable` and counts the warmer failed; otherwise `TryAcquireAsync(resource, expiry: WarmingTimeout, wait: TimeSpan.Zero, retry: DefaultLockRetry, ct)` (Design Choice 8; a zero wait still tries once: `RedisDistributedLockProvider.TryAcquireAsync` and `MemoryDistributedLockProvider.TryAcquireAsync` always attempt at least once); a `null` handle (after #2667: `Right(None)`) logs 488 (Information), counts `skipped` and the outcome `skipped_locked`, and moves on (Design Choice 3 option A); a thrown exception other than the caller's cancellation (after #2667: a `Left`, logged by error code) logs 489 with `ex.ForLogging()` and counts failed, never a skip (Design Choice 7); the handle is disposed in a `finally` after the warmer completes or its timeout fires. The lock call runs inside the linked token of the warmer so shutdown cancels it, and a cancellation is never a failure.
+4. **Tests (unit, `FakeTimeProvider`):** the resource is stable for one warmer, differs for two warmers of one generic type with different closed types, differs for two types with the same `Name`, never contains the warmer name or type name (the lock providers log the resource), and every length-prefixed pair is distinct; with a fake lock provider: a held lock skips the warmer and counts `skipped_locked`, a free lock runs and disposes the handle, a throwing provider fails the warmer and the others still run (after #2667 also a provider returning `Left`, counted failed and not skipped), a missing provider fails every warmer once-logged, cancellation is not a failure, the option off never touches the provider. **Integration (shared `RedisCollection`):** two engines with a real `RedisDistributedLockProvider` and one counting handler start concurrently; the warmer's handler runs once (the second engine reports skipped), and with the option off both dispatch (the second dispatch is a cache hit). Valkey, Dragonfly, Garnet and KeyDB share `RedisDistributedLockProvider` and are covered by it; Memory and Hybrid are covered by unit tests; Memcached follows #277.
+5. **Docs:** the issue asks for a section of `docs/features/query-caching.md`, which documents the EF Core `QueryCacheInterceptor`; the `[Cache]` handler page is `docs/features/handler-caching.md` (#269 Phase 3 explains), so this plan deliberately deviates from the issue's file name. `docs-writer` adds the sections "Readiness" and "Running on several nodes" there, stating the limits found above (Memory lock is single-instance, the lock excludes concurrency and is not once per cluster, a skipped warmer can leave a node declared warm).
 
 </details>
 
@@ -353,12 +373,12 @@ REFERENCE FILES:
 | `Warming/CacheWarmingStatus.cs` (PR 1) | 95 | 0 | 0 | 0 | Counter and snapshot transitions are unit tested; internal without `InternalsVisibleTo` for `Encina.GuardTests` (#269 Phase 4) |
 | `Abstractions/ICacheWarmingStatus.cs` (PR 1) | 0 | 0 | 0 | 0 | Interface, enum and record: no executable lines of their own |
 | `Health/CacheWarmingHealthCheck.cs` (PR 2) | 95 | 15 | 0 | 0 | The mapping is a handful of branches, all unit tested; the guard flag reaches the one constructor null check (about 1 of 12 executable lines, rounded up to the share of argument checks) |
-| `Health/HealthCheckBuilderExtensions.cs` (AspNetCore, PR 2) | 5 | 5 | 0 | 0 | No row exists today in a file with 16+ methods; the new method is about 4% of its executable lines and is run by the registration test and the null-builder guard test; the worker enters the measured value if higher and never lowers it |
+| `Health/HealthCheckBuilderExtensions.cs` (AspNetCore, PR 2) | 10 | 10 | 0 | 0 | No `targets` row exists today in a file of 16+ extension methods already run by `HealthCheckBuilderExtensionsTests` and `AspNetCoreGuardTests`; the worker first measures the baseline with `coverage-report.cs` and enters `max(10, measured whole-file value rounded down)` per flag, so the new method (about 4% of the executable lines) can never leave the target unmet |
 | `Warming/WarmingLockResource.cs` (PR 3) | 100 | 0 | 0 | 0 | One pure function, fully unit tested; internal |
 | `Warming/CacheWarmingService.cs` (PR 3) | keeps 95 (#269) | 0 | 0 | raise to 35 | The lock paths are unit tested with a fake provider; the integration flag adds the real Redis lock (the #269 integration test already runs the engine path) |
 | `Diagnostics/CachePatternLog.Warming.cs` (PR 3) | keeps 90 | 0 | 0 | 0 | Ids 488-489 run in the lock tests |
-| `Configuration/CachingOptions.cs` (PR 3) | no row | keeps 85 | 0 | 0 | A bool property with no validation: no new guard surface |
-| `ServiceCollectionExtensions.cs` (PR 1 and PR 3) | raise only: at least the value on `main` when the PR merges | the value on `main` | 0 | 0 | One more copy line and one more singleton; never lowered (`target-ratchet`) |
+| `Configuration/CachingOptions.cs` (PR 3) | no row | 90 (85 on `main` today, raised to 90 by #269 PR 1) | 0 | 0 | A bool property with no validation: no new guard surface; the target stays 90 |
+| `ServiceCollectionExtensions.cs` (PR 1 and PR 3) | 90 (no row on `main` today; #269 Phase 4 sets unit 90 and guard 0 in its PR 1) | 0 | 0 | 0 | One more copy line and one more singleton, run by the DI tests with both validations; the numbers are those #269 sets and are never lowered (`target-ratchet`) |
 
    No contract test is written: there is one status implementation and one check, and the contract flag of the package stays at its targets (a justification file is not allowed for contract tests; the manifest reason says the rules are asserted by unit tests).
 3. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching, AspNetCore health), `Encina.GuardTests` and, for PR 3, `Encina.IntegrationTests` (Redis collection); per-flag coverage and the CRAP table of changed methods (`CheckHealthCoreAsync` and the engine's lock block stay at or below 10: keep the mapping a small table or two helpers).
@@ -469,7 +489,7 @@ REFERENCE FILES:
 | 3 | Structured Logging | ✅ Include | EventIds 488-489 in `CachingPatterns`; the lock resource is hashed so the providers' own logs carry no identifier. |
 | 4 | Health Checks | ✅ Include | The point of the issue: `CacheWarmingHealthCheck` and `AddEncinaCacheWarming`. The Memory and Hybrid provider checks are #754. |
 | 5 | Validation | ❌ N/A | A bool option and a registration parameter: no input to validate. |
-| 6 | Resilience | ✅ Include | Zero-wait lock request, the lock expiry equals `WarmingTimeout`, a provider failure fails only that warmer. |
+| 6 | Resilience | ✅ Include | Lock request without waiting (Design Choice 3 option A), the lock expiry equals `WarmingTimeout`, a provider failure fails only that warmer. |
 | 7 | Distributed Locks | ✅ Include | The second half of the issue; limits stated for the Memory provider. |
 | 8 | Transactions | ❌ N/A | Cache operations are independent; nothing here calls `SaveChangesAsync`. |
 | 9 | Idempotency | ❌ N/A | Warming is idempotent: a second dispatch is served from the cache. |
@@ -486,6 +506,7 @@ REFERENCE FILES:
 | Prerequisite | Status | Notes |
 |--------------|--------|-------|
 | #269 PR 2 (engine, `CacheWarmingReport`, `CachePatternLog.Warming.cs`) and PR 3 (registration, hosted service, `docs/features/handler-caching.md`) | Pending | PR 1 of this plan edits the engine and the registration; PR 3 appends to the docs page |
+| #2667 (ADR-052: `TryAcquireAsync` returns `Either<EncinaError, Option<ILockHandle>>`, open) | Pending, prerequisite for PR 3 | PR 3 is written for the contract on `main` when it starts; if #2667 has not merged, the worker uses the null-handle shape and a follow-up on #2667 adds the `Left` branch; the plan's `Left` tests are mandatory once it has merged |
 | #266 PR 3 (`CachePatternLog`, range 450-499) | Pending | Needed for the ids of PR 3 |
 | `IDistributedLockProvider` with Redis and Memory implementations | ✅ Available | On `origin/main` |
 | `EncinaHealthCheck`, `AddEncinaQueryCache` | ✅ Available | On `origin/main` |
