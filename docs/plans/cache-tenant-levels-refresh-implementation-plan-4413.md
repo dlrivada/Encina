@@ -2,7 +2,7 @@
 
 > **Issue**: [#4413](https://github.com/dlrivada/Encina/issues/4413)
 > **Type**: Feature
-> **Complexity**: Medium (3 pull requests of 15, 15 and 12 files)
+> **Complexity**: Medium (3 pull requests of 15, 15 and 12 files, plus a conditional one of 3)
 > **Estimated Scope**: about 450 lines of production code, about 900 lines of tests
 > **Milestone**: v0.18.0 — Integration & Platform Capabilities
 
@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4413 adds `AllowedCacheLevels` and `DisableEagerRefresh` to the per-tenant cache policy of #275: free tenants served from L2 only and excluded from background refresh, premium tenants from L1 and L2. Re-checked against `origin/main` (19b761ffa):
+Issue #4413 adds `AllowedCacheLevels` and `DisableEagerRefresh` to the per-tenant cache policy of #275: free tenants served from L2 only and excluded from background refresh, premium tenants from L1 and L2. Re-checked against `origin/main` (0a7ce2ae1):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -91,22 +91,22 @@ The plan adds a flags enum `CacheLevels`, an optional capability `ILeveledCacheP
 </details>
 
 <details>
-<summary><strong>4. What `DisableEagerRefresh` does</strong></summary>
+<summary><strong>4. What `DisableEagerRefresh` does (Dilemma D4)</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A tenant with the flag set is skipped by the on-access refresh trigger of #267: its entries are served until they expire, then recomputed inline on the next miss; the skip is counted and logged** | Delivers the issue's acceptance criterion; no extra state | The tenant's hot keys see the miss latency |
+| **A) A tenant with the flag set is skipped by the refresh decision: its entries are served until they expire, then recomputed inline on the next miss; the skip is counted and logged. The check sits where #267 decides to refresh (the on-access trigger of its plan)** | Delivers the issue's acceptance criterion; no extra state | The tenant's hot keys see the miss latency |
 | **B) Raise the tenant's refresh threshold instead of skipping** | Reuses the threshold | Not what the issue says; "never refresh" becomes a magic threshold |
 
-### Chosen Option: **A - skip the trigger**
+### Chosen Option: **A - skip the decision** (recommended, pending the maintainer)
 
 ### Rationale
 
-- **Class:** Trivial
-- **Settled by:** the issue's acceptance criterion ("A tenant with `DisableEagerRefresh` is skipped by background refresh") and the trigger design of #267 (an on-access decision on the hit path, with no timer), so the policy is one more input of that decision. It holds under every option of Design Choices 1 to 3.
-- The decision comes from the governor's per-request resolution, so a failed lookup or a missing policy already bypasses the cache (the #275 fail-closed rule) before any refresh is considered; a request with `VaryByUser` is not eligible for refresh in #267 at all.
+- The issue's acceptance criterion ("A tenant with `DisableEagerRefresh` is skipped by background refresh") fixes the effect; the mechanism depends on how #267 decides to refresh. This plan assumes the on-access trigger of the #267 plan; if the maintainer answers the #267 Dilemmas with a timer mode, the check moves to whatever decides there and this plan is re-briefed. Option B wins only if the maintainer wants no new field in the decision.
+- The decision comes from the governor's per-request resolution, so a failed lookup or a missing policy already bypasses the cache (the #275 fail-closed rule) before any refresh is considered.
+- Class: Dilemma
 
 </details>
 
@@ -162,10 +162,10 @@ PR 1 holds exactly these 15 files:
 Tasks:
 
 1. **Create** `CacheLevels` and `ILeveledCacheProvider` (members mirror `GetAsync<T>(key, ct)`, `SetAsync<T>(key, value, expiration, ct)` and `SetWithSlidingExpirationAsync<T>(key, value, sliding, absolute, ct)` with a `CacheLevels` argument after the existing parameters, XML docs with an `<example>`).
-2. **Modify** `HybridCacheProvider`: `SupportsLevels` is true; `L2` reads add `DisableLocalCacheRead | DisableLocalCacheWrite` and L2 writes add `DisableLocalCacheWrite` to the `Flags` of the options built for the call (the existing probe in `GetAsync` already sets write flags, so the read variant extends it); `Both` is today's behavior; `L1` alone throws `ArgumentOutOfRangeException` under Design Choice 3 option B (it is allowed under option A); cancellation is checked first, as the existing methods do.
+2. **Modify** `HybridCacheProvider`: `SupportsLevels` is true; `L2` reads add `DisableLocalCacheRead | DisableLocalCacheWrite` and L2 writes add `DisableLocalCacheWrite` to the `Flags` of the options built for the call (the existing probe in `GetAsync` already sets write flags, so the read variant extends it); `Both` is today's behavior; `L1` alone has two variants and the brief states the maintainer's answer to Design Choice 3: under option A it maps to `DisableDistributedCacheRead | DisableDistributedCacheWrite`, under option B it throws `ArgumentOutOfRangeException`; cancellation is checked first, as the existing methods do.
 3. **Modify** `InstrumentedCacheProvider`: forwarding with the same spans and tags as the unleveled calls; when the inner provider is not leveled `SupportsLevels` is false and the leveled methods throw `NotSupportedException` (the behavior never calls them in that case).
 4. **Tests:** every flag combination reaches the options; the unit tests use a counting `IDistributedCache` to prove an `L2` read reaches L2 every time while a `Both` read is served from L1 after the first; the integration test repeats it with the real Redis L2; the decorator test covers both inner kinds; guard tests cover the three new members (the key is validated, the expiration is nullable and its valid result is tested).
-5. **#278 coordination:** when #278 PR 2 (the recovery decorator) is already merged, the worker adds its forwarding to this pull request (one file, one test change, a manifest row); when it is not, the #278 worker adds it. The brief says which, after `git grep -n ": ICacheProvider" src`.
+5. The recovery decorator of #278 is not touched here: its forwarding is Phase 4, a separate pull request, so this one stays at 15 files whatever the state of #278.
 
 </details>
 
@@ -215,19 +215,19 @@ PR 2 starts after #275 PR 2 and PR 1 of this plan, and holds exactly these 15 fi
 | 8 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingTenantLevels = (526, 527)`) |
 | 9 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range name to the `Encina.Caching` list) |
 | 10 | `docs/engineering/eventid-block-registry.md` | modify (row `CachingTenantLevels \| 526-527 \| Caching \| historical`, block row split; read `EventIdRegistryAgreementTests` first) |
-| 11 | `tests/Encina.UnitTests/Caching/TenantCacheLevelsTests.cs` | new (policy rules, startup validator, governor decision, behavior with a substitute leveled provider) |
+| 11 | `tests/Encina.UnitTests/Caching/TenantCacheLevelsTests.cs` | new (policy rules, startup validator, governor decision, behavior with a substitute leveled provider, and the DI provider built with `ValidateOnBuild` and `ValidateScopes`) |
 | 12 | `tests/Encina.UnitTests/Caching/TenantCachePolicyResolverTests.cs` | modify (capability deny) |
 | 13 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the policy member, the decision field) |
 | 14 | `src/Encina/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the new `EventIdRanges` field) |
 | 15 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
 
-PR 2 has no changelog fragment of its own: the fragment of PR 1 names the levels, and PR 3's fragment names the policy members. The worker greps `: ITenantCacheGovernor` and `For<ITenantCacheGovernor>` on the then-current `origin/main` (one implementer after #275 PR 2) and updates every hit in this pull request.
+PR 2 has no changelog fragment of its own: the fragment of PR 1 names the levels, and PR 3's fragment names the policy members. The worker greps `: ITenantCacheGovernor` and `For<ITenantCacheGovernor>` on the then-current `origin/main` (one implementer after #275 PR 2) and updates every hit inside rows 4, 5, 6 and 11 (a hit in a file outside the list means the pull request is split again).
 
 Tasks:
 
 1. **Modify** the policy and its validation; the message names the member, never a tenant id.
 2. **Modify** the resolver and the options validator: the capability is read once from the registered `ICacheProvider` (a singleton, so the singleton resolver may hold it) as `is ILeveledCacheProvider { SupportsLevels: true }`; a failure is `Deny(InvalidPolicy)` for runtime policies and an `OptionsValidationException` at start for configured ones.
-3. **Modify** the behavior: when `decision.Levels` is `L2`, reads and writes use the leveled methods (sliding writes included); with `null` or `Both` the unleveled path is untouched. A request with `[Cache(VaryByTenant = false)]` is a global entry and is not governed, as in #275.
+3. **Modify** the behavior: when `decision.Levels` restricts levels (`L2`, and `L1` under Design Choice 3 option A), reads and writes use the leveled methods (sliding writes included); with `null` or `Both` the unleveled path is untouched. A request with `[Cache(VaryByTenant = false)]` is a global entry and is not governed, as in #275.
 4. **Tests:** an `L2` tenant never calls the unleveled read or write (substitute provider with call counts); two tenants (one `L2`, one `Both`) on the real `HybridCacheProvider` show the L1 isolation; a custom provider answering levels for a non-leveled provider bypasses the cache and logs 527; a missing tenant under multi-tenancy still bypasses before any level logic (existing behavior); the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
@@ -313,6 +313,23 @@ REFERENCE FILES:
 
 </details>
 
+### Phase 4: Forwarding in the #278 recovery decorator (pull request 4, conditional)
+
+<details>
+<summary><strong>Tasks</strong></summary>
+
+The decorator `ResilientCacheProvider` is planned by #278 and does not exist on main. Whichever of the two lands second adds the forwarding in its own pull request: when #278 PR 2 merges before PR 1 of this plan, the #278 worker implements `ILeveledCacheProvider` there; otherwise this pull request, started after both PR 1 of this plan and #278 PR 2, holds exactly these 3 files:
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `src/Encina.Caching/Recovery/ResilientCacheProvider.cs` | modify (forwards the three leveled methods through the same retry and breaker; `SupportsLevels` is the inner provider's) |
+| 2 | `tests/Encina.UnitTests/Caching/ResilientCacheProviderTests.cs` | modify (forwarding over a leveled and a single-level inner) |
+| 3 | `.github/coverage-manifest/Encina.Caching.json` | modify (`mechanical-fixer`) |
+
+Until then a Hybrid wrapped by the recovery decorator reports `SupportsLevels` false, so a level policy is rejected or denied (Design Choice 1), never silently ignored. The brief runs `git grep -n ": ICacheProvider" src` to decide which case applies.
+
+</details>
+
 ---
 
 ## Research
@@ -352,7 +369,7 @@ REFERENCE FILES:
 | Tests | 6 | 6 | New: Hybrid levels, contract, integration, levels, opt-out tests; modified: decorator, guard, resolver, policy tests, allocation test |
 | Documentation | 0 | 2 | `docs/features/handler-caching.md`, the registry document |
 | Configuration | 2 | 5 | Two changelog fragments; manifests edited per pull request |
-| **Total** | **12** | **27** | 3 pull requests of 15, 15 and 12 files (a file edited in two pull requests counts in each), each at most 15 files and 1500 lines |
+| **Total** | **12** | **27** | 3 pull requests of 15, 15 and 12 files, plus the conditional Phase 4 of 3 files (a file edited in two pull requests counts in each), each at most 15 files and 1500 lines |
 
 ---
 
@@ -416,21 +433,23 @@ REFERENCE FILES:
 | `HybridCacheProvider`, `InstrumentedCacheProvider`, `RedisFixture` | ✅ Available | On `origin/main`; PR 1 needs nothing else |
 | #275 PR 1 and PR 2 | Open | PR 2 and PR 3 of this plan need them |
 | #267 PR 3 (hit-path trigger) | Open | PR 3 of this plan needs it |
-| #278 recovery decorator | Open | Must forward `ILeveledCacheProvider` (PR 1, task 5) |
+| #278 recovery decorator | Open | Must forward `ILeveledCacheProvider` (Phase 4) |
 | Block 500-549 of the EventId registry | ✅ Assigned | 526-527 free |
-| Maintainer answers to Design Choices 1 to 3 | Pending | Asked when work starts |
+| Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts |
 
-Coverage targets (per flag, set in the pull request that adds or changes each file; every row's test file is in the same pull request):
+Coverage targets (per flag, each set in the pull request named in the row, whose test file is in that same pull request):
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Caching.Hybrid/HybridCacheProvider.cs` | keep (98) | keep (95) | 20 | 20 | The manifest has unit 98 and guard 95 today and they are kept; the contract and integration tests of PR 1 execute only the three leveled methods, about a fifth of the file |
-| `Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs` | keep (65) | keep (77) | 0 | 0 | The manifest has unit 65 and guard 77 today and they are kept; the new forwarders are covered by the unit tests of PR 1 |
+| `Encina.Caching.Hybrid/HybridCacheProvider.cs` (PR 1) | 98 | 95 | 10 | 10 | The manifest has unit 98 and guard 95 today and they are kept; the contract and integration tests of PR 1 execute only the three new leveled members of a file with ten other public methods, so 10 is a floor the worker raises to the measured value rounded down; no measurement exists today |
+| `Encina.OpenTelemetry/QueryCache/InstrumentedCacheProvider.cs` (PR 1) | 65 | 77 | 0 | 0 | The manifest has unit 65 and guard 77 today and they are kept; the three forwarders are driven by the unit tests of PR 1, and the worker raises unit to the measured value if it rises |
 | `Encina.Caching/Configuration/CacheLevels.cs`, `Abstractions/ILeveledCacheProvider.cs` | 0 | 0 | 0 | 0 | An enum and an interface have no executable lines |
 | `Encina.Caching/Diagnostics/CacheTenantLevelsLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the level and opt-out tests |
-| `Encina.Caching/Tenancy/CacheTenantPolicy.cs`, `TenantCachePolicyResolver.cs`, `TenantCacheGovernor.cs`, `CacheTenantPolicyOptions.cs`, `ITenantCacheGovernor.cs` | keep (the #275 values) | keep | 0 | keep | #275's targets are never lowered; the new branches are tested in PR 2 and PR 3 |
-| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` | keep (98 on main today) | keep (20) | 0 | 0 | The existing manifest values are never lowered; the new private methods are unit tested |
-| `Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` | keep (90) | 0 | 0 | 0 | The counter runs in the opt-out test of PR 3 |
+| `Encina.Caching/Tenancy/CacheTenantPolicy.cs`, `TenantCachePolicyResolver.cs`, `CacheTenantPolicyOptions.cs` (PR 2, PR 3) | 100 | 0 | 0 | 0 | The manifest has no row yet because #275 is a plan; this plan sets 100 (pure validation and mapping driven by unit tests, no guard surface in records and internal types) and the larger of the two applies |
+| `Encina.Caching/Tenancy/TenantCacheGovernor.cs`, `ITenantCacheGovernor.cs` (PR 2, PR 3) | 95 | 0 | 0 | 40 | Same: 95 unit (every decision driven by tests) and 40 integration as planned by #275 PR 3; this plan adds no integration test of its own for these files, so 40 is not raised here |
+| `Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (PR 2, PR 3) | 98 | 20 | 0 | 0 | The manifest has these exact values today and they are kept; the new private methods are unit tested in the same pull requests |
+| `Encina.Caching/Diagnostics/CachePatternMetrics.TenantPolicies.cs` (PR 3) | 90 | 0 | 0 | 0 | The counter runs in the opt-out test of PR 3 |
+| `Encina.Caching/Recovery/ResilientCacheProvider.cs` (Phase 4, if it applies) | 90 | 0 | 0 | 0 | Set by #278 when it lands; the three forwarders are driven by the Phase 4 unit tests |
 
 The worker measures every flag with `coverage-report.cs` per pull request and reports the numbers; no target is lowered (`target-ratchet`).
 
@@ -438,5 +457,5 @@ The worker measures every flag with `coverage-report.cs` per pull request and re
 
 ## Next Steps
 
-1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 3) when work starts, records the answers under `## Maintainer Decisions`, then briefs PR 1 (which can start at once), PR 2 after #275 PR 2 and PR 3 after #267 PR 3.
+1. The orchestrator asks the maintainer the Dilemmas (Design Choices 1 to 4) when work starts, records the answers under `## Maintainer Decisions`, then briefs PR 1 (which can start at once), PR 2 after #275 PR 2 and PR 3 after #267 PR 3.
 2. No issue file is written: module scoping is #746 (open) and policy audit is #4414.
