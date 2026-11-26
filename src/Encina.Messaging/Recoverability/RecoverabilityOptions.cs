@@ -98,7 +98,8 @@ public sealed class RecoverabilityOptions
     /// <para>
     /// Injecting <c>IErrorClassifier</c> into a configuration action for <see cref="RecoverabilityOptions"/>
     /// (for example <c>services.AddOptions&lt;RecoverabilityOptions&gt;().Configure&lt;IErrorClassifier&gt;(...)</c>)
-    /// is not supported, because the registered classifier is itself decided from these options.
+    /// is not supported, because the registered classifier is itself decided from these options:
+    /// resolving the classifier then throws an <see cref="InvalidOperationException"/> that names the circular dependency.
     /// </para>
     /// </remarks>
     public IErrorClassifier? ErrorClassifier { get; set; }
