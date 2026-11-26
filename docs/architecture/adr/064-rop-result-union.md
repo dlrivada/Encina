@@ -53,7 +53,7 @@ The union is option (B2) of spike §11, the `RefResult<T>` prototype in [`Types.
 
 The maintainer's reasons, with the evidence in spike §11 ("Results" and "Reading per criterion"):
 
-- Among the layouts with zero allocation on success, (B2) and (B1) are the fastest on success, in chains and in async. That is the speed of the small reference carriers, without their allocation on success.
+- Among the layouts with zero allocation on success, (B2) and (B1) are the fastest on success, in chains and in async. On the synchronous success and chain rows that is the speed of the small reference carriers (the standard union and the closed hierarchy), without their allocation on success. It does not hold for async success: there the standard union and the hierarchy are still faster than (B1) and (B2), and they allocate on every result (§11, "Reading per criterion").
 - Among those same layouts, (B2) is the fastest on the failure rows and on the chain rows when the error instance is reused.
 - §11 rates (B2) costly because it changes `EncinaError` from struct to class. D1 already changes `EncinaError`'s shape, because removing LanguageExt removes its two `Option<Exception>` fields. The extra cost of making it a class is small.
 
@@ -134,7 +134,7 @@ Each point is settled in the issue named, not in this ADR.
 - [ADR-001](001-railway-oriented-programming.md): Railway Oriented Programming (amended by this ADR)
 - [ADR-004](004-reject-mediator-result.md): Decision to not implement `EncinaResult<T>` (amended by this ADR)
 - [ADR-006](006-pure-rop-exception-handling.md): Pure ROP exception handling
-- [ADR-051](051-languageext-version-for-1-0.md): Which LanguageExt version Encina 1.0 ships on
+- [ADR-051](051-languageext-version-for-1-0.md): Which LanguageExt version Encina 1.0 ships on (amended by this ADR)
 - [ADR-062](062-error-category-contract.md): Error category contract on `EncinaError`
 - [About C# 15 unions for the ROP core](../../engineering/rop-unions-spike-3662.md) (spike #3662 and #3672)
 - Issues: [#3662](https://github.com/dlrivada/Encina/issues/3662), [#3672](https://github.com/dlrivada/Encina/issues/3672), [#3667](https://github.com/dlrivada/Encina/issues/3667), [#3847](https://github.com/dlrivada/Encina/issues/3847), [#3419](https://github.com/dlrivada/Encina/issues/3419); pull requests [#4070](https://github.com/dlrivada/Encina/pull/4070), [#4105](https://github.com/dlrivada/Encina/pull/4105)
