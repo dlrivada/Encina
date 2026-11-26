@@ -11,11 +11,11 @@
 
 Offer `FallbackStrategy.CachedValue`: when a query fails, serve the last known good value through the fail-safe capability of the caches (#268), not through a copy owned by the resilience package. The plan of #137 leaves the member out and defers it to #268 (its choice 5, option A); ADR-055 settles that fail-safe is a caching feature. This plan adds the missing link: a narrow read seam that `Encina.Caching` implements with the same key, tenant and user rules as `QueryCachingPipelineBehavior`, and a fourth source of the `[Fallback]` attribute that calls it.
 
-What exists today (read in `origin/main` at `4047d9a8a`), and what differs from the issue text:
+What exists today (read in `origin/main` at `0a7ce2ae1`), and what differs from the issue text:
 
 - The issue speaks of "the abstraction #268 defines", but #268 defines none that a resilience strategy can call. Its plan (on `main`, not implemented) adds the stale path inside `QueryCachingPipelineBehavior` (`src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs:45`), an internal `FailSafePolicy`, and a public in-process `FailSafeTracker`; the stored envelope `CacheEntry<T>` is `internal` (`QueryCachingPipelineBehavior.cs:353`) and holds only `Value` and `CachedAtUtc` today. Nothing outside the behavior can read a stale value, so the seam of this plan is new work, not an adapter over existing code.
 - `Encina.Caching` references `Encina`, `Encina.DistributedLock`, `Encina.Messaging` and `Microsoft.EntityFrameworkCore` (`src/Encina.Caching/Encina.Caching.csproj`). A reference from `Encina.Resilience` to it would pull those into every resilience user; choice 2 settles the direction.
-- Pipeline position today: `QueryCachingPipelineBehavior` declares no `[PipelineStage]` (`git grep PipelineStage -- src/Encina.Caching` has no match), so it runs in the default stage `Application` (`src/Encina/Pipeline/Ordering/PipelineStageAttribute.cs:15`, `PipelineOrderResolver.cs:304`), which is inside `Resilience` (`PipelineStage.cs:95,119`: 1100 against 1500). The open issue #2184 places it in `Caching` (1000), outside `Resilience`. This matters to choice 1: with the cache outside the resilience pipeline, #268's own stale path already answers every failure the resilience strategies produce (open circuit, timeout, exhausted retry, shed request), and a `CachedValue` fallback adds nothing for them.
+- Pipeline position today: `QueryCachingPipelineBehavior` declares no `[PipelineStage]` (`git grep PipelineStage -- src/Encina.Caching` has no match), so it runs in the default stage `Application` (`src/Encina/Pipeline/Ordering/PipelineStageAttribute.cs:15`, `PipelineOrderResolver.cs:299-304`, the `_` arm of `DefaultFor`), which is inside `Resilience` (`PipelineStage.cs:95,119`: 1100 against 1500). The open issue #2184 places it in `Caching` (1000), outside `Resilience`. This matters to choice 1: with the cache outside the resilience pipeline, #268's own stale path already answers every failure the resilience strategies produce (open circuit, timeout, exhausted retry, shed request), and a `CachedValue` fallback adds nothing for them.
 - The behavior already fails closed for the cache: with multi-tenancy on and no tenant, a tenant-scoped entry bypasses the cache with no read (`QueryCachingPipelineBehavior.cs:141-150`), and a per-user entry without a user does the same (`:152-163`).
 - #137 (plan on `main`, not implemented) has `FallbackStrategy { DefaultValue, FactoryMethod, AlternativeHandler }`, `FallbackAttribute` with three exclusive sources, and triggers `Unavailable`, `Timeout`, `UpstreamFailure` and `Internal` widenable with `FallbackOn` (its choice 7). #268 serves stale only for `Unavailable`, `Timeout`, `UpstreamFailure` and `RateLimited` and fails closed on `Internal` (its choice 1): choice 3 reconciles them.
 
@@ -98,7 +98,7 @@ The issue wants the last known good value served on failure through #268's fail-
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) The reader applies #268's `FailSafePolicy` itself: it serves a value only when the failure is one #268 serves stale for and the key is not marked "answered definitively", whatever `FallbackOn` lists (the intersection of the two rules)** | A denial is never masked by old data; one eligibility rule for both paths | A user who lists `Internal` in `FallbackOn` together with `UseCachedValue` still gets no cached value for it |
+| **A) The reader applies #268's `FailSafePolicy` itself: it serves a value only when the failure is one #268 serves stale for and the key is not marked "answered definitively" (a mark that exists only if #268's pending Dilemma D4 is answered with option A, the in-process tracker; under its option B the mark lives in the entry and PR-1 reads it there), whatever `FallbackOn` lists (the intersection of the two rules)** | A denial is never masked by old data; one eligibility rule for both paths | A user who lists `Internal` in `FallbackOn` together with `UseCachedValue` still gets no cached value for it |
 | **B) The `FallbackOn` set of #137 decides** | One rule on the resilience side | An `Internal` denial can be answered with a stale value, the case #268 closes |
 
 ### Chosen Option: **A - Intersection with #268's rule** (recommended, pending the maintainer)
@@ -120,7 +120,7 @@ The reader uses only `ICacheProvider.GetAsync`, so behavior should be identical 
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) One abstract contract suite, run in-process on Memory and Hybrid and, through four new collection fixtures, on Redis, Valkey, Dragonfly, Garnet and KeyDB; a Memcached class when #277 lands** | Proves the consistency rule of AGENTS.md section 5 for every cache on `main`; catches serialization and TTL differences | Four new fixtures (eight files) in a separate pull request |
+| **A) One abstract contract suite, run in-process on Memory and Hybrid and, through four new collection fixtures, on Redis, Valkey, Dragonfly, Garnet and KeyDB; a Memcached class when #277 lands** | Proves the consistency rule of AGENTS.md section 5 for every cache on `main`; catches serialization and TTL differences | Four new fixtures and one modified `Collections.cs` (five files) in a separate pull request |
 | **B) Contract on Memory and Hybrid, integration on Redis only, with a written justification that the other four speak the Redis protocol through the same client** | Small | The four are untested for this feature; the justification is the kind of claim AGENTS.md section 9 asks to prove |
 
 ### Chosen Option: **A - All caches on `main`** (recommended, pending the maintainer)
@@ -181,7 +181,7 @@ The acceptance criterion is "never serves another tenant's or user's value". The
 
 ## Implementation Phases
 
-Six pull requests, in order: **PR-1** Phases 1 and 2 (the seam, the shared eligibility, the reader and its registration, in core and `Encina.Caching`; it needs #268 PR 1 merged because it edits the same behavior); **PR-2** Phase 3 part 1 (`FallbackStrategy` member, attribute property, options and validator in `Encina.Resilience`); **PR-3** Phase 3 part 2 (strategy source, call contributor, property keys, telemetry value); **PR-4** the contract suite (Phase 6, in-process caches); **PR-5** the four container fixtures and the integration classes (Phase 6); **PR-6** Phase 7 (documentation). PR-2 and PR-3 need the #137 implementation; PR-3 needs PR-1.
+Six pull requests, in order: **PR-1** Phases 1 and 2 (the seam, the shared eligibility, the reader and its registration, in core and `Encina.Caching`; it needs #268 PR 1 merged because it edits the same behavior); **PR-2** Phase 3 part 1 (`FallbackStrategy` member, attribute property, options and validator in `Encina.Resilience`; until PR-3 the validator rejects `UseCachedValue` at startup with a message naming the request type, so the option is never accepted while nothing implements it); **PR-3** Phase 3 part 2 (strategy source, call contributor, property keys, telemetry value, and the validator's registration check in place of the rejection); **PR-4** the contract suite (Phase 6, in-process caches); **PR-5** the four container fixtures and the integration classes (Phase 6); **PR-6** Phase 7 (documentation). PR-2 and PR-3 need the #137 implementation; PR-3 needs PR-1.
 
 ### Phase 1: Core Models and Contracts
 
@@ -213,7 +213,7 @@ REFERENCE FILES: src/Encina/Abstractions/CqrsContracts.cs, src/Encina/Abstractio
 
 1. `src/Encina.Caching/Patterns/CacheEligibility.cs` (internal sealed): the bypass decisions of `ShouldUseCache`, `TenantAllowsCache`, `UserAllowsCache`, the key context and the caller check, extracted from `QueryCachingPipelineBehavior` (`:131-163`, `:196-201`) unchanged in behavior; the log call keeps the existing EventId 3513.
 2. `src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs` (modified): delegates to `CacheEligibility`; its existing targets (unit 98, guard 20, contract 0 in `.github/coverage-manifest/Encina.Caching.json`) are kept and the existing tests pass unchanged.
-3. `src/Encina.Caching/Patterns/CacheStaleResultSource.cs` (internal sealed, implements `IStaleResultSource<TRequest, TResponse>`; constructor takes `ICacheProvider`, `ICacheKeyGenerator`, `CachingOptions`, `FailSafeTracker`, `CacheEligibility`, `TimeProvider`, `ILogger`): applies choice 6, then `FailSafePolicy.IsTransientFailure(failure)` (choice 3), then reads `GetAsync<CacheEntry<TResponse>>` and returns the value when `CanServeStale(now, entry.FailSafeExpiresAtUtc)` and the key is not marked definitive; a cache read failure returns `StaleResult.None` and logs the exception type through `ForLogging()` (it never throws unless `ThrowOnCacheErrors` is set, as the behavior does); a cancelled token propagates; it logs the existing #268 events 462 (stale served) and 466 (fail-safe exhausted); no new EventId.
+3. `src/Encina.Caching/Patterns/CacheStaleResultSource.cs` (internal sealed, implements `IStaleResultSource<TRequest, TResponse>`; constructor takes `ICacheProvider`, `ICacheKeyGenerator`, `IOptions<CachingOptions>` (the only form `Encina.Caching` registers, as in the behavior constructor at `QueryCachingPipelineBehavior.cs:68-74`), `FailSafeTracker`, `CacheEligibility`, `TimeProvider` and `ILogger`; `CacheEligibility` takes the optional `MultiTenancyMarker?` and the options, so the reader needs no marker parameter of its own, and the DI test with `ValidateOnBuild` proves the whole graph resolves): applies choice 6, then `FailSafePolicy.IsTransientFailure(failure)` (choice 3), then reads `GetAsync<CacheEntry<TResponse>>` and returns the value when `CanServeStale(now, entry.FailSafeExpiresAtUtc)` and the key is not marked definitive; a cache read failure returns `StaleResult.None` and logs the exception type through `ForLogging()` (it never throws unless `ThrowOnCacheErrors` is set, as the behavior does); a cancelled token propagates; it logs the existing #268 events 462 (stale served) and 466 (fail-safe exhausted); no new EventId.
 4. `src/Encina.Caching/ServiceCollectionExtensions.cs` (modified): `TryAddTransient(typeof(IStaleResultSource<,>), typeof(CacheStaleResultSource<,>))` and `TryAddSingleton<CacheEligibility>()`, registered with the existing caching registration so nothing is added without it; the DI test builds with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
@@ -236,7 +236,7 @@ REFERENCE FILES: src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs, s
 <summary>Tasks</summary>
 
 1. PR-2: `Fallback/FallbackStrategy.cs` (modified: `CachedValue`), `FallbackAttribute.cs` (modified: `bool UseCachedValue { get; init; }`, the fourth exclusive source), `FallbackOptions.cs` (modified), `FallbackOptionsValidator.cs` (modified: exactly one of four sources; `UseCachedValue` on a type that is a command is rejected like the other sources, per #137 choice 4).
-2. PR-3: `FallbackStrategyFactory.cs` (modified: the `CachedValue` source calls `IStaleResultSource<,>.TryGetAsync` with the primary `Left`; a `None` result returns the primary result unchanged; a value is returned as `Right`), `FallbackCallContributor.cs` (modified: resolves `IStaleResultSource<TRequest, TResponse>` per call from the request's service provider, as it does for `IFallbackHandler<,>`; a missing registration, which means `Encina.Caching` is not registered, is an `InvalidOperationException` at startup naming the request type), `FallbackPropertyKeys.cs` (modified), `FallbackTelemetry.cs` (modified: the counter tag `fallback.strategy` takes the value `cached`).
+2. PR-3: `FallbackStrategyFactory.cs` (modified: the `CachedValue` source calls `IStaleResultSource<,>.TryGetAsync` with the primary `Left`; a `None` result returns the primary result unchanged; a value is returned as `Right`), `FallbackCallContributor.cs` (modified: resolves `IStaleResultSource<TRequest, TResponse>` per call from the request's service provider, as it does for `IFallbackHandler<,>`; it only places the reader in the `ResilienceContext` and, when none is registered, places nothing so the factory returns the primary result), `FallbackOptionsValidator.cs` (modified: PR-2's rejection of `UseCachedValue` becomes the startup check that `IStaleResultSource<TRequest, TResponse>` is registered, an `InvalidOperationException` naming the request type, tested with a fake `IServiceProvider` exactly like the `IFallbackHandler<,>` check of #137), `FallbackPropertyKeys.cs` (modified), `FallbackTelemetry.cs` (modified: the counter tag `fallback.strategy` takes the value `cached`).
 3. A request type with `UseCachedValue` but no `[Cache]`, or `[Cache]` without fail-safe, gets `StaleResult.None` (a live entry may still exist; otherwise the primary failure stands); `Encina.Resilience` cannot read `CacheAttribute` without referencing `Encina.Caching` (choice 2), so there is no startup check for it and the documentation says so.
 
 </details>
@@ -247,7 +247,7 @@ REFERENCE FILES: src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs, s
 ```text
 CONTEXT: Phases 1 and 2 merged; the #137 implementation and #4380 are merged.
 TASK: Add the CachedValue source to the fallback attribute, options, validator, factory, contributor and telemetry.
-KEY RULES: exactly one source per attribute; the cached value is read only through IStaleResultSource; a missing registration fails at startup; cancellation propagates; the fallback is never applied to a command; no new error code.
+KEY RULES: exactly one source per attribute; the cached value is read only through IStaleResultSource; a missing registration fails at startup in the validator; cancellation propagates; the fallback is never applied to a command; no new error code.
 REFERENCE FILES: docs/plans/fallback-implementation-plan-137.md, src/Encina/Abstractions/StaleResult.cs
 ```
 
@@ -384,9 +384,9 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 |----|-------|---------|
 | PR-1 | 13 | `IStaleResultSource.cs`, `StaleResult.cs`, `CacheEligibility.cs`, `CacheStaleResultSource.cs`, `QueryCachingPipelineBehavior.cs` and `ServiceCollectionExtensions.cs` (modified), `CacheStaleResultSourceTests.cs`, `CacheEligibilityTests.cs`, `ServiceCollectionExtensionsTests.cs` (modified), `CacheStaleResultSourceGuardTests.cs`, core `PublicAPI.Unshipped.txt`, `Encina.json` and `Encina.Caching.json` manifest rows |
 | PR-2 | 9 | `FallbackStrategy.cs`, `FallbackAttribute.cs`, `FallbackOptions.cs`, `FallbackOptionsValidator.cs` (modified), `FallbackOptionsValidatorTests.cs` (modified), `FallbackAttributeTests.cs` (modified), `FallbackGuardTests.cs` (modified), `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-3 | 10 | `FallbackStrategyFactory.cs`, `FallbackCallContributor.cs`, `FallbackPropertyKeys.cs`, `FallbackTelemetry.cs` (modified), their four tests (modified), `CachedValueFallbackTests.cs`, manifest rows |
+| PR-3 | 12 | `FallbackStrategyFactory.cs`, `FallbackCallContributor.cs`, `FallbackPropertyKeys.cs`, `FallbackTelemetry.cs`, `FallbackOptionsValidator.cs` (modified), their five tests (modified), `CachedValueFallbackTests.cs`, manifest rows |
 | PR-4 | 5 | `StaleResultSourceContractTests.cs` (abstract), `MemoryStaleResultSourceContractTests.cs`, `HybridStaleResultSourceContractTests.cs`, `Encina.ContractTests.csproj` (`ProjectReference` lines if absent), `Encina.Caching.json` manifest rows |
-| PR-5 | 12 | four fixtures (`ValkeyFixture`, `DragonflyFixture`, `GarnetFixture`, `KeyDBFixture`), `Collections.cs` (modified, four definitions), abstract integration suite, five derived classes (Redis, Valkey, Dragonfly, Garnet, KeyDB), `Encina.IntegrationTests.csproj` (references if absent) |
+| PR-5 | 14 | four fixtures (`ValkeyFixture`, `DragonflyFixture`, `GarnetFixture`, `KeyDBFixture`), `Collections.cs` (modified, four definitions), abstract integration suite, five derived classes (Redis, Valkey, Dragonfly, Garnet, KeyDB), `Encina.Caching.json` manifest rows (the integration row of `CacheStaleResultSource.cs`), `Encina.IntegrationTests.csproj` (references if absent) |
 | PR-6 | 6 | two feature pages (modified), two README sections, changelog fragment, two justification `.md` (load, benchmark) |
 
 Each PR is within 15 files and 1,500 lines. Implementers and doubles: `IStaleResultSource<,>` is new with one implementer; no existing interface changes, and the `QueryCachingPipelineBehavior` constructor keeps its public signature (the shared `CacheEligibility` is injected through an internal path or created inside; a change to its constructor would be an optional trailing parameter like the #268 tracker), so no `new QueryCachingPipelineBehavior(` site changes.
@@ -398,10 +398,14 @@ Per-file targets (existing manifest values quoted from `.github/coverage-manifes
 | `IStaleResultSource.cs` (core) | 0 | 0 | 0 | 0 | 0 | Interface, no executable code; the `Encina.json` package targets (unit 70, guard 20, contract 15, property 80, integration 85) are unchanged |
 | `StaleResult.cs` (core) | 90 | 0 | 0 | 0 | 0 | Two factories and one property; no parameters to validate |
 | `CacheEligibility.cs` | 100 | 0 | 0 | 0 | 0 | Pure rules, every branch of choice 6 by unit test; internal, no guarded public parameters |
-| `CacheStaleResultSource.cs` | 95 | 15 | 70 | 0 | 60 | Every branch of choices 3 and 6 with a fake provider; guard reaches the constructor and method checks; contract and integration run the real caches |
+| `CacheStaleResultSource.cs` | 95 (PR-1) | 15 (PR-1) | 70 (row written in PR-4) | 0 | 60 (row written in PR-5) | Every branch of choices 3 and 6 with a fake provider in PR-1; guard reaches the constructor and method checks in PR-1; the contract row is set by the PR that adds the contract suite (PR-4) and the integration row by the PR that adds the container classes (PR-5), each with its own manifest edit |
 | `QueryCachingPipelineBehavior.cs` (modified) | 98 | 20 | 0 | 0 | 0 | Existing manifest targets kept (unit 98, guard 20, contract 0); the refactor must not lower them |
 | `ServiceCollectionExtensions.cs` of `Encina.Caching` (modified) | 85 | 30 | 0 | 0 | 0 | The file has no per-file row today (only the package targets: unit 60, guard 30, contract 10); this PR adds a row so the touched file has its own targets; the DI test reaches the new registrations and the existing null checks are the guard share |
-| `FallbackStrategyFactory.cs` and the other #137 files (modified) | the #137 targets are kept and never lowered | as #137 | as #137 | 0 | 0 | New branches covered by the modified tests of PR-2 and PR-3 |
+| `FallbackAttribute.cs` (modified) | 95 | 0 | 0 | 0 | 0 | The #137 plan's row, kept and never lowered; the new property is read by the options tests of PR-2 |
+| `FallbackOptions.cs` (modified) | 95 | 100 | 0 | 0 | 0 | The #137 plan's row (unit 95, guard 100), kept; the guard test sends a null attribute to `From` |
+| `FallbackOptionsValidator.cs` (modified) | 95 | 0 | 0 | 0 | 0 | The #137 plan's row, kept; one test per new rule in PR-2 and PR-3 |
+| `FallbackStrategyFactory.cs`, `FallbackCallContributor.cs`, `FallbackPropertyKeys.cs`, `FallbackTelemetry.cs` (modified) | 90 each | 0 | 0 | 0 | 0 | The #137 plan's rows (unit 90 for each), kept and never lowered; new branches covered by the modified tests of PR-3 |
+| `FallbackStrategy.cs` (modified) | 0 | 0 | 0 | 0 | 0 | The #137 row: an enum has no executable code |
 
 CRAP of each added method is at most 10 (the reader splits its checks into small methods; `Handle` of the behavior keeps its CRAP by delegating).
 
@@ -449,10 +453,10 @@ REFERENCE FILES: src/Encina.Caching/Behaviors/QueryCachingPipelineBehavior.cs, d
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| #268 PR 1 (stale path, `FailSafePolicy`, `FailSafeTracker`, envelope fields) | Plan on `main`; not implemented | Blocks PR-1 (same behavior file) |
+| #268 PR 1 (stale path, `FailSafePolicy`, `FailSafeTracker`, envelope fields) | Plan on `main`; not implemented; the "answered definitively" mark is its pending Dilemma D4 option A (tracker): under option B (mark in the entry) the tracker does not exist and PR-1 is re-planned | Blocks PR-1 (same behavior file) |
 | #266 PR 1 (`ExpiresAtUtc`, pattern settings) | Plan on `main`; not implemented | Prerequisite of #268 |
 | #137 implementation (`FallbackStrategy`, attribute, factory) | Plan on `main`; not implemented; its choice 5 option A is this plan's premise (if the maintainer picks B or C there, this plan is re-planned) | Blocks PR-2 and PR-3 |
-| #4380 (`Encina.Resilience` foundation) | Plan open (PR #4388); not implemented | Blocks PR-3 |
+| #4380 (`Encina.Resilience` foundation) | Plan on `main`; not implemented | Blocks PR-3 |
 | #2184 (stage placement of built-in behaviors) | Open issue | Decides whether choice 1 option B becomes sufficient |
 | #277 (Memcached provider) | Plan on `main`; not implemented | The 8th cache; one derived test class when it lands |
 
