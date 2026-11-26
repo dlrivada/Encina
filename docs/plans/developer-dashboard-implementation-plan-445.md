@@ -2,15 +2,15 @@
 
 > **Issue**: [#445](https://github.com/dlrivada/Encina/issues/445)
 > **Type**: Feature (new package, developer experience)
-> **Complexity**: High (6 phases, read-side additions to stores, 7 pull requests)
-> **Estimated Scope**: ~2,400 lines of production code + ~2,000 lines of tests + ~300 lines of documentation
-> **Family**: dev-experience. This plan owns the package `Encina.Dashboard` and the EventIds 70060-70089. The error panel may reuse `Encina.Diagnostics` (#441); a dead-letter admin API is #2229 (AspNetCore).
+> **Complexity**: High (5 phases, a web surface over operational data, 7 pull requests of 15, 9, 14, 11, 11, 4 and 4 files)
+> **Estimated Scope**: ~4,400 lines over 7 pull requests (production code, tests and documentation, summed per pull request in "Estimated File Count")
+> **Family**: dev-experience. This plan owns the package `Encina.Dashboard` and the EventIds 70060-70089 (registered in its PR-1, its own registry row; #441 owns 70050-70059 with its own row). The error panel may reuse `Encina.Diagnostics` (#441); a dead-letter admin API is #2229 (AspNetCore).
 
 ---
 
 ## Summary
 
-A local, read-only-by-default web dashboard mapped with `app.MapEncinaDashboard("/encina", options)`: overview, handlers, pipeline, outbox, inbox, sagas, cache and errors panels, refreshed in real time, disabled outside development unless explicitly enabled, authenticated, with sensitive data redacted.
+A local, read-only-by-default web dashboard mapped with `app.MapEncinaDashboard("/encina", options)`: overview, pipeline, outbox, inbox, sagas and error-count panels, refreshed in real time, disabled outside development unless explicitly enabled, authenticated, reachable from loopback only by default, with sensitive data redacted. The issue's handlers list and cache key browser have no data source today and are follow-ups (Design Choice 3).
 
 What exists today (read on `origin/main` after `git fetch`):
 
@@ -21,7 +21,7 @@ What exists today (read on `origin/main` after `git fetch`):
 
 What this plan delivers: the package, the metrics aggregator, the data-source adapters for what exists, the panels, SignalR push, authentication and the production guard, logging, and docs.
 
-- **Affected packages**: `Encina.Dashboard` (new, references `Encina`, `Encina.Messaging`, `Encina.AspNetCore`, `Encina.SignalR`), test projects. Core is not changed.
+- **Affected packages**: `Encina.Dashboard` (new, references `Encina`, `Encina.Messaging`, `Encina.AspNetCore`, `Encina.SignalR`), `Encina.Security.Audit` (`IOperationAuditStore`, reached through `Encina.AspNetCore`, which references it, `Encina.AspNetCore.csproj:26`), test projects. Core gains one `EventIdRanges` field.
 - **Provider category**: none for the dashboard itself; it reads existing store interfaces and so works on every provider; the missing read methods are a follow-up feature.
 - **Prerequisites**: none blocking.
 
@@ -30,7 +30,7 @@ What this plan delivers: the package, the metrics aggregator, the data-source ad
 | Shared piece | Owner | Used by |
 |--------------|-------|---------|
 | `Encina.Dashboard`, `IDashboardDataSource`, `DashboardOptions` | **This plan (#445)** | none |
-| EventIds 70060-70089 (`Dashboard`), block 70050-70099 | **This plan** (70050-70059 belongs to #441) | none |
+| EventIds 70060-70089 (`Dashboard`) and its own registry Blocks row with the identical bounds, status `registered` | **This plan** (70050-70059 belongs to #441, which has its own row; the two plans never share a row) | none |
 | `Encina.Diagnostics` formatter for the error panel | #441 (sibling plan, by number) | this plan, optionally |
 
 ---
@@ -83,14 +83,14 @@ What this plan delivers: the package, the metrics aggregator, the data-source ad
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Show what the interfaces expose today: outbox pending and exhausted counts, a page of pending messages (type, id, retry count, never the payload), requeue of exhausted messages as an opt-in action; saga lookup by id plus stuck and expired lists; inbox lookup by id; cache panel limited to hit and miss meters; the payload viewer and key browser are follow-ups** | Ships without touching 10 providers; honest scope | The issue's payload viewer, full lists and cache key browser are not in the first release |
+| **A) Show what the interfaces and meters expose today: outbox pending and exhausted counts, a page of pending messages (type, id, retry count, never the payload), requeue of exhausted messages by explicit id as an opt-in action (Design Choice 5); saga lookup by id plus stuck and expired lists; inbox lookup by id; the pipeline from `IEncinaPipelineInspector`; an errors panel that shows failure counts by reason taken from the aggregator (`IEncinaMetrics.TrackFailure` counts failures by reason, there is no error store and no per-error record); the handlers list, the cache panel, the payload viewer and the key browser are follow-ups** | Ships without touching 10 providers; honest scope: every panel has a data source that exists today | The issue's handlers list, payload viewer, full lists and cache key browser are not in the first release; the errors panel shows counts by reason, not individual errors |
 | **B) Add list and browse methods to the stores and the cache abstraction now** | Meets every panel in the issue | Changes `IOutboxStore`, `IInboxStore`, `ISagaStore`, `ICacheProvider` and all implementers and fakes on 10 database providers and 8 caches: a multi-package feature of its own, not one pull request |
 
 ### Chosen Option: **A — Current interfaces only; read methods as a follow-up** (recommended, pending the maintainer)
 
 ### Rationale
 
-- A wins for a first release inside the 15-file limit; B wins if the maintainer wants the full viewer before release and accepts a separate provider-wide plan first. The follow-up (read methods on the stores) is recorded as an issue file with this plan.
+- A wins for a first release inside the 15-file limit; B wins if the maintainer wants the full viewer before release and accepts a separate provider-wide plan first. There is no `/api/handlers` endpoint and the errors endpoint serves counts only: there is no handler registry that is public (the scan results of `EncinaAssemblyScanner` are internal) and no error store, so listing handlers and individual errors would need a new core abstraction, a follow-up. The follow-up (read methods on the stores, a handler list, an in-memory error ring fed by a pipeline behavior) is recorded as the issue file `artifacts/issues/dashboard-read-side-follow-ups.md` written with this plan batch.
 - **Class:** Dilemma
 
 </details>
@@ -102,15 +102,97 @@ What this plan delivers: the package, the metrics aggregator, the data-source ad
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Payloads are never sent to the browser; messages show type, id, status and counts; errors show code, category and exception type with the `ForLogging()` stack trace, never `EncinaError.Message`; tenant is shown as an opaque, hashed label and a tenant filter uses the same hash; metric tenant tag only when multi-tenancy is on (ADR-054 D4)** | Follows AGENTS.md section 3 and ADR-054 D4; no PII in the browser | The "payload viewer" is dropped (also in Design Choice 3) |
+| **A) Payloads are never sent to the browser; messages show type, id, status and counts; the errors panel shows failure counts by reason (there is no error store, Design Choice 3), never `EncinaError.Message`; metric tenant tags are read only when multi-tenancy is on (ADR-054 D4) and shown as in Design Choice 7** | Follows AGENTS.md section 3 and ADR-054 D4; no PII in the browser | The "payload viewer" is dropped (also in Design Choice 3) |
 | **B) Show payloads with field-level redaction rules** | More useful for debugging | Needs a redaction rule set to maintain; a missed field leaks personal data |
 
-### Chosen Option: **A — No payloads, no messages, hashed tenant labels**
+### Chosen Option: **A — No payloads, no messages**
 
 ### Rationale
 
+- The outbox, inbox and saga store interfaces carry no tenant parameter and the outbox message abstraction has no `TenantId` (`src/Encina.Messaging/Outbox`, checked with `git grep -n TenantId`): the panels show what the resolved store returns for the host, as a single-process development view, and the dashboard adds no tenant filter on them; only metric tenant tags are handled (Design Choice 7).
 - **Class:** Settled
 - **Settled by:** AGENTS.md section 3 (`EncinaError.Message` never reaches logs or plaintext; `ForLogging()`), ADR-054 D4 (tenant as attribute and tag when multi-tenancy is on) and the issue's "Sensitive data redaction in payloads".
+
+</details>
+
+<details>
+<summary><strong>5. Request surface: what each route class must pass, and the outbox requeue action</strong></summary>
+
+The dashboard serves four kinds of route, and each one leaks or changes data if it skips the gate. Guarding "every endpoint" is not enough unless the hub, the static files and the mutating call are named.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Every route class passes the guard and the hardening below; the table is the contract and each row has a test** | A single fail-closed rule with no gap a browser can reach | Static files are served by the dashboard itself (no `UseStaticFiles`), a few more files |
+| **B) Guard the JSON APIs only; leave the hub negotiation and the static files to the host's pipeline** | Fewer files | An unauthenticated hub leaks the same snapshots as the API; the static assets disclose the API shape; violates AGENTS.md section 3 |
+
+| Route class | Routes | Must pass | Hardening |
+|-------------|--------|-----------|-----------|
+| JSON read API | `GET /api/overview`, `/api/pipeline`, `/api/outbox`, `/api/inbox`, `/api/sagas`, `/api/errors` | The guard: environment gate, authenticated principal (`RequireAuthentication`), loopback remote address (Design Choice 6); a missing `HttpContext`, principal or remote address denies | `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` |
+| SignalR hub | `DashboardHub` negotiate, the WebSocket upgrade and every connection (`OnConnectedAsync` re-checks the guard and aborts the connection when it fails) | The same guard as the API, applied as an endpoint filter on the hub's route convention builder; the hub exposes no client-invokable method (server push only), so a client call has nothing to reach | `Origin` and `Host` validation (Design Choice 6) on negotiate and upgrade; the hub carries the same snapshots as the API and nothing more |
+| Static assets | `index.html`, `app.js`, `app.css`, served from embedded resources through the guarded route group | The same guard (they disclose the API shape and the dashboard's presence) | `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'` (no inline script or style, so no `unsafe-inline`), plus the headers above; `app.js` renders every server-provided string (type names, ids, reason codes) with `textContent` or `createTextNode`, never `innerHTML`, `outerHTML`, `insertAdjacentHTML` or `document.write`, and a unit test scans the embedded `app.js` for those tokens and fails when one appears |
+| Mutating action | `POST /api/outbox/requeue` | The guard, plus `EnableActions`, plus a registered `IOperationAuditStore` (below), plus the browser-origin checks of Design Choice 6 | An explicit id list in the body; no query-string state change |
+
+**The requeue action, exactly.** `IOutboxStore.RequeueExhaustedAsync(int maxRetries, IReadOnlyCollection<Guid>? messageIds, CancellationToken)` does not own its commit and requeues every exhausted message when `messageIds` is `null` (`src/Encina.Messaging/Outbox/IOutboxStore.cs:117-142`: EF Core records the change on its context and `SaveChangesAsync` persists it, `:144-149`). Therefore:
+
+- The dashboard never exposes a requeue-all: the request body must carry a non-empty list of ids (at most `MaxRequeueBatch`, default 100); an empty or missing list, or a list over the cap, is rejected with a validation error before any store call, and the action never passes `null`.
+- `maxRetries` is read from `OutboxOptions.MaxRetries`, never from the request.
+- The dashboard owns the commit: it calls `RequeueExhaustedAsync` then `SaveChangesAsync` on the same store instance resolved from one `IServiceScopeFactory` scope, and reports success only when both return `Right`. Per provider: EF Core (SqlServer, PostgreSQL, MySQL) needs the `SaveChangesAsync` call to persist; ADO.NET (3), Dapper (3) and MongoDB apply immediately and their `SaveChangesAsync` returns `Right` without work (read in `OutboxStoreADO.cs:382`, `OutboxStoreDapper.cs:271`, `OutboxStoreMongoDB.cs:264`), so the same two calls are correct for all 10 providers. A `Left` from either call is returned as an error state and logged by code; it is never reported as success.
+- The store interfaces carry no tenant parameter (Design Choice 4); the store the host registered decides which rows exist, and ids that are not exhausted or unknown are ignored by the store.
+- `IOperationAuditStore` is a precondition, not an option: with `EnableActions = true` and no registered `IOperationAuditStore`, `MapEncinaDashboard` does not map the action route (the dashboard stays read-only) and logs the reason once (EventId in PR-4). Each action first calls `IOperationAuditStore.RecordAsync` (`src/Encina.Security.Audit/Abstractions/IOperationAuditStore.cs:50`) with the principal and the id count (never payloads); when the record fails the action stops and nothing is requeued (audit before act, fail closed).
+
+### Chosen Option: **A — Every route class passes the guard; the requeue action is read-only without an audit store, explicit ids only, committed by the dashboard**
+
+### Rationale
+
+- Option B leaves a route class reachable without the gate, which AGENTS.md section 3 rules out; the only opt-outs are explicit and logged (Design Choice 6).
+- **Class:** Settled
+- **Settled by:** AGENTS.md section 3 ("Compliance and security gates fail closed: when context is missing ... the gate denies; the only opt-out is explicit and logged"), the issue's "Security Considerations", and `src/Encina.Messaging/Outbox/IOutboxStore.cs:117-149` for the commit and `null` semantics.
+
+</details>
+
+<details>
+<summary><strong>6. Browser-origin protection and remote access</strong></summary>
+
+Authentication cookies are sent by the browser to the dashboard from any page the developer visits, so a hostile page can post to a mutating endpoint or open the hub (cross-site request forgery, cross-site WebSocket hijacking), and a hostile DNS name can rebind to loopback. Kestrel's binding address belongs to the host, so the guard enforces the address too.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Loopback-only by default: the guard denies when `RemoteIpAddress` is missing or not loopback (read after the host's own forwarded-headers middleware) and when `Host` is not `localhost`, `127.0.0.1` or `[::1]`; `AllowRemote` is an explicit option, logged on use (EventId 70062); on the hub negotiate and upgrade and on every mutating call the `Origin` header must equal the request's own scheme, host and port (a missing `Origin` denies); mutating calls also need an ASP.NET Core antiforgery token sent in a header (`IAntiforgery`)** | Defense in depth against CSRF, hub hijacking and DNS rebinding; remote use is possible but explicit | A developer behind a dev tunnel or container port mapping sets `AllowRemote` |
+| **B) As A with no `AllowRemote` at all** | Cannot be exposed by configuration | A container whose port is mapped from the host looks remote to the dashboard, so such developers cannot use it |
+| **C) No address check: development-only gating plus authentication, as the issue sketches** | Simplest | On a development host bound to all interfaces on a shared network the dashboard is reachable by any peer who authenticates or, with `RequireAuthentication = false`, by anyone; no defense against CSRF or hub hijacking |
+
+### Chosen Option: **A — Loopback by default, Origin and Host validation, antiforgery on mutations, explicit logged `AllowRemote`** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when the tool must be safe on a shared or untrusted network by default and still usable behind a port mapping; B wins if the maintainer wants no way to expose it remotely at all; C wins if the maintainer judges development-only gating enough and accepts the browser-based attack classes. The tasks and tests of PR-2 (guard), PR-4 (mutation) and PR-5 (hub) implement A; the other options change those tasks only.
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>7. How tenants appear in the metrics panel</strong></summary>
+
+The aggregator reads metric tags that may carry a tenant id when multi-tenancy is on (ADR-054 D4 allows it as an attribute). An unkeyed hash of a low-entropy tenant id is reversible by a dictionary of likely ids, so "hashed" alone does not hide it.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) A keyed hash: HMAC-SHA256 of the tenant tag with a random 32-byte per-process key (`RandomNumberGenerator`), the first 8 bytes in hex as the label; the tenant filter hashes the typed value with the same key; the key is never logged or sent** | Labels are stable within one run, cannot be reversed by a dictionary without the key, and the filter still works | Labels change between runs; a developer cannot read the tenant id |
+| **B) No tenant breakdown: the metrics panel aggregates across tenants** | Nothing to leak; simplest | Loses per-tenant debugging, which the issue defers anyway |
+| **C) Raw tenant ids, trusting development-only gating, authentication and loopback** | Most useful to a developer | Puts tenant identifiers in the browser and in screenshots |
+
+### Chosen Option: **A — Keyed hash labels** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when per-tenant debugging is wanted without exposing ids; B wins if the maintainer judges even opaque labels unnecessary for a first release; C wins if the tool is treated as strictly local with no screenshots. ADR-054 D4 covers the tag only (a tenant attribute when multi-tenancy is on, no baggage); the hashing is this plan's own choice, so it is a Dilemma, not Settled. The aggregator also bounds its series: at most `MaxSeries` distinct metric-and-tag combinations (default 1,000), and a new series beyond the cap is dropped and counted in an overflow field, so an attacker-controlled tag value cannot grow memory.
+- **Class:** Dilemma
 
 </details>
 
@@ -118,16 +200,19 @@ What this plan delivers: the package, the metrics aggregator, the data-source ad
 
 ## Implementation Phases
 
-### Phase 1: Package, options and guard (PR-1)
+### Phase 1: Package skeleton, logging and the EventId range (PR-1)
+
+The guard of PR-2 needs its logged denial and logged opt-out (Design Choice 2, AGENTS.md section 3) and a `[LoggerMessage]` EventId may not exist before its range is registered (AGENTS.md section 7), so the log class and the range registration land first, before any gate ships.
 
 <details>
 <summary>Tasks</summary>
 
-1. `src/Encina.Dashboard/Encina.Dashboard.csproj` (framework reference `Microsoft.AspNetCore.App`, project references above, embedded `wwwroot/**`), `PublicAPI.Shipped.txt`, `PublicAPI.Unshipped.txt`, slnx, `coverage-weights.json`, manifest `Encina.Dashboard.json`.
-2. `DashboardOptions.cs` (`Title`, `RefreshInterval` (`TimeSpan`), `DarkMode`, `RequireAuthentication` true, `AllowInProduction` false, `EnableActions` false), `DashboardGuard.cs` (environment and principal check, fail closed), `EndpointRouteBuilderExtensions.MapEncinaDashboard`, `ServiceCollectionExtensions.AddEncinaDashboard`.
-3. Tests: guard behavior (production denied, anonymous denied, development allowed), DI test with `ValidateOnBuild` and `ValidateScopes`, guard tests for the public methods.
+1. `src/Encina.Dashboard/Encina.Dashboard.csproj` (framework reference `Microsoft.AspNetCore.App`, project references above, embedded `wwwroot/**` added in PR-5, `InternalsVisibleTo` for `Encina.UnitTests` and `Encina.GuardTests`), `PublicAPI.Shipped.txt` (empty), `PublicAPI.Unshipped.txt` (empty until PR-2); `Encina.slnx`; `coverage-weights.json`: add `Encina.Dashboard` to the `Cloud` category (`Encina.AspNetCore` and `Encina.SignalR` sit there; applicable tests unit and guard, target 60). New `.github/coverage-manifest/Encina.Dashboard.json` (through `mechanical-fixer`).
+2. `src/Encina.Dashboard/DashboardLog.cs` (`[LoggerMessage]`, `internal static partial class`), ids packed from 70060: 70060 dashboard mapped, 70061 request denied (reason code), 70062 explicit opt-out used (production or remote, Warning). Later pull requests append 70063 onward, never with gaps.
+3. Register the range: `EventIdRanges.Dashboard = (70060, 70089)` in `src/Encina/Diagnostics/EventIdRanges.cs`, its line in `src/Encina/PublicAPI.Unshipped.txt`, the `AssemblyRanges` entry for `Encina.Dashboard` in `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs`, and in `docs/engineering/eventid-block-registry.md` (through `docs-writer`) one "Registered ranges" row and one Blocks row with bounds identical to the registered range: `70060-70089`, area Testing and tooling, owner #445, status `registered`. `EventIdRegistryAgreementTests` requires a `registered` Blocks row to match a range of `EventIdRanges.cs` with the same bounds; a row shared with #441 such as `70050-70099` would fail it (and name #441's unregistered range if #445 landed first), so each plan has its own row. Run the architecture tests.
+4. `tests/Encina.UnitTests/Dashboard/DashboardLogTests.cs` (fake logger asserts the EventIds and that only codes are logged); add the `ProjectReference` and nothing else to `Encina.UnitTests.csproj` and `Encina.GuardTests.csproj`; changelog fragment `changelog.d/445-developer-dashboard.added.md` (through `mechanical-fixer`).
 
-About 14 files, 700 lines.
+File count 15 (csproj, 2 PublicAPI, log class, `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt`, `AssemblyRanges` test edit, registry page, slnx, weights, manifest, log test, 2 test csproj edits, fragment); about 450 lines. The two test csproj edits and the manifest are in this total.
 
 </details>
 
@@ -135,23 +220,25 @@ About 14 files, 700 lines.
 <summary>Prompt for AI Agents — Phase 1</summary>
 
 ```text
-CONTEXT: Encina has no dashboard. Encina.AspNetCore and Encina.SignalR show endpoint and hub conventions.
-TASK: Create Encina.Dashboard with DashboardOptions, the production/authentication guard, MapEncinaDashboard and AddEncinaDashboard.
-KEY RULES: Fail closed when the principal or environment is missing; the opt-out is explicit and logged. AddEncinaDashboard registers every option and dependency it resolves (DI test with ValidateOnBuild and ValidateScopes). TimeProvider for any time. At most 15 files.
-REFERENCE FILES: src/Encina.AspNetCore/ServiceCollectionExtensions.cs, src/Encina.SignalR/Encina.SignalR.csproj, src/Encina.AspNetCore/ApplicationBuilderExtensions.cs.
+CONTEXT: Encina has no dashboard. Encina.AspNetCore and Encina.SignalR show endpoint and hub conventions. EventIds may not be used before the range is registered (AGENTS.md section 7).
+TASK: Create the Encina.Dashboard package skeleton, DashboardLog with EventIds 70060-70062, and register EventIdRanges.Dashboard = (70060, 70089) with its PublicAPI line, AssemblyRanges entry and its own registry rows (registered range row and a Blocks row 70060-70089, status registered, never a row shared with #441).
+KEY RULES: Pack EventIds without gaps; codes and type names only, never messages or payloads. Add the package to the Cloud category of coverage-weights.json. Run the EventId architecture tests. At most 15 files.
+REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/eventid-block-registry.md, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs, src/Encina.SignalR/Encina.SignalR.csproj.
 ```
 
 </details>
 
-### Phase 2: Metrics aggregation and data sources (PR-2)
+### Phase 2: Options, guard and registration (PR-2)
 
 <details>
 <summary>Tasks</summary>
 
-1. `MetricsAggregator.cs` (hosted service with a `MeterListener` on `Encina*` instruments, in-memory ring buffers, a timer callback that never throws, per AGENTS.md section 3), `IDashboardDataSource.cs` and adapters `OutboxDataSource`, `InboxDataSource`, `SagaDataSource`, `PipelineDataSource` (uses `IEncinaPipelineInspector`), each resolving stores through `IServiceScopeFactory`, never from a singleton directly; a `Left` from a store is shown as an error state, never as an empty success.
-2. Tests per adapter with substituted stores; aggregator tests with a `FakeTimeProvider`.
+1. `DashboardOptions.cs` (`Title`, `RefreshInterval` (`TimeSpan`), `DarkMode`, `RequireAuthentication` true, `AllowInProduction` false, `AllowRemote` false, `EnableActions` false, `MaxRequeueBatch` 100, `MaxSeries` 1,000).
+2. `DashboardGuard.cs`: one decision shared by the API, the hub and the static assets (Design Choice 5): environment gate (`IHostEnvironment.IsDevelopment()` or `AllowInProduction`), authenticated principal, loopback `RemoteIpAddress` and `Host` (Design Choice 6) unless `AllowRemote`; a missing `HttpContext`, principal, environment or remote address denies; every denial and every opt-out use logs 70061 and 70062 by reason code, never request data.
+3. `EndpointRouteBuilderExtensions.MapEncinaDashboard` (a route group with the guard applied as an endpoint filter, so every later route of PR-4 and PR-5 inherits it) and `ServiceCollectionExtensions.AddEncinaDashboard` (registers the options and every dependency it resolves; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`).
+4. Tests in `tests/Encina.UnitTests/Dashboard/`: guard behavior (production denied, anonymous denied, non-loopback denied, rebinding `Host` denied, development allowed, missing `HttpContext` denied, each opt-out logged), the DI test, and `tests/Encina.GuardTests/Dashboard/DashboardGuardTests.cs` for the public methods; `PublicAPI.Unshipped.txt` and manifest edits (through `mechanical-fixer`).
 
-About 14 files, 1,100 lines.
+File count 9 (options, guard, 2 extension classes, 3 test files, PublicAPI, manifest); about 700 lines.
 
 </details>
 
@@ -159,24 +246,24 @@ About 14 files, 1,100 lines.
 <summary>Prompt for AI Agents — Phase 2</summary>
 
 ```text
-CONTEXT: Phase 1 merged.
-TASK: Add MetricsAggregator and the data-source adapters for outbox, inbox, saga and pipeline, reading only existing store methods.
-KEY RULES: Never inject a scoped service into a singleton (IServiceScopeFactory). A Left from a store is surfaced as an error, not hidden. Timer callbacks catch and log by error code; ForLogging() for exceptions. No payloads. At most 15 files.
-REFERENCE FILES: src/Encina.Messaging/Outbox/IOutboxStore.cs, src/Encina.Messaging/Sagas/ISagaStore.cs, src/Encina.Messaging/Inbox/IInboxStore.cs, src/Encina/Pipeline/Ordering/IEncinaPipelineInspector.cs, src/Encina/Diagnostics/IEncinaMetrics.cs.
+CONTEXT: PR-1 merged the skeleton, DashboardLog and the range. Encina.AspNetCore and Encina.SignalR show endpoint and hub conventions.
+TASK: Add DashboardOptions, DashboardGuard (environment, authenticated principal, loopback RemoteIpAddress and Host, all fail closed), MapEncinaDashboard (guarded route group) and AddEncinaDashboard.
+KEY RULES: Missing context denies; the opt-outs (AllowInProduction, AllowRemote, RequireAuthentication = false) are explicit and logged. AddEncinaDashboard registers every option and dependency it resolves (DI test with ValidateOnBuild and ValidateScopes). TimeProvider for any time. At most 15 files.
+REFERENCE FILES: src/Encina.AspNetCore/ServiceCollectionExtensions.cs, src/Encina.SignalR/Encina.SignalR.csproj, src/Encina.AspNetCore/ApplicationBuilderExtensions.cs.
 ```
 
 </details>
 
-### Phase 3: API, UI and SignalR (PR-3 and PR-4)
+### Phase 3: Metrics aggregation and data sources (PR-3)
 
 <details>
 <summary>Tasks</summary>
 
-1. PR-3: minimal API endpoints (`/api/overview`, `/api/handlers`, `/api/pipeline`, `/api/outbox`, `/api/inbox`, `/api/sagas`, `/api/errors`), GET only; the requeue action `POST /api/outbox/requeue` only when `EnableActions`, with an antiforgery-style same-origin check and an audit record through `IOperationAuditStore` when one is registered.
-2. PR-4: `DashboardHub` (SignalR) pushing aggregated snapshots every `RefreshInterval`, `wwwroot/index.html`, `app.js`, `app.css` with dark mode.
-3. Tests with `WebApplicationFactory`-style in-memory hosts; guard tests.
+1. `MetricsAggregator.cs` (hosted service with a `MeterListener` on `Encina*` instruments, in-memory ring buffers, a timer callback that never throws, per AGENTS.md section 3), bounded to `MaxSeries` distinct metric-and-tag combinations with an overflow count (Design Choice 7); `IDashboardDataSource.cs` and adapters `OutboxDataSource`, `InboxDataSource`, `SagaDataSource`, `PipelineDataSource` (uses `IEncinaPipelineInspector`), each resolving stores through `IServiceScopeFactory`, never from a singleton directly; a `Left` from a store is shown as an error state, never as an empty success. The errors panel is fed by the failure counts by reason the aggregator reads from `TrackFailure` meters.
+2. `DashboardLog.cs` gains 70063 data source failed (error code) and 70064 aggregator cycle failed (error code, exception through `ForLogging()`).
+3. Tests per adapter with substituted stores; aggregator tests with a `FakeTimeProvider` (including the series cap); guard tests for the public registration surface; `PublicAPI.Unshipped.txt` and manifest edits.
 
-PR-3 about 13 files and 900 lines; PR-4 about 9 files and 700 lines.
+File count 14: aggregator, data-source interface, 4 adapters, the log edit (7); `MetricsAggregatorTests`, `StoreDataSourceTests` (outbox, inbox, saga), `PipelineDataSourceTests`, the guard test and the `DashboardLogTests` edit (12); `PublicAPI.Unshipped.txt` and the manifest (14); about 1,200 lines.
 
 </details>
 
@@ -184,23 +271,25 @@ PR-3 about 13 files and 900 lines; PR-4 about 9 files and 700 lines.
 <summary>Prompt for AI Agents — Phase 3</summary>
 
 ```text
-CONTEXT: Data sources exist.
-TASK: Add the read endpoints, the opt-in requeue action with audit, the SignalR hub and the static UI.
-KEY RULES: Every endpoint passes the guard. Responses never carry payloads or EncinaError.Message. Tenant labels are hashed. A mutation requires EnableActions. At most 15 files.
-REFERENCE FILES: src/Encina.AspNetCore/Health, src/Encina.SignalR, src/Encina.Messaging/Outbox/IOutboxStore.cs.
+CONTEXT: PR-1 and PR-2 merged.
+TASK: Add MetricsAggregator (bounded by MaxSeries, keyed-hash tenant labels per Design Choice 7) and the data-source adapters for outbox, inbox, saga and pipeline, reading only existing store methods; add EventIds 70063 and 70064 to DashboardLog.
+KEY RULES: Never inject a scoped service into a singleton (IServiceScopeFactory). A Left from a store is surfaced as an error, not hidden. Timer callbacks catch and log by error code; ForLogging() for exceptions. No payloads. At most 15 files.
+REFERENCE FILES: src/Encina.Messaging/Outbox/IOutboxStore.cs, src/Encina.Messaging/Sagas/ISagaStore.cs, src/Encina.Messaging/Inbox/IInboxStore.cs, src/Encina/Pipeline/Ordering/IEncinaPipelineInspector.cs, src/Encina/Diagnostics/IEncinaMetrics.cs.
 ```
 
 </details>
 
-### Phase 4: Logging and EventIds (PR-5)
+### Phase 4: API, requeue action, hub and UI (PR-4 and PR-5)
 
 <details>
 <summary>Tasks</summary>
 
-1. `DashboardLog.cs` (`[LoggerMessage]`): 70060 dashboard mapped, 70061 denied (reason code), 70062 production opt-in used (Warning), 70063 data source failed (error code), 70064 action performed, 70065 aggregator cycle failed. Register `EventIdRanges.Dashboard = (70060, 70089)` in `src/Encina/Diagnostics/EventIdRanges.cs`, the PublicAPI line, the `AssemblyRanges` entry, and the registry rows (block 70050-70099 is shared with #441: its row lists both ranges).
-2. Tests of the log messages; manifest edit; changelog fragment `changelog.d/445-developer-dashboard.added.md`.
+1. PR-4 (API and action): a `DashboardEndpoints.cs` with the read endpoints `GET /api/overview`, `/api/pipeline`, `/api/outbox`, `/api/inbox`, `/api/sagas`, `/api/errors` (failure counts by reason), mapped on the guarded route group of PR-2 (so each passes the guard, Design Choice 5); `DashboardSecurityHeaders.cs` (the response headers of the surface table, applied to the group); `OutboxRequeueEndpoint.cs`: `POST /api/outbox/requeue`, mapped only when `EnableActions` is true **and** an `IOperationAuditStore` is registered (otherwise the dashboard stays read-only and logs the reason), body = a non-empty id list up to `MaxRequeueBatch` (never `null`, never requeue-all), `maxRetries` from `OutboxOptions.MaxRetries`, audit record first, then `RequeueExhaustedAsync` and `SaveChangesAsync` on one store instance from one scope, success only when both return `Right`; the antiforgery token is issued by a guarded `GET /api/antiforgery` and required in a header, and the `Origin` and `Host` checks of Design Choice 6 run on the action. `DashboardLog` gains 70065 action performed (count only) and 70066 action refused (reason code: actions disabled, audit store missing, origin mismatch, invalid ids).
+2. PR-4 tests (in-memory host through `WebApplicationFactory`-style tests): every read route denied without the guard conditions; headers present; requeue with null, empty and oversized id lists rejected before any store call; commit owner (a store substitute proves `SaveChangesAsync` runs after `RequeueExhaustedAsync` and that a `Left` from either is reported as failure); audit failure stops the action; read-only when no audit store; origin and antiforgery rejections.
+3. PR-5 (hub and UI): `DashboardHub.cs` (server push of aggregated snapshots every `RefreshInterval`; no client-invokable methods; the guard and the `Origin` and `Host` validation on negotiate and upgrade and in `OnConnectedAsync`), the embedded `wwwroot/index.html`, `app.js`, `app.css` (dark mode) served through the guarded route group, never through `UseStaticFiles`, with the CSP of the surface table; `app.js` renders server strings only with `textContent` or `createTextNode`. `DashboardLog` gains 70067 hub connection denied (reason code).
+4. PR-5 tests: hub negotiate and WebSocket upgrade denied without the guard conditions and with a wrong `Origin`; a connection that fails the guard is aborted; static assets denied when the guard fails and served with the CSP; a test scans the embedded `app.js` for `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write` and `eval` and fails on any; guard tests; manifest, PublicAPI and csproj (embedded resources) edits.
 
-About 8 files and 350 lines.
+PR-4: 11 files (3 production files, the log edit, 3 test files, the log test edit, PublicAPI, manifest, and the registration edit in `EndpointRouteBuilderExtensions.cs`), about 1,000 lines. PR-5: 11 files (hub, 3 static assets, the registration edit, the log edit, 3 test files, the log test edit, manifest; the csproj embedding glob was declared in PR-1 and the hub is `internal`, so no PublicAPI line), about 900 lines.
 
 </details>
 
@@ -208,23 +297,25 @@ About 8 files and 350 lines.
 <summary>Prompt for AI Agents — Phase 4</summary>
 
 ```text
-CONTEXT: The dashboard works end to end.
-TASK: Add DashboardLog with EventIds 70060-70065 and register the range 70060-70089 (EventIdRanges field, PublicAPI line, AssemblyRanges entry, registry rows).
-KEY RULES: Pack ids without gaps; codes and type names only, never messages or payloads. At most 15 files.
-REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/eventid-block-registry.md, tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs.
+CONTEXT: The guard, the data sources and the log class exist (PR-1 to PR-3).
+TASK: PR-4: read endpoints, security headers and the opt-in requeue action. PR-5: the SignalR hub and the embedded static UI.
+KEY RULES: Every route class (JSON API, hub negotiate and upgrade, static assets, the mutating action) passes the same fail-closed guard (Design Choice 5). The requeue action takes an explicit non-empty id list (never null), reads maxRetries from OutboxOptions, calls the audit store first and fails closed without one, then RequeueExhaustedAsync and SaveChangesAsync, and reports success only when both are Right. Origin and Host validation plus an antiforgery token on mutations (Design Choice 6). CSP without inline script, textContent only in app.js. Responses never carry payloads or EncinaError.Message. At most 15 files per pull request.
+REFERENCE FILES: src/Encina.AspNetCore/Health, src/Encina.SignalR, src/Encina.Messaging/Outbox/IOutboxStore.cs, src/Encina.Security.Audit/Abstractions/IOperationAuditStore.cs.
 ```
 
 </details>
 
 ### Phase 5: Integration tests and documentation (PR-6 and PR-7)
 
+PR-6 is the integration test (a test project edit if the fixture needs a project reference, the test file, the justification file and the manifest edit); PR-7 is the documentation.
+
 <details>
 <summary>Tasks</summary>
 
-1. PR-6: an integration test on one provider (the shared `Collection` fixture) that seeds outbox rows and reads them through the dashboard API; a load-test justification file for the aggregator.
+1. PR-6: an integration test on one provider (the shared `Collection` fixture) that seeds outbox rows, reads them through the dashboard API and runs the requeue action against a real EF Core store (proving that `SaveChangesAsync` persists the requeue); a load-test justification file for the aggregator. The `Cloud` category applies only unit and guard (`coverage-weights.json`), so the integration test is a smoke test and its per-file integration target is 0, with that reason.
 2. PR-7 through `docs-writer`: README, `docs/features/dashboard.md`, INVENTORY, ROADMAP.
 
-About 4 and 5 files.
+PR-6 about 4 files (the justification file for load tests is counted here only, not again in documentation), PR-7 4 files (README, feature page with a security section on loopback, origin checks and CSP, INVENTORY, ROADMAP).
 
 </details>
 
@@ -232,7 +323,7 @@ About 4 and 5 files.
 <summary>Prompt for AI Agents — Phase 5</summary>
 
 ```text
-CONTEXT: The dashboard and its logging are merged.
+CONTEXT: The dashboard, its guard and its logging are merged.
 TASK: Add the integration test and the justification file; document the feature through docs-writer; run the verification and report per-flag coverage.
 KEY RULES: Shared [Collection] fixtures only. No hand-typed coverage figures. English only.
 REFERENCE FILES: tests/Encina.IntegrationTests (outbox tests), .claude/skills/encina-docs/SKILL.md.
@@ -248,9 +339,9 @@ REFERENCE FILES: tests/Encina.IntegrationTests (outbox tests), .claude/skills/en
 
 | Standard / Specification | Relevance | Where it applies in the feature |
 |--------------------------|-----------|---------------------------------|
-| ADR-054 (observability conventions) | Meter names and the tenant tag rule | Aggregator, tenant labels |
-| ADR-062 (error category contract) | Error codes shown by category | Errors panel; the dashboard adds no error code |
-| OWASP guidance on admin interfaces | Authentication and CSRF on mutating endpoints | Guard, requeue action |
+| ADR-054 (observability conventions) | Meter names and the tenant tag rule (D4) | Aggregator, tenant labels (Design Choice 7) |
+| ADR-062 (error category contract) | Error codes shown by category | Errors panel shows failure counts by reason; the dashboard adds no error code and so no `ErrorCategory` |
+| OWASP guidance on admin interfaces, CSRF, XSS and Content-Security-Policy | Authentication, Origin and antiforgery checks on mutating and hub requests, output encoding, CSP | Guard, requeue action, hub, static assets (Design Choices 5 and 6) |
 | SignalR hub protocol | Push transport | `DashboardHub` |
 
 ### Existing Encina Infrastructure to Leverage
@@ -267,19 +358,19 @@ REFERENCE FILES: tests/Encina.IntegrationTests (outbox tests), .claude/skills/en
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Dashboard` (`EventIdRanges.Dashboard`, new) | 70060-70089 | Ids 70060-70065 used; same 50-id slot 70050-70099 as #441 (70050-70059), after the #4007 extent 70000-70049; needs the field, a PublicAPI line, an `AssemblyRanges` entry and registry rows (Phase 4) |
+| `Encina.Dashboard` (`EventIdRanges.Dashboard`, new) | 70060-70089 | Ids 70060-70067 used, packed without gaps across PR-1 (70060-70062), PR-3 (70063-70064), PR-4 (70065-70066) and PR-5 (70067); after the #4007 extent 70000-70049, beside #441's 70050-70059. Registered in PR-1: the field, a PublicAPI line, an `AssemblyRanges` entry, a registered-ranges row and a Blocks row `70060-70089`, status `registered`, with bounds identical to the range (`EventIdRegistryAgreementTests`); #441 has its own row, no row is shared |
 
 ### Estimated File Count
 
 | Category | Files | Notes |
 |----------|------:|-------|
-| Production | 22 | options, guard, extensions, aggregator, 4 adapters, endpoints, hub, 3 static assets, log, csproj, 2 PublicAPI |
-| Tests | 16 | unit, guard, DI, endpoint tests, integration, log |
-| Manifest, weights, slnx, fragment, registry | 5 | |
-| Documentation | 5 | README, feature page, INVENTORY, ROADMAP, justification |
-| **Total** | **~48 over 7 pull requests** | PR-1 14, PR-2 14, PR-3 13, PR-4 9, PR-5 8, PR-6 4, PR-7 5 files; about 700 + 1,100 + 900 + 700 + 350 + 200 + 300 = 4,250 lines in total (each under 1,500) |
+| Production | 26 | csproj, 2 PublicAPI, options, guard, 2 extension classes, aggregator, data-source interface, 4 adapters, endpoints, security headers, requeue endpoint, hub, 3 static assets, log; core edits: `EventIdRanges.cs`, core `PublicAPI.Unshipped.txt` |
+| Tests | 18 | log, guard, DI, aggregator, store and pipeline data sources, endpoints, requeue, headers, hub, static assets, guard tests, integration, the `AssemblyRanges` edit, 2 test csproj edits |
+| Manifest, weights, slnx, fragment, registry | 5 | `Encina.Dashboard.json`, `coverage-weights.json` (`Cloud` category), `Encina.slnx`, the fragment, the registry page |
+| Documentation | 4 | README, feature page, INVENTORY, ROADMAP (the load-test justification file is counted in PR-6) |
+| **Total** | **~53 distinct files, 68 file touches over 7 pull requests** | PR-1 15, PR-2 9, PR-3 14, PR-4 11, PR-5 11, PR-6 4, PR-7 4 files (the log class, `EndpointRouteBuilderExtensions.cs`, the manifest and `PublicAPI.Unshipped.txt` are touched in several); about 450 + 700 + 1,200 + 1,000 + 900 + 200 + 300 = 4,750 lines in total (each pull request is under 1,500) |
 
-Coverage targets per file: guard, options and extensions unit 90, guard 80; `MetricsAggregator.cs` unit 85 (guard 20); data sources unit 90 (guard 60); endpoints unit 85; `DashboardHub.cs` unit 70 (SignalR transport is reached by integration tests); `DashboardLog.cs` unit 80; integration flag 60 on data sources (one provider). Justification: logic is thin adapters over stores, fully reachable with substituted stores; the hub and static assets are not unit-reachable beyond connection tests. Load: justification file (read-only dev tool); benchmark: not applicable.
+Coverage targets per file (unit, guard; the `Cloud` category applies those two flags): `DashboardGuard.cs` unit 90, guard 80; options and extension classes unit 90, guard 80; `MetricsAggregator.cs` unit 85, guard 20; data sources unit 90, guard 60; `DashboardEndpoints.cs`, `OutboxRequeueEndpoint.cs` and `DashboardSecurityHeaders.cs` unit 85, guard 40; `DashboardHub.cs` unit 70 (the SignalR transport itself is reached only by the PR-6 smoke test, whose integration flag is not applicable to the `Cloud` category, so its integration target is 0 with that reason); `DashboardLog.cs` unit 80 (guard 0: an internal log class with no executable parameters worth guarding). Justification: logic is thin adapters over stores, fully reachable with substituted stores; the guard and the security headers are pure decisions reachable in an in-memory host; the hub and static assets are not unit-reachable beyond connection tests. Load: justification file (read-only dev tool); benchmark: not applicable.
 
 ---
 
@@ -291,9 +382,9 @@ Coverage targets per file: guard, options and extensions unit 90, guard 80; `Met
 ```text
 PROJECT CONTEXT: Encina is a pre-1.0 .NET 10 library (AGENTS.md rules). Issue #445 adds Encina.Dashboard: a local, read-only-by-default, fail-closed web UI for outbox, inbox, saga, pipeline, metrics and errors.
 
-IMPLEMENTATION OVERVIEW: Phase 1 package, options, guard. Phase 2 metrics aggregator and data sources. Phase 3 endpoints, SignalR hub, static UI. Phase 4 logging and EventIds 70060-70089. Phase 5 integration test and documentation. Seven pull requests, each at most 15 files and 1500 lines.
+IMPLEMENTATION OVERVIEW: Phase 1 package skeleton, DashboardLog and the EventIds range 70060-70089 (before any gate ships). Phase 2 options, guard (environment, principal, loopback, Host) and registration. Phase 3 metrics aggregator and data sources. Phase 4 read endpoints, the requeue action, the SignalR hub and the static UI. Phase 5 integration test and documentation. Seven pull requests, each at most 15 files and 1500 lines.
 
-KEY PATTERNS: Fail closed; no payloads or messages to the browser; hashed tenant labels; IServiceScopeFactory for scoped stores; MeterListener aggregation; timer callbacks never throw; a Left from a store is an error state.
+KEY PATTERNS: Fail closed on every route class (API, hub, static assets, action); loopback by default; Origin, Host and antiforgery checks; CSP and textContent only; no payloads or messages to the browser; keyed-hash tenant labels (pending Dilemma 7); IServiceScopeFactory for scoped stores; MeterListener aggregation with a series cap; timer callbacks never throw; a Left from a store is an error state; the requeue action takes explicit ids, needs an audit store, and commits through SaveChangesAsync.
 
 REFERENCE FILES: src/Encina.AspNetCore, src/Encina.SignalR, src/Encina.Messaging/Outbox/IOutboxStore.cs, src/Encina/Pipeline/Ordering/IEncinaPipelineInspector.cs, docs/plans/dsr-implementation-plan-404.md (plan style).
 ```
@@ -306,23 +397,23 @@ REFERENCE FILES: src/Encina.AspNetCore, src/Encina.SignalR, src/Encina.Messaging
 
 | # | Function | Status | Notes |
 |---|----------|--------|-------|
-| 1 | Caching | ❌ | The dashboard reads meters only; the key browser needs a cache read API that does not exist (follow-up) |
+| 1 | Caching | ❌ | The dashboard reads meters only; the cache panel and key browser need a cache read API that does not exist (follow-up) |
 | 2 | OpenTelemetry | ✅ | Consumes the `Encina*` meters through `MeterListener`; the dashboard itself adds no instrument; tenant tag rule ADR-054 D4 for what it displays |
-| 3 | Structured Logging | ✅ | `DashboardLog`, EventIds 70060-70065 in the new range |
+| 3 | Structured Logging | ✅ | `DashboardLog`, EventIds 70060-70067 in the new range, registered in PR-1 |
 | 4 | Health Checks | ❌ | Dev tool; it does not add a check |
-| 5 | Validation | ❌ | Read-only; the requeue action takes no free input |
+| 5 | Validation | ✅ | The requeue action validates its body (non-empty id list, at most `MaxRequeueBatch`, never `null`) before any store call; the read routes take no input |
 | 6 | Resilience | ❌ | No external calls; store failures are shown as errors |
 | 7 | Distributed Locks | ❌ | Read-only queries |
-| 8 | Transactions | ❌ | The requeue action calls an existing store method that owns its commit |
-| 9 | Idempotency | ❌ | Reads and an idempotent requeue |
-| 10 | Multi-Tenancy | ✅ | Hashed tenant labels and a tenant filter (the issue defers it; it is cheap here and avoids showing raw ids) |
+| 8 | Transactions | ✅ | The requeue action does not own an atomic unit: it calls `RequeueExhaustedAsync` and then `SaveChangesAsync` on the same store (EF Core persists only then; the other 7 providers apply immediately and their `SaveChangesAsync` is a no-op) and reports success only when both are `Right` (Design Choice 5) |
+| 9 | Idempotency | ❌ | Reads and an idempotent requeue (requeueing an id that is no longer exhausted is ignored by the store) |
+| 10 | Multi-Tenancy | ✅ | Metric tenant tags shown as keyed-hash labels (Design Choice 7, pending); the store interfaces carry no tenant parameter, so the store panels show what the host's store returns (Design Choice 4) |
 | 11 | Module Isolation | ⏭️ | Filtering by module needs the module registry of #359 (open) |
-| 12 | Audit Trail | ✅ | The opt-in requeue action writes an operation audit record when `IOperationAuditStore` is registered |
+| 12 | Audit Trail | ✅ | The requeue action writes an `IOperationAuditStore` record before it acts and is not mapped at all when no audit store is registered (fail closed, Design Choice 5) |
 
 ---
 
 ## Next Steps
 
-1. The maintainer answers Dilemmas 1 and 3 when work starts.
-2. Follow-up issue: read methods on the stores and the cache abstraction (provider-wide); it is not planned here and is listed in the report.
+1. The maintainer answers Dilemmas 1, 3, 6 and 7 when work starts; Dilemma 6 (loopback, Origin checks, remote access) is answered before PR-2.
+2. Follow-up issue: read-side additions (read methods on the stores and the cache abstraction, a handler list, an error ring) as a feature; the issue file `dashboard-read-side-follow-ups.md` is written with this plan batch and opened by the orchestrator together with its plan.
 3. Open the sub-issues for PR-1 to PR-7 and brief Phase 1.
