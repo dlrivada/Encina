@@ -32,9 +32,11 @@ on:
         default: "Release"
         type: string
       dotnet-version:
-        description: ".NET SDK version"
+        description: ".NET SDK versions, one per line (default installs 10.0.x and 11.0.x)"
         required: false
-        default: "10.0.x"
+        default: |
+          10.0.x
+          11.0.x
         type: string
       runs-on:
         description: "Runner to use (windows-latest, ubuntu-latest, macos-latest)"
@@ -102,9 +104,9 @@ jobs:
           path: |
             ~/.nuget/packages
             ${{ runner.os == 'Windows' && '%USERPROFILE%\.nuget\packages' || '' }}
-          key: ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+          key: ${{ runner.os }}-nuget-sdk-10.0.x-11.0.x-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
           restore-keys: |
-            ${{ runner.os }}-nuget-${{ env.DOTNET_SDK_VERSION }}-
+            ${{ runner.os }}-nuget-sdk-10.0.x-11.0.x-
             ${{ runner.os }}-nuget-
 
       - name: Cache dotnet tools
@@ -113,7 +115,7 @@ jobs:
           path: |
             ~/.dotnet/tools
             ${{ runner.os == 'Windows' && '%USERPROFILE%\.dotnet\tools' || '' }}
-          key: ${{ runner.os }}-dotnet-tools-${{ env.DOTNET_SDK_VERSION }}
+          key: ${{ runner.os }}-dotnet-tools-sdk-10.0.x-11.0.x
           restore-keys: |
             ${{ runner.os }}-dotnet-tools-
 
