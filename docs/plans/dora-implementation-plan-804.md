@@ -16,7 +16,7 @@ DORA is lex specialis for financial entities and their ICT third-party providers
 
 **What it implements** (Regulation (EU) 2022/2554, with the Level 2 acts the issue comment of 2026-09-23 verified: RTS 2024/1772 classification, RTS 2024/1774 ICT risk framework, RTS 2025/301 reporting times, ITS 2025/302 templates, ITS 2024/2956 register of information, RTS 2025/1190 TLPT):
 
-- `ICTIncidentAggregate` (Arts. 17-23): classification (major or not, by the RTS 2024/1772 criteria), the three reports (initial within 4 hours of classification and 24 hours of awareness, intermediate within 72 hours of the initial one, final within one month of the latest intermediate, RTS 2025/301) and submission through the shared reporting port.
+- `ICTIncidentAggregate` (Arts. 17-23): classification (major or not, by the RTS 2024/1772 criteria), the three reports (initial as early as possible, within 4 hours of classification as major and at the latest 24 hours after awareness, except that an incident classified later than 24 hours after awareness is due 4 hours after classification; intermediate within 72 hours of the initial one; final within one month of the latest intermediate; Delegated Regulation (EU) 2025/301 Art. 5, verified against the Official Journal text in the legal-facts record of 2026-11-26; the calculator also takes the weekend and bank-holiday rule of Art. 5 as an option: a deadline falling on a weekend or bank holiday of the entity's Member State may be met by noon of the next working day, except for initial notifications and intermediate reports of credit institutions, central counterparties, trading venues and NIS2 essential or important entities, and competent authorities may disapply it) and submission through the shared reporting port.
 - `ICTRiskAggregate` (Arts. 5-16): ICT asset inventory entries with criticality, risk assessments and continuity or recovery test records.
 - `ICTThirdPartyProviderAggregate` (Arts. 28-44): the register of information per provider, contractual-requirement checklist, concentration flag and exit strategy.
 - `ResilienceTestAggregate` (Arts. 24-27): test plan, execution, findings and remediation, including TLPT (RTS 2025/1190).
@@ -367,7 +367,7 @@ REFERENCE FILES: src/Encina.Compliance.NIS2 (#823 supplier assessment plan for t
 <summary>Tasks</summary>
 
 1. `Model/ResilienceTestKind.cs` (vulnerability assessment, scenario test, TLPT), `ResilienceFinding.cs`, `FindingSeverity.cs`.
-2. `Events/ResilienceTestEvents.cs` and `Aggregates/ResilienceTestAggregate.cs`: `Plan`, `Start`, `RecordFinding`, `PlanRemediation`, `VerifyRemediation`, `Complete`; the TLPT cycle check (at least every three years, DORA Art. 26(1); RTS 2025/1190 sets the test method; UNVERIFIED until the legal-facts record of the batch exists) is a computed due date, with the period an option defaulting to three years.
+2. `Events/ResilienceTestEvents.cs` and `Aggregates/ResilienceTestAggregate.cs`: `Plan`, `Start`, `RecordFinding`, `PlanRemediation`, `VerifyRemediation`, `Complete`; the TLPT cycle check (at least every three years, DORA Art. 26(1), not RTS 2025/1190, which sets the test method; the competent authority can raise or lower the frequency per entity, and only entities it identifies under Art. 26(8) perform TLPT) is a computed due date: the period is an option defaulting to three years, overridable per entity, and a `TlptApplicable` flag on the entity's configuration (default false) decides whether a TLPT due date is computed at all.
 
 </details>
 
@@ -532,7 +532,7 @@ REFERENCE FILES: tests/Encina.UnitTests/Compliance, tests/Encina.GuardTests
 | DORA Arts. 28-44, ITS 2024/2956 | Third-party risk and register of information | `ICTThirdPartyProviderAggregate` |
 | DORA Art. 45 | Information sharing | Arrangement record only (Phase 4, event and command; read model in PR 8) |
 
-The article numbers, periods and Level 2 act numbers above and in the phases (4 h, 24 h, 72 h, one month, the three-year TLPT cycle, RTS and ITS numbers) are UNVERIFIED until the batch's legal-facts record (`artifacts/decisions/plan-batch/legal-facts-2026-11-26.md`) confirms them from primary sources; the brief of each PR re-reads them against EUR-Lex before the constants are coded.
+The article numbers, periods and Level 2 act numbers above and in the phases (4 h, 24 h, 72 h, one month, the three-year TLPT cycle of Art. 26(1), the chapter ranges, RTS and ITS numbers) are verified against the Official Journal text (mirror) in the batch's legal-facts record of 2026-11-26. Not read there and therefore UNVERIFIED: the recurring-incident rule of RTS 2024/1772 (the plan does not model it; a later issue may), and the proportionality regime (simplified ICT risk framework of RTS 2024/1774 and Art. 16, microenterprises), which the plan does not model either. The brief of each PR re-reads the values against EUR-Lex before the constants are coded.
 
 ### Existing Encina Infrastructure to Leverage
 
