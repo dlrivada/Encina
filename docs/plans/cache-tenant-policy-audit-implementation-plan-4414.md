@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4414 asks for one audit event when a tenant's resolved cache policy changes and one summary event per window and tenant for quota and rate-limit enforcement, written through `IOperationAuditStore`. It extends the tenant policies of #275 (open, plan merged). Re-checked against `origin/main` (d099efe3e):
+Issue #4414 asks for one audit event when a tenant's resolved cache policy changes and one summary event per window and tenant for quota and rate-limit enforcement, written through `IOperationAuditStore`. It extends the tenant policies of #275 (open, plan merged). Re-checked against `origin/main` (326e65ebf):
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -18,12 +18,13 @@ Issue #4414 asks for one audit event when a tenant's resolved cache policy chang
 | One event per change | The resolver state is node-local (#275 Design Choice 2), so every node that observes a change writes its own event: one event per change per node. |
 | `IOperationAuditStore` is the sink | Correct: ADR-036 decision 2 makes the operation store the general write sink, distinguished by `Action` and `Metadata`. The providers register it scoped (`services.TryAddScoped<IOperationAuditStore, OperationAuditStoreEF>()`, `src/Encina.EntityFrameworkCore/ServiceCollectionExtensions.cs:463`; ADO, Dapper and MongoDB likewise) and the in-memory default as a singleton (`src/Encina.Security.Audit/ServiceCollectionExtensions.cs:96`), so a singleton writer needs `IServiceScopeFactory`. |
 | `Encina.Caching` can call it | It cannot today: `src/Encina.Caching/Encina.Caching.csproj` references `Encina`, `Encina.DistributedLock` and `Encina.Messaging` only; `Encina.Security.Audit` references `Encina`, `Encina.DomainModeling` and `Encina.Messaging`, so a reference from caching to audit creates no cycle. |
+| A fresh scope reaches a tenant-routed store | `OperationAuditStoreEF` takes whatever `DbContext` the application registered (`public OperationAuditStoreEF(DbContext dbContext)`, `src/Encina.EntityFrameworkCore/Auditing/OperationAuditStoreEF.cs`). A background scope has no request and no ambient tenant, so an application that routes its `DbContext` per tenant from request-ambient state must register the audit store on a context that is not tenant-routed; the tenant is carried in the entry, never in the scope. The plan states this in the XML remarks and the documentation and the recorder never sets an ambient tenant. |
 | An audit failure never fails a request | The policy and summary writes are not on the request's result path in this plan (they are queued, Design Choice 4), so that holds by construction; the repository default for pipeline audit is the opposite (`OperationAuditFailureMode.FailClosed`, `src/Encina.Security.Audit/OperationAuditFailureMode.cs`), which audits requests, not background evidence. |
 | A window concept exists | No: #275 counts denials in a metric only (`encina.cache.tenant.rejected`, reasons `quota`, `rate_limit`; #4412 adds `memory`). The aggregation is new. |
 
 The plan adds a shared audit recorder to `Encina.Caching` (`ICacheAuditRecorder`, used also by #4415 and #4416), a change detector in the policy resolver, a bounded per-tenant enforcement aggregator and one flush service that writes queued events and window summaries. Caching (8) is behavior-level, identical on all 8 providers (Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277); the audit store keeps its own provider matrix, unchanged.
 
-**Shared pieces and ownership (family cache-patterns-2):** this plan owns `ICacheAuditRecorder`, `CacheAuditEvent`, `CacheAuditSchema`, the `Encina.Caching` reference to `Encina.Security.Audit` and the `CachingTenantAudit` range 528-533; #4416 (second) and #4415 (third) only consume them. #275 owns `CacheTenantPolicy`, the resolver, the governor and `CacheTenantPolicyOptions`; this plan modifies them after #275 PR 3, and after #4412 when its `memory` reason exists (the aggregator takes a reason string, so either order builds). Cited siblings are open plans, by number only.
+**Shared pieces and ownership (family cache-patterns-2):** this plan owns the complete shared contract: `ICacheAuditRecorder`, `CacheAuditEvent` (with `Kind`, `TenantKey`, `TenantId`, `UserId`, `EntityId`, `Count`, `Metadata`), `CacheAuditEventKind`, `CacheAuditSchema` (the `Action`, `EntityType` and metadata-key constants of all four kinds) and the recorder mapping of `PolicyChanged`, `EnforcementSummary` and `KeysDeleted`. `ValueRead` is declared here but mapped by #4415 PR 2 (to `IReadAuditStore`); until then the recorder answers a `ValueRead` event with a `Left` `cache.audit_write_failed` and logs 528, so no kind is silently dropped. This plan also owns the `Encina.Caching` reference to `Encina.Security.Audit` and the `CachingTenantAudit` range 528-533; #4416 (second) and #4415 (third) only consume them. #275 owns `CacheTenantPolicy`, the resolver, the governor and `CacheTenantPolicyOptions`; this plan modifies them after #275 PR 3, and after #4412 when its `memory` reason exists (the aggregator takes a reason string, so either order builds). Cited siblings are open plans, by number only.
 
 **Affected packages:** `Encina.Caching` (core), `Encina` (EventId registry). **Provider category:** Caching (8), behavior-level.
 
@@ -86,7 +87,7 @@ The plan adds a shared audit recorder to `Encina.Caching` (`ICacheAuditRecorder`
 
 - **Class:** Settled
 - **Settled by:** ADR-036 decision 2 ("Operation store is the general write sink ... distinguished by `Action` and `Metadata`"); AGENTS.md section 5 (a new store would need all 10 database providers).
-- Mapping: `Id` is a version 7 GUID from `TimeProvider`, `CorrelationId` equals it (there is no request), `TenantId` is the tenant when multi-tenancy is on and `null` otherwise, `EntityId` is the tenant key verbatim (the reserved segment `default` in single-tenant mode, the convention of #275 Design Choice 5; the two modes never share a store row because `TenantId` differs), `Outcome` is `AuditOutcome.Success`, `UserId` is `null` (no actor), `ErrorMessage` is never set. `Metadata` holds numbers, member names and the window bounds only.
+- Mapping of the operation store (kinds `PolicyChanged`, `EnforcementSummary`, `KeysDeleted`), the single owner of every name: `CacheAuditSchema` holds the `Action` constants `CachePolicyChanged`, `CacheEnforcementSummary`, `CacheKeysDeleted`, the `EntityType` constants `CacheTenantPolicy` (the first two) and `CacheEntry` (`KeysDeleted`; also the `EntityType` #4415 uses for `ValueRead`, `CacheValueRead` being its `Action` name reserved here) and the metadata keys `count`, `pattern`, `patternHash`, `scope`, `changedMembers`, `windowStartUtc`, `windowEndUtc`, `reasons`. `Id` is a version 7 GUID from `TimeProvider`, `CorrelationId` equals it (there is no request), `TenantId` is the tenant when multi-tenancy is on and `null` otherwise, `UserId` comes from the event (`null` for the two background kinds, the caller for `KeysDeleted`), `EntityId` comes from `CacheAuditEvent.EntityId` (the tenant key verbatim for the two background kinds: the reserved segment `default` in single-tenant mode, the convention of #275 Design Choice 5, and the two modes never share a store row because `TenantId` differs; the opaque cache-entry id for `KeysDeleted`, null for a pattern delete), `Outcome` is `AuditOutcome.Success`, `ErrorMessage` is never set. `Metadata` holds numbers, member names, hashes, redacted text and the window bounds only. The Action and EntityType names are public API once shipped; the maintainer confirms them with the Dilemmas when work starts.
 
 </details>
 
@@ -110,22 +111,22 @@ The plan adds a shared audit recorder to `Encina.Caching` (`ICacheAuditRecorder`
 </details>
 
 <details>
-<summary><strong>5. Flush failures are visible and retried</strong></summary>
+<summary><strong>5. A failed audit write is never reported as success</strong></summary>
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A `Left` or exception from the store keeps the item for the next tick (at most `MaxFlushAttempts`, default 3), logs EventId 530 by error code or exception type, and logs EventId 531 when it is finally dropped** | The failure is visible and retried, never reported as success | Bounded memory needs a drop rule |
-| **B) Log once and drop** | Simplest | An unwritten evidence row is lost after one failure |
+| **A) A `Left` or exception from the store is logged by error code or exception type (EventId 528 for any write; under Design Choice 4 option A the item is also kept for the next flush tick, at most `MaxFlushAttempts` (default 3), with EventId 530 per retry and 531 when it is finally dropped)** | The failure is visible and, in the queued shape, retried | Bounded memory needs a drop rule in the queued shape |
+| **B) Swallow the failure** | Simplest | An unwritten evidence row vanishes without trace |
 
-### Chosen Option: **A - retry, then a visible drop**
+### Chosen Option: **A - visible failure**
 
 ### Rationale
 
 - **Class:** Settled
-- **Settled by:** AGENTS.md section 3 ("Errors are NEVER swallowed in background infrastructure: a `Left` ... from a store inside a processor ... fails that operation (retry, dead-letter or exception per its semantics)") and the background-loop rule of the same section: the loop catches per iteration, an `OperationCanceledException` from the stopping token ends it quietly, logs carry the error code or `ForLogging()`, never `EncinaError.Message`.
-- On stop, the service makes one best-effort final flush bounded by the host's shutdown token.
+- **Settled by:** AGENTS.md section 3 ("Errors are NEVER swallowed in background infrastructure: a `Left` ... from a store inside a processor ... fails that operation (retry, dead-letter or exception per its semantics), never reports success") and the background-loop rule of the same section. The rule holds under both options of Design Choice 4: with an inline write (D4 option B) only the 528 log applies and no retry, flush tick or 530/531 exist; the retry shape (`MaxFlushAttempts`, the drop rule) belongs to D4 option A.
+- The loop of option A catches per iteration, ends quietly on stopping-token cancellation, logs the error code or `ForLogging()`, never `EncinaError.Message`, and on stop makes one best-effort final flush bounded by the host's shutdown token.
 
 </details>
 
@@ -136,7 +137,7 @@ The plan adds a shared audit recorder to `Encina.Caching` (`ICacheAuditRecorder`
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) `IValidateOptions` with `ValidateOnStart` fails the host when an audit option is on and no `IOperationAuditStore` descriptor exists** | An audit option never silently does nothing | The application must register a store (`AddEncinaAudit()` or a database provider) |
+| **A) Start validation fails the host when no `IOperationAuditStore` descriptor exists: one rule, one caller. The application calls `AddEncinaCacheAudit()` explicitly (the same rule for #4415 and #4416); `AddEncinaCaching` never calls it. The validator is an internal nested type in `CacheAuditServiceCollectionExtensions.cs` (PR 1) bound to a `CacheAuditOptions` marker options type that `AddEncinaCacheAudit` registers with `ValidateOnStart`; a second rule in PR 2 (inside the internal `IValidateOptions<CacheTenantPolicyOptions>` of #275) fails the host when `AuditPolicyChanges` or `AuditEnforcementSummaries` is on and `ICacheAuditRecorder` is not registered** | An audit option never silently does nothing | The application must register a store (`AddEncinaAudit()` or a database provider) and call `AddEncinaCacheAudit()` |
 | **B) `AddEncinaCaching` registers the in-memory store with `TryAdd`, like `AddEncinaAudit` does** | Always works | Evidence that vanishes at restart looks like an audit trail |
 
 ### Chosen Option: **A - fail at start** (recommended, pending the maintainer)
@@ -164,7 +165,7 @@ The plan adds a shared audit recorder to `Encina.Caching` (`ICacheAuditRecorder`
 
 - **Class:** Trivial
 - **Settled by:** the acceptance criterion of #4414 ("A policy change produces exactly one audit event"); a first observation is not a change.
-- Error code: `cache.audit_write_failed`, ADR-062 `ErrorCategory.Unavailable`, constant message "The cache audit event could not be written.", returned by `ICacheAuditRecorder` and logged by code (never the store's message). No other code is created. ADR-054 D4: no metric or span is added, so there is no tenant tag to place; the audit entry carries the tenant in its own field.
+- Error code: `cache.audit_write_failed`, ADR-062 `ErrorCategory.Internal` (rule R4: "Store, serialization, crypto and provider failures ... are `Internal`"), constant message "The cache audit event could not be written.", returned by `ICacheAuditRecorder` and logged by code (never the store's message). No other code is created. ADR-054 D4: no metric or span is added, so there is no tenant tag to place; the audit entry carries the tenant in its own field.
 
 </details>
 
@@ -186,7 +187,7 @@ PR 1 holds exactly these 15 files:
 | 3 | `src/Encina.Caching/Audit/CacheAuditSchema.cs` | new (public static: the `Action` and `EntityType` constants and the error code `WriteFailedCode`) |
 | 4 | `src/Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | new (internal sealed) |
 | 5 | `src/Encina.Caching/CacheAuditServiceCollectionExtensions.cs` | new (public `AddEncinaCacheAudit`) |
-| 6 | `src/Encina.Caching/Diagnostics/CacheAuditLog.cs` | new (EventId 528 and 529 in this PR) |
+| 6 | `src/Encina.Caching/Diagnostics/CacheAuditLog.cs` | new (EventId 528 only in this PR: the recorder emits it; 529 to 533 arrive in PR 2 with the code that emits them) |
 | 7 | `src/Encina/Diagnostics/EventIdRanges.cs` | modify (`CachingTenantAudit = (528, 533)`) |
 | 8 | `tests/Encina.UnitTests/Testing/Architecture/EncinaEventIdAllocationTests.cs` | modify (add the range to the `Encina.Caching` entry) |
 | 9 | `docs/engineering/eventid-block-registry.md` | modify (a row `CachingTenantAudit \| 528-533 \| Caching \| historical` in "Registered ranges" and the `500-549 reserved-pre-zone` block row split; read `EventIdRegistryAgreementTests` first) |
@@ -199,10 +200,10 @@ PR 1 holds exactly these 15 files:
 
 Tasks:
 
-1. **Create** `ICacheAuditRecorder`: `ValueTask<Either<EncinaError, Unit>> RecordAsync(CacheAuditEvent auditEvent, CancellationToken cancellationToken)`. `CacheAuditEvent` carries `Kind`, `TenantKey` (the verbatim tenant, `default` when single-tenant), `TenantId` (`string?`), `UserId` (`string?`), `Count`, `Metadata` (`IReadOnlyDictionary<string, object?>`). Cancellation propagates as `OperationCanceledException`, never as a `Left`.
-2. **Create** `OperationStoreCacheAuditRecorder(IServiceScopeFactory scopes, TimeProvider timeProvider, ILogger<...> logger)`: opens a scope per write, resolves `IOperationAuditStore` inside it (never holds a scoped store in the singleton), maps per Design Choice 3 (`ReadAuditEntry` mapping for `ValueRead` is #4415's PR), calls `RecordAsync`, turns a `Left` or an exception (not cancellation) into `cache.audit_write_failed` and logs EventId 528 with the kind and the error code or exception type.
-3. **Create** `AddEncinaCacheAudit(this IServiceCollection services)`: `ArgumentNullException.ThrowIfNull(services)`; registers the recorder with `TryAddSingleton` and the start validator of Design Choice 6 (it fails when no `IOperationAuditStore` descriptor exists). Registration is `TryAdd`, so an application recorder wins.
-4. **Tests:** a successful write maps every field as Design Choice 3 says; a `Left` and an exception both return `cache.audit_write_failed` and log 528; cancellation propagates; a scoped fake store resolves per call; start validation fails without a store and passes with one; the DI provider builds with `ValidateOnBuild` and `ValidateScopes`. Guard tests: null services throws; null `CacheAuditEvent` throws `ArgumentNullException`; a `Metadata` of null is rejected; a `default` `TenantId` of null is valid and gets a valid-result test.
+1. **Create** `ICacheAuditRecorder`: `ValueTask<Either<EncinaError, Unit>> RecordAsync(CacheAuditEvent auditEvent, CancellationToken cancellationToken)`. `CacheAuditEvent` carries `Kind`, `TenantKey` (the verbatim tenant, `default` when single-tenant), `TenantId` (`string?`), `UserId` (`string?`), `EntityId` (`string?`), `Count`, `Metadata` (`IReadOnlyDictionary<string, object?>`, empty by default, never null). The record is declarations only: it validates nothing. Cancellation propagates as `OperationCanceledException`, never as a `Left`.
+2. **Create** `OperationStoreCacheAuditRecorder(IServiceScopeFactory scopes, TimeProvider timeProvider, ILogger<...> logger)`: opens a scope per write, resolves `IOperationAuditStore` inside it (never holds a scoped store in the singleton), maps `PolicyChanged`, `EnforcementSummary` and `KeysDeleted` per Design Choice 3 (an event whose kind has no mapping, `ValueRead` until #4415 PR 2 adds its `IReadAuditStore` mapping, returns the `Left` and logs 528), calls `RecordAsync`, turns a `Left` or an exception (not cancellation) into `cache.audit_write_failed` and logs EventId 528 with the kind and the error code or exception type.
+3. **Create** `AddEncinaCacheAudit(this IServiceCollection services)`: `ArgumentNullException.ThrowIfNull(services)`; registers the recorder with `TryAddSingleton`, the marker `CacheAuditOptions` and the internal nested start validator of Design Choice 6 (it fails when no `IOperationAuditStore` descriptor exists, checked with `IServiceProviderIsService`). The application calls it explicitly; `AddEncinaCaching` never does. Registration is `TryAdd`, so an application recorder wins.
+4. **Tests:** a successful write maps every field as Design Choice 3 says; a `Left` and an exception both return `cache.audit_write_failed` and log 528; cancellation propagates; a scoped fake store resolves per call; start validation fails without a store and passes with one; the DI provider builds with `ValidateOnBuild` and `ValidateScopes`. Guard tests (the recorder is internal and `Encina.Caching` gives `InternalsVisibleTo` to the unit, integration, contract and property projects but not to `Encina.GuardTests`, so they resolve `ICacheAuditRecorder` from a provider built by `AddEncinaCacheAudit` and call the public interface): null services throws; a null `CacheAuditEvent` throws `ArgumentNullException`; a null `TenantId`, `UserId` and `EntityId` are valid and get valid-result tests; the unmapped `ValueRead` kind returns the `Left`. The unit file also shows that a store registered scoped is resolved per write and that no ambient tenant is set.
 
 </details>
 
@@ -217,12 +218,12 @@ AddEncinaAudit; OperationAuditEntry is in src/Encina.Security.Audit/OperationAud
 
 TASK:
 1. Add the ProjectReference, ICacheAuditRecorder, CacheAuditEvent, CacheAuditSchema, the internal recorder and AddEncinaCacheAudit.
-2. Create CacheAuditLog (EventIds 528-529), register CachingTenantAudit = (528, 533) in EventIdRanges.cs, the assembly map and the registry doc.
+2. Create CacheAuditLog (EventId 528), register CachingTenantAudit = (528, 533) in EventIdRanges.cs, the assembly map and the registry doc.
 3. Write the unit, DI and guard tests; ask mechanical-fixer for the PublicAPI files, the manifest rows and the fragment.
 
 KEY RULES:
 - Resolve the audit store inside a new scope per write; never inject a scoped service into a singleton.
-- Cancellation propagates; a store Left or exception becomes cache.audit_write_failed (ErrorCategory.Unavailable, constant message).
+- Cancellation propagates; a store Left or exception becomes cache.audit_write_failed (ErrorCategory.Internal, constant message).
 - Logs carry the event kind and the error code or exception type only, never EncinaError.Message, a key or a value.
 - Time from TimeProvider; no static state.
 
@@ -251,8 +252,8 @@ PR 2 needs #275 PR 3 merged and holds exactly these 15 files:
 | 5 | `src/Encina.Caching/Tenancy/TenantCachePolicyResolver.cs` | modify (an optional trailing detector parameter, one call at a successful refresh) |
 | 6 | `src/Encina.Caching/Tenancy/TenantCacheGovernor.cs` | modify (one call at each place the `encina.cache.tenant.rejected` counter is incremented) |
 | 7 | `src/Encina.Caching/Tenancy/CacheTenantPolicyOptions.cs` | modify (`AuditPolicyChanges`, `AuditEnforcementSummaries`, `SummaryWindow`, `MaxPendingAuditEvents`, `MaxFlushAttempts`) |
-| 8 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (register the pipeline, the detector and the hosted service with `TryAddEnumerable` when an option is on; call `AddEncinaCacheAudit`) |
-| 9 | `src/Encina.Caching/Diagnostics/CacheAuditLog.cs` | modify (EventIds 530 to 533) |
+| 8 | `src/Encina.Caching/ServiceCollectionExtensions.cs` | modify (add the five new options to the hand-written copy from `CachingOptions.TenantPolicies` into `IOptions<CacheTenantPolicyOptions>`, the binding #275 PR 1 creates; register the pipeline, the detector and the hosted service with `TryAddEnumerable` when an option is on; the application, not this method, calls `AddEncinaCacheAudit`) |
+| 9 | `src/Encina.Caching/Diagnostics/CacheAuditLog.cs` | modify (EventIds 529 to 533) |
 | 10 | `src/Encina.Caching/PublicAPI.Unshipped.txt` | modify (`mechanical-fixer`: the option properties) |
 | 11 | `tests/Encina.UnitTests/Caching/TenantPolicyAuditTests.cs` | new (detector, window, resolver and governor hooks) |
 | 12 | `tests/Encina.UnitTests/Caching/CacheAuditFlushServiceTests.cs` | new (`FakeTimeProvider`; includes the registration assertions) |
@@ -266,7 +267,7 @@ Tasks:
 2. **Create** `TenantEnforcementWindow`: `Add(tenantKey, reason)` increments a per-tenant dictionary of reason to count under the table bound; `Drain()` swaps the table and returns one `EnforcementSummary` per tenant that had at least one denial (no denial, no event: an empty window writes nothing); the metadata holds the window start and end from `TimeProvider`, the per-reason counts and nothing else.
 3. **Create** `CacheAuditPipeline` (the queue, bounded by `MaxPendingAuditEvents`; `TryEnqueue` never blocks and never throws, EventId 529 at the bound) and `CacheAuditFlushService`: a `PeriodicTimer` loop on `SummaryWindow` (default 5 minutes) that drains the queue and the window, writes through `ICacheAuditRecorder` with the caller's stopping token, keeps a failed item for the next tick up to `MaxFlushAttempts` (EventIds 530 and 531), catches per iteration (EventId 533, exception type through `ForLogging()`), ends quietly on stopping-token cancellation, and makes one final flush on stop.
 4. **Modify** the resolver and the governor with optional parameters only: with both audit options off the detector and the aggregator are not registered, the parameters are null and the code path costs one null check.
-5. **Options:** `SummaryWindow` positive and at least 1 second, `MaxPendingAuditEvents` at least 1, `MaxFlushAttempts` 1 to 10; validated by the `IValidateOptions` of #275 at host start.
+5. **Options:** `SummaryWindow` positive and at least 1 second, `MaxPendingAuditEvents` at least 1, `MaxFlushAttempts` 1 to 10; validated by the internal `IValidateOptions<CacheTenantPolicyOptions>` of #275 at host start, which gains the rule of Design Choice 6 (an audit option on needs `ICacheAuditRecorder` registered). The services read the values through `IOptions<CacheTenantPolicyOptions>`, never the bare type; the DI test (`ValidateOnBuild`) proves that values set on `CachingOptions.TenantPolicies` arrive there.
 6. **Tests:** exactly one event per change, none for the first lookup, a failed lookup or an unchanged policy; a transition to no policy is one event; two tenants never share a summary; an empty window writes nothing; one summary per tenant per window with the right reason counts; the table bound; a store failure is retried and then dropped with 530 and 531; a throwing store never ends the loop; cancellation ends the loop; the queue bound drops and logs; the hosted service and the options validator are registered by DI built with `ValidateOnBuild` and `ValidateScopes`; with both options off nothing is registered.
 
 </details>
@@ -276,12 +277,12 @@ Tasks:
 
 ```
 CONTEXT:
-Phase 1 is merged: ICacheAuditRecorder, AddEncinaCacheAudit and CacheAuditLog (528-529) exist. #275 PRs 1-3 are merged: TenantCachePolicyResolver,
+Phase 1 is merged: ICacheAuditRecorder, AddEncinaCacheAudit and CacheAuditLog (528) exist. #275 PRs 1-3 are merged: TenantCachePolicyResolver,
 TenantCacheGovernor and CacheTenantPolicyOptions exist.
 
 TASK:
 1. Create the change detector, the enforcement window, the pipeline and the flush service; hook them into the resolver and the governor with optional parameters.
-2. Add the five options and their validation, the registrations (hosted service with TryAddEnumerable) and EventIds 530-533.
+2. Add the five options and their validation, the registrations (hosted service with TryAddEnumerable) and EventIds 529-533.
 3. Write the unit, DI and guard tests; ask mechanical-fixer for PublicAPI, the manifest rows and the fragment.
 
 KEY RULES:
@@ -333,21 +334,23 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **EventIds:** `CachingTenantAudit` 528-533 emitted only by `Encina.Caching`: 528 audit event write failed, 529 audit queue full and event dropped, 530 summary or event flush failed and kept for the next tick, 531 item dropped after `MaxFlushAttempts`, 532 audit tracked-tenant bound reached, 533 flush loop iteration faulted. Verified free by a grep of `docs/engineering/eventid-block-registry.md` (`500-549` assigned to cache-patterns-2) and of the merged and open sibling plans (#272 500-507, #274 508-513, #275 514-519, #4411 520-523, #4412 524-525, #4413 526-527); 534-549 belong to #4415, #4416 and #4417. The assembly map line of `Encina.Caching` is edited by several plans: later pull requests rebase and append only their range.
-2. **Error codes:** `cache.audit_write_failed` (`Unavailable`, constant message), the only one.
+2. **Error codes:** `cache.audit_write_failed` (`Internal`, ADR-062 R4, constant message), the only one; it also answers an event kind with no mapping (`ValueRead` until #4415 PR 2).
 3. **Coverage targets (per flag, set in the PR that adds each file; the measured values go in the PR body):**
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
-| `Encina.Caching/Audit/ICacheAuditRecorder.cs` | 0 | 0 | 0 | 0 | Interface, an event record and an enum: no executable validation |
+| `Encina.Caching/Audit/ICacheAuditRecorder.cs` | 0 | 0 | 0 | 0 | Interface, an event record and an enum: declarations only, no executable validation (the null-event check lives in the recorder) |
 | `Encina.Caching/Audit/CacheAuditSchema.cs` | 0 | 0 | 0 | 0 | Constants only, no executable line |
-| `Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | 95 | 0 | 0 | 0 | Mapping, failure and cancellation paths are unit tested; internal, no `InternalsVisibleTo` for `Encina.GuardTests` |
+| `Encina.Caching/Audit/OperationStoreCacheAuditRecorder.cs` | 95 | 15 | 0 | 0 | Mapping, failure and cancellation paths are unit tested; the guard flag reaches only the null-event check and the unmapped-kind path through the public interface (the class is internal and `Encina.Caching` grants no `InternalsVisibleTo` to `Encina.GuardTests`), hence 15 |
 | `Encina.Caching/CacheAuditServiceCollectionExtensions.cs` | 95 | 30 | 0 | 0 | One null guard plus registrations: the guard flag reaches the check and the valid-result test |
-| `Encina.Caching/Diagnostics/CacheAuditLog.cs` | 90 | 0 | 0 | 0 | Generated bodies run in the tests above; internal |
+| `Encina.Caching/Diagnostics/CacheAuditLog.cs` | 90 | 0 | 0 | 0 | PR 1 emits only EventId 528 (the recorder tests run it); 529 to 533 are added and emitted in PR 2, whose tests run them; the target holds in both PRs; internal |
 | `Encina.Caching/Audit/TenantPolicyChangeDetector.cs`, `TenantEnforcementWindow.cs` | 100 | 0 | 0 | 0 | Pure logic with `FakeTimeProvider`; internal |
 | `Encina.Caching/Audit/CacheAuditPipeline.cs` | 95 | 0 | 0 | 0 | Bounded queue driven by unit tests; internal |
 | `Encina.Caching/Audit/CacheAuditFlushService.cs` | 90 | 0 | 0 | 0 | Loop, retry and stop paths with `FakeTimeProvider`; the unreachable remainder is the host start glue |
-| `Encina.Caching/Tenancy/CacheTenantPolicyOptions.cs`, `TenantCachePolicyResolver.cs`, `TenantCacheGovernor.cs` | keep | keep | 0 | keep | Rows are created by #275 (no row exists on `origin/main` today); this plan never lowers them and tests its hooks in `TenantPolicyAuditTests.cs` |
-| `Encina.Caching/ServiceCollectionExtensions.cs` | keep | keep | 0 | 0 | No per-file row on `origin/main` (package targets unit 60, guard 30, contract 10 apply); new registrations are tested in PR 2 |
+| `Encina.Caching/Tenancy/CacheTenantPolicyOptions.cs` | 100 | 85 | 0 | 0 | The numbers #275 sets for this file (unit 100, guard 85); the new properties are covered by `TenantPolicyAuditTests.cs` and the extended guard file; no row exists on `origin/main` until #275 PR 1 |
+| `Encina.Caching/Tenancy/TenantCachePolicyResolver.cs` | 95 | 0 | 0 | 0 | The number #275 sets (unit 95); the detector hook is a covered branch of `TenantPolicyAuditTests.cs`; internal |
+| `Encina.Caching/Tenancy/TenantCacheGovernor.cs` | 95 | 0 | 0 | 40 | The numbers #275 sets (unit 95, integration 40 from its PR 3); the rejection hooks are covered by `TenantPolicyAuditTests.cs`; internal |
+| `Encina.Caching/ServiceCollectionExtensions.cs` | 60 | 30 | 0 | 0 | No per-file row exists on `origin/main`; the package targets (unit 60, guard 30, contract 10) apply and this PR adds no row; the new registrations are asserted in `CacheAuditFlushServiceTests.cs` |
 
    The worker measures every flag per PR with `coverage-report.cs`; no target is lowered (`target-ratchet`) and the CRAP table of changed methods stays at 10 or below.
 4. **Property, contract, integration, load, benchmark:** no property test (grids cover the detector); no contract test (one recorder implementation); no integration test in this issue (the audit store has its own, and the recorder is proven against the in-memory store in unit tests); no load test or benchmark (node-local, off the request path by the queue).
@@ -386,7 +389,7 @@ REFERENCE FILES:
 | AGENTS.md section 7, ADR-021 | EventId range registered before use |
 | ADR-036 | Operation store as the general write sink |
 | ADR-054 D4 | Tenant tags only with multi-tenancy on (no telemetry is added here) |
-| ADR-062 | `cache.audit_write_failed` is `Unavailable` |
+| ADR-062 R4 | `cache.audit_write_failed` is `Internal` (store failure) |
 
 ### Existing Encina Infrastructure to Leverage
 
