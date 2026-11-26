@@ -29,7 +29,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 80, "guard": 15 },
+      "justifications": {
+        "unit": "Unit tests drive the success, error, category-based validation and not-found assertions (sync and async) through real Either values and the real validation pipeline; left uncovered are the failure-message branches of the less used code-based and collection variants.",
+        "guard": "The guard flag reaches only the nullable custom-message path of the category assertions; the assertion bodies run in the unit flag."
+      }
     },
     "StreamingShouldlyExtensions.cs": {
       "defaultTests": [
@@ -37,7 +42,12 @@
         "guard"
       ],
       "defaultRule": "*Extensions.cs",
-      "reason": "ServiceCollection extensions with conditional registration"
+      "reason": "ServiceCollection extensions with conditional registration",
+      "targets": { "unit": 30, "guard": 15 },
+      "justifications": {
+        "unit": "Unit tests drive the streaming success/error assertions and the category-based ShouldContainValidationErrorForAsync; left uncovered are the cancellation and timing branches of the remaining streaming assertions.",
+        "guard": "The guard flag reaches only the nullable custom-message path of ShouldContainValidationErrorForAsync; the other bodies run in the unit flag."
+      }
     }
   }
 }
