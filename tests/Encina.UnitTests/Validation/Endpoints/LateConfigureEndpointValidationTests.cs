@@ -52,9 +52,28 @@ public sealed class LateConfigureEndpointValidationTests
 
         using var host = builder.Build();
 
-        var ex = await Should.ThrowAsync<OptionsValidationException>(() => host.StartAsync(TestContext.Current.CancellationToken));
+        Exception? thrown = null;
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch (Exception e)
+        {
+            thrown = e;
+        }
 
-        ex.Message.ShouldNotContain("s3cr3t");
+        // SDK 11 reports the failures wrapped in an AggregateException, SDK 10 throws the validation exception itself.
+        thrown.ShouldNotBeNull();
+        var validation = thrown switch
+        {
+            OptionsValidationException o => o,
+            AggregateException a => a.Flatten().InnerExceptions.OfType<OptionsValidationException>().FirstOrDefault(),
+            _ => null,
+        };
+
+        validation.ShouldNotBeNull();
+        thrown.Message.ShouldNotContain("s3cr3t");
+        validation.Message.ShouldNotContain("s3cr3t");
     }
 
     [Theory]
