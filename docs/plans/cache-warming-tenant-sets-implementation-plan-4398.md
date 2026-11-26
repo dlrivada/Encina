@@ -10,7 +10,7 @@
 
 ## Summary
 
-Issue #4398 lets cache warming (#269) warm tenant-varying entries. #269 skips such a request under multi-tenancy because a request without a tenant bypasses the cache; a multi-tenant application can warm only `VaryByTenant = false` requests or write a custom warmer. Re-checked against `origin/main` (37b2edd32); #269 is open and its plan is merged, so the engine, `RequestCacheWarmer` and `IWarmingRequestSource<TRequest>` do not exist yet and this plan builds on the types that plan defines.
+Issue #4398 lets cache warming (#269) warm tenant-varying entries. #269 skips such a request under multi-tenancy because a request without a tenant bypasses the cache; a multi-tenant application can warm only `VaryByTenant = false` requests or write a custom warmer. Re-checked against `origin/main` (4047d9a8a); #269 is open and its plan is merged, so the engine, `RequestCacheWarmer` and `IWarmingRequestSource<TRequest>` do not exist yet and this plan builds on the types that plan defines.
 
 | Premise of the issue | State in the code |
 |----------------------|-------------------|
@@ -23,7 +23,7 @@ Issue #4398 lets cache warming (#269) warm tenant-varying entries. #269 skips su
 
 The plan adds `ITenantWarmingSource<TRequest>` (the tenants of one warmed request), `ITenantCacheWarmer` (a warmer that declares tenants, so the engine runs (warmer, tenant) pairs), the option `WarmingMaxTenants` and the registration `AddEncinaWarmingTenantSource<TRequest, TSource>()`. Dispatch stays `IEncina.Send`, so the 8 cache providers (Memory, Hybrid, Redis, Valkey, Dragonfly, Garnet, KeyDB and the planned Memcached of #277) behave identically and no provider changes.
 
-**Family cache-warming-followups (#4396, #4397, #4398) - ownership and order.** #4396 (health check and lock) is implemented first and owns `ICacheWarmingStatus`, `WarmingLockResource`, the option `WarmingUseDistributedLock` and EventIds 488-489. This plan is second and owns `ITenantWarmingSource<TRequest>`, `ITenantCacheWarmer`, `WarmingMaxTenants` and EventIds 490-493; it extends `WarmingLockResource` with a tenant parameter (PR 2) when #4396 PR 3 has merged. #4397 (strategies) is last and independent of the tenant dimension. All three edit `CacheWarmingService.cs`, `CachingOptions.cs`, `ServiceCollectionExtensions.cs` and `CachePatternLog.Warming.cs`; the later plan rebases on the earlier one.
+**Family cache-warming-followups (#4396, #4397, #4398) - ownership and order.** #4396 (health check and lock) is implemented first and owns `ICacheWarmingStatus`, `WarmingLockResource`, the option `WarmingUseDistributedLock` and EventIds 488-489. This plan is second and owns `ITenantWarmingSource<TRequest>`, `ITenantCacheWarmer`, `WarmingMaxTenants` and EventIds 490-493; it extends `WarmingLockResource` with a tenant parameter (PR 2); #4396 PR 3 is a hard prerequisite of this plan's PR 2. #4397 (strategies) is last and independent of the tenant dimension. All three edit `CacheWarmingService.cs`, `CachingOptions.cs`, `ServiceCollectionExtensions.cs` and `CachePatternLog.Warming.cs`; the later plan rebases on the earlier one.
 
 **Affected packages:** `Encina.Caching`. **Provider category:** Caching (8), behavior-level; multi-tenancy is ◐ for caching in the AGENTS.md section 5 matrix.
 
@@ -67,6 +67,7 @@ The plan adds `ITenantWarmingSource<TRequest>` (the tenants of one warmed reques
 
 - The issue lists "Per-(warmer, tenant) timeout" under Resilience; only the engine can apply it. Option A wins when the maintainer wants the engine untouched and accepts a shared timeout.
 - A tenant warmer's inherited tenant-less `WarmAsync(CancellationToken)` is never called by the engine; `RequestCacheWarmer` implements it as "skipped" (a tenant-less run never writes an entry).
+- What exists only under option B (Phase 2 is written for it): the pair-level report counts, the `encina.tenant_id` tag per pair on `encina.cache.warming`, the per-pair summary (EventId 493), the blank-id and duplicate count and the per-pair lock resource. Under option A, the loop sits in `RequestCacheWarmer`: the report counts the warmer once (partial tenant failures are a single `Left` after the loop, as #269 does for requests), no per-pair tag is emitted, `ITenantCacheWarmer` is not created (PR 1 shrinks to the source, the option and the registration), and EventIds 490-492 are emitted by the warmer for the source failure, the bound and the skipped ids (493 is released to the family).
 - Class: Dilemma
 
 </details>
@@ -154,7 +155,7 @@ The plan adds `ITenantWarmingSource<TRequest>` (the tenants of one warmed reques
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) A null, empty or whitespace id is skipped and counted (EventId 492, count only), never replaced by a placeholder tenant; duplicates (ordinal comparison) run once; no log line and no exception text carries a tenant id; the metric `encina.cache.warming` gets the tag `encina.tenant_id` only when `MultiTenancyMarker` is registered** | Fails closed with a missing tenant; no tenant data in logs; follows ADR-054 D4 | A cardinality risk on the metric, documented in the observability guide (#906) |
+| **A) A null, empty or whitespace id is skipped and counted, never replaced by a placeholder tenant; duplicates (ordinal comparison) run once; no log line and no exception text carries a tenant id; any tenant tag on a metric appears only when `MultiTenancyMarker` is registered (ADR-054 D4)** | Fails closed with a missing tenant; no tenant data in logs; follows ADR-054 D4 | A cardinality risk on a tenant tag, documented in the observability guide (#906) |
 | **B) Map a blank id to a reserved `default` tenant** | Warms something | Two meanings for one segment; the entry would be readable by a request whose tenant is literally `default` |
 
 ### Chosen Option: **A - skip blanks, no tenant in logs**
@@ -237,7 +238,7 @@ PR 2 holds exactly these 12 files:
 |---|------|--------|
 | 1 | `src/Encina.Caching/Warming/CacheWarmingService.cs` | modify (expand tenant warmers into pairs) |
 | 2 | `src/Encina.Caching/Warming/RequestCacheWarmer.cs` | modify (implement `ITenantCacheWarmer`) |
-| 3 | `src/Encina.Caching/Warming/WarmingLockResource.cs` | modify (tenant parameter; only when #4396 PR 3 has merged, otherwise this row and row 8 are dropped) |
+| 3 | `src/Encina.Caching/Warming/WarmingLockResource.cs` | modify (tenant parameter; needs #4396 PR 3, a hard prerequisite) |
 | 4 | `src/Encina.Caching/Diagnostics/CachePatternLog.Warming.cs` | modify (ids 490-493) |
 | 5 | `src/Encina.Caching/Diagnostics/CachePatternMetrics.Warming.cs` | modify (tenant tag) |
 | 6 | `tests/Encina.UnitTests/Caching/CacheWarmingServiceTenantTests.cs` | new |
@@ -250,11 +251,11 @@ PR 2 holds exactly these 12 files:
 
 Tasks:
 
-1. **Engine** (Design Choice 2 option B): per priority group, for each warmer with `warmer is ITenantCacheWarmer { WarmsTenants: true }`, open a planning scope for that warmer, read at most `WarmingMaxTenants + 1` ids from `GetTenantsAsync` under the caller's token (a source exception is caught, logged as 490 with `ex.ForLogging()`, and counts the warmer failed with no pair dispatched; cancellation is not an error), drop blank ids and duplicates (EventId 492, count only, counted skipped), apply the bound (EventId 491, Design Choice 4), dispose the scope; each remaining pair then runs like any #269 warmer unit: its own scope (the warmer re-resolved by concrete type), a linked token with `WarmingTimeout` from `TimeProvider`, caller token checked first, then the timeout token, a `Left` after either token fired is never a failure, the pair's outcome counted in the report; `Parallel` bounds pairs by `WarmingConcurrency` (flattened inside the group), `Sequential` runs them one by one. EventId 493 summarizes the warmer (pairs, succeeded, failed, timed out, skipped). A warmer without tenants is unchanged.
+1. **Engine** (Design Choice 2 option B): per priority group, for each warmer with `warmer is ITenantCacheWarmer { WarmsTenants: true }`, open a planning scope for that warmer and read ids from `GetTenantsAsync` under the caller's token (a source exception is caught, logged as 490 with `ex.ForLogging()`, and counts the warmer failed with no pair dispatched; cancellation is not an error). Blank ids and duplicates are dropped as they are read (EventId 492, count only, counted skipped) and the bound applies to VALID DISTINCT ids: reading stops as soon as `WarmingMaxTenants + 1` valid distinct ids have been collected (the extra one proves the bound is exceeded) or after a raw cap of `10 x WarmingMaxTenants` ids read, whichever comes first; reaching either with more input available is a bound breach (EventId 491, Design Choice 4), so 101 raw ids with 5 blanks still report the breach when valid ids exceed the bound, and a source that is mostly blank cannot be read without limit. The scope is then disposed; each remaining pair then runs like any #269 warmer unit: its own scope (the warmer re-resolved by concrete type), a linked token with `WarmingTimeout` from `TimeProvider`, caller token checked first, then the timeout token, a `Left` after either token fired is never a failure, the pair's outcome counted in the report; `Parallel` bounds pairs by `WarmingConcurrency` (flattened inside the group), `Sequential` runs them one by one. EventId 493 summarizes the warmer (pairs, succeeded, failed, timed out, skipped). A warmer without tenants is unchanged.
 2. **`RequestCacheWarmer<TRequest, TResponse>`** implements `ITenantCacheWarmer`: `WarmsTenants` is `IServiceProviderIsService.IsService(typeof(ITenantWarmingSource<TRequest>))` (no resolution); `GetTenantsAsync` streams the source resolved from the warmer's own scope; `WarmAsync(string tenantId, ct)` enumerates `IWarmingRequestSource<TRequest>` up to `WarmingInstances` and dispatches each request with `RequestContext.CreateAnonymousAt(timeProvider.GetUtcNow(), RequestContext.NewCorrelationId(), tenantId)`, anonymous apart from the tenant (the pair's tenant always replaces any ambient tenant, whichever option the maintainer chose for #269 Design Choice 9); the #269 pre-dispatch skips stay (`EnableQueryCaching` false, `VaryByUser`); the tenant-less `WarmAsync(ct)` returns a skipped result without dispatch.
-3. **Telemetry:** the counter `encina.cache.warming` adds the tag `encina.tenant_id` only when `MultiTenancyMarker` is registered and the unit is a pair (ADR-054 D4; the tenant-less units keep no tenant tag); logs never carry a tenant id. **Lock:** when #4396 has merged, the pair's lock resource is `WarmingLockResource.Create(prefix, warmer, tenantId)`, the same length-prefixed hash with a third field, so a pair never shares a resource with another tenant or with the tenant-less form.
+3. **Telemetry:** the counter `encina.cache.warming` adds the tag `encina.tenant_id` only when `MultiTenancyMarker` is registered and the unit is a pair (ADR-054 D4; the tenant-less units keep no tenant tag); logs never carry a tenant id. **Lock (#4396 PR 3 is a hard prerequisite of this PR, so the rows below are not conditional):** the pair's lock resource is `WarmingLockResource.Create(prefix, warmer, tenantId)`, the same length-prefixed hash with a third field, so a pair never shares a resource with another tenant or with the tenant-less form.
 4. **Tests (unit, `FakeTimeProvider`):** a tenant warmer expands to one pair per listed tenant in source order; blank and duplicate ids are skipped and counted; the bound caps at N and logs 491 (and, if the maintainer chose option B, fails the warmer); a source that throws fails the warmer and dispatches nothing; one pair's `Left`, exception or timeout never stops the others; the caller's cancellation ends the run; `Parallel` never exceeds `WarmingConcurrency` across pairs; the dispatched context carries the pair's tenant and no user, even when the call happens inside an ambient other tenant; a tenant-less `WarmAsync` dispatches nothing; the tag is present only with the marker. **Integration (shared `RedisCollection`):** a real `RedisCacheProvider`, a real `IEncina`, a counting handler and a source listing tenants `a` and `b`: after `RunAsync` a real request of `a` and of `b` is served from the cache (the handler ran once per tenant, during warming), a request of unlisted tenant `c` runs the handler, and a request of `a` never reads `b`'s entry. The Redis family (Valkey, Dragonfly, Garnet, KeyDB) shares `RedisCacheProvider`; Memory is covered by the unit tests with `MemoryCacheProvider`; Hybrid by a unit test with a `HybridCacheProvider` built through DI; Memcached follows #277.
-5. **Docs:** `docs-writer` adds "Tenant-scoped warming" to `docs/features/handler-caching.md`: the source, the bound, the fail-closed rule and the cardinality warning, citing tests by name.
+5. **Docs:** the issue names `docs/features/query-caching.md`, which documents the EF Core `QueryCacheInterceptor`; the `[Cache]` handler page is `docs/features/handler-caching.md` (#269 Phase 3), so this plan deliberately deviates from the issue's file name. `docs-writer` adds "Tenant-scoped warming" there: the source, the bound, the fail-closed rule and the cardinality warning, citing tests by name.
 
 </details>
 
@@ -293,17 +294,17 @@ REFERENCE FILES:
 <summary><strong>Tasks</strong></summary>
 
 1. **No new `EncinaError`**: a source failure, a bound breach and a blank id are counts and log lines, never created errors, so no ADR-062 `ErrorCategory` applies; under Design Choice 4 option B the breach is a counted failure with the constant log text `cache.warming.tenant_bound_exceeded`, still no `EncinaError`. **EventIds** 490-493 only: 490 tenant source failed, 491 tenant bound exceeded, 492 blank or duplicate tenant ids skipped (count), 493 tenant warming summary.
-2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR that adds the file and its tests (#1762). Numbers quoted from `origin/main`: `Configuration/CachingOptions.cs` guard 85 and no other flag; `ServiceCollectionExtensions.cs` has no `targets` row in `Encina.Caching.json` on `main` (#269 PR 1 creates one; the worker reads the value on `main` when the PR merges); the #269 plan sets `CacheWarmingService.cs` unit 95, `RequestCacheWarmer.cs` unit 95 and integration 40, `CachePatternLog.Warming.cs` and `CachePatternMetrics.Warming.cs` unit 90, and #4396 raises the engine integration target to 35.
+2. **Coverage targets (per flag).** Each row is entered in the manifest of the PR that adds the file and its tests (#1762). Numbers quoted from `origin/main`: `Configuration/CachingOptions.cs` guard 85 and no other flag; `ServiceCollectionExtensions.cs` has no `targets` row in `Encina.Caching.json` on `main`; the #269 plan (Phase 4) raises `CachingOptions` guard to 90 and sets `ServiceCollectionExtensions.cs` unit 90, guard 0, and also sets `CacheWarmingService.cs` unit 95, `RequestCacheWarmer.cs` unit 95 and integration 40, `CachePatternLog.Warming.cs` and `CachePatternMetrics.Warming.cs` unit 90, and #4396 raises the engine integration target to 35.
 
 | File | Unit | Guard | Contract | Integration | Justification |
 |------|:----:|:-----:|:--------:|:-----------:|---------------|
 | `Abstractions/ITenantWarmingSource.cs`, `ITenantCacheWarmer.cs` (PR 1) | 0 | 0 | 0 | 0 | Interfaces without executable lines |
-| `Configuration/CachingOptions.cs` (PR 1) | no row | keeps 85 | 0 | 0 | One more validating setter, run by `CacheWarmingTenantGuardTests` |
-| `ServiceCollectionExtensions.cs` (PR 1) | raise only: at least the value on `main` when the PR merges | the value on `main` | 0 | 0 | The new method's null-collection and three rejection branches are a handful of lines of a large file; never lowered (`target-ratchet`) |
-| `Warming/CacheWarmingService.cs` (PR 2) | keeps 95 | 0 | 0 | keeps (35 after #4396, else the #269 value) | Pair expansion, bound, blanks, duplicates and every outcome are unit tested with gates and a fake clock; internal without `InternalsVisibleTo` for the guard project (#269 Phase 4) |
-| `Warming/RequestCacheWarmer.cs` (PR 2) | keeps 95 | 0 | 0 | keeps 40 | The tenant path runs in the unit tests and the real fill in the Redis test |
-| `Warming/WarmingLockResource.cs` (PR 2, when #4396 PR 3 is merged) | keeps 100 | 0 | 0 | 0 | The tenant parameter is a pure function branch |
-| `Diagnostics/CachePatternLog.Warming.cs`, `CachePatternMetrics.Warming.cs` (PR 2) | keeps 90 | 0 | 0 | 0 | Ids 490-493 and the tag run in the engine tests |
+| `Configuration/CachingOptions.cs` (PR 1) | no row | 90 (85 on `main` today, raised to 90 by #269 PR 1) | 0 | 0 | One more validating setter, run by `CacheWarmingTenantGuardTests`; the target stays 90 |
+| `ServiceCollectionExtensions.cs` (PR 1) | 90 (no row on `main`; #269 Phase 4 sets unit 90, guard 0) | 0 | 0 | 0 | The new method's null-collection and three rejection branches are a handful of lines of a large file and are run by the DI and guard tests; the numbers are #269's and are never lowered (`target-ratchet`) |
+| `Warming/CacheWarmingService.cs` (PR 2) | 95 | 0 | 0 | 35 (#4396 PR 3 raises #269's 0 to 35) | Pair expansion, bound, blanks, duplicates and every outcome are unit tested with gates and a fake clock; internal without `InternalsVisibleTo` for the guard project (#269 Phase 4) |
+| `Warming/RequestCacheWarmer.cs` (PR 2) | 95 | 0 | 0 | 40 | The tenant path runs in the unit tests and the real fill in the Redis test |
+| `Warming/WarmingLockResource.cs` (PR 2) | 100 | 0 | 0 | 0 | The tenant parameter is a pure function branch |
+| `Diagnostics/CachePatternLog.Warming.cs`, `CachePatternMetrics.Warming.cs` (PR 2) | 90 | 0 | 0 | 0 | Ids 490-493 and the tag run in the engine tests |
 
    No contract test is written: the shipped warmer implements `ITenantCacheWarmer` with one engine and the rules are asserted by unit tests; a contract justification file is not allowed, so the manifest reason says so. The worker records measured numbers in each PR and never lowers a target.
 3. Verification per PR: `dotnet build --configuration Release` with zero warnings; `dotnet test` of `Encina.UnitTests` (Caching), `Encina.GuardTests` and, for PR 2, `Encina.IntegrationTests` (Redis collection); per-flag coverage and the CRAP table of changed methods (keep the engine's pair expansion in small helpers so each method stays at CRAP 10 or below).
@@ -415,14 +416,14 @@ REFERENCE FILES:
 | 4 | Health Checks | ❌ N/A | Pairs are counted in the report the health check of #4396 reads; no check is added here. |
 | 5 | Validation | ✅ Include | `WarmingMaxTenants` setter, registration rejects a request that cannot be tenant-specific, blank and duplicate ids are skipped. |
 | 6 | Resilience | ✅ Include | Per-pair timeout and failure isolation (Design Choice 2), bounded concurrency. |
-| 7 | Distributed Locks | ⏭️ Defer | The lock is #4396 (open); the pair resource is the tenant parameter this plan adds to its helper. |
+| 7 | Distributed Locks | ✅ Include | The lock itself is #4396 (a hard prerequisite); this plan adds the tenant parameter to its resource helper so each pair has its own lock resource. |
 | 8 | Transactions | ❌ N/A | Warming reads data and never calls `SaveChangesAsync`. |
 | 9 | Idempotency | ❌ N/A | Warming is idempotent: a second dispatch is served from the cache. |
 | 10 | Multi-Tenancy | ✅ Include | The point of the issue: tenants isolated per key, fail closed without a tenant. |
 | 11 | Module Isolation | ⏭️ Defer | Follows the module dimension of #746 (open). |
 | 12 | Audit Trail | ❌ N/A | Infrastructure; warming returns data the cache stores for its own tenant, no compliance event. |
 
-**Deferred items:** the lock resource per pair rides on #4396 (open); module-scoped warming follows #746 (open).
+**Deferred items:** module-scoped warming follows #746 (open).
 
 ---
 
@@ -432,7 +433,7 @@ REFERENCE FILES:
 |--------------|--------|-------|
 | #269 PR 1 to PR 3 (engine, `RequestCacheWarmer`, `IWarmingRequestSource<TRequest>`, registration, `docs/features/handler-caching.md`) | Pending | PR 1 needs the abstractions and registration; PR 2 needs the engine |
 | #266 PR 3 (`CachePatternLog`, range 450-499) | Pending | Needed for the ids of PR 2 |
-| #4396 PR 3 (`WarmingLockResource`) | Pending, optional | Only the lock-resource row of PR 2 depends on it |
+| #4396 PR 3 (`WarmingLockResource`, the lock in the engine) | Pending, hard prerequisite of PR 2 | The tenant parameter of the lock helper and the per-pair lock belong to PR 2 of this plan; if the order were reversed the pair lock would never be delivered, so this plan is implemented after #4396 PR 3 |
 | Maintainer answers to Design Choices 1 to 4 | Pending | Asked when work starts |
 
 ---
