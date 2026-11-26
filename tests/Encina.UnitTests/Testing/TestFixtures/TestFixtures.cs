@@ -54,7 +54,7 @@ public sealed class ValidationErrorHandler : IRequestHandler<TestRequest, TestRe
     public Task<Either<EncinaError, TestResponse>> Handle(TestRequest request, CancellationToken cancellationToken)
     {
         return Task.FromResult<Either<EncinaError, TestResponse>>(
-            EncinaErrors.Create("encina.validation.required", $"The field '{_propertyName}' is required"));
+            EncinaErrors.Validation($"The field '{_propertyName}' is required"));
     }
 }
 
@@ -63,6 +63,6 @@ public sealed class MultiPropertyValidationErrorHandler : IRequestHandler<TestRe
     public Task<Either<EncinaError, TestResponse>> Handle(TestRequest request, CancellationToken cancellationToken)
     {
         return Task.FromResult<Either<EncinaError, TestResponse>>(
-            EncinaErrors.Create("encina.validation.multiple", "Fields 'Email' and 'Name' are required"));
+            EncinaErrors.Validation("Fields 'Email' and 'Name' are required"));
     }
 }
