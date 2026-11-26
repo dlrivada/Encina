@@ -67,7 +67,7 @@ internal sealed class SequentialMigrationStrategy : IMigrationStrategy
         {
             var elapsed = Stopwatch.GetElapsedTime(start);
             var error = EncinaErrors.Create(
-                MigrationErrorCodes.MigrationTimeout,
+                MigrationErrorCodes.MigrationTimeout, ErrorCategory.Timeout,
                 $"Migration timed out on shard '{shard.ShardId}' after {perShardTimeout}.");
             return new ShardMigrationStatus(shard.ShardId, MigrationOutcome.Failed, elapsed, error);
         }
@@ -79,7 +79,7 @@ internal sealed class SequentialMigrationStrategy : IMigrationStrategy
         {
             var elapsed = Stopwatch.GetElapsedTime(start);
             var error = EncinaErrors.Create(
-                MigrationErrorCodes.MigrationFailed,
+                MigrationErrorCodes.MigrationFailed, ErrorCategory.Internal,
                 $"Migration failed on shard '{shard.ShardId}': {ex.Message}",
                 ex);
             return new ShardMigrationStatus(shard.ShardId, MigrationOutcome.Failed, elapsed, error);

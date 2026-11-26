@@ -45,7 +45,7 @@ internal sealed class ReferenceTableReplicator(
         if (!_registry.IsRegistered<TEntity>())
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.EntityNotRegistered,
+                ReferenceTableErrorCodes.EntityNotRegistered, ErrorCategory.Internal,
                 $"Entity type '{typeof(TEntity).Name}' is not registered as a reference table.");
         }
 
@@ -147,7 +147,7 @@ internal sealed class ReferenceTableReplicator(
         if (primaryShardId is null)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                ReferenceTableErrorCodes.PrimaryShardNotFound, ErrorCategory.Internal,
                 $"No primary shard found for reference table '{entityTypeName}'.");
         }
 
@@ -156,7 +156,7 @@ internal sealed class ReferenceTableReplicator(
         if (primaryShardResult.IsLeft)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryShardNotFound,
+                ReferenceTableErrorCodes.PrimaryShardNotFound, ErrorCategory.Internal,
                 $"Primary shard '{primaryShardId}' for reference table '{entityTypeName}' " +
                 "does not exist in the topology.");
         }
@@ -193,7 +193,7 @@ internal sealed class ReferenceTableReplicator(
         if (readResult.IsLeft)
         {
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.PrimaryReadFailed,
+                ReferenceTableErrorCodes.PrimaryReadFailed, ErrorCategory.Internal,
                 $"Failed to read reference table data for '{typeof(TEntity).Name}' " +
                 $"from primary shard '{plan.PrimaryShardId}'.");
         }
@@ -291,7 +291,7 @@ internal sealed class ReferenceTableReplicator(
             failedShards.Add(new ShardFailure(
                 shard.ShardId,
                 EncinaErrors.FromException(
-                    ReferenceTableErrorCodes.ReplicationFailed,
+                    ReferenceTableErrorCodes.ReplicationFailed, ErrorCategory.Internal,
                     ex,
                     $"Unexpected error replicating to shard '{shard.ShardId}'.")));
         }
@@ -317,7 +317,7 @@ internal sealed class ReferenceTableReplicator(
                 $"All {failedShards.Count} target shards failed");
 
             return EncinaErrors.Create(
-                ReferenceTableErrorCodes.ReplicationFailed,
+                ReferenceTableErrorCodes.ReplicationFailed, ErrorCategory.Internal,
                 $"Replication failed on all {failedShards.Count} target shards " +
                 $"for reference table '{entityTypeName}'.");
         }
