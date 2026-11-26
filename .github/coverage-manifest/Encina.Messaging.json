@@ -399,10 +399,10 @@
         "unit"
       ],
       "defaultRule": "*.cs",
-      "reason": "Source-generated LoggerMessage definitions of the purge service (EventIds 2107-2112)",
+      "reason": "Source-generated LoggerMessage definitions of the purge service (EventIds 10907-10912)",
       "targets": { "unit": 0 },
       "justifications": {
-        "unit": "The class is marked ExcludeFromCodeCoverage because the LoggerMessage members are generated boilerplate, so it has no coverable lines; the log calls (2107-2112, including the 2112 no-progress warning) are asserted through the service and cycle tests."
+        "unit": "The class is marked ExcludeFromCodeCoverage because the LoggerMessage members are generated boilerplate, so it has no coverable lines; the log calls (10907-10912, including the 10912 no-progress warning) are asserted through the service and cycle tests."
       }
     },
     "Diagnostics/MessagePurgeMetrics.cs": {
@@ -905,8 +905,8 @@
       "reason": "One batched purge cycle over IInboxStore",
       "targets": { "unit": 95, "property": 85, "contract": 85, "integration": 70 },
       "justifications": {
-        "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 2112), each Left branch, SaveChangesAsync after every remove and cancellation.",
-        "property": "FsCheck properties drain any backlog in backlog/batchSize+1 fetches with one save per non-empty batch, stop on the first batch of already-tried ids (EventId 2112) and never while a batch has a new id, and stop at the first Left of the fetch, remove or save on any batch (measured 100%).",
+        "unit": "Unit tests cover the drain loop, the short-batch stop, the no-progress stop on a repeated batch (EventId 10912), each Left branch, SaveChangesAsync after every remove and cancellation.",
+        "property": "FsCheck properties drain any backlog in backlog/batchSize+1 fetches with one save per non-empty batch, stop on the first batch of already-tried ids (EventId 10912) and never while a batch has a new id, and stop at the first Left of the fetch, remove or save on any batch (measured 100%).",
         "contract": "Contract tests pin the IInboxStore contract: fetch with the batch size, remove exactly the ids read, save after every remove, stop at the first Left of each call; the no-progress guard and cancellation are covered by the property and unit flags.",
         "integration": "The same end-to-end purge drives one batch to a short batch against each real inbox store; the Left branches, the no-progress stop and cancellation are covered by unit tests only (measured 76%)."
       }
