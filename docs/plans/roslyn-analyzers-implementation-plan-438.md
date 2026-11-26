@@ -162,7 +162,7 @@ ENC004 to ENC008 need types from `Encina.Messaging`, `Encina.Caching` and valida
 
 - A guard test in the unit suite resolves each name in `EncinaKnownTypes` against the real assemblies (`typeof(IRequestHandler<,>).FullName` and siblings), so a rename fails a test.
 - **Class:** Trivial
-- **Reason:** the precedent `RequireConditionAnalyzer.cs` (metadata-name lookup on `SyntaxKind.Attribute`) and the `netstandard2.0` target of `Encina.Security.ABAC.Analyzers.csproj` show B cannot work for a package that must load in every IDE.
+- **Settled by:** the precedent `RequireConditionAnalyzer.cs` (metadata-name lookup on `SyntaxKind.Attribute`) and the `netstandard2.0` target of `Encina.Security.ABAC.Analyzers.csproj` show B cannot work for a package that must load in every IDE.
 
 </details>
 
