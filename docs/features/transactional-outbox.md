@@ -221,7 +221,7 @@ The codes are the constants of `TransactionErrors`. A failed outbox write return
 
 ## Observe it
 
-- Log events 2963 to 2970 of `MessagingLog` (joined, marked rollback-only, commit refused because rollback-only, commit failed, notifications written, write failed, behavior skipped, rollback failed), and 2834 to 2836 for transaction started, committed and rolled back.
+- Log events 11713 to 11720 of `MessagingLog` (joined, marked rollback-only, commit refused because rollback-only, commit failed, notifications written, write failed, behavior skipped, rollback failed), and 11584 to 11586 for transaction started, committed and rolled back.
 - Activity source `Encina.Messaging.Transactions`: one activity per owned transaction, with the tags `encina.transaction.owner`, `encina.transaction.outcome` and `db.system`.
 - Counters `encina.outbox.enqueued` (by outcome, written or failed, and `db.system`) and `encina.transaction.rollback_only`.
 

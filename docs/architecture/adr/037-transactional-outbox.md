@@ -127,7 +127,7 @@ Enlistment on MongoDB follows choice 6 with one consequence that differs from SQ
 
 ### Observability
 
-EventIds 2963-2970 (`MessagingLog`, in the registered Messaging range, [ADR-021](021-eventid-uniqueness-enforcement.md)); the activity source `Encina.Messaging.Transactions` for the transaction; the counters `encina.outbox.enqueued` and `encina.transaction.rollback_only`. The unused transaction log methods (EventIds 2834-2836) are now called by the transaction behavior.
+EventIds 11713-11720 (`MessagingLog`, in the registered Messaging range, [ADR-021](021-eventid-uniqueness-enforcement.md)); the activity source `Encina.Messaging.Transactions` for the transaction; the counters `encina.outbox.enqueued` and `encina.transaction.rollback_only`. The unused transaction log methods (EventIds 11584-11586) are now called by the transaction behavior.
 
 ## Alternatives considered
 
