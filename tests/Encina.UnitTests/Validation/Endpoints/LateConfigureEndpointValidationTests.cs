@@ -1,4 +1,5 @@
 using Encina.AmazonSQS;
+using Encina.Caching;
 using Encina.Cdc.Debezium;
 using Encina.Cdc.MySql;
 using Encina.Messaging.Encryption.AzureKeyVault;
@@ -6,6 +7,7 @@ using Encina.NATS;
 using Encina.Security.Secrets.AzureKeyVault;
 using Encina.Security.Secrets.HashiCorpVault;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using VaultSharp.V1.AuthMethods.Token;
@@ -37,11 +39,41 @@ public sealed class LateConfigureEndpointValidationTests
     public async Task LateForbiddenEndpoint_FailsStartupValidation(string package)
     {
         var (services, _) = Register(package);
-        await using var provider = services.BuildServiceProvider();
 
-        var ex = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<IStartupValidator>().Validate());
+        // The host's real start path runs the ValidateOnStart checks; the validator type itself differs per SDK.
+        var builder = Host.CreateApplicationBuilder();
+        foreach (var descriptor in services)
+        {
+            builder.Services.Add(descriptor);
+        }
 
-        ex.Message.ShouldNotContain("s3cr3t");
+        // The secrets packages start a cache-invalidation hosted service that needs a cache provider.
+        builder.Services.AddSingleton(Substitute.For<ICacheProvider>());
+
+        using var host = builder.Build();
+
+        Exception? thrown = null;
+        try
+        {
+            await host.StartAsync(TestContext.Current.CancellationToken);
+        }
+        catch (Exception e)
+        {
+            thrown = e;
+        }
+
+        // SDK 11 reports the failures wrapped in an AggregateException, SDK 10 throws the validation exception itself.
+        thrown.ShouldNotBeNull();
+        var validation = thrown switch
+        {
+            OptionsValidationException o => o,
+            AggregateException a => a.Flatten().InnerExceptions.OfType<OptionsValidationException>().FirstOrDefault(),
+            _ => null,
+        };
+
+        validation.ShouldNotBeNull();
+        thrown.Message.ShouldNotContain("s3cr3t");
+        validation.Message.ShouldNotContain("s3cr3t");
     }
 
     [Theory]
