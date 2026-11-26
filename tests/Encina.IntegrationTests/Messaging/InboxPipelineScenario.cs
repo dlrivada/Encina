@@ -169,7 +169,7 @@ public static class InboxPipelineScenario
         return mode switch
         {
             Mode.Throw => throw new InvalidOperationException("boom"),
-            Mode.ReturnLeft => Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("biz.rule", "business rule"))),
+            Mode.ReturnLeft => Task.FromResult(Left<EncinaError, string>(EncinaErrors.Create("biz.rule", ErrorCategory.Validation, "business rule"))),
             _ => Task.FromResult(Right<EncinaError, string>("ok"))
         };
     }
@@ -212,6 +212,7 @@ public static class InboxPipelineScenario
         first.IsLeft.ShouldBeTrue();
         second.IsLeft.ShouldBeTrue();
         second.LeftToArray()[0].GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
+        second.LeftToArray()[0].GetCategory().ShouldBe(ErrorCategory.Validation);
         counter.Runs.ShouldBe(1);
 
         var row = await harness.ReadRow(key);

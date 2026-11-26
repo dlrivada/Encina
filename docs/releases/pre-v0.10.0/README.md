@@ -3721,7 +3721,7 @@ All 20 issues received comprehensive labels:
 - [RedLock.net](https://github.com/samcook/RedLock.net) - RedLock algorithm implementation
 - [HashiCorp Consul](https://developer.hashicorp.com/consul/docs/dynamic-app-config/sessions) - Session-based locking
 - [etcd.io Distributed Locks](https://etcd.io/docs/v3.5/dev-guide/api_reference_v3/) - Lease-based coordination
-- [Apache ZooKeeper Recipes](https://zookeeper.apache.org/doc/current/recipes.html) - Coordination recipes
+- [Apache ZooKeeper Recipes](https://zookeeper.apache.org/doc/r3.9.4/recipes.html) - Coordination recipes
 - [AWS DynamoDB Locking Client](https://github.com/awslabs/amazon-dynamodb-lock-client) - Cloud-native locking
 - [Azure Blob Leases](https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob) - Blob storage coordination
 - [Martin Kleppmann - Fencing Tokens](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html) - Split-brain prevention

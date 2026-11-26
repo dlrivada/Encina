@@ -24,7 +24,7 @@ Encina provides three reusable workflow templates for comprehensive CI/CD pipeli
 | [`encina-matrix.yml`](#encina-matrixyml) | Matrix testing (OS × Database) | Medium |
 | [`encina-full-ci.yml`](#encina-full-ciyml) | Complete CI pipeline | High |
 
-All templates are designed for .NET 10 applications and follow GitHub Actions best practices.
+All templates are designed for .NET 10 applications (they also install SDK 11 by default, see the SDK default note under `encina-test.yml`) and follow GitHub Actions best practices.
 
 ---
 
@@ -106,7 +106,7 @@ Basic test workflow for unit tests with code coverage.
 |-------|------|----------|---------|-------------|
 | `solution` | string | No | `*.slnx` | Solution file path |
 | `configuration` | string | No | `Release` | Build configuration |
-| `dotnet-version` | string | No | `10.0.x` | .NET SDK version |
+| `dotnet-version` | string | No | `10.0.x` and `11.0.x` | .NET SDK versions to install, one per line |
 | `runs-on` | string | No | `ubuntu-latest` | Runner OS |
 | `coverage-threshold` | string | No | `0` | Minimum coverage % |
 | `run-integration-tests` | boolean | No | `false` | Include integration tests |
@@ -114,6 +114,8 @@ Basic test workflow for unit tests with code coverage.
 | `exclude-patterns` | string | No | `LoadTests` | Comma-separated exclude patterns |
 | `upload-coverage` | boolean | No | `true` | Upload coverage artifact |
 | `timeout-minutes` | number | No | `30` | Job timeout |
+
+> **SDK default (applies to `encina-test`, `encina-matrix` and `encina-full-ci`):** `dotnet-version` takes one SDK per line and installs both SDK 10 and SDK 11 by default. Without a `global.json` in the calling repository, the newest installed SDK (11) builds the project. An adopter that targets net10 should pin a `global.json` or pass `dotnet-version: 10.0.x` only.
 
 #### Artifacts
 
@@ -146,7 +148,7 @@ Matrix testing across multiple operating systems and database providers.
 |-------|------|----------|---------|-------------|
 | `solution` | string | No | `*.slnx` | Solution file path |
 | `configuration` | string | No | `Release` | Build configuration |
-| `dotnet-version` | string | No | `10.0.x` | .NET SDK version |
+| `dotnet-version` | string | No | `10.0.x` and `11.0.x` | .NET SDK versions to install, one per line |
 | `test-os` | string (JSON) | No | `["ubuntu-latest"]` | OS runners array |
 | `test-databases` | string (JSON) | No | `["sqlite"]` | Database providers array |
 | `fail-fast` | boolean | No | `false` | Cancel all jobs on failure |
@@ -202,7 +204,7 @@ Complete CI pipeline with build, test, analysis, and packaging.
 |-------|------|----------|---------|-------------|
 | `solution` | string | No | `*.slnx` | Solution file path |
 | `configuration` | string | No | `Release` | Build configuration |
-| `dotnet-version` | string | No | `10.0.x` | .NET SDK version |
+| `dotnet-version` | string | No | `10.0.x` and `11.0.x` | .NET SDK versions to install, one per line |
 | `runs-on` | string | No | `ubuntu-latest` | Primary runner |
 | `coverage-threshold` | string | No | `0` | Minimum coverage % |
 | `run-integration-tests` | boolean | No | `false` | Run integration tests |

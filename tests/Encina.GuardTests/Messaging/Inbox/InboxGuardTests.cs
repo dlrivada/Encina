@@ -157,6 +157,31 @@ public class InboxGuardTests
         (await Should.ThrowAsync<ArgumentNullException>(act)).ParamName.ShouldBe("processCallback");
     }
 
+    [Fact]
+    public async Task ProcessAsync_NullMetadataWithCachedError_ReplaysCachedErrorWithItsCategory()
+    {
+        var cached = Substitute.For<IInboxMessage>();
+        cached.IsProcessed.Returns(true);
+        cached.Response.Returns("{\"isSuccess\":false,\"errorMessage\":\"biz.rule\",\"errorCategory\":5}");
+        var store = Substitute.For<IInboxStore>();
+        store.GetMessageAsync("msg-1", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<Either<EncinaError, Option<IInboxMessage>>>(Option<IInboxMessage>.Some(cached)));
+        var orchestrator = new InboxOrchestrator(
+            store,
+            new InboxOptions(),
+            NullLogger<InboxOrchestrator>.Instance,
+            Substitute.For<IInboxMessageFactory>(),
+            new JsonMessageSerializer());
+
+        var result = await orchestrator.ProcessAsync<string>(
+            new object(), "msg-1", "type", "corr", null,
+            () => ValueTask.FromResult<Either<EncinaError, string>>("never"));
+
+        var error = result.LeftToArray()[0];
+        error.GetCode().IfNone(string.Empty).ShouldBe(InboxErrorCodes.CachedError);
+        error.GetCategory().ShouldBe(ErrorCategory.NotFound);
+    }
+
     #endregion
 
     #region InboxPipelineBehavior Constructor

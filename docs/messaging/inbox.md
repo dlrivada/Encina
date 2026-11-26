@@ -72,7 +72,7 @@ Timeline for `MaxRetries = 3` when the handler throws every time:
 
 Encina uses Railway Oriented Programming: operations return `Either<EncinaError, T>` and a business failure is a `Left`, not an exception ([ADR-001](../architecture/adr/001-railway-oriented-programming.md), [ADR-006](../architecture/adr/006-pure-rop-exception-handling.md)).
 
-- A handler that **returns a `Left`** has finished its work with a business outcome. The inbox caches it as the processed response and does not run the handler again on redelivery. It does not consume attempts. Only the error code is cached, never the error message, because the message can carry personal data. On redelivery the caller receives a `Left` with the code `inbox.cached_error`, whose message is the original error code. A cached `Right` whose value equals `default(T)` (for example `0`, `false` or `Unit`) is still a success: on redelivery it is returned as that `Right`, not as `inbox.cached_error`.
+- A handler that **returns a `Left`** has finished its work with a business outcome. The inbox caches it as the processed response and does not run the handler again on redelivery. It does not consume attempts. Only the error code is cached, never the error message, because the message can carry personal data. On redelivery the caller receives a `Left` with the code `inbox.cached_error`, whose message is the original error code and whose category is the original one, so the replay keeps the HTTP status of the first delivery ([ADR-062](../architecture/adr/062-error-category-contract.md)). The category is stored as its stable numeric value in the `errorCategory` field of the JSON envelope inside the opaque cached response, so no provider schema changes. A row without the field (written before it existed) or with a value that is not a defined `ErrorCategory` replays as `Internal`. A cached `Right` whose value equals `default(T)` (for example `0`, `false` or `Unit`) is still a success: on redelivery it is returned as that `Right`, not as `inbox.cached_error`.
 - A handler that **throws** has failed. The attempt is recorded and counts towards `MaxRetries`. The returned error has the code `inbox.processing_failed`, and only the exception type is stored.
 - A **cancellation requested by the caller's `CancellationToken`** is not a failed attempt: the `OperationCanceledException` is rethrown, nothing is recorded and `RetryCount` does not change. An `OperationCanceledException` that the caller's token did not cause (for example an internal timeout) is treated like any other exception and counts as a failed attempt.
 
@@ -181,7 +181,7 @@ MongoDB creates an ordinary index `IX_Inbox_Expires` on `ExpiresAtUtc` and no TT
 | `inbox.missing_message_id` | `MissingMessageId` | An `IIdempotentRequest` arrived with no `IdempotencyKey` in its `IRequestContext`. |
 | `inbox.max_retries_exceeded` | `MaxRetriesExceeded` | `RetryCount` reached `MaxRetries`; the handler was not run. |
 | `inbox.deserialization_failed` | `DeserializationFailed` | The cached response could not be deserialized. |
-| `inbox.cached_error` | `CachedError` | Redelivery of a message whose cached response was a `Left`. |
+| `inbox.cached_error` | `CachedError` | Redelivery of a message whose cached response was a `Left`. The error keeps its original `ErrorCategory`; `Internal` when the cached row has no valid category ([ADR-062](../architecture/adr/062-error-category-contract.md)). |
 | `inbox.processing_failed` | none (literal in `InboxOrchestrator`) | The handler threw; the attempt was recorded. |
 
 ## See also

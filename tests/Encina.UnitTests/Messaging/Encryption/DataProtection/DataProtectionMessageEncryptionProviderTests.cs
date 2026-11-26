@@ -13,10 +13,28 @@ using static LanguageExt.Prelude;
 
 namespace Encina.UnitTests.Messaging.Encryption.DataProtection;
 
-public class DataProtectionMessageEncryptionProviderTests
+public sealed class DataProtectionMessageEncryptionProviderTests : IDisposable
 {
     private readonly ILogger<DataProtectionMessageEncryptionProvider> _logger =
         NullLogger<DataProtectionMessageEncryptionProvider>.Instance;
+
+    // The round-trip tests use a persisted keyring in a unique temporary directory, not
+    // EphemeralDataProtectionProvider: on ASP.NET Core 11.0.0 the ephemeral provider
+    // (AES-256-GCM through CNG on Windows) cannot unprotect the ciphertext of an empty
+    // plaintext (#4221), while a persisted keyring round-trips it on .NET 10 and .NET 11.
+    private readonly DirectoryInfo _keyDirectory = new(
+        Path.Combine(Path.GetTempPath(), "encina-dp-" + Guid.NewGuid().ToString("N")));
+
+    public void Dispose()
+    {
+        _keyDirectory.Refresh();
+        if (_keyDirectory.Exists)
+        {
+            _keyDirectory.Delete(recursive: true);
+        }
+    }
+
+    private IDataProtectionProvider CreateKeyringProvider() => DataProtectionProvider.Create(_keyDirectory);
 
     // --- Constructor null guard tests ---
 
@@ -304,12 +322,12 @@ public class DataProtectionMessageEncryptionProviderTests
         error.Message.ShouldContain("decryption failed");
     }
 
-    // --- Round-trip test with EphemeralDataProtectionProvider ---
+    // --- Round-trip tests with a persisted Data Protection keyring ---
 
     [Fact]
-    public async Task EncryptThenDecrypt_WithEphemeralProvider_ReturnsOriginalData()
+    public async Task EncryptThenDecrypt_WithPersistedKeyring_ReturnsOriginalData()
     {
-        var dpProvider = new EphemeralDataProtectionProvider();
+        var dpProvider = CreateKeyringProvider();
         var options = Options.Create(new DataProtectionEncryptionOptions());
         var provider = new DataProtectionMessageEncryptionProvider(dpProvider, options, _logger);
 
@@ -331,7 +349,7 @@ public class DataProtectionMessageEncryptionProviderTests
     [Fact]
     public async Task EncryptThenDecrypt_EmptyPayload_RoundTripsSuccessfully()
     {
-        var dpProvider = new EphemeralDataProtectionProvider();
+        var dpProvider = CreateKeyringProvider();
         var options = Options.Create(new DataProtectionEncryptionOptions());
         var provider = new DataProtectionMessageEncryptionProvider(dpProvider, options, _logger);
 
@@ -352,7 +370,7 @@ public class DataProtectionMessageEncryptionProviderTests
     [Fact]
     public async Task EncryptThenDecrypt_LargePayload_RoundTripsSuccessfully()
     {
-        var dpProvider = new EphemeralDataProtectionProvider();
+        var dpProvider = CreateKeyringProvider();
         var options = Options.Create(new DataProtectionEncryptionOptions());
         var provider = new DataProtectionMessageEncryptionProvider(dpProvider, options, _logger);
 
@@ -375,7 +393,7 @@ public class DataProtectionMessageEncryptionProviderTests
     [Fact]
     public async Task Encrypt_DifferentPurposes_ProduceDifferentCiphertext()
     {
-        var dpProvider = new EphemeralDataProtectionProvider();
+        var dpProvider = CreateKeyringProvider();
         var plaintext = Encoding.UTF8.GetBytes("Same data");
         var context = new MessageEncryptionContext { MessageType = "Test" };
 
@@ -402,7 +420,7 @@ public class DataProtectionMessageEncryptionProviderTests
     [Fact]
     public async Task Decrypt_WithDifferentPurpose_ReturnsLeft()
     {
-        var dpProvider = new EphemeralDataProtectionProvider();
+        var dpProvider = CreateKeyringProvider();
         var plaintext = Encoding.UTF8.GetBytes("Test data");
         var context = new MessageEncryptionContext { MessageType = "Test" };
 
@@ -421,6 +439,41 @@ public class DataProtectionMessageEncryptionProviderTests
 
         // Decrypting with different purpose should fail
         var decryptResult = await decryptProvider.DecryptAsync(payload, context);
+        decryptResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Decrypt_TamperedCiphertext_ReturnsLeft()
+    {
+        var provider = new DataProtectionMessageEncryptionProvider(
+            CreateKeyringProvider(),
+            Options.Create(new DataProtectionEncryptionOptions()),
+            _logger);
+        var context = new MessageEncryptionContext { MessageType = "TamperTest" };
+
+        var encryptResult = await provider.EncryptAsync(Encoding.UTF8.GetBytes("Tamper me"), context);
+        var payload = encryptResult.Match(Right: p => p, Left: _ => default!);
+        var tampered = payload.Ciphertext.ToArray();
+        tampered[^1] ^= 0xFF;
+
+        var decryptResult = await provider.DecryptAsync(
+            payload with { Ciphertext = tampered.ToImmutableArray() }, context);
+
+        decryptResult.IsLeft.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task Decrypt_EmptyCiphertext_ReturnsLeft()
+    {
+        var provider = new DataProtectionMessageEncryptionProvider(
+            CreateKeyringProvider(),
+            Options.Create(new DataProtectionEncryptionOptions()),
+            _logger);
+        var context = new MessageEncryptionContext { MessageType = "TruncateTest" };
+
+        var decryptResult = await provider.DecryptAsync(
+            CreatePayload(System.Array.Empty<byte>()), context);
+
         decryptResult.IsLeft.ShouldBeTrue();
     }
 

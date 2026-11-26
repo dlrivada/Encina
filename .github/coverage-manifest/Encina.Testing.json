@@ -21,7 +21,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 80, "guard": 20 },
+      "justifications": {
+        "unit": "Unit tests drive the success, error, category (validation and not-found), async and And-variant assertions through real Either values and the real validation pipeline; left uncovered are the failure-message branches of the less used code and metadata variants, which need a failing assertion per variant.",
+        "guard": "The guard flag reaches only the argument checks of the public assertions; the assertion bodies run in the unit flag."
+      }
     },
     "Assertions/EitherCollectionAssertions.cs": {
       "defaultTests": [
@@ -29,7 +34,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 65, "guard": 20 },
+      "justifications": {
+        "unit": "Unit tests cover the collection success/error assertions and the validation and authorization finders; left uncovered are the failure branches of the count and code assertions that need one failing collection per variant.",
+        "guard": "The guard flag reaches only the null-argument checks of the collection assertions; their bodies belong to the unit flag."
+      }
     },
     "Assertions/StreamingAssertions.cs": {
       "defaultTests": [
@@ -87,7 +97,12 @@
         "guard"
       ],
       "defaultRule": "*.cs",
-      "reason": "Default: assume testable with mocks"
+      "reason": "Default: assume testable with mocks",
+      "targets": { "unit": 85, "guard": 25 },
+      "justifications": {
+        "unit": "Unit tests drive Given/When/Then, ThenValidationError (by category) and ThenErrorWithCode through concrete specifications; left uncovered are the failure branches of the property-matching helper (ErrorContainsProperty).",
+        "guard": "The guard flag reaches only the argument checks (null/empty property names, null request); the assertion bodies are unit-flag code."
+      }
     },
     "Handlers/Scenario.cs": {
       "defaultTests": [
@@ -103,7 +118,12 @@
         "guard"
       ],
       "defaultRule": "*Result.cs",
-      "reason": "Result type"
+      "reason": "Result type",
+      "targets": { "unit": 90, "guard": 30 },
+      "justifications": {
+        "unit": "Unit tests cover the success, error, validation-by-category and error-code assertions of a scenario result; left uncovered are a few failure-message branches that need a failing scenario each.",
+        "guard": "The guard flag reaches only the null/empty argument checks; the assertion bodies belong to the unit flag."
+      }
     },
     "Identity/TestIdentity.cs": {
       "defaultTests": [

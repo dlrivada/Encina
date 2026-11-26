@@ -333,6 +333,22 @@ public sealed class ScenarioTests
     }
 
     [Fact]
+    public async Task ShouldBeValidationError_WhenOtherCategory_FailsNamingTheCategory()
+    {
+        // Arrange
+        var result = await Scenario<TestRequest, TestResponse>
+            .Describe("Test")
+            .UsingHandler(() => new ErrorHandler("custom.code"))
+            .WhenAsync(new TestRequest("test"));
+
+        // Act
+        Action act = () => result.ShouldBeValidationError("Email");
+
+        // Assert
+        Should.Throw<Xunit.Sdk.TrueException>(act).Message.ShouldContain(nameof(ErrorCategory.Internal));
+    }
+
+    [Fact]
     public async Task ShouldBeErrorWithCode_MatchingCode_ReturnsError()
     {
         // Arrange

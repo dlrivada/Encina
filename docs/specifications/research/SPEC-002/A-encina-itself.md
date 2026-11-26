@@ -21,7 +21,7 @@ Research date: 2026-09-23. Scope: Encina as a software product and its maintaine
 
 Sources:
 - Legal text: EUR-Lex CELEX 32024R2847, <https://eur-lex.europa.eu/eli/reg/2024/2847/oj> (retrieved through the Publications Office Cellar).
-- Commission guidance **C(2026) 5252, 27 July 2026** (Annex "Commission guidance on the application of the CRA", 84 pp.): <https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation>. Annex PDF: <https://ec.europa.eu/newsroom/dae/redirection/document/131456>. The guidance says of itself that it is **not binding** (point 8). Only the CJEU can interpret the CRA authoritatively.
+- Commission guidance **C(2026) 5252, 27 July 2026** (Annex "Commission guidance on the application of the CRA", 84 pp.): <https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation> (the page links the guidance document; the Annex PDF link previously cited here is dead). The guidance says of itself that it is **not binding** (point 8). Only the CJEU can interpret the CRA authoritatively.
 
 ### 1.1 Dates of application (Art. 71(2), Art. 69)
 
@@ -189,7 +189,7 @@ Uncertainties:
 
 ## Sources
 - CRA text: <https://eur-lex.europa.eu/eli/reg/2024/2847/oj> (Arts. 3(1), 3(14), 3(22), 3(48), 13(5), 13(6), 13(8), 13(24), 14, 15, 24, 25, 64(10), 69, 71; recitals 15, 17, 18, 19, 34; Annex I Part II)
-- Commission guidance C(2026) 5252 (27 Jul 2026): <https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation>; Annex PDF <https://ec.europa.eu/newsroom/dae/redirection/document/131456> (points 10–24, 40–89, 125–131, 167–173, 209–229; Examples 13, 17–23, 25–34; footnote 9)
+- Commission guidance C(2026) 5252 (27 Jul 2026): <https://digital-strategy.ec.europa.eu/en/library/commission-publishes-new-guidance-support-timely-cyber-resilience-act-implementation> (cited from the Annex; direct PDF link dead as of 2026-11-26; points 10–24, 40–89, 125–131, 167–173, 209–229; Examples 13, 17–23, 25–34; footnote 9)
 - CRA implementation timeline: <https://digital-strategy.ec.europa.eu/en/factpages/cyber-resilience-act-implementation>
 - CRA and open source (Commission): <https://digital-strategy.ec.europa.eu/en/policies/cra-open-source>
 - ENISA SRP launch: <https://www.enisa.europa.eu/news/the-cra-single-reporting-platform-is-launched>

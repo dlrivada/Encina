@@ -352,7 +352,12 @@ public sealed class InboxOrchestrator
         // envelope is serialized and cached in the inbox store's response payload.
         var envelope = response.Match(
             Right: value => new ResponseEnvelope<TResponse> { IsSuccess = true, Value = value },
-            Left: error => new ResponseEnvelope<TResponse> { IsSuccess = false, ErrorMessage = error.GetCode().IfNone("encina.unknown") });
+            Left: error => new ResponseEnvelope<TResponse>
+            {
+                IsSuccess = false,
+                ErrorMessage = error.GetCode().IfNone("encina.unknown"),
+                ErrorCategory = (int)error.GetCategory()
+            });
 
         return _messageSerializer.Serialize(envelope);
     }
@@ -374,15 +379,24 @@ public sealed class InboxOrchestrator
         }
 
         return EncinaErrors.Create(
-            InboxErrorCodes.CachedError, ErrorCategory.Internal,
-            envelope.ErrorMessage ?? "Unknown error in cached response");
+            InboxErrorCodes.CachedError,
+            category: ReadCachedCategory(envelope.ErrorCategory),
+            message: envelope.ErrorMessage ?? "Unknown error in cached response");
     }
+
+    // The category is stored as its stable numeric value (ADR-062). A row written before the field existed
+    // (null) or a value this build does not know fails toward Internal.
+    private static ErrorCategory ReadCachedCategory(int? stored) =>
+        stored is { } value && Enum.IsDefined(typeof(ErrorCategory), value)
+            ? (ErrorCategory)value
+            : ErrorCategory.Internal;
 
     private sealed class ResponseEnvelope<T>
     {
         public bool IsSuccess { get; set; }
         public T? Value { get; set; }
         public string? ErrorMessage { get; set; }
+        public int? ErrorCategory { get; set; }
     }
 }
 
