@@ -307,14 +307,13 @@ internal static class EventIdBlockRegistry
     /// </summary>
     internal static readonly System.Collections.Generic.HashSet<string> HistoricalRangeNames = new(StringComparer.Ordinal)
     {
-        "Sanitization", "AspNetCore", "Testing", "DomainModelingRepository", "DomainModelingUnitOfWork",
-        "DomainModelingBulkOperations", "DomainModelingSpecification", "EntityFrameworkCoreSoftDelete",
-        "DomainModelingAudit", "SecurityAuditRead", "Tenancy", "ModuleIsolation", "MessagingOutbox",
+        "Sanitization", "AspNetCore", "Testing", "EntityFrameworkCoreSoftDelete",
+        "SecurityAuditRead", "ModuleIsolation", "MessagingOutbox",
         "MessagingInbox", "MessagingSaga", "MessagingScheduling", "EntityFrameworkCoreQueryCache",
-        "MessagingEncryption", "DomainModelingDomainEvents", "AuditMarten", "Marten", "Messaging",
+        "MessagingEncryption", "AuditMarten", "Marten", "Messaging",
         "EntityFrameworkCore", "MongoDB", "ADOSqlServer", "ADOPostgreSQL", "ADOMySQL", "DapperSqlServer",
         "DapperPostgreSQL", "DapperMySQL", "Caching", "CachingMemory", "CachingRedis", "CachingHybrid",
-        "DistributedLockInMemory", "DistributedLockRedis", "DistributedLockSqlServer", "TenancyAspNetCore",
+        "DistributedLockInMemory", "DistributedLockRedis", "DistributedLockSqlServer",
         "Polly", "ExtensionsResilience", "Hangfire", "Quartz", "RabbitMQ", "Kafka", "NATS", "MQTT",
         "AzureServiceBus", "AmazonSQS", "RedisPubSub", "InMemory", "GRpc", "GraphQL", "SignalR", "Refit",
         "AwsLambda", "AzureFunctions", "Cdc", "CdcSqlServer", "CdcDebezium", "SecurityAudit", "SecuritySecrets",

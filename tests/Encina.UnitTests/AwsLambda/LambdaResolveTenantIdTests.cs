@@ -21,7 +21,7 @@ public class LambdaResolveTenantIdTests
         var authorizer = new APIGatewayCustomAuthorizerContext();
         if (claimInClaimsObject is not null)
         {
-            authorizer["claims"] = JsonDocument.Parse($$"""{"tenant_id":"{{claimInClaimsObject}}"}""").RootElement;
+            authorizer["claims"] = JsonElement.Parse($$"""{"tenant_id":"{{claimInClaimsObject}}"}""");
         }
 
         if (claimInAuthorizer is not null)
@@ -163,7 +163,7 @@ public class LambdaResolveTenantIdTests
         _options.TrustTenantIdHeader = withTrustedHeader;
         var authorizer = new APIGatewayCustomAuthorizerContext
         {
-            ["claims"] = JsonDocument.Parse(claims).RootElement,
+            ["claims"] = JsonElement.Parse(claims),
         };
         var request = new APIGatewayProxyRequest
         {
@@ -181,7 +181,7 @@ public class LambdaResolveTenantIdTests
     {
         var authorizer = new APIGatewayCustomAuthorizerContext
         {
-            ["claims"] = JsonDocument.Parse("""{"sub":"user-1"}""").RootElement,
+            ["claims"] = JsonElement.Parse("""{"sub":"user-1"}"""),
             ["tenant_id"] = "tenant-a",
         };
         var request = new APIGatewayProxyRequest
@@ -223,7 +223,7 @@ public class LambdaResolveTenantIdTests
     {
         var authorizer = new APIGatewayCustomAuthorizerContext
         {
-            ["tenant_id"] = JsonDocument.Parse(json).RootElement.Clone(),
+            ["tenant_id"] = JsonElement.Parse(json),
         };
         return new APIGatewayProxyRequest
         {

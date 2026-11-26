@@ -8,7 +8,7 @@ namespace Encina.DomainModeling.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Event IDs are allocated in the 1100-1199 range to avoid collisions with other Encina modules.
+/// Event IDs are allocated in the 10100-10199 range to avoid collisions with other Encina modules.
 /// </para>
 /// <para>
 /// This class uses source generators to create optimized logging methods.
@@ -20,7 +20,7 @@ public static partial class RepositoryLog
 {
     /// <summary>Logs when a repository operation begins execution.</summary>
     [LoggerMessage(
-        EventId = 1100,
+        EventId = 10100,
         Level = LogLevel.Debug,
         Message = "Executing repository operation {Operation} for {EntityType} using {Provider}")]
     public static partial void ExecutingOperation(
@@ -31,7 +31,7 @@ public static partial class RepositoryLog
 
     /// <summary>Logs when a repository operation completes successfully.</summary>
     [LoggerMessage(
-        EventId = 1101,
+        EventId = 10101,
         Level = LogLevel.Debug,
         Message = "Repository operation {Operation} for {EntityType} completed in {DurationMs}ms (ResultCount: {ResultCount})")]
     public static partial void OperationCompleted(
@@ -43,7 +43,7 @@ public static partial class RepositoryLog
 
     /// <summary>Logs when a repository operation fails with a domain error.</summary>
     [LoggerMessage(
-        EventId = 1102,
+        EventId = 10102,
         Level = LogLevel.Warning,
         Message = "Repository operation {Operation} for {EntityType} failed with error {ErrorCode}: {ErrorMessage}")]
     public static partial void OperationFailed(
@@ -55,7 +55,7 @@ public static partial class RepositoryLog
 
     /// <summary>Logs when a repository operation throws an unexpected exception.</summary>
     [LoggerMessage(
-        EventId = 1103,
+        EventId = 10103,
         Level = LogLevel.Error,
         Message = "Repository operation {Operation} for {EntityType} threw an unexpected exception")]
     public static partial void OperationException(

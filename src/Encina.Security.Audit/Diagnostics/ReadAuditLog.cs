@@ -9,7 +9,7 @@ namespace Encina.Security.Audit.Diagnostics;
 /// <remarks>
 /// <para>
 /// Event IDs are allocated in the 1700-1799 range to avoid collisions with other Encina modules.
-/// Write-audit trail uses 1600-1699 in <see cref="DomainModeling.Diagnostics.AuditLog"/>.
+/// Write-audit trail uses 10500-10599 in <see cref="DomainModeling.Diagnostics.AuditLog"/>.
 /// </para>
 /// <para>
 /// Allocation blocks:

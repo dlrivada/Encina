@@ -85,7 +85,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
         {
             return Either<EncinaError, MigrationResult>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.NoActiveShards,
+                    ShardingErrorCodes.NoActiveShards, ErrorCategory.Internal,
                     "No active shards found in the topology."));
         }
 
@@ -194,7 +194,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
         {
             return Either<EncinaError, Unit>.Left(
                 EncinaErrors.Create(
-                    MigrationErrorCodes.MigrationNotFound,
+                    MigrationErrorCodes.MigrationNotFound, ErrorCategory.NotFound,
                     $"Migration script for migration ID '{result.Id}' was not found. " +
                     "Rollback is only supported for migrations applied by this coordinator instance."));
         }
@@ -269,7 +269,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
 
             return Either<EncinaError, Unit>.Left(
                 EncinaErrors.Create(
-                    MigrationErrorCodes.RollbackFailed,
+                    MigrationErrorCodes.RollbackFailed, ErrorCategory.Internal,
                     $"Rollback failed on {rollbackErrors.Count} shard(s): {failedShards}."));
         }
 
@@ -353,7 +353,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
             {
                 return Either<EncinaError, SchemaDriftReport>.Left(
                     EncinaErrors.Create(
-                        MigrationErrorCodes.SchemaComparisonFailed,
+                        MigrationErrorCodes.SchemaComparisonFailed, ErrorCategory.Internal,
                         $"Schema comparison failed for shard '{shard.ShardId}'."));
             }
         }
@@ -387,7 +387,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
         return Task.FromResult(
             Either<EncinaError, MigrationProgress>.Left(
                 EncinaErrors.Create(
-                    MigrationErrorCodes.MigrationNotFound,
+                    MigrationErrorCodes.MigrationNotFound, ErrorCategory.NotFound,
                     $"Migration '{migrationId}' was not found.")));
     }
 
@@ -402,7 +402,7 @@ internal sealed class ShardedMigrationCoordinator : IShardedMigrationCoordinator
         {
             return Either<EncinaError, IReadOnlyList<string>>.Left(
                 EncinaErrors.Create(
-                    ShardingErrorCodes.ShardNotFound,
+                    ShardingErrorCodes.ShardNotFound, ErrorCategory.Internal,
                     $"Shard '{shardId}' was not found in the topology."));
         }
 

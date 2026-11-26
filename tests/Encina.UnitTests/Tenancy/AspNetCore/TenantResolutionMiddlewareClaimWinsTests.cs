@@ -56,7 +56,7 @@ public sealed class TenantResolutionMiddlewareClaimWinsTests
 
         var record = _middlewareLogger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Level.ShouldBe(LogLevel.Warning);
-        record.Id.Id.ShouldBe(3851);
+        record.Id.Id.ShouldBe(11751);
         record.Message.ShouldContain(nameof(ClaimTenantResolver));
         record.Message.ShouldContain(nameof(HeaderTenantResolver));
         record.Message.ShouldNotContain("tenant-a");
@@ -179,7 +179,7 @@ public sealed class TenantResolutionMiddlewareClaimWinsTests
 
         var record = _middlewareLogger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Level.ShouldBe(LogLevel.Warning);
-        record.Id.Id.ShouldBe(3852);
+        record.Id.Id.ShouldBe(11752);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class TenantResolutionMiddlewareClaimWinsTests
 
         var record = _middlewareLogger.Collector.GetSnapshot().ShouldHaveSingleItem();
         record.Level.ShouldBe(LogLevel.Warning);
-        record.Id.Id.ShouldBe(3853);
+        record.Id.Id.ShouldBe(11753);
     }
 
     [Fact]

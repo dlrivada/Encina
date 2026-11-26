@@ -19,7 +19,7 @@ namespace Encina.Security.AntiTampering.HMAC;
 /// </para>
 /// <para>
 /// Supports HMAC-SHA256 (default), HMAC-SHA384, and HMAC-SHA512 algorithms.
-/// Verification uses <see cref="CryptographicOperations.FixedTimeEquals"/> to prevent
+/// Verification uses <see cref="CryptographicOperations.FixedTimeEquals(ReadOnlySpan{byte}, ReadOnlySpan{byte})"/> to prevent
 /// timing attacks.
 /// </para>
 /// <para>
