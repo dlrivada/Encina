@@ -11,7 +11,7 @@
 
 Give the transports a consumer-side resilience story: a circuit break around message consumption that pauses delivery where the broker allows it, and retry only of the broker operations that deserve it, consistent across the transport category. #742 covers only the outbound operations because the transport packages have no consumer abstraction to wrap. This plan adds that abstraction in `Encina.Messaging`, one implementation per transport (all eight), and one decorator in `Encina.Resilience` that uses the provider-keyed executor of #742. Immediate retry of a handler stays with the resilience pipeline of the request type (ADR-055 R4); delayed retry and the dead letter stay in `Encina.Messaging` Recoverability.
 
-What exists today (read in `origin/main` at `4047d9a8a`):
+What exists today (read in `origin/main` at `0a7ce2ae1`):
 
 - No consumer abstraction: `git grep -E "BasicConsume|ServiceBusProcessor|ReceiveMessageAsync|IMessageConsumer|IMessageTransport" -- src` returns no match; the only `IConsumer<` is the Debezium connector (`src/Encina.Cdc.Debezium/Kafka/DebeziumKafkaConnector.cs:42`). Subscription exists on two publishers only: `IMQTTMessagePublisher.SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string topic, MqttQualityOfService? qos, CancellationToken)` (`src/Encina.MQTT/IMQTTMessagePublisher.cs:39`) and `IRedisPubSubMessagePublisher.SubscribeAsync<TMessage>(Func<TMessage, ValueTask> handler, string? channel, CancellationToken)` (`src/Encina.Redis.PubSub/IRedisPubSubMessagePublisher.cs:34`), plus `IInMemoryMessageBus.Subscribe<TMessage>(Func<TMessage, ValueTask>)` returning `IDisposable` (`src/Encina.InMemory/IInMemoryMessageBus.cs:40`). Their handlers return no result, so a failing handler is invisible to a wrapper.
 - Deduplication on the consumer side already keys on the message id: `InboxPipelineBehavior` uses `IRequestContext.IdempotencyKey` as the deduplication key (`src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs:57-108`). The immediate-retry loop of Recoverability is `ExecuteWithImmediateRetriesAsync` (`src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs:325`); ADR-055 R4 and the amended ADR-050 move the immediate retry to the resilience pipeline of the request type and forbid several retry layers on one request.
@@ -20,7 +20,7 @@ What exists today (read in `origin/main` at `4047d9a8a`):
 
 What this plan delivers: `IMessageConsumer`, `IConsumerSubscription`, `ConsumedMessageContext`, `ConsumerHandler<TMessage>` and `ConsumerState` in `Encina.Messaging`; one consumer implementation per transport (RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub, InMemory); `ResilientMessageConsumer` with its subscription wrapper, options, validator and registration in `Encina.Resilience`; a shared contract suite over the eight; log messages and the pause instrument; and the tests.
 
-- **Affected packages**: `Encina.Messaging` (abstraction), `Encina.Resilience` (planned; decorator), and the eight transport packages (`Encina.RabbitMQ`, `Encina.Kafka`, `Encina.NATS`, `Encina.MQTT`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Redis.PubSub`, `Encina.InMemory`). The six planned transports adopt the abstraction in their own packages; their decorators are #4393.
+- **Affected packages**: `Encina.Messaging` (abstraction), `Encina.Resilience` (planned; decorator), and the eight transport packages (`Encina.RabbitMQ`, `Encina.Kafka`, `Encina.NATS`, `Encina.MQTT`, `Encina.AzureServiceBus`, `Encina.AmazonSQS`, `Encina.Redis.PubSub`, `Encina.InMemory`). Ownership is stated here and in #4393 in the same words: this plan owns the abstraction, the `ResilientMessageConsumer` decorator and the consumers of these eight transports; #4393 owns, for each of the six planned transports (GoogleCloudPubSub, AmazonEventBridge, Pulsar, Redis.Streams, ActiveMQ, Dapr.PubSub), the publisher decorator and the adoption of `IMessageConsumer` with its `AddEncina<Transport>ConsumerResilience()` registration, as a second pull request per transport that waits for PR-1 to PR-4 of this plan.
 - **Provider category**: Transports (AGENTS.md section 5): every transport supports the decorator, proved by one shared contract suite.
 - **Estimated size**: 12 pull requests of at most 15 files and 1,500 lines (split in "Implementation Phases").
 - **Prerequisites**: #742 implementation, #4380, #4382, described in "Prerequisites & Dependencies".
@@ -32,10 +32,10 @@ What this plan delivers: `IMessageConsumer`, `IConsumerSubscription`, `ConsumedM
 | `Encina.Resilience` project, registry, options front-ends | #4380 (plan, by number) | this plan |
 | `RequestHandlerCallback<TResponse>(CancellationToken)` and the deadline | #4382 (plan, by number) | handlers dispatched by consumers |
 | `IProviderResilience`, `ProviderResilienceOptions`, the abstract contract suite, `ResilienceProvider` range 970-984 | #742 (plan on `main`, by number) | this plan |
-| `IMessageConsumer`, `IConsumerSubscription`, `ConsumedMessageContext`, `ConsumerHandler<TMessage>`, `ConsumerState` | **This plan (#4392)** | #4393 (planned transports adopt it), #239, #240, #241, #242 |
+| `IMessageConsumer`, `IConsumerSubscription`, `ConsumedMessageContext`, `ConsumerHandler<TMessage>`, `ConsumerState` | **This plan (#4392)** | #4393 (owns the six planned transports' consumer adoption PRs), #239, #240, #241, #242 |
 | `ResilientMessageConsumer`, `ConsumerResilienceOptions` | **This plan (#4392)** | none |
-| One decorator per planned transport publisher | #4393 (plan, by number) | independent |
-| Telemetry names | #728 (plan on `main`; choices 1 and 8 pending) and #725 (transport telemetry) | choice 6 |
+| One publisher decorator and one consumer adoption per planned transport; the ADR-055 R7 amendment (covers both directions) | #4393 (plan, by number) | the consumer adoption PRs wait for this plan's PR-1 to PR-4 |
+| Telemetry names | #728 (plan on `main`; choices 1 and 8 pending) and #725 (transport telemetry) | Phase 5 |
 
 ---
 
@@ -154,24 +154,24 @@ A handler that dispatches into `IEncina` already runs through the resilience pip
 </details>
 
 <details>
-<summary><strong>6. What counts as a breaker failure on a consumer</strong></summary>
+<summary><strong>6. A cancellation is never counted as a breaker failure</strong></summary>
 
-The breaker needs a rule for outcomes: handler `Left`s, broker faults, cancellations.
+The breaker sees handler outcomes and broker operations; a host shutdown or a caller that leaves cancels tokens. What counts among the other outcomes is choice 9.
 
 ### Options Considered
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **A) Count a handler `Left` only when `IErrorClassifier` says transient (ADR-029) and a broker fault; never a cancellation, never a permanent `Left`** | A business rejection or a caller shutdown never opens the breaker | Classification of an unknown `Left` follows `IErrorClassifier` |
-| **B) Count every `Left` and every exception** | Simple | A validation error or a host shutdown opens the breaker; ADR-062 R5 says a cancellation is never counted as a server fault |
+| **A) A cancellation (an `OperationCanceledException` of the subscription token, or a `Left` of category `Cancelled`) is never counted and is never turned into a `Left` of this layer: the exception propagates** | A host shutdown never opens the breaker | None |
+| **B) Count a cancellation as a failure** | Simple | A shutdown opens the breaker; contradicts ADR-062 R5 |
 
-### Chosen Option: **A - Transient failures only**
+### Chosen Option: **A - Cancellation never counted**
 
 ### Rationale
 
-- B contradicts ADR-062 rule R5 for cancellation and ADR-029 for permanent failures; A is the only option that complies. It holds under every option of choices 1 to 4. A cancellation is never a `Left` of this layer: an `OperationCanceledException` from the subscription token propagates.
+- B contradicts ADR-062 rule R5; A is the only option that complies. It holds under every option of choices 1 to 4 and 9.
 - **Class:** Settled
-- **Settled by:** ADR-062 rule R5 (`*.cancelled` is `Cancelled`, never counted as a server fault); ADR-029 (Transient, Permanent, Unknown classification)
+- **Settled by:** ADR-062 rule R5 (`*.cancelled` is `Cancelled`, never counted as a server fault)
 
 </details>
 
@@ -187,14 +187,13 @@ The breaker needs a rule for outcomes: handler `Left`s, broker faults, cancellat
 | **A) `ConsumedMessageContext.MessageId` carries the broker message id (the id the publisher assigned, null if the broker has none); the dispatching code sets the idempotency key from it; the consumer layer does no deduplication itself** | One deduplication owner (the Inbox); no state in the consumer | A message with no id is not deduplicated |
 | **B) The consumer layer keeps a seen-ids window** | Works without an Inbox | A second, in-memory deduplication path that disagrees with the Inbox across restarts and instances |
 
-### Chosen Option: **A - Surface the id; the Inbox deduplicates**
+### Chosen Option: **A - Surface the id; the Inbox deduplicates** (recommended, pending the maintainer)
 
 ### Rationale
 
-- The Inbox is the idempotent-consumption pattern of AGENTS.md section 3 (Inbox for external messages); a second window is a duplicate mechanism.
+- A wins because the Inbox is the idempotent-consumption pattern of AGENTS.md section 3 (Inbox for external messages) and survives restarts and several instances; B wins for an application with no Inbox that accepts in-process deduplication only. Under A a message with no id is not deduplicated.
 
-- **Class:** Trivial
-- **Settled by:** AGENTS.md section 3 (pattern choice: Inbox for external messages, idempotent exactly-once processing)
+- **Class:** Dilemma
 
 </details>
 
@@ -208,15 +207,38 @@ AGENTS.md section 5 asks every transport to behave the same and section 9 asks i
 | Option | Pros | Cons |
 |--------|------|------|
 | **A) One abstract contract suite over a fake inner consumer, one derived class per transport, and one integration class per broker on its collection fixture (consume after a broker restart; the breaker pauses and resumes)** | Proves consistency and the real SDK behavior | Containers in CI |
-| **B) A contract suite only** | Fast | Pause, resume and acknowledgement behavior of the SDKs is unproven |
+| **B) A contract suite only, with a justification file per transport for the skipped integration class (AGENTS.md section 9: integration tests of a non-database feature are "justify if skipped")** | Fast; no containers beyond the existing broker tests | Pause, resume and acknowledgement behavior of the real SDKs is unproven by a test |
 
-### Chosen Option: **A - Contract and integration per transport**
+### Chosen Option: **A - Contract and integration per transport** (recommended, pending the maintainer)
 
 ### Rationale
 
-- B leaves the per-provider pause table unproven, against the category rule; A is the only option that complies. It holds under every option of choices 1 to 7 that builds consumers.
-- **Class:** Settled
-- **Settled by:** AGENTS.md section 5 (transports: "consistent across every provider of that category"); AGENTS.md section 9 (shared `[Collection]` fixtures)
+- A wins when the per-provider pause and acknowledgement facts must be proven against the real SDK (AGENTS.md section 5 asks every transport to behave the same); B wins when CI time matters and the contract suite is judged enough. Integration classes use shared `[Collection]` fixtures, never a per-class fixture (AGENTS.md section 9).
+
+- **Class:** Dilemma
+
+</details>
+
+<details>
+<summary><strong>9. What else counts as a breaker failure on a consumer</strong></summary>
+
+Besides the cancellation rule of choice 6, the breaker needs a rule for handler `Left`s and broker faults. ADR-029 classifies a failure as Transient, Permanent or Unknown for retry and dead-lettering; it does not say how a breaker counts them.
+
+### Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A) Count broker faults and handler `Left`s that `IErrorClassifier` classifies Transient; Permanent and Unknown outcomes are not counted** | A business rejection or an unclassified error never opens the breaker | A dependency failing with errors the classifier calls Unknown is never protected |
+| **B) Count Transient and Unknown (ADR-029 treats Unknown conservatively); not Permanent** | Protects against unclassified dependency failures | An unclassified bug can open the breaker and pause consumption |
+| **C) Count every `Left` that is not a cancellation** | Simple | A validation error opens the breaker |
+
+### Chosen Option: **A - Transient only** (recommended, pending the maintainer)
+
+### Rationale
+
+- A wins when the classifier is well maintained for the application's errors; B wins when most dependency failures arrive as exceptions the default classifier cannot place; C wins only for an application with no business `Left` on the consume path.
+
+- **Class:** Dilemma
 
 </details>
 
@@ -224,7 +246,7 @@ AGENTS.md section 5 asks every transport to behave the same and section 9 asks i
 
 ## Implementation Phases
 
-Twelve pull requests, in order: **PR-1** Phase 1 (the contracts in `Encina.Messaging`); **PR-2** Phase 2 (decorator, subscription wrapper, options, validator, registration in `Encina.Resilience`; it needs the #742 executor); **PR-3** Phase 5 (log messages and the pause instrument; it modifies the PR-2 decorator and its tests); **PR-4** the contract suite and the InMemory consumer (Phase 3, the transport that needs no infrastructure); **PR-5 to PR-11** one transport each, in the order RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub (Phase 3); **PR-12** Phase 7 (documentation). Every PR needs the foundation and #4382 merged; PR-2 onward needs the #742 implementation.
+Twelve pull requests, in order: **PR-1** Phase 1 (the contracts in `Encina.Messaging`); **PR-2** Phase 2 and the log messages of Phase 5 (decorator, subscription wrapper, options, validator, registration and the five log definitions in `Encina.Resilience`, because the resume-timer callback must log its failure; it needs the #742 executor); **PR-3** the paused-subscriptions gauge of Phase 5 (it modifies the PR-2 decorator and subscription wrapper and their tests); **PR-4** the abstract contract suite, the fake consumer and the InMemory consumer (Phase 3, the transport that needs no infrastructure); **PR-5 to PR-11** one transport each, in the order RabbitMQ, Kafka, NATS, MQTT, AzureServiceBus, AmazonSQS, Redis.PubSub (Phase 3); **PR-12** Phase 7 (documentation). Every PR needs the foundation and #4382 merged; PR-2 onward needs the #742 implementation.
 
 ### Phase 1: Core Models and Contracts
 
@@ -235,8 +257,9 @@ Twelve pull requests, in order: **PR-1** Phase 1 (the contracts in `Encina.Messa
 2. `ConsumerHandler.cs`: `public delegate ValueTask<Either<EncinaError, Unit>> ConsumerHandler<in TMessage>(TMessage message, ConsumedMessageContext context, CancellationToken cancellationToken) where TMessage : class;`.
 3. `ConsumedMessageContext.cs` (sealed record: `Provider`, `Source`, `MessageId`, `DeliveryAttempt`, `Headers`; a factory with `ArgumentException.ThrowIfNullOrWhiteSpace` on `Provider` and `Source` and `ArgumentNullException.ThrowIfNull` on `Headers`).
 4. `IConsumerSubscription.cs` (`ConsumerState State { get; }`, `bool SupportsPause { get; }`, `ValueTask<Either<EncinaError, Unit>> PauseAsync(CancellationToken)`, `ResumeAsync(CancellationToken)`, `IAsyncDisposable`) and `ConsumerState.cs` (`Active`, `Paused`, `Stopped`).
-5. New error codes (every one has a named ADR-062 category and a constant message; no `EncinaError.Message` reaches a log): `encina.consumer.pause_unsupported`, returned by `PauseAsync` and `ResumeAsync` of a subscription whose `SupportsPause` is false (callers check the flag first; category `Internal`, ADR-062 R4: a capability gap of a provider is never 501, and R2 forbids `FailedPrecondition` before #3420); and in each provider PR `<TRANSPORT>_SUBSCRIBE_FAILED` (for example `KAFKA_SUBSCRIBE_FAILED`, the style of the publisher code `MQTT_PUBLISH_FAILED` at `src/Encina.MQTT/MQTTMessagePublisher.cs:101`), returned by `SubscribeAsync` when the broker cannot be reached, category `Unavailable` (the ADR-062 row "503, retry later": a dependency outage the retry classifier treats as transient), with a constant message that names neither the source nor the broker address.
-6. Tests in the same PR: unit and guard tests of `ConsumedMessageContext`; `PublicAPI.Unshipped.txt` and the manifest (`mechanical-fixer`).
+5. New error codes (every one has a named ADR-062 category and a constant message; no `EncinaError.Message` reaches a log): `encina.consumer.pause_unsupported`, returned by `PauseAsync` and `ResumeAsync` of a subscription whose `SupportsPause` is false (callers check the flag first; category `Internal`, ADR-062 R4: a capability gap of a provider is never 501, and R2 forbids `FailedPrecondition` before #3420); and in each provider PR two codes in the style of the publisher code `MQTT_PUBLISH_FAILED` (`src/Encina.MQTT/MQTTMessagePublisher.cs:101`), both with a constant message that names neither the source nor the broker address: `<TRANSPORT>_SUBSCRIBE_FAILED` (for example `KAFKA_SUBSCRIBE_FAILED`), returned by `SubscribeAsync` when the broker cannot be reached or times out, category `Unavailable` (the ADR-062 row "503, retry later": a dependency outage the retry classifier treats as transient); and `<TRANSPORT>_SUBSCRIBE_REJECTED` (for example `KAFKA_SUBSCRIBE_REJECTED`), returned when the broker refuses the subscription because of the application's own configuration or credentials (a wrong topic, a refused credential, a missing permission), category `Internal` (ADR-062 R4: a provider or deployment fault is `Internal`, and retrying cannot fix it). The one-per-transport constants live in the transport package.
+6. `ConsumerErrorCodes.cs` (public static class in `Encina.Messaging/Consumers/`, holding `PauseUnsupported = "encina.consumer.pause_unsupported"`, the code of task 5; the per-transport codes are constants of each transport package).
+7. Tests in the same PR: unit and guard tests of `ConsumedMessageContext`, and a unit test that `ConsumerErrorCodes.PauseUnsupported` has the documented text; `PublicAPI.Unshipped.txt` and the manifest (`mechanical-fixer`).
 
 </details>
 
@@ -259,7 +282,7 @@ REFERENCE FILES: src/Encina.MQTT/IMQTTMessagePublisher.cs, src/Encina.Messaging/
 
 1. `src/Encina.Resilience/Consumers/ConsumerResilienceOptions.cs`: per provider `PauseOnOpenCircuit` (default true), the break duration read from the provider's breaker options of #742 (no second value), `HandlerTimeout` (null: none); validated at startup (`ConsumerResilienceOptionsValidator.cs`, internal).
 2. `ResilientMessageConsumer.cs` (public sealed, implements `IMessageConsumer`; constructor `(IMessageConsumer inner, IProviderResilience resilience, IOptions<ConsumerResilienceOptions> options, TimeProvider timeProvider, ILogger<ResilientMessageConsumer> logger)`, all null-guarded): `SubscribeAsync` wraps the handler (choices 3 to 6): each invocation goes through `ExecuteAsync(provider, "consume", ...)` with retry off; an open circuit makes the decorator pause the subscription (choice 4) or return a transient `Left` without invoking the handler; the acknowledgement, negative acknowledgement, commit and resume operations that the transport exposes to the decorator run through the executor with retry.
-3. `ResilientConsumerSubscription.cs` (internal sealed): wraps `IConsumerSubscription`; owns the resume timer (`TimeProvider.CreateTimer`, callback catches everything, never throws); disposal stops the timer first.
+3. `ResilientConsumerSubscription.cs` (internal sealed): wraps `IConsumerSubscription`; owns the resume timer (`TimeProvider.CreateTimer`, callback catches everything, logs it with `ConsumerResumeTimerFailed` from the log class that ships in this same PR (Phase 5 task 1), and never throws); disposal stops the timer first.
 4. `ConsumerResilienceServiceCollectionExtensions.cs` (public static): `AddEncinaConsumerResilience(this IServiceCollection services)` registers the options and validator with `TryAdd*`; `ArgumentNullException.ThrowIfNull(services)`; the DI test builds the provider with `ValidateOnBuild` and `ValidateScopes`.
 
 </details>
@@ -270,7 +293,7 @@ REFERENCE FILES: src/Encina.MQTT/IMQTTMessagePublisher.cs, src/Encina.Messaging/
 ```text
 CONTEXT: Phase 1 merged; the #742 executor is merged.
 TASK: Implement the options, the decorator, the subscription wrapper and the registration.
-KEY RULES: the decorator never retries the handler; a cancellation propagates and is never counted or returned as a Left; only transient failures (IErrorClassifier) count; the resume timer callback catches every exception and never throws; time only through TimeProvider; no scoped service in a singleton; no tenant key.
+KEY RULES: the decorator never retries the handler; a cancellation propagates and is never counted or returned as a Left; the counting rule of choice 9 as the maintainer answers it (recommended: transient failures by IErrorClassifier only); the resume timer callback catches every exception and never throws; time only through TimeProvider; no scoped service in a singleton; no tenant key.
 REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, src/Encina/Recoverability/IErrorClassifier.cs, docs/en/guides/TESTING.md (timer callbacks must not throw)
 ```
 
@@ -283,9 +306,10 @@ REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, src
 
 For each of the eight transports (PR-4 for InMemory, PR-5 to PR-11 for the others), in its package:
 
-1. `<Transport>MessageConsumer.cs` (public sealed, implements `IMessageConsumer`; `Provider` is the fixed lowercase key of the package: `rabbitmq`, `kafka`, `nats`, `mqtt`, `azureservicebus`, `amazonsqs`, `redispubsub`, `inmemory`): subscribes through the SDK, builds a `ConsumedMessageContext` per delivery (headers, id, attempt), calls the handler, acknowledges on `Right` and applies the SDK's negative acknowledgement on `Left`; `SupportsPause` and the pause mechanism are verified per SDK in the provider PR and recorded in the table of "Research" (nothing about an SDK is assumed here); an `OperationCanceledException` of the subscription token ends the delivery without a `Left`.
+1. `<Transport>MessageConsumer.cs` (public sealed, implements `IMessageConsumer`; `Provider` is the fixed lowercase key of the package: `rabbitmq`, `kafka`, `nats`, `mqtt`, `azureservicebus`, `amazonsqs`, `redispubsub`, `inmemory`): subscribes through the SDK, builds a `ConsumedMessageContext` per delivery (headers, id, attempt), calls the handler, acknowledges on `Right` and applies the SDK's negative acknowledgement on `Left`; `SupportsPause` and the pause mechanism are verified per SDK by the author of the provider PR before it is opened (the checklist in "Research"; nothing about an SDK is assumed here); an `OperationCanceledException` of the subscription token ends the delivery without a `Left`.
 2. `ServiceCollectionExtensions.cs` (modified): `AddEncina<Transport>Consumer()` (keyed registration) and `AddEncina<Transport>ConsumerResilience()` (order-independent wrap by the decorator when the marker is present).
-3. SDK facts to verify in the provider PR: whether the SDK redelivers by itself and how to turn that off where Encina retries (ADR-050), the pause mechanism, the exception for a closed broker. Connection recovery stays inside each SDK and is documented per provider (ADR-055 R7).
+2b. `Encina.<Transport>.csproj` (modified): a `ProjectReference` to `Encina.Resilience` for the resilience extension, unless the #742 decorator PR of the same transport already added it. This edge makes every transport package that offers the extension take Polly transitively, the shape #742 choice 8 option A accepts; counted in each transport PR below.
+3. SDK facts the author of the provider PR answers before opening it (a prerequisite, not an open item of this plan): whether the SDK redelivers by itself and how to turn that off where Encina retries (ADR-050), the pause mechanism, the exception for a closed broker. Connection recovery stays inside each SDK and is documented per provider (ADR-055 R7).
 4. Tests in the same PR: the consumer unit test, the guard test, the DI test, a class derived from the abstract contract suite (PR-4 adds the suite with the InMemory consumer) and the integration class on the broker's collection fixture (the existing ones per #742 Phase 6 task 5; a missing fixture for RabbitMQ, Kafka or MQTT is added in that PR and counted).
 
 </details>
@@ -308,7 +332,7 @@ REFERENCE FILES: src/Encina.Kafka/ServiceCollectionExtensions.cs, tests/Encina.I
 <summary>Tasks</summary>
 
 1. Idempotency (function 9): choice 7; the dispatching code sets `IdempotencyKey` from `MessageId`.
-2. Multi-tenancy (function 10): the decorator takes no tenant and keys nothing by it (the breaker is per provider: broker connectivity is shared, so no tenant-qualified key and no reserved `default` tenant segment exist); tenant metadata travels in `Headers` for the dispatching code; a message that arrives without tenant context under multi-tenancy is denied by the tenancy behavior of the pipeline it is dispatched into (fail closed, AGENTS.md section 3), not by this layer.
+2. Multi-tenancy (function 10): the decorator takes no tenant and keys nothing by it (the breaker is per provider: broker connectivity is shared, so no tenant-qualified key and no reserved `default` tenant segment exist); tenant metadata travels in `Headers` for the dispatching code; what happens to a message that arrives without tenant metadata under multi-tenancy is a gap this plan does not close: no component in `src/` denies an inbound message for a missing tenant (the issue says "follows the transport's existing rule", and no transport consumes today; the only mention of a tenancy gate in the pipeline code is a documentation example, `src/Encina/Pipeline/Ordering/PipelineStage.cs:24`). The tenant and module headers of inbound messages are designed by #1164 and #2385 and carried out for the new transports by #4363; this layer neither reads nor enforces them, and the `Headers` of the context are how that future code reads them.
 3. Health checks: the existing transport checks stay; no breaker-state check is planned (the breaker is per process).
 
 </details>
@@ -330,8 +354,8 @@ REFERENCE FILES: docs/architecture/adr/054-observability-conventions-and-trace-p
 <details>
 <summary>Tasks</summary>
 
-1. `Diagnostics/ConsumerResilienceLogMessages.cs`: `ConsumerPaused` (Warning: provider, source), `ConsumerResumed` (Information), `ConsumerHandlerRefused` (Warning: provider, source; handler not invoked), `ConsumerSubscriptionFailed` (Error: error code only), `ConsumerResumeTimerFailed` (Error: exception through `ForLogging()`). EventIds: to be assigned by the orchestrator; the issue offers the range of the #742 plan or a new one, and the #742 plan leaves ids 976-984 of `ResilienceProvider` (970-984) spare; five consecutive ids from that run when the range exists on `main`, otherwise a block assigned by the orchestrator from the 10000+ zone (AGENTS.md section 7). This plan invents no range.
-2. Instruments: Polly's `resilience.polly.*` metrics cover the strategies (ADR-055 R5); Encina adds only the number of paused subscriptions (an observable gauge), named by the convention #728 settles; tenant tag only with multi-tenancy (ADR-054 D4); no activation switch.
+1. `Diagnostics/ConsumerResilienceLogMessages.cs`: `ConsumerPaused` (Warning: provider, source), `ConsumerResumed` (Information), `ConsumerHandlerRefused` (Warning: provider, source; handler not invoked), `ConsumerSubscriptionFailed` (Error: error code only), `ConsumerResumeTimerFailed` (Error: exception through `ForLogging()`), with EventIds 976 to 980 in that order, inside the range `ResilienceProvider` (970-984) that the #742 plan registers in its PR-2 (970-975 used, 976-984 spare); a search of the registry rows 950-999 and the sibling plans #4391 and #4395 finds no other claim on 976-980. They are valid once the #742 range exists in `src/Encina/Diagnostics/EventIdRanges.cs`; this plan creates no range. The log class ships in PR-2 with the decorator, because the resume-timer callback logs its failure.
+2. Instruments (PR-3): Polly's `resilience.polly.*` metrics cover the strategies (ADR-055 R5); Encina adds only the number of paused subscriptions (an observable gauge), named by the convention #728 settles; tenant tag only with multi-tenancy (ADR-054 D4); no activation switch.
 
 </details>
 
@@ -352,9 +376,9 @@ REFERENCE FILES: src/Encina/Diagnostics/EventIdRanges.cs, docs/engineering/event
 <details>
 <summary>Tasks</summary>
 
-1. Unit (`tests/Encina.UnitTests/Resilience/Consumers/` and per transport; `FakeTimeProvider`): the decorator pauses after the threshold and resumes after the break; a transport without pause gets the refusal path; a handler `Left` that is permanent or a cancellation is not counted; the handler is never retried; the timer callback survives a throwing resume (it logs and does not throw, per the fake-clock rule of the testing guide); the consumer of each transport acknowledges on `Right` and negatively acknowledges on `Left`.
+1. Unit (`tests/Encina.UnitTests/Resilience/Consumers/` and per transport; `FakeTimeProvider`): the decorator pauses after the threshold and resumes after the break; a transport without pause gets the refusal path; a cancellation is never counted and, under the recommended counting rule of choice 9, neither is a Permanent or Unknown handler `Left`; the handler is never retried; the timer callback survives a throwing resume (it logs and does not throw, per the fake-clock rule of the testing guide); the consumer of each transport acknowledges on `Right` and negatively acknowledges on `Left`.
 2. Guard (`tests/Encina.GuardTests/`): `ResilientMessageConsumer` constructor nulls, `SubscribeAsync` null or blank `source` and null `handler`, `AddEncinaConsumerResilience` null `services`, each transport consumer constructor and extension methods; a nullable parameter that accepts null has a valid-result test, not an exception test.
-3. Contract (`tests/Encina.ContractTests/Messaging/`): the abstract `MessageConsumerContractTests` (PR-4) and one derived class per transport: each decorated consumer, against a fake that fails transiently, pauses or refuses, resumes and returns handler results.
+3. Contract (`tests/Encina.ContractTests/Messaging/`): the abstract `MessageConsumerContractTests` and a generic `FakeMessageConsumer` (PR-4) and one derived class per transport: each decorated consumer, driven by a handler that fails transiently, pauses or refuses, resumes and returns handler results. No per-transport fake is needed: the failure comes from the handler, and broker faults are covered by the integration classes. The contract and integration rows of `ResilientMessageConsumer.cs` are written in PR-4 and in the first broker PR (PR-5) respectively, the PRs that add those tests.
 4. Integration (`tests/Encina.IntegrationTests/MessageBrokers/<Transport>/`, collection fixtures, `[Trait("Category", "Integration")]`): per broker, consumption resumes after a broker restart and the breaker pauses while the dependency fails; InMemory has no infrastructure, so its integration target is 0 with that reason.
 5. Property, load, benchmark: property tests of the pause state machine are not planned (a handful of states, covered by unit tests); load and benchmark justification files (the decorator adds one executor call per message).
 
@@ -410,18 +434,9 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | AGENTS.md section 3 (timers never throw, Inbox, `EncinaError.Message`), section 5 (transports), section 9 (collection fixtures) | Rules applied in choices 4, 7 and 8 |
 | MassTransit retry and circuit-breaker filters, NServiceBus recoverability | Comparable products named by the issue |
 
-### Per-provider consumer facts (to be filled by each provider pull request)
+### SDK facts: a stated prerequisite of each provider pull request
 
-| Transport | Redelivery by the SDK | Pause mechanism | Negative acknowledgement | Exception for a closed broker | Verified |
-|-----------|-----------------------|-----------------|--------------------------|-------------------------------|----------|
-| RabbitMQ | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| Kafka | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| NATS | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| MQTT | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| AzureServiceBus | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| AmazonSQS | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| Redis.PubSub | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
-| InMemory | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR | to verify in the provider PR |
+This plan states no SDK fact: the eight consumers do not exist, and what each SDK offers is read from the SDK version the package pins. Before opening the pull request of a transport, its author answers, from that SDK, five questions and records the answers in the package README and the page of #742: does the SDK redeliver by itself and how is that turned off where Encina retries (ADR-050); how does it pause delivery (or does it have no way, which sets `SupportsPause` to false); what is its negative acknowledgement and what does the broker do with a message never acknowledged; which exception does a closed broker raise; and, for MQTT, what a quality-of-service 0 subscription loses when the handler is refused. The answers decide the `SupportsPause` value and the refusal path of choice 4 for that transport; they are inputs to the pull request, not open items of the plan.
 
 ### Existing Encina Infrastructure to Leverage
 
@@ -430,7 +445,7 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 | `IMQTTMessagePublisher.SubscribeAsync`, `IRedisPubSubMessagePublisher.SubscribeAsync`, `IInMemoryMessageBus.Subscribe` | `src/Encina.MQTT/`, `src/Encina.Redis.PubSub/`, `src/Encina.InMemory/` | The existing push shape (choice 2) |
 | `InboxPipelineBehavior`, `IdempotencyKey` | `src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs:57-108` | Deduplication (choice 7) |
 | `RecoverabilityPipelineBehavior` | `src/Encina.Messaging/Recoverability/RecoverabilityPipelineBehavior.cs` | Delayed retry and dead letter stay |
-| `IErrorClassifier` | `src/Encina/Recoverability/IErrorClassifier.cs` | Choice 6 |
+| `IErrorClassifier` | `src/Encina/Recoverability/IErrorClassifier.cs` | Choice 9 |
 | `IProviderResilience`, `ProviderResilienceOptions`, the abstract contract suite | #742 plan | The decorator's engine |
 | `ResilientSecretReaderDecorator` | `src/Encina.Security.Secrets/` | The R7 precedent |
 
@@ -438,17 +453,17 @@ REFERENCE FILES: changelog.d/README.md, .claude/skills/encina-docs/SKILL.md
 
 | Package | Range | Notes |
 |---------|-------|-------|
-| `Encina.Resilience` | to be assigned by the orchestrator | Five ids; the issue offers the range of #742 (spare 976-984 of `ResilienceProvider`) or a new one from the batch; none is invented here |
+| `Encina.Resilience` (`ResilienceProvider`, registered by #742 PR-2) | 976-980 | Five ids from the spare 976-984 of the #742 range; no registry row or sibling plan (#4391 uses 955-957, #4395 uses 917-919) claims them; no new range is created here |
 
 ### Estimated File Count
 
 | PR | Files | Content |
 |----|-------|---------|
-| PR-1 | 9 | `IMessageConsumer.cs`, `ConsumerHandler.cs`, `ConsumedMessageContext.cs`, `IConsumerSubscription.cs`, `ConsumerState.cs`, `ConsumedMessageContextTests.cs`, `ConsumedMessageContextGuardTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-2 | 12 | `ConsumerResilienceOptions.cs`, `ConsumerResilienceOptionsValidator.cs`, `ResilientMessageConsumer.cs`, `ResilientConsumerSubscription.cs`, `ConsumerResilienceServiceCollectionExtensions.cs`, decorator unit test, subscription unit test, validator unit test, DI test, guard test, `PublicAPI.Unshipped.txt`, manifest rows |
-| PR-3 | 6 | `ConsumerResilienceLogMessages.cs`, the gauge class, `ResilientMessageConsumer.cs` and `ResilientConsumerSubscription.cs` (modified, they emit), their two tests (modified); the `EventIdRanges.cs`, registry and allocation-test edits are added only if the range is new (then 9 files) |
-| PR-4 | 10 | `InMemoryMessageConsumer.cs`, `ServiceCollectionExtensions.cs` (modified), `MessageConsumerContractTests.cs` (abstract), its InMemory derived class, consumer unit, guard and DI tests, `PublicAPI.Unshipped.txt`, manifest rows, changelog fragment |
-| PR-5 to PR-11 (each) | 12 to 14 | `<Transport>MessageConsumer.cs`, `ServiceCollectionExtensions.cs` (modified), the consumer unit, guard and DI tests, the derived contract class, the integration class, `PublicAPI.Unshipped.txt`, manifest rows, README line, changelog fragment; plus a collection fixture and its collection definition for RabbitMQ, Kafka and MQTT if absent (13 to 14) |
+| PR-1 | 11 | `IMessageConsumer.cs`, `ConsumerHandler.cs`, `ConsumedMessageContext.cs`, `IConsumerSubscription.cs`, `ConsumerState.cs`, `ConsumerErrorCodes.cs`, `ConsumedMessageContextTests.cs`, `ConsumedMessageContextGuardTests.cs`, `ConsumerErrorCodesTests.cs`, `PublicAPI.Unshipped.txt`, manifest rows |
+| PR-2 | 14 | `ConsumerResilienceOptions.cs`, `ConsumerResilienceOptionsValidator.cs`, `ResilientMessageConsumer.cs`, `ResilientConsumerSubscription.cs`, `ConsumerResilienceServiceCollectionExtensions.cs`, `Diagnostics/ConsumerResilienceLogMessages.cs`, decorator unit test, subscription unit test (including the timer-failure log), validator unit test, DI test, guard test, log messages test, `PublicAPI.Unshipped.txt`, manifest rows; the `EventIdRanges.cs`, registry and allocation-test edits belong to #742 PR-2, which registers the range |
+| PR-3 | 7 | the gauge class and its test, `ResilientMessageConsumer.cs` and `ResilientConsumerSubscription.cs` (modified, they record), their two tests (modified), manifest rows (the gauge class has no public API, so no PublicAPI file) |
+| PR-4 | 12 | `InMemoryMessageConsumer.cs`, `ServiceCollectionExtensions.cs` (modified), `MessageConsumerContractTests.cs` (abstract), `FakeMessageConsumer.cs`, the InMemory derived class, consumer unit, guard and DI tests, `PublicAPI.Unshipped.txt`, manifest rows (including the contract row of `ResilientMessageConsumer.cs`), changelog fragment, `Encina.InMemory.csproj` (`ProjectReference` to `Encina.Resilience`) |
+| PR-5 to PR-11 (each) | 12 | `<Transport>MessageConsumer.cs`, `ServiceCollectionExtensions.cs` and `Encina.<Transport>.csproj` (modified; the `ProjectReference` to `Encina.Resilience`), the consumer unit, guard and DI tests, the derived contract class, the integration class, `PublicAPI.Unshipped.txt`, manifest rows, README line, changelog fragment; plus a collection fixture and its collection definition for RabbitMQ, Kafka and MQTT if absent (14). PR-5 also writes the integration row of `ResilientMessageConsumer.cs` in the same manifest edit |
 | PR-12 | 5 | feature page, two README sections, two justification `.md` (load, benchmark) |
 
 Each PR is within 15 files and 1,500 lines. Implementers and doubles: `IMessageConsumer` is new; its implementers are the eight consumers and the test fakes of the contract suite. No existing interface changes and no `new` site of an existing class changes.
@@ -460,14 +475,16 @@ Per-file targets (new files have no row on `origin/main`; the eight transport `S
 | `IMessageConsumer.cs`, `ConsumerHandler.cs`, `IConsumerSubscription.cs`, `ConsumerState.cs` | 0 | 0 | 0 | 0 | 0 | Interfaces, a delegate and an enum: no executable code |
 | `ConsumedMessageContext.cs` | 95 | 40 | 0 | 0 | 0 | One factory with three argument checks, a large share of its lines |
 | `ConsumerResilienceOptions.cs`, `ConsumerResilienceOptionsValidator.cs` | 95 | 15 | 0 | 0 | 0 | Property bag and one test per rule; the guard flag reaches the validator's null check |
-| `ResilientMessageConsumer.cs` | 90 | 20 | 80 | 0 | 50 | Every branch of choices 3 to 6 with a fake clock and fake consumer; guard reaches the constructor and `SubscribeAsync` checks; the contract suite and the brokers drive the real flows |
-| `ResilientConsumerSubscription.cs` | 90 | 15 | 0 | 0 | 0 | Pause, resume, timer failure and disposal by unit test; internal, constructed by the decorator |
+| `ConsumerErrorCodes.cs` | 90 | 0 | 0 | 0 | 0 | One constant, read by its unit test and the decorator tests |
+| `ResilientMessageConsumer.cs` | 90 (PR-2) | 20 (PR-2) | 80 (row written in PR-4) | 0 | 50 (row written in PR-5) | Every branch of choices 3 to 6 and 9 with a fake clock and fake consumer in PR-2; guard reaches the constructor and `SubscribeAsync` checks in PR-2; the contract row is set by the PR that adds the suite (PR-4) and the integration row by the first PR that adds a broker class (PR-5) |
+| `ResilientConsumerSubscription.cs` | 90 | 15 | 0 | 0 | 0 | Pause, resume, timer failure and disposal by unit test in PR-2; internal, constructed by the decorator, the guard flag reaches its constructor checks through the PR-2 guard tests |
+| The paused-subscriptions gauge class (PR-3) | 85 | 0 | 0 | 0 | 0 | Listener-based unit test in PR-3; no public parameters |
 | `ConsumerResilienceServiceCollectionExtensions.cs` | 85 | 40 | 0 | 0 | 0 | The null check is a large share of a short method; the DI test reaches the registrations |
-| `ConsumerResilienceLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Generated code; log assertions with a fake logger |
+| `ConsumerResilienceLogMessages.cs` | 85 | 0 | 0 | 0 | 0 | Generated code; log assertions with a fake logger (PR-2) |
 | `<Transport>MessageConsumer.cs` (eight) | 90 | 20 | 70 | 0 | 60 (InMemory 0) | The SDK callbacks are driven by fakes in unit tests and by the broker in integration; guard reaches constructor checks; InMemory has no infrastructure |
 | `ServiceCollectionExtensions.cs` of the transports (modified) | RabbitMQ 95, Kafka 95, NATS 85, Redis.PubSub 80, AzureServiceBus 95, AmazonSQS 85 (new row; package unit 55), MQTT 85 (new row), InMemory 85 (new row) | RabbitMQ 45, Kafka 38, NATS 55, Redis.PubSub 4, AzureServiceBus 95, AmazonSQS 30 (new row), MQTT 30 (new row), InMemory 30 (new row) | 0 | 0 | AzureServiceBus 90, Redis.PubSub 95, AmazonSQS 55, others 0 | Quoted from the manifests on `origin/main`, kept and never lowered: RabbitMQ unit 95 and guard 45; Kafka 95 and 38; NATS 85 and 55; Redis.PubSub unit 80, guard 4, integration 95; AzureServiceBus unit 95, guard 95, integration 90; AmazonSQS integration 55 (its row has no unit or guard value; package targets unit 55, guard 15). MQTT and InMemory have no per-file row (package targets: unit 55, guard 15), so rows are added for them and for the AmazonSQS unit and guard flags with the numbers shown |
 
-CRAP of each added method is at most 10 (the decorator splits choices 3 to 6 into one small method each).
+CRAP of each added method is at most 10 (the decorator splits choices 3 to 6 and 9 into one small method each).
 
 ---
 
@@ -481,7 +498,7 @@ PROJECT CONTEXT: Encina (pre-1.0, .NET 10, C# 14). Issue #4392: consumer-side re
 
 IMPLEMENTATION OVERVIEW: (1) IMessageConsumer and its contract types in Encina.Messaging; (2) ResilientMessageConsumer, subscription wrapper, options and registration in Encina.Resilience; (3) one consumer per transport with keyed registration and an order-independent resilience extension; (4) log messages and a paused-subscriptions gauge; (5) unit, guard, DI, contract (abstract suite plus one class per transport) and integration tests; (6) documentation and fragments.
 
-KEY PATTERNS: Right acknowledges and Left asks for the native negative acknowledgement; the consumer layer never retries the handler; only transient failures count; cancellation propagates and is never a Left; timer callbacks never throw; no message bodies or ids in logs; no tenant key; the Inbox deduplicates on the message id; specialists for PublicAPI, changelog, manifest and docs.
+KEY PATTERNS: Right acknowledges and Left asks for the native negative acknowledgement; the consumer layer never retries the handler; the counting rule of choice 9; cancellation propagates, is never counted and is never a Left; timer callbacks never throw; no message bodies or ids in logs; no tenant key; the Inbox deduplicates on the message id; specialists for PublicAPI, changelog, manifest and docs.
 
 REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, docs/architecture/adr/055-resilience-family.md, src/Encina.Messaging/Inbox/InboxPipelineBehavior.cs
 ```
@@ -496,14 +513,14 @@ REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, doc
 |---|----------|--------|-------|
 | 1 | Caching | ❌ | Not applicable |
 | 2 | OpenTelemetry | ✅ | Polly's instruments through R5, a paused-subscriptions gauge, tenant tag only with multi-tenancy; names from #728 |
-| 3 | Structured Logging | ✅ | Five definitions; EventIds to be assigned by the orchestrator |
+| 3 | Structured Logging | ✅ | Five definitions, EventIds 976-980 of the #742 range |
 | 4 | Health Checks | ⏭️ | Per-transport health checks exist or are planned separately (the transport plans); no breaker-state check here |
 | 5 | Validation | ✅ | Options validated at startup |
 | 6 | Resilience | ✅ | The feature |
 | 7 | Distributed Locks | ❌ | Not applicable: the breaker is per process |
 | 8 | Transactions | ❌ | Not applicable |
 | 9 | Idempotency | ✅ | The Inbox deduplicates on the message id surfaced by the context (choice 7) |
-| 10 | Multi-Tenancy | ✅ | Tenant tag only with multi-tenancy; headers carry tenant metadata; denial of a tenant-less message is the pipeline's tenancy behavior (fail closed), no tenant-qualified key here |
+| 10 | Multi-Tenancy | ✅ | Tenant tag only with multi-tenancy; headers carry tenant metadata for the dispatching code; no component of `src/` denies a tenant-less inbound message today (a gap owned by #1164, #2385 and #4363, see Phase 4); no tenant-qualified key here |
 | 11 | Module Isolation | ❌ | Not applicable |
 | 12 | Audit Trail | ❌ | Not applicable |
 
@@ -513,10 +530,10 @@ REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, doc
 
 | Prerequisite | State | Effect |
 |--------------|-------|--------|
-| #742 implementation (executor, contract suite, `ResilienceProvider` range) | Plan on `main`; not implemented | Blocks PR-2 onward; the executor must be able to run an operation without retry (its choice 11 needs the same) |
-| #4380 (`Encina.Resilience`) and #4382 (token and deadline) | Plans open (PRs #4388 and #4387); not implemented | Block #742, hence this plan |
+| #742 implementation (executor, contract suite, `ResilienceProvider` range 970-984, registered by its PR-2) | Plan on `main`; not implemented | Blocks PR-2 onward; the executor must be able to run an operation without retry (its choice 11 needs the same) |
+| #4380 (`Encina.Resilience`) and #4382 (token and deadline) | Plans on `main`; not implemented | Block #742, hence this plan |
 | The maintainer's answers to choices 1 and 2 | Pending | Block PR-1 |
-| #239, #240, #241, #242 (planned transports' consumer surfaces) | Plans on `main`; none implemented | They adopt PR-1's contracts when they land; their decorators are #4393 |
+| #239, #240, #241, #242 (planned transports' consumer surfaces) | Plans on `main`; none implemented | #4393 owns their consumer adoption and consumer resilience registration (its consumer PRs wait for this plan's PR-1 to PR-4) |
 | #728 and #725 (telemetry names and transport telemetry) | Plans on `main`; choices pending | Gauge name and tags |
 | Integration fixtures for RabbitMQ, Kafka, MQTT | Counted in the provider PR if absent | #742 Phase 6 task 5 says the same |
 
@@ -525,5 +542,5 @@ REFERENCE FILES: docs/plans/transport-resilience-implementation-plan-742.md, doc
 ## Next Steps
 
 1. Commit this plan, open its PR and link it from #4392.
-2. When #4392 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 4).
+2. When #4392 is picked up, re-check the choices against today's code and ask the maintainer about the Dilemmas (choices 1 to 4, 7, 8 and 9).
 3. Brief workers for PR-1 to PR-12 in order, after #4380, #4382 and the #742 implementation are merged.
