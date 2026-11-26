@@ -44,12 +44,12 @@ Every field of `EventIdRanges.cs`. Zone is `historical` below 10000 and `zone` i
 | Tenancy | 10600-10699 | Core and messaging | zone |
 | DomainModelingDomainEvents | 11250-11299 | Core and messaging | zone |
 | TenancyAspNetCore | 11750-11799 | Core and messaging | zone |
-| ModuleIsolation | 1900-1999 | Core and messaging | historical |
-| MessagingOutbox | 2000-2099 | Core and messaging | historical |
-| MessagingInbox | 2100-2199 | Core and messaging | historical |
-| MessagingSaga | 2200-2299 | Core and messaging | historical |
-| MessagingScheduling | 2300-2399 | Core and messaging | historical |
-| IdGeneration | 8030-8099 | Core and messaging | historical |
+| ModuleIsolation | 10700-10799 | Core and messaging | zone |
+| MessagingOutbox | 10800-10899 | Core and messaging | zone |
+| MessagingInbox | 10900-10999 | Core and messaging | zone |
+| MessagingSaga | 11000-11099 | Core and messaging | zone |
+| MessagingScheduling | 11100-11199 | Core and messaging | zone |
+| IdGeneration | 12100-12199 | Core and messaging | zone |
 | Messaging | 2800-2999 | Core and messaging | historical |
 | MessagingRecoverability | 5450-5499 | Core and messaging | historical |
 | MessagingEncryption | 2450-2499 | Core and messaging | historical |
@@ -296,11 +296,11 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 10400-10499 | Core and messaging | #4007 DomainModelingSpecification (CM-2) | registered |
 | 10500-10599 | Core and messaging | #4007 DomainModelingAudit (CM-2) | registered |
 | 10600-10699 | Core and messaging | #4007 Tenancy (CM-2) | registered |
-| 10700-10799 | Core and messaging | #4007 ModuleIsolation (CM-3) | reserved |
-| 10800-10899 | Core and messaging | #4007 MessagingOutbox (CM-3) | reserved |
-| 10900-10999 | Core and messaging | #4007 MessagingInbox (CM-3) | reserved |
-| 11000-11099 | Core and messaging | #4007 MessagingSaga (CM-3) | reserved |
-| 11100-11199 | Core and messaging | #4007 MessagingScheduling (CM-3) | reserved |
+| 10700-10799 | Core and messaging | #4007 ModuleIsolation (CM-3) | registered |
+| 10800-10899 | Core and messaging | #4007 MessagingOutbox (CM-3) | registered |
+| 10900-10999 | Core and messaging | #4007 MessagingInbox (CM-3) | registered |
+| 11000-11099 | Core and messaging | #4007 MessagingSaga (CM-3) | registered |
+| 11100-11199 | Core and messaging | #4007 MessagingScheduling (CM-3) | registered |
 | 11200-11249 | Core and messaging | #4007 MessagingEncryption (CM-5) | reserved |
 | 11250-11299 | Core and messaging | #4007 DomainModelingDomainEvents (CM-2) | registered |
 | 11300-11349 | Core and messaging | #4007 AuditMarten (CM-6) | reserved |
@@ -312,7 +312,7 @@ Every block a plan reserved. Blocks below 10000 were recorded before the 10000+ 
 | 11950-11999 | Core and messaging | #4007 CdcDebezium (CM-5) | reserved |
 | 12000-12049 | Core and messaging | #4007 CdcMySql (CM-5) | reserved |
 | 12050-12099 | Core and messaging | #4007 MessagingRecoverability (CM-4) | reserved |
-| 12100-12199 | Core and messaging | #4007 IdGeneration (CM-3) | reserved |
+| 12100-12199 | Core and messaging | #4007 IdGeneration (CM-3) | registered |
 | 20000-20099 | Database | #4007 EntityFrameworkCoreSoftDelete (DB-1) | reserved |
 | 20100-20149 | Database | #4007 EntityFrameworkCoreQueryCache (DB-1) | reserved |
 | 20150-20249 | Database | #4007 EntityFrameworkCore (DB-1) | reserved |
@@ -399,7 +399,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| (existing ranges) | MessagingSaga 2206; Messaging 2971-2972 (verified free on main 2026-11-12) | #736 |
+| (existing ranges) | MessagingSaga 11006; Messaging 2971-2972 (verified free on main 2026-11-12) | #736 |
 | AspNetCore 200-249 | 208-211 | #3443 |
 | AspNetCore 200-249 | 212-217 | #710 |
 | AspNetCore 200-249 | 218-225 | #2229 |
@@ -426,7 +426,7 @@ Plans claim single ids inside a range a package already owns. These claims are n
 | (new range) ComplianceNIS2Governance 7470-7499 | #827 (NIS2 sibling of #822); the #827 plan registers the range and uses ids from 7470 up | assigned 2026-11-13 |
 | DPIA | 8792-8794 #813, 8897-8899 #1243, 8849 free | |
 | LawfulBasis | 8387-8390 #815 | |
-| MessagingScheduling 2300-2399 | 2326-2389 (#1222, #146, #150, #133, #147) | |
+| MessagingScheduling 11100-11199 | 11126-11189 (#1222, #146, #150, #133, #147) | |
 | FeatureFlags (new, #604) | 7300-7349: #604 owns the range; #300 7306-7309, #345 7310-7315, #451 7330-7339, #607 ServiceDiscovery 7340-7349 | |
 | Family blocks used | 6900-6949 (#582 6900-6914, #585 6925-6934, #586 6935-6949); 6950-6979 #277; 7100-7119 #633; 7250-7299 es-snapshots (#320, #323, #324, #326, #535); 6650-6689 (#135, #2013); 6550-6599 (#1248, #1242, #1240, #1241) | |
 
@@ -448,8 +448,8 @@ Plans claim single ids inside a range a package already owns. These claims are n
 
 | Range | Ids | Plan |
 | --- | --- | --- |
-| Messaging outbox | 2007-2009 | #737 |
-| Messaging inbox | 2113-2115 | #760 |
+| Messaging outbox | 10807-10809 | #737 |
+| Messaging inbox | 10913-10915 | #760 |
 | Polly | 3922-3924 | #740 |
 
 ### observability-core-1 / misc-startup claims inside existing ranges (2026-11-18)
